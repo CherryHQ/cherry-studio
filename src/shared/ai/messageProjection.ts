@@ -1,7 +1,7 @@
 import { isEqual, omit } from 'es-toolkit'
 
+import type { ExecutionId } from '@shared/ai/executionIdentity'
 import type { CherryUIMessage } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
 
 export type ProjectionTarget =
   | { kind: 'topic'; topicId: string }
@@ -17,7 +17,7 @@ export interface ChildProjectionState {
 }
 
 export interface ProjectedExecution {
-  executionId: UniqueModelId
+  executionId: ExecutionId
   attemptId: number
   userMessageId?: string
   anchorMessageId?: string

@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { PassThrough } from 'node:stream'
 
+import { MockMainPreferenceServiceExport } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle'
@@ -163,6 +164,7 @@ describe('DeepSeekHarnessService', () => {
           getCurrentConfig: mocks.gatewayGetConfig
         }
       }
+      if (name === 'PreferenceService') return MockMainPreferenceServiceExport.preferenceService
       if (name === 'IpcApiService') return { broadcast: mocks.broadcast }
       if (name === 'CacheService') return { setShared: mocks.setShared }
       throw new Error(`Unexpected application.get(${name})`)
@@ -172,7 +174,9 @@ describe('DeepSeekHarnessService', () => {
     mocks.modelGet.mockReturnValue(model)
     mocks.writeConfig.mockResolvedValue({
       credentials: { path: '/mock/home/.dsh/.credentials.yaml', written: 'written credentials' },
-      settings: { path: '/mock/home/.dsh/settings.yaml', written: 'written settings' }
+      settings: { path: '/mock/home/.dsh/settings.yaml', written: 'written settings' },
+      profile: { path: '/mock/home/.dsh/cordis.patch.yml', written: 'written profile' },
+      headless: { path: '/mock/home/.dsh/profiles/headless/cordis.patch.yml', written: 'written headless profile' }
     })
     mocks.rollbackConfig.mockResolvedValue(true)
     mocks.gatewayStart.mockResolvedValue(undefined)
@@ -205,6 +209,19 @@ describe('DeepSeekHarnessService', () => {
     })
     return child
   }
+
+  it('rejects raw configuration writes while its managed service is running', async () => {
+    spawnChild((child) => child.stdout.write('dsh web: http://127.0.0.1:43123\n'))
+    const service = new DeepSeekHarnessService()
+    await service.start(startInput)
+    const write = vi.fn(async () => undefined)
+    try {
+      await expect(service.writeConfigFiles(write)).rejects.toThrow('DeepSeek Harness')
+      expect(write).not.toHaveBeenCalled()
+    } finally {
+      await service.stop()
+    }
+  })
 
   it('serializes concurrent starts into one child and confirms the ready URL with HTTP 200', async () => {
     spawnChild((child) => child.stdout.write('dsh web: http://127.0.0.1:43123\n'))
@@ -359,6 +376,17 @@ describe('DeepSeekHarnessService', () => {
     expect(mocks.spawn.mock.calls[1][2].env).toHaveProperty('DSH_PERMISSION_MODE', 'read-only')
     expect(secondChild.exitCode).toBeNull()
     await service.stop()
+  })
+
+  it('applies native defaults without starting a WebUI process', async () => {
+    const service = new DeepSeekHarnessService()
+    await service.applyModel(startInput)
+    expect(mocks.writeConfig).toHaveBeenCalledWith(
+      '/mock/home/.dsh',
+      expect.objectContaining({ modelId: 'claude-sonnet' })
+    )
+    expect(mocks.spawn).not.toHaveBeenCalled()
+    expect(service.getStatus()).toEqual({ status: 'stopped' })
   })
 
   it('uses an enabled API key obtained through CherryIN-style OAuth in direct mode', async () => {

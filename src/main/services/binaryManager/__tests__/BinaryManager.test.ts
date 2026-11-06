@@ -906,6 +906,50 @@ describe('BinaryManager', () => {
       })
     })
 
+    it.each([false, true])(
+      'does not mistake application dependencies for a system CLI (system installed: %s)',
+      async (installed) => {
+        const service = new BinaryManager()
+        ;(service as any).miseBin = '/mock/mise'
+        const bundledBin = path.join(application.getPath('app.root'), 'node_modules', '.bin')
+        const systemBin = '/usr/local/bin'
+        vi.mocked(getRawShellEnv).mockResolvedValue({ PATH: [bundledBin, systemBin].join(path.delimiter) })
+        vi.mocked(findCommandInShellEnv).mockImplementation(async (name, env) =>
+          name !== 'pi'
+            ? null
+            : env.PATH.split(path.delimiter).includes(bundledBin)
+              ? path.join(bundledBin, 'pi')
+              : installed && env.PATH.split(path.delimiter).includes(systemBin)
+                ? path.join(systemBin, 'pi')
+                : null
+        )
+        const { pi } = await service.getToolSnapshots(['pi'])
+        expect(pi.availability).toEqual(
+          installed ? { source: 'system', path: path.join(systemBin, 'pi') } : { source: 'none' }
+        )
+      }
+    )
+
+    it('uses a system CLI over a legacy managed copy while preserving cleanup metadata', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockFs.existsSync.mockReturnValue(true)
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => ({
+        stdout:
+          args[0] === 'ls'
+            ? JSON.stringify({ codex: [{ version: '1.0.0', active: true }] })
+            : '/mock/mise/installs/codex/1.0.0/bin/codex\n',
+        stderr: ''
+      }))
+      vi.mocked(findCommandInShellEnv).mockImplementation(async (name: string) =>
+        name === 'codex' ? '/usr/local/bin/codex' : null
+      )
+      const { codex } = await service.getToolSnapshots(['codex'])
+      expect(codex.availability).toEqual({ source: 'system', path: '/usr/local/bin/codex' })
+      expect(codex.application).toEqual({ status: 'applied', version: '1.0.0' })
+    })
+
     it('matches a non-runtime fixed recipe when mise reports its core-prefixed identity', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
@@ -2103,23 +2147,6 @@ describe('BinaryManager', () => {
     })
   })
 
-  describe('fixed definition resolution', () => {
-    it('resolves preset and Code CLI definitions from the code-owned catalog', () => {
-      const service = new BinaryManager()
-
-      expect((service as any).resolveFixedDefinition('uv')).toEqual({ name: 'uv', tool: 'uv' })
-      expect((service as any).resolveFixedDefinition('claude')).toEqual({ name: 'claude', tool: 'claude' })
-      expect((service as any).resolveFixedDefinition('gemini')).toEqual({
-        name: 'gemini',
-        tool: 'npm:@google/gemini-cli'
-      })
-    })
-
-    it('returns undefined for a non-fixed name', () => {
-      expect((new BinaryManager() as any).resolveFixedDefinition('mytool')).toBeUndefined()
-    })
-  })
-
   describe('applyDefinition (extracted install/claim primitive)', () => {
     it('claims a ready runtime at its live version without persisting', async () => {
       const service = new BinaryManager()
@@ -2729,107 +2756,9 @@ describe('BinaryManager', () => {
       expect(miseArgs()).not.toContainEqual(['use', '-g', 'core:node@20.0.0', 'npm:mytool@latest'])
     })
 
-    it('pins an exact healthy Node and puts its npm ahead of ambient PATH for DeepSeek Harness', async () => {
-      const service = makeService()
-      let installed = false
-      ;(service as any).isolatedEnv = {
-        env: { PATH: ['/mock/mise/shims', '/usr/bin'].join(path.delimiter) },
-        usesDefaultChinaPipIndex: false
-      }
-      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
-        if (args[0] === 'latest') return { stdout: '22.23.2\n', stderr: '' }
-        if (args[0] === 'ls' && args.length === 2) {
-          return {
-            stdout: JSON.stringify(
-              installed ? { 'npm:@deepseek-ai/dsh': [{ version: '0.1.0-rc.6', active: true }] } : {}
-            ),
-            stderr: ''
-          }
-        }
-        if (args[0] === 'ls') {
-          return {
-            stdout: JSON.stringify({ 'npm:@deepseek-ai/dsh': [{ version: '0.1.0-rc.6', active: true }] }),
-            stderr: ''
-          }
-        }
-        if (args.includes('npm:@deepseek-ai/dsh@latest')) installed = true
-        if (args[0] === 'which' && args[1] === 'node') {
-          return { stdout: `${path.join(NODE_RUNTIME_BIN, 'node')}\n`, stderr: '' }
-        }
-        if (args[0] === 'which' && args[1] === 'npm') {
-          return { stdout: `${path.join(NODE_RUNTIME_BIN, 'npm')}\n`, stderr: '' }
-        }
-        if (args[0] === 'which') return { stdout: '/mock/mise/shims/dsh\n', stderr: '' }
-        return { stdout: '', stderr: '' }
-      })
-
-      await service.installByName({ name: 'dsh' })
-
-      const useCalls = mockExecFileAsync.mock.calls.filter((call: any[]) => call[1][0] === 'use')
-      expect(useCalls.map((call: any[]) => call[1])).toEqual([
-        ['use', '-g', '--pin', 'node@22.23.2'],
-        ['use', '-g', '--minimum-release-age', '0s', 'npm:@deepseek-ai/dsh@latest']
-      ])
-      expect(mockExecFileAsync.mock.calls.map((call: any[]) => call[1])).toContainEqual([
-        'latest',
-        '--minimum-release-age',
-        '0s',
-        'node@22'
-      ])
-      expect(useCalls[0]?.[2].env).not.toHaveProperty('MISE_NPM_SHELL_OUT')
-      expect(useCalls[1]?.[2].env).toMatchObject({
-        PATH: [NODE_RUNTIME_BIN, '/mock/mise/shims', '/usr/bin'].join(path.delimiter),
-        MISE_PRERELEASES: '1',
-        MISE_NPM_SHELL_OUT: '1',
-        MISE_NPM_PACKAGE_MANAGER: 'npm'
-      })
-      expect(mockExecFileAsync.mock.calls.map((call: any[]) => call[1])).not.toContainEqual([
-        'install',
-        '--force',
-        'node@22.23.2'
-      ])
-    })
-
-    it('repairs an applied DeepSeek Harness whose required scope package is missing', async () => {
-      const service = makeService()
-      let reinstalled = false
-      ;(service as any).isolatedEnv = {
-        env: { PATH: ['/mock/mise/shims', '/usr/bin'].join(path.delimiter) },
-        usesDefaultChinaPipIndex: false
-      }
-      mockCreateRequire.mockImplementation(() => ({
-        resolve: (request: string) => {
-          if (request === '@deepseek-ai/dsh-agent-loop') return '/mock/dsh-agent-loop/lib/index.js'
-          if (request === '@deepseek-ai/dsh-scope' && !reinstalled) {
-            throw Object.assign(new Error(`Cannot find package ${request}`), { code: 'MODULE_NOT_FOUND' })
-          }
-          if (request === '@deepseek-ai/dsh-scope') return '/mock/dsh-scope/lib/index.js'
-          throw new Error(`Unexpected package resolution: ${request}`)
-        }
-      }))
-      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
-        if (args[0] === 'latest') return { stdout: '22.23.2\n', stderr: '' }
-        if (args[0] === 'ls') {
-          return {
-            stdout: JSON.stringify({ 'npm:@deepseek-ai/dsh': [{ version: '0.1.1-rc.2', active: true }] }),
-            stderr: ''
-          }
-        }
-        if (args.includes('npm:@deepseek-ai/dsh@latest')) reinstalled = true
-        if (args[0] === 'which' && args[1] === 'node') {
-          return { stdout: `${path.join(NODE_RUNTIME_BIN, 'node')}\n`, stderr: '' }
-        }
-        if (args[0] === 'which' && args[1] === 'npm') {
-          return { stdout: `${path.join(NODE_RUNTIME_BIN, 'npm')}\n`, stderr: '' }
-        }
-        if (args[0] === 'which') return { stdout: '/mock/dsh/lib/bin.js\n', stderr: '' }
-        return { stdout: '', stderr: '' }
-      })
-
-      await expect(service.installByName({ name: 'dsh' })).resolves.toBeUndefined()
-
-      expect(reinstalled).toBe(true)
-      expect(miseArgs()).toContainEqual(['use', '-g', '--minimum-release-age', '0s', 'npm:@deepseek-ai/dsh@latest'])
+    it('refuses managed installation of Code Mate CLIs', async () => {
+      await expect(makeService().installByName({ name: 'dsh' })).rejects.toThrow('system installer')
+      expect(miseArgs()).toEqual([])
     })
   })
 

@@ -197,6 +197,18 @@ export async function diagnoseError(
   language: string,
   context?: DiagnosisContext
 ): Promise<DiagnosisResult> {
+  if (
+    /pi-ai provider .* has no configured model|no_adapter: no adapter registered for provider/i.test(
+      error.message ?? ''
+    )
+  ) {
+    return {
+      category: 'model',
+      summary: i18n.t('error.diagnosis.native_model.summary'),
+      explanation: i18n.t('error.diagnosis.native_model.explanation'),
+      steps: [{ text: i18n.t('error.diagnosis.native_model.step') }]
+    }
+  }
   const errorBag = error as Record<string, unknown>
   const errorInfo: Record<string, unknown> = {
     name: error.name,

@@ -171,6 +171,7 @@
     "ppu-paddle-ocr": "6.0.0",
     "quickjs-wasi": "3.6.2",
     "range-parser": "1.2.1",
+    "read-cmd-shim": "^6.0.0",
     "registry-js": "1.16.1",
     "selection-hook": "2.1.2",
     "sharp": "0.35.3",
@@ -181,6 +182,7 @@
     "ws": "^8.21.0"
   },
   "devDependencies": {
+    "@agentclientprotocol/sdk": "^1.5.0",
     "@ai-sdk/amazon-bedrock": "^4.0.96",
     "@ai-sdk/anthropic": "^3.0.125",
     "@ai-sdk/azure": "^3.0.116",
@@ -339,6 +341,7 @@
     "@types/stream-json": "^1",
     "@types/tinycolor2": "^1",
     "@types/turndown": "^5.0.5",
+    "@types/unbzip2-stream": "^1.4.3",
     "@types/unist": "3.0.3",
     "@types/use-sync-external-store": "^0.0.6",
     "@types/uuid": "^10.0.0",
@@ -528,6 +531,7 @@
     "turndown-plugin-gfm": "^1.0.2",
     "tw-animate-css": "^1.3.8",
     "typescript": "5.9.3",
+    "unbzip2-stream": "^1.4.3",
     "undici": "6.27.0",
     "unified": "^11.0.5",
     "unist-util-visit": "5.0.0",

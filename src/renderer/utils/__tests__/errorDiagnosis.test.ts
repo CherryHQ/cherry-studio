@@ -7,9 +7,17 @@ vi.mock('@renderer/utils/aiGeneration', () => ({
   fetchGenerate: vi.fn()
 }))
 
-vi.mock('@renderer/i18n/resolver', () => ({
-  default: { t: () => 'Free diagnosis model is unavailable' }
-}))
+vi.mock('@renderer/i18n/resolver', async () => {
+  const { default: translations } = await import('@renderer/i18n/locales/en-us.json')
+  return {
+    default: {
+      t: (key: string) =>
+        key.startsWith('error.diagnosis.native_model.')
+          ? translations[key as keyof typeof translations]
+          : 'Free diagnosis model is unavailable'
+    }
+  }
+})
 
 // `readDefaultModel` now reads from preferenceService + dataApiService, not Redux.
 // Mock the boundary directly so tests can stage the value without rewiring v2 data.
@@ -65,6 +73,18 @@ describe('ErrorDiagnosisService', () => {
   })
 
   describe('diagnoseError', () => {
+    it.each([
+      'pi-ai provider "native-route" has no configured model "glm-5"',
+      'NO_ADAPTER: no adapter registered for provider "native-route"'
+    ])('diagnoses the native CLI catalog rather than Cherry model settings: %s', async (message) => {
+      const result = await diagnoseError(makeError({ message }), 'en')
+      expect(result.category).toBe('model')
+      expect(result.explanation).toContain('native configuration')
+      expect(result.explanation).toContain('does not mean the model is missing from Cherry Studio')
+      expect(result.steps[0].text).toContain('CLI')
+      expect(mockFetchGenerate).not.toHaveBeenCalled()
+    })
+
     it.each([
       [
         `service_tier auto is not available for this org. You can check your plan at

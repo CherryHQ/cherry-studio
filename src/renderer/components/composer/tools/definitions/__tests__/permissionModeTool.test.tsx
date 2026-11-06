@@ -1,7 +1,7 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { TFunction } from 'i18next'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { QuickPanelRow } from '@renderer/components/QuickPanel'
@@ -45,6 +45,11 @@ const renderLauncher = () => {
 const renderRuntime = () => renderLauncher()?.submenu ?? []
 
 describe('permissionModeTool submenu', () => {
+  afterEach(async () => {
+    cleanup()
+    // Radix restores focus in a deferred task, before this jsdom environment is disposed.
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
+  })
   beforeEach(() => {
     mocks.registerLaunchers.mockClear()
     mocks.updateAgent.mockClear()

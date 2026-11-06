@@ -62,6 +62,22 @@ describe('useOpenClawGatewayController', () => {
     vi.restoreAllMocks()
   })
 
+  it('offers stop capability only when main reports a Cherry-owned Gateway', () => {
+    cacheService.setShared('feature.openclaw.gateway_status', 'running')
+    cacheService.setShared('feature.openclaw.gateway_owned', false)
+    const { result } = renderHook(() =>
+      useOpenClawGatewayController({
+        selectedCliTool: CodeCli.OPENCLAW,
+        upsertProviderConfig: vi.fn(),
+        setCurrentProvider: vi.fn()
+      })
+    )
+    expect(result.current.running).toBe(true)
+    expect(result.current.canStop).toBe(false)
+    act(() => cacheService.setShared('feature.openclaw.gateway_owned', true))
+    expect(result.current.canStop).toBe(true)
+  })
+
   it('adds a fresh navigation revision while preserving the dashboard token fragment', async () => {
     mocks.requestMock.mockImplementation((route: string) => {
       if (route === 'openclaw.get_status') return Promise.resolve({ status: 'running' })
@@ -90,6 +106,37 @@ describe('useOpenClawGatewayController', () => {
     expect(dashboardUrl.hash).toBe('#token=secret')
   })
 
+  it.each([true, false])(
+    'registers the WebUI interest before opening a chat-started gateway (success=%s)',
+    async (success) => {
+      const actions: string[] = []
+      mocks.requestMock.mockImplementation(async (route: string) => {
+        if (route === 'openclaw.start_gateway') {
+          actions.push('retain')
+          return { success, message: 'Gateway unavailable' }
+        }
+        if (route === 'openclaw.get_dashboard_url') {
+          actions.push('open')
+          return 'http://localhost:18790'
+        }
+        return { status: 'running' }
+      })
+      const { result } = renderHook(() =>
+        useOpenClawGatewayController({
+          selectedCliTool: CodeCli.OPENCLAW,
+          upsertProviderConfig: vi.fn(),
+          setCurrentProvider: vi.fn()
+        })
+      )
+      await act(async () => {
+        await result.current.onOpenDashboard()
+      })
+      expect(actions).toEqual(success ? ['retain', 'open'] : ['retain'])
+      expect(mocks.openSmartMiniApp.mock.calls).toHaveLength(success ? 1 : 0)
+      expect(result.current.launching).toBe(false)
+    }
+  )
+
   // Regression: the standalone OpenClaw page used to read `feature.openclaw.gateway_port`
   // and forward it to `start_gateway`; that wiring was dropped when the controller moved here,
   // silently pinning every launch to the gateway's hardcoded default port.
@@ -111,6 +158,7 @@ describe('useOpenClawGatewayController', () => {
     })
 
     expect(mocks.requestMock).toHaveBeenCalledWith('openclaw.start_gateway', { port: 18888 })
+    expect(mocks.openSmartMiniApp).not.toHaveBeenCalled()
 
     act(() => cacheService.setShared('feature.openclaw.gateway_status', 'running'))
     expect(result.current.running).toBe(true)

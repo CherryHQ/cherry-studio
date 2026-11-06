@@ -2,18 +2,16 @@ import type { ComponentProps, FC } from 'react'
 import { Fragment } from 'react'
 
 import { ConfirmDialog } from '@cherrystudio/ui'
+import { AgentTerminalDialog } from '@renderer/components/localAgent/AgentTerminalDialog'
 
 import { CodeCliContentPanel } from './CodeCliContentPanel'
-import { CodeCliSidebar } from './CodeCliSidebar'
 import { ConfigEditPanel } from './configEditPanel/ConfigEditPanel'
 import { OwnLoginConfigPanel } from './configEditPanel/OwnLoginConfigPanel'
-import { LaunchDialog } from './LaunchDialog'
 
 export interface CodeCliPageViewProps {
-  sidebarProps: ComponentProps<typeof CodeCliSidebar>
   contentProps?: ComponentProps<typeof CodeCliContentPanel>
   emptyMessage: string
-  launchDialogProps: ComponentProps<typeof LaunchDialog>
+  launchDialogProps: ComponentProps<typeof AgentTerminalDialog>
   removeDialogProps: ComponentProps<typeof ConfirmDialog>
   configPanelKey?: string
   configPanelProps?: ComponentProps<typeof ConfigEditPanel>
@@ -21,7 +19,6 @@ export interface CodeCliPageViewProps {
 }
 
 export const CodeCliPageView: FC<CodeCliPageViewProps> = ({
-  sidebarProps,
   contentProps,
   emptyMessage,
   launchDialogProps,
@@ -33,8 +30,6 @@ export const CodeCliPageView: FC<CodeCliPageViewProps> = ({
   return (
     <div data-ui="code.view" className="flex h-full min-h-0 flex-1 flex-col overflow-hidden text-foreground">
       <div className="flex min-h-0 flex-1">
-        <CodeCliSidebar {...sidebarProps} />
-
         <div data-ui="code.content" className="flex min-h-0 min-w-0 flex-1 flex-col">
           {contentProps ? (
             <CodeCliContentPanel {...contentProps} />
@@ -46,7 +41,27 @@ export const CodeCliPageView: FC<CodeCliPageViewProps> = ({
         </div>
       </div>
 
-      <LaunchDialog {...launchDialogProps} />
+      <CodeCliDialogs
+        launchDialogProps={launchDialogProps}
+        removeDialogProps={removeDialogProps}
+        configPanelKey={configPanelKey}
+        configPanelProps={configPanelProps}
+        ownLoginConfigPanelProps={ownLoginConfigPanelProps}
+      />
+    </div>
+  )
+}
+
+export function CodeCliDialogs({
+  launchDialogProps,
+  removeDialogProps,
+  configPanelKey,
+  configPanelProps,
+  ownLoginConfigPanelProps
+}: Omit<CodeCliPageViewProps, 'contentProps' | 'emptyMessage'>) {
+  return (
+    <>
+      <AgentTerminalDialog {...launchDialogProps} />
       <ConfirmDialog {...removeDialogProps} />
       {configPanelProps && (
         <Fragment key={configPanelKey}>
@@ -58,6 +73,6 @@ export const CodeCliPageView: FC<CodeCliPageViewProps> = ({
           <OwnLoginConfigPanel {...ownLoginConfigPanelProps} />
         </Fragment>
       )}
-    </div>
+    </>
   )
 }

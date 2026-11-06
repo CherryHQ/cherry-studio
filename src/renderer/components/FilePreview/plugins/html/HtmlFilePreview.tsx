@@ -19,6 +19,7 @@ import { toSafeFileUrl } from '@shared/utils/file'
 import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import type { FilePreviewPluginProps } from '../../types'
+import TextFilePreview from '../text/TextFilePreview'
 import { type HtmlFilePreviewMode, HtmlFilePreviewToolbar } from './HtmlFilePreviewToolbar'
 
 const logger = loggerService.withContext('HtmlFilePreview')
@@ -129,7 +130,15 @@ function HtmlPreviewContent({ loadState, fileName, baseUrl, mode }: HtmlPreviewC
   )
 }
 
-export default function HtmlFilePreview({
+export default function HtmlFilePreview(props: FilePreviewPluginProps) {
+  const { sourceLocation } = props
+  if (sourceLocation && Number.isInteger(sourceLocation.line) && sourceLocation.line > 0) {
+    return <TextFilePreview {...props} />
+  }
+  return <HtmlRenderedPreview {...props} />
+}
+
+function HtmlRenderedPreview({
   filePath,
   fileName,
   metadata,

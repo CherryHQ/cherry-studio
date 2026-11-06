@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 /**
  * @fileoverview DataApiService - API client for data requests (Renderer Process)
  *
@@ -28,8 +29,6 @@
  * @see {@link DataApiService} Main process coordinator
  * @see {@link useDataApi} React hook for data requests
  */
-
-import { loggerService } from '@logger'
 import type { RequestContext } from '@shared/data/api/errors'
 import { DataApiError, DataApiErrorFactory, ErrorCode, toDataApiError } from '@shared/data/api/errors'
 import type { BodyForPath, QueryParamsForPath, ResponseForPath } from '@shared/data/api/paths'
@@ -139,7 +138,7 @@ export class DataApiService implements ApiClient {
     }
 
     try {
-      logger.debug(`Making ${request.method} request to ${request.path}`, { request })
+      logger.debug(`Making ${request.method} request to ${request.path}`, { requestId: request.id })
 
       const timeoutMs = readDeadline === undefined ? REQUEST_TIMEOUT_MS : Math.max(0, readDeadline - Date.now())
       if (timeoutMs === 0) {
@@ -260,7 +259,7 @@ export class DataApiService implements ApiClient {
       }
     }
 
-    logger.debug(`Making ${method} request to ${path}`, { request })
+    logger.debug(`Making ${method} request to ${path}`, { requestId: request.id })
 
     let readDeadline: number | undefined
     if (method === 'GET') {

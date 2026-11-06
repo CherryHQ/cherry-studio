@@ -8,7 +8,9 @@ export interface CodeCliToolPreset {
   skillNamespace: `code-cli:${CodeCli}`
   packageName: string
   install: 'registry' | 'npm' | 'pipx' | 'aqua'
+  /** Retained for detecting and removing existing managed installations. */
   miseTool: string
+  pipxExtras?: readonly string[]
   misePrerelease?: boolean
   /** Use npm CLI when mise's embedded installer cannot install this package. */
   miseNpmShellOut?: boolean
@@ -21,10 +23,7 @@ export interface CodeCliToolPreset {
   requiredPeer?: { host: string; peer: string }
 }
 
-type CodeCliToolDefinition = Omit<CodeCliToolPreset, 'miseTool' | 'skillNamespace'> & {
-  /** pipx extras required to install this tool's built-in capabilities. */
-  pipxExtras?: readonly string[]
-}
+type CodeCliToolDefinition = Omit<CodeCliToolPreset, 'miseTool' | 'skillNamespace'>
 
 function defineCodeCliTool({ pipxExtras, ...definition }: CodeCliToolDefinition): Readonly<CodeCliToolPreset> {
   const packageTool =
@@ -32,6 +31,7 @@ function defineCodeCliTool({ pipxExtras, ...definition }: CodeCliToolDefinition)
   const extras = definition.install === 'pipx' && pipxExtras?.length ? pipxExtras.join(',') : ''
   return Object.freeze({
     ...definition,
+    ...(pipxExtras?.length ? { pipxExtras } : {}),
     skillNamespace: `code-cli:${definition.id}` as const,
     miseTool: extras ? `${packageTool}[extras=${extras}]` : packageTool
   })
@@ -91,13 +91,6 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
     requiredPeer: { host: '@deepseek-ai/dsh-agent-loop', peer: '@deepseek-ai/dsh-scope' }
   }),
   defineCodeCliTool({
-    id: CodeCli.GEMINI_CLI,
-    executable: 'gemini',
-    skillFolderName: 'code-mate-gemini',
-    packageName: '@google/gemini-cli',
-    install: 'npm'
-  }),
-  defineCodeCliTool({
     id: CodeCli.QWEN_CODE,
     executable: 'qwen',
     skillFolderName: 'code-mate-qwen-code',
@@ -137,6 +130,7 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
     executable: 'hermes',
     skillFolderName: 'code-mate-hermes',
     packageName: 'hermes-agent',
+    // Legacy managed-install identity; new system installs use the official source installer.
     install: 'pipx',
     pipxExtras: ['web']
   }),

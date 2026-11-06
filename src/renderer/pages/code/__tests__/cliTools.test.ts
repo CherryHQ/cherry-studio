@@ -24,7 +24,6 @@ describe('LOGIN_CAPABLE_CLI_TOOLS', () => {
       [
         CodeCli.CLAUDE_CODE,
         CodeCli.OPENAI_CODEX,
-        CodeCli.GEMINI_CLI,
         CodeCli.ANTIGRAVITY_CLI,
         CodeCli.QWEN_CODE,
         CodeCli.KIMI_CODE,
@@ -80,7 +79,6 @@ describe('GATEWAY_CAPABLE_CLI_TOOLS', () => {
       [
         CodeCli.CLAUDE_CODE,
         CodeCli.OPENAI_CODEX,
-        CodeCli.GEMINI_CLI,
         CodeCli.ANTIGRAVITY_CLI,
         CodeCli.OPEN_CODE,
         CodeCli.QWEN_CODE,
@@ -91,26 +89,6 @@ describe('GATEWAY_CAPABLE_CLI_TOOLS', () => {
         CodeCli.MINIMAX_CODE
       ].sort()
     )
-  })
-})
-
-describe('Antigravity provider support', () => {
-  it('matches Gemini-compatible providers and offers the Unified Gateway', () => {
-    const providers = [
-      {
-        id: 'gemini',
-        endpointConfigs: { 'google-generate-content': { baseUrl: 'https://google.example' } }
-      },
-      { id: 'aihubmix', endpointConfigs: {} },
-      { id: 'anthropic', endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example' } } }
-    ] as unknown as Provider[]
-
-    const geminiIds = CLI_TOOL_PROVIDER_MAP[CodeCli.GEMINI_CLI](providers).map((provider) => provider.id)
-    const antigravityIds = CLI_TOOL_PROVIDER_MAP[CodeCli.ANTIGRAVITY_CLI](providers).map((provider) => provider.id)
-
-    expect(antigravityIds).toEqual(geminiIds)
-    expect(antigravityIds).toEqual(['gemini', 'aihubmix'])
-    expect(GATEWAY_CAPABLE_CLI_TOOLS.has(CodeCli.ANTIGRAVITY_CLI)).toBe(true)
   })
 })
 

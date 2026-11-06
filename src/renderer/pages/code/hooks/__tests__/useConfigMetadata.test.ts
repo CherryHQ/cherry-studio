@@ -2,6 +2,7 @@ import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CodeCliConfig from '@renderer/services/codeCliConfig'
 import {
   CHERRY_CLOUD_PROVIDER_ID,
   CHERRYAI_DEFAULT_MODEL_ID,
@@ -21,7 +22,8 @@ vi.mock('@renderer/hooks/useModel', () => ({
 vi.mock('@renderer/hooks/useProvider', () => ({
   getProviderDisplayName: (p: Provider) => p.name
 }))
-vi.mock('@renderer/pages/code/cliConfig', () => ({
+vi.mock('@renderer/services/codeCliConfig', async (importOriginal) => ({
+  ...(await importOriginal<typeof CodeCliConfig>()),
   hasClaudeDetailedModels: (config: Record<string, unknown>) =>
     Boolean((config.env as Record<string, string> | undefined)?.ANTHROPIC_DEFAULT_FABLE_MODEL),
   getClaudeContextModelId: (
@@ -74,6 +76,22 @@ beforeEach(() => {
 })
 
 describe('useConfigMetadata.gatewayModelsById', () => {
+  it('offers OpenClaw gateway-convertible Gemini models without requiring a direct OpenAI endpoint', () => {
+    const gemini = {
+      id: 'gemini',
+      name: 'Gemini',
+      isEnabled: true,
+      endpointConfigs: { 'google-generate-content': { baseUrl: 'https://generativelanguage.googleapis.com' } }
+    } as unknown as Provider
+    const model = { ...makeModel('gemini', 'gemini-chat'), endpointTypes: ['google-generate-content'] } as Model
+    modelRecords.push(model)
+    const { result } = renderHook(() => useConfigMetadata(CodeCli.OPENCLAW, [gemini, disabledProvider, oauthProvider]))
+    expect(result.current.filterProviders([gemini, disabledProvider, oauthProvider]).map((p) => p.id)).toEqual([
+      'gemini'
+    ])
+    expect(result.current.makeModelFilter('gemini')(model)).toBe(true)
+  })
+
   it('includes only models the running gateway can resolve', () => {
     const routableModel = makeModel('anthropic', 'claude-chat')
     const nonChatModel = makeModel('anthropic', 'embed', [MODEL_CAPABILITY.EMBEDDING])
@@ -113,11 +131,14 @@ describe('useConfigMetadata.filterProviders', () => {
     expect(filtered).toEqual([apiKeyProvider])
   })
 
-  it('filters providers with the requested CLI tool instead of the active one', () => {
-    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, []))
+  it('filters providers for the tool supplied by the current owner', () => {
+    const { result, rerender } = renderHook(({ tool }: { tool: CodeCli }) => useConfigMetadata(tool, []), {
+      initialProps: { tool: CodeCli.CLAUDE_CODE }
+    })
 
-    expect(result.current.filterProvidersForTool(CodeCli.CLAUDE_CODE, [apiKeyProvider])).toEqual([apiKeyProvider])
-    expect(result.current.filterProvidersForTool(CodeCli.OPENAI_CODEX, [apiKeyProvider])).toEqual([])
+    expect(result.current.filterProviders([apiKeyProvider])).toEqual([apiKeyProvider])
+    rerender({ tool: CodeCli.OPENAI_CODEX })
+    expect(result.current.filterProviders([apiKeyProvider])).toEqual([])
   })
 })
 

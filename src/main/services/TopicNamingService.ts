@@ -4,6 +4,7 @@ import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
+import { isOpenClawTechnicalTitle } from '@main/ai/agentSession/topic'
 import type { AiGenerateRequest, AsInProcessChat } from '@main/ai/AiService'
 import { WindowType } from '@main/core/window/types'
 import { messageService } from '@main/data/services/MessageService'
@@ -131,7 +132,7 @@ function matchesFirstUserMessageTitle(name: string | null | undefined, userText:
 // default or still the temporary title", which survives restarts because it
 // derives from the persisted name instead of runtime state.
 function canAutoRenameAgentSessionName(name: string | null | undefined, userText?: string): boolean {
-  if (isDefaultAgentSessionName(name)) return true
+  if (isDefaultAgentSessionName(name) || isOpenClawTechnicalTitle(name)) return true
   return userText !== undefined && matchesFirstUserMessageTitle(name, userText)
 }
 

@@ -1,9 +1,9 @@
 import { MessageProjection } from '@main/ai/messages/MessageProjection'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
+import type { ExecutionId } from '@shared/ai/executionIdentity'
 import type { ProjectedExecution, TopicProjectionState } from '@shared/ai/messageProjection'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
 
 import { finalizeInterruptedParts } from './persistence/PersistenceBackend'
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from './types'
@@ -11,8 +11,8 @@ import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedR
 /** One live overlay per topic; saved history stays in its existing message store. */
 export class TopicMessageProjection extends MessageProjection<TopicProjectionState> implements StreamListener {
   readonly id = 'message-projection'
-  private readonly executions = new Map<UniqueModelId, ProjectedExecution>()
-  private readonly messages = new Map<UniqueModelId, CherryUIMessage>()
+  private readonly executions = new Map<ExecutionId, ProjectedExecution>()
+  private readonly messages = new Map<ExecutionId, CherryUIMessage>()
 
   constructor(
     readonly topicId: string,
@@ -39,7 +39,7 @@ export class TopicMessageProjection extends MessageProjection<TopicProjectionSta
     this.publish(true)
   }
 
-  accumulate(modelId: UniqueModelId, attemptId: number, message: CherryUIMessage): void {
+  accumulate(modelId: ExecutionId, attemptId: number, message: CherryUIMessage): void {
     const execution = this.executions.get(modelId)
     if (!execution || execution.attemptId !== attemptId || execution.status !== 'active') return
     this.setMessage(execution, message)

@@ -59,6 +59,9 @@ describe('buildPathRegistry', () => {
     }
   )
 
+  it('leaves managed ACP materialization to the installation owner', () => {
+    expect(shouldAutoEnsure('feature.acp.agents')).toBe(false)
+  })
   it.each(['feature.pdfjs.cmaps', 'feature.pdfjs.standard_fonts'] as const)(
     'reads %s from the extraResources directory electron-builder ships',
     (key) => {

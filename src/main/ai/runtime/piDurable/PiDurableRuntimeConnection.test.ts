@@ -263,6 +263,11 @@ describe('desktop Pi Durable connection', () => {
     }
   )
 
+  it('rejects a local runtime identity instead of using the saved provider model', async () => {
+    const connection = new PiDurableRuntimeConnection({ ...input, modelId: 'runtime:local-agent' })
+    await expect(connection.start()).rejects.toThrow('Provider model required')
+  })
+
   // A no-op command must explain its result instead of persisting an empty successful reply.
   it('shows an unchanged-history reply when manual compaction has no summary to commit', async () => {
     const { connection, events } = await connect()

@@ -817,7 +817,7 @@ const VirtualizedRow = memo(
 
     return (
       <div
-        className="line flex min-h-[var(--line-height)] w-full items-start leading-[var(--line-height)]"
+        className="line flex min-h-(--line-height) w-full items-start leading-[var(--line-height)]"
         style={{
           contain: wrapped ? 'content' : 'none',
           willChange: !wrapped && !expanded ? 'transform' : 'auto'

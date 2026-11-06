@@ -9,7 +9,7 @@ export const SENSITIVE_KEY_STEMS = ['KEY', 'TOKEN', 'SECRET', 'AUTH', 'CREDENTIA
 
 // Exact names (lowercase) that no stem covers; dropping them would regress
 // header redaction (httpTraceFetch's former list).
-export const SENSITIVE_KEY_EXACT = ['openai-organization', 'openai-project']
+export const SENSITIVE_KEY_EXACT = ['openai-organization', 'openai-project', 'env', 'args']
 
 export function isSensitiveKey(key: string): boolean {
   const upper = key.toUpperCase()

@@ -30,16 +30,19 @@ import type { AgentType } from '@shared/data/types/agent'
 const RUNTIME_ICONS = {
   'claude-code': ClaudeCode,
   pi: PiCli,
+  local: PiCli,
   'pi-durable': PiCli
 } satisfies Record<AgentType, IconComponent>
 
 const COMPACT_RUNTIME_ICON_CLASS: Record<AgentType, string> = {
   'claude-code': 'size-6',
   pi: 'size-4',
+  local: 'size-4',
   'pi-durable': 'size-4'
 }
 
 const RUNTIME_DESCRIPTION_KEYS: Record<AgentType, string> = {
+  local: 'local_agents.description',
   // t('library.config.agent.field.runtime.option_description.claude_code')
   'claude-code': 'library.config.agent.field.runtime.option_description.claude_code',
   // t('library.config.agent.field.runtime.option_description.pi')

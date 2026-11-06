@@ -575,7 +575,10 @@ const TasksSettings: FC<{ notificationId?: string }> = ({ notificationId }) => {
     isLoading: agentsLoading
   } = useQuery('/agents', { query: { limit: AGENTS_MAX_LIMIT } })
   const agents: AgentInfo[] = useMemo(
-    () => (agentsData?.items ?? []).map((agent) => ({ id: agent.id, name: agent.name })),
+    () =>
+      (agentsData?.items ?? [])
+        .filter((agent) => agent.type !== 'local')
+        .map((agent) => ({ id: agent.id, name: agent.name })),
     [agentsData]
   )
   const {

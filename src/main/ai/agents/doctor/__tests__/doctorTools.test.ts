@@ -123,13 +123,31 @@ describe('doctor data_api tool', () => {
       arguments: {
         method: 'PATCH',
         path: '/mcp-servers/s1',
-        body: { env: { OPENAI_API_KEY: 'sk-1', DEBUG: '1' } },
-        summary: 'set env'
+        body: { headers: { 'X-Api-Key': 'sk-1', 'X-Debug': '1' } },
+        summary: 'set headers'
       }
     })
     expect(result.isError).toBe(true)
-    expect(text(result)).toContain('env.OPENAI_API_KEY')
+    expect(text(result)).toContain('headers.X-Api-Key')
     expect(mocks.requestWrite).not.toHaveBeenCalled()
+    await client.close()
+  })
+
+  it.each(['env', 'args'])('refuses opaque %s overrides before proposing a write', async (field) => {
+    const client = await connect()
+    const result = await client.callTool({
+      name: 'data_api',
+      arguments: {
+        method: 'PATCH',
+        path: '/mcp-servers/s1',
+        body: { [field]: field === 'env' ? { MODEL: 'opaque-value' } : ['opaque-value'] },
+        summary: 'change launch configuration'
+      }
+    })
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain(`credential field "${field}"`)
+    expect(mocks.requestWrite).not.toHaveBeenCalled()
+    expect(mocks.handleRequest).not.toHaveBeenCalled()
     await client.close()
   })
 
@@ -378,13 +396,13 @@ describe('doctor read_file tool', () => {
 })
 
 describe('applyWrite / undoWrite guards', () => {
-  const patch = { kind: 'data_api_patch', path: '/mcp-servers/s1', body: { env: { DEBUG: '1' } } } as const
+  const patch = { kind: 'data_api_patch', path: '/mcp-servers/s1', body: { headers: { 'X-Debug': '1' } } } as const
 
   it('refuses to patch a field whose stored value carries a credential, so undo can never write a placeholder', async () => {
     mocks.handleRequest.mockResolvedValueOnce({
       id: 'x',
       status: 200,
-      data: { id: 's1', env: { OPENAI_API_KEY: 'sk-live', DEBUG: '0' } }
+      data: { id: 's1', headers: { Authorization: 'Bearer sk-live', 'X-Debug': '0' } }
     })
     await expect(applyWrite(patch)).rejects.toThrow('carries credentials')
     expect(mocks.handleRequest).toHaveBeenCalledTimes(1)
@@ -392,32 +410,36 @@ describe('applyWrite / undoWrite guards', () => {
 
   it('snapshots the real prior value and refuses to undo once the user changed the field again', async () => {
     mocks.handleRequest
-      .mockResolvedValueOnce({ id: 'x', status: 200, data: { id: 's1', env: { DEBUG: '0' } } })
+      .mockResolvedValueOnce({ id: 'x', status: 200, data: { id: 's1', headers: { 'X-Debug': '0' } } })
       .mockResolvedValueOnce({ id: 'x', status: 200 })
-      .mockResolvedValueOnce({ id: 'x', status: 200, data: { id: 's1', env: { DEBUG: '1' } } })
+      .mockResolvedValueOnce({ id: 'x', status: 200, data: { id: 's1', headers: { 'X-Debug': '1' } } })
     const applied = await applyWrite(patch)
-    expect(applied.before).toEqual({ env: { DEBUG: '0' } })
-    expect(applied.after).toEqual({ env: { DEBUG: '1' } })
+    expect(applied.before).toEqual({ headers: { 'X-Debug': '0' } })
+    expect(applied.after).toEqual({ headers: { 'X-Debug': '1' } })
 
-    mocks.handleRequest.mockResolvedValueOnce({ id: 'x', status: 200, data: { id: 's1', env: { DEBUG: 'user-edit' } } })
+    mocks.handleRequest.mockResolvedValueOnce({
+      id: 'x',
+      status: 200,
+      data: { id: 's1', headers: { 'X-Debug': 'user-edit' } }
+    })
     await expect(undoWrite(patch, applied.before, applied.after)).rejects.toThrow('changed since')
     expect(mocks.handleRequest).toHaveBeenCalledTimes(4)
   })
 
   it('undoes a partial object patch by comparing the actual merged result', async () => {
     mocks.handleRequest
-      .mockResolvedValueOnce({ id: 'x', status: 200, data: { id: 's1', env: { DEBUG: '0', KEEP: 'yes' } } })
+      .mockResolvedValueOnce({ id: 'x', status: 200, data: { id: 's1', headers: { 'X-Debug': '0', 'X-Keep': 'yes' } } })
       .mockResolvedValueOnce({ id: 'x', status: 200 })
-      .mockResolvedValueOnce({ id: 'x', status: 200, data: { id: 's1', env: { DEBUG: '1', KEEP: 'yes' } } })
+      .mockResolvedValueOnce({ id: 'x', status: 200, data: { id: 's1', headers: { 'X-Debug': '1', 'X-Keep': 'yes' } } })
     const applied = await applyWrite(patch)
-    expect(applied.after).toEqual({ env: { DEBUG: '1', KEEP: 'yes' } })
+    expect(applied.after).toEqual({ headers: { 'X-Debug': '1', 'X-Keep': 'yes' } })
 
     mocks.handleRequest
-      .mockResolvedValueOnce({ id: 'x', status: 200, data: { id: 's1', env: { DEBUG: '1', KEEP: 'yes' } } })
+      .mockResolvedValueOnce({ id: 'x', status: 200, data: { id: 's1', headers: { 'X-Debug': '1', 'X-Keep': 'yes' } } })
       .mockResolvedValueOnce({ id: 'x', status: 200 })
     await expect(undoWrite(patch, applied.before, applied.after)).resolves.toBeUndefined()
     expect(mocks.handleRequest).toHaveBeenLastCalledWith(
-      expect.objectContaining({ method: 'PATCH', body: { env: { DEBUG: '0', KEEP: 'yes' } } })
+      expect.objectContaining({ method: 'PATCH', body: { headers: { 'X-Debug': '0', 'X-Keep': 'yes' } } })
     )
   })
 

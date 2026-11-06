@@ -15,6 +15,7 @@ export interface VersionStatus {
   /** Exact-backend-application status; drives update/uninstall/repair authority. */
   applicationStatus?: BinaryApplication['status']
   systemPath?: string
+  resolvedPath?: string
   current?: string
   latest?: string
   canUpgrade: boolean

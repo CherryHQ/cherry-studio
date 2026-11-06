@@ -101,6 +101,57 @@ describe('ErrorBlock', () => {
     vi.clearAllMocks()
   })
 
+  it('guides Codex model incompatibility to model switching or CLI upgrade in Codex settings', async () => {
+    const user = userEvent.setup()
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { navigateErrorTarget }
+    const guidance =
+      'Codex cannot use this model with the current account or CLI version. Switch models, or upgrade the CLI in Agent Services and try again.'
+    mocks.translations.set('error.diagnosis.codex_model_unsupported', guidance)
+    render(
+      <ErrorBlock
+        partId="codex-model-error"
+        error={{
+          name: 'Error',
+          stack: null,
+          message: JSON.stringify({
+            error: {
+              type: 'invalid_request_error',
+              code: 'model_not_found',
+              message: "The 'gpt-6.1-terra' model is not supported when using Codex with a ChatGPT account."
+            },
+            status: 400,
+            type: 'error'
+          })
+        }}
+        message={message}
+      />
+    )
+    expect(screen.getByText(guidance)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: GO_TO_SETTINGS_LABEL }))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/local-agents?id=codex')
+  })
+
+  it('shows localized sign-in guidance and opens the upstream provider instead of the local agent', async () => {
+    const user = userEvent.setup()
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { navigateErrorTarget }
+    mocks.translations.set('error.chat.provider_sign_in_required', '请在模型服务中重新登录 {{provider}} 后重试。')
+    const diagnostic =
+      'Internal error: Authentication required for provider "openai-codex". Sign in again in provider settings.'
+    render(
+      <ErrorBlock
+        partId="auth-error"
+        error={{ name: 'Error', message: diagnostic, stack: null }}
+        message={{ ...message, model: { ...message.model!, provider: 'local-agent:opencode' } }}
+      />
+    )
+    expect(screen.getByText('请在模型服务中重新登录 openai-codex 后重试。')).toBeInTheDocument()
+    expect(screen.queryByText(diagnostic)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: GO_TO_SETTINGS_LABEL }))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai-codex')
+  })
+
   it('renders Groq entitlement copy and opens its provider settings', async () => {
     const user = userEvent.setup()
     const navigateErrorTarget = vi.fn()

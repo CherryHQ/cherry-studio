@@ -109,7 +109,7 @@ also require their own lifecycle and product decisions.
 
 ## System prompt ownership
 
-`src/main/ai/runtime/agentPrompt.ts` is the single materializer for Cherry-owned Agent prompt policy. Every runtime passes the same Agent, workspace, agent-data path, channel state, and resolved citation guidance into `buildAgentRuntimePrompt()`, then maps its `{ base, append }` result into the runtime SDK.
+`src/main/ai/runtime/agentPrompt.ts` is the single materializer for Cherry-owned Agent prompt policy. Every Cherry-managed prompt runtime passes the same Agent, workspace, agent-data path, channel state, and resolved citation guidance into `buildAgentRuntimePrompt()`, then maps its `{ base, append }` result into the runtime SDK.
 
 The common materializer owns Cherry policy content, semantic authority, and the ordering of blocks carried through its `append` result:
 
@@ -122,7 +122,7 @@ The common materializer owns Cherry policy content, semantic authority, and the 
 7. final-deliverable declaration through `mcp__cherry-tools__report_artifacts`;
 8. the effective agent reply language (global `agent.language` default + per-agent `configuration.language` override, when set — otherwise no language constraint; `getEffectiveAgentLanguage` with `AgentLanguageSchema` single-line validation).
 
-Built-in Agent resolution and provisioning are part of this common path: an empty DB instruction field resolves the current localized bundled definition, the Assistant has a minimal fail-safe role if that bundle is unavailable, and persona/memory files are initialized under the Agent data directory before `PromptBuilder` reads them. A non-empty DB instruction remains user-owned. Prompt variables such as `{{username}}` and `{{model_name}}` are resolved identically for every runtime.
+Built-in Agent resolution and provisioning are part of this common path: an empty DB instruction field resolves the current localized bundled definition, the Assistant has a minimal fail-safe role if that bundle is unavailable, and persona/memory files are initialized under the Agent data directory before `PromptBuilder` reads them. A non-empty DB instruction remains user-owned. Prompt variables such as `{{username}}` and `{{model_name}}` are resolved identically for every Cherry-managed prompt runtime.
 
 Runtime adapters own only native mechanics:
 
@@ -137,7 +137,12 @@ Runtime adapters own only native mechanics:
 
 Claude Code uses its bundled `agents-md@builtin` plugin to load workspace instructions. Nested `AGENTS.md` files follow the native text `Read` behavior; Cherry does not inject them before `Edit`, `Write`, or other tools. Sealed sessions retain `settingSources: []` and do not automatically load workspace instruction files.
 
-Do not add Cherry policy directly to one driver. Extend the common materializer, pass any runtime-derived capability fact into it, and add integration assertions for every registered runtime. This module is main-process orchestration, not a cross-process contract, so it does not belong in `@shared`.
+Do not add Cherry policy directly to one driver. Extend the common materializer, pass any runtime-derived capability fact into it, and add integration assertions for every Cherry-managed prompt runtime. This module is main-process orchestration, not a cross-process contract, so it does not belong in `@shared`.
+
+Native CLI runtimes retain their own prompt, model, MCP and Skills configuration;
+they do not consume this materializer. Their credentials and optional native model
+identifier are CLI-owned, and no Cherry provider/model row is required. See
+[Local Agent Runtime](./local-agent-runtime.md#ownership-and-routing).
 
 ## Fresh turn
 
@@ -147,7 +152,8 @@ Do not add Cherry policy directly to one driver. Extend the common materializer,
    - system workspaces are materialized under Cherry's managed root, while user
      workspace paths must already resolve to a directory;
    - the agent type must have a registered runtime driver;
-   - the agent must have a model.
+   - Cherry-managed model runtimes require a model; native CLI runtimes validate
+     their own prerequisites and use a provider-free execution identity.
 3. The provider atomically saves:
    - a `user` message with the submitted parts;
    - a pending `assistant` message with the selected model id.
@@ -1015,7 +1021,7 @@ the predecessor has closed. Teardown also joins an in-flight `driver.connect()` 
 connection it produces before releasing the successor. The predecessor's observed resume token is handed
 to that successor only when both belong to the same message branch.
 
-`ClaudeCodeProcessManager` owns every CLI handle this app spawns. Every SDK `Options` object routes
+`ClaudeCodeProcessManager` owns CLI handles for the Cherry-managed Claude runtime. Each of its SDK `Options` objects routes
 through its host spawn wrapper, which fixes the stdio contract and records each `ChildProcess`,
 dropping it on `exit`. Both consuming services `@DependsOn` it, so it initialises first and therefore
 stops last — after their queries are closed — instead of relying on registry order.

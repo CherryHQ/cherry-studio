@@ -21,6 +21,7 @@ import {
   type MessageListSelectAllPagination,
   type MessageListState,
   type MessageRuntime,
+  type MessageUserProfile,
   type MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
 import { dispatchLocateMessage } from '@renderer/components/chat/messages/utils/dispatchLocateMessage'
@@ -42,6 +43,7 @@ import type { DoctorSubjectRef } from '@shared/types/doctor'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 
+import { AgentErrorUpgrade } from './AgentErrorUpgrade'
 import AgentSessionApiRetryStatus from './AgentSessionApiRetryStatus'
 import { agentSessionForkAvailability, agentSessionForkReasonLabel } from './agentSessionFork'
 import {
@@ -105,11 +107,9 @@ interface AgentMessageListParams {
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
-  assistantProfile?: {
-    name?: string
-    avatar?: string
-  }
+  assistantProfile?: MessageUserProfile
   assistantId?: string
+  providerErrorSettingsPath?: string
   isLoading: boolean
   hasOlder?: boolean
   loadOlder?: () => void
@@ -127,6 +127,7 @@ interface AgentMessageListParams {
   setActiveBranch?: MessageListActions['setActiveBranch']
   deleteMessage?: MessageListActions['deleteMessage']
   startEditing?: (messageId: string) => Promise<void>
+  supportsNativeFork?: boolean
   editBusy?: boolean
   respondToolApproval?: MessageListActions['respondToolApproval']
   navigateToForkSource?: NavigateToForkSource
@@ -179,6 +180,7 @@ export function useAgentMessageListProviderValue({
   streamingLayers,
   assistantProfile,
   assistantId,
+  providerErrorSettingsPath,
   isLoading,
   hasOlder = false,
   loadOlder,
@@ -197,6 +199,7 @@ export function useAgentMessageListProviderValue({
   setActiveBranch,
   startEditing,
   editBusy,
+  supportsNativeFork = true,
   respondToolApproval,
   navigateToForkSource,
   imageActionConsumer,
@@ -299,6 +302,14 @@ export function useAgentMessageListProviderValue({
     getDoctorSubject,
     selectAllPagination
   })
+  const { navigateErrorTarget: navigateToErrorTarget } = errorActions
+  const navigateErrorTarget = useCallback<NonNullable<MessageListActions['navigateErrorTarget']>>(
+    (target) =>
+      navigateToErrorTarget?.(
+        providerErrorSettingsPath && target === '/settings/provider' ? providerErrorSettingsPath : target
+      ),
+    [navigateToErrorTarget, providerErrorSettingsPath]
+  )
 
   // Raw path to main, which resolves workspace-relative input against the session's workspace: the
   // renderer must never join paths, and nothing unresolved may reach `shell.openPath`.
@@ -493,17 +504,23 @@ export function useAgentMessageListProviderValue({
       setActiveBranch: normalInteractionsEnabled ? setActiveBranch : undefined,
       editLabel: t('agent.edit_resend.label'),
       canEditMessage: (message) =>
-        normalInteractionsEnabled && !!startEditing && !editBusy && message.role === 'user' && !message.delivery,
-      startEditing: startEditing
-        ? (message) => {
-            void startEditing(message.id)
-          }
-        : undefined,
+        normalInteractionsEnabled &&
+        supportsNativeFork &&
+        !!startEditing &&
+        !editBusy &&
+        message.role === 'user' &&
+        !message.delivery,
+      startEditing:
+        normalInteractionsEnabled && supportsNativeFork && startEditing
+          ? (message) => {
+              void startEditing(message.id)
+            }
+          : undefined,
       openForkSourceSession: normalInteractionsEnabled && navigateToForkSource ? openForkSourceSession : undefined,
       forkSession: normalInteractionsEnabled
         ? {
             label: t('agent_session_fork.label'),
-            availability: (message) => agentSessionForkAvailability(t, message),
+            availability: (message) => agentSessionForkAvailability(t, message, supportsNativeFork),
             run: forkSession
           }
         : undefined,
@@ -512,6 +529,11 @@ export function useAgentMessageListProviderValue({
       deleteMessage,
       ...exportActions,
       ...errorActions,
+      renderLocalAgentUpgrade:
+        normalInteractionsEnabled && resolvedAgentId
+          ? () => <AgentErrorUpgrade agentId={resolvedAgentId} />
+          : undefined,
+      navigateErrorTarget: providerErrorSettingsPath ? navigateErrorTarget : errorActions.navigateErrorTarget,
       ...pickMessageLeafActions(leafCapabilities),
       openBrowserUrl,
       openExternalUrl: openExternalUrl ?? leafCapabilities.openExternalUrl,
@@ -540,6 +562,7 @@ export function useAgentMessageListProviderValue({
       setActiveBranch,
       startEditing,
       editBusy,
+      supportsNativeFork,
       navigateToForkSource,
       openForkSourceSession,
       t,
@@ -549,6 +572,9 @@ export function useAgentMessageListProviderValue({
       bindMessageRuntime,
       deleteMessage,
       errorActions,
+      navigateErrorTarget,
+      providerErrorSettingsPath,
+      resolvedAgentId,
       exportActions,
       headerCapabilities,
       isDirectory,

@@ -27,6 +27,8 @@ import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSess
 import { AgentSessionForkError, type RuntimeForkInput } from '@main/ai/runtime/fork/checkpoint'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
+import type { LocalAgentTurnUsage } from '@shared/ai/localAgentUsage'
+import { AiUsageRecordStatsQuerySchema } from '@shared/data/api/schemas/aiUsageRecords'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
   notifyDataApiDataChangeMock: vi.fn()
@@ -86,7 +88,207 @@ describe('AgentSessionMessageService', () => {
   })
 
   afterEach(() => {
+    runtimeDriverRegistry.clearForTest()
     vi.restoreAllMocks()
+  })
+
+  it('invalidates local usage and cumulative cost after deleting their carrier message', () => {
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', data: { parts: [] } },
+      localSessionCost: { nativeSessionId: 'native', reportedAt: 1, cost: { currency: 'USD', amount: 0.2 } }
+    })
+    notifyDataApiDataChangeMock.mockClear()
+    agentSessionMessageService.deleteSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
+    expect(agentSessionMessageService.getSessionCost(SESSION_ID)).toBeNull()
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ endpoint: '/ai-usage-records/local', kind: 'membership' }),
+        expect.objectContaining({ endpoint: '/agent-sessions/:sessionId/cost', routeParams: { sessionId: SESSION_ID } })
+      ])
+    )
+  })
+
+  it('stores the latest cumulative native-session snapshot without changing message content, activity or invocation costs', async () => {
+    expect(agentSessionMessageService.getSessionCost(SESSION_ID)).toBeNull()
+    agentSessionMessageService.saveSessionCost(SESSION_ID, {
+      nativeSessionId: 'native',
+      reportedAt: 1,
+      cost: { amount: 1, currency: 'EUR' }
+    })
+    expect(agentSessionMessageService.hasSessionMessages(SESSION_ID)).toBe(false)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: USER_MESSAGE_ID,
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'Hello' }] }
+      }
+    })
+    const before = agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID)
+    const activity = agentSessionService.getById(SESSION_ID).lastActivityAt
+    for (const amount of [1, 1, 0.5, 0]) {
+      const snapshot = { nativeSessionId: 'native', reportedAt: Date.now(), cost: { amount, currency: 'EUR' } }
+      agentSessionMessageService.saveSessionCost(SESSION_ID, snapshot)
+      expect(agentSessionMessageService.getSessionCost(SESSION_ID)).toEqual(snapshot)
+    }
+    const after = agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID)
+    expect(after.data.parts).toEqual(before.data.parts)
+    expect(after.stats).toEqual(before.stats)
+    expect(agentSessionService.getById(SESSION_ID).lastActivityAt).toBe(activity)
+    expect(dbh.db.select().from(aiUsageRecordTable).all()).toEqual([])
+    await seedSession({ id: 'other', name: 'Other', orderKey: 'a1' })
+    expect(agentSessionMessageService.getSessionCost('other')).toBeNull()
+  })
+
+  it('protects Main-authored cost snapshots on message writes and isolates forked sessions', async () => {
+    const snapshot = { nativeSessionId: 'native', reportedAt: 10, cost: { amount: 0.12, currency: 'USD' } }
+    const forged = { ...snapshot, cost: { amount: 999, currency: 'USD' } }
+    const message = {
+      id: ASSISTANT_MESSAGE_ID,
+      role: 'assistant' as const,
+      data: { parts: [], localSessionCost: forged }
+    }
+    agentSessionMessageService.saveMessage({ sessionId: SESSION_ID, message })
+    expect(agentSessionMessageService.getSessionCost(SESSION_ID)).toBeNull()
+    agentSessionMessageService.saveSessionCost(SESSION_ID, snapshot)
+    agentSessionMessageService.updateSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+      data: { parts: [{ type: 'text', text: 'Edited' }], localSessionCost: forged }
+    })
+    expect(agentSessionMessageService.getSessionCost(SESSION_ID)).toEqual(snapshot)
+    agentSessionMessageService.saveMessage({ sessionId: SESSION_ID, message })
+    expect(agentSessionMessageService.getSessionCost(SESSION_ID)).toEqual(snapshot)
+    const reset = { nativeSessionId: 'new-native', reportedAt: 11, cost: null }
+    agentSessionMessageService.saveSessionCost(SESSION_ID, reset)
+    expect(agentSessionMessageService.getSessionCost(SESSION_ID)).toEqual(reset)
+    await seedSession({ id: 'fork', name: 'Fork', orderKey: 'a1' })
+    const source = dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.id, ASSISTANT_MESSAGE_ID))
+      .get()!
+    application
+      .get('DbService')
+      .withWriteTx((tx) =>
+        agentSessionMessageService.insertForkMessagesTx(tx, 'fork', [{ ...source, id: USER_MESSAGE_ID }])
+      )
+    expect(agentSessionMessageService.getSessionCost('fork')).toBeNull()
+    expect(agentSessionMessageService.getSessionCost(SESSION_ID)).toEqual(reset)
+  })
+
+  it('keeps native turn summaries separate from provider calls and legacy aggregates, without rewriting history', async () => {
+    const summary: LocalAgentTurnUsage = {
+      nativeSessionId: 'native',
+      model: 'native-model',
+      reportedAt: 100,
+      correlation: 'gateway',
+      usage: { inputTokens: 700, outputTokens: 300, totalTokens: 1000 }
+    }
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      localTurnUsage: summary,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        data: { parts: [] },
+        messageSnapshot: { id: 'local', name: 'Local' }
+      }
+    })
+    for (let n = 0; n < 4; n++) {
+      aiUsageRecordService.recordInvocation({
+        requestId: `native-request-${n}`,
+        context: createAiUsageCaptureContext({
+          providerId: n === 3 ? 'local-agent:old' : 'provider',
+          providerName: 'Provider',
+          modelId: 'api-model',
+          modelName: 'API model',
+          credentialReceipt: { attribution: 'auth', method: 'external-cli' },
+          source: { type: 'agent', id: 'local', name: 'Local', icon: null },
+          messageRef: { kind: 'agent-session', id: ASSISTANT_MESSAGE_ID }
+        }),
+        modality: 'language',
+        usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+        completedAt: 100
+      })
+    }
+    const before = dbh.db.select().from(aiUsageRecordTable).all()
+    const stats = aiUsageRecordService.stats(
+      AiUsageRecordStatsQuerySchema.parse({ from: 90, to: 110, groupBy: 'model', metric: 'tokens', currency: 'USD' })
+    )
+    expect(stats.totals).toMatchObject({ requestCount: 3, totalTokens: 45 })
+    expect(aiUsageRecordService.list({ limit: 100 }).items).toHaveLength(3)
+    const query = { from: 90, to: 110, scope: 'turn' as const, limit: 1 }
+    const first = aiUsageRecordService.listLocalUsage(query)
+    const second = aiUsageRecordService.listLocalUsage({ ...query, cursor: first.nextCursor })
+    expect(first.nextCursor).toBeDefined()
+    expect(second.nextCursor).toBeUndefined()
+    const items = [...first.items, ...second.items]
+    expect(items.find((row) => row.scope === 'turn')).toMatchObject({ summary, agentName: 'Local' })
+    expect(items.find((row) => row.scope === 'legacy-turn')).toMatchObject({ legacyTokens: 15, summary: null })
+    expect(aiUsageRecordService.listLocalUsage({ ...query, from: 101 })).toEqual({ items: [], nextCursor: undefined })
+    expect(dbh.db.select().from(aiUsageRecordTable).all()).toEqual(before)
+    agentSessionMessageService.updateSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+      data: { parts: [], localTurnUsage: { ...summary, usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } } }
+    })
+    expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).data.localTurnUsage).toEqual(
+      summary
+    )
+    await seedSession({ id: 'native-fork', name: 'Fork', orderKey: 'a1' })
+    const source = dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.id, ASSISTANT_MESSAGE_ID))
+      .get()!
+    application
+      .get('DbService')
+      .withWriteTx((tx) =>
+        agentSessionMessageService.insertForkMessagesTx(tx, 'native-fork', [{ ...source, id: FILE_ENTRY_ID }])
+      )
+    expect(
+      agentSessionMessageService.getSessionMessage('native-fork', FILE_ENTRY_ID).data.localTurnUsage
+    ).toBeUndefined()
+  })
+
+  it('reads the latest native cumulative cost as a snapshot, retaining zero, unknown and currency changes', () => {
+    for (const [id, reportedAt, cost] of [
+      [ASSISTANT_MESSAGE_ID, 100, { amount: 4, currency: 'EUR' }],
+      [FILE_ENTRY_ID, 101, { amount: 0, currency: 'JPY' }]
+    ] as const) {
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        localSessionCost: { nativeSessionId: 'native', reportedAt, cost },
+        message: { id, role: 'assistant', data: { parts: [] } }
+      })
+    }
+    const query = { from: 90, to: 110, scope: 'session-cost' as const, limit: 25 }
+    expect(aiUsageRecordService.listLocalUsage(query).items.map((item) => item.cost)).toEqual([
+      { amount: 0, currency: 'JPY' }
+    ])
+    agentSessionMessageService.saveSessionCost(SESSION_ID, { nativeSessionId: 'native', reportedAt: 102, cost: null })
+    expect(aiUsageRecordService.listLocalUsage(query).items.map((item) => item.cost)).toEqual([null])
+    expect(dbh.db.select().from(aiUsageRecordTable).all()).toEqual([])
+    agentSessionMessageService.saveMessages({
+      sessionId: SESSION_ID,
+      messages: [
+        {
+          id: USER_MESSAGE_ID,
+          role: 'user',
+          data: {
+            parts: [],
+            localTurnUsage: {
+              nativeSessionId: 'forged',
+              model: null,
+              reportedAt: 100,
+              correlation: 'unknown',
+              usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
+            }
+          }
+        }
+      ]
+    })
+    expect(
+      agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID).data.localTurnUsage
+    ).toBeUndefined()
   })
 
   it('reports message existence per session', async () => {
@@ -290,6 +492,14 @@ describe('AgentSessionMessageService', () => {
     ] as const)(
       'reports %s when fork is requested without publishing a session',
       async (_label, runtimeAnchor, reason) => {
+        runtimeDriverRegistry.register({
+          type: 'claude-code',
+          capabilities: ['agent-session'],
+          validateSession: vi.fn(),
+          listAvailableTools: vi.fn().mockResolvedValue([]),
+          connect: vi.fn(),
+          fork: vi.fn()
+        })
         await seedAgent('fork-agent', 'Fork Agent')
         await seedSession({ id: 'fork-source', agentId: 'fork-agent', name: 'Source', orderKey: 'fork-order' })
         agentSessionMessageService.saveMessage({

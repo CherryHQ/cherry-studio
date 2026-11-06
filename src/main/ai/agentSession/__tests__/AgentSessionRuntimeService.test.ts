@@ -7,6 +7,7 @@ import path from 'node:path'
 
 import { defaultServiceInstances } from '@test-mocks/main/application'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import type { UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
 import type * as ForkDataModule from '@data/services/AgentSessionForkService'
@@ -109,6 +110,8 @@ vi.mock('@data/services/AgentService', () => ({
 vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
     saveMessage: mocks.saveMessage,
+    getSessionCost: vi.fn(() => null),
+    saveSessionCost: vi.fn(),
     replaceMessageParts: mocks.replaceMessageParts,
     getSessionMessage: mocks.getSessionMessage,
     hasSessionMessage: mocks.hasSessionMessage,
@@ -480,7 +483,21 @@ describe('AgentSessionForkOperations recovery', () => {
   })
 
   it('rejects a missing checkpoint before creating fork artifacts or rebuilding history', async () => {
+    runtimeDriverRegistry.register({
+      type: 'checkpoint-test',
+      capabilities: ['agent-session'],
+      validateSession() {},
+      listAvailableTools: async () => [],
+      connect: async () => {
+        throw new Error('Must not connect')
+      },
+      fork: async () => {
+        throw new Error('Must not fork without a checkpoint')
+      }
+    })
+
     forkRecoveryMocks.read.mockReturnValue({
+      agent: { type: 'checkpoint-test' },
       messages: [{ role: 'assistant', status: 'success', data: {} }]
     })
 
@@ -565,8 +582,22 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   it('blocks edits only on the source session until its fork settles', async () => {
+    runtimeDriverRegistry.register({
+      type: 'checkpoint-test',
+      capabilities: ['agent-session'],
+      validateSession() {},
+      listAvailableTools: async () => [],
+      connect: async () => {
+        throw new Error('Must not connect')
+      },
+      fork: async () => {
+        throw new Error('Must not fork without a checkpoint')
+      }
+    })
+
     const service = new AgentSessionRuntimeService()
     forkRecoveryMocks.read.mockReturnValueOnce({
+      agent: { type: 'checkpoint-test' },
       messages: [{ role: 'assistant', status: 'success', data: {} }]
     })
     const fork = service.forkSession('session-1', 'assistant-1')
@@ -758,6 +789,60 @@ describe('AgentSessionRuntimeService', () => {
     expect(service.getLiveAssistantMessageId('session-1')).toBe('assistant-2')
   })
 
+  it('uses the newly selected native runtime instead of an empty task previous warm connection', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    service.markTurnTerminal('session-1', 'success')
+    const entry = getEntry(service)
+    entry.lastResumeToken = 'previous-runtime-session'
+    entry.connection = { close: async () => {}, send: async () => {}, reconcile: async () => 'invalid' }
+    const events = createAsyncQueue<any>()
+    runtimeDriverRegistry.register({
+      type: 'local',
+      capabilities: ['agent-session'],
+      validateSession: () => {},
+      listAvailableTools: async () => [],
+      connect: async (input) => {
+        expect(input.resumeToken).toBeUndefined()
+        return {
+          events: events.iterable,
+          close: async () => {},
+          reconcile: async () => 'current',
+          send: async () => {
+            events.push({ type: 'chunk', chunk: { type: 'text-start', id: 'native' } })
+            events.push({ type: 'chunk', chunk: { type: 'text-delta', id: 'native', delta: 'native reply' } })
+            events.push({ type: 'chunk', chunk: { type: 'text-end', id: 'native' } })
+            events.push({ type: 'turn-complete' })
+          }
+        }
+      }
+    })
+    mocks.getAgent.mockReturnValue({
+      id: 'local-agent',
+      type: 'local',
+      model: null,
+      configuration: { localRuntime: { enabled: true } }
+    })
+    const handle = service.beginTurn({
+      ...baseTurnInput,
+      agentId: 'local-agent',
+      agentType: 'local',
+      modelId: 'runtime:local-agent',
+      assistantMessageId: 'native-reply'
+    })
+    const reader = service
+      .openTurnStream({ sessionId: 'session-1', turnId: handle.turnId, signal: new AbortController().signal })
+      .getReader()
+    const chunks: UIMessageChunk[] = []
+    for (;;) {
+      const next = await reader.read()
+      if (next.done) break
+      chunks.push(next.value)
+    }
+    expect(chunks).toContainEqual({ type: 'text-delta', id: 'native', delta: 'native reply' })
+    await service.closeSession('session-1')
+  })
+
   it('aborts live streams before shutdown clears their pending approvals', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
@@ -848,6 +933,20 @@ describe('AgentSessionRuntimeService', () => {
 
       expect(entry.runtimeState.execution).toMatchObject({ kind: 'idle', lastTurn: sourceTurn })
       expect(entry.runtimeState.launch).toEqual({ kind: 'scheduled', target: 'queued-turn' })
+    })
+
+    it('retains cancellation when the agent finishes before stream admission', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'turn-complete', cancelled: true })
+
+      expect(entry.runtimeState.execution).toMatchObject({
+        stream: 'unopened',
+        terminal: { status: 'paused' }
+      })
+      expect(mocks.abortStream).toHaveBeenCalledWith('agent-session:session-1', 'local-agent-cancelled')
     })
 
     it('keeps a follow-up queued while the completed turn is awaiting persistence', async () => {
@@ -3915,6 +4014,55 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
+  describe('closeIdleSessions', () => {
+    it('rejects a busy batch before closing any idle session', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      service.markTurnTerminal('session-1', 'success')
+      service.beginTurn({ ...baseTurnInput, sessionId: 'session-2', topicId: 'agent-session:session-2' })
+
+      expect(await service.closeIdleSessions(['session-1', 'session-2'])).toBe(false)
+      expect(service.inspect('session-1')).toBeDefined()
+      expect(service.inspect('session-2')).toBeDefined()
+
+      await service.closeSession('session-1')
+      await service.closeSession('session-2')
+    })
+
+    it('keeps the whole batch open while a matching session owns background work', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.connection = { close: vi.fn(), send: vi.fn(), events: [] }
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+      service.beginTurn({ ...baseTurnInput, sessionId: 'session-2', topicId: 'agent-session:session-2' })
+      service.markTurnTerminal('session-2', 'success')
+
+      expect(service.isSessionBusy('session-1')).toBe(false)
+      expect(service.isSessionBusyForArchive('session-1')).toBe(true)
+      expect(await service.closeIdleSessions(['session-2', 'session-1'])).toBe(false)
+      expect(service.inspect('session-1')).toBeDefined()
+      expect(service.inspect('session-2')).toBeDefined()
+
+      await service.closeSession('session-1')
+      await service.closeSession('session-2')
+    })
+
+    it('closes only requested owned idle entries and ignores unrelated busy sessions', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      service.markTurnTerminal('session-1', 'success')
+      service.beginTurn({ ...baseTurnInput, sessionId: 'session-2', topicId: 'agent-session:session-2' })
+
+      expect(await service.closeIdleSessions(['missing-session', 'session-1', 'session-1'])).toBe(true)
+      expect(service.inspect('session-1')).toBeUndefined()
+      expect(service.inspect('session-2')).toBeDefined()
+
+      await service.closeSession('session-2')
+    })
+  })
+
   it('clears the runtime and closes the connection on closeSession', () => {
     const service = new AgentSessionRuntimeService()
     const onIdle = vi.fn()
@@ -4656,6 +4804,62 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   describe('primeConnection — eager command load on session open', () => {
+    it.each([true, false])('opens an enabled local agent without a Cherry model (enabled=%s)', async (enabled) => {
+      const info = {
+        models: [],
+        images: false,
+        resume: true,
+        thoughtLevel: {
+          id: 'budget',
+          currentValue: 'low',
+          options: [
+            { value: 'low', name: 'Low' },
+            { value: 'high', name: 'High' }
+          ]
+        }
+      }
+      const connection = {
+        events: createAsyncQueue<any>().iterable,
+        localSessionInfo: info,
+        send: vi.fn(),
+        close: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current'),
+        setThoughtLevel: async (_id: string, value: string) => ({
+          ...info,
+          thoughtLevel: { ...info.thoughtLevel, currentValue: value }
+        })
+      }
+      runtimeDriverRegistry.register({
+        type: 'local',
+        getExecutionId: () => (enabled ? 'runtime:agent-1' : undefined),
+        capabilities: ['agent-session'],
+        connect: async () => connection,
+        validateSession: vi.fn(),
+        listAvailableTools: async () => []
+      })
+      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        type: 'local',
+        model: null,
+        configuration: { localRuntime: { enabled } }
+      })
+      const service = new AgentSessionRuntimeService()
+      await service.primeConnection('session-1')
+      if (!enabled) {
+        expect(service.getLocalSessionInfo('session-1')).toBeNull()
+        await expect(service.setLocalThoughtLevel('session-1', 'budget', 'high')).rejects.toThrow('unavailable')
+        return
+      }
+      expect(service.getLocalSessionInfo('session-1')).toEqual(info)
+      expect(service.inspect('session-1')?.status).toBe('idle')
+      await expect(service.setLocalThoughtLevel('session-1', 'budget', 'high')).resolves.toMatchObject({
+        thoughtLevel: { currentValue: 'high' }
+      })
+      service.beginTurn({ ...baseTurnInput, agentType: 'local', modelId: 'runtime:agent-1' })
+      await expect(service.setLocalThoughtLevel('session-1', 'budget', 'low')).rejects.toThrow('busy')
+    })
+
     it('opens the connection without a turn and caches the slash-command catalog', async () => {
       const commands = [{ name: 'clear', description: 'Clear conversation' }]
       const events = createAsyncQueue<any>()

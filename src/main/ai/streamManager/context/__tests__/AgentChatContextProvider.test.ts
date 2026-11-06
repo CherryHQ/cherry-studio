@@ -453,6 +453,24 @@ describe('AgentChatContextProvider', () => {
     expect(mocks.hasSessionMessages).toHaveBeenCalledWith('session-1')
   })
 
+  it.each([false, true])('repairs technical OpenClaw titles only when not manually named: %s', async (manual) => {
+    mocks.hasSessionMessages.mockReturnValue(true)
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      name: 'agent:main:acp-bridge:uuid',
+      isNameManuallyEdited: manual
+    })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      configuration: { localRuntime: { presetId: 'openclaw' } }
+    })
+    const validated = await provider.validateDispatch(openReq())
+    expect(validated.shouldAutoNameInitialTurn).toBe(!manual)
+  })
+
   it('does not auto-name a later idle turn in a session with messages', async () => {
     mocks.hasSessionMessages.mockReturnValue(true)
 

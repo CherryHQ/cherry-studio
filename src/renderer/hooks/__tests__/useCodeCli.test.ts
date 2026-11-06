@@ -82,30 +82,30 @@ describe('useCodeCli', () => {
       expect(result.current.selectedCliTool).toBe(CodeCli.CLAUDE_CODE)
     })
 
-    it('selectTool should switch the selected tool (navigation state)', () => {
-      setupConfigsMock({
-        'openai-codex': state({ anthropic: cfg() }, 'anthropic')
+    it('reads and updates only the tool supplied by the current owner', async () => {
+      const claudeState = state({ anthropic: cfg() }, 'anthropic')
+      const codexState = state({ openai: cfg({ modelId: 'openai::gpt-5' }) }, 'openai')
+      const mockSetter = setupUpdaterMock({
+        'claude-code': claudeState,
+        'openai-codex': codexState
       })
-      const { result } = renderHook(() => useCodeCli())
-      act(() => {
-        result.current.selectTool(CodeCli.OPENAI_CODEX)
-      })
-      expect(result.current.selectedCliTool).toBe(CodeCli.OPENAI_CODEX)
-    })
-
-    it('keeps route search and visible selection synchronized', () => {
-      setupConfigsMock({})
-      const onToolChange = vi.fn()
-      const { result, rerender } = renderHook(({ tool }: { tool: CodeCli }) => useCodeCli(tool, onToolChange), {
+      const { result, rerender } = renderHook(({ tool }: { tool: CodeCli }) => useCodeCli(tool), {
         initialProps: { tool: CodeCli.CLAUDE_CODE }
       })
+      expect(result.current.currentProviderId).toBe('anthropic')
 
-      act(() => result.current.selectTool(CodeCli.OPENAI_CODEX))
+      rerender({ tool: CodeCli.OPENAI_CODEX })
       expect(result.current.selectedCliTool).toBe(CodeCli.OPENAI_CODEX)
-      expect(onToolChange).toHaveBeenCalledWith(CodeCli.OPENAI_CODEX)
+      expect(result.current.currentProviderId).toBe('openai')
+      expect(result.current.currentProviderConfig?.modelId).toBe('openai::gpt-5')
 
-      rerender({ tool: CodeCli.DEEPSEEK_HARNESS })
-      expect(result.current.selectedCliTool).toBe(CodeCli.DEEPSEEK_HARNESS)
+      await act(async () => {
+        await result.current.setTerminal('terminal')
+      })
+      expect(lastWrite(mockSetter)).toEqual({
+        'claude-code': claudeState,
+        'openai-codex': { ...codexState, terminal: 'terminal' }
+      })
     })
   })
 

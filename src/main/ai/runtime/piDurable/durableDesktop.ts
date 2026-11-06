@@ -15,6 +15,7 @@ import {
 } from '@shared/ai/builtinTools'
 import { normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
 import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
+import { isUniqueModelId } from '@shared/data/types/model'
 
 import { buildAgentMcpServers, warmAgentMcpToolCatalogs } from '../agentMcpServers'
 import { buildAgentRuntimePrompt } from '../agentPrompt'
@@ -28,6 +29,7 @@ import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
 import { createDurableMcp } from './durableMcp'
 
 export async function prepareDurableDesktop(input: AgentRuntimeConnectInput, emit: (event: AgentRuntimeEvent) => void) {
+  if (!isUniqueModelId(input.modelId)) throw new Error('Provider model required')
   const discovery = await capturePiConnectionSnapshot(
     input.sessionId,
     input.agentId,
@@ -190,6 +192,7 @@ export async function prepareDurableDesktop(input: AgentRuntimeConnectInput, emi
         delegationTools: policies('delegation')
       },
       async reconcile(next: AgentRuntimeConnectInput, active: boolean) {
+        if (!isUniqueModelId(next.modelId)) throw new Error('Provider model required')
         const current = await capturePiConnectionSnapshot(
           next.sessionId,
           next.agentId,

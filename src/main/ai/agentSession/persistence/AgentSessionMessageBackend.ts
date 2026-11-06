@@ -12,7 +12,9 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { RuntimeForkAnchorSchema, type RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
-import type { CherryUIMessage } from '@shared/data/types/message'
+import type { AgentSessionCostSnapshot } from '@shared/ai/agentSessionCost'
+import type { LocalAgentTurnUsage } from '@shared/ai/localAgentUsage'
+import type { CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import type { PersistAssistantInput, PersistedAssistant, PersistenceBackend } from '../../streamManager'
@@ -26,8 +28,11 @@ export interface AgentSessionMessageBackendOptions {
   assistantMessageId: string
   /** Model id used for this assistant message. */
   modelId?: UniqueModelId
+  messageSnapshot?: () => MessageSnapshot | undefined
   /** Opaque runtime resume token persisted for future recovery; `undefined` when unknown. */
   runtimeResumeToken?: string | (() => string | undefined)
+  localTurnUsage?: () => LocalAgentTurnUsage | undefined
+  localSessionCost?: () => AgentSessionCostSnapshot | undefined
   forkAnchor?: () => RuntimeForkAnchor | undefined
   /** Post-success hook — typically session auto-rename. */
   afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
@@ -64,6 +69,8 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
         {
           sessionId: this.opts.sessionId,
           runtimeAnchor,
+          localSessionCost: this.opts.localSessionCost?.(),
+          localTurnUsage: this.opts.localTurnUsage?.(),
           ...(runtimeAnchor && nativeContext ? { nativeContextId: nativeContext.id } : {}),
           ...(runtimeResumeToken ? { runtimeResumeToken } : {}),
           ...(runtimeStats ? { runtimeStats } : {}),
@@ -72,7 +79,8 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
             role: 'assistant',
             status,
             data: { parts: finalMessage?.parts ?? [] },
-            modelId: this.opts.modelId
+            modelId: this.opts.modelId,
+            messageSnapshot: this.opts.messageSnapshot?.()
           }
         },
         { publishDataChange: true }

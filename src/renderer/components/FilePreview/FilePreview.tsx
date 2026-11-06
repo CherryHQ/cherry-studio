@@ -125,6 +125,7 @@ interface FilePreviewPluginRendererProps {
   filePath: AbsoluteFilePath
   metadata: FilePreviewFileMetadata
   metadataRequest?: FilePreviewMetadataRequest
+  sourceLocation?: FilePreviewPluginProps['sourceLocation']
   onSelectionReference?: FilePreviewPluginProps['onSelectionReference']
   onLineComment?: FilePreviewPluginProps['onLineComment']
   plugin: { descriptor: FilePreviewPlugin; component: ComponentType<FilePreviewPluginProps> }
@@ -150,6 +151,7 @@ function FilePreviewPluginRenderer({
   metadata,
   metadataRequest,
   onSelectionReference,
+  sourceLocation,
   onLineComment,
   plugin,
   refreshKey,
@@ -168,6 +170,7 @@ function FilePreviewPluginRenderer({
         fileName={fileName}
         metadata={metadata}
         metadataRequest={metadataRequest}
+        sourceLocation={sourceLocation}
         onSelectionReference={onSelectionReference}
         onLineComment={onLineComment}
         refreshKey={refreshKey}
@@ -182,6 +185,7 @@ export interface FilePreviewProps {
   header?: ReactNode
   refreshKey?: number
   type?: FilePreviewType
+  sourceLocation?: FilePreviewPluginProps['sourceLocation']
   /** See {@link FilePreviewPluginProps.onSelectionReference}; callbacks from obsolete metadata are ignored. */
   onSelectionReference?: FilePreviewPluginProps['onSelectionReference']
   onLineComment?: FilePreviewPluginProps['onLineComment']
@@ -212,6 +216,7 @@ export function FilePreview({
   refreshKey = 0,
   type = 'file',
   onSelectionReference,
+  sourceLocation,
   onLineComment
 }: FilePreviewProps) {
   const file = useMemo(() => {
@@ -348,6 +353,11 @@ export function FilePreview({
         metadata={resolution.metadata}
         metadataRequest={metadataRequest?.read}
         onSelectionReference={onSelectionReference ? reportSelection : undefined}
+        sourceLocation={
+          sourceLocation && Number.isInteger(sourceLocation.line) && sourceLocation.line > 0
+            ? sourceLocation
+            : undefined
+        }
         onLineComment={onLineComment}
         plugin={resolution.plugin}
         refreshKey={refreshKey}

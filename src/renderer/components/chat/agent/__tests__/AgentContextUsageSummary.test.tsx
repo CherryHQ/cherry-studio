@@ -50,6 +50,24 @@ describe('AgentContextUsageSummary', () => {
     expect(screen.getByText('1,000 (100%)')).toBeInTheDocument()
   })
 
+  it('shows session cost without a context reading and distinguishes zero, missing and sub-display amounts', () => {
+    const view = renderSummary({ usage: null, percentage: null, cost: { amount: 0, currency: 'EUR' } })
+    expect(screen.getByText(en['agent.right_pane.info.session_cost'])).toBeInTheDocument()
+    expect(screen.getByText('EUR 0.00', { exact: false })).toBeInTheDocument()
+    view.rerender(
+      <I18nextProvider i18n={i18n}>
+        <AgentContextUsageSummary usage={null} percentage={null} cost={{ amount: 0.00001, currency: 'EUR' }} />
+      </I18nextProvider>
+    )
+    expect(screen.getByText('<EUR 0.0001', { exact: false })).toBeInTheDocument()
+    view.rerender(
+      <I18nextProvider i18n={i18n}>
+        <AgentContextUsageSummary usage={null} percentage={null} />
+      </I18nextProvider>
+    )
+    expect(screen.queryByText(en['agent.right_pane.info.session_cost'])).not.toBeInTheDocument()
+  })
+
   it('shows the empty label when usage is unavailable', () => {
     renderSummary({ usage: null, percentage: null })
 

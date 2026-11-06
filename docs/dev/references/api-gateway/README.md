@@ -248,7 +248,10 @@ it is needed. It is independent of the user's `enabled` preference and stays up
 until the service stops. Its keys live only in memory and are never persisted or
 shown: `ensureInternalGateway` returns one unrestricted key, and
 `createScopedCredential({ path, model })` issues a key for a single consumer run
-that only calls that path with that model and is revoked by `dispose`. The
+that only calls that path with that model and is revoked by `dispose`. Local
+Agent connections may additionally bind `agentSessionId` in this in-memory scope;
+request headers cannot override that binding or attribute an unbound scoped key.
+The runtime host resolves the active assistant message at request start. The
 internal listener accepts only those keys, sent in a header, and the public
 listener accepts only the user's key. Cherry Cloud models are served only to
 internal requests; which Cloud models a feature may use is decided where the
@@ -523,6 +526,11 @@ token is hashed and looked up only by the local guard on
 `/v1beta` routes. Future mobile-only endpoints opt into this guard explicitly.
 
 ## Error handling
+
+OAuth-only providers without an access token return HTTP 401 with sign-in guidance,
+including after a rejected refresh has disabled the provider. A disabled provider
+with saved credentials still follows the ordinary availability check. Providers
+that also support API keys keep their existing authentication path.
 
 One root `onError` (`gatewayErrorHandler`) selects the response envelope by
 request **path**, so every endpoint speaks its caller's dialect:
