@@ -92,11 +92,6 @@ const HomePage: FC = () => {
   const navigate = useNavigate()
   const routeTopicId = routeSearch.topicId
   const routeAssistantId = routeSearch.assistantId
-  const handleManualPaneOpen = useCallback(() => {
-    requestAnimationFrame(() => {
-      void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
-    })
-  }, [])
   const {
     isWindowFrame,
     shellPaneOpen,
@@ -107,8 +102,7 @@ const HomePage: FC = () => {
     handlePaneAutoCollapseChange
   } = useConversationShellPaneState({
     persistedPaneOpen: showSidebar,
-    setPersistedPaneOpen: setShowSidebar,
-    onManualPaneOpen: handleManualPaneOpen
+    setPersistedPaneOpen: setShowSidebar
   })
   const topicListPosition: ChatPanePosition =
     !isWindowFrame && isClassicTopicLayout && panePosition === 'right' ? 'right' : 'left'
