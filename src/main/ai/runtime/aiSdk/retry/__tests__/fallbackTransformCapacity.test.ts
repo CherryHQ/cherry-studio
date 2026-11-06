@@ -52,7 +52,7 @@ describe('transformed fallback capacity', () => {
     it(`${method} runs fallback middleware before the final guard`, async () => {
       const run = vi.fn().mockResolvedValue(ok)
       const contextMiddleware = createContextMiddleware({ truncate: { threshold: 1000, headChars: 50, tailChars: 50 } })
-      const shrink = vi.fn(contextMiddleware.transformParams!)
+      const shrink = vi.fn(contextMiddleware.transformParams)
       built.current = {
         sdkConfig: { providerId: 'ollama', providerSettings: {}, modelId: 'fallback', providerOptionsKey: 'ollama' },
         credentialReceipt: { attribution: 'unknown' },
