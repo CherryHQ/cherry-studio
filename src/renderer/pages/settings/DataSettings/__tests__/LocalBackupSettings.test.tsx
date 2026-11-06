@@ -42,6 +42,7 @@ describe('LocalBackupSettings', () => {
   beforeEach(() => {
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setPreferenceValue('data.backup.local.dir', '/saved-backups')
+    MockUsePreferenceUtils.setPreferenceValue('data.backup.local.schedule', { mode: 'interval', entries: [] })
     vi.stubGlobal('api', {
       ipcApi: {
         request: vi.fn(async (route: string) => ({ ok: true, data: route === 'app.get_info' ? appInfo : undefined })),

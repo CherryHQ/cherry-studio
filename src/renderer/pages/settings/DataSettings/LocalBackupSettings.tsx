@@ -23,6 +23,8 @@ import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { AppInfo } from '@renderer/types/app'
 
+import BackupScheduleSettings, { isBackupScheduleActive } from './BackupScheduleSettings'
+
 const logger = loggerService.withContext('LocalBackupSettings')
 const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 
@@ -32,6 +34,7 @@ const LocalBackupSettings: React.FC = () => {
   const [localBackupMaxBackups, setLocalBackupMaxBackups] = usePreference('data.backup.local.max_backups')
   const [localBackupSkipBackupFile, setLocalBackupSkipBackupFile] = usePreference('data.backup.local.skip_backup_file')
   const [localBackupSyncInterval, setLocalBackupSyncInterval] = usePreference('data.backup.local.sync_interval')
+  const [backupSchedule] = usePreference('data.backup.local.schedule')
 
   const [resolvedLocalBackupDir, setResolvedLocalBackupDir] = useState<string | undefined>(undefined)
   const [localBackupDirDraft, setLocalBackupDirDraft] = useState(localBackupDir)
@@ -225,28 +228,30 @@ const LocalBackupSettings: React.FC = () => {
         </RowFlex>
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.local.autoSync.label')}</SettingRowTitle>
-        <Selector
-          aria-label={t('settings.data.local.autoSync.label')}
-          size={14}
-          value={localBackupSyncInterval}
-          onChange={onSyncIntervalChange}
-          disabled={!localBackupDir}
-          options={[
-            { label: t('settings.data.local.autoSync.off'), value: 0 },
-            { label: t('settings.data.local.minute_interval', { count: 1 }), value: 1 },
-            { label: t('settings.data.local.minute_interval', { count: 5 }), value: 5 },
-            { label: t('settings.data.local.minute_interval', { count: 15 }), value: 15 },
-            { label: t('settings.data.local.minute_interval', { count: 30 }), value: 30 },
-            { label: t('settings.data.local.hour_interval', { count: 1 }), value: 60 },
-            { label: t('settings.data.local.hour_interval', { count: 2 }), value: 120 },
-            { label: t('settings.data.local.hour_interval', { count: 6 }), value: 360 },
-            { label: t('settings.data.local.hour_interval', { count: 12 }), value: 720 },
-            { label: t('settings.data.local.hour_interval', { count: 24 }), value: 1440 }
-          ]}
-        />
-      </SettingRow>
+      <BackupScheduleSettings scheduleKey="data.backup.local.schedule" disabled={!localBackupDir}>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.local.autoSync.label')}</SettingRowTitle>
+          <Selector
+            aria-label={t('settings.data.local.autoSync.label')}
+            size={14}
+            value={localBackupSyncInterval}
+            onChange={onSyncIntervalChange}
+            disabled={!localBackupDir}
+            options={[
+              { label: t('settings.data.local.autoSync.off'), value: 0 },
+              { label: t('settings.data.local.minute_interval', { count: 1 }), value: 1 },
+              { label: t('settings.data.local.minute_interval', { count: 5 }), value: 5 },
+              { label: t('settings.data.local.minute_interval', { count: 15 }), value: 15 },
+              { label: t('settings.data.local.minute_interval', { count: 30 }), value: 30 },
+              { label: t('settings.data.local.hour_interval', { count: 1 }), value: 60 },
+              { label: t('settings.data.local.hour_interval', { count: 2 }), value: 120 },
+              { label: t('settings.data.local.hour_interval', { count: 6 }), value: 360 },
+              { label: t('settings.data.local.hour_interval', { count: 12 }), value: 720 },
+              { label: t('settings.data.local.hour_interval', { count: 24 }), value: 1440 }
+            ]}
+          />
+        </SettingRow>
+      </BackupScheduleSettings>
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.local.maxBackups.label')}</SettingRowTitle>
@@ -278,7 +283,7 @@ const LocalBackupSettings: React.FC = () => {
       <SettingRow>
         <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
       </SettingRow>
-      {localBackupSync && localBackupSyncInterval > 0 && (
+      {isBackupScheduleActive(backupSchedule, localBackupSync && localBackupSyncInterval > 0) && (
         <>
           <SettingDivider />
           <SettingRow>
