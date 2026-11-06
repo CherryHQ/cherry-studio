@@ -6,7 +6,9 @@ vi.mock('@renderer/i18n/resolver', () => ({ default: { t: (key: string) => key }
 import { captureScrollableIframe } from '../image'
 
 // Runs the real html-to-image library (not mocked) and records every network fetch it attempts.
-const REMOTE = 'https://example.com/collect?secret=VALUE'
+// html-to-image caches fetched resources by URL for the whole module lifetime, so every case needs its own URL.
+let urlCounter = 0
+const uniqueRemote = () => `https://example.com/collect-${urlCounter++}?secret=VALUE`
 
 function createIframeRef(bodyHtml: string, headHtml = '') {
   const iframe = document.createElement('iframe')
@@ -21,7 +23,7 @@ function createIframeRef(bodyHtml: string, headHtml = '') {
   // jsdom does not implement pseudo-element computed styles, which html-to-image requests for every node.
   const win = iframe.contentWindow!
   const getComputedStyle = win.getComputedStyle.bind(win)
-  win.getComputedStyle = ((el: Element) => getComputedStyle(el)) as typeof win.getComputedStyle
+  win.getComputedStyle = (el: Element) => getComputedStyle(el)
   return { current: iframe }
 }
 
@@ -36,6 +38,18 @@ async function capturedFetchUrls(bodyHtml: string, restrict: boolean, headHtml =
 
 // jsdom has no SVGImageElement and never loads images; give html-to-image the minimal surface it reads so the real
 // clone/embed path runs. Patched on both the test window and the iframe window (clones live in the iframe realm).
+function svgHrefAccessor(el: Element) {
+  return {
+    get baseVal() {
+      return el.getAttribute('href') ?? el.getAttribute('xlink:href') ?? ''
+    },
+    set baseVal(value: string) {
+      el.setAttribute('href', value)
+      setTimeout(() => el.dispatchEvent(new Event('load')), 0)
+    }
+  }
+}
+
 function stubImageSurface(iframeWindow: Window) {
   class FakeSvgImageElement {
     static [Symbol.hasInstance](value: unknown) {
@@ -53,16 +67,7 @@ function stubImageSurface(iframeWindow: Window) {
     Object.defineProperty(win.SVGElement.prototype, 'href', {
       configurable: true,
       get(this: Element) {
-        const el = this
-        return {
-          get baseVal() {
-            return el.getAttribute('href') ?? el.getAttribute('xlink:href') ?? ''
-          },
-          set baseVal(value: string) {
-            el.setAttribute('href', value)
-            setTimeout(() => el.dispatchEvent(new Event('load')), 0)
-          }
-        }
+        return svgHrefAccessor(this)
       }
     })
     Object.defineProperty(win.HTMLImageElement.prototype, 'decode', {
@@ -102,7 +107,7 @@ describe('captureScrollableIframe restricted capture with the real html-to-image
     restoreImageSurface()
   })
 
-  const cases: Record<string, string> = {
+  const buildCases = (REMOTE: string): Record<string, string> => ({
     'svg image href': `<div><svg width="10" height="10"><image href="${REMOTE}"/></svg></div>`,
     'svg image xlink:href': `<div><svg width="10" height="10" xmlns:xlink="http://www.w3.org/1999/xlink"><image xlink:href="${REMOTE}"/></svg></div>`,
     'svg use': `<svg width="10" height="10"><use href="${REMOTE}#a"/></svg>`,
@@ -113,18 +118,20 @@ describe('captureScrollableIframe restricted capture with the real html-to-image
     'svg style element': `<svg width="10" height="10"><style>rect{fill:url("${REMOTE}")}</style><rect width="5" height="5"/></svg>`,
     'html background': `<div style="background-image:url(${REMOTE})">x</div>`,
     'html mask': `<div style="-webkit-mask-image:url(${REMOTE});mask-image:url(${REMOTE})">x</div>`
-  }
+  })
 
-  for (const [name, html] of Object.entries(cases)) {
+  for (const name of Object.keys(buildCases(''))) {
     it(`never fetches remote URLs from the parent: ${name}`, async () => {
-      const { urls } = await capturedFetchUrls(html, true)
+      const remote = uniqueRemote()
+      const { urls } = await capturedFetchUrls(buildCases(remote)[name], true)
       expect(urls.filter((url) => url.includes('example.com'))).toEqual([])
     })
   }
 
   it('restores the original SVG attributes after capture', async () => {
-    const { ref } = await capturedFetchUrls(cases['svg image href'], true)
-    expect(ref.current.contentDocument!.querySelector('image')!.getAttribute('href')).toBe(REMOTE)
+    const remote = uniqueRemote()
+    const { ref } = await capturedFetchUrls(buildCases(remote)['svg image href'], true)
+    expect(ref.current.contentDocument!.querySelector('image')!.getAttribute('href')).toBe(remote)
   })
 
   it('keeps data URL SVG images and in-document references', async () => {
@@ -139,11 +146,7 @@ describe('captureScrollableIframe restricted capture with the real html-to-image
   })
 
   it('still fetches SVG images in the default (unrestricted) mode', async () => {
-    // html-to-image caches fetched resources by URL, so use a URL no earlier test requested.
-    const { urls } = await capturedFetchUrls(
-      cases['svg image href'].replace(REMOTE, 'https://example.com/control.png'),
-      false
-    )
+    const { urls } = await capturedFetchUrls(buildCases(uniqueRemote())['svg image href'], false)
     expect(urls.some((url) => url.includes('example.com'))).toBe(true)
   })
 })
