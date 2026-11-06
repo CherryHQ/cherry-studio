@@ -101,7 +101,12 @@ export async function agentMemoryContext(app: RegressionApp, page: Page, testInf
       '请记住：我的项目叫 QA-DEMO。使用 Memory 工具将它保存到 FACT.md。成功后回复已保存 QA-DEMO，并在单独一行用反引号给出实际 FACT.md 的绝对路径。不要用其他文件或 shell 工具。'
     )
     await expect(saved).toContainText('QA-DEMO')
-    const filePath = saved.getByRole('link', { name: /[\\/]memory[\\/]FACT\.md$/ }).first()
+    const memoryPath = /[\\/]memory[\\/]FACT\.md$/
+    // Windows intentionally keeps inline code paths as code; persistence does not depend on link promotion.
+    const filePath =
+      app.record.platform === 'windows'
+        ? saved.locator('code').filter({ hasText: memoryPath }).first()
+        : saved.getByRole('link', { name: memoryPath }).first()
     await expect(filePath, 'The successful memory write must identify its persistent file').toBeVisible()
     const path = await filePath.innerText()
     expect(isPathInside(app.paths.profiles, path), 'Memory must stay inside the owned profile').toBe(true)
