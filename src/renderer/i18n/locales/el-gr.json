@@ -5954,6 +5954,7 @@
   "settings.tool.websearch.provider_description.searchapi": "API αναζήτησης πραγματικού χρόνου SearchApi που επιστρέφει αποτελέσματα Google ως δομημένο JSON.",
   "settings.tool.websearch.provider_description.searxng": "Αυτο-φιλοξενούμενη δωρεάν μηχανή μετα-αναζήτησης στο διαδίκτυο σε πολλές πηγές.",
   "settings.tool.websearch.provider_description.serply": "API αναζήτησης Serply που επιστρέφει αποτελέσματα Google ως δομημένο JSON για εφαρμογές AI.",
+  "settings.tool.websearch.provider_description.sofya": "API αναζήτησης ιστού Sofya για εφαρμογές AI, που επιστρέφει κάθε αποτέλεσμα μαζί με το κείμενο της σελίδας.",
   "settings.tool.websearch.provider_description.tavily": "Μηχανή αναζήτησης βελτιστοποιημένη για LLM.",
   "settings.tool.websearch.provider_description.yuanbao": "API αναζήτησης Tencent Yuanbao. Απαιτεί κλειδί API υπηρεσίας. Ο αριθμός αποτελεσμάτων είναι ανώτατο όριο· η υπηρεσία μπορεί να επιστρέψει λιγότερα.",
   "settings.tool.websearch.provider_description.zhipu": "Zhipu GLM Web Search για ζωντανή ανάκτηση ιστού και τρέχουσες πληροφορίες.",

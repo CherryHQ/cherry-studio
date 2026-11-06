@@ -1,0 +1,33 @@
+{
+  "query": "hello",
+  "answer": null,
+  "results": [
+    {
+      "title": " Sofya Title ",
+      "url": "https://sofya.example/result",
+      "content": " Sofya page text ",
+      "description": "Sofya Snippet",
+      "fetched": true,
+      "published_date": "2026-10-01",
+      "sublinks": [],
+      "table": {}
+    },
+    {
+      "title": "",
+      "url": "https://sofya.example/second",
+      "content": "",
+      "description": " Second Snippet ",
+      "fetched": false,
+      "published_date": null,
+      "sublinks": [],
+      "table": {}
+    }
+  ],
+  "search_depth": "basic",
+  "topic": "general",
+  "elapsed_ms": 1840.5,
+  "credits_used": 2,
+  "credits_remaining": 998,
+  "altered_query": null,
+  "relaxed_query": null
+}

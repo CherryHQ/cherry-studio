@@ -16,6 +16,7 @@ import { querit } from '../providers/querit'
 import { searchapi } from '../providers/searchapi'
 import { discoverSearxngEngines, searxng } from '../providers/searxng'
 import { serply } from '../providers/serply'
+import { sofya } from '../providers/sofya'
 import { tavily } from '../providers/tavily'
 import { yuanbao } from '../providers/yuanbao'
 import { zhipu } from '../providers/zhipu'
@@ -126,6 +127,36 @@ describe('portable provider contracts', () => {
         sourceInput: 'a&b'
       }
     ])
+  })
+
+  it('posts Sofya searches with a bearer key and falls back to the snippet when page text is empty', async () => {
+    const { client, requests } = setup(sofya, fixture('sofya-response.json'))
+    const result = await client.execute(search('sofya'))
+    expect(requests[0].url).toBe('https://service.example/proxy/v1/search')
+    expect(requests[0].method).toBe('POST')
+    expect(JSON.parse(requests[0].body!)).toEqual({ query: 'hello', max_results: 4, search_depth: 'basic' })
+    expect(new Headers(requests[0].headers).get('authorization')).toBe('Bearer test-key')
+    expect(result.results).toEqual([
+      { title: 'Sofya Title', content: 'Sofya page text', url: 'https://sofya.example/result', sourceInput: 'hello' },
+      { title: '', content: 'Second Snippet', url: 'https://sofya.example/second', sourceInput: 'hello' }
+    ])
+  })
+
+  it('caps Sofya results at maxResults', async () => {
+    const { client } = setup(sofya, fixture('sofya-response.json'))
+    const result = await client.execute({
+      ...search('sofya'),
+      capability: 'searchKeywords',
+      config: { apiHost: 'https://service.example/proxy', maxResults: 1 }
+    })
+    expect(result.results.map((item) => item.url)).toEqual(['https://sofya.example/result'])
+  })
+
+  it('reports a rejected Sofya key as an HTTP error without echoing the key', async () => {
+    const { client } = setup(sofya, JSON.stringify({ detail: 'Invalid API key' }), 401)
+    const error = await client.execute(search('sofya')).catch((caught: unknown) => caught)
+    expect(error).toMatchObject({ kind: 'http', status: 401 })
+    expect(JSON.stringify(error)).not.toContain('test-key')
   })
 
   it('posts DeepSeek search calls and prefers the model-facing summary', async () => {

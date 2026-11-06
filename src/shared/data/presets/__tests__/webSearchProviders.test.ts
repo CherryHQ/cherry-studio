@@ -126,6 +126,20 @@ describe('web search provider schemas', () => {
     ])
   })
 
+  it('models Sofya as an API-key-authenticated keyword search provider', () => {
+    const sofya = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'sofya')
+
+    expect(sofya).toBeDefined()
+    expect(sofya!.capabilities).toEqual([
+      {
+        feature: 'searchKeywords',
+        requiresApiHost: true,
+        requiresApiKey: true,
+        apiHost: 'https://sofya.co'
+      }
+    ])
+  })
+
   it('models Fetch as a hostless built-in URL fetch provider', () => {
     const fetch = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'fetch')
 

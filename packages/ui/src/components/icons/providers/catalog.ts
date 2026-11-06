@@ -5,7 +5,7 @@
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
  * Generated at: 2026-11-04T07:38:09.129Z
- * Total icons: 173
+ * Total icons: 174
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
@@ -151,6 +151,7 @@ import { SerplyIcon } from './serply'
 import { SiliconIcon } from './silicon'
 import { SkyworkIcon } from './skywork'
 import { SmitheryIcon } from './smithery'
+import { SofyaIcon } from './sofya/sofya'
 import { SophnetIcon } from './sophnet'
 import { StabilityIcon } from './stability'
 import { StepIcon } from './step'
@@ -326,6 +327,7 @@ export const PROVIDER_ICON_CATALOG = {
   silicon: SiliconIcon,
   skywork: SkyworkIcon,
   smithery: SmitheryIcon,
+  sofya: SofyaIcon,
   sophnet: SophnetIcon,
   stability: StabilityIcon,
   step: StepIcon,

@@ -4,7 +4,7 @@
  * Do not edit manually
  *
  * Generated at: 2026-11-04T07:38:07.847Z
- * Total icons: 173
+ * Total icons: 174
  */
 export { Ai302Icon as Ai302 } from './302ai'
 export { MinTop3Icon as MinTop3 } from './3min-top'
@@ -148,6 +148,7 @@ export { SerplyIcon as Serply } from './serply'
 export { SiliconIcon as Silicon } from './silicon'
 export { SkyworkIcon as Skywork } from './skywork'
 export { SmitheryIcon as Smithery } from './smithery'
+export { SofyaIcon as Sofya } from './sofya/sofya'
 export { SophnetIcon as Sophnet } from './sophnet'
 export { StabilityIcon as Stability } from './stability'
 export { StepIcon as Step } from './step'

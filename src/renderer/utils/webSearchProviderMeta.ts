@@ -100,6 +100,12 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     officialWebsite: 'https://serply.io',
     apiKeyWebsite: 'https://serply.io'
   },
+  sofya: {
+    descriptionKey: 'settings.tool.websearch.provider_description.sofya',
+    iconRef: providerIconRef('sofya'),
+    officialWebsite: 'https://sofya.co',
+    apiKeyWebsite: 'https://sofya.co/dashboard'
+  },
   tavily: {
     descriptionKey: 'settings.tool.websearch.provider_description.tavily',
     iconRef: providerIconRef('tavily'),
