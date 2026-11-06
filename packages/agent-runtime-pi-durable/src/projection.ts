@@ -73,7 +73,7 @@ export class DurableProjection {
         event.type === 'snapshot' ? event.messages : event.type === 'message.upsert' ? [event.message] : []
       const completion = delivery === 'baseline' || event.type !== 'snapshot' ? undefined : this.completion
       return {
-        value: structuredClone({
+        value: {
           events: [event],
           aliases: this.aliases,
           live:
@@ -82,7 +82,7 @@ export class DurableProjection {
               : messages.filter((message) => !historical.has(message.id)).map((message) => message.id),
           completion,
           backgroundResults: this.backgroundResults
-        }),
+        },
         retain: Boolean(completion)
       }
     })

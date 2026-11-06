@@ -58,35 +58,36 @@ describe('normalized observation delivery', () => {
     const blocked = new Promise<void>((resolve) => {
       blockedResolve = resolve
     })
-    let revision = 0
+    const native = { revision: 0 }
     let terminal = false
-    const received: { event: ObservationPayload; revision: number; terminal: boolean }[] = []
+    const received: { event: ObservationPayload; native: typeof native; terminal: boolean }[] = []
     const observed = feed.observeCaptured<(typeof received)[number]>(
       async (batch) => {
         received.push(batch)
         if (received.length === 1) await blocked
       },
       (event, delivery) => ({
-        value: { event, revision, terminal: delivery !== 'baseline' && terminal },
+        value: { event, native, terminal: delivery !== 'baseline' && terminal },
         retain: terminal
       })
     )
     await tick()
     for (let turn = 1; turn <= 2; turn++) {
       for (let index = 0; index < 120; index++) {
-        revision++
-        feed.publish({ type: 'message.upsert', message: item(`turn-${turn}`, `body-${revision}`) })
+        native.revision++
+        feed.publish({ type: 'message.upsert', message: item(`turn-${turn}`, `body-${native.revision}`) })
       }
       terminal = true
       feed.publish({ type: 'activity.changed', activity: { state: 'idle' } })
       terminal = false
     }
     for (let index = 0; index < 120; index++) feed.publish({ type: 'activity.changed', activity: { state: 'idle' } })
-    revision = 999
+    native.revision = 999
     blockedResolve()
     await observed.drain()
     const endings = received.filter((batch) => batch.terminal)
-    expect(endings.map((batch) => batch.revision)).toEqual([120, 240])
+    expect(received[0].native.revision).toBe(0)
+    expect(endings.map((batch) => batch.native.revision)).toEqual([120, 240])
     expect(endings[0].event).toMatchObject({
       type: 'snapshot',
       messages: [{ id: 'turn-1', parts: [{ text: 'body-120' }] }]
@@ -153,19 +154,23 @@ describe('normalized observation delivery', () => {
       unblock = resolve
     })
     const slow: ObservationPayload[] = []
-    const fast: ObservationPayload[] = []
+    const fast: string[] = []
     feed.observe(async (event) => {
       slow.push(event)
       if (slow.length === 1) await held
     })
     feed.observe((event) => {
-      fast.push(event)
+      if (event.type !== 'message.upsert') return
+      const part = event.message.parts[0]
+      if (part.type !== 'text') return
+      fast.push(part.text)
+      part.text = 'changed by fast observer'
     })
     for (let i = 0; i < 110; i++) {
       feed.publish({ type: 'message.upsert', message: item('answer', String(i)) })
       await tick()
     }
-    expect(fast.at(-1)).toMatchObject({ message: { parts: [{ text: '109' }] } })
+    expect(fast.at(-1)).toBe('109')
     expect(slow).toHaveLength(1)
     unblock()
     await tick()
@@ -173,6 +178,7 @@ describe('normalized observation delivery', () => {
     expect(slow[1]).toEqual({ type: 'gap', reason: 'overflow' })
     expect(slow[2]).toMatchObject({ type: 'snapshot', messages: [{ parts: [{ text: '100' }] }] })
     expect(slow.at(-1)).toMatchObject({ message: { parts: [{ text: '109' }] } })
+    expect(feed.snapshot.messages[0].parts).toEqual([{ type: 'text', text: '109' }])
   })
 
   it('stops future calls without waiting for an entered consumer, and isolates consumer failures', async () => {
@@ -249,7 +255,7 @@ describe('normalized observation delivery', () => {
       replaces: [{ session: ref, id: runtimeId('live') }]
     })
     feed.observe((event) => {
-      if (event.type === 'snapshot') (event.messages as RuntimeMessage[]).length = 0
+      if (event.type === 'snapshot') event.messages[0].parts.length = 0
     })
     const observed: ObservationPayload[] = []
     feed.observe((event) => {
@@ -257,8 +263,34 @@ describe('normalized observation delivery', () => {
     })
     await tick()
     expect(feed.snapshot.messages.map((value) => value.id)).toEqual(['persisted', 'next'])
-    expect(observed[0]).toMatchObject({ messages: [{ id: 'persisted' }, { id: 'next' }] })
+    expect(observed[0]).toMatchObject({
+      messages: [{ id: 'persisted', parts: [{ text: 'persisted' }] }, { id: 'next' }]
+    })
     expect(initial.messages).toEqual([])
+  })
+
+  it('isolates published updates from publisher, observer and snapshot mutations', async () => {
+    const feed = new ThreadFeed(snapshot(), () => {})
+    const source = item('answer', 'published')
+    const mutating = feed.observe((event) => {
+      if (event.type === 'message.upsert') event.message.parts[0] = { type: 'text', text: 'observer edit' }
+    })
+    const received: ObservationPayload[] = []
+    const observing = feed.observe((event) => {
+      received.push(event)
+    })
+    await Promise.all([mutating.drain(), observing.drain()])
+
+    feed.publish({ type: 'message.upsert', message: source })
+    source.parts[0] = { type: 'text', text: 'publisher edit' }
+    await Promise.all([mutating.drain(), observing.drain()])
+
+    const expected = [{ type: 'text', text: 'published' }]
+    expect(received[1]).toMatchObject({ type: 'message.upsert', message: { parts: expected } })
+    expect(feed.snapshot.messages[0].parts).toEqual(expected)
+    const exposed = feed.snapshot
+    exposed.messages[0].parts[0] = { type: 'text', text: 'snapshot edit' }
+    expect(feed.snapshot.messages[0].parts).toEqual(expected)
   })
 })
 
