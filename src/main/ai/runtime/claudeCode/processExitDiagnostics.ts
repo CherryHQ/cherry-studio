@@ -50,12 +50,21 @@ export function recordClaudeCodeSpawnError(diagnostics: ClaudeCodeProcessDiagnos
 }
 
 export function isClaudeCodeProcessFailure(error: unknown, diagnostics?: ClaudeCodeProcessDiagnostics): error is Error {
+  if (!(error instanceof Error)) return false
+  // An early child exit surfaces as a generic transport close, so attribute a recorded abnormal
+  // exit instead of the closed-transport message. Clean exits and distant token pairs stay generic.
+  if (
+    diagnostics?.terminalReason &&
+    diagnostics.exitCode !== 0 &&
+    /(json-rpc|transport)[\s\S]{0,100}closed/i.test(error.message)
+  ) {
+    return true
+  }
   return (
-    error instanceof Error &&
-    (diagnostics?.spawnFailed === true ||
-      /Claude Code process (?:exited with code|terminated by signal|failed to spawn)|Failed to spawn Claude Code process/i.test(
-        error.message
-      ))
+    diagnostics?.spawnFailed === true ||
+    /Claude Code process (?:exited with code|terminated by signal|failed to spawn)|Failed to spawn Claude Code process/i.test(
+      error.message
+    )
   )
 }
 
