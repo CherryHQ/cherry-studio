@@ -44,6 +44,13 @@ export interface TransportTimings {
 interface TerminalOutcome {
   userMessageId?: string
   persistence?: { status: 'saved'; message: PersistedAssistant } | { status: 'failed'; failure: ExecutionFailure }
+  /**
+   * Set when a persistence backend stored the row worse than the SDK finished the turn — an agent
+   * turn that reached `success` without renderable content is written as `error`. The stored row
+   * decides the outcome, so terminal dispatch publishes this classification to every subscriber
+   * instead of the SDK's clean finish.
+   */
+  downgradedTo?: { error: SerializedError; failure: ExecutionFailure }
 }
 
 export interface StreamDoneResult extends TerminalOutcome {

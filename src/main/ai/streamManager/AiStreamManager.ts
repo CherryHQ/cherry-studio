@@ -1693,6 +1693,22 @@ export class AiStreamManager extends BaseService {
     }
   }
 
+  /**
+   * Fold a persistence backend's downgraded classification into the execution and stream. Storage
+   * owns the outcome once it has written the row, so the topic status and the terminal lifecycle
+   * have to follow it — otherwise the status cache keeps the turn green while the row is red.
+   */
+  private markExecutionError(stream: ActiveStream, result: StreamErrorResult): void {
+    const exec = result.modelId ? stream.executions.get(result.modelId) : undefined
+    if (exec) {
+      exec.status = 'error'
+      exec.error = result.error
+    }
+    // Timings and in-flight tool parts were already settled by the clean-finish path; only the
+    // classification changes here.
+    stream.status = this.computeTopicStatus(stream)
+  }
+
   /** Drop a topic's queued steers on a non-clean terminal, surfacing the discard. Their persisted
    *  user rows stay in history as dangling messages the user can resend; surfacing those orphaned
    *  rows in the renderer is the renderer slice's responsibility, not handled here. */
@@ -2254,8 +2270,67 @@ export class AiStreamManager extends BaseService {
       timings: { ...exec.timings },
       runtimeTiming: exec.runtimeTiming.snapshot()
     }
-    await this.dispatchToListeners(stream, exec, 'onDone', (listener) => listener.onDone(result))
-    this.emitUnsuccessfulExecution(stream, exec, result)
+    await this.dispatchTerminalOutcome(stream, exec, 'onDone', result)
+  }
+
+  /**
+   * Publish one terminal event, rerouting the consumers notified after persistence to whichever
+   * callback matches the settled outcome. A backend may store the row worse than the SDK finished
+   * it — an agent turn with no renderable content is downgraded to `error` — and claims that on the
+   * shared result; rerouting here keeps every subscriber, the topic status and the stored row on one
+   * classification. Persistence listeners run first, so nothing is notified twice.
+   *
+   * The unsuccessful-execution event fires on the settled result too: a downgraded terminal is the
+   * one case where the SDK said success and the row did not, so emitting the raw success would drop
+   * the notification the failure earned.
+   */
+  private async dispatchTerminalOutcome(
+    stream: ActiveStream,
+    exec: StreamExecution,
+    event: 'onDone' | 'onPaused',
+    result: StreamDoneResult | StreamPausedResult
+  ): Promise<void> {
+    await this.dispatchToListeners(stream, exec, event, (listener) => {
+      const settled = this.settleTerminalOutcome(result)
+      return settled
+        ? listener.onError(settled)
+        : event === 'onDone'
+          ? listener.onDone(result as StreamDoneResult)
+          : listener.onPaused(result as StreamPausedResult)
+    })
+    const settled = this.settleTerminalOutcome(result)
+    if (settled) this.markExecutionError(stream, settled)
+    this.emitUnsuccessfulExecution(stream, exec, settled ?? result)
+  }
+
+  /**
+   * The error-result view of a successful terminal that storage downgraded, when there is one.
+   *
+   * Normalizing before terminal callbacks are chosen is what keeps the stored row, the topic status
+   * and every subscriber on one classification — flipping the status inside an already-dispatched
+   * `onDone` would still let the task sentinel resolve successfully against a failed row.
+   */
+  private settleTerminalOutcome(result: StreamDoneResult | StreamPausedResult): StreamErrorResult | undefined {
+    const downgradedTo = result.downgradedTo
+    if (result.status !== 'success' || !downgradedTo) return undefined
+    return {
+      error: downgradedTo.error,
+      failure: downgradedTo.failure,
+      finalMessage: result.finalMessage,
+      userMessageId: result.userMessageId,
+      status: 'error',
+      modelId: result.modelId,
+      attemptId: result.attemptId,
+      ...(result.topicAttemptWatermark !== undefined ? { topicAttemptWatermark: result.topicAttemptWatermark } : {}),
+      anchorMessageId: result.anchorMessageId,
+      isTopicDone: result.isTopicDone,
+      timings: result.timings,
+      runtimeTiming: result.runtimeTiming,
+      persistence: result.persistence,
+      // Carried forward so a listener that owns turn lifecycle can tell this apart from a real SDK
+      // error: a downgraded terminal still ends the turn the runtime owns, `isTopicDone` aside.
+      downgradedTo
+    }
   }
 
   private async broadcastExecutionPaused(
@@ -2276,8 +2351,7 @@ export class AiStreamManager extends BaseService {
       timings: { ...exec.timings },
       runtimeTiming: exec.runtimeTiming.snapshot()
     }
-    await this.dispatchToListeners(stream, exec, 'onPaused', (listener) => listener.onPaused(result))
-    this.emitUnsuccessfulExecution(stream, exec, result)
+    await this.dispatchTerminalOutcome(stream, exec, 'onPaused', result)
   }
 
   private emitUnsuccessfulExecution(
