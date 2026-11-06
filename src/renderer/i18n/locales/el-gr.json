@@ -921,6 +921,7 @@
   "chat.multiple.select.empty": "Δεν έχει επιλεγεί κανένα μήνυμα",
   "chat.multiple.select.label": "Πολλαπλή επιλογή",
   "chat.navigation.anchor.jump_to_turn": "Μετάβαση στη στροφή {{number}}",
+  "chat.navigation.anchor.label": "Γύροι συνομιλίας",
   "chat.navigation.bottom": "Επιστροφή στο κάτω μέρος",
   "chat.navigation.close": "Κλείσιμο",
   "chat.save.file.title": "Αποθήκευση σε τοπικό αρχείο",

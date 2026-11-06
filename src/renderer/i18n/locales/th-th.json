@@ -921,6 +921,7 @@
   "chat.multiple.select.empty": "ไม่มีการเลือกข้อความ",
   "chat.multiple.select.label": "เลือกหลายรายการ",
   "chat.navigation.anchor.jump_to_turn": "ข้ามไปยังรอบที่ {{number}}",
+  "chat.navigation.anchor.label": "รอบการสนทนา",
   "chat.navigation.bottom": "กลับล่างสุด",
   "chat.navigation.close": "ปิด",
   "chat.save.file.title": "บันทึกเป็นไฟล์ในเครื่อง",
