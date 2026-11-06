@@ -60,8 +60,7 @@ match name "kb_search" at …`）。提供商以 HTTP 400 `invalid Gemini functi
 
 ## 验证
 
-- 回归套件：`messageRules.geminiToolNames.test.ts` 共 15 个测试，其中 7 个捕获 `@ai-sdk/google`
-  将发送的线上字节（`generateText` 的 fetch 请求体）；在合并后的头部全部通过。
+- 回归套件：`messageRules.geminiToolNames.test.ts` 共 15 个测试，其中 7 个捕获 `@ai-sdk/google` 将发送的线上字节（`generateText` 的 fetch 请求体）；在合并后的头部全部通过。
 - 合并后头部的现有套件：`src/main/ai/messages/` 240 个测试通过（含 #23233 的空名称丢弃回归）；`src/main/ai/runtime/aiSdk/` 597 个测试通过。
 - `oxlint --deny-warnings`、`oxfmt --check` 与 `tsc --noEmit` 交由 CI 在合并后的头部上验证。
 - 无公开 API 表面变更；修复内部于 `toModelMessages` 管道。

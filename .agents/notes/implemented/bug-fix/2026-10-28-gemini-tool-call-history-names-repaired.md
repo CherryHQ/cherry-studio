@@ -80,8 +80,7 @@ Pipeline order (documented in the `toModelMessages` JSDoc):
 
 ## Verification
 
-- Regression — `messageRules.geminiToolNames.test.ts`: 15 tests, 7 of them capturing the wire
-  bytes `@ai-sdk/google` would send (`generateText` fetch bodies); all pass on the merged head.
+- Regression — `messageRules.geminiToolNames.test.ts`: 15 tests, 7 capturing the wire bytes `@ai-sdk/google` would send (`generateText` fetch bodies); all pass on the merged head.
 - Existing suites on the merged head: `src/main/ai/messages/` 240 tests pass (including the
   #23233 empty-name drop regression); `src/main/ai/runtime/aiSdk/` 597 tests pass.
 - `oxlint --deny-warnings`, `oxfmt --check`, and `tsc --noEmit` are left to CI on the merged head.
