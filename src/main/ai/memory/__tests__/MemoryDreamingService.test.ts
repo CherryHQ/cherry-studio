@@ -1,6 +1,6 @@
 import '@data/services/AgentSessionMessageService'
 import { randomUUID } from 'node:crypto'
-import { mkdtemp, readFile, readdir, rmdir, unlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, rmdir, unlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -582,6 +582,37 @@ describe('memory organization lifecycle and commit fences', () => {
     if (kind === 'restored-running') await expect(dreaming.execute(job())).rejects.toBeInstanceOf(Error)
     else expect(await dreaming.execute(job())).toEqual(eligible ? { extracted: 1 } : { idle: true })
     expect((await session.read('MEMORY.md')).content ?? '').toBe(eligible ? '- "I prefer concise answers."\n' : '')
+  })
+
+  it('scans other scopes while the required entry is blocked and detects an external entry repair', async () => {
+    dbh.db.update(userModelTable).set({ maxOutputTokens: 4096 }).run()
+    const original = 'reason '.repeat(3000)
+    await save(original)
+    for (let index = 0; index < 10; index++) await save(`Topic ${index}`, '.memories/topic.md')
+    await expect(dreaming.execute(job())).rejects.toMatchObject({ reason: 'budget' })
+
+    const agentId = '00000000-0000-4000-8000-000000000001'
+    const privateScope = { kind: 'private', agentId } as const
+    dbh.db.insert(agentTable).values({ id: agentId, type: 'pi', name: 'A', instructions: '', orderKey: 'a0' }).run()
+    const directory = path.join(fixture, 'feature.agents.data', agentId)
+    await mkdir(directory, { recursive: true })
+    await writeFile(path.join(directory, 'MEMORY.md'), 'Private fact')
+
+    await dreaming.execute(job())
+    expect(readDreamingState(privateScope).files['MEMORY.md'].observedHash).toBe(
+      memoryHash(Buffer.from('Private fact'))
+    )
+    expect((await session.read('MEMORY.md')).content).toBe(original)
+    expect(readDreamingState(scope).files['.memories/topic.md'].changes).toBe(10)
+
+    await writeFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), 'Repaired entry')
+    await dreaming.execute(job())
+    await dreaming.execute(job())
+    expect(readDreamingState(scope).files['.memories/topic.md']).toMatchObject({
+      changes: 0,
+      processedHash: (await session.read('.memories/topic.md')).hash
+    })
+    expect((await session.read('MEMORY.md')).content).toBe('Repaired entry')
   })
 
   it('counts only changed controlled writes and keeps the earliest pending time across recovery', async () => {

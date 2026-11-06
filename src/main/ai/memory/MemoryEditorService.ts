@@ -10,7 +10,7 @@ import type { MemorySession } from './MemoryService'
 
 @Injectable('MemoryEditorService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['MemoryService', 'MemoryMigrationService', 'WindowManager'])
+@DependsOn(['MemoryService', 'WindowManager'])
 export class MemoryEditorService extends BaseService {
   private readonly editors = new Map<string, { senderId: string; session: MemorySession }>()
 
@@ -24,9 +24,8 @@ export class MemoryEditorService extends BaseService {
     )
   }
 
-  open(senderId: string | null, scope: MemoryScope): string {
+  open(senderId: string | null, scope: Extract<MemoryScope, { kind: 'shared' }>): string {
     const authority = editorMemoryAuthority(senderId, scope)
-    if (scope.kind === 'private') application.get('MemoryMigrationService').retryFromEditor(scope.agentId)
     const session = application.get('MemoryService').open(authority)
     const editorId = randomUUID()
     this.editors.set(editorId, { senderId: senderId!, session })
