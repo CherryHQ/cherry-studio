@@ -291,7 +291,7 @@ describe('ActionGeneral', () => {
 
     act(() => state.onError?.(new Error("Model with id 'provider/model' not found")))
 
-    expect(screen.getByText('error.diagnosis.model:')).toHaveClass('mt-3')
+    expect(screen.getByText('error.diagnosis.model:').parentElement).toHaveClass('mt-3')
   })
 
   it('advances the visible processing time for a temporary streamed message', async () => {
