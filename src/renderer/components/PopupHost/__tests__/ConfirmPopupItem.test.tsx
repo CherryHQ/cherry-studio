@@ -14,6 +14,12 @@ vi.mock('@renderer/services/toast', () => ({
   toast: { error: toastError }
 }))
 
+const { openAppErrorDetail } = vi.hoisted(() => ({ openAppErrorDetail: vi.fn(async () => 'opened' as const) }))
+
+vi.mock('@renderer/services/AppErrorDetailService', () => ({
+  appErrorDetailService: { openAppErrorDetail }
+}))
+
 // This suite exercises the real popup store + host, so opt out of the global mock.
 vi.mock('@renderer/services/popup', async (importOriginal) => await importOriginal())
 
@@ -27,9 +33,15 @@ vi.mock('@cherrystudio/ui', () => {
       dialogMock.onOpenChange = onOpenChange
       return open ? React.createElement(React.Fragment, null, children) : null
     },
-    DialogContent: ({ children, closeOnOverlayClick = true, motion, onInteractOutside, ...props }) => {
+    DialogContent: ({
+      children,
+      closeOnOverlayClick = true,
+      motion,
+      onInteractOutside,
+      overlayClassName,
+      ...props
+    }) => {
       delete props.showCloseButton
-      delete props.overlayClassName
 
       return React.createElement(
         React.Fragment,
@@ -37,6 +49,7 @@ vi.mock('@cherrystudio/ui', () => {
         React.createElement('button', {
           type: 'button',
           'data-testid': 'dialog-overlay',
+          className: overlayClassName,
           onClick: () => {
             const event = {
               defaultPrevented: false,
@@ -173,6 +186,70 @@ describe('ConfirmPopupItem (via PopupHost + confirm presets)', () => {
     await expect(acknowledged).resolves.toBe(true)
   })
 
+  it('does not settle an error popup when details is opened', async () => {
+    const user = userEvent.setup()
+    render(<PopupHost />)
+    const failure = new Error('disk full')
+
+    let acknowledged!: Promise<boolean>
+    let settled = false
+    act(() => {
+      acknowledged = popup.error({ cause: failure, content: 'Disk is full.', title: 'Backup failed' })
+      void acknowledged.then(() => {
+        settled = true
+      })
+    })
+
+    await user.click(await screen.findByRole('button', { name: i18n.t('error.details') }))
+    expect(openAppErrorDetail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.objectContaining({ message: 'disk full', name: 'Error' }),
+        localizedErrorMessage: 'Backup failed'
+      })
+    )
+    expect(settled).toBe(false)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: i18n.t('common.confirm') }))
+    await act(async () => {})
+    await expect(acknowledged).resolves.toBe(true)
+  })
+
+  it('keeps a string explanation when the error popup has no cause', async () => {
+    const user = userEvent.setup()
+    render(<PopupHost />)
+
+    act(() => {
+      void popup.error({ content: 'Disk is full.', title: 'Backup failed' })
+    })
+
+    await user.click(await screen.findByRole('button', { name: i18n.t('error.details') }))
+    expect(openAppErrorDetail).toHaveBeenCalledWith(expect.objectContaining({ localizedErrorMessage: 'Backup failed' }))
+    expect(screen.getByRole('button', { name: i18n.t('common.confirm') })).toBeInTheDocument()
+  })
+
+  it('does not stringify a React title or content', async () => {
+    const user = userEvent.setup()
+    render(<PopupHost />)
+
+    act(() => {
+      void popup.error({
+        cause: new Error('disk full'),
+        content: <span>not text</span>,
+        title: <span>not a title</span>
+      })
+    })
+
+    await user.click(await screen.findByRole('button', { name: i18n.t('error.details') }))
+    expect(openAppErrorDetail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.objectContaining({ message: 'disk full' }),
+        localizedErrorMessage: i18n.t('error.unexpected')
+      })
+    )
+    expect(screen.queryByText(/\[object Object\]/)).not.toBeInTheDocument()
+  })
+
   it('uses the translated destructive label for danger confirmations', async () => {
     const user = userEvent.setup()
     render(<PopupHost />)
@@ -185,6 +262,58 @@ describe('ConfirmPopupItem (via PopupHost + confirm presets)', () => {
     await user.click(await screen.findByRole('button', { name: i18n.t('common.delete') }))
     await act(async () => {})
     await expect(confirmed).resolves.toBe(true)
+  })
+
+  it('keeps the original confirmation pending while a later detail popup is open', async () => {
+    // z-[90] on the confirm overlay is the stacking contract that hid the default z-80 detail dialog.
+    render(<PopupHost />)
+    const DetailPopup = createPopup<{ label: string }, void>(
+      ({ label, open, resolve }) =>
+        open ? (
+          <div aria-label={label} role="dialog">
+            <button type="button" onClick={() => resolve()}>
+              Close details
+            </button>
+          </div>
+        ) : null,
+      { dismissResult: undefined }
+    )
+
+    let acknowledged!: Promise<boolean>
+    let settled = false
+    act(() => {
+      acknowledged = popup.error({ cause: new Error('disk full'), content: 'Disk is full.', title: 'Backup failed' })
+      void acknowledged.then(() => {
+        settled = true
+      })
+    })
+
+    const confirmDialog = await screen.findByRole('dialog')
+    expect(confirmDialog).toHaveAttribute('data-confirm-popup', 'true')
+    expect(confirmDialog.className).not.toContain('z-[90]')
+    expect(screen.getByTestId('dialog-overlay').className).not.toContain('z-[90]')
+
+    let detail!: Promise<void>
+    act(() => {
+      detail = DetailPopup.show({ label: 'Error details' })
+    })
+
+    const detailDialog = screen.getByRole('dialog', { name: 'Error details' })
+    expect(confirmDialog.compareDocumentPosition(detailDialog) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    )
+    expect(settled).toBe(false)
+    expect(screen.getByRole('button', { name: i18n.t('common.confirm') })).toBeEnabled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close details' }))
+    await act(async () => {})
+    await expect(detail).resolves.toBeUndefined()
+    expect(settled).toBe(false)
+    expect(screen.queryByRole('dialog', { name: 'Error details' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('common.confirm') }))
+    await act(async () => {})
+    await expect(acknowledged).resolves.toBe(true)
   })
 
   it('keeps maskClosable=false popups open when the overlay is clicked', async () => {

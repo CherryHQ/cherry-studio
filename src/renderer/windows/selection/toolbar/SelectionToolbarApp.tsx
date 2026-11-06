@@ -1,5 +1,6 @@
 import type { FC } from 'react'
 
+import { AppErrorRuntime } from '@renderer/components/AppErrorRuntime'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
@@ -22,6 +23,7 @@ const SelectionToolbarApp: FC = () => {
     // during render falls back instead of white-screening.
     <ErrorBoundary fallbackComponent={WindowFatalFallback}>
       <ThemeProvider>
+        <AppErrorRuntime mode="handoff" />
         <SelectionToolbarRuntime />
         <SelectionToolbar />
       </ThemeProvider>

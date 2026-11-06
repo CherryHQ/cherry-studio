@@ -28,36 +28,43 @@ export function useDoctorAgent({
   const key = doctorAgentKey(scope, incident)
   const state = useSharedCacheValue(doctorAgentStateCacheKey(key)) ?? IDLE_STATE
   const [busy, setBusy] = useState<DoctorAgentBusy>(null)
+  const [failure, setFailure] = useState<{ readonly key: string; readonly message: string } | null>(null)
+  // A new incident key must not keep the previous fault's failure on screen.
+  const actionError = failure?.key === key ? failure.message : null
   /** The analysis on screen read a report the user no longer sees; its proposals may not apply. */
   const isStale = state.status !== 'idle' && reportRunId !== undefined && state.reportRunId !== reportRunId
 
   const start = useCallback(
     async (modelId?: string) => {
       if (!reportRunId) return
+      setFailure(null)
       setBusy({ kind: 'start' })
       try {
         const result = await ipcApi.request('diagnostics.doctor.agent.start', { scope, reportRunId, modelId, incident })
-        if (result.status === 'stale') toast.error(t('settings.doctor.messages.stale'))
-        else if (result.status === 'no_model') toast.error(t('settings.doctor.agent.messages.no_model'))
-        else if (result.status === 'failed') toast.error(t('settings.doctor.agent.messages.start_failed'))
+        if (result.status === 'stale') setFailure({ key, message: t('settings.doctor.messages.stale') })
+        else if (result.status === 'no_model')
+          setFailure({ key, message: t('settings.doctor.agent.messages.no_model') })
+        else if (result.status === 'failed')
+          setFailure({ key, message: t('settings.doctor.agent.messages.start_failed') })
       } catch (error) {
         logger.error('Failed to start the doctor analysis', error as Error)
-        toast.error(t('settings.doctor.agent.messages.start_failed'))
+        setFailure({ key, message: t('settings.doctor.agent.messages.start_failed') })
       } finally {
         setBusy(null)
       }
     },
-    [incident, reportRunId, scope, t]
+    [incident, key, reportRunId, scope, t]
   )
 
   const cancel = useCallback(async () => {
     if (state.status !== 'running') return
+    setFailure(null)
     setBusy({ kind: 'cancel' })
     try {
       await ipcApi.request('diagnostics.doctor.agent.cancel', { key, runId: state.runId })
     } catch (error) {
       logger.error('Failed to cancel the doctor analysis', error as Error)
-      toast.error(t('settings.doctor.messages.cancel_failed'))
+      setFailure({ key, message: t('settings.doctor.messages.cancel_failed') })
     } finally {
       setBusy(null)
     }
@@ -66,6 +73,7 @@ export function useDoctorAgent({
   const apply = useCallback(
     async (proposalId: string) => {
       if (state.status === 'idle') return
+      setFailure(null)
       setBusy({ kind: 'apply', id: proposalId })
       try {
         const result = await ipcApi.request('diagnostics.doctor.agent.apply', { key, runId: state.runId, proposalId })
@@ -77,11 +85,15 @@ export function useDoctorAgent({
                 : 'settings.doctor.agent.messages.applied'
             )
           )
-        } else if (result.status === 'stale') toast.error(t('settings.doctor.messages.stale'))
-        else toast.error(t('settings.doctor.agent.messages.apply_failed', { message: result.message }))
+        } else if (result.status === 'stale') setFailure({ key, message: t('settings.doctor.messages.stale') })
+        else
+          setFailure({
+            key,
+            message: t('settings.doctor.agent.messages.apply_failed', { message: result.message })
+          })
       } catch (error) {
         logger.error('Failed to apply a doctor proposal', error as Error)
-        toast.error(t('settings.doctor.agent.messages.apply_failed', { message: String(error) }))
+        setFailure({ key, message: t('settings.doctor.agent.messages.apply_failed', { message: String(error) }) })
       } finally {
         setBusy(null)
       }
@@ -92,15 +104,16 @@ export function useDoctorAgent({
   const undo = useCallback(
     async (changeId: string) => {
       if (state.status === 'idle') return
+      setFailure(null)
       setBusy({ kind: 'undo', id: changeId })
       try {
         const result = await ipcApi.request('diagnostics.doctor.agent.undo', { key, runId: state.runId, changeId })
         if (result.status === 'undone') toast.success(t('settings.doctor.agent.messages.undone'))
-        else if (result.status === 'stale') toast.error(t('settings.doctor.messages.stale'))
-        else toast.error(t('settings.doctor.agent.messages.undo_failed', { message: result.message }))
+        else if (result.status === 'stale') setFailure({ key, message: t('settings.doctor.messages.stale') })
+        else setFailure({ key, message: t('settings.doctor.agent.messages.undo_failed', { message: result.message }) })
       } catch (error) {
         logger.error('Failed to undo a doctor change', error as Error)
-        toast.error(t('settings.doctor.agent.messages.undo_failed', { message: String(error) }))
+        setFailure({ key, message: t('settings.doctor.agent.messages.undo_failed', { message: String(error) }) })
       } finally {
         setBusy(null)
       }
@@ -108,7 +121,7 @@ export function useDoctorAgent({
     [key, state, t]
   )
 
-  return { state, isStale, busy, start, cancel, apply, undo }
+  return { state, isStale, busy, actionError, start, cancel, apply, undo }
 }
 
 export type DoctorAgentController = ReturnType<typeof useDoctorAgent>
