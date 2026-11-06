@@ -82,7 +82,7 @@ import type {
   AgentSessionUsageCapture
 } from '../runtime/types'
 import {
-  finalizeInterruptedParts,
+  interruptedReplyParts,
   PersistenceListener,
   type StreamErrorResult,
   type StreamListener,
@@ -536,9 +536,9 @@ export class AgentSessionRuntimeService extends BaseService {
       })
       // Pending approvals and tool parts lost their in-memory owner; native identities remain valid.
       agentSessionMessageService.resolveCrashOrphanedMessages(
-        stale.map(({ id, data }) => ({
+        stale.map(({ id, data: { streamCheckpoint, ...data } }) => ({
           id,
-          data: { ...data, parts: finalizeInterruptedParts(data.parts ?? [], 'error') }
+          data: { ...data, parts: interruptedReplyParts(streamCheckpoint ?? data.parts ?? []) }
         })),
         sessionIds
       )

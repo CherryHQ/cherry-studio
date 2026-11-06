@@ -1522,49 +1522,58 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   describe('reconcileStalePendingMessages — boot crash recovery', () => {
-    it.each([false, true])('recovers crashed sessions (relocation blocked: %s)', async (blocked) => {
-      mocks.relocateSystemWorkspaces.mockResolvedValueOnce(new Set(blocked ? ['session-b'] : []))
-      mocks.findCrashOrphanedAssistantMessages.mockReturnValue([
-        {
-          id: 'stale-1',
-          sessionId: 'session-a',
-          data: {
-            parts: [
-              { type: 'text', text: 'partial answer' },
-              { type: 'tool-Bash', toolCallId: 'call-1', state: 'input-available', input: { command: 'ls' } }
-            ]
-          }
-        },
-        { id: 'stale-2', sessionId: 'session-a', data: { parts: [] } },
-        { id: 'stale-3', sessionId: 'session-b', data: {} }
-      ])
-      const service = new AgentSessionRuntimeService()
-
-      await (service as any).onInit()
-
-      expect(mocks.resolveCrashOrphanedMessages).toHaveBeenCalledWith(
-        [
+    it.each([false, true])(
+      'recovers crashed sessions with checkpointed parts (relocation blocked: %s)',
+      async (blocked) => {
+        mocks.relocateSystemWorkspaces.mockResolvedValueOnce(new Set(blocked ? ['session-b'] : []))
+        mocks.findCrashOrphanedAssistantMessages.mockReturnValue([
           {
             id: 'stale-1',
+            sessionId: 'session-a',
             data: {
-              parts: [
+              parts: [],
+              streamCheckpoint: [
                 { type: 'text', text: 'partial answer' },
-                {
-                  type: 'tool-Bash',
-                  toolCallId: 'call-1',
-                  state: 'output-error',
-                  input: { command: 'ls' },
-                  errorText: 'Stream errored before tool completed'
-                }
+                { type: 'tool-Bash', toolCallId: 'call-1', state: 'input-available', input: { command: 'ls' } }
               ]
             }
           },
-          { id: 'stale-2', data: { parts: [] } },
-          ...(blocked ? [] : [{ id: 'stale-3', data: { parts: [] } }])
-        ],
-        blocked ? ['session-a'] : ['session-a', 'session-b']
-      )
-    })
+          { id: 'stale-2', sessionId: 'session-a', data: { parts: [] } },
+          { id: 'stale-3', sessionId: 'session-b', data: {} }
+        ])
+        const service = new AgentSessionRuntimeService()
+        const interrupted = expect.objectContaining({
+          type: 'data-error',
+          data: expect.objectContaining({ i18nKey: 'reply_interrupted' })
+        })
+
+        await (service as any).onInit()
+
+        expect(mocks.resolveCrashOrphanedMessages).toHaveBeenCalledWith(
+          [
+            {
+              id: 'stale-1',
+              data: {
+                parts: [
+                  { type: 'text', text: 'partial answer' },
+                  {
+                    type: 'tool-Bash',
+                    toolCallId: 'call-1',
+                    state: 'output-error',
+                    input: { command: 'ls' },
+                    errorText: 'Stream errored before tool completed'
+                  },
+                  interrupted
+                ]
+              }
+            },
+            { id: 'stale-2', data: { parts: [interrupted] } },
+            ...(blocked ? [] : [{ id: 'stale-3', data: { parts: [interrupted] } }])
+          ],
+          blocked ? ['session-a'] : ['session-a', 'session-b']
+        )
+      }
+    )
 
     it('logs and does not rethrow when the reconcile lookup throws, so boot is not blocked', async () => {
       const failure = new Error('db down')

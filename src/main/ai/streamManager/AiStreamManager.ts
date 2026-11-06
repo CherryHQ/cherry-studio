@@ -62,6 +62,7 @@ import type { StreamLifecycle } from './lifecycle/StreamLifecycle'
 import { TerminalPersistenceError } from './listeners/PersistenceListener'
 import { isRendererListener, WebContentsListener } from './listeners/WebContentsListener'
 import { MessageRuntimeTimingCollector } from './MessageRuntimeTimingCollector'
+import { interruptedReplyParts } from './persistence/PersistenceBackend'
 import { pipeStreamLoop } from './pipeStreamLoop'
 import { projectStreamChunkPayloadForRenderer, projectStreamMessageForRenderer } from './rendererPayload'
 import { TopicMessageProjection } from './TopicMessageProjection'
@@ -214,7 +215,8 @@ const DEFAULT_CONFIG: AiStreamManagerConfig = {
   maxDeltaBytes: 16_384,
   // Generous (2 h) but bounded: a human can deliberate, yet a renderer that never responds (window
   // closed/crashed) can't leave the stream + subprocess hanging until app quit.
-  approvalIdleTimeoutMs: 2 * 60 * 60 * 1000
+  approvalIdleTimeoutMs: 2 * 60 * 60 * 1000,
+  checkpointIntervalMs: 1000
 }
 
 /** `pending` covers the pre-first-chunk window — don't compare against `'streaming'` alone. */
@@ -683,15 +685,21 @@ export class AiStreamManager extends BaseService {
   /**
    * Resolve assistant rows a prior main-process crash left stuck in `pending`. The streaming
    * loop persists a terminal status only when it settles; if the process died mid-stream the
-   * row stays `pending` forever and the UI shows a frozen "thinking" bubble. Runs once at boot,
-   * before the open handler is registered, so it can never race a freshly created placeholder.
+   * row stays `pending` forever and the UI shows a frozen "thinking" bubble. Each row keeps the
+   * partial reply its last checkpoint saved. Runs once at boot, before the open handler is
+   * registered, so it can never race a freshly created placeholder.
    */
   private reconcileStalePendingMessages(): void {
     try {
-      const staleIds = messageService.findPendingAssistantMessageIds()
-      if (staleIds.length === 0) return
-      logger.info('Reconciling crash-orphaned pending assistant messages', { count: staleIds.length })
-      messageService.markMessagesError(staleIds)
+      const stale = messageService.findPendingAssistantMessages()
+      if (stale.length === 0) return
+      logger.info('Reconciling crash-orphaned pending assistant messages', { count: stale.length })
+      messageService.resolveInterruptedAssistantMessages(
+        stale.map(({ id, data: { streamCheckpoint, ...data } }) => ({
+          id,
+          data: { ...data, parts: interruptedReplyParts(streamCheckpoint ?? data.parts ?? []) }
+        }))
+      )
     } catch (error) {
       logger.error('Failed to reconcile stale pending messages', { error })
     }
@@ -2192,9 +2200,11 @@ export class AiStreamManager extends BaseService {
       onAccumulatedSnapshot: (msg) => {
         exec.finalMessage = withResolvedApprovals(withCompactionAnchors(msg, exec), exec)
         this.projections.get(topicId)?.accumulate(modelId, exec.attemptId, exec.finalMessage)
+        this.scheduleCheckpoint(topicId, exec)
       }
     })
 
+    clearTimeout(exec.checkpointTimer)
     exec.timings.completedAt = result.broadcastCompletedAt
 
     if (result.accumulationError !== undefined) {
@@ -2236,6 +2246,22 @@ export class AiStreamManager extends BaseService {
     } else {
       await this.onExecutionDone(topicId, modelId, exec)
     }
+  }
+
+  private scheduleCheckpoint(topicId: string, exec: StreamExecution): void {
+    if (exec.checkpointTimer) return
+    exec.checkpointTimer = setTimeout(() => {
+      exec.checkpointTimer = undefined
+      const stream = this.activeStreams.get(topicId)
+      if (exec.status !== 'streaming' || !exec.finalMessage || stream?.executions.get(exec.modelId) !== exec) return
+      for (const [id, listener] of stream.listeners) {
+        try {
+          listener.onCheckpoint?.(exec.finalMessage, exec.modelId)
+        } catch (err) {
+          logger.warn('Listener threw', { topicId, listenerId: id, event: 'onCheckpoint', err })
+        }
+      }
+    }, this.config.checkpointIntervalMs)
   }
 
   /** Broadcast done for a single execution to all topic listeners. */

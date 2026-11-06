@@ -2,7 +2,7 @@ import { asc, desc, sql } from 'drizzle-orm'
 import { check, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import type { AgentSessionDeliveryEnvelope, AgentSessionDeliveryStatus } from '@shared/ai/agentSessionDelivery'
-import type { MessageData, MessageSnapshot, MessageStats } from '@shared/data/types/message'
+import type { CherryMessagePart, MessageData, MessageSnapshot, MessageStats } from '@shared/data/types/message'
 
 import { createUpdateTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
 import { agentSessionTable } from './agentSession'
@@ -21,7 +21,14 @@ export const agentSessionMessageTable = sqliteTable(
     // `data` stores MessageData (`{ parts }`); Drizzle handles
     // JSON.stringify/parse automatically via `{ mode: 'json' }`.
     data: text({ mode: 'json' })
-      .$type<MessageData & { runtimeAnchor?: unknown; nativeSessionId?: string; deliveryReplyAnchor?: string }>()
+      .$type<
+        MessageData & {
+          runtimeAnchor?: unknown
+          nativeSessionId?: string
+          deliveryReplyAnchor?: string
+          streamCheckpoint?: CherryMessagePart[]
+        }
+      >()
       .notNull(),
     searchableText: text().notNull().default(''),
     status: text().notNull(),

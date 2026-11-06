@@ -12,7 +12,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { RuntimeForkAnchorSchema, type RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
-import type { CherryUIMessage } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import type { PersistAssistantInput, PersistedAssistant, PersistenceBackend } from '../../streamManager'
@@ -91,6 +91,10 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
       messageRevision: String(Date.parse(saved.updatedAt)),
       historyRevision: String(Date.parse(agentSessionService.getById(this.opts.sessionId).updatedAt))
     }
+  }
+
+  checkpoint(parts: CherryMessagePart[]): void {
+    agentSessionMessageService.saveStreamCheckpoint(this.opts.assistantMessageId, parts)
   }
 
   markTerminalError(): void {
