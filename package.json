@@ -140,6 +140,7 @@
     "website-docs:sync": "node scripts/websiteDocs/sync.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.311",
     "@cherrystudio/agent-behavior": "workspace:*",
     "@cherrystudio/agent-runtime-claude-code": "workspace:*",
     "@cherrystudio/agent-runtime-pi": "workspace:*",
@@ -153,6 +154,7 @@
     "@earendil-works/pi-durable": "1.4.0",
     "@firecrawl/anydoc": "0.2.4",
     "@huggingface/transformers": "4.2.0",
+    "@modelcontextprotocol/sdk": "1.32.0",
     "@napi-rs/canvas": "0.1.80",
     "@napi-rs/system-ocr": "1.2.0",
     "@node-rs/xxhash": "1.7.6",
@@ -206,7 +208,6 @@
     "@ai-sdk/test-server": "^1.0.3",
     "@ai-sdk/togetherai": "^2.0.78",
     "@ai-sdk/xai": "^3.0.126",
-    "@anthropic-ai/claude-agent-sdk": "0.3.311",
     "@anthropic-ai/sdk": "^0.93.0",
     "@aws-sdk/client-s3": "^3.998.0",
     "@aws-sdk/lib-storage": "3.998.0",
@@ -265,7 +266,6 @@
     "@mistralai/mistralai": "^1.7.5",
     "@modelcontextprotocol/client": "2.3.0",
     "@modelcontextprotocol/core": "2.3.0",
-    "@modelcontextprotocol/sdk": "1.32.0",
     "@modelcontextprotocol/server": "2.3.0",
     "@mozilla/readability": "^0.6.0",
     "@notionhq/client": "^2.2.15",

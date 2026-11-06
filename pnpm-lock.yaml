@@ -266,6 +266,9 @@ importers:
 
   .:
     dependencies:
+      '@anthropic-ai/claude-agent-sdk':
+        specifier: 0.3.311
+        version: 0.3.311(patch_hash=b89b3f4bbaf29e79be6f1de79f027ab65862b7656ce3d1c3ae7481f016093abe)(@anthropic-ai/sdk@0.93.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(zod@4.4.3)
       '@cherrystudio/agent-behavior':
         specifier: workspace:*
         version: link:packages/agent-behavior
@@ -305,6 +308,9 @@ importers:
       '@huggingface/transformers':
         specifier: 4.2.0
         version: 4.2.0(@types/node@24.10.4)
+      '@modelcontextprotocol/sdk':
+        specifier: 1.32.0
+        version: 1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3)
       '@napi-rs/canvas':
         specifier: 0.1.97
         version: 0.1.97
@@ -459,9 +465,6 @@ importers:
       '@ai-sdk/xai':
         specifier: ^3.0.126
         version: 3.0.126(zod@4.4.3)
-      '@anthropic-ai/claude-agent-sdk':
-        specifier: 0.3.311
-        version: 0.3.311(patch_hash=b89b3f4bbaf29e79be6f1de79f027ab65862b7656ce3d1c3ae7481f016093abe)(@anthropic-ai/sdk@0.93.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(zod@4.4.3)
       '@anthropic-ai/sdk':
         specifier: ^0.93.0
         version: 0.93.0(zod@4.4.3)
@@ -636,9 +639,6 @@ importers:
       '@modelcontextprotocol/core':
         specifier: 2.3.0
         version: 2.3.0
-      '@modelcontextprotocol/sdk':
-        specifier: 1.32.0
-        version: 1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3)
       '@modelcontextprotocol/server':
         specifier: 2.3.0
         version: 2.3.0
