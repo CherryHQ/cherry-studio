@@ -4,7 +4,7 @@
  * Do not edit manually
  *
  * Generated at: 2026-11-04T07:38:07.847Z
- * Total icons: 173
+ * Total icons: 174
  */
 export { Ai302Icon as Ai302 } from './302ai'
 export { MinTop3Icon as MinTop3 } from './3min-top'
@@ -44,6 +44,7 @@ export { ComposioIcon as Composio } from './composio'
 export { CozeIcon as Coze } from './coze'
 export { DangbeiIcon as Dangbei } from './dangbei'
 export { DashscopeIcon as Dashscope } from './dashscope'
+export { DeapiIcon as Deapi } from './deapi/deapi'
 export { DatabricksIcon as Databricks } from './databricks'
 export { DeepcogitoIcon as Deepcogito } from './deepcogito'
 export { DeepseekIcon as Deepseek } from './deepseek'

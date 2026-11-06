@@ -8809,6 +8809,290 @@
       "providerId": "dashscope"
     },
     {
+      "apiModelId": "Bge_M3_FP16",
+      "endpointTypes": ["openai-embeddings"],
+      "modelId": "bge-m3",
+      "providerId": "deapi"
+    },
+    {
+      "apiModelId": "Chatterbox",
+      "capabilities": {
+        "force": ["audio-generation"]
+      },
+      "endpointTypes": ["openai-text-to-speech"],
+      "inputModalities": ["text"],
+      "modelId": "chatterbox",
+      "name": "Chatterbox",
+      "outputModalities": ["audio"],
+      "providerId": "deapi"
+    },
+    {
+      "apiModelId": "Flux1schnell",
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "numImages": {
+                "default": 1,
+                "max": 4,
+                "min": 1,
+                "type": "range"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": ["512x512", "768x768", "1024x1024", "1024x1536", "1536x1024"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "modelId": "flux-1-schnell",
+      "providerId": "deapi"
+    },
+    {
+      "apiModelId": "Flux_2_Klein_4B_BF16",
+      "endpointTypes": ["openai-image-generation", "openai-image-edit"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 3,
+            "supports": {
+              "numImages": {
+                "default": 1,
+                "max": 2,
+                "min": 1,
+                "type": "range"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "numImages": {
+                "default": 1,
+                "max": 2,
+                "min": 1,
+                "type": "range"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": ["512x512", "768x768", "1024x1024"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "modelId": "flux-2-klein-4b",
+      "providerId": "deapi"
+    },
+    {
+      "apiModelId": "Kokoro",
+      "capabilities": {
+        "force": ["audio-generation"]
+      },
+      "endpointTypes": ["openai-text-to-speech"],
+      "inputModalities": ["text"],
+      "modelId": "kokoro",
+      "name": "Kokoro",
+      "outputModalities": ["audio"],
+      "providerId": "deapi"
+    },
+    {
+      "apiModelId": "Ltx2_3_22B_Dist_INT8",
+      "capabilities": {
+        "force": ["video-generation"]
+      },
+      "endpointTypes": ["openai-video-generation"],
+      "inputModalities": ["text"],
+      "modelId": "ltx-2-3-22b-distilled",
+      "name": "LTX-2.3 22B Distilled",
+      "outputModalities": ["video"],
+      "providerId": "deapi"
+    },
+    {
+      "apiModelId": "Ltx2_5_22B_Dist_INT8",
+      "capabilities": {
+        "force": ["video-generation"]
+      },
+      "endpointTypes": ["openai-video-generation"],
+      "inputModalities": ["text"],
+      "modelId": "ltx-2-5-22b-distilled",
+      "name": "LTX-2.5 22B Distilled",
+      "outputModalities": ["video"],
+      "providerId": "deapi"
+    },
+    {
+      "apiModelId": "Ltxv_13B_0_9_8_Distilled_FP8",
+      "capabilities": {
+        "force": ["video-generation"]
+      },
+      "endpointTypes": ["openai-video-generation"],
+      "inputModalities": ["text"],
+      "modelId": "ltx-video-13b-distilled",
+      "name": "LTX-Video 13B Distilled",
+      "outputModalities": ["video"],
+      "providerId": "deapi"
+    },
+    {
+      "apiModelId": "MiniMaxH3_33B_Turbo_INT8",
+      "capabilities": {
+        "force": ["video-generation"]
+      },
+      "endpointTypes": ["openai-video-generation"],
+      "inputModalities": ["text"],
+      "modelId": "minimax-h3-turbo",
+      "name": "MiniMax H3 Turbo",
+      "outputModalities": ["video"],
+      "providerId": "deapi"
+    },
+    {
+      "apiModelId": "QwenImageEdit_Plus_NF4",
+      "capabilities": {
+        "force": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-edit"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 1,
+            "supports": {
+              "numImages": {
+                "default": 1,
+                "max": 2,
+                "min": 1,
+                "type": "range"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "qwen-image-edit-plus",
+      "name": "Qwen-Image-Edit Plus",
+      "outputModalities": ["image"],
+      "ownedBy": "alibaba",
+      "providerId": "deapi"
+    },
+    {
+      "apiModelId": "Qwen3_TTS_12Hz_1_7B_CustomVoice",
+      "capabilities": {
+        "force": ["audio-generation"]
+      },
+      "endpointTypes": ["openai-text-to-speech"],
+      "inputModalities": ["text"],
+      "modelId": "qwen3-tts-custom-voice",
+      "name": "Qwen3 TTS 1.7B CustomVoice",
+      "outputModalities": ["audio"],
+      "ownedBy": "alibaba",
+      "providerId": "deapi"
+    },
+    {
+      "apiModelId": "Qwen3_TTS_12Hz_1_7B_VoiceDesign",
+      "capabilities": {
+        "force": ["audio-generation"]
+      },
+      "endpointTypes": ["openai-text-to-speech"],
+      "inputModalities": ["text"],
+      "modelId": "qwen3-tts-voice-design",
+      "name": "Qwen3 TTS 1.7B VoiceDesign",
+      "outputModalities": ["audio"],
+      "ownedBy": "alibaba",
+      "providerId": "deapi"
+    },
+    {
+      "apiModelId": "WhisperLargeV3",
+      "capabilities": {
+        "force": ["audio-transcript"]
+      },
+      "endpointTypes": ["openai-audio-transcription"],
+      "inputModalities": ["audio"],
+      "modelId": "whisper-large-v3",
+      "outputModalities": ["text"],
+      "providerId": "deapi"
+    },
+    {
+      "apiModelId": "WhisperLargeV3Ct2",
+      "capabilities": {
+        "force": ["audio-transcript"]
+      },
+      "endpointTypes": ["openai-audio-transcription"],
+      "inputModalities": ["audio"],
+      "modelId": "whisper-large-v3-ct2",
+      "name": "Whisper Large v3 (CTranslate2)",
+      "outputModalities": ["text"],
+      "ownedBy": "openai",
+      "providerId": "deapi"
+    },
+    {
+      "apiModelId": "ZAnimeDistill_8Step_INT8",
+      "capabilities": {
+        "force": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "numImages": {
+                "default": 1,
+                "max": 4,
+                "min": 1,
+                "type": "range"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": ["512x512", "768x768", "1024x1024"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text"],
+      "modelId": "z-anime-distill",
+      "name": "Z-Anime Distill",
+      "outputModalities": ["image"],
+      "providerId": "deapi"
+    },
+    {
+      "apiModelId": "ZImageTurbo_INT8",
+      "capabilities": {
+        "force": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "numImages": {
+                "default": 1,
+                "max": 4,
+                "min": 1,
+                "type": "range"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": ["512x512", "768x768", "1024x1024"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text"],
+      "modelId": "z-image-turbo",
+      "name": "Z-Image Turbo",
+      "outputModalities": ["image"],
+      "ownedBy": "alibaba",
+      "providerId": "deapi"
+    },
+    {
       "endpointTypes": ["openai-responses", "openai-chat-completions", "anthropic-messages"],
       "modelId": "deepseek-flash",
       "pricing": {
@@ -44643,5 +44927,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "ae42a0ee7c463c59"
+  "version": "fa7b04a03c98d3fe"
 }
