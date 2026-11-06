@@ -169,6 +169,35 @@ const CONTAINER_RUN_VALUE_FLAGS = new Set([
   '--workdir'
 ])
 
+/** Characters after which a `/` divides rather than starting a regular expression. */
+function endsExpression(code: string, index: number): boolean {
+  const previous = code[index - 1]
+  return previous !== undefined && (/[A-Za-z0-9_$)\]'"`]/.test(previous) || previous === '.')
+}
+
+/**
+ * Index just past the regular expression starting at `start`, or `-1` when the `/` is division.
+ * A character class holds `/`, `*`, and `#` literally: `/[/*]/` is a regex, never a comment.
+ */
+function findRegexLiteralEnd(code: string, start: number): number {
+  let index = start + 1
+  let inClass = false
+  if (code[index] === '*' || code[index] === '/') return -1 // A comment or an empty pattern.
+  while (index < code.length) {
+    const char = code[index]
+    if (char === '\\') {
+      index += 2
+      continue
+    }
+    if (char === '\n') return -1
+    if (char === '[') inClass = true
+    else if (char === ']') inClass = false
+    else if (char === '/' && !inClass) return index + 1
+    index++
+  }
+  return -1
+}
+
 /** Replace string literals and comments with spaces so patterns match code, not prose. */
 function stripScriptLiterals(code: string, language: 'python' | 'javascript'): string {
   let output = ''
@@ -194,6 +223,14 @@ function stripScriptLiterals(code: string, language: 'python' | 'javascript'): s
       output += ' '
       index = newline === -1 ? code.length : newline
       continue
+    }
+    if (language === 'javascript' && char === '/' && !endsExpression(code, index)) {
+      const end = findRegexLiteralEnd(code, index)
+      if (end !== -1) {
+        output += ' '
+        index = end
+        continue
+      }
     }
     if (language === 'javascript' && char === '/' && code[index + 1] === '/') {
       const newline = code.indexOf('\n', index)
@@ -249,7 +286,7 @@ function stripTemplateLiteral(code: string, start: number): { output: string; en
   return { output, end: code.length }
 }
 
-/** Index of the `}` closing a `${` expression, skipping nested strings and template literals. */
+/** Index of the `}` closing a `${` expression, skipping nested strings, templates, and regexes. */
 function findTemplateExpressionEnd(code: string, braceStart: number): number {
   let depth = 0
   let index = braceStart
@@ -268,7 +305,14 @@ function findTemplateExpressionEnd(code: string, braceStart: number): number {
       index = stripTemplateLiteral(code, index).end
       continue
     }
-    // A brace inside a comment is not a brace: `${/* } */ fs.unlinkSync(f)}` ends at the real close.
+    // A brace inside a comment or a character class is not a brace: `${/[/*]/}` is a regex.
+    if (char === '/' && !endsExpression(code, index)) {
+      const end = findRegexLiteralEnd(code, index)
+      if (end !== -1) {
+        index = end
+        continue
+      }
+    }
     if (char === '/' && code[index + 1] === '/') {
       const newline = code.indexOf('\n', index)
       index = newline === -1 ? code.length : newline + 1

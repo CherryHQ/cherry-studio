@@ -291,6 +291,36 @@ describe('detectDestructiveAssistantCommand scripts', () => {
     expect(detectDestructiveAssistantCommand("node -e 'console.log(`a ${{b: 1}.b}`)'")).toBeUndefined()
     expect(detectDestructiveAssistantCommand('node -e \'const n = "x"; console.log(`file ${n}`)\'')).toBeUndefined()
   })
+
+  it('reads a slash before a character class as a regular expression, not a comment', () => {
+    // `/[/*]/` and `/[//]/` hold the comment delimiters inside a class and must not swallow the boundary.
+    expect(
+      detectDestructiveAssistantCommand(
+        'node -e \'const fs=require("fs"); const x = ${/[/*]/}; fs.unlinkSync("victim")\''
+      )
+    ).toBe('scripted permanent file deletion')
+    expect(
+      detectDestructiveAssistantCommand(
+        'node -e \'const fs=require("fs"); const x = ${/[//]/}; fs.unlinkSync("victim")\''
+      )
+    ).toBe('scripted permanent file deletion')
+    expect(
+      detectDestructiveAssistantCommand(
+        'node -e \'const fs=require("fs"); console.log(`${/[/*]/}`, `${fs.unlinkSync("victim")}`)\''
+      )
+    ).toBe('scripted permanent file deletion')
+    // A real regex is not prose: what follows it in the same interpolation still runs.
+    expect(
+      detectDestructiveAssistantCommand(
+        'node -e \'const fs=require("fs"); console.log(`${/a\\/b/.test(x)}`); fs.rmdirSync("victim")\''
+      )
+    ).toBe('scripted permanent file deletion')
+  })
+
+  it('keeps division out of regular-expression scanning', () => {
+    expect(detectDestructiveAssistantCommand("node -e 'const a=6, b=2; console.log(`${a / b}`)'")).toBeUndefined()
+    expect(detectDestructiveAssistantCommand('node -e \'const x="p"; console.log(`${x.length / 2}`)\'')).toBeUndefined()
+  })
 })
 
 describe('isPermanentDeletionToolName', () => {
