@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-07-preview-tab-overlap.md
+2026-11-07-preview-tab-overlap.md: 94163ae1db2ad52017522ea6d2be2ba8fac20125
+2026-11-07-preview-tab-overlap.zh.md: 514f73980f5f86234562aafcebda05398956042c
