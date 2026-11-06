@@ -352,3 +352,16 @@ describe('classifyErrorCategory embedded runtime connection codes (#22210)', () 
     expect(classifyErrorCategory({ text })).toBe('unknown')
   })
 })
+
+describe('classifyErrorCategory invalid inline image', () => {
+  const text =
+    'Too many requests, please wait a moment (image/jpeg inlineData is not valid base64: string argument should contain only ASCII characters)'
+
+  it('reports a non-ASCII inline image payload as a request error, not rate limiting', () => {
+    expect(classifyErrorCategory({ text })).toBe('bad_request')
+  })
+
+  it('keeps rate_limit for a real HTTP 429', () => {
+    expect(classifyErrorCategory({ text, status: 429 })).toBe('rate_limit')
+  })
+})
