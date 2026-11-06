@@ -5,7 +5,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import type { MigrationPaths } from '@data/migration/v2/core/MigrationPaths'
-import { MigrationIpcChannels, type MigrationProgress, type MigrationResult } from '@shared/data/migration/v2/types'
+import {
+  MigrationIpcChannels,
+  type MigrationProgress,
+  type MigrationResult,
+  MigrationSupportLinks
+} from '@shared/data/migration/v2/types'
 
 // Shared mock fns so each test can configure return values.
 const diagnosticModuleState = vi.hoisted(() => ({ loadCount: 0 }))
@@ -467,6 +472,41 @@ describe('MigrationIpcHandler', () => {
       vi.mocked(shell.openExternal).mockRejectedValueOnce(new Error('no browser'))
 
       await expect(invoke(MigrationIpcChannels.OpenDownloadPage, 'en-US')).resolves.toBe(false)
+    })
+  })
+
+  describe('support links', () => {
+    it('opens the feedback mailto and the official releases page for those purposes', async () => {
+      await expect(invoke(MigrationIpcChannels.OpenSupportLink, 'feedback')).resolves.toBe(true)
+      await expect(invoke(MigrationIpcChannels.OpenSupportLink, 'releases')).resolves.toBe(true)
+
+      expect(shell.openExternal).toHaveBeenCalledTimes(2)
+      expect(shell.openExternal).toHaveBeenCalledWith(MigrationSupportLinks.feedback)
+      expect(shell.openExternal).toHaveBeenCalledWith(MigrationSupportLinks.releases)
+    })
+
+    it('rejects an untrusted sender and an unapproved destination without opening either', async () => {
+      diagnosticMocks.validateSender.mockReturnValue(false)
+
+      await expect(invoke(MigrationIpcChannels.OpenSupportLink, 'releases')).rejects.toThrow('Unauthorized')
+      expect(shell.openExternal).not.toHaveBeenCalled()
+
+      diagnosticMocks.validateSender.mockReturnValue(true)
+      await expect(
+        invoke(MigrationIpcChannels.OpenSupportLink, 'https://github.com/CherryHQ/cherry-studio/releases')
+      ).resolves.toBe(false)
+      await expect(
+        invoke(MigrationIpcChannels.OpenSupportLink, 'mailto:support@cherry-ai.com?subject=Cherry%20Studio%20Feedback')
+      ).resolves.toBe(false)
+      await expect(invoke(MigrationIpcChannels.OpenSupportLink, 'https://evil.example/releases')).resolves.toBe(false)
+      expect(shell.openExternal).not.toHaveBeenCalled()
+    })
+
+    it('returns false when the shell cannot open an approved support link', async () => {
+      vi.mocked(shell.openExternal).mockRejectedValueOnce(new Error('no mail client'))
+
+      await expect(invoke(MigrationIpcChannels.OpenSupportLink, 'feedback')).resolves.toBe(false)
+      expect(shell.openExternal).toHaveBeenCalledWith(MigrationSupportLinks.feedback)
     })
   })
 
