@@ -3153,6 +3153,53 @@ describe('ChatComposer', () => {
     expect(savedParts.find((part) => part.type === 'reasoning')?.text).toBe(editedReasoning)
   })
 
+  it('edits provider-signed reasoning and saves a think replay marker', async () => {
+    const editMessage = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage, resend: vi.fn(), forkAndResend: vi.fn() }
+
+    const message = {
+      id: 'msg-signed-reasoning',
+      role: 'assistant',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    }
+    const parts = [
+      {
+        type: 'reasoning',
+        text: 'signed thought',
+        state: 'done',
+        providerMetadata: { anthropic: { signature: 'sig' } }
+      },
+      { type: 'text', text: 'original answer' }
+    ]
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={parts} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect((mocks.surfaceProps as any)?.editingState?.reasoning).toBeDefined())
+
+    act(() => {
+      ;(mocks.surfaceProps as any)?.editingState?.reasoning?.onChange('corrected thought')
+    })
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'edited answer', tokens: [] })
+    })
+
+    const [, savedParts] = editMessage.mock.calls[0] as unknown as [
+      string,
+      Array<{ type: string; text?: string; providerMetadata?: { cherry?: Record<string, unknown> } }>
+    ]
+    expect(savedParts.find((part) => part.type === 'reasoning')?.providerMetadata?.cherry).toMatchObject({
+      editedReasoningReplay: 'think'
+    })
+  })
+
   it('restores file and quote tokens with attached files from the topic draft cache', async () => {
     const cachedFile = {
       id: 'file-1',

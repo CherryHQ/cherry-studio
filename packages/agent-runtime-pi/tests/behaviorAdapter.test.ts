@@ -21,8 +21,11 @@ import {
 } from '@cherrystudio/agent-behavior'
 import { type ItemId, runtimeId, type ThreadId } from '@cherrystudio/agent-runtime'
 
-import type { AgentRuntimeEvent, AgentRuntimeSession, BehaviorSessionRequest, CompactionSummarizer } from '../src'
+import type { AgentRuntimeEvent } from '../src'
+import type { BehaviorSessionRequest } from '../src/behavior/harness'
 import { historyOf } from '../src/behavior/history'
+import type { CompactionSummarizer } from '../src/compaction'
+import type { AgentRuntimeSession } from '../src/session'
 import { type OpenSession, openPiHarness, type PiHarness } from './behaviorHarness'
 
 const read = (pi: PiHarness, thread: ThreadId): Promise<ConversationFacts> =>
@@ -885,18 +888,75 @@ describe('coding-agent behavior adapter', () => {
     expect(notified).toEqual([expect.objectContaining({ text: expect.stringContaining('found 3 files') })])
   })
 
-  // Catches a report job whose child failed to build never settling, or failing as an unhandled rejection instead of
-  // through onError, or the child staying in the parent's children (D3).
-  it('fails the report job of a background child whose session failed to build', async () => {
-    const pi = await openPiHarness(installPackage, [], (request, open) =>
-      request.child ? Promise.reject(new Error('build failed')) : open(request)
+  // Catches a failed native child build retaining a running record and consuming background capacity.
+  it('ends a failed background child and admits the next child without reopening the parent', async () => {
+    let failing = true
+    const pi = await openPiHarness(
+      (ports) => installPackage(ports, (host) => ({ ...host, settings: { ...host.settings, maxBackground: () => 1 } })),
+      [],
+      (request, open) => {
+        if (request.child) {
+          if (failing) return Promise.reject(new Error('build failed'))
+          pi.harness.script(runtimeId(request.sessionManager.getSessionId()), [{ text: 'healthy result' }])
+        }
+        return open(request)
+      }
     )
     const parent = await pi.harness.createThread()
-    pi.harness.script(parent, [spawnInBackground, { text: 'went on' }])
+    pi.harness.script(parent, [spawnInBackground, { text: 'went on' }, { text: 'read failure' }])
     await pi.harness.sendUser(parent, 'go')
     await pi.harness.settle()
-    expect((await read(pi, parent)).children.size).toBe(0)
-    expect(pi.errors).toEqual([expect.objectContaining({ message: expect.stringContaining('Unknown thread') })])
+    const ended = (await read(pi, parent)).history.filter(
+      (entry) => entry.kind === 'record' && entry.record.type === 'subagent-run'
+    )
+    expect(ended.at(-1)).toMatchObject({ record: { value: { status: 'finished', outcome: 'failed' } } })
+    failing = false
+    pi.harness.script(parent, [spawnInBackground, { text: 'waiting' }, { text: 'received' }])
+    await pi.harness.sendUser(parent, 'retry with a new child')
+    await pi.harness.settle()
+    const facts = await read(pi, parent)
+    expect(facts.history.some((entry) => entry.kind === 'marker' && entry.text.includes('healthy result'))).toBe(true)
+    expect(pi.errors).toEqual([])
+  })
+
+  // Catches compensating one rejected child by rolling back a sibling that already opened successfully.
+  it('reports a failed child once while its sibling completes', async () => {
+    const pi = await openPiHarness(installPackage, [], (request, open) => {
+      if (request.child) {
+        if (request.child.origin.description === 'broken') return Promise.reject(new Error('build failed'))
+        pi.harness.script(runtimeId(request.sessionManager.getSessionId()), [{ text: 'healthy sibling result' }])
+      }
+      return open(request)
+    })
+    const parent = await pi.harness.createThread()
+    pi.harness.script(parent, [
+      {
+        text: '',
+        toolCalls: ['broken', 'healthy'].map((description) => ({
+          name: 'subagent',
+          args: { description, prompt: 'task', background: true }
+        }))
+      },
+      { text: 'parent answer' },
+      { text: 'read report' },
+      { text: 'read other report' }
+    ])
+    await pi.harness.sendUser(parent, 'delegate')
+    await pi.harness.settle()
+    const facts = await read(pi, parent)
+    const ends = facts.history.flatMap((entry) =>
+      entry.kind === 'record' && entry.record.type === 'subagent-run' && entry.record.value.status === 'finished'
+        ? [entry.record.value]
+        : []
+    )
+    expect(ends).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ description: 'broken', outcome: 'failed', reason: 'build failed' }),
+        expect.objectContaining({ description: 'healthy', outcome: 'completed', report: 'healthy sibling result' })
+      ])
+    )
+    expect(ends.filter((run) => run.description === 'broken')).toHaveLength(1)
+    expect(pi.errors).toEqual([])
   })
 
   // Catches a root session that fails to build staying in the conversation table: opening it again reports it as
@@ -964,7 +1024,7 @@ describe('coding-agent behavior adapter', () => {
     const closing = pi.harness.close()
     await disposing.promise
     try {
-      await expect(pi.behavior.submitUser(t, 'late')).rejects.toThrow('closed')
+      await expect(pi.behavior.prompt(t, 'late')).rejects.toThrow('closed')
       await expect(pi.behavior.compact(t)).rejects.toThrow('closed')
       await expect(pi.harness.createThread()).rejects.toThrow('closed')
       await pi.harness.withCall(t, async (ports) => {
@@ -1412,7 +1472,7 @@ describe('coding-agent behavior adapter', () => {
     for (const failure of Object.values(failures)) expect(pi.errors).toContain(failure)
   })
 
-  it('offloads contiguous text spans without moving images or losing structured output', async () => {
+  it.each([false, true])('preserves tool output across offload and file reopen (save fails=%s)', async (fails) => {
     const saved: string[] = []
     const a = 'A'.repeat(4000)
     const b = 'B'.repeat(4000)
@@ -1426,6 +1486,7 @@ describe('coding-agent behavior adapter', () => {
           outputStore: {
             save: async ({ content, name }) => {
               saved.push(content)
+              if (fails) throw new Error('Output disk unavailable')
               return `/outputs/${name}`
             }
           }
@@ -1467,6 +1528,11 @@ describe('coding-agent behavior adapter', () => {
       }
     })
     expect(saved).toEqual([a, b])
+    expect(JSON.stringify(result)).toContain(
+      fails ? 'could not be saved (Output disk unavailable)' : 'Full output saved to: /outputs/'
+    )
+    expect(JSON.stringify(result)).not.toContain(a)
+    expect(JSON.stringify(result)).not.toContain(b)
     const reopened = SessionManager.open(manager.getSessionFile()!).getBranch()
     expect(reopened.find((entry) => entry.id === result?.id)).toEqual(result)
     expect(pi.errors).toEqual([])

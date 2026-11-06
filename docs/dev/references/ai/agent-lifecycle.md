@@ -65,8 +65,13 @@ DB rollback must not emit these effects. Post-commit resource failures do not
 undo committed business state; startup recovery and later reconciliation repair
 derived resources.
 
-Restore applies to the explicitly selected entity, not an implicit subtree.
-Related Sessions remain independently restorable. Undo supplies explicit entity
+Restore applies to the explicitly selected entity. Independent related Sessions
+remain independently restorable. Owned child archives follow their root Session's
+archive, restore, and permanent deletion; they are not independent restore targets.
+Reassigning the root to another Agent updates its child archives in the same
+transaction. Only the root owns their shared system workspace, so storage operations
+process it once under the root's identity; deleting a child cannot remove that workspace.
+Undo supplies explicit entity
 IDs; no temporary restore snapshot or archive-operation journal is stored in DB.
 Pins removed at archive time are not recreated. Session archive retains the
 existing sticky-binding detachment policy.
@@ -222,8 +227,17 @@ owns the Agent-specific participants, using two stages:
 1. `pauseIngress()` holds Channel intake and rejects new lifecycle commands.
 2. `drainIngress()` waits for already accepted Channel admissions and lifecycle work.
 3. BackupManager pauses global AiStreamManager and JobManager; `pauseExecution()`
-   holds Delivery and Runtime autonomous launches.
-4. All writers drain before snapshotting. A timeout aborts the backup attempt.
+   holds Delivery and Runtime autonomous launches and rejects new child-panel input.
+4. All writers drain before snapshotting. Runtime owners first join native production, then
+   await observation queues and in-flight callbacks, and finally flush committed archives.
+   No projection writes may follow that flush while the pause is held. Stopping an observation
+   alone is not this barrier. Root replies also retain failed preparation/persistence under
+   their original identity; close awaits their stream listeners before its final projection
+   flush. Retained root failures, a timeout or failed final flush abort the backup attempt.
+
+The repository's Claude SDK 0.3.311 patch forwards the existing native idle event after background
+work. The adapter waits for this authority before releasing background occupancy; an empty visible
+task list alone cannot permit backup.
 
 Pausing execution before Channel admission drains could discard an already
 acknowledged incoming message. Keep that ordering explicit.

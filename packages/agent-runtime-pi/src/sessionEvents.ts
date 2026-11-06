@@ -1,4 +1,4 @@
-import { getCurrentTools, type AssistantMessage, type Message } from '@earendil-works/pi-ai'
+import { getCurrentTools, type Message } from '@earendil-works/pi-ai'
 import {
   type AgentSessionEvent,
   buildSessionContext,
@@ -6,32 +6,19 @@ import {
   type SessionManager
 } from '@earendil-works/pi-coding-agent'
 
-import type { SubagentView } from './subagentRegistry'
-
 const TOOL_LOADOUT_STATE = 'cherry.tool-loadout'
 
 export type CompactionReason = 'manual' | 'threshold' | 'overflow'
 export type AgentRuntimeEvent =
-  | { type: 'subagents'; subagents: SubagentView[] }
   | { type: 'session-append'; entries: SessionEntry[] }
   | { type: 'input-placed'; inputId: string; entryId: string }
-  | {
-      type: 'input-settled'
-      inputIds: readonly string[]
-      entryId: string
-      stopReason: AssistantMessage['stopReason']
-      aborted: boolean
-      errorMessage?: string
-    }
   | { type: 'compaction-start'; reason: CompactionReason }
-  | { type: 'compaction-end'; reason: CompactionReason; entryId?: string; error?: string }
-  | { type: 'turn-complete'; headEntryId: string | undefined; aborted: boolean }
+  | { type: 'compaction-end'; reason: CompactionReason; error?: string; aborted?: boolean }
+  | { type: 'turn-complete'; headEntryId: string | undefined }
 
 /** Observes native entries; the session manager remains the only persistence writer. */
 export class SessionEvents {
   private cursor: number
-  private compacting = false
-  private compactionEntryId: string | undefined
   private baseTools: Set<string> | undefined
   activatedTools: string[] = []
   summaryFailure: string | undefined
@@ -57,35 +44,20 @@ export class SessionEvents {
   handle(event: AgentSessionEvent): void {
     this.flush()
     switch (event.type) {
-      case 'input_settled':
-        this.listener({
-          type: 'input-settled',
-          inputIds: [...event.inputIds],
-          entryId: event.entryId,
-          stopReason: event.message.stopReason,
-          aborted: event.aborted,
-          ...(event.message.errorMessage === undefined ? {} : { errorMessage: event.message.errorMessage })
-        })
-        break
       case 'input_placed':
         this.listener({ type: 'input-placed', inputId: event.inputId, entryId: event.entryId })
         break
       case 'compaction_start':
-        this.compacting = true
-        this.compactionEntryId = undefined
         this.summaryFailure = undefined
         this.listener({ type: 'compaction-start', reason: event.reason })
         break
       case 'compaction_end': {
-        const entryId = this.compactionEntryId
-        this.compacting = false
-        this.compactionEntryId = undefined
         const error = event.errorMessage ?? this.summaryFailure
         this.summaryFailure = undefined
         this.listener({
           type: 'compaction-end',
           reason: event.reason,
-          ...(entryId ? { entryId } : {}),
+          aborted: event.aborted,
           ...(error ? { error } : {})
         })
         break
@@ -93,8 +65,7 @@ export class SessionEvents {
       case 'agent_settled':
         this.listener({
           type: 'turn-complete',
-          headEntryId: this.manager.getLeafId() ?? undefined,
-          aborted: event.aborted
+          headEntryId: this.manager.getLeafId() ?? undefined
         })
         break
     }
@@ -110,9 +81,6 @@ export class SessionEvents {
     const appended = this.manager.getEntries().slice(start)
     this.cursor = this.manager.getEntryCount()
     const copied: SessionEntry[] = JSON.parse(JSON.stringify(appended))
-    if (this.compacting) {
-      this.compactionEntryId = copied.findLast((entry) => entry.type === 'compaction')?.id ?? this.compactionEntryId
-    }
     this.listener({ type: 'session-append', entries: copied })
     return copied
   }

@@ -432,8 +432,18 @@ export function useChatWriteActions(params: Params): Result {
         activeExecutions: ack.activeExecutions,
         preserveActiveNode: ack.preserveActiveNode
       })
+      scrollToBottom()
     },
-    [createSiblingTrigger, seedReservedMessages, refresh, setMessages, topic.id, topic.assistantId, uiMessages]
+    [
+      createSiblingTrigger,
+      seedReservedMessages,
+      scrollToBottom,
+      refresh,
+      setMessages,
+      topic.id,
+      topic.assistantId,
+      uiMessages
+    ]
   )
 
   const handleResend = useCallback<ChatWriteActions['resend']>(
@@ -468,8 +478,9 @@ export function useChatWriteActions(params: Params): Result {
         activeExecutions: ack.activeExecutions,
         preserveActiveNode: ack.preserveActiveNode
       })
+      scrollToBottom()
     },
-    [regenerateWithCapabilities, seedReservedMessages, topic.id, uiMessages]
+    [regenerateWithCapabilities, seedReservedMessages, scrollToBottom, topic.id, uiMessages]
   )
 
   const handleSetActiveNode = useCallback<ChatWriteActions['setActiveNode']>(

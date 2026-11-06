@@ -96,8 +96,11 @@ resets the mocks.
 ```typescript
 export interface TestDatabaseOptions {
   seeders?: ISeeder[]
+  beforeMigration?: string
 }
 ```
+
+Migration tests can use `setupTestDatabase({ beforeMigration: '0027_knowledge_base_order' })` to initialize from the real SQL and journal prefix before that migration. Seed rows against that historical schema, then call `applyMigrations` with the production folder. Use a separate describe scope for tests that need the latest schema. Never rewind only the journal of an already-upgraded database.
 
 - `seeders`: run these after schema init. Useful for the small set of
   service tests that depend on seeded data (`ProviderRegistryService`,

@@ -23,6 +23,7 @@ import { useRightPanelState } from '@renderer/components/chat/panes/Shell'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { useOptionalFilePreviewNavigation } from '@renderer/components/FilePreview/useFilePreviewNavigation'
 import type { WebviewAnnotationSavedPayload } from '@renderer/components/WebviewAnnotationControls'
+import type * as RendererIpc from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -205,10 +206,6 @@ vi.mock('@renderer/components/chat/primitives', async (importActual) => ({
   EmptyState: () => <div data-testid="empty-state" />
 }))
 
-vi.mock('@renderer/components/chat/agent/AgentContextUsageSummary', () => ({
-  AgentContextUsageSummary: () => <div data-testid="context-usage" />
-}))
-
 vi.mock('@renderer/components/chat/messages/MessageList', () => ({
   default: () => <div data-testid="message-list" />
 }))
@@ -234,9 +231,9 @@ vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
   )
 }))
 
-vi.mock('@renderer/ipc', async (importOriginal) => ({
-  ...(await importOriginal()),
-  ipcApi: { request: ipcRequestMock }
+vi.mock('@renderer/ipc', async (importActual) => ({
+  ...(await importActual<typeof RendererIpc>()),
+  ipcApi: { ...(await importActual<typeof RendererIpc>()).ipcApi, request: ipcRequestMock }
 }))
 
 vi.mock('@renderer/services/toast', () => ({
@@ -427,10 +424,6 @@ vi.mock('../AgentBrowserView', () => ({
 
 vi.mock('@renderer/components/command', () => ({
   CommandTooltip: ({ children }: PropsWithChildren) => <>{children}</>
-}))
-
-vi.mock('@renderer/components/Scrollbar', () => ({
-  default: ({ children, ...props }: ComponentProps<'div'>) => <div {...props}>{children}</div>
 }))
 
 vi.mock('@renderer/data/hooks/usePreference', async () => ({
@@ -735,6 +728,7 @@ describe('AgentRightPane', () => {
     uiMockState.useRealHoverCard = false
     ipcRequestMock.mockImplementation(async (route: string) => {
       if (route === 'ai.tool.get_result') return { found: true, output: 'Loaded flow result' }
+      if (route === 'ai.projection.attach') return null
       return {
         kind: 'file',
         type: 'text',
@@ -2293,6 +2287,43 @@ describe('AgentRightPane', () => {
     expect(useArtifactFileTreeModelMock).not.toHaveBeenCalled()
   })
 
+  it('opens the common child projection for Claude and displays its availability diagnostic', async () => {
+    ipcRequestMock.mockImplementation(async (route: string) =>
+      route === 'ai.projection.attach'
+        ? {
+            kind: 'child',
+            sessionId: 'child-archive',
+            contextId: 'child-context',
+            revision: 1,
+            messages: [],
+            active: false,
+            available: true,
+            canSubmit: false,
+            diagnostic: 'Native child transcript is unavailable'
+          }
+        : undefined
+    )
+    const user = userEvent.setup()
+    render(
+      <TestAgentRightPane sessionId="claude-owner" runtimeType="claude-code" messages={[]} partsByMessageId={{}}>
+        <OpenFlowButton toolCallId="native-agent-tool" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'open flow' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Native child transcript is unavailable')
+    expect(screen.getByRole('heading', { name: 'agent.right_pane.info.context_usage' })).toBeInTheDocument()
+    expect(screen.getByText('common.unknown')).toBeVisible()
+    expect(screen.queryByRole('meter')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'chat.input.send' })).toBeNull()
+    expect(ipcRequestMock).toHaveBeenCalledWith('ai.projection.attach', {
+      target: { kind: 'child', sessionId: 'claude-owner', toolCallId: 'native-agent-tool' },
+      subscriptionId: expect.any(String)
+    })
+  })
+
   it('keeps the full flow title for the panel header to truncate by available width', () => {
     const title = 'Review shared layer and IPC session boundaries without pre-truncating the title'
 
@@ -2903,7 +2934,7 @@ describe('AgentRightPane', () => {
 
     const sectionOrder = [
       screen.getByText('agent.right_pane.info.artifacts'),
-      screen.getByTestId('context-usage'),
+      screen.getByRole('region', { name: 'agent.right_pane.info.context' }),
       screen.getByText('agent.right_pane.info.shell_tasks')
     ]
 

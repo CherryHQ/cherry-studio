@@ -4,6 +4,8 @@ import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import type { SlashCommand } from '@shared/ai/slashCommands'
 
+type NormalizedSessionCommand = SlashCommand & { builtin?: boolean }
+
 const EMPTY_SESSION_ID = '__none__'
 
 /**
@@ -18,11 +20,15 @@ const EMPTY_SESSION_ID = '__none__'
  * the schema default back (which would clobber Main's already-published catalog during the mount
  * race before the initial sync lands) and never pins the key.
  */
-export function useAgentSessionSlashCommands(sessionId: string | undefined): SlashCommand[] | undefined {
+export function useAgentSessionSlashCommands(sessionId: string | undefined): NormalizedSessionCommand[] | undefined {
   const cached = useSharedCacheValue(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(sessionId ?? EMPTY_SESSION_ID))
 
   return useMemo(() => {
     if (!sessionId || !cached || cached.length === 0) return undefined
-    return cached.map((command) => ({ command: `/${command.name}`, description: command.description }))
+    return cached.map((command) => ({
+      command: `/${command.name}`,
+      description: command.description,
+      builtin: command.builtin
+    }))
   }, [sessionId, cached])
 }

@@ -1,7 +1,7 @@
 import type { FC } from 'react'
 import { memo, useCallback } from 'react'
 
-import { RowFlex, Scrollbar, SegmentedControl, Tooltip } from '@cherrystudio/ui'
+import { RowFlex, SegmentedControl, Tooltip } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 
 import type { MessageListItem } from '../types'
@@ -63,9 +63,9 @@ const Container = ({ className, ...props }: React.ComponentPropsWithoutRef<typeo
   <RowFlex className={['ml-1 flex-1 items-center overflow-hidden', className].filter(Boolean).join(' ')} {...props} />
 )
 
-const ModelsContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Scrollbar>) => {
+const ModelsContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => {
   return (
-    <Scrollbar
+    <div
       className={[
         'flex flex-1 flex-row items-center justify-start overflow-x-auto px-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
         className

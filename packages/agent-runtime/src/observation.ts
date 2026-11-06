@@ -50,6 +50,10 @@ export class ThreadFeed {
           ]
         }
         break
+      case 'context.changed':
+        if (JSON.stringify(this.value.contextUsage) === JSON.stringify(next.result)) return
+        this.value = { ...this.value, contextUsage: next.result }
+        break
       case 'activity.changed':
         this.value = { ...this.value, activity: next.activity }
         break
@@ -64,11 +68,33 @@ export class ThreadFeed {
   }
 
   observe(sink: ObservationSink): Observation {
+    return this.observeCaptured(sink, (event) => ({ value: event }))
+  }
+
+  /** Capture adapter-owned metadata on publication, before asynchronous delivery can advance past it. */
+  observeCaptured<T>(
+    sink: (value: T) => void | Promise<void>,
+    capture: (event: ObservationPayload, delivery: 'baseline' | 'update' | 'recovery') => { value: T; retain?: boolean }
+  ): Observation {
     if (this.ended) throw new Error('Observation source is closed')
     let stopped = false
     let running = false
     let started = false
-    let pending: ObservationPayload[] = [this.snapshot]
+    let sent = 1
+    let delivered = 0
+    let lost = false
+    type Delivery = { event: ObservationPayload; value: T; through: number; recovery?: T }
+    const initial = this.snapshot
+    let pending: Delivery[] = [{ event: initial, value: capture(initial, 'baseline').value, through: sent }]
+    const barriers = new Set<{ through: number; resolve(): void; reject(error: Error): void }>()
+    const settle = () => {
+      for (const barrier of barriers) {
+        if (delivered < barrier.through && !stopped) continue
+        barriers.delete(barrier)
+        if (delivered >= barrier.through) barrier.resolve()
+        else barrier.reject(new Error('Observation stopped before delivery drained'))
+      }
+    }
     const report = (error: unknown) => {
       try {
         this.report(error)
@@ -80,6 +106,7 @@ export class ThreadFeed {
       stopped = true
       pending = []
       this.observers.delete(observer)
+      settle()
     }
     const schedule = () => {
       if (running || stopped) return
@@ -88,8 +115,10 @@ export class ThreadFeed {
         try {
           while (!stopped && pending.length) {
             started = true
-            const event = pending.shift()!
-            await sink(event)
+            const { event, value, through } = pending.shift()!
+            await sink(value)
+            delivered = Math.max(delivered, through)
+            settle()
             if (event.type === 'closed') stop()
           }
         } catch (error) {
@@ -102,22 +131,61 @@ export class ThreadFeed {
     }
     const observer = {
       send: (event: ObservationPayload) => {
-        if (stopped) return
-        pending.push(structuredClone(event))
-        if (pending.length > 100)
+        if (stopped || lost) return
+        const captured = capture(event, 'update')
+        pending.push({
+          event: structuredClone(event),
+          value: captured.value,
+          through: ++sent,
+          ...(captured.retain && { recovery: capture(this.snapshot, 'recovery').value })
+        })
+        if (pending.length > 100) {
+          const retained = pending
+            .filter((item) => item.recovery !== undefined)
+            .map((item) => ({ ...item, value: item.recovery! }))
+          const gap: ObservationPayload = { type: 'gap', reason: 'overflow' }
+          const snapshot = this.snapshot
+          if (retained.length > 1000) {
+            lost = true
+            const closed: ObservationPayload = { type: 'closed', reason: 'source-lost' }
+            pending = [
+              { event: gap, value: capture(gap, 'update').value, through: delivered },
+              { event: closed, value: capture(closed, 'update').value, through: sent }
+            ]
+            report(new Error('Observation exceeded recoverable delivery backlog'))
+            schedule()
+            return
+          }
           pending = [
             ...(started ? [] : [pending[0]]),
-            { type: 'gap', reason: 'overflow' },
-            this.snapshot,
-            ...(event.type === 'closed' ? [event] : [])
+            { event: gap, value: capture(gap, 'update').value, through: delivered },
+            ...retained,
+            ...(retained.at(-1)?.through === sent
+              ? []
+              : [
+                  {
+                    event: snapshot,
+                    value: capture(snapshot, 'recovery').value,
+                    through: event.type === 'closed' ? sent - 1 : sent
+                  }
+                ]),
+            ...(event.type === 'closed' ? [{ event, value: captured.value, through: sent }] : [])
           ]
+        }
         schedule()
       },
       stop
     }
     this.observers.add(observer)
     schedule()
-    return { stop: async () => stop() }
+    return {
+      drain: () =>
+        new Promise<void>((resolve, reject) => {
+          barriers.add({ through: sent, resolve, reject })
+          settle()
+        }),
+      stop: async () => stop()
+    }
   }
 
   close(reason: 'shutdown' | 'source-lost'): void {

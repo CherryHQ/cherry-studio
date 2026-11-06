@@ -28,6 +28,58 @@ describe('classifyErrorCategory HTTP 400', () => {
   })
 })
 
+describe('classifyErrorCategory model deprecation', () => {
+  it.each([
+    'top_p is deprecated for this model.',
+    '`top_p` is deprecated for this model.',
+    'temperature is deprecated for this model',
+    'top_k is deprecated for this model.',
+    'Warning: parameter max_tokens is deprecated, use max_completion_tokens',
+    'The model supports top_p; temperature is deprecated for this request.'
+  ])('keeps parameter deprecation out of retired models: %s', (text) => {
+    expect(classifyErrorCategory({ status: 400, text })).toBe('bad_request')
+    expect(classifyErrorCategory({ text })).toBe('unknown')
+  })
+
+  it.each([
+    'This model has been deprecated, please upgrade',
+    'this model is deprecated',
+    "The model 'claude-3-opus-20240229' has been deprecated",
+    'The model "claude-3-opus-20240229" has been deprecated',
+    'The model `gpt-4-0314` has been deprecated',
+    'The model gpt-4-0314 has been deprecated',
+    'The model gpt-3.5-turbo-0301 has been deprecated',
+    'The model ft:gpt-3.5-turbo:org:name:id has been deprecated',
+    'The model provider/model-v1 has been deprecated',
+    'The model @cf/meta/llama-3.1-8b-instruct has been deprecated',
+    'The model gpt-4-0314 was deprecated',
+    'The model gpt-4-0314 will be deprecated',
+    'model has been retired',
+    'model is retired',
+    'model has been sunset',
+    'decommission'
+  ])('preserves model retirement classification: %s', (text) => {
+    expect(classifyErrorCategory({ status: 400, text })).toBe('deprecated')
+    expect(classifyErrorCategory({ text })).toBe('deprecated')
+  })
+
+  it('keeps HTTP 503 ahead of model retirement', () => {
+    expect(classifyErrorCategory({ status: 503, text: 'This model has been deprecated, please upgrade' })).toBe(
+      'server'
+    )
+  })
+
+  it('keeps a safety finish reason ahead of HTTP status and model retirement', () => {
+    expect(
+      classifyErrorCategory({
+        status: 503,
+        finishReason: 'safety',
+        text: 'This model has been deprecated, please upgrade'
+      })
+    ).toBe('content')
+  })
+})
+
 // Transport failures from #19926 must reach a recovery category (network /
 // stream / proxy) instead of falling through to 'unknown', which hides the
 // settings recovery action and triggers a needless AI diagnosis call.

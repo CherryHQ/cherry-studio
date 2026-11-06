@@ -1,8 +1,12 @@
+import { EventEmitter } from 'node:events'
+
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { APICallError, readUIMessageStream, type UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { AiService } from '@main/ai/AiService'
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import { applyMessageProjectionUpdate, type MessageProjectionView } from '@shared/ai/messageProjection'
 import { aiStreamAdmissionReasons, type StreamChunkPayload } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -13,10 +17,12 @@ import type { AiStreamRequest } from '../../types/requests'
 import { AiStreamAdmissionError } from '../admission'
 import type * as DispatchModule from '../context/dispatch'
 import type { PersistAssistantInput } from '../persistence/PersistenceBackend'
+import type { AiStreamSource, MessageStreamEvent } from '../types'
 import type {
   AiStreamManagerConfig,
   CherryUIMessage,
   ConversationCompletedEvent,
+  ConversationUnsuccessfulEvent,
   StreamDoneResult,
   StreamErrorResult,
   StreamListener,
@@ -127,9 +133,9 @@ function controlledStream(): {
   }
 }
 
-const mockStreamText = vi.fn<(request: AiStreamRequest) => Promise<ReadableStream<UIMessageChunk>>>(async () =>
-  pendingStream()
-)
+const mockStreamText = vi.fn<
+  (request: Parameters<AiService['streamText']>[0]) => Promise<ReadableStream<UIMessageChunk> | AiStreamSource>
+>(async () => pendingStream())
 
 /**
  * In-memory stand-in for Main's `CacheService`. `AiStreamManager` writes
@@ -156,7 +162,12 @@ vi.mock('@application', async () => {
   // and the mock factory's lookup is keyed by string so the extra entry
   // is wired up regardless of the type.
   return mockApplicationFactory({
-    AiService: { streamText: mockStreamText },
+    AiService: {
+      streamText: async (request: Parameters<AiService['streamText']>[0]) => {
+        const source = await mockStreamText(request)
+        return source instanceof ReadableStream ? { kind: 'chunks', stream: source } : source
+      }
+    },
     CacheService: fakeCacheService,
     TraceStorageService: { saveSpans: mockSaveSpans },
     AgentSessionRuntimeService: {
@@ -167,29 +178,12 @@ vi.mock('@application', async () => {
   } as Parameters<typeof mockApplicationFactory>[0])
 })
 
-const replayIpc = vi.hoisted(
-  (): { request(route: string, input: unknown): Promise<unknown>; chunk(payload: StreamChunkPayload): void } => ({
-    request: () => Promise.resolve(undefined),
-    chunk: () => {}
-  })
-)
-vi.mock('@renderer/ipc', () => ({
-  ipcApi: {
-    request: (route: string, input: unknown) => replayIpc.request(route, input),
-    on: (event: string, callback: (payload: StreamChunkPayload) => void) => {
-      if (event === 'ai.stream.chunk') replayIpc.chunk = callback
-      return () => {}
-    }
-  }
-}))
-
 // ── Import after mocks ──────────────────────────────────────────────
 
 const { AiStreamManager } = await import('../AiStreamManager')
 const { PersistenceListener, TerminalPersistenceError } = await import('../listeners/PersistenceListener')
 const { TraceFlushListener } = await import('../listeners/TraceFlushListener')
 const { WebContentsListener } = await import('../listeners/WebContentsListener')
-const { TopicStreamSubscription } = await import('@renderer/services/aiTransport/TopicStreamSubscription')
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -310,6 +304,128 @@ describe('AiStreamManager', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  // The projection terminal must follow the archive barrier and contain the SDK's final accumulated text.
+  it.each([false, true])('publishes SDK snapshots and respects persistence failure=%s', async (failWrite) => {
+    const feed = controlledStream()
+    mockStreamText.mockResolvedValueOnce(feed.stream)
+    const sender = Object.assign(new EventEmitter(), { isDestroyed: () => false }) as unknown as Electron.WebContents
+    let view: MessageProjectionView | null = null
+    view = await mgr.attachProjection(sender, 'projection-topic', 'subscription', (update) => {
+      if (view) view = applyMessageProjectionUpdate(view, update)!
+    })
+    let release!: () => void
+    let entered = false
+    const persistence = new PersistenceListener({
+      topicId: 'projection-topic',
+      modelId: 'p::m',
+      backend: {
+        kind: 'test',
+        persistAssistant: async () => {
+          entered = true
+          await new Promise<void>((resolve) => {
+            release = resolve
+          })
+          if (failWrite) throw new Error('archive write failed')
+        }
+      },
+      onPersistFailed: (error) => mgr.broadcastTopicError('projection-topic', 'p::m', error)
+    })
+    startSingle(mgr, {
+      topicId: 'projection-topic',
+      modelId: 'p::m',
+      request: req('projection-topic'),
+      listeners: [persistence]
+    })
+    feed.enqueue({ type: 'start', messageId: 'answer' })
+    feed.enqueue({ type: 'text-start', id: 'text' })
+    feed.enqueue({ type: 'text-delta', id: 'text', delta: 'visible before completion' })
+    await vi.waitFor(() => expect(view?.messages[0]?.parts[0]).toMatchObject({ text: 'visible before completion' }))
+    feed.enqueue({ type: 'text-end', id: 'text' })
+    feed.enqueue({ type: 'finish' })
+    feed.close()
+    await vi.waitFor(() => expect(entered).toBe(true))
+    expect(view).toMatchObject({ kind: 'topic', executions: [{ status: 'active' }] })
+    release()
+    await vi.waitFor(() =>
+      expect(view).toMatchObject({ kind: 'topic', executions: [{ status: failWrite ? 'unresolved' : 'done' }] })
+    )
+    expect(view?.messages[0].parts[0]).toMatchObject({ text: 'visible before completion' })
+    if (failWrite) expect(view?.messages[0].parts.at(-1)).toMatchObject({ type: 'data-error' })
+    mgr.detachProjection(sender, 'subscription')
+    sender.emit('destroyed')
+  })
+
+  // A replacement must reach subscribers and terminal persistence without reintroducing withdrawn text.
+  it('publishes authoritative replacements and drains the final update before completion', async () => {
+    let controller!: ReadableStreamDefaultController<MessageStreamEvent>
+    mockStreamText.mockResolvedValueOnce({
+      kind: 'messages',
+      stream: new ReadableStream({
+        start: (value) => {
+          controller = value
+        }
+      })
+    })
+    const sender = Object.assign(new EventEmitter(), { isDestroyed: () => false }) as unknown as Electron.WebContents
+    let view: MessageProjectionView | null = null
+    view = await mgr.attachProjection(sender, 'native-topic', 'native-subscription', (update) => {
+      if (view) view = applyMessageProjectionUpdate(view, update)!
+    })
+    const listener = new FakeListener('native-result')
+    startSingle(mgr, { topicId: 'native-topic', modelId: 'p::m', request: req('native-topic'), listeners: [listener] })
+    controller.enqueue({ type: 'control', chunk: { type: 'start' } })
+    controller.enqueue({ type: 'message', parts: [{ type: 'text', text: 'Withdrawn body' }] })
+    await vi.waitFor(() => expect(view?.messages[0]?.parts[0]).toMatchObject({ text: 'Withdrawn body' }))
+    const replay: CherryUIMessage[] = []
+    const late = Object.assign(new FakeListener('late-reader'), {
+      onMessage: (message: CherryUIMessage) => replay.push(message)
+    })
+    expect(mgr.addListener('native-topic', late)).toBe(true)
+    expect(replay.at(-1)?.parts).toEqual([{ type: 'text', text: 'Withdrawn body' }])
+    const replacement: CherryUIMessage['parts'] = [{ type: 'text', text: 'Replacement', state: 'done' }]
+    controller.enqueue({ type: 'message', parts: replacement })
+    controller.close()
+    await vi.waitFor(() => expect(listener.doneResults).toHaveLength(1))
+    expect(listener.doneResults[0].finalMessage?.parts).toEqual(replacement)
+    expect(replay.at(-1)?.parts).toEqual(replacement)
+    expect(view?.messages[0].parts).toEqual(replacement)
+    mgr.detachProjection(sender, 'native-subscription')
+    sender.emit('destroyed')
+  })
+
+  // Host approval decisions bypass the SDK stream; later snapshots must not resurrect the old card.
+  it('projects a resolved approval immediately and keeps it resolved on later SDK snapshots', async () => {
+    const feed = controlledStream()
+    mockStreamText.mockResolvedValueOnce(feed.stream)
+    const sender = Object.assign(new EventEmitter(), { isDestroyed: () => false }) as unknown as Electron.WebContents
+    let view: MessageProjectionView | null = null
+    view = await mgr.attachProjection(sender, 'approval-projection', 'subscription', (update) => {
+      if (view) view = applyMessageProjectionUpdate(view, update)!
+    })
+    startSingle(mgr, {
+      topicId: 'approval-projection',
+      modelId: 'p::m',
+      request: req('approval-projection'),
+      listeners: []
+    })
+    feed.enqueue({ type: 'start', messageId: 'answer' })
+    feed.enqueue({ type: 'tool-input-available', toolCallId: 'call', toolName: 'Read', input: {} })
+    feed.enqueue({ type: 'tool-approval-request', toolCallId: 'call', approvalId: 'approval' })
+    await vi.waitFor(() => expect(view?.messages[0]?.parts[0]).toMatchObject({ state: 'approval-requested' }))
+    expect(mgr.resolveToolApproval('approval-projection', 'call', true)).toBe(true)
+    await vi.waitFor(() =>
+      expect(view?.messages[0]?.parts[0]).toMatchObject({ state: 'approval-responded', approval: { approved: true } })
+    )
+    feed.enqueue({ type: 'text-start', id: 'text' })
+    feed.enqueue({ type: 'text-delta', id: 'text', delta: 'waiting for tool' })
+    await vi.waitFor(() => expect(view?.messages[0]?.parts[1]).toMatchObject({ text: 'waiting for tool' }))
+    expect(view?.messages[0].parts[0]).toMatchObject({ state: 'approval-responded', approval: { approved: true } })
+    feed.close()
+    await vi.advanceTimersByTimeAsync(0)
+    mgr.detachProjection(sender, 'subscription')
+    sender.emit('destroyed')
   })
 
   describe('streamPrompt', () => {
@@ -456,8 +572,7 @@ describe('AiStreamManager', () => {
       expect(snap).toMatchObject({
         topicId: 'a',
         status: 'pending',
-        isMultiModel: false,
-        listenerIds: ['l:a']
+        isMultiModel: false
       })
       expect(mgr.hasUnsettledTopicWork('a')).toBe(true)
       // One streamText call per execution — 1 for single-model.
@@ -682,10 +797,6 @@ describe('AiStreamManager', () => {
       // No second streamText call — the live stream is reused.
       expect(mockStreamText).toHaveBeenCalledTimes(1)
 
-      // The listener id is still the single "l:a" (upsert, not duplicate).
-      const snap = mgr.inspect('a')!
-      expect(snap.listenerIds).toEqual(['l:a'])
-
       // Behaviour proves the listener was actually replaced: only l2 sees the chunk.
       mgr.onChunk('a', 'provider-a::model-a', chunk('x'))
       expect(l1.chunks).toHaveLength(0)
@@ -739,7 +850,6 @@ describe('AiStreamManager', () => {
       expect(result.mode).toBe('injected')
       expect(result.activeExecutions).toEqual([expect.objectContaining({ executionId: 'provider-a::model-a' })])
       expect(mockStreamText).toHaveBeenCalledTimes(1)
-      expect(mgr.inspect('agent-session:s1')?.listenerIds).toEqual(['l:a', 'l:b'])
     })
 
     it('attaches a follow-up subscriber to a grace-period stream so the next turn carries it', async () => {
@@ -802,7 +912,6 @@ describe('AiStreamManager', () => {
       const snap = mgr.inspect('a')!
       expect(snap.executions).toHaveLength(2)
       expect(snap.isMultiModel).toBe(true)
-      expect(snap.listenerIds).toEqual(['l:a'])
 
       // Behaviour: the single shared listener receives from either execution.
       mgr.onChunk('a', 'provider-a::model-a', chunk('from-a'))
@@ -1374,7 +1483,7 @@ describe('AiStreamManager', () => {
       expect(alive.chunks).toHaveLength(1)
       expect(dead.chunks).toHaveLength(0)
       // The dead listener was removed from the map during delivery.
-      expect(mgr.inspect('a')!.listenerIds).toEqual(['alive:a'])
+      expect(mgr.inspect('a')!.listenerIds).not.toContain('dead:a')
     })
 
     it('buffers chunks and replays to late-joining listener', () => {
@@ -1421,7 +1530,6 @@ describe('AiStreamManager', () => {
       abortMgr.onChunk('a', 'provider-a::model-a', chunk('late'))
 
       const snap = abortMgr.inspect('a')!
-      expect(snap.listenerIds).toEqual([])
       expect(snap.status).toBe('aborted')
       expect(snap.executions[0].abortSignal.aborted).toBe(true)
     })
@@ -1488,13 +1596,15 @@ describe('AiStreamManager', () => {
         topicId: 'a',
         modelId: 'provider-a::model-a',
         request: req('a'),
-        listeners: [renderer, persistence]
+        listeners: [renderer, persistence],
+        isPersistentConversation: true
       })
       const terminal = mgr.onExecutionDone('a', 'provider-a::model-a')
 
       await Promise.resolve()
       expect(persistence.doneResults).toHaveLength(1)
       expect(renderer.doneResults).toHaveLength(0)
+      expect(conversationCompletedEvents).toEqual([])
       expect(mgr.hasLiveStream('a')).toBe(false)
       expect(mgr.hasTerminalPersistenceInFlight('a')).toBe(true)
       expect(mgr.hasUnsettledTopicWork('a')).toBe(true)
@@ -1538,6 +1648,7 @@ describe('AiStreamManager', () => {
       expect(mgr.hasUnsettledTopicWork('a')).toBe(true)
       expect(conversationCompletedEvents).toEqual([])
 
+      await vi.waitFor(() => expect(releaseB).toBeTypeOf('function'))
       releaseB()
       await settledPromise
       await terminal
@@ -1586,7 +1697,60 @@ describe('AiStreamManager', () => {
       await settledPromise
       await firstTerminal
       expect(conversationCompletedEvents).toHaveLength(1)
+
+      startSingle(mgr, { topicId, modelId: last, request: req(topicId), listeners: [], isPersistentConversation: true })
+      await mgr.onExecutionDone(topicId, last)
+      expect(conversationCompletedEvents[1]).not.toHaveProperty('completedTaskCount')
     })
+
+    it('waits for every model persistence before reporting conversation success', async () => {
+      let release!: () => void
+      const persistence = new FakeListener('persistence:multi', 'persistence')
+      persistence.onDoneImpl = async (result) => {
+        if (result.modelId !== 'p::first') return
+        await new Promise<void>((resolve) => {
+          release = resolve
+        })
+        throw new TerminalPersistenceError('first model write failed')
+      }
+      mgr.send({
+        topicId: 'multi-persistence',
+        models: [
+          { modelId: 'p::first', request: req('multi-persistence') },
+          { modelId: 'p::last', request: req('multi-persistence') }
+        ],
+        listeners: [persistence],
+        isPersistentConversation: true
+      })
+      const first = mgr.onExecutionDone('multi-persistence', 'p::first')
+      await vi.advanceTimersByTimeAsync(0)
+      await mgr.onExecutionDone('multi-persistence', 'p::last')
+      expect(conversationCompletedEvents).toEqual([])
+      release()
+      await first
+      expect(conversationCompletedEvents).toEqual([])
+    })
+
+    it.each([true, false])(
+      'does not announce all-complete when one model is cancelled (cancel first: %s)',
+      async (cancelFirst) => {
+        const abortController = new AbortController()
+        mgr.send({
+          topicId: 'partly-cancelled',
+          models: [
+            { modelId: 'p::cancelled', request: req('partly-cancelled'), abortController },
+            { modelId: 'p::completed', request: req('partly-cancelled') }
+          ],
+          listeners: [],
+          isPersistentConversation: true
+        })
+        if (!cancelFirst) await mgr.onExecutionDone('partly-cancelled', 'p::completed')
+        abortController.abort('user-stop')
+        await vi.advanceTimersByTimeAsync(0)
+        if (cancelFirst) await mgr.onExecutionDone('partly-cancelled', 'p::completed')
+        expect(conversationCompletedEvents).toEqual([])
+      }
+    )
 
     it('keeps the previous turn terminal lifecycle when a follow-up is admitted after the dispatch settles', async () => {
       let releaseB!: () => void
@@ -1617,6 +1781,7 @@ describe('AiStreamManager', () => {
         .then(() =>
           startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [next] })
         )
+      await vi.waitFor(() => expect(releaseB).toBeTypeOf('function'))
       releaseB()
       await followUp
       await terminal
@@ -1627,7 +1792,7 @@ describe('AiStreamManager', () => {
       expect(fakeCacheService.setShared.mock.calls.map(([, value]) => value)).toContainEqual(
         expect.objectContaining({ status: 'done', turnId: previousTurnId })
       )
-      expect(mgr.inspect('a')).toMatchObject({ status: 'pending', listenerIds: [next.id] })
+      expect(mgr.inspect('a')).toMatchObject({ status: 'pending', listenerIds: expect.arrayContaining([next.id]) })
     })
 
     it('dispatch() admits a renderer follow-up only after the previous terminal dispatch settles', async () => {
@@ -1664,6 +1829,7 @@ describe('AiStreamManager', () => {
       expect(mockDispatchStreamRequest).not.toHaveBeenCalled()
       expect(conversationCompletedEvents).toEqual([])
 
+      await vi.waitFor(() => expect(releaseB).toBeTypeOf('function'))
       releaseB()
       await expect(followUp).resolves.toEqual({ mode: 'started' })
       await terminal
@@ -1674,7 +1840,7 @@ describe('AiStreamManager', () => {
       expect(fakeCacheService.setShared.mock.calls.map(([, value]) => value)).toContainEqual(
         expect.objectContaining({ status: 'done', turnId: previousTurnId })
       )
-      expect(mgr.inspect('a')).toMatchObject({ status: 'pending', listenerIds: [next.id] })
+      expect(mgr.inspect('a')).toMatchObject({ status: 'pending', listenerIds: expect.arrayContaining([next.id]) })
     })
 
     it('suppresses the original terminal notification after persistence surfaced an error', async () => {
@@ -1767,6 +1933,52 @@ describe('AiStreamManager', () => {
       expect(runtime.doneResults).toEqual([])
     })
 
+    it('drains the captured reply through persistence without waiting for its replacement', async () => {
+      const topicId = 'agent-session:drain'
+      const firstFeed = controlledStream()
+      const secondFeed = controlledStream()
+      const writing = Promise.withResolvers<void>()
+      const committed = Promise.withResolvers<void>()
+      const saved: string[] = []
+      const listener = new FakeListener(`persistence:${topicId}`, 'persistence')
+      listener.onDoneImpl = async (result) => {
+        writing.resolve()
+        await committed.promise
+        saved.push(result.finalMessage!.id)
+      }
+      mockStreamText.mockResolvedValueOnce(firstFeed.stream).mockResolvedValueOnce(secondFeed.stream)
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: { ...req(topicId), messageId: 'reply-A' },
+        listeners: [listener]
+      })
+      let drained = false
+      const draining = mgr.drainRuntimeReply(topicId, 'reply-A').then(() => {
+        drained = true
+      })
+      firstFeed.enqueue({ type: 'start', messageId: 'reply-A' })
+      firstFeed.enqueue({ type: 'text-start', id: 'p1' })
+      firstFeed.enqueue(chunk('Persisted before drain'))
+      firstFeed.enqueue({ type: 'text-end', id: 'p1' })
+      firstFeed.close()
+      await writing.promise
+      expect(drained).toBe(false)
+      mgr.startRuntimeTurn({
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: { ...req(topicId), messageId: 'reply-B' },
+        listeners: []
+      })
+      committed.resolve()
+      await draining
+      expect(saved).toEqual(['reply-A'])
+      expect(mgr.inspect(topicId)?.status).not.toBe('done')
+      const drainingB = mgr.drainRuntimeReply(topicId, 'reply-B')
+      secondFeed.close()
+      await drainingB
+    })
+
     it('does not let trace flush failure block terminal completion', async () => {
       mockSaveSpans.mockRejectedValueOnce(new Error('trace write failed'))
       const listener = new FakeListener('l:a')
@@ -1816,6 +2028,124 @@ describe('AiStreamManager', () => {
 
       expect(l.errorResults[0].finalMessage?.id).toBe('assistant-1')
       expect(mgr.inspect('a')!.executions[0].finalMessage?.id).toBe('assistant-1')
+    })
+  })
+
+  describe('unsuccessful conversation outcomes', () => {
+    it.each(['reason', 'abort-error', 'real-error'] as const)(
+      'settles a startup rejection after Stop without hiding genuine errors: %s',
+      async (kind) => {
+        const outcomes: ConversationUnsuccessfulEvent[] = []
+        mgr.onConversationUnsuccessful((event) => outcomes.push(event))
+        mockStreamText.mockImplementationOnce(
+          (request) =>
+            new Promise((_, reject) => {
+              const signal = (request.requestOptions as { signal: AbortSignal }).signal
+              signal.addEventListener(
+                'abort',
+                () =>
+                  reject(
+                    kind === 'reason'
+                      ? signal.reason
+                      : kind === 'abort-error'
+                        ? new DOMException('OCR cancelled', 'AbortError')
+                        : new Error('Storage unavailable')
+                  ),
+                { once: true }
+              )
+            })
+        )
+        startSingle(mgr, {
+          topicId: 'a',
+          modelId: 'provider-a::model-a',
+          request: req('a'),
+          listeners: [],
+          isPersistentConversation: true
+        })
+        mgr.abort('a', 'user-requested')
+        await vi.waitFor(() => expect(outcomes).toHaveLength(1))
+        expect(outcomes[0].status).toBe(kind === 'real-error' ? 'failed' : 'cancelled')
+        expect(conversationCompletedEvents).toEqual([])
+      }
+    )
+
+    it.each([
+      ['user-requested', 'cancelled'],
+      ['remote-cancel', 'cancelled'],
+      ['no-subscribers', 'interrupted'],
+      ['agent-policy-update-failed', 'interrupted']
+    ] as const)('classifies settled abort %s', async (reason, status) => {
+      const outcomes: ConversationUnsuccessfulEvent[] = []
+      mgr.onConversationUnsuccessful((event) => outcomes.push(event))
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [],
+        isPersistentConversation: true
+      })
+      mgr.abort('a', reason)
+      await mgr.onExecutionPaused('a', 'provider-a::model-a')
+      expect(outcomes[0]).toMatchObject({ topicId: 'a', status, finishedAt: expect.any(Number) })
+      expect(conversationCompletedEvents).toEqual([])
+    })
+
+    it('emits a sibling failure without waiting for a still-running model', async () => {
+      const outcomes: ConversationUnsuccessfulEvent[] = []
+      mgr.onConversationUnsuccessful((event) => outcomes.push(event))
+      mgr.send({
+        topicId: 'a',
+        isPersistentConversation: true,
+        listeners: [],
+        models: [
+          { modelId: 'provider-a::model-a', request: req('a') },
+          { modelId: 'provider-b::model-b', request: req('a') }
+        ]
+      })
+      await mgr.onExecutionError('a', 'provider-a::model-a', error('403 用户额度不足'))
+      expect(outcomes).toHaveLength(1)
+      expect(outcomes[0]).toMatchObject({ status: 'failed', errorSummary: expect.stringContaining('用户额度不足') })
+      expect(mgr.hasLiveStream('a')).toBe(true)
+      await mgr.onExecutionDone('a', 'provider-b::model-b')
+      expect(conversationCompletedEvents).toEqual([])
+    })
+
+    it.each([false, true])('leaves scheduled outcomes to their durable owner: persistent=%s', async (persistent) => {
+      const outcomes: ConversationUnsuccessfulEvent[] = []
+      mgr.onConversationUnsuccessful((event) => outcomes.push(event))
+      const owner = Object.assign(new FakeListener('job-owner'), { ownsTaskResult: true })
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [owner],
+        isPersistentConversation: persistent
+      })
+      mgr.removeListener('a', owner.id)
+      await mgr.onExecutionError('a', 'provider-a::model-a', error('quota exceeded'))
+      expect(outcomes).toEqual([])
+    })
+
+    it('leaves successful scheduled outcomes to their owner after listener removal', async () => {
+      const owner = Object.assign(new FakeListener('job-owner'), { ownsTaskResult: true })
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [owner],
+        isPersistentConversation: true
+      })
+      mgr.removeListener('a', owner.id)
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
+      expect(conversationCompletedEvents).toEqual([])
+    })
+
+    it('does not publish failures for temporary model checks', async () => {
+      const outcomes: ConversationUnsuccessfulEvent[] = []
+      mgr.onConversationUnsuccessful((event) => outcomes.push(event))
+      startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [] })
+      await mgr.onExecutionError('a', 'provider-a::model-a', error('quota exceeded'))
+      expect(outcomes).toEqual([])
     })
   })
 
@@ -1979,6 +2309,98 @@ describe('AiStreamManager', () => {
   })
 
   describe('deferred tool output lookup', () => {
+    it.each([false, true])('hands off prepared output only after a successful save (failure: %s)', async (fail) => {
+      let controller!: ReadableStreamDefaultController<MessageStreamEvent>
+      mockStreamText.mockResolvedValueOnce({
+        kind: 'messages',
+        stream: new ReadableStream({
+          start: (value) => {
+            controller = value
+          }
+        })
+      })
+      const topicId = 'prepared-tools'
+      const gate = Promise.withResolvers<void>()
+      const prepared: CherryUIMessage = {
+        id: 'answer',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'dynamic-tool',
+            toolName: 'Bash',
+            toolCallId: 'call',
+            state: 'output-available',
+            input: {},
+            output: 'Latest answer'.repeat(4096)
+          }
+        ]
+      }
+      const listener = new FakeListener('prepared-observer')
+      const persistence = new PersistenceListener({
+        topicId,
+        prepareMessage: () => prepared,
+        backend: {
+          kind: 'test',
+          persistAssistant: async () => {
+            await gate.promise
+            if (fail) throw new Error('Write failed')
+            return { messageId: 'answer', messageRevision: '1', historyRevision: '1' }
+          }
+        },
+        onPersistFailed: (error) => mgr.broadcastTopicError(topicId, 'p::m', error)
+      })
+      startSingle(mgr, { topicId, modelId: 'p::m', request: req(topicId), listeners: [persistence, listener] })
+      controller.enqueue({ type: 'message', parts: [{ type: 'text', text: 'Before preparation' }] })
+      controller.close()
+      await vi.waitFor(() => expect(mgr.inspect(topicId)?.executions[0].finalMessage).toEqual(prepared))
+      expect(mgr.getDeferredToolOutput(topicId, 'call')).toEqual({ found: true, output: 'Latest answer'.repeat(4096) })
+      gate.resolve()
+      await vi.waitFor(() => expect(fail ? listener.errorResults : listener.doneResults).toHaveLength(1))
+      expect(mgr.inspect(topicId)?.executions[0].finalMessage).toEqual(prepared)
+      expect(mgr.getDeferredToolOutput(topicId, 'call')).toEqual(
+        fail ? { found: true, output: 'Latest answer'.repeat(4096) } : { found: false }
+      )
+    })
+
+    it('reads large native outputs from the current message and respects replacement and removal', async () => {
+      let controller!: ReadableStreamDefaultController<MessageStreamEvent>
+      mockStreamText.mockResolvedValueOnce({
+        kind: 'messages',
+        stream: new ReadableStream({
+          start: (value) => {
+            controller = value
+          }
+        })
+      })
+      const topicId = 'native-tools'
+      const listener = new FakeListener('native-tools')
+      startSingle(mgr, { topicId, modelId: 'p::m', request: req(topicId), listeners: [listener] })
+      const output = {
+        content: [
+          { type: 'text', text: 'x'.repeat(64 * 1024) },
+          { type: 'image', data: 'base64', mimeType: 'image/png' }
+        ]
+      }
+      const tool = {
+        type: 'dynamic-tool' as const,
+        toolCallId: 'call',
+        toolName: 'Bash',
+        state: 'output-available' as const,
+        input: {},
+        output
+      }
+      controller.enqueue({ type: 'message', parts: [tool] })
+      await vi.waitFor(() => expect(mgr.getDeferredToolOutput(topicId, 'call')).toEqual({ found: true, output }))
+      controller.enqueue({ type: 'message', parts: [{ ...tool, output: 'replacement' }] })
+      await vi.waitFor(() =>
+        expect(mgr.getDeferredToolOutput(topicId, 'call')).toEqual({ found: true, output: 'replacement' })
+      )
+      controller.enqueue({ type: 'message', parts: [] })
+      await vi.waitFor(() => expect(mgr.getDeferredToolOutput(topicId, 'call')).toEqual({ found: false }))
+      controller.close()
+      await vi.waitFor(() => expect(listener.doneResults).toHaveLength(1))
+    })
+
     it('retains only outputs large enough to have been stripped on the way out', () => {
       const topicId = 'agent-session:session-1'
       startSingle(mgr, {
@@ -2080,41 +2502,6 @@ describe('AiStreamManager', () => {
           }
         ]
       })
-    })
-
-    it('renders a complete coalesced live answer after its replay prefix and opening were evicted', async () => {
-      const ringMgr = createManager({ maxBufferChunks: 2, maxDeltaBytes: 4 })
-      const sender = {
-        id: 1,
-        isDestroyed: () => false,
-        send: (_channel: string, event: string, payload: StreamChunkPayload) => {
-          if (event === 'ai.stream.chunk') replayIpc.chunk(payload)
-        }
-      }
-      const wc = sender as unknown as Electron.WebContents
-      const {
-        executions: [{ attemptId }]
-      } = startSingle(ringMgr, {
-        topicId: 'a',
-        modelId: 'provider-a::model-a',
-        request: req('a'),
-        listeners: [new WebContentsListener(wc, 'a')]
-      })
-      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p' })
-      const subscription = new TopicStreamSubscription('a')
-      subscription.listen()
-      for (const delta of ['AA', 'BB', 'CC', 'DD', 'EE'])
-        ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p', delta })
-      replayIpc.request = async (route) =>
-        route === 'ai.stream.attach' ? ringMgr.attach(wc, { topicId: 'a' }) : undefined
-      const stream = subscription.register('provider-a::model-a', undefined, attemptId)
-      await Promise.resolve()
-      await Promise.resolve()
-      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-end', id: 'p' })
-      subscription.dispose()
-      let message
-      for await (const snapshot of readUIMessageStream({ stream })) message = snapshot
-      expect(message?.parts).toEqual([{ type: 'text', text: 'AABBCCDDEE', state: 'done' }])
     })
 
     it('reports the start of retained source coverage after evicting a merged or split prefix', () => {
@@ -3823,14 +4210,14 @@ describe('AiStreamManager', () => {
         })
         expect(mgr.inspect(topicId)).toMatchObject({
           status: 'pending',
-          listenerIds: [replacementListener.id]
+          listenerIds: expect.arrayContaining([replacementListener.id])
         })
         expect(mgr.hasPendingSteer(topicId)).toBe(true)
 
         vi.advanceTimersByTime(31_000)
         expect(mgr.inspect(topicId)).toMatchObject({
           status: 'pending',
-          listenerIds: [replacementListener.id]
+          listenerIds: expect.arrayContaining([replacementListener.id])
         })
 
         await mgr.onExecutionDone(topicId, modelId)
@@ -3910,6 +4297,137 @@ describe('AiStreamManager', () => {
       vi.advanceTimersByTime(31_000)
       expect(statusSequence('t')).toEqual(['pending', 'streaming', 'done'])
     })
+
+    it('carries the completed task into an Agent continuation launched inside the terminal listener', async () => {
+      const topicId = 'agent-session:listener-batch'
+      const first = new FakeListener('agent-terminal')
+      first.onDoneImpl = () => {
+        first.onDoneImpl = undefined
+        queueMicrotask(() => {
+          mgr.startRuntimeTurn({
+            topicId,
+            modelId: 'p::m',
+            request: { ...req(topicId), messages: [{ id: 'second-user', role: 'user', parts: [] }] },
+            listeners: []
+          })
+        })
+      }
+      mockWillContinueTopic.mockReturnValue(true)
+      mgr.startRuntimeTurn({
+        topicId,
+        modelId: 'p::m',
+        request: { ...req(topicId), messages: [{ id: 'first-user', role: 'user', parts: [] }] },
+        listeners: [first]
+      })
+      await mgr.onExecutionDone(topicId, 'p::m')
+      await vi.advanceTimersByTimeAsync(0)
+      mockWillContinueTopic.mockReturnValue(false)
+      await mgr.onExecutionDone(topicId, 'p::m')
+      expect(conversationCompletedEvents).toHaveLength(1)
+      expect(conversationCompletedEvents[0]).toMatchObject({ completedTaskCount: 2 })
+    })
+
+    it('counts distinct user tasks across a continuous Agent queue and starts fresh after draining', async () => {
+      const topicId = 'agent-session:batch-session'
+      for (let index = 0; index < 7; index++) {
+        mockWillContinueTopic.mockReturnValue(index < 6)
+        mgr.startRuntimeTurn({
+          topicId,
+          modelId: 'p::m',
+          request: {
+            ...req(topicId),
+            messages: [{ id: `user-${index}`, role: 'user', parts: [{ type: 'text', text: 'Next task' }] }]
+          },
+          listeners: [new FakeListener(`batch:${index}`)]
+        })
+        await mgr.onExecutionDone(topicId, 'p::m')
+        await mgr.onExecutionDone(topicId, 'p::m')
+        expect(conversationCompletedEvents).toHaveLength(index === 6 ? 1 : 0)
+      }
+      expect(conversationCompletedEvents[0]).toMatchObject({ completedTaskCount: 7 })
+
+      mgr.startRuntimeTurn({ topicId, modelId: 'p::m', request: req(topicId), listeners: [] })
+      await mgr.onExecutionDone(topicId, 'p::m')
+      expect(conversationCompletedEvents).toHaveLength(2)
+      expect(conversationCompletedEvents[1]).not.toHaveProperty('completedTaskCount')
+    })
+
+    it('counts all injected user tasks while excluding autonomous seed messages', async () => {
+      const topicId = 'agent-session:injected-batch'
+      const start = (taskIds: string[]) =>
+        mgr.startRuntimeTurn({
+          topicId,
+          modelId: 'p::m',
+          taskIds,
+          request: { ...req(topicId), messages: [{ id: 'synthetic-seed', role: 'user', parts: [] }] },
+          listeners: []
+        })
+      start([])
+      await mgr.onExecutionDone(topicId, 'p::m')
+      expect(conversationCompletedEvents).toHaveLength(1)
+      expect(conversationCompletedEvents[0]).not.toHaveProperty('completedTaskCount')
+      mockWillContinueTopic.mockReturnValue(true)
+      start(['u1', 'u2', 'u3', 'u4', 'u5'])
+      await mgr.onExecutionDone(topicId, 'p::m')
+      mockWillContinueTopic.mockReturnValue(false)
+      start(['u5', 'u6', 'u7'])
+      await mgr.onExecutionDone(topicId, 'p::m')
+      expect(conversationCompletedEvents).toHaveLength(2)
+      expect(conversationCompletedEvents[1]).toMatchObject({ completedTaskCount: 7 })
+    })
+
+    it.each(['none', 'paused', 'persistence'] as const)(
+      'reports a successful retry only when no sibling failure remains: %s',
+      async (remaining) => {
+        const topicId = 'retry-completion'
+        const aborted = new AbortController()
+        const siblingAbort = new AbortController()
+        const listener = new FakeListener('retry-observer')
+        const persistence = new FakeListener('retry-persistence', 'persistence')
+        persistence.onDoneImpl = (result) => {
+          if (remaining === 'persistence' && result.modelId === 'p::b')
+            throw new TerminalPersistenceError('write failed')
+        }
+        mockGetMessageById.mockImplementation((id) => ({
+          id,
+          role: 'assistant',
+          topicId,
+          parentId: 'user-1',
+          siblingsGroupId: 7
+        }))
+        mgr.send({
+          topicId,
+          isPersistentConversation: true,
+          siblingsGroupId: 7,
+          models: [
+            { modelId: 'p::a', request: { ...req(topicId), messageId: 'assistant-a' }, abortController: aborted },
+            { modelId: 'p::b', request: { ...req(topicId), messageId: 'assistant-b' }, abortController: siblingAbort },
+            ...(remaining === 'none' ? [] : [{ modelId: 'p::c' as const, request: req(topicId) }])
+          ],
+          listeners: [listener, persistence]
+        })
+        aborted.abort('user-requested')
+        await vi.waitFor(() => expect(listener.pausedResults).toHaveLength(1))
+        if (remaining === 'paused') {
+          siblingAbort.abort('user-requested')
+          await vi.waitFor(() => expect(listener.pausedResults).toHaveLength(2))
+        } else if (remaining === 'persistence') await mgr.onExecutionDone(topicId, 'p::b')
+        await expect(mgr.awaitExecutionRetry(topicId, 'p::a', 'assistant-a', 'user-1', 7)).resolves.toMatchObject({
+          mode: 'replace-live'
+        })
+        mgr.send({
+          topicId,
+          siblingsGroupId: 7,
+          models: [{ modelId: 'p::a', request: { ...req(topicId), messageId: 'assistant-a' } }],
+          listeners: [],
+          liveExecutionChange: { mode: 'replace', parentAnchorId: 'user-1', siblingsGroupId: 7 }
+        })
+        await mgr.onExecutionDone(topicId, 'p::a')
+        expect(conversationCompletedEvents).toEqual([])
+        await mgr.onExecutionDone(topicId, remaining === 'none' ? 'p::b' : 'p::c')
+        expect(conversationCompletedEvents).toHaveLength(remaining === 'none' ? 1 : 0)
+      }
+    )
 
     it('reports one persistent assistant completion after all models finish', async () => {
       vi.setSystemTime(1_234)
