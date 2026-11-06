@@ -1933,6 +1933,52 @@ describe('AiStreamManager', () => {
       expect(runtime.doneResults).toEqual([])
     })
 
+    it('drains the captured reply through persistence without waiting for its replacement', async () => {
+      const topicId = 'agent-session:drain'
+      const firstFeed = controlledStream()
+      const secondFeed = controlledStream()
+      const writing = Promise.withResolvers<void>()
+      const committed = Promise.withResolvers<void>()
+      const saved: string[] = []
+      const listener = new FakeListener(`persistence:${topicId}`, 'persistence')
+      listener.onDoneImpl = async (result) => {
+        writing.resolve()
+        await committed.promise
+        saved.push(result.finalMessage!.id)
+      }
+      mockStreamText.mockResolvedValueOnce(firstFeed.stream).mockResolvedValueOnce(secondFeed.stream)
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: { ...req(topicId), messageId: 'reply-A' },
+        listeners: [listener]
+      })
+      let drained = false
+      const draining = mgr.drainRuntimeReply(topicId, 'reply-A').then(() => {
+        drained = true
+      })
+      firstFeed.enqueue({ type: 'start', messageId: 'reply-A' })
+      firstFeed.enqueue({ type: 'text-start', id: 'p1' })
+      firstFeed.enqueue(chunk('Persisted before drain'))
+      firstFeed.enqueue({ type: 'text-end', id: 'p1' })
+      firstFeed.close()
+      await writing.promise
+      expect(drained).toBe(false)
+      mgr.startRuntimeTurn({
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: { ...req(topicId), messageId: 'reply-B' },
+        listeners: []
+      })
+      committed.resolve()
+      await draining
+      expect(saved).toEqual(['reply-A'])
+      expect(mgr.inspect(topicId)?.status).not.toBe('done')
+      const drainingB = mgr.drainRuntimeReply(topicId, 'reply-B')
+      secondFeed.close()
+      await drainingB
+    })
+
     it('does not let trace flush failure block terminal completion', async () => {
       mockSaveSpans.mockRejectedValueOnce(new Error('trace write failed'))
       const listener = new FakeListener('l:a')

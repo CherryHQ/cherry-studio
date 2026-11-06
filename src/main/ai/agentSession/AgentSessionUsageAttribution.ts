@@ -2,15 +2,16 @@ import { aiUsageRecordService, type RecordAiInvocationInput } from '@data/servic
 
 /** Joins a gateway response with native output without delaying delivery of that response. */
 export class AgentSessionUsageAttribution {
-  private readonly owners = new Map<string, { messageId: string; sessionId?: string }>()
+  private readonly owners = new Map<string, { messageId: string; sessionId?: string; ready: () => boolean }>()
   private readonly pending = new Map<string, Set<string>>()
   private closed = false
 
   capture(responseId: string): (input: RecordAiInvocationInput) => void {
     return (input) => {
       const owner = this.owners.get(responseId)
-      this.write(input, owner)
-      if (!owner && !this.closed) {
+      const ready = owner?.ready() === true
+      this.write(input, ready ? owner : undefined)
+      if (!ready && !this.closed) {
         const requests = this.pending.get(responseId) ?? new Set<string>()
         requests.add(input.requestId)
         this.pending.set(responseId, requests)
@@ -18,14 +19,21 @@ export class AgentSessionUsageAttribution {
     }
   }
 
-  bind(responseId: string, messageId: string, sessionId?: string): void {
+  bind(responseId: string, messageId: string, sessionId?: string, ready = () => true): void {
     const previous = this.owners.get(responseId)
     if (previous && previous.messageId !== messageId)
       throw new Error('Native response already belongs to another message')
-    this.owners.set(responseId, { messageId, sessionId })
-    for (const requestId of this.pending.get(responseId) ?? [])
-      aiUsageRecordService.associateInvocation(requestId, messageId, sessionId)
-    this.pending.delete(responseId)
+    this.owners.set(responseId, { messageId, sessionId, ready })
+    this.flush(messageId)
+  }
+
+  flush(messageId: string): void {
+    for (const [responseId, owner] of this.owners) {
+      if (owner.messageId !== messageId || !owner.ready()) continue
+      for (const requestId of this.pending.get(responseId) ?? [])
+        aiUsageRecordService.associateInvocation(requestId, messageId, owner.sessionId)
+      this.pending.delete(responseId)
+    }
   }
 
   close(): void {

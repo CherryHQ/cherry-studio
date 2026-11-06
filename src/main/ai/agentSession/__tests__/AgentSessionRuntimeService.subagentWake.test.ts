@@ -92,8 +92,8 @@ function getEntry(service: InstanceType<typeof AgentSessionRuntimeService>) {
 
 function currentTurn(entry: any) {
   const execution = entry.runtimeState.execution
-  if (execution.kind === 'turn' || execution.kind === 'autonomous-turn') return execution.turn
-  if (execution.kind === 'steer-transition') return execution.continuationTurn ?? execution.sourceTurn
+  if (execution.kind === 'turn' || execution.kind === 'autonomous-turn') return execution.reply.turn
+  if (execution.kind === 'steer-transition') return execution.reply.turn
   return execution.lastTurn
 }
 
@@ -113,6 +113,7 @@ beforeEach(() => {
         getInteractionWindow: () => undefined,
         startRuntimeTurn: mocks.startRuntimeTurn,
         abort: mocks.abortStream,
+        drainRuntimeReply: async () => {},
         suspendUnadmittedRuntimeTurn: mocks.suspendUnadmittedRuntimeTurn,
         pauseRuntimeTurn: mocks.pauseRuntimeTurn,
         broadcastTopicError: mocks.broadcastTopicError,
@@ -162,7 +163,7 @@ describe('subagent settlement wake (incident replay)', () => {
       const collected = (async () => {
         for await (const message of readUIMessageStream({ stream })) final = message
       })()
-      await vi.waitFor(() => expect(entry.runtimeState.execution.stream).toBe('open'))
+      await vi.waitFor(() => expect(entry.runtimeState.execution.reply.delivery.kind).toBe('open'))
       emit({ type: 'background-work-state', active: true })
       for (const [index, text] of ['Delegated review', 'First reviewer finished', 'Final summary'].entries()) {
         if (index > 0) emit({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } })
@@ -173,7 +174,7 @@ describe('subagent settlement wake (incident replay)', () => {
         if (index > 0) emit({ type: 'autonomous-turn-state', state: 'finished' })
         emit({ type: 'turn-complete' })
         expect(currentTurn(entry)).toBe(owner)
-        expect(entry.runtimeState.execution.stream).toBe('open')
+        expect(entry.runtimeState.execution.reply.delivery.kind).toBe('open')
         expect(service.isSessionBusy('session-1')).toBe(true)
       }
       emit({

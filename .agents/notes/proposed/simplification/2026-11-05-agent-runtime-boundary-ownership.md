@@ -55,6 +55,16 @@ Claude retains its native distinction: `command_lifecycle.started` is admission 
 
 Recovered native-only inputs have no old in-memory product context. Resolve their existing durable native binding where available; otherwise observe them as native input facts. Never manufacture a product input or mark the connection finished merely because the Main pending-context map is empty.
 
+### Product reply handoff
+
+The maintainer also approved completing product reply ownership. Allocate the full reply identity and frozen input context before asynchronous preparation. Keep delivery, native admission/completion, queued controls and local delivery failure on that reply in the existing reducer. Native completion and product preparation failure are separate facts. The reducer alone chooses a queued, steer, autonomous or deferred successor; service callbacks execute effects for their captured reply.
+
+Use one preparation path for placeholder persistence, trace refresh and stream attachment. Retain the session-level unresolved input association, native response-to-reply usage join and context-level projection; remove `pendingResponseIds`, `pendingProjections`, `pendingDisplay` and the separate continuation/receive-only/deferred starters. Controls can attach through the connection's bound `contextId` before content exists. A checkpoint may reference another reply only after that reply's body commits.
+
+After an admitted reply fails preparation or final persistence, its facts stay with it. Retry its own preparation on evidenced native completion/release; repeated failure stays retained without an automatic retry loop. Restore a deferred reply only after the original reply persists and native ownership is released. Preserve admission, author snapshot and headless policy, and never resend admitted input. Before-admission failure marks any created reply placeholder as error, terminates the held stream and leaves the saved user row for resend.
+
+Closing retains the session owner and rejects new input until native observations and stream persistence drain, then performs the final projection flush. Failure retains retryable data and appears in backup's straggler report. Unopened placeholders must also settle, and late stream attachment is rejected during close. Successful final flush precedes ownership release; old preparation or terminal callbacks cannot advance a new reply. This does not add crash recovery for unsaved product context.
+
 ### 3. Child origin and readiness belong to the native owner
 
 Extend the existing common `Subagent` relationship with optional evidenced creation origin. Keep it a stable relationship across child runs, not a task/run record:
@@ -178,7 +188,7 @@ Start each stage with a contract test that fails for the actual defect or owners
 | --- | --- |
 | Native contracts | `packages/agent-runtime-pi/tests/runtime.test.ts`, `startupObservation.test.ts`, `runtimeLifecycle.test.ts`; `packages/agent-runtime-pi-durable/tests/runtime.test.ts`, `pendingObservation.test.ts`, `recoveryConfiguration.test.ts`; `packages/agent-runtime-claude-code/tests/runtime.test.ts`, `observation.test.ts`, `projection.test.ts` |
 | Desktop bridge | `src/main/ai/runtime/pi/PiRuntimeConnection.test.ts`; `src/main/ai/runtime/piDurable/PiDurableRuntimeConnection.test.ts`; `src/main/ai/runtime/claudeCode/__tests__/ClaudeCodeRuntimeDriver.test.ts`, `desktopRuntime.integration.test.ts`, `ClaudeMessageMetadata.test.ts`, `ClaudeRuntimeState.test.ts` |
-| Input, writer barrier and persistence | `src/main/ai/agentSession/__tests__/AgentSessionRuntimeService.test.ts`, `agentSessionRuntimeState.test.ts`, `AgentSessionRuntimeService.child.test.ts`, `AgentSessionRuntimeService.pause.test.ts`, `ChildThreadProjection.test.ts`, `AgentSessionArchivePersistence.integration.test.ts`, `AgentSessionUsageAttribution.test.ts` |
+| Input, writer barrier and persistence | `src/main/ai/agentSession/__tests__/AgentSessionRuntimeService.test.ts`, `agentSessionRuntimeState.test.ts`, `AgentSessionRuntimeService.child.test.ts`, `AgentSessionRuntimeService.handoff.test.ts`, `ChildThreadProjection.test.ts`, `AgentSessionArchivePersistence.integration.test.ts`, `AgentSessionUsageAttribution.test.ts` |
 | Observable product result | `src/renderer/services/aiTransport/__tests__/ExecutionStreamOverlayService.test.ts`, `MessageProjectionService.test.ts`; affected runtime native contract probes against a scripted local endpoint |
 
 For every code stage, run `pnpm change:scope --base <verified-base>`, inspect `pnpm check --plan --base <verified-base>`, and inspect `pnpm docs:affected --base <verified-base>`. Use explicit-file package/Main/renderer test wrappers, changed-file formatting/lint, and affected package builds/typechecks. Leave whole-project suites and platform packaging to CI. The table identifies affected consumers, not an instruction to rerun every file at every stage.
@@ -200,6 +210,8 @@ The implementation was validated on top of `48371df38d89a564aacffa86cd5717753651
 | CI and platform scope | No remote CI, full-suite run, platform packaging, process-kill recovery or live-provider quality result is claimed. No performance or memory improvement is claimed. |
 
 Focused commands include `pnpm test:main` with the explicit files in the table above, `pnpm test:agent-runtime packages/agent-runtime/tests/observation.test.ts` (9 passed), and `pnpm exec vitest run --project main src/main/ai/runtime/piDurable/PiDurableRuntimeConnection.test.ts` (22 passed). The final Claude desktop run selected `desktopRuntime.integration.test.ts` and `ClaudeCodeRuntimeDriver.test.ts` (25 passed); the native run selected `runtime.test.ts`, `observation.test.ts`, `control.test.ts` and `projection.test.ts` (66 passed). Local Electron evidence and the scripted endpoint live under the ignored `.context/cherry-electron-dev/` directory. The broader AC12 acceptance limits above remain explicit; this note stays proposed.
+
+The reply handoff follow-up uses real SQLite and production migrations in `AgentSessionRuntimeService.handoff.test.ts`. It covers content and usage before/after failed preparation, admitted and unadmitted deferred inputs, frozen author/headless context, early steer approvals, checkpoint exclusion, autonomous handoff during predecessor persistence, terminalization before submission, nested pause, blocked trace completion, close before stream attachment, blocked native close/stream persistence, and failed final-write retry without resend. Reducer tests separately cover swapped completion/release order and stale callbacks. The stream-manager barrier test waits for the captured persistence loop across replacement. These are automated host contracts, not new Electron, live-provider or process-kill acceptance evidence.
 
 ## Alternatives considered
 
@@ -227,6 +239,8 @@ Focused commands include `pnpm test:main` with the explicit files in the table a
 - AC11 — Claude SDK invocation aggregation has one native owner; Main preserves pricing timing, idempotent persistence and delayed response ownership, with Gateway remaining a single capture path. (verification: unit — Claude desktop and usage attribution tests)
 - AC12 — Multi-window child observation, continuation, history, steering, targeted stop and backup/restore work for Claude Code, Pi and Pi Durable. (verification: Electron — isolated-profile scenarios recorded by the implementation author)
 - AC13 — Migrated native facts have one producer; the listed Main mirrors and raw control parsers are removed, retained state has an explicit owner, and references match the implemented boundary. (verification: docs gate — producer/consumer search, changed-scope inventory and bilingual documentation checks)
+
+- AC14 — A product reply owns its complete identity before asynchronous preparation; content, controls and usage retain that owner after preparation/persistence failure. Predecessor persistence, native release and stream drain form separate handoff conditions; deferred input is not resent, old callbacks cannot advance a successor, and close settles unopened placeholders. (verification: unit — real-SQLite handoff tests, reducer tests and stream-manager barrier tests)
 
 ## Risks
 

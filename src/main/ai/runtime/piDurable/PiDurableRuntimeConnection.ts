@@ -55,6 +55,10 @@ type DurableChildResource = {
 }
 
 export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
+  get contextId(): string | undefined {
+    return this.context?.id
+  }
+
   readonly retainWhileIdle = true
   readonly usageCapture = { owner: 'provider-calls' as const }
   readonly events = new AsyncEventQueue<AgentRuntimeEvent>()

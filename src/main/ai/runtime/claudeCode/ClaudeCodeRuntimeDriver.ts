@@ -126,6 +126,10 @@ type ClaudeChildResource = {
 }
 
 class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
+  get contextId(): string | undefined {
+    return this.context?.id
+  }
+
   private readonly eventQueue = new AsyncEventQueue<AgentRuntimeEvent>()
   private readonly abortController = new AbortController()
   private runtime?: ClaudeCodeRuntime

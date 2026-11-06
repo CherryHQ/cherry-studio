@@ -1099,6 +1099,14 @@ export class AiStreamManager extends BaseService {
     await Promise.allSettled([...stream.executions.values()].map((execution) => execution.loopPromise))
   }
 
+  /** Captures the existing reply's loop; a replacement execution is outside this barrier. */
+  async drainRuntimeReply(topicId: string, messageId: string): Promise<void> {
+    const execution = [...(this.activeStreams.get(topicId)?.executions.values() ?? [])].find(
+      (candidate) => candidate.anchorMessageId === messageId
+    )
+    await execution?.loopPromise
+  }
+
   /**
    * True iff this topic has a pending or streaming turn. Providers use this
    * initial admission snapshot to choose inject, append, or ordinary start

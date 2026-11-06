@@ -234,10 +234,11 @@ export class RootMessageProjection {
     }
   }
 
-  checkpoint(): RootProjectionCheckpoint {
+  checkpoint(uncommitted: ReadonlySet<string> = new Set()): RootProjectionCheckpoint {
     const offsets = new Map<string, number>()
     const sources: RootProjectionCheckpoint['root']['sources'] = {}
     for (const [id, source] of this.sources) {
+      if (uncommitted.has(source.messageId)) continue
       const offset = offsets.get(source.messageId) ?? 0
       sources[id] = { messageId: source.messageId, offset, count: source.parts.length }
       offsets.set(source.messageId, offset + source.parts.length)

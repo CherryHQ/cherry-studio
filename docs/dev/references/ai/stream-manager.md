@@ -473,6 +473,8 @@ class AiStreamManager {
   onExecutionPaused(topicId, modelId): Promise<void>
   onExecutionError(topicId, modelId, error): Promise<void>
 
+  drainRuntimeReply(topicId: string, messageId: string): Promise<void>
+
   // ── Inspection (read-only snapshot) ───────────────────────────────
   inspect(topicId: string): TopicSnapshot | undefined
 
@@ -520,7 +522,7 @@ interface SendResult {
   `models` is empty → `listeners` upsert by id; **no models are
   launched**. Reached by (a) a chat steer — the provider already persisted the
   steer user row and `dispatch` enqueued it on `pendingSteers`; and (b) an
-  agent-session follow-up already enqueued on the session's `pendingTurns`. An
+  agent-session follow-up already enqueued on the session's `runtimeState.queue`. An
   empty-`models` send with no live stream is likewise a no-op (the row is
   already enqueued) — `send()` never throws on empty models.
 - **started**: topic is idle or grace-period (terminal) → any leftover
@@ -661,11 +663,12 @@ AiStreamManager specifics:
 | Drain wait-set | Gate-admitted `dispatchStreamRequest` promises until `manager.send()` hands them off to the stream registry; this covers async `prepareDispatch` work such as agent-session `validateSession()`. Then executions of streams carrying a `persistence:*` listener — listener-derived, not lifecycle-derived; chunks-only prompt streams (API gateway and translate) are excluded. Plus in-flight steer-continuation launches and `TopicNamingService.inFlightWrites()` — the summary renames are spawned detached (`void backend.afterPersist(...)`), so a loopPromise settles before their DB write lands; the registry closes that gap. The set can grow while draining (an admission opens a stream, a settling loop spawns a naming write, or a grandfathered continuation opens a stream), so the drain is a fixed point over promise identities, bounded by `timeoutMs`. |
 | Timeout | Never rejects; stragglers are not aborted (the orchestrator decides — see the job overview for why an abort would poison the snapshot). |
 
-`AgentSessionRuntimeService` gates its two autonomous turn starters (`startNextTurn` /
-`startContinuationTurn`) before they consume queue/roll state or write the assistant
-placeholder — suppressed starts stay queued (`isSessionBusy` holds) and are re-kicked on
-release; its drain awaits `inFlightTurnStarts` (a launch admitted pre-pause through its
-placeholder write + `startRuntimeTurn` handoff). See
+`AgentSessionRuntimeService` uses one reducer-scheduled gate for queued input and reply
+preparation. Suppressed work keeps its exact identity; the final hold resumes it once. Its
+drain awaits admitted launches through placeholder persistence and `startRuntimeTurn` handoff,
+and reports retained delivery failures. `drainRuntimeReply(topicId, messageId)` captures one
+existing execution and awaits its full loop, including terminal listeners. Session close uses
+this barrier before its final projection flush; a replacement execution is outside that barrier. See
 [agent-session-runtime.md](./agent-session-runtime.md#write-quiesce).
 
 ## Lifecycle strategy — chat vs prompt
@@ -752,7 +755,7 @@ Agent-session topics use a parallel, queue-based mechanism — never an interrup
 A live follow-up is steered into the running turn via `connection.redirect()`
 (no abort). Native admission owns already dispatched inputs, including Claude
 inputs that cross a turn's end; the host does not resend them. Inputs that the
-host has not dispatched remain in `pendingTurns`. `send()` only upserts the new
+host has not dispatched remain in `runtimeState.queue`. `send()` only upserts the new
 subscriber. See
 [Agent Session Runtime → Live follow-up](./agent-session-runtime.md#live-follow-up).
 
@@ -765,7 +768,7 @@ duplicated; the rest are stream-manager-specific.
 |---|---|---|---|
 | Submit (standard) | `ai.stream.open` | `dispatchStreamRequest` → `prepareDispatch` (persist user msg, reserve placeholders, build listeners + models) → `manager.send` → N × `runExecutionLoop` | `PersistenceListener.persistAssistant` → terminal projection; raw listeners receive `onDone`; chat lifecycle `scheduleCleanup(30 s)` |
 | Steering — chat resubmit | `ai.stream.open` on a live chat topic | provider persists the steer user row + `enqueuePendingSteer` → `pendingSteers`; `steerYield` stops the running turn cleanly; `onExecutionDone` chains a `steer-continuation` | prior turn persisted as **`success`**; the continuation answers the steer — see [Steering](#steering) |
-| Agent-session follow-up | `ai.stream.open` on a live `agent-session:*` topic | provider persists the user row, `enqueueUserMessage` steers via `connection.redirect()` (no abort) or queues on `pendingTurns`; `manager.send` upserts the subscriber → `{ mode: 'injected' }` | steer folds into the current turn (rolled at a `steer-boundary`), else the next turn starts from `pendingTurns` — see [Agent Session Runtime](./agent-session-runtime.md#live-follow-up) |
+| Agent-session follow-up | `ai.stream.open` on a live `agent-session:*` topic | provider persists the user row, `enqueueUserMessage` steers via `connection.redirect()` (no abort) or queues on `runtimeState.queue`; `manager.send` upserts the subscriber → `{ mode: 'injected' }` | steer folds into the current turn (rolled at a `steer-boundary`), else the next turn starts from `runtimeState.queue` — see [Agent Session Runtime](./agent-session-runtime.md#live-follow-up) |
 | Tool-approval pause+resume | approval-request chunk → `awaiting-approval` | decision via `ai.tool.respond_approval`; a live agent runtime resolves its registry entry, while MCP dispatches `continue-conversation` | card clears when the resumed stream broadcasts `pending` — see [Tool Approval](./tool-approval.md) |
 | Desktop reconnect | `ai.projection.attach` on mount | Register a window-scoped subscription and return the current message baseline; subsequent revisions arrive through `ai.projection.changed` | live messages resume; terminal overlays yield to refreshed history; attach never changes runtime state |
 | Raw-stream reconnect | `ai.stream.attach` | `manager.attach`: `not-found` / streaming (register listener + compact replay) / done-paused (`finalMessage(s)`) / error | bounded raw replay or terminal result for consumers that still require chunks |

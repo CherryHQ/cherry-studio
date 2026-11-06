@@ -55,6 +55,16 @@ Claude 保留自己的原生区别：`command_lifecycle.started` 是接纳证据
 
 恢复出来的纯原生输入没有旧的内存产品上下文。有现成持久化原生绑定时解析它，否则按原生输入事实观察。不得制造产品输入，也不得仅因 Main 的待交接上下文映射为空就把连接标为完成。
 
+### 产品回复交接
+
+维护者同时批准完成产品回复所有权的收敛。在异步准备前分配完整回复身份并冻结输入上下文。交付、原生接纳／结束、排队控制信息和本地交付失败都归现有 reducer 中的这条回复持有。原生结束与产品准备失败是两个不同事实。只有 reducer 决定排队、steer、自主或延后回复的后继；service 回调只为捕获的回复执行 effect。
+
+使用同一条准备路径完成占位落盘、trace 刷新和流挂接。保留 session 级未决输入关联、原生 response 到回复的用量关联以及 context 级投影；删除 `pendingResponseIds`、`pendingProjections`、`pendingDisplay` 和独立的 continuation／receive-only／deferred 启动方法。内容出现前，控制信息可通过连接已绑定的 `contextId` 归入回复。checkpoint 只能引用正文已经提交的其他回复。
+
+已接纳回复的准备或最终保存失败后，事实仍归它持有。原生结束／释放有证据后重试它自己的准备；重复失败继续保管，不开启自动重试循环。只有原回复落盘且原生所有权释放后，才恢复延后的回复。恢复保留接纳状态、作者 snapshot 和 headless 属性，绝不重发已接纳输入。原生接纳前失败会将已创建的回复占位标为错误、终止等待中的流，并保留已保存的用户行供重新发送。
+
+关闭保留 session 所有者并拒绝新输入，直到原生观察与流持久化排空，再执行最终投影 flush。失败保留可重试的数据，并出现在备份的 straggler 报告中。尚未开流的占位也必须结清；关闭期间拒绝迟到的开流请求。最终 flush 成功后才释放所有权；旧准备或终止回调不能推进新回复。这不增加未落盘产品上下文的进程崩溃恢复能力。
+
 ### 3. 子线程来源与就绪归原生所有者
 
 为现有公共 `Subagent` 关系补充可选、有证据的创建来源。它仍是跨子线程运行保持稳定的关系，不是 task／run 记录：
@@ -178,7 +188,7 @@ Gateway 路径继续以 `provider-calls` 为唯一采集所有者。`AgentSessio
 | --- | --- |
 | 原生契约 | `packages/agent-runtime-pi/tests/runtime.test.ts`、`startupObservation.test.ts`、`runtimeLifecycle.test.ts`；`packages/agent-runtime-pi-durable/tests/runtime.test.ts`、`pendingObservation.test.ts`、`recoveryConfiguration.test.ts`；`packages/agent-runtime-claude-code/tests/runtime.test.ts`、`observation.test.ts`、`projection.test.ts` |
 | 桌面桥接 | `src/main/ai/runtime/pi/PiRuntimeConnection.test.ts`；`src/main/ai/runtime/piDurable/PiDurableRuntimeConnection.test.ts`；`src/main/ai/runtime/claudeCode/__tests__/ClaudeCodeRuntimeDriver.test.ts`、`desktopRuntime.integration.test.ts`、`ClaudeMessageMetadata.test.ts`、`ClaudeRuntimeState.test.ts` |
-| 输入、写入屏障与持久化 | `src/main/ai/agentSession/__tests__/AgentSessionRuntimeService.test.ts`、`agentSessionRuntimeState.test.ts`、`AgentSessionRuntimeService.child.test.ts`、`AgentSessionRuntimeService.pause.test.ts`、`ChildThreadProjection.test.ts`、`AgentSessionArchivePersistence.integration.test.ts`、`AgentSessionUsageAttribution.test.ts` |
+| 输入、写入屏障与持久化 | `src/main/ai/agentSession/__tests__/AgentSessionRuntimeService.test.ts`、`agentSessionRuntimeState.test.ts`、`AgentSessionRuntimeService.child.test.ts`、`AgentSessionRuntimeService.handoff.test.ts`、`ChildThreadProjection.test.ts`、`AgentSessionArchivePersistence.integration.test.ts`、`AgentSessionUsageAttribution.test.ts` |
 | 可观察的产品结果 | `src/renderer/services/aiTransport/__tests__/ExecutionStreamOverlayService.test.ts`、`MessageProjectionService.test.ts`；受影响 runtime 对脚本化本地端点执行的原生契约探针 |
 
 每个代码阶段运行 `pnpm change:scope --base <verified-base>`，查看 `pnpm check --plan --base <verified-base>`，并检查 `pnpm docs:affected --base <verified-base>`。使用明确文件过滤的 package／Main／renderer 测试包装命令、变更文件格式化／lint，以及受影响 package build／typecheck。全项目测试和平台打包留给 CI。上表标出受影响消费者，并非要求每阶段重跑所有文件。
@@ -200,6 +210,8 @@ Gateway 路径继续以 `provider-calls` 为唯一采集所有者。`AgentSessio
 | CI 与平台范围 | 不宣称远端 CI、完整套件、平台打包、进程被杀恢复或真实供应商质量已经验证。不宣称性能或内存收益。 |
 
 定向命令包括带上表显式文件参数的 `pnpm test:main`、`pnpm test:agent-runtime packages/agent-runtime/tests/observation.test.ts`（9 项通过），以及 `pnpm exec vitest run --project main src/main/ai/runtime/piDurable/PiDurableRuntimeConnection.test.ts`（22 项通过）。最终 Claude 桌面运行选择 `desktopRuntime.integration.test.ts` 和 `ClaudeCodeRuntimeDriver.test.ts`（25 项通过）；原生运行选择 `runtime.test.ts`、`observation.test.ts`、`control.test.ts` 和 `projection.test.ts`（66 项通过）。本地 Electron 证据与脚本端点保存在忽略的 `.context/cherry-electron-dev/` 目录。上述 AC12 的更广验收限制明确保留，本文保持 proposed。
+
+回复交接后续实现通过 `AgentSessionRuntimeService.handoff.test.ts` 使用真实 SQLite 和生产 migration 验证。覆盖准备失败前后到达的内容与用量、已接纳和未接纳的延后输入、冻结的作者／headless 上下文、提前到达的 steer 审批、checkpoint 排除未提交回复、前驱保存期间的自主回复交接、提交前失败占位结清、嵌套暂停、阻塞 trace 完成、开流前关闭、阻塞原生关闭／流持久化，以及最终写入失败后不重发输入的重试。reducer 测试另行覆盖结束／释放换序和旧回调；stream manager 屏障测试覆盖替换期间仍等待捕获的持久化循环。这些是自动化 host 契约证据，不是新增 Electron、真实供应商或进程被杀验收证据。
 
 ## 考虑过的替代方案
 
@@ -227,6 +239,8 @@ Gateway 路径继续以 `provider-calls` 为唯一采集所有者。`AgentSessio
 - AC11 — Claude SDK 调用聚合只有一个原生所有者；Main 保留价格时序、幂等持久化和延迟响应归属，Gateway 仍只有一条采集路径。(verification: unit — Claude 桌面与用量归属测试)
 - AC12 — Claude Code、Pi 和 Pi Durable 均支持多窗口子线程观察、续接、历史、steer、定向停止和备份／恢复。(verification: Electron — 由实现者记录隔离 profile 场景)
 - AC13 — 已迁移原生事实只有一个生产者；列出的 Main 镜像和原始控制解析器已删除，保留状态有明确所有者，参考文档与实现边界一致。(verification: docs gate — 生产者／消费者检索、变更范围清单及双语文档检查)
+
+- AC14 — 产品回复在异步准备前拥有完整身份；内容、控制与计费归属在准备／保存失败后保持一致。前驱落盘、原生释放与流排空分别形成交接条件；延后输入不重发、旧回调不推进新回复，关闭结清未开流占位。 (verification: unit — handoff 真实 SQLite 测试、reducer 测试及 stream-manager 屏障测试)
 
 ## 风险
 

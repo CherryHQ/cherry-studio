@@ -97,6 +97,10 @@ type PiChildResource = {
 }
 
 export class PiRuntimeConnection implements AgentRuntimeConnection {
+  get contextId(): string | undefined {
+    return this.context?.id
+  }
+
   readonly retainWhileIdle = true
   readonly usageCapture: AgentSessionUsageCapture = { owner: 'provider-calls' }
   private readonly eventQueue = new AsyncEventQueue<AgentRuntimeEvent>()

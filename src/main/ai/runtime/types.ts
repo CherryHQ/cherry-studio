@@ -214,6 +214,9 @@ export type AgentRuntimeEvent =
 export type AgentRuntimeReconcileResult = 'current' | 'patched' | 'rebuild' | 'invalid' | 'failed'
 
 export interface AgentRuntimeConnection {
+  /** Bound product context for controls that precede the first native message. */
+  readonly contextId?: string
+
   readonly events: AsyncIterable<AgentRuntimeEvent>
   /** The configured Runtime owner remains resident until explicit retirement. */
   readonly retainWhileIdle?: boolean

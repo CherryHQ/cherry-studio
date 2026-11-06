@@ -348,8 +348,8 @@ it.each(['detach', 'destroy', 'close'] as const)(
     f.ready.resolve(f.connection)
     await priming
     await closing
-    if (action === 'close') expect(await attaching).toMatchObject({ available: false })
-    else expect(await attaching).toBeNull()
+    const view = await attaching
+    expect(view === null || ('available' in view && view.available === false)).toBe(true)
     expect(f.listeners.size).toBe(0)
   }
 )

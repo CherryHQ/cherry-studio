@@ -159,7 +159,7 @@ Do not add Cherry policy directly to one driver. Extend the common materializer,
    - a trace flush listener for `agent-session:${sessionId}` history files;
    - a `turnId`.
    Follow-up messages are not queued here — they live on the session
-   entry's `pendingTurns`, appended by `enqueueUserMessage()`.
+   entry's `runtimeState.queue`, appended by `enqueueUserMessage()`.
 6. The prepared model request includes:
    - `runtime: { kind: 'agent-session', sessionId, turnId }`;
    - `messageId` set to the pending assistant row;
@@ -215,8 +215,8 @@ Stop is now the only abort source). `enqueueUserMessage()`:
    Pi consumes its own queue: unplaced inputs remaining after stop/error
    receive native aborted evidence and are not automatically resent.
 2. **No redirect-eligible open normal turn, or a driver that cannot steer** —
-   appends the message to the session entry's `pendingTurns` (recording its id in
-   `steerMessageIds` so the next turn wraps it in a steer system-reminder)
+   appends the message and its `steer` flag to the session entry's `runtimeState.queue`
+   so the next turn can wrap it in a steer system-reminder
    and schedules it once runtime ownership returns to `idle`.
 
 Before dispatch, Main stores each pending steer's original message, snapshot and headless
@@ -229,9 +229,9 @@ Unavailable native evidence keeps the context unresolved. This retention covers 
 process; the persisted native binding alone cannot recreate snapshot/headless attributes.
 
 A receive-only autonomous generation never accepts a redirect. Follow-ups
-remain in `pendingTurns` until terminal persistence releases runtime ownership.
+remain in `runtimeState.queue` until terminal persistence releases runtime ownership.
 The runtime's `autonomous-turn-state: started` event names why it opened the turn
-(`AutonomousTurnOrigin`: Claude Code waking after background work). `startReceiveOnlyTurn` publishes it to the shared
+(`AutonomousTurnOrigin`: Claude Code waking after background work). The shared reply preparation path publishes it to the shared
 cache under `agent.session.turn_origin.${sessionId}.${messageId}` — live session
 status like the api-retry state, not conversation content — so the transcript can
 label a turn that has no user message above it while the session is open.
@@ -239,8 +239,8 @@ If a user turn is live when the runtime starts its own — even an admitted one 
 is deferred: its stream is suspended, the receive-only turn takes the connection, and
 the user turn is relaunched afterwards with its admission preserved (no re-send).
 Content the runtime produces for the deferred turn before its stream reopens is
-buffered on the execution and replayed by `flush-transition`.
-A normal turn whose stream is still `unopened` is queued for the same reason;
+retained by that exact reply and delivered when its stream reopens.
+A normal turn whose stream is not yet open queues follow-ups for the same reason;
 steering is only valid after that turn's stream is `open`. Redirect also requires
 both the current turn and incoming input to be interactive. Delivery, channel,
 scheduled, and other headless-owned work cannot absorb or be absorbed by a steer;
@@ -516,30 +516,37 @@ boundary prevents model text that imitates an envelope from changing trusted rou
 
 ## Starting the next runtime turn
 
-A queued successor may start only after the current execution reaches
-`turn-terminal` and persistence returns the runtime to `idle`.
-`startNextTurn()` rechecks that ownership before reading or shifting the queue,
-so a premature launch has no queue, database, or stream-manager side effects.
+`agentSessionRuntimeState` decides when a queued input or reserved reply can start.
+A queued successor waits for the current reply's terminal persistence. A steer successor
+waits for its source row to persist; a deferred user reply waits for both the autonomous
+reply's persistence and the native ownership release. Suspension must finish before a
+replacement stream opens. Async launch completion only releases its captured launch target;
+it cannot choose another reply or settle a newer one.
 
-When a completed runtime turn still has queued follow-ups (or a
-`steer-undelivered` requeue), `AgentSessionRuntimeService.startNextTurn()`:
+Before asynchronous preparation, each reply has a `turnId`, assistant message ID, input,
+frozen model/author/headless context, and its own delivery, admission, control buffer and
+native terminal facts. `prepareReply()` handles queued, steer, autonomous and resumed replies:
 
-1. shifts the next user message off the session entry's `pendingTurns`;
-2. saves a new pending assistant row;
-3. creates a fresh `turnId`;
-4. calls `AiStreamManager.startRuntimeTurn(...)` with:
-   - the same topic id and model id;
-   - `runtime: { kind: 'agent-session', sessionId, turnId }`;
-   - seed messages containing the user row and empty assistant row.
+1. save a reserved assistant placeholder with its preallocated ID;
+2. refresh trace context, then recheck the captured reply and session;
+3. open `AiStreamManager.startRuntimeTurn()` with that reply's seed messages and listeners;
+4. publish its projection and buffered controls; send input only if it has not been admitted.
 
-The runtime connection may stay on the entry. What that means is driver
-specific: Claude Code's adapter package keeps its SDK Query/input queue, while another
-driver could keep a websocket or reconnect per turn.
+The runtime connection may stay on the entry. What that means is driver specific:
+Claude Code retains its SDK Query/input queue, while another driver may reconnect per turn.
 
-If a queued successor or steer continuation cannot save its assistant
-placeholder, the host explicitly terminates the held topic stream with
-`terminateHeldTopicStream()`. Broadcasting an error alone is insufficient:
-it does not run terminal lifecycle or evict the held stream.
+A failure before native admission settles the queued work and terminates the held topic
+stream; the saved user row remains available for resend. An admitted reply retains its
+projection, controls, input context and usage associations after preparation or terminal
+persistence fails. Preparation failure is not native completion. Native completion/release
+can retry preparation for that same identity; repeated failure does not start a retry loop.
+An explicit close retries final persistence. A failed reply never lends its facts to the
+waiting user reply, and admitted input is never resent by these retries.
+
+`RootMessageProjection` owns content and display additions before a stream opens. Its
+checkpoint excludes other replies whose bodies have not committed. Response IDs bind usage
+to the reserved reply immediately, while the message foreign key waits for the row to exist;
+usage itself is recorded at once. Opening a stream does not infer content or accounting ownership.
 
 ## Resume token persistence
 
@@ -1054,7 +1061,7 @@ For a short idle window it keeps:
 
 - the runtime connection, if it is still alive;
 - `lastResumeToken`;
-- the session entry's `pendingTurns`.
+- the session entry's `runtimeState.queue`.
 
 If a new turn arrives during that window, `beginTurn()` reuses the same
 entry and only swaps the current UI turn plus the UI pending queue.
@@ -1063,7 +1070,7 @@ Pi and Pi Durable declare `retainWhileIdle`: their in-process owners remain avai
 Explicit close, branch replacement, configuration rebuild, and service shutdown still retire it.
 For other connections, when the idle timer expires, the runtime closes the entry:
 
-- clears `pendingTurns`;
+- clears `runtimeState.queue`;
 - closes the runtime connection;
 - prewarms Claude Code when a latest resume token is known.
 
@@ -1071,12 +1078,18 @@ Service stop and destroy close all runtime entries. User Stop additionally invok
 optional connection `interrupt()` before closing. Durable shutdown preserves ordinary
 unfinished root tasks; explicit interruption cancels them. Reopen applies shared behavior's
 `onOpen` before native resume, disarming goals and stopping interrupted background children.
-Repeated `closeSession()` calls join the in-flight close; if a replacement entry was created meanwhile,
-its close is chained behind the prior one so callers wait for every connection generation to settle.
-An immediate retry may create its entry while that close is still draining, but it cannot connect until
-the predecessor has closed. Teardown also joins an in-flight `driver.connect()` and closes any stale
-connection it produces before releasing the successor. The predecessor's observed resume token is handed
-to that successor only when both belong to the same message branch.
+Repeated `closeSession()` calls join the in-flight close. A closing session rejects new
+input and replacement turns until the old reply releases ownership. Teardown joins a pending
+`driver.connect()` and closes a late connection before completing. It keeps the current
+connection's fact consumer alive through native observation drain, waits for the captured
+stream persistence loops, then flushes each owned projection. Only after that flush does it
+clear the entry. No projection write may follow the final flush.
+
+Failed native close or final persistence retains the owner and blocks archive/backup safety.
+A later close retries retained data without another send. Late successful native teardown
+retries the remaining close work. Unknown-admission input contexts remain on the session even
+after a successful close, for lookup on reconnect. These are process-lifetime guarantees;
+unsaved product context is not reconstructed from the native binding after a process crash.
 
 `ClaudeCodeProcessManager` owns every CLI handle this app spawns. Every SDK `Options` object routes
 through its host spawn wrapper, which fixes the stdio contract and records each `ChildProcess`,
@@ -1104,11 +1117,10 @@ For backup restore (#16849) the runtime and delivery owner expose `pause(reason?
 `drainInFlight({ timeoutMs }) → { stragglerIds }` + `listActiveWork()`, the same
 contract as `AiStreamManager` and `JobManager` (see
 [stream-manager.md](./stream-manager.md#write-quiesce-pause--draininflight) for the
-contract and the orchestration order). This service's autonomous write surface is the
-assistant-placeholder `saveMessage` in `startNextTurn` / `startContinuationTurn`; both
-are gated at entry, BEFORE consuming `pendingTurns` / `rollSteerInputs` — a suppressed
-start stays queued (`isSessionBusy` holds, so concurrent dispatches keep enqueueing) and
-the last hold's disposal re-kicks it. New-turn admission through `prepareDispatch` /
+contract and the orchestration order). A single reducer-scheduled launch gate covers queue
+consumption and all reply preparation before placeholder writes. Suppression retains the exact
+queued input or reply; the last pause hold resumes it once. In-flight preparation is drained
+through its stream-manager handoff. New-turn admission through `prepareDispatch` /
 `beginTurn` is gated upstream by `AiStreamManager`. The drain awaits
 `inFlightTurnStarts` — launches admitted before the pause, through their placeholder
 write and `startRuntimeTurn` handoff — plus runtime close barriers that may still flush external state
@@ -1119,7 +1131,8 @@ the owning connection to settle native work, await queued observation delivery a
 then read committed archives and perform the final flush, including work continuing after an
 input acknowledgement. No projection writer may run after that flush until resume. Closing
 also detaches observation and releases access last; `Observation.stop()` alone is not a drain. Timeouts and failed archive flushes report the root as a straggler;
-a later drain can retry. This is distinct from the BaseService lifecycle pause and never touches service state.
+a later drain can retry. Retained root delivery failures and unsuccessful session closes also report
+the session as a straggler rather than a successful drain. This is distinct from the BaseService lifecycle pause and never touches service state.
 The repository's Claude Agent SDK 0.3.311 patch forwards the existing host-only native idle event
 after background work. The adapter needs that authoritative fact to release background occupancy;
 missing idle evidence remains a straggler instead of allowing backup. The patch changes only the

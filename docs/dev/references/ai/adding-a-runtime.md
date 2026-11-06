@@ -106,6 +106,8 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
    - `close()` — seal admission, stop native production, await observation delivery and callbacks,
      flush committed archives, then detach and release. A failed final flush retains a retryable writer.
      Durable runtimes may preserve unfinished work.
+   - Optional `contextId` identifies the bound product context. Expose it before controls
+     that may precede the first native message so Main can attach them to the reserved reply.
    - Optional, with host fallbacks when omitted:
      - `interrupt()` — cancel foreground work for user Stop before the host closes the
        connection. Keep this separate from durable shutdown and recovery.
