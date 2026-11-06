@@ -27,7 +27,8 @@ import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import {
   getImportedHistoryState,
   queueImportedHistoryTx,
-  setImportedMetadataTx
+  setImportedMetadataTx,
+  setMessageProvenanceTx
 } from '@data/services/importedSessionHistory'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSessionForkOperations'
 import { AgentSessionForkError, type RuntimeForkInput } from '@main/ai/runtime/fork/checkpoint'
@@ -104,13 +105,9 @@ describe('AgentSessionMessageService', () => {
       .values({ id: USER_MESSAGE_ID, sessionId: SESSION_ID, role: 'user', data, status: 'success' })
       .run()
     expect(agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID).role).toBe('user')
-    dbh.db
-      .update(agentSessionMessageTable)
-      .set({
-        provenance: { source: 'codex', originalMessageId: 'source-message', sourceOrder: 1, inferredTimestamp: false }
-      })
-      .where(eq(agentSessionMessageTable.id, USER_MESSAGE_ID))
-      .run()
+    application
+      .get('DbService')
+      .withWriteTx((tx) => setMessageProvenanceTx(tx, SESSION_ID, USER_MESSAGE_ID, { source: 'codex', sourceOrder: 1 }))
     const presented = agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID)
     expect(presented.role).toBe('system')
     expect(presented.data.parts?.[0]).toEqual({
