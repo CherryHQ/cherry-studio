@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto'
 import {
   query,
   type Query,
+  type SDKAssistantMessage,
   type SDKMessage,
   type SDKUserMessage,
   type SessionStoreEntry
@@ -64,11 +65,12 @@ export class ClaudeOwner {
   private readonly contextWindows = new Map<string, number>()
   private contextEpoch = 0
   private contextModel?: string
-  private liveInputUsage: {
-    input_tokens?: number
-    cache_read_input_tokens?: number | null
-    cache_creation_input_tokens?: number | null
-  } = {}
+  private liveInputUsage: Partial<
+    Pick<
+      SDKAssistantMessage['message']['usage'],
+      'input_tokens' | 'cache_read_input_tokens' | 'cache_creation_input_tokens'
+    >
+  > = {}
   private sdk?: Query
   private pump?: Promise<void>
   private exited = false

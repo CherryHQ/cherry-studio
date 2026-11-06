@@ -4,6 +4,7 @@ import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import {
   ConversationBusy,
   ProviderDoc,
+  ToolTask,
   createRegistry,
   configure,
   type AgentChange,
@@ -279,7 +280,7 @@ export async function createPiDurableRuntime(
       origin?.kind === 'record' && origin.record.type === 'subagent-origin' ? origin.record.value : undefined
     const taskId = lineage ? nativeId(lineage.parentToolCallId) : owner.taskId
     const task = taskId === undefined ? undefined : await tx.task(taskId as typeof owner.taskId)
-    const input = task?.kind === 'pi.tool' ? (task.input as ToolTaskInput) : undefined
+    const input = task?.kind === ToolTask.definition.name ? (task.input as ToolTaskInput) : undefined
     const toolCallId = input?.kind === 'model' ? input.callId : input?.call.id
     const description = lineage?.description
     return {
@@ -406,7 +407,7 @@ export async function createPiDurableRuntime(
               )
             )
               .flat()
-              .filter((task) => task.kind === 'pi.tool')
+              .filter((task) => task.kind === ToolTask.definition.name)
             const toolTasks = new Map(tasks.map((task) => [task.id, task]))
             const history = () =>
               historyOf(
@@ -441,7 +442,7 @@ export async function createPiDurableRuntime(
                   if (
                     change.type === 'task' &&
                     change.value.conversationId === conversation.id &&
-                    change.value.kind === 'pi.tool'
+                    change.value.kind === ToolTask.definition.name
                   )
                     toolTasks.set(change.value.id, change.value)
                   if (
@@ -604,9 +605,9 @@ export async function createPiDurableRuntime(
         async behaviorToolCallId(call) {
           if (unavailable() || call.thread !== entry.ref.id || nativeId(call.key) === undefined) return undefined
           const task = await native.getTask(Number(call.key) as never, context)
-          return task?.kind === 'pi.tool' && task.conversationId === entry.conversation.id
-            ? (task.input as { callId?: string }).callId
-            : undefined
+          if (task?.kind !== ToolTask.definition.name || task.conversationId !== entry.conversation.id) return undefined
+          const input = task.input as ToolTaskInput
+          return input.kind === 'model' ? input.callId : undefined
         },
         async configure(change) {
           if (unavailable()) throw new Error('Durable access is closed')
