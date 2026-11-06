@@ -319,7 +319,11 @@ describe('importService.importNativeTopic', () => {
         mediaType: 'text/plain',
         providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
       },
-      { type: 'data-video', data: { filePath: '/files/entry-2.mp4' } },
+      {
+        type: 'data-video',
+        data: { filePath: '/files/entry-2.mp4' },
+        providerMetadata: { cherry: { fileEntryId: 'entry-2' } }
+      },
       { type: 'file', url: 'https://example.com/remote.png', filename: 'remote.png', mediaType: 'image/png' }
     ])
     expect(toast.warning).not.toHaveBeenCalled()

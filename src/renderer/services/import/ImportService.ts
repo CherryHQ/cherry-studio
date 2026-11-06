@@ -288,9 +288,13 @@ class ImportService {
    * vanishes from the file renderer and breaks provider continuation (the
    * send path resolves text extraction and native files through the entry).
    * Each embedded payload becomes a fresh internal entry and the part is
-   * rewritten to address it — never a source-install id or path. Parts whose
-   * payload cannot be decoded or stored are dropped and counted so the caller
-   * can say so instead of losing them silently.
+   * rewritten to address it — never a source-install id or path. The fresh
+   * entry id stays on the part as `providerMetadata.cherry.fileEntryId` so
+   * persisting the message registers a file reference; without it automatic
+   * cleanup would reclaim the `delete_when_unreferenced` entry after its
+   * grace period while the topic still exists. Parts whose payload cannot be
+   * decoded or stored are dropped and counted so the caller can say so
+   * instead of losing them silently.
    */
   private async restoreEmbeddedMedia(conversation: ImportConversation): Promise<number> {
     interface EmbeddedMediaCandidate {
@@ -404,7 +408,14 @@ class ImportService {
                     cherry: { fileEntryId: success.id }
                   }
                 }
-              : { ...candidate.part, data: { filePath: physicalPath } }
+              : {
+                  ...candidate.part,
+                  data: { filePath: physicalPath },
+                  providerMetadata: {
+                    ...(candidate.part.providerMetadata as Record<string, unknown> | undefined),
+                    cherry: { fileEntryId: success.id }
+                  }
+                }
           const nextParts = [...candidate.message.parts]
           nextParts[candidate.partIndex] = rewritten as ImportMessageNode['parts'][number]
           candidate.message.parts = nextParts

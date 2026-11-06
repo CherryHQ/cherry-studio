@@ -76,6 +76,28 @@ function partsWithFile(fileEntryId: string, filename = `${fileEntryId}.txt`): Me
   }
 }
 
+function partsWithVideo(fileEntryId: string): MessageData {
+  return {
+    parts: [
+      { type: 'text', text: 'see video' },
+      {
+        type: 'data-video',
+        data: { filePath: `/files/${fileEntryId}.mp4` },
+        providerMetadata: { cherry: { fileEntryId } }
+      }
+    ] as MessageData['parts']
+  }
+}
+
+function partsWithPathOnlyVideo(): MessageData {
+  return {
+    parts: [
+      { type: 'text', text: 'see video' },
+      { type: 'data-video', data: { filePath: '/files/path-only.mp4' } }
+    ] as MessageData['parts']
+  }
+}
+
 function partsWithDuplicateFile(fileEntryId: string): MessageData {
   return {
     parts: [
@@ -2072,6 +2094,45 @@ describe('MessageService', () => {
 
       expect(refs).toHaveLength(1)
       expect(refs[0]).toMatchObject({ fileEntryId: fileId, sourceId: userMessage.id, role: 'attachment' })
+    })
+
+    it('syncs refs for a data-video part carrying a fileEntryId', async () => {
+      const topicId = 'topic-ref-video'
+      const fileId = '019606a0-0000-7000-8000-00000000fa0b'
+      await seedTopicWithRoot(topicId)
+      await seedFileEntry(fileId)
+
+      const message = messageService.create(topicId, {
+        role: 'user',
+        data: partsWithVideo(fileId),
+        status: 'success'
+      })
+
+      const refs = await dbh.db
+        .select()
+        .from(chatMessageFileRefTable)
+        .where(eq(chatMessageFileRefTable.sourceId, message.id))
+
+      expect(refs).toHaveLength(1)
+      expect(refs[0]).toMatchObject({ fileEntryId: fileId, sourceId: message.id, role: 'attachment' })
+    })
+
+    it('registers no ref for a path-only data-video part', async () => {
+      const topicId = 'topic-ref-video-path-only'
+      await seedTopicWithRoot(topicId)
+
+      const message = messageService.create(topicId, {
+        role: 'user',
+        data: partsWithPathOnlyVideo(),
+        status: 'success'
+      })
+
+      const refs = await dbh.db
+        .select()
+        .from(chatMessageFileRefTable)
+        .where(eq(chatMessageFileRefTable.sourceId, message.id))
+
+      expect(refs).toEqual([])
     })
 
     it('replaces refs when message data changes', async () => {
