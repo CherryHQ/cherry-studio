@@ -790,8 +790,16 @@ export class AgentSessionRuntimeService extends BaseService {
   ): AgentSessionTurn | undefined {
     if (!this.isCurrentEntry(entry)) return undefined
     const execution = entry.runtimeState.execution
-    if (execution.kind === 'turn' && execution.reservation) return execution.reservation
-    if (execution.kind === 'steer-transition') return execution.reply.turn
+    const reserved =
+      execution.kind === 'turn'
+        ? execution.reservation
+        : execution.kind === 'steer-transition'
+          ? execution.reply.turn
+          : undefined
+    if (reserved) {
+      reserved.taskIds = [...new Set([...reserved.taskIds, ...inputs.map(({ message }) => message.id)])]
+      return reserved
+    }
     const source = this.currentTurn(entry)
     const input = inputs[0]
     if (!source || !input) return undefined

@@ -1279,52 +1279,63 @@ describe('AgentSessionRuntimeService', () => {
       expect(getEntry(service).pendingTurns).toHaveLength(0)
     })
 
-    it('freezes a redirected steer-boundary continuation with the follow-up snapshot', async () => {
-      const service = new AgentSessionRuntimeService()
-      const priorSnapshot = {
-        id: 'agent-1',
-        name: 'Old',
-        model: { id: 'old', name: 'Old', provider: 'p' }
-      } as any
-      const followUpSnapshot = {
-        id: 'agent-1',
-        name: 'New',
-        // Model matches the entry's running model — no mid-queue model switch here, so the drain-time
-        // reconcile is a no-op and the frozen author (name 'New') is preserved verbatim.
-        model: { id: 'claude-sonnet-4-5', name: 'New', provider: 'claude-code' }
-      } as any
+    it.each([false, true])(
+      'freezes a redirected steer-boundary continuation (preallocated: %s)',
+      async (preallocated) => {
+        const service = new AgentSessionRuntimeService()
+        const priorSnapshot = {
+          id: 'agent-1',
+          name: 'Old',
+          model: { id: 'old', name: 'Old', provider: 'p' }
+        } as any
+        const followUpSnapshot = {
+          id: 'agent-1',
+          name: 'New',
+          // Model matches the entry's running model — no mid-queue model switch here, so the drain-time
+          // reconcile is a no-op and the frozen author (name 'New') is preserved verbatim.
+          model: { id: 'claude-sonnet-4-5', name: 'New', provider: 'claude-code' }
+        } as any
 
-      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1'), messageSnapshot: priorSnapshot })
-      const entry = getEntry(service)
-      const connection = { close: vi.fn(), send: vi.fn(), events: [], redirect: vi.fn().mockReturnValue(true) }
-      entry.connection = connection
-      entry.connectionModelId = baseTurnInput.modelId
-      entry.runtimeState.execution.reply.delivery = { kind: 'open' }
-      entry.runtimeState.execution.reply.admission = 'admitted'
+        service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1'), messageSnapshot: priorSnapshot })
+        const entry = getEntry(service)
+        const connection = { close: vi.fn(), send: vi.fn(), events: [], redirect: vi.fn().mockReturnValue(true) }
+        entry.connection = connection
+        entry.connectionModelId = baseTurnInput.modelId
+        entry.runtimeState.execution.reply.delivery = { kind: 'open' }
+        entry.runtimeState.execution.reply.admission = 'admitted'
 
-      // Native steer accepts the follow-up via redirect → its snapshot must still be stored, and the
-      // steer-boundary continuation (A2) must freeze it, not the prior turn's entry snapshot.
-      service.enqueueUserMessage('session-1', userMessage('user-2'), { messageSnapshot: followUpSnapshot })
-      service.enqueueUserMessage('session-1', userMessage('user-3'), { messageSnapshot: followUpSnapshot })
-      expect(connection.redirect).toHaveBeenCalled()
-      expect(entry.pendingTurns).toEqual([])
+        // Native steer accepts the follow-up via redirect → its snapshot must still be stored, and the
+        // steer-boundary continuation (A2) must freeze it, not the prior turn's entry snapshot.
+        service.enqueueUserMessage('session-1', userMessage('user-2'), { messageSnapshot: followUpSnapshot })
+        service.enqueueUserMessage('session-1', userMessage('user-3'), { messageSnapshot: followUpSnapshot })
+        expect(connection.redirect).toHaveBeenCalled()
+        expect(entry.pendingTurns).toEqual([])
 
-      const sourceTurnId = entry.currentTurn.turnId
-      // Only the identity crosses back; the original attributes stay in the session.
-      ;(service as any).handleRuntimeEvent(entry, {
-        type: 'steer-boundary',
-        inputIds: ['user-2', 'user-3']
-      })
-      service.markTurnTerminal('session-1', 'success', sourceTurnId)
-      await vi.waitFor(() => expect(entry.currentTurn.userMessage.id).toBe('user-2'))
+        if (preallocated) {
+          ;(service as any).reserveSteerContinuation(entry, [
+            { message: userMessage('user-2'), messageSnapshot: followUpSnapshot }
+          ])
+        }
 
-      const assistantSaves = mocks.saveMessage.mock.calls
-        .map((call) => call[0].message)
-        .filter((m: any) => m.role === 'assistant')
-      expect(assistantSaves.at(-1)?.messageSnapshot).toEqual(followUpSnapshot)
-      expect(mocks.startRuntimeTurn.mock.calls.at(-1)?.[0].taskIds).toEqual(['user-2', 'user-3'])
-      void service.closeSession('session-1')
-    })
+        const sourceTurnId = entry.currentTurn.turnId
+        // Only the identity crosses back; the original attributes stay in the session.
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'steer-boundary',
+          inputIds: ['user-2', 'user-3']
+        })
+        service.markTurnTerminal('session-1', 'success', sourceTurnId)
+        await vi.waitFor(() => expect(entry.currentTurn.userMessage.id).toBe('user-2'))
+
+        const assistantSaves = mocks.saveMessage.mock.calls
+          .map((call) => call[0].message)
+          .filter((m: any) => m.role === 'assistant')
+        expect(assistantSaves.at(-1)?.messageSnapshot).toEqual(followUpSnapshot)
+        await vi.waitFor(() =>
+          expect(mocks.startRuntimeTurn.mock.calls.at(-1)?.[0].taskIds).toEqual(['user-2', 'user-3'])
+        )
+        void service.closeSession('session-1')
+      }
+    )
 
     it('refreshes the trace context before starting a steer continuation stream', async () => {
       const service = new AgentSessionRuntimeService()
