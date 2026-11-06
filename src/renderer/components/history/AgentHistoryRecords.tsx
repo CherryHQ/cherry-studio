@@ -1,4 +1,4 @@
-import { type ReactElement, type ReactNode, useCallback, useMemo, useRef, useState } from 'react'
+import { type ReactElement, type ReactNode, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { EmojiIcon } from '@cherrystudio/ui'
@@ -17,6 +17,7 @@ import { createSessionActionContext, useSessionMenuPreset } from '@renderer/hook
 import { useResolvedCommand } from '@renderer/hooks/command'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
+import { useCurrentDayStart } from '@renderer/hooks/useCurrentDayStart'
 import { useOptimisticResourceName } from '@renderer/hooks/useOptimisticResourceName'
 import {
   restoreRecycleBinItem,
@@ -25,15 +26,9 @@ import {
   showRecycleBinUndo
 } from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
-import type {
-  AgentFileNavigationOptions,
-  AgentFileNavigationTransition,
-  DeferredDraftDiscard
-} from '@renderer/types/agent'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { type SessionListItem, sortSessionsForDisplayGroups } from '@renderer/utils/chat/sessionListHelpers'
-import { isElementSuppressed } from '@renderer/utils/commandFocus'
 import { getErrorMessage } from '@renderer/utils/error'
 import { matchesSearchText } from '@renderer/utils/pinyin'
 import { pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
@@ -61,16 +56,6 @@ import {
 import { useHistoryRecordsController } from './useHistoryRecordsController'
 
 const logger = loggerService.withContext('AgentHistoryRecords')
-
-function removalGuardIsOpen(): boolean {
-  const nodes = document.querySelectorAll('[role="dialog"], [role="alertdialog"], [aria-modal="true"]')
-  for (const node of nodes) {
-    if (!(node instanceof HTMLElement)) continue
-    if (node.getAttribute('data-state') === 'closed' || isElementSuppressed(node)) continue
-    return true
-  }
-  return false
-}
 
 function AgentHistoryRowState({
   sessionId,
@@ -112,15 +97,6 @@ interface AgentHistoryRecordsProps {
   onClose: () => void
   onRecordSelect?: (sessionId: string) => void
   onActiveRecordChange?: (sessionId: string | null) => void
-  /**
-   * Confirms leaving the active session's dirty file before permanent-delete confirmation.
-   * `transition` opens that confirmation and may receive a deferred `commitDiscard`.
-   */
-  requestRecordRemoval?: (
-    nextSessionId: string | null,
-    transition: AgentFileNavigationTransition,
-    options?: AgentFileNavigationOptions
-  ) => void
   /** Active while this list is permanently deleting `id`; `null` when that attempt settles. */
   onLocalPermanentDeletePendingChange?: (id: string | null) => void
   toolbarLeading?: ReactNode
@@ -131,12 +107,11 @@ const AgentHistoryRecords = ({
   onClose,
   onRecordSelect,
   onActiveRecordChange: onActiveSessionChange,
-  requestRecordRemoval,
   onLocalPermanentDeletePendingChange,
   toolbarLeading
 }: AgentHistoryRecordsProps) => {
   const { t } = useTranslation()
-  const [groupNow] = useState(() => new Date())
+  const groupNow = useCurrentDayStart()
   const conversationNav = useConversationNavigation('agents')
   const { shortcutLabel: permanentDeleteShortcut } = useResolvedCommand('resource.delete_permanently')
 
@@ -163,7 +138,6 @@ const AgentHistoryRecords = ({
   const pinIdBySessionIdRef = useRef(pinIdBySessionId)
   const activeRecordIdRef = useRef(activeRecordId)
   const permanentDeleteLockRef = useRef(false)
-  const deferredRemovalIdRef = useRef<string | null>(null)
   sessionItemsRef.current = sessionItems
   pinIdBySessionIdRef.current = pinIdBySessionId
   activeRecordIdRef.current = activeRecordId
@@ -268,97 +242,60 @@ const AgentHistoryRecords = ({
       const wasActiveAtStart = activeRecordIdRef.current === id
       const orderedBeforeDelete = timeSortedSessionsRef.current
       const neighborBeforeDelete = pickNeighbourAfterRemoval(orderedBeforeDelete, id)
-      const nextSessionId = neighborBeforeDelete?.id ?? null
 
-      const startConfirmation = (grant?: DeferredDraftDiscard): Promise<void> => {
-        deferredRemovalIdRef.current = null
-        if (permanentDeleteLockRef.current) return Promise.resolve()
-        permanentDeleteLockRef.current = true
-        const current = sessionItemsRef.current.find((session) => session.id === id)
-        return permanentDeletePopup
-          .show({
-            kind: 'conversation',
-            name: historySessionLabel(current?.name),
-            action: async () => {
-              if (pinIdBySessionIdRef.current.has(id)) {
-                throw new Error(t('recycle_bin.delete.pinned'))
-              }
-              if (isAgentHistorySessionBusy(id) || streamStatusBySessionIdRef.current.get(id)?.isPending) {
-                throw new Error(t('recycle_bin.delete.busy'))
-              }
-
-              // Hold missing-session recovery until this attempt settles. The by-id NOT_FOUND
-              // notification can arrive before the IPC reply and is not user navigation.
-              onLocalPermanentDeletePendingChange?.(id)
-              try {
-                const outcome = await deleteSessionWithOutcome(id, {
-                  permanent: true,
-                  showFeedback: false,
-                  onDeleted: () => {
-                    const activeId = activeRecordIdRef.current
-                    const clearedDuringDelete = activeId == null && wasActiveAtStart
-                    if (activeId !== id && !clearedDuringDelete) return
-                    grant?.commitDiscard()
-                  }
-                })
-                if (outcome.status !== 'succeeded') {
-                  await reload().catch((refreshError) => {
-                    logger.warn('Failed to refresh sessions after permanent delete failed', refreshError as Error, {
-                      sessionId: id
-                    })
-                  })
-                  throw new Error(
-                    outcome.status === 'failed'
-                      ? outcome.error || t('agent.session.delete.error.failed')
-                      : t('recycle_bin.delete.stale')
-                  )
-                }
-
-                const activeId = activeRecordIdRef.current
-                const clearedDuringDelete = activeId == null && wasActiveAtStart
-                if (activeId !== id && !clearedDuringDelete) return
-
-                const nextSession = survivingHistoryNeighbor(
-                  orderedBeforeDelete,
-                  timeSortedSessionsRef.current,
-                  id,
-                  neighborBeforeDelete
-                )
-                onActiveSessionChange?.(nextSession?.id ?? null)
-              } finally {
-                onLocalPermanentDeletePendingChange?.(null)
-              }
+      if (permanentDeleteLockRef.current) return Promise.resolve()
+      permanentDeleteLockRef.current = true
+      const current = sessionItemsRef.current.find((session) => session.id === id)
+      return permanentDeletePopup
+        .show({
+          kind: 'conversation',
+          name: historySessionLabel(current?.name),
+          action: async () => {
+            if (pinIdBySessionIdRef.current.has(id)) {
+              throw new Error(t('recycle_bin.delete.pinned'))
             }
-          })
-          .then(() => undefined)
-          .finally(() => {
-            permanentDeleteLockRef.current = false
-          })
-      }
+            if (isAgentHistorySessionBusy(id) || streamStatusBySessionIdRef.current.get(id)?.isPending) {
+              throw new Error(t('recycle_bin.delete.busy'))
+            }
 
-      if (!wasActiveAtStart || !requestRecordRemoval) return startConfirmation()
+            // Hold missing-session recovery until this attempt settles. The by-id NOT_FOUND
+            // notification can arrive before the IPC reply and is not user navigation.
+            onLocalPermanentDeletePendingChange?.(id)
+            try {
+              const outcome = await deleteSessionWithOutcome(id, { permanent: true, showFeedback: false })
+              if (outcome.status !== 'succeeded') {
+                await reload().catch((refreshError) => {
+                  logger.warn('Failed to refresh sessions after permanent delete failed', refreshError as Error, {
+                    sessionId: id
+                  })
+                })
+                throw new Error(
+                  outcome.status === 'failed'
+                    ? outcome.error || t('agent.session.delete.error.failed')
+                    : t('recycle_bin.delete.stale')
+                )
+              }
 
-      if (deferredRemovalIdRef.current === id && removalGuardIsOpen()) return Promise.resolve()
-      deferredRemovalIdRef.current = null
+              const activeId = activeRecordIdRef.current
+              const clearedDuringDelete = activeId == null && wasActiveAtStart
+              if (activeId !== id && !clearedDuringDelete) return
 
-      let started = false
-      let pending = Promise.resolve()
-      requestRecordRemoval(
-        nextSessionId,
-        (grant) => {
-          started = true
-          pending = startConfirmation(grant).catch((error) => {
-            logger.error('Failed to permanently delete session from history', error as Error, { sessionId: id })
-            toast.error(getErrorMessage(error))
-          })
-          return pending
-        },
-        { deferDraftDisposal: true }
-      )
-      if (started) return pending
-
-      deferredRemovalIdRef.current = id
-      return Promise.resolve()
+              const nextSession = survivingHistoryNeighbor(
+                orderedBeforeDelete,
+                timeSortedSessionsRef.current,
+                id,
+                neighborBeforeDelete
+              )
+              onActiveSessionChange?.(nextSession?.id ?? null)
+            } finally {
+              onLocalPermanentDeletePendingChange?.(null)
+            }
+          }
+        })
+        .then(() => undefined)
+        .finally(() => {
+          permanentDeleteLockRef.current = false
+        })
     },
     [
       deleteSessionWithOutcome,
@@ -366,7 +303,6 @@ const AgentHistoryRecords = ({
       onActiveSessionChange,
       onLocalPermanentDeletePendingChange,
       reload,
-      requestRecordRemoval,
       t
     ]
   )

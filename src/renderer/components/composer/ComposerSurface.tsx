@@ -10,6 +10,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ScrollArea } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
@@ -332,94 +333,102 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
       data-composer-presentation="regular"
       onPointerDownCapture={markVoiceTargetCurrent}
       onFocusCapture={markVoiceTargetCurrent}
-      className={`inputbar-container relative rounded-[20px] border-[0.5px] border-border bg-card pt-2 shadow-sm ${
-        belowControls ? 'mb-0.5' : 'mb-3'
-      }`}>
+      className={
+        props.embedded
+          ? 'inputbar-container relative'
+          : `inputbar-container relative rounded-[20px] border-[0.5px] border-border bg-composer-surface pt-2 shadow-sm ${
+              belowControls ? 'mb-0.5' : 'mb-3'
+            }`
+      }>
       {props.topContent}
       <div className={props.leadingContent ? 'flex items-start' : 'contents'}>
         {props.leadingContent ? <div className="shrink-0 pt-1.5 pl-3.5">{props.leadingContent}</div> : null}
         <div className="group/composer-editor relative flex min-w-0 flex-1">
-          <textarea
-            dir="auto"
-            ref={textareaRef}
-            data-voice-target-id={voiceTargetId}
-            aria-label={props.placeholder}
-            value={props.text}
-            placeholder={props.placeholder}
-            rows={1}
-            readOnly={props.editable === false}
-            spellCheck={props.enableSpellCheck}
-            data-ui="part:composer-input"
-            className="box-border block w-full min-w-0 flex-1 resize-none overflow-auto bg-transparent text-foreground outline-none"
-            style={{
-              height: editorMinHeight,
-              minHeight: editorMinHeight,
-              padding: '6px 15px 0',
-              fontSize: props.fontSize,
-              textAlign: 'start',
-              lineHeight: 1.4
-            }}
-            onChange={(event) => {
-              updateSelection()
-              props.onTextChange(event.currentTarget.value)
-              requestRuntime()
-            }}
-            onFocus={() => {
-              intentRef.current.hadFocus = true
-              markVoiceTargetCurrent()
-              props.onFocus?.()
-              // Start the rich runtime on focus, not on the first key: with a warm chunk the swap
-              // would otherwise commit before the keystroke's input event, dropping the character.
-              requestRuntime()
-            }}
-            onSelect={updateSelection}
-            onPaste={(event) => {
-              // Native insertion would keep only the plain text and drop files, HTML and token
-              // fragments, so hand the whole payload to the runtime instead.
-              event.preventDefault()
-              captureTransfer('paste', event.clipboardData)
-            }}
-            onCompositionStart={() => setIsComposing(true)}
-            onCompositionEnd={(event) => {
-              // Some IMEs only write the committed characters on compositionend, and the textarea is
-              // about to unmount, so read the final value here rather than waiting for `change`.
-              const input = event.currentTarget
-              selectionRef.current = { start: input.selectionStart, end: input.selectionEnd }
-              if (props.editable !== false && input.value !== props.text) props.onTextChange(input.value)
-              setIsComposing(false)
-            }}
-            onKeyDown={(event) => {
-              if (props.editable === false) return
-              requestRuntime()
-              if (navigateInputHistory(event)) {
+          <ScrollArea
+            type="auto"
+            className="min-w-0 flex-1 [-webkit-app-region:no-drag]"
+            style={{ height: editorMinHeight }}>
+            <textarea
+              dir="auto"
+              ref={textareaRef}
+              data-voice-target-id={voiceTargetId}
+              aria-label={props.placeholder}
+              value={props.text}
+              placeholder={props.placeholder}
+              rows={1}
+              readOnly={props.editable === false}
+              spellCheck={props.enableSpellCheck}
+              data-ui="part:composer-input"
+              className="box-border block field-sizing-content w-full min-w-0 resize-none overflow-hidden bg-transparent text-foreground outline-none"
+              style={{
+                minHeight: editorMinHeight,
+                padding: '6px 15px 0',
+                fontSize: props.fontSize,
+                textAlign: 'start',
+                lineHeight: 1.4
+              }}
+              onChange={(event) => {
+                updateSelection()
+                props.onTextChange(event.currentTarget.value)
+                requestRuntime()
+              }}
+              onFocus={() => {
+                intentRef.current.hadFocus = true
+                markVoiceTargetCurrent()
+                props.onFocus?.()
+                // Start the rich runtime on focus, not on the first key: with a warm chunk the swap
+                // would otherwise commit before the keystroke's input event, dropping the character.
+                requestRuntime()
+              }}
+              onSelect={updateSelection}
+              onPaste={(event) => {
+                // Native insertion would keep only the plain text and drop files, HTML and token
+                // fragments, so hand the whole payload to the runtime instead.
                 event.preventDefault()
-                return
-              }
-              // Same priority order as the runtime surface, so the two never drift: steer wins over
-              // send, and every other Enter combination is swallowed rather than inserting a break.
-              const isEnterPressed =
-                (event.key === 'Enter' || event.key === 'NumpadEnter') && !event.nativeEvent.isComposing
-              if (!isEnterPressed) return
-
-              event.preventDefault()
-
-              const isSteerPressed = !!props.steerShortcut && matchesComposerShortcut(event, props.steerShortcut)
-              if (isSteerPressed || matchesComposerShortcut(event, sendMessageShortcut)) {
-                // Holding the key must not send twice; holding the newline key still repeats.
-                if (event.repeat) return
-                if (props.sendDisabled) {
-                  showBlockedSendReason()
-                } else if (isSteerPressed) {
-                  void props.onSendDraft(getFallbackDraft(), { steer: true })
-                } else {
-                  void props.onSendDraft(getFallbackDraft())
+                captureTransfer('paste', event.clipboardData)
+              }}
+              onCompositionStart={() => setIsComposing(true)}
+              onCompositionEnd={(event) => {
+                // Some IMEs only write the committed characters on compositionend, and the textarea is
+                // about to unmount, so read the final value here rather than waiting for `change`.
+                const input = event.currentTarget
+                selectionRef.current = { start: input.selectionStart, end: input.selectionEnd }
+                if (props.editable !== false && input.value !== props.text) props.onTextChange(input.value)
+                setIsComposing(false)
+              }}
+              onKeyDown={(event) => {
+                if (props.editable === false) return
+                requestRuntime()
+                if (navigateInputHistory(event)) {
+                  event.preventDefault()
+                  return
                 }
-                return
-              }
+                // Same priority order as the runtime surface, so the two never drift: steer wins over
+                // send, and every other Enter combination is swallowed rather than inserting a break.
+                const isEnterPressed =
+                  (event.key === 'Enter' || event.key === 'NumpadEnter') && !event.nativeEvent.isComposing
+                if (!isEnterPressed) return
 
-              if (matchesComposerShortcut(event, newlineShortcut)) insertFallbackNewline(event.currentTarget)
-            }}
-          />
+                event.preventDefault()
+
+                const isSteerPressed = !!props.steerShortcut && matchesComposerShortcut(event, props.steerShortcut)
+                if (isSteerPressed || matchesComposerShortcut(event, sendMessageShortcut)) {
+                  // Holding the key must not send twice; holding the newline key still repeats.
+                  if (event.repeat) return
+                  if (props.sendDisabled) {
+                    showBlockedSendReason()
+                  } else if (isSteerPressed) {
+                    void props.onSendDraft(getFallbackDraft(), { steer: true })
+                  } else {
+                    void props.onSendDraft(getFallbackDraft())
+                  }
+                  return
+                }
+
+                if (matchesComposerShortcut(event, newlineShortcut)) insertFallbackNewline(event.currentTarget)
+              }}
+            />
+          </ScrollArea>
           <ComposerFocusShortcut focus={() => textareaRef.current?.focus()} editable={props.editable} />
         </div>
       </div>
@@ -452,18 +461,18 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
   return (
     <NarrowLayout
       narrowMode={props.narrowMode}
-      withSidePadding
-      className="pointer-events-auto"
+      withSidePadding={!props.embedded}
+      className="pointer-events-none"
       style={{
         width: '100%',
         ...(props.railGutterPx != null
           ? {
-              paddingLeft: COMPOSER_SIDE_PADDING_PX + props.railGutterPx,
-              paddingRight: COMPOSER_SIDE_PADDING_PX + props.railGutterPx
+              paddingLeft: (props.sidePaddingPx ?? COMPOSER_SIDE_PADDING_PX) + props.railGutterPx,
+              paddingRight: (props.sidePaddingPx ?? COMPOSER_SIDE_PADDING_PX) + props.railGutterPx
             }
           : {})
       }}>
-      <div className="w-full">
+      <div className="pointer-events-auto w-full">
         <div className="inputbar relative z-2 flex flex-col pt-0" onDragOver={handleDragOver} onDrop={handleDrop}>
           {belowControls ? (
             <div className="mb-6 rounded-[20px] bg-muted/45 pb-1.5 dark:bg-muted/25">

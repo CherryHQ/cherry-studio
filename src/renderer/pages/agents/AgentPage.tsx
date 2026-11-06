@@ -38,14 +38,11 @@ import { useConversationShellPaneState } from '@renderer/hooks/useConversationSh
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
 import { toast } from '@renderer/services/toast'
-import type {
-  AgentFileNavigationOptions,
-  AgentFileNavigationRequest,
-  AgentFileNavigationTransition
-} from '@renderer/types/agent'
 import type { AppRouter } from '@renderer/types/router'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { isEmoji } from '@renderer/utils/naming'
+import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { ConcreteApiPaths } from '@shared/data/api/paths'
@@ -57,8 +54,9 @@ import type { InstalledSkill } from '@shared/data/types/agent'
 import AgentChat from './AgentChat'
 import AgentSidePanel from './AgentSidePanel'
 import { AgentCreateDialog } from './components/AgentCreateDialog'
+import type { AgentFileNavigationRequest } from './components/AgentRightPane'
 import { AgentTabRuntime } from './components/AgentTabRuntime'
-import Sessions from './components/Sessions'
+import { Sessions } from './components/sessions'
 import {
   createFeedbackComposerLaunch,
   FEEDBACK_INTENT_GUARD_TTL_MS,
@@ -322,17 +320,8 @@ const AgentPage = () => {
     routeSessionId
   ])
   const lastVisibleSessionRef = useRef<AgentSessionEntity | null>(null)
-  // NOT_FOUND drops the query entity before the delete popup settles. Keep the session
-  // AgentRightPane already mounted so its workspace effect does not open a second discard.
-  const pendingDeletedSession =
-    pendingLocalPermanentDeleteId &&
-    activeSessionId === pendingLocalPermanentDeleteId &&
-    lastVisibleSessionRef.current?.id === pendingLocalPermanentDeleteId
-      ? lastVisibleSessionRef.current
-      : null
   const visibleSession =
     activeSession ??
-    pendingDeletedSession ??
     (isActiveSessionLoading && lastVisibleSessionRef.current?.id === activeSessionId
       ? lastVisibleSessionRef.current
       : null)
@@ -347,13 +336,13 @@ const AgentPage = () => {
   const handleFileNavigationRequestChange = useCallback((request: AgentFileNavigationRequest | null) => {
     fileNavigationRequestRef.current = request
   }, [])
-  const requestFileNavigation = useCallback<AgentFileNavigationRequest>((transition, options) => {
+  const requestFileNavigation = useCallback((transition: () => void) => {
     const request = fileNavigationRequestRef.current
     if (request) {
-      request(transition, options)
+      request(transition)
       return
     }
-    void transition()
+    transition()
   }, [])
   const resourceConversationKey = useMemo(() => {
     if (visibleSession?.id) return `session:${visibleSession.id}`
@@ -416,6 +405,12 @@ const AgentPage = () => {
     activeConversationId: targetSessionId,
     visibleConversationId: visibleSession?.id
   })
+  const visibleAgent = conversationBootstrap.resources.agent
+  // An agent avatar is an emoji glyph or an image URL; the tab renders each through its own slot.
+  const agentAvatar = visibleAgent?.configuration?.avatar || undefined
+  const agentAvatarIsEmoji = !!agentAvatar && isEmoji(agentAvatar)
+  // Label this tab with its agent emoji + session name so multiple Work tabs are distinguishable.
+  const preserveTabVisuals = !!targetSessionId && visibleSession?.id !== targetSessionId
 
   const [sessionPaneUserOpenIntentSeq, setSessionPaneUserOpenIntentSeq] = useState(0)
 
@@ -660,7 +655,7 @@ const AgentPage = () => {
   )
 
   const requestSessionNavigation = useCallback(
-    (sessionId: string | null, transition: AgentFileNavigationTransition, options?: AgentFileNavigationOptions) => {
+    (sessionId: string | null, transition: () => void) => {
       const targetSession = sessionId ? agentSessions.find((session) => session.id === sessionId) : undefined
       const preservesFileWorkspace =
         sessionId === visibleSession?.id ||
@@ -671,10 +666,10 @@ const AgentPage = () => {
             buildAgentFileWorkspaceKey(visibleSession.workspaceId, visibleSession.workspace?.path))
 
       if (preservesFileWorkspace) {
-        void transition()
+        transition()
         return
       }
-      requestFileNavigation(transition, options)
+      requestFileNavigation(transition)
     },
     [agentSessions, requestFileNavigation, visibleSession]
   )
@@ -1008,7 +1003,11 @@ const AgentPage = () => {
               .map((agentId) => `session:agent:${agentId}`)
           )
         )
-        cacheService.setPersist('ui.agent.session.expansion.agent', collapsedAgentGroupIds)
+        if (isWindowFrame) {
+          cacheService.set('ui.window.agent.session.expansion.agent', collapsedAgentGroupIds)
+        } else {
+          cacheService.setPersist('ui.agent.session.expansion.agent', collapsedAgentGroupIds)
+        }
       }
       await setPanePosition(position)
       setSessionPaneOpen(position === 'right', { force: true })
@@ -1016,6 +1015,7 @@ const AgentPage = () => {
     },
     [
       agentSessions,
+      isWindowFrame,
       setPanePosition,
       setShellPaneOpen,
       setSessionDisplayMode,
@@ -1129,7 +1129,6 @@ const AgentPage = () => {
             onRecordSelect={handleHistoryRecordsSessionSelect}
             onActiveRecordChange={handleHistoryActiveSessionChange}
             onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
-            requestRecordRemoval={requestSessionNavigation}
             toolbarLeading={
               !isWindowFrame ? (
                 <ConversationSidebarToggleButton
@@ -1148,6 +1147,10 @@ const AgentPage = () => {
   return (
     <>
       <AgentTabRuntime
+        title={visibleSession?.name?.trim() || visibleAgent?.name?.trim() || getDefaultRouteTitle('/app/agents')}
+        emoji={agentAvatarIsEmoji ? agentAvatar : undefined}
+        icon={agentAvatarIsEmoji ? undefined : agentAvatar}
+        preserveVisuals={preserveTabVisuals}
         activeSessionId={activeSession?.id}
         activeSessionSource={activeSessionSource}
         onToggleSidebar={toggleShellPane}

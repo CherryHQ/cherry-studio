@@ -117,9 +117,13 @@ describe('DeviceConnectionsSettings', () => {
     vi.stubGlobal('__APP_EDITION__', 'global')
   })
 
-  it.each(['dropdown', 'blank address', 'blank address after interface removal'])(
-    'saves an HTTPS address as WSS and restores automatic addresses via %s',
-    async (resetMethod) => {
+  it.each([
+    ['dropdown', 'https://Desktop.example.com:24443', 'wss'],
+    ['blank address', 'http://Desktop.example.com:24443/', 'ws'],
+    ['blank address after interface removal', 'https://Desktop.example.com:24443', 'wss']
+  ])(
+    'preserves the entered address and restores automatic addresses via %s',
+    async (resetMethod, inputUrl, security) => {
       const user = userEvent.setup()
       const automatic = createInvitation('automatic')
       automatic.addresses.push('100.94.33.58')
@@ -131,11 +135,8 @@ describe('DeviceConnectionsSettings', () => {
       await user.click(screen.getByRole('option', { name: '192.168.1.8 (en0)' }))
       await user.click(await screen.findByRole('combobox', { name: enUS['deviceConnections.pairing.address'] }))
       await user.click(screen.getByRole('option', { name: enUS['deviceConnections.endpoint.title'] }))
-      await user.type(
-        screen.getByRole('textbox', { name: enUS['deviceConnections.pairing.address'] }),
-        'https://Desktop.example.com:24443'
-      )
-      const endpoint = { host: 'desktop.example.com', port: 24443, security: 'wss' }
+      await user.type(screen.getByRole('textbox', { name: enUS['deviceConnections.pairing.address'] }), inputUrl)
+      const endpoint = { host: 'desktop.example.com', port: 24443, security }
       invitationMock.mockResolvedValue({
         ...createInvitation('custom'),
         advertisedEndpoint: endpoint,
@@ -143,7 +144,10 @@ describe('DeviceConnectionsSettings', () => {
       })
       await user.click(screen.getByRole('button', { name: enUS['common.save'] }))
       await vi.waitFor(() =>
-        expect(MockUsePreferenceUtils.getPreferenceValue('feature.remote_access.advertised_endpoint')).toEqual(endpoint)
+        expect(MockUsePreferenceUtils.getPreferenceValue('feature.remote_access.advertised_endpoint')).toEqual({
+          ...endpoint,
+          inputUrl
+        })
       )
       rerender(<DeviceConnectionsSettings />)
       await vi.waitFor(() => {
@@ -158,6 +162,13 @@ describe('DeviceConnectionsSettings', () => {
         })
         expect(qr).not.toHaveProperty('ips')
       })
+      expect(screen.getByRole('combobox', { name: enUS['deviceConnections.pairing.address'] })).toHaveTextContent(
+        inputUrl
+      )
+      await user.click(screen.getByRole('combobox', { name: enUS['deviceConnections.pairing.address'] }))
+      await user.click(screen.getByRole('option', { name: enUS['deviceConnections.endpoint.title'] }))
+      expect(screen.getByRole('textbox', { name: enUS['deviceConnections.pairing.address'] })).toHaveValue(inputUrl)
+      await user.click(screen.getByRole('button', { name: enUS['common.cancel'] }))
       await user.click(await screen.findByRole('combobox', { name: enUS['deviceConnections.pairing.address'] }))
       if (resetMethod === 'blank address after interface removal') {
         automatic.addresses = ['100.94.33.58']
@@ -187,6 +198,23 @@ describe('DeviceConnectionsSettings', () => {
       )
     }
   )
+
+  it('opens an existing endpoint saved without an original input URL', async () => {
+    const endpoint = { host: 'desktop.example.com', port: 443, security: 'wss' as const }
+    MockUsePreferenceUtils.setPreferenceValue('feature.remote_access.advertised_endpoint', endpoint)
+    invitationMock.mockResolvedValue({
+      ...createInvitation('existing'),
+      advertisedEndpoint: endpoint,
+      endpoints: [endpoint]
+    })
+    const user = userEvent.setup()
+    render(<DeviceConnectionsSettings />)
+    await user.click(await screen.findByRole('combobox', { name: enUS['deviceConnections.pairing.address'] }))
+    await user.click(screen.getByRole('option', { name: enUS['deviceConnections.endpoint.title'] }))
+    expect(screen.getByRole('textbox', { name: enUS['deviceConnections.pairing.address'] })).toHaveValue(
+      'wss://desktop.example.com:443/v1/remote/connect'
+    )
+  })
 
   it('keeps the saved destination unchanged after an invalid loopback edit', async () => {
     const user = userEvent.setup()

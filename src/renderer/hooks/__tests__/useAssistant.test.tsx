@@ -47,7 +47,7 @@ describe('useAssistantMutations.deleteAssistant', () => {
       assistantId: 'assistant-1',
       deleteTopics: false
     })
-    expect(invalidate).toHaveBeenCalledWith(['/assistants', '/assistants/*', '/topics'])
+    expect(invalidate).toHaveBeenCalledWith(['/assistants', '/assistants/*', '/pins', '/topics'])
     expect(outcome).toEqual({ deleted: true })
   })
 
@@ -76,7 +76,7 @@ describe('useAssistantMutations.deleteAssistant', () => {
     const outcome = await act(async () => result.current.deleteAssistant('assistant-1', { permanent: true }))
 
     expect(outcome).toEqual({ deleted: false })
-    expect(invalidate).toHaveBeenCalledWith(['/assistants', '/assistants/*', '/topics'])
+    expect(invalidate).toHaveBeenCalledWith(['/assistants', '/assistants/*', '/pins', '/topics'])
   })
 
   it('rethrows the deletion failure after refresh, including when refresh fails', async () => {

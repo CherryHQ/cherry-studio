@@ -2,7 +2,7 @@ import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { useLayoutEffect, useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
@@ -14,10 +14,8 @@ import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 
 const agentPageMocks = vi.hoisted(() => ({
-  historyRemovalNullRanSync: false,
   historyOnActiveRecordChange: undefined as ((sessionId: string | null) => void) | undefined,
   historyOnPending: undefined as ((id: string | null) => void) | undefined,
-  dirtyFile: false,
   workspace: {
     id: 'workspace-a',
     name: 'Workspace A',
@@ -343,7 +341,8 @@ vi.mock('@renderer/hooks/tab', () => {
     }),
     useTabs: () => ({ updateTab }),
     useCurrentTabId: () => 'agent-tab',
-    useIsActiveTab: () => agentPageMocks.isActiveTab
+    useIsActiveTab: () => agentPageMocks.isActiveTab,
+    useTabSelfVisuals: vi.fn()
   }
 })
 
@@ -380,23 +379,6 @@ vi.mock('react-i18next', () => {
 })
 
 vi.mock('../AgentChat', () => {
-  function DirtyWorkspaceProbe({ session }: { session: { id: string; workspace?: { path?: string } } | null }) {
-    const key = session ? `${session.id}:${session.workspace?.path ?? ''}` : ''
-    const [committed, setCommitted] = useState(key)
-    const [discardOpen, setDiscardOpen] = useState(false)
-    useLayoutEffect(() => {
-      if (!agentPageMocks.dirtyFile) {
-        setCommitted(key)
-        setDiscardOpen(false)
-        return
-      }
-      if (committed === key) return
-      setDiscardOpen(true)
-    }, [committed, key])
-    if (!discardOpen) return null
-    return <button type="button">agent.preview_pane.edit.leave.discard_and_continue</button>
-  }
-
   return {
     default: ({
       centerSurface,
@@ -462,10 +444,6 @@ vi.mock('../AgentChat', () => {
           onFileNavigationRequestChange?.(node ? agentPageMocks.fileNavigationRequest : null)
         }}>
         <output data-testid="active-session">{conversationBootstrap.session?.id ?? ''}</output>
-        <output data-testid="active-session-workspace">
-          {(conversationBootstrap.session as { workspace?: { path?: string } } | null)?.workspace?.path ?? ''}
-        </output>
-        <DirtyWorkspaceProbe session={conversationBootstrap.session} />
         <output data-testid="active-session-loading">{String(conversationBootstrap.sessionLoading)}</output>
         <output data-testid="missing-agent-selection">{String(Boolean(missingAgentSelection))}</output>
         <output data-testid="locate-message-id">{locateMessageId ?? ''}</output>
@@ -698,8 +676,8 @@ vi.mock('../components/AgentCreateDialog', () => ({
     ) : null
 }))
 
-vi.mock('../components/Sessions', () => ({
-  default: ({
+vi.mock('../components/sessions', () => ({
+  Sessions: ({
     agentSessionsSource,
     agentIdFilter,
     onLocalPermanentDeletePendingChange,
@@ -737,13 +715,11 @@ vi.mock('@renderer/components/history/HistoryRecordsView', () => ({
   default: ({
     open,
     onActiveRecordChange,
-    onLocalPermanentDeletePendingChange,
-    requestRecordRemoval
+    onLocalPermanentDeletePendingChange
   }: {
     open?: boolean
     onActiveRecordChange?: (sessionId: string | null) => void
     onLocalPermanentDeletePendingChange?: (id: string | null) => void
-    requestRecordRemoval?: (nextSessionId: string | null, transition: () => void) => void
   }) => {
     agentPageMocks.historyOnActiveRecordChange = onActiveRecordChange
     agentPageMocks.historyOnPending = onLocalPermanentDeletePendingChange
@@ -755,22 +731,12 @@ vi.mock('@renderer/components/history/HistoryRecordsView', () => ({
         <button type="button" onClick={() => onActiveRecordChange?.(null)}>
           Clear history session
         </button>
-        <button
-          type="button"
-          onClick={() => {
-            let ran = false
-            requestRecordRemoval?.(null, () => {
-              ran = true
-            })
-            agentPageMocks.historyRemovalNullRanSync = ran
-          }}>
-          Probe history removal
-        </button>
       </div>
     ) : null
   }
 }))
 
+import { useTabSelfVisuals } from '@renderer/hooks/tab'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 
@@ -807,7 +773,6 @@ describe('AgentPage', () => {
     agentPageMocks.pendingSession = null
     agentPageMocks.historyOnActiveRecordChange = undefined
     agentPageMocks.historyOnPending = undefined
-    agentPageMocks.dirtyFile = false
     agentPageMocks.sessionDisplayMode = 'time'
     agentPageMocks.sessionPanePosition = 'right'
     agentPageMocks.showSidebar = false
@@ -1681,55 +1646,6 @@ describe('AgentPage', () => {
     expect(recoveryNavigations).toHaveLength(1)
   })
 
-  it('keeps the pending session workspace when NOT_FOUND arrives before permanent delete settles', async () => {
-    // AgentRightPane.Scope reads this session workspace. A null session while the file is dirty opens the ordinary discard dialog.
-    agentPageMocks.routeSearch = { sessionId: 'session-a' }
-    agentPageMocks.tabUrl = '/app/agents?sessionId=session-a'
-    activeSessionMocks.session = {
-      ...agentPageMocks.persistedSession,
-      id: 'session-a',
-      workspaceId: 'workspace-a',
-      workspace: { type: 'user', path: '/workspace/a', name: 'Workspace A' }
-    }
-    activeSessionMocks.sessionSource = 'query'
-
-    agentPageMocks.dirtyFile = true
-
-    const view = render(<AgentPage />)
-    expect(screen.getByTestId('active-session')).toHaveTextContent('session-a')
-    expect(screen.getByTestId('active-session-workspace')).toHaveTextContent('/workspace/a')
-    expect(screen.queryByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' })).toBeNull()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
-    await act(async () => {
-      agentPageMocks.historyOnPending?.('session-a')
-    })
-    activeSessionMocks.session = null
-    activeSessionMocks.sessionSource = 'none'
-    activeSessionMocks.isLoading = false
-    activeSessionMocks.error = DataApiErrorFactory.notFound('Session', 'session-a')
-    view.rerender(<AgentPage />)
-
-    expect(screen.getByTestId('active-session')).toHaveTextContent('session-a')
-    expect(screen.getByTestId('active-session-workspace')).toHaveTextContent('/workspace/a')
-    expect(screen.queryByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' })).toBeNull()
-
-    agentPageMocks.routeSearch = { sessionId: 'session-next' }
-    activeSessionMocks.session = {
-      ...agentPageMocks.persistedSession,
-      id: 'session-next',
-      workspace: { type: 'user', path: '/workspace/next', name: 'Workspace Next' }
-    }
-    activeSessionMocks.sessionSource = 'query'
-    activeSessionMocks.error = undefined
-    view.rerender(<AgentPage />)
-
-    expect(screen.getByTestId('active-session')).toHaveTextContent('session-next')
-    expect(
-      screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' })
-    ).toBeInTheDocument()
-  })
-
   it('keeps history on the deleted session instead of the globally latest one when NOT_FOUND arrives first', async () => {
     // Bare re-entry resolves to latest C. The pending guard must stay on A so History can still report neighbor B.
     agentPageMocks.routeSearch = { sessionId: 'session-a' }
@@ -2517,15 +2433,6 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('agent-side-panel')).toHaveAttribute('data-active-session-id', 'session-next')
   })
 
-  it('passes session navigation into history before a permanent delete leaves the active session', async () => {
-    const user = userEvent.setup()
-    agentPageMocks.historyRemovalNullRanSync = false
-    render(<AgentPage />)
-    await user.click(screen.getByRole('button', { name: 'Open history records' }))
-    await user.click(screen.getByRole('button', { name: 'Probe history removal' }))
-    expect(agentPageMocks.historyRemovalNullRanSync).toBe(true)
-  })
-
   it('keeps history open after replacing or clearing the active session without creating one', async () => {
     const user = userEvent.setup()
     render(<AgentPage />)
@@ -2904,6 +2811,9 @@ describe('AgentPage', () => {
     const { rerender } = render(<AgentPage />)
 
     expect(screen.getByTestId('active-session')).toHaveTextContent('session-1')
+    expect(vi.mocked(useTabSelfVisuals)).toHaveBeenLastCalledWith(
+      expect.objectContaining({ routePrefix: '/app/agents', preserveVisuals: false })
+    )
 
     agentPageMocks.routeSearch = { sessionId: 'session-2' }
     activeSessionMocks.session = null
@@ -2913,6 +2823,9 @@ describe('AgentPage', () => {
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-2'))
     expect(screen.getByTestId('active-session')).toHaveTextContent('')
     expect(screen.getByTestId('active-session-loading')).toHaveTextContent('true')
+    expect(vi.mocked(useTabSelfVisuals)).toHaveBeenLastCalledWith(
+      expect.objectContaining({ routePrefix: '/app/agents', preserveVisuals: true })
+    )
 
     activeSessionMocks.session = {
       id: 'session-2',
@@ -2926,6 +2839,30 @@ describe('AgentPage', () => {
 
     expect(screen.getByTestId('active-session')).toHaveTextContent('session-2')
     expect(screen.getByTestId('active-session-loading')).toHaveTextContent('false')
+    expect(vi.mocked(useTabSelfVisuals)).toHaveBeenLastCalledWith(
+      expect.objectContaining({ routePrefix: '/app/agents', preserveVisuals: false })
+    )
+  })
+
+  it.each([
+    ['emoji glyph', '🚀', { emoji: '🚀', icon: undefined }],
+    ['image URL', 'https://example.com/avatar.png', { emoji: undefined, icon: 'https://example.com/avatar.png' }]
+  ])('labels the Work tab with an %s avatar through its own slot', (_label, avatar, expected) => {
+    // An image URL handed to the emoji slot renders as clipped text in the tab.
+    agentPageMocks.routeSearch = { sessionId: 'session-1' }
+    agentPageMocks.agents = [{ id: 'agent-a', model: 'model-a', name: 'Agent A', configuration: { avatar } }]
+    activeSessionMocks.session = {
+      id: 'session-1',
+      agentId: 'agent-a',
+      name: 'Session 1',
+      workspaceId: agentPageMocks.workspace.id,
+      workspace: agentPageMocks.workspace
+    }
+    activeSessionMocks.sessionSource = 'query'
+
+    render(<AgentPage />)
+
+    expect(vi.mocked(useTabSelfVisuals)).toHaveBeenLastCalledWith(expect.objectContaining(expected))
   })
 
   it('does not create a first-launch session from remembered agent and workspace state', () => {

@@ -30,7 +30,7 @@ import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
 import { ipcApi } from '@renderer/ipc'
 import { findNode } from '@renderer/services/NotesTreeService'
 import { toast } from '@renderer/services/toast'
-import type { NotesTreeNode } from '@renderer/types/note'
+import type { NotesTreeNode, RenameNote } from '@renderer/types/note'
 
 import type { MenuItem as NotesMenuItem } from './MenuConfig'
 import { menuItems } from './MenuConfig'
@@ -43,7 +43,7 @@ interface HeaderNavbarProps {
   getCurrentNoteContent?: () => string
   onToggleStar?: (nodeId: string) => void
   onExpandPath?: (treePath: string) => void
-  onRenameNode?: (nodeId: string, newName: string) => void
+  onRenameNode?: RenameNote
 }
 
 const HeaderNavbar = ({
@@ -185,9 +185,9 @@ const HeaderNavbar = ({
     setTitleValue(e.target.value)
   }, [])
 
-  const handleTitleBlur = useCallback(() => {
+  const handleTitleBlur = useCallback(async () => {
     if (activeNode && titleValue.trim() && titleValue.trim() !== activeNode.name.replace('.md', '')) {
-      onRenameNode?.(activeNode.id, titleValue.trim())
+      await onRenameNode?.(activeNode.id, titleValue.trim())
     } else if (activeNode) {
       // 如果没有更改或为空，恢复原始值
       setTitleValue(activeNode.name.replace('.md', ''))

@@ -231,6 +231,24 @@ describe('imageGenerationJobHandler.execute', () => {
     expect(submitArg.modelDescriptor).toBeUndefined()
   })
 
+  it('passes the payload request timeout through to transport.submit', async () => {
+    submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/timed.png'] })
+
+    const ctx = createCtx({
+      input: {
+        uniqueModelId: 'ppio::qwen-image',
+        prompt: 'a cat',
+        n: 1,
+        cleanupPolicy: 'delete_when_unreferenced',
+        providerParams: {},
+        requestTimeoutMs: 15_000
+      }
+    })
+    await imageGenerationJobHandler.execute(ctx)
+
+    expect(submitMock.mock.calls[0][0]).toMatchObject({ requestTimeoutMs: 15_000 })
+  })
+
   it('sync: submit(imageUrls) → no poll, and no metadata is persisted', async () => {
     submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/sync.png'] })
 

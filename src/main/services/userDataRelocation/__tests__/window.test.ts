@@ -73,7 +73,7 @@ describe('userDataRelocation window', () => {
       throw new Error('Attempted to register a second handler')
     })
 
-    expect(() => openUserDataRelocationWindow({ getProgress: () => null, onRestart: vi.fn() })).toThrow(
+    expect(() => openUserDataRelocationWindow({ getProgress: () => null, onRestart: vi.fn(() => true) })).toThrow(
       'Attempted to register a second handler'
     )
     expect(browserWindowMock).not.toHaveBeenCalled()
@@ -82,14 +82,14 @@ describe('userDataRelocation window', () => {
   it('ignores the renderer URL outside development', () => {
     vi.stubEnv('ELECTRON_RENDERER_URL', 'https://example.com')
 
-    openUserDataRelocationWindow({ getProgress: () => null, onRestart: vi.fn() })
+    openUserDataRelocationWindow({ getProgress: () => null, onRestart: vi.fn(() => true) })
 
     expect(window.loadURL).not.toHaveBeenCalled()
     expect(window.loadFile).toHaveBeenCalledTimes(1)
   })
 
   it('blocks user close during copy and sends progress to the renderer', async () => {
-    const onRestart = vi.fn()
+    const onRestart = vi.fn(() => true)
     const controller = openUserDataRelocationWindow({ getProgress: () => null, onRestart })
     window.webContents.emit('did-finish-load')
     await controller.waitForReady()
@@ -109,8 +109,8 @@ describe('userDataRelocation window', () => {
     expect(controller.hasWindow()).toBe(true)
   })
 
-  it('routes terminal close through the restart callback and unregisters handlers', () => {
-    const onRestart = vi.fn()
+  it('routes terminal close through the restart callback and unregisters handlers', async () => {
+    const onRestart = vi.fn(() => true)
     const controller = openUserDataRelocationWindow({ getProgress: () => null, onRestart })
     controller.updateProgress({
       stage: 'completed',
@@ -122,25 +122,49 @@ describe('userDataRelocation window', () => {
 
     window.close()
 
+    await vi.waitFor(() => expect(controller.hasWindow()).toBe(false))
     expect(onRestart).toHaveBeenCalledTimes(1)
     expect(ipcRemoveHandlerMock).toHaveBeenCalledWith(UserDataRelocationIpcChannels.GetProgress)
     expect(ipcRemoveHandlerMock).toHaveBeenCalledWith(UserDataRelocationIpcChannels.Restart)
   })
 
-  it('keeps the window and restart channel available when the restart callback throws', () => {
-    const onRestart = vi.fn().mockImplementationOnce(() => {
-      throw new Error('failed to clear relocation state')
-    })
+  it('keeps the window and restart channel available when the restart callback throws', async () => {
+    const onRestart = vi
+      .fn(() => true)
+      .mockImplementationOnce(() => {
+        throw new Error('failed to clear relocation state')
+      })
     const controller = openUserDataRelocationWindow({ getProgress: () => null, onRestart })
 
-    expect(() => invoke(UserDataRelocationIpcChannels.Restart)).toThrow('failed to clear relocation state')
+    await expect(invoke(UserDataRelocationIpcChannels.Restart)).rejects.toThrow('failed to clear relocation state')
     expect(controller.hasWindow()).toBe(true)
     expect(window.close).not.toHaveBeenCalled()
     expect(handlers.has(UserDataRelocationIpcChannels.Restart)).toBe(true)
 
-    expect(invoke(UserDataRelocationIpcChannels.Restart)).toBeUndefined()
+    await Promise.resolve(invoke(UserDataRelocationIpcChannels.Restart))
     expect(onRestart).toHaveBeenCalledTimes(2)
     expect(window.close).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps recovery available until an asynchronous restart succeeds', async () => {
+    const recovery = Promise.withResolvers<boolean>()
+    const onRestart = vi.fn(() => recovery.promise)
+    const controller = openUserDataRelocationWindow({ getProgress: () => null, onRestart })
+
+    const attempt = invoke(UserDataRelocationIpcChannels.Restart)
+    expect(controller.hasWindow()).toBe(true)
+    await Promise.resolve(invoke(UserDataRelocationIpcChannels.Restart))
+    expect(onRestart).toHaveBeenCalledOnce()
+
+    recovery.resolve(false)
+    await Promise.resolve(attempt)
+    expect(controller.hasWindow()).toBe(true)
+    expect(handlers.has(UserDataRelocationIpcChannels.Restart)).toBe(true)
+
+    onRestart.mockResolvedValue(true)
+    await Promise.resolve(invoke(UserDataRelocationIpcChannels.Restart))
+    expect(controller.hasWindow()).toBe(false)
+    expect(handlers.has(UserDataRelocationIpcChannels.Restart)).toBe(false)
   })
 
   it('serves current progress through its dedicated channel', () => {
@@ -151,13 +175,13 @@ describe('userDataRelocation window', () => {
       bytesCopied: 3,
       bytesTotal: 4
     }
-    openUserDataRelocationWindow({ getProgress: () => progress, onRestart: vi.fn() })
+    openUserDataRelocationWindow({ getProgress: () => progress, onRestart: vi.fn(() => true) })
 
     expect(invoke(UserDataRelocationIpcChannels.GetProgress)).toEqual(progress)
   })
 
   it('rejects relocation IPC requests from an untrusted sender', () => {
-    const onRestart = vi.fn()
+    const onRestart = vi.fn(() => true)
     validateSenderMock.mockReturnValue(false)
     openUserDataRelocationWindow({ getProgress: () => null, onRestart })
 
@@ -166,7 +190,7 @@ describe('userDataRelocation window', () => {
   })
 
   it('marks a crashed critical renderer unavailable without interrupting the copy owner', () => {
-    const onRestart = vi.fn()
+    const onRestart = vi.fn(() => true)
     const controller = openUserDataRelocationWindow({ getProgress: () => null, onRestart })
 
     window.webContents.emit('render-process-gone', {}, { reason: 'crashed' })

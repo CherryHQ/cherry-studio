@@ -127,11 +127,9 @@ export function useAssistantMutations() {
       options: { deleteTopics?: boolean; permanent?: boolean } = {}
     ): Promise<DeleteAssistantResult> => {
       const deleteTopics = options.deleteTopics === true
-      // Keeping children unlinks active topics onto the unassociated list, so that
-      // list must refresh too. Cascade still drops pins with the removed topics.
-      const refreshKeys = deleteTopics
-        ? [...ASSISTANTS_REFRESH_KEYS, '/pins', '/topics']
-        : [...ASSISTANTS_REFRESH_KEYS, '/topics']
+      // Deleting the assistant drops its pin; kept children move to the unassociated
+      // list and cascaded children take their pins with them, so both lists refresh.
+      const refreshKeys = [...ASSISTANTS_REFRESH_KEYS, '/pins', '/topics']
       const refreshAfterDelete = (phase: 'failed' | 'completed') =>
         invalidate(refreshKeys).catch((refreshError) => {
           logger.warn(

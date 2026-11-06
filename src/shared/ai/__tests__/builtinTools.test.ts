@@ -5,6 +5,7 @@ import { isHttpUrl } from '@shared/utils/url'
 
 import {
   KB_LIST_TOOL_NAME,
+  KB_MANAGE_ADD_MAX_ITEMS,
   KB_SEARCH_TOOL_NAME,
   kbListInputSchema,
   kbManageInputSchema,
@@ -108,6 +109,26 @@ describe('builtin tool contracts', () => {
     expect(kbManageInputSchema.safeParse({ baseId: 'kb-1', action: 'add', type: 'note', content: 'hi' }).success).toBe(
       true
     )
+  })
+
+  // `create` targets no existing base, so `baseId` — required for the item actions — must be
+  // omittable there (the core steers when an item action drops it).
+  it('lets kb_manage create omit baseId and carry only the name', () => {
+    const parsed = kbManageInputSchema.parse({ action: 'create', name: 'Research' })
+    expect(parsed.name).toBe('Research')
+  })
+
+  it('bounds kb_manage batch items by the shared ingestion cap', () => {
+    const item = { type: 'note', content: 'hi' } as const
+    expect(kbManageInputSchema.safeParse({ baseId: 'kb-1', action: 'add', items: [item] }).success).toBe(true)
+    expect(
+      kbManageInputSchema.safeParse({
+        baseId: 'kb-1',
+        action: 'add',
+        items: Array.from({ length: KB_MANAGE_ADD_MAX_ITEMS + 1 }, () => item)
+      }).success
+    ).toBe(false)
+    expect(kbManageInputSchema.safeParse({ baseId: 'kb-1', action: 'add', items: [] }).success).toBe(false)
   })
 
   it('lets kb_read omit mode-specific fields', () => {

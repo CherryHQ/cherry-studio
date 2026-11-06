@@ -1,0 +1,18 @@
+{
+  "data": [
+    {
+      "title": " Desearch Title ",
+      "link": "https://desearch.example/result",
+      "snippet": " Desearch Snippet "
+    },
+    {
+      "title": null,
+      "link": "https://desearch.example/second",
+      "snippet": null
+    }
+  ],
+  "cost_usd": 0.0025,
+  "usage_count": 1,
+  "service": "web",
+  "currency": "USD"
+}

@@ -1,6 +1,6 @@
 import * as z from 'zod'
 
-import { KnowledgeItemStatusSchema } from '@shared/data/types/knowledge'
+import { KNOWLEDGE_RUNTIME_ITEMS_MAX, KnowledgeItemStatusSchema } from '@shared/data/types/knowledge'
 import { isHttpUrl } from '@shared/utils/url'
 
 /**
@@ -325,26 +325,79 @@ export type KbTreeOutput = z.infer<typeof kbTreeOutputSchema>
 
 export const KB_MANAGE_TOOL_NAME = 'kb_manage'
 
-export const KB_MANAGE_ACTIONS = ['add', 'delete', 'refresh'] as const
+export const KB_MANAGE_ACTIONS = ['add', 'delete', 'refresh', 'create'] as const
 export const KB_MANAGE_ADD_TYPES = ['file', 'url', 'note'] as const
+// Batch add shares the ingestion pipeline's batch bound (`knowledge.add_items` enforces the same
+// constant), so the tool can never advertise a size the service would reject.
+export const KB_MANAGE_ADD_MAX_ITEMS = KNOWLEDGE_RUNTIME_ITEMS_MAX
 
 // One flat object, not a discriminated union: which fields apply depends on `action`
-// (and, for add, on `type`). The core validates the combination and returns a steer
-// string on a missing field, so the model gets a clear error rather than a schema reject.
-// Fields the chosen action does not use are simply omitted.
+// (and, for add, on `type` — or on the per-entry fields of `items`). The core validates the
+// combination and returns a steer string on a missing field, so the model gets a clear error
+// rather than a schema reject. Fields the chosen action does not use are simply omitted.
+export const kbManageAddItemSchema = z.object({
+  type: z
+    .enum(KB_MANAGE_ADD_TYPES)
+    .optional()
+    .describe('The source kind — "file" (set `path`), "url" (set `url`), or "note" (set `content`).'),
+  path: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe('For type="file": absolute local filesystem path of the file to import.'),
+  url: z.string().trim().min(1).optional().describe('For type="url": the URL to fetch and index.'),
+  content: z.string().min(1).optional().describe('For type="note": the plain-text note content to index.'),
+  title: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe('For type="note": optional display title (defaults to the note\'s first line).')
+})
+
+export type KbManageAddItem = z.infer<typeof kbManageAddItemSchema>
+
 export const kbManageInputSchema = z.object({
-  baseId: z.string().trim().min(1).describe('ID of the knowledge base to modify — a base id from kb_list.'),
+  baseId: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe(
+      'ID of the knowledge base to modify — a base id from kb_list. Required for add/delete/refresh; not used by create.'
+    ),
   action: z
     .enum(KB_MANAGE_ACTIONS)
     .describe(
-      'add: import a new source (set `type` + its field). delete: remove documents by `conceptIds`. ' +
-        'refresh: re-index documents by `conceptIds`. All actions modify the base and require user approval.'
+      'add: import source(s) into `baseId` (set `items`, or the single-source `type` + its field). ' +
+        'delete: remove documents by `conceptIds`. refresh: re-index documents by `conceptIds`. ' +
+        'create: create a new knowledge base (set `name`). All actions modify knowledge data and require user approval.'
+    ),
+  name: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe(
+      'For action="create": display name of the new knowledge base. The base is created keyword-searchable ' +
+        '(BM25-only); an embedding model can be attached later from the knowledge-base settings.'
+    ),
+  items: z
+    .array(kbManageAddItemSchema)
+    .min(1)
+    .max(KB_MANAGE_ADD_MAX_ITEMS)
+    .optional()
+    .describe(
+      `For action="add": import up to ${KB_MANAGE_ADD_MAX_ITEMS} sources in one call, each entry carrying ` +
+        '`type` and its field. Omit `items` to add the single source given by the top-level `type` + its ' +
+        'field; passing both forms in one call is rejected.'
     ),
   type: z
     .enum(KB_MANAGE_ADD_TYPES)
     .optional()
     .describe(
-      'For action="add" only: the source kind — "file" (set `path`), "url" (set `url`), or "note" (set `content`).'
+      'For action="add" without `items`: the source kind — "file" (set `path`), "url" (set `url`), or "note" (set `content`).'
     ),
   path: z
     .string()
@@ -374,7 +427,9 @@ export const kbManageInputSchema = z.object({
 
 export const kbManageOutputSchema = z.object({
   action: z.enum(KB_MANAGE_ACTIONS),
-  // add: the source identifiers that were imported (one per add call).
+  // create: the base that was created — `baseId` for follow-up add/search calls, `name` as confirmation.
+  created: z.object({ baseId: z.string(), name: z.string() }).optional(),
+  // add: the source identifiers that were imported (one entry per source — a batch `items` add reports all).
   added: z.array(z.string()).optional(),
   // delete / refresh: the Concept IDs that resolved to a document and were applied.
   deleted: z.array(z.string()).optional(),

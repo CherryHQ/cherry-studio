@@ -1,5 +1,83 @@
 # @cherrystudio/provider-registry
 
+## 0.3.5
+
+### Patch Changes
+
+- [#23648](https://github.com/CherryHQ/cherry-studio/pull/23648) [`52aecc0`](https://github.com/CherryHQ/cherry-studio/commit/52aecc057f6140b279d6bc4d9872f0197574e99e) Thanks [@ousugo](https://github.com/ousugo)! - Add GPT Image 2.6 Sunburst and Flare with official image API IDs, generation and editing support, and supported painting controls.
+
+## 0.3.4
+
+### Patch Changes
+
+- [#23471](https://github.com/CherryHQ/cherry-studio/pull/23471) [`e19a772`](https://github.com/CherryHQ/cherry-studio/commit/e19a772a0620902507fd844f163b122c93512a48) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Discover OpenRouter reranking models and rerank through the OpenRouter provider: the model list now reads the rerank catalog (`?output_modalities=rerank`) and marks those models as rerank-capable, and the OpenRouter extension now provides a reranking model so the connection check reaches `POST /api/v1/rerank` instead of failing with `No such rerankingModel`.
+
+## 0.3.3
+
+### Patch Changes
+
+- [#23425](https://github.com/CherryHQ/cherry-studio/pull/23425) [`6466ef9`](https://github.com/CherryHQ/cherry-studio/commit/6466ef98b47f902fdee26b11fdccd23757a7adc5) Thanks [@ousugo](https://github.com/ousugo)! - Add the stable LongCat-2.5 model with multimodal capabilities, documented token limits, and endpoint-specific reasoning controls.
+
+- [#23393](https://github.com/CherryHQ/cherry-studio/pull/23393) [`befc2f5`](https://github.com/CherryHQ/cherry-studio/commit/befc2f5cb5d31b5c5310f68702660c0ffc659c5c) Thanks [@copilot-swe-agent](https://github.com/apps/copilot-swe-agent)! - Expose reasoning-effort controls for Qwen 3.8 Flash Next and other compatible Alibaba providers.
+
+## 0.3.2
+
+### Patch Changes
+
+- [#22768](https://github.com/CherryHQ/cherry-studio/pull/22768) [`7f18ffb`](https://github.com/CherryHQ/cherry-studio/commit/7f18ffb7d8afbe4f0be48dc714854e5180729a90) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Correct Xiaomi MiMo catalog API model IDs to use the dotted version spelling required by the official endpoint.
+
+## 0.3.1
+
+### Patch Changes
+
+- [#23050](https://github.com/CherryHQ/cherry-studio/pull/23050) [`70677d0`](https://github.com/CherryHQ/cherry-studio/commit/70677d07a720ec48d30501018a8a3605c1601954) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Declare Grok Imagine aspect-ratio controls for image generation and editing on the xAI creator, and route the native Grok image endpoint through the xAI adapter so the selected ratio reaches the wire as `aspect_ratio`.
+
+## 0.3.0
+
+### Minor Changes
+
+- [#19811](https://github.com/CherryHQ/cherry-studio/pull/19811) [`4134610`](https://github.com/CherryHQ/cherry-studio/commit/41346103c62917a01785733d00d39ae43039fcf0) Thanks [@GeorgeDong32](https://github.com/GeorgeDong32)! - Rebrand the DashScope provider as Qwen AI Platform with updated default API endpoints, links, pricing pages, and localized labels. User-saved endpoint overrides are preserved.
+
+- [#19810](https://github.com/CherryHQ/cherry-studio/pull/19810) [`6c19eae`](https://github.com/CherryHQ/cherry-studio/commit/6c19eae14e32ef7b73e4d64a253a4b2320bff7bf) Thanks [@GeorgeDong32](https://github.com/GeorgeDong32)! - Add the QwenCloud provider (DashScope international endpoint) with its chat and image models, endpoint-aware web-search eligibility, and reasoning/sampling contracts.
+  
+  Enable documented Anthropic web search and fetch on QwenCloud and Qwen AI Platform, including the required system identifier and paired search/fetch routing.
+
+## 0.2.9
+
+### Patch Changes
+
+- [#21869](https://github.com/CherryHQ/cherry-studio/pull/21869) [`27f1231`](https://github.com/CherryHQ/cherry-studio/commit/27f123168ac36d5b116a9458598557af61f85985) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Infer low, medium, and high reasoning effort controls for manually added StepFun step-5-preview models.
+
+## 0.2.8
+
+### Patch Changes
+
+- [#22711](https://github.com/CherryHQ/cherry-studio/pull/22711) [`c43e512`](https://github.com/CherryHQ/cherry-studio/commit/c43e512322b7a878dcc828514991da99c393aa50) Thanks [@ousugo](https://github.com/ousugo)! - Add GPT-6.1 Terra with API pricing, long-context tiers, Responses tools, and Codex-specific context and reasoning limits.
+
+## 0.2.7
+
+### Patch Changes
+
+- [#22719](https://github.com/CherryHQ/cherry-studio/pull/22719) [`3c99b48`](https://github.com/CherryHQ/cherry-studio/commit/3c99b4860c33d220f4296c4f37c3f5a63c4e372a) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Narrow DashScope native web search eligibility to supported model families and exact hosted GLM 5.2 and Kimi K3 SKUs.
+
+## 0.2.6
+
+### Patch Changes
+
+- [#22629](https://github.com/CherryHQ/cherry-studio/pull/22629) [`98d3c26`](https://github.com/CherryHQ/cherry-studio/commit/98d3c268a6d3b2296602adfe1da8160965a32708) Thanks [@JuLuogo](https://github.com/JuLuogo)! - Add the DeepSeek V4 Flash reasoning off switch on the official provider (`thinking.type=disabled` / `reasoningEffort=none`) and expose an explicit Off control in the speed popover.
+
+## 0.2.5
+
+### Patch Changes
+
+- [#22575](https://github.com/CherryHQ/cherry-studio/pull/22575) [`ecef6a7`](https://github.com/CherryHQ/cherry-studio/commit/ecef6a7e32cc78a7976f99e1fbac6adee60b467e) Thanks [@ousugo](https://github.com/ousugo)! - Add Kimi K3.1 Pro and its highspeed variant with reasoning controls, fixed sampling constraints, and Moonshot pricing.
+
+## 0.2.4
+
+### Patch Changes
+
+- [#22515](https://github.com/CherryHQ/cherry-studio/pull/22515) [`f740f7d`](https://github.com/CherryHQ/cherry-studio/commit/f740f7d65d130fb27e0ed6fcf6b62dd00e395811) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Add generate-mode quality and size presets for the GPT Image 2.5 Flare and Sunburst models.
+
 ## 0.2.3
 
 ### Patch Changes

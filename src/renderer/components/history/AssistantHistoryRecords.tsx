@@ -1,5 +1,5 @@
 import { Bot } from 'lucide-react'
-import { type ReactElement, type ReactNode, useCallback, useMemo, useRef, useState } from 'react'
+import { type ReactElement, type ReactNode, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { cacheService } from '@data/CacheService'
@@ -11,14 +11,16 @@ import { renderAssistantEntityIcon } from '@renderer/components/chat/resourceLis
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
-import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
+import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useClearTopicMessages } from '@renderer/hooks/chat/useClearTopicMessages'
+import { useConversationExportMenuOptions } from '@renderer/hooks/chat/useConversationExportMenuOptions'
 import { createTopicActionContext, useTopicMenuPreset } from '@renderer/hooks/chat/useTopicMenuActions'
 import { useTopicRenameState } from '@renderer/hooks/chat/useTopicRenameState'
 import { useResolvedCommand } from '@renderer/hooks/command'
 import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
+import { useCurrentDayStart } from '@renderer/hooks/useCurrentDayStart'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useOptimisticResourceName } from '@renderer/hooks/useOptimisticResourceName'
 import { usePins } from '@renderer/hooks/usePins'
@@ -136,7 +138,7 @@ const AssistantHistoryRecords = ({
   const { t } = useTranslation()
   const { shortcutLabel: permanentDeleteShortcut } = useResolvedCommand('resource.delete_permanently')
   const clearTopicMessages = useClearTopicMessages()
-  const [groupNow] = useState(() => new Date())
+  const groupNow = useCurrentDayStart()
   const conversationNav = useConversationNavigation('assistants')
 
   const { topics: rawTopics, rendererTopics, isLoadingAll: isTopicsLoading, refetch } = useAssistantTopicsSource()
@@ -151,18 +153,7 @@ const AssistantHistoryRecords = ({
     restoreTopic,
     batchUpdateTopics
   } = useTopicMutations()
-  const [exportMenuOptions] = useMultiplePreferences({
-    docx: 'data.export.menus.docx',
-    image: 'data.export.menus.image',
-    joplin: 'data.export.menus.joplin',
-    markdown: 'data.export.menus.markdown',
-    markdown_reason: 'data.export.menus.markdown_reason',
-    notion: 'data.export.menus.notion',
-    obsidian: 'data.export.menus.obsidian',
-    plain_text: 'data.export.menus.plain_text',
-    siyuan: 'data.export.menus.siyuan',
-    yuque: 'data.export.menus.yuque'
-  })
+  const exportMenuOptions = useConversationExportMenuOptions()
   const { pinnedIds: topicPinnedIds, togglePin: toggleTopicPin } = usePins('topic')
   const { items: optimisticTopics, rename: renameTopicOptimistically } = useOptimisticResourceName(rawTopics)
 

@@ -1,0 +1,77 @@
+import { expect, type Locator, type Page } from '@playwright/test'
+
+import { type BranchMessagesResponse, MessageSchema } from '@shared/data/types/message'
+
+import { selectVisibleModel } from './models'
+import { selectSidebarApp } from './navigation'
+
+export async function readTopicMessages(page: Page, topicId: string) {
+  const response = await page.evaluate(
+    (id) =>
+      window.api.dataApi.request({
+        id: `regression-topic-messages-${Date.now()}`,
+        method: 'GET',
+        path: `/topics/${id}/messages`
+      }),
+    topicId
+  )
+  expect(response.status).toBe(200)
+  return (response.data as BranchMessagesResponse).items.map(({ message }) => MessageSchema.parse(message))
+}
+
+export async function openAttachmentPicker(page: Page, composer: Locator): Promise<void> {
+  const direct = composer.getByRole('button', { name: 'Upload attachment', exact: true })
+  if (await direct.isVisible()) await direct.click()
+  else {
+    await composer.getByRole('button', { name: 'Input Quick Panel', exact: true }).click()
+    await page.getByText('Upload attachment', { exact: true }).last().click()
+  }
+}
+
+export async function selectChatModel(page: Page, model: string, providerId?: string): Promise<void> {
+  await selectSidebarApp(page, 'Chat')
+  await page.getByRole('button', { name: 'Selected models', exact: true }).click()
+  await selectVisibleModel(page, model, providerId)
+  await expect(page.getByRole('button', { name: 'Selected models', exact: true })).toBeVisible()
+}
+
+export async function sendChatMarker(page: Page, prompt: string, marker: string, exact = true): Promise<string> {
+  const composer = page.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first()
+  await composer.fill(prompt)
+  return submitChatMarker(page, marker, exact)
+}
+
+export async function submitChatMarker(page: Page, marker: string, exact = true): Promise<string> {
+  const messages = page.locator('[data-ui~="chat.message"][data-message-id]:visible')
+  const previousIds = await messages.evaluateAll((elements) =>
+    elements.map((element) => element.getAttribute('data-message-id'))
+  )
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
+  const excludePrevious = previousIds.map((id) => `:not([data-message-id="${id}"])`).join('')
+  const response = page
+    .locator(`[data-ui~="chat.message"][data-message-id]${excludePrevious}:visible`)
+    .filter({ has: page.locator('.message-assistant') })
+    .last()
+  const answer = response
+    .getByText(marker, { exact })
+    .and(response.locator(':not([data-ui~="part:message-reasoning"] *)'))
+    .last()
+  await expect(answer).toBeVisible({ timeout: 2 * 60_000 })
+  const id = await response.getAttribute('data-message-id')
+  if (!id) throw new Error('Assistant response has no message ID')
+  await expect
+    .poll(
+      () =>
+        page.evaluate(async (id) => {
+          const response = await window.api.dataApi.request({
+            id: `regression-message-${Date.now()}`,
+            method: 'GET',
+            path: `/messages/${id}`
+          })
+          return (response.data as { status?: string } | undefined)?.status
+        }, id),
+      { timeout: 2 * 60_000 }
+    )
+    .toBe('success')
+  return id
+}
