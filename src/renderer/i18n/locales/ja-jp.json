@@ -5020,6 +5020,8 @@
   "settings.messages.navigation.anchor": "会話アンカー",
   "settings.messages.navigation.label": "メッセージナビゲーション",
   "settings.messages.navigation.none": "表示しない",
+  "settings.messages.show_citation_markers.hint": "ナレッジベースやウェブ検索を使った回答に、インラインの出典マーカーを表示します。出典はメッセージの下に引き続き表示され、非表示の場合はコピーにもマーカーは含まれません。",
+  "settings.messages.show_citation_markers.label": "引用マーカーを表示",
   "settings.messages.show_message_outline": "メッセージの概要を表示します",
   "settings.messages.title": "メッセージ設定",
   "settings.messages.use_serif_font": "セリフフォントを使用",

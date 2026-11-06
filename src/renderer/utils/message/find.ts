@@ -7,12 +7,13 @@
  */
 import type { Citation } from '@renderer/types/message'
 import type { ExportableMessage } from '@renderer/types/messageExport'
+import { mapMarkdownOutsideCode } from '@renderer/utils/citation'
 import { convertReferencesToCitations } from '@renderer/utils/partsToBlocks'
 import type { CherryMessagePart, ContentReference } from '@shared/data/types/message'
 import type { CodePartData, ErrorPartData, TranslationPartData } from '@shared/data/types/uiParts'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 
-import { toExportableCitations } from './citations'
+import { stripCitationMarkers, toExportableCitations } from './citations'
 
 function getParts(message: ExportableMessage): CherryMessagePart[] {
   return message.parts ?? []
@@ -141,7 +142,8 @@ const formatCitationLines = (citations: Citation[]): string =>
  */
 export const getToolCitationExport = (
   message: ExportableMessage,
-  content: string
+  content: string,
+  hideMarkers = false
 ): { content: string; citation: string } => {
   // Legacy reference metadata wins, mirroring MainTextBlock: those messages number
   // their `[N]` markers from the stored references, so resolving them here would
@@ -156,7 +158,15 @@ export const getToolCitationExport = (
     const references = readCherryMeta(part)?.references as ContentReference[] | undefined
     return !!references?.length && convertReferencesToCitations(references).length > 0
   })
-  if (rendersLegacyCitations) return { content, citation: '' }
+  if (rendersLegacyCitations) {
+    return {
+      content: hideMarkers
+        ? mapMarkdownOutsideCode(content, (text) => text.replace(/[ \t]?\[\d+\](?!\()/g, ''))
+        : content,
+      citation: ''
+    }
+  }
+  if (hideMarkers) return { content: stripCitationMarkers(content), citation: '' }
   const priorParts = 'priorCitationParts' in message ? (message.priorCitationParts ?? []) : []
   const { content: exported, cited } = toExportableCitations(content, getParts(message), priorParts)
   return { content: exported, citation: formatCitationLines(cited) }

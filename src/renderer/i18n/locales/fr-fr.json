@@ -5020,6 +5020,8 @@
   "settings.messages.navigation.anchor": "Ancre de conversation",
   "settings.messages.navigation.label": "Bouton de navigation des conversations",
   "settings.messages.navigation.none": "Ne pas afficher",
+  "settings.messages.show_citation_markers.hint": "Affiche les marqueurs de source dans le texte des réponses utilisant des bases de connaissances ou la recherche web. Les sources restent listées sous le message et la copie omet les marqueurs masqués.",
+  "settings.messages.show_citation_markers.label": "Afficher les marqueurs de citation",
   "settings.messages.show_message_outline": "Afficher le plan du message",
   "settings.messages.title": "Paramètres des messages",
   "settings.messages.use_serif_font": "Utiliser une police serif",

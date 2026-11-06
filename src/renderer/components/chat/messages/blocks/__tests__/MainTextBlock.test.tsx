@@ -16,7 +16,8 @@ import MainTextBlock from '../MainTextBlock'
 
 // Mock dependencies
 const mockRenderConfig = vi.hoisted(() => ({
-  renderInputMessageAsMarkdown: false
+  renderInputMessageAsMarkdown: false,
+  showCitationMarkers: true
 }))
 const imagePreviewShowMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 const openExternalUrl = vi.hoisted(() => vi.fn())
@@ -283,6 +284,7 @@ describe('MainTextBlock', () => {
     mockDetermineCitationSource = determineCitationSource as any
 
     mockRenderConfig.renderInputMessageAsMarkdown = false
+    mockRenderConfig.showCitationMarkers = true
   })
 
   // Helper functions
@@ -1269,6 +1271,30 @@ Hidden answer
       })
 
       expect(getRenderedMarkdown()).toHaveAttribute('data-content', '1. 工程立项审计；\n2. 工程采购审计；')
+    })
+
+    it('hides legacy citation markers when markers are disabled', () => {
+      mockRenderConfig.showCitationMarkers = false
+      const citations: Citation[] = [
+        { number: 1, url: 'https://example.com', title: 'Example Citation', content: 'Citation content' }
+      ]
+
+      renderMainTextBlock({
+        content: 'Claim [1] and more.',
+        role: 'assistant',
+        citations,
+        citationReferences: [{ citationBlockSource: WEB_SEARCH_SOURCE.OPENAI }]
+      })
+
+      expect(mockWithCitationTags).not.toHaveBeenCalled()
+      expect(getRenderedMarkdown().getAttribute('data-content')).not.toMatch(/\[1\]|<sup|cite:/)
+    })
+
+    it('hides [cite:id] markers in assistant text when markers are disabled', () => {
+      mockRenderConfig.showCitationMarkers = false
+      renderMainTextBlock({ content: 'Claim.[cite:abc-1] Next.', role: 'assistant' })
+
+      expect(getRenderedMarkdown()).toHaveAttribute('data-content', 'Claim. Next.')
     })
 
     it('keeps a literal [cite:id] typed by the user', () => {

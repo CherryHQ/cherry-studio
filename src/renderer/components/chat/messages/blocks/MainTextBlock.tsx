@@ -9,7 +9,13 @@ import { ComposerToken, type ReadOnlyComposerFileTokenPreview } from '@renderer/
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import type { Citation } from '@renderer/types/message'
 import type { Model } from '@renderer/types/model'
-import { determineCitationSource, toTooltipCitation, withCitationTags } from '@renderer/utils/citation'
+import {
+  determineCitationSource,
+  mapCitationMarksToTags,
+  normalizeCitationMarks,
+  toTooltipCitation,
+  withCitationTags
+} from '@renderer/utils/citation'
 import { isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
 import {
   type MessageCitations,
@@ -363,7 +369,7 @@ const MainTextBlock: React.FC<Props> = ({
   onPlayoutSettledChange,
   onUserContentExpandedChange
 }) => {
-  const { renderInputMessageAsMarkdown } = useMessageRenderConfig()
+  const { renderInputMessageAsMarkdown, showCitationMarkers } = useMessageRenderConfig()
   const shouldRenderComposerTokens = role === 'user' && !!composer?.tokens.length
   const userMessagePreview = useMemo(
     () => buildUserMessagePreview(content, composer, hiddenComposerTokens),
@@ -427,10 +433,17 @@ const MainTextBlock: React.FC<Props> = ({
   )
   const processContent = useCallback(
     (rawText: string) => {
+      const hideMarkers = !showCitationMarkers && role === 'assistant'
       if (citationReferences?.length && citations.length > 0) {
         const sourceType = determineCitationSource(citationReferences)
-        return withCitationTags(rawText, citations, sourceType)
+        return hideMarkers
+          ? mapCitationMarksToTags(
+              normalizeCitationMarks(rawText, new Map(citations.map((c) => [c.number, c])), sourceType),
+              new Map()
+            )
+          : withCitationTags(rawText, citations, sourceType)
       }
+      if (hideMarkers) return stripCitationMarkers(rawText)
       if (toolCitations) {
         return withToolCitationTags(rawText, toolCitations.citations, toolCitations.projection.byMarker).content
       }
@@ -439,7 +452,7 @@ const MainTextBlock: React.FC<Props> = ({
       // User text is left alone: a literal `[cite:…]` there is the author's own.
       return role === 'assistant' ? stripCitationMarkers(rawText) : rawText
     },
-    [citationReferences, citations, role, toolCitations]
+    [citationReferences, citations, role, showCitationMarkers, toolCitations]
   )
   const toolCitedCitations = toolCitations?.projection.cited ?? EMPTY_CITATIONS
   const footerCitations = citations.length > 0 ? citations : toolCitedCitations

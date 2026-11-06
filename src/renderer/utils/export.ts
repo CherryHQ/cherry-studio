@@ -1,3 +1,4 @@
+import { preferenceService } from '@data/PreferenceService'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import { markdownToPlainText } from '@renderer/utils/markdown'
 import { readComposerFileTokenSourceIdFromTokenId } from '@renderer/utils/message/composerFileTokenSource'
@@ -145,12 +146,13 @@ function createPastedTextTokenTextResolver(
 
 const formatMessageAsPlainText = (
   message: ExportableMessage,
-  getTokenText?: (token: ComposerMessageToken, index: number) => string
+  getTokenText?: (token: ComposerMessageToken, index: number) => string,
+  hideCitationMarkers = false
 ): string => {
   // Assistant/agent rows lead with the frozen producing author (survives rename/delete), like the header.
   const author = 'messageSnapshot' in message ? message.messageSnapshot : undefined
   const roleText = message.role === 'user' ? 'User:' : `${author?.name ?? 'Assistant'}:`
-  const plainTextContent = markdownToPlainText(copyableTextContent(message, getTokenText)).trim()
+  const plainTextContent = markdownToPlainText(copyableTextContent(message, getTokenText, hideCitationMarkers)).trim()
   return `${roleText}\n${plainTextContent}`
 }
 
@@ -165,19 +167,26 @@ const formatMessageAsPlainText = (
  */
 const copyableTextContent = (
   message: ExportableMessage,
-  getTokenText?: (token: ComposerMessageToken, index: number) => string
+  getTokenText?: (token: ComposerMessageToken, index: number) => string,
+  hideCitationMarkers = false
 ): string => {
   const content = getComposerTextFromMessage(message, getNamingTextContent(message), getTokenText)
-  return getToolCitationExport(message, content).content
+  return getToolCitationExport(message, content, hideCitationMarkers && message.role === 'assistant').content
 }
+
+const readHideCitationMarkers = async () => !(await preferenceService.get('chat.message.show_citation_markers'))
 
 export const messageToPlainText = async (message: ExportableMessage): Promise<string> => {
   const contents = await readPastedTextFileContents([message])
-  return markdownToPlainText(copyableTextContent(message, createPastedTextTokenTextResolver(contents))).trim()
+  const hideCitationMarkers = await readHideCitationMarkers()
+  return markdownToPlainText(
+    copyableTextContent(message, createPastedTextTokenTextResolver(contents), hideCitationMarkers)
+  ).trim()
 }
 
 export const messagesToPlainText = async (messages: ExportableMessage[]): Promise<string> => {
   const contents = await readPastedTextFileContents(messages)
   const getTokenText = createPastedTextTokenTextResolver(contents)
-  return messages.map((message) => formatMessageAsPlainText(message, getTokenText)).join('\n\n')
+  const hideCitationMarkers = await readHideCitationMarkers()
+  return messages.map((message) => formatMessageAsPlainText(message, getTokenText, hideCitationMarkers)).join('\n\n')
 }

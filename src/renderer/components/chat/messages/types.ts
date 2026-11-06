@@ -273,6 +273,7 @@ export interface MessageRenderConfig {
   thoughtAutoCollapse: boolean
   collapseCompletedToolHistory: boolean
   keepIntermediateAssistantText: boolean
+  showCitationMarkers: boolean
   mathEnableSingleDollar: boolean
   showMessageOutline: boolean
   showEstimatedTokens: boolean
@@ -293,6 +294,7 @@ export const defaultMessageRenderConfig: MessageRenderConfig = {
   thoughtAutoCollapse: true,
   collapseCompletedToolHistory: true,
   keepIntermediateAssistantText: false,
+  showCitationMarkers: true,
   mathEnableSingleDollar: false,
   showMessageOutline: false,
   showEstimatedTokens: false,

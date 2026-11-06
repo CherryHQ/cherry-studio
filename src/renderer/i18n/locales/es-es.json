@@ -5020,6 +5020,8 @@
   "settings.messages.navigation.anchor": "Ancla de conversación",
   "settings.messages.navigation.label": "Botón de navegación de conversación",
   "settings.messages.navigation.none": "No mostrar",
+  "settings.messages.show_citation_markers.hint": "Muestra marcadores de fuente en línea en las respuestas que usan bases de conocimiento o búsqueda web. Las fuentes siguen listadas bajo el mensaje y, al ocultarlos, la copia omite los marcadores.",
+  "settings.messages.show_citation_markers.label": "Mostrar marcadores de cita",
   "settings.messages.show_message_outline": "Mostrar esquema del mensaje",
   "settings.messages.title": "Configuración de mensajes",
   "settings.messages.use_serif_font": "Usar fuente serif",
