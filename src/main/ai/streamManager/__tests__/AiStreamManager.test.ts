@@ -20,6 +20,7 @@ import type {
   AiStreamManagerConfig,
   CherryUIMessage,
   ConversationCompletedEvent,
+  ConversationUnsuccessfulEvent,
   StreamDoneResult,
   StreamErrorResult,
   StreamListener,
@@ -1550,13 +1551,15 @@ describe('AiStreamManager', () => {
         topicId: 'a',
         modelId: 'provider-a::model-a',
         request: req('a'),
-        listeners: [renderer, persistence]
+        listeners: [renderer, persistence],
+        isPersistentConversation: true
       })
       const terminal = mgr.onExecutionDone('a', 'provider-a::model-a')
 
       await Promise.resolve()
       expect(persistence.doneResults).toHaveLength(1)
       expect(renderer.doneResults).toHaveLength(0)
+      expect(conversationCompletedEvents).toEqual([])
       expect(mgr.hasLiveStream('a')).toBe(false)
       expect(mgr.hasTerminalPersistenceInFlight('a')).toBe(true)
       expect(mgr.hasUnsettledTopicWork('a')).toBe(true)
@@ -1649,7 +1652,60 @@ describe('AiStreamManager', () => {
       await settledPromise
       await firstTerminal
       expect(conversationCompletedEvents).toHaveLength(1)
+
+      startSingle(mgr, { topicId, modelId: last, request: req(topicId), listeners: [], isPersistentConversation: true })
+      await mgr.onExecutionDone(topicId, last)
+      expect(conversationCompletedEvents[1]).not.toHaveProperty('completedTaskCount')
     })
+
+    it('waits for every model persistence before reporting conversation success', async () => {
+      let release!: () => void
+      const persistence = new FakeListener('persistence:multi', 'persistence')
+      persistence.onDoneImpl = async (result) => {
+        if (result.modelId !== 'p::first') return
+        await new Promise<void>((resolve) => {
+          release = resolve
+        })
+        throw new TerminalPersistenceError('first model write failed')
+      }
+      mgr.send({
+        topicId: 'multi-persistence',
+        models: [
+          { modelId: 'p::first', request: req('multi-persistence') },
+          { modelId: 'p::last', request: req('multi-persistence') }
+        ],
+        listeners: [persistence],
+        isPersistentConversation: true
+      })
+      const first = mgr.onExecutionDone('multi-persistence', 'p::first')
+      await vi.advanceTimersByTimeAsync(0)
+      await mgr.onExecutionDone('multi-persistence', 'p::last')
+      expect(conversationCompletedEvents).toEqual([])
+      release()
+      await first
+      expect(conversationCompletedEvents).toEqual([])
+    })
+
+    it.each([true, false])(
+      'does not announce all-complete when one model is cancelled (cancel first: %s)',
+      async (cancelFirst) => {
+        const abortController = new AbortController()
+        mgr.send({
+          topicId: 'partly-cancelled',
+          models: [
+            { modelId: 'p::cancelled', request: req('partly-cancelled'), abortController },
+            { modelId: 'p::completed', request: req('partly-cancelled') }
+          ],
+          listeners: [],
+          isPersistentConversation: true
+        })
+        if (!cancelFirst) await mgr.onExecutionDone('partly-cancelled', 'p::completed')
+        abortController.abort('user-stop')
+        await vi.advanceTimersByTimeAsync(0)
+        if (cancelFirst) await mgr.onExecutionDone('partly-cancelled', 'p::completed')
+        expect(conversationCompletedEvents).toEqual([])
+      }
+    )
 
     it('keeps the previous turn terminal lifecycle when a follow-up is admitted after the dispatch settles', async () => {
       let releaseB!: () => void
@@ -1881,6 +1937,124 @@ describe('AiStreamManager', () => {
 
       expect(l.errorResults[0].finalMessage?.id).toBe('assistant-1')
       expect(mgr.inspect('a')!.executions[0].finalMessage?.id).toBe('assistant-1')
+    })
+  })
+
+  describe('unsuccessful conversation outcomes', () => {
+    it.each(['reason', 'abort-error', 'real-error'] as const)(
+      'settles a startup rejection after Stop without hiding genuine errors: %s',
+      async (kind) => {
+        const outcomes: ConversationUnsuccessfulEvent[] = []
+        mgr.onConversationUnsuccessful((event) => outcomes.push(event))
+        mockStreamText.mockImplementationOnce(
+          (request) =>
+            new Promise((_, reject) => {
+              const signal = (request.requestOptions as { signal: AbortSignal }).signal
+              signal.addEventListener(
+                'abort',
+                () =>
+                  reject(
+                    kind === 'reason'
+                      ? signal.reason
+                      : kind === 'abort-error'
+                        ? new DOMException('OCR cancelled', 'AbortError')
+                        : new Error('Storage unavailable')
+                  ),
+                { once: true }
+              )
+            })
+        )
+        startSingle(mgr, {
+          topicId: 'a',
+          modelId: 'provider-a::model-a',
+          request: req('a'),
+          listeners: [],
+          isPersistentConversation: true
+        })
+        mgr.abort('a', 'user-requested')
+        await vi.waitFor(() => expect(outcomes).toHaveLength(1))
+        expect(outcomes[0].status).toBe(kind === 'real-error' ? 'failed' : 'cancelled')
+        expect(conversationCompletedEvents).toEqual([])
+      }
+    )
+
+    it.each([
+      ['user-requested', 'cancelled'],
+      ['remote-cancel', 'cancelled'],
+      ['no-subscribers', 'interrupted'],
+      ['agent-policy-update-failed', 'interrupted']
+    ] as const)('classifies settled abort %s', async (reason, status) => {
+      const outcomes: ConversationUnsuccessfulEvent[] = []
+      mgr.onConversationUnsuccessful((event) => outcomes.push(event))
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [],
+        isPersistentConversation: true
+      })
+      mgr.abort('a', reason)
+      await mgr.onExecutionPaused('a', 'provider-a::model-a')
+      expect(outcomes[0]).toMatchObject({ topicId: 'a', status, finishedAt: expect.any(Number) })
+      expect(conversationCompletedEvents).toEqual([])
+    })
+
+    it('emits a sibling failure without waiting for a still-running model', async () => {
+      const outcomes: ConversationUnsuccessfulEvent[] = []
+      mgr.onConversationUnsuccessful((event) => outcomes.push(event))
+      mgr.send({
+        topicId: 'a',
+        isPersistentConversation: true,
+        listeners: [],
+        models: [
+          { modelId: 'provider-a::model-a', request: req('a') },
+          { modelId: 'provider-b::model-b', request: req('a') }
+        ]
+      })
+      await mgr.onExecutionError('a', 'provider-a::model-a', error('403 用户额度不足'))
+      expect(outcomes).toHaveLength(1)
+      expect(outcomes[0]).toMatchObject({ status: 'failed', errorSummary: expect.stringContaining('用户额度不足') })
+      expect(mgr.hasLiveStream('a')).toBe(true)
+      await mgr.onExecutionDone('a', 'provider-b::model-b')
+      expect(conversationCompletedEvents).toEqual([])
+    })
+
+    it.each([false, true])('leaves scheduled outcomes to their durable owner: persistent=%s', async (persistent) => {
+      const outcomes: ConversationUnsuccessfulEvent[] = []
+      mgr.onConversationUnsuccessful((event) => outcomes.push(event))
+      const owner = Object.assign(new FakeListener('job-owner'), { ownsTaskResult: true })
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [owner],
+        isPersistentConversation: persistent
+      })
+      mgr.removeListener('a', owner.id)
+      await mgr.onExecutionError('a', 'provider-a::model-a', error('quota exceeded'))
+      expect(outcomes).toEqual([])
+    })
+
+    it('leaves successful scheduled outcomes to their owner after listener removal', async () => {
+      const owner = Object.assign(new FakeListener('job-owner'), { ownsTaskResult: true })
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [owner],
+        isPersistentConversation: true
+      })
+      mgr.removeListener('a', owner.id)
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
+      expect(conversationCompletedEvents).toEqual([])
+    })
+
+    it('does not publish failures for temporary model checks', async () => {
+      const outcomes: ConversationUnsuccessfulEvent[] = []
+      mgr.onConversationUnsuccessful((event) => outcomes.push(event))
+      startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [] })
+      await mgr.onExecutionError('a', 'provider-a::model-a', error('quota exceeded'))
+      expect(outcomes).toEqual([])
     })
   })
 
@@ -3940,6 +4114,137 @@ describe('AiStreamManager', () => {
       vi.advanceTimersByTime(31_000)
       expect(statusSequence('t')).toEqual(['pending', 'streaming', 'done'])
     })
+
+    it('carries the completed task into an Agent continuation launched inside the terminal listener', async () => {
+      const topicId = 'agent-session:listener-batch'
+      const first = new FakeListener('agent-terminal')
+      first.onDoneImpl = () => {
+        first.onDoneImpl = undefined
+        queueMicrotask(() => {
+          mgr.startRuntimeTurn({
+            topicId,
+            modelId: 'p::m',
+            request: { ...req(topicId), messages: [{ id: 'second-user', role: 'user', parts: [] }] },
+            listeners: []
+          })
+        })
+      }
+      mockWillContinueTopic.mockReturnValue(true)
+      mgr.startRuntimeTurn({
+        topicId,
+        modelId: 'p::m',
+        request: { ...req(topicId), messages: [{ id: 'first-user', role: 'user', parts: [] }] },
+        listeners: [first]
+      })
+      await mgr.onExecutionDone(topicId, 'p::m')
+      await vi.advanceTimersByTimeAsync(0)
+      mockWillContinueTopic.mockReturnValue(false)
+      await mgr.onExecutionDone(topicId, 'p::m')
+      expect(conversationCompletedEvents).toHaveLength(1)
+      expect(conversationCompletedEvents[0]).toMatchObject({ completedTaskCount: 2 })
+    })
+
+    it('counts distinct user tasks across a continuous Agent queue and starts fresh after draining', async () => {
+      const topicId = 'agent-session:batch-session'
+      for (let index = 0; index < 7; index++) {
+        mockWillContinueTopic.mockReturnValue(index < 6)
+        mgr.startRuntimeTurn({
+          topicId,
+          modelId: 'p::m',
+          request: {
+            ...req(topicId),
+            messages: [{ id: `user-${index}`, role: 'user', parts: [{ type: 'text', text: 'Next task' }] }]
+          },
+          listeners: [new FakeListener(`batch:${index}`)]
+        })
+        await mgr.onExecutionDone(topicId, 'p::m')
+        await mgr.onExecutionDone(topicId, 'p::m')
+        expect(conversationCompletedEvents).toHaveLength(index === 6 ? 1 : 0)
+      }
+      expect(conversationCompletedEvents[0]).toMatchObject({ completedTaskCount: 7 })
+
+      mgr.startRuntimeTurn({ topicId, modelId: 'p::m', request: req(topicId), listeners: [] })
+      await mgr.onExecutionDone(topicId, 'p::m')
+      expect(conversationCompletedEvents).toHaveLength(2)
+      expect(conversationCompletedEvents[1]).not.toHaveProperty('completedTaskCount')
+    })
+
+    it('counts all injected user tasks while excluding autonomous seed messages', async () => {
+      const topicId = 'agent-session:injected-batch'
+      const start = (taskIds: string[]) =>
+        mgr.startRuntimeTurn({
+          topicId,
+          modelId: 'p::m',
+          taskIds,
+          request: { ...req(topicId), messages: [{ id: 'synthetic-seed', role: 'user', parts: [] }] },
+          listeners: []
+        })
+      start([])
+      await mgr.onExecutionDone(topicId, 'p::m')
+      expect(conversationCompletedEvents).toHaveLength(1)
+      expect(conversationCompletedEvents[0]).not.toHaveProperty('completedTaskCount')
+      mockWillContinueTopic.mockReturnValue(true)
+      start(['u1', 'u2', 'u3', 'u4', 'u5'])
+      await mgr.onExecutionDone(topicId, 'p::m')
+      mockWillContinueTopic.mockReturnValue(false)
+      start(['u5', 'u6', 'u7'])
+      await mgr.onExecutionDone(topicId, 'p::m')
+      expect(conversationCompletedEvents).toHaveLength(2)
+      expect(conversationCompletedEvents[1]).toMatchObject({ completedTaskCount: 7 })
+    })
+
+    it.each(['none', 'paused', 'persistence'] as const)(
+      'reports a successful retry only when no sibling failure remains: %s',
+      async (remaining) => {
+        const topicId = 'retry-completion'
+        const aborted = new AbortController()
+        const siblingAbort = new AbortController()
+        const listener = new FakeListener('retry-observer')
+        const persistence = new FakeListener('retry-persistence', 'persistence')
+        persistence.onDoneImpl = (result) => {
+          if (remaining === 'persistence' && result.modelId === 'p::b')
+            throw new TerminalPersistenceError('write failed')
+        }
+        mockGetMessageById.mockImplementation((id) => ({
+          id,
+          role: 'assistant',
+          topicId,
+          parentId: 'user-1',
+          siblingsGroupId: 7
+        }))
+        mgr.send({
+          topicId,
+          isPersistentConversation: true,
+          siblingsGroupId: 7,
+          models: [
+            { modelId: 'p::a', request: { ...req(topicId), messageId: 'assistant-a' }, abortController: aborted },
+            { modelId: 'p::b', request: { ...req(topicId), messageId: 'assistant-b' }, abortController: siblingAbort },
+            ...(remaining === 'none' ? [] : [{ modelId: 'p::c' as const, request: req(topicId) }])
+          ],
+          listeners: [listener, persistence]
+        })
+        aborted.abort('user-requested')
+        await vi.waitFor(() => expect(listener.pausedResults).toHaveLength(1))
+        if (remaining === 'paused') {
+          siblingAbort.abort('user-requested')
+          await vi.waitFor(() => expect(listener.pausedResults).toHaveLength(2))
+        } else if (remaining === 'persistence') await mgr.onExecutionDone(topicId, 'p::b')
+        await expect(mgr.awaitExecutionRetry(topicId, 'p::a', 'assistant-a', 'user-1', 7)).resolves.toMatchObject({
+          mode: 'replace-live'
+        })
+        mgr.send({
+          topicId,
+          siblingsGroupId: 7,
+          models: [{ modelId: 'p::a', request: { ...req(topicId), messageId: 'assistant-a' } }],
+          listeners: [],
+          liveExecutionChange: { mode: 'replace', parentAnchorId: 'user-1', siblingsGroupId: 7 }
+        })
+        await mgr.onExecutionDone(topicId, 'p::a')
+        expect(conversationCompletedEvents).toEqual([])
+        await mgr.onExecutionDone(topicId, remaining === 'none' ? 'p::b' : 'p::c')
+        expect(conversationCompletedEvents).toHaveLength(remaining === 'none' ? 1 : 0)
+      }
+    )
 
     it('reports one persistent assistant completion after all models finish', async () => {
       vi.setSystemTime(1_234)
