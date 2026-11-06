@@ -638,8 +638,14 @@ function resolveClaudeCodeThinkingOptions(
   const invocationModel = profile.support
     ? { ...model, reasoning: projectRuntimeReasoning(profile.support, profile.wire) }
     : model
+  // The CLI may not recognise a newer Claude SKU (e.g. a namespaced `anthropic/claude-haiku-5.5`) and then
+  // falls back to `thinking.type=enabled`, which adaptive-only models reject; pin adaptive explicitly.
+  const selection =
+    reasoningEffort === 'default' && profile.wireDialect === 'effort' && /claude/i.test(model.apiModelId ?? model.id)
+      ? 'auto'
+      : reasoningEffort
   const invocation = resolveReasoningInvocation({
-    selection: reasoningEffort,
+    selection,
     model: invocationModel,
     profile: profile.wire,
     maxTokens: model.maxOutputTokens
