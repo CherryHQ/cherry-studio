@@ -11,6 +11,8 @@ export type ResourceType = 'agent' | 'assistant' | 'skill' | 'prompt'
 export type ResourceEditDialogTarget = ({ kind: 'assistant'; id: string } | { kind: 'agent'; id: string }) & {
   /** Leaf tab id to open the dialog on (e.g. `tools.mcp`, `tools.skills`). */
   initialTab?: string
+  /** Agent profile only: the Agent was just created and its automatic setup did not fully succeed. */
+  setupIncomplete?: boolean
 }
 
 /** Validated values shared by every Assistant / Agent creation entry point. */
@@ -24,6 +26,8 @@ export type ResourceCreateValues = {
   prompt: string
   knowledgeBaseIds: string[]
   skillIds: string[]
+  /** Set by "Agent create" when the prompt fell back to the user's input or a recommended skill failed to install. */
+  setupIncomplete?: boolean
 }
 
 export type SortKey = 'updatedAt' | 'createdAt' | 'name'
