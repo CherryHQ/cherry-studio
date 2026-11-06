@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-07-pi-file-tool-rendering.md
-2026-11-07-pi-file-tool-rendering.md: 881bd7d246a39645024b9ee97bbebeb2bdb22908
-2026-11-07-pi-file-tool-rendering.zh.md: 73c713a68ab40161a6f31afbc0fa733b3e08d2ac
+2026-11-07-pi-file-tool-rendering.md: ba6e0c1cef35180476093f4b271b688c8e8dee37
+2026-11-07-pi-file-tool-rendering.zh.md: 072187a285739e8766c3d3233029c51088870f24

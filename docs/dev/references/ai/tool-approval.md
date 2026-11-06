@@ -111,6 +111,8 @@ Pi file-tool cards adapt native `path`, `oldText` and `newText` fields to the
 shared renderer's `file_path`, `old_string` and `new_string` fields in
 `toolResponse.ts`. This presentation mapping preserves the original message
 and execution input; it does not rewrite the approved operation.
+Native Pi `edits` arrays use the shared MultiEdit card and map each hunk's
+`oldText` / `newText` independently, preserving all edit hunks.
 
 The rendered card is not byte-bound to that object: the stream approval chunk
 carries only IDs, the card uses earlier streamed tool input, and a configured
