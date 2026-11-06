@@ -9,7 +9,8 @@ import {
   type EndpointType as RuntimeEndpointType,
   type ListedModels,
   type Model,
-  parseUniqueModelId
+  parseUniqueModelId,
+  type RuntimeReasoning
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isNewApiProvider } from '@shared/utils/provider'
@@ -31,6 +32,8 @@ export class ModelSyncError extends Error {
 
 type ProviderResolveModelsPath = Extract<ConcreteApiPaths, `/providers/${string}/models:resolve`>
 type ModelSyncProviderEndpointSource = Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint'>
+
+const resolveModelsPath = (providerId: string): ProviderResolveModelsPath => `/providers/${providerId}/models:resolve`
 
 export function resolveCreateModelEndpointTypes(
   provider: ModelSyncProviderEndpointSource | null | undefined,
@@ -83,6 +86,68 @@ export function toCreateModelDto(
 }
 
 /**
+ * Provider-declared reasoning for manually added models, keyed by raw model id.
+ *
+ * The registry authors the descriptor for the models it knows, and `models:resolve` answers that
+ * without leaving SQLite. Everything else has only the provider's catalog, which is remote and
+ * therefore runs behind the AI IPC route — never on the DataApi create request, whose network-free
+ * path is what keeps the write inside its 3s renderer deadline.
+ */
+export async function resolveProviderReasoningForManualAdd(
+  providerId: string,
+  modelIds: readonly string[]
+): Promise<Map<string, RuntimeReasoning>> {
+  const reasonings = new Map<string, RuntimeReasoning>()
+  const ids = [...new Set(modelIds.filter(Boolean))]
+  if (ids.length === 0) {
+    return reasonings
+  }
+
+  const unresolved: string[] = []
+  try {
+    const resolved = (await dataApiService.get(resolveModelsPath(providerId), { query: { ids } })) as Model[]
+    const resolvedById = new Map(resolved.map((model) => [model.apiModelId ?? '', model]))
+    for (const id of ids) {
+      // A registry identity outranks the provider's declaration; an unmatched id carries
+      // only an id-heuristic guess, which the provider's own declaration replaces.
+      if (resolvedById.get(id)?.presetModelId) {
+        continue
+      }
+      unresolved.push(id)
+    }
+  } catch (error) {
+    logger.warn('Registry resolve failed for a manual model add; falling back to provider metadata', {
+      providerId,
+      error
+    })
+    unresolved.push(...ids)
+  }
+
+  if (unresolved.length === 0) {
+    return reasonings
+  }
+
+  try {
+    const { models } = await ipcApi.request('ai.provider.model.list', { providerId })
+    const modelsById = new Map(models.map((model) => [model.apiModelId ?? '', model]))
+    for (const id of unresolved) {
+      const reasoning = modelsById.get(id)?.reasoning
+      if (reasoning?.controls?.length || reasoning?.selectableEfforts?.length) {
+        reasonings.set(id, reasoning)
+      }
+    }
+  } catch (error) {
+    // A provider with no key (or an offline host) must not block a manual add.
+    logger.warn('Provider model lookup failed for a manual model add; storing without provider reasoning', {
+      providerId,
+      error
+    })
+  }
+
+  return reasonings
+}
+
+/**
  * Enrich raw v2 models from `ipcApi.request('ai.provider.model.list', …)` with registry
  * metadata fetched via `/providers/:id/models:resolve`. The IPC already
  * returns v2 `Partial<Model>` (with `apiModelId`, `endpointTypes`, etc.)
@@ -95,8 +160,7 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
     return []
   }
 
-  const resolveModelsPath: ProviderResolveModelsPath = `/providers/${providerId}/models:resolve`
-  const resolved = (await dataApiService.get(resolveModelsPath, {
+  const resolved = (await dataApiService.get(resolveModelsPath(providerId), {
     query: {
       ids: filteredModels.map((model) => model.apiModelId ?? '').filter(Boolean)
     }

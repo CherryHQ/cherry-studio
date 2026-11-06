@@ -25,6 +25,17 @@ import type { RuntimeReasoning } from '@shared/data/types/model'
 const OPENAI_CHAT_WIRE = REASONING_FORMAT_PROFILES['openai-chat'].wire
 const KNOWN_EFFORTS: ReadonlySet<string> = new Set(Object.values(REASONING_EFFORT))
 
+/** Every effort the gateway accepts, in the catalog's own descending order — the vocabulary of an explicit `null`. */
+const GATEWAY_EFFORTS: readonly ReasoningEffort[] = [
+  REASONING_EFFORT.MAX,
+  REASONING_EFFORT.XHIGH,
+  REASONING_EFFORT.HIGH,
+  REASONING_EFFORT.MEDIUM,
+  REASONING_EFFORT.LOW,
+  REASONING_EFFORT.MINIMAL,
+  REASONING_EFFORT.NONE
+]
+
 /** OpenRouter's `reasoning_effort` parameter accepts the OpenAI-style tiers; the
  *  per-model `supported_efforts` list is what narrows this down when present. */
 const REASONING_EFFORT_PARAMETER_TIERS = ['low', 'medium', 'high'] as const
@@ -46,7 +57,11 @@ function normalizeEfforts(values: readonly string[] | null | undefined): Reasoni
 }
 
 function declaredEfforts(metadata: OpenRouterReasoningMetadata): ReasoningEffort[] {
-  const explicit = normalizeEfforts(metadata.reasoning?.supported_efforts)
+  const published = metadata.reasoning?.supported_efforts
+  // `null` is documented as "all gateway effort values are accepted"; an omitted
+  // key means the model exposes no effort vocabulary at all.
+  if (published === null) return [...GATEWAY_EFFORTS]
+  const explicit = normalizeEfforts(published)
   if (explicit.length > 0) return explicit
   // A model that advertises the parameter but not a vocabulary still accepts the
   // standard tiers; offer those instead of dropping the control entirely.
@@ -54,7 +69,10 @@ function declaredEfforts(metadata: OpenRouterReasoningMetadata): ReasoningEffort
 }
 
 export function openRouterReasoningFromMetadata(metadata: OpenRouterReasoningMetadata): RuntimeReasoning | undefined {
-  const values = declaredEfforts(metadata)
+  const mandatory = metadata.reasoning?.mandatory === true
+  // A mandatory model rejects `effort: 'none'`, so it is not a value the control
+  // may offer — drop it before the default is validated against the vocabulary.
+  const values = declaredEfforts(metadata).filter((value) => !mandatory || value !== REASONING_EFFORT.NONE)
   if (values.length === 0) return undefined
 
   const declaredDefault = metadata.reasoning?.default_effort?.trim().toLowerCase()

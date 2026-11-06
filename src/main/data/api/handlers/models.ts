@@ -6,7 +6,6 @@
  * - Listing with filters
  */
 
-import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
@@ -48,43 +47,16 @@ const parseOrValidationError = (uniqueModelId: string) => {
 }
 
 /**
- * Last-resort reasoning lookup for a manually added model the registry does not
- * know. The pull/reconcile flow already carries the provider's descriptor on
- * the DTO, so this only runs for a single-item create — one extra model-list
- * call, never one per row of a batch.
+ * Attach registry data to each create DTO. Provider-declared reasoning is not
+ * resolved here — that lookup is remote and belongs to the caller (DataApi only writes).
  */
-async function lookupProviderReasoning(
-  providerId: string,
-  modelId: string
-): Promise<CreateModelDto['reasoning'] | undefined> {
-  try {
-    const { models } = await application.get('AiService').listModels({ providerId })
-    return models.find((model) => (model.apiModelId ?? '') === modelId)?.reasoning
-  } catch (error) {
-    // A provider without a key (or an offline host) must not block manual add.
-    logger.debug('Provider model lookup failed during create; storing without provider reasoning', {
-      providerId,
-      modelId,
-      error
-    })
-    return undefined
-  }
-}
-
 async function enrichCreateItems(dtos: CreateModelDto[]) {
   return await Promise.all(
     dtos.map(async (dto) => {
       try {
-        const registryData = providerRegistryService.lookupModel(dto.providerId, dto.modelId)
-        const registryHasModel = Boolean(registryData.providerModel || registryData.presetModel)
-        const reasoning =
-          dto.reasoning ??
-          (!registryHasModel && dtos.length === 1
-            ? await lookupProviderReasoning(dto.providerId, dto.modelId)
-            : undefined)
         return {
-          dto: reasoning && !dto.reasoning ? { ...dto, reasoning } : dto,
-          registryData
+          dto,
+          registryData: providerRegistryService.lookupModel(dto.providerId, dto.modelId)
         }
       } catch (error) {
         if (!(isDataApiError(error) && error.code === ErrorCode.NOT_FOUND)) {
@@ -106,10 +78,8 @@ async function enrichCreateItems(dtos: CreateModelDto[]) {
             error
           }
         )
-        const reasoning =
-          dto.reasoning ?? (dtos.length === 1 ? await lookupProviderReasoning(dto.providerId, dto.modelId) : undefined)
         return {
-          dto: reasoning && !dto.reasoning ? { ...dto, reasoning } : dto,
+          dto,
           registryData: undefined
         }
       }

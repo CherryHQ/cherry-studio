@@ -17,6 +17,13 @@ const toastErrorMock = vi.fn()
 const { ipcRequest } = vi.hoisted(() => ({ ipcRequest: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequest }, useIpcOn: vi.fn() }))
 
+// The manual-add flow reads registry metadata over the SQLite-only DataApi and the
+// provider catalog over IPC; the write itself never triggers either.
+const { dataApiGetMock } = vi.hoisted(() => ({ dataApiGetMock: vi.fn() }))
+vi.mock('@data/DataApiService', () => ({
+  dataApiService: { get: dataApiGetMock, post: vi.fn() }
+}))
+
 beforeAll(() => {
   Element.prototype.scrollIntoView = vi.fn()
 })
@@ -116,6 +123,45 @@ describe('Model drawers', () => {
     )
 
     useModelsMock.mockReturnValue({ models: [] })
+    dataApiGetMock.mockResolvedValue([])
+  })
+
+  it('supplies provider-declared reasoning to the create request from the add flow', async () => {
+    const reasoning = {
+      controls: [{ kind: 'effort' as const, values: ['max', 'xhigh', 'high'] }],
+      selectableEfforts: ['max', 'xhigh', 'high'] as const,
+      defaultEffort: 'max' as const
+    }
+    useProviderMock.mockReturnValue({
+      provider: { id: 'openrouter', name: 'OpenRouter' }
+    })
+    // The add flow resolves discovery itself; the DataApi create request stays network-free.
+    ipcRequest.mockImplementation((route: string) =>
+      route === 'ai.provider.model.list'
+        ? Promise.resolve({ models: [{ apiModelId: 'stealth/crouton-alpha', reasoning }] })
+        : Promise.resolve(undefined)
+    )
+
+    render(<AddModelDrawer providerId="openrouter" open prefill={null} onClose={vi.fn()} />)
+
+    fireEvent.change(screen.getByLabelText('settings.models.add.model_id.label'), {
+      target: { value: 'stealth/crouton-alpha' }
+    })
+    await act(async () => {
+      fireEvent.submit(screen.getByTestId('provider-settings-model-add-drawer-content'))
+    })
+
+    expect(dataApiGetMock).toHaveBeenCalledWith('/providers/openrouter/models:resolve', {
+      query: { ids: ['stealth/crouton-alpha'] }
+    })
+    expect(ipcRequest).toHaveBeenCalledWith('ai.provider.model.list', { providerId: 'openrouter' })
+    expect(createModelMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerId: 'openrouter',
+        modelId: 'stealth/crouton-alpha',
+        reasoning
+      })
+    )
   })
 
   it('renders the legacy add drawer without the inner panel shell and submits through the local drawer form', async () => {
