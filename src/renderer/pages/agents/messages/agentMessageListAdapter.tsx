@@ -57,6 +57,10 @@ const exportToObsidian: ExportMessagesToObsidian = async (title, messages) => {
 
 const agentMessageListRuntimes = new Map<string, MessageListRuntime>()
 
+export function scrollAgentMessageListToEnd(topicId: string): void {
+  agentMessageListRuntimes.get(topicId)?.scrollToBottom()
+}
+
 function withTerminalErrorFallback(
   messages: CherryUIMessage[],
   partsByMessageId: Record<string, CherryMessagePart[]>,
@@ -124,6 +128,7 @@ interface AgentMessageListParams {
   respondToolApproval?: MessageListActions['respondToolApproval']
   navigateToForkSource?: NavigateToForkSource
   imageActionConsumer?: 'capture'
+  scrollToBottomOnSend?: boolean
   messageNavigation: string
   workspacePath?: string
   messageTail?: MessageListState['messageTail']
@@ -192,6 +197,7 @@ export function useAgentMessageListProviderValue({
   respondToolApproval,
   navigateToForkSource,
   imageActionConsumer,
+  scrollToBottomOnSend = false,
   messageNavigation,
   workspacePath,
   messageTail,
@@ -351,14 +357,20 @@ export function useAgentMessageListProviderValue({
       }
 
       agentMessageListRuntimes.set(topic.id, runtime)
+      const unsubscribeSend = scrollToBottomOnSend
+        ? EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, ({ topicId }: { topicId: string }) => {
+            if (topicId === topic.id) runtime.scrollToBottom()
+          })
+        : undefined
 
       return () => {
+        unsubscribeSend?.()
         if (agentMessageListRuntimes.get(topic.id) === runtime) {
           agentMessageListRuntimes.delete(topic.id)
         }
       }
     },
-    [imageActionConsumer, sessionId, topic.id]
+    [imageActionConsumer, scrollToBottomOnSend, sessionId, topic.id]
   )
 
   const bindMessageRuntime = useCallback(

@@ -17,6 +17,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@cherrystudio/agent-behavior": "workspace:*",
     "@cherrystudio/agent-runtime": "workspace:*",
     "@earendil-works/chord": "1.4.0"
   },

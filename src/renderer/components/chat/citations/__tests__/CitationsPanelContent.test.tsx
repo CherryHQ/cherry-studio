@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import type { Cache } from 'swr'
@@ -40,11 +41,7 @@ vi.mock('../../messages/hooks/useMessagePlatformActions', () => ({
 
 vi.mock('@cherrystudio/ui', () => ({
   PageSidePanel: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
-  Scrollbar: ({ children, className }: React.HTMLAttributes<HTMLDivElement>) => (
-    <div data-testid="citations-scrollbar" className={className}>
-      {children}
-    </div>
-  ),
+  ScrollArea: MockCherrystudioUI.ScrollArea,
   Skeleton: () => <div data-testid="citation-preview-loading" />
 }))
 

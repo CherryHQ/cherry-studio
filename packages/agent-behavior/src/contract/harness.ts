@@ -39,8 +39,8 @@ export interface ContractHarness {
 }
 /** Opens a fresh harness; `install` registers handlers at open and again after each restart. */
 export type OpenContractHarness = (install: (ports: HarnessPorts) => void) => Promise<ContractHarness>
-/** A capability a case needs; a harness without it skips the case (coding-agent: restart; Durable: context-filter). */
-export type ContractNeed = 'restart' | 'context-filter'
+/** A capability a case needs; a harness without it skips the case (coding-agent: restart; Durable: context-filter, foreground-continuation). */
+export type ContractNeed = 'restart' | 'context-filter' | 'foreground-continuation'
 export interface ContractCase {
   readonly name: string
   readonly covers: readonly PortMethod[]

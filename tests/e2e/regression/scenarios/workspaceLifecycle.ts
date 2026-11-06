@@ -164,7 +164,7 @@ export async function workspaceLifecycle(app: RegressionApp, page: Page, testInf
     expect((await readWorkspaces()).find(({ id }) => id === original.id)?.name).toBe(renamedName)
     await screenshot('MP-53 workspace removed and disk directory preserved')
   } finally {
-    await page.evaluate(
+    const cleanup = page.evaluate(
       async ({ previous, agentName, ownedPaths }) => {
         await window.api.preference.setMultiple({
           'agent.session.display_mode': previous.displayMode,
@@ -213,6 +213,6 @@ export async function workspaceLifecycle(app: RegressionApp, page: Page, testInf
       },
       { previous: previousPreferences, agentName, ownedPaths }
     )
-    await Promise.all(ownedPaths.map((path) => rm(path, { recursive: true, force: true })))
+    await cleanup.finally(() => Promise.all(ownedPaths.map((path) => rm(path, { recursive: true, force: true }))))
   }
 }

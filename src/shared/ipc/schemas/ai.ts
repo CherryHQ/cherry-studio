@@ -3,8 +3,8 @@ import * as z from 'zod'
 
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
 import type { AgentAttachmentSelection } from '@cherrystudio/remote-protocol/agent'
-import type { AgentChildUpdate, AgentChildView } from '@shared/ai/agentChildProjection'
 import type { ClaudeCodeBinaryStatus } from '@shared/ai/claudeCodeBinary'
+import type { MessageProjectionUpdate, MessageProjectionView, ProjectionTarget } from '@shared/ai/messageProjection'
 import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
@@ -199,13 +199,18 @@ const mentionedModelIdsSchema = z
   })
   .optional()
 
+const projectionTargetSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('topic'), topicId: z.string().min(1) }),
+  z.strictObject({ kind: z.literal('child'), sessionId: z.string().min(1), toolCallId: z.string().min(1) })
+]) satisfies z.ZodType<ProjectionTarget>
+
 export const aiRequestSchemas = {
-  'ai.agent.child.attach': defineRoute({
-    input: z.strictObject({ sessionId: z.string(), toolCallId: z.string(), subscriptionId: z.string().uuid() }),
-    output: z.custom<AgentChildView | null>()
+  'ai.projection.attach': defineRoute({
+    input: z.strictObject({ target: projectionTargetSchema, subscriptionId: z.uuid() }),
+    output: z.custom<MessageProjectionView | null>()
   }),
-  'ai.agent.child.detach': defineRoute({
-    input: z.strictObject({ subscriptionId: z.string().uuid() }),
+  'ai.projection.detach': defineRoute({
+    input: z.strictObject({ target: projectionTargetSchema, subscriptionId: z.uuid() }),
     output: z.void()
   }),
   'ai.agent.child.message': defineRoute({
@@ -530,7 +535,7 @@ export const aiRequestSchemas = {
  * its coalescing/liveness intact — it does not `broadcast`.
  */
 export type AiEventSchemas = {
-  'ai.agent.child.changed': { subscriptionId: string; update: AgentChildUpdate }
+  'ai.projection.changed': { subscriptionId: string; update: MessageProjectionUpdate }
   'ai.claude_code.binary.changed': ClaudeCodeBinaryStatus
   'ai.agent.attachment_selections.changed': { sessionId: string }
   'ai.stream.chunk': StreamChunkPayload
