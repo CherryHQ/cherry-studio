@@ -46,7 +46,10 @@ export const CherryTopicFileSchema = z.strictObject({
   }),
   assistant: z
     .strictObject({
-      name: z.string().min(1).max(255),
+      // Informational metadata (import recreates no assistant row), so follow
+      // the assistant contract: AssistantSchema.name has no length cap, and a
+      // longer valid source name must not make its own export unimportable.
+      name: z.string().min(1),
       emoji: z.string().max(64).optional()
     })
     .optional(),
@@ -125,10 +128,33 @@ function stripSourceFileKeys(part: Record<string, unknown>): Record<string, unkn
   return next
 }
 
+// `data-video` parts carry a source-install absolute `filePath`; resolving it
+// on the destination could address unrelated destination-local media, so the
+// path never survives import. Only portable urls are kept: remote http(s)
+// stays playable, and a `data:` url is the exporter's self-contained envelope,
+// which the native import restores into a destination-owned file.
+function sanitizeImportedVideoPart(part: Record<string, unknown>): unknown | undefined {
+  const data = part.data
+  if (typeof data !== 'object' || data === null) return undefined
+  const url = (data as { url?: unknown }).url
+  if (!isPortableFileUrl(url)) return undefined
+  return { ...part, data: { url } }
+}
+
 function sanitizeImportedParts(parts: unknown[]): ImportMessageNode['parts'] {
   const sanitized: unknown[] = []
   for (const part of parts) {
-    if (typeof part !== 'object' || part === null || (part as { type?: unknown }).type !== 'file') {
+    if (typeof part !== 'object' || part === null) {
+      sanitized.push(part)
+      continue
+    }
+    const partType = (part as { type?: unknown }).type
+    if (partType === 'data-video') {
+      const video = sanitizeImportedVideoPart(part as Record<string, unknown>)
+      if (video) sanitized.push(video)
+      continue
+    }
+    if (partType !== 'file') {
       sanitized.push(part)
       continue
     }

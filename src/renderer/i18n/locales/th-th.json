@@ -1768,6 +1768,7 @@
   "import.cherry.help.title": "จะส่งออกหัวข้อจาก Cherry Studio ได้อย่างไร?",
   "import.cherry.importing": "กำลังนำเข้าหัวข้อ...",
   "import.cherry.selecting": "กำลังเลือกไฟล์...",
+  "import.cherry.skipped_attachments": "ข้ามไฟล์แนบที่ไม่สามารถกู้คืนได้ {{count}} รายการ",
   "import.cherry.success": "นำเข้าหัวข้อพร้อมข้อความ {{messages}} รายการแล้ว",
   "import.cherry.title": "นำเข้าหัวข้อ Cherry Studio",
   "import.cherry.untitled_conversation": "หัวข้อไม่มีชื่อ",

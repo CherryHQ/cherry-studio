@@ -209,6 +209,15 @@ describe('cherryTopicFormat', () => {
       expect(() => parseCherryTopicFile(JSON.stringify({ kind: CHERRY_TOPIC_FILE_KIND }))).toThrow()
     })
 
+    it('accepts assistant names as long as the assistant contract allows', () => {
+      // AssistantSchema.name has no length cap, so export copies a longer name
+      // verbatim; the informational metadata must not reject its own file.
+      const longName = 'a'.repeat(256)
+      const file = buildCherryTopicFile({ ...branchedInput(), assistant: { name: longName, emoji: '🤖' } })
+      expect(validateCherryTopicFileContent(JSON.stringify(file))).toBe(true)
+      expect(parseCherryTopicFile(JSON.stringify(file)).assistant?.name).toBe(longName)
+    })
+
     it('drops file parts pointing at destination-local files instead of persisting them', () => {
       const localPart = (url: string) => ({ type: 'file' as const, url, filename: 'a.png', mediaType: 'image/png' })
       const file = buildCherryTopicFile({
@@ -245,6 +254,40 @@ describe('cherryTopicFormat', () => {
         { type: 'text', text: 'see these' },
         { type: 'file', url: 'data:image/png;base64,aGVsbG8=', filename: 'ok.png', mediaType: 'image/png' },
         { type: 'file', url: 'https://example.com/a.png', filename: 'remote.png', mediaType: 'image/png' }
+      ])
+    })
+
+    it('strips source-install video paths and keeps only portable video urls', () => {
+      const file = buildCherryTopicFile({
+        ...branchedInput(),
+        messages: [
+          makeMessage({
+            id: 'u1',
+            role: 'user',
+            parentId: 'root-1',
+            data: {
+              parts: [
+                { type: 'text', text: 'see these' },
+                { type: 'data-video', data: { filePath: '/source/install/clip.mp4' } },
+                {
+                  type: 'data-video',
+                  data: { url: 'https://example.com/clip.mp4', filePath: '/source/install/a.mp4' }
+                },
+                { type: 'data-video', data: { url: 'data:video/mp4;base64,AAEC', filePath: '/source/install/b.mp4' } }
+              ]
+            },
+            createdAt: '2026-01-01T00:00:01.000Z'
+          })
+        ],
+        activeNodeId: 'u1'
+      })
+      expect(validateCherryTopicFileContent(JSON.stringify(file))).toBe(true)
+
+      const conversation = toImportConversation(parseCherryTopicFile(JSON.stringify(file)), 'Untitled Topic')
+      expect(conversation.messages[0]?.parts).toEqual([
+        { type: 'text', text: 'see these' },
+        { type: 'data-video', data: { url: 'https://example.com/clip.mp4' } },
+        { type: 'data-video', data: { url: 'data:video/mp4;base64,AAEC' } }
       ])
     })
 

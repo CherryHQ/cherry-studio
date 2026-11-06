@@ -13,6 +13,7 @@ import { fileHandleFromPart } from '@renderer/utils/file/fileHandle'
 import { GENERATE_IMAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { generateImageOutputSchema } from '@shared/ai/generateImageTool'
 import { isPersistedToolOutput } from '@shared/ai/transport'
+import type { FileHandle } from '@shared/data/types/file'
 import type { CherryMessagePart, Message, TreeResponse } from '@shared/data/types/message'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
@@ -137,11 +138,71 @@ function estimatedDataUrlBytes(url: string): number {
 // Rewrite `file://` attachment urls as `data:` urls so the topic file stays
 // self-contained across installs. Over-limit or unreadable attachments are
 // dropped and counted so the caller can say so instead of losing them silently.
+// Read a source-install local media file and return it as a self-contained
+// `data:` url, or `undefined` when it is over the cap or unreadable.
+async function readLocalMediaAsDataUrl(handle: FileHandle): Promise<{ dataUrl: string; mime: string } | undefined> {
+  const metadata = await ipcApi.request('file.get_metadata', handle)
+  if (metadata?.kind === 'file' && metadata.size > MAX_EMBED_IMAGE_BYTES) {
+    return undefined
+  }
+  const { content, mime } = await ipcApi.request('file.read', {
+    handle,
+    options: { mode: 'full', encoding: 'binary' }
+  })
+  if (content.length > MAX_EMBED_IMAGE_BYTES) {
+    return undefined
+  }
+  return { dataUrl: `data:${mime};base64,${bytesToBase64(content)}`, mime }
+}
+
+// Local `data-video` parts address the source install's absolute `filePath`,
+// which the destination must never resolve; inline the bytes like any other
+// attachment so the topic file stays self-contained. Over-limit or unreadable
+// videos are dropped (or reduced to their remote url when they have one) and
+// counted so the caller can say so instead of losing them silently.
+async function inlineLocalVideo(part: Record<string, unknown>): Promise<{ part?: unknown; skipped: number }> {
+  const data = (part as { data?: unknown }).data
+  const video = typeof data === 'object' && data !== null ? (data as { url?: unknown; filePath?: unknown }) : {}
+  const filePath = typeof video.filePath === 'string' ? video.filePath : undefined
+  const url = typeof video.url === 'string' ? video.url : undefined
+  if (!filePath) {
+    // Already-embedded payloads count against the same cap as inlined files.
+    if (url?.startsWith('data:') && estimatedDataUrlBytes(url) > MAX_EMBED_IMAGE_BYTES) {
+      return { skipped: 1 }
+    }
+    return { part, skipped: 0 }
+  }
+  try {
+    const handle = createFilePathHandle(AbsoluteFilePathSchema.parse(filePath))
+    const inlined = await readLocalMediaAsDataUrl(handle)
+    if (!inlined) throw new Error('Local video is over the embed limit or unreadable')
+    return { part: { ...part, data: { url: inlined.dataUrl } }, skipped: 0 }
+  } catch (error) {
+    if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+      // The remote url addresses the same video and stays playable as-is.
+      return { part: { ...part, data: { url } }, skipped: 0 }
+    }
+    logger.warn('Dropped an unreadable local video from the topic file export', { error })
+    return { skipped: 1 }
+  }
+}
+
 async function inlineLocalAttachments(parts: unknown[]): Promise<InlineResult> {
   const rewritten: unknown[] = []
   let skipped = 0
   for (const part of parts) {
-    if (typeof part !== 'object' || part === null || (part as { type?: unknown }).type !== 'file') {
+    if (typeof part !== 'object' || part === null) {
+      rewritten.push(part)
+      continue
+    }
+    const partType = (part as { type?: unknown }).type
+    if (partType === 'data-video') {
+      const inlined = await inlineLocalVideo(part as Record<string, unknown>)
+      if (inlined.part) rewritten.push(inlined.part)
+      skipped += inlined.skipped
+      continue
+    }
+    if (partType !== 'file') {
       rewritten.push(part)
       continue
     }
@@ -165,24 +226,12 @@ async function inlineLocalAttachments(parts: unknown[]): Promise<InlineResult> {
     }
     try {
       const handle = fileHandleFromPart(part as CherryMessagePart)
-      if (!handle) {
+      const inlined = handle ? await readLocalMediaAsDataUrl(handle) : undefined
+      if (!inlined) {
         skipped += 1
         continue
       }
-      const metadata = await ipcApi.request('file.get_metadata', handle)
-      if (metadata?.kind === 'file' && metadata.size > MAX_EMBED_IMAGE_BYTES) {
-        skipped += 1
-        continue
-      }
-      const { content, mime } = await ipcApi.request('file.read', {
-        handle,
-        options: { mode: 'full', encoding: 'binary' }
-      })
-      if (content.length > MAX_EMBED_IMAGE_BYTES) {
-        skipped += 1
-        continue
-      }
-      rewritten.push({ ...filePart, url: `data:${mime};base64,${bytesToBase64(content)}`, mediaType: mime })
+      rewritten.push({ ...filePart, url: inlined.dataUrl, mediaType: inlined.mime })
     } catch (error) {
       skipped += 1
       logger.warn('Dropped an unreadable attachment from the topic file export', { error })

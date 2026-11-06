@@ -1768,6 +1768,7 @@
   "import.cherry.help.title": "Come esportare un argomento di Cherry Studio?",
   "import.cherry.importing": "Importazione dell'argomento...",
   "import.cherry.selecting": "Selezione del file...",
+  "import.cherry.skipped_attachments": "Saltati {{count}} allegati che non è stato possibile ripristinare",
   "import.cherry.success": "Argomento importato con {{messages}} messaggi",
   "import.cherry.title": "Importa argomento di Cherry Studio",
   "import.cherry.untitled_conversation": "Argomento senza titolo",

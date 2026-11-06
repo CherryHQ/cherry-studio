@@ -1768,6 +1768,7 @@
   "import.cherry.help.title": "如何导出 Cherry Studio 话题？",
   "import.cherry.importing": "正在导入话题...",
   "import.cherry.selecting": "正在选择文件...",
+  "import.cherry.skipped_attachments": "已跳过 {{count}} 个无法还原的附件",
   "import.cherry.success": "已成功导入话题，共 {{messages}} 条消息",
   "import.cherry.title": "导入 Cherry Studio 话题",
   "import.cherry.untitled_conversation": "未命名话题",

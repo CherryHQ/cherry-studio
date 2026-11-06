@@ -1768,6 +1768,7 @@
   "import.cherry.help.title": "Как экспортировать топик Cherry Studio?",
   "import.cherry.importing": "Импорт топика...",
   "import.cherry.selecting": "Выбор файла...",
+  "import.cherry.skipped_attachments": "Пропущено вложений, которые не удалось восстановить: {{count}}",
   "import.cherry.success": "Топик успешно импортирован, сообщений: {{messages}}",
   "import.cherry.title": "Импорт топика Cherry Studio",
   "import.cherry.untitled_conversation": "Топик без названия",

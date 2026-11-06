@@ -1768,6 +1768,7 @@
   "import.cherry.help.title": "Làm thế nào để xuất chủ đề Cherry Studio?",
   "import.cherry.importing": "Đang nhập chủ đề...",
   "import.cherry.selecting": "Đang chọn tệp...",
+  "import.cherry.skipped_attachments": "Đã bỏ qua {{count}} tệp đính kèm không thể khôi phục",
   "import.cherry.success": "Đã nhập chủ đề thành công với {{messages}} tin nhắn",
   "import.cherry.title": "Nhập chủ đề Cherry Studio",
   "import.cherry.untitled_conversation": "Chủ đề chưa đặt tên",

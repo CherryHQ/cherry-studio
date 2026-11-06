@@ -1768,6 +1768,7 @@
   "import.cherry.help.title": "Wie exportiere ich ein Cherry Studio Topic?",
   "import.cherry.importing": "Topic wird importiert...",
   "import.cherry.selecting": "Datei wird ausgewählt...",
+  "import.cherry.skipped_attachments": "{{count}} Anhang/Anhänge übersprungen, die nicht wiederhergestellt werden konnten",
   "import.cherry.success": "Topic mit {{messages}} Nachrichten erfolgreich importiert",
   "import.cherry.title": "Cherry Studio Topic importieren",
   "import.cherry.untitled_conversation": "Topic ohne Titel",

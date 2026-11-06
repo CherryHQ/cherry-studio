@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { dataApiService } from '@data/DataApiService'
+import { toast } from '@renderer/services/toast'
 import type { Message } from '@shared/data/types/message'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
@@ -221,6 +222,218 @@ describe('importService.importNativeTopic', () => {
 
     expect(response.success).toBe(true)
     expect(patches).toEqual([])
+  })
+
+  it('restores embedded attachments and videos as destination-owned files', async () => {
+    const posts: { path: string; body: any }[] = []
+    let seq = 0
+    vi.mocked(dataApiService.post).mockImplementation(async (path: string, options: any) => {
+      const returnedId = path === '/topics' ? 'new-topic' : `msg_${++seq}`
+      posts.push({ path, body: options?.body })
+      return { id: returnedId }
+    })
+    vi.mocked(dataApiService.put).mockResolvedValue({ activeNodeId: 'x' })
+    vi.mocked(dataApiService.patch).mockResolvedValue({})
+    ipcRequest.mockImplementation(async (route: string) => {
+      if (route === 'file.batch_create_internal_entries') {
+        return {
+          succeeded: [
+            { id: 'entry-1', sourceRef: '#0' },
+            { id: 'entry-2', sourceRef: '#1' }
+          ],
+          failed: []
+        }
+      }
+      if (route === 'file.batch_get_physical_paths') {
+        return { 'entry-1': '/files/entry-1.txt', 'entry-2': '/files/entry-2.mp4' }
+      }
+      throw new Error(`unexpected ipc route ${route}`)
+    })
+
+    const content = JSON.stringify(
+      buildCherryTopicFile({
+        topic: { name: 'With media' },
+        messages: [
+          makeMessage({
+            id: 'u1',
+            role: 'user',
+            parentId: 'root-1',
+            data: {
+              parts: [
+                { type: 'text', text: 'look' },
+                {
+                  type: 'file',
+                  url: 'data:text/plain;base64,aGVsbG8=',
+                  filename: 'notes.txt',
+                  mediaType: 'text/plain'
+                },
+                { type: 'data-video', data: { url: 'data:video/mp4;base64,AAEC' } },
+                { type: 'file', url: 'https://example.com/remote.png', filename: 'remote.png', mediaType: 'image/png' }
+              ]
+            },
+            createdAt: '2026-01-01T00:00:01.000Z'
+          })
+        ],
+        activeNodeId: 'u1',
+        rootId: 'root-1',
+        exportedAt: '2026-02-01T00:00:00.000Z'
+      })
+    )
+
+    const response = await importService.importNativeTopic(content)
+
+    expect(response).toMatchObject({ success: true, topicsCount: 1, messagesCount: 1 })
+
+    // Embedded payloads become internal entries owned by the destination.
+    const createCall = ipcRequest.mock.calls.find((call) => call[0] === 'file.batch_create_internal_entries')
+    expect(createCall?.[1]).toEqual({
+      items: [
+        {
+          source: 'bytes',
+          data: new Uint8Array([104, 101, 108, 108, 111]),
+          name: 'notes.txt',
+          ext: 'txt',
+          cleanupPolicy: 'delete_when_unreferenced'
+        },
+        {
+          source: 'bytes',
+          data: new Uint8Array([0, 1, 2]),
+          name: 'video.mp4',
+          ext: 'mp4',
+          cleanupPolicy: 'delete_when_unreferenced'
+        }
+      ]
+    })
+    expect(ipcRequest).toHaveBeenCalledWith('file.batch_get_physical_paths', { ids: ['entry-1', 'entry-2'] })
+
+    // The persisted parts address the fresh destination entries, so rendering
+    // resolves a handle and continuation routes through text extraction.
+    const messageCalls = posts.filter((call) => call.path.includes('/messages'))
+    expect(messageCalls).toHaveLength(1)
+    expect(messageCalls[0]?.body.data.parts).toEqual([
+      { type: 'text', text: 'look' },
+      {
+        type: 'file',
+        url: 'file:///files/entry-1.txt',
+        filename: 'notes.txt',
+        mediaType: 'text/plain',
+        providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
+      },
+      { type: 'data-video', data: { filePath: '/files/entry-2.mp4' } },
+      { type: 'file', url: 'https://example.com/remote.png', filename: 'remote.png', mediaType: 'image/png' }
+    ])
+    expect(toast.warning).not.toHaveBeenCalled()
+  })
+
+  it('drops embedded media that fails to restore and warns instead of persisting it', async () => {
+    const posts: { path: string; body: any }[] = []
+    let seq = 0
+    vi.mocked(dataApiService.post).mockImplementation(async (path: string, options: any) => {
+      const returnedId = path === '/topics' ? 'new-topic' : `msg_${++seq}`
+      posts.push({ path, body: options?.body })
+      return { id: returnedId }
+    })
+    vi.mocked(dataApiService.put).mockResolvedValue({ activeNodeId: 'x' })
+    vi.mocked(dataApiService.patch).mockResolvedValue({})
+    ipcRequest.mockImplementation(async (route: string) => {
+      if (route === 'file.batch_create_internal_entries') {
+        return { succeeded: [], failed: [{ sourceRef: '#0', error: 'disk full' }] }
+      }
+      if (route === 'file.batch_get_physical_paths') return {}
+      throw new Error(`unexpected ipc route ${route}`)
+    })
+
+    const content = JSON.stringify(
+      buildCherryTopicFile({
+        topic: { name: 'Failing media' },
+        messages: [
+          makeMessage({
+            id: 'u1',
+            role: 'user',
+            parentId: 'root-1',
+            data: {
+              parts: [
+                { type: 'text', text: 'look' },
+                {
+                  type: 'file',
+                  url: 'data:text/plain;base64,aGVsbG8=',
+                  filename: 'notes.txt',
+                  mediaType: 'text/plain'
+                }
+              ]
+            },
+            createdAt: '2026-01-01T00:00:01.000Z'
+          })
+        ],
+        activeNodeId: 'u1',
+        rootId: 'root-1',
+        exportedAt: '2026-02-01T00:00:00.000Z'
+      })
+    )
+
+    const response = await importService.importNativeTopic(content)
+
+    expect(response.success).toBe(true)
+    const messageCalls = posts.filter((call) => call.path.includes('/messages'))
+    expect(messageCalls[0]?.body.data.parts).toEqual([{ type: 'text', text: 'look' }])
+    expect(toast.warning).toHaveBeenCalledWith('import.cherry.skipped_attachments')
+  })
+
+  it('drops embedded media when the restore IPC throws instead of aborting the import', async () => {
+    const posts: { path: string; body: any }[] = []
+    let seq = 0
+    vi.mocked(dataApiService.post).mockImplementation(async (path: string, options: any) => {
+      const returnedId = path === '/topics' ? 'new-topic' : `msg_${++seq}`
+      posts.push({ path, body: options?.body })
+      return { id: returnedId }
+    })
+    vi.mocked(dataApiService.put).mockResolvedValue({ activeNodeId: 'x' })
+    vi.mocked(dataApiService.patch).mockResolvedValue({})
+    ipcRequest.mockImplementation(async (route: string) => {
+      if (route === 'file.batch_create_internal_entries') {
+        throw new IpcError('INTERNAL', 'worker gone')
+      }
+      throw new Error(`unexpected ipc route ${route}`)
+    })
+
+    const content = JSON.stringify(
+      buildCherryTopicFile({
+        topic: { name: 'IPC failure' },
+        messages: [
+          makeMessage({
+            id: 'u1',
+            role: 'user',
+            parentId: 'root-1',
+            data: {
+              parts: [
+                { type: 'text', text: 'look' },
+                {
+                  type: 'file',
+                  url: 'data:text/plain;base64,aGVsbG8=',
+                  filename: 'notes.txt',
+                  mediaType: 'text/plain'
+                },
+                {
+                  type: 'data-video',
+                  data: { url: 'data:video/mp4;base64,AAAAIGZ0eXA=' }
+                }
+              ]
+            },
+            createdAt: '2026-01-01T00:00:01.000Z'
+          })
+        ],
+        activeNodeId: 'u1',
+        rootId: 'root-1',
+        exportedAt: '2026-02-01T00:00:00.000Z'
+      })
+    )
+
+    const response = await importService.importNativeTopic(content)
+
+    expect(response.success).toBe(true)
+    const messageCalls = posts.filter((call) => call.path.includes('/messages'))
+    expect(messageCalls[0]?.body.data.parts).toEqual([{ type: 'text', text: 'look' }])
+    expect(toast.warning).toHaveBeenCalledWith('import.cherry.skipped_attachments')
   })
 
   it('removes the created topic when persisting fails midway', async () => {

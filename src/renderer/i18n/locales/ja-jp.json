@@ -1768,6 +1768,7 @@
   "import.cherry.help.title": "Cherry Studioのトピックをエクスポートするには？",
   "import.cherry.importing": "トピックをインポート中...",
   "import.cherry.selecting": "ファイルを選択中...",
+  "import.cherry.skipped_attachments": "復元できなかった添付ファイルを{{count}}件スキップしました",
   "import.cherry.success": "トピックをインポートしました（{{messages}}件のメッセージ）",
   "import.cherry.title": "Cherry Studioトピックのインポート",
   "import.cherry.untitled_conversation": "無題のトピック",

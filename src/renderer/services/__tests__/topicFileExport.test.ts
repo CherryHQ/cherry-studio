@@ -400,6 +400,59 @@ describe('topicFileExport', () => {
       }
     })
 
+    it('inlines a local data-video part as a portable data url instead of exporting its source path', async () => {
+      ipcRequest.mockImplementation(async (route: string) => {
+        if (route === 'file.get_metadata') return { kind: 'file', size: 3 }
+        return { content: new Uint8Array([1, 2, 3]), mime: 'video/mp4' }
+      })
+      const restore = withU1Parts([{ type: 'data-video', data: { filePath: '/tmp/clip.mp4' } }])
+      try {
+        const file = await collectTopicFileData('topic-1')
+
+        const parts = file.messages.find((message) => message.sourceId === 'u1')?.parts
+        expect(parts).toEqual([{ type: 'data-video', data: { url: 'data:video/mp4;base64,AQID' } }])
+        expect(validateCherryTopicFileContent(JSON.stringify(file))).toBe(true)
+        expect(toast.warning).not.toHaveBeenCalled()
+      } finally {
+        restore()
+      }
+    })
+
+    it('drops an over-limit local video rather than exporting its source path', async () => {
+      ipcRequest.mockImplementation(async (route: string) => {
+        if (route === 'file.get_metadata') return { kind: 'file', size: 11 * 1024 * 1024 }
+        throw new Error('file.read must not be called for over-limit videos')
+      })
+      const restore = withU1Parts([{ type: 'data-video', data: { filePath: '/tmp/huge.mp4' } }])
+      try {
+        const file = await collectTopicFileData('topic-1')
+
+        expect(ipcRequest).not.toHaveBeenCalledWith('file.read', expect.anything())
+        const parts = file.messages.find((message) => message.sourceId === 'u1')?.parts
+        expect(parts).toEqual([])
+        expect(toast.warning).toHaveBeenCalledWith('chat.topics.export.topic_file_skipped_attachments')
+      } finally {
+        restore()
+      }
+    })
+
+    it('drops an unreadable local video and keeps the source path out of the file', async () => {
+      ipcRequest.mockImplementation(async (route: string) => {
+        if (route === 'file.get_metadata') return { kind: 'file', size: 3 }
+        throw new Error('gone')
+      })
+      const restore = withU1Parts([{ type: 'data-video', data: { filePath: '/tmp/gone.mp4' } }])
+      try {
+        const file = await collectTopicFileData('topic-1')
+
+        const parts = file.messages.find((message) => message.sourceId === 'u1')?.parts
+        expect(parts).toEqual([])
+        expect(toast.warning).toHaveBeenCalledWith('chat.topics.export.topic_file_skipped_attachments')
+      } finally {
+        restore()
+      }
+    })
+
     it('drops unreadable attachments and warns instead of losing them silently', async () => {
       ipcRequest.mockImplementation(async (route: string) => {
         if (route === 'file.get_metadata') return { kind: 'file', size: 3 }

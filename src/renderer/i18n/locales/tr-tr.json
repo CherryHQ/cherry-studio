@@ -1768,6 +1768,7 @@
   "import.cherry.help.title": "Cherry Studio konusu nasıl dışa aktarılır?",
   "import.cherry.importing": "Konu içe aktarılıyor...",
   "import.cherry.selecting": "Dosya seçiliyor...",
+  "import.cherry.skipped_attachments": "Geri yüklenemeyen {{count}} ek atlandı",
   "import.cherry.success": "Konu başarıyla içe aktarıldı ({{messages}} ileti)",
   "import.cherry.title": "Cherry Studio Konusu İçe Aktar",
   "import.cherry.untitled_conversation": "Başlıksız Konu",

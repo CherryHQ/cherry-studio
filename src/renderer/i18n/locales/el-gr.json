@@ -1768,6 +1768,7 @@
   "import.cherry.help.title": "Πώς να εξαγάγω ένα θέμα του Cherry Studio;",
   "import.cherry.importing": "Γίνεται εισαγωγή θέματος...",
   "import.cherry.selecting": "Γίνεται επιλογή αρχείου...",
+  "import.cherry.skipped_attachments": "Παραλείφθηκαν {{count}} συνημμένα που δεν ήταν δυνατό να αποκατασταθούν",
   "import.cherry.success": "Το θέμα εισήχθη με επιτυχία με {{messages}} μηνύματα",
   "import.cherry.title": "Εισαγωγή θέματος Cherry Studio",
   "import.cherry.untitled_conversation": "Θέμα χωρίς τίτλο",
