@@ -149,6 +149,14 @@ vi.mock('@renderer/services/NotesService', () => ({
   addNote: vi.fn()
 }))
 
+const notesMigrationLocked = vi.hoisted(() => ({ value: false }))
+
+vi.mock('@renderer/services/notesMigrationLock', () => ({
+  notesMigrationLock: {
+    isLocked: () => notesMigrationLocked.value
+  }
+}))
+
 // PreferenceService is now mocked globally in tests/renderer.setup.ts
 
 vi.mock('@renderer/utils/markdown', async (importOriginal) => {
@@ -916,6 +924,7 @@ describe('ExportService', () => {
   describe('exportTopicToNotes', () => {
     beforeEach(() => {
       vi.clearAllMocks()
+      notesMigrationLocked.value = false
       vi.mocked(addNote).mockResolvedValue({ path: '/notes/Topic (1).md', name: 'Topic (1)' })
     })
 
@@ -947,6 +956,21 @@ describe('ExportService', () => {
       await expect(exportContentToNotes('Topic', 'Synthetic content', '/notes')).rejects.toThrow('Write failed')
       expect(toast.success).not.toHaveBeenCalled()
       expect(toast.error).toHaveBeenCalledWith('message.error.notes.export')
+    })
+
+    it('refuses to write while notes directory migration holds the edit lock', async () => {
+      notesMigrationLocked.value = true
+      const testTopic = createTopic({
+        id: 'topic_migration_lock',
+        name: 'Locked',
+        assistantId: 'asst_test'
+      })
+      ;(getTopicMessages as any).mockResolvedValue([])
+
+      await expect(exportTopicToNotes(testTopic, '/notes')).rejects.toThrow(/migration is in progress/i)
+
+      expect(addNote).not.toHaveBeenCalled()
+      expect(toast.error).toHaveBeenCalledWith('settings.data.notes_relocation.error.migration_in_progress')
     })
 
     it('logs and toasts when topic markdown generation fails', async () => {

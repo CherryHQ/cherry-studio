@@ -20,6 +20,13 @@ export const entries: SettingsSearchEntry[] = [
     groupKey: 'settings.data.title'
   },
   {
+    anchorId: 'data-notes-data',
+    titleKey: 'settings.data.notes_data.label',
+    panel: 'data',
+    groupKey: 'settings.data.data.title',
+    aliases: ['notes directory', '笔记目录', 'migrate notes']
+  },
+  {
     anchorId: 'data-app-data',
     titleKey: 'settings.data.app_data.label',
     panel: 'data',

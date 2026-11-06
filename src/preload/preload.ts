@@ -111,6 +111,9 @@ const api = {
     createTempFile: (fileName: string): Promise<string> => ipcRenderer.invoke(IpcChannel.File_CreateTempFile, fileName),
     mkdir: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_Mkdir, dirPath),
     write: (filePath: string, data: Uint8Array | string) => ipcRenderer.invoke(IpcChannel.File_Write, filePath, data),
+    exportWrite: (filePath: string, data: Uint8Array | string) =>
+      ipcRenderer.invoke(IpcChannel.File_ExportWrite, filePath, data),
+    exportMkdir: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_ExportMkdir, dirPath),
     open: (options?: OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.File_Open, options),
     save: (path: string, content: string | NodeJS.ArrayBufferView, options?: any): Promise<string | null> =>
       ipcRenderer.invoke(IpcChannel.File_Save, path, content, options),

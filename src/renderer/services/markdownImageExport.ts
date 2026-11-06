@@ -405,12 +405,19 @@ export async function writeImageAssets(dirPath: string, pendingWrites: PendingIm
   if (pendingWrites.length === 0) return []
   // Root directories ('/a.md' → '/', 'C:\a.md' → 'C:\') already end in the separator.
   const assetsDir = /[\\/]$/.test(dirPath) ? `${dirPath}assets` : `${dirPath}/assets`
+  // The copy branch needs the assets directory to exist up front: file://
+  // sources move through file.copy, which does not create parents. exportMkdir
+  // is the export-compatible route (managed-storage and migration barriers
+  // apply; the retired-root guard does not). If the directory cannot be
+  // created, every image counts as failed - the caller strips their links and
+  // the already-written .md is never removed.
   try {
-    await window.api.file.mkdir(assetsDir)
+    await window.api.file.exportMkdir(assetsDir)
   } catch (error) {
-    // The .md is already saved; report every image as failed so the caller
-    // repairs the links instead of surfacing a whole-export error.
-    logger.warn('Failed to create the assets directory, skipping image writes', { assetsDir, error })
+    logger.warn('Failed to create the export assets directory; reporting every image as failed', {
+      assetsDir,
+      error
+    })
     return pendingWrites.map(({ fileName }) => fileName)
   }
   const failed: string[] = []
@@ -426,7 +433,7 @@ export async function writeImageAssets(dirPath: string, pendingWrites: PendingIm
       } else {
         const blob = await getImageBlobFromSource(ref.url)
         const bytes = new Uint8Array(await blob.arrayBuffer())
-        await window.api.file.write(`${assetsDir}/${fileName}`, bytes)
+        await window.api.file.exportWrite(`${assetsDir}/${fileName}`, bytes)
       }
     } catch (error) {
       failed.push(fileName)

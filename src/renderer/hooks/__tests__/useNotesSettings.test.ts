@@ -74,7 +74,7 @@ describe('useNotesSettings', () => {
     const { result } = renderHook(() => useNotesSettings())
 
     await act(async () => {
-      result.current.updateNotesPath('/notes')
+      await result.current.updateNotesPath('/notes')
       result.current.updateSortType('sort_updated_desc')
       await Promise.resolve()
     })

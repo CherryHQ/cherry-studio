@@ -122,6 +122,8 @@ export async function registerIpc() {
   handleGuarded(IpcChannel.File_CreateTempFile, fileManager.createTempFile.bind(fileManager))
   handleGuarded(IpcChannel.File_Mkdir, fileManager.mkdir.bind(fileManager))
   handleGuarded(IpcChannel.File_Write, fileManager.writeFile.bind(fileManager))
+  handleGuarded(IpcChannel.File_ExportWrite, fileManager.exportWrite.bind(fileManager))
+  handleGuarded(IpcChannel.File_ExportMkdir, fileManager.exportMkdir.bind(fileManager))
   handleGuarded(IpcChannel.File_SaveImage, fileManager.saveImage.bind(fileManager))
   handleGuarded(IpcChannel.File_BinaryImage, fileManager.binaryImage.bind(fileManager))
   handleGuarded(IpcChannel.File_ListDirectory, (_e, dirPath, options) => searchListDirectory(dirPath, options))

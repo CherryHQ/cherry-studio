@@ -9,7 +9,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { BaseService } from '@main/core/lifecycle'
+import { PreferenceService } from '@main/data/PreferenceService'
+import {
+  clearNotesMigrationPairsForTests,
+  releaseNotesMigrationSession,
+  setNotesMigrationBlockedRoots,
+  waitForNotesFilesystemMutationsIdle,
+  isNotesRootFlipInFlight
+} from '@main/services/notesRelocation'
 import { hashContent } from '@main/utils/file'
+import type * as FileUtils from '@main/utils/file'
 import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
@@ -17,6 +26,21 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { FileEditService } from '../FileEditService'
 import { FileManager } from '../FileManager'
 import { runPathMutationExclusive } from '../pathMutationLock'
+
+vi.unmock('@main/data/PreferenceService')
+
+const atomicWriteGate = vi.hoisted(() => ({ gate: undefined as Promise<void> | undefined, entered: false }))
+vi.mock('@main/utils/file', async (importOriginal) => {
+  const mod = await importOriginal<typeof FileUtils>()
+  return {
+    ...mod,
+    atomicWriteIfUnchanged: async (...args: Parameters<typeof mod.atomicWriteIfUnchanged>) => {
+      atomicWriteGate.entered = true
+      await atomicWriteGate.gate
+      return mod.atomicWriteIfUnchanged(...args)
+    }
+  }
+})
 
 const bytes = (text: string) => new TextEncoder().encode(text)
 
@@ -41,6 +65,8 @@ describe('FileEditService persistence contract', () => {
     service = new FileEditService()
     await service._doInit()
     handles = []
+    atomicWriteGate.gate = undefined
+    atomicWriteGate.entered = false
   })
 
   afterEach(async () => {
@@ -352,5 +378,216 @@ describe('FileEditService persistence contract', () => {
     await expect(readFile(resource.path)).rejects.toMatchObject({ code: 'ENOENT' })
     await writeFile(resource.path, Buffer.alloc(8 * 1024 * 1024 + 1))
     await expect(service.read(owner, resource.editId)).rejects.toMatchObject({ code: fileErrorCodes.EDIT_UNSUPPORTED })
+  })
+
+  describe('notes migration barrier', () => {
+    let blockedTarget: string
+
+    beforeEach(async () => {
+      blockedTarget = path.join(root, 'migration-target')
+      await mkdir(blockedTarget)
+      MockApplicationUtils.setService('IpcApiService', { broadcast: vi.fn(), send: vi.fn() })
+      // Canonical release classification reads the configured notes root with
+      // provenance; default this suite to "source still configured" so a
+      // released barrier lifts cleanly.
+      MockApplicationUtils.setService('PreferenceService', {
+        getWithProvenance: vi.fn(() => ({ value: root, provenance: 'cache' }))
+      })
+      // The outer getPath spy maps every app dir to root, which makes root a
+      // protected directory for the classifier's allowed-notes-dir check; point
+      // the protected probes at subdirs so the temp notes root stays classifiable.
+      vi.spyOn(application, 'getPath').mockImplementation((key, filename) => {
+        const base =
+          key === 'feature.files.data'
+            ? path.join(root, 'managed')
+            : key === 'sys.appdata' || key === 'feature.notes.data'
+              ? path.join(root, key === 'sys.appdata' ? 'appdata' : 'default-notes')
+              : root
+        return filename ? path.join(base, filename) : base
+      })
+    })
+
+    afterEach(() => {
+      releaseNotesMigrationSession()
+      clearNotesMigrationPairsForTests()
+    })
+
+    it('refuses to open a lease under a blocked notes root', async () => {
+      setNotesMigrationBlockedRoots(root, blockedTarget)
+      await expect(open()).rejects.toMatchObject({ code: fileErrorCodes.EDIT_MIGRATION_BLOCKED })
+    })
+
+    it('refuses a write at the barrier and leaves the on-disk bytes untouched', async () => {
+      const { resource, snapshot } = await open()
+      setNotesMigrationBlockedRoots(root, blockedTarget)
+      await expect(
+        service.write(owner, { editId: resource.editId, expected: snapshot.baseline, data: bytes('dirty') })
+      ).rejects.toMatchObject({ code: fileErrorCodes.EDIT_MIGRATION_BLOCKED })
+      await expect(readFile(resource.path, 'utf-8')).resolves.toBe('base')
+    })
+
+    it('drains an in-flight notes write before committing a plain notes-root flip', async () => {
+      // No migration involved: a plain feature.notes.path preference update
+      // must wait for the mutation drain, so an in-flight write linearizes
+      // BEFORE the flip instead of committing into the retired tree after it.
+      const prefs = new PreferenceService()
+      await prefs._doInit()
+      MockApplicationUtils.setService('PreferenceService', prefs)
+      const elsewhere = await mkdtemp(path.join(tmpdir(), 'notes-flip-target-'))
+      const gate = Promise.withResolvers<void>()
+      atomicWriteGate.gate = gate.promise
+      const { resource, snapshot } = await open()
+
+      const writing = service.write(owner, {
+        editId: resource.editId,
+        expected: snapshot.baseline,
+        data: bytes('in-flight')
+      })
+      await vi.waitFor(() => expect(atomicWriteGate.entered).toBe(true))
+
+      let flipped = false
+      const flipping = prefs.set('feature.notes.path', elsewhere).then(() => {
+        flipped = true
+      })
+      // Deterministic: while the gate holds, a mutation is counted, so the
+      // flip's drain can never resolve and its commit cannot run.
+      await vi.waitFor(() => expect(isNotesRootFlipInFlight()).toBe(true))
+      expect(prefs.get('feature.notes.path')).not.toBe(elsewhere)
+      // A write admitted during the flip is REFUSED, never slipped into the
+      // gap between the drain resolving and the preference commit.
+      await expect(
+        service.write(owner, { editId: resource.editId, expected: snapshot.baseline, data: bytes('gap') })
+      ).rejects.toThrow(/migration is in progress/)
+
+      gate.resolve()
+      await writing
+      await flipping
+      expect(flipped).toBe(true)
+      expect(prefs.get('feature.notes.path')).toBe(elsewhere)
+      // The write linearized before the flip: its bytes are on disk.
+      await expect(readFile(resource.path, 'utf-8')).resolves.toBe('in-flight')
+      await prefs._doDestroy()
+    })
+
+    it('counts an in-flight edit write in the pre-barrier drain', async () => {
+      const gate = Promise.withResolvers<void>()
+      atomicWriteGate.gate = gate.promise
+      const { resource, snapshot } = await open()
+      const writing = service.write(owner, {
+        editId: resource.editId,
+        expected: snapshot.baseline,
+        data: bytes('in-flight')
+      })
+      await vi.waitFor(() => expect(atomicWriteGate.entered).toBe(true))
+      let drained = false
+      void waitForNotesFilesystemMutationsIdle().then(() => {
+        drained = true
+      })
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(drained).toBe(false)
+      gate.resolve()
+      await writing
+      await waitForNotesFilesystemMutationsIdle()
+      expect(drained).toBe(true)
+    })
+
+    it('writes again once the migration session releases', async () => {
+      const { resource, snapshot } = await open()
+      setNotesMigrationBlockedRoots(root, blockedTarget)
+      await expect(
+        service.write(owner, { editId: resource.editId, expected: snapshot.baseline, data: bytes('dirty') })
+      ).rejects.toMatchObject({ code: fileErrorCodes.EDIT_MIGRATION_BLOCKED })
+      releaseNotesMigrationSession()
+      await service.write(owner, { editId: resource.editId, expected: snapshot.baseline, data: bytes('dirty') })
+      await expect(readFile(resource.path, 'utf-8')).resolves.toBe('dirty')
+    })
+
+    it('retires the source root once the release resolves target-active', async () => {
+      const { resource, snapshot } = await open()
+      setNotesMigrationBlockedRoots(root, blockedTarget)
+      MockApplicationUtils.setService('PreferenceService', {
+        getWithProvenance: vi.fn(() => ({ value: blockedTarget, provenance: 'cache' }))
+      })
+      releaseNotesMigrationSession()
+      await expect(
+        service.write(owner, { editId: resource.editId, expected: snapshot.baseline, data: bytes('dirty') })
+      ).rejects.toMatchObject({ code: fileErrorCodes.EDIT_RETIRED_ROOT })
+      await expect(open()).rejects.toMatchObject({ code: fileErrorCodes.EDIT_RETIRED_ROOT })
+      await expect(readFile(resource.path, 'utf-8')).resolves.toBe('base')
+    })
+
+    it('keeps entry-kind external refs under a retired root openable', async () => {
+      const files = application.get('FileManager')
+      const target = AbsoluteFilePathSchema.parse(path.join(root, 'external.md'))
+      await writeFile(target, 'external')
+      const entry = await files.ensureExternalEntry({ externalPath: target, cleanupPolicy: 'manual' })
+      setNotesMigrationBlockedRoots(root, blockedTarget)
+      MockApplicationUtils.setService('PreferenceService', {
+        getWithProvenance: vi.fn(() => ({ value: blockedTarget, provenance: 'cache' }))
+      })
+      releaseNotesMigrationSession()
+      const { resource, snapshot } = await open({ kind: 'entry', entryId: entry.id })
+      expect(Buffer.from(snapshot.data).toString()).toBe('external')
+      await service.close(owner, resource.editId)
+    })
+
+    it('retires the source when the preference flip lands after a source-active release', async () => {
+      const preference = { read: { value: root, provenance: 'cache' } }
+      MockApplicationUtils.setService('PreferenceService', {
+        getWithProvenance: vi.fn(() => preference.read)
+      })
+      const { resource, snapshot } = await open()
+      setNotesMigrationBlockedRoots(root, blockedTarget)
+      releaseNotesMigrationSession()
+      // The barrier lifted source-active; a write lands while source is current.
+      await service.write(owner, { editId: resource.editId, expected: snapshot.baseline, data: bytes('dirty') })
+
+      // The renderer's flip arrives late: the very next write to the old root
+      // must refuse instead of silently orphaning into the retired copy.
+      preference.read = { value: blockedTarget, provenance: 'cache' }
+      const afterLateFlip = await service.read(owner, resource.editId)
+      await expect(
+        service.write(owner, { editId: resource.editId, expected: afterLateFlip.baseline, data: bytes('later') })
+      ).rejects.toMatchObject({ code: fileErrorCodes.EDIT_RETIRED_ROOT })
+      await expect(readFile(resource.path, 'utf-8')).resolves.toBe('dirty')
+    })
+
+    it('accepts edits again once an unresolved release resolves source-active', async () => {
+      const preference = { read: { value: '', provenance: 'not-ready' } }
+      MockApplicationUtils.setService('PreferenceService', {
+        getWithProvenance: vi.fn(() => preference.read)
+      })
+      const { resource, snapshot } = await open()
+      setNotesMigrationBlockedRoots(root, blockedTarget)
+      releaseNotesMigrationSession()
+      await expect(
+        service.write(owner, { editId: resource.editId, expected: snapshot.baseline, data: bytes('dirty') })
+      ).rejects.toMatchObject({ code: fileErrorCodes.EDIT_ROOT_UNRESOLVED })
+
+      // Recovery by reopen once the canonical root resolves: the draft was
+      // never silently written and the root accepts edits again.
+      preference.read = { value: root, provenance: 'cache' }
+      const reopened = await service.read(owner, resource.editId)
+      await service.write(owner, { editId: resource.editId, expected: reopened.baseline, data: bytes('dirty') })
+      await expect(readFile(resource.path, 'utf-8')).resolves.toBe('dirty')
+    })
+
+    it('closes loud under both roots when the release cannot resolve the configured root', async () => {
+      const { resource, snapshot } = await open()
+      const orphanPath = path.join(blockedTarget, 'orphan.md')
+      await writeFile(orphanPath, 'orphan')
+      setNotesMigrationBlockedRoots(root, blockedTarget)
+      MockApplicationUtils.setService('PreferenceService', {
+        getWithProvenance: vi.fn(() => ({ value: '', provenance: 'not-ready' }))
+      })
+      releaseNotesMigrationSession()
+      // Unresolved is NOT a retirement: its own honest code, no "moved" claim.
+      await expect(
+        service.write(owner, { editId: resource.editId, expected: snapshot.baseline, data: bytes('dirty') })
+      ).rejects.toMatchObject({ code: fileErrorCodes.EDIT_ROOT_UNRESOLVED })
+      await expect(open({ kind: 'path', path: AbsoluteFilePathSchema.parse(orphanPath) })).rejects.toMatchObject({
+        code: fileErrorCodes.EDIT_ROOT_UNRESOLVED
+      })
+    })
   })
 })

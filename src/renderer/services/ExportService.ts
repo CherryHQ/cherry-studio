@@ -19,6 +19,7 @@ import { getProviderLabelKey } from '@renderer/i18n/label'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
+import { notesMigrationLock } from '@renderer/services/notesMigrationLock'
 import { addNote } from '@renderer/services/NotesService'
 import { toast } from '@renderer/services/toast'
 import type {
@@ -500,7 +501,7 @@ export const exportMarkdownContentAsFile = async (title: string, markdown: strin
     try {
       const timestamp = dayjs().format('YYYY-MM-DD-HH-mm-ss')
       const fileName = removeSpecialCharactersForFileName(title) + ` ${timestamp}.md`
-      await window.api.file.write(markdownExportPath + '/' + fileName, markdown)
+      await window.api.file.exportWrite(markdownExportPath + '/' + fileName, markdown)
       toast.success(i18n.t('message.success.markdown.export.preconf'))
     } catch (error: any) {
       toast.error(i18n.t('message.error.markdown.export.preconf'))
@@ -690,7 +691,7 @@ export const exportTopicAsMarkdown = async (
       )
       if (!built) return
       const mdPath = markdownExportPath + '/' + fileName
-      await window.api.file.write(mdPath, built.markdown)
+      await window.api.file.exportWrite(mdPath, built.markdown)
       await exportImageAssets(mdPath, built.markdown, built.pendingWrites)
       toast.success(i18n.t('message.success.markdown.export.preconf'))
     } catch (error: any) {
@@ -742,7 +743,7 @@ export const exportMessagesAsMarkdown = async (
       ? markdownExportPath + '/' + fileName
       : await window.api.file.save(fileName, built.markdown)
     if (!filePath) return false
-    if (markdownExportPath) await window.api.file.write(filePath, built.markdown)
+    if (markdownExportPath) await window.api.file.exportWrite(filePath, built.markdown)
     await exportImageAssets(filePath, built.markdown, built.pendingWrites)
     toast.success(
       i18n.t(
@@ -1512,6 +1513,10 @@ async function createSiyuanDoc(
 }
 
 const saveContentToNotes = async (title: string, content: string, folderPath: string): Promise<void> => {
+  if (notesMigrationLock.isLocked()) {
+    toast.error(i18n.t('settings.data.notes_relocation.error.migration_in_progress'))
+    throw new Error('Notes directory migration is in progress')
+  }
   const { path } = await addNote(title, content, folderPath)
 
   toast.success({

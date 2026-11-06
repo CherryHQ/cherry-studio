@@ -15,6 +15,7 @@ import { VoicePlaybackHost } from '@renderer/components/VoicePlaybackHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useAutoReadPreferenceSync } from '@renderer/hooks/useAutoReadPreferenceSync'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
+import { NotesMigrationHost } from '@renderer/pages/notes/NotesMigrationHost'
 import { registerImageModeChooser } from '@renderer/services/imageExportModeChooser'
 import { SubWindowAppShell } from '@renderer/windows/subWindow/SubWindowAppShell'
 import { WindowFileEditRecovery } from '@renderer/windows/WindowFileEditRecovery'
@@ -46,6 +47,7 @@ function SubWindowApp(): React.ReactElement {
       <ThemeProvider>
         <CodeStyleProvider>
           <FileEditSessionProvider>
+            <NotesMigrationHost />
             <CommandContextKeyProvider>
               <CommandProvider>
                 <TabsProvider initialDefaultTab={null} includePinnedTabs={false}>

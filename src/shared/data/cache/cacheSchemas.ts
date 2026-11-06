@@ -157,6 +157,7 @@ export type UseCacheSchema = {
 
   // Notes page state
   'notes.active_file_path': AbsoluteFilePath | undefined
+  'notes.active_file_root': AbsoluteFilePath | undefined
 
   // MiniApp management
   'mini_app.detected_region': MiniAppRegion | null
@@ -252,6 +253,7 @@ export const DefaultUseCache: UseCacheSchema = {
   'ui.window.agent.session.expansion.workdir': null,
   'knowledge.recall.search_queries': {},
   'notes.active_file_path': undefined,
+  'notes.active_file_root': undefined,
 
   // MiniApp management
   'mini_app.detected_region': null,
@@ -380,6 +382,12 @@ export type SharedCacheSchema = {
   // A file-processing task's latest state, main -> all windows. FileProcessingService rewrites it on
   // every change and lets only a terminal state expire; after that, ask `file_processing.get_task`.
   'file_processing.task.${taskId}': FileProcessingTask | null
+  /**
+   * Roots a notes library has occupied in this session, oldest first, ending at
+   * the live one. Lets a selection parked on any earlier root follow the library
+   * across several consecutive migrations.
+   */
+  'notes.directory_root_transition': { roots: string[] } | undefined
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {
@@ -425,7 +433,8 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'backup.auto_sync.state.${type}': null,
   'knowledge.item.directory_copy_progress.${itemId}': null,
   'knowledge.item.file_processing_progress.${itemId}': null,
-  'file_processing.task.${taskId}': null
+  'file_processing.task.${taskId}': null,
+  'notes.directory_root_transition': undefined
 }
 
 /**
