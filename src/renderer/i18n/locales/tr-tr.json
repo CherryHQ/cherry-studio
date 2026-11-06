@@ -3217,6 +3217,7 @@
   "preview.dialog": "İletişim Kutusunu Aç",
   "preview.flip_horizontal": "Yatay Çevir",
   "preview.flip_vertical": "Dikey Çevir",
+  "preview.image": "Görsel önizlemesi {{url}}",
   "preview.label": "Önizleme",
   "preview.next": "Sonraki Görsel",
   "preview.pan_down": "Aşağı Kaydır",

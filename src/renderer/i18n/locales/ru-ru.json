@@ -3217,6 +3217,7 @@
   "preview.dialog": "Открыть диалог",
   "preview.flip_horizontal": "Отразить по горизонтали",
   "preview.flip_vertical": "Отразить по вертикали",
+  "preview.image": "Предпросмотр изображения {{url}}",
   "preview.label": "Предварительный просмотр",
   "preview.next": "Следующее изображение",
   "preview.pan_down": "Переместить вниз",

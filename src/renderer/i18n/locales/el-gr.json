@@ -3217,6 +3217,7 @@
   "preview.dialog": "Άνοιγμα παραθύρου προεπισκόπησης",
   "preview.flip_horizontal": "Αναστροφή Οριζόντια",
   "preview.flip_vertical": "Αναστροφή Κάθετα",
+  "preview.image": "Προεπισκόπηση εικόνας {{url}}",
   "preview.label": "Προεπισκόπηση",
   "preview.next": "Επόμενη Εικόνα",
   "preview.pan_down": "Μετακίνηση προς τα κάτω",

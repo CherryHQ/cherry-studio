@@ -3217,6 +3217,7 @@
   "preview.dialog": "Ouvrir la fenêtre d'aperçu",
   "preview.flip_horizontal": "Retourner horizontalement",
   "preview.flip_vertical": "Retourner verticalement",
+  "preview.image": "Aperçu de l'image {{url}}",
   "preview.label": "Aperçu",
   "preview.next": "Image suivante",
   "preview.pan_down": "Déplacer vers le bas",

@@ -3217,6 +3217,7 @@
   "preview.dialog": "Abrir la ventana de vista previa",
   "preview.flip_horizontal": "Voltear horizontalmente",
   "preview.flip_vertical": "Voltear verticalmente",
+  "preview.image": "Vista previa de la imagen {{url}}",
   "preview.label": "Vista previa",
   "preview.next": "Siguiente Imagen",
   "preview.pan_down": "Mover hacia abajo",

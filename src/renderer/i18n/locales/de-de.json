@@ -3217,6 +3217,7 @@
   "preview.dialog": "Vorschaufenster öffnen",
   "preview.flip_horizontal": "Horizontal spiegeln",
   "preview.flip_vertical": "Vertikal spiegeln",
+  "preview.image": "Bildvorschau {{url}}",
   "preview.label": "Vorschau",
   "preview.next": "Nächstes Bild",
   "preview.pan_down": "Nach unten",

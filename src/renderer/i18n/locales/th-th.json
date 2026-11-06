@@ -3217,6 +3217,7 @@
   "preview.dialog": "เปิดกล่องโต้ตอบ",
   "preview.flip_horizontal": "พลิกแนวนอน",
   "preview.flip_vertical": "พลิกแนวตั้ง",
+  "preview.image": "แสดงตัวอย่างรูปภาพ {{url}}",
   "preview.label": "พรีวิว",
   "preview.next": "รูปภาพถัดไป",
   "preview.pan_down": "เลื่อนลง",
