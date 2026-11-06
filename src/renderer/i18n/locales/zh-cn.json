@@ -3333,6 +3333,7 @@
   "provider.radeon-cloud": "AMD GPU Cloud",
   "provider.silicon": "硅基流动",
   "provider.sophnet": "SophNet",
+  "provider.steadyrouter": "SteadyRouter",
   "provider.stepfun": "阶跃星辰",
   "provider.system": "系统OCR",
   "provider.tencent-cloud-ti": "腾讯云 TI",

@@ -150,6 +150,7 @@ import { meta as skyworkMeta } from './skywork/meta'
 import { meta as smitheryMeta } from './smithery/meta'
 import { meta as sophnetMeta } from './sophnet/meta'
 import { meta as stabilityMeta } from './stability/meta'
+import { meta as steadyrouterMeta } from './steadyrouter/meta'
 import { meta as stepMeta } from './step/meta'
 import { meta as streamlakeMeta } from './streamlake/meta'
 import { meta as sunoMeta } from './suno/meta'
@@ -325,6 +326,7 @@ export const PROVIDER_ICON_META_CATALOG = {
   smithery: smitheryMeta,
   sophnet: sophnetMeta,
   stability: stabilityMeta,
+  steadyrouter: steadyrouterMeta,
   step: stepMeta,
   streamlake: streamlakeMeta,
   suno: sunoMeta,
