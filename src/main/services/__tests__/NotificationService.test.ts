@@ -26,7 +26,10 @@ const mocks = vi.hoisted(() => ({
   }>,
   focusOrOpen: vi.fn(() => Promise.resolve()),
   getWindowInfosByType: vi.fn(),
+  badgePrefListener: undefined as (() => void) | undefined,
+  createFromBitmap: vi.fn((buffer: Buffer, options: unknown) => ({ buffer, options })),
   loggerError: vi.fn(),
+  setOverlayIcon: vi.fn(),
   loggerWarn: vi.fn(),
   preferenceGet: vi.fn(),
   preferenceValues: {} as Record<string, boolean>,
@@ -37,6 +40,8 @@ const mocks = vi.hoisted(() => ({
   subscribeMultipleChanges: vi.fn(),
   topicGetById: vi.fn()
 }))
+
+vi.mock('@main/core/platform', () => ({ isWin: true }))
 
 vi.mock('@application', () => ({ application: { get: mocks.applicationGet } }))
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -58,6 +63,9 @@ vi.mock('@main/i18n', () => ({
     })[key] ?? key
 }))
 vi.mock('electron', () => ({
+  nativeImage: {
+    createFromBitmap: (...args: Parameters<typeof mocks.createFromBitmap>) => mocks.createFromBitmap(...args)
+  },
   app: {
     setBadgeCount: (...args: Parameters<typeof mocks.setBadgeCount>) => mocks.setBadgeCount(...args)
   },
@@ -160,11 +168,24 @@ describe('NotificationService', () => {
         }
       }
       if (name === 'ConversationNavigationService') return { focusOrOpen: mocks.focusOrOpen }
-      if (name === 'WindowManager') return { getWindowInfosByType: mocks.getWindowInfosByType }
+      if (name === 'WindowManager') {
+        return {
+          getWindowInfosByType: mocks.getWindowInfosByType,
+          getWindowsByType: () => [{ isDestroyed: () => false, setOverlayIcon: mocks.setOverlayIcon }],
+          onWindowCreatedByType: () => ({ dispose: vi.fn() })
+        }
+      }
       if (name === 'IpcApiService') return { send: mocks.send, broadcastToType: mocks.broadcastToType }
       if (name === 'MainWindowService') return { showMainWindow: mocks.showMainWindow }
       if (name === 'PreferenceService') {
-        return { get: mocks.preferenceGet, subscribeMultipleChanges: mocks.subscribeMultipleChanges }
+        return {
+          get: mocks.preferenceGet,
+          subscribeChange: (_key: string, listener: () => void) => {
+            mocks.badgePrefListener = listener
+            return { dispose: vi.fn() }
+          },
+          subscribeMultipleChanges: mocks.subscribeMultipleChanges
+        }
       }
       throw new Error(`Unexpected application.get(${name})`)
     })
@@ -173,6 +194,44 @@ describe('NotificationService', () => {
     // Init reads notification prefs for Dock-badge sync; action tests care about later calls only.
     mocks.preferenceGet.mockClear()
     mocks.setBadgeCount.mockClear()
+    mocks.setOverlayIcon.mockClear()
+  })
+
+  describe('Windows taskbar badge', () => {
+    const lastOverlay = () => mocks.setOverlayIcon.mock.calls.at(-1)
+
+    it('counts distinct conversations needing attention, not repeated events', () => {
+      emitCompletion({ topicId: 'topic-1', turnId: 'turn-1' })
+      emitApproval({ topicId: 'topic-1' })
+      expect(lastOverlay()?.[1]).toBe('notification.taskbar_badge.description')
+      expect(mocks.setOverlayIcon).toHaveBeenCalledTimes(1)
+
+      emitCompletion({ topicId: 'agent-session:session-1', turnId: 'turn-2' })
+      expect(mocks.setOverlayIcon).toHaveBeenCalledTimes(2)
+      expect(mocks.createFromBitmap).toHaveBeenCalledTimes(2)
+    })
+
+    it('clears only the viewed conversation and hides the badge when none remain', () => {
+      emitCompletion({ topicId: 'topic-1', turnId: 'turn-1' })
+      emitCompletion({ topicId: 'topic-2', turnId: 'turn-2' })
+
+      service.markConversationViewed({ conversationType: 'assistant', conversationId: 'topic-1' })
+      expect(lastOverlay()?.[0]).not.toBeNull()
+
+      service.markConversationViewed({ conversationType: 'assistant', conversationId: 'never-notified' })
+      const callsBefore = mocks.setOverlayIcon.mock.calls.length
+
+      service.markConversationViewed({ conversationType: 'assistant', conversationId: 'topic-2' })
+      expect(mocks.setOverlayIcon.mock.calls.length).toBe(callsBefore + 1)
+      expect(lastOverlay()).toEqual([null, ''])
+    })
+
+    it('hides the badge when the preference is disabled', () => {
+      emitCompletion()
+      mocks.preferenceValues['app.notification.taskbar_badge.enabled'] = false
+      mocks.badgePrefListener?.()
+      expect(lastOverlay()).toEqual([null, ''])
+    })
   })
 
   it('sends one presentation-ready event to the focused full-chrome window', () => {
@@ -205,7 +264,7 @@ describe('NotificationService', () => {
       meta: { conversationType: 'assistant', conversationId: 'topic-1' },
       source: 'assistant'
     })
-    expect(mocks.preferenceGet).not.toHaveBeenCalled()
+    expect(mocks.preferenceGet).not.toHaveBeenCalledWith('app.notification.assistant.enabled')
     expect(mocks.electronNotifications).toHaveLength(0)
   })
 
@@ -228,7 +287,7 @@ describe('NotificationService', () => {
       meta: { conversationType: 'assistant', conversationId: 'topic-1' },
       source: 'assistant'
     })
-    expect(mocks.preferenceGet).not.toHaveBeenCalled()
+    expect(mocks.preferenceGet).not.toHaveBeenCalledWith('app.notification.assistant.enabled')
     expect(mocks.electronNotifications).toHaveLength(0)
   })
 

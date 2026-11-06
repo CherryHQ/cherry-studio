@@ -5201,6 +5201,7 @@
   "settings.notification.backup": "バックアップメッセージ",
   "settings.notification.knowledge_embed": "ナレッジベースメッセージ",
   "settings.notification.mini_app": "ミニアプリの通知（すべてのミニアプリ）",
+  "settings.notification.taskbar_badge": "タスクバーの未読バッジ (Windows)",
   "settings.notification.title": "通知",
   "settings.notification.update": "アプリ更新",
   "settings.openai.title": "OpenAIの設定",

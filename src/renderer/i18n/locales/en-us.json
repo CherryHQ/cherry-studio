@@ -5201,6 +5201,7 @@
   "settings.notification.backup": "Backup Message",
   "settings.notification.knowledge_embed": "KnowledgeBase Message",
   "settings.notification.mini_app": "Mini App Notifications (all apps)",
+  "settings.notification.taskbar_badge": "Taskbar Unread Badge (Windows)",
   "settings.notification.title": "Notifications",
   "settings.notification.update": "App Update",
   "settings.openai.title": "OpenAI Settings",

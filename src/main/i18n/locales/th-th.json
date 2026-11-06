@@ -160,6 +160,7 @@
   "notification.action_required.assistant": "ผู้ช่วยต้องการข้อมูลจากคุณ",
   "notification.completion.agent": "งานของเอเจนต์เสร็จสมบูรณ์",
   "notification.completion.assistant": "การตอบสนองของผู้ช่วยเสร็จสมบูรณ์",
+  "notification.taskbar_badge.description": "{{count}} การสนทนาต้องการความสนใจของคุณ",
   "openclaw.errors.binary_incompatible": "ไบนารี OpenClaw ที่ Cherry Studio ใช้เข้ากันไม่ได้กับคอนฟิกที่สร้างขึ้น โปรดอัปเกรด OpenClaw{{details}}",
   "openclaw.errors.external_config_invalid": "OpenClaw ปฏิเสธคอนฟิกภายนอกส่วนที่ไม่ได้อยู่ในส่วนผู้ให้บริการที่ Cherry Studio จัดการ โปรดแก้ไขคอนฟิกนั้นหรืออัปเกรด OpenClaw{{details}}",
   "openclaw.errors.more_issues": "และอีก {{count}} ปัญหา",

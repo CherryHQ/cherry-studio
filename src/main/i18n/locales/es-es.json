@@ -160,6 +160,7 @@
   "notification.action_required.assistant": "El asistente necesita tu intervención",
   "notification.completion.agent": "Tarea del agente completada",
   "notification.completion.assistant": "Respuesta del asistente completada",
+  "notification.taskbar_badge.description": "{{count}} conversaciones requieren tu atención",
   "openclaw.errors.binary_incompatible": "El binario de OpenClaw que utiliza Cherry Studio no es compatible con la configuración generada. Actualiza OpenClaw.{{details}}",
   "openclaw.errors.external_config_invalid": "OpenClaw rechazó una configuración fuera de la sección de proveedores gestionada por Cherry Studio. Corrige esa configuración o actualiza OpenClaw.{{details}}",
   "openclaw.errors.more_issues": "y {{count}} problema(s) más",

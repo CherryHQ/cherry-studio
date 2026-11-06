@@ -17,3 +17,15 @@ export function findConversationTab(tabs: readonly Tab[], target: ConversationNa
       app.conversationRoute?.keyFromUrl(tab.url) === target.conversationId
   )
 }
+
+export function getConversationTargetFromTab(tab: Tab | undefined): ConversationNavigationTarget | undefined {
+  if (tab?.type !== 'route') return undefined
+
+  for (const conversationType of ['assistant', 'agent'] as const) {
+    const app = getSidebarApp(conversationType === 'agent' ? 'agents' : 'assistants')
+    const conversationId =
+      app?.conversationRoute && tabBelongsToApp(app, tab.url) ? app.conversationRoute.keyFromUrl(tab.url) : undefined
+    if (conversationId) return { conversationType, conversationId }
+  }
+  return undefined
+}

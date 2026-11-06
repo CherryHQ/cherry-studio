@@ -5201,6 +5201,7 @@
   "settings.notification.backup": "備份訊息",
   "settings.notification.knowledge_embed": "知識庫訊息",
   "settings.notification.mini_app": "小程式通知（所有小程式）",
+  "settings.notification.taskbar_badge": "工作列未讀徽章（Windows）",
   "settings.notification.title": "通知",
   "settings.notification.update": "應用程式更新",
   "settings.openai.title": "OpenAI 設定",

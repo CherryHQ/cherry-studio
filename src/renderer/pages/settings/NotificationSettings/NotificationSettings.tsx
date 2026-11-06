@@ -2,7 +2,7 @@ import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { InfoTooltip, Switch } from '@cherrystudio/ui'
-import { useMultiplePreferences } from '@data/hooks/usePreference'
+import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import {
   SettingDivider,
   SettingGroup,
@@ -13,6 +13,7 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import type { NotificationSource } from '@renderer/types/notification'
+import { isWin } from '@renderer/utils/platform'
 
 const NotificationSettings: FC = () => {
   const { t } = useTranslation()
@@ -25,6 +26,8 @@ const NotificationSettings: FC = () => {
     update: 'app.notification.update.enabled',
     'mini-app': 'app.notification.mini_app.enabled'
   })
+
+  const [taskbarBadgeEnabled, setTaskbarBadgeEnabled] = usePreference('app.notification.taskbar_badge.enabled')
 
   const handleNotificationChange = (type: NotificationSource, value: boolean) => {
     void setNotificationSettings({ [type]: value })
@@ -83,6 +86,19 @@ const NotificationSettings: FC = () => {
             onCheckedChange={(v) => handleNotificationChange('mini-app', v)}
           />
         </SettingRow>
+        {isWin && (
+          <>
+            <SettingDivider />
+            <SettingRow id="setting-notifications-taskbar-badge" className="scroll-mt-6">
+              <SettingRowTitle>{t('settings.notification.taskbar_badge')}</SettingRowTitle>
+              <Switch
+                aria-label={t('settings.notification.taskbar_badge')}
+                checked={taskbarBadgeEnabled}
+                onCheckedChange={(v) => void setTaskbarBadgeEnabled(v)}
+              />
+            </SettingRow>
+          </>
+        )}
       </SettingGroup>
     </SettingsContentColumn>
   )

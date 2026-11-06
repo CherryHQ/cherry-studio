@@ -3,6 +3,7 @@ import * as z from 'zod'
 import type { ConversationNotification, Notification } from '@shared/types/notification'
 
 import { defineRoute } from '../define'
+import { conversationNavigationTargetSchema } from './navigation'
 
 /**
  * Notification IPC schemas.
@@ -13,6 +14,9 @@ import { defineRoute } from '../define'
  * only the fields it renders. It is fully serializable: callbacks are not carried across IPC;
  * an 'action' notification uses the string `actionKey` instead (see @shared/types/notification).
  *
+ * Request `notification.mark_conversation_viewed`: the renderer reports that the user is looking at a
+ * conversation, clearing it from the unread set behind the Windows taskbar badge.
+ *
  * Event `notification.clicked`: fires when the user clicks an OS notification that is not handled
  * directly by the main process. NotificationService broadcasts the originating Notification back
  * to the renderer as the existing action-click dispatch seam.
@@ -22,7 +26,11 @@ import { defineRoute } from '../define'
  * main-owned.
  */
 export const notificationRequestSchemas = {
-  'notification.send': defineRoute({ input: z.custom<Notification>(), output: z.void() })
+  'notification.send': defineRoute({ input: z.custom<Notification>(), output: z.void() }),
+  'notification.mark_conversation_viewed': defineRoute({
+    input: conversationNavigationTargetSchema,
+    output: z.void()
+  })
 }
 
 export type NotificationEventSchemas = {
