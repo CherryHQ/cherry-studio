@@ -7,6 +7,7 @@ import { assistantDataService } from '@data/services/AssistantService'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
+import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
 import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
 import { buildMcpInstructionsContext } from '@main/ai/mcp/serverInstructions'
 import { collectMcpToolResources } from '@main/ai/messages/mcpToolResources'
@@ -79,7 +80,7 @@ import { resolveCapabilities } from './capabilities'
 import { collectFromFeatures, featureApplies } from './collectFromFeatures'
 import { createCustomParamsFetch, selectCustomBodyParameters } from './customParamsFetch'
 import type { RequestFeature } from './feature'
-import { hasAnchorRow } from './features/contextBuild'
+import { hasAnchorRow, slidingWindowFallbackActive } from './features/contextBuild'
 import { inLoopCompactionFeature } from './features/inLoopCompaction'
 import { INTERNAL_FEATURES } from './features/internalFeatures'
 import { type NativeFileSupport, resolveNativeFileSupport } from './nativeFileSupport'
@@ -343,10 +344,13 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
 
   const features = extraFeatures?.length ? [...INTERNAL_FEATURES, ...extraFeatures] : INTERNAL_FEATURES
   const contributions = collectFromFeatures(scope, features)
-  // `streamText` gates the `read_file` overflow tool on this: the compaction hook can
-  // fold a fully-inline attachment out of the prompt mid-loop, and the reader is then
-  // the model's only way back to the exact contents the summary dropped.
-  const inLoopCompactionActive = featureApplies(inLoopCompactionFeature, scope)
+  // `streamText` gates the `read_file` overflow tool on this: any context-reduction path that
+  // can fold or drop a fully-inline attachment mid-request leaves the reader as the model's only
+  // way back to the exact contents. That is the in-loop compaction hook (which contributes
+  // nothing without a known context window) or the no-LLM sliding-window fallback.
+  const inLoopCompactionActive =
+    (featureApplies(inLoopCompactionFeature, scope) && resolveContextWindow(model.contextWindow) !== null) ||
+    slidingWindowFallbackActive(scope)
 
   const mcpInstructions = buildMcpInstructionsContext(mcpServerIds)
   const system =

@@ -33,7 +33,8 @@ import {
   buildContextOptions,
   contextBuildFeature,
   hasAnchorRow,
-  resolveInFlightTruncateThreshold
+  resolveInFlightTruncateThreshold,
+  slidingWindowFallbackActive
 } from '../contextBuild'
 
 const CACHE_MARK = { anthropic: { cacheControl: { type: 'ephemeral' } } }
@@ -397,6 +398,25 @@ describe('buildContextOptions — models without a contextWindow', () => {
     )
     expect(toolOutput(out).value).not.toContain('<persisted-output>')
     expect(fs.readdirSync(tmpDir)).toHaveLength(0)
+  })
+})
+
+describe('slidingWindowFallbackActive', () => {
+  // Shared with the `read_file` gate: it must agree with when `onBeforeCompress` is installed.
+  it.each([
+    ['compress on, no compressor, known window', { compressionModel: null }, true],
+    ['compressor resolved', { compressionModel: {} as never }, false],
+    ['no context window', { compressionModel: null, model: { contextWindow: undefined } }, false],
+    [
+      'context settings disabled',
+      { compressionModel: null, contextSettings: { ...DEFAULT_CONTEXT_SETTINGS, enabled: false } },
+      false
+    ],
+    ['caller-owned context', { compressionModel: null, request: { contextOwner: 'caller' } }, false]
+  ] as const)('%s', (_name, overrides, expected) => {
+    const scope = makeScope({ contextSettings: DEFAULT_CONTEXT_SETTINGS, ...(overrides as object) } as never)
+    expect(slidingWindowFallbackActive(scope)).toBe(expected)
+    expect(Boolean(buildContextOptions(scope)?.onBeforeCompress)).toBe(expected)
   })
 })
 
