@@ -1544,7 +1544,16 @@ const ChatComposerInner = ({
   // (the live selection is cleared then), otherwise the scope's persisted ids.
   const knowledgeBaseIdsForSnapshot = useCallback(
     (tools: InputHistoryToolSnapshot | null) =>
-      tools ? tools.selectedKnowledgeBases.map((base) => base.id) : [...knowledgeBaseIdsRef.current],
+      tools
+        ? // The parked draft owns its unresolved ids too: union the pending retry in so a save
+          // during the preview keeps the scope the restore is still waiting on.
+          [
+            ...new Set([
+              ...tools.selectedKnowledgeBases.map((base) => base.id),
+              ...(tools.pendingKnowledgeBaseIds ?? [])
+            ])
+          ]
+        : [...knowledgeBaseIdsRef.current],
     [knowledgeBaseIdsRef]
   )
 

@@ -6129,6 +6129,46 @@ describe('ChatComposer', () => {
       await waitFor(() => expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBase]))
     })
 
+    it("keeps a parked draft's pending knowledge scope when saving during a history preview", async () => {
+      const knowledgeBase = { id: 'kb-1', name: 'Knowledge One', documentCount: 1 } as KnowledgeBase
+      mocks.assistant = {
+        ...mocks.assistant,
+        knowledgeBaseIds: ['kb-1']
+      }
+      MockCacheUtils.setInitialState({
+        memory: [
+          [
+            'saved-drafts.topic-1:assistant-1',
+            [{ id: 'draft-a', draft: { text: 'draft A', tokens: [] }, files: [], knowledgeBaseIds: ['kb-1'] }]
+          ]
+        ]
+      })
+      seedInputHistory(['history entry'])
+      mocks.getDraft.mockImplementation(() => ({
+        text: mocks.surfaceProps?.text ?? '',
+        tokens: []
+      }))
+      mocks.knowledgeBases = []
+      mocks.knowledgeBasesLoading = true
+
+      render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+      await act(async () => savedDraftsDock()?.props.onEdit('draft-a'))
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('draft A'))
+      await waitFor(() => expect(mocks.surfaceProps?.sendDisabled).toBe(true))
+
+      // Park the live draft behind a history preview, then save from the preview: the snapshot
+      // must keep the scope its restore is still waiting on, not just the resolved selection.
+      act(() => {
+        expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+      })
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('history entry'))
+      clickSaveAsDraft()
+
+      const saved = readSavedDrafts().find((item) => item.draft.text === 'draft A')
+      expect(saved).toBeDefined()
+      expect(saved.knowledgeBaseIds).toEqual(['kb-1'])
+    })
+
     it('resumes a pending knowledge restore when message editing is cancelled', async () => {
       const knowledgeBase = { id: 'kb-1', name: 'Knowledge One', documentCount: 1 } as KnowledgeBase
       mocks.assistant = {
