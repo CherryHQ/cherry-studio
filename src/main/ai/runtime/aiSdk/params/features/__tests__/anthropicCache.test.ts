@@ -1,12 +1,20 @@
 import { createAnthropic } from '@ai-sdk/anthropic'
-import type { LanguageModelV3CallOptions, LanguageModelV3FunctionTool, LanguageModelV3Message } from '@ai-sdk/provider'
+import { AnthropicMessagesLanguageModel } from '@ai-sdk/anthropic/internal'
+import type {
+  LanguageModelV3CallOptions,
+  LanguageModelV3FunctionTool,
+  LanguageModelV3Message,
+  LanguageModelV3ToolResultOutput
+} from '@ai-sdk/provider'
+import { wrapLanguageModel } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import type { Assistant } from '@shared/data/types/assistant'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
-import { anthropicCacheFeature, transformAnthropicCacheParams } from '../anthropicCache'
+import { anthropicCacheFeature, deriveEmittedCacheSlots, transformAnthropicCacheParams } from '../anthropicCache'
+import { createQwenAnthropicWebToolsMiddleware } from '../qwenAnthropicWebTools'
 
 function makeProvider(cacheControl?: Provider['settings']['cacheControl']): Provider {
   return { id: 'anthropic', settings: cacheControl === undefined ? {} : { cacheControl } } as Provider
@@ -278,7 +286,7 @@ describe('transformAnthropicCacheParams', () => {
       prompt: [
         textMessage('system', 'short'),
         {
-          role: 'assistant',
+          role: 'tool',
           content: [
             {
               type: 'tool-result',
@@ -291,7 +299,27 @@ describe('transformAnthropicCacheParams', () => {
       ]
     })
 
-    expect(countCacheMarkers(out)).toBe(1)
+    expect(deriveEmittedCacheSlots(out)).toBeDefined()
+    expect(extractBodyMarkers(JSON.parse(await captureBody(out)))).toEqual([
+      { position: 'messages.0.content.0', ttl: '5m' }
+    ])
+    const below = await transform({
+      prompt: [
+        {
+          role: 'tool',
+          content: [
+            {
+              type: 'tool-result',
+              toolCallId: 'call-1',
+              toolName: 'large_mcp_tool',
+              output: { type: 'text', value: 'small' }
+            }
+          ]
+        }
+      ]
+    })
+    expect(deriveEmittedCacheSlots(below)).toBeDefined()
+    expect(extractBodyMarkers(JSON.parse(await captureBody(below)))).toEqual([])
   })
 
   it('skips system and trailing markers for volatile time prompts but keeps stable tool markers', async () => {
@@ -389,7 +417,7 @@ describe('overflow cleanup', () => {
     const tools = ['e', 'd', 'c', 'b', 'a'].map((name) => ({ ...makeTool(name), providerOptions: mark }))
     const out = await transform({ prompt: [], tools }, provider)
     expect(out.tools?.map((t) => t.name)).toEqual(['e', 'd', 'c', 'b', 'a'])
-    expect(out.tools?.filter(hasCacheControl).map((t) => t.name)).toEqual(['d', 'c', 'b', 'a'])
+    expect(out.tools?.filter(hasCacheControl).map((t) => t.name)).toEqual(['e', 'd', 'c', 'b'])
   })
 
   it('replaces the TTL of an already selected target and leaves exactly four holders unchanged otherwise', async () => {
@@ -475,6 +503,363 @@ describe('serialized adapter cache markers', () => {
   const longMark = { anthropic: { cacheControl: { type: 'ephemeral', ttl: '1h' } } }
   const shortMark = { anthropic: { cacheControl: { type: 'ephemeral' } } }
   const provider = makeProvider({ enabled: true, cacheSystemMessage: false, cacheLastNMessages: 2 })
+
+  it.each([
+    ['short then long', false, [{ position: 'tools.0', ttl: '5m' }]],
+    [
+      'long then short',
+      true,
+      [
+        { position: 'tools.0', ttl: '1h' },
+        { position: 'tools.1', ttl: '5m' }
+      ]
+    ]
+  ])('retains empty-prompt tools in emitted order: %s', async (_name, longFirst, expected) => {
+    const tools = [
+      { ...makeTool('z'), providerOptions: longFirst ? longMark : shortMark },
+      { ...makeTool('a'), providerOptions: longFirst ? shortMark : longMark }
+    ]
+    const out = await transform({ prompt: [], tools }, makeProvider({ enabled: true, cacheLastNMessages: 0 }))
+    const body = JSON.parse(await captureBody(out))
+    expect(out.tools?.map((tool) => tool.name)).toEqual(['z', 'a'])
+    expect(extractBodyMarkers(body)).toEqual(expected)
+    expect(body.tools.map((tool: { name: string }) => tool.name)).toEqual(['z', 'a'])
+  })
+
+  it('clears dead file hints before retaining a later text marker', async () => {
+    const input: LanguageModelV3CallOptions = {
+      prompt: [
+        {
+          role: 'assistant',
+          content: [
+            { type: 'file', mediaType: 'image/png', data: new Uint8Array([1]), providerOptions: shortMark },
+            { type: 'text', text: 'answer', providerOptions: longMark }
+          ]
+        }
+      ]
+    }
+    const out = await transform(input, makeProvider({ enabled: true, cacheLastNMessages: 0 }))
+    expect(extractBodyMarkers(JSON.parse(await captureBody(out)))).toEqual([
+      { position: 'messages.0.content.0', ttl: '1h' }
+    ])
+    expect(hasCacheControl((out.prompt[0].content as object[])[0])).toBe(false)
+    expect(hasCacheControl((input.prompt[0].content as object[])[0])).toBe(true)
+  })
+
+  it('does not let dead reasoning lookups suppress a selected tool', async () => {
+    const input: LanguageModelV3CallOptions = {
+      tools: [makeTool('selected', 6000)],
+      prompt: [
+        {
+          role: 'assistant',
+          content: Array.from({ length: 4 }, (_, i) => ({
+            type: 'reasoning' as const,
+            text: `thought ${i}`,
+            providerOptions: { anthropic: { signature: 'signed', cacheControl: { type: 'ephemeral' } } }
+          }))
+        }
+      ]
+    }
+    const out = await transform(
+      input,
+      makeProvider({ enabled: true, cacheSystemMessage: false, cacheLastNMessages: 0 })
+    )
+    const body = JSON.parse(await captureBody(out))
+    expect(extractBodyMarkers(body)).toEqual([{ position: 'tools.0', ttl: '5m' }])
+    expect(body.messages[0].content.map((block: { type: string }) => block.type)).toEqual(Array(4).fill('thinking'))
+    expect((out.prompt[0].content as object[]).every((part) => !hasCacheControl(part))).toBe(true)
+  })
+
+  it('preserves excluded toolset requests after placement', async () => {
+    const input: LanguageModelV3CallOptions = {
+      prompt: [
+        {
+          role: 'assistant',
+          content: [
+            {
+              type: 'tool-call',
+              toolCallId: 'computer',
+              toolName: 'desk',
+              input: { action: 'screenshot' },
+              providerOptions: longMark
+            }
+          ]
+        }
+      ],
+      tools: [{ type: 'provider', id: 'anthropic.computer_toolset_20260801', name: 'desk', args: {} }]
+    }
+    expect(deriveEmittedCacheSlots(input)).toBeUndefined()
+    const out = await transformAnthropicCacheParams(
+      input,
+      makeProvider({ enabled: true, cacheLastNMessages: 0, cacheSystemMessage: false }),
+      undefined
+    )
+    expect(out).toBe(input)
+    const body = JSON.parse(await captureBody(out))
+    expect(body.messages[0].content[0]).toMatchObject({
+      type: 'tool_use',
+      name: 'screenshot',
+      toolset_name: 'computer',
+      cache_control: { ttl: '1h' }
+    })
+    expect(extractBodyMarkers(body)).toEqual([{ position: 'messages.0.content.0', ttl: '1h' }])
+  })
+
+  it.each([
+    ['unsigned', {}, [{ position: 'messages.1.content.0', ttl: '5m' }], ['text', 'tool_use']],
+    [
+      'signed',
+      { signature: '' },
+      [
+        { position: 'messages.1.content.0', ttl: '1h' },
+        { position: 'messages.1.content.2', ttl: '5m' }
+      ],
+      ['tool_use', 'thinking', 'text']
+    ],
+    [
+      'redacted',
+      { redactedData: '' },
+      [
+        { position: 'messages.1.content.0', ttl: '1h' },
+        { position: 'messages.1.content.2', ttl: '5m' }
+      ],
+      ['tool_use', 'redacted_thinking', 'text']
+    ]
+  ])('uses emitted reasoning boundaries: %s', async (_name, metadata, expected, kinds) => {
+    const input: LanguageModelV3CallOptions = {
+      prompt: [
+        textMessage('user', 'history '.repeat(1600)),
+        {
+          role: 'assistant',
+          content: [
+            { type: 'tool-call', toolCallId: 'call', toolName: 'lookup', input: {}, providerOptions: longMark },
+            { type: 'reasoning', text: 'thought', providerOptions: { anthropic: metadata } },
+            { type: 'text', text: 'answer' }
+          ]
+        }
+      ]
+    }
+    const out = await transform(
+      input,
+      makeProvider({ enabled: true, cacheSystemMessage: false, cacheLastNMessages: 1 })
+    )
+    const body = JSON.parse(await captureBody(out))
+    expect(extractBodyMarkers(body)).toEqual(expected)
+    expect(body.messages[1].content.map((block: { type: string }) => block.type)).toEqual(kinds)
+  })
+
+  it('drops a root directive when four foreign tools already use the budget', async () => {
+    const input = {
+      prompt: [textMessage('user', 'hello')],
+      tools: ['a', 'b', 'c', 'd'].map((name) => ({ ...makeTool(name), providerOptions: longMark })),
+      providerOptions: shortMark
+    }
+    const out = await transform(
+      input,
+      makeProvider({ enabled: true, cacheSystemMessage: false, cacheLastNMessages: 0 })
+    )
+    const body = JSON.parse(await captureBody(out))
+    expect(extractBodyMarkers(body)).toEqual(
+      ['a', 'b', 'c', 'd'].map((_, i) => ({ position: `tools.${i}`, ttl: '1h' }))
+    )
+    expect(body.tools.map((tool: { name: string }) => tool.name)).toEqual(['a', 'b', 'c', 'd'])
+    expect(body.cache_control).toBeUndefined()
+  })
+
+  it('keeps source-message fallback on its own final part across assistant messages', async () => {
+    const input: LanguageModelV3CallOptions = {
+      prompt: [
+        {
+          role: 'assistant',
+          providerOptions: longMark,
+          content: [
+            { type: 'text', text: 'first' },
+            { type: 'text', text: 'last of first' }
+          ]
+        },
+        { role: 'assistant', content: [{ type: 'text', text: 'second' }] }
+      ]
+    }
+    const out = await transform(
+      input,
+      makeProvider({ enabled: true, cacheSystemMessage: false, cacheLastNMessages: 0 })
+    )
+    expect(extractBodyMarkers(JSON.parse(await captureBody(out)))).toEqual([
+      { position: 'messages.0.content.1', ttl: '1h' }
+    ])
+  })
+
+  it('counts shared cacheable holders separately and copies only the rejected path', async () => {
+    const shared = { type: 'text' as const, text: 'shared', providerOptions: longMark }
+    const input: LanguageModelV3CallOptions = { prompt: [{ role: 'user', content: Array(5).fill(shared) }] }
+    const out = await transformAnthropicCacheParams(
+      input,
+      makeProvider({ enabled: true, cacheSystemMessage: false, cacheLastNMessages: 0 }),
+      undefined
+    )
+    const parts = out.prompt[0].content as (typeof shared)[]
+    expect(parts.slice(0, 4).every((part) => part === shared)).toBe(true)
+    expect(parts[4]).not.toBe(shared)
+    expect(hasCacheControl(shared)).toBe(true)
+    expect(extractBodyMarkers(JSON.parse(await captureBody(out))).map((marker) => marker.position)).toEqual([
+      'messages.0.content.0',
+      'messages.0.content.1',
+      'messages.0.content.2',
+      'messages.0.content.3'
+    ])
+  })
+
+  it('keeps a compatible root directive with three distinct explicit markers', async () => {
+    const input = {
+      prompt: [textMessage('user', 'endpoint')],
+      tools: ['a', 'b', 'c'].map((name) => ({ ...makeTool(name), providerOptions: longMark })),
+      providerOptions: shortMark
+    }
+    const out = await transform(
+      input,
+      makeProvider({ enabled: true, cacheSystemMessage: false, cacheLastNMessages: 0 })
+    )
+    const body = JSON.parse(await captureBody(out))
+    expect(extractBodyMarkers(body)).toEqual(['a', 'b', 'c'].map((_, i) => ({ position: `tools.${i}`, ttl: '1h' })))
+    expect(body.tools.map((tool: { name: string }) => tool.name)).toEqual(['a', 'b', 'c'])
+    expect(body.messages[0].content[0]).toMatchObject({ type: 'text', text: 'endpoint' })
+    expect(body.cache_control).toEqual({ type: 'ephemeral' })
+  })
+
+  it('rejects a different root TTL at the selected endpoint', async () => {
+    const input = { prompt: [textMessage('user', 'request '.repeat(1600))], providerOptions: shortMark }
+    const out = await transform(
+      input,
+      makeProvider({ enabled: true, ttl: '1h', cacheSystemMessage: false, cacheLastNMessages: 1 })
+    )
+    const body = JSON.parse(await captureBody(out))
+    expect(extractBodyMarkers(body)).toEqual([{ position: 'messages.0.content.0', ttl: '1h' }])
+    expect(body.cache_control).toBeUndefined()
+  })
+
+  it.each([
+    ['output options present but undefined', true, false],
+    ['output options absent', false, false],
+    ['first item options mask later marker', false, true]
+  ])('honors tool result output precedence: %s', async (_name, present, masked) => {
+    const output = {
+      type: 'content' as const,
+      value: masked
+        ? [
+            { type: 'text' as const, text: 'first', providerOptions: { anthropic: { other: true } } },
+            { type: 'text' as const, text: 'later', providerOptions: longMark }
+          ]
+        : [{ type: 'text' as const, text: 'result', providerOptions: longMark }],
+      ...(present ? { providerOptions: undefined } : {})
+    }
+    const input: LanguageModelV3CallOptions = {
+      prompt: [{ role: 'tool', content: [{ type: 'tool-result', toolName: 'lookup', toolCallId: 'id', output }] }]
+    }
+    const out = await transformAnthropicCacheParams(
+      input,
+      makeProvider({ enabled: true, cacheSystemMessage: false, cacheLastNMessages: 0 }),
+      undefined
+    )
+    expect(out).toBe(input)
+    expect(extractBodyMarkers(JSON.parse(await captureBody(out)))).toEqual(
+      !present && !masked ? [{ position: 'messages.0.content.0', ttl: '1h' }] : []
+    )
+  })
+
+  it('keeps a foreign late system marker before a user marker', async () => {
+    const input = {
+      prompt: [
+        { ...textMessage('user', 'user'), providerOptions: longMark },
+        { ...textMessage('system', 'system'), providerOptions: shortMark }
+      ]
+    }
+    const out = await transform(
+      input,
+      makeProvider({ enabled: true, cacheSystemMessage: false, cacheLastNMessages: 0 })
+    )
+    expect(extractBodyMarkers(JSON.parse(await captureBody(out)))).toEqual([{ position: 'system.0', ttl: '5m' }])
+  })
+
+  it('ignores snake-case root metadata', async () => {
+    const input = {
+      prompt: [textMessage('user', 'user')],
+      providerOptions: { anthropic: { cache_control: { type: 'ephemeral', ttl: '1h' } } }
+    }
+    const out = await transform(
+      input,
+      makeProvider({ enabled: true, cacheSystemMessage: false, cacheLastNMessages: 0 })
+    )
+    const body = JSON.parse(await captureBody(out))
+    expect(body.cache_control).toBeUndefined()
+    expect(extractBodyMarkers(body)).toEqual([])
+    expect(out.providerOptions).toEqual(input.providerOptions)
+  })
+
+  it('does not treat disabled signed reasoning as an emitted boundary', async () => {
+    const input: LanguageModelV3CallOptions = {
+      providerOptions: { anthropic: { sendReasoning: false } },
+      prompt: [
+        textMessage('user', 'history '.repeat(1600)),
+        {
+          role: 'assistant',
+          content: [
+            { type: 'tool-call', toolCallId: 'call', toolName: 'lookup', input: {}, providerOptions: longMark },
+            { type: 'reasoning', text: 'thought', providerOptions: { anthropic: { signature: 'signed' } } },
+            { type: 'text', text: 'answer' }
+          ]
+        }
+      ]
+    }
+    const out = await transform(
+      input,
+      makeProvider({ enabled: true, cacheSystemMessage: false, cacheLastNMessages: 1 })
+    )
+    const body = JSON.parse(await captureBody(out))
+    expect(body.messages[1].content.map((block: { type: string }) => block.type)).toEqual(['text', 'tool_use'])
+    expect(extractBodyMarkers(body)).toEqual([{ position: 'messages.1.content.0', ttl: '5m' }])
+  })
+
+  it('clamps adjacent assistant calls in emitted order', async () => {
+    const input: LanguageModelV3CallOptions = {
+      prompt: [
+        textMessage('user', 'history '.repeat(1600)),
+        {
+          role: 'assistant',
+          content: [{ type: 'tool-call', toolCallId: 'x', toolName: 'lookup', input: {}, providerOptions: longMark }]
+        },
+        textMessage('assistant', 'answer')
+      ]
+    }
+    const out = await transform(
+      input,
+      makeProvider({ enabled: true, cacheSystemMessage: false, cacheLastNMessages: 1 })
+    )
+    expect(extractBodyMarkers(JSON.parse(await captureBody(out)))).toEqual([
+      { position: 'messages.1.content.0', ttl: '5m' }
+    ])
+  })
+
+  it('prioritizes a selected late system over an earlier user marker', async () => {
+    const input = {
+      prompt: [
+        { ...textMessage('user', 'request'), providerOptions: longMark },
+        textMessage('system', 'late system '.repeat(1600))
+      ]
+    }
+    const out = await transform(input, makeProvider({ enabled: true, cacheSystemMessage: true, cacheLastNMessages: 0 }))
+    expect(extractBodyMarkers(JSON.parse(await captureBody(out)))).toEqual([{ position: 'system.0', ttl: '5m' }])
+  })
+
+  it('removes an incompatible automatic root marker', async () => {
+    const input = { prompt: [textMessage('user', 'request '.repeat(1600))], providerOptions: longMark }
+    const out = await transform(
+      input,
+      makeProvider({ enabled: true, cacheSystemMessage: false, cacheLastNMessages: 1 })
+    )
+    const body = JSON.parse(await captureBody(out))
+    expect(extractBodyMarkers(body)).toEqual([{ position: 'messages.0.content.0', ttl: '5m' }])
+    expect(body.cache_control).toBeUndefined()
+  })
 
   it('drops incoming 1h hints after the selected 5m tool in scenario A', async () => {
     const input = {
@@ -770,5 +1155,501 @@ describe('serialized adapter cache markers', () => {
   it('returns non-array prompts untouched', async () => {
     const input = { prompt: undefined } as unknown as LanguageModelV3CallOptions
     expect(await transformAnthropicCacheParams(input, provider, undefined)).toBe(input)
+  })
+  it.each(['mcp__mysql__query', 'mcp__cherry-tools__web_search', 'large_mcp_tool'])(
+    'clamps ordinary local tool %s',
+    async (name) => {
+      const input: LanguageModelV3CallOptions = {
+        prompt: [
+          {
+            role: 'assistant',
+            content: [{ type: 'tool-call', toolCallId: 'call', toolName: name, input: {}, providerOptions: longMark }]
+          },
+          { role: 'assistant', content: [{ type: 'text', text: 'answer' }] }
+        ]
+      }
+      expect(deriveEmittedCacheSlots(input)).toBeDefined()
+      const out = await transform(
+        input,
+        makeProvider({ enabled: true, tokenThreshold: 1, cacheSystemMessage: false, cacheLastNMessages: 1 })
+      )
+      const body = JSON.parse(await captureBody(out))
+      expect(body.messages[0].content.map((part: { type: string }) => part.type)).toEqual(['text', 'tool_use'])
+      expect(extractBodyMarkers(body)).toEqual([{ position: 'messages.0.content.0', ttl: '5m' }])
+    }
+  )
+
+  it('keeps ignored options and unused reasoning metadata in scope', async () => {
+    const input = {
+      prompt: [
+        {
+          role: 'assistant' as const,
+          providerOptions: { anthropic: { effort: 'low' } },
+          content: [
+            { type: 'reasoning' as const, text: 'r', providerOptions: { anthropic: { signature: 123 } } },
+            {
+              type: 'text' as const,
+              text: 'answer',
+              providerOptions: { anthropic: { type: 'compaction-ish', toolsetName: 123 } }
+            }
+          ]
+        }
+      ],
+      providerOptions: { anthropic: { sendReasoning: false, mcpServers: [], toolsets: {} } }
+    }
+    expect(deriveEmittedCacheSlots(input)).toBeDefined()
+    const out = await transform(
+      input,
+      makeProvider({ enabled: true, tokenThreshold: 1, cacheSystemMessage: false, cacheLastNMessages: 1 })
+    )
+    expect(extractBodyMarkers(JSON.parse(await captureBody(out)))).toEqual([
+      { position: 'messages.0.content.0', ttl: '5m' }
+    ])
+  })
+
+  it('uses whitespace and emitted tools as automatic endpoints', async () => {
+    const cases: LanguageModelV3CallOptions[] = [
+      {
+        prompt: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: 'first' },
+              { type: 'text', text: ' ', providerOptions: longMark }
+            ]
+          }
+        ],
+        providerOptions: shortMark
+      },
+      {
+        prompt: [],
+        tools: [
+          { ...makeTool('first'), providerOptions: longMark },
+          { type: 'provider', id: 'unknown.feature', name: 'ignored', args: {} }
+        ],
+        providerOptions: shortMark
+      }
+    ]
+    for (const [i, input] of cases.entries()) {
+      const out = await transformAnthropicCacheParams(
+        input,
+        makeProvider({ enabled: true, tokenThreshold: 999999, cacheSystemMessage: false, cacheLastNMessages: 0 }),
+        undefined
+      )
+      const body = JSON.parse(await captureBody(out))
+      expect(extractBodyMarkers(body)).toEqual([{ position: i ? 'tools.0' : 'messages.0.content.1', ttl: '1h' }])
+      expect(body.cache_control).toBeUndefined()
+    }
+    expect(deriveEmittedCacheSlots({ prompt: [], tools: [] })?.tools).toBeUndefined()
+  })
+
+  it('respects custom namespace options through the model middleware', async () => {
+    const provider = makeProvider({
+      enabled: true,
+      tokenThreshold: 999999,
+      cacheSystemMessage: false,
+      cacheLastNMessages: 0
+    })
+    const plugin = anthropicCacheFeature.contributeModelAdapters!({ provider } as never)[0] as any
+    const context = { middlewares: [] as any[] }
+    plugin.configureContext(context)
+    const capture = async (input: LanguageModelV3CallOptions) => {
+      let body: any
+      const model = new AnthropicMessagesLanguageModel('claude-sonnet-4-5', {
+        provider: 'cherryin.anthropic',
+        baseURL: 'http://localhost/v1',
+        headers: () => ({ 'x-api-key': 'test' }),
+        fetch: async (_url, init) => {
+          body = JSON.parse(String(init?.body))
+          throw new Error('Captured request')
+        }
+      })
+      const wrapped = wrapLanguageModel({ model, middleware: context.middlewares[0] })
+      await expect(wrapped.doGenerate({ ...input, maxOutputTokens: 100 })).rejects.toThrow('Captured request')
+      return body
+    }
+    const prompt: LanguageModelV3Message[] = [
+      {
+        role: 'assistant',
+        content: [
+          { type: 'reasoning', text: 'r', providerOptions: { anthropic: { signature: 'signed' } } },
+          { type: 'text', text: 'answer', providerOptions: shortMark }
+        ]
+      }
+    ]
+    const base = {
+      prompt,
+      providerOptions: {
+        anthropic: { ...longMark.anthropic },
+        cherryin: { sendReasoning: false, cacheControl: { type: 'ephemeral' } }
+      }
+    }
+    const body = await capture(base)
+    expect(body.messages[0].content.map((part: { type: string }) => part.type)).toEqual(['text'])
+    expect(extractBodyMarkers(body)).toEqual([{ position: 'messages.0.content.0', ttl: '5m' }])
+    expect(body.cache_control).toEqual({ type: 'ephemeral' })
+    const exposed = await capture({
+      ...base,
+      providerOptions: { anthropic: shortMark.anthropic, cherryin: { sendReasoning: false, ...longMark.anthropic } }
+    })
+    expect(exposed.cache_control).toEqual({ type: 'ephemeral' })
+    const masked = {
+      ...base,
+      providerOptions: { anthropic: longMark.anthropic, cherryin: { sendReasoning: false, cacheControl: undefined } }
+    }
+    const untouched = await transformAnthropicCacheParams(masked, provider, undefined, 'cherryin.anthropic')
+    expect(untouched).toBe(masked)
+    expect(untouched.providerOptions?.anthropic).toBe(masked.providerOptions.anthropic)
+    expect((await capture(masked)).cache_control).toBeUndefined()
+  })
+})
+
+describe('adapter structural oracle', () => {
+  const long = { anthropic: { cacheControl: { type: 'ephemeral', ttl: '1h' } } }
+  const short = { anthropic: { cacheControl: { type: 'ephemeral' } } }
+  const provider = makeProvider({
+    enabled: true,
+    tokenThreshold: 999999,
+    cacheSystemMessage: false,
+    cacheLastNMessages: 0
+  })
+  const call = (id: string, name: string, native = false) => ({
+    type: 'tool-call' as const,
+    toolCallId: id,
+    toolName: name,
+    input: { cache_control: 'argument' },
+    ...(native ? { providerExecuted: true } : {})
+  })
+  const result = (id: string, name: string, output: LanguageModelV3ToolResultOutput) => ({
+    type: 'tool-result' as const,
+    toolCallId: id,
+    toolName: name,
+    output
+  })
+
+  async function verify(
+    input: LanguageModelV3CallOptions,
+    expected: { position: string; ttl: string }[],
+    root?: string
+  ) {
+    const out = await transformAnthropicCacheParams(input, provider, undefined)
+    const plan = deriveEmittedCacheSlots(out)!
+    const body = JSON.parse(await captureBody(out))
+    const original = JSON.parse(await captureBody(input))
+    const wireBlock = (block: any, tool = false) => ({
+      kind: tool ? (block.type ?? 'tool') : block.type,
+      identity: tool
+        ? block.name
+        : block.type === 'text'
+          ? block.text
+          : block.type === 'thinking'
+            ? block.thinking
+            : block.type === 'redacted_thinking'
+              ? block.data
+              : block.type === 'image' || block.type === 'document'
+                ? (block.source.url ?? block.source.data)
+                : block.type === 'tool_use' || block.type === 'server_tool_use'
+                  ? [block.name, block.id]
+                  : block.tool_use_id
+    })
+    const projected = (slot: { kind: string; identity: unknown }) => ({ kind: slot.kind, identity: slot.identity })
+    expect(plan.tools?.map(projected)).toEqual(body.tools?.map((block: any) => wireBlock(block, true)))
+    expect(plan.system?.map(projected)).toEqual(body.system?.map((block: any) => wireBlock(block)))
+    expect(plan.messages.map((message) => ({ role: message.role, content: message.content.map(projected) }))).toEqual(
+      body.messages.map((message: any) => ({
+        role: message.role,
+        content: message.content.map((block: any) => wireBlock(block))
+      }))
+    )
+    expect(extractBodyMarkers(body)).toEqual(expected)
+    expect(body.cache_control?.ttl ?? (body.cache_control ? '5m' : undefined)).toBe(root)
+    expect(expected.length + (root ? 1 : 0)).toBeLessThanOrEqual(4)
+    const omitKnownCache = (value: any) => {
+      delete value.cache_control
+      for (const block of [
+        ...(value.tools ?? []),
+        ...(value.system ?? []),
+        ...value.messages.flatMap((m: any) => m.content)
+      ]) {
+        delete block.cache_control
+      }
+      return value
+    }
+    expect(omitKnownCache(body)).toEqual(omitKnownCache(original))
+  }
+
+  it('checks a retained root separately from the endpoint', async () => {
+    await verify({ prompt: [textMessage('user', 'root endpoint')], providerOptions: short }, [], '5m')
+  })
+
+  it('matches separate inline systems and hoisted system', async () => {
+    await verify(
+      {
+        prompt: [
+          textMessage('system', 'top'),
+          textMessage('user', 'u'),
+          { ...textMessage('system', 'inline-a'), providerOptions: long },
+          { ...textMessage('system', 'inline-b'), providerOptions: short }
+        ]
+      },
+      [
+        { position: 'messages.1.content.0', ttl: '1h' },
+        { position: 'messages.2.content.0', ttl: '5m' }
+      ]
+    )
+  })
+
+  it('matches assistant grouping, separator and cross-message thinking boundary', async () => {
+    await verify(
+      {
+        prompt: [
+          textMessage('user', 'separator'),
+          { role: 'assistant', content: [call('a', 'local'), { type: 'text', text: 'first' }] },
+          {
+            role: 'assistant',
+            content: [
+              { type: 'reasoning', text: 'thought', providerOptions: { anthropic: { signature: 'sig' } } },
+              { type: 'text', text: 'second', providerOptions: short },
+              call('b', 'other')
+            ]
+          },
+          textMessage('user', 'separator two'),
+          textMessage('assistant', 'last')
+        ]
+      },
+      [{ position: 'messages.1.content.3', ttl: '5m' }]
+    )
+  })
+
+  it('matches grouped user, tool and media blocks including duplicate media types', async () => {
+    await verify(
+      {
+        prompt: [
+          {
+            role: 'user',
+            content: [
+              { type: 'file', mediaType: 'image/png', data: new Uint8Array([1]) },
+              { type: 'file', mediaType: 'image/png', data: new Uint8Array([2]) },
+              { type: 'file', mediaType: 'application/pdf', data: new Uint8Array([3]) },
+              { type: 'file', mediaType: 'text/plain', data: new Uint8Array([65, 66]) }
+            ]
+          },
+          {
+            role: 'tool',
+            content: [
+              result('r', 'local', { type: 'text', value: 'ok' }),
+              { type: 'tool-approval-response', approvalId: 'approval', approved: true }
+            ]
+          },
+          { role: 'user', content: [{ type: 'text', text: 'end', providerOptions: short }] }
+        ]
+      },
+      [{ position: 'messages.0.content.5', ttl: '5m' }]
+    )
+  })
+
+  it.each(['web_search', 'web_fetch'])('matches aliased %s native calls and results', async (name) => {
+    const output =
+      name === 'web_search'
+        ? []
+        : {
+            type: 'web_fetch_result',
+            url: 'https://example.com',
+            content: {
+              type: 'document',
+              title: null,
+              source: { type: 'text', mediaType: 'text/plain', data: 'found' }
+            },
+            retrievedAt: null
+          }
+    await verify(
+      {
+        tools: [
+          {
+            type: 'provider',
+            id: `anthropic.${name}_${name === 'web_search' ? '20250305' : '20250910'}`,
+            name: 'alias',
+            args: {}
+          }
+        ],
+        prompt: [
+          {
+            role: 'assistant',
+            content: [
+              call('local-id', 'local'),
+              { ...call('native-id', 'alias', true), providerOptions: long },
+              result('native-id', 'alias', {
+                type: 'error-json',
+                value: { errorCode: 'unavailable' },
+                providerOptions: short
+              }),
+              result('json-id', 'alias', { type: 'json', value: output }),
+              result('drop-id', 'alias', { type: 'text', value: 'unsupported' })
+            ]
+          }
+        ]
+      },
+      [{ position: 'messages.0.content.0', ttl: '1h' }]
+    )
+  })
+
+  it.each([[[]], [[{ type: 'provider', id: 'unknown.feature', name: 'ignored', args: {} }]]])(
+    'matches tools presence for %j',
+    async (tools) => {
+      await verify({ prompt: [textMessage('user', 'hello')], tools } as LanguageModelV3CallOptions, [])
+    }
+  )
+})
+
+describe('cache preservation controls', () => {
+  const long = {
+    anthropic: { cacheControl: { type: 'ephemeral', ttl: '1h' }, cache_control: { type: 'ephemeral', ttl: '1h' } },
+    other: { keep: true }
+  }
+  const selectTool = makeProvider({
+    enabled: true,
+    tokenThreshold: 1,
+    cacheSystemMessage: false,
+    cacheLastNMessages: 0
+  })
+  it.each([
+    [
+      'reasoning',
+      {
+        type: 'reasoning',
+        text: 'thought',
+        providerOptions: { ...long, anthropic: { ...long.anthropic, signature: 'sig', redactedData: 'redacted' } }
+      }
+    ],
+    ['file', { type: 'file', mediaType: 'image/png', data: new Uint8Array([1]), providerOptions: long }],
+    [
+      'result',
+      {
+        type: 'tool-result',
+        toolName: 'unknown',
+        toolCallId: 'dead',
+        output: { type: 'text', value: 'ignored' },
+        providerOptions: long
+      }
+    ]
+  ])('clears dead last %s and its message fallback before selecting a tool', async (_name, part) => {
+    const input = {
+      tools: [makeTool('selected', 6000)],
+      prompt: [{ role: 'assistant', content: [part], providerOptions: long }]
+    } as LanguageModelV3CallOptions
+    const out = await transformAnthropicCacheParams(input, selectTool, undefined)
+    const body = JSON.parse(await captureBody(out))
+    expect(extractBodyMarkers(body)).toEqual([{ position: 'tools.0', ttl: '5m' }])
+    expect(body.tools[0].name).toBe('selected')
+    expect(hasCacheControl(out.prompt[0])).toBe(false)
+    const actual = (out.prompt[0].content as any[])[0]
+    expect(hasCacheControl(actual)).toBe(false)
+    expect(actual.providerOptions.other).toEqual({ keep: true })
+    if (part.type === 'reasoning')
+      expect(actual.providerOptions.anthropic).toEqual({ signature: 'sig', redactedData: 'redacted' })
+    expect(hasCacheControl(input.prompt[0])).toBe(true)
+  })
+
+  it('does not retarget a selection on a dropped last part', async () => {
+    const input: LanguageModelV3CallOptions = {
+      prompt: [
+        textMessage('user', 'old'),
+        {
+          role: 'assistant',
+          content: [
+            { type: 'text', text: 'live '.repeat(1000) },
+            { type: 'file', mediaType: 'image/png', data: new Uint8Array([1]) }
+          ]
+        }
+      ]
+    }
+    const out = await transformAnthropicCacheParams(
+      input,
+      makeProvider({ enabled: true, tokenThreshold: 1, cacheSystemMessage: false, cacheLastNMessages: 1 }),
+      undefined
+    )
+    expect(extractBodyMarkers(JSON.parse(await captureBody(out)))).toEqual([])
+    expect(countCacheMarkers(out)).toBe(0)
+  })
+
+  it('clears each rejected tool-result fallback and preserves a shadowed retained hint', async () => {
+    const input: LanguageModelV3CallOptions = {
+      tools: [makeTool('selected', 6000)],
+      prompt: [
+        {
+          role: 'tool',
+          providerOptions: long,
+          content: [
+            {
+              type: 'tool-result',
+              toolName: 'local',
+              toolCallId: 'first',
+              providerOptions: long,
+              output: { type: 'text', value: 'first', providerOptions: long }
+            }
+          ]
+        },
+        { role: 'user', content: [{ type: 'text', text: 'separator' }] },
+        {
+          role: 'tool',
+          providerOptions: long,
+          content: [
+            {
+              type: 'tool-result',
+              toolName: 'local',
+              toolCallId: 'second',
+              providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } },
+              output: { type: 'text', value: 'second', providerOptions: long }
+            }
+          ]
+        }
+      ]
+    }
+    const chainOnly = await transformAnthropicCacheParams(
+      { ...input, prompt: [input.prompt[0]] },
+      selectTool,
+      undefined
+    )
+    expect(extractBodyMarkers(JSON.parse(await captureBody(chainOnly)))).toEqual([{ position: 'tools.0', ttl: '5m' }])
+    const out = await transformAnthropicCacheParams(input, selectTool, undefined)
+    expect(extractBodyMarkers(JSON.parse(await captureBody(out)))).toEqual([
+      { position: 'tools.0', ttl: '5m' },
+      { position: 'messages.0.content.2', ttl: '5m' }
+    ])
+    const first = (out.prompt[0].content as any[])[0]
+    expect([hasCacheControl(first), hasCacheControl(first.output), hasCacheControl(out.prompt[0])]).toEqual([
+      false,
+      false,
+      false
+    ])
+    const second = (out.prompt[2].content as any[])[0]
+    expect(hasCacheControl(second.output)).toBe(true)
+    expect(hasCacheControl(out.prompt[2])).toBe(true)
+  })
+
+  it('keeps clamping with Qwen header insertion and a leading system', async () => {
+    const input: LanguageModelV3CallOptions = {
+      tools: [{ type: 'provider', id: 'anthropic.web_search_20250305', name: 'web_search', args: {} }],
+      prompt: [
+        textMessage('system', 'system'),
+        { ...textMessage('user', 'request '.repeat(1600)), providerOptions: long }
+      ]
+    }
+    const out = await transformAnthropicCacheParams(
+      input,
+      makeProvider({ enabled: true, tokenThreshold: 1, cacheSystemMessage: true, cacheLastNMessages: 0 }),
+      undefined
+    )
+    const params = await createQwenAnthropicWebToolsMiddleware().transformParams!({
+      type: 'generate',
+      params: out,
+      model: {} as never
+    })
+    const body = JSON.parse(await captureBody(params))
+    expect(body.system.map((block: { text: string }) => block.text)).toEqual([
+      'x-anthropic-billing-header: cc_entrypoint=cli;',
+      'system'
+    ])
+    expect(extractBodyMarkers(body)).toEqual([{ position: 'system.1', ttl: '5m' }])
   })
 })
