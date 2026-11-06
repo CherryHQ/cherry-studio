@@ -37,7 +37,7 @@ import type { Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
-import { isVisionModel, supportsDynamicallyLoadedTools } from '@shared/utils/model'
+import { supportsDynamicallyLoadedTools } from '@shared/utils/model'
 import {
   isExternalCliProvider,
   isOllamaProvider,
@@ -51,6 +51,7 @@ import { gatewayCredentialsFingerprint, requiresAgentGateway, resolveApiGatewayR
 import type { AgentSessionUsageCapture } from '../types'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
 import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
+import { resolveModelNativeImageSupport } from './modelImageSupport'
 import { createClaudeCodeQueryOptions } from './queryOptions'
 import {
   buildClaudeCodeSessionSettings,
@@ -145,6 +146,7 @@ interface ConnectionMaterializationFacts {
   maxOutputTokens: number | null
   proxyEnvironmentFingerprint: string
   effectiveLanguage?: string | null
+  supportsImages: boolean
 }
 
 /**
@@ -402,12 +404,14 @@ async function deriveConnectionConfigFromSnapshot(
   const notificationContext = materialized?.notificationContext ?? resolveAgentNotificationContext(session.id, agent.id)
   const proxyEnvironmentFingerprint =
     materialized?.proxyEnvironmentFingerprint ?? (await deriveAgentProxyEnvironmentFingerprint(agent, routeFacts))
+  const supportsImages = materialized?.supportsImages ?? resolveModelNativeImageSupport(uniqueModelId)
   const rebuildFacts = {
     modelId: uniqueModelId,
     contextWindow,
     maxOutputTokens,
     reasoningEffort,
     fastMode: effectiveFastMode,
+    supportsImages,
     route: buildRebuildRouteFacts(routeFacts),
     cwd,
     // Rebuild fact: language change invalidates the warm connection so the new
@@ -548,6 +552,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   const resumeSessionId =
     effectiveResume ?? agentSessionMessageService.getLastRuntimeResumeToken(session.id) ?? undefined
   const effectiveLanguage = getEffectiveAgentLanguage(agent)
+  const supportsImages = resolveModelNativeImageSupport(uniqueModelId)
   const settings = mergeRuntimeSettings(
     await buildClaudeCodeSessionSettings(
       session,
@@ -560,7 +565,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         linkedChannelSnapshot,
         notificationContext,
         knowledgeBaseIds: selectedKnowledgeBaseIds,
-        supportsImages: Array.isArray(model.capabilities) && isVisionModel(model),
+        supportsImages,
         thinkingOptions,
         fastMode: fastModeTransport === 'claude-code',
         effectiveLanguage
@@ -590,7 +595,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       proxyEnvironmentFingerprint: createAgentProxyEnvironmentFingerprint(settings.env ?? {}, {
         additionalBypassRule: gatewayBypassRule(route)
       }),
-      effectiveLanguage
+      effectiveLanguage,
+      supportsImages
     }
   )
   const sdkModelId = route.modelIds.primary
