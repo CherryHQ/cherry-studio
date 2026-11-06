@@ -210,8 +210,10 @@ export class AgentSessionForkOperations {
     signal.throwIfAborted()
     await ensureRetiredSessionHistory(sourceSessionId)
     const preliminary = agentSessionForkService.read(sourceSessionId, messageId)
-    if (!runtimeDriverRegistry.getAgentSessionDriver(preliminary.agent.type)?.fork)
-      throw new AgentSessionForkError('runtime_unsupported')
+    const agent = agentService.getAgent(preliminary.agent.id)
+    if (!agent) throw new AgentSessionForkSourceError('source_missing')
+    const driver = runtimeDriverRegistry.getAgentSessionDriver(agent.type)
+    if (!driver?.fork) throw new AgentSessionForkError('runtime_unsupported')
     const selected = preliminary.messages.at(-1)!
     const anchor = RuntimeForkAnchorSchema.safeParse(selected.data.runtimeAnchor)
     if (selected.role !== 'assistant' || selected.status !== 'success')
@@ -235,10 +237,7 @@ export class AgentSessionForkOperations {
     ]
     const source = agentSessionForkService.read(sourceSessionId, messageId, excludedIds)
     const checkpoint = anchor.data.checkpoint
-    const agent = agentService.getAgent(source.agent.id)
-    if (!agent) throw new AgentSessionForkSourceError('source_missing')
-    const driver = runtimeDriverRegistry.getAgentSessionDriver(agent.type)
-    if (agent.type !== checkpoint.runtime || !driver?.fork) throw new AgentSessionForkError('unsupported_checkpoint')
+    if (agent.type !== checkpoint.runtime) throw new AgentSessionForkError('unsupported_checkpoint')
     const checkpoints: RuntimeForkCheckpoint[] = []
     for (const row of source.messages) {
       const parsed = RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor)

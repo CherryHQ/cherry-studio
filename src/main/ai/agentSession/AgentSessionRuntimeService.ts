@@ -212,6 +212,7 @@ export interface AgentSessionInteractionState {
 
 type AgentSessionTurn = {
   localTurnUsage?: LocalAgentTurnUsage
+  taskIds: readonly string[]
   forkAnchor?: RuntimeForkAnchor
   turnId: string
   /** True when the user message arrived as a steer — admission wraps it in a system-reminder. */
@@ -655,6 +656,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const messageSnapshot = input.messageSnapshot ? structuredClone(input.messageSnapshot) : undefined
     const existing = this.entries.get(input.sessionId)
     const turn: AgentSessionTurn = {
+      taskIds: input.userMessage ? [input.userMessage.id] : [],
       turnId,
       assistantMessageId: input.assistantMessageId,
       userMessage,
@@ -3170,6 +3172,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
     const turnId = crypto.randomUUID()
     const nextTurn: AgentSessionTurn = {
+      taskIds: [nextMessage.id],
       turnId,
       systemReminder: pendingTurn.steer === true,
       assistantMessageId,
@@ -3197,6 +3200,7 @@ export class AgentSessionRuntimeService extends BaseService {
       })
     }
     application.get('AiStreamManager').startRuntimeTurn({
+      taskIds: nextTurn.taskIds,
       topicId: entry.topicId,
       modelId: entry.modelId,
       rootSpan,
@@ -3269,6 +3273,7 @@ export class AgentSessionRuntimeService extends BaseService {
       })
     }
     application.get('AiStreamManager').startRuntimeTurn({
+      taskIds: turn.taskIds,
       topicId: entry.topicId,
       modelId: turn.modelId,
       rootSpan,
@@ -3347,6 +3352,7 @@ export class AgentSessionRuntimeService extends BaseService {
       .setShared(AGENT_SESSION_TURN_ORIGIN_CACHE_KEY(entry.sessionId, assistantMessageId), origin)
     const turnId = crypto.randomUUID()
     const receiveOnlyTurn: AgentSessionTurn = {
+      taskIds: [],
       turnId,
       assistantMessageId,
       userMessage: syntheticMessage,
@@ -3382,6 +3388,7 @@ export class AgentSessionRuntimeService extends BaseService {
       })
     }
     application.get('AiStreamManager').startRuntimeTurn({
+      taskIds: receiveOnlyTurn.taskIds,
       topicId: entry.topicId,
       modelId,
       rootSpan,
@@ -3466,6 +3473,7 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.branchHead = assistantMessageId
     const turnId = crypto.randomUUID()
     const continuationTurn: AgentSessionTurn = {
+      taskIds: transition.inputs.map(({ message }) => message.id),
       turnId,
       assistantMessageId,
       userMessage: steerMessage,
@@ -3503,6 +3511,7 @@ export class AgentSessionRuntimeService extends BaseService {
       })
     }
     application.get('AiStreamManager').startRuntimeTurn({
+      taskIds: continuationTurn.taskIds,
       topicId: entry.topicId,
       modelId,
       rootSpan,

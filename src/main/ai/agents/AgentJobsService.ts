@@ -99,7 +99,7 @@ function readAgentTaskJobInputTemplate(value: unknown): AgentTaskJobInputTemplat
  */
 @Injectable('AgentJobsService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['JobManager'])
+@DependsOn(['JobManager', 'NotificationService'])
 export class AgentJobsService extends BaseService {
   // All autonomous schedule writes participate in shutdown and backup quiescence.
   private readonly inFlightWork = createInFlightWorkTracker()

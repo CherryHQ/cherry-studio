@@ -88,6 +88,7 @@ describe('AgentSessionMessageService', () => {
   })
 
   afterEach(() => {
+    runtimeDriverRegistry.clearForTest()
     vi.restoreAllMocks()
   })
 
@@ -491,6 +492,14 @@ describe('AgentSessionMessageService', () => {
     ] as const)(
       'reports %s when fork is requested without publishing a session',
       async (_label, runtimeAnchor, reason) => {
+        runtimeDriverRegistry.register({
+          type: 'claude-code',
+          capabilities: ['agent-session'],
+          validateSession: vi.fn(),
+          listAvailableTools: vi.fn().mockResolvedValue([]),
+          connect: vi.fn(),
+          fork: vi.fn()
+        })
         await seedAgent('fork-agent', 'Fork Agent')
         await seedSession({ id: 'fork-source', agentId: 'fork-agent', name: 'Source', orderKey: 'fork-order' })
         agentSessionMessageService.saveMessage({
