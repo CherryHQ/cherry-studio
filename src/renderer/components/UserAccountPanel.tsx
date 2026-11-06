@@ -15,9 +15,18 @@ import { getAppEdition } from '@renderer/utils/appEdition'
 import { isEmoji } from '@renderer/utils/naming'
 
 import { AppearanceMenu } from './layout/AppearanceMenu'
+import { NotificationCenterButton } from './NotificationCenter'
 import UserPopup from './UserPopup'
 
-export function UserAccountPanel({ onRequestClose, children }: { onRequestClose?: () => void; children?: ReactNode }) {
+export function UserAccountPanel({
+  onRequestClose,
+  onNotificationsOpen,
+  children
+}: {
+  onRequestClose?: () => void
+  onNotificationsOpen?: () => void
+  children?: ReactNode
+}) {
   const [userName] = usePreference('app.user.name')
   const { t } = useTranslation()
   const avatar = useAvatar()
@@ -192,6 +201,12 @@ export function UserAccountPanel({ onRequestClose, children }: { onRequestClose?
             </span>
           </Button>
         ) : null}
+        <NotificationCenterButton
+          onRequestClose={() => {
+            onNotificationsOpen?.()
+            onRequestClose?.()
+          }}
+        />
         <AppearanceMenu onRequestClose={onRequestClose} />
         {children}
         {cloudHeaderAction ? (

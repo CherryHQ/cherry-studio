@@ -613,14 +613,16 @@ describe('runDataReset', () => {
     expect(applicationMock.relaunch).not.toHaveBeenCalled()
   })
 
-  it('quits without wiping when the attempt count cannot be durably recorded', async () => {
+  it('abandons the reset instead of quitting forever when the attempt count cannot be durably recorded', async () => {
     stubAll(pendingMarker())
     fsCtl.failWrite = true
     await runReset()
 
+    // The reset cannot make progress without a durable attempt count, and quitting would repeat on
+    // every start on the same unwritable disk: drop the marker and let the app boot.
     expect(rmSyncMock).not.toHaveBeenCalled()
-    expect(showErrorBoxMock).toHaveBeenCalled()
-    expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
+    expect(readStoredMarker()).toBeNull()
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
     expect(applicationMock.relaunch).not.toHaveBeenCalled()
   })
 

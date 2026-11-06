@@ -237,6 +237,8 @@ function makeData(overrides: Partial<UseModelSelectorDataResult> = {}): UseModel
     availableTags: [],
     getModelDescription: () => undefined,
     isModelUnavailable: () => false,
+    cloudAvailabilityReady: true,
+    cloudAvailabilityError: undefined,
     isLoading: false,
     isPinActionDisabled: false,
     listItems,
