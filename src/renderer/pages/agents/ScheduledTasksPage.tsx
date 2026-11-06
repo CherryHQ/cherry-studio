@@ -11,7 +11,7 @@ import { formatTaskCardTime, TaskRunSummaryLine } from '@renderer/components/Sch
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useTaskConversation } from '@renderer/hooks/agent/useTaskConversation'
-import { useAllTasks, useCreateTask, useTask } from '@renderer/hooks/agent/useTasks'
+import { TASKS_PAGE_LIMIT, useAllTasks, useCreateTask, useTask } from '@renderer/hooks/agent/useTasks'
 import { useConversationShellPaneState } from '@renderer/hooks/useConversationShellPaneState'
 import type { AppRouter } from '@renderer/types/router'
 
@@ -52,7 +52,7 @@ export default function ScheduledTasksPage() {
       ].sort(),
     [active.tasks, paused.tasks, completed.tasks, missed.tasks]
   )
-  const { data: owners } = useQuery('/agents', { query: { ids, limit: 200 }, enabled: ids.length > 0 })
+  const { data: owners } = useQuery('/agents', { query: { ids, limit: 4 * TASKS_PAGE_LIMIT }, enabled: ids.length > 0 })
   const names = useMemo(() => new Map(owners?.items.map((agent) => [agent.id, agent.name])), [owners])
   const {
     data: availableAgents,
