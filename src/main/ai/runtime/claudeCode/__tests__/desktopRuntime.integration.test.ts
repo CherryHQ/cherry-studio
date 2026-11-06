@@ -12,20 +12,27 @@ import { afterEach, expect, it, vi } from 'vitest'
 
 import { runtimeId, type InputState } from '@cherrystudio/agent-runtime'
 import type { ClaudeThreadHandle } from '@cherrystudio/agent-runtime-claude-code'
+import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionContextTable } from '@data/db/schemas/agentSessionContext'
 import { agentSessionMessageTable as sessionMessagesTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
+import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { ChildThreadProjection, savedChildView } from '@main/ai/agentSession/ChildThreadProjection'
 import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
 import { prepareClaudeBranch, reserveClaudeBranchTx } from '@main/ai/runtime/claudeCode/claudeContext'
+import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
+import { pipeMessageStream } from '@main/ai/streamManager/pipeMessageStream'
+import { BaseService } from '@main/core/lifecycle/BaseService'
 
 import { ClaudeFeed } from '../../../../../../packages/agent-runtime-claude-code/src/observation'
 import { fixture, spawnChild } from '../../../../../../packages/agent-runtime-claude-code/tests/nativeFixture'
 import { assistantMessage, wireProcess } from '../../../../../../packages/agent-runtime-claude-code/tests/wireFixture'
-import type { AgentRuntimeConnection, AgentRuntimeEvent } from '../../types'
+import type { AgentRuntimeConnection, AgentRuntimeEvent, AgentRuntimeConnectInput } from '../../types'
 import type * as AgentSessionWarmup from '../agentSessionWarmup'
 import { ClaudeCodeRuntimeDriver } from '../ClaudeCodeRuntimeDriver'
 import type { ClaudeCodeProcessDiagnostics } from '../processExitDiagnostics'
@@ -101,13 +108,19 @@ async function desktop(options: Parameters<typeof fixture>[0] = {}) {
       message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text }] } }
     })
   })
-  const connect = async (nativeSessionId?: string, branchHead?: string) => {
+  const connect = async (
+    nativeSessionId?: string,
+    branchHead?: string,
+    consume = true,
+    host?: AgentRuntimeConnectInput
+  ) => {
     connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId,
       agentId: randomUUID(),
       modelId: 'native-test::claude-sonnet-4-6',
       nativeSessionId,
-      branchHead
+      branchHead,
+      ...host
     })
     const current = connection
     const handle = (current as unknown as { handle: ClaudeThreadHandle }).handle
@@ -116,6 +129,7 @@ async function desktop(options: Parameters<typeof fixture>[0] = {}) {
       if (event.type === 'input.changed') nativeInputs.push(event.input)
     })
     const reading = (async () => {
+      if (!consume) return
       for await (const event of current.events) events.push(event)
     })()
     cleanups.push(async () => {
@@ -139,6 +153,134 @@ async function desktop(options: Parameters<typeof fixture>[0] = {}) {
   }
   return { ...test, sessionId, input, connect, events, wait, nativeInputs }
 }
+
+it('keeps both real SDK background notifications in one persisted Main reply until the final summary', async () => {
+  const test = await desktop()
+  const agentId = randomUUID()
+  const modelId = 'native-test::claude-sonnet-4-6'
+  dbh.db.insert(userProviderTable).values({ providerId: 'native-test', name: 'Test', orderKey: 'a0' }).run()
+  dbh.db
+    .insert(userModelTable)
+    .values({
+      id: modelId,
+      providerId: 'native-test',
+      modelId: 'claude-sonnet-4-6',
+      name: 'Model',
+      capabilities: [],
+      supportsStreaming: true,
+      orderKey: 'a0'
+    })
+    .run()
+  dbh.db
+    .insert(agentTable)
+    .values({ id: agentId, type: 'claude-code', name: 'Agent', instructions: '', model: modelId, orderKey: 'a0' })
+    .run()
+  dbh.db.update(agentSessionTable).set({ agentId }).where(eq(agentSessionTable.id, test.sessionId)).run()
+  BaseService.resetInstances()
+  runtimeDriverRegistry.clearForTest()
+  runtimeDriverRegistry.register({
+    type: 'claude-code',
+    validateSession: () => {},
+    connect: async (input) => {
+      const connection = await test.connect(undefined, undefined, false, input)
+      vi.spyOn(connection, 'reconcile').mockResolvedValue('current')
+      return connection
+    }
+  })
+  const service = new AgentSessionRuntimeService()
+  MockApplicationUtils.setService('AgentSessionRuntimeService', service)
+  const unexpected: unknown[] = []
+  MockApplicationUtils.setService('AiStreamManager', {
+    getInteractionWindow: () => undefined,
+    startRuntimeTurn: (input: unknown) => unexpected.push(input),
+    broadcastTopicError: (...args: unknown[]) => unexpected.push(args),
+    drainRuntimeReply: async () => {},
+    abort: () => {}
+  })
+  cleanups.push(async () => {
+    await service.closeSession(test.sessionId)
+    runtimeDriverRegistry.clearForTest()
+    BaseService.resetInstances()
+  })
+  const user = test.input('Run two background reviews').message
+  const reply = messages.saveMessage({
+    sessionId: test.sessionId,
+    message: { role: 'assistant', status: 'pending', data: { parts: [] } }
+  })
+  const handle = service.beginTurn({
+    sessionId: test.sessionId,
+    topicId: `agent-session:${test.sessionId}`,
+    agentId,
+    agentType: 'claude-code',
+    modelId,
+    assistantMessageId: reply.id,
+    userMessage: user,
+    headless: true
+  })
+  await service.primeConnection(test.sessionId)
+  const source = service.openTurnStream({
+    sessionId: test.sessionId,
+    turnId: handle.turnId,
+    signal: handle.abortController.signal
+  })
+  if (source.kind !== 'messages') throw new Error('Expected message stream')
+  const reading = pipeMessageStream(
+    source.stream,
+    handle.abortController.signal,
+    { id: reply.id, role: 'assistant', parts: [] },
+    () => {},
+    () => {}
+  )
+  const request = await Promise.race([
+    test.request(),
+    reading.then((result) => {
+      throw new Error(JSON.stringify({ result, unexpected }))
+    })
+  ])
+  request.reply.block(spawnChild('toolu_review_a', true))
+  request.reply.block(spawnChild('toolu_review_b', true))
+  request.reply.finish('tool_use')
+  const requests = [await test.request(), await test.request(), await test.request()]
+  const parent = requests.find((value) => JSON.stringify(value.body.messages).includes('tool_result'))!
+  const children = requests.filter((value) => value !== parent)
+  parent.reply.block({ type: 'text', text: 'Delegated reviews' })
+  parent.reply.finish()
+  await expect.poll(() => test.nativeInputs.some((input) => input.outcome === 'completed')).toBe(true)
+  expect(service.isSessionBusy(test.sessionId)).toBe(true)
+  let ended = false
+  void reading.then(() => {
+    ended = true
+  })
+  for (const [index, child] of children.entries()) {
+    child.reply.block({ type: 'text', text: `Child ${index} finding` })
+    child.reply.finish()
+    const notification = await test.request()
+    expect(ended).toBe(false)
+    expect(service.isSessionBusy(test.sessionId)).toBe(true)
+    notification.reply.block({ type: 'text', text: index === 0 ? 'First review received' : 'Final combined summary' })
+    notification.reply.finish()
+  }
+  await expect.poll(() => ended, { timeout: 15000 }).toBe(true)
+  const result = await reading
+  expect(result.threw).toBeUndefined()
+  for (const listener of handle.listeners)
+    await listener.onDone({ status: 'success', finalMessage: result.finalMessage })
+  const rows = dbh.db
+    .select()
+    .from(sessionMessagesTable)
+    .where(eq(sessionMessagesTable.sessionId, test.sessionId))
+    .all()
+    .filter((row) => row.role === 'assistant')
+  expect(rows.map((row) => row.id)).toEqual([reply.id])
+  expect(
+    messages
+      .getSessionMessage(test.sessionId, reply.id)
+      .data.parts?.filter((part) => part.type === 'text')
+      .map((part) => part.text)
+  ).toEqual(['Delegated reviews', 'First review received', 'Final combined summary'])
+  expect(service.isSessionBusy(test.sessionId)).toBe(false)
+  expect(unexpected).toEqual([])
+}, 30000)
 
 // A native priority input must roll the host only when consumed; the child owns its own stored output.
 it('joins native steer to the shared answer while keeping foreground child history independent', async () => {
@@ -278,11 +420,10 @@ it.each(['backup', 'close'] as const)(
       .filter((event) => event.messageId)
     expect(new Set(childResponses.map((event) => event.responseId)).size).toBe(1)
     expect(new Set(childResponses.map((event) => event.messageId)).size).toBe(1)
-    expect(
-      test.events.every(
-        (event) => event.type !== 'background-work-state' || !event.active || event.awaitingReply === false
-      )
-    ).toBe(true)
+    if (mode === 'backup')
+      expect(test.events.filter((event) => event.type === 'background-results').at(-1)).toMatchObject({
+        result: { status: 'confirmed', value: [] }
+      })
     const saved = savedChildView(contexts.context(context.id)).messages
     const replies = saved.filter((message) => message.role === 'assistant')
     expect(replies).toHaveLength(1)

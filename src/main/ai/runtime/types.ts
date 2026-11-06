@@ -177,11 +177,10 @@ export type AgentRuntimeEvent =
   | { type: 'supported-commands'; commands: AgentSessionSlashCommand[] }
   /** Live background work after a membership change. REPLACE semantics — the payload is the full set. */
   | { type: 'background-tasks'; tasks: AgentSessionBackgroundTasks }
-  /** Whether work outliving the current turn still needs this connection kept alive. `false` is a
-   *  runtime-quiescence boundary: all trailing lifecycle output and autonomous generation for that
-   *  work have drained. `awaitingReply` defaults to `active`; false keeps detached commands alive
-   *  without holding the current reply open. */
-  | { type: 'background-work-state'; active: boolean; awaitingReply?: boolean }
+  /** Native work retaining this connection, independently from product reply completion. */
+  | { type: 'background-work-state'; active: boolean }
+  /** Full set of triggering native tool calls whose background results have not drained. */
+  | { type: 'background-results'; result: OperationResult<readonly string[]> }
   /** Task lifecycle that arrived with no turn stream to carry it; the host keeps the latest per task. */
   | { type: 'background-task-event'; data: AgentTaskEventPartData }
   /** Parented subagent content that outlived its spawning turn. The host patches these chunks onto
@@ -190,7 +189,12 @@ export type AgentRuntimeEvent =
    *  transfers generation ownership and asks the host to open a receive-only transcript turn,
    *  carrying why the runtime opened it so the transcript can say so; `finished` releases
    *  ownership after the SDK result, independently from turn completion. */
-  | { type: 'autonomous-turn-state'; state: 'started'; origin: AutonomousTurnOrigin }
+  | {
+      type: 'autonomous-turn-state'
+      state: 'started'
+      origin: AutonomousTurnOrigin
+      sourceToolCallIds?: readonly string[]
+    }
   | { type: 'autonomous-turn-state'; state: 'finished' }
   | { type: 'error'; error: unknown }
 

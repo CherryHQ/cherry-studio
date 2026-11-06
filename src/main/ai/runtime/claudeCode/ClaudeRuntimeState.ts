@@ -81,6 +81,7 @@ export function claudeControlEvents(control: ClaudeControl): AgentRuntimeEvent[]
       ]
     case 'supported-commands':
     case 'background-work-state':
+    case 'background-results':
     case 'compaction-start':
     case 'compaction-error':
     case 'response-start':

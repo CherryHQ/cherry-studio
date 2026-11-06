@@ -466,7 +466,13 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
             this.autonomous = true
             this.sending = true
             this.failure = undefined
-            this.eventQueue.push({ type: 'autonomous-turn-state', state: 'started', origin: this.nextOrigin })
+            this.eventQueue.push({
+              type: 'autonomous-turn-state',
+              state: 'started',
+              origin: this.nextOrigin,
+              sourceToolCallIds:
+                batch.backgroundResults?.status === 'confirmed' ? batch.backgroundResults.value.notification : undefined
+            })
             this.nextOrigin = { kind: 'background-work' }
           }
         } else if (event.type === 'subagent.upsert' && event.subagent.child)
@@ -480,6 +486,17 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       for (const input of batch.outcomes)
         if (input.outcome !== 'completed') this.failure ??= new Error(input.error?.message ?? input.outcome)
       await this.projection.accept(batch)
+      if (batch.backgroundResults) {
+        const result = batch.backgroundResults
+        this.eventQueue.push({
+          type: 'background-results',
+          result: result.status === 'confirmed' ? { status: 'confirmed', value: result.value.pending } : result
+        })
+        this.eventQueue.push({
+          type: 'background-work-state',
+          active: result.status !== 'confirmed' || result.value.active
+        })
+      }
       for (const child of batch.children)
         void this.observeChild(child.thread.id).then(() =>
           this.publishChildTask(child.thread.id, childTaskStatus(child.outcome))
@@ -541,7 +558,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           toolCallId: this.childOrigin(view.sessionId)?.toolCallId
         }))
       })
-      this.eventQueue.push({ type: 'background-work-state', active: running.length > 0, awaitingReply: false })
     }
   }
 

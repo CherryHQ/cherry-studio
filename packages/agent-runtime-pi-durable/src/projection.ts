@@ -3,6 +3,7 @@ import { isDeepStrictEqual } from 'node:util'
 
 import type { ConversationView, EntryRecord, LiveState, SubmissionRecord } from '@earendil-works/pi-durable'
 
+import { subagentResults, type HistoryEntry, type SubagentResults } from '@cherrystudio/agent-behavior'
 import {
   runtimeId,
   ThreadFeed,
@@ -10,6 +11,7 @@ import {
   type InputState,
   type Observation,
   type ObservationPayload,
+  type OperationResult,
   type Thread
 } from '@cherrystudio/agent-runtime'
 
@@ -20,6 +22,7 @@ export interface DurableObservation {
   readonly aliases: Readonly<Record<string, string>>
   readonly live: readonly string[]
   readonly completion?: { readonly inputs: readonly InputState[] }
+  readonly backgroundResults: OperationResult<SubagentResults>
 }
 
 /** One normalized source shared by every access to a native conversation. */
@@ -35,6 +38,11 @@ export class DurableProjection {
   private readonly admitting = new Set<InputId>()
   private readonly cycle = new Set<string>()
   private completion?: DurableObservation['completion']
+  private history: readonly HistoryEntry[] = []
+  private backgroundResults: DurableObservation['backgroundResults'] = {
+    status: 'confirmed',
+    value: { active: false, pending: [], notification: [] }
+  }
 
   constructor(
     readonly ref: Thread,
@@ -72,7 +80,8 @@ export class DurableProjection {
             delivery === 'baseline'
               ? []
               : messages.filter((message) => !historical.has(message.id)).map((message) => message.id),
-          completion
+          completion,
+          backgroundResults: this.backgroundResults
         }),
         retain: Boolean(completion)
       }
@@ -97,9 +106,10 @@ export class DurableProjection {
     if (this.view) this.update(this.view, this.revision)
   }
 
-  update(view: ConversationView, revision?: number, changed: readonly InputState[] = []): void {
+  update(view: ConversationView, revision?: number, changed: readonly InputState[] = [], history = this.history): void {
     this.view = view
     this.revision = revision
+    this.history = history
     let inputs = this.feed.snapshot.inputs
     changed = changed.filter((input) => !inputs.some((known) => isDeepStrictEqual(known, input)))
     for (const input of changed) {
@@ -135,6 +145,17 @@ export class DurableProjection {
       }
     }
     const pending = Boolean(this.admitting.size || live?.run || live?.compactions?.length || unfinished)
+    const results = subagentResults(history, Boolean(live?.run))
+    this.backgroundResults = results
+      ? { status: 'confirmed', value: results }
+      : {
+          status: 'unknown',
+          error: {
+            operation: 'backgroundResults',
+            code: 'missing-result-origin',
+            message: 'A Durable background result has no recorded triggering call'
+          }
+        }
     this.completion =
       !pending && (this.pending || this.cycle.size > 0) && revision !== undefined
         ? { inputs: inputs.filter((input) => this.cycle.has(input.nativeInput?.id ?? input.inputId!)) }

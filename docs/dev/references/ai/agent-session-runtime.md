@@ -229,7 +229,15 @@ resending. Connection generations fence stale callbacks, not the lifetime of unr
 Unavailable native evidence keeps the context unresolved. This retention covers a living
 process; the persisted native binding alone cannot recreate snapshot/headless attributes.
 
-A receive-only autonomous generation never accepts a redirect. Follow-ups
+Background notification generations whose native source calls belong to an unfinished reply resume
+that reply and keep its assistant message ID. Main records intermediate native success but holds
+product completion while that reply has undrained results. Empty display task lists and connection
+release do not settle it; confirmed result drainage, ordered content and final persistence do.
+The model still chooses foreground/background through the native tool arguments. A resident command
+can retain the connection without holding a reply open. A notification without proven ownership
+cannot reopen a settled reply.
+
+An independent receive-only autonomous generation never accepts a redirect. Follow-ups
 remain in `runtimeState.queue` until terminal persistence releases runtime ownership.
 The runtime's `autonomous-turn-state: started` event names why it opened the turn
 (`AutonomousTurnOrigin`: Claude Code waking after background work). The shared reply preparation path publishes it to the shared
@@ -952,11 +960,12 @@ the existing backend/context tables bind it to product sessions. Strict identity
 prevent a missing store from silently becoming a fresh conversation.
 
 Children use the same independent projection/archive and `ai.projection.*` transport.
-Background occupancy retains the owner with `awaitingReply: false`, allowing the parent's
-reply to finish before a child. Result delivery starts a separate autonomous turn. Historical
-input snapshots update saved facts without reassigning old responses to that new turn.
-`durable.observe` carries content, input outcomes and foreground completion from the same native
-commit revision. Unresolved accepted/native-only input, admission, foreground work or compaction
+Background occupancy retains the native owner. Attributed background-result facts keep the owning
+Main reply open through child reports and parent summarization; notifications without a new input
+boundary append to that same reply. A continuation uses its current triggering call, not the child's
+immutable creation call. Historical input snapshots update saved facts without reassigning old responses.
+`durable.observe` carries content, input outcomes, background-result facts and foreground completion
+from the same native commit revision. Unresolved accepted/native-only input, admission, foreground work or compaction
 keeps settlement pending. Main has no pending-input polling loop and never derives completion
 from idle activity or an empty product-input map.
 

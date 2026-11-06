@@ -4,7 +4,11 @@
 `create` creates a new access; `open` loads an existing native context with an identity check.
 Concurrent handles share one execution source; release stops observation, while shutdown closes owned sessions.
 `pi.observe` delivers content, input outcomes, aliases, live provenance, child task facts and settle evidence
-in one captured batch. Its first baseline is historical; overflow recovery retains unseen terminal facts
+in one captured batch. `backgroundResults` reads existing behavior records and notification inputs;
+its pending and notification IDs name the current triggering tool calls, including continuations.
+Results remain pending through report delivery and parent generation, including the gap before that
+generation starts. Lifecycle and ledger callbacks publish them through the same ordered projection.
+Its first baseline is historical; overflow recovery retains unseen terminal facts
 after their body. Hosts do not parse child tool receipts or read mutable aliases at delivery time.
 
 Each Pi handle exposes `input.submit`. Root contexts support `reject`,

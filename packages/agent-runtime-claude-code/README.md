@@ -77,7 +77,12 @@ common package. `ClaudeFeed` uses `ThreadFeed` for normalized state and bounds
 delivery of paired batches. Baseline and recovery are internal delivery modes; aliases,
 retractions and live provenance are captured together. Batch state exposes captured `aborted`;
 `claude.state()` exposes current `active`. Background occupancy stays in private control state. Initial baseline includes current background
-occupancy without replaying historical completion or charges. Overflow recovery retains unseen control
+occupancy and pending result origins without replaying historical completion or charges.
+`background-results` tracks child-agent runs by native run ID and current triggering tool-use ID;
+a continuation does not reuse its creation call. Task notifications associate autonomous generation
+with those calls. Empty membership alone does not drain a result: its notification, parent answer
+and native idle barrier must finish. Resident commands retain occupancy without becoming pending
+child-agent results. Overflow recovery retains unseen control
 and invocation facts after their matching body; an unrecoverable backlog reports a gap and closes.
 Slow or failing consumers cannot block native execution. After stopping production, hosts await
 `Observation.drain()` before final archive persistence, then detach and release. `runtime.settled()`

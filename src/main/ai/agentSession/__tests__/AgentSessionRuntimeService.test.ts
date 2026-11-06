@@ -649,7 +649,7 @@ describe('AgentSessionRuntimeService', () => {
       service.beginTurn(baseTurnInput)
       const entry = getEntry(service)
       entry.connection = { close: vi.fn(), send: vi.fn(), events: [] }
-      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true, awaitingReply: false })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
       service.markTurnTerminal('session-1', 'success')
       expect(service.isSessionBusy('session-1')).toBe(false)
       expect(activities.size).toBe(1)
@@ -665,7 +665,7 @@ describe('AgentSessionRuntimeService', () => {
       service.beginTurn(baseTurnInput)
       const entry = getEntry(service)
       entry.connection = { close: () => gate.promise, send: vi.fn(), events: [] }
-      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true, awaitingReply: false })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
       service.markTurnTerminal('session-1', 'success')
       expect(activities.size).toBe(1)
       const closing = service.closeSession('session-1')

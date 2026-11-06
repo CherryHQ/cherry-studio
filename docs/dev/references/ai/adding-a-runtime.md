@@ -123,9 +123,13 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
        returns an accepted input for host resend.
      - `retainWhileIdle` — keep an owned in-process runtime beyond the host idle TTL;
        explicit retirement and service shutdown still close it.
-     - `background-work-state` with `awaitingReply: false` — retain independent background
-       work without holding the parent's reply open. Durable and Claude use this for child projections;
-       later result delivery announces an autonomous turn.
+     - `background-work-state` — retain the connection while native background work exists.
+       It does not determine product reply completion. `background-results` reports native triggering
+       tool-call IDs whose child result or parent notification generation has not drained; only a
+       confirmed empty set proves drainage. Publish these facts after their observed content.
+       `autonomous-turn-state: started` carries `sourceToolCallIds` for a background notification.
+       Main resumes the reply owning those calls; an independent native turn keeps its own reply.
+       Resident commands may retain the connection without holding a product reply open.
      - `childProjection(toolCallId)` — expose a child snapshot and subscription
        through the root owner. `messageChild(contextId, text)` dispatches child input
        through that owner. These optional desktop facets do not add native history

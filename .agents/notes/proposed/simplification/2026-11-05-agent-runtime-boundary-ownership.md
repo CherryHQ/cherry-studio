@@ -425,7 +425,7 @@ The shared assistant message contains parent progress and summary. Complete chil
 | New input, steer or follow-up arrives while waiting | Preserve existing queueing, admission and interaction policy. | Existing input boundaries may create successor replies. Requiring one message must neither swallow user input nor assign old tasks' late facts to the latest reply. Cross-input result attribution needs separate verification. |
 | Switch windows, reattach, close or back up | Windows read the same product state; detaching observation does not stop execution. | Reattachment does not replay completion. Close/backup retains the seal → drain → flush contract; UI completion is not proof that native work and writes have drained. |
 
-#### 12.3 Current evidence and gaps
+#### 12.3 Evidence before the repair
 
 This comparison uses main `702b394a616cd3b37aff50238f77cd0627d626da` and the current uncommitted implementation on `46d76e46c03d1d1f19da4ccf03cea27e24c11180`. Findings come from code, the isolated Electron instance and its actual message/tool records. No new model task was launched while recording this section.
 
@@ -440,15 +440,16 @@ Code inspection entry points: [Claude control](../../../../packages/agent-runtim
 
 #### 12.4 Repair and acceptance checklist
 
-Every item below remains outstanding. Historical passing results in sections 10 and 11 cannot replace this section's end-to-end evidence.
+The checks below are backed by section 12.6. Historical passing results in sections 10 and 11 do not replace this section's end-to-end evidence; the usage-attribution limit is recorded explicitly.
 
-- [ ] Inspect foreground/background modes and result-delivery facts for all three runtimes, recording source, attribution, failure and drainage conditions. Report missing evidence instead of defaulting unknown to no waiting.
-- [ ] Preserve native foreground completion and independent background execution while restoring Main's product waiting/completion rules. Ordinary background commands must not block replies indefinitely; do not replace every `false` with `true`.
-- [ ] Drive Main and real SQLite with actual adapter events for two background children finishing at different times, intermediate parent replies and the final summary. The original assistant row stays unfinished while waiting, all parent text retains its message ID, and terminal persistence occurs once.
-- [ ] Cover empty task snapshots before summaries, blocked observation callbacks, duplicate terminal events, targeted stop, session Stop, failure and unknown results; check correct terminal states and absence of duplicate writes.
-- [ ] Verify new user input, steer/follow-up, reconnect and old callbacks: preserve existing input boundaries and frozen attributes, prevent old results from attaching to successors, and never resend accepted input.
-- [ ] Verify foreground and explicit background modes separately in Electron for Claude Code, Pi and Pi Durable. Record actual tool arguments, Stop while waiting, Send after completion, assistant IDs/counts and reopened content. Include at least one real-model background scenario for each runtime supporting that capability.
+- [x] Inspect foreground/background modes and result-delivery facts for all three runtimes, recording source, attribution, failure and drainage conditions. Report missing evidence instead of defaulting unknown to no waiting.
+- [x] Preserve native foreground completion and independent background execution while restoring Main's product waiting/completion rules. Ordinary background commands must not block replies indefinitely; do not replace every `false` with `true`.
+- [x] Drive Main and real SQLite with actual adapter events for two background children finishing at different times, intermediate parent replies and the final summary. The original assistant row stays unfinished while waiting, all parent text retains its message ID, and terminal persistence occurs once.
+- [x] Cover empty task snapshots before summaries, blocked observation callbacks, duplicate terminal events, targeted stop, session Stop, failure and unknown results; check correct terminal states and absence of duplicate writes.
+- [x] Verify new user input, steer/follow-up, reconnect and old callbacks: preserve existing input boundaries and frozen attributes, prevent old results from attaching to successors, and never resend accepted input.
+- [x] Verify foreground and explicit background modes separately in Electron for Claude Code, Pi and Pi Durable. Record actual tool arguments, Stop while waiting, Send after completion, assistant IDs/counts and reopened content. Include at least one real-model background scenario for each runtime supporting that capability.
 - [ ] Check existing usage and native invocation attribution to establish that retaining one product reply adds no requests, duplicate charges or missing child records; cover affected consumers before recording a pass.
+
 
 #### 12.5 Modification plan: the model selects execution mode, Main owns the reply
 
@@ -477,6 +478,31 @@ Implement in this order, verifying each step through actual consumer outcomes:
 - Delete Pi/Durable's inference of drainage from display task counts and corresponding assertions that check only a fixed boolean or mock invocation.
 
 Keep one waiting state within the existing reply; native owners retain native records. This scope adds no manager, scheduler, database table, durable ledger, model argument, SDK upgrade or renderer concatenation patch, and does not automatically merge historical rows already split. Prove the required identity and drainage facts through native probes before migrating Main consumers. After implementation, update `agent-session-runtime.md`, `adding-a-runtime.md` and affected package READMEs; this proposal stage does not rewrite references as if the target already shipped.
+
+#### 12.6 Implemented contract and verification (2026-11-07)
+
+The approved scope in section 12.5 is implemented. `awaitingReply` and display-count completion inference are removed. Existing native records supply pending result origins; `AgentSessionRuntimeReply.pendingResultToolCallIds` owns product waiting. A notification resumes that reply only when all its source calls belong to it. Missing or mixed ownership follows the existing independent-turn handoff. The implementation adds no SDK patch, schema, manager or model parameter.
+
+| Boundary | Implemented authority and evidence |
+| --- | --- |
+| Claude Code | Native task/run identities, triggering calls, notifications, parent results and the patched native idle barrier determine drainage. Empty task membership alone does not release the reply. A real SDK subprocess against a scripted HTTP provider drives Main and SQLite through two staggered results; all three parent responses persist in one row. |
+| Pi / Durable | `subagentResults` derives origins from existing spawn/continuation records and notifications. Pi publishes through its ordered lifecycle; Durable retains entries/tasks from the same committed view publication as content and completion. Real native execution tests cover initial calls, continuation calls and the gap before notification generation. Behavior tools remain model-only; no nested-call mapping was added. |
+| Main | The existing reply holds pending sources and native terminal evidence. Real SQLite regressions cover resident commands, unknown/mixed/foreign notification sources, deferred reply resumption and final persistence. Repeated usage facts for launch and both summaries produce three distinct charges on the same reply. Existing stop, failure, reconnect, stale-callback and blocked-close consumers remain covered. |
+
+Real Electron acceptance used the existing isolated development profile and configured LongCat provider. Each scenario launched two children with gated file reads; background results were released separately. Waiting and partial-completion screenshots show the Stop control, final screenshots show Send, and persistence/reopen checks retain one assistant row and both child contexts.
+
+| Runtime | Real model | Foreground arguments | Background arguments | Result |
+| --- | --- | --- | --- | --- |
+| Claude Code | `longcat::LongCat-2.0` | Both `run_in_background: false` | Both `run_in_background: true` | Foreground/background and reopened history passed. |
+| Pi | `longcat::LongCat-2.0` | `background` omitted; existing default `false` | Both `background: true` | Foreground/background and reopened history passed. |
+| Pi Durable | `longcat::LongCat-2.5` | Both `background: false` | Both `background: true` | Foreground/background and reopened history passed. |
+
+Focused validation passed: behavior/Pi/Durable package tests (118 cases), Claude control/native tests (56 cases), the affected Main consumers, package builds, four package typechecks, node typecheck, scoped Oxlint/ESLint and documentation checks. The Main handoff file passes 23 cases, including charge deduplication and three foreign/missing/mixed-origin cases. One Claude SDK integration test timed out in the combined run; its focused rerun and the entire 20-case integration file passed. The final focused rerun includes an explicit completion assertion. No full local suite or remote CI run is claimed.
+
+Local evidence is under `.context/agent-runtime-background-fix-20261106/` (tests, scope and documentation review) and `.context/cherry-electron-dev/reply-*-*.json` / `reply-*-*.png` (actual arguments, states, message IDs and screenshots); `background-reply-audit.json` records the six scenarios and child/usage associations. LongCat 2.5 returned one intermediate answer entirely in reasoning content; the acceptance reads retained native parts without inventing a text block. The original text-only probe and its timeout remain in the local evidence. Every observed conversation response retains its product owner and request IDs remain unique. One additional Claude Gateway invocation has no published native-message association and remains unbound; this repair does not guess its owner or claim complete attribution of opaque SDK calls.
+
+This section establishes the background-reply repair. The owning Spec stays proposed until the stack's cumulative acceptance and publication are reviewed; it does not declare all earlier migration criteria complete.
+
 
 ## Alternatives considered
 

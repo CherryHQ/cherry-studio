@@ -6,7 +6,7 @@ import {
   type AgentSessionEvent
 } from '@earendil-works/pi-coding-agent'
 
-import { ENTRY_KINDS } from '@cherrystudio/agent-behavior'
+import { ENTRY_KINDS, type SubagentResults } from '@cherrystudio/agent-behavior'
 import {
   runtimeId,
   ThreadFeed,
@@ -17,6 +17,7 @@ import {
   type ItemRef,
   type Observation,
   type ObservationPayload,
+  type OperationResult,
   type Thread
 } from '@cherrystudio/agent-runtime'
 
@@ -24,6 +25,7 @@ type PiMessage = AgentSession['messages'][number]
 type PiContext = { message: PiMessage; id: string }[]
 
 export interface PiObservation {
+  readonly backgroundResults?: OperationResult<SubagentResults>
   readonly events: readonly ObservationPayload[]
   readonly aliases: Readonly<Record<string, string>>
   readonly live: readonly string[]
@@ -49,6 +51,7 @@ export class PiProjection {
     }
   >()
   private pending = Promise.resolve()
+  private backgroundResults?: OperationResult<SubagentResults>
   private settled = false
   private generation = 0
   private unsubscribe: () => void = () => {}
@@ -119,6 +122,7 @@ export class PiProjection {
       return {
         value: structuredClone({
           events: [event],
+          backgroundResults: this.backgroundResults,
           aliases: this.aliases,
           live:
             delivery === 'baseline'
@@ -131,6 +135,16 @@ export class PiProjection {
         retain: settled || children.length > 0 || outcomes.length > 0
       }
     })
+  }
+
+  results(result: OperationResult<SubagentResults>): void {
+    const captured = structuredClone(result)
+    this.pending = this.pending
+      .then(() => {
+        this.backgroundResults = captured
+        this.feed.publish(this.feed.snapshot)
+      })
+      .catch((error) => this.report(error))
   }
 
   rebind(session: AgentSession): void {

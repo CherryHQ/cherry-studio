@@ -48,7 +48,7 @@ import {
 } from '@cherrystudio/agent-runtime'
 
 import { createPiDurableBehavior, type PiDurableBehavior } from './behavior/harness'
-import { readFacts } from './behavior/history'
+import { historyOf, pages, readFacts } from './behavior/history'
 import { meteredModels } from './behavior/models'
 import { ContentProjection } from './content'
 import { DurableProjection, submissionState, type DurableObservation } from './projection'
@@ -353,6 +353,26 @@ export async function createPiDurableRuntime(
         await conversationViews(native).attach(
           conversation.id,
           async (view, _release, committed) => {
+            const retained = await pages((cursor) =>
+              committed.scanEntries({ conversationId: conversation.id, order: 'ascending' }, 256, cursor, context)
+            )
+            const historyEntries = new Map(retained.map((entry) => [entry.id, entry]))
+            const sourceConversations = new Set([conversation.id, ...retained.map((entry) => entry.conversationId)])
+            const tasks = (
+              await Promise.all(
+                [...sourceConversations].map((conversationId) =>
+                  pages((cursor) => committed.scanTasks({ conversationId }, 256, cursor, context))
+                )
+              )
+            )
+              .flat()
+              .filter((task) => task.kind === 'pi.tool')
+            const toolTasks = new Map(tasks.map((task) => [task.id, task]))
+            const history = () =>
+              historyOf(
+                [...historyEntries.values()].sort((a, b) => a.id - b.id),
+                [...toolTasks.values()]
+              )
             const states: InputState[] = []
             let cursor: Cursor | undefined
             do {
@@ -370,12 +390,20 @@ export async function createPiDurableRuntime(
               }
               cursor = page.next
             } while (cursor)
-            projection.update(view, undefined, states)
+            projection.update(view, undefined, states, history())
             return {
               publication(_before, after, _ops, publication) {
                 const changed: InputState[] = []
                 const records = publication.changes.flatMap((change) => (change.type === 'entry' ? [change.value] : []))
                 for (const change of publication.changes) {
+                  if (change.type === 'entry' && change.value.conversationId === conversation.id)
+                    historyEntries.set(change.value.id, change.value)
+                  if (
+                    change.type === 'task' &&
+                    change.value.conversationId === conversation.id &&
+                    change.value.kind === 'pi.tool'
+                  )
+                    toolTasks.set(change.value.id, change.value)
                   if (
                     change.type !== 'submission' ||
                     change.value.type !== 'input' ||
@@ -395,7 +423,7 @@ export async function createPiDurableRuntime(
                       : undefined
                   changed.push(submissionState(refFor(conversation.id), record, answer, logicalIds.get(record.id)))
                 }
-                projection.update(after, publication.seq, changed)
+                projection.update(after, publication.seq, changed, history())
               },
               closeSession(failure) {
                 if (failure) report(failure.error)

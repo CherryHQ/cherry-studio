@@ -12,7 +12,7 @@ import {
   type ThreadHandle
 } from '@cherrystudio/agent-runtime'
 
-import { createPiRuntime, type PiSessionOptions } from '../src'
+import { createPiRuntime, type PiSessionOptions, type PiObservation } from '../src'
 import { assistantReply, createTestBinding, MODEL, respondingModel, tempDir, type TestStream } from './sessionSupport'
 import { gate, subagentCall, toolCallPart } from './subagentSupport'
 
@@ -164,6 +164,73 @@ it('stops the run containing a placed steering input', async () => {
   await second.reached
   confirmed(await root.interrupt!())
   await expect.poll(() => inputs(events, 'steer').at(-1)?.outcome).toBe('aborted')
+})
+
+// A child result must not release its reply before the notification's own model generation has settled.
+it('keeps each native background result owned until its parent notification has finished', async () => {
+  const childGates = [gate(), gate()]
+  const summaryGates = [gate(), gate()]
+  onTestFinished(() => {
+    for (const held of [...childGates, ...summaryGates]) held.open()
+  })
+  let rootId = ''
+  let childId = ''
+  let children = 0
+  let summaries = 0
+  const provider = respondingModel((call) => {
+    if (call.sessionId !== rootId) return childGates[children++].wait(assistantReply('child result'))
+    const last = JSON.stringify(call.messages.at(-1))
+    if (last.includes('delegate'))
+      return assistantReply(
+        [subagentCall('spawn', { description: 'scan', prompt: 'task', background: true })],
+        'toolUse'
+      )
+    if (last.includes('continue-child'))
+      return assistantReply(
+        [toolCallPart('continue', 'message_subagent', { id: childId, message: 'next task' })],
+        'toolUse'
+      )
+    if (last.includes('Background subagent update'))
+      return summaryGates[summaries++].wait(assistantReply('parent summary'))
+    return assistantReply('Parent waiting')
+  })
+  const { runtime, config, errors } = await setup(provider.model)
+  const root = confirmed(await runtime.create(config))
+  rootId = root.thread.id
+  const batches: PiObservation[] = []
+  confirmed(
+    await root.pi.observe((batch) => {
+      batches.push(batch)
+    })
+  )
+  const pending = () => batches.at(-1)?.backgroundResults
+  for (const [index, call] of ['spawn', 'continue'].entries()) {
+    await root.input.submit(draft(index === 0 ? 'delegate' : 'continue-child'))
+    await childGates[index].reached
+    await expect.poll(pending).toMatchObject({ status: 'confirmed', value: { pending: [call] } })
+    await expect.poll(() => batches.filter((batch) => batch.settled).length).toBe(index * 2 + 1)
+    const relation = batches.flatMap((batch) => batch.events).find((event) => event.type === 'subagent.upsert')
+    if (relation?.type !== 'subagent.upsert' || !relation.subagent.child) throw new Error('Missing child')
+    childId = relation.subagent.child.id
+    const beforeNotification = batches.length
+    childGates[index].open()
+    await summaryGates[index].reached
+    await expect.poll(pending).toMatchObject({ status: 'confirmed', value: { pending: [call], notification: [call] } })
+    expect(
+      batches
+        .slice(beforeNotification)
+        .every(
+          (batch) =>
+            batch.backgroundResults?.status === 'confirmed' && batch.backgroundResults.value.pending.includes(call)
+        )
+    ).toBe(true)
+    summaryGates[index].open()
+    await expect.poll(pending).toMatchObject({ status: 'confirmed', value: { active: false, pending: [] } })
+    expect(
+      batches.filter((batch) => batch.backgroundResults && batch.backgroundResults.status !== 'confirmed')
+    ).toEqual([])
+  }
+  expect(errors).toEqual([])
 })
 
 // Catches losing a public child's input identity while the report job or native steering queue delivers it.

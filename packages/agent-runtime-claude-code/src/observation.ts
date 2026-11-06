@@ -41,7 +41,8 @@ export class ClaudeFeed {
       controls: this.controlState?.backgroundTasks
         ? [
             { type: 'background-tasks', tasks: this.controlState.backgroundTasks },
-            { type: 'background-work-state', active: this.controlState.backgroundWorkActive === true }
+            { type: 'background-work-state', active: this.controlState.backgroundWorkActive === true },
+            { type: 'background-results', result: this.controlState.backgroundResults }
           ]
         : [],
       live: [...this.live],

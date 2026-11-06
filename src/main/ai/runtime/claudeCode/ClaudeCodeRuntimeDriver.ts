@@ -652,12 +652,17 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       }
     }
     for (const control of batch.controls ?? []) {
-      for (const event of claudeControlEvents(control))
+      for (const event of claudeControlEvents(control)) {
+        if (event.type === 'background-results') {
+          terminal.push(event)
+          continue
+        }
         this.eventQueue.push(
           event.type === 'supported-commands'
             ? { ...event, commands: event.commands.filter((command) => !isHostManagedSlashCommand(command)) }
             : event
         )
+      }
       const result = await this.handleControl(control)
       if (result) terminal.push(result)
     }

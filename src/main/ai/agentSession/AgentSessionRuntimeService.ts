@@ -2260,7 +2260,10 @@ export class AgentSessionRuntimeService extends BaseService {
         break
       case 'background-work-state':
         if (event.active) this.getMcpInteractionHost(entry.sessionId)
-        this.handleBackgroundWorkState(entry, event.active, connection, event.awaitingReply)
+        this.handleBackgroundWorkState(entry, event.active, connection)
+        break
+      case 'background-results':
+        this.handleBackgroundResults(entry, event.result, connection)
         break
       case 'background-task-event':
         this.publishBackgroundTaskEvent(entry, event.data, connection)
@@ -2271,7 +2274,10 @@ export class AgentSessionRuntimeService extends BaseService {
           this.handleAutonomousGenerationFinished(entry, connection)
           break
         }
-        if (event.origin.kind === 'background-work' && isAgentSessionRuntimeAwaitingBackground(entry.runtimeState)) {
+        if (
+          event.origin.kind === 'background-work' &&
+          this.ownsBackgroundNotification(entry, event.sourceToolCallIds)
+        ) {
           this.applyRuntimeStateEvent(entry, { type: 'background-reply-resumed' })
           break
         }
@@ -2541,11 +2547,46 @@ export class AgentSessionRuntimeService extends BaseService {
     application.get('CacheService').setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId), tasks)
   }
 
+  private backgroundCallIds(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): Set<string> {
+    const pending = getAgentSessionRuntimeReply(entry.runtimeState, turn)?.pendingResultToolCallIds ?? []
+    const parts = turn.projection?.parts(turn.assistantMessageId) ?? []
+    return new Set([...pending, ...parts.flatMap((part) => (isToolUIPart(part) ? [part.toolCallId] : []))])
+  }
+
+  private ownsBackgroundNotification(entry: AgentSessionRuntimeEntry, calls: readonly string[] | undefined): boolean {
+    if (!calls?.length || !isAgentSessionRuntimeAwaitingBackground(entry.runtimeState)) return false
+    const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
+    if (!turn) return false
+    const owned = this.backgroundCallIds(entry, turn)
+    return calls.every((call) => owned.has(call))
+  }
+
+  private handleBackgroundResults(
+    entry: AgentSessionRuntimeEntry,
+    result: Extract<AgentRuntimeEvent, { type: 'background-results' }>['result'],
+    connection = this.currentConnection(entry)
+  ): void {
+    if (!this.isCurrentEntry(entry) || (connection && this.currentConnection(entry) !== connection)) return
+    if (result.status !== 'confirmed') {
+      const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
+      if (turn) this.applyRuntimeStateEvent(entry, { type: 'reply-results', turn, toolCallIds: undefined })
+      logger.warn('Background result attribution is unknown', { sessionId: entry.sessionId, error: result.error })
+      return
+    }
+    for (const turn of getAgentSessionRuntimeTurns(entry.runtimeState)) {
+      const owned = this.backgroundCallIds(entry, turn)
+      this.applyRuntimeStateEvent(entry, {
+        type: 'reply-results',
+        turn,
+        toolCallIds: result.value.filter((call) => owned.has(call))
+      })
+    }
+  }
+
   private handleBackgroundWorkState(
     entry: AgentSessionRuntimeEntry,
     active: boolean,
-    connection = this.currentConnection(entry),
-    awaitingReply = active
+    connection = this.currentConnection(entry)
   ): void {
     if (!this.isCurrentEntry(entry) || (connection && this.currentConnection(entry) !== connection)) return
     const turn = this.currentTurn(entry)
@@ -2553,7 +2594,6 @@ export class AgentSessionRuntimeService extends BaseService {
       type: 'connection-occupancy',
       occupancy: 'background',
       active,
-      awaitingReply,
       ...(active
         ? { responder: turn && turn.headless !== true ? ('interactive' as const) : ('headless' as const) }
         : {})

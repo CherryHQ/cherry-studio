@@ -51,8 +51,11 @@ map to `aborted`, known model/task failures to `failed`, and other unanswered re
 `unanswered`. A late status read cannot downgrade a known terminal state. These reads do not
 enable the scheduler.
 
-`durable.observe` captures content, inputs, aliases, live provenance and foreground completion from
-one committed `ConversationView` revision. The existing Pi Durable 1.4.0 dependency patch exports
+`durable.observe` captures content, inputs, aliases, live provenance, `backgroundResults` and foreground
+completion from one committed `ConversationView` revision. Retained native entries and tool tasks
+supply result origins; continuation records identify the current triggering call. Pending results
+include undelivered reports and unfinished notification generation, including the gap before it starts.
+An unknown origin is reported as unknown, never as confirmed drainage. The existing Pi Durable 1.4.0 dependency patch exports
 `conversationViews` and `ViewObserver` without upgrading the SDK. The public coalesced watch cannot establish that atomic contract. Reopen reads all submission
 facts, including placed native-only inputs. Completion stays pending during admission, unresolved input,
 foreground work or compaction, and carries terminal inputs after their content. Revision and pending state stay private to the projection.

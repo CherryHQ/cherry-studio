@@ -681,8 +681,7 @@ describe('desktop Pi root connection', () => {
     await held.reached
     await done(events)
     expect(events.filter((event) => event.type === 'background-work-state').at(-1)).toMatchObject({
-      active: true,
-      awaitingReply: false
+      active: true
     })
     const tasks = events.find((event) => event.type === 'background-tasks' && event.tasks.length > 0)
     if (tasks?.type !== 'background-tasks') throw new Error('No child task')
@@ -746,7 +745,7 @@ describe('desktop Pi root connection', () => {
     )
     expect(started).toBeGreaterThanOrEqual(0)
     expect(started).toBeLessThan(firstChunk)
-    expect(events.at(-1)).toMatchObject({ type: 'autonomous-turn-state', state: 'finished' })
+    expect(events.filter((event) => event.type === 'autonomous-turn-state').at(-1)).toMatchObject({ state: 'finished' })
     expect(script.calls).toHaveLength(4)
     expect(events[started]).toMatchObject({ origin: { kind: 'goal-round', round: 1 } })
   })

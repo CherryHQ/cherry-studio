@@ -80,14 +80,21 @@ describe('reply ownership and delivery', () => {
     m.connect()
     m.open(first)
     m.send({ type: 'connection-occupancy', occupancy: 'background', active: true })
+    m.send({ type: 'reply-results', turn: first, toolCallIds: ['spawn'] })
     expect(m.finish(first)).toEqual([])
+    expect(
+      m
+        .send({ type: 'connection-occupancy', occupancy: 'background', active: false })
+        .some((effect) => effect.type === 'settle-turn')
+    ).toBe(false)
+    expect(isAgentSessionRuntimeBusy(m.state)).toBe(true)
     if (wake) {
       m.send({ type: 'background-reply-resumed' })
       expect(getAgentSessionRuntimeNativeTurn(m.state)).toBe(first)
       expect(getAgentSessionRuntimeReply(m.state, first)?.terminal).toBeUndefined()
       m.finish(first)
     }
-    expect(m.send({ type: 'connection-occupancy', occupancy: 'background', active: false })).toContainEqual({
+    expect(m.send({ type: 'reply-results', turn: first, toolCallIds: [] })).toContainEqual({
       type: 'settle-turn',
       turn: first,
       outcome: { status: 'success' }
@@ -96,11 +103,34 @@ describe('reply ownership and delivery', () => {
     expect(isAgentSessionRuntimeBusy(m.state)).toBe(false)
   })
 
+  it('finishes a reply while an unrelated resident command keeps its connection occupied', () => {
+    const m = machine()
+    m.connect()
+    m.open(first)
+    m.send({ type: 'connection-occupancy', occupancy: 'background', active: true })
+    expect(m.finish(first)).toEqual([{ type: 'settle-turn', turn: first, outcome: { status: 'success' } }])
+    m.persist(first)
+    expect(isAgentSessionRuntimeBusy(m.state)).toBe(false)
+    expect(getAgentSessionRuntimeOccupancy(m.state)?.background).toBeDefined()
+  })
+
+  it('does not treat unknown result attribution as success before the reply stream opens', () => {
+    const m = machine()
+    m.send({ type: 'reply-results', turn: first, toolCallIds: undefined })
+    m.finish(first)
+    m.open(first)
+    expect(m.send({ type: 'flush-transition', turn: first })).toEqual([])
+    expect(m.send({ type: 'reply-results', turn: first, toolCallIds: [] })).toEqual([
+      { type: 'settle-turn', turn: first, outcome: { status: 'success' } }
+    ])
+  })
+
   it.each(['error', 'paused'] as const)('does not hold a %s result for background work', (status) => {
     const m = machine()
     m.connect()
     m.open(first)
     m.send({ type: 'connection-occupancy', occupancy: 'background', active: true })
+    m.send({ type: 'reply-results', turn: first, toolCallIds: ['spawn'] })
     expect(m.send({ type: 'runtime-terminal', turn: first, outcome: { status } })).toEqual([
       { type: 'settle-turn', turn: first, outcome: { status } }
     ])

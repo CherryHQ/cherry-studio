@@ -102,15 +102,74 @@ describe('Claude native lifecycle', () => {
     f.accept({
       type: 'system',
       subtype: 'background_tasks_changed',
-      tasks: [{ task_id: 'child', task_type: 'local_agent', description: 'work' }]
+      tasks: [{ task_id: 'child', run_id: 'run-1', task_type: 'local_agent', description: 'work' }]
+    })
+    expect(f.state.snapshot.backgroundResults.status).toBe('unknown')
+    f.accept({
+      type: 'system',
+      subtype: 'task_started',
+      task_id: 'child',
+      run_id: 'run-1',
+      tool_use_id: 'spawn',
+      task_type: 'local_agent'
     })
     f.accept(f.result())
     f.accept({ type: 'system', subtype: 'background_tasks_changed', tasks: [] })
     expect(f.events.filter((event) => event.type === 'background-work-state')).toEqual([
-      { type: 'background-work-state', active: true, awaitingReply: false }
+      { type: 'background-work-state', active: true }
     ])
+    expect(f.state.snapshot.backgroundResults).toEqual({ status: 'confirmed', value: ['spawn'] })
+    f.accept({ type: 'system', subtype: 'task_notification', task_id: 'child', run_id: 'run-1', status: 'completed' })
+    f.accept({ type: 'assistant', parent_tool_use_id: null, message: { content: [] } })
+    expect(f.events).toContainEqual({ type: 'autonomous-turn-state', state: 'started', sourceToolCallIds: ['spawn'] })
+    f.accept(f.result({ origin: { kind: 'task-notification', runId: 'run-1' } }))
+    expect(f.state.snapshot.backgroundResults).toEqual({ status: 'confirmed', value: ['spawn'] })
     f.accept({ type: 'system', subtype: 'session_state_changed', state: 'idle' })
+    expect(f.state.snapshot.backgroundResults).toEqual({ status: 'confirmed', value: [] })
     expect(f.events.at(-1)).toEqual({ type: 'background-work-state', active: false })
+  })
+
+  it('does not make an unrelated resident command or ambient agent hold a product result', () => {
+    const f = fixture()
+    f.state.beginTurn()
+    f.accept({
+      type: 'system',
+      subtype: 'background_tasks_changed',
+      tasks: [
+        { task_id: 'server', task_type: 'local_bash', description: 'dev server' },
+        { task_id: 'watcher', task_type: 'local_agent', ambient: true, description: 'watch' }
+      ]
+    })
+    f.accept(f.result())
+    expect(f.state.snapshot.backgroundWorkActive).toBe(true)
+    expect(f.state.snapshot.backgroundResults).toEqual({ status: 'confirmed', value: [] })
+  })
+
+  it('keeps a continued run pending when a late notification belongs to the original run', () => {
+    const f = fixture()
+    f.accept({
+      type: 'system',
+      subtype: 'background_tasks_changed',
+      tasks: [{ task_id: 'child', run_id: 'run-2', task_type: 'local_agent', description: 'continued work' }]
+    })
+    f.accept({
+      type: 'system',
+      subtype: 'task_started',
+      task_id: 'child',
+      run_id: 'run-2',
+      tool_use_id: 'continue',
+      task_type: 'local_agent'
+    })
+    f.accept({
+      type: 'system',
+      subtype: 'task_notification',
+      task_id: 'child',
+      run_id: 'run-1',
+      tool_use_id: 'spawn',
+      status: 'stopped'
+    })
+    f.accept({ type: 'system', subtype: 'session_state_changed', state: 'idle' })
+    expect(f.state.snapshot.backgroundResults).toEqual({ status: 'confirmed', value: ['continue'] })
   })
 
   it('keeps task navigation when a launch receipt arrives after membership', () => {

@@ -255,7 +255,10 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       for (const event of batch.events) {
         if (event.type === 'snapshot') {
           const nowActive = event.activity.state === 'active'
-          if (nowActive && !this.sending && !this.closing) this.beginAutonomous()
+          if (nowActive && !this.sending && !this.closing)
+            this.beginAutonomous(
+              batch.backgroundResults.status === 'confirmed' ? batch.backgroundResults.value.notification : undefined
+            )
           for (const input of event.inputs) this.captureInput(input)
           this.active = nowActive
           for (const relation of event.subagents ?? [])
@@ -278,6 +281,15 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
         (message) => this.adapter.decorate(message)
       )
       await this.projection.accept(batch)
+      const results = batch.backgroundResults
+      this.events.push({
+        type: 'background-results',
+        result: results.status === 'confirmed' ? { status: 'confirmed', value: results.value.pending } : results
+      })
+      this.events.push({
+        type: 'background-work-state',
+        active: results.status !== 'confirmed' || results.value.active
+      })
       if (batch.completion && !this.compacting && !this.closing && this.sending) {
         const failed = batch.completion.inputs.find((input) => input.outcome && input.outcome !== 'completed')
         if (failed) this.failure ??= new Error(failed.error?.message ?? failed.outcome)
@@ -288,12 +300,12 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  private beginAutonomous() {
+  private beginAutonomous(sourceToolCallIds?: readonly string[]) {
     this.sending = true
     this.autonomous = true
     this.failure = undefined
     this.usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
-    this.events.push({ type: 'autonomous-turn-state', state: 'started', origin: this.nextOrigin })
+    this.events.push({ type: 'autonomous-turn-state', state: 'started', origin: this.nextOrigin, sourceToolCallIds })
     this.nextOrigin = { kind: 'background-work' }
   }
 
@@ -344,7 +356,6 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
             toolCallId: this.childOrigin(view.sessionId)?.toolCallId
           }))
         })
-        this.events.push({ type: 'background-work-state', active: running.length > 0, awaitingReply: false })
       }
     } else if (!this.handle || event.thread === this.handle.thread.id) {
       if (event.type === 'goal-round') this.nextOrigin = { kind: 'goal-round', round: event.round.round }

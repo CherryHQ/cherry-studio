@@ -448,6 +448,63 @@ it('shares a lazy Query, binds streamed blocks once, and retains archives after 
   }
 }, 30000)
 
+it('attributes background spawn and continuation until the parent has answered each notification', async () => {
+  const test = await fixture()
+  try {
+    const runtime = test.runtime()
+    const root = confirmed(await runtime.create(test.options))
+    const view = await observe(root)
+    const controls = () => view.batches.flatMap((batch) => batch.controls ?? [])
+    const pending = () => controls().findLast((event) => event.type === 'background-results')?.result
+    let taskId: string | undefined
+    for (const callId of ['toolu_spawn_result', 'toolu_continue_result']) {
+      await root.input!.submit({
+        inputId: inputId(),
+        text: taskId ? 'Continue the child' : 'Start child',
+        whenBusy: 'steer'
+      })
+      const request = await test.request()
+      request.reply.block(
+        taskId
+          ? {
+              type: 'tool_use',
+              id: callId,
+              name: 'SendMessage',
+              input: { to: taskId, message: 'Continue with the old context', summary: 'Continue child' }
+            }
+          : spawnChild(callId, true)
+      )
+      request.reply.finish('tool_use')
+      const requests = [await test.request(), await test.request()]
+      const parent = requests.find((value) =>
+        JSON.stringify(value.body.messages).includes(`"tool_use_id":"${callId}"`)
+      )!
+      const child = requests.find((value) => value !== parent)!
+      await expect.poll(pending).toEqual({ status: 'confirmed', value: [callId] })
+      parent.reply.block({ type: 'text', text: `Waiting for ${callId}` })
+      parent.reply.finish()
+      await expect.poll(() => controls().findLast((event) => event.type === 'result')?.terminal).toBe(true)
+      child.reply.block({ type: 'text', text: `Result for ${callId}` })
+      child.reply.finish()
+      const notification = await test.request()
+      expect(pending()).toEqual({ status: 'confirmed', value: [callId] })
+      await expect
+        .poll(() => controls().findLast((event) => event.type === 'autonomous-turn-state' && event.state === 'started'))
+        .toMatchObject({
+          sourceToolCallIds: [callId]
+        })
+      notification.reply.block({ type: 'text', text: `Summary for ${callId}` })
+      notification.reply.finish()
+      await expect.poll(pending).toEqual({ status: 'confirmed', value: [] })
+      const task = await view.event((event) => event.type === 'system' && event.subtype === 'task_started')
+      if (task.type !== 'system' || task.subtype !== 'task_started') throw new Error('Missing child task')
+      taskId = task.task_id
+    }
+  } finally {
+    await test.close()
+  }
+}, 30000)
+
 it('observes a background child after its parent result without adding child bodies to the root', async () => {
   const test = await fixture()
   try {

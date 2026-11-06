@@ -213,12 +213,27 @@ async function fixture(opts: { headless?: boolean; redirect?: boolean } = {}) {
       abortController: handle.abortController,
       listeners: handle.listeners
     })
-  const project = (id: string, text: string) =>
+  const project = (id: string, text: string, calls: readonly string[] = []) =>
     emit({
       type: 'message-projection',
       projection: {
         contextId: context.id,
-        messages: [{ id, role: 'assistant', parts: [{ type: 'text', text, state: 'done' }] }],
+        messages: [
+          {
+            id,
+            role: 'assistant',
+            parts: [
+              { type: 'text', text, state: 'done' },
+              ...calls.map((toolCallId) => ({
+                type: 'dynamic-tool' as const,
+                toolName: 'Agent',
+                toolCallId,
+                state: 'input-available' as const,
+                input: { run_in_background: true }
+              }))
+            ]
+          }
+        ],
         live: [id],
         removed: [],
         replaces: {}
@@ -279,6 +294,118 @@ function failReplyWrites() {
     "CREATE TRIGGER fail_reply BEFORE INSERT ON agent_session_message WHEN NEW.role = 'assistant' AND NOT EXISTS (SELECT 1 FROM agent_session_message WHERE id = NEW.id) BEGIN SELECT RAISE(ABORT, 'reply insert rejected'); END"
   )
 }
+
+it.each([false, true])(
+  'persists launch, progress and final background summaries in one reply (resident command: %s)',
+  async (commandRemains) => {
+    const f = await fixture()
+    const finish = f.openB()
+    await vi.waitFor(() => expect(f.sent).toEqual([f.user.id]))
+    await f.project('launch', 'Delegated review', ['spawn-a', 'spawn-b'])
+    await f.emit({ type: 'response-start', responseId: 'launch-response' })
+    f.record('launch-response')
+    await f.emit({ type: 'background-work-state', active: true })
+    await f.emit({ type: 'background-results', result: { status: 'confirmed', value: ['spawn-a', 'spawn-b'] } })
+    await f.emit({ type: 'turn-complete' })
+    expect(f.service.isSessionBusy('root')).toBe(true)
+    for (const [index, call] of ['spawn-a', 'spawn-b'].entries()) {
+      await f.emit({
+        type: 'autonomous-turn-state',
+        state: 'started',
+        origin: { kind: 'background-work' },
+        sourceToolCallIds: [call]
+      })
+      await f.project(`summary-${index}`, index === 0 ? 'First reviewer finished' : 'Final summary')
+      await f.emit({ type: 'response-start', responseId: `summary-response-${index}` })
+      f.record(`summary-response-${index}`)
+      f.record(`summary-response-${index}`)
+      await f.emit({ type: 'turn-complete' })
+      expect(f.service.isSessionBusy('root')).toBe(true)
+      await f.emit({ type: 'autonomous-turn-state', state: 'finished' })
+      await f.emit({
+        type: 'background-results',
+        result: { status: 'confirmed', value: index === 0 ? ['spawn-b'] : [] }
+      })
+      if (index === 0) expect(f.service.isSessionBusy('root')).toBe(true)
+    }
+    await f.emit({ type: 'background-work-state', active: commandRemains })
+    await finish()
+    const replies = dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .all()
+      .filter((row) => row.role === 'assistant')
+    expect(replies.map((row) => row.id)).toEqual([f.replyB.id])
+    expect(
+      messages
+        .getSessionMessage('root', f.replyB.id)
+        .data.parts?.filter((part) => part.type === 'text')
+        .map((part) => part.text)
+    ).toEqual(['Delegated review', 'First reviewer finished', 'Final summary'])
+    const charges = dbh.db.select().from(aiUsageRecordTable).all()
+    expect(charges.map((charge) => charge.requestId).sort()).toEqual([
+      'launch-response',
+      'summary-response-0',
+      'summary-response-1'
+    ])
+    expect(charges.every((charge) => charge.messageId === f.replyB.id)).toBe(true)
+    expect(f.starts).toEqual([])
+    expect(f.failures).toEqual([])
+    expect(f.service.isSessionBusy('root')).toBe(false)
+  }
+)
+
+// A foreign or partially attributed notification must not append to the currently waiting reply.
+it.each([undefined, ['previous-call'], ['current-call', 'previous-call']])(
+  'keeps a notification with sources %j separate from the waiting reply',
+  async (sourceToolCallIds) => {
+    const f = await fixture()
+    f.openB()
+    await vi.waitFor(() => expect(f.sent).toEqual([f.user.id]))
+    await f.project('current-launch', 'CURRENT_LAUNCH', ['current-call'])
+    await f.emit({ type: 'background-results', result: { status: 'confirmed', value: ['current-call'] } })
+    await f.emit({ type: 'turn-complete' })
+    await f.emit({
+      type: 'autonomous-turn-state',
+      state: 'started',
+      origin: { kind: 'background-work' },
+      sourceToolCallIds
+    })
+    f.suspended.resolve()
+    await vi.waitFor(() => expect(f.starts).toHaveLength(1))
+    const foreignId = f.starts[0].request.messageId!
+    expect(foreignId).not.toBe(f.replyB.id)
+    const finishForeign = f.open(f.starts[0])
+    await f.project('foreign-summary', 'FOREIGN_SUMMARY')
+    await f.emit({ type: 'background-results', result: { status: 'confirmed', value: ['current-call'] } })
+    await f.emit({ type: 'turn-complete' })
+    await f.emit({ type: 'autonomous-turn-state', state: 'finished' })
+    await finishForeign()
+    await vi.waitFor(() => expect(f.starts).toHaveLength(2))
+    expect(f.starts[1].request.messageId).toBe(f.replyB.id)
+    const finishCurrent = f.open(f.starts[1])
+    await f.emit({
+      type: 'autonomous-turn-state',
+      state: 'started',
+      origin: { kind: 'background-work' },
+      sourceToolCallIds: ['current-call']
+    })
+    await f.project('current-summary', 'CURRENT_SUMMARY')
+    await f.emit({ type: 'background-results', result: { status: 'confirmed', value: [] } })
+    await f.emit({ type: 'turn-complete' })
+    await f.emit({ type: 'autonomous-turn-state', state: 'finished' })
+    await finishCurrent()
+    const text = (id: string) =>
+      messages
+        .getSessionMessage('root', id)
+        .data.parts?.filter((part) => part.type === 'text')
+        .map((part) => part.text)
+    expect(text(foreignId)).toEqual(['FOREIGN_SUMMARY'])
+    expect(text(f.replyB.id)).toEqual(['CURRENT_LAUNCH', 'CURRENT_SUMMARY'])
+    expect(f.sent).toEqual([f.user.id])
+    expect(f.service.isSessionBusy('root')).toBe(false)
+  }
+)
 
 // A failed autonomous placeholder must neither discard its facts nor lend them to the waiting user.
 it.each([

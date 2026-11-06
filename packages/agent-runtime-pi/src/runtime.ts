@@ -165,6 +165,7 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
         installed = install(ports, behavior.host).entries
       },
       onError: report,
+      onResults: (thread, result) => owned.find((entry) => entry.ref.id === thread)?.projection.results(result),
       openSession: async ({ sessionManager, extension, summarize, child }) => {
         const parent = child && owned.find((entry) => entry.ref.id === child.parent)
         const nativeCallId =

@@ -31,7 +31,7 @@ export interface AgentSessionRuntimeConnectionTarget {
  */
 export interface AgentSessionRuntimeConnectionOccupancy {
   /** Detached tasks keep the connection alive. Deliberately not "busy": user turns may still start. */
-  background?: { responder: 'interactive' | 'headless'; awaitingReply?: boolean }
+  background?: { responder: 'interactive' | 'headless' }
   /** A context rewrite is in flight; it holds the session busy and the topic stream alive. */
   compaction?: true
 }
@@ -58,6 +58,7 @@ export interface AgentSessionRuntimeReply<TTurn> {
   admission: AgentSessionRuntimeAdmissionPhase
   buffer: UIMessageChunk[]
   terminal?: AgentSessionTerminalOutcome
+  pendingResultToolCallIds: readonly string[] | undefined
   deliveryFailure?: { error: unknown }
 }
 
@@ -101,6 +102,7 @@ export type AgentSessionRuntimeStateEvent<TTurn, TPendingTurn> =
   | { type: 'reply-delivery-failed'; turn: TTurn; error: unknown }
   | { type: 'retry-reply'; turn: TTurn }
   | { type: 'buffer-chunk'; turn: TTurn; chunk: UIMessageChunk }
+  | { type: 'reply-results'; turn: TTurn; toolCallIds: readonly string[] | undefined }
   | { type: 'runtime-terminal'; turn: TTurn; outcome: AgentSessionTerminalOutcome }
   | { type: 'turn-terminal'; turn: TTurn; status: AgentSessionTerminalStatus }
   | { type: 'launch-started' | 'launch-suppressed' | 'launch-finished'; target: AgentSessionRuntimeLaunchTarget<TTurn> }
@@ -109,7 +111,6 @@ export type AgentSessionRuntimeStateEvent<TTurn, TPendingTurn> =
       type: 'connection-occupancy'
       occupancy: 'background' | 'compaction'
       active: boolean
-      awaitingReply?: boolean
       responder?: 'interactive' | 'headless'
     }
   | { type: 'connection-started'; attemptId: string }
@@ -142,7 +143,7 @@ function reply<TTurn>(
   delivery: 'reserved' | 'attaching' = 'reserved',
   admission: AgentSessionRuntimeAdmissionPhase = 'admitted'
 ): AgentSessionRuntimeReply<TTurn> {
-  return { turn, delivery: { kind: delivery }, admission, buffer: [] }
+  return { turn, delivery: { kind: delivery }, admission, buffer: [], pendingResultToolCallIds: [] }
 }
 
 export function createAgentSessionRuntimeState<TTurn, TPendingTurn>(
@@ -304,9 +305,18 @@ function reduce<TTurn, TPendingTurn>(
       }
     }
     case 'background-reply-resumed': {
-      if (execution.kind !== 'turn' || !isAgentSessionRuntimeAwaitingBackground(state)) return invalid(state, event)
+      if (
+        execution.kind === 'idle' ||
+        execution.kind === 'steer-transition' ||
+        !isAgentSessionRuntimeAwaitingBackground(state)
+      )
+        return invalid(state, event)
+      const resumed = { ...execution, reply: { ...execution.reply, terminal: undefined } }
       return {
-        state: { ...state, execution: { ...execution, reply: { ...execution.reply, terminal: undefined } } },
+        state: {
+          ...state,
+          execution: resumed.kind === 'autonomous-turn' ? { ...resumed, ownership: 'active' } : resumed
+        },
         effects: []
       }
     }
@@ -395,6 +405,19 @@ function reduce<TTurn, TPendingTurn>(
       if (!current || current.delivery.kind === 'settled') return { state, effects: [] }
       return { state: replaceReply(state, { ...current, buffer: [...current.buffer, event.chunk] }), effects: [] }
     }
+    case 'reply-results': {
+      const current = getAgentSessionRuntimeReply(state, event.turn)
+      if (!current || current.delivery.kind === 'settled' || current.delivery.kind === 'awaiting-persistence')
+        return { state, effects: [] }
+      const updated = replaceReply(state, { ...current, pendingResultToolCallIds: event.toolCallIds })
+      return event.toolCallIds?.length === 0 && current.terminal
+        ? transitionAgentSessionRuntime(updated, {
+            type: 'runtime-terminal',
+            turn: event.turn,
+            outcome: current.terminal
+          })
+        : { state: updated, effects: [] }
+    }
     case 'runtime-terminal': {
       const current = getAgentSessionRuntimeReply(state, event.turn)
       if (!current || current.delivery.kind === 'settled' || current.delivery.kind === 'awaiting-persistence')
@@ -410,8 +433,7 @@ function reduce<TTurn, TPendingTurn>(
           effects: []
         }
       }
-      const held =
-        execution.kind === 'turn' && event.outcome.status === 'success' && hasAgentSessionRuntimePendingReply(state)
+      const held = event.outcome.status === 'success' && current.pendingResultToolCallIds?.length !== 0
       const settle = current.delivery.kind === 'open' && !held
       return {
         state: replaceReply(state, {
@@ -435,8 +457,7 @@ function reduce<TTurn, TPendingTurn>(
     case 'flush-transition': {
       const current = getAgentSessionRuntimeReply(state, event.turn)
       if (current?.delivery.kind !== 'open') return { state, effects: [] }
-      const held =
-        execution.kind === 'turn' && current.terminal?.status === 'success' && hasAgentSessionRuntimePendingReply(state)
+      const held = current.terminal?.status === 'success' && current.pendingResultToolCallIds?.length !== 0
       const terminal =
         !held && current.terminal
           ? current.deliveryFailure
@@ -510,19 +531,12 @@ function reduce<TTurn, TPendingTurn>(
             occupancy: {
               ...connection.occupancy,
               background: {
-                responder: connection.occupancy.background?.responder ?? event.responder ?? 'headless',
-                ...(event.awaitingReply === false ? { awaitingReply: false } : {})
+                responder: connection.occupancy.background?.responder ?? event.responder ?? 'headless'
               }
             }
           }
         }
-        return isAgentSessionRuntimeAwaitingBackground(state) && event.awaitingReply === false
-          ? transitionAgentSessionRuntime(updated, {
-              type: 'runtime-terminal',
-              turn: getAgentSessionRuntimeCurrentTurn(state)!,
-              outcome: { status: 'success' }
-            })
-          : { state: updated, effects: [] }
+        return { state: updated, effects: [] }
       }
       if (!connection.occupancy.background) return { state, effects: [] }
       const occupancy = { ...connection.occupancy }
@@ -532,16 +546,9 @@ function reduce<TTurn, TPendingTurn>(
         ...state,
         connection: { kind: 'connected', connection: connection.connection, occupancy }
       }
-      const completion = isAgentSessionRuntimeAwaitingBackground(state)
-        ? transitionAgentSessionRuntime(released, {
-            type: 'runtime-terminal',
-            turn: getAgentSessionRuntimeCurrentTurn(state)!,
-            outcome: { status: 'success' }
-          })
-        : { state: released, effects: [] }
       return {
-        state: completion.state,
-        effects: [{ type: 'release-background-waiter', connection: connection.connection }, ...completion.effects]
+        state: released,
+        effects: [{ type: 'release-background-waiter', connection: connection.connection }]
       }
     }
     case 'connection-started':
@@ -728,19 +735,9 @@ export function isAgentSessionRuntimeAwaitingBackground<TTurn, TPendingTurn>(
   state: AgentSessionRuntimeState<TTurn, TPendingTurn>
 ): boolean {
   return (
-    state.execution.kind === 'turn' &&
+    (state.execution.kind === 'turn' || state.execution.kind === 'autonomous-turn') &&
     ['open', 'attaching', 'unopened'].includes(state.execution.reply.delivery.kind) &&
     state.execution.reply.terminal?.status === 'success' &&
-    hasAgentSessionRuntimePendingReply(state)
-  )
-}
-
-function hasAgentSessionRuntimePendingReply<TTurn, TPendingTurn>(
-  state: AgentSessionRuntimeState<TTurn, TPendingTurn>
-): boolean {
-  return (
-    state.connection.kind === 'connected' &&
-    !!state.connection.occupancy.background &&
-    state.connection.occupancy.background.awaitingReply !== false
+    state.execution.reply.pendingResultToolCallIds?.length !== 0
   )
 }

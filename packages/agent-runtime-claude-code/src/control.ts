@@ -14,6 +14,8 @@ import type {
   SDKToolProgressMessage
 } from '@anthropic-ai/claude-agent-sdk'
 
+import type { OperationResult } from '@cherrystudio/agent-runtime'
+
 export interface ClaudeTaskFact {
   message: SdkTaskSystemMessage
   status?: 'pending' | 'in_progress' | 'completed' | 'stopped' | 'error'
@@ -45,8 +47,9 @@ export type ClaudeControl =
       type: 'context-usage'
       usage: Extract<SDKPartialAssistantMessage['event'], { type: 'message_delta' }>['usage']
     }
-  | { type: 'autonomous-turn-state'; state: 'started' | 'finished' }
-  | { type: 'background-work-state'; active: boolean; awaitingReply?: boolean }
+  | { type: 'autonomous-turn-state'; state: 'started' | 'finished'; sourceToolCallIds?: readonly string[] }
+  | { type: 'background-work-state'; active: boolean }
+  | { type: 'background-results'; result: OperationResult<readonly string[]> }
   | { type: 'background-tasks'; tasks: BackgroundTask[] }
   | { type: 'background-task-event'; data: ClaudeTaskFact }
   | { type: 'archive-changed' }
@@ -119,6 +122,8 @@ export class ClaudeControlState {
   private backgroundWorkReleasePending = false
   private backgroundTasks: BackgroundTask[] = []
   private readonly backgroundTaskToolCallIds = new Map<string, string>()
+  private readonly pendingResults = new Map<string, { toolCallId?: string; notified: boolean; answered: boolean }>()
+  private readonly notificationRuns = new Set<string>()
   private reasoningTokens?: number
   private readonly taskTools = new Map<string, string>()
   private messageUuid?: string
@@ -130,10 +135,11 @@ export class ClaudeControlState {
       active: this.isTurnActive,
       aborted: this.sawAbortedMessage,
       backgroundTasks: this.backgroundTasks.map((task) => {
-        const toolCallId = this.backgroundTaskToolCallIds.get(task.task_id)
+        const toolCallId = this.backgroundTaskToolCallIds.get(task.run_id ?? task.task_id)
         return toolCallId ? { ...task, toolCallId } : task
       }),
-      backgroundWorkActive: this.backgroundTasks.length > 0 || this.backgroundWorkReleasePending
+      backgroundWorkActive: this.backgroundTasks.length > 0 || this.backgroundWorkReleasePending,
+      backgroundResults: this.resultSources()
     }
   }
 
@@ -143,6 +149,7 @@ export class ClaudeControlState {
     this.autonomousTurn = false
     this.reasoningTokens = undefined
     this.messageUuid = undefined
+    this.notificationRuns.clear()
   }
 
   accept(message: SDKMessage): void {
@@ -165,6 +172,10 @@ export class ClaudeControlState {
       })
       if (!this.isTurnActive) return
       this.isTurnActive = false
+      for (const id of this.notificationRuns) {
+        const pending = this.pendingResults.get(id)
+        if (pending) pending.answered = true
+      }
       if (this.autonomousTurn) {
         this.autonomousTurn = false
         this.emit({ type: 'autonomous-turn-state', state: 'finished' })
@@ -177,8 +188,19 @@ export class ClaudeControlState {
     ) {
       this.beginTurn()
       this.autonomousTurn = true
-      this.emit({ type: 'autonomous-turn-state', state: 'started' })
+      const run =
+        message.type === 'user' && message.origin?.kind === 'task-notification' ? message.origin.runId : undefined
+      for (const [id, pending] of this.pendingResults)
+        if (run ? run === id : pending.notified && !pending.answered) this.notificationRuns.add(id)
+      const sources = [...this.notificationRuns].flatMap((id) => this.pendingResults.get(id)?.toolCallId ?? [])
+      this.emit({
+        type: 'autonomous-turn-state',
+        state: 'started',
+        ...(sources.length && { sourceToolCallIds: sources })
+      })
     }
+    if (message.type === 'user' && message.origin?.kind === 'task-notification' && message.origin.runId)
+      this.notificationRuns.add(message.origin.runId)
     if (message.type === 'system' && message.subtype === 'init')
       this.emit({ type: 'session', sessionId: message.session_id })
     if (message.type === 'stream_event') {
@@ -246,9 +268,20 @@ export class ClaudeControlState {
         return
       case 'background_tasks_changed':
         this.backgroundTasks = message.tasks
+        for (const task of message.tasks) {
+          if (!['subagent', 'local_agent', 'local_workflow'].includes(task.task_type) || task.ambient) continue
+          const id = task.run_id ?? task.task_id
+          if (!this.pendingResults.has(id))
+            this.pendingResults.set(id, {
+              toolCallId: this.backgroundTaskToolCallIds.get(id),
+              notified: false,
+              answered: false
+            })
+        }
         this.publishBackgroundTasks()
+        this.emit({ type: 'background-results', result: this.resultSources() })
         this.backgroundWorkReleasePending = message.tasks.length === 0
-        if (message.tasks.length) this.emit({ type: 'background-work-state', active: true, awaitingReply: false })
+        if (message.tasks.length) this.emit({ type: 'background-work-state', active: true })
     }
     return undefined
   }
@@ -259,10 +292,34 @@ export class ClaudeControlState {
     })
   }
 
-  private registerBackgroundTaskToolCallId(taskId: string, toolCallId: string): void {
-    if (this.backgroundTaskToolCallIds.get(taskId) === toolCallId) return
-    this.backgroundTaskToolCallIds.set(taskId, toolCallId)
-    if (this.backgroundTasks.some((task) => task.task_id === taskId)) this.publishBackgroundTasks()
+  private resultSources(): OperationResult<readonly string[]> {
+    const pending = [...this.pendingResults.values()]
+    if (pending.some((result) => !result.toolCallId))
+      return {
+        status: 'unknown',
+        error: {
+          operation: 'backgroundResults',
+          code: 'missing-result-origin',
+          message: 'A Claude background result has no native triggering call'
+        }
+      }
+    return {
+      status: 'confirmed',
+      value: [...new Set(pending.flatMap((result) => (result.toolCallId ? [result.toolCallId] : [])))]
+    }
+  }
+
+  private registerBackgroundTaskToolCallId(taskId: string, toolCallId: string, runId?: string): void {
+    const task = this.backgroundTasks.find((task) => task.task_id === taskId)
+    const id = runId ?? task?.run_id ?? taskId
+    if (this.backgroundTaskToolCallIds.get(id) === toolCallId) return
+    this.backgroundTaskToolCallIds.set(id, toolCallId)
+    const pending = this.pendingResults.get(id)
+    if (pending) {
+      pending.toolCallId = toolCallId
+      this.emit({ type: 'background-results', result: this.resultSources() })
+    }
+    if (task) this.publishBackgroundTasks()
   }
 
   private handleTaskSystemMessage(message: SdkTaskSystemMessage): void {
@@ -273,9 +330,13 @@ export class ClaudeControlState {
         ['subagent', 'local_agent', 'local_workflow'].includes(message.task_type ?? '')) ||
         ('subagent_type' in message && message.subagent_type))
     ) {
-      this.registerBackgroundTaskToolCallId(message.task_id, toolUseId)
+      this.registerBackgroundTaskToolCallId(message.task_id, toolUseId, message.run_id)
     }
 
+    if (message.subtype === 'task_notification') {
+      const pending = this.pendingResults.get(message.run_id ?? message.task_id)
+      if (pending) pending.notified = true
+    }
     const status =
       message.subtype === 'task_updated'
         ? mapTaskStatus(message.patch.status)
@@ -316,7 +377,11 @@ export class ClaudeControlState {
 
   private handleSessionStateChangedSystemMessage(message: SDKSessionStateChangedMessage): void {
     if (message.state !== 'idle') return
-    if (!this.backgroundWorkReleasePending) return
+    for (const [id, pending] of this.pendingResults)
+      if (pending.notified && !this.backgroundTasks.some((task) => (task.run_id ?? task.task_id) === id))
+        this.pendingResults.delete(id)
+    this.emit({ type: 'background-results', result: this.resultSources() })
+    if (!this.backgroundWorkReleasePending || this.pendingResults.size > 0) return
     this.backgroundWorkReleasePending = false
     this.emit({ type: 'background-work-state', active: false })
   }

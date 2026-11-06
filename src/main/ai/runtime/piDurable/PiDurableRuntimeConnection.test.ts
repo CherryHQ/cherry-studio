@@ -531,7 +531,79 @@ describe('desktop Pi Durable connection', () => {
     }
   )
 
-  // Catches backup passing native completion while its final child callback still owns unwritten output.
+  // Catches releasing a reply between result delivery and the parent notification generation.
+  it('keeps spawn and continuation results pending through native notification revisions', async () => {
+    const childGates = [gate(), gate()]
+    const summaryGates = [gate(), gate()]
+    let root = ''
+    let childId = ''
+    let children = 0
+    let summaries = 0
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root) return childGates[children++].wait(assistantReply('child result'))
+      const last = JSON.stringify(call.messages.at(-1))
+      if (last.includes('delegate'))
+        return assistantReply(
+          [toolCallPart('spawn', 'subagent', { description: 'scan', prompt: 'task', background: true })],
+          'toolUse'
+        )
+      if (last.includes('continue-child'))
+        return assistantReply(
+          [toolCallPart('continue', 'message_subagent', { id: childId, message: 'next task' })],
+          'toolUse'
+        )
+      if (last.includes('Background subagent update'))
+        return summaryGates[summaries++].wait(assistantReply('parent summary'))
+      return assistantReply('Parent waiting')
+    })
+    try {
+      const { connection, events, handle } = await connect()
+      const batches: DurableObservation[] = []
+      await handle.durable.observe((batch) => {
+        batches.push(batch)
+      })
+      const pending = () => batches.at(-1)?.backgroundResults
+      for (const [index, call] of ['spawn', 'continue'].entries()) {
+        await connection.send({ message: message(index === 0 ? 'delegate' : 'continue-child') })
+        await childGates[index].reached
+        await expect.poll(pending).toMatchObject({ status: 'confirmed', value: { pending: [call] } })
+        await expect.poll(() => events.filter((event) => event.type === 'turn-complete').length).toBe(index * 2 + 1)
+        const relation = batches
+          .flatMap((batch) => batch.events)
+          .flatMap((event) =>
+            event.type === 'snapshot'
+              ? (event.subagents ?? [])
+              : event.type === 'subagent.upsert'
+                ? [event.subagent]
+                : []
+          )
+          .find((child) => child.child)
+        if (!relation?.child) throw new Error('Missing child')
+        childId = relation.child.id
+        const beforeNotification = batches.length
+        childGates[index].open()
+        await summaryGates[index].reached
+        await expect
+          .poll(() => events.findLast((event) => event.type === 'autonomous-turn-state' && event.state === 'started'))
+          .toMatchObject({ sourceToolCallIds: [call] })
+        expect(
+          batches
+            .slice(beforeNotification)
+            .every(
+              (batch) =>
+                batch.backgroundResults.status === 'confirmed' && batch.backgroundResults.value.pending.includes(call)
+            )
+        ).toBe(true)
+        summaryGates[index].open()
+        await expect.poll(pending).toMatchObject({ status: 'confirmed', value: { active: false, pending: [] } })
+      }
+      expect(events.filter((event) => event.type === 'error')).toEqual([])
+    } finally {
+      for (const held of [...childGates, ...summaryGates]) held.open()
+    }
+  })
+
   it('drains native background work and blocked child observation before final persistence', async () => {
     const answering = gate()
     const observing = gate()
@@ -757,11 +829,13 @@ describe('desktop Pi Durable connection', () => {
     }
     const snapshot = { type: 'snapshot' as const, messages: [], inputs: [queued] }
     await observer.onObservation({
+      backgroundResults: { status: 'confirmed', value: { active: false, pending: [], notification: [] } },
       events: [{ ...snapshot, activity: { state: 'active' } }],
       aliases: {},
       live: []
     })
     await observer.onObservation({
+      backgroundResults: { status: 'confirmed', value: { active: false, pending: [], notification: [] } },
       events: [{ ...snapshot, activity: { state: 'idle' } }],
       aliases: {},
       live: []
@@ -770,6 +844,7 @@ describe('desktop Pi Durable connection', () => {
     expect(events.filter((event) => event.type === 'turn-complete' || event.type === 'error')).toEqual([])
     const completed = { ...queued, outcome: 'completed' as const }
     await observer.onObservation({
+      backgroundResults: { status: 'confirmed', value: { active: false, pending: [], notification: [] } },
       events: [{ ...snapshot, inputs: [completed], activity: { state: 'idle' } }],
       aliases: {},
       live: [],
