@@ -165,6 +165,9 @@ vi.mock('@application', async () => {
     AgentSessionRuntimeService: {
       willContinueTopic: mockWillContinueTopic,
       abortPendingTurn: mockAbortPendingTurn,
+      inspect: vi.fn(),
+      acceptTurnReservation: vi.fn(),
+      hasUnhandedTurnReservation: () => false,
       closeSession: mockCloseSession
     }
   } as Parameters<typeof mockApplicationFactory>[0])
@@ -574,6 +577,31 @@ describe('AiStreamManager', () => {
       expect(mgr.inspect('a')).toBeUndefined()
     })
 
+    it('keeps an aborted pre-stream rejection paused instead of publishing an execution error', async () => {
+      vi.useRealTimers()
+      let reject!: (error: Error) => void
+      mockStreamText.mockImplementationOnce(
+        () =>
+          new Promise((_resolve, fail) => {
+            reject = fail
+          })
+      )
+      const listener = new FakeListener('cancelled-before-open')
+      const abortController = new AbortController()
+      startSingle(mgr, {
+        topicId: 'cancelled-open',
+        modelId: 'provider-a::model-a',
+        request: req('cancelled-open'),
+        listeners: [listener],
+        abortController
+      })
+      abortController.abort('user-stop')
+      reject(new Error('turn closed before stream opened'))
+      await vi.waitFor(() => expect(listener.pausedResults).toHaveLength(1))
+      expect(listener.errorResults).toEqual([])
+      expect(listener.pausedResults[0]).toMatchObject({ status: 'paused', isTopicDone: true })
+    })
+
     it('aborts the agent-session turn controller for a pre-stream stop request', async () => {
       const turnAbortController = new AbortController()
       mockAbortPendingTurn.mockImplementationOnce((_sessionId, reason) => {
@@ -646,13 +674,13 @@ describe('AiStreamManager', () => {
         const topicId = 'agent-session:s1'
         const modelId = 'provider-a::model-a'
         const wc = { id: 1, isDestroyed: () => false, send: vi.fn() }
-        const old = mgr.startRuntimeTurn({
+        const old = await mgr.startRuntimeTurn({
           topicId,
           modelId,
           request: req(topicId),
           listeners: [new WebContentsListener(wc as unknown as Electron.WebContents, topicId)]
         })
-        const current = mgr.startRuntimeTurn({
+        const current = await mgr.startRuntimeTurn({
           topicId,
           modelId,
           request: {
@@ -692,7 +720,7 @@ describe('AiStreamManager', () => {
       const current = controlledStream()
       mockStreamText.mockResolvedValueOnce(replaced.stream).mockResolvedValueOnce(current.stream)
 
-      mgr.startRuntimeTurn({
+      await mgr.startRuntimeTurn({
         topicId: 'agent-session:s1',
         modelId: 'provider-a::model-a',
         request: req('agent-session:s1'),
@@ -701,7 +729,7 @@ describe('AiStreamManager', () => {
       await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(1))
 
       const currentListener = new FakeListener('agent-runtime:current')
-      mgr.startRuntimeTurn({
+      await mgr.startRuntimeTurn({
         topicId: 'agent-session:s1',
         modelId: 'provider-a::model-a',
         request: req('agent-session:s1'),
@@ -898,6 +926,69 @@ describe('AiStreamManager', () => {
         isTopicDone: true,
         topicAttemptWatermark: newerAttempt
       })
+    })
+
+    it('delivers a sibling projection completion after a nonterminal persistence failure races topic completion', async () => {
+      vi.useRealTimers()
+      const topicId = 'sibling-persistence-race'
+      const a = 'provider-a::model-a'
+      const b = 'provider-b::model-b'
+      mockStreamText.mockResolvedValueOnce(controlledStream().stream).mockResolvedValueOnce(controlledStream().stream)
+      const observer = new FakeListener('sibling-observer')
+      const gates = new Map<string, () => void>()
+      const makePersistence = (modelId: UniqueModelId) =>
+        new PersistenceListener({
+          topicId,
+          modelId,
+          backend: {
+            kind: 'test',
+            canPersistEmptySuccessTerminal: true,
+            persistAssistant: async () => {
+              await new Promise<void>((resolve) => gates.set(modelId, resolve))
+              if (modelId === a) throw new Error('A persistence failed')
+            }
+          },
+          onPersistFailed: (failure) => mgr.broadcastTopicError(topicId, modelId, failure)
+        })
+      const started = mgr.send({
+        topicId,
+        models: [
+          { modelId: a, request: req(topicId) },
+          { modelId: b, request: req(topicId) }
+        ],
+        listeners: [observer, makePersistence(a), makePersistence(b)]
+      })
+      const projection = (mgr as any).topicProjection(topicId)
+      const detach = projection.subscribe(() => {})
+      const first = mgr.onExecutionDone(topicId, a)
+      await vi.waitFor(() => expect(gates.has(a)).toBe(true))
+      const second = mgr.onExecutionDone(topicId, b)
+      await vi.waitFor(() => expect(gates.has(b)).toBe(true))
+      gates.get(a)!()
+      await first
+      expect(observer.errorResults).toMatchObject([
+        {
+          modelId: a,
+          attemptId: started.activeExecutions[0].attemptId,
+          isTopicDone: false,
+          error: { message: 'A persistence failed' }
+        }
+      ])
+      expect(observer.errorResults).toHaveLength(1)
+      expect(projection.snapshot().executions).toMatchObject([
+        { executionId: a, status: 'unresolved' },
+        { executionId: b, status: 'active' }
+      ])
+      gates.get(b)!()
+      await second
+      expect(projection.snapshot().executions).toMatchObject([
+        { executionId: a, status: 'unresolved' },
+        { executionId: b, status: 'done' }
+      ])
+      expect(observer.errorResults).toHaveLength(1)
+      expect(observer.doneResults).toMatchObject([{ modelId: b, isTopicDone: true }])
+      expect([...observer.errorResults, ...observer.doneResults].filter((result) => result.isTopicDone)).toHaveLength(1)
+      detach()
     })
 
     it('keeps a live sibling open when another execution terminal persistence fails', async () => {
@@ -1994,8 +2085,8 @@ describe('AiStreamManager', () => {
           releaseContinuationPersistence = resolve
         })
       const runtimeListener = new FakeListener('agent-runtime:session-1')
-      runtimeListener.onPausedImpl = () => {
-        mgr.startRuntimeTurn({
+      runtimeListener.onPausedImpl = async () => {
+        await mgr.startRuntimeTurn({
           topicId: 'agent-session:session-1',
           modelId: 'provider-a::model-a',
           request: req('agent-session:session-1'),
@@ -3042,6 +3133,32 @@ describe('AiStreamManager', () => {
     // deleted) after this stream was kept alive by the chaining path above. A bare error broadcast would
     // leave the held stream in `activeStreams` with its status cache un-settled and still attachable —
     // `terminateHeldTopicStream` must error the subscribers, settle the status cache, and evict it.
+    it('a terminal listener replacing the held generation cannot lose or publish over the new hold', async () => {
+      mockWillContinueTopic.mockReturnValue(true)
+      const topicId = 'agent-session:reentrant'
+      const listener = new FakeListener('reentrant-source')
+      const successor = new FakeListener('reentrant-successor')
+      const internals = mgr as any
+      startSingle(mgr, { topicId, modelId: 'provider-a::model-a', request: req(topicId), listeners: [listener] })
+      await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+      const oldStream = internals.activeStreams.get(topicId)
+      let successorDone: Promise<void> | undefined
+      listener.onErrorImpl = () => {
+        startSingle(mgr, { topicId, modelId: 'provider-a::model-a', request: req(topicId), listeners: [successor] })
+        successorDone = mgr.onExecutionDone(topicId, 'provider-a::model-a')
+      }
+      mgr.terminateHeldTopicStream(topicId, 'provider-a::model-a', error('source failed'))
+      await successorDone
+      const replacement = internals.activeStreams.get(topicId)
+      expect(replacement).not.toBe(oldStream)
+      expect((sharedCacheStore.get(`topic.stream.statuses.${topicId}`) as any)?.turnId).toBe(replacement.turnId)
+      expect((sharedCacheStore.get(`topic.stream.statuses.${topicId}`) as any)?.status).not.toBe('error')
+      expect(successor.doneResults[0].isTopicDone).toBe(false)
+      oldStream.lifecycle = { ...oldStream.lifecycle, onTerminal() {} }
+      internals.runTerminalLifecycle(oldStream)
+      expect(mgr.getHeldPublicationTurnId(topicId)).toBe(replacement.turnId)
+    })
+
     it('terminateHeldTopicStream settles and evicts a held agent-session stream whose continuation failed', async () => {
       mockWillContinueTopic.mockReturnValue(true)
       const topicId = 'agent-session:s3'
@@ -3054,7 +3171,11 @@ describe('AiStreamManager', () => {
       expect(mgr.inspect(topicId)).toBeDefined()
       expect((sharedCacheStore.get(`topic.stream.statuses.${topicId}`) as any)?.status).not.toBe('error')
 
+      const projection = (mgr as any).topicProjection(topicId)
+      const completed = projection.snapshot()
+      expect(completed.executions).toMatchObject([{ status: 'done' }])
       mgr.terminateHeldTopicStream(topicId, 'provider-a::model-a', error('no model configured'))
+      expect(projection.snapshot()).toEqual(completed)
 
       // Subscribers learn the topic errored, the cross-window status cache settles to 'error'…
       expect(listener.errorResults).toHaveLength(1)
@@ -3982,7 +4103,7 @@ describe('AiStreamManager', () => {
     it('treats runtime turns as persistent conversations without caller metadata', async () => {
       vi.setSystemTime(2_345)
 
-      mgr.startRuntimeTurn({
+      await mgr.startRuntimeTurn({
         topicId: 'agent-session:session-1',
         modelId: 'p::m',
         request: req('agent-session:session-1'),

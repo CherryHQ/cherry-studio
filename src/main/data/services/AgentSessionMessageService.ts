@@ -1143,6 +1143,87 @@ export class AgentSessionMessageService {
     return { rowsAffected: result.changes }
   }
 
+  hasPendingApproval(sessionId: string): boolean {
+    return (
+      application
+        .get('DbService')
+        .getDb()
+        .select({ id: sessionMessagesTable.id })
+        .from(sessionMessagesTable)
+        .where(
+          and(
+            eq(sessionMessagesTable.sessionId, sessionId),
+            eq(sessionMessagesTable.role, 'assistant'),
+            eq(sessionMessagesTable.status, 'pending'),
+            sql`EXISTS (SELECT 1 FROM json_each(${sessionMessagesTable.data}, '$.parts') AS part
+        WHERE json_extract(part.value, '$.state') = 'approval-requested')`
+          )
+        )
+        .get() !== undefined
+    )
+  }
+
+  findOwnerlessPendingMessages(sessionId: string): AgentSessionMessageEntity[] {
+    return application
+      .get('DbService')
+      .getDb()
+      .select()
+      .from(sessionMessagesTable)
+      .where(
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          eq(sessionMessagesTable.role, 'assistant'),
+          eq(sessionMessagesTable.status, 'pending'),
+          isLegacyMessage(),
+          isNull(sessionMessagesTable.deliveryStatus),
+          sql`NOT EXISTS (SELECT 1 FROM json_each(${sessionMessagesTable.data}, '$.parts') AS part
+        WHERE json_extract(part.value, '$.state') = 'approval-requested')`,
+          sql`NOT EXISTS (SELECT 1 FROM agent_session_message AS delivery_message
+        WHERE delivery_message.delivery_turn_ref = ${sessionMessagesTable.id}
+        AND delivery_message.delivery_status IN ('accepted', 'delivering'))`
+        )
+      )
+      .all()
+      .map((row) => this.rowToEntity(row))
+  }
+
+  settlePendingAssistant(
+    sessionId: string,
+    messageId: string,
+    status: 'paused' | 'error',
+    updateParts: (parts: CherryMessagePart[]) => CherryMessagePart[]
+  ): boolean {
+    const settled = application.get('DbService').withWriteTx((tx) => {
+      const pending = and(
+        eq(sessionMessagesTable.sessionId, sessionId),
+        eq(sessionMessagesTable.id, messageId),
+        eq(sessionMessagesTable.role, 'assistant'),
+        eq(sessionMessagesTable.status, 'pending')
+      )
+      const row = tx.select({ data: sessionMessagesTable.data }).from(sessionMessagesTable).where(pending).get()
+      if (!row) return false
+      const session = tx
+        .select({ updatedAt: sessionTable.updatedAt })
+        .from(sessionTable)
+        .where(eq(sessionTable.id, sessionId))
+        .get()!
+      const updatedAt = Math.max(Date.now(), session.updatedAt + 1)
+      const changed =
+        tx
+          .update(sessionMessagesTable)
+          .set({ status, data: { ...row.data, parts: updateParts(row.data.parts ?? []) }, updatedAt })
+          .where(pending)
+          .run().changes > 0
+      if (changed) {
+        agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
+        agentSessionService.advanceLastActivityAtTx(tx, sessionId, updatedAt)
+      }
+      return changed
+    })
+    if (settled) this.publishDeliveryMutation([{ sessionId, messageId, kind: 'projection' }], [sessionId])
+    return settled
+  }
+
   /** Legacy orphans plus native agent types whose caller owns restart terminalization. */
   findCrashOrphanedAssistantMessages(includeNativeAgentTypes: readonly string[] = []): Array<{
     id: string

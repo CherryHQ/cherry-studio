@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { randomUUID } from 'node:crypto'
 
 import { context as otelContext, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
@@ -20,6 +21,7 @@ import {
   Phase,
   ServicePhase
 } from '@main/core/lifecycle'
+import { agentSessionMessageService } from '@main/data/services/AgentSessionMessageService'
 import type { SourceSnapshot } from '@main/data/services/AiUsageRecordService'
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
@@ -61,6 +63,7 @@ import type { StreamLifecycle } from './lifecycle/StreamLifecycle'
 import { TerminalPersistenceError } from './listeners/PersistenceListener'
 import { isRendererListener, WebContentsListener } from './listeners/WebContentsListener'
 import { MessageRuntimeTimingCollector } from './MessageRuntimeTimingCollector'
+import { finalizeInterruptedParts } from './persistence/PersistenceBackend'
 import { pipeStreamLoop } from './pipeStreamLoop'
 import { projectStreamChunkPayloadForRenderer, projectStreamMessageForRenderer } from './rendererPayload'
 import { TopicMessageProjection } from './TopicMessageProjection'
@@ -72,6 +75,7 @@ import type {
   StreamChunkPayload,
   StreamDoneResult,
   StreamErrorResult,
+  StreamPausedResult,
   StreamExecution,
   StreamListener,
   TransportTimings
@@ -428,6 +432,26 @@ export class AiStreamManager extends BaseService {
   /** Gate-admitted dispatches still inside `prepareDispatch → send`. Registered before the
    *  first async admission gap can yield to pause/drain, then removed after stream handoff. */
   private readonly inFlightDispatches = new Map<Promise<AiStreamOpenResponse>, string>()
+  private readonly heldPublications = new Map<
+    string,
+    {
+      streamTurnId: string
+      stream: ActiveStream
+      result?: StreamDoneResult | StreamPausedResult | StreamErrorResult
+      settlement?: Promise<void>
+    }
+  >()
+
+  private readonly heldDispatchContext = new AsyncLocalStorage<{ topicId: string; active: boolean }>()
+  private readonly persistenceDispatchContext = new AsyncLocalStorage<{
+    stream: ActiveStream
+    result: StreamDoneResult | StreamPausedResult | StreamErrorResult
+    holdTopicNotification: boolean
+  }>()
+
+  private readonly topicTerminalListeners = new WeakMap<ActiveStream, WeakSet<StreamListener>>()
+  private readonly executionTerminalListeners = new WeakMap<ActiveStream, WeakMap<StreamListener, Set<number>>>()
+
   /** Terminal persistence listeners currently writing by topic. Unlike `hasLiveStream`, this remains
    *  true after terminal status is published and clears before runtime/renderer terminal listeners run. */
   private readonly terminalPersistenceCounts = new Map<string, number>()
@@ -797,6 +821,15 @@ export class AiStreamManager extends BaseService {
    * Multi-model is detected from `models.length > 1`.
    */
   send(input: SendInput): SendResult {
+    const acceptReservations = (streamTurnId: string) => {
+      for (const { request } of input.models) {
+        if (request.runtime?.kind === 'agent-session') {
+          application
+            .get('AgentSessionRuntimeService')
+            .acceptTurnReservation(request.runtime.sessionId, request.runtime.turnId, streamTurnId)
+        }
+      }
+    }
     const inputModelIds = new Set<UniqueModelId>()
     for (const { modelId } of input.models) {
       if (inputModelIds.has(modelId)) {
@@ -858,6 +891,7 @@ export class AiStreamManager extends BaseService {
       // Replacing an existing key preserves its insertion position; appending a new key places the
       // new model last. Both cases keep the visual multi-model order stable.
       existing.executions.set(model.modelId, nextExecution)
+      acceptReservations(existing.turnId)
       this.projections.get(input.topicId)?.begin([toActiveExecution(nextExecution)], false)
       existing.isMultiModel = existing.executions.size > 1
       existing.status = hasLiveSibling ? 'streaming' : 'pending'
@@ -942,6 +976,8 @@ export class AiStreamManager extends BaseService {
       isPersistentConversation: input.isPersistentConversation === true
     }
     this.activeStreams.set(input.topicId, stream)
+    this.heldPublications.delete(input.topicId)
+    acceptReservations(stream.turnId)
     if (stream.lifecycle !== promptStreamLifecycle) {
       const projection = this.topicProjection(input.topicId)
       projection.begin([...executions.values()].map(toActiveExecution), true)
@@ -1030,7 +1066,37 @@ export class AiStreamManager extends BaseService {
     })
   }
 
-  startRuntimeTurn(input: StartRuntimeTurnInput): SendResult {
+  async startRuntimeTurn(
+    input: StartRuntimeTurnInput
+  ): Promise<SendResult | { mode: 'deferred' | 'cancelled'; activeExecutions: [] }> {
+    const heldSettlement = this.heldPublications.get(input.topicId)?.settlement
+    if (heldSettlement) {
+      const runtime = input.request.runtime
+      const canAdmit =
+        runtime?.kind === 'agent-session'
+          ? application.get('AgentSessionRuntimeService').createTurnAdmissionGuard(runtime.sessionId, runtime.turnId)
+          : () => true
+      const admit = async () => {
+        await this.whenTerminalDispatchSettled(input.topicId)
+        if (input.abortController?.signal.aborted || !canAdmit()) {
+          input.rootSpan?.end()
+          return { mode: 'cancelled' as const, activeExecutions: [] as [] }
+        }
+        return this.startRuntimeTurn(input)
+      }
+      const context = this.heldDispatchContext.getStore()
+      if (context?.active && context.topicId === input.topicId) {
+        void admit().catch((error) =>
+          logger.error('Deferred runtime admission failed', { topicId: input.topicId, error })
+        )
+        return { mode: 'deferred', activeExecutions: [] }
+      }
+      return admit()
+    }
+    if (input.abortController?.signal.aborted) {
+      input.rootSpan?.end()
+      return { mode: 'cancelled', activeExecutions: [] }
+    }
     const existing = this.activeStreams.get(input.topicId)
     const carriedListeners = existing
       ? [...existing.listeners.values()].filter(
@@ -1038,7 +1104,7 @@ export class AiStreamManager extends BaseService {
         )
       : []
 
-    if (existing) this.evictStream(input.topicId)
+    if (existing && isLiveStatus(existing.status)) this.evictStream(input.topicId)
 
     return this.send({
       topicId: input.topicId,
@@ -1096,14 +1162,20 @@ export class AiStreamManager extends BaseService {
     if (status === 'pending' || status === 'streaming' || status === 'awaiting-approval') return true
     if (this.hasTerminalPersistenceInFlight(topicId)) return true
     if (this.terminalDispatchInFlight.has(topicId)) return true
+    if (this.heldPublications.get(topicId)?.settlement) return true
     if (this.pendingSteers.has(topicId) || this.startingNextChatTopicIds.has(topicId)) return true
     if (this.inFlightChatContinuations.has(topicId)) return true
     return [...this.inFlightDispatches.values()].includes(topicId)
   }
 
   /** Resolves once this topic's in-flight terminal dispatch (listeners + lifecycle) has settled. */
-  whenTerminalDispatchSettled(topicId: string): Promise<void> {
-    return this.terminalDispatchInFlight.get(topicId)?.settled ?? Promise.resolve()
+  async whenTerminalDispatchSettled(topicId: string): Promise<void> {
+    for (;;) {
+      const dispatch = this.terminalDispatchInFlight.get(topicId)?.settled
+      const heldSettlement = this.heldPublications.get(topicId)?.settlement
+      if (!dispatch && !heldSettlement) return
+      await Promise.all([dispatch, heldSettlement])
+    }
   }
 
   /**
@@ -1333,8 +1405,13 @@ export class AiStreamManager extends BaseService {
 
   /** Abort a user-visible topic and hold same-topic admission until its durable teardown settles. */
   async abortAndDrain(topicId: string, reason: string, beforeAbort?: () => void): Promise<void> {
+    const expectedTurnId = application.get('CacheService').getShared(`topic.stream.statuses.${topicId}`)?.turnId
     await this.withDispatchLock(topicId, async () => {
       beforeAbort?.()
+      if (application.get('CacheService').getShared(`topic.stream.statuses.${topicId}`)?.turnId !== expectedTurnId)
+        return
+      const registered = this.activeStreams.get(topicId)
+      if (isAgentSessionTopic(topicId) && registered && registered.turnId !== expectedTurnId) return
       const stream = this.activeStreams.get(topicId)
       const loopPromises = stream ? [...stream.executions.values()].map((execution) => execution.loopPromise) : []
       const drainedLoops = new Set(loopPromises)
@@ -1365,8 +1442,56 @@ export class AiStreamManager extends BaseService {
         await drainReplacementLoops()
         await runtimeClosing
         await drainReplacementLoops()
+        await this.whenTerminalDispatchSettled(topicId)
+        if (application.get('AgentSessionRuntimeService').hasUnhandedTurnReservation(extractAgentSessionId(topicId))) {
+          logger.warn('Stop left unresolved agent turn reservations', { topicId })
+          throw new Error('Agent turn reservation settlement failed')
+        }
+        this.reconcileStoppedSession(topicId, expectedTurnId)
       }
     })
+  }
+
+  private reconcileStoppedSession(topicId: string, expectedTurnId: string | undefined): void {
+    const sessionId = extractAgentSessionId(topicId)
+    const runtime = application.get('AgentSessionRuntimeService')
+    const owner = runtime.inspect(sessionId)
+    if (
+      (owner && (owner.status !== 'idle' || owner.pendingMessageCount !== 0 || owner.activeToolCount !== 0)) ||
+      runtime.hasUnhandedTurnReservation(sessionId) ||
+      this.hasLiveStream(topicId) ||
+      this.terminalPersistenceCounts.has(topicId) ||
+      this.terminalDispatchInFlight.has(topicId) ||
+      [...this.inFlightDispatches.values()].includes(topicId) ||
+      this.hasPendingSteer(topicId) ||
+      this.hasHeldPublication(topicId)
+    )
+      return
+    const cache = application.get('CacheService')
+    const published = cache.getShared(`topic.stream.statuses.${topicId}`)
+    if (published?.turnId !== expectedTurnId || published?.status === 'awaiting-approval') return
+    const registered = this.activeStreams.get(topicId)
+    if (registered && registered.turnId !== expectedTurnId) return
+    if (agentSessionMessageService.hasPendingApproval(sessionId)) return
+    const orphaned = agentSessionMessageService.findOwnerlessPendingMessages(sessionId)
+    for (const row of orphaned) {
+      agentSessionMessageService.settlePendingAssistant(sessionId, row.id, 'error', (parts) =>
+        finalizeInterruptedParts(parts, 'error')
+      )
+    }
+    if (!published?.turnId || !isLiveStatus(published.status)) return
+    const stream: ActiveStream = registered ?? {
+      topicId,
+      turnId: published.turnId,
+      status: 'aborted',
+      executions: new Map(),
+      listeners: new Map(),
+      isMultiModel: false,
+      isPersistentConversation: true,
+      lifecycle: this.chatLifecycle
+    }
+    stream.status = 'aborted'
+    this.runTerminalLifecycle(stream)
   }
 
   // ── Execution loop callbacks ──────────────────────────────────────
@@ -1530,11 +1655,14 @@ export class AiStreamManager extends BaseService {
       stream.status === 'done' &&
       isAgentSessionTopic(topicId) &&
       application.get('AgentSessionRuntimeService').willContinueTopic(topicId)
+    if (agentChaining) this.heldPublications.set(topicId, { streamTurnId: stream.turnId, stream })
     const chaining = chatChaining || agentChaining
 
     const settleTerminalDispatch = this.beginTerminalDispatch(topicId)
     try {
-      await this.broadcastExecutionDone(stream, exec, topicDone && !chaining)
+      const result = await this.broadcastExecutionDone(stream, exec, topicDone && !chaining)
+      const held = this.heldPublications.get(topicId)
+      if (held?.stream === stream && held.result?.persistence?.status !== 'failed') held.result = result
 
       // The awaited dispatch can outlive this stream's registry slot — a new stream for
       // the topic may have replaced it while listeners ran. Everything below belongs to
@@ -1542,7 +1670,13 @@ export class AiStreamManager extends BaseService {
       if (this.activeStreams.get(topicId) !== stream) return
 
       if (chatChaining) this.scheduleNextChatTurn(topicId)
-      else if (topicDone && !chaining) {
+      else if (
+        agentChaining &&
+        stream.status === 'done' &&
+        !application.get('AgentSessionRuntimeService').willContinueTopic(topicId)
+      ) {
+        this.settleHeldTopicStream({ topicId, expectedStreamTurnId: stream.turnId, outcome: { status: 'aborted' } })
+      } else if (topicDone && !chaining) {
         // A sibling errored/aborted (this exec finished clean but the topic didn't): drop the queue,
         // matching onExecutionError/onExecutionPaused. A clean 'done' or an approval-park keeps it.
         if (stream.status === 'error' || stream.status === 'aborted') this.dropPendingSteers(topicId, stream.status)
@@ -1580,14 +1714,21 @@ export class AiStreamManager extends BaseService {
     // the dropped approval anchor must reach the shared cache on its own.
     if (hadPendingApprovals && !isTopicDone) stream.lifecycle.onApprovalPendingChanged(stream)
 
+    const holdTopicNotification =
+      isTopicDone &&
+      isAgentSessionTopic(topicId) &&
+      application.get('AgentSessionRuntimeService').hasUnhandedTurnReservation(extractAgentSessionId(topicId))
+    if (holdTopicNotification) this.heldPublications.set(topicId, { streamTurnId: stream.turnId, stream })
     const settleTerminalDispatch = this.beginTerminalDispatch(topicId)
     try {
-      await this.broadcastExecutionPaused(stream, exec, isTopicDone)
+      const result = await this.broadcastExecutionPaused(stream, exec, isTopicDone, holdTopicNotification)
+      const held = this.heldPublications.get(topicId)
+      if (held?.stream === stream && held.result?.persistence?.status !== 'failed') held.result = result
 
       // See onExecutionDone: awaited terminal dispatch may outlive this stream's registry slot.
       if (this.activeStreams.get(topicId) !== stream) return
 
-      if (isTopicDone) {
+      if (isTopicDone && !holdTopicNotification) {
         // Aborted (stop button / idle timeout), not a clean steer-yield — drop any queued steer
         // instead of chaining. Its persisted user row stays as a dangling message the user can resend.
         this.dropPendingSteers(topicId, 'aborted')
@@ -1644,14 +1785,27 @@ export class AiStreamManager extends BaseService {
       runtimeTiming: exec.runtimeTiming.snapshot()
     }
 
+    const holdTopicNotification =
+      isTopicDone &&
+      isAgentSessionTopic(topicId) &&
+      application.get('AgentSessionRuntimeService').hasUnhandedTurnReservation(extractAgentSessionId(topicId))
+    if (holdTopicNotification) this.heldPublications.set(topicId, { streamTurnId: stream.turnId, stream })
     const settleTerminalDispatch = this.beginTerminalDispatch(topicId)
     try {
-      await this.dispatchToListeners(stream, 'onError', (listener) => listener.onError(result))
+      await this.dispatchToListeners(
+        stream,
+        'onError',
+        (listener) => listener.onError(result),
+        result,
+        holdTopicNotification
+      )
+      const held = this.heldPublications.get(topicId)
+      if (held?.stream === stream && held.result?.persistence?.status !== 'failed') held.result = result
 
       // See onExecutionDone: awaited terminal dispatch may outlive this stream's registry slot.
       if (this.activeStreams.get(topicId) !== stream) return
 
-      if (isTopicDone) {
+      if (isTopicDone && !holdTopicNotification) {
         // Errored turn — drop any queued steer rather than chaining onto a failed turn.
         this.dropPendingSteers(topicId, 'error')
         this.runTerminalLifecycle(stream)
@@ -1683,29 +1837,138 @@ export class AiStreamManager extends BaseService {
    * are skipped because they just failed and would loop. No-op once the stream has drained.
    */
   broadcastTopicError(topicId: string, modelId: UniqueModelId | undefined, error: SerializedError): void {
-    const stream = this.activeStreams.get(topicId)
+    const dispatch = this.persistenceDispatchContext.getStore()
+    const stream = dispatch?.stream.topicId === topicId ? dispatch.stream : this.activeStreams.get(topicId)
     if (!stream) return
+    const original = dispatch?.stream === stream ? dispatch.result : undefined
     const exec = modelId ? stream.executions.get(modelId) : undefined
-    const isTopicDone = !isLiveStatus(stream.status)
+    const isTopicDone = original?.isTopicDone ?? !isLiveStatus(stream.status)
     const result: StreamErrorResult = {
+      ...original,
       error,
-      persistence: { status: 'failed', failure: toExecutionFailure(error, modelId, 'host') },
+      persistence: {
+        status: 'failed',
+        failure: toExecutionFailure(error, original ? original.modelId : modelId, 'host')
+      },
       status: 'error',
-      modelId,
-      attemptId: exec?.attemptId,
-      userMessageId: exec?.userMessageId,
-      ...(isTopicDone ? { topicAttemptWatermark: this.getTopicAttemptWatermark(stream) } : {}),
-      anchorMessageId: exec?.anchorMessageId,
+      modelId: original ? original.modelId : modelId,
+      attemptId: original ? original.attemptId : exec?.attemptId,
+      userMessageId: original ? original.userMessageId : exec?.userMessageId,
+      ...(isTopicDone
+        ? { topicAttemptWatermark: original ? original.topicAttemptWatermark : this.getTopicAttemptWatermark(stream) }
+        : {}),
+      anchorMessageId: original ? original.anchorMessageId : exec?.anchorMessageId,
       isTopicDone
     }
+    const holdTopicNotification =
+      dispatch?.holdTopicNotification ||
+      Boolean(this.heldPublications.get(topicId)?.settlement) ||
+      (isAgentSessionTopic(topicId) &&
+        application.get('AgentSessionRuntimeService').hasUnhandedTurnReservation(extractAgentSessionId(topicId)))
+    const held = this.heldPublications.get(topicId)
+    if (holdTopicNotification && held?.stream === stream) held.result = result
     for (const listener of stream.listeners.values()) {
       if (listener.terminalPhase) continue
+      if (holdTopicNotification && !(listener instanceof TopicMessageProjection)) continue
+      if (isTopicDone && !(listener instanceof TopicMessageProjection) && !this.claimTopicTerminal(stream, listener))
+        continue
+      if (!this.claimExecutionTerminal(stream, listener, result.attemptId)) continue
       try {
         void listener.onError(result)
       } catch (err) {
         logger.warn('broadcastTopicError listener threw', { topicId, err })
       }
     }
+  }
+
+  hasHeldPublication(topicId: string): boolean {
+    return this.heldPublications.has(topicId)
+  }
+
+  getHeldPublicationTurnId(topicId: string): string | undefined {
+    return this.heldPublications.get(topicId)?.streamTurnId
+  }
+
+  settleHeldTopicStream(input: {
+    topicId: string
+    expectedStreamTurnId: string
+    outcome: { status: 'aborted' } | { status: 'error'; error: SerializedError }
+  }): boolean {
+    const held = this.heldPublications.get(input.topicId)
+    const registered = this.activeStreams.get(input.topicId)
+    const published = application.get('CacheService').getShared(`topic.stream.statuses.${input.topicId}`)
+    if (
+      !held ||
+      held.streamTurnId !== input.expectedStreamTurnId ||
+      (registered
+        ? registered !== held.stream
+        : published?.turnId !== input.expectedStreamTurnId || !isLiveStatus(published.status)) ||
+      !['done', 'aborted', 'error'].includes(held.stream.status)
+    )
+      return false
+    const canSettle = (): boolean =>
+      this.heldPublications.get(input.topicId) === held &&
+      this.activeStreams.get(input.topicId) === registered &&
+      application.get('CacheService').getShared(`topic.stream.statuses.${input.topicId}`)?.turnId ===
+        published?.turnId &&
+      ['done', 'aborted', 'error'].includes(held.stream.status) &&
+      (!isAgentSessionTopic(input.topicId) ||
+        !application.get('AgentSessionRuntimeService').hasUnhandedTurnReservation(extractAgentSessionId(input.topicId)))
+    if (!canSettle()) return false
+    if (held.settlement) return true
+    const predecessor = this.terminalDispatchInFlight.get(input.topicId)?.settled
+    held.settlement = Promise.resolve()
+      .then(async () => {
+        await predecessor
+        if (!canSettle()) return
+        const release = this.beginTerminalDispatch(input.topicId)
+        const context = { topicId: input.topicId, active: true }
+        try {
+          const result = {
+            ...held.result,
+            isTopicDone: true,
+            topicAttemptWatermark: this.getTopicAttemptWatermark(held.stream)
+          }
+          const listeners = [...held.stream.listeners.values()]
+          const orderedListeners = [
+            ...listeners.filter(
+              (listener) => listener.terminalPhase === undefined && !(listener instanceof TopicMessageProjection)
+            ),
+            ...listeners.filter((listener) => listener.terminalPhase === 'cleanup')
+          ]
+          for (const listener of orderedListeners) {
+            if (!canSettle()) break
+            try {
+              if (!listener.isAlive()) continue
+              if (!canSettle()) break
+              if (!this.claimTopicTerminal(held.stream, listener)) continue
+              await this.heldDispatchContext.run(context, async () => {
+                if (held.result?.status === 'error')
+                  await listener.onError({ ...result, ...held.result, isTopicDone: true })
+                else if (input.outcome.status === 'aborted') await listener.onPaused({ ...result, status: 'paused' })
+                else await listener.onError({ ...result, status: 'error', error: input.outcome.error })
+              })
+            } catch (error) {
+              logger.warn('Held topic listener failed', { topicId: input.topicId, listenerId: listener.id, error })
+            }
+          }
+        } finally {
+          try {
+            if (canSettle()) {
+              held.stream.status = held.result?.status === 'error' ? 'error' : input.outcome.status
+              this.runTerminalLifecycle(held.stream)
+            }
+          } finally {
+            context.active = false
+            release()
+          }
+        }
+      })
+      .catch((error) => logger.warn('Held topic settlement failed', { topicId: input.topicId, error }))
+      .finally(() => {
+        held.settlement = undefined
+      })
+    return true
   }
 
   /**
@@ -1732,13 +1995,19 @@ export class AiStreamManager extends BaseService {
       isTopicDone: true
     }
     for (const listener of stream.listeners.values()) {
-      if (listener.id.startsWith('persistence:')) continue
+      if (
+        listener.id.startsWith('persistence:') ||
+        listener instanceof TopicMessageProjection ||
+        !this.claimTopicTerminal(stream, listener)
+      )
+        continue
       try {
         void listener.onError(result)
       } catch (err) {
         logger.warn('terminateHeldTopicStream listener threw', { topicId, err })
       }
     }
+    if (this.activeStreams.get(topicId) !== stream) return
     stream.status = 'error'
     this.runTerminalLifecycle(stream)
   }
@@ -1770,6 +2039,7 @@ export class AiStreamManager extends BaseService {
 
   /** Chat defers 30 s, prompt evicts immediately. */
   private runTerminalLifecycle(stream: ActiveStream): void {
+    if (this.heldPublications.get(stream.topicId)?.stream === stream) this.heldPublications.delete(stream.topicId)
     stream.lifecycle.onTerminal(stream)
     stream.lifecycle.cleanup(stream, () => {
       if (this.activeStreams.get(stream.topicId) === stream) {
@@ -2109,7 +2379,10 @@ export class AiStreamManager extends BaseService {
       if (!signal.aborted) {
         logger.error('streamText failed before stream start', { topicId, modelId, err: chatErrorContext(err) })
       }
-      await this.onExecutionError(topicId, modelId, serializeError(err), exec)
+      if (signal.aborted) {
+        if (exec.status === 'streaming') exec.status = 'aborted'
+        await this.onExecutionPaused(topicId, modelId, exec)
+      } else await this.onExecutionError(topicId, modelId, serializeError(err), exec)
       return
     }
 
@@ -2189,7 +2462,11 @@ export class AiStreamManager extends BaseService {
   }
 
   /** Broadcast done for a single execution to all topic listeners. */
-  private async broadcastExecutionDone(stream: ActiveStream, exec: StreamExecution, isTopicDone = true): Promise<void> {
+  private async broadcastExecutionDone(
+    stream: ActiveStream,
+    exec: StreamExecution,
+    isTopicDone = true
+  ): Promise<StreamDoneResult> {
     const result: StreamDoneResult = {
       finalMessage: exec.finalMessage,
       userMessageId: exec.userMessageId,
@@ -2204,15 +2481,17 @@ export class AiStreamManager extends BaseService {
       timings: { ...exec.timings },
       runtimeTiming: exec.runtimeTiming.snapshot()
     }
-    await this.dispatchToListeners(stream, 'onDone', (listener) => listener.onDone(result))
+    await this.dispatchToListeners(stream, 'onDone', (listener) => listener.onDone(result), result)
+    return result
   }
 
   private async broadcastExecutionPaused(
     stream: ActiveStream,
     exec: StreamExecution,
-    isTopicDone = true
-  ): Promise<void> {
-    const result = {
+    isTopicDone = true,
+    holdTopicNotification = false
+  ): Promise<StreamPausedResult> {
+    const result: StreamPausedResult = {
       finalMessage: exec.finalMessage,
       status: 'paused' as const,
       userMessageId: exec.userMessageId,
@@ -2224,7 +2503,14 @@ export class AiStreamManager extends BaseService {
       timings: { ...exec.timings },
       runtimeTiming: exec.runtimeTiming.snapshot()
     }
-    await this.dispatchToListeners(stream, 'onPaused', (listener) => listener.onPaused(result))
+    await this.dispatchToListeners(
+      stream,
+      'onPaused',
+      (listener) => listener.onPaused(result),
+      result,
+      holdTopicNotification
+    )
+    return result
   }
 
   private getTopicAttemptWatermark(stream: ActiveStream): number {
@@ -2235,6 +2521,34 @@ export class AiStreamManager extends BaseService {
     return watermark
   }
 
+  private claimExecutionTerminal(stream: ActiveStream, listener: StreamListener, attemptId?: number): boolean {
+    if (attemptId === undefined) return true
+    let listeners = this.executionTerminalListeners.get(stream)
+    if (!listeners) {
+      listeners = new WeakMap()
+      this.executionTerminalListeners.set(stream, listeners)
+    }
+    let attempts = listeners.get(listener)
+    if (!attempts) {
+      attempts = new Set()
+      listeners.set(listener, attempts)
+    }
+    if (attempts.has(attemptId)) return false
+    attempts.add(attemptId)
+    return true
+  }
+
+  private claimTopicTerminal(stream: ActiveStream, listener: StreamListener): boolean {
+    let notified = this.topicTerminalListeners.get(stream)
+    if (!notified) {
+      notified = new WeakSet()
+      this.topicTerminalListeners.set(stream, notified)
+    }
+    if (notified.has(listener)) return false
+    notified.add(listener)
+    return true
+  }
+
   /**
    * Skips dead listeners and isolates throws. Persistence finishes before renderer/runtime
    * notification, while cleanup work remains last.
@@ -2242,7 +2556,9 @@ export class AiStreamManager extends BaseService {
   private async dispatchToListeners(
     stream: ActiveStream,
     event: 'onDone' | 'onPaused' | 'onError',
-    invoke: (listener: StreamListener) => void | Promise<void>
+    invoke: (listener: StreamListener) => void | Promise<void>,
+    result: StreamDoneResult | StreamPausedResult | StreamErrorResult,
+    holdTopicNotification = false
   ): Promise<void> {
     const dead: string[] = []
     const listeners = [...stream.listeners]
@@ -2254,12 +2570,24 @@ export class AiStreamManager extends BaseService {
     let suppressNotification = false
 
     for (const [id, listener] of orderedListeners) {
+      const phase = listener.terminalPhase
       if (!listener.isAlive()) {
         dead.push(id)
         continue
       }
-      if (suppressNotification && listener.terminalPhase === undefined) continue
-      const tracksPersistence = listener.terminalPhase === 'persistence'
+      if (suppressNotification && phase === undefined) continue
+      const deferredNotification =
+        holdTopicNotification && phase !== 'persistence' && !(listener instanceof TopicMessageProjection)
+      if (deferredNotification) continue
+      if (
+        result.isTopicDone &&
+        phase !== 'persistence' &&
+        !(listener instanceof TopicMessageProjection) &&
+        !this.claimTopicTerminal(stream, listener)
+      )
+        continue
+      if (!this.claimExecutionTerminal(stream, listener, result.attemptId)) continue
+      const tracksPersistence = phase === 'persistence'
       if (tracksPersistence) {
         this.terminalPersistenceCounts.set(
           stream.topicId,
@@ -2267,9 +2595,11 @@ export class AiStreamManager extends BaseService {
         )
       }
       try {
-        await invoke(listener)
+        if (tracksPersistence) {
+          await this.persistenceDispatchContext.run({ stream, result, holdTopicNotification }, () => invoke(listener))
+        } else await invoke(listener)
       } catch (err) {
-        if (listener.terminalPhase === 'persistence' && err instanceof TerminalPersistenceError) {
+        if (phase === 'persistence' && err instanceof TerminalPersistenceError) {
           suppressNotification = true
           continue
         }
