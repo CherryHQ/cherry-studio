@@ -15,7 +15,7 @@
  * silently inherit a finite global instead.
  */
 import type { ContextSettingsOverride, EffectiveContextSettings } from '@shared/data/types/contextSettings'
-import { clampThresholdPercent } from '@shared/utils/contextSettings'
+import { clampKeepPercent, clampThresholdPercent } from '@shared/utils/contextSettings'
 
 export interface ResolveContextSettingsInput {
   /** Resolved global defaults (from `chat.context_settings.*` prefs). */
@@ -42,7 +42,11 @@ export function resolveContextSettings(input: ResolveContextSettingsInput): Effe
       thresholdPercent:
         assistant?.compress?.thresholdPercent === undefined
           ? globals.compress.thresholdPercent
-          : clampThresholdPercent(assistant.compress.thresholdPercent)
+          : clampThresholdPercent(assistant.compress.thresholdPercent),
+      keepPercent:
+        assistant?.compress?.keepPercent === undefined
+          ? globals.compress.keepPercent
+          : clampKeepPercent(assistant.compress.keepPercent)
     }
   }
 }

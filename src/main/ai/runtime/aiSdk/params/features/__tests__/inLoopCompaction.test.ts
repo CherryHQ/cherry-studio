@@ -54,6 +54,7 @@ const scope = (overrides: {
   contextWindow?: number
   enabled?: boolean
   compressEnabled?: boolean
+  keepPercent?: number
   thresholdPercent?: number
   compressionModel?: unknown
   adapterFamily?: string
@@ -67,7 +68,11 @@ const scope = (overrides: {
     provider: provider(overrides.adapterFamily),
     contextSettings: {
       enabled: overrides.enabled ?? true,
-      compress: { enabled: overrides.compressEnabled ?? true, thresholdPercent: overrides.thresholdPercent ?? 80 }
+      compress: {
+        enabled: overrides.compressEnabled ?? true,
+        thresholdPercent: overrides.thresholdPercent ?? 80,
+        keepPercent: overrides.keepPercent ?? 37.5
+      }
     },
     compressionModel: 'compressionModel' in overrides ? overrides.compressionModel : COMPRESSION_MODEL
   }) as any
@@ -244,6 +249,74 @@ describe('inLoopCompactionFeature', () => {
   // against the window (the old 0.3x) it EXCEEDS the trigger below 30%, so the
   // fold kept the entire history — handing back a prompt still over budget for
   // the next step to re-fold, one summarizer round trip per step.
+  it('retains more real turns for a larger keep share without splitting tool calls', async () => {
+    const actual = await vi.importActual<typeof AiCore>('@cherrystudio/ai-core')
+    compactModelMessages.mockImplementation(actual.compactModelMessages)
+    const summarizer = {
+      specificationVersion: 'v3',
+      provider: 'test',
+      modelId: 'summary',
+      supportedUrls: {},
+      async doGenerate() {
+        return {
+          content: [{ type: 'text', text: 'SUMMARY' }],
+          finishReason: { unified: 'stop', raw: undefined },
+          warnings: [],
+          usage: {
+            inputTokens: { total: 50, noCache: undefined, cacheRead: undefined, cacheWrite: undefined },
+            outputTokens: { total: 10, text: undefined, reasoning: undefined }
+          }
+        }
+      },
+      async doStream() {
+        throw new Error('unused')
+      }
+    }
+    const messages: ModelMessage[] = []
+    for (let i = 0; i < 12; i++) {
+      messages.push({ role: 'user', content: `MARKER-${i} ${'word '.repeat(500)}` })
+      messages.push({
+        role: 'assistant',
+        content: [{ type: 'tool-call', toolCallId: `c${i}`, toolName: 't', input: {} }]
+      })
+      messages.push({
+        role: 'tool',
+        content: [{ type: 'tool-result', toolCallId: `c${i}`, toolName: 't', output: { type: 'text', value: 'ok' } }]
+      })
+    }
+    const make = (keepPercent: number) =>
+      getPrepareStep(
+        scope({
+          chatId: 'topic-1',
+          contextWindow: 4000,
+          keepPercent,
+          compressionModel: { languageModel: summarizer, contextWindow: null }
+        })
+      )
+    try {
+      const low = await make(37.5)({ messages } as any)
+      const high = await make(75)({ messages } as any)
+      const lowText = JSON.stringify(low?.messages)
+      const highText = JSON.stringify(high?.messages)
+      expect(lowText).toContain('SUMMARY')
+      expect(highText).toContain('SUMMARY')
+      expect(lowText).not.toContain('MARKER-0')
+      expect(highText).not.toContain('MARKER-0')
+      expect(highText).toContain('MARKER-7')
+      expect(lowText).not.toContain('MARKER-7')
+      for (let i = 0; i < 12; i++) {
+        for (const result of [low?.messages, high?.messages]) {
+          const rendered = JSON.stringify(result)
+          expect(rendered.includes(`"toolCallId":"c${i}"`)).toBe(
+            rendered.includes(`"toolCallId":"c${i}"`, rendered.indexOf(`"toolCallId":"c${i}"`) + 1)
+          )
+        }
+      }
+    } finally {
+      compactModelMessages.mockReset()
+    }
+  })
+
   it('keeps a fold target under the trigger at a low threshold', async () => {
     compactModelMessages.mockClear()
     compactModelMessages.mockResolvedValue([userMessage(10)])

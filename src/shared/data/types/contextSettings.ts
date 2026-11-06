@@ -6,7 +6,7 @@
  *   optional; `undefined` means "inherit from the globals".
  * - `EffectiveContextSettings` — the fully-resolved object the request
  *   pipeline consumes (no undefineds), produced by `resolveContextSettings`.
- * - `DEFAULT_CONTEXT_SETTINGS` — the hardcoded floor under the global prefs.
+ * - `DEFAULT_CONTEXT_SETTINGS` — the hardcoded floor under the global prefs, including the keep share.
  *
  * `compress.modelId` is a plain `string | null` (NOT `UniqueModelId`) so it
  * matches the auto-generated preference schema's boundary; validation to a
@@ -21,7 +21,8 @@ export const ContextSettingsCompressOverrideSchema = z.object({
   // (resolveCompressionModel('') → null) — clearing must be expressed as null.
   modelId: z.string().min(1).nullable().optional(),
   /** Compact once the prompt passes this percent of the available input context. */
-  thresholdPercent: z.number().int().min(20).max(100).optional()
+  thresholdPercent: z.number().int().min(20).max(100).optional(),
+  keepPercent: z.number().min(10).max(90).optional()
 })
 export type ContextSettingsCompressOverride = z.infer<typeof ContextSettingsCompressOverrideSchema>
 
@@ -50,7 +51,8 @@ export const EffectiveContextSettingsSchema = z.object({
   compress: z.object({
     enabled: z.boolean(),
     modelId: z.string().nullable(),
-    thresholdPercent: z.number().int().min(20).max(100)
+    thresholdPercent: z.number().int().min(20).max(100),
+    keepPercent: z.number().min(10).max(90)
   })
 })
 export type EffectiveContextSettings = z.infer<typeof EffectiveContextSettingsSchema>
@@ -78,6 +80,8 @@ export const MIN_TRUNCATE_THRESHOLD = 2000
  */
 export const MIN_COMPRESS_THRESHOLD_PERCENT = 20
 export const MAX_COMPRESS_THRESHOLD_PERCENT = 100
+export const MIN_COMPRESS_KEEP_PERCENT = 10
+export const MAX_COMPRESS_KEEP_PERCENT = 90
 
 /** Hardcoded floor. compress.enabled defaults TRUE (P2-B decision); the
  *  threshold mirrors CONTEXT_PERSIST_THRESHOLD_CHARS so the persist trigger
@@ -89,6 +93,8 @@ export const DEFAULT_CONTEXT_SETTINGS: EffectiveContextSettings = {
   compress: {
     enabled: true,
     modelId: null,
-    thresholdPercent: 80
+    thresholdPercent: 80,
+    // Recent verbatim budget as a percentage of the compression trigger.
+    keepPercent: 37.5
   }
 }

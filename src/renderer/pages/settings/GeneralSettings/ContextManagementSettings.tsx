@@ -25,12 +25,14 @@ import { useModelById } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
 import {
+  MAX_COMPRESS_KEEP_PERCENT,
   MAX_COMPRESS_THRESHOLD_PERCENT,
+  MIN_COMPRESS_KEEP_PERCENT,
   MIN_COMPRESS_THRESHOLD_PERCENT,
   MIN_TRUNCATE_THRESHOLD
 } from '@shared/data/types/contextSettings'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
-import { clampThresholdPercent } from '@shared/utils/contextSettings'
+import { clampKeepPercent, clampThresholdPercent } from '@shared/utils/contextSettings'
 import { isNonChatModel } from '@shared/utils/model'
 
 const SettingRowTitleWithTooltip = ({ title, description }: { title: string; description: string }) => (
@@ -58,6 +60,7 @@ export const ContextManagementSettings = () => {
   const [truncateThreshold, setTruncateThreshold] = usePreference('chat.context_settings.truncate_threshold')
   const [compressEnabled, setCompressEnabled] = usePreference('chat.context_settings.compress.enabled')
   const [compressModelId, setCompressModelId] = usePreference('chat.context_settings.compress.model_id')
+  const [keepPercent, setKeepPercent] = usePreference('chat.context_settings.compress.keep_percent')
   const [compressThreshold, setCompressThreshold] = usePreference('chat.context_settings.compress.threshold_percent')
 
   const { model: compressModel } = useModelById(compressModelId as UniqueModelId | null)
@@ -174,6 +177,31 @@ export const ContextManagementSettings = () => {
                       className="px-2.5"
                       value={compressThreshold}
                       onBlur={(value) => void setCompressThreshold(clampThresholdPercent(value))}
+                    />
+                    <InputGroupAddon align="inline-end">
+                      <InputGroupText>%</InputGroupText>
+                    </InputGroupAddon>
+                  </InputGroup>
+                </div>
+              </SettingRow>
+              <SettingDivider />
+              <SettingRow>
+                <div className="min-w-0 flex-1">
+                  <SettingRowTitleWithTooltip
+                    title={t('settings.models.context_management.compress_keep_percent')}
+                    description={t('settings.models.context_management.compress_keep_percent_description')}
+                  />
+                </div>
+                <div className="w-[220px] shrink-0">
+                  <InputGroup className="h-8 rounded-lg">
+                    <InputGroupInputNumber
+                      min={MIN_COMPRESS_KEEP_PERCENT}
+                      max={MAX_COMPRESS_KEEP_PERCENT}
+                      step={2.5}
+                      aria-label={t('settings.models.context_management.compress_keep_percent')}
+                      className="px-2.5"
+                      value={keepPercent}
+                      onBlur={(value) => void setKeepPercent(clampKeepPercent(value))}
                     />
                     <InputGroupAddon align="inline-end">
                       <InputGroupText>%</InputGroupText>

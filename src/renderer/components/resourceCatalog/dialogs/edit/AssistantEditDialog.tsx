@@ -46,12 +46,14 @@ import {
 import { AGENT_PROMPT } from '@shared/ai/prompts'
 import { DEFAULT_ASSISTANT_SETTINGS, MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@shared/data/types/assistant'
 import {
+  MAX_COMPRESS_KEEP_PERCENT,
   MAX_COMPRESS_THRESHOLD_PERCENT,
+  MIN_COMPRESS_KEEP_PERCENT,
   MIN_COMPRESS_THRESHOLD_PERCENT,
   MIN_TRUNCATE_THRESHOLD
 } from '@shared/data/types/contextSettings'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
-import { clampThresholdPercent } from '@shared/utils/contextSettings'
+import { clampKeepPercent, clampThresholdPercent } from '@shared/utils/contextSettings'
 import { isNonChatModel } from '@shared/utils/model'
 
 import {
@@ -107,6 +109,7 @@ type AssistantEditFormValues = {
   contextTruncateThreshold: number
   contextMaxMessages: number | null
   contextCompressThresholdPercent: number | null
+  contextCompressKeepPercent: number | null
   contextCompressModelId: string | null
   knowledgeBaseIds: string[]
   mcpServerIds: string[]
@@ -149,6 +152,7 @@ function defaultValuesForAssistant(resource: AssistantEditDialogResource): Assis
     contextTruncateThreshold: form.contextTruncateThreshold,
     contextMaxMessages: form.contextMaxMessages,
     contextCompressThresholdPercent: form.contextCompressThresholdPercent,
+    contextCompressKeepPercent: form.contextCompressKeepPercent,
     contextCompressModelId: form.contextCompressModelId,
     knowledgeBaseIds: [...form.knowledgeBaseIds],
     mcpServerIds: [...form.mcpServerIds]
@@ -190,6 +194,7 @@ function buildAssistantFormState(baseline: AssistantFormState, values: Assistant
     contextTruncateThreshold: values.contextTruncateThreshold,
     contextMaxMessages: values.contextMaxMessages,
     contextCompressThresholdPercent: values.contextCompressThresholdPercent,
+    contextCompressKeepPercent: values.contextCompressKeepPercent,
     contextCompressModelId: values.contextCompressModelId,
     knowledgeBaseIds: values.knowledgeBaseIds,
     mcpServerIds: values.mcpServerIds
@@ -759,6 +764,7 @@ function AssistantAdvancedFields({
   const [globalCompressEnabled] = usePreference('chat.context_settings.compress.enabled')
   const [globalTruncateThreshold] = usePreference('chat.context_settings.truncate_threshold')
   const [globalCompressModelId] = usePreference('chat.context_settings.compress.model_id')
+  const [globalCompressKeepPercent] = usePreference('chat.context_settings.compress.keep_percent')
   const [globalCompressThreshold] = usePreference('chat.context_settings.compress.threshold_percent')
   const temperatureMarks = [
     { value: 0, label: t('library.config.basic.precise') },
@@ -926,6 +932,7 @@ function AssistantAdvancedFields({
           maxMessages: globalMaxMessages,
           truncateThreshold: globalTruncateThreshold,
           compressThreshold: clampThresholdPercent(globalCompressThreshold),
+          compressKeepPercent: clampKeepPercent(globalCompressKeepPercent),
           compressModelId: globalCompressModelId || null
         }}
       />
@@ -965,6 +972,7 @@ function ContextManagementFields({
     compressEnabled: boolean
     truncateThreshold: number
     maxMessages: number | null
+    compressKeepPercent: number
     compressThreshold: number
     compressModelId: string | null
   }
@@ -1096,6 +1104,40 @@ function ContextManagementFields({
                         className="px-2.5"
                         value={field.value}
                         onBlur={(value) => field.onChange(value === null ? null : clampThresholdPercent(value))}
+                      />
+                    </FormControl>
+                    <InputGroupAddon align="inline-end">
+                      <InputGroupText>%</InputGroupText>
+                    </InputGroupAddon>
+                  </InputGroup>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          ) : null}
+
+          {values.contextCompressEnabled ? (
+            <FormField
+              control={form.control}
+              name="contextCompressKeepPercent"
+              render={({ field }) => (
+                <FormItem>
+                  <FieldLabelWithHelp
+                    label={t('library.config.basic.context_compress_keep_percent')}
+                    help={t('library.config.basic.field.context_compress_keep_percent.hint')}
+                  />
+                  <InputGroup className="h-8 rounded-lg">
+                    <FormControl>
+                      <InputGroupInputNumber
+                        min={MIN_COMPRESS_KEEP_PERCENT}
+                        max={MAX_COMPRESS_KEEP_PERCENT}
+                        step={2.5}
+                        placeholder={t('library.config.basic.context_compress_keep_percent_follow_global', {
+                          percent: globalDefaults.compressKeepPercent
+                        })}
+                        className="px-2.5"
+                        value={field.value}
+                        onBlur={(value) => field.onChange(value === null ? null : clampKeepPercent(value))}
                       />
                     </FormControl>
                     <InputGroupAddon align="inline-end">

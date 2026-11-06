@@ -412,3 +412,37 @@ describe('diffAssistantSaveIntent', () => {
     })
   })
 })
+
+it('preserves, edits, clears and inherits the keep share', () => {
+  const assistant = createAssistant({
+    settings: {
+      ...DEFAULT_ASSISTANT_SETTINGS,
+      contextSettings: { truncateThreshold: 4000, compress: { enabled: true, keepPercent: 75 } }
+    }
+  })
+  const baseline = initialAssistantFormState(assistant)
+  expect(baseline.contextCompressKeepPercent).toBe(75)
+  expect(
+    diffAssistantUpdate({ ...baseline, contextTruncateThreshold: 9000 }, baseline, assistant)?.dto.settings
+      ?.contextSettings?.compress?.keepPercent
+  ).toBe(75)
+  expect(
+    diffAssistantUpdate({ ...baseline, contextCompressKeepPercent: null }, baseline, assistant)?.dto.settings
+      ?.contextSettings?.compress
+  ).not.toHaveProperty('keepPercent')
+  const inherited = createAssistant({
+    settings: {
+      ...DEFAULT_ASSISTANT_SETTINGS,
+      contextSettings: { truncateThreshold: 4000, compress: { enabled: true } }
+    }
+  })
+  const empty = initialAssistantFormState(inherited)
+  expect(
+    diffAssistantUpdate({ ...empty, contextCompressKeepPercent: 75 }, empty, inherited)?.dto.settings?.contextSettings
+      ?.compress?.keepPercent
+  ).toBe(75)
+  expect(
+    diffAssistantUpdate({ ...empty, contextTruncateThreshold: 9000 }, empty, inherited)?.dto.settings?.contextSettings
+      ?.compress
+  ).not.toHaveProperty('keepPercent')
+})

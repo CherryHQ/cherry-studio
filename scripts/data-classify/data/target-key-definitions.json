@@ -430,6 +430,13 @@
       "description": "Explicit compression model (UniqueModelId). null = use the current request model"
     },
     {
+      "targetKey": "chat.context_settings.compress.keep_percent",
+      "type": "number",
+      "defaultValue": 37.5,
+      "status": "classified",
+      "description": "Recent verbatim budget as a percentage of the compression trigger threshold; default 37.5 matches the former 0.375 fraction."
+    },
+    {
       "targetKey": "chat.context_settings.compress.threshold_percent",
       "type": "number",
       "defaultValue": 80,

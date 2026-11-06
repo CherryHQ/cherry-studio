@@ -399,6 +399,11 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.basic.context_count': 'Recent messages kept',
           'library.config.basic.context_truncate_threshold': 'Tool-output truncation threshold',
           'library.config.basic.context_compress_enabled': 'Compress the context when it fills up',
+          'library.config.basic.context_compress_keep_percent': 'Recent verbatim retention',
+          'library.config.basic.context_compress_keep_percent_follow_global': `Follow global (${typeof fallbackOrOptions === 'object' ? fallbackOrOptions.percent : ''}% of the compression trigger threshold)`,
+          'library.config.basic.field.context_compress_keep_percent.hint': 'Recent verbatim budget',
+          'settings.models.context_management.compress_keep_percent': 'Recent verbatim retention',
+          'settings.models.context_management.compress_keep_percent_description': 'Recent verbatim budget',
           'library.config.basic.context_compress_threshold': 'Compression trigger threshold',
           'library.config.basic.context_count_unlimited': 'Unlimited',
           'library.config.basic.custom_params': 'Custom parameters',
@@ -1879,7 +1884,22 @@ describe('edit dialogs', () => {
     expect(threshold).toHaveValue('')
     expect(threshold).toHaveAttribute('aria-valuemin', '20')
     expect(threshold).toHaveAttribute('aria-valuemax', '100')
-    expect(screen.getByText('%')).toBeVisible()
+    expect(within(threshold.parentElement!).getByText('%')).toBeVisible()
+    const keep = screen.getByRole('spinbutton', { name: 'Recent verbatim retention' })
+    expect(keep).toHaveValue('')
+    expect(within(keep.parentElement!).getByText('%')).toBeVisible()
+    expect(keep).toHaveAttribute('placeholder', 'Follow global (37.5% of the compression trigger threshold)')
+    fireEvent.change(keep, { target: { value: '75' } })
+    fireEvent.blur(keep)
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({
+          settings: expect.objectContaining({
+            contextSettings: expect.objectContaining({ compress: expect.objectContaining({ keepPercent: 75 }) })
+          })
+        })
+      })
+    )
   })
 
   it('keeps the message limit outside the override, since scope is not an overflow policy', async () => {

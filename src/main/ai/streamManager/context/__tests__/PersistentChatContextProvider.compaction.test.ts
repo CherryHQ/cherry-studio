@@ -217,13 +217,17 @@ function fakeMsgWithContextTokens(
   return { ...fakeMsg(id, role, text), stats: { contextTokens } }
 }
 
-function compressionOn(compressionModel: unknown = { languageModel: {}, contextWindow: null }, thresholdPercent = 80) {
+function compressionOn(
+  compressionModel: unknown = { languageModel: {}, contextWindow: null },
+  thresholdPercent = 80,
+  keepPercent = 37.5
+) {
   mockResolveRequestContextSettings.mockResolvedValue({
     contextSettings: {
       enabled: true,
       truncateThreshold: 0.9,
       maxMessages: null,
-      compress: { enabled: true, thresholdPercent }
+      compress: { enabled: true, thresholdPercent, keepPercent }
     },
     compressionModel
   })
@@ -578,6 +582,22 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     expect(messages[0].id).toBe(`compaction:${boundaryId}`)
     // Kept tail starts with a user row
     expect(messages[1].role).toBe('user')
+  })
+
+  it('retains a larger original suffix when the keep share increases', async () => {
+    const text = 'token '.repeat(500)
+    const ids = ['u1', 'a1', 'u2', 'a2', 'u3', 'a3', 'u4', 'a4', 'u5']
+    mockGetPathToNode.mockReturnValue(ids.map((id, i) => fakeMsg(id, i % 2 === 0 ? 'user' : 'assistant', text)))
+    compressionOn(undefined, 80, 37.5)
+    const low = (await makeHistory('u5')).messages.map((message) => message.id)
+    compressionOn(undefined, 80, 75)
+    const high = (await makeHistory('u5')).messages.map((message) => message.id)
+    expect(low[0]).toMatch(/^compaction:/)
+    expect(high[0]).toMatch(/^compaction:/)
+    expect(low).not.toContain('u1')
+    expect(high).not.toContain('u1')
+    expect(high.length).toBeGreaterThan(low.length)
+    for (const id of low.slice(1)) expect(high).toContain(id)
   })
 
   it('2b. folding an attachment-bearing message keeps the raw-path allow-list and adds the summary manifest', async () => {

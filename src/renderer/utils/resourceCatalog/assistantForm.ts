@@ -63,6 +63,7 @@ export interface AssistantFormState {
    * inherited threshold at whatever the global happened to be.
    */
   contextCompressThresholdPercent: number | null
+  contextCompressKeepPercent: number | null
   /** null = no explicit pick (follow the global / current model). */
   contextCompressModelId: string | null
   // relations
@@ -101,6 +102,7 @@ export function initialAssistantFormState(assistant: Assistant): AssistantFormSt
     contextTruncateThreshold: ctx?.truncateThreshold ?? DEFAULT_CONTEXT_SETTINGS.truncateThreshold,
     contextMaxMessages: ctx?.maxMessages ?? null,
     contextCompressThresholdPercent: ctx?.compress?.thresholdPercent ?? null,
+    contextCompressKeepPercent: ctx?.compress?.keepPercent ?? null,
     contextCompressModelId: ctx?.compress?.modelId ?? null,
     groupId: assistant.groupId,
     knowledgeBaseIds: assistant.knowledgeBaseIds ?? [],
@@ -158,6 +160,7 @@ export function diffAssistantUpdate(
       (baseline.contextCompressEnabled !== form.contextCompressEnabled ||
         baseline.contextTruncateThreshold !== form.contextTruncateThreshold ||
         baseline.contextCompressThresholdPercent !== form.contextCompressThresholdPercent ||
+        baseline.contextCompressKeepPercent !== form.contextCompressKeepPercent ||
         baseline.contextCompressModelId !== form.contextCompressModelId))
 
   const settings: NonNullable<UpdateAssistantDto['settings']> = {
@@ -183,6 +186,7 @@ export function diffAssistantUpdate(
                 ...(form.contextMaxMessages !== null ? { maxMessages: form.contextMaxMessages } : {}),
                 compress: {
                   enabled: form.contextCompressEnabled,
+                  ...(form.contextCompressKeepPercent !== null ? { keepPercent: form.contextCompressKeepPercent } : {}),
                   modelId: form.contextCompressModelId,
                   // Absent = inherit the global trigger; the UI's empty field.
                   ...(form.contextCompressThresholdPercent !== null

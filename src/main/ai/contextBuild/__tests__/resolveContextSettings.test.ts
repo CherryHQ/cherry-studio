@@ -40,3 +40,20 @@ describe('resolveContextSettings', () => {
     expect(out.compress.modelId).toBe('openai::gpt-4o-mini')
   })
 })
+
+it('inherits or clamps the assistant keep share without changing sibling fields', () => {
+  const configured = { ...globals, compress: { ...globals.compress, keepPercent: 62.5 } }
+  expect(resolveContextSettings({ globals: configured, assistant: { compress: {} } }).compress.keepPercent).toBe(62.5)
+  for (const [value, expected] of [
+    [75, 75],
+    [92, 90],
+    [null, 37.5]
+  ] as const) {
+    const result = resolveContextSettings({
+      globals: configured,
+      assistant: { compress: { keepPercent: value as number } }
+    })
+    expect(result.compress.keepPercent).toBe(expected)
+    expect(result.compress.thresholdPercent).toBe(configured.compress.thresholdPercent)
+  }
+})
