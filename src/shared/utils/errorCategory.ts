@@ -2,6 +2,8 @@
 // classifies provider responses; both must agree on precedence (region before 403, quota
 // before 429, feature timeouts before generic network).
 
+import { isNonVisionImageGuidance } from '../ai/nonVisionImageGuidance'
+
 export const ERROR_CATEGORIES = [
   'auth',
   'bad_request',
@@ -248,7 +250,12 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     return 'mcp'
   }
 
-  if (msg.includes('ocr') || msg.includes('recognition failed') || msg.includes('engine not initialized')) {
+  if (
+    msg.includes('ocr') ||
+    msg.includes('recognition failed') ||
+    msg.includes('engine not initialized') ||
+    isNonVisionImageGuidance(text)
+  ) {
     return 'ocr'
   }
 

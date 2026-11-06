@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
+import { NON_VISION_IMAGE_GUIDANCE } from '@shared/ai/nonVisionImageGuidance'
+
 import { classifyErrorCategory, isProxyErrorMessage } from '../errorCategory'
 
 describe('classifyErrorCategory HTTP 400', () => {
@@ -349,6 +351,36 @@ describe('classifyErrorCategory embedded runtime connection codes (#22210)', () 
     'Streaming is not supported for this model',
     'Some totally unrelated failure'
   ])('leaves prose without a runtime code unclassified: %s', (text) => {
+    expect(classifyErrorCategory({ text })).toBe('unknown')
+  })
+})
+
+describe('classifyErrorCategory non-vision image guidance', () => {
+  it.each([NON_VISION_IMAGE_GUIDANCE, `  ${NON_VISION_IMAGE_GUIDANCE.toUpperCase()}  `])(
+    'recognizes the complete app-owned guidance: %s',
+    (text) => {
+      expect(classifyErrorCategory({ text })).toBe('ocr')
+    }
+  )
+
+  it.each([
+    [401, 'auth'],
+    [403, 'permission'],
+    [404, 'model'],
+    [402, 'quota'],
+    [429, 'rate_limit'],
+    [500, 'server']
+  ] as const)('keeps HTTP %i precedence over guidance', (status, category) => {
+    expect(classifyErrorCategory({ text: NON_VISION_IMAGE_GUIDANCE, status })).toBe(category)
+  })
+
+  it.each([
+    `Provider response: "${NON_VISION_IMAGE_GUIDANCE}" Please contact support.`,
+    "The selected model isn't configured for image input.",
+    'This model does not support image input',
+    'Vision',
+    'text extraction failed'
+  ])('does not claim unrelated provider text as app guidance: %s', (text) => {
     expect(classifyErrorCategory({ text })).toBe('unknown')
   })
 })

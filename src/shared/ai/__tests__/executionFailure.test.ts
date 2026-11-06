@@ -3,8 +3,46 @@ import { describe, expect, it } from 'vitest'
 import { executionFailureSchema } from '@cherrystudio/remote-protocol/failure'
 
 import { toExecutionFailure } from '../executionFailure'
+import { NON_VISION_IMAGE_GUIDANCE } from '../nonVisionImageGuidance'
 
 describe('execution failure projection', () => {
+  it.each<Record<string, string>>([
+    { providerErrorCategory: 'ocr', i18nKey: 'image_unreadable_for_non_vision_model' },
+    {}
+  ])('projects an unreadable non-vision image as invalid input: %j', (fields) => {
+    const failure = toExecutionFailure({
+      name: 'NonVisionImageOcrError',
+      message: NON_VISION_IMAGE_GUIDANCE,
+      stack: null,
+      cause: null,
+      ...fields
+    })
+    expect(failure.failure.reasonCode).toBe('invalid_input')
+    expect(failure.retryable).toBe(false)
+  })
+
+  it('preserves a valid saved unknown snapshot instead of reclassifying it', () => {
+    const snapshot = {
+      message: NON_VISION_IMAGE_GUIDANCE,
+      retryable: false,
+      failure: {
+        version: 1 as const,
+        reasonCode: 'unknown' as const,
+        source: { layer: 'runtime' as const },
+        context: {}
+      }
+    }
+    expect(
+      toExecutionFailure({
+        name: 'NonVisionImageOcrError',
+        message: NON_VISION_IMAGE_GUIDANCE,
+        stack: null,
+        providerErrorCategory: 'ocr',
+        executionFailure: snapshot
+      })
+    ).toEqual(snapshot)
+  })
+
   it('keeps a fresh Groq entitlement failure non-retryable with its HTTP status', () => {
     expect(
       toExecutionFailure(

@@ -4,6 +4,8 @@ import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import enUS from '@renderer/i18n/locales/en-us.json'
+import zhCN from '@renderer/i18n/locales/zh-cn.json'
+import { NON_VISION_IMAGE_GUIDANCE } from '@shared/ai/nonVisionImageGuidance'
 
 import type { MessageListActions, MessageListItem } from '../../types'
 
@@ -99,6 +101,41 @@ describe('ErrorBlock', () => {
     mocks.translations.set('error.diagnosis.go_to_settings', GO_TO_SETTINGS_LABEL)
     mocks.translations.set('HTTP 413', 'Request body too large')
     vi.clearAllMocks()
+  })
+
+  it.each([
+    ['legacy persisted', {}],
+    ['structured model-bound', { providerErrorCategory: 'ocr', i18nKey: 'image_unreadable_for_non_vision_model' }]
+  ])('shows Chinese attachment guidance for a %s image failure and opens localized detail', async (_shape, fields) => {
+    const user = userEvent.setup()
+    const openErrorDetail = vi.fn()
+    mocks.actions = { openErrorDetail }
+    mocks.language = 'zh-CN'
+    mocks.translations = new Map(Object.entries(zhCN))
+    mocks.i18nKeys = new Set(Object.keys(zhCN))
+    const error = {
+      name: 'NonVisionImageOcrError',
+      message: NON_VISION_IMAGE_GUIDANCE,
+      stack: null,
+      ...fields
+    }
+    const modelMessage = {
+      ...message,
+      model: { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', provider: 'deepseek' }
+    }
+
+    render(<ErrorBlock partId="message-1-part-0" error={error} message={modelMessage} />)
+
+    const guidance = zhCN['error.image_unreadable_for_non_vision_model']
+    const guidanceElements = screen.getAllByText(guidance, { exact: true })
+    expect(guidanceElements).toHaveLength('i18nKey' in fields ? 2 : 1)
+    expect(guidanceElements[0]).toBeVisible()
+    expect(screen.queryByText(zhCN['error.diagnosis.unknown'], { exact: true })).not.toBeInTheDocument()
+    expect(screen.queryByText(zhCN['error.diagnosis.ocr'], { exact: true })).not.toBeInTheDocument()
+    await user.click(screen.getByText(zhCN['common.detail'], { exact: true }))
+    expect(openErrorDetail).toHaveBeenCalledWith(
+      expect.objectContaining({ error, message: modelMessage, localizedErrorMessage: guidance })
+    )
   })
 
   it('renders Groq entitlement copy and opens its provider settings', async () => {

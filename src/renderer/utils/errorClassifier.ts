@@ -1,5 +1,6 @@
 import type { SerializedError } from '@renderer/types/error'
 import { isSerializedAiSdkRetryError, isSerializedAiSdkToolCallRepairError } from '@renderer/types/error'
+import { isNonVisionImageGuidance } from '@shared/ai/nonVisionImageGuidance'
 import { classifyErrorCategory, type ErrorCategory, isErrorCategory } from '@shared/utils/errorCategory'
 
 export type { ErrorCategory } from '@shared/utils/errorCategory'
@@ -160,7 +161,11 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   const providerSuffix = providerId ? `?id=${encodeURIComponent(providerId)}` : ''
   const classify = (category: ErrorCategory): ErrorClassification => ({
     category,
-    i18nKey: `error.diagnosis.${category}`,
+    i18nKey:
+      category === 'ocr' &&
+      (error?.i18nKey === 'image_unreadable_for_non_vision_model' || isNonVisionImageGuidance(error?.message))
+        ? 'error.image_unreadable_for_non_vision_model'
+        : `error.diagnosis.${category}`,
     navTarget: navTargetFor(category, providerSuffix)
   })
 
