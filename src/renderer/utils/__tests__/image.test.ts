@@ -12,6 +12,7 @@ import {
   captureScrollable,
   captureScrollableAsBlob,
   captureScrollableAsDataUrl,
+  captureScrollableIframe,
   checkEntityImageSize,
   convertToBase64,
   dataUrlToBlob,
@@ -513,6 +514,58 @@ describe('utils/image', () => {
       Object.defineProperty(div, 'scrollHeight', { value: 40000, configurable: true })
       const ref = { current: div } as React.RefObject<HTMLDivElement>
       await expect(captureScrollable(ref)).rejects.toThrow()
+    })
+  })
+
+  describe('captureScrollableIframe resource policy', () => {
+    const REMOTE_CSS = 'https://example.com/collect?secret=abc'
+
+    function createIframeRef() {
+      const iframe = document.createElement('iframe')
+      document.body.appendChild(iframe)
+      const doc = iframe.contentDocument!
+      doc.head.innerHTML = `<link rel="stylesheet" href="${REMOTE_CSS}"><style>@font-face{font-family:x;src:url(https://example.com/f.woff2)}</style>`
+      doc.body.innerHTML = '<img src="https://example.com/pixel.png"><img src="data:image/png;base64,AAAA">'
+      iframe.contentWindow!.requestAnimationFrame = (cb: FrameRequestCallback) => {
+        cb(0)
+        return 0
+      }
+      return { current: iframe }
+    }
+
+    afterEach(() => {
+      document.querySelectorAll('iframe').forEach((iframe) => iframe.remove())
+      vi.unstubAllGlobals()
+    })
+
+    it('never fetches stylesheets or fonts from the parent when restricted to local resources', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(new Response('', { status: 404 }))
+      vi.stubGlobal('fetch', fetchMock)
+
+      await captureScrollableIframe(createIframeRef(), { restrictToLocalResources: true })
+
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('drops non-local images from the rasterized tree but keeps data URLs', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 404 })))
+
+      const iframeRef = createIframeRef()
+      await captureScrollableIframe(iframeRef, { restrictToLocalResources: true })
+
+      const options = vi.mocked(htmlToImage.toCanvas).mock.calls.at(-1)?.[1]
+      const [remote, local] = Array.from(iframeRef.current.contentDocument!.querySelectorAll('img'))
+      expect(options?.filter?.(remote)).toBe(false)
+      expect(options?.filter?.(local)).toBe(true)
+    })
+
+    it('keeps embedding remote stylesheets by default', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(new Response('', { status: 404 }))
+      vi.stubGlobal('fetch', fetchMock)
+
+      await captureScrollableIframe(createIframeRef())
+
+      expect(fetchMock).toHaveBeenCalledWith(REMOTE_CSS, expect.anything())
     })
   })
 

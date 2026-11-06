@@ -659,9 +659,75 @@ export async function waitForCaptureAssets(root: HTMLElement | null, timeoutMs =
 /**
  * 捕获 iframe 内部文档的完整内容快照
  */
+export interface CaptureScrollableIframeOptions {
+  /**
+   * Keep the capture inside a restricted preview's resource policy (`data:`, `blob:`, `file:` only): never fetch
+   * stylesheets, fonts or images from the parent renderer that the sandboxed document itself could not load.
+   */
+  restrictToLocalResources?: boolean
+}
+
+const LOCAL_RESOURCE_PROTOCOLS = new Set(['data:', 'blob:', 'file:'])
+
+function isLocalResourceUrl(url: string, baseUrl: string): boolean {
+  try {
+    return LOCAL_RESOURCE_PROTOCOLS.has(new URL(url, baseUrl).protocol)
+  } catch {
+    return false
+  }
+}
+
+const RESOURCE_ATTRIBUTES = ['src', 'poster', 'data', 'xlink:href'] as const
+
+/** True when the element references a resource outside the local-only policy. */
+function hasNonLocalResource(el: Element, baseUrl: string): boolean {
+  const tag = el.tagName.toLowerCase()
+  const attrs: string[] = [...RESOURCE_ATTRIBUTES]
+  if (tag === 'link' || tag === 'image' || tag === 'use') attrs.push('href')
+  for (const attr of attrs) {
+    const value = el.getAttribute(attr)
+    if (value && !value.startsWith('#') && !isLocalResourceUrl(value.trim(), baseUrl)) return true
+  }
+  const srcset = el.getAttribute('srcset')
+  if (srcset) {
+    const candidates = srcset.split(',').map((entry) => entry.trim().split(/\s+/)[0])
+    if (candidates.some((candidate) => candidate && !isLocalResourceUrl(candidate, baseUrl))) return true
+  }
+  return false
+}
+
+const CSS_URL_PROPERTIES = ['background-image', 'border-image-source', 'list-style-image', 'mask-image'] as const
+const CSS_URL_REGEX = /url\((['"]?)([^)"']+)\1\)/g
+
+/** Neutralizes computed CSS `url()` values that point outside the local-only policy; returns a restore function. */
+function neutralizeNonLocalCssUrls(doc: Document, win: Window): () => void {
+  const restores: Array<() => void> = []
+  doc.querySelectorAll<HTMLElement>('*').forEach((el) => {
+    const computed = win.getComputedStyle(el)
+    for (const property of CSS_URL_PROPERTIES) {
+      const value = computed.getPropertyValue(property)
+      if (!value || !value.includes('url(')) continue
+      const hasRemote = Array.from(value.matchAll(CSS_URL_REGEX)).some(
+        (match) => !isLocalResourceUrl(match[2], doc.baseURI)
+      )
+      if (!hasRemote) continue
+      const previousValue = el.style.getPropertyValue(property)
+      const previousPriority = el.style.getPropertyPriority(property)
+      el.style.setProperty(property, 'none', 'important')
+      restores.push(() => {
+        if (previousValue) el.style.setProperty(property, previousValue, previousPriority)
+        else el.style.removeProperty(property)
+      })
+    }
+  })
+  return () => restores.forEach((restore) => restore())
+}
+
 export async function captureScrollableIframe(
-  iframeRef: React.RefObject<HTMLIFrameElement | null>
+  iframeRef: React.RefObject<HTMLIFrameElement | null>,
+  options: CaptureScrollableIframeOptions = {}
 ): Promise<HTMLCanvasElement | undefined> {
+  const restrictToLocalResources = options.restrictToLocalResources === true
   const iframe = iframeRef.current
   if (!iframe?.contentDocument?.defaultView) return undefined
 
@@ -687,6 +753,7 @@ export async function captureScrollableIframe(
     const fontExtRegex = /\.(woff2?|ttf|otf)(\?|#|$)/i
 
     const fetchAsDataUrl = async (url: string): Promise<string> => {
+      if (restrictToLocalResources && !isLocalResourceUrl(url, doc.baseURI)) return url
       try {
         const res = await fetch(url, { mode: 'cors', credentials: 'omit' })
         if (!res.ok) return url
@@ -749,6 +816,7 @@ export async function captureScrollableIframe(
     await Promise.all(
       Array.from(externalSheets).map(async (link) => {
         if (!link.href) return
+        if (restrictToLocalResources && !isLocalResourceUrl(link.href, doc.baseURI)) return
         try {
           const res = await fetch(link.href, { mode: 'cors', credentials: 'omit' })
           if (res.ok) {
@@ -777,6 +845,7 @@ export async function captureScrollableIframe(
 
   const animationStyle = disableAnimations()
   let injectedFontStyle: HTMLStyleElement | null = null
+  let restoreCssUrls: (() => void) | undefined
 
   const createFontStyle = (css: string): HTMLStyleElement => {
     const style = doc.createElement('style')
@@ -789,6 +858,8 @@ export async function captureScrollableIframe(
   try {
     // 等待渲染稳定
     await new Promise((r) => win.requestAnimationFrame(() => win.requestAnimationFrame(() => r(null))))
+
+    if (restrictToLocalResources) restoreCssUrls = neutralizeNonLocalCssUrls(doc, win)
 
     // 强制加载懒加载图片
     doc.querySelectorAll('img[loading="lazy"]').forEach((img) => img.setAttribute('loading', 'eager'))
@@ -835,6 +906,9 @@ export async function captureScrollableIframe(
       cacheBust: true,
       pixelRatio,
       skipAutoScale: true,
+      ...(restrictToLocalResources && {
+        filter: (node: Node) => !(node instanceof win.Element) || !hasNonLocalResource(node, doc.baseURI)
+      }),
       width: Math.floor(totalWidth),
       height: Math.floor(totalHeight),
       style: {
@@ -850,14 +924,18 @@ export async function captureScrollableIframe(
     logger.error('Error capturing iframe:', error as Error)
     return undefined
   } finally {
+    restoreCssUrls?.()
     injectedFontStyle?.remove()
     // 恢复动画
     animationStyle.remove()
   }
 }
 
-export const captureScrollableIframeAsDataUrl = async (iframeRef: React.RefObject<HTMLIFrameElement | null>) => {
-  return captureScrollableIframe(iframeRef).then((canvas) => {
+export const captureScrollableIframeAsDataUrl = async (
+  iframeRef: React.RefObject<HTMLIFrameElement | null>,
+  options?: CaptureScrollableIframeOptions
+) => {
+  return captureScrollableIframe(iframeRef, options).then((canvas) => {
     if (canvas) {
       return canvas.toDataURL('image/png')
     }

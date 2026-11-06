@@ -376,7 +376,7 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
 
     const prepare = async () => {
       const iframe = iframeRef.current
-      const dataUrl = await captureScrollableIframeAsDataUrl(iframeRef)
+      const dataUrl = await captureScrollableIframeAsDataUrl(iframeRef, { restrictToLocalResources: true })
       if (!iframe || !dataUrl) return () => {}
       const snapshot = document.createElement('img')
       snapshot.src = dataUrl
