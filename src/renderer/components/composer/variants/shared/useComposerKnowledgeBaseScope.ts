@@ -46,7 +46,9 @@ interface UseComposerKnowledgeBaseScopeResult {
   /** True while a restored draft still has knowledge-base ids waiting on the loading catalog. */
   hasPendingKnowledgeBaseRestore: boolean
   /** Drops restored ids still waiting on the catalog; for content replaced without a restore. */
+  pendingKnowledgeBaseRestoreIds: readonly string[] | null
   clearPendingKnowledgeBaseRestore: () => void
+  resumePendingKnowledgeBaseRestore: (ids: readonly string[] | null | undefined) => void
   /** Ids to persist with the draft, including saved ids that are not selectable right now. */
   knowledgeBaseIdsRef: RefObject<string[]>
   /** Folds the current selection into `knowledgeBaseIdsRef`, keeping ids that are unavailable for now. */
