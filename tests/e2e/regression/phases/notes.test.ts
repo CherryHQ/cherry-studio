@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdtemp, rm, writeFile, mkdir, stat, utimes, readFile, readdir } from 'node:fs/promises'
 import { join, basename, dirname } from 'node:path'
@@ -6,6 +7,7 @@ import { setTimeout } from 'node:timers/promises'
 
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
+import { observeExternalResource, registerExternalResource } from '../../../../scripts/e2e/regression/externalResources'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { saveNativeFile } from '../../../../scripts/e2e/regression/systemAutomation'
 import { expect, test } from '../fixture'
@@ -446,15 +448,21 @@ test(...caseDefinition('MP-77'), async ({ app, mainWindow: page }, testInfo) => 
     for (const expected of ['中文标题', '苹果', '12', '香蕉', '34', code, 'MP77_END']) {
       expect(pdfText).toContain(expected)
     }
+    const pdfResource = registerExternalResource(app.paths, app.record.platform, {
+      kind: 'document',
+      application: 'Preview',
+      path: pdfPath
+    })
     execFileSync('open', ['-a', 'Preview', pdfPath])
     // Preview's own scripting interface stops answering on macOS 27, so the opened document is read
     // from its window title through System Events, the interface this fixture already automates.
     await expect
       .poll(() => appleScript('tell application "System Events" to tell process "Preview" to get name of windows'))
       .toContain('MP-77.pdf')
+    observeExternalResource(app.paths, pdfResource)
     await testInfo.attach('Exported PDF', { path: pdfPath, contentType: 'application/pdf' })
 
-    const wordPath = join(directory, 'MP-77.docx')
+    const wordPath = join(directory, `MP-77-${randomUUID()}.docx`)
     await rm(wordPath, { force: true })
     await menuAction('Export to Word')
     await saveNativeFile('macos', app.paths, wordPath)
@@ -467,6 +475,11 @@ test(...caseDefinition('MP-77'), async ({ app, mainWindow: page }, testInfo) => 
       !existsSync('/Applications/Pages.app'),
       'PDF and DOCX structure verified; Pages is required for Word editing and print acceptance'
     )
+    const wordResource = registerExternalResource(app.paths, app.record.platform, {
+      kind: 'document',
+      application: 'Pages',
+      path: wordPath
+    })
     const edited = appleScript(
       [
         'on run argv',
@@ -483,13 +496,13 @@ test(...caseDefinition('MP-77'), async ({ app, mainWindow: page }, testInfo) => 
         'set cellValue to value of cell "B2"',
         'end tell',
         'set resultText to originalText & return & (body text of doc as text) & return & cellValue',
-        'close doc saving no',
         'return resultText',
         'end tell',
         'end run'
       ].join('\n'),
       wordPath
     )
+    observeExternalResource(app.paths, wordResource)
     expect(edited).toContain('中文标题')
     expect(edited).toContain('MP77_EDITED_PARAGRAPH')
     expect(edited).toContain('MP77_EDITED_CELL')

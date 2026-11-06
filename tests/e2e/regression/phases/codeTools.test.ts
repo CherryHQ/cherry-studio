@@ -7,6 +7,7 @@ import type { IpcResult } from '@shared/ipc/errors/IpcError'
 import type { OutputFor } from '@shared/ipc/types'
 
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
+import { observeExternalResource, registerExternalResource } from '../../../../scripts/e2e/regression/externalResources'
 import { listOwnedProcessIds, observeOwnedProcess } from '../../../../scripts/e2e/regression/processEvidence'
 import { chooseNativeFile } from '../../../../scripts/e2e/regression/systemAutomation'
 import { expect, test } from '../fixture'
@@ -66,7 +67,9 @@ async function launchWithWorkspace(app: RegressionApp, page: Page): Promise<void
     await dialog.getByRole('combobox').click()
     await page.getByRole('option', { name: 'Command Prompt', exact: true }).click()
   }
+  const resource = registerExternalResource(app.paths, app.record.platform, { kind: 'terminal', directory: workspace })
   await dialog.getByRole('button', { name: 'Launch', exact: true }).click()
+  observeExternalResource(app.paths, resource)
 }
 
 test(...caseDefinition('CODE-01'), async ({ app, mainWindow: page }) => {

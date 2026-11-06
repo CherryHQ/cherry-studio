@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { expect, type Page, type TestInfo } from '@playwright/test'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
+import { observeExternalResource, registerExternalResource } from '../../../../scripts/e2e/regression/externalResources'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { ensureCustomChatProvider } from '../helpers/models'
 import { openLaunchpadApp } from '../helpers/navigation'
@@ -160,6 +161,10 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
     await expect(dialog).toBeHidden()
   }
   const launch = async () => {
+    const resource = registerExternalResource(app.paths, app.record.platform, {
+      kind: 'terminal',
+      directory: app.paths.workspace
+    })
     const baseline = terminalWindows()
     const baselineIds = baseline.map((w) => w.id)
     const baselineTtys = baseline.map((w) => w.tty)
@@ -193,6 +198,7 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
       )
     }
     await expect.poll(() => terminalText(), { timeout: 45_000 }).toMatch(/trust|Welcome|Claude Code|❯/i)
+    observeExternalResource(app.paths, resource)
     if (/trust this folder|trust the files|Yes, I trust/i.test(terminalText())) terminalInput('')
     if (/select login method|Please run \/login|Sign in to continue/i.test(terminalText())) {
       throw new Error('UNCOVERED: Claude Code requires an authenticated account')

@@ -19,6 +19,7 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
 import { evaluateCdpExpression } from '../../../../scripts/e2e/regression/cdpClient'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
+import { observeExternalResource, registerExternalResource } from '../../../../scripts/e2e/regression/externalResources'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { chooseNativeFile } from '../../../../scripts/e2e/regression/systemAutomation'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
@@ -820,6 +821,7 @@ test(...caseDefinition('MP-70'), async ({ app, mainWindow: page }, testInfo) => 
     const pdfPath = physicalResult.data[pdfId]
     expect(pdfPath).toBeTruthy()
     await files.getByText('sample.pdf', { exact: true }).click({ button: 'right' })
+    const folderResource = registerExternalResource(app.paths, app.record.platform, { kind: 'folder', path: pdfPath! })
     await page.getByRole('menuitem', { name: 'Show in folder', exact: true }).click()
     if (app.record.platform === 'macos') {
       let selectedPath: string | undefined
@@ -865,6 +867,7 @@ test(...caseDefinition('MP-70'), async ({ app, mainWindow: page }, testInfo) => 
         contentType: 'application/json'
       })
     }
+    observeExternalResource(app.paths, folderResource)
     await page.bringToFront()
     await attachScreenshot('MP-70 PDF reveal action completed')
 

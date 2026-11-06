@@ -9,6 +9,7 @@ import sharp from 'sharp'
 
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
+import { observeExternalResource, registerExternalResource } from '../../../../scripts/e2e/regression/externalResources'
 import { validateFileEvidence } from '../../../../scripts/e2e/regression/fileEvidence'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { inspectImageInExternalBrowser, saveNativeFile } from '../../../../scripts/e2e/regression/systemAutomation'
@@ -116,6 +117,11 @@ test(...caseDefinition('MP-90'), async ({ app, mainWindow: page }, testInfo) => 
   expect(await sharp(saved).raw().toBuffer()).toEqual(await sharp(original).raw().toBuffer())
   expect(Buffer.from(await readOriginal())).toEqual(original)
   if (app.record.platform === 'macos') {
+    const resource = registerExternalResource(app.paths, app.record.platform, {
+      kind: 'document',
+      application: 'Preview',
+      path: output
+    })
     execFileSync('open', ['-a', 'Preview', output], { timeout: 10_000 })
     await expect
       .poll(() =>
@@ -125,6 +131,7 @@ test(...caseDefinition('MP-90'), async ({ app, mainWindow: page }, testInfo) => 
         })
       )
       .toContain('MP-90-original.png')
+    observeExternalResource(app.paths, resource)
   } else {
     const external = await inspectImageInExternalBrowser(app.paths, output)
     expect(external.width).toBe(originalSize.width)

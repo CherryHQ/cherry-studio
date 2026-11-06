@@ -3,6 +3,7 @@ import { test as base } from '@playwright/test'
 
 import { getCase, missingCapabilities, supportsPlatform } from '../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../scripts/e2e/regression/config'
+import { cleanupExternalResources } from '../../../scripts/e2e/regression/externalResources'
 import { getRunPaths } from '../../../scripts/e2e/regression/paths'
 import { captureMaskedScreenshot } from '../../../scripts/e2e/regression/screenshotEvidence'
 import { readRun } from '../../../scripts/e2e/regression/state'
@@ -35,7 +36,11 @@ export const test = base.extend<RegressionFixtures & RegressionOptions>({
     try {
       await use(app)
     } finally {
-      await app.disconnect()
+      try {
+        cleanupExternalResources(app.paths)
+      } finally {
+        await app.disconnect()
+      }
     }
   },
 

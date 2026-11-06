@@ -1,8 +1,10 @@
 import { execFile, execFileSync } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { basename, dirname, extname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
+import { cleanupExternalResources, observeExternalResource, registerExternalResource } from './externalResources'
 import { readAppRecord, readOwnedRecord } from './lifecycle'
 import type { RunPaths } from './paths'
 import { resolveAllowedPath } from './paths'
@@ -10,6 +12,7 @@ import { assertOwnedProcess, findCdpPid, isDescendant } from './process'
 import type { Platform } from './types'
 
 const ALLOWED_KEYS = new Set(['Alt', 'Control', 'Enter', 'Escape', 'Meta', 'Shift', 'Space', 'a', 'c', 'e', 'k', 's'])
+let activeTextResource: { paths: RunPaths; id: string; platform: Platform } | undefined
 let activeWindowsTextFixturePid: number | undefined
 let activeMacTextFixturePath: string | undefined
 let macProductMajor: number | undefined
@@ -54,41 +57,11 @@ export function findMacNotification(paths: RunPaths, text: string, click = false
 }
 
 export function closeExternalText(platform: Platform): void {
-  if (platform === 'macos' && activeMacTextFixturePath) {
-    const script = [
-      'on run argv',
-      'tell application "System Events"',
-      'if not (exists process "TextEdit") then return',
-      'tell process "TextEdit"',
-      'repeat with docWindow in windows',
-      'if exists attribute "AXDocument" of docWindow then',
-      'if value of attribute "AXDocument" of docWindow is item 1 of argv then',
-      'click (first button of docWindow whose subrole is "AXCloseButton")',
-      'end if',
-      'end if',
-      'end repeat',
-      'end tell',
-      'end tell',
-      'end run'
-    ].join('\n')
-    execFileSync('osascript', ['-e', script, '--', pathToFileURL(activeMacTextFixturePath).href], {
-      stdio: 'ignore',
-      timeout: 10_000
-    })
-    activeMacTextFixturePath = undefined
-    return
-  }
-  if (platform !== 'windows' || !activeWindowsTextFixturePid) return
-  try {
-    execFileSync('taskkill.exe', ['/PID', String(activeWindowsTextFixturePid), '/T', '/F'], {
-      stdio: 'ignore',
-      timeout: 10_000
-    })
-  } catch {
-    // The browser may have already exited.
-  } finally {
-    activeWindowsTextFixturePid = undefined
-  }
+  if (!activeTextResource || activeTextResource.platform !== platform) return
+  cleanupExternalResources(activeTextResource.paths, [activeTextResource.id])
+  activeTextResource = undefined
+  activeWindowsTextFixturePid = undefined
+  activeMacTextFixturePath = undefined
 }
 
 function escapePowerShell(value: string): string {
@@ -282,8 +255,15 @@ export async function dismissNativeMessageBox(platform: Platform, paths: RunPath
 export function openExternalText(platform: Platform, paths: RunPaths, candidatePath: string): string {
   const filePath = resolveAllowedPath(candidatePath, [paths.fixtures, paths.evidence])
   if (!existsSync(filePath)) throw new Error(`External text fixture does not exist: ${filePath}`)
+  closeExternalText(platform)
+  const title = `Cherry Regression Selection Fixture ${randomUUID()}`
+  const id = registerExternalResource(
+    paths,
+    platform,
+    platform === 'macos' ? { kind: 'document', application: 'TextEdit', path: filePath } : { kind: 'browser', title }
+  )
+  activeTextResource = { paths, id, platform }
   if (platform === 'macos') {
-    closeExternalText(platform)
     activeMacTextFixturePath = filePath
     execFileSync('open', ['-a', 'TextEdit', filePath], { stdio: 'ignore', timeout: 10_000 })
     execFileSync(
@@ -299,7 +279,6 @@ export function openExternalText(platform: Platform, paths: RunPaths, candidateP
       { stdio: 'ignore', timeout: 10_000 }
     )
   } else {
-    closeExternalText(platform)
     const fixtureHtmlPath = join(paths.fixtures, 'windows-selection-fixture.html')
     const browserProfilePath = join(paths.fixtures, 'windows-selection-browser-profile')
     mkdirSync(browserProfilePath, { recursive: true })
@@ -308,7 +287,7 @@ export function openExternalText(platform: Platform, paths: RunPaths, candidateP
       [
         '<!doctype html>',
         '<meta charset="utf-8">',
-        '<title>Cherry Regression Selection Fixture</title>',
+        `<title>${title}</title>`,
         '<style>html,body,textarea{box-sizing:border-box;width:100%;height:100%;margin:0}textarea{padding:24px;font:24px sans-serif}</style>',
         `<textarea autofocus>${escapeHtml(readFileSync(filePath, 'utf8').trim())}</textarea>`,
         '<script>addEventListener("load",()=>{const area=document.querySelector("textarea");area.focus();area.select()})</script>'
@@ -330,7 +309,7 @@ export function openExternalText(platform: Platform, paths: RunPaths, candidateP
       '$deadline = [DateTime]::UtcNow.AddSeconds(20)',
       '$fixture = $null',
       'do {',
-      '  $fixture = Get-Process chrome,msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -like "Cherry Regression Selection Fixture*" } | Select-Object -First 1',
+      `  $fixture = Get-Process chrome,msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -like '${escapePowerShell(title)}*' } | Select-Object -First 1`,
       '  if (-not $fixture) { Start-Sleep -Milliseconds 200 }',
       '} while (-not $fixture -and [DateTime]::UtcNow -lt $deadline)',
       'if (-not $fixture) { throw "External text window was not found" }',
@@ -350,6 +329,7 @@ export function openExternalText(platform: Platform, paths: RunPaths, candidateP
     if (!Number.isInteger(processId) || processId <= 0) throw new Error('External text process ID was not returned')
     activeWindowsTextFixturePid = processId
   }
+  observeExternalResource(paths, id)
   return filePath
 }
 
@@ -358,6 +338,7 @@ export async function inspectImageInExternalBrowser(
   candidatePath: string
 ): Promise<{ width: number; height: number; screenshot: string }> {
   const filePath = resolveAllowedPath(candidatePath, [paths.evidence])
+  const resource = registerExternalResource(paths, 'windows', { kind: 'browser', title: basename(filePath) })
   const { chromium } = await import('@playwright/test')
   const browser = await chromium.launchPersistentContext(join(paths.private, 'external-image-viewer'), {
     channel: 'msedge',
@@ -374,6 +355,7 @@ export async function inspectImageInExternalBrowser(
     }))
     const screenshot = join(paths.evidence, 'external-image-viewer.png')
     await page.screenshot({ path: screenshot })
+    observeExternalResource(paths, resource)
     return { ...dimensions, screenshot }
   } finally {
     await browser.close()

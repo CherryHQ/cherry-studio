@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { once } from 'node:events'
 import { writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
@@ -9,6 +10,7 @@ import { createUniqueModelId } from '@shared/data/types/model'
 import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
+import { observeExternalResource, registerExternalResource } from '../../../../scripts/e2e/regression/externalResources'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { sendChatMarker } from '../helpers/chat'
@@ -46,10 +48,11 @@ export async function htmlArtifactPreview(app: RegressionApp, page: Page, testIn
   const address = evidenceServer.address()
   if (!address || typeof address === 'string') throw new Error('Evidence server did not bind')
   const title = 'MP41 Interactive HTML'
+  const externalTitle = `${title} ${randomUUID()}`
   const main =
     '<main><h1>MP41 Interactive HTML</h1><button id="increment">Count: 0</button><p id="status">Ready</p></main>'
   const html = `<!DOCTYPE html>
-<html><head><title>${title}</title></head><body>${main}
+<html><head><title>${externalTitle}</title></head><body>${main}
 <script>
 let count = 0;
 document.getElementById('increment').onclick = () => {
@@ -200,6 +203,10 @@ window.addEventListener('pageshow', () => navigator.sendBeacon('http://127.0.0.1
     })
     await attachScreenshot('MP-41 rendered preview and working button after script error')
     await artifact.hover()
+    const browserResource = registerExternalResource(app.paths, app.record.platform, {
+      kind: 'browser',
+      title: externalTitle
+    })
     await artifact.getByRole('button', { name: 'Open in external browser', exact: true }).click()
     await expect
       .poll(() => externalLoads.filter(({ userAgent }) => !userAgent.includes('Electron/')), {
@@ -207,6 +214,7 @@ window.addEventListener('pageshow', () => navigator.sendBeacon('http://127.0.0.1
         message: 'System browser must load the same HTML as a visible page'
       })
       .toContainEqual(expect.objectContaining({ content: main, visibility: 'visible' }))
+    observeExternalResource(app.paths, browserResource)
     await testInfo.attach('MP-41 real external browser load', {
       body: Buffer.from(JSON.stringify(externalLoads.filter(({ userAgent }) => !userAgent.includes('Electron/')))),
       contentType: 'application/json'

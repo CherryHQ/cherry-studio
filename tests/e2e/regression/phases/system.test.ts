@@ -14,6 +14,7 @@ import { computerUseRequestSchemas } from '@shared/ipc/schemas/computerUse'
 
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
+import { observeExternalResource, registerExternalResource } from '../../../../scripts/e2e/regression/externalResources'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import {
   saveNativeFile,
@@ -695,6 +696,7 @@ test(...caseDefinition('MP-133'), async ({ app, mainWindow }, testInfo) => {
 })
 
 test(...caseDefinition('MP-140'), async ({ app, mainWindow }, testInfo) => {
+  const settingsResource = registerExternalResource(app.paths, app.record.platform, { kind: 'settings' })
   let page = mainWindow
   const original = await page.evaluate(async () => ({
     language: await window.api.preference.get('app.language'),
@@ -733,6 +735,7 @@ test(...caseDefinition('MP-140'), async ({ app, mainWindow }, testInfo) => {
       permissionStates.set(name, state)
       expect(readNativePermission(panel), `${name}: ${state}`).toBe(state === '已授权' ? '1' : '0')
     }
+    observeExternalResource(app.paths, settingsResource)
     await screenshot('MP-140 step 2 permission states')
 
     const refresh = settings.getByRole('button', { name: '重新检查权限', exact: true })

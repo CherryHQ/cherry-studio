@@ -1,14 +1,18 @@
 import { once } from 'node:events'
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { pathToFileURL } from 'node:url'
 
 import { vi } from 'vitest'
 
-const { execFileSync, execFile } = vi.hoisted(() => ({ execFileSync: vi.fn(), execFile: vi.fn() }))
+const { execFileSync, execFile, externalAppRequest } = vi.hoisted(() => ({
+  execFileSync: vi.fn(),
+  execFile: vi.fn(),
+  externalAppRequest: vi.fn()
+}))
 vi.mock('node:child_process', () => ({ execFileSync, execFile }))
+vi.mock('../externalAppDriver', () => ({ externalAppRequest }))
 
 import { ensureRunDirectories, getRunPaths } from '../paths'
 import type * as SystemAutomation from '../systemAutomation'
@@ -23,6 +27,7 @@ beforeEach(async () => {
   directory = mkdtempSync(join(tmpdir(), 'cherry-text-fixture-'))
   execFileSync.mockReset()
   execFile.mockReset()
+  externalAppRequest.mockReset().mockReturnValue({ processes: [], windows: [] })
 })
 
 afterEach(() => {
@@ -32,30 +37,33 @@ afterEach(() => {
   rmSync(directory, { recursive: true, force: true })
 })
 
-it.each(['fixtures', 'evidence'] as const)(
-  'closes only the owned TextEdit document from %s without quitting the application',
-  (root) => {
-    const paths = getRunPaths(directory)
-    ensureRunDirectories(paths)
-    const filePath = join(
-      paths[root],
-      process.platform === 'win32' ? "selection 'quoted'.txt" : 'selection "quoted".txt'
-    )
-    writeFileSync(filePath, 'Test selection')
-    automation.openExternalText('macos', paths, filePath)
-    execFileSync.mockClear()
-    automation.closeExternalText('macos')
-    const [command, args] = execFileSync.mock.calls[0]
-    expect(command).toBe('osascript')
-    expect(args.slice(-2)).toEqual(['--', pathToFileURL(filePath).href])
-    expect(args[1]).toContain('if value of attribute "AXDocument" of docWindow is item 1 of argv then')
-    expect(args[1]).not.toContain('tell application "TextEdit"')
-    expect(args[1]).not.toMatch(/\bquit\b/)
-    execFileSync.mockClear()
-    automation.closeExternalText('macos')
-    expect(execFileSync).not.toHaveBeenCalled()
+it('cleans the registered external viewer and removes its recovery record', () => {
+  const paths = getRunPaths(directory)
+  ensureRunDirectories(paths)
+  const filePath = join(paths.fixtures, 'selection.txt')
+  writeFileSync(filePath, 'Test selection')
+  let desktop = {
+    processes: [] as { pid: number; startedAt: string; application: string; shared: boolean }[],
+    windows: [] as { id: string; pid: number; matches: boolean }[]
   }
-)
+  execFileSync.mockImplementation((command) => {
+    if (command === 'open')
+      desktop = {
+        processes: [{ pid: 42, startedAt: 'viewer', application: 'TextEdit', shared: false }],
+        windows: [{ id: 'fixture', pid: 42, matches: true }]
+      }
+  })
+  externalAppRequest.mockImplementation((_platform, request) => {
+    if (request.action === 'close') desktop.windows = []
+    if (request.action === 'quit') desktop.processes = []
+    return structuredClone(desktop)
+  })
+  automation.openExternalText('macos', paths, filePath)
+  automation.closeExternalText('macos')
+  expect(desktop).toEqual({ processes: [], windows: [] })
+  expect(JSON.parse(readFileSync(join(paths.private, 'external-resources.json'), 'utf8'))).toEqual([])
+  automation.closeExternalText('macos')
+})
 
 it('rejects external text outside the owned input and export directories', () => {
   const paths = getRunPaths(directory)
@@ -66,7 +74,7 @@ it('rejects external text outside the owned input and export directories', () =>
   expect(execFileSync).not.toHaveBeenCalled()
 })
 
-it('retains the document for cleanup when activation or closing fails', () => {
+it('retains launch intent after activation fails so fixture teardown can retry cleanup', () => {
   const paths = getRunPaths(directory)
   ensureRunDirectories(paths)
   const filePath = join(paths.fixtures, 'selection.txt')
@@ -75,10 +83,12 @@ it('retains the document for cleanup when activation or closing fails', () => {
     if (file === 'osascript') throw new Error('Automation denied')
   })
   expect(() => automation.openExternalText('macos', paths, filePath)).toThrow('Automation denied')
-  expect(() => automation.closeExternalText('macos')).toThrow('Automation denied')
+  const records = JSON.parse(readFileSync(join(paths.private, 'external-resources.json'), 'utf8'))
+  expect(records).toHaveLength(1)
+  expect(records[0].target.path).toBe(filePath)
   execFileSync.mockReset()
   automation.closeExternalText('macos')
-  expect(execFileSync.mock.calls[0][1].at(-1)).toBe(pathToFileURL(filePath).href)
+  expect(JSON.parse(readFileSync(join(paths.private, 'external-resources.json'), 'utf8'))).toEqual([])
 })
 
 function nativeFixture() {

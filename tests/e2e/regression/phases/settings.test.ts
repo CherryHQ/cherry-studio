@@ -15,6 +15,7 @@ import { formatShortcutDisplay } from '@shared/utils/shortcut'
 
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
+import { observeExternalResource, registerExternalResource } from '../../../../scripts/e2e/regression/externalResources'
 import { isAlive } from '../../../../scripts/e2e/regression/process'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { saveNativeFile } from '../../../../scripts/e2e/regression/systemAutomation'
@@ -1571,6 +1572,7 @@ test(...caseDefinition('MP-114'), async ({ app, mainWindow: page }, testInfo) =>
       contentType: 'application/json'
     })
     await screenshot('MP-114 exported bundle size and file count')
+    const folderResource = registerExternalResource(app.paths, app.record.platform, { kind: 'folder', path: output })
     await page.getByRole('button', { name: 'Open file location', exact: true }).click()
     if (app.record.platform === 'macos') {
       await expect
@@ -1594,6 +1596,7 @@ test(...caseDefinition('MP-114'), async ({ app, mainWindow: page }, testInfo) =>
         )
         .toContain(output)
     }
+    observeExternalResource(app.paths, folderResource)
   })
 })
 

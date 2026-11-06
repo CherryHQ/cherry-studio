@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path'
 import { probeCapabilities } from './capabilities'
 import { PHASE_IDS, TASK_SELECTIONS } from './cases'
 import { getSensitiveConfigValues, loadTestConfig, REQUIRED_CONFIG } from './config'
+import { cleanupExternalResources } from './externalResources'
 import { createFixtures } from './fixtureFiles'
 import { prepareRelease } from './installation'
 import { launchApp, stopOwnedApp } from './lifecycle'
@@ -199,11 +200,23 @@ async function aggregateGateCommand(): Promise<void> {
 
 async function cleanupCommand(): Promise<void> {
   const paths = runDirectory()
-  try {
-    await stopOwnedApp(paths)
-  } finally {
-    await stopMockProvider(paths)
+  const errors: unknown[] = []
+  for (const cleanup of [
+    () => stopOwnedApp(paths),
+    () => stopMockProvider(paths),
+    () => cleanupExternalResources(paths)
+  ]) {
+    try {
+      await Promise.resolve(cleanup())
+    } catch (error) {
+      errors.push(error)
+    }
   }
+  if (errors.length)
+    throw new AggregateError(
+      errors,
+      `Regression cleanup failed: ${errors.map((error) => (error instanceof Error ? error.message : String(error))).join('; ')}`
+    )
 }
 
 async function mockStartCommand(): Promise<void> {
