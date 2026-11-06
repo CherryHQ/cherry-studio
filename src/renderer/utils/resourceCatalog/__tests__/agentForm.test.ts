@@ -143,6 +143,15 @@ describe('diffAgentUpdate', () => {
     expect(saved.heartbeatTimeoutMinutes).toBe(10)
   })
 
+  it('round-trips the stream output toggle, defaulting to on', () => {
+    const baseline = buildInitialAgentFormState(createAgent())
+    expect(baseline.streamOutput).toBe(true)
+    const update = diffAgentUpdate(baseline, applyAgentFormPatch(baseline, { streamOutput: false }))
+    expect(update?.dto).toEqual({ configuration: { stream_output: false } })
+    const saved = buildInitialAgentFormState(createAgent({ configuration: update?.dto.configuration }))
+    expect(saved.streamOutput).toBe(false)
+  })
+
   it('returns null when nothing changed', () => {
     const agent = createAgent()
     const baseline = buildInitialAgentFormState(agent)

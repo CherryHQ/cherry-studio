@@ -425,6 +425,10 @@ async function deriveConnectionConfigFromSnapshot(
     computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled'),
     builtinRole: agent.configuration?.builtin_role ?? null,
     bootstrapCompleted: agent.configuration?.bootstrap_completed ?? null,
+    // Spawn-frozen: settingsBuilder maps this to the SDK query's `includePartialMessages`, baked at
+    // connect. Absent means on (the builder's own default), so toggling it flips the signature and
+    // the next eligible turn rebuilds the connection instead of silently keeping the old mode.
+    streamOutput: agent.configuration?.stream_output !== false,
     skills: [...skills].sort(),
     envVars: Object.entries(agent.configuration?.env_vars ?? {})
       .filter(([key]) => !isAgentProxyEnvironmentKey(key))

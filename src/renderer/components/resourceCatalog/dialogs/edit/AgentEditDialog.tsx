@@ -109,6 +109,7 @@ type AgentEditFormValues = {
   disabledTools: string[]
   permissionMode: string
   envVarsText: string
+  streamOutput: boolean
   heartbeatEnabled: boolean
   heartbeatInterval: number
   heartbeatTimeoutMinutes: number
@@ -167,6 +168,7 @@ function defaultValuesForAgent(resource: AgentDetail): AgentEditFormValues {
     disabledTools: [...form.disabledTools],
     permissionMode: form.permissionMode,
     envVarsText: form.envVarsText,
+    streamOutput: form.streamOutput,
     heartbeatEnabled: form.heartbeatEnabled,
     heartbeatInterval: form.heartbeatInterval,
     heartbeatTimeoutMinutes: form.heartbeatTimeoutMinutes,
@@ -200,6 +202,7 @@ function buildAgentFormState(baseline: AgentFormState, values: AgentEditFormValu
     disabledTools: [...values.disabledTools],
     permissionMode: values.permissionMode,
     envVarsText: values.envVarsText,
+    streamOutput: values.streamOutput,
     heartbeatEnabled: values.heartbeatEnabled,
     heartbeatInterval: values.heartbeatInterval,
     heartbeatTimeoutMinutes: values.heartbeatTimeoutMinutes,
@@ -236,6 +239,7 @@ function advanceAgentFormBaseline(
     if (hasOwn(configuration, 'avatar')) next.avatar = submitted.avatar
     if (hasOwn(configuration, 'permission_mode')) next.permissionMode = submitted.permissionMode
     if (hasOwn(configuration, 'env_vars')) next.envVarsText = submitted.envVarsText
+    if (hasOwn(configuration, 'stream_output')) next.streamOutput = submitted.streamOutput
     if (hasOwn(configuration, 'heartbeat_enabled')) next.heartbeatEnabled = submitted.heartbeatEnabled
     if (hasOwn(configuration, 'heartbeat_interval')) next.heartbeatInterval = submitted.heartbeatInterval
     if (hasOwn(configuration, 'heartbeat_timeout_minutes'))
@@ -258,6 +262,7 @@ function syncAgentFormState(form: UseFormReturn<AgentEditFormValues>, next: Agen
   form.setValue('skillIds', next.skillIds, { shouldDirty: true })
   form.setValue('disabledTools', next.disabledTools, { shouldDirty: true })
   form.setValue('permissionMode', next.permissionMode, { shouldDirty: true })
+  form.setValue('streamOutput', next.streamOutput, { shouldDirty: true })
   form.setValue('heartbeatEnabled', next.heartbeatEnabled, { shouldDirty: true })
   form.setValue('heartbeatInterval', next.heartbeatInterval, { shouldDirty: true })
   form.setValue('heartbeatTimeoutMinutes', next.heartbeatTimeoutMinutes, { shouldDirty: true })
@@ -763,6 +768,26 @@ function AgentBasicFields({
         permissionModeCards={getPermissionModeCards(agentType)}
       />
       <AgentLanguageOverrideField form={form} />
+      <FormField
+        control={form.control}
+        name="streamOutput"
+        render={({ field }) => (
+          <FormItem className={editDialogFormRowClassName}>
+            <FormLabel className={editDialogFormRowLabelClassName}>{t('library.config.basic.stream_output')}</FormLabel>
+            <FormControl>
+              <div className="flex h-9 items-center">
+                <Switch
+                  size="sm"
+                  checked={field.value}
+                  onCheckedChange={(checked) => patchAgentForm({ streamOutput: checked })}
+                  aria-label={t('library.config.basic.stream_output')}
+                />
+              </div>
+            </FormControl>
+            <FormMessage className="col-start-2" />
+          </FormItem>
+        )}
+      />
       {caps.heartbeat ? (
         <div>
           <HeartbeatSettingsField

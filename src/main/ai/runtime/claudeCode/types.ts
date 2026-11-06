@@ -82,7 +82,7 @@ export type SteerHolder = {
   /** Fired by the steer hook the moment it injects the drained steers as `additionalContext`.
    *  The connection uses this to arm a `steer-boundary` at the next assistant message so the host can
    *  roll the assistant row (A1a + A2). Bound by the live connection at start; absent ⇒ no roll. */
-  onInjected?: (inputs: AgentRuntimeUserInput[]) => void
+  onInjected?: (inputs: AgentRuntimeUserInput[], toolUseId?: string) => void
   /** Session-scoped cleanup — clears pending + evicts the holder. */
   dispose: () => void
 }
