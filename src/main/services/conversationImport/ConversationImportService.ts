@@ -195,6 +195,7 @@ export class ConversationImportService extends BaseService {
           )
           if (existing) {
             item.existing = { sessionId: existing.id, agentId: existing.agentId, inTrash: existing.deletedAt !== null }
+            item.diagnostics = []
           }
           items.set(selection.ref, { item, session })
         } catch (error) {
