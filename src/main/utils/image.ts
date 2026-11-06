@@ -55,9 +55,7 @@ export async function clampImageForModel(
   const { width, height } = await image.metadata()
   if (!width || !height) throw new Error('could not read image dimensions')
   if (width <= maxEdge && height <= maxEdge) return null
-  return image
-    .resize(maxEdge, maxEdge, { fit: 'inside', withoutEnlargement: true })
-    .toBuffer()
+  return image.resize(maxEdge, maxEdge, { fit: 'inside', withoutEnlargement: true }).toBuffer()
 }
 
 /**
