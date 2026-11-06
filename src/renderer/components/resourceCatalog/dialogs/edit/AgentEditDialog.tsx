@@ -316,6 +316,7 @@ function AgentEditDialogContent({
   const formBaselineRef = useRef(formBaseline)
   const failedSaveKeyRef = useRef<string | null>(null)
   const [baselineSkillAgentId, setBaselineSkillAgentId] = useState<string | null>(null)
+  const [syncedGroupId, setSyncedGroupId] = useState<string | null>(null)
   const defaultValues = useMemo(() => defaultValuesForAgent(resource), [resource])
   const form = useForm<AgentEditFormValues>({ defaultValues })
   const values = form.watch()
@@ -408,6 +409,21 @@ function AgentEditDialogContent({
     setBaselineSkillAgentId(null)
     failedSaveKeyRef.current = null
   }, [defaultValues, form, initialTab, open, replaceFormBaseline, resource])
+
+  // Another window can reassign this agent's group while the editor is open. Follow the external
+  // value only while the picker is untouched: a local choice outranks it, and reopening recovers
+  // either way since the form resets on open.
+  useEffect(() => {
+    if (!open) {
+      setSyncedGroupId(null)
+      return
+    }
+    const external = resource.groupId ?? null
+    if (syncedGroupId === external) return
+    setSyncedGroupId(external)
+    if (form.formState.dirtyFields.groupId) return
+    form.setValue('groupId', external, { shouldDirty: false })
+  }, [resource.groupId, open, syncedGroupId, form])
 
   // Cached skill rows may render during revalidation, but the editable skill
   // baseline must come from the authoritative projection so later toggles diff
