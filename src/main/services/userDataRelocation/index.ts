@@ -1,2 +1,2 @@
-export { runUserDataRelocation } from './execution'
+export { hasPendingCopyRelocation, runUserDataRelocation } from './execution'
 export { inspectUserDataRelocationTarget, requestUserDataRelocation } from './request'

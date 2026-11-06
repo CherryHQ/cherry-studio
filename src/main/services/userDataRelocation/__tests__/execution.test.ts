@@ -196,6 +196,73 @@ afterEach(() => {
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true })
 })
 
+describe('hasPendingCopyRelocation', () => {
+  it('returns true for a packaged pending copy', async () => {
+    const root = makeRoot()
+    const source = path.join(root, 'source')
+    const target = path.join(root, 'target')
+    relocationState['app.userdata'] = source
+    relocationState['temp.user_data_relocation'] = pending(source, target)
+    const { hasPendingCopyRelocation } = await loadDomain()
+
+    expect(hasPendingCopyRelocation()).toBe(true)
+  })
+
+  it('returns false for a packaged pending switch', async () => {
+    const root = makeRoot()
+    const source = path.join(root, 'source')
+    const target = path.join(root, 'target')
+    relocationState['app.userdata'] = source
+    relocationState['temp.user_data_relocation'] = pending(source, target, false)
+    const { hasPendingCopyRelocation } = await loadDomain()
+
+    expect(hasPendingCopyRelocation()).toBe(false)
+  })
+
+  it('returns false for a packaged failed copy', async () => {
+    const root = makeRoot()
+    const source = path.join(root, 'source')
+    const target = path.join(root, 'target')
+    relocationState['app.userdata'] = source
+    relocationState['temp.user_data_relocation'] = {
+      status: 'failed',
+      taskId: TASK_ID,
+      from: source,
+      to: target,
+      copy: true,
+      error: 'copy failed',
+      failedAt: '2026-07-13T00:00:00.000Z'
+    }
+    const { hasPendingCopyRelocation } = await loadDomain()
+
+    expect(hasPendingCopyRelocation()).toBe(false)
+  })
+
+  it('returns false and clears a packaged stale request', async () => {
+    const root = makeRoot()
+    const source = path.join(root, 'source')
+    const target = path.join(root, 'target')
+    relocationState['app.userdata'] = source
+    relocationState['temp.user_data_relocation'] = pending(path.join(root, 'old-source'), target)
+    const { hasPendingCopyRelocation } = await loadDomain()
+
+    expect(hasPendingCopyRelocation()).toBe(false)
+    expect(relocationState['temp.user_data_relocation']).toBeNull()
+  })
+
+  it('returns false for an unpackaged pending copy', async () => {
+    const root = makeRoot()
+    const source = path.join(root, 'source')
+    const target = path.join(root, 'target')
+    electronState.isPackaged = false
+    relocationState['app.userdata'] = source
+    relocationState['temp.user_data_relocation'] = pending(source, target)
+    const { hasPendingCopyRelocation } = await loadDomain()
+
+    expect(hasPendingCopyRelocation()).toBe(false)
+  })
+})
+
 describe('userDataRelocation execution', () => {
   it('retargets owned skill exports during a copy without changing user-owned entries', async () => {
     const fixture = prepareSkillExports()

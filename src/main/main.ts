@@ -54,8 +54,10 @@ import { versionService } from './services/VersionService'
 const logger = loggerService.withContext('MainEntry')
 
 const startApp = async () => {
-  // Reset before backup, migration, or services open user data.
-  runDataReset()
+  // Reset before backup, migration, or services open user data. app.exit()/app.relaunch() return
+  // before the process ends, so a terminal reset must explicitly stop this function before later gates.
+  const resetResult = await runDataReset()
+  if (resetResult === 'handled') return
 
   // userData relocation: a pending/failed relocation makes this a dedicated
   // relocation launch (execute or explain, then relaunch) before any service

@@ -15,6 +15,7 @@ const VERSION_LOG_FILE = `${USER_DATA}/version.log`
 const REGISTRY_OVERRIDE = `${USER_DATA}/Runtime/provider-registry-override`
 
 let applicationMock: ReturnType<typeof createMockApplication>
+let pendingCopyRelocation = false
 const showErrorBoxMock = vi.fn()
 const showMessageBoxMock = vi.fn()
 const appendFileSyncMock = vi.fn()
@@ -147,12 +148,12 @@ const makeSession = () => ({
 let defaultSession = makeSession()
 let webviewSession = makeSession()
 
-function stubElectron() {
+function stubElectron(whenReady = () => Promise.resolve()) {
   defaultSession = makeSession()
   webviewSession = makeSession()
   vi.doMock('electron', () => ({
     __esModule: true,
-    app: { isPackaged: false },
+    app: { isPackaged: false, whenReady },
     dialog: { showErrorBox: showErrorBoxMock, showMessageBox: showMessageBoxMock },
     session: { defaultSession, fromPartition: vi.fn(() => webviewSession) }
   }))
@@ -306,9 +307,13 @@ function stubPath() {
 }
 
 function stubAll(marker: DataResetMarker) {
+  pendingCopyRelocation = false
   stubElectron()
   stubApplication()
   stubI18n()
+  vi.doMock('@main/services/userDataRelocation', () => ({
+    hasPendingCopyRelocation: () => pendingCopyRelocation
+  }))
   stubFs()
   stubPath()
   if (marker) seedMarker(marker)
@@ -358,7 +363,7 @@ function completedMarker(): CompletedMarker {
 
 async function runReset() {
   const { runDataReset } = await import('../dataReset')
-  runDataReset()
+  return await runDataReset()
 }
 
 async function requestReset() {
@@ -381,6 +386,46 @@ beforeEach(() => {
 })
 
 describe('runDataReset', () => {
+  it('waits for the app to be ready before it reports a reset failure, then exits', async () => {
+    stubAll(pendingMarker())
+    const ready = Promise.withResolvers<void>()
+    stubElectron(() => ready.promise)
+    fsCtl.failWrite = true
+    const { runDataReset } = await import('../dataReset')
+
+    const reset = runDataReset()
+
+    expect(showErrorBoxMock).not.toHaveBeenCalled()
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
+
+    ready.resolve()
+    await reset
+
+    expect(showErrorBoxMock).toHaveBeenCalledWith('Data Reset Failed', expect.any(String))
+    expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
+    expect(applicationMock.relaunch).not.toHaveBeenCalled()
+  })
+
+  it('relaunches only after the app is ready', async () => {
+    stubAll(pendingMarker())
+    const ready = Promise.withResolvers<void>()
+    stubElectron(() => ready.promise)
+    const { runDataReset } = await import('../dataReset')
+
+    const reset = runDataReset()
+
+    expect(wipedEntries()).toContain(`${USER_DATA}/Data`)
+    expect(markerExists()).toBe(false)
+    expect(applicationMock.relaunch).not.toHaveBeenCalled()
+
+    ready.resolve()
+    await reset
+
+    expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
+    expect(showErrorBoxMock).not.toHaveBeenCalled()
+  })
+
   it('does nothing without a pending marker', async () => {
     stubAll(null)
     await runReset()
@@ -582,6 +627,25 @@ describe('runDataReset', () => {
     expect(rmSyncMock).not.toHaveBeenCalled()
     expect(markerExists()).toBe(false)
     expect(showErrorBoxMock).toHaveBeenCalledWith('Data Reset Cancelled', expect.any(String))
+    expect(applicationMock.relaunch).not.toHaveBeenCalled()
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
+  })
+
+  it('defers a pending relocation copy after a path mismatch notice', async () => {
+    stubAll(pendingMarker({ canonicalPath: '/mock/old-target', attempts: 1 }))
+    realpathNativeMock.mockImplementation(() => '/mock/new-target')
+    pendingCopyRelocation = true
+    const result = await runReset()
+
+    expect(result).toBe('handled')
+
+    expect(showErrorBoxMock).toHaveBeenCalledWith('Data Reset Cancelled', expect.any(String))
+    expect(markerExists()).toBe(false)
+    expect(rmSyncMock).not.toHaveBeenCalled()
+    expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
+    expect(showErrorBoxMock.mock.invocationCallOrder[0]).toBeLessThan(
+      applicationMock.relaunch.mock.invocationCallOrder[0]
+    )
     expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
 
@@ -643,6 +707,25 @@ describe('runDataReset', () => {
     expect(rmSyncMock).not.toHaveBeenCalled()
     expect(markerExists()).toBe(false)
     expect(showErrorBoxMock).toHaveBeenCalled()
+    expect(applicationMock.relaunch).not.toHaveBeenCalled()
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
+  })
+
+  it('defers a pending relocation copy after an attempt cap notice', async () => {
+    stubAll(pendingMarker({ attempts: 2 }))
+    pendingCopyRelocation = true
+    const result = await runReset()
+
+    expect(result).toBe('handled')
+
+    expect(showErrorBoxMock).toHaveBeenCalledWith('Data Reset Incomplete', expect.any(String))
+    expect(markerExists()).toBe(false)
+    expect(rmSyncMock).not.toHaveBeenCalled()
+    expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
+    expect(showErrorBoxMock.mock.invocationCallOrder[0]).toBeLessThan(
+      applicationMock.relaunch.mock.invocationCallOrder[0]
+    )
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
 
   it('quits rather than booting writable when abandoning a marker fails', async () => {
@@ -814,6 +897,123 @@ describe('runDataReset', () => {
     expect(showErrorBoxMock).toHaveBeenCalled()
     expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
     expect(applicationMock.relaunch).not.toHaveBeenCalled()
+  })
+})
+
+describe('runDataReset preboot result contract', () => {
+  it.each<{
+    name: string
+    marker: DataResetMarker
+    result: 'handled' | 'skipped'
+    setup?: () => void
+  }>([
+    { name: 'no marker', marker: null, result: 'skipped' },
+    {
+      name: 'corrupt marker quarantined',
+      marker: null,
+      setup: () => seedRawMarker('{ this is not valid json'),
+      result: 'skipped'
+    },
+    {
+      name: 'schema-invalid marker quarantined',
+      marker: null,
+      setup: () => seedRawMarker(JSON.stringify({ status: 'pending' })),
+      result: 'skipped'
+    },
+    { name: 'resurrected completed marker cleared', marker: completedMarker(), result: 'skipped' },
+    {
+      name: 'completed marker left for a later boot',
+      marker: completedMarker(),
+      setup: () => {
+        fsCtl.failDelete = true
+      },
+      result: 'skipped'
+    },
+    { name: 'successful wipe', marker: pendingMarker(), result: 'handled' },
+    {
+      name: 'pass failure with attempts left',
+      marker: pendingMarker(),
+      setup: () => {
+        rmSyncMock.mockImplementation(() => {
+          throw new Error('EBUSY: resource busy')
+        })
+      },
+      result: 'handled'
+    },
+    {
+      name: 'attempt count write failure',
+      marker: pendingMarker(),
+      setup: () => {
+        fsCtl.failWrite = true
+      },
+      result: 'handled'
+    },
+    {
+      name: 'completion record commit failure',
+      marker: pendingMarker(),
+      setup: () => {
+        rmSyncMock.mockImplementation(() => {
+          fsCtl.failWrite = true
+        })
+      },
+      result: 'handled'
+    },
+    {
+      name: 'v1 remigration cleanup failure',
+      marker: pendingMarker({ operation: 'v1_remigration' }),
+      setup: () => {
+        rmSyncMock.mockImplementation(() => {
+          throw new Error('EBUSY: resource busy')
+        })
+      },
+      result: 'handled'
+    },
+    {
+      name: 'marker I/O failure caught by the outer catch',
+      marker: null,
+      setup: () => {
+        readFileSyncMock.mockImplementation(() => {
+          throw new Error('EACCES: permission denied')
+        })
+      },
+      result: 'handled'
+    },
+    {
+      name: 'path mismatch without pending copy relocation',
+      marker: pendingMarker({ canonicalPath: '/mock/old-target' }),
+      result: 'skipped'
+    },
+    {
+      name: 'attempt cap reached before the pass without pending copy relocation',
+      marker: pendingMarker({ attempts: 2 }),
+      result: 'skipped'
+    },
+    {
+      name: 'pass failure at the attempt cap without pending copy relocation',
+      marker: pendingMarker({ attempts: 1 }),
+      setup: () => {
+        rmSyncMock.mockImplementation(() => {
+          throw new Error('EBUSY: resource busy')
+        })
+      },
+      result: 'skipped'
+    },
+    {
+      name: 'pass failure at the attempt cap with pending copy relocation',
+      marker: pendingMarker({ attempts: 1 }),
+      setup: () => {
+        pendingCopyRelocation = true
+        rmSyncMock.mockImplementation(() => {
+          throw new Error('EBUSY: resource busy')
+        })
+      },
+      result: 'handled'
+    }
+  ])('returns $result for $name', async ({ marker, setup, result }) => {
+    stubAll(marker)
+    setup?.()
+
+    expect(await runReset()).toBe(result)
   })
 })
 

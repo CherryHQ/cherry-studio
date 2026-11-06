@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { dialog, session } from 'electron'
+import { app, dialog, session } from 'electron'
 import * as z from 'zod'
 
 import { application } from '@application'
@@ -10,6 +10,7 @@ import { loggerService } from '@logger'
 import { SHUTDOWN_TIMEOUT_MS } from '@main/core/lifecycle'
 // Preboot dialogs cannot use PreferenceService-backed translations.
 import { t } from '@main/i18n'
+import { hasPendingCopyRelocation } from '@main/services/userDataRelocation'
 
 const logger = loggerService.withContext('DataReset')
 
@@ -266,11 +267,17 @@ async function stageDataReset(operation: DataResetOperation, shouldClearChromium
  * Executes a pending reset before services open profile data.
  * The target path and attempt count are committed before deletion. Success
  * commits `completed` before removing the marker; unsafe failures quit.
+ *
+ * Returns `handled` when this launch must end: exit/relaunch and any notice
+ * were already requested, so the caller must not run later preboot gates.
+ * Returns `skipped` when no reset ran or the outcome explicitly continues boot.
+ * `app.exit()` / `app.relaunch()` return before the process terminates; the
+ * caller must stop explicitly to avoid running later gates after a terminal reset.
  */
-export function runDataReset(): void {
+export async function runDataReset(): Promise<'handled' | 'skipped'> {
   try {
     const marker = readMarker()
-    if (!marker) return
+    if (!marker) return 'skipped'
 
     // A completed marker never authorizes another wipe.
     if (marker.status === 'completed') {
@@ -286,7 +293,7 @@ export function runDataReset(): void {
           error: String(error)
         })
       }
-      return
+      return 'skipped'
     }
 
     const userData = application.getPath('app.userdata')
@@ -298,8 +305,7 @@ export function runDataReset(): void {
         recorded: marker.canonicalPath,
         actual: actualCanonical
       })
-      refuseResetForPathMismatch()
-      return
+      return (await refuseResetForPathMismatch()) ? 'handled' : 'skipped'
     }
 
     const attempts = marker.attempts ?? 0
@@ -308,8 +314,7 @@ export function runDataReset(): void {
       logger.error('Data reset abandoned: attempt cap reached with critical failures — clearing the marker', {
         attempts
       })
-      abandonIncompleteReset()
-      return
+      return (await abandonIncompleteReset()) ? 'handled' : 'skipped'
     }
 
     logger.info('Data reset pending — wiping user data', {
@@ -326,14 +331,14 @@ export function runDataReset(): void {
       logger.error('Data reset halted: the attempt count could not be durably recorded — refusing to boot', {
         error: String(error)
       })
-      showDataResetError(
+      await showDataResetError(
         'Data Reset Failed',
         'Cherry Studio could not record the data reset state ' +
           `in ${markerPath()}.\n\n` +
           'Starting now could erase data you create later, so the app will quit instead.\n\n' +
           'Please check disk space and file permissions, then start Cherry Studio again.'
       )
-      return
+      return 'handled'
     }
 
     const failures: string[] = []
@@ -353,25 +358,25 @@ export function runDataReset(): void {
     if (failures.length > 0) {
       if (operation === 'v1_remigration') {
         logger.error('v1 remigration cleanup failed — keeping the marker and refusing to boot', { failures })
-        showDataResetError(
+        await showDataResetError(
           'Migration Reset Failed',
           'Cherry Studio could not safely remove the current v2 data required to rerun migration. ' +
             'The app will quit and keep the pending request so the cleanup can retry on the next launch.\n\n' +
             'Please check disk space, file permissions, and antivirus locks, then start Cherry Studio again.'
         )
-        return
+        return 'handled'
       }
       if (attempts + 1 < MAX_WIPE_ATTEMPTS) {
         logger.error('Data reset pass had critical failures — relaunching to retry in preboot', { failures })
+        await app.whenReady()
         application.relaunch()
-        return
+        return 'handled'
       }
       // Disarm the marker before booting with partial data.
       logger.error('Data reset abandoned: attempt cap reached with critical failures — clearing the marker', {
         failures
       })
-      abandonIncompleteReset()
-      return
+      return (await abandonIncompleteReset()) ? 'handled' : 'skipped'
     }
 
     // Commit terminal state before removing the marker.
@@ -384,14 +389,14 @@ export function runDataReset(): void {
           error: String(error)
         }
       )
-      showDataResetError(
+      await showDataResetError(
         'Data Reset Incomplete',
         'Cherry Studio erased its data but could not record the reset as finished ' +
           `in ${markerPath()}.\n\n` +
           'Starting now could erase anything you create on the next launch, so the app will quit instead.\n\n' +
           'Please check disk space and file permissions, then start Cherry Studio again.'
       )
-      return
+      return 'handled'
     }
 
     try {
@@ -403,15 +408,18 @@ export function runDataReset(): void {
     }
 
     logger.info('Data reset completed — relaunching into a fresh state')
+    await app.whenReady()
     application.relaunch()
+    return 'handled'
   } catch (error) {
     logger.error('Data reset failed — refusing to boot', error as Error)
-    showDataResetError(
+    await showDataResetError(
       'Data Reset Failed',
       'Cherry Studio could not safely complete a pending data reset. ' +
         'The app will quit instead of starting with a reset marker still present.\n\n' +
         'Please check disk space and file permissions, then start Cherry Studio again.'
     )
+    return 'handled'
   }
 }
 
@@ -449,18 +457,39 @@ function wipeNestedUserDataTargets(failures: string[]): void {
   }
 }
 
-function refuseResetForPathMismatch(): void {
+async function refuseResetForPathMismatch(): Promise<boolean> {
   deleteMarker()
-  showPathMismatchWarning()
+  await showPathMismatchWarning()
+  return deferPendingCopyRelocation('data reset path mismatch')
 }
 
-function abandonIncompleteReset(): void {
+async function abandonIncompleteReset(): Promise<boolean> {
   deleteMarker()
-  showIncompleteResetWarning()
+  await showIncompleteResetWarning()
+  return deferPendingCopyRelocation('data reset attempt cap')
 }
 
-function showDataResetError(title: string, message: string): void {
-  dialog.showErrorBox(title, message)
+// The readiness-gated notice opened Chromium sessions on the source profile (services/userDataRelocation/README.md).
+// An executable pending copy must end this launch via application.relaunch() before copying.
+function deferPendingCopyRelocation(reason: string): boolean {
+  if (!hasPendingCopyRelocation()) return false
+  logger.warn(`${reason}: pending relocation copy is deferred to a fresh launch`)
+  application.relaunch()
+  // Relaunch alone is insufficient: the caller must stop or this launch enters relocation with the source session open.
+  return true
+}
+
+async function showPrebootNotice(title: string, message: string): Promise<void> {
+  await app.whenReady()
+  try {
+    dialog.showErrorBox(title, message)
+  } catch (error) {
+    logger.error('Failed to show data reset notice', error as Error)
+  }
+}
+
+async function showDataResetError(title: string, message: string): Promise<void> {
+  await showPrebootNotice(title, message)
   application.forceExit(1)
 }
 
@@ -516,8 +545,8 @@ function canonicalize(p: string): string {
   return fs.realpathSync.native(path.resolve(p))
 }
 
-function showPathMismatchWarning(): void {
-  dialog.showErrorBox(
+async function showPathMismatchWarning(): Promise<void> {
+  await showPrebootNotice(
     'Data Reset Cancelled',
     'Cherry Studio did not run Data Reset because the data location changed after confirmation.\n\n' +
       'No data was removed, and the pending request has been cleared. ' +
@@ -525,8 +554,8 @@ function showPathMismatchWarning(): void {
   )
 }
 
-function showIncompleteResetWarning(): void {
-  dialog.showErrorBox(
+async function showIncompleteResetWarning(): Promise<void> {
+  await showPrebootNotice(
     'Data Reset Incomplete',
     'Cherry Studio could not remove some of its data during the data reset.\n\n' +
       'The app will start with whatever remains. ' +
