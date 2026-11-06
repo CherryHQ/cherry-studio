@@ -51,7 +51,12 @@ vi.mock('@data/services/ProviderService', () => ({
 }))
 
 vi.mock('@data/services/ModelService', () => ({
-  modelService: { getByKey: mocks.getModelByKey }
+  modelService: {
+    getByKey: (...args: unknown[]) => {
+      const model = mocks.getModelByKey(...args)
+      return model && { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL], ...model }
+    }
+  }
 }))
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
@@ -971,6 +976,30 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     expect(request?.sdkModelId).toBe('anthropic:claude-opus-5-5')
     expect(request?.settings.env?.ANTHROPIC_BASE_URL).toBe('http://127.0.0.1:23333')
+  })
+
+  it('routes a primary without function calling through the gateway', async () => {
+    mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'model-1', capabilities: [] })
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    expect(request?.usageCapture).toEqual({ owner: 'provider-calls' })
+    expect(mocks.apiGatewayEnsureInternal).toHaveBeenCalled()
+  })
+
+  it.each([
+    ['planModel', 'sonnet'],
+    ['smallModel', 'haiku']
+  ] as const)('attributes an incapable %s to its gateway slot', async (field, slot) => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'provider-1::model-1', [field]: 'provider-1::other' })
+    mocks.getModelByKey.mockImplementation((_provider: string, id: string) => ({
+      id,
+      apiModelId: id,
+      capabilities: id === 'other' ? [] : [MODEL_CAPABILITY.FUNCTION_CALL]
+    }))
+    await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'Claude Code route degraded to the internal gateway by a background model slot',
+      expect.objectContaining({ slots: [expect.objectContaining({ slot, reasons: ['function-calling-unsupported'] })] })
+    )
   })
 
   it('logs which background slot forced a direct-eligible primary onto the gateway', async () => {

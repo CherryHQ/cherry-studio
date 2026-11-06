@@ -101,6 +101,25 @@ describe('ErrorBlock', () => {
     vi.clearAllMocks()
   })
 
+  it('shows the capability diagnosis and provider detail for a plain error', () => {
+    mocks.translations = new Map(Object.entries(enUS))
+    mocks.actions = { navigateErrorTarget: vi.fn() }
+    render(
+      <ErrorBlock
+        partId="part-1"
+        error={{
+          name: 'Error',
+          message: '400: {"code":20037,"message":"Function call is not supported for this model."}',
+          stack: null
+        }}
+        message={message}
+      />
+    )
+    expect(screen.getByText(enUS['error.diagnosis.tool_calling_unsupported'])).toBeInTheDocument()
+    expect(screen.getByText('Function call is not supported for this model.')).toBeInTheDocument()
+    expect(screen.getByText(GO_TO_SETTINGS_LABEL)).toBeInTheDocument()
+  })
+
   it('renders Groq entitlement copy and opens its provider settings', async () => {
     const user = userEvent.setup()
     const navigateErrorTarget = vi.fn()

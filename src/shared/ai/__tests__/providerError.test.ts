@@ -14,6 +14,17 @@ const PROVIDER_TEXT_FIELDS = [
 ] as const
 
 describe('getSafeProviderErrorMessage', () => {
+  it('recovers the provider sentence from a status-prefixed JSON envelope', () => {
+    expect(
+      getSafeProviderErrorMessage({
+        message: '400: {"code":20037,"message":"Function call is not supported for this model.","data":null}'
+      })
+    ).toBe('Function call is not supported for this model.')
+    expect(getSafeProviderErrorMessage({ message: 'ordinary failure' })).toBe('ordinary failure')
+    expect(getSafeProviderErrorMessage({ message: `400: ${JSON.stringify({ message: 'x'.repeat(600) })}` })).toBe(
+      `${'x'.repeat(500)}…`
+    )
+  })
   it.each(PROVIDER_TEXT_FIELDS)(
     'rejects closed unquoted and numeric-leading containers in %s',
     (_field, payloadFor) => {

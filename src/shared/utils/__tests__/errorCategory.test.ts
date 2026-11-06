@@ -352,3 +352,26 @@ describe('classifyErrorCategory embedded runtime connection codes (#22210)', () 
     expect(classifyErrorCategory({ text })).toBe('unknown')
   })
 })
+
+describe('unsupported tool calling', () => {
+  it.each([
+    '{"code":20037,"message":"Function call is not supported for this model.","data":null}',
+    '400: {"code":20037,"message":"Function call is not supported for this model."}',
+    'FUNCTION CALLING IS NOT SUPPORTED',
+    'tool calling is not supported',
+    'tools are not supported for this model',
+    'does not support function calling',
+    'does not support tool calls'
+  ])('recognizes %s', (text) => {
+    expect(classifyErrorCategory({ text, status: 400 })).toBe('tool_calling_unsupported')
+  })
+  it.each(['20037', 'unsupported parameter', 'malformed function arguments', 'MCP execution failure'])(
+    'does not confuse %s with unsupported tools',
+    (text) => {
+      expect(classifyErrorCategory({ text, status: 400 })).not.toBe('tool_calling_unsupported')
+    }
+  )
+  it('preserves server status precedence', () => {
+    expect(classifyErrorCategory({ text: 'Function call is not supported', status: 500 })).toBe('server')
+  })
+})

@@ -115,7 +115,15 @@ function providerErrorCodes(value: unknown, decodeDepth = 0): string {
 }
 
 export function getSafeProviderErrorMessage(source: ProviderErrorSource): string {
-  const text = payloadText(source.responseBody) || payloadText(source.data) || providerPayloadText(source.message)
+  const envelope =
+    typeof source.message === 'string' && source.message.length <= MAX_PROVIDER_ERROR_INPUT_LENGTH
+      ? /^\s*\d{3}\s*:\s*(\{[\s\S]*\})\s*$/.exec(source.message)?.[1]
+      : undefined
+  const text =
+    payloadText(source.responseBody) ||
+    payloadText(source.data) ||
+    payloadText(envelope) ||
+    providerPayloadText(source.message)
   return text.length > MAX_PROVIDER_ERROR_MESSAGE_LENGTH ? `${text.slice(0, MAX_PROVIDER_ERROR_MESSAGE_LENGTH)}…` : text
 }
 

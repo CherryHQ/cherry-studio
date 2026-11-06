@@ -37,7 +37,7 @@ import type { Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
-import { isVisionModel, supportsDynamicallyLoadedTools } from '@shared/utils/model'
+import { isFunctionCallingModel, isVisionModel, supportsDynamicallyLoadedTools } from '@shared/utils/model'
 import {
   isExternalCliProvider,
   isOllamaProvider,
@@ -79,7 +79,11 @@ interface RuntimeModelRef {
 }
 
 /** Why one model slot cannot take the direct branch — mirrors the gateway predicate. */
-type GatewayDegradeReason = 'agent-gateway-provider' | 'cross-provider' | 'non-anthropic-endpoint'
+type GatewayDegradeReason =
+  | 'agent-gateway-provider'
+  | 'cross-provider'
+  | 'non-anthropic-endpoint'
+  | 'function-calling-unsupported'
 
 interface GatewayDegradedSlot {
   slot: 'sonnet' | 'haiku'
@@ -732,6 +736,7 @@ function deriveRouteFacts(
     if (requiresAgentGateway(ref.providerId)) reasons.push('agent-gateway-provider')
     if (ref.providerId !== primaryProvider.id) reasons.push('cross-provider')
     if (!usesAnthropicMessagesEndpoint(ref)) reasons.push('non-anthropic-endpoint')
+    if (ref.model && !isFunctionCallingModel(ref.model)) reasons.push('function-calling-unsupported')
     return reasons
   }
   const primaryReasons = gatewayReasons(primaryRef)

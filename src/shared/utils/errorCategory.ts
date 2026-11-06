@@ -8,6 +8,7 @@ export const ERROR_CATEGORIES = [
   'permission',
   'region',
   'model',
+  'tool_calling_unsupported',
   'quota',
   'rate_limit',
   'context_length',
@@ -67,6 +68,12 @@ function isQuotaExhaustionMessage(message: string): boolean {
 export function isQuotaErrorMessage(message: string): boolean {
   const msg = message.toLowerCase()
   return isQuotaExhaustionMessage(msg) || msg.includes('billing') || msg.includes('payment')
+}
+
+export function isToolCallingUnsupportedErrorMessage(message: string): boolean {
+  return /\b(?:function call(?:ing)?|tool calling) is not supported\b|\btools are not supported for this model\b|\bdoes not support (?:function calling|tool calls)\b/i.test(
+    message
+  )
 }
 
 export function isMcpErrorMessage(message: string): boolean {
@@ -388,6 +395,8 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
   ) {
     return 'parse'
   }
+
+  if (isToolCallingUnsupportedErrorMessage(msg)) return 'tool_calling_unsupported'
 
   return status === 400 ? 'bad_request' : 'unknown'
 }

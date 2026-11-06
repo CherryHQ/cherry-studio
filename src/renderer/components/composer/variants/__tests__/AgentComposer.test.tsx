@@ -1004,6 +1004,35 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.sidePaddingPx).toBe(12)
   })
 
+  it('shows the tools notice for an incapable model without blocking send', () => {
+    const view = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    act(() => mocks.surfaceProps?.onTextChange('hello'))
+    const notice = render(<>{mocks.surfaceProps?.queueContent}</>)
+    expect(screen.getByText('code.model_tools_unavailable')).toBeInTheDocument()
+    expect(mocks.surfaceProps?.sendDisabled).toBe(false)
+    mocks.modelResult = { ...model, capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] }
+    view.rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    notice.rerender(<>{mocks.surfaceProps?.queueContent}</>)
+    expect(screen.queryByText('code.model_tools_unavailable')).not.toBeInTheDocument()
+    expect(mocks.surfaceProps?.sendDisabled).toBe(false)
+  })
+
   it('uses the page-resolved model', () => {
     render(
       <AgentComposer

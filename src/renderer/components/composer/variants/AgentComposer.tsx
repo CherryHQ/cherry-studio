@@ -76,7 +76,7 @@ import {
   resolveSteerShortcut
 } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
-import { resolveReasoningEffortForModel } from '@renderer/utils/model'
+import { isFunctionCallingModel, resolveReasoningEffortForModel } from '@renderer/utils/model'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -566,6 +566,8 @@ const AgentComposerInner = ({
   const agentModelFilter = useAgentModelFilter(agent?.type)
   const isModelUnavailable = Boolean(agent) && !model && !modelPending
   const missingModelMessage = isModelUnavailable ? t('code.model_required') : undefined
+  const toolsUnavailableMessage =
+    model && !isModelUnavailable && !isFunctionCallingModel(model) ? t('code.model_tools_unavailable') : undefined
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
   const pinnedLauncherIds = useMemo(
     () => pinnedToolIds.map((id) => (id === 'skills' ? AGENT_SKILLS_LAUNCHER_ID : id)),
@@ -1642,6 +1644,9 @@ const AgentComposerInner = ({
           onPause={abortAgentSession}
           queueContent={
             <>
+              {toolsUnavailableMessage && (
+                <Alert type="info" showIcon className="mb-2" message={toolsUnavailableMessage} />
+              )}
               {compaction.status === 'failed' && (
                 <Alert
                   type="warning"

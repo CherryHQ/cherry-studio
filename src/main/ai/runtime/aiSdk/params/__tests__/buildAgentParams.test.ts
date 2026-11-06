@@ -77,6 +77,23 @@ beforeEach(() => {
 })
 
 describe('buildAgentParams provider resolution', () => {
+  it('filters selected client tools according to the model capability', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'openai-compatible', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const tool = {} as Tool
+    for (const capable of [false, true]) {
+      const result = await buildAgentParams({
+        request: { conversation: CONVERSATION, callOverrides: { tools: { mcp__test__lookup: tool } } },
+        signal: undefined,
+        provider: makeProvider(),
+        model: makeModel({ capabilities: capable ? [MODEL_CAPABILITY.FUNCTION_CALL] : [] })
+      })
+      if (capable) expect(result.tools?.mcp__test__lookup).toBe(tool)
+      else expect(result.tools).toBeUndefined()
+    }
+  })
   it('sends only selected MCP guidance to the provider and suppresses it for tool-disabled requests', async () => {
     const server = { id: 'docs', name: 'Documents', isActive: true, disabledTools: [], disabledAutoApproveTools: [] }
     const toolId = 'mcp__docs__read'
