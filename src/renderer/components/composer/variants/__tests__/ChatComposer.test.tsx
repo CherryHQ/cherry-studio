@@ -518,7 +518,8 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
       'topic.tab.display_mode': mocks.topicLayout === 'classic' ? 'assistant' : 'time'
     }
     return [values[key]]
-  }
+  },
+  useMultiplePreferences: () => [{ dismissed: true }, vi.fn()]
 }))
 
 vi.mock('@renderer/hooks/chat/ChatWriteContext', () => ({

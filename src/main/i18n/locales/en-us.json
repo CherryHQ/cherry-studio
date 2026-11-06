@@ -160,6 +160,7 @@
   "notification.action_required.assistant": "Assistant needs your input",
   "notification.completion.agent": "Agent task complete",
   "notification.completion.assistant": "Assistant response complete",
+  "notification.scheduled_task.started": "Scheduled task started",
   "openclaw.errors.binary_incompatible": "The OpenClaw binary used by Cherry Studio is incompatible with the generated configuration. Upgrade OpenClaw.{{details}}",
   "openclaw.errors.external_config_invalid": "OpenClaw rejected configuration outside Cherry Studio's managed provider section. Fix that configuration or upgrade OpenClaw.{{details}}",
   "openclaw.errors.more_issues": "and {{count}} more issue(s)",

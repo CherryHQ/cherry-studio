@@ -83,6 +83,27 @@
       "description": "Show system notifications from installed mini apps that hold the notification grant (v2 new feature, no v1 source)"
     },
     {
+      "targetKey": "app.notification.approval.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Show a system notification when an agent is waiting for the user's approval while the app is in the background (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "app.notification.scheduled_task.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Show a system notification when a scheduled agent task starts running while the app is in the background (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "app.notification.priming_banner.dismissed",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Whether the user dismissed the 'turn on notifications' banner above the composer (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "app.onboarding.provider_setup.status",
       "type": "PreferenceTypes.OnboardingProviderSetupStatus",
       "defaultValue": "pending",
