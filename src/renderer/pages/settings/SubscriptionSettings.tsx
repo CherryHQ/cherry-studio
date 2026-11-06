@@ -1,5 +1,5 @@
 import { ExternalLink, RefreshCw } from 'lucide-react'
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Skeleton } from '@cherrystudio/ui'
@@ -7,6 +7,7 @@ import { CherryCloudQuotaUsage } from '@renderer/components/CherryCloudQuotaUsag
 import { useCherryCloudPlans } from '@renderer/hooks/useCherryCloudPlans'
 import { openCherryCloudAccountPortal, openCherryCloudFaq } from '@renderer/services/cherryCloudAccountPortal'
 import { startCherryCloudSubscription } from '@renderer/services/cherryCloudSubscription'
+import { trackSubscriptionEntryView, trackSubscriptionEvent } from '@renderer/services/cherryCloudSubscriptionAnalytics'
 
 export function SubscriptionSettings() {
   const { t } = useTranslation()
@@ -20,6 +21,17 @@ export function SubscriptionSettings() {
   const failed = Boolean(error)
 
   const availablePlan = useMemo(() => plans?.available_plans.find((item) => !item.is_free), [plans])
+  const plansLoaded = status?.phase === 'signed-in' && plans !== undefined
+  const subscribed = Boolean(activePaid)
+  const usageViewReported = useRef(false)
+  useEffect(() => {
+    if (!plansLoaded) return
+    if (!usageViewReported.current) {
+      usageViewReported.current = true
+      trackSubscriptionEvent({ event: 'subscription_usage_view', subscribed })
+    }
+    if (!subscribed) trackSubscriptionEntryView('settings')
+  }, [plansLoaded, subscribed])
 
   const header = (
     <div className="flex items-center justify-between gap-4">
@@ -27,7 +39,10 @@ export function SubscriptionSettings() {
       <button
         type="button"
         className="cursor-pointer border-0 bg-transparent p-0 text-[13px] text-link hover:underline"
-        onClick={() => void openCherryCloudFaq()}>
+        onClick={() => {
+          trackSubscriptionEvent({ event: 'subscription_faq_click', subscribed })
+          void openCherryCloudFaq()
+        }}>
         {t('settings.subscription.faq')}
       </button>
     </div>
@@ -107,7 +122,11 @@ export function SubscriptionSettings() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => void (paidPlan ? openCherryCloudAccountPortal() : startCherryCloudSubscription())}>
+              onClick={() => {
+                if (!paidPlan) return void startCherryCloudSubscription('settings')
+                trackSubscriptionEvent({ event: 'subscription_manage_click' })
+                void openCherryCloudAccountPortal({ entrySource: 'manage' })
+              }}>
               {paidPlan ? t('settings.subscription.manage') : t('settings.subscription.subscribe')}
               <ExternalLink />
             </Button>

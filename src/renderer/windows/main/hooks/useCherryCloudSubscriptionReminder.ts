@@ -5,7 +5,11 @@ import { useSWRConfig } from 'swr'
 import { CHERRY_CLOUD_AVAILABILITY_KEY } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { useCherryCloudPlans } from '@renderer/hooks/useCherryCloudPlans'
 import { useIpcOn } from '@renderer/ipc'
+import { subscribeClickAttribution, trackSubscriptionEvent } from '@renderer/services/cherryCloudSubscriptionAnalytics'
 import { toast } from '@renderer/services/toast'
+
+// A plans change this soon after main's notification-driven refresh came from that notification.
+const NOTIFICATION_REFRESH_WINDOW_MS = 15_000
 
 /**
  * Show one light toast when the signed-in account gains a paid entitlement it did not have, e.g.
@@ -23,8 +27,10 @@ export function useCherryCloudSubscriptionReminder(): void {
   // After a sign-out the plans cached for the account predate it; the next baseline waits until a
   // revalidation has started and finished, so a purchase made while signed out is not announced.
   const freshPlansRef = useRef<'ready' | 'awaiting' | 'revalidating'>('ready')
+  const notificationRefreshAtRef = useRef(0)
 
   useIpcOn('cherry_cloud.account_refreshed', () => {
+    notificationRefreshAtRef.current = Date.now()
     void plansQuery.mutate()
     void mutate(CHERRY_CLOUD_AVAILABILITY_KEY)
   })
@@ -54,6 +60,16 @@ export function useCherryCloudSubscriptionReminder(): void {
     if (previous?.accountId !== accountId || previous.paidEntitlementId === paidEntitlementId) return
     void mutate(CHERRY_CLOUD_AVAILABILITY_KEY)
     if (activePaid && previous.paidEntitlementId === null) {
+      trackSubscriptionEvent({
+        event: 'subscription_entitlement_refresh_result',
+        result: 'succeeded',
+        planId: activePaid.plan.id,
+        detectedBy:
+          Date.now() - notificationRefreshAtRef.current < NOTIFICATION_REFRESH_WINDOW_MS
+            ? 'notification'
+            : 'focus_refresh',
+        ...subscribeClickAttribution()
+      })
       toast.success(t('settings.subscription.activated', { plan: activePaid.plan.display_name }))
     }
   }, [accountId, activePaid, mutate, plansQuery.data, plansQuery.error, plansQuery.isValidating, t])

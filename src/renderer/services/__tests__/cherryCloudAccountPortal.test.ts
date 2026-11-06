@@ -22,7 +22,18 @@ describe('openCherryCloudAccountPortal', () => {
 
     await openCherryCloudAccountPortal()
 
-    expect(request).toHaveBeenCalledWith('system.shell.open_external_website', portalUrl)
+    expect(request).toHaveBeenCalledWith('system.shell.open_external_website', `${portalUrl}?entry=desktop`)
+  })
+
+  it('tells the portal which touchpoint and subscription flow the visit came from', async () => {
+    useAccountOrigin('https://cloud.cherryai.com.cn')
+
+    await openCherryCloudAccountPortal({ entrySource: 'quota_notice', flowId: 'f1' })
+
+    expect(request).toHaveBeenCalledWith(
+      'system.shell.open_external_website',
+      'https://cloud.cherryai.com.cn/account/plans?entry=desktop&entry_source=quota_notice&flow_id=f1'
+    )
   })
 
   it('opens the official China-edition subscription FAQ', async () => {
@@ -45,7 +56,7 @@ describe('openCherryCloudAccountPortal', () => {
 
     expect(request).toHaveBeenCalledWith(
       'system.shell.open_external_website',
-      'https://cloud.cherryai.com.cn/account/faq'
+      'https://cloud.cherryai.com.cn/account/faq?entry=desktop'
     )
   })
 })
