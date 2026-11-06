@@ -669,8 +669,8 @@
     }
   ],
   "providers": {
-    "version": "bf5d34485566c802",
-    "count": 67,
+    "version": "7114cadaf29387b9",
+    "count": 68,
     "entries": [
       {
         "id": "cherryin",
@@ -939,6 +939,10 @@
       {
         "id": "minimax-global",
         "name": "minimax-global"
+      },
+      {
+        "id": "hopbase",
+        "name": "HopBase"
       }
     ]
   },
