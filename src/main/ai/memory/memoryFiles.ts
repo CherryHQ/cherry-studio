@@ -5,7 +5,7 @@ import { lstat, mkdir, open, readdir, realpath, unlink } from 'node:fs/promises'
 import path from 'node:path'
 import { promisify } from 'node:util'
 
-import { prepareAtomicWrite } from '@main/utils/file/fs'
+import { prepareAtomicWrite } from '@main/utils/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 export const MEMORY_ENTRY = 'MEMORY.md'
