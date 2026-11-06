@@ -10,7 +10,7 @@ Status: implemented
 
 ## 决策
 
-`bedrockAnthropicCacheFeature` 紧跟在 `anthropicCacheFeature` 之后，仅对 Bedrock 上的 Claude 模型生效。它把每个标记复制为所在消息上的消息级 `bedrock.cachePoint`：`{ type: 'default' }`，只有当该消息中的所有标记都是一小时时才加上 `ttl: '1h'`。它读取的位置与 `clampCacheMarkers` 计数的位置相同，因此四个断点的预算同样成立。Claude 模型通过去掉 Bedrock 区域和厂商前缀后的模型 ID 识别。
+`bedrockAnthropicCacheFeature` 紧跟在 `anthropicCacheFeature` 之后，仅对 Bedrock 上的 Claude 模型生效。它把每个标记复制为所在消息上的消息级 `bedrock.cachePoint`：`{ type: 'default' }`，只有当该消息中的所有标记都是一小时且模型支持时才加上 `ttl: '1h'`。AWS 对 Claude Opus 4.1 只列出五分钟有效期，因此选择一小时时 Opus 4.1 仍使用五分钟缓存点。它读取的位置与 `clampCacheMarkers` 计数的位置相同，因此四个断点的预算同样成立。Claude 模型通过去掉 Bedrock 区域和厂商前缀后的模型 ID 识别。
 
 ## 考虑过的替代方案
 
@@ -25,5 +25,5 @@ Bedrock 上的 Claude 请求现在会按照现有的 `cacheControl` 设置进行
 
 ## 验证
 
-- Regression — `src/main/ai/runtime/aiSdk/params/features/__tests__/bedrockAnthropicCache.test.ts`：真实的 `@ai-sdk/amazon-bedrock` 请求体在系统提示词和末尾消息之后携带缓存点，保留一小时有效期，缓存点不超过四个，且对非 Claude 模型 ID 不生效。
+- Regression — `src/main/ai/runtime/aiSdk/params/features/__tests__/bedrockAnthropicCache.test.ts`：真实的 `@ai-sdk/amazon-bedrock` 请求体在系统提示词和末尾消息之后携带缓存点，在支持的模型上保留一小时有效期，对 Opus 4.1 回退为五分钟，缓存点不超过四个，且对非 Claude 模型 ID 不生效。
 - Regression — `src/main/ai/runtime/aiSdk/params/features/__tests__/internalFeatures.test.ts`：该功能仅在 Bedrock 上的 Claude 且缓存开启时生效，并紧跟在 `anthropic-cache` 之后。

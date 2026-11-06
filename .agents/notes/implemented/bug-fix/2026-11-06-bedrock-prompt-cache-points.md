@@ -10,7 +10,7 @@ English | [中文](2026-11-06-bedrock-prompt-cache-points.zh.md)
 
 ## Decision
 
-`bedrockAnthropicCacheFeature` runs directly after `anthropicCacheFeature` for Claude models on Bedrock. It copies each marker to a message-level `bedrock.cachePoint` on the message that holds it: `{ type: 'default' }`, plus `ttl: '1h'` only when every marker in that message is one hour. It reads the same holders `clampCacheMarkers` counts, so the four-breakpoint budget carries over. Claude is detected from the model id after stripping the Bedrock region and vendor prefix.
+`bedrockAnthropicCacheFeature` runs directly after `anthropicCacheFeature` for Claude models on Bedrock. It copies each marker to a message-level `bedrock.cachePoint` on the message that holds it: `{ type: 'default' }`, plus `ttl: '1h'` only when every marker in that message is one hour and the model supports it. AWS lists only the five-minute lifetime for Claude Opus 4.1, so Opus 4.1 keeps five-minute cache points when one hour is selected. It reads the same holders `clampCacheMarkers` counts, so the four-breakpoint budget carries over. Claude is detected from the model id after stripping the Bedrock region and vendor prefix.
 
 ## Alternatives considered
 
@@ -25,5 +25,5 @@ Claude requests on Bedrock now cache under the existing `cacheControl` settings.
 
 ## Verification
 
-- Regression — `src/main/ai/runtime/aiSdk/params/features/__tests__/bedrockAnthropicCache.test.ts`: the real `@ai-sdk/amazon-bedrock` request body carries cache points after the system prompt and trailing messages, keeps the one-hour lifetime, never exceeds four points, and stays off for non-Claude ids.
+- Regression — `src/main/ai/runtime/aiSdk/params/features/__tests__/bedrockAnthropicCache.test.ts`: the real `@ai-sdk/amazon-bedrock` request body carries cache points after the system prompt and trailing messages, keeps the one-hour lifetime where supported and falls back to five minutes for Opus 4.1, never exceeds four points, and stays off for non-Claude ids.
 - Regression — `src/main/ai/runtime/aiSdk/params/features/__tests__/internalFeatures.test.ts`: the feature activates only for Claude on Bedrock with caching enabled, directly after `anthropic-cache`.

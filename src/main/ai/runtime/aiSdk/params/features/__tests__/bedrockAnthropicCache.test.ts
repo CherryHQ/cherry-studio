@@ -7,7 +7,11 @@ import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import { transformAnthropicCacheParams } from '../anthropicCache'
-import { bedrockAnthropicCacheFeature, transformBedrockCacheParams } from '../bedrockAnthropicCache'
+import {
+  bedrockAnthropicCacheFeature,
+  supportsBedrockOneHourCache,
+  transformBedrockCacheParams
+} from '../bedrockAnthropicCache'
 
 function makeProvider(cacheControl?: Provider['settings']['cacheControl']): Provider {
   return { id: 'aws-bedrock', settings: cacheControl === undefined ? {} : { cacheControl } } as Provider
@@ -93,10 +97,11 @@ function cachePoints(body: ConverseBody): { position: string; cachePoint: Conver
 async function bedrockBody(
   params: LanguageModelV3CallOptions,
   provider = makeProvider(),
-  assistantConfig?: Assistant
+  assistantConfig?: Assistant,
+  supportsOneHourTtl = true
 ): Promise<ConverseBody> {
   const marked = await transformAnthropicCacheParams(params, provider, assistantConfig)
-  return captureConverseBody(transformBedrockCacheParams(marked))
+  return captureConverseBody(transformBedrockCacheParams(marked, supportsOneHourTtl))
 }
 
 describe('bedrockAnthropicCacheFeature.applies', () => {
@@ -120,6 +125,17 @@ describe('bedrockAnthropicCacheFeature.applies', () => {
     'arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/a1b2c3d4e5f6'
   ])('stays off for model id %s, which may not accept cache points', (apiModelId) => {
     expect(bedrockAnthropicCacheFeature.applies!(bedrockScope(apiModelId))).toBe(false)
+  })
+
+  it.each([
+    ['us.anthropic.claude-opus-4-1-20250805-v1:0', false],
+    ['anthropic.claude-opus-4-1-20250805-v1:0', false],
+    ['arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.anthropic.claude-opus-4-1-20250805-v1:0', false],
+    ['global.anthropic.claude-opus-4-5-20251101-v1:0', true],
+    ['global.anthropic.claude-sonnet-4-6', true],
+    ['global.anthropic.claude-haiku-4-5-20251001-v1:0', true]
+  ])('one-hour cache support for %s is %s', (apiModelId, expected) => {
+    expect(supportsBedrockOneHourCache(makeModel(apiModelId))).toBe(expected)
   })
 
   it('respects an explicit cache opt-out', () => {
@@ -178,6 +194,21 @@ describe('Bedrock Converse request body', () => {
 
     expect(points).toHaveLength(3)
     expect(points.every((point) => point.cachePoint?.ttl === '1h')).toBe(true)
+  })
+
+  // AWS lists only five-minute caching for Claude Opus 4.1, so a one-hour `ttl` could be rejected there.
+  it('keeps caching with the five-minute lifetime on models without one-hour support', async () => {
+    const points = cachePoints(
+      await bedrockBody(
+        conversation,
+        makeProvider({ enabled: true, tokenThreshold: 1024, ttl: '1h' }),
+        undefined,
+        false
+      )
+    )
+
+    expect(points).toHaveLength(3)
+    expect(points.every((point) => point.cachePoint?.ttl === undefined)).toBe(true)
   })
 
   it('never sends more than the four cache points Bedrock allows', async () => {

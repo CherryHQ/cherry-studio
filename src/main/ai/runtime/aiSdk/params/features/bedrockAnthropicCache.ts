@@ -54,7 +54,10 @@ function collectMessageMarkers(message: LanguageModelV3Message): CacheMarker[] {
   return markers
 }
 
-export function transformBedrockCacheParams(params: LanguageModelV3CallOptions): LanguageModelV3CallOptions {
+export function transformBedrockCacheParams(
+  params: LanguageModelV3CallOptions,
+  supportsOneHourTtl = true
+): LanguageModelV3CallOptions {
   if (!Array.isArray(params.prompt)) return params
   let changed = false
   const prompt = params.prompt.map((message) => {
@@ -62,9 +65,10 @@ export function transformBedrockCacheParams(params: LanguageModelV3CallOptions):
     if (markers.length === 0) return message
     changed = true
     // Longer lifetimes must precede shorter ones, so a message holding both keeps the 5m lifetime.
-    const cachePoint = markers.every((marker) => marker.ttl === '1h')
-      ? { type: 'default', ttl: '1h' }
-      : { type: 'default' }
+    const cachePoint =
+      supportsOneHourTtl && markers.every((marker) => marker.ttl === '1h')
+        ? { type: 'default', ttl: '1h' }
+        : { type: 'default' }
     return {
       ...message,
       providerOptions: {
@@ -76,23 +80,34 @@ export function transformBedrockCacheParams(params: LanguageModelV3CallOptions):
   return changed ? { ...params, prompt } : params
 }
 
+function getBedrockModelName(model: Model): string {
+  return stripBedrockDottedVendorPrefix(getLowerBaseModelName(getRawModelId(model)))
+}
+
 /** Claude only: Bedrock rejects cache checkpoints on models without prompt caching (e.g. Llama, Mistral). */
 export function isBedrockClaudeModel(model: Model): boolean {
-  return VENDOR_PATTERNS.anthropic.test(stripBedrockDottedVendorPrefix(getLowerBaseModelName(getRawModelId(model))))
+  return VENDOR_PATTERNS.anthropic.test(getBedrockModelName(model))
 }
 
-const bedrockAnthropicCacheMiddleware: LanguageModelMiddleware = {
-  specificationVersion: 'v3',
-  transformParams: async ({ params }) => transformBedrockCacheParams(params)
+/** Bedrock lists only the five-minute lifetime for Claude Opus 4.1; a `ttl` there can be rejected. */
+export function supportsBedrockOneHourCache(model: Model): boolean {
+  return !/^claude-opus-4-1(?:[-@:]|$)/.test(getBedrockModelName(model))
 }
 
-function createBedrockAnthropicCachePlugin() {
+function bedrockAnthropicCacheMiddleware(supportsOneHourTtl: boolean): LanguageModelMiddleware {
+  return {
+    specificationVersion: 'v3',
+    transformParams: async ({ params }) => transformBedrockCacheParams(params, supportsOneHourTtl)
+  }
+}
+
+function createBedrockAnthropicCachePlugin(supportsOneHourTtl: boolean) {
   return definePlugin({
     name: 'bedrock-anthropic-cache',
     enforce: 'pre',
     configureContext: (context) => {
       context.middlewares = context.middlewares || []
-      context.middlewares.push(bedrockAnthropicCacheMiddleware)
+      context.middlewares.push(bedrockAnthropicCacheMiddleware(supportsOneHourTtl))
     }
   })
 }
@@ -104,5 +119,5 @@ export const bedrockAnthropicCacheFeature: RequestFeature = {
     scope.endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES &&
     resolveAnthropicCacheSettings(scope.provider).enabled &&
     isBedrockClaudeModel(scope.model),
-  contributeModelAdapters: () => [createBedrockAnthropicCachePlugin()]
+  contributeModelAdapters: (scope) => [createBedrockAnthropicCachePlugin(supportsBedrockOneHourCache(scope.model))]
 }
