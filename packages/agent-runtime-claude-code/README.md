@@ -167,6 +167,6 @@ or Electron acceptance test.
 
 This is the C1 package layer of the
 [Claude migration Spec](../../.agents/notes/proposed/architecture/2026-10-27-agent-runtime-claude-code.md).
-C2 connects desktop contexts, approval/question callbacks, provider routes, prewarm
-ownership, billing, fork/edit, and shared message projections, then removes the
-migrated Claude background-flow writer. The existing desktop driver remains active.
+The desktop driver uses this package for execution and observation. Cherry owns
+desktop contexts, approval/question callbacks, provider routes, prewarm ownership,
+billing, fork/edit, and shared message projections; child content has its own writer.
