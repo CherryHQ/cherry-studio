@@ -37,4 +37,13 @@ describe('useAutoBackupEvents', () => {
     expect(toast.error).toHaveBeenCalledTimes(1)
     expect(request).toHaveBeenCalledWith('backup.acknowledge_auto_sync_notification', { type: 's3', id: 7 })
   })
+
+  it('loads pending notifications once per mount, not on every render', () => {
+    const { rerender } = renderHook(() => useAutoBackupEvents())
+    rerender()
+    rerender()
+
+    const snapshotLoads = request.mock.calls.filter(([route]) => route === 'backup.get_auto_sync_state')
+    expect(snapshotLoads).toHaveLength(1)
+  })
 })

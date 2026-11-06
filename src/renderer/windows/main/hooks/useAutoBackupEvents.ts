@@ -68,7 +68,7 @@ export function useAutoBackupEvents(): void {
     events.forEach((event) => {
       if (event) applyState(event)
     })
-  }, [applyState, events])
+  }, [events])
 
   useIpcOn('backup.auto_sync_state_changed', notify)
 
@@ -77,5 +77,5 @@ export function useAutoBackupEvents(): void {
       .request('backup.get_auto_sync_state')
       .then(({ pendingNotifications }) => pendingNotifications.forEach(notifyPending))
       .catch((error) => logger.error('Failed to load automatic backup notifications', error as Error))
-  }, [notifyPending])
+  }, [])
 }
