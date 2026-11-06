@@ -7,7 +7,7 @@ import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useNativeFullscreen } from '@renderer/hooks/useNativeFullscreen'
 import { ipcApi } from '@renderer/ipc'
 import { isMac } from '@renderer/utils/platform'
-import { getDefaultRouteTitle, isConversationRoute } from '@renderer/utils/routeTitle'
+import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { isSettingsPath } from '@shared/data/types/settingsPath'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
@@ -16,6 +16,7 @@ import Sidebar from '../app/Sidebar'
 import { createRecentRouteEntryFromTab, recordGlobalSearchRecentEntry } from '../GlobalSearch/globalSearchGroups'
 import GlobalSearchPopup from '../GlobalSearch/GlobalSearchPopup'
 import MiniAppTabsPool from '../MiniApp/MiniAppTabsPool'
+import { NotificationCenterProvider } from '../NotificationCenter'
 import { ResourceViewSourceProvider } from '../ResourceViewSourceProvider'
 import { AppShellTabBar } from './AppShellTabBar'
 import { TabRouter } from './TabRouter'
@@ -24,7 +25,13 @@ import { TabRouter } from './TabRouter'
 const isCompactMinWidthRoute = (url?: string): boolean =>
   !!url && (url.startsWith('/app/chat') || url.startsWith('/app/agents'))
 
-export const AppShell = () => {
+export const AppShell = () => (
+  <NotificationCenterProvider>
+    <AppShellContent />
+  </NotificationCenterProvider>
+)
+
+const AppShellContent = () => {
   const isMacTransparentWindow = useMacTransparentWindow()
   const tabsApi = useTabs()
   const {
@@ -140,11 +147,11 @@ export const AppShell = () => {
     recordRouteVisit(activeTab)
   }, [activeTab, recordRouteVisit])
 
-  // Conversation visuals are normalized by TabsProvider; navigation only updates identity.
+  // Chat / agent tabs are page-titled (topic / session name + emoji), so navigation keeps them.
   const handleUrlChange = (tabId: string, url: string) => {
-    const isConversation = isConversationRoute(url)
+    const isPageTitled = isPageTitledRoute(url)
     const tab = tabs.find((candidate) => candidate.id === tabId)
-    const patch = isConversation
+    const patch = isPageTitled
       ? { url, lastAccessTime: Date.now() }
       : {
           url,
@@ -204,6 +211,10 @@ export const AppShell = () => {
     </>
   )
 
+  useEffect(() => {
+    if (isSettingsTabActive) document.documentElement.style.setProperty('--notification-left', '6px')
+  }, [isSettingsTabActive])
+
   const contentColumn = (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       {tabBar}
@@ -219,7 +230,7 @@ export const AppShell = () => {
           'flex h-screen w-screen flex-row overflow-hidden text-foreground',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
         )}>
-        {!isSettingsTabActive && <Sidebar />}
+        {!isSettingsTabActive && <Sidebar isFullscreen={isFullscreen} />}
         {contentColumn}
       </div>
     )
@@ -247,7 +258,7 @@ export const AppShell = () => {
               className="h-11 shrink-0 [-webkit-app-region:drag]"
             />
           )}
-          <Sidebar />
+          <Sidebar isFullscreen={isFullscreen} />
         </div>
       )}
       {contentColumn}

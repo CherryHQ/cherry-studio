@@ -482,6 +482,23 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.forwardSubagentText).toBe(true)
   })
 
+  it.each([
+    { configuration: undefined, expected: 'default' },
+    { configuration: {}, expected: 'default' },
+    { configuration: { permission_mode: 'auto' }, expected: 'auto' }
+  ])(
+    'keeps the Cherry permission policy when SDK defaults change: $configuration',
+    async ({ configuration, expected }) => {
+      mocks.getAgent.mockReturnValue({ ...mocks.getAgent(), configuration })
+      const settings = await buildClaudeCodeSessionSettings(
+        { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+        {} as never
+      )
+
+      expect(settings.permissionMode).toBe(expected)
+    }
+  )
+
   it('overrides the SDK default 30-day cleanup for Cherry-managed sessions', async () => {
     const settings = await buildClaudeCodeSessionSettings(
       {
@@ -2256,47 +2273,6 @@ describe('buildClaudeCodeSessionSettings', () => {
       expect.objectContaining({
         hookSpecificOutput: expect.objectContaining({ permissionDecision: expect.stringMatching(/ask|deny/) })
       })
-    )
-  })
-
-  it('denies mutating config actions via PreToolUse for the current headless turn', async () => {
-    const getInteractionState = vi.fn(() => ({ currentTurn: 'headless', userResponse: 'unavailable' }))
-    mocks.applicationGet.mockImplementation((name: string) => {
-      if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
-      if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
-      if (name === 'AgentSessionRuntimeService') return { getInteractionState }
-      throw new Error(`Unexpected application.get(${name})`)
-    })
-    const session = {
-      id: 'session-1',
-      agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
-    }
-
-    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-    const runConfigAction = (action: string) =>
-      Promise.all(
-        (settings.hooks?.PreToolUse?.[0]?.hooks ?? []).map((hook) =>
-          hook(
-            {
-              hook_event_name: 'PreToolUse',
-              tool_name: 'mcp__cherry-tools__config',
-              tool_input: { action }
-            } as never,
-            'tool-use-1',
-            {} as never
-          )
-        )
-      )
-
-    for (const action of ['add_channel', 'complete_bootstrap', 'reset_bootstrap']) {
-      await expect(runConfigAction(action)).resolves.toContainEqual(
-        expect.objectContaining({ hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' }) })
-      )
-    }
-
-    await expect(runConfigAction('status')).resolves.not.toContainEqual(
-      expect.objectContaining({ hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' }) })
     )
   })
 

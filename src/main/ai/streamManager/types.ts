@@ -60,6 +60,8 @@ export interface StreamDoneResult extends TerminalOutcome {
 }
 
 export interface StreamPausedResult extends TerminalOutcome {
+  /** Main-process abort provenance; absent reasons are interruptions, not confirmed user cancellation. */
+  reason?: string
   finalMessage?: CherryUIMessage
   status: 'paused'
   modelId?: UniqueModelId
@@ -89,13 +91,21 @@ export interface StreamErrorResult extends TerminalOutcome {
 // ── StreamListener ──────────────────────────────────────────────────
 
 export interface StreamListener {
+  /** A durable caller (scheduled job) publishes its own final result. */
+  readonly ownsTaskResult?: boolean
   readonly windowId?: string
   /** Stable id used for dedup, detach-by-match, and logging. */
   readonly id: string
   /** Orders terminal persistence before notifications and cleanup work after them. */
   readonly terminalPhase?: 'persistence' | 'cleanup'
 
-  onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId, anchorMessageId?: string, attemptId?: number): void
+  onChunk(
+    chunk: UIMessageChunk,
+    sourceModelId?: UniqueModelId,
+    anchorMessageId?: string,
+    attemptId?: number,
+    sequence?: number
+  ): void
   onDone(result: StreamDoneResult): void | Promise<void>
   onPaused(result: StreamPausedResult): void | Promise<void>
   onError(result: StreamErrorResult): void | Promise<void>
@@ -113,6 +123,8 @@ export interface StreamListener {
  * running independently against the same listeners and siblingsGroupId.
  */
 export interface StreamExecution {
+  /** Stable user-task identity across retries and tool-approval continuations. */
+  taskIds?: readonly string[]
   /** Agent input identity survives a queued turn receiving a new execution attempt. */
   userMessageId?: string
   /** Format: "providerId::modelId". */
@@ -128,6 +140,7 @@ export interface StreamExecution {
   status: 'streaming' | 'done' | 'error' | 'aborted'
   /** Per-execution history ring; delta entries are capped by `maxDeltaBytes`. Ordinary overflow drops oldest and bumps `droppedChunks`; eviction pauses while an approval is pending. */
   buffer: StreamChunkPayload[]
+  sequence: number
   droppedChunks: number
   /** Latest accumulated snapshot from `readUIMessageStream`. Undefined until the first snapshot lands. */
   finalMessage?: CherryUIMessage
@@ -146,6 +159,7 @@ export interface StreamExecution {
   /** Tool-call ids still awaiting human approval, keyed so a sibling tool's output clears only its
    *  own. Non-empty ⇒ the topic surfaces `awaiting-approval`; drives the `topic.stream.statuses` cache. */
   pendingApprovalToolCallIds?: Set<string>
+  resolvedToolApprovals?: Map<string, boolean>
   /** Approval ids already published during this execution. */
   publishedApprovalIds?: Set<string>
   error?: SerializedError
@@ -162,7 +176,18 @@ export interface StreamExecution {
 
 // ── ActiveStream ────────────────────────────────────────────────────
 
+export interface ConversationUnsuccessfulEvent {
+  topicId: string
+  resultId: string
+  messageId?: string
+  status: 'failed' | 'interrupted' | 'cancelled'
+  finishedAt: number
+  durationMs: number
+  errorSummary?: string
+}
+
 export interface ConversationCompletedEvent {
+  completedTaskCount?: number
   responseText?: string
   topicId: string
   turnId: string
@@ -177,6 +202,10 @@ export interface ConversationCompletedEvent {
  *   → all done → 'done' | any error (none streaming) → 'error' | all aborted → 'aborted'
  */
 export interface ActiveStream {
+  hasTaskResultOwner?: boolean
+  completedTaskCount?: number
+  completionFailed?: boolean
+  terminalLifecyclePending?: boolean
   topicId: string
   /** Unique per stream lifecycle for renderer-side unread/seen tracking. */
   turnId: string

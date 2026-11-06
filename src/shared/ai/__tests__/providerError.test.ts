@@ -241,3 +241,28 @@ describe('getSafeProviderErrorMessage', () => {
     expect(JSON.stringify(serialized)).not.toMatch(/url-secret|private user prompt|header-secret|data-secret/)
   })
 })
+
+describe('Groq service-tier serialization', () => {
+  it('freshly classifies actual API and retry errors as permission', () => {
+    const body =
+      'service_tier auto is not available for this org. You can check your plan at https://console.groq.com/settings/billing/plans, and upgrade to access the required service tier.'
+    const error = new APICallError({
+      message: 'Bad Request',
+      url: 'https://api.groq.com/openai/v1/chat/completions',
+      requestBodyValues: {},
+      statusCode: 400,
+      responseBody: JSON.stringify({ error: { message: body } }),
+      isRetryable: false
+    })
+    expect.soft(serializeNestedProviderError(error)).toMatchObject({
+      message: body,
+      statusCode: 400,
+      providerErrorCategory: 'permission'
+    })
+    const retry = new RetryError({ message: 'Failed after 1 attempt', reason: 'maxRetriesExceeded', errors: [error] })
+    expect(serializeNestedProviderError(retry)).toMatchObject({
+      lastError: { message: body, statusCode: 400, providerErrorCategory: 'permission' },
+      errors: [{ message: body, statusCode: 400, providerErrorCategory: 'permission' }]
+    })
+  })
+})

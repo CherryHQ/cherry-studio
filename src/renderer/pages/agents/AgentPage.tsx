@@ -41,6 +41,8 @@ import { toast } from '@renderer/services/toast'
 import type { AppRouter } from '@renderer/types/router'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { isEmoji } from '@renderer/utils/naming'
+import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { ConcreteApiPaths } from '@shared/data/api/paths'
@@ -54,7 +56,7 @@ import AgentSidePanel from './AgentSidePanel'
 import { AgentCreateDialog } from './components/AgentCreateDialog'
 import type { AgentFileNavigationRequest } from './components/AgentRightPane'
 import { AgentTabRuntime } from './components/AgentTabRuntime'
-import Sessions from './components/Sessions'
+import { Sessions } from './components/sessions'
 import {
   createFeedbackComposerLaunch,
   FEEDBACK_INTENT_GUARD_TTL_MS,
@@ -389,10 +391,21 @@ const AgentPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest session without resubscribing.
   }, [currentTabId])
   const targetSessionId = activeSessionId ?? undefined
-  const { locateMessageId, requestLocate, clearLocate } = useConversationLocateRequest({
+  const { locateMessageId, locateToEnd, requestLocate, clearLocate } = useConversationLocateRequest({
+    navigationTabId: currentTabId ?? undefined,
     activeConversationId: targetSessionId,
     visibleConversationId: visibleSession?.id
   })
+  const visibleAgent = conversationBootstrap.resources.agent
+  // An agent avatar is an emoji glyph or an image URL; the tab renders each through its own slot.
+  const agentAvatar = visibleAgent?.configuration?.avatar || undefined
+  const agentAvatarIsEmoji = !!agentAvatar && isEmoji(agentAvatar)
+  // Label this tab with its agent emoji + session name so multiple Work tabs are distinguishable.
+  const preserveTabVisuals = !!targetSessionId && visibleSession?.id !== targetSessionId
+
+  useEffect(() => {
+    if (locateMessageId || locateToEnd) closeSurface()
+  }, [closeSurface, locateMessageId, locateToEnd])
 
   const [sessionPaneUserOpenIntentSeq, setSessionPaneUserOpenIntentSeq] = useState(0)
 
@@ -1126,6 +1139,10 @@ const AgentPage = () => {
   return (
     <>
       <AgentTabRuntime
+        title={visibleSession?.name?.trim() || visibleAgent?.name?.trim() || getDefaultRouteTitle('/app/agents')}
+        emoji={agentAvatarIsEmoji ? agentAvatar : undefined}
+        icon={agentAvatarIsEmoji ? undefined : agentAvatar}
+        preserveVisuals={preserveTabVisuals}
         activeSessionId={activeSession?.id}
         activeSessionSource={activeSessionSource}
         onToggleSidebar={toggleShellPane}
@@ -1153,6 +1170,7 @@ const AgentPage = () => {
             onVisibleAgentChange={setLastUsedAgentId}
             onVisibleWorkspaceChange={setLastUsedWorkspaceId}
             locateMessageId={locateMessageId}
+            locateToEnd={locateToEnd}
             onLocateMessageHandled={handleLocateMessageHandled}
             selectingMissingAgent={selectingMissingAgent}
             replacingSessionWorkspace={replacingSessionWorkspace}

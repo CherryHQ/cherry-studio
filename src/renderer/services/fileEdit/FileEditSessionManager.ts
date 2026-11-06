@@ -4,7 +4,7 @@ import { decodeFileText, encodeFileText, type DecodedFileText } from '@renderer/
 import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
-import type { FileEditBaseline, FileEditResource, FileWriteOutcome } from '@shared/ipc/schemas/fileEdit'
+import type { FileEditBaseline, FileEditResource } from '@shared/ipc/schemas/fileEdit'
 
 const logger = loggerService.withContext('FileEditSessionManager')
 
@@ -24,7 +24,6 @@ export interface SessionSnapshot {
   readonly conflict: boolean
   readonly saveError?: Error
   readonly metadataRecoveryPending: boolean
-  readonly outcomeUnknown: boolean
   readonly freshness: 'known' | 'unknown'
   readonly sealed: boolean
 }
@@ -32,17 +31,9 @@ export interface SessionSnapshot {
 interface DiskSnapshot extends DecodedFileText {
   baseline: FileEditBaseline
 }
-interface WriteAttempt {
-  resource: FileEditResource
-  sequence: number
-  text: string
-  revision: number
-  disk: DiskSnapshot
-}
 interface Session {
   resource: FileEditResource
   key: string
-  sequence: number
   disk: DiskSnapshot
   snapshot: SessionSnapshot
   listeners: Set<() => void>
@@ -50,11 +41,12 @@ interface Session {
   binding?: symbol
   queue: Promise<void>
   pending: number
-  attempt?: WriteAttempt
   timer?: ReturnType<typeof setTimeout>
   readGeneration: number
   transition: boolean
   needsRevalidation: boolean
+  /** False while the owner saves explicitly; drafts still flush when the binding is released. */
+  autoSave: boolean
 }
 
 export interface SessionLease {
@@ -62,6 +54,7 @@ export interface SessionLease {
   subscribe(listener: () => void): () => void
   readonly writable: boolean
   acceptEdit(text: string, documentEpoch?: number, bindingEpoch?: number): boolean
+  setAutoSave(enabled: boolean): void
   flush(): Promise<void>
   discard(): Promise<void>
   reload(): Promise<void>
@@ -101,10 +94,7 @@ export class FileEditSessionManager {
   }
   private publishInventory(): void {
     this.inventory = [...this.sessions.values()]
-      .filter(
-        (session) =>
-          !session.attachments.size && (session.snapshot.isDirty || !!session.snapshot.saveError || !!session.attempt)
-      )
+      .filter((session) => !session.attachments.size && (session.snapshot.isDirty || !!session.snapshot.saveError))
       .map((session) => session.snapshot)
     for (const listener of this.inventoryListeners) listener()
   }
@@ -137,7 +127,9 @@ export class FileEditSessionManager {
       this.mutationSettled = undefined
       settlement.resolve()
     }
-    const results = await Promise.allSettled(affected.map((session) => this.flush(session)))
+    // Sessions already parked in conflict/error keep their draft for recovery; they must not block other files.
+    const flushable = affected.filter((session) => !session.snapshot.conflict && !session.snapshot.saveError)
+    const results = await Promise.allSettled(flushable.map((session) => this.flush(session)))
     const failure = results.find((result) => result.status === 'rejected')
     if (failure?.status === 'rejected') {
       unseal()
@@ -209,7 +201,6 @@ export class FileEditSessionManager {
       const session: Session = {
         key,
         resource,
-        sequence: 0,
         disk,
         listeners: new Set(),
         attachments: new Set(),
@@ -218,6 +209,7 @@ export class FileEditSessionManager {
         readGeneration: 0,
         transition: false,
         needsRevalidation: false,
+        autoSave: true,
         snapshot: {
           sessionId: crypto.randomUUID(),
           ownerId,
@@ -232,7 +224,6 @@ export class FileEditSessionManager {
           isSaving: false,
           conflict: false,
           metadataRecoveryPending: false,
-          outcomeUnknown: false,
           freshness: 'known',
           sealed: false
         }
@@ -288,6 +279,12 @@ export class FileEditSessionManager {
         this.schedule(session)
         return true
       },
+      setAutoSave: (enabled) => {
+        if (!current() || session.autoSave === enabled) return
+        session.autoSave = enabled
+        if (enabled && session.snapshot.isDirty) this.schedule(session)
+        else this.cancelTimer(session)
+      },
       flush: () => command(() => this.flush(session)),
       discard: () => command(() => this.replace(session, 'discard')),
       reload: () => command(() => this.replace(session, 'reload')),
@@ -342,7 +339,7 @@ export class FileEditSessionManager {
 
   private schedule(session: Session): void {
     this.cancelTimer(session)
-    if (session.snapshot.saveError || session.snapshot.conflict || session.snapshot.sealed) return
+    if (!session.autoSave || session.snapshot.saveError || session.snapshot.conflict || session.snapshot.sealed) return
     session.timer = setTimeout(() => {
       void this.flush(session).catch(() => {})
     }, 800)
@@ -372,13 +369,12 @@ export class FileEditSessionManager {
 
   private flush(session: Session): Promise<void> {
     this.cancelTimer(session)
-    const { draft, revision } = session.snapshot
+    const { draft } = session.snapshot
     const resource = session.resource
     return this.enqueue(session, async () => {
       try {
-        await this.settle(session)
         if (session.snapshot.conflict) throw new IpcError(fileErrorCodes.STALE_VERSION, 'File has external changes')
-        await this.save(session, draft, revision, resource)
+        await this.save(session, draft, resource)
         this.publish(session, { saveError: undefined })
         if (session.snapshot.isDirty && session.pending === 1) this.schedule(session)
       } catch (error) {
@@ -388,64 +384,31 @@ export class FileEditSessionManager {
     })
   }
 
-  private async save(session: Session, text: string, revision: number, resource = session.resource): Promise<void> {
+  private async save(session: Session, text: string, resource = session.resource): Promise<void> {
     for (let retries = 0; retries < 4; retries++) {
       if (text === session.disk.content) return
-      const sequence = ++session.sequence
-      const attempt = { sequence, resource, text, revision, disk: session.disk }
-      const data = encodeFileText(text, attempt.disk.lineEnding, attempt.disk.hasBom)
-      session.attempt = attempt
-      let outcome: FileWriteOutcome
+      const disk = session.disk
       try {
-        outcome = await ipcApi.request('file.edit.write', {
-          editId: attempt.resource.editId,
-          sequence: attempt.sequence,
-          expected: attempt.disk.baseline,
-          data
+        const result = await ipcApi.request('file.edit.write', {
+          editId: resource.editId,
+          expected: disk.baseline,
+          data: encodeFileText(text, disk.lineEnding, disk.hasBom)
         })
-      } catch {
-        this.publish(session, { outcomeUnknown: true })
-        outcome = await ipcApi.request('file.edit.settle_write', {
-          editId: attempt.resource.editId,
-          sequence: attempt.sequence
-        })
+        this.adoptBaseline(session, { ...disk, content: text, baseline: result.baseline })
+        this.publish(session, { metadataRecoveryPending: result.metadataRecoveryPending, saveError: undefined })
+        return
+      } catch (error) {
+        if (!(error instanceof IpcError) || error.code !== fileErrorCodes.STALE_VERSION) throw error
       }
-      this.applyOutcome(session, attempt, outcome)
-      if (outcome.kind === 'committed') return
-      if (outcome.kind === 'not-started') throw new Error('File save did not start')
-      if (outcome.code !== fileErrorCodes.STALE_VERSION) throw new IpcError(outcome.code, 'File save failed')
-      const disk = await this.read(attempt.resource)
-      if (disk.content === text || disk.baseline.contentHash === attempt.disk.baseline.contentHash) {
-        this.adoptBaseline(session, disk)
+      const current = await this.read(resource)
+      if (current.content === text || current.baseline.contentHash === disk.baseline.contentHash) {
+        this.adoptBaseline(session, current)
         continue
       }
       this.publish(session, { conflict: true })
       throw new IpcError(fileErrorCodes.STALE_VERSION, 'File has external changes')
     }
     throw new IpcError(fileErrorCodes.STALE_VERSION, 'File changed repeatedly during save')
-  }
-
-  private applyOutcome(session: Session, attempt: WriteAttempt, outcome: FileWriteOutcome): void {
-    if (outcome.sequence !== attempt.sequence) throw new Error('Mismatched file save receipt')
-    session.attempt = undefined
-    this.publish(session, { outcomeUnknown: false })
-    if (outcome.kind === 'committed') {
-      this.adoptBaseline(session, { ...attempt.disk, content: attempt.text, baseline: outcome.baseline })
-      this.publish(session, { metadataRecoveryPending: outcome.metadataRecoveryPending, saveError: undefined })
-    }
-  }
-
-  private async settle(session: Session): Promise<void> {
-    const attempt = session.attempt
-    if (!attempt) return
-    const outcome = await ipcApi.request('file.edit.settle_write', {
-      editId: attempt.resource.editId,
-      sequence: attempt.sequence
-    })
-    this.applyOutcome(session, attempt, outcome)
-    if (outcome.kind === 'not-committed' && outcome.code === fileErrorCodes.STALE_VERSION) {
-      this.publish(session, { conflict: true })
-    }
   }
 
   private replace(session: Session, mode: 'discard' | 'reload' | 'keep'): Promise<void> {
@@ -456,10 +419,9 @@ export class FileEditSessionManager {
     const { draft, revision } = session.snapshot
     return this.enqueue(session, async () => {
       try {
-        await this.settle(session)
         if (mode !== 'discard') this.adoptBaseline(session, await this.read(session.resource))
         this.publish(session, { conflict: false, saveError: undefined, readError: undefined })
-        if (mode === 'keep') await this.save(session, draft, revision)
+        if (mode === 'keep') await this.save(session, draft)
         else
           this.publish(session, {
             draft: session.disk.content,
@@ -530,8 +492,7 @@ export class FileEditSessionManager {
       session.pending ||
       session.transition ||
       session.snapshot.isDirty ||
-      session.snapshot.saveError ||
-      session.attempt
+      session.snapshot.saveError
     )
       return
     if (this.sessions.get(session.key) !== session) return

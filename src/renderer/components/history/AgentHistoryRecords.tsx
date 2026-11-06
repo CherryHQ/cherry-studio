@@ -1,4 +1,4 @@
-import { type ReactElement, type ReactNode, useCallback, useMemo, useState } from 'react'
+import { type ReactElement, type ReactNode, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { EmojiIcon } from '@cherrystudio/ui'
@@ -12,6 +12,7 @@ import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { createSessionActionContext, useSessionMenuPreset } from '@renderer/hooks/chat/useSessionMenuActions'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
+import { useCurrentDayStart } from '@renderer/hooks/useCurrentDayStart'
 import { useOptimisticResourceName } from '@renderer/hooks/useOptimisticResourceName'
 import {
   restoreRecycleBinItem,
@@ -57,7 +58,7 @@ const AgentHistoryRecords = ({
   toolbarLeading
 }: AgentHistoryRecordsProps) => {
   const { t } = useTranslation()
-  const [groupNow] = useState(() => new Date())
+  const groupNow = useCurrentDayStart()
   const conversationNav = useConversationNavigation('agents')
 
   const {

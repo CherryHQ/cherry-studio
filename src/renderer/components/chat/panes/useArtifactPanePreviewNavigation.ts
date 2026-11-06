@@ -14,6 +14,8 @@ interface PreviewReturnTarget {
   panelId?: string
   previous?: PreviewReturnTarget
   selection: ArtifactPaneFileSelection | null
+  /** The attachment preview that recorded this target; only closing it returns here. */
+  owner?: ArtifactPaneFileSelection
 }
 
 interface SelectionGeneration {
@@ -24,7 +26,12 @@ interface UseArtifactPanePreviewNavigationOptions {
   enabled?: boolean
   paneId: string
   previewFileSelection: ArtifactPaneFileSelection | null
-  requestFileSelection: (selection: ArtifactPaneFileSelection | null, onAccepted?: () => void) => void
+  /** `closeActive` asks the host to drop the active file before showing `selection`. */
+  requestFileSelection: (
+    selection: ArtifactPaneFileSelection | null,
+    onAccepted?: () => void,
+    closeActive?: boolean
+  ) => void
   /** Shared with other file navigations so a newer artifact or attachment wins. */
   selectionGenerationRef?: SelectionGeneration
   scopeKey?: string
@@ -179,8 +186,10 @@ export function useArtifactPanePreviewNavigation({
           (previewPath === input.previewPath ? null : createInputFileSelection(input, workspacePath, input.previewPath))
         if (!selection) return
         await validateSelection(selection, requestId, () => {
+          const before = returnRef.current
           if (!isSameAcceptedSelection(previewFileSelection, selection)) captureInputPreviewReturnTarget()
           rememberPreviewReturnTarget()
+          if (returnRef.current && returnRef.current !== before) returnRef.current.owner = selection
         })
       })()
     },
@@ -199,17 +208,26 @@ export function useArtifactPanePreviewNavigation({
   const closeFilePreview = useCallback(() => {
     beginRequest()
     const returnTarget = returnRef.current
-    requestFileSelection(returnTarget?.selection ?? null, () => {
-      if (returnRef.current !== returnTarget) return
-      returnRef.current = returnTarget?.previous ?? null
-      if (!returnTarget) return
-      if (returnTarget.closePane) {
-        panelActions.close()
-        return
-      }
-      if (returnTarget.panelId) panelActions.requestOpen(returnTarget.panelId)
-    })
-  }, [beginRequest, panelActions, requestFileSelection])
+    // Closing any other file, e.g. one opened from a link in the attachment, just closes its tab.
+    if (returnTarget?.owner && !isSameAcceptedSelection(previewFileSelection, returnTarget.owner)) {
+      requestFileSelection(null, undefined, true)
+      return
+    }
+    requestFileSelection(
+      returnTarget?.selection ?? null,
+      () => {
+        if (returnRef.current !== returnTarget) return
+        returnRef.current = returnTarget?.previous ?? null
+        if (!returnTarget) return
+        if (returnTarget.closePane) {
+          panelActions.close()
+          return
+        }
+        if (returnTarget.panelId) panelActions.requestOpen(returnTarget.panelId)
+      },
+      true
+    )
+  }, [beginRequest, panelActions, previewFileSelection, requestFileSelection])
 
   const invalidatePreviewRequests = useCallback(() => {
     requestRef.current += 1

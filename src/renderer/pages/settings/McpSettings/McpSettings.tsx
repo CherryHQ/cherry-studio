@@ -5,7 +5,7 @@ import React, { useCallback, useEffect, useEffectEvent, useRef, useState } from 
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
-import { Alert, Button, Flex, Form, Scrollbar, SegmentedControl, Switch, Tabs, TabsContent } from '@cherrystudio/ui'
+import { Alert, Button, Flex, Form, ScrollArea, SegmentedControl, Switch, Tabs, TabsContent } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
@@ -681,7 +681,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
               </div>
             </div>
           </div>
-          <Scrollbar className="min-h-0 flex-1 px-6 pt-2 pb-6">
+          <ScrollArea viewportProps={{ className: 'px-6 pt-2 pb-6' }} className="min-h-0 flex-1">
             <div className="mx-auto w-full max-w-3xl">
               {tabs.map((tab) => (
                 <TabsContent key={tab.key} value={tab.key} className="mt-0 min-h-0">
@@ -689,7 +689,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
                 </TabsContent>
               ))}
             </div>
-          </Scrollbar>
+          </ScrollArea>
           {activeTabValue === 'settings' && (
             <div className="flex min-h-14 shrink-0 items-center border-border-subtle border-t px-6">
               <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">

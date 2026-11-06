@@ -35,7 +35,7 @@ function ShortcutRow({ mode }: { mode: 'hold' | 'toggle' }) {
     .set('topic.exists', true)
     .set('input.composing', false)
     .set('webview.focused', false)
-  const pressed = useRef(new Set<string>())
+  const pressed = useRef(new Map<string, string>())
   useEffect(() => {
     if (!recording) return
     const cancel = () => {
@@ -114,17 +114,22 @@ function ShortcutRow({ mode }: { mode: 'hold' | 'toggle' }) {
               return
             }
             if (event.repeat) return
-            pressed.current.add(event.code)
-            setPending([...pressed.current].sort().join('+'))
+            pressed.current.set(event.code, event.key)
+            setPending([...pressed.current.keys()].sort().join('+'))
           }}
           onKeyUp={(event) => {
             if (!recording || !pressed.current.has(event.code)) return
             event.preventDefault()
             event.stopPropagation()
-            const candidate = parseDictationShortcut([...pressed.current].join('+')).join('+')
+            const candidate = parseDictationShortcut([...pressed.current.keys()].join('+')).join('+')
+            const commandConflict = hasDictationCommandConflict(
+              candidate,
+              { preferences, context: commandContext, platform },
+              pressed.current
+            )
             pressed.current.delete(event.code)
             const eventBinding = getShortcutBindingFromKeyboardEvent(event, platform)
-            const lostModifier = getDictationShortcutBinding([...pressed.current].join('+'), platform)
+            const lostModifier = getDictationShortcutBinding([...pressed.current.keys()].join('+'), platform)
               .filter(isShortcutModifier)
               .some((modifier) => !eventBinding.includes(modifier))
             if (!candidate || lostModifier) {
@@ -132,11 +137,6 @@ function ShortcutRow({ mode }: { mode: 'hold' | 'toggle' }) {
               setRecording(false)
               return
             }
-            const commandConflict = hasDictationCommandConflict(candidate, {
-              preferences,
-              context: commandContext,
-              platform
-            })
             const pairConflict =
               mode === 'hold'
                 ? dictationShortcutsConflict(candidate, other)
