@@ -11,6 +11,7 @@ import { BaseService } from '@main/core/lifecycle/BaseService'
 import { createUniqueModelId, ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { isGatewayRoutableModel } from '@shared/utils/model'
 
+import type * as AttachmentRoutingModule from '../messages/attachmentRouting'
 import type * as ImageTransportRegistryModule from '../provider/custom/imageTransportRegistry'
 import type * as ListModelsModule from '../provider/listModels'
 import type { AiStreamRequest } from '../types/requests'
@@ -68,7 +69,7 @@ const mockRegisterBuiltinTools = vi.fn()
 const mockInstallProviderUserAgentInterceptor = vi.fn(() => vi.fn())
 const mockRecordRequest = vi.fn()
 const mockAddFileRefsTx = vi.fn()
-const mockPrepareChatMessages = vi.fn(async (messages: unknown) => messages)
+const mockPrepareChatMessages = vi.fn(async (...args: unknown[]) => args[0])
 
 vi.mock('@application', () => ({
   application: {
@@ -169,7 +170,7 @@ vi.mock('@main/data/services/MessageService', () => ({
 // Keep the real attachment collection but skip real routing/extraction: the read_file
 // gating tests only need `collectFileAttachments` to count served file parts.
 vi.mock('../messages/attachmentRouting', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../messages/attachmentRouting')>()),
+  ...(await importOriginal<typeof AttachmentRoutingModule>()),
   prepareChatMessages: (...args: unknown[]) => mockPrepareChatMessages(...args)
 }))
 
@@ -2005,14 +2006,14 @@ describe('AiService tool approval', () => {
     async function streamedToolNames(request: Record<string, unknown>): Promise<string[]> {
       const service = createService()
       vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue(
-        mockAgentParams((request.params as Record<string, unknown>) ?? {})
+        mockAgentParams(request.params as Record<string, unknown>)
       )
       await service.streamText({
         conversation: { id: 'conversation-1', topicId: 'topic-1' },
         trigger: 'submit-message',
         messages: [fileMessage],
         requestOptions: { signal: new AbortController().signal },
-        ...((request.request as Record<string, unknown>) ?? {})
+        ...(request.request as Record<string, unknown>)
       } as never)
       // Agent.stream builds the AI SDK agent inside its async pump, after streamText returns.
       await vi.waitFor(() => expect(mockCreateAgent).toHaveBeenCalled())
@@ -2033,17 +2034,10 @@ describe('AiService tool approval', () => {
     })
 
     it('keeps read_file when an inline attachment was capped', async () => {
-      mockPrepareChatMessages.mockImplementationOnce(
-        async (
-          messages: unknown,
-          ctx: {
-            onTruncated?: (handle: string) => void
-          }
-        ) => {
-          ctx.onTruncated?.('notes.txt')
-          return messages
-        }
-      )
+      mockPrepareChatMessages.mockImplementationOnce(async (messages, ctx) => {
+        ;(ctx as { onTruncated?: (handle: string) => void }).onTruncated?.('notes.txt')
+        return messages
+      })
       const names = await streamedToolNames({ params: { inLoopCompactionActive: false } })
       expect(names).toContain('read_file')
     })
