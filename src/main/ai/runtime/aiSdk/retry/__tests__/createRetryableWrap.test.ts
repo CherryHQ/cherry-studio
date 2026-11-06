@@ -386,11 +386,11 @@ describe('createRetryableWrap', () => {
     }
   })
 
-  it('does not retry a doStream error after content has already been emitted', async () => {
+  it('does not retry a doStream error after non-resumable content has been emitted', async () => {
     const streamError = makeApiError(429)
     const doStream = vi.fn().mockResolvedValue(
       streamResult([
-        { type: 'text-delta', id: 'text', delta: 'partial' },
+        { type: 'tool-input-start', id: 'call', toolName: 'search' },
         { type: 'error', error: streamError }
       ])
     )
@@ -405,7 +405,7 @@ describe('createRetryableWrap', () => {
 
     expect(doStream).toHaveBeenCalledOnce()
     expect(parts).toEqual([
-      expect.objectContaining({ type: 'text-delta', delta: 'partial' }),
+      expect.objectContaining({ type: 'tool-input-start' }),
       { type: 'error', error: streamError }
     ])
   })
