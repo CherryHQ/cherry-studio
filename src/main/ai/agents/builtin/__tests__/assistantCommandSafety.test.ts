@@ -28,6 +28,7 @@ describe('detectDestructiveAssistantCommand', () => {
     ['git --work-tree . reset --hard', 'discarding version-control data'],
     ['sqlite3 app.db "DROP TABLE users"', 'destructive database operation'],
     ['printf text > "$(rm -f victim; printf note)"', 'permanent file deletion'],
+    ['> "$(rm -f victim; printf note)"', 'permanent file deletion'],
     ['x=$(rm -f victim)', 'permanent file deletion'],
     ['seed=$(rm -f victim); echo done', 'permanent file deletion'],
     ['terraform destroy -auto-approve', 'destructive infrastructure operation'],
@@ -199,6 +200,13 @@ describe('detectDestructiveAssistantCommand heredocs', () => {
     expect(detectDestructiveAssistantCommand('cat > note <<EOF\n${payload:-$(rm -f victim)}\nEOF')).toBe(
       'permanent file deletion'
     )
+    // Quotes and `#` are literal text in a heredoc body, so neither suppresses the expansion.
+    expect(detectDestructiveAssistantCommand("cat > note <<EOF\n'$(rm -f victim)'\nEOF")).toBe(
+      'permanent file deletion'
+    )
+    expect(detectDestructiveAssistantCommand('cat > note <<EOF\n# $(rm -f victim)\nEOF')).toBe(
+      'permanent file deletion'
+    )
   })
 
   it('leaves a quoted-delimiter heredoc and literal prose inert', () => {
@@ -267,6 +275,13 @@ describe('detectDestructiveAssistantCommand scripts', () => {
       'scripted permanent file deletion'
     )
     expect(detectDestructiveAssistantCommand('node -e \'const o={v:`${fs.rmdirSync("x")}`}; console.log(o)\'')).toBe(
+      'scripted permanent file deletion'
+    )
+    // A brace inside a comment does not close the interpolation.
+    expect(detectDestructiveAssistantCommand('node -e \'console.log(`${/* } */ fs.unlinkSync("victim")}`)\'')).toBe(
+      'scripted permanent file deletion'
+    )
+    expect(detectDestructiveAssistantCommand('node -e \'console.log(`${ // }\n fs.unlinkSync("victim")}`)\'')).toBe(
       'scripted permanent file deletion'
     )
   })

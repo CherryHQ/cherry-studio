@@ -268,6 +268,17 @@ function findTemplateExpressionEnd(code: string, braceStart: number): number {
       index = stripTemplateLiteral(code, index).end
       continue
     }
+    // A brace inside a comment is not a brace: `${/* } */ fs.unlinkSync(f)}` ends at the real close.
+    if (char === '/' && code[index + 1] === '/') {
+      const newline = code.indexOf('\n', index)
+      index = newline === -1 ? code.length : newline + 1
+      continue
+    }
+    if (char === '/' && code[index + 1] === '*') {
+      const close = code.indexOf('*/', index + 2)
+      index = close === -1 ? code.length : close + 2
+      continue
+    }
     if (char === '{') depth++
     if (char === '}') {
       depth--
@@ -543,10 +554,71 @@ function readsStandardInput(name: string, args: readonly string[]): boolean {
   return true
 }
 
-/** `$(…)` and backtick expansions an unquoted heredoc evaluates before its consumer reads it. */
+/**
+ * `$(…)` and backtick expansions an unquoted heredoc evaluates before its consumer reads it. In a
+ * heredoc body quotes and `#` are literal text, so `'$(rm -f victim)'` and `# $(rm -f victim)` still
+ * execute; the raw scan catches those, and the parser's own substitutions resolve the nesting.
+ */
 function heredocExpansions(body: string): string[] {
   const { pipelines } = parseShellCommand(body)
-  return pipelines.flatMap((pipeline) => pipeline.commands.flatMap((command) => command.substitutions))
+  const parsed = pipelines.flatMap((pipeline) => pipeline.commands.flatMap((command) => command.substitutions))
+  return [...new Set([...parsed, ...rawHeredocExpansions(body)])]
+}
+
+function rawHeredocExpansions(body: string): string[] {
+  const expansions: string[] = []
+  let index = 0
+  while (index < body.length) {
+    const char = body[index]
+    if (char === '\\') {
+      index += 2
+      continue
+    }
+    if (char === '$' && body[index + 1] === '(') {
+      const end = findSubstitutionEnd(body, index + 1)
+      expansions.push(body.slice(index + 2, end === -1 ? body.length : end))
+      index = end === -1 ? body.length : end + 1
+      continue
+    }
+    if (char === '`') {
+      const close = body.indexOf('`', index + 1)
+      expansions.push(body.slice(index + 1, close === -1 ? body.length : close))
+      index = close === -1 ? body.length : close + 1
+      continue
+    }
+    index++
+  }
+  return expansions
+}
+
+/** Index of the `)` closing a `$(`: parens nest, and the text inside the substitution still quotes. */
+function findSubstitutionEnd(text: string, parenIndex: number): number {
+  let depth = 0
+  let index = parenIndex
+  while (index < text.length) {
+    const char = text[index]
+    if (char === '\\') {
+      index += 2
+      continue
+    }
+    if (char === "'" || char === '"') {
+      const close = findClosingQuote(text, index + 1, char)
+      index = close === -1 ? text.length : close + 1
+      continue
+    }
+    if (char === '`') {
+      const close = text.indexOf('`', index + 1)
+      index = close === -1 ? text.length : close + 1
+      continue
+    }
+    if (char === '(') depth++
+    if (char === ')') {
+      depth--
+      if (depth === 0) return index
+    }
+    index++
+  }
+  return -1
 }
 
 function reasonForHeredoc(heredoc: ShellHeredoc, depth: number): string | undefined {

@@ -352,12 +352,11 @@ function parseCommands(text: string): ShellPipeline[] {
   let redirection: string | undefined
 
   const flushCommand = () => {
-    if (words.length > 0) {
-      const resolved = resolveCommand(words)
-      if (resolved) commands.push({ ...resolved, substitutions })
-      // `x=$(rm -f a)` runs its substitution without ever resolving a command word.
-      else if (substitutions.length > 0) commands.push({ command: '', args: [], substitutions })
-    }
+    const resolved = words.length > 0 ? resolveCommand(words) : undefined
+    // `x=$(rm -f a)` and a bare `> "$(rm -f a)"` run their substitution without ever resolving a
+    // command word, so retained substitutions outlive the words they were collected with.
+    if (resolved) commands.push({ ...resolved, substitutions })
+    else if (substitutions.length > 0) commands.push({ command: '', args: [], substitutions })
     words = []
     substitutions = []
   }
