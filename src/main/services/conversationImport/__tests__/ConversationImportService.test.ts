@@ -167,7 +167,9 @@ describe('local history atomic import', () => {
     const created = outcomes.find((outcome) => outcome.status === 'imported')!
     expect(created.initialization).toBe('ready')
     const stored = agentSessionMessageService.listSessionMessages(created.sessionId!).items.reverse()
-    expect(stored.map((row) => row.provenance?.originalMessageId)).toEqual(rows.map((row) => row.id))
+    expect(stored.map((row) => row.provenance)).toEqual(
+      rows.map((_, sourceOrder) => ({ source: 'workbuddy', sourceOrder }))
+    )
     expect(stored.map((row) => Date.parse(row.createdAt))).toEqual(rows.map((row) => row.timestamp))
     expect(stored.at(-1)?.messageSnapshot?.model).toEqual({
       id: 'actual-history-model',
@@ -200,10 +202,10 @@ describe('local history atomic import', () => {
     try {
       const history = restored
         .prepare(
-          "SELECT provenance, created_at FROM agent_session_message WHERE session_id = ? ORDER BY json_extract(provenance, '$.sourceOrder')"
+          "SELECT s.value AS provenance, m.created_at FROM agent_session_message m JOIN app_state s ON s.key = 'conversation-import:message:' || m.session_id || ':' || m.id WHERE m.session_id = ? ORDER BY json_extract(s.value, '$.sourceOrder')"
         )
         .all(created.sessionId!) as { provenance: string; created_at: number }[]
-      expect(history.map((row) => JSON.parse(row.provenance).originalMessageId)).toEqual(rows.map((row) => row.id))
+      expect(history.map((row) => JSON.parse(row.provenance).sourceOrder)).toEqual(rows.map((_, index) => index))
       expect(history.map((row) => row.created_at)).toEqual(rows.map((row) => row.timestamp))
     } finally {
       restored.close()
