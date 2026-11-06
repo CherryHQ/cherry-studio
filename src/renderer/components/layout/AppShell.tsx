@@ -226,6 +226,7 @@ const AppShellContent = () => {
   if (!isMac && !hasLeadingWindowControls) {
     return (
       <div
+        data-ui="app.shell"
         className={cn(
           'flex h-screen w-screen flex-row overflow-hidden text-foreground',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
@@ -238,6 +239,7 @@ const AppShellContent = () => {
 
   return (
     <div
+      data-ui="app.shell"
       className={cn(
         'relative flex h-screen w-screen flex-row overflow-hidden text-foreground',
         isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
