@@ -6130,7 +6130,6 @@ describe('ChatComposer', () => {
     })
 
     it("keeps a parked draft's pending knowledge scope when saving during a history preview", async () => {
-      const knowledgeBase = { id: 'kb-1', name: 'Knowledge One', documentCount: 1 } as KnowledgeBase
       mocks.assistant = {
         ...mocks.assistant,
         knowledgeBaseIds: ['kb-1']
