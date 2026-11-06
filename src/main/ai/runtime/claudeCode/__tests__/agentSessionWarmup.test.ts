@@ -399,6 +399,266 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(request?.settings.env).not.toHaveProperty('ENABLE_TOOL_SEARCH')
   })
 
+  describe('ToolSearch effective model slots', () => {
+    beforeEach(() => {
+      mocks.buildSessionSettings.mockResolvedValue({ env: { ENABLE_TOOL_SEARCH: 'auto' } })
+      mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+        id: modelId,
+        apiModelId: modelId === 'model-1' ? 'claude-sonnet-4-5' : 'kimi-for-coding',
+        contextWindow: 128_000
+      }))
+    })
+
+    it('strips ToolSearch for an incompatible effective small model on the direct route', async () => {
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'provider-1::model-1',
+        smallModel: 'provider-1::model-2'
+      })
+
+      const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+      expect(request).toBeDefined()
+      if (!request) throw new Error('expected request')
+      for (const env of [request.settings.env, request.options.env]) {
+        expect(env).toMatchObject({
+          ANTHROPIC_BASE_URL: 'https://anthropic.example.com',
+          ANTHROPIC_MODEL: 'claude-sonnet-4-5',
+          ANTHROPIC_DEFAULT_SONNET_MODEL: 'claude-sonnet-4-5',
+          ANTHROPIC_DEFAULT_HAIKU_MODEL: 'kimi-for-coding'
+        })
+        expect(env).not.toHaveProperty('ENABLE_TOOL_SEARCH')
+        expect(env).not.toHaveProperty('CLAUDE_CODE_SUBAGENT_MODEL')
+      }
+    })
+
+    it('strips ToolSearch for an incompatible effective plan model on the direct route', async () => {
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'provider-1::model-1',
+        planModel: 'provider-1::model-2'
+      })
+
+      const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+      expect(request).toBeDefined()
+      if (!request) throw new Error('expected request')
+      for (const env of [request.settings.env, request.options.env]) {
+        expect(env).toMatchObject({
+          ANTHROPIC_BASE_URL: 'https://anthropic.example.com',
+          ANTHROPIC_MODEL: 'claude-sonnet-4-5',
+          ANTHROPIC_DEFAULT_SONNET_MODEL: 'kimi-for-coding',
+          ANTHROPIC_DEFAULT_HAIKU_MODEL: 'claude-sonnet-4-5'
+        })
+        expect(env).not.toHaveProperty('ENABLE_TOOL_SEARCH')
+        expect(env).not.toHaveProperty('CLAUDE_CODE_SUBAGENT_MODEL')
+      }
+    })
+
+    it('keeps ToolSearch when all effective slots are compatible', async () => {
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'provider-1::model-1',
+        planModel: 'provider-1::model-2',
+        smallModel: 'provider-1::model-3'
+      })
+      mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+        id: modelId,
+        apiModelId: modelId === 'model-1' ? 'claude-sonnet-4-5' : modelId === 'model-2' ? 'kimi-k3' : 'gpt-5',
+        contextWindow: 128_000
+      }))
+
+      const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+      expect(request).toBeDefined()
+      if (!request) throw new Error('expected request')
+      for (const env of [request.settings.env, request.options.env]) {
+        expect(env).toMatchObject({
+          ANTHROPIC_MODEL: 'claude-sonnet-4-5',
+          ANTHROPIC_DEFAULT_SONNET_MODEL: 'kimi-k3',
+          ANTHROPIC_DEFAULT_HAIKU_MODEL: 'gpt-5',
+          ENABLE_TOOL_SEARCH: 'auto'
+        })
+      }
+    })
+
+    it.each([undefined, null])(
+      'keeps ToolSearch when unset plan and small slots fall back to primary',
+      async (unset) => {
+        mocks.getAgent.mockReturnValue({
+          id: 'agent-1',
+          model: 'provider-1::model-1',
+          planModel: unset,
+          smallModel: unset
+        })
+
+        const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+        expect(request).toBeDefined()
+        if (!request) throw new Error('expected request')
+        for (const env of [request.settings.env, request.options.env]) {
+          expect(env).toMatchObject({
+            ANTHROPIC_MODEL: 'claude-sonnet-4-5',
+            ANTHROPIC_DEFAULT_OPUS_MODEL: 'claude-sonnet-4-5',
+            ANTHROPIC_DEFAULT_SONNET_MODEL: 'claude-sonnet-4-5',
+            ANTHROPIC_DEFAULT_HAIKU_MODEL: 'claude-sonnet-4-5',
+            ENABLE_TOOL_SEARCH: 'auto'
+          })
+        }
+      }
+    )
+
+    it('ignores incompatible off-provider slots pinned away by external-cli', async () => {
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'claude-code::model-1',
+        planModel: 'provider-1::model-2',
+        smallModel: 'provider-2::model-3'
+      })
+      mocks.getProviderByProviderId.mockImplementation((providerId: string) => ({
+        id: providerId,
+        ...(providerId === 'claude-code' ? { authMethods: ['external-cli'] } : {}),
+        endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } }
+      }))
+
+      const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+      expect(request).toBeDefined()
+      if (!request) throw new Error('expected request')
+      expect(request.usageCapture).toMatchObject({
+        owner: 'agent-sdk',
+        credentialReceipt: { attribution: 'auth', method: 'external-cli' }
+      })
+      for (const env of [request.settings.env, request.options.env]) {
+        expect(env).toMatchObject({
+          ANTHROPIC_MODEL: 'claude-sonnet-4-5',
+          ANTHROPIC_DEFAULT_OPUS_MODEL: 'claude-sonnet-4-5',
+          ANTHROPIC_DEFAULT_SONNET_MODEL: 'claude-sonnet-4-5',
+          ANTHROPIC_DEFAULT_HAIKU_MODEL: 'claude-sonnet-4-5',
+          ENABLE_TOOL_SEARCH: 'auto'
+        })
+        expect(env).not.toHaveProperty('ANTHROPIC_BASE_URL')
+        expect(env).not.toHaveProperty('ANTHROPIC_API_KEY')
+      }
+    })
+
+    it('checks same-provider external-cli slots that remain effective', async () => {
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'claude-code::model-1',
+        smallModel: 'claude-code::model-2'
+      })
+      mocks.getProviderByProviderId.mockReturnValue({
+        id: 'claude-code',
+        authMethods: ['external-cli'],
+        endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } }
+      })
+
+      const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+      expect(request).toBeDefined()
+      if (!request) throw new Error('expected request')
+      expect(request.usageCapture).toMatchObject({
+        owner: 'agent-sdk',
+        credentialReceipt: { attribution: 'auth', method: 'external-cli' }
+      })
+      for (const env of [request.settings.env, request.options.env]) {
+        expect(env).toMatchObject({
+          ANTHROPIC_MODEL: 'claude-sonnet-4-5',
+          ANTHROPIC_DEFAULT_SONNET_MODEL: 'claude-sonnet-4-5',
+          ANTHROPIC_DEFAULT_HAIKU_MODEL: 'kimi-for-coding'
+        })
+        expect(env).not.toHaveProperty('ENABLE_TOOL_SEARCH')
+        expect(env).not.toHaveProperty('ANTHROPIC_BASE_URL')
+      }
+    })
+
+    it('strips ToolSearch for an incompatible gateway small slot despite the subagent default', async () => {
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'provider-1::model-1',
+        smallModel: 'provider-2::model-2'
+      })
+      mocks.getProviderByProviderId.mockImplementation((providerId: string) => ({
+        id: providerId,
+        endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com' } }
+      }))
+
+      const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+      expect(request).toBeDefined()
+      if (!request) throw new Error('expected request')
+      for (const env of [request.settings.env, request.options.env]) {
+        expect(env).toMatchObject({
+          ANTHROPIC_BASE_URL: 'http://127.0.0.1:23333',
+          ANTHROPIC_MODEL: 'provider-1:claude-sonnet-4-5',
+          ANTHROPIC_DEFAULT_HAIKU_MODEL: 'provider-2:kimi-for-coding',
+          CLAUDE_CODE_SUBAGENT_MODEL: 'provider-1:claude-sonnet-4-5'
+        })
+        expect(env).not.toHaveProperty('CLAUDE_CODE_SUBAGENT_MODEL_FORCE')
+        expect(env).not.toHaveProperty('ENABLE_TOOL_SEARCH')
+      }
+    })
+
+    it('keeps ToolSearch when a captured primary pins away incompatible edited slots', async () => {
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'provider-1::model-2',
+        planModel: 'provider-1::model-2',
+        smallModel: 'provider-1::model-3'
+      })
+
+      const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, 'provider-1::model-1')
+
+      expect(request).toBeDefined()
+      if (!request) throw new Error('expected request')
+      for (const env of [request.settings.env, request.options.env]) {
+        expect(env).toMatchObject({
+          ANTHROPIC_BASE_URL: 'https://anthropic.example.com',
+          ANTHROPIC_MODEL: 'claude-sonnet-4-5',
+          ANTHROPIC_DEFAULT_OPUS_MODEL: 'claude-sonnet-4-5',
+          ANTHROPIC_DEFAULT_SONNET_MODEL: 'claude-sonnet-4-5',
+          ANTHROPIC_DEFAULT_HAIKU_MODEL: 'claude-sonnet-4-5',
+          ENABLE_TOOL_SEARCH: 'auto'
+        })
+      }
+    })
+
+    it('keeps ToolSearch for an unknown local model in a gateway tier', async () => {
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'provider-1::model-1',
+        smallModel: 'custom-local::model-2'
+      })
+      mocks.getProviderByProviderId.mockImplementation((providerId: string) => ({
+        id: providerId,
+        endpointConfigs: {
+          'anthropic-messages': {
+            baseUrl: providerId === 'custom-local' ? 'http://localhost:8000' : 'https://anthropic.example.com'
+          }
+        }
+      }))
+      mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+        id: modelId,
+        apiModelId: modelId === 'model-1' ? 'claude-sonnet-4-5' : 'local-model-x',
+        contextWindow: 128_000
+      }))
+
+      const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+      expect(request).toBeDefined()
+      if (!request) throw new Error('expected request')
+      for (const env of [request.settings.env, request.options.env]) {
+        expect(env).toMatchObject({
+          ANTHROPIC_BASE_URL: 'http://127.0.0.1:23333',
+          ANTHROPIC_MODEL: 'provider-1:claude-sonnet-4-5',
+          ANTHROPIC_DEFAULT_HAIKU_MODEL: 'custom-local:local-model-x',
+          ENABLE_TOOL_SEARCH: 'auto'
+        })
+      }
+    })
+  })
+
   it('captures the baseline from the same agent snapshot that materializes the request', async () => {
     const materializedAgent = {
       id: 'agent-1',
