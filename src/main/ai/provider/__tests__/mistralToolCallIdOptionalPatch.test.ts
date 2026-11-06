@@ -1,6 +1,14 @@
 import { createMistral } from '@ai-sdk/mistral'
 import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
-import { streamText, tool, type TextStreamPart, type ToolSet } from 'ai'
+import {
+  convertToModelMessages,
+  readUIMessageStream,
+  streamText,
+  tool,
+  type TextStreamPart,
+  type ToolSet,
+  type UIMessage
+} from 'ai'
 import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
@@ -55,7 +63,7 @@ function assertStable(parts: LanguageModelV3StreamPart[], input: string, name = 
   expect(id.length).toBeGreaterThan(0)
   expect(result[0]).toEqual({ type: 'tool-call', toolCallId: id, toolName: name, input })
   expect(parts.filter((part) => part.type === 'tool-input-start')).toEqual([
-    expect.objectContaining({ type: 'tool-input-start', id })
+    expect.objectContaining({ type: 'tool-input-start', id, toolName: name })
   ])
   expect(parts.filter((part) => part.type === 'tool-input-end')).toEqual([{ type: 'tool-input-end', id }])
   const deltas = parts.filter((part) => part.type === 'tool-input-delta')
@@ -69,6 +77,50 @@ describe('Mistral tool-call delta patch', () => {
     expect(rejected).toBeUndefined()
     expect(parts.filter((part) => part.type === 'error')).toEqual([])
     assertStable(parts, '{"query": "cherry"}')
+  })
+
+  it('rejects an empty name that never becomes known', async () => {
+    const { parts, rejected } = await read([delta({ id: 'a', function: { name: '', arguments: '{}' } })])
+    expect(rejected).toMatchObject({
+      name: 'AI_InvalidResponseDataError',
+      message: "Expected 'function.name' to be a string."
+    })
+    expect(parts.filter((part) => part.type === 'tool-input-start' || part.type === 'tool-call')).toEqual([])
+  })
+
+  it('keeps the tool name and id through the UI message history round trip', async () => {
+    const result = streamText({
+      model: model(reported),
+      prompt: 'lookup',
+      tools: { lookup: tool({ inputSchema: z.object({ query: z.string() }), execute: async (value) => value }) }
+    })
+    let message: UIMessage | undefined
+    for await (const current of readUIMessageStream({ stream: result.toUIMessageStream() })) message = current
+    expect(message).toBeDefined()
+    expect(message!.parts.map((part) => part.type)).not.toContain('tool-')
+    const history = await convertToModelMessages([message!])
+    const assistant = history.find((item) => item.role === 'assistant')
+    const toolMessage = history.find((item) => item.role === 'tool')
+    const call =
+      typeof assistant?.content === 'string' ? undefined : assistant?.content.find((part) => part.type === 'tool-call')
+    const output = toolMessage?.content.find((part) => part.type === 'tool-result')
+    expect(call).toMatchObject({ toolName: 'lookup', toolCallId: expect.any(String) })
+    expect(call?.toolCallId).not.toBe('')
+    expect(output).toMatchObject({ toolName: 'lookup', toolCallId: call?.toolCallId })
+  })
+
+  it('keeps index-less pending wire ids separate', async () => {
+    const { parts, rejected } = await read([
+      delta({ id: 'a', function: { arguments: '{"query":"' } }),
+      delta({ id: 'b', function: { arguments: '{"query":"' } }),
+      delta({ id: 'a', function: { name: 'lookup', arguments: 'one"}' } }),
+      delta({ id: 'b', function: { name: 'lookup', arguments: 'two"}' } })
+    ])
+    expect(rejected).toBeUndefined()
+    expect(calls(parts)).toEqual([
+      { type: 'tool-call', toolCallId: 'a', toolName: 'lookup', input: '{"query":"one"}' },
+      { type: 'tool-call', toolCallId: 'b', toolName: 'lookup', input: '{"query":"two"}' }
+    ])
   })
 
   it('buffers index-only skeletons and early arguments', async () => {

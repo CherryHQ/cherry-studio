@@ -12,7 +12,7 @@ In `@ai-sdk/mistral@3.0.30`, `mistralChatChunkSchema` requires both `tool_calls[
 
 The vendored patch at `patches/@ai-sdk__mistral@3.0.30.patch` makes streaming `index`, `id`, `function.name`, and `function.arguments` nullish. The `function` object itself becomes `.optional()`; explicit `null` remains invalid.
 
-Instead of emitting start/delta/end/call directly for each delta, the adapter accumulates fragments by index → id → latest call. On the first fragment with a string name, it fixes the public ID once, using the provider's `id` or `generateId()`. A real ID arriving later becomes an alias and never replaces the public ID.
+Instead of emitting start/delta/end/call directly for each delta, the adapter accumulates fragments by index → id → latest call. A fragment without a non-empty name is buffered with its arguments and its index/id keys, so a skeleton that only announces a call emits neither events nor errors. On the first fragment with a non-empty name, the adapter fixes the public ID once, using the provider's `id` or `generateId()`. A real ID arriving later becomes an alias and never replaces the public ID.
 
 At `flush`, the adapter checks all unresolved skeletons first and throws `InvalidResponseDataError: Expected 'function.name' to be a string.` before emitting any final `tool-call`. The patch registration records removal only when an upstream version tolerates first fragments without an ID and all repository regression cases pass without the patch.
 
@@ -26,13 +26,13 @@ At `flush`, the adapter checks all unresolved skeletons first and throws `Invali
 
 Final `tool-input-end` and `tool-call` parts are emitted at the end of the stream. This changes tool execution timing and their order relative to text/reasoning/raw parts. Empty arguments no longer produce empty `tool-input-delta` parts.
 
-If the provider never supplies a non-empty name, the tool name remains an empty string and execution fails because that tool cannot be found. This repair only guarantees that a missing `id` no longer discards the entire turn. A synthesized ID is a client correlation identifier; whether the provider accepts it in the next turn requires verification on a real provider connection.
+An empty `function.name` is treated as not yet known instead of as a name: a provider that only ever sends an empty name now fails with `Expected 'function.name' to be a string.` rather than producing a tool call whose name is the empty string. The latter would persist into the UI message and convert back to model history as an empty `toolName`, which the SDK renders as the bare `tool-` prefix.
 
 ## Verification
 
-The following checks passed in the preceding implementation round; they are recorded here without rerunning them for this documentation-only follow-up.
+The following checks passed in the implementation round; the review-feedback round re-ran them for the empty-name and index-less correlation changes.
 
-- Regression — `node node_modules/vitest/vitest.mjs run --project main src/main/ai/provider/__tests__/mistralToolCallIdOptionalPatch.test.ts src/main/ai/provider/__tests__/openaiCompatibleToolCallSkeletonPatch.test.ts`: exit 0; both files passed, 40 tests in total. The 11 new cases cover the reported payload, skeletons, missing IDs, native single-chunk deep equality, unresolved skeletons, withholding completed calls until skeleton validation, interleaved indexes, invalid `function`, `streamText` + `execute` pairing, and plain text.
+- Regression — `node node_modules/vitest/vitest.mjs run --project main src/main/ai/provider/__tests__/mistralToolCallIdOptionalPatch.test.ts src/main/ai/provider/__tests__/openaiCompatibleToolCallSkeletonPatch.test.ts`: exit 0; both files passed, 43 tests in total. The cases cover the reported payload, skeletons, missing IDs, native single-chunk deep equality, unresolved skeletons, withholding completed calls until skeleton validation, interleaved indexes, index-less calls with distinct wire IDs, an empty name that never resolves, invalid `function`, `streamText` + `execute` pairing, the `readUIMessageStream` → `convertToModelMessages` round trip, and plain text.
 - Regression — `node node_modules/oxlint/bin/oxlint --deny-warnings src/main/ai/provider/__tests__/mistralToolCallIdOptionalPatch.test.ts`: exit 0.
 - Regression — `node node_modules/oxfmt/bin/oxfmt --check src/main/ai/provider/__tests__/mistralToolCallIdOptionalPatch.test.ts`: exit 0.
 - Regression — `NODE_OPTIONS=--max-old-space-size=16384 node node_modules/typescript/bin/tsc --noEmit -p tsconfig.node.json --composite false`: exit 0.
