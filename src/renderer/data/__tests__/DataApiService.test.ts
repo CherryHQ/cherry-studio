@@ -50,6 +50,14 @@ async function createService(options: { capturePayloads?: boolean } = {}) {
 }
 
 describe('DataApiService devtools instrumentation', () => {
+  it('forwards optional DELETE bodies into production IPC (inv_50d805382a991607)', async () => {
+    const service = await createService()
+    request.mockImplementationOnce(async (req) => ({ id: req.id, status: 200, data: undefined }))
+    const body = { transferHeldId: '11111111-1111-7111-8111-111111111111' }
+    await service.delete('/followup-queues/22222222-2222-7222-8222-222222222222', { body })
+    expect(request).toHaveBeenCalledWith(expect.objectContaining({ method: 'DELETE', body }))
+  })
+
   it('records a successful request with truncated request and response previews', async () => {
     const service = await createService({ capturePayloads: true })
     expect(window.__CHERRY_DATA_API_DEVTOOLS__).toBeDefined()

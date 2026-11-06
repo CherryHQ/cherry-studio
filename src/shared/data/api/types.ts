@@ -403,7 +403,7 @@ export type ApiQuery<TPath extends ApiPaths, TMethod extends string> = TPath ext
  */
 export type ApiBody<TPath extends ApiPaths, TMethod extends string> = TPath extends keyof ApiSchemas
   ? TMethod extends keyof ApiSchemas[TPath]
-    ? ApiSchemas[TPath][TMethod] extends { body: infer B }
+    ? ApiSchemas[TPath][TMethod] extends { body?: infer B }
       ? B
       : never
     : never
@@ -444,6 +444,7 @@ export interface ApiClient {
   delete<TPath extends ConcreteApiPaths>(
     path: TPath,
     options?: {
+      body?: BodyForPath<TPath, 'DELETE'>
       query?: QueryParamsForPath<TPath, 'DELETE'>
       headers?: Record<string, string>
     }

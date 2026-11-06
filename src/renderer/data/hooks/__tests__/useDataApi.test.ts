@@ -1711,6 +1711,20 @@ describe('useMutation trigger identity & option freshness', () => {
     expect(result.current.trigger).toBe(first)
   })
 
+  it('forwards an edit-transfer DELETE body through the real mutation fetcher (inv_50d805382a991607)', async () => {
+    const remove = vi.spyOn(dataApiService, 'delete').mockResolvedValue(undefined)
+    const { Wrapper } = makeWrapper()
+    const { result } = renderHook(() => useMutation('DELETE', '/followup-queues/:id'), { wrapper: Wrapper })
+    const body = { transferHeldId: '11111111-1111-7111-8111-111111111111' }
+    await act(async () => {
+      await result.current.trigger({ params: { id: '22222222-2222-7222-8222-222222222222' }, body })
+    })
+    expect(remove).toHaveBeenCalledWith(
+      '/followup-queues/22222222-2222-7222-8222-222222222222',
+      expect.objectContaining({ body })
+    )
+  })
+
   it('keeps each concurrent template mutation bound to its own request outcome', async () => {
     const firstError = new Error('session-1 delete failed')
     const onError = vi.fn()
