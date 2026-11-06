@@ -384,6 +384,23 @@ describe('splitMarkdownChunks', () => {
     expect(performance.now() - started).toBeLessThan(500)
   })
 
+  it('reads the markers of a container prefix without rescanning its whitespace', () => {
+    // The prefix's markers were read with an unanchored matcher whose whitespace prefix let it
+    // restart inside the separators: every position of a run retried the whole remaining run, so
+    // the scan cost the run's length squared — 80,000 spaces behind a marker blocked the renderer
+    // for seconds inside the one synchronous pass, before the long-line fallback could take over.
+    const content = '- ' + ' '.repeat(80_000) + 'text'
+
+    const started = performance.now()
+    const window = splitMarkdownChunks(content)
+    const elapsed = performance.now() - started
+
+    expect(elapsed).toBeLessThan(500)
+    expect(window.longLines).toBe(true)
+    expect(window.chunks).toHaveLength(1)
+    expect(window.chunks[0].text).toBe(content)
+  })
+
   it('pairs emphasis markers without walking the openers of the other marker', () => {
     // 64,000 `*a ` openers followed by 64,000 `a_ ` closers pass both fallback guards. Every closer
     // searched the whole opener stack for a partner of its own marker and found none, so the scan
@@ -1673,6 +1690,22 @@ describe('splitMarkdownChunks', () => {
     expect(chunks).toHaveLength(1)
     expect(resolvedReferenceUrls(content)).toEqual(resolved)
     expect(chunks.flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(resolved)
+  })
+
+  it('keeps a quoted item’s paragraph across a continuation indented into it', () => {
+    // The indented `- a` is four columns, which is code at the document level, and code cannot
+    // interrupt a paragraph: it is a lazy line of the quoted item's paragraph, so the definition
+    // shape below it is that paragraph's prose. Reading its column as a container of its own
+    // replaced the paragraph's ownership and hoisted `/first` above the document's real definition.
+    const content = ['> - a', '    - a', '> [ref]: /first', '', '[ref]: /last', '', 'see [ref]'].join('\n')
+
+    const chunks = chunksOf(content)
+
+    expect(chunks).toHaveLength(1)
+    expect(referenceTarget(content, 'ref')).toBe('/last')
+    expect(referenceTarget(joined(chunks), 'ref')).toBe('/last')
+    // A windowed copy resolves the same: the carried prefix holds the document's real definition only.
+    for (const chunk of chunksOf(content, 1)) expect(referenceTarget(chunk.text, 'ref')).toBe('/last')
   })
 
   it('keeps a standalone setext underline paragraph text instead of completing a heading', () => {

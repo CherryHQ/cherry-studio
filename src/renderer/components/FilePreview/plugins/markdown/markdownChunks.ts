@@ -847,9 +847,14 @@ const PARAGRAPH_INTERRUPTING_LIST_MARKER = /^ {0,3}(?:[-+*]|1[.)])[ \t]+\S/
  */
 const SETEXT_UNDERLINE = /^ {0,3}(?:=+|-+)[ \t]*$/
 
-/** The markers a container prefix is built from, in the order the parser meets them. */
+/**
+ * The markers a container prefix is built from, in the order the parser meets them. The whitespace
+ * between them is left to the scan: matching a separator run ahead of every marker made the
+ * unanchored matcher retry the whole remaining run at each of its positions, which is the run's
+ * length squared — a marker followed by 80,000 spaces blocked the renderer for seconds.
+ */
 function containerMarkers(container: string): string[] {
-  return [...container.matchAll(/[ \t]*(>|\d{1,9}[.)]|[-+*])/g)].map((match) => match[1])
+  return [...container.matchAll(/(>|\d{1,9}[.)]|[-+*])/g)].map((match) => match[1])
 }
 
 /**
@@ -3130,8 +3135,13 @@ export function splitMarkdownChunks(
     // A footnote definition interrupts a paragraph, so a container that merely repeats the quote
     // the paragraph sits behind leaves it standing — `> para` then `> [^n]: note` is a quoted
     // paragraph and a note. A list marker that cannot interrupt the paragraph is different: it is
-    // not consumed, so `2) [^r]: right` below a bare paragraph is that paragraph's text.
-    const opensBlock = container !== null && containerOpensBlock(container[0], paragraphContainer ?? '', listContinued)
+    // not consumed, so `2) [^r]: right` below a bare paragraph is that paragraph's text. A container
+    // the indent turns into code is no container at all, and code cannot interrupt a paragraph: the
+    // line is that paragraph's lazy continuation and keeps the container the paragraph sits in.
+    const opensBlock =
+      container !== null &&
+      !(previousStatus === 'paragraph' && containerStartsInCode) &&
+      containerOpensBlock(container[0], paragraphContainer ?? '', listContinued)
     // A note indented into the open item is measured from the item's content column, the way the
     // parser reads it — its absolute four columns are the item's content, not indented code.
     const footnoteSource = itemSource ?? uncontained
