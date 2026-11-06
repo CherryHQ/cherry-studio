@@ -40,6 +40,13 @@ import { DataApiDevtools } from './utils/dataApiDevtools'
 
 const logger = loggerService.withContext('DataApiService')
 const REQUEST_TIMEOUT_MS = 3000
+const AGENT_SESSION_MESSAGES_TIMEOUT_MS = 30000
+const AGENT_SESSION_MESSAGES_PATH = /^\/agent-sessions\/[^/]+\/messages$/
+
+/** Long agent sessions need more than the default budget to assemble message history. */
+function getRequestTimeoutMs(path: string): number {
+  return AGENT_SESSION_MESSAGES_PATH.test(path) ? AGENT_SESSION_MESSAGES_TIMEOUT_MS : REQUEST_TIMEOUT_MS
+}
 
 /**
  * Retry options interface.
@@ -141,7 +148,8 @@ export class DataApiService implements ApiClient {
     try {
       logger.debug(`Making ${request.method} request to ${request.path}`, { request })
 
-      const timeoutMs = readDeadline === undefined ? REQUEST_TIMEOUT_MS : Math.max(0, readDeadline - Date.now())
+      const timeoutMs =
+        readDeadline === undefined ? getRequestTimeoutMs(request.path) : Math.max(0, readDeadline - Date.now())
       if (timeoutMs === 0) {
         didTimeout = true
         throw DataApiErrorFactory.timeout(request.path, timeoutMs, requestContext)
@@ -265,7 +273,7 @@ export class DataApiService implements ApiClient {
     let readDeadline: number | undefined
     if (method === 'GET') {
       const { maxRetries, retryDelay, backoffMultiplier } = this.defaultRetryOptions
-      let budget = REQUEST_TIMEOUT_MS * (maxRetries + 1)
+      let budget = getRequestTimeoutMs(path) * (maxRetries + 1)
       for (let attempt = 0; attempt < maxRetries; attempt++) {
         budget += retryDelay * Math.pow(backoffMultiplier, attempt)
       }
