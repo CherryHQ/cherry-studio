@@ -655,8 +655,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           },
           () => access.pi.archive(),
           (message) => this.adapter.decorate(message),
-          (responseId, messageId) =>
-            this.eventQueue.push({ type: 'response-start', responseId, messageId, sessionId: context.sessionId })
+          (responseId, messageId) => this.eventQueue.push({ type: 'response-start', responseId, messageId })
         )
         resource = { relation, handle: access, projection }
         await projection.attach()

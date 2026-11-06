@@ -824,8 +824,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
                       this.eventQueue.push({
                         type: 'response-start',
                         responseId: control.responseId,
-                        messageId: ownerId,
-                        sessionId: childContext.sessionId
+                        messageId: ownerId
                       })
                     }
                   }

@@ -148,7 +148,7 @@ Claude's adapter combines SDK message/stream usage into a complete native invoca
 
 Main consumes these facts only for `usageCapture.owner === 'agent-sdk'`, freezes the existing credential/pricing evidence at the existing invocation boundary, and persists through the existing accounting service. A terminal-only fact is insufficient if it would freeze price or ownership too late; emit start/association evidence and later updates with the same identity. Do not interpret SDK session totals as additional invocations.
 
-Gateway routes retain `provider-calls` as their sole capture owner. `AgentSessionUsageAttribution.owners/pending` remains necessary: a provider call can finish before its response is assigned to a product message. Persist session-owned usage immediately and later bind its existing record without changing the charge. This proposal adds no billing table or usage-ownership migration.
+Gateway routes retain `provider-calls` as their sole capture owner. `AgentSessionUsageAttribution.owners/pending` remains necessary: a provider call can finish before its response is assigned to a product message. Persist completed usage immediately without a message owner and later bind its existing record without changing the charge. Calls without a native message remain in the general ledger. A separate persisted session dimension and its unused query/index are removed; runtime session validation remains. This proposal adds no billing table or usage-ownership migration.
 
 ### 8. Explicit state removal and retention
 

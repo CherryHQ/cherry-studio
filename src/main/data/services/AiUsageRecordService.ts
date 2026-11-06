@@ -105,7 +105,6 @@ export interface AiUsageCaptureContext {
   credentialReceipt: AiUsageCredentialReceipt
   source: SourceSnapshot | null
   messageRef: MessageRef | null
-  agentSessionId?: string | null
 }
 
 export interface RecordAiInvocationInput {
@@ -279,7 +278,6 @@ function rowToRecord(row: AiUsageRecordRow): AiUsageRecordEntry {
     requestCount: row.requestCount,
     messageKind: row.messageKind,
     messageId: row.messageId,
-    agentSessionId: row.agentSessionId,
     providerId: row.providerId,
     providerName: row.providerName,
     sourceType: row.sourceType,
@@ -532,8 +530,6 @@ function listAiUsageRecords(query: AiUsageRecordListServiceQuery): AiUsageRecord
   const sortOrder = query.sortOrder ?? 'desc'
 
   const filterConditions: SQL[] = []
-  if (query.agentSessionId !== undefined)
-    filterConditions.push(eq(aiUsageRecordTable.agentSessionId, query.agentSessionId))
   if (query.from !== undefined) filterConditions.push(gte(aiUsageRecordTable.createdAt, query.from))
   if (query.to !== undefined) filterConditions.push(lte(aiUsageRecordTable.createdAt, query.to))
   if (query.messageKind !== undefined && query.messageId !== undefined) {
@@ -1213,7 +1209,6 @@ function invocationToRow(input: RecordAiInvocationInput): InsertAiUsageRecordRow
     requestCount: 1,
     messageKind: context.messageRef?.kind ?? null,
     messageId: context.messageRef?.id ?? null,
-    agentSessionId: context.agentSessionId ?? null,
     providerId: context.providerId,
     providerName: context.providerName,
     modelId: context.modelId,
@@ -1386,7 +1381,7 @@ export class AiUsageRecordService {
   private readonly invocationsRecorded = new Emitter<void>()
   readonly onInvocationsRecorded = this.invocationsRecorded.event
 
-  associateInvocation(requestId: string, messageId: string, agentSessionId?: string): void {
+  associateInvocation(requestId: string, messageId: string): void {
     try {
       const result = application.get('DbService').withWriteTx((tx) => {
         const row = tx.select().from(aiUsageRecordTable).where(eq(aiUsageRecordTable.requestId, requestId)).get()
@@ -1397,7 +1392,7 @@ export class AiUsageRecordService {
           return
         }
         tx.update(aiUsageRecordTable)
-          .set({ messageKind: 'agent-session', messageId, agentSessionId: agentSessionId ?? row.agentSessionId })
+          .set({ messageKind: 'agent-session', messageId })
           .where(eq(aiUsageRecordTable.id, row.id))
           .run()
         return { target: rebuildMessageUsageProjectionTx(tx, { kind: 'agent-session', id: messageId })?.target }

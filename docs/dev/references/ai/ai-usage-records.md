@@ -64,8 +64,8 @@ invoices remain authoritative.
 - Usage and cost have one fact source: `ai_usage_record`.
 - Invocation amounts and request-time snapshots are insert-only. A duplicate
   `requestId` is ignored; a different payload logs an integrity warning.
-- Native response correlation can fill an initially unknown message link and
-  refine its session to the native child's session. It never changes tokens,
+- Native response correlation can fill an initially unknown message link, including
+  a child message. It never changes tokens,
   cost, pricing, credential, or source snapshots and never inserts another charge.
 - Message persistence owns content, status, and message-level end-to-end
   timings. It never creates or repairs usage records.
@@ -165,7 +165,6 @@ interface AiUsageCaptureContext {
   reportedCostCurrency: Currency | null
   credentialReceipt: AiUsageCredentialReceipt
   source: SourceSnapshot | null
-  agentSessionId?: string | null
   messageRef: {
     kind: 'chat' | 'agent-session'
     id: string
@@ -201,7 +200,7 @@ The table stores:
 | Group | Fields |
 | --- | --- |
 | Identity | `id`, unique `requestId`, `recordKind`, `requestCount` |
-| Optional ownership | `agentSessionId`, `messageKind`, `messageId` |
+| Optional ownership | `messageKind`, `messageId` |
 | Provider/model snapshot | `providerId`, `providerName`, `modelId`, `modelName` |
 | Source snapshot | `sourceType`, `sourceId`, `sourceName`, `sourceIcon` |
 | Operation | `modality` |
@@ -415,7 +414,7 @@ model, and usage:
   ownership follows the native output after any steer boundary. Multiple child
   blocks sharing one API response ID charge its first projected block, not each block;
 - completion may precede ownership. The host persists the invocation immediately
-  with session ownership and `messageRef: null`, then fills the message link
+  with `messageRef: null`, then fills the message link
   when the native identity arrives;
 - primary/plan/small nested models resolve independently against the frozen
   model map;
@@ -438,17 +437,16 @@ allowing either completion or message publication to arrive first. No current-tu
 guess, provider response-ID rewrite, or extra relationship table is required.
 
 Gateway usage is written as soon as a provider invocation completes, with its
-request-time Agent session and source. A later native response ID associates it
-with the actual assistant message, including a child session. Hidden native
-auxiliary calls remain session-owned when no corresponding message is emitted;
-they are never assigned to the next active reply. Desktop-owned Pi summary and
-verification requests freeze their initiating owner before the gateway hop.
-Child summaries retain the child's session without borrowing a parent message.
+request-time source, pricing and credentials. A later native response ID associates
+it with the actual assistant message, including a child message. Hidden native
+auxiliary calls remain unbound when no corresponding message is emitted; they
+remain in usage totals and are never assigned to the next active reply.
 
-`GET /ai-usage-records` accepts `agentSessionId` to retrieve session-owned calls
-including auxiliary calls without a message. Existing rows gain a null session
-column on upgrade; their historical ownership is not inferred.
-
+Desktop-owned Pi summary and verification requests capture their initiating
+runtime context before the gateway hop. Capture tokens remain session-bound for
+request validation; the billing record does not store a separate session ID.
+Message details query `messageKind` and `messageId`. Calls without a message remain
+available in the general invocation list.
 
 ## Historical migration
 

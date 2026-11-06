@@ -249,8 +249,7 @@ async function fixture(opts: { headless?: boolean; redirect?: boolean } = {}) {
         modelId: 'model',
         credentialReceipt: { attribution: 'explicit', id: 'test-key', masked: '****', label: 'Test' },
         pricing: { input: { perMillionTokens: 1, currency: 'USD' }, output: { perMillionTokens: 2, currency: 'USD' } },
-        capturedAt: '2026-11-05T00:00:00Z',
-        agentSessionId: 'root'
+        capturedAt: '2026-11-05T00:00:00Z'
       }),
       modality: 'language',
       usage: { inputTokens: 100, outputTokens: 20, totalTokens: 120 },

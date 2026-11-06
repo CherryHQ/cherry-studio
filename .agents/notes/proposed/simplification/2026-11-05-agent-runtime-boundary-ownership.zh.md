@@ -148,7 +148,7 @@ Claude adapter 把 SDK 消息／流用量合并为完整原生调用事实：稳
 
 Main 仅在 `usageCapture.owner === 'agent-sdk'` 时消费这些事实，在现有调用边界冻结既有凭据／价格证据，并通过现有计费服务持久化。如果只报告终态会导致价格或归属冻结过晚，就不能只报告终态；必须以同一身份报告开始／关联证据和后续更新。SDK 会话累计用量不能被当成额外调用。
 
-Gateway 路径继续以 `provider-calls` 为唯一采集所有者。`AgentSessionUsageAttribution.owners/pending` 仍有必要：提供商调用可能先完成，响应随后才归到产品消息。立即持久化会话所属的用量，之后绑定已有记录，不改变费用。本提案不新增计费表或用量所有权 migration。
+Gateway 路径继续以 `provider-calls` 为唯一采集所有者。`AgentSessionUsageAttribution.owners/pending` 仍有必要：提供商调用可能先完成，响应随后才归到产品消息。立即持久化已完成的用量，暂不关联消息，之后绑定已有记录，不改变费用。没有原生消息的调用保留在总账中。删除独立持久化的会话维度及其未使用的查询／索引，保留运行时会话校验。本提案不新增计费表或用量所有权 migration。
 
 ### 8. 明确删除与保留的状态
 

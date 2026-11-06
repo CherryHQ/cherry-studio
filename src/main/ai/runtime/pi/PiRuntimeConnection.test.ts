@@ -439,8 +439,7 @@ describe('desktop Pi root connection', () => {
       .toContainEqual({
         type: 'response-start',
         responseId: 'child-response-2',
-        messageId: childMessage.id,
-        sessionId: contexts.context(access!.snapshot().contextId).sessionId
+        messageId: childMessage.id
       })
     expect(child).toBe(firstChild)
     expect(nativeFiles()).toHaveLength(2)

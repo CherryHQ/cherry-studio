@@ -763,18 +763,13 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private bindUsage(entry: AgentSessionRuntimeEntry, responseId: string, turn: AgentSessionTurn): void {
-    ;(entry.usageAttribution ??= new AgentSessionUsageAttribution()).bind(
-      responseId,
-      turn.assistantMessageId,
-      entry.sessionId,
-      () => {
-        const reply = getAgentSessionRuntimeReply(entry.runtimeState, turn)
-        return (
-          entry.persistedMessageIds?.has(turn.assistantMessageId) === true ||
-          (reply !== undefined && reply.delivery.kind !== 'reserved' && reply.delivery.kind !== 'failed')
-        )
-      }
-    )
+    ;(entry.usageAttribution ??= new AgentSessionUsageAttribution()).bind(responseId, turn.assistantMessageId, () => {
+      const reply = getAgentSessionRuntimeReply(entry.runtimeState, turn)
+      return (
+        entry.persistedMessageIds?.has(turn.assistantMessageId) === true ||
+        (reply !== undefined && reply.delivery.kind !== 'reserved' && reply.delivery.kind !== 'failed')
+      )
+    })
   }
 
   private captureUsageSource(agentId: string): SourceSnapshot | null {
@@ -2176,11 +2171,7 @@ export class AgentSessionRuntimeService extends BaseService {
         if (turn && (!event.messageId || event.messageId === turn.assistantMessageId))
           this.bindUsage(entry, event.responseId, turn)
         else if (event.messageId)
-          (entry.usageAttribution ??= new AgentSessionUsageAttribution()).bind(
-            event.responseId,
-            event.messageId,
-            event.sessionId ?? entry.sessionId
-          )
+          (entry.usageAttribution ??= new AgentSessionUsageAttribution()).bind(event.responseId, event.messageId)
         break
       }
       case 'resume-token':
@@ -2390,7 +2381,6 @@ export class AgentSessionRuntimeService extends BaseService {
             ? (frozenModel?.pricingSnapshot ?? null)
             : invocation.pricingSnapshot,
         credentialReceipt: capture.credentialReceipt,
-        agentSessionId: entry.sessionId,
         source: sourceSnapshotFromMessageSnapshot(turn?.messageSnapshot) ?? capture.source,
         messageRef: turn ? { kind: 'agent-session', id: turn.assistantMessageId } : null
       }),

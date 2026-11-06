@@ -50,7 +50,6 @@ export const aiUsageRecordTable = sqliteTable(
     requestCount: integer().notNull(),
     messageKind: text().$type<AiUsageRecordMessageKind>(),
     messageId: text(),
-    agentSessionId: text(),
 
     providerId: text(),
     providerName: text(),
@@ -93,7 +92,6 @@ export const aiUsageRecordTable = sqliteTable(
   (t) => [
     uniqueIndex('ai_usage_record_request_id_idx').on(t.requestId),
     index('ai_usage_record_created_at_idx').on(t.createdAt),
-    index('ai_usage_record_session_created_idx').on(t.agentSessionId, t.createdAt),
     index('ai_usage_record_message_created_idx').on(t.messageKind, t.messageId, t.createdAt),
     index('ai_usage_record_provider_created_idx').on(t.providerId, t.createdAt),
     index('ai_usage_record_model_created_idx').on(t.modelId, t.createdAt),

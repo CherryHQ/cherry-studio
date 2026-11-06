@@ -485,8 +485,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
             return archive.value
           },
           (message) => this.adapter.decorate(message),
-          (responseId, messageId) =>
-            this.events.push({ type: 'response-start', responseId, messageId, sessionId: context.sessionId })
+          (responseId, messageId) => this.events.push({ type: 'response-start', responseId, messageId })
         )
         resource = { relation, handle: access, projection }
         await projection.attach()

@@ -20,8 +20,7 @@ const invocation = (id: string): RecordAiInvocationInput => ({
     modelId: 'model',
     credentialReceipt: { attribution: 'explicit', id: 'captured-key', masked: 'key-****', label: 'Captured' },
     pricing: { input: { perMillionTokens: 1, currency: 'USD' }, output: { perMillionTokens: 2, currency: 'USD' } },
-    capturedAt: '2026-10-27T00:00:00Z',
-    agentSessionId: 'root-session'
+    capturedAt: '2026-10-27T00:00:00Z'
   }),
   modality: 'language',
   usage: { inputTokens: 100, outputTokens: 20, totalTokens: 120 },
@@ -38,10 +37,7 @@ it.each([true, false])('joins by native response ID with frozen attribution (usa
   if (usageFirst) {
     recordSecond(second)
     recordFirst(first)
-    expect(dbh.db.select().from(aiUsageRecordTable).all()).toMatchObject([
-      { agentSessionId: 'root-session', messageId: null },
-      { agentSessionId: 'root-session', messageId: null }
-    ])
+    expect(dbh.db.select().from(aiUsageRecordTable).all()).toMatchObject([{ messageId: null }, { messageId: null }])
   }
   attribution.bind('native-1', '11111111-1111-4111-8111-111111111111')
   attribution.bind('native-2', '22222222-2222-4222-8222-222222222222')
@@ -79,18 +75,17 @@ it('records unresolved and late completions without a message owner after close'
 })
 
 // A hidden auxiliary request must survive process loss before native response correlation.
-it('persists session-owned auxiliary usage immediately and enriches child ownership once', () => {
+it('persists auxiliary usage immediately and binds its child message once', () => {
   const attribution = new AgentSessionUsageAttribution()
   const record = attribution.capture('child-response')
   record(invocation('child-call'))
   const before = dbh.db.select().from(aiUsageRecordTable).get()!
-  expect(before).toMatchObject({ agentSessionId: 'root-session', messageId: null, totalTokens: 120 })
-  attribution.bind('child-response', 'child-message', 'child-session')
-  attribution.bind('child-response', 'child-message', 'child-session')
+  expect(before).toMatchObject({ messageId: null, totalTokens: 120 })
+  attribution.bind('child-response', 'child-message')
+  attribution.bind('child-response', 'child-message')
   const after = dbh.db.select().from(aiUsageRecordTable).get()!
   expect(after).toEqual({
     ...before,
-    agentSessionId: 'child-session',
     messageKind: 'agent-session',
     messageId: 'child-message'
   })
@@ -99,7 +94,7 @@ it('persists session-owned auxiliary usage immediately and enriches child owners
 })
 
 // Late native correlation must repair the message projection without charging a second request.
-it('projects child fees once and keeps session-only auxiliary fees queryable', () => {
+it('projects child fees once and retains unbound auxiliary charges', () => {
   dbh.db
     .insert(agentWorkspaceTable)
     .values({ id: 'workspace', name: 'Workspace', path: '/workspace', orderKey: 'a0' })
@@ -121,20 +116,20 @@ it('projects child fees once and keeps session-only auxiliary fees queryable', (
   const attribution = new AgentSessionUsageAttribution()
   attribution.capture('response')(invocation('visible-call'))
   attribution.capture('auxiliary')(invocation('summary-call'))
-  attribution.bind('response', 'child-message', 'child-session')
-  attribution.bind('response', 'child-message', 'child-session')
+  attribution.bind('response', 'child-message')
+  attribution.bind('response', 'child-message')
   expect(dbh.db.select().from(agentSessionMessageTable).get()?.stats).toMatchObject({
     requestCount: 1,
     totalTokens: 120,
     inputTokens: 100,
     outputTokens: 20
   })
-  expect(aiUsageRecordService.list({ agentSessionId: 'root-session', limit: 10 }).items).toMatchObject([
-    { requestId: 'summary-call', messageId: null }
-  ])
-  expect(aiUsageRecordService.list({ agentSessionId: 'child-session', limit: 10 }).items).toMatchObject([
-    { requestId: 'visible-call', messageId: 'child-message' }
-  ])
+  expect(
+    aiUsageRecordService.list({ messageKind: 'agent-session', messageId: 'child-message', limit: 10 }).items
+  ).toMatchObject([{ requestId: 'visible-call', messageId: 'child-message' }])
+  expect(aiUsageRecordService.list({ limit: 10 }).items).toEqual(
+    expect.arrayContaining([expect.objectContaining({ requestId: 'summary-call', messageId: null, totalTokens: 120 })])
+  )
   const rows = dbh.db.select().from(aiUsageRecordTable).all()
   expect(rows).toHaveLength(2)
   expect(rows.reduce((sum, row) => sum + row.totalTokens!, 0)).toBe(240)
@@ -145,7 +140,7 @@ it('does not recreate a missing invocation during late association', () => {
   const attribution = new AgentSessionUsageAttribution()
   attribution.capture('response')(invocation('call'))
   dbh.db.delete(aiUsageRecordTable).run()
-  expect(() => attribution.bind('response', 'message', 'root-session')).not.toThrow()
+  expect(() => attribution.bind('response', 'message')).not.toThrow()
   expect(dbh.db.select().from(aiUsageRecordTable).all()).toEqual([])
 })
 
@@ -165,9 +160,9 @@ it.each(['chat', 'responses'] as const)(
       const record = attribution.capture(adapter.getMessageId())
       const requestId = `${protocol}-${usageFirst}`
       if (usageFirst) record(invocation(requestId))
-      attribution.bind(wire.id, `message-${requestId}`, usageFirst ? 'child-session' : 'root-session')
+      attribution.bind(wire.id, `message-${requestId}`)
       if (!usageFirst) record(invocation(requestId))
-      attribution.bind(wire.id, `message-${requestId}`, usageFirst ? 'child-session' : 'root-session')
+      attribution.bind(wire.id, `message-${requestId}`)
       attribution.close()
       const rows = dbh.db
         .select()
@@ -177,7 +172,6 @@ it.each(['chat', 'responses'] as const)(
       expect(rows).toHaveLength(1)
       expect(rows[0]).toMatchObject({
         messageId: `message-${requestId}`,
-        agentSessionId: usageFirst ? 'child-session' : 'root-session',
         totalTokens: 120
       })
       expect(rows[0].cost).toBeCloseTo(0.00014, 10)

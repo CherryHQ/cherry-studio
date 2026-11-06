@@ -501,8 +501,7 @@ describe('desktop Pi Durable connection', () => {
         .toContainEqual({
           type: 'response-start',
           responseId: 'child-response-2',
-          messageId: childMessage.id,
-          sessionId: contexts.context(view!.snapshot().contextId).sessionId
+          messageId: childMessage.id
         })
       expect(child).not.toBe(root)
       expect(text(events)).not.toContain('child continued answer')

@@ -2,7 +2,7 @@ import { aiUsageRecordService, type RecordAiInvocationInput } from '@data/servic
 
 /** Joins a gateway response with native output without delaying delivery of that response. */
 export class AgentSessionUsageAttribution {
-  private readonly owners = new Map<string, { messageId: string; sessionId?: string; ready: () => boolean }>()
+  private readonly owners = new Map<string, { messageId: string; ready: () => boolean }>()
   private readonly pending = new Map<string, Set<string>>()
   private closed = false
 
@@ -19,11 +19,11 @@ export class AgentSessionUsageAttribution {
     }
   }
 
-  bind(responseId: string, messageId: string, sessionId?: string, ready = () => true): void {
+  bind(responseId: string, messageId: string, ready = () => true): void {
     const previous = this.owners.get(responseId)
     if (previous && previous.messageId !== messageId)
       throw new Error('Native response already belongs to another message')
-    this.owners.set(responseId, { messageId, sessionId, ready })
+    this.owners.set(responseId, { messageId, ready })
     this.flush(messageId)
   }
 
@@ -31,7 +31,7 @@ export class AgentSessionUsageAttribution {
     for (const [responseId, owner] of this.owners) {
       if (owner.messageId !== messageId || !owner.ready()) continue
       for (const requestId of this.pending.get(responseId) ?? [])
-        aiUsageRecordService.associateInvocation(requestId, messageId, owner.sessionId)
+        aiUsageRecordService.associateInvocation(requestId, messageId)
       this.pending.delete(responseId)
     }
   }
@@ -41,13 +41,12 @@ export class AgentSessionUsageAttribution {
     this.pending.clear()
   }
 
-  private write(input: RecordAiInvocationInput, owner?: { messageId: string; sessionId?: string }): void {
+  private write(input: RecordAiInvocationInput, owner?: { messageId: string }): void {
     aiUsageRecordService.recordInvocation({
       ...input,
       context: {
         ...input.context,
-        messageRef: owner ? { kind: 'agent-session', id: owner.messageId } : null,
-        agentSessionId: owner?.sessionId ?? input.context.agentSessionId
+        messageRef: owner ? { kind: 'agent-session', id: owner.messageId } : null
       }
     })
   }
