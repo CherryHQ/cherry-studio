@@ -156,6 +156,63 @@ const text = (id: string, value: string): CherryUIMessage => ({
   parts: [{ type: 'text', text: value, state: 'done' }]
 })
 
+it('continues a session after deleting a completed projected reply and reconnecting', async () => {
+  const f = await fixture()
+  await f.project([text('old', 'Deleted answer')])
+  await f.emit({ type: 'turn-complete' })
+  const completed: StreamDoneResult = { status: 'success', finalMessage: (await f.done).finalMessage }
+  await f.handle.listeners[0].onDone(completed)
+  await f.handle.listeners[1].onDone(completed)
+  await f.service.closeSession('root')
+  messages.deleteSessionMessage('root', f.reply.id)
+  await f.reconnect()
+  await f.project([text('old', 'Archive replay')], { live: [] })
+
+  const user = messages.saveMessage({
+    sessionId: 'root',
+    message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Next question' }] } }
+  })
+  const reply = messages.saveMessage({
+    sessionId: 'root',
+    message: { role: 'assistant', status: 'pending', data: { parts: [] } }
+  })
+  const handle = f.service.beginTurn({
+    sessionId: 'root',
+    topicId: 'agent-session:root',
+    agentId: 'agent',
+    agentType: 'pi',
+    modelId: 'test::model',
+    assistantMessageId: reply.id,
+    userMessage: user
+  })
+  const source = f.service.openTurnStream({
+    sessionId: 'root',
+    turnId: handle.turnId,
+    signal: handle.abortController.signal
+  })
+  if (source.kind !== 'messages') throw new Error('Expected message projections')
+  const done = pipeMessageStream(
+    source.stream,
+    handle.abortController.signal,
+    { id: reply.id, role: 'assistant', parts: [] },
+    () => {},
+    () => {}
+  )
+  await f.project([text('old', 'Late replay'), text('new', 'Next answer')])
+  await f.emit({ type: 'turn-complete' })
+  const result = await done
+  expect(result.threw).toBeUndefined()
+  const outcome: StreamDoneResult = { status: 'success', finalMessage: result.finalMessage }
+  await handle.listeners[0].onDone(outcome)
+  await handle.listeners[1].onDone(outcome)
+  expect(messages.getSessionMessage('root', reply.id)).toMatchObject({
+    status: 'success',
+    data: { parts: text('', 'Next answer').parts }
+  })
+  expect(messages.hasSessionMessage('root', f.reply.id)).toBe(false)
+  expect(f.service.inspect('root')?.status).toBe('idle')
+})
+
 // The native successor can publish before the preceding reply has committed and created its row.
 it('retains a reserved steer reply until its stream takes ownership', async () => {
   let next: StartRuntimeTurnInput | undefined

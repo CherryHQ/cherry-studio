@@ -33,6 +33,10 @@ export class RootMessageProjection {
     const bodies = new Map<string, CherryUIMessage['parts']>()
     const ranges = new Map<string, { offset: number; count: number }[]>()
     for (const [id, range] of Object.entries(saved?.sources ?? {})) {
+      if (this.removed.has(id) || !messages.hasSessionMessage(context.sessionId, range.messageId)) {
+        this.removed.add(id)
+        continue
+      }
       let parts = bodies.get(range.messageId)
       if (!parts) {
         parts = messages.getSessionMessage(context.sessionId, range.messageId).data.parts ?? []
@@ -56,10 +60,12 @@ export class RootMessageProjection {
   }
 
   accept(update: RuntimeMessageProjection, currentMessageId?: string): Map<string, CherryUIMessage['parts']> {
+    this.syncRemoved()
     const changed = new Set<string>()
     let reindex = false
     const groups = new Map<string, string[]>()
     for (const [old, source] of Object.entries(update.legacy ?? {})) {
+      if (this.removed.has(old) && !this.sources.has(source.messageId)) this.removed.add(source.messageId)
       if (!this.sources.has(old) || old === source.messageId) continue
       groups.set(source.messageId, [...(groups.get(source.messageId) ?? []), old])
     }
@@ -92,7 +98,10 @@ export class RootMessageProjection {
     }
     for (const [old, replacement] of Object.entries(update.replaces)) {
       const previous = this.sources.get(old)
-      if (!previous) continue
+      if (!previous) {
+        if (this.removed.has(old) && !this.sources.has(replacement)) this.removed.add(replacement)
+        continue
+      }
       const ordered = [...this.sources].map(([id, value]) => [id === old ? replacement : id, value] as const)
       this.sources.clear()
       for (const [id, value] of ordered) this.sources.set(id, value)
@@ -187,6 +196,7 @@ export class RootMessageProjection {
   }
 
   taskEvent(data: AgentTaskEventPartData): { messageId: string; parts: CherryUIMessage['parts'] } | undefined {
+    this.syncRemoved()
     if (!data.toolUseId) return undefined
     const owner = [...this.sources.values()].find((source) =>
       source.parts.some((part) => isToolUIPart(part) && part.toolCallId === data.toolUseId)
@@ -234,7 +244,24 @@ export class RootMessageProjection {
     }
   }
 
+  private syncRemoved(): void {
+    const context = contexts.context(this.contextId)
+    for (const id of context.checkpointMapping?.root?.removed ?? []) {
+      this.removed.add(id)
+      const source = this.sources.get(id)
+      if (!source) continue
+      this.sources.delete(id)
+      this.replySources.get(source.messageId)?.delete(id)
+      if (!messages.hasSessionMessage(context.sessionId, source.messageId)) {
+        this.extras.delete(source.messageId)
+        for (const [id, tool] of this.pendingTools)
+          if (tool.messageId === source.messageId) this.pendingTools.delete(id)
+      }
+    }
+  }
+
   checkpoint(uncommitted: ReadonlySet<string> = new Set()): RootProjectionCheckpoint {
+    this.syncRemoved()
     const offsets = new Map<string, number>()
     const sources: RootProjectionCheckpoint['root']['sources'] = {}
     for (const [id, source] of this.sources) {

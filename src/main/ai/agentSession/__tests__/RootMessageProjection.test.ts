@@ -1,11 +1,13 @@
 import { randomUUID } from 'node:crypto'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
 import { expect, it } from 'vitest'
 
 import { application } from '@application'
 import { runtimeId } from '@cherrystudio/agent-runtime'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionContextTable } from '@data/db/schemas/agentSessionContext'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
@@ -50,6 +52,81 @@ const text = (id: string, value: string): CherryUIMessage => ({
   id,
   role: 'assistant',
   parts: [{ type: 'text', text: value, state: 'done' }]
+})
+
+it.each(['connected', 'reconnected'])(
+  'keeps a deleted reply out of %s projection replay and the next reply',
+  (mode) => {
+    const f = fixture()
+    const deleted = f.reply()
+    f.projection.accept(f.update([text('old', 'Deleted answer'), text('old:2', 'Deleted continuation')]), deleted)
+    f.save(deleted)
+    const retained = f.reply()
+    f.projection.accept(f.update([text('retained', 'Retained answer')]), retained)
+    f.save(retained)
+    const stale = f.projection.checkpoint()
+
+    messages.deleteSessionMessage(f.sessionId, deleted)
+    const saved = contexts.context(f.context.id).checkpointMapping!.root!
+    expect(Object.keys(saved.sources)).toEqual(['retained'])
+    expect(saved.removed).toEqual(expect.arrayContaining(['old', 'old:2']))
+    messages.replaceMessageParts(f.sessionId, retained, text('', 'Retained answer').parts, stale)
+    expect(Object.keys(contexts.context(f.context.id).checkpointMapping!.root!.sources)).toEqual(['retained'])
+
+    const projection = mode === 'connected' ? f.projection : new RootMessageProjection(f.context.id)
+    const next = f.reply()
+    const changed = projection.accept(
+      f.update([text('old', 'Late replay'), text('canonical', 'Late replacement'), text('next', 'New answer')], {
+        replaces: { 'old:2': 'canonical' }
+      }),
+      next
+    )
+    expect([...changed]).toEqual([[next, text('', 'New answer').parts]])
+    messages.replaceMessageParts(f.sessionId, next, projection.parts(next), projection.checkpoint())
+    const restored = new RootMessageProjection(f.context.id)
+    expect(restored.parts(next)).toEqual(text('', 'New answer').parts)
+    expect(restored.parts(retained)).toEqual(text('', 'Retained answer').parts)
+    expect(restored.parts(deleted)).toBeUndefined()
+    expect(messages.hasSessionMessage(f.sessionId, deleted)).toBe(false)
+  }
+)
+
+it('recovers an existing dangling checkpoint without assigning its sources to the next reply', () => {
+  const f = fixture()
+  const deleted = f.reply()
+  f.projection.accept(f.update([text('old', 'Deleted answer')]), deleted)
+  f.save(deleted)
+  const checkpointMapping = contexts.context(f.context.id).checkpointMapping
+  messages.deleteSessionMessage(f.sessionId, deleted)
+  // Reproduce the checkpoint left by the old deletion path.
+  dbh.db
+    .update(agentSessionContextTable)
+    .set({ checkpointMapping })
+    .where(eq(agentSessionContextTable.id, f.context.id))
+    .run()
+
+  const projection = new RootMessageProjection(f.context.id)
+  const next = f.reply()
+  projection.accept(f.update([text('old', 'Replay'), text('next', 'New answer')]), next)
+  messages.replaceMessageParts(f.sessionId, next, projection.parts(next), projection.checkpoint())
+  expect(new RootMessageProjection(f.context.id).parts(next)).toEqual(text('', 'New answer').parts)
+  expect(contexts.context(f.context.id).checkpointMapping!.root!.removed).toContain('old')
+})
+
+it('rolls back root ownership and tombstones with a failed message deletion transaction', () => {
+  const f = fixture()
+  const id = f.reply()
+  f.projection.accept(f.update([text('native', 'Answer')]), id)
+  f.save(id)
+  const before = contexts.context(f.context.id).checkpointMapping
+  expect(() =>
+    application.get('DbService').withWriteTx((tx) => {
+      messages.deleteSessionMessageTx(tx, f.sessionId, id)
+      throw new Error('Rollback deletion')
+    })
+  ).toThrow('Rollback deletion')
+  expect(messages.getSessionMessage(f.sessionId, id).data.parts).toEqual(text('', 'Answer').parts)
+  expect(contexts.context(f.context.id).checkpointMapping).toEqual(before)
 })
 
 it.each(['success', 'paused'] as const)(

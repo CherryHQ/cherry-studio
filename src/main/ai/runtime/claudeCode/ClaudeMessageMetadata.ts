@@ -32,7 +32,10 @@ type ToolMetadata = {
 /** Cherry display policy applied after the adapter has materialized native content. */
 export class ClaudeMessageMetadata {
   private readonly reminders = new Set<string>()
-  private readonly thinking = new Map<string, { startedAt: number; elapsedFrom: number; thinkingMs?: number }>()
+  private readonly thinking = new Map<
+    string,
+    Map<number, { startedAt: number; elapsedFrom: number; thinkingMs?: number }>
+  >()
   private catalog: Record<string, McpToolDisplayMetadata> = {}
 
   constructor(private readonly mcpToolMetadata: Record<string, McpToolDisplayMetadata> = {}) {}
@@ -64,15 +67,16 @@ export class ClaudeMessageMetadata {
             this.thinking.delete(ref.id)
           }
         }
-        if (event.message.parts.some((part) => part.type === 'reasoning')) {
-          if (
-            event.message.metadata?.completeness === 'partial' &&
-            !this.thinking.has(id) &&
-            batch.native.some((native) => native.source === 'live')
-          )
-            this.thinking.set(id, { startedAt: Date.now(), elapsedFrom: performance.now() })
-          const timing = this.thinking.get(id)
-          if (timing && event.message.metadata?.completeness === 'complete')
+        for (const [index, part] of event.message.parts.entries()) {
+          if (part.type !== 'reasoning') continue
+          let timing = this.thinking.get(id)?.get(index)
+          if (!timing && part.state === 'streaming' && batch.native.some((native) => native.source === 'live')) {
+            timing = { startedAt: Date.now(), elapsedFrom: performance.now() }
+            const blocks = this.thinking.get(id) ?? new Map()
+            blocks.set(index, timing)
+            this.thinking.set(id, blocks)
+          }
+          if (timing && (part.state === 'done' || event.message.metadata?.completeness === 'complete'))
             timing.thinkingMs ??= Math.round(performance.now() - timing.elapsedFrom)
         }
       }
@@ -82,7 +86,7 @@ export class ClaudeMessageMetadata {
 
   readonly decorate: MessageDecorator = (message) => ({
     ...message,
-    parts: message.parts.map((part) => {
+    parts: message.parts.map((part, index) => {
       if (part.type === 'dynamic-tool') {
         const native = part.callProviderMetadata?.anthropic
         const type = native?.type === 'mcp_tool_use' || native?.type === 'server_tool_use' ? native.type : 'tool_use'
@@ -111,7 +115,7 @@ export class ClaudeMessageMetadata {
         return { ...part, ...decoration }
       }
       if (part.type === 'reasoning') {
-        const timing = this.thinking.get(message.id)
+        const timing = this.thinking.get(message.id)?.get(index)
         return timing
           ? {
               ...part,

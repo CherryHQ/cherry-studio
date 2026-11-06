@@ -650,6 +650,10 @@ Root content passes through `ThreadMessageProjection` and `RootMessageProjection
 Native replacements retain product ownership across steer boundaries; explicit
 retractions persist with the context checkpoint. The runtime adapter preserves ordered
 AI SDK message parts, including tool output, reasoning signatures, files and citations.
+Deleting a product reply removes its root source ownership and records native-source
+tombstones in the same database transaction. Cached checkpoints cannot overwrite those
+tombstones; live projections and reconnect recovery exclude deleted owners, including
+older dangling checkpoints, so replay cannot attach deleted content to a later reply.
 Main adds Cherry display metadata before publishing `CherryUIMessage`.
 All Agent drivers use the `messages` source for the entire execution. `RootMessageProjection`
 owns host approval and data-part display; `pipeMessageStream` forwards its body with
@@ -689,6 +693,8 @@ The package interprets Claude SDK frames once and delivers typed control facts b
 - `invocations` contains completed per-response SDK usage/timing evidence. Main applies frozen
   pricing and product attribution only for external-CLI subscription capture; Gateway has its
   own single billing writer. The initial baseline emits no historical invocations.
+  A task notification finalizes only its correlated, completed response. Unscoped task
+  updates do not finalize usage, and a root result leaves active child responses pending.
 - `session` updates the native binding and opaque resume token, including before failure.
 - `context-usage` describes occupancy at the current provider call; the post-turn
   `getContextUsage()` pull remains authoritative.
@@ -703,6 +709,8 @@ The package interprets Claude SDK frames once and delivers typed control facts b
   receives unseen terminal/control facts after their body, or an explicit unrecoverable gap.
 - Permission denial and explicit retractions are applied by the native projection. Main's
   metadata decorator handles display-only MCP metadata, reminders and thinking timing.
+  Each reasoning block stops its timer at the block's end, independently of later answer
+  generation; native message replacement preserves the completed block timings.
 
 
 The settings builder also installs `PostToolUse` and

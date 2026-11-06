@@ -37,10 +37,29 @@ class AgentSessionContextService {
   saveRootProjectionTx(tx: DbOrTx, sessionId: string, checkpoint: RootProjectionCheckpoint): void {
     const context = tx.select().from(contexts).where(eq(contexts.id, checkpoint.contextId)).get()
     if (context?.sessionId !== sessionId) throw new Error('Projection belongs to another session')
+    const removed = new Set([...(context.checkpointMapping?.root?.removed ?? []), ...checkpoint.root.removed])
+    const root = {
+      ...checkpoint.root,
+      sources: Object.fromEntries(Object.entries(checkpoint.root.sources).filter(([id]) => !removed.has(id))),
+      removed: [...removed]
+    }
     tx.update(contexts)
-      .set({ checkpointMapping: { ...context.checkpointMapping, root: checkpoint.root } })
+      .set({ checkpointMapping: { ...context.checkpointMapping, root } })
       .where(eq(contexts.id, context.id))
       .run()
+  }
+
+  removeRootMessageTx(tx: DbOrTx, sessionId: string, messageId: string): void {
+    for (const context of tx.select().from(contexts).where(eq(contexts.sessionId, sessionId)).all()) {
+      const root = context.checkpointMapping?.root
+      if (!root) continue
+      const deleted = Object.keys(root.sources).filter((id) => root.sources[id].messageId === messageId)
+      if (!deleted.length) continue
+      this.saveRootProjectionTx(tx, sessionId, {
+        contextId: context.id,
+        root: { ...root, removed: [...root.removed, ...deleted] }
+      })
+    }
   }
   children(parentContextId: string): AgentSessionContextRow[] {
     return application

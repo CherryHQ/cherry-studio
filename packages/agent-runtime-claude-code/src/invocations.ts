@@ -130,14 +130,9 @@ export class ClaudeInvocations {
   accept(message: SDKMessage): readonly ClaudeInvocation[] {
     if (message.type === 'assistant') this.captureAssistantInvocation(message)
     else if (message.type === 'stream_event') this.captureStreamInvocation(message)
-    else if (
-      message.type === 'result' ||
-      (message.type === 'system' &&
-        (message.subtype === 'task_notification' ||
-          (message.subtype === 'task_updated' &&
-            ['completed', 'failed', 'stopped', 'killed'].includes(message.patch.status ?? ''))))
-    )
-      this.commitPendingInvocations()
+    else if (message.type === 'result') this.commitLaneUsage(null)
+    else if (message.type === 'system' && message.subtype === 'task_notification' && message.tool_use_id)
+      this.commitLaneUsage(message.tool_use_id)
     return this.emitted.splice(0)
   }
 
@@ -282,10 +277,9 @@ export class ClaudeInvocations {
     this.pendingInvocations.set(next.id, current ? mergePendingInvocation(current, next) : next)
   }
 
-  private commitPendingInvocations(): void {
-    for (const requestId of [...this.pendingInvocations.keys()]) {
-      this.commitInvocationUsage(requestId)
-    }
+  private commitLaneUsage(parentToolUseId: string | null): void {
+    const requestId = this.streamInvocationIdsByLane.get(this.invocationLane(parentToolUseId))
+    if (requestId) this.commitInvocationUsage(requestId)
   }
 
   private settlePendingInvocations(): void {
@@ -307,7 +301,7 @@ export class ClaudeInvocations {
 
   private commitInvocationUsage(requestId: string): void {
     const pending = this.pendingInvocations.get(requestId)
-    if (!pending) return
+    if (!pending?.completionObserved) return
     this.pendingInvocations.delete(requestId)
     for (const [lane, laneRequestId] of this.streamInvocationIdsByLane) {
       if (laneRequestId === requestId) this.streamInvocationIdsByLane.delete(lane)

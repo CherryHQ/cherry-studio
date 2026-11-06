@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import type { SDKPartialAssistantMessage } from '@anthropic-ai/claude-agent-sdk'
+import type { SDKMessage, SDKPartialAssistantMessage } from '@anthropic-ai/claude-agent-sdk'
 import { expect, it } from 'vitest'
 
 import { ClaudeInvocations } from '../src/invocations'
@@ -109,4 +109,90 @@ it('does not charge an unfinished stream from its initial usage alone', () => {
   const assistant = assistantMessage('session', [])
   invocations.accept(stream({ type: 'message_start', message: assistant.message }))
   expect(invocations.close()).toEqual([])
+})
+
+it.each(['task_notification', 'task_updated'] as const)(
+  'does not finalize an overlapping root response when a task emits %s',
+  (subtype) => {
+    const invocations = new ClaudeInvocations()
+    const root = assistantMessage('session', [])
+    const child = assistantMessage('session', [], { parent_tool_use_id: 'child-tool' })
+    child.message.id = 'child-response'
+    child.message.usage.output_tokens = 25
+    invocations.accept(stream({ type: 'message_start', message: root.message }))
+    invocations.accept(child)
+    const completion: SDKMessage =
+      subtype === 'task_notification'
+        ? {
+            type: 'system',
+            subtype,
+            task_id: 'task',
+            tool_use_id: 'child-tool',
+            status: 'completed',
+            output_file: '',
+            summary: '',
+            uuid: randomUUID(),
+            session_id: 'session'
+          }
+        : {
+            type: 'system',
+            subtype,
+            task_id: 'task',
+            patch: { status: 'completed' },
+            uuid: randomUUID(),
+            session_id: 'session'
+          }
+    const emitted = invocations.accept(completion)
+    expect(emitted).toEqual(
+      subtype === 'task_notification'
+        ? [
+            expect.objectContaining({
+              responseId: 'child-response',
+              usage: expect.objectContaining({ output_tokens: 25 })
+            })
+          ]
+        : []
+    )
+
+    const final = invocations.accept(
+      stream({
+        type: 'message_delta',
+        context_management: null,
+        delta: { stop_reason: 'end_turn', stop_sequence: null, stop_details: null, container: null },
+        usage: { ...root.message.usage, output_tokens: 100 }
+      })
+    )
+    expect(final).toMatchObject([{ responseId: root.message.id, usage: { output_tokens: 100 } }])
+    expect(invocations.close().map((item) => item.responseId)).toEqual(
+      subtype === 'task_updated' ? ['child-response'] : []
+    )
+  }
+)
+
+it('does not finalize an unfinished task response or an unrelated completed response on task notification', () => {
+  const invocations = new ClaudeInvocations()
+  const active = assistantMessage('session', [], { parent_tool_use_id: 'active-tool' })
+  const other = assistantMessage('session', [], { parent_tool_use_id: 'other-tool' })
+  other.message.id = 'other-response'
+  invocations.accept(stream({ type: 'message_start', message: active.message }, 'active-tool'))
+  invocations.accept(other)
+  expect(
+    invocations.accept({
+      type: 'system',
+      subtype: 'task_notification',
+      task_id: 'task',
+      tool_use_id: 'active-tool',
+      status: 'completed',
+      output_file: '',
+      summary: '',
+      uuid: randomUUID(),
+      session_id: 'session'
+    })
+  ).toEqual([])
+  active.message.usage.output_tokens = 100
+  invocations.accept(active)
+  expect(invocations.accept(stream({ type: 'message_stop' }, 'active-tool'))).toMatchObject([
+    { responseId: active.message.id, usage: { output_tokens: 100 } }
+  ])
+  expect(invocations.close().map((item) => item.responseId)).toEqual(['other-response'])
 })

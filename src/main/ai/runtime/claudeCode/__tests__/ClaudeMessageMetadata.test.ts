@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import { expect, it, onTestFinished } from 'vitest'
+import { expect, it, onTestFinished, vi } from 'vitest'
 
 import { runtimeId, type RuntimeMessage } from '@cherrystudio/agent-runtime'
 import type { ClaudeObservation } from '@cherrystudio/agent-runtime-claude-code'
@@ -22,6 +22,69 @@ async function project(message: RuntimeMessage, native: ClaudeObservation['nativ
   await projection.close()
   return messages
 }
+
+it('times each reasoning block through its own end and preserves timing through canonical replacement', async () => {
+  vi.useFakeTimers({ toFake: ['Date', 'performance'] })
+  onTestFinished(() => {
+    vi.useRealTimers()
+  })
+  const metadata = new ClaudeMessageMetadata()
+  const projection = new ThreadMessageProjection(
+    { backendId: runtimeId('claude'), id: runtimeId('root') },
+    metadata.decorate
+  )
+  onTestFinished(() => projection.close())
+  const startedAt = Date.now()
+  const accept = async (parts: RuntimeMessage['parts'], complete = false) => {
+    const batch: ClaudeObservation = {
+      events: [
+        {
+          type: 'message.upsert',
+          message: {
+            id: complete ? 'canonical' : 'partial',
+            role: 'assistant',
+            parts,
+            metadata: { completeness: complete ? 'complete' : 'partial' }
+          },
+          ...(complete ? { replaces: [{ session: projection.thread, id: runtimeId<'item'>('partial') }] } : {})
+        }
+      ],
+      native: [
+        {
+          source: 'live',
+          message: {
+            type: 'stream_event',
+            event: { type: 'message_stop' },
+            parent_tool_use_id: null,
+            uuid: randomUUID(),
+            session_id: 'session'
+          }
+        }
+      ],
+      retracted: []
+    }
+    await projection.accept(batch.events, metadata.accept(batch) ? true : [])
+  }
+  await accept([{ type: 'reasoning', text: 'First', state: 'streaming' }])
+  vi.advanceTimersByTime(100)
+  const first = { type: 'reasoning' as const, text: 'First', state: 'done' as const }
+  await accept([first, { type: 'text', text: 'Answer', state: 'streaming' }])
+  expect(projection.snapshot().messages[0].parts[0]).toMatchObject({
+    providerMetadata: { cherry: { thinkingMs: 100 } }
+  })
+  vi.advanceTimersByTime(10_000)
+  const answer = { type: 'text' as const, text: 'Answer', state: 'done' as const }
+  await accept([first, answer, { type: 'reasoning', text: 'Second', state: 'streaming' }])
+  vi.advanceTimersByTime(250)
+  const second = { type: 'reasoning' as const, text: 'Second', state: 'done' as const }
+  await accept([first, answer, second])
+  vi.advanceTimersByTime(1_000)
+  await accept([first, answer, second], true)
+  expect(projection.snapshot().messages[0].parts.filter((part) => part.type === 'reasoning')).toMatchObject([
+    { providerMetadata: { cherry: { startedAt, thinkingMs: 100 } } },
+    { providerMetadata: { cherry: { startedAt: startedAt + 10_100, thinkingMs: 250 } } }
+  ])
+})
 
 it('retains SDK signatures, citations and files while applying Cherry reminder filtering', async () => {
   const source: RuntimeMessage = {

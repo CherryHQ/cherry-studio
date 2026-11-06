@@ -1,14 +1,15 @@
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
-import { readUIMessageStream } from 'ai'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
+import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
+import { preparePiBranch, reservePiBranchTx } from '@main/ai/runtime/pi/piContext'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import type { AgentRuntimeEvent } from '@main/ai/runtime/types'
 import type { AiStreamManager } from '@main/ai/streamManager/AiStreamManager'
@@ -50,11 +51,14 @@ describe('durable delivery native branch admission', () => {
         const request = input.models[0].request.runtime!
         if (request.kind !== 'agent-session') throw new Error('Expected an agent session')
         const source = runtime.openTurnStream({ ...request, signal: new AbortController().signal })
-        if (source.kind !== 'chunks') throw new Error('Expected the fixture driver to produce chunks')
+        if (source.kind !== 'messages') throw new Error('Expected message projections')
         completion = (async () => {
           let text = ''
-          for await (const message of readUIMessageStream({ stream: source.stream }))
-            text = message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('')
+          for await (const event of source.stream) {
+            if (event.type === 'error') throw event.error
+            if (event.type === 'message')
+              text = event.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('')
+          }
           runtime.markTurnTerminal(request.sessionId, 'success')
           return text
         })()
@@ -65,17 +69,32 @@ describe('durable delivery native branch admission', () => {
       capabilities: ['agent-session'],
       validateSession: async () => {},
       listAvailableTools: async () => [],
-      connect: async ({ resumeToken }) => {
+      connect: async ({ sessionId, branchHead, resumeToken }) => {
         const branch = resumeToken ?? 'missing-history'
+        const context = preparePiBranch(sessionId, branchHead, resumeToken)
         const events = new AsyncEventQueue<AgentRuntimeEvent>()
         return {
           events,
+          contextId: context.id,
           reconcile: async () => 'current' as const,
           send: () => {
             consumed.push(branch)
-            events.push({ type: 'chunk', chunk: { type: 'text-start', id: 'reply' } })
-            events.push({ type: 'chunk', chunk: { type: 'text-delta', id: 'reply', delta: `history:${branch}` } })
-            events.push({ type: 'chunk', chunk: { type: 'text-end', id: 'reply' } })
+            events.push({
+              type: 'message-projection',
+              projection: {
+                contextId: context.id,
+                messages: [
+                  {
+                    id: 'reply',
+                    role: 'assistant',
+                    parts: [{ type: 'text', text: `history:${branch}`, state: 'done' }]
+                  }
+                ],
+                live: ['reply'],
+                removed: [],
+                replaces: {}
+              }
+            })
             events.push({ type: 'chunk', chunk: { type: 'finish', finishReason: 'stop' } })
             events.push({ type: 'turn-complete' })
           },
@@ -131,6 +150,7 @@ describe('durable delivery native branch admission', () => {
       runtimeResumeToken: 'native-A',
       message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'A history' }] } }
     })
+    application.get('DbService').withWriteTx((tx) => reservePiBranchTx(tx, 'target', a.id, 'native-A'))
     await runtime.primeConnection('target')
     expect(runtime.getExecutionHead('target')).toBe(a.id)
     const b = messages.saveMessage({
@@ -139,6 +159,7 @@ describe('durable delivery native branch admission', () => {
       runtimeResumeToken: 'native-B',
       message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'B history' }] } }
     })
+    application.get('DbService').withWriteTx((tx) => reservePiBranchTx(tx, 'target', b.id, 'native-B'))
     messages.selectBranch('target', b.id)
     const delivery = messages.acceptSessionDelivery({
       senderAgentId: 'agent',
