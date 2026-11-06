@@ -6,14 +6,14 @@ Status: implemented
 
 ## Problem
 
-供应商名称、链接、模型标志和默认端点需要匹配千问 AI 平台与 Qwen Cloud 品牌，同时避免覆盖用户配置。
+供应商名称、链接和默认端点需要匹配千问 AI 平台与 Qwen Cloud 品牌，同时避免覆盖用户配置。
 
 ## Decision
 
 - 保留 `dashscope` 和 `qwencloud` 标识、凭据、模型绑定及现有版本可用性规则，包括 v1 版本豁免。
 - 更新本地化平台名称及 API 密钥和模型选择链接。
 - 通过供应商配置和图像传输默认值更新默认端点。保留已保存的端点覆盖值，包括旧官方 URL。
-- 这些平台上的 Qwen 系列模型复用对应供应商标志，包括预设派生副本和深色模式变体。
+- 模型品牌图标与提供服务的平台保持独立；供应商品牌仅在供应商界面展示。
 
 ## Alternatives considered
 
@@ -29,4 +29,4 @@ Status: implemented
 - Regression — `ProviderModelMigrator.test.ts`：现有 v1 默认值投影与覆盖值保留。
 - Regression — `ProviderService.edition.test.ts`：现有版本可用性与 v1 豁免。
 - Regression — 供应商配置、图像传输及目录测试：默认端点解析与目录一致性。
-- Regression — `logo.test.ts`：平台专属 Qwen 标志、预设副本及其他模型品牌保留。
+- Regression — `logo.test.ts`：现有模型图标解析；模型列表与选择器测试覆盖未改变的调用方。

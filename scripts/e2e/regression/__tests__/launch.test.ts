@@ -7,7 +7,7 @@ import { vi } from 'vitest'
 const { execFileSync, spawn } = vi.hoisted(() => ({ execFileSync: vi.fn(), spawn: vi.fn() }))
 vi.mock('node:child_process', () => ({ execFileSync, spawn }))
 
-import { ensureProfile, launchApp, readAppRecord, stopOwnedApp } from '../lifecycle'
+import { ensureProfile, launchApp, readAppRecord, restartApp, stopOwnedApp } from '../lifecycle'
 import { ensureRunDirectories, getRunPaths } from '../paths'
 
 beforeEach(() => vi.clearAllMocks())
@@ -77,6 +77,20 @@ it.each(['macos', 'windows'] as const)(
       expect(process.env.CODEX_HOME).toBe('/unrelated/developer-CODEX_HOME')
       expect(process.env.USERPROFILE).toBe('/unrelated/developer-USERPROFILE')
       expect(options.env.CS_DEV_USER_DATA_SUFFIX).toBe('Regression-prepared-authenticated')
+      // The app writes CLI provider config against `sys.home`; it must point into the run directory
+      // so CODE-02 cannot rewrite the machine owner's real ~/.codex credentials.
+      expect(options.env.XDG_CONFIG_HOME).toBe(join(isolatedHome, '.config'))
+      expect(options.env.HERMES_HOME).toBe(join(isolatedHome, '.hermes'))
+      expect(options.env.LOCALAPPDATA).toBe(join(isolatedHome, 'AppData', 'Local'))
+      for (const directory of [
+        options.env.CODEX_HOME,
+        options.env.CLAUDE_CONFIG_DIR,
+        options.env.XDG_CONFIG_HOME,
+        options.env.HERMES_HOME,
+        options.env.LOCALAPPDATA
+      ]) {
+        expect(existsSync(directory)).toBe(true)
+      }
       expect(record).toMatchObject({ electronPid: 42001, restartCount: 1, profile: 'authenticated' })
     } finally {
       vi.restoreAllMocks()
@@ -364,6 +378,53 @@ it('blocks a recorded recovery failure and clears a failure recorded during a su
     }))
     await launchApp(paths, options)
     expect(existsSync(paths.appLaunchFailure)).toBe(false)
+  } finally {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+it('restarts the isolated profile after an owned pre-main launch has exited', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'cherry-pending-restart-'))
+  const paths = getRunPaths(directory)
+  ensureRunDirectories(paths)
+  writeFileSync(
+    paths.appRecord,
+    JSON.stringify({
+      schemaVersion: 1,
+      ownership: 'regression-driver',
+      policy: 'ephemeral',
+      mode: 'branch',
+      platform: 'macos',
+      profile: 'authenticated',
+      runKey: 'promotion',
+      targetRoot: directory,
+      runnerPid: 42000,
+      cdpPort: 9222,
+      logPath: join(paths.logs, 'electron.log'),
+      restartCount: 1
+    })
+  )
+  let launched = false
+  execFileSync.mockImplementation(() => (launched ? '42001' : ''))
+  spawn.mockImplementation(() => {
+    launched = true
+    return { pid: 42001, unref() {} }
+  })
+  vi.spyOn(process, 'kill').mockImplementation((pid) => {
+    if (pid === 42001) return true
+    throw new Error('Process not found')
+  })
+  vi.stubGlobal('fetch', async () => ({
+    ok: true,
+    json: async () => [{ type: 'page', title: 'Cherry Studio', url: 'http://localhost:5173/windows/main/index.html' }]
+  }))
+  try {
+    expect(() => readAppRecord(paths)).toThrow('has not finished launching')
+    const ready = await restartApp(paths)
+    expect(ready).toMatchObject({ electronPid: 42001, profile: 'authenticated', runKey: 'promotion', restartCount: 2 })
+    expect(spawn.mock.calls[0][2].env.CS_DEV_PROFILE_ROOT).toBe(join(paths.profiles, 'authenticated'))
   } finally {
     vi.restoreAllMocks()
     vi.unstubAllGlobals()

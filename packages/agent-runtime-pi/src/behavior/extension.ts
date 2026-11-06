@@ -30,7 +30,6 @@ import {
 import type { JsonValue } from '@cherrystudio/agent-runtime'
 
 import type { CompactionSummarizer } from '../compaction'
-import { zeroUsage } from '../subagentRun'
 import {
   addUsage,
   keysOf,
@@ -289,7 +288,14 @@ function refusal(model: Model<Api>, text: string): AssistantMessageEventStream {
     api: model.api,
     provider: model.provider,
     model: model.id,
-    usage: zeroUsage(),
+    usage: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 0,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
+    },
     stopReason: 'error',
     errorMessage: text,
     timestamp: Date.now()

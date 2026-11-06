@@ -6,7 +6,7 @@ English | [中文](2026-11-04-qwen-platform-editions-and-endpoints.zh.md)
 
 ## Problem
 
-Provider names, links, model logos, and default endpoints need to reflect the
+Provider names, links, and default endpoints need to reflect the
 Qianwen AI Platform and Qwen Cloud branding without overwriting user configuration.
 
 ## Decision
@@ -16,8 +16,8 @@ Qianwen AI Platform and Qwen Cloud branding without overwriting user configurati
 - Update localized platform names and API-key/model-selection links.
 - Update default endpoints through provider configuration and image transport
   defaults. Preserve saved endpoint overrides, including legacy official URLs.
-- Qwen-family models on these platforms reuse the corresponding provider logo,
-  including preset-derived copies and dark-mode variants.
+- Keep model brand icons independent of the serving platform; provider branding
+  remains on the provider surface.
 
 ## Alternatives considered
 
@@ -37,4 +37,4 @@ current catalog defaults; explicit overrides remain user-owned.
 - Regression — `ProviderModelMigrator.test.ts`: existing v1 default projection and override preservation.
 - Regression — `ProviderService.edition.test.ts`: existing edition availability and v1 exemption.
 - Regression — provider configuration, image transport, and registry tests: default endpoint resolution and catalog consistency.
-- Regression — `logo.test.ts`: platform-specific Qwen logos, preset copies, and preservation of other model brands.
+- Regression — `logo.test.ts`: existing model logo resolution; model-list and selector tests cover the unchanged consumers.

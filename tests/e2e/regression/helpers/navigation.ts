@@ -34,6 +34,19 @@ export async function openLaunchpadApp(page: Page, name: string): Promise<void> 
   await page.getByRole('button', { name, exact: true }).last().click()
 }
 
+export async function openHelpMenu(page: Page): Promise<void> {
+  // Help lives inside the sidebar account popover, so open the account menu first.
+  const accountMenu = page.locator('[aria-label="Account menu"], [aria-label="账户菜单"]')
+  if (!(await accountMenu.isVisible())) {
+    await page
+      .locator('[data-ui~="app.sidebar"]')
+      .getByRole('button', { name: /^(User|用户)$/ })
+      .click()
+  }
+  await expect(accountMenu).toBeVisible()
+  await page.getByRole('button', { name: /^(Help|帮助)$/ }).click()
+}
+
 export async function selectSidebarApp(page: Page, name: string): Promise<void> {
   await dismissOnboarding(page)
   const targetView = {

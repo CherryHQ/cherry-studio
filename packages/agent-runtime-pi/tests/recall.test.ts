@@ -5,7 +5,8 @@ import { describe, expect, it, onTestFinished } from 'vitest'
 
 import { createScriptedHost, install } from '@cherrystudio/agent-behavior'
 
-import { type AgentRuntimeEvent, createPiBehavior } from '../src'
+import { type AgentRuntimeEvent } from '../src'
+import { createPiBehavior } from '../src/behavior/harness'
 import type { TestSessionOptions } from './sessionSupport'
 import { respondingModel } from './sessionSupport'
 import { assistantReply, createTestSession, hostStore, plain, tempDir } from './sessionSupport'

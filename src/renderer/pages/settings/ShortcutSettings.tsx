@@ -51,6 +51,7 @@ import {
   convertKeyToAccelerator,
   formatKeyDisplay,
   formatShortcutDisplay,
+  isShortcutCharacterToken,
   isValidShortcut,
   normalizeShortcutToken,
   type ShortcutBinding,
@@ -79,7 +80,15 @@ const keyCodeToAccelerator: Record<string, ShortcutToken> = {
 const passthrough =
   /^(Page(Up|Down)|Insert|Home|End|CapsLock|Arrow(Up|Down|Left|Right)|F([1-9]|1\d|2[0-4])|Slash|Semicolon|Bracket(Left|Right)|Backslash|Quote|Comma|Minus|Equal)$/
 
-const usableEndKeys = (code: string): ShortcutToken | null => {
+const usableEndKeys = (event: Pick<ReactKeyboardEvent, 'key' | 'code'>): ShortcutToken | null => {
+  const { code } = event
+  const fromKey = convertKeyToAccelerator(event.key)
+  const fromCode = convertKeyToAccelerator(code)
+
+  if (isShortcutCharacterToken(fromKey) && (fromCode === undefined || isShortcutCharacterToken(fromCode))) {
+    return fromKey
+  }
+
   if (/^Key[A-Z]$/.test(code) || /^(Digit|Numpad)\d$/.test(code)) return normalizeShortcutToken(code) ?? null
   if (keyCodeToAccelerator[code]) return keyCodeToAccelerator[code]
   if (passthrough.test(code)) return convertKeyToAccelerator(code) ?? null
@@ -317,7 +326,7 @@ const ShortcutSettings: FC = () => {
     if (event.metaKey) keys.push(isMac ? 'CommandOrControl' : 'Meta')
     if (event.shiftKey) keys.push('Shift')
 
-    const endKey = usableEndKeys(event.code)
+    const endKey = usableEndKeys(event)
     if (endKey) {
       keys.push(endKey)
     }
@@ -370,9 +379,13 @@ const ShortcutSettings: FC = () => {
     const nextPreferencesByCommand: Partial<Record<CommandId, PreferenceShortcutType>> = { ...shortcutPreferences }
     const updates = visibleShortcuts.reduce(
       (acc, record) => {
-        // Non-editable commands are fixed reservations (e.g. the native close
-        // role); toggling them off would silently revert their accelerator.
-        if (!record.preference.binding.length || record.keybinding.editable === false) return acc
+        // Fixed reservations (e.g. the native close role) must opt into toggling
+        // to avoid silently reverting their accelerator when disabled.
+        if (
+          !record.preference.binding.length ||
+          (record.keybinding.editable === false && record.keybinding.enableToggle !== true)
+        )
+          return acc
         nextPreferencesByCommand[record.command] = {
           binding: record.preference.binding,
           enabled
@@ -521,7 +534,10 @@ const ShortcutSettings: FC = () => {
       <Switch
         size="sm"
         checked={record.preference.enabled}
-        disabled={!record.preference.binding.length || record.keybinding.editable === false}
+        disabled={
+          !record.preference.binding.length ||
+          (record.keybinding.editable === false && record.keybinding.enableToggle !== true)
+        }
         onCheckedChange={() => {
           const nextPreference = {
             binding: record.preference.binding,

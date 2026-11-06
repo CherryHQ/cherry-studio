@@ -11,11 +11,10 @@
  * warm-pooled query's prewarm-baked hooks observe mid-session updates.
  */
 
-import type { HookCallback, HookInput, HookJSONOutput } from '@anthropic-ai/claude-agent-sdk'
+import type { HookCallback, HookJSONOutput } from '@anthropic-ai/claude-agent-sdk'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { wrapSteerReminder } from '@main/ai/steerReminder'
 import {
   CHERRY_MCP_SERVER,
   findBuiltinToolPolicy,
@@ -27,7 +26,6 @@ import { MOVE_TO_TRASH_TOOL_NAME } from '@main/ai/tools/moveToTrash'
 import { SAVE_ATTACHMENT_TOOL_NAME } from '@main/ai/tools/saveAttachment'
 import { rtkRewrite } from '@main/utils/rtk'
 
-import type { AgentRuntimeUserInput } from '../types'
 import { BASH_NO_PROGRESS_HARD_THRESHOLD, BASH_NO_PROGRESS_THRESHOLD, BASH_RUN_BREAK_TOOLS } from './bashNoProgress'
 import { CLAUDE_TOOL_GUARD_RULES } from './guardRules'
 import { createClaudeCodeIdentityHooks } from './identityHooks'
@@ -57,15 +55,6 @@ export function surfaceExitPlanModeInput(
     return
   }
   sessionState().peekToolApprovalEmitter(sessionId)?.emitInput?.({ toolCallId, toolName, input })
-}
-
-function extractSteerText(input: AgentRuntimeUserInput): string {
-  return (
-    input.message.data?.parts
-      ?.filter((part): part is { type: 'text'; text: string } => part.type === 'text' && 'text' in part)
-      .map((part) => part.text)
-      .join('\n') ?? ''
-  )
 }
 
 export interface ClaudeCodeHookContext {
@@ -182,48 +171,6 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     logger.info('rtk rewrote Bash command', { original: command, rewritten })
     return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...toolInput, command: rewritten } } }
   }
-
-  // Real mid-turn steer (the agent SDK has no native steer API): inject steers stashed via
-  // `redirect()` as `additionalContext` at the next tool boundary — PostToolBatch (guaranteed
-  // before the next model request) or PreToolUse; otherwise the turn-end `steer-undelivered`
-  // fallback queues them. The synchronous splice makes the take once-only across both points.
-  const takePendingSteer = (
-    hookEventName: 'PreToolUse' | 'PostToolBatch',
-    input: HookInput | undefined
-  ): HookJSONOutput => {
-    // A subagent boundary (`agent_id` present) must not consume the queue: the steer addresses the
-    // top-level turn, and the driver only rolls `steer-boundary` at a top-level assistant message.
-    if (!input || input.hook_event_name !== hookEventName || input.agent_id) return {}
-    // Resolve the steer holder by id at fire-time — the prewarm-baked hook must read the live
-    // holder the connection wired, not a holder instance captured before this connection existed.
-    const holder = sessionState().getSteerHolder(sessionId)
-    if (holder.pending.length === 0) return {}
-
-    const taken = holder.pending.splice(0)
-    const text = taken
-      .map(extractSteerText)
-      .filter((t) => t.trim())
-      .join('\n\n')
-    if (!text) {
-      holder.pending.unshift(...taken)
-      return {}
-    }
-    logger.info('Injecting steer into the running turn', {
-      sessionId,
-      count: taken.length,
-      hook: hookEventName
-    })
-    // Arm the connection's `steer-boundary` (rolls A1a + A2) — fired only when we actually inject.
-    holder.onInjected?.(taken)
-    return {
-      continue: true,
-      hookSpecificOutput: { hookEventName, additionalContext: wrapSteerReminder(text) }
-    }
-  }
-
-  const steerHook: HookCallback = async (input) => takePendingSteer('PreToolUse', input)
-  const postToolBatchSteerHook: HookCallback = async (input) => takePendingSteer('PostToolBatch', input)
-
   const bashRewriteCleanupHook: HookCallback = async (input) => {
     if (input.hook_event_name !== 'PostToolBatch') return {}
     // Denied calls have no PostToolUse event; consume only this batch's leftovers.
@@ -315,10 +262,10 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
 
   return {
     ...createClaudeCodeIdentityHooks(agentDataPath),
-    PreToolUse: [{ hooks: [toolGuardHook, skillDependencyAdvisoryHook, rtkRewriteHook, steerHook] }],
+    PreToolUse: [{ hooks: [toolGuardHook, skillDependencyAdvisoryHook, rtkRewriteHook] }],
     PostToolUse: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
     PostToolUseFailure: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
-    PostToolBatch: [{ hooks: [postToolBatchSteerHook, bashRewriteCleanupHook] }],
+    PostToolBatch: [{ hooks: [bashRewriteCleanupHook] }],
     SubagentStop: [{ hooks: [subagentStopHook] }]
   }
 }
