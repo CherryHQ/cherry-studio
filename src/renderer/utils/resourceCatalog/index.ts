@@ -22,4 +22,5 @@ export {
   RESOURCE_TYPE_META,
   RESOURCE_TYPE_ORDER
 } from './constants'
+export { generateAgentInstructions, selectInstalledSkillIds } from './agentAutoCreate'
 export { buildCreateAgentCommand, buildCreateAssistantDto } from './resourceCreate'

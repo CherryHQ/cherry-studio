@@ -1,3 +1,4 @@
+import { ArrowLeft } from 'lucide-react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn, useFormState, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -17,9 +18,11 @@ import {
   resourceDialogRailItemClassName,
   resourceDialogTitleClassName
 } from '../components/EditDialogShared'
+import { type AutoCreateInput, AutoCreateProgress } from './AutoCreateProgress'
 import { BasicInfoStep } from './steps/BasicInfoStep'
 import { CapabilityStep } from './steps/CapabilityStep'
 import { KnowledgeStep } from './steps/KnowledgeStep'
+import { QuickCreateStep } from './steps/QuickCreateStep'
 import { SystemPromptStep } from './steps/SystemPromptStep'
 import type { ResourceCreateWizardFormValues, ResourceCreateWizardKind, ResourceCreateWizardValues } from './types'
 
@@ -38,13 +41,18 @@ type ResourceCreateWizardProps = {
 
 type StepId = 'basic' | 'system-prompt' | 'knowledge' | 'capability'
 
+/** Agents start on the quick-create page; "Agent create" runs `auto`, "Manual create" opens `guided`. */
+type Stage = 'quick' | 'auto' | 'guided'
+
+const getInitialStage = (kind: ResourceCreateWizardKind): Stage => (kind === 'agent' ? 'quick' : 'guided')
+
 /** The avatar a brand-new resource starts with — exported so callers can preview what they'd create. */
 export function getResourceCreateDefaultAvatar(kind: ResourceCreateWizardKind) {
   return kind === 'assistant' ? '💬' : '🤖'
 }
 
 function getDefaultValues(kind: ResourceCreateWizardKind, initialName = ''): ResourceCreateWizardFormValues {
-  const agentType = kind === 'agent' ? 'pi' : 'claude-code'
+  const agentType = kind === 'agent' ? 'pi-durable' : 'claude-code'
   return {
     avatar: getResourceCreateDefaultAvatar(kind),
     name: initialName,
@@ -69,6 +77,7 @@ function WizardFooter({
   isSubmitting,
   onCancel,
   onBack,
+  onBackToQuick,
   onNext,
   onCreate
 }: {
@@ -78,6 +87,8 @@ function WizardFooter({
   isSubmitting: boolean
   onCancel: () => void
   onBack: () => void
+  /** Agents can step back from the first guided step to the quick-create page. */
+  onBackToQuick?: () => void
   onNext: () => void
   onCreate: () => void
 }) {
@@ -90,6 +101,17 @@ function WizardFooter({
 
   return (
     <div className="flex shrink-0 items-center justify-end gap-2 border-border-subtle border-t px-6 py-3">
+      {onBackToQuick ? (
+        <Button
+          type="button"
+          variant="ghost"
+          disabled={submitting}
+          className="mr-auto text-muted-foreground"
+          onClick={onBackToQuick}>
+          <ArrowLeft />
+          {t('library.config.dialogs.create.quick.back_to_quick')}
+        </Button>
+      ) : null}
       {rootError ? <span className="mr-auto text-destructive text-xs">{rootError}</span> : null}
       <Button type="button" variant="ghost" disabled={submitting} className="text-muted-foreground" onClick={onCancel}>
         {t('common.cancel')}
@@ -154,6 +176,9 @@ export function ResourceCreateWizard({
       : null
   const autoSelectedDefaultModelIdRef = useRef<UniqueModelId | null>(null)
   const [stepIndex, setStepIndex] = useState(0)
+  const [stage, setStage] = useState<Stage>(() => getInitialStage(kind))
+  const [autoInput, setAutoInput] = useState<AutoCreateInput | null>(null)
+  const [autoRunning, setAutoRunning] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [dialogKey, setDialogKey] = useState(0)
   const pendingCloseActionRef = useRef<(() => void) | null>(null)
@@ -164,7 +189,7 @@ export function ResourceCreateWizard({
   // otherwise a failure would write its error into an already-closed form. Subscribing
   // to isSubmitting (not form values) keeps the shell off the field-edit re-render path.
   const { isSubmitting: isFormSubmitting } = useFormState({ control: form.control })
-  const submitting = isSubmitting || isFormSubmitting
+  const submitting = isSubmitting || isFormSubmitting || autoRunning
 
   const steps = useMemo<{ id: StepId; label: string }[]>(() => {
     const basic = { id: 'basic' as const, label: t('library.config.dialogs.create.step.basic') }
@@ -189,6 +214,8 @@ export function ResourceCreateWizard({
     form.reset(getDefaultValues(kind, initialName))
     form.clearErrors()
     setStepIndex(0)
+    setStage(getInitialStage(kind))
+    setAutoInput(null)
   })
 
   useEffect(() => {
@@ -271,6 +298,27 @@ export function ResourceCreateWizard({
     return () => window.cancelAnimationFrame(frameId)
   }, [open, runPendingCloseAction])
 
+  const startManualCreate = () => {
+    const { description, prompt } = form.getValues()
+    if (!prompt.trim() && description.trim()) form.setValue('prompt', description.trim(), { shouldDirty: true })
+    setStepIndex(0)
+    setStage('guided')
+  }
+
+  const startAutoCreate = () => {
+    const values = form.getValues()
+    if (!values.modelId || !values.name.trim()) return
+    setAutoInput({
+      avatar: values.avatar,
+      agentType: values.agentType,
+      permissionMode: values.permissionMode,
+      name: values.name.trim(),
+      modelId: values.modelId,
+      description: values.description.trim()
+    })
+    setStage('auto')
+  }
+
   const handleCreate = form.handleSubmit(async (values) => {
     if (!values.modelId) return
     form.clearErrors('root')
@@ -303,8 +351,12 @@ export function ResourceCreateWizard({
       <DialogContent
         ref={setDialogContentElement}
         closeOnOverlayClick={!submitting}
-        size="xl"
-        className={cn('flex h-[min(600px,76vh)] flex-col gap-0 p-0', resourceDialogCloseButtonClassName)}
+        size={stage === 'guided' ? 'xl' : 'default'}
+        className={cn(
+          'flex flex-col gap-0 p-0',
+          stage === 'guided' ? 'h-[min(600px,76vh)]' : 'max-h-[min(640px,80vh)]',
+          resourceDialogCloseButtonClassName
+        )}
         onPointerDownOutside={(event) => submitting && event.preventDefault()}>
         {/* Header — title */}
         <div className={resourceDialogHeaderClassName}>
@@ -315,74 +367,100 @@ export function ResourceCreateWizard({
 
         <Form {...form}>
           <form onSubmit={(event) => event.preventDefault()} className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <div className="flex min-h-0 flex-1">
-              {/* Step rail */}
-              <ol className="w-48 shrink-0 space-y-1 border-border border-r-[0.5px] bg-background-subtle p-3">
-                {steps.map((step, index) => {
-                  const active = index === stepIndex
-                  const done = index < stepIndex
-                  return (
-                    <li key={step.id}>
-                      <MenuItem
-                        icon={
-                          <span
-                            className={cn(
-                              'flex size-5 shrink-0 items-center justify-center rounded-full font-medium text-[11px]',
-                              active
-                                ? 'bg-foreground text-background'
-                                : done
-                                  ? 'bg-foreground/10 text-foreground'
-                                  : 'border border-border text-muted-foreground'
-                            )}>
-                            {index + 1}
-                          </span>
-                        }
-                        label={step.label}
-                        active={active}
-                        disabled={!done}
-                        onClick={() => done && setStepIndex(index)}
-                        aria-current={active ? 'step' : undefined}
-                        className={cn(resourceDialogRailItemClassName, 'disabled:opacity-100')}
+            {stage === 'quick' ? (
+              <QuickCreateStep
+                form={form}
+                portalContainer={dialogContentElement}
+                fallbackAvatar={getResourceCreateDefaultAvatar(kind)}
+                modelFilter={activeModelFilter}
+                onSettingsNavigate={closeBeforeAction}
+                onCancel={() => onOpenChange(false)}
+                onManualCreate={startManualCreate}
+                onAutoCreate={startAutoCreate}
+              />
+            ) : null}
+            {stage === 'auto' && autoInput ? (
+              <AutoCreateProgress
+                input={autoInput}
+                model={availableModels.find((model) => model.id === autoInput.modelId)}
+                onSubmit={onSubmit}
+                onBack={() => setStage('quick')}
+                onRunningChange={setAutoRunning}
+              />
+            ) : null}
+            {stage === 'guided' ? (
+              <>
+                <div className="flex min-h-0 flex-1">
+                  {/* Step rail */}
+                  <ol className="w-48 shrink-0 space-y-1 border-border border-r-[0.5px] bg-background-subtle p-3">
+                    {steps.map((step, index) => {
+                      const active = index === stepIndex
+                      const done = index < stepIndex
+                      return (
+                        <li key={step.id}>
+                          <MenuItem
+                            icon={
+                              <span
+                                className={cn(
+                                  'flex size-5 shrink-0 items-center justify-center rounded-full font-medium text-[11px]',
+                                  active
+                                    ? 'bg-foreground text-background'
+                                    : done
+                                      ? 'bg-foreground/10 text-foreground'
+                                      : 'border border-border text-muted-foreground'
+                                )}>
+                                {index + 1}
+                              </span>
+                            }
+                            label={step.label}
+                            active={active}
+                            disabled={!done}
+                            onClick={() => done && setStepIndex(index)}
+                            aria-current={active ? 'step' : undefined}
+                            className={cn(resourceDialogRailItemClassName, 'disabled:opacity-100')}
+                          />
+                        </li>
+                      )
+                    })}
+                  </ol>
+
+                  {/* Active step */}
+                  <ScrollArea viewportProps={{ className: 'px-6 py-5' }} className="min-w-0 flex-1">
+                    {currentStep.id === 'basic' ? (
+                      <BasicInfoStep
+                        form={form}
+                        portalContainer={dialogContentElement}
+                        fallbackAvatar={getResourceCreateDefaultAvatar(kind)}
+                        modelFilter={activeModelFilter}
+                        isAgent={kind === 'agent'}
+                        onSettingsNavigate={closeBeforeAction}
                       />
-                    </li>
-                  )
-                })}
-              </ol>
+                    ) : null}
+                    {currentStep.id === 'system-prompt' ? (
+                      <SystemPromptStep form={form} portalContainer={dialogContentElement} />
+                    ) : null}
+                    {currentStep.id === 'knowledge' ? (
+                      <KnowledgeStep form={form} isSubmitting={submitting} portalContainer={dialogContentElement} />
+                    ) : null}
+                    {currentStep.id === 'capability' ? (
+                      <CapabilityStep form={form} portalContainer={dialogContentElement} />
+                    ) : null}
+                  </ScrollArea>
+                </div>
 
-              {/* Active step */}
-              <ScrollArea viewportProps={{ className: 'px-6 py-5' }} className="min-w-0 flex-1">
-                {currentStep.id === 'basic' ? (
-                  <BasicInfoStep
-                    form={form}
-                    portalContainer={dialogContentElement}
-                    fallbackAvatar={getResourceCreateDefaultAvatar(kind)}
-                    modelFilter={activeModelFilter}
-                    runtimeSelectable={kind === 'agent'}
-                    onSettingsNavigate={closeBeforeAction}
-                  />
-                ) : null}
-                {currentStep.id === 'system-prompt' ? (
-                  <SystemPromptStep form={form} portalContainer={dialogContentElement} />
-                ) : null}
-                {currentStep.id === 'knowledge' ? (
-                  <KnowledgeStep form={form} isSubmitting={submitting} portalContainer={dialogContentElement} />
-                ) : null}
-                {currentStep.id === 'capability' ? (
-                  <CapabilityStep form={form} portalContainer={dialogContentElement} />
-                ) : null}
-              </ScrollArea>
-            </div>
-
-            <WizardFooter
-              form={form}
-              stepIndex={stepIndex}
-              isLast={isLast}
-              isSubmitting={isSubmitting}
-              onCancel={() => onOpenChange(false)}
-              onBack={goBack}
-              onNext={goNext}
-              onCreate={() => void handleCreate()}
-            />
+                <WizardFooter
+                  form={form}
+                  stepIndex={stepIndex}
+                  isLast={isLast}
+                  isSubmitting={isSubmitting}
+                  onCancel={() => onOpenChange(false)}
+                  onBack={goBack}
+                  onBackToQuick={kind === 'agent' ? () => setStage('quick') : undefined}
+                  onNext={goNext}
+                  onCreate={() => void handleCreate()}
+                />
+              </>
+            ) : null}
           </form>
         </Form>
       </DialogContent>
