@@ -12,6 +12,7 @@ import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { ChatSidePaddingProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import type * as ModelSpeedControlModule from '@renderer/components/ModelSpeedControl'
+import type { CherryCloudQuotaExhaustion } from '@renderer/hooks/useCherryCloudQuotaExhaustion'
 import { handOffAgentDraft } from '@renderer/services/agentDraftHandoff'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
@@ -39,6 +40,7 @@ import AgentComposerImpl, {
 } from '../AgentComposer'
 
 const mocks = vi.hoisted(() => ({
+  quotaExhaustion: null as CherryCloudQuotaExhaustion | null,
   screenshotEnabled: false,
   screenshotListeners: new Map<string, (payload: any) => void>(),
   draftText: 'hello',
@@ -557,7 +559,12 @@ vi.mock('@renderer/hooks/useProvider', () => ({
   useProviderDisplayName: (providerId?: string) => (providerId ? mocks.providerNames[providerId] : '')
 }))
 
+vi.mock('@renderer/hooks/useCherryCloudQuotaExhaustion', () => ({
+  useCherryCloudQuotaExhaustion: () => mocks.quotaExhaustion
+}))
+
 vi.mock('@renderer/hooks/command', () => ({
+  useCommandRuntime: () => ({ execute: vi.fn() }),
   useCommandHandler: (key: string, handler: () => void, options?: Record<string, unknown>) => {
     mocks.shortcutHandlers.set(key, handler)
     mocks.shortcutOptions.set(key, options)
@@ -766,6 +773,7 @@ const originalFetch = globalThis.fetch
 
 describe('AgentComposer', () => {
   beforeEach(() => {
+    mocks.quotaExhaustion = null
     MockCacheUtils.resetMocks()
     globalThis.fetch = vi.fn(async () => ({
       ok: true,
@@ -950,6 +958,25 @@ describe('AgentComposer', () => {
     restoreRequestAnimationFrame = undefined
   })
 
+  it('blocks sending and shows the quota notice while the current model is out of quota', () => {
+    mocks.quotaExhaustion = { reason: 'quota_exhausted', isFreeModel: true, isSubscribed: false }
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+    // The notice explains the block; a send-blocked toast would repeat it.
+    expect(mocks.surfaceProps?.sendBlockedReason).toBeUndefined()
+    render(<>{mocks.surfaceProps?.queueContent}</>)
+    expect(screen.getByRole('button', { name: 'settings.subscription.go_to_subscribe' })).toBeInTheDocument()
+  })
   it('receives a screenshot and optional text into the Agent draft without sending', async () => {
     mocks.screenshotEnabled = true
     render(

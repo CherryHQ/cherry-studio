@@ -221,6 +221,83 @@ required service tier.`
     expect(screen.queryByRole('button', { name: 'openai' })).toBeNull()
   })
 
+  const planText = '套餐「Cherry Plus」额度已耗尽或不足以完成本次请求，建议 30天8小时59分钟57秒后重试。'
+  it.each([
+    ['its JSON body', JSON.stringify({ message: planText, type: 'rate_limit_error', code: 'rate_limit_exceeded' })],
+    ['the agent runtime status prefix', `API Error: Request rejected (429) · ${planText}`],
+    ['the last attempt of a retried request', 'Failed after 3 attempts. Last error: Too Many Requests'],
+    ['the Pi agent status prefix', `429: ${JSON.stringify({ message: planText, type: 'rate_limit_error' })}`]
+  ])('shows only the Cherry AI plan wording from %s, without a settings shortcut', (_case, body) => {
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { navigateErrorTarget }
+    const cloudMessage = {
+      ...message,
+      model: { id: 'qwen3.8-flash', name: 'Qwen 3.8 Flash', provider: 'cherryai-subscription' }
+    }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={
+          body.startsWith('Failed after')
+            ? {
+                name: 'AI_RetryError',
+                message: body,
+                stack: null,
+                cause: null,
+                reason: 'maxRetriesExceeded',
+                lastError: {
+                  name: 'AI_APICallError',
+                  statusCode: 429,
+                  responseBody: JSON.stringify({ error: { message: planText, type: 'rate_limit_error' } })
+                },
+                errors: []
+              }
+            : { name: 'AI_APICallError', message: body, stack: null, statusCode: 429 }
+        }
+        message={cloudMessage}
+      />
+    )
+
+    expect(screen.getByText('models.detail.quota_exhausted')).toBeInTheDocument()
+    expect(screen.getByText(planText)).toBeInTheDocument()
+    expect(screen.queryByText(/API Error|HTTP 429/)).toBeNull()
+    expect(screen.queryByText(GO_TO_SETTINGS_LABEL)).toBeNull()
+  })
+
+  it('still describes a Cherry AI plan rejection that carries no wording of its own', () => {
+    const cloudMessage = {
+      ...message,
+      model: { id: 'qwen3.8-flash', name: 'Qwen 3.8 Flash', provider: 'cherryai-subscription' }
+    }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'AI_APICallError', message: '', stack: null, statusCode: 429 }}
+        message={cloudMessage}
+      />
+    )
+
+    expect(screen.getByText('models.detail.quota_exhausted')).toBeInTheDocument()
+    expect(screen.getByText(/HTTP 429/)).toBeInTheDocument()
+  })
+
+  it('keeps the settings shortcut for another provider rate limit', () => {
+    mocks.actions = { navigateErrorTarget: vi.fn() }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'AI_APICallError', message: 'Too Many Requests', stack: null, statusCode: 429 }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText('error.diagnosis.rate_limit')).toBeInTheDocument()
+    expect(screen.getByText(GO_TO_SETTINGS_LABEL)).toBeInTheDocument()
+  })
+
   it('offers provider settings recovery when Claude Code reports that the session is not logged in', () => {
     const navigateErrorTarget = vi.fn()
     mocks.actions = { navigateErrorTarget }
