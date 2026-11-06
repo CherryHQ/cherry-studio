@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
+import { WEB_SEARCH_PROVIDER_IDS } from '@shared/data/preference/preferenceTypes'
 
 import {
   createWebSearchMenuEntry,
@@ -60,7 +61,34 @@ describe('webSearchProviderMeta', () => {
     expect(getWebSearchProviderIconRef('serply')).toMatchObject({ kind: 'provider', key: 'serply' })
     expect(getWebSearchProviderOfficialWebsite('serply')).toBe('https://serply.io')
     expect(getWebSearchProviderApiKeyWebsite('serply')).toBe('https://serply.io')
+    expect(getWebSearchProviderIconRef('desearch')).toMatchObject({ kind: 'provider', key: 'desearch' })
+    expect(getWebSearchProviderOfficialWebsite('desearch')).toBe('https://desearch.ai')
+    expect(getWebSearchProviderApiKeyWebsite('desearch')).toBe('https://console.desearch.ai/api-keys')
     expect(getWebSearchProviderApiKeyWebsite('fetch')).toBeUndefined()
+  })
+
+  it('links Yuanbao API key onboarding to Tencent key management', () => {
+    expect(getWebSearchProviderApiKeyWebsite('yuanbao')).toBe(
+      'https://console.cloud.tencent.com/wsapi/index?tab=apikey'
+    )
+  })
+
+  it('does not reference the retired Tencent WSA console path in provider websites', () => {
+    for (const id of WEB_SEARCH_PROVIDER_IDS) {
+      for (const [field, website] of [
+        ['apiKeyWebsite', getWebSearchProviderApiKeyWebsite(id)],
+        ['officialWebsite', getWebSearchProviderOfficialWebsite(id)]
+      ] as const) {
+        if (website === undefined) continue
+
+        const url = new URL(website)
+
+        expect(
+          url.hostname === 'console.cloud.tencent.com' && (url.pathname === '/wsa' || url.pathname.startsWith('/wsa/')),
+          `${id}.${field}: ${website}`
+        ).toBe(false)
+      }
+    }
   })
 
   it('returns capability title keys', () => {

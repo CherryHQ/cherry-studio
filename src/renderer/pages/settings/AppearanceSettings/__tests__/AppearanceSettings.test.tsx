@@ -194,10 +194,6 @@ vi.mock('@renderer/components/SettingsPrimitives', async () => {
   }
 })
 
-vi.mock('@renderer/components/Scrollbar', () => ({
-  default: ({ children, ...props }: { children?: React.ReactNode }) => <div {...props}>{children}</div>
-}))
-
 vi.mock('@renderer/components/icons/ResetIcon', () => ({
   default: (props: any) => <span data-testid="reset-icon" {...props} />
 }))
@@ -260,7 +256,7 @@ describe('AppearanceSettings menu presentation mode', () => {
     expect(setTimeoutTimer).toHaveBeenCalledWith('handleMenuPresentationModeChange', expect.any(Function), 500)
 
     setTimeoutTimer.mock.calls[0][1]()
-    expect(window.api.application.relaunch).toHaveBeenCalled()
+    expect(mocks.request).toHaveBeenCalledWith('app.relaunch')
   })
 
   it('surfaces save failures without scheduling relaunch', async () => {
@@ -279,7 +275,7 @@ describe('AppearanceSettings menu presentation mode', () => {
 
     expect(toast.error).toHaveBeenCalledWith('save failed')
     expect(setTimeoutTimer).not.toHaveBeenCalled()
-    expect(window.api.application.relaunch).not.toHaveBeenCalled()
+    expect(mocks.request).not.toHaveBeenCalledWith('app.relaunch')
   })
 })
 

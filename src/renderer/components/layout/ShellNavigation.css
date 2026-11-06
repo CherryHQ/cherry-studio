@@ -1,0 +1,49 @@
+@layer app {
+  .shell-navigation {
+    --app-nav-foreground: color-mix(in oklab, var(--muted-foreground) 88%, var(--sidebar-foreground));
+    --app-nav-hover-surface: color-mix(in srgb, var(--sidebar-foreground) 4%, transparent);
+    --app-nav-active-surface: color-mix(in srgb, var(--sidebar-foreground) 12%, transparent);
+    --app-nav-active-foreground: var(--sidebar-foreground);
+    --app-nav-focus-ring: color-mix(in oklab, var(--sidebar-ring) 60%, var(--sidebar-foreground));
+    --app-nav-state-transition: background-color 200ms ease-in-out, color 200ms ease-in-out;
+  }
+
+  .shell-navigation-item {
+    color: var(--app-nav-foreground);
+    background-color: transparent;
+    border-color: transparent;
+    box-shadow: none;
+    transition: var(--app-nav-state-transition);
+  }
+
+  .shell-navigation-item .lucide:not(.lucide-custom) {
+    color: inherit;
+  }
+
+  .shell-navigation-item:where(:hover, [data-hovered='true'], [data-menu-open='true'], [data-state='open']):not(
+      :where([aria-disabled='true'], :disabled)
+    ) {
+    background-color: var(--app-nav-hover-surface);
+  }
+
+  .shell-navigation-item[data-active='true'] {
+    color: var(--app-nav-active-foreground);
+    background-color: var(--app-nav-active-surface);
+  }
+
+  .shell-navigation-item:focus-visible {
+    box-shadow: inset 0 0 0 1px var(--app-nav-focus-ring);
+  }
+
+  .shell-navigation-item[aria-disabled='true'],
+  .shell-navigation-item:disabled {
+    color: var(--foreground-disabled);
+    background-color: transparent;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .shell-navigation {
+      --app-nav-state-transition: background-color 0s, color 0s;
+    }
+  }
+}

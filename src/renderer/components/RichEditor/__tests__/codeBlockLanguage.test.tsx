@@ -43,6 +43,14 @@ describe('code block language search', () => {
     expect(ref.current?.getMarkdown()).toContain('print("hello")')
   })
 
+  it('opens an empty Mermaid block in source mode so its source stays editable', async () => {
+    render(<RichEditor initialContent={'```mermaid\n```'} autoFocus={false} />)
+
+    expect(await screen.findByRole('button', { name: 'Language' })).toHaveTextContent('mermaid')
+    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
+    expect(document.querySelector('.code-block-wrapper pre')).toBeVisible()
+  })
+
   it('supports searching from Mermaid source mode, empty results and reopening with a cleared search', async () => {
     const user = userEvent.setup()
     const { result } = renderHook(() => useRef<RichEditorRef>(null))
