@@ -9,14 +9,27 @@ export function nativeComputerUse(script: string, timeout = 10_000): string {
   return execFileSync('osascript', ['-e', script], { encoding: 'utf8', timeout }).trim()
 }
 
-export function readNativePermission(panel: 'Privacy_Accessibility' | 'Privacy_ScreenCapture'): string {
+const permissionPanelTitles = {
+  Privacy_Accessibility: ['Accessibility', '辅助功能', '设备控制和数据访问'],
+  Privacy_ScreenCapture: ['Screen Recording', 'Screen & System Audio Recording', '录屏与系统录音', '屏幕录制']
+} as const
+
+export function isNativePermissionPanelOpen(panel: keyof typeof permissionPanelTitles): boolean {
+  return (
+    nativeComputerUse(`
+    tell application "System Events" to tell process "System Settings"
+      if not (exists window 1) then return false
+      return {${permissionPanelTitles[panel].map((title) => JSON.stringify(title)).join(', ')}} contains (name of window 1 as text)
+    end tell
+  `) === 'true'
+  )
+}
+
+export function readNativePermission(panel: keyof typeof permissionPanelTitles): string {
   execFileSync('open', ['x-apple.systempreferences:com.apple.preference.security?' + panel], {
     timeout: 10_000
   })
-  const titles =
-    panel === 'Privacy_Accessibility'
-      ? ['Accessibility', '辅助功能']
-      : ['Screen Recording', 'Screen & System Audio Recording', '录屏与系统录音', '屏幕录制']
+  const titles = permissionPanelTitles[panel]
   return nativeComputerUse(
     `
     tell application "System Events"

@@ -24,4 +24,4 @@ The existing singleton and protocol routing remain unchanged. Other platforms re
 ## Verification
 
 - Regression — two second-instance tests model a background macOS application with minimized and ordinary windows. Both failed before the fix; all 128 MainWindowService tests passed afterward.
-- Regression — the native MP-133 scenario remains the end-to-end confirmation; its rerun is pending.
+- Regression — the native MP-133 scenario passed locally, including repeated-launch foreground activation and protocol routing.

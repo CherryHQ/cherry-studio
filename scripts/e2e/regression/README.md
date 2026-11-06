@@ -12,6 +12,7 @@ The separate [on-demand QA controller](../ondemand/README.md) reuses the ref, in
 | `cases.ts` | Case IDs, titles, task tags, phases, required capabilities, and selection |
 | `cli.ts`, `phases.ts` | CLI entry points and one Playwright invocation per selected phase |
 | `installation.ts`, `artifacts.ts` | Release installation, asset selection, and hashing |
+| `macRuntime.ts` | Isolated Developer ID signing for macOS development notification tests |
 | `lifecycle.ts` | Start, reuse, restart, and stop the owned application |
 | `mockProvider.ts`, `mockWorker.ts` | Start, verify and stop the run-owned aiMock service |
 | `process.ts` | OS process identity, ancestry, ports, and termination |
@@ -146,3 +147,26 @@ case-owned names instead of depending on a runner-installed media encoder.
 - `pnpm lint` and `pnpm docs:check`
 
 Enumeration does not launch Electron or require an initialized run. Full desktop acceptance still requires both hosted platforms and the aggregate gate.
+
+## macOS development notifications
+
+Electron's native notification API requires a Developer ID signed runtime. Before
+launching a development run that includes `MP-110`, prepare a run-owned copy:
+
+```sh
+CHERRY_E2E_MAC_SIGN_IDENTITY="Developer ID Application: Your Identity (TEAMID)" \
+  pnpm exec tsx scripts/e2e/regression/cli.ts prepare-mac-runtime \
+  --run-dir /absolute/run-directory --target-root /absolute/checkout
+```
+
+This uses an already-installed local signing identity, preserves the checkout's
+Electron download, and reuses the signed copy across profile restarts. CI imports
+`CSC_LINK`/`CSC_KEY_PASSWORD` into a temporary keychain for this step only, restores
+the original search list, and removes its certificate files and keychain before
+launch. The signed runtime stays under the isolated run directory, outside uploaded
+reports and evidence. Remove the run directory after stopping the owned application
+and archiving its redacted report.
+
+Notification assertions open Notification Center and inspect only the unique case
+text, so system banner preferences do not determine whether delivery is detected.
+They still click the real system notification and verify conversation activation.

@@ -316,3 +316,48 @@ it.each(['macos', 'windows'] as const)('acknowledges only an owned %s pre-main n
   )
   expect(execFile).not.toHaveBeenCalled()
 })
+
+it('dismisses the private permission guide only when its protocol owner belongs to this application', () => {
+  const paths = getRunPaths(directory)
+  ensureRunDirectories(paths)
+  writeFileSync(
+    paths.appRecord,
+    JSON.stringify({
+      schemaVersion: 1,
+      ownership: 'regression-driver',
+      policy: 'ephemeral',
+      mode: 'branch',
+      platform: 'macos',
+      targetRoot: directory,
+      runnerPid: 42000,
+      electronPid: 42001,
+      cdpPort: 9222,
+      targetUrl: 'http://localhost:5173/windows/main/index.html',
+      logPath: join(paths.logs, 'electron.log')
+    })
+  )
+  const guides = new Set([42003, 99003])
+  let ownedProtocolAlive = true
+  execFileSync.mockImplementation((file: string, args: string[]) => {
+    if (file === 'lsof') return '42001'
+    if (file === 'ps' && args.includes('command=')) return `electron ${directory}`
+    if (file === 'ps' && args.includes('-axo'))
+      return [
+        '42003 /sdk/Cherry Computer Use.app/Contents/MacOS/CherryComputerUse __computer-use-sdk-agent /socket owned-session 42002',
+        '99003 /sdk/Cherry Computer Use.app/Contents/MacOS/CherryComputerUse __computer-use-sdk-agent /socket foreign-session 99002'
+      ].join('\n')
+    if (file === 'ps' && args.includes('ppid=')) return args.includes('42002') && ownedProtocolAlive ? '42001' : '0'
+    if (file === 'swift') {
+      const pid = Number(args.at(-1)?.match(/closeGuide\((\d+)\)/)?.[1])
+      guides.delete(pid)
+      return 'true'
+    }
+    throw new Error('Unexpected native operation')
+  })
+  expect(automation.closeMacComputerUsePermissionGuide(paths)).toBe(true)
+  expect([...guides]).toEqual([99003])
+  guides.add(42003)
+  ownedProtocolAlive = false
+  expect(automation.closeMacComputerUsePermissionGuide(paths)).toBe(false)
+  expect([...guides].sort()).toEqual([42003, 99003])
+})

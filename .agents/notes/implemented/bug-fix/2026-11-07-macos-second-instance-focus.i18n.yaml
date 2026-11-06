@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-07-macos-second-instance-focus.md
-2026-11-07-macos-second-instance-focus.md: 34e26a35b12116088cdc69d4d61af68cf1388a70
-2026-11-07-macos-second-instance-focus.zh.md: 595d61622f3bb04bbb0be38796a4492cb438394b
+2026-11-07-macos-second-instance-focus.md: 648e64348867582773db56a68a37ce3e8998f95d
+2026-11-07-macos-second-instance-focus.zh.md: 11941b2b3fb3b2f3522a744db6cdd332806e78c4

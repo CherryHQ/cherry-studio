@@ -139,6 +139,8 @@ Windows single-instance checks use Restart Manager's [resource-user query](https
 
 These adapters require real desktop execution; successful typechecking or enumeration is not cross-platform acceptance.
 
+`MP-140` dismisses the run-owned native permission guide before refreshing its status. It validates native permission states and desktop-control start/stop without changing OS grants; screen capture is outside this case. The macOS adapter uses the SDK agent's protocol-owner PID to avoid closing an unrelated helper instance.
+
 ## Partial coverage
 
 A passing implemented flow does not cover capabilities absent from the current product. Scenarios record these gaps with `uncovered` annotations; they do not search for fictional controls.

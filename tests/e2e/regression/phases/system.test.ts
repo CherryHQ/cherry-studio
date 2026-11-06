@@ -21,6 +21,7 @@ import { observeExternalResource, registerExternalResource } from '../../../../s
 import { isPathInside } from '../../../../scripts/e2e/regression/paths'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import {
+  closeMacComputerUsePermissionGuide,
   saveNativeFile,
   dragMacPointer,
   sendSystemHotkey,
@@ -32,7 +33,7 @@ import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { expect, test } from '../fixture'
 import {
   computerUseMain,
-  nativeComputerUse,
+  isNativePermissionPanelOpen,
   readNativePermission,
   stopNativeDesktopControl
 } from '../helpers/computerUseNative'
@@ -832,7 +833,7 @@ test(...caseDefinition('MP-140'), async ({ app, mainWindow }, testInfo) => {
       await expect(settings.getByTestId('computer-use-permission-accessibility')).toBeVisible()
       await screenshot('MP-140 step 3 permissions refreshed')
 
-      for (const { name } of permissions) {
+      for (const { name, panel } of permissions) {
         const guide = settings.getByRole('button', { name: `管理${name}权限`, exact: true })
         const state = permissionStates.get(name)
         if (state === '已授权' || state === '不可用') {
@@ -841,17 +842,11 @@ test(...caseDefinition('MP-140'), async ({ app, mainWindow }, testInfo) => {
         }
         await expect(guide).toBeVisible()
         await expect(guide).toHaveText('打开授权引导')
+        readNativePermission(panel === 'Privacy_Accessibility' ? 'Privacy_ScreenCapture' : 'Privacy_Accessibility')
         await guide.click()
-        await expect
-          .poll(() =>
-            nativeComputerUse(`
-        tell application "System Events" to tell process "System Settings"
-          return entire contents of window 1 as text
-        end tell
-      `)
-          )
-          .toContain(name)
+        await expect.poll(() => isNativePermissionPanelOpen(panel)).toBe(true)
         await screenshot(`MP-140 step 3 ${name} guide`)
+        await expect.poll(() => closeMacComputerUsePermissionGuide(app.paths)).toBe(true)
         await page.bringToFront()
         await refresh.click()
         await expect(refresh).toBeEnabled()
@@ -871,12 +866,7 @@ test(...caseDefinition('MP-140'), async ({ app, mainWindow }, testInfo) => {
       window.api.ipcApi.request('computer_use.get_permission_status')
     )) as { ok: true; data: unknown } | { ok: false; error: unknown }
     if (!permissionResult.ok) throw new Error(JSON.stringify(permissionResult.error))
-    const status = computerUseRequestSchemas['computer_use.get_permission_status'].output.parse(permissionResult.data)
-    if (status.permissions.some(({ status }) => status !== 'granted')) {
-      // Missing desktop-control permissions are a prerequisite gap, not a regression: skipping
-      // records the case as blocked instead of failed.
-      test.skip(true, 'UNCOVERED: desktop control requires both helper permissions to be granted in System Settings')
-    }
+    computerUseRequestSchemas['computer_use.get_permission_status'].output.parse(permissionResult.data)
 
     let control = page.getByRole('switch', { name: '允许 Agent 控制桌面应用', exact: true })
     await control.setChecked(true)
@@ -906,7 +896,7 @@ test(...caseDefinition('MP-140'), async ({ app, mainWindow }, testInfo) => {
       const context = service.createTask(${JSON.stringify(ownerId)}, 'MP-140 desktop control')
       const { apps } = await service.listApps(context)
       const matches = apps.filter(app => ${JSON.stringify(app.record.platform)} === 'macos'
-        ? app.id === 'com.apple.systempreferences' : /notepad/i.test(app.name))
+        ? app.identity === 'com.apple.systempreferences' : /notepad/i.test(app.name))
       if (matches.length !== 1) throw new Error('Expected one controlled fixture application')
       const target = matches[0]
       const session = await service.openApp(context, target.id)

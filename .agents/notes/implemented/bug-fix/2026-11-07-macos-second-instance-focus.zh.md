@@ -24,4 +24,4 @@ Status: implemented
 ## 验证
 
 - Regression — 两个重复启动测试分别模拟最小化和普通窗口下的后台 macOS 应用，修复前均失败，修复后全部 128 个 MainWindowService 测试通过。
-- Regression — 原生 MP-133 场景用于端到端确认，目前待重跑。
+- Regression — 原生 MP-133 场景已在本机通过，覆盖重复启动时的前台激活与协议路由。

@@ -66,7 +66,7 @@ export function assertOwnedProcess(record: ProcessOwner, pid: number, kind: 'ele
     record.mode === 'tag'
       ? record.executablePath
       : kind === 'electron'
-        ? record.targetRoot
+        ? (record.executablePath ?? record.targetRoot)
         : (record.platform === 'windows' ? win32 : posix).join(
             record.targetRoot,
             'node_modules',
@@ -100,9 +100,8 @@ export function terminateOwnedMacProcessGroup(record: ProcessOwner, signal: 'SIG
       throw new Error('Refusing cleanup: runner no longer owns its process group')
     }
   } else {
-    const expected = record.mode === 'tag' ? record.executablePath : record.targetRoot
-    const appContents =
-      record.mode === 'tag' ? record.executablePath?.match(/^(.*\.app\/Contents)\/MacOS\/[^/]+$/)?.[1] : undefined
+    const expected = record.executablePath ?? (record.mode === 'branch' ? record.targetRoot : undefined)
+    const appContents = record.executablePath?.match(/^(.*\.app\/Contents)\/MacOS\/[^/]+$/)?.[1]
     if (
       !expected ||
       !members.some(

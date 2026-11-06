@@ -12,6 +12,7 @@ import {
 import { dirname, join, resolve } from 'node:path'
 
 import type { InstallationRecord } from './installation'
+import { macRuntimeExecutable } from './macRuntime'
 import type { RunPaths } from './paths'
 import { isPathInside } from './paths'
 import {
@@ -172,6 +173,8 @@ function getLaunchSpec(
   const logPath = join(paths.logs, `electron-${profile}.log`)
   const environment = createProfileEnvironment(paths, profile)
   if (mode === 'branch') {
+    const preparedRuntime = macRuntimeExecutable(paths)
+    const executablePath = process.platform === 'darwin' && existsSync(preparedRuntime) ? preparedRuntime : undefined
     const args = [
       join(targetRoot, 'node_modules', 'dotenv-cli', 'cli.js'),
       '--',
@@ -191,10 +194,12 @@ function getLaunchSpec(
       cwd: targetRoot,
       environment: {
         ...environment,
+        ...(executablePath ? { ELECTRON_EXEC_PATH: executablePath } : {}),
         CS_DEV_PROFILE_ROOT: join(paths.profiles, profile),
         CS_DEV_USER_DATA_SUFFIX: `Regression-${runKey}-${profile}`
       },
-      logPath
+      logPath,
+      ...(executablePath ? { executablePath } : {})
     }
   }
 

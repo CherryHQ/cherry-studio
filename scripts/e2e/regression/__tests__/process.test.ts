@@ -91,6 +91,42 @@ it.each([
   expect(kill.mock.calls.every(([, signal]) => signal === 0)).toBe(true)
 })
 
+it('checks the exact signed development executable and its CDP ownership', () => {
+  const executablePath = '/tmp/owned-run/installed/signed-runtime/Electron.app/Contents/MacOS/Electron'
+  const signedOwner = { ...owner, executablePath }
+  let command = `${executablePath} . --remote-debugging-port=9222`
+  let listener = '42001'
+  execFileSync.mockImplementation((file: string) => (file === 'ps' ? command : listener))
+  expect(() => assertOwnedProcess(signedOwner, 42001, 'electron')).not.toThrow()
+  command = '/tmp/foreign-run/Electron.app/Contents/MacOS/Electron .'
+  expect(() => assertOwnedProcess(signedOwner, 42001, 'electron')).toThrow('command no longer matches')
+  command = `${executablePath} .`
+  listener = '99000'
+  expect(() => assertOwnedProcess(signedOwner, 42001, 'electron')).toThrow('no longer owns CDP')
+})
+
+it('cleans only the isolated signed runtime helpers after their development runner has exited', () => {
+  const executablePath = '/tmp/owned-run/installed/signed-runtime/Electron.app/Contents/MacOS/Electron'
+  const signedOwner = { ...owner, executablePath }
+  const helpers = new Set([42001, 99000])
+  execFileSync.mockReturnValue(
+    '42001 42000 S /tmp/owned-run/installed/signed-runtime/Electron.app/Contents/Frameworks/Electron Helper.app/Contents/MacOS/Electron Helper\n99000 99000 S /Applications/Other.app/Contents/MacOS/Other'
+  )
+  vi.spyOn(process, 'kill').mockImplementation((pid, signal) => {
+    if (signal === 0) {
+      if (!helpers.has(pid)) throw new Error('ESRCH')
+      return true
+    }
+    if (pid === -42000) helpers.delete(42001)
+    return true
+  })
+  terminateOwnedMacProcessGroup(signedOwner)
+  expect([...helpers]).toEqual([99000])
+  execFileSync.mockReturnValue('99000 42000 S /Applications/Other.app/Contents/MacOS/Other')
+  expect(() => terminateOwnedMacProcessGroup(signedOwner)).toThrow('Refusing cleanup')
+  expect([...helpers]).toEqual([99000])
+})
+
 it('refuses a runner launched from a different checkout even when it also uses dotenv', () => {
   execFileSync.mockReturnValue('node /tmp/other-checkout/node_modules/dotenv-cli/cli.js')
   expect(() => assertOwnedProcess(owner, owner.runnerPid, 'runner')).toThrow('Refusing to terminate stale runner')

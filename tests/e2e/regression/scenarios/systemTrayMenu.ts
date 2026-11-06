@@ -108,18 +108,20 @@ export async function systemTrayMenu(app: RegressionApp, page: Page, testInfo: T
     await expect.poll(readMenu).toEqual(['Show Window', 'Selection Assistant - Off', 'Quit'])
     await testInfo.attach('MP-132 native tray menu labels', { body: readMenu().join('\n'), contentType: 'text/plain' })
 
-    await expect.poll(() => page.evaluate(() => document.visibilityState)).toBe('visible')
+    clickMenu('Show Window')
+    await expect.poll(readMenu).toEqual([])
+    await expect.poll(async () => (await inspectStartup(app)).visible).toBe(true)
     // Closing the main window while the tray is enabled hides it; Show Window must bring it back.
     await page.evaluate(() => window.api.ipcApi.request('window.close'))
     await expect
-      .poll(() => page.evaluate(() => document.visibilityState), {
+      .poll(async () => (await inspectStartup(app)).visible, {
         message: 'Closing the main window with the tray enabled must hide it',
         timeout: 10_000
       })
-      .toBe('hidden')
+      .toBe(false)
     await openTray()
     clickMenu('Show Window')
-    await expect.poll(() => page.evaluate(() => document.visibilityState)).toBe('visible')
+    await expect.poll(async () => (await inspectStartup(app)).visible).toBe(true)
     await screenshot('MP-132 main window restored by the tray Show Window action')
 
     const before = await page.evaluate(() =>

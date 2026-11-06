@@ -8,6 +8,7 @@ import { cleanupExternalResources } from './externalResources'
 import { createFixtures } from './fixtureFiles'
 import { prepareRelease } from './installation'
 import { launchApp, stopOwnedApp } from './lifecycle'
+import { prepareMacRuntime } from './macRuntime'
 import { assertMockTask, startMockProvider, stopMockProvider, verifyMockProvider } from './mockProvider'
 import { ensureRunDirectories, getRunPaths } from './paths'
 import { runPhase } from './phases'
@@ -244,6 +245,9 @@ async function main(): Promise<void> {
       break
     case 'release':
       await releaseCommand()
+      break
+    case 'prepare-mac-runtime':
+      await prepareMacRuntime(runDirectory(), resolve(argument('target-root') ?? ''))
       break
     case 'launch':
       await launchCommand()

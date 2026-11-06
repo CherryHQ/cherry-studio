@@ -11,7 +11,11 @@ import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
-import { findMacNotification, findWindowsNotification } from '../../../../scripts/e2e/regression/systemAutomation'
+import {
+  findMacNotification,
+  findWindowsNotification,
+  setMacNotificationCenterOpen
+} from '../../../../scripts/e2e/regression/systemAutomation'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { selectSidebarApp } from '../helpers/navigation'
 import { openSettingsSection } from '../helpers/settings'
@@ -206,6 +210,7 @@ export async function notificationSettings(app: RegressionApp, initialPage: Page
         )
       }
       await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(false)
+      if (app.record.platform === 'macos') setMacNotificationCenterOpen(app.paths, true)
       expect(findNotification(answer)).toBe(false)
       await new Promise((resolve) => setTimeout(resolve, 1500))
       request.complete(answer)
@@ -269,6 +274,7 @@ export async function notificationSettings(app: RegressionApp, initialPage: Page
     }
   } finally {
     await server.close()
+    if (app.record.platform === 'macos') setMacNotificationCenterOpen(app.paths, false)
     if (app.record.platform === 'windows') await inspectStartup(app, 'show')
     else restoreAppVisibility(app.record.electronPid)
     await page.evaluate(

@@ -77,6 +77,85 @@ export function dragMacPointer(paths: RunPaths, from: { x: number; y: number }, 
   )
 }
 
+export function closeMacComputerUsePermissionGuide(paths: RunPaths): boolean {
+  const record = readAppRecord(paths)
+  if (record.platform !== 'macos') throw new Error('Native permission automation requires macOS')
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  // LaunchServices reparents SDK agents; their final argument identifies the owned protocol process.
+  const agents = execFileSync('ps', ['-axo', 'pid=,command='], { encoding: 'utf8' })
+    .split('\n')
+    .map((line) =>
+      line.trim().match(/^(\d+) (.*Cherry Computer Use\.app\/Contents\/MacOS\/.*) __computer-use-sdk-agent .+ (\d+)$/)
+    )
+    .filter((match): match is RegExpMatchArray =>
+      Boolean(match && isDescendant(Number(match[3]), record.electronPid, 'macos'))
+    )
+  if (agents.length !== 1) return false
+  const pid = Number(agents[0][1])
+  const script = `
+    import ApplicationServices
+    import Foundation
+    func closeGuide(_ pid: Int32) -> Bool {
+      var value: CFTypeRef?
+      let application = AXUIElementCreateApplication(pid)
+      guard AXUIElementCopyAttributeValue(application, kAXWindowsAttribute as CFString, &value) == .success,
+            let windows = value as? [AXUIElement] else { return false }
+      for window in windows {
+        var title: CFTypeRef?
+        AXUIElementCopyAttributeValue(window, kAXTitleAttribute as CFString, &title)
+        guard title as? String == "Cherry Computer Use" else { continue }
+        var close: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(window, kAXCloseButtonAttribute as CFString, &close) == .success,
+              let close, CFGetTypeID(close) == AXUIElementGetTypeID() else { continue }
+        return AXUIElementPerformAction(unsafeBitCast(close, to: AXUIElement.self), kAXPressAction as CFString) == .success
+      }
+      return false
+    }
+    print(closeGuide(${pid}))
+  `
+  return (
+    execFileSync('swift', ['-module-cache-path', join(paths.private, 'swift-module-cache'), '-e', script], {
+      encoding: 'utf8',
+      timeout: 30_000
+    }).trim() === 'true'
+  )
+}
+
+export function setMacNotificationCenterOpen(paths: RunPaths, open: boolean): void {
+  const record = readAppRecord(paths)
+  if (record.platform !== 'macos') throw new Error('Native notification automation requires macOS')
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  execFileSync(
+    'osascript',
+    [
+      '-l',
+      'JavaScript',
+      '-e',
+      `
+    ObjC.import('CoreGraphics')
+    ObjC.import('Foundation')
+    const center = Application('System Events').processes.byName('NotificationCenter')
+    const containsEditor = (element, depth) => {
+      try {
+        if (element.attributes.byName('AXIdentifier').value() === 'widget-editor-button') return true
+      } catch {}
+      return depth < 5 && element.uiElements().some(child => containsEditor(child, depth + 1))
+    }
+    const open = center.windows().some(window => containsEditor(window, 0))
+    if (open !== ${JSON.stringify(open)}) {
+      for (const down of [true, false]) {
+        const event = $.CGEventCreateKeyboardEvent(null, 45, down)
+        $.CGEventSetFlags(event, 8388608)
+        $.CGEventPost(0, event)
+        $.NSThread.sleepForTimeInterval(0.1)
+      }
+    }
+  `
+    ],
+    { timeout: 10_000, stdio: 'ignore' }
+  )
+}
+
 export function findMacNotification(paths: RunPaths, text: string, click = false): boolean {
   const record = readAppRecord(paths)
   if (record.platform !== 'macos') throw new Error('Native notification automation requires macOS')
@@ -84,27 +163,25 @@ export function findMacNotification(paths: RunPaths, text: string, click = false
   const script = `on run argv
     tell application "System Events" to tell process "NotificationCenter"
       try
-      repeat with windowIndex from 1 to count of windows
-        set windowElements to entire contents of window windowIndex
-        repeat with groupReference in windowElements
-          set notificationGroup to contents of groupReference
-          if role of notificationGroup is "AXGroup" then
-            set alertElements to entire contents of notificationGroup
-            repeat with elementReference in alertElements
-              set element to contents of elementReference
-              if role of element is "AXStaticText" then
-                if (value of element as text) contains item 1 of argv then
-                  if item 2 of argv is not "click" then return "found"
+        repeat with windowIndex from 1 to count of windows
+          set windowElements to entire contents of window windowIndex
+          repeat with elementReference in windowElements
+            set element to contents of elementReference
+            if role of element is "AXStaticText" then
+              if (value of element as text) contains item 1 of argv then
+                if item 2 of argv is not "click" then return "found"
+                set notificationGroup to value of attribute "AXParent" of element
+                repeat 8 times
                   if (name of every action of notificationGroup) contains "AXPress" then
                     perform action "AXPress" of notificationGroup
                     return "found"
                   end if
-                end if
+                  set notificationGroup to value of attribute "AXParent" of notificationGroup
+                end repeat
               end if
-            end repeat
-          end if
+            end if
+          end repeat
         end repeat
-      end repeat
       on error errorMessage number errorNumber
         if errorNumber is not -1728 then error errorMessage number errorNumber
       end try
