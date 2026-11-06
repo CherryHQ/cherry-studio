@@ -195,7 +195,7 @@ function ModelRow({
   detailPortalContainer?: SelectorShellLayout['portalContainer']
   t: (key: string) => string
 }) {
-  const icon = useIcon(getModelLogoRef(item.model, item.provider.id))
+  const icon = useIcon(getModelLogoRef(item.model, item.provider))
   const rowTags = useMemo(() => getModelDisplayTags(item.model, undefined, item.provider), [item.model, item.provider])
   const providerName = getProviderDisplayName(item.provider)
   const disambiguationLabel = item.showIdentifier

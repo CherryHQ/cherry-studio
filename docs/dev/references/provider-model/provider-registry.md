@@ -278,6 +278,19 @@ does not replace it. If product semantics change to "inherit until renamed",
 
 ### When Backfill Is Required
 
+Qwen platform availability is edition-specific: `dashscope` is offered in
+`cn`, and `qwencloud` in `global`. The same rule covers preset-derived copies
+and users migrated from v1; other providers retain the existing v1 edition
+exemption. Unavailable providers and their credentials/model bindings remain
+stored, but cannot be listed, selected, or used in the other edition.
+
+The Qwen endpoint upgrade explicitly migrates saved HTTP(S) URLs whose literal
+host is `dashscope.aliyuncs.com` or `dashscope-intl.aliyuncs.com` to
+`maas.qianwenaiapi.com` or `maas.qwencloudapi.com`, respectively. The database
+upgrade and v1 import preserve the protocol, userinfo, port, path, query, and
+fragment. Proxy hosts, other regions, and malformed URLs remain unchanged;
+the migration does not move credentials or models between providers.
+
 Registry content updates do not require a backfill when the storage ownership
 contract is unchanged:
 

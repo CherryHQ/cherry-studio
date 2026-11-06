@@ -62,8 +62,8 @@ function modelIdLine(model: Model) {
   return model.apiModelId ?? parseUniqueModelId(model.id).modelId
 }
 
-const ModelGlyph = memo(function ModelGlyph({ model }: { model: Model }) {
-  const Icon = useIcon(getModelLogoRef(model))
+const ModelGlyph = memo(function ModelGlyph({ model, provider }: { model: Model; provider?: Provider }) {
+  const Icon = useIcon(getModelLogoRef(model, provider))
   if (Icon) {
     return (
       <span className={modelListClasses.rowAvatar}>
@@ -94,7 +94,7 @@ const ModelRowIdentity = memo(function ModelRowIdentity({
 
   return (
     <>
-      <ModelGlyph model={model} />
+      <ModelGlyph model={model} provider={provider} />
       <div className="min-w-0 flex-1">
         <div className={modelSyncClasses.manageRowTitleLine}>
           {/* Friendly names can collide, so the raw id must remain keyboard- and screen-reader-accessible. */}

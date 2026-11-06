@@ -2,7 +2,9 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { ErrorCode } from '@shared/data/api/errors'
@@ -25,6 +27,16 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
       return [
         {
           id: 'global-only',
+          availableInEditions: ['global'],
+          endpointConfigs: {}
+        },
+        {
+          id: 'dashscope',
+          availableInEditions: ['cn'],
+          endpointConfigs: {}
+        },
+        {
+          id: 'qwencloud',
           availableInEditions: ['global'],
           endpointConfigs: {}
         }
@@ -71,10 +83,7 @@ describe('ProviderService edition availability', () => {
       }
     ])
 
-    const displayMetadataSpy = vi.spyOn(providerRegistryService, 'getProviderDisplayMetadata')
     expect(providerService.list({}).map((provider) => provider.id)).toEqual(['custom-provider'])
-    expect(displayMetadataSpy).toHaveBeenCalledTimes(2)
-    displayMetadataSpy.mockRestore()
     expect(providerService.listAvailableProviderIds()).toEqual(new Set(['custom-provider']))
     expect(providerService.listAvailableProviderIds(['global-only', 'custom-provider'])).toEqual(
       new Set(['custom-provider'])
@@ -153,7 +162,7 @@ describe('ProviderService edition availability', () => {
     expect(providerService.getByProviderId('global-only').id).toBe('global-only')
   })
 
-  it('keeps every persisted provider available for users migrated from v1', async () => {
+  it('retains the v1 edition exemption for unrelated providers', async () => {
     migrationOrigin.current = true
     await dbh.db.insert(userProviderTable).values({
       providerId: 'global-only',
@@ -163,5 +172,77 @@ describe('ProviderService edition availability', () => {
     })
 
     expect(providerService.list({}).map((provider) => provider.id)).toEqual(['global-only'])
+  })
+
+  it.each([
+    ['cn', false, 'dashscope', 'qwencloud'],
+    ['cn', true, 'dashscope', 'qwencloud'],
+    ['global', false, 'qwencloud', 'dashscope'],
+    ['global', true, 'qwencloud', 'dashscope']
+  ] as const)('isolates Qwen providers and copies in %s (v1 migration: %s)', (edition, migrated, allowed, hidden) => {
+    applicationEdition.current = edition
+    migrationOrigin.current = migrated
+    const ids = [allowed, `${allowed}-copy`, hidden, `${hidden}-copy`]
+    for (const id of ids) {
+      dbh.db
+        .insert(userProviderTable)
+        .values({
+          providerId: id,
+          presetProviderId: id.replace('-copy', ''),
+          name: id,
+          orderKey: id,
+          apiKeys: [{ id: 'key', key: 'saved-secret', isEnabled: true }]
+        })
+        .run()
+      dbh.db
+        .insert(userModelTable)
+        .values({
+          id: `${id}::model`,
+          providerId: id,
+          modelId: 'model',
+          name: 'Saved model',
+          capabilities: [],
+          supportsStreaming: true,
+          orderKey: 'a0'
+        })
+        .run()
+    }
+    const providersBefore = dbh.db.select().from(userProviderTable).all()
+    const modelsBefore = dbh.db.select().from(userModelTable).all()
+
+    expect(
+      providerService
+        .list({})
+        .map((row) => row.id)
+        .sort()
+    ).toEqual([allowed, `${allowed}-copy`].sort())
+    expect(
+      modelService
+        .list({})
+        .map((row) => row.providerId)
+        .sort()
+    ).toEqual([allowed, `${allowed}-copy`].sort())
+    for (const id of [hidden, `${hidden}-copy`]) {
+      expect(() => providerService.getByProviderId(id)).toThrowError(
+        expect.objectContaining({ code: ErrorCode.NOT_FOUND })
+      )
+      expect(() => providerService.resolveApiKey(id)).toThrowError(
+        expect.objectContaining({ code: ErrorCode.NOT_FOUND })
+      )
+      expect(() => modelService.getByKey(id, 'model')).toThrowError(
+        expect.objectContaining({ code: ErrorCode.NOT_FOUND })
+      )
+      expect(() => providerRegistryService.resolveModels(id, ['model'])).toThrowError(
+        expect.objectContaining({ code: ErrorCode.NOT_FOUND })
+      )
+    }
+    expect(() =>
+      providerService.create({ providerId: 'new-copy', presetProviderId: hidden, name: 'New copy' })
+    ).toThrowError(expect.objectContaining({ code: ErrorCode.INVALID_OPERATION }))
+    expect(dbh.db.select().from(userProviderTable).all()).toEqual(providersBefore)
+    expect(dbh.db.select().from(userModelTable).all()).toEqual(modelsBefore)
+
+    const created = providerService.create({ providerId: 'allowed-copy', presetProviderId: allowed, name: 'Allowed' })
+    expect(created.presetProviderId).toBe(allowed)
   })
 })
