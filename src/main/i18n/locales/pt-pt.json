@@ -156,6 +156,7 @@
   "file_processing.errors.open_mineru_task_failed": "O Open MinerU não concluiu o processamento do documento (estado: {{status}}). Verifique o servidor e tente novamente.",
   "file_processing.errors.open_mineru_unreachable": "Não foi possível ligar ao Open MinerU. Verifique se o servidor está em execução e se o endereço está correto.",
   "file_processing.errors.pdf_page_limit_exceeded": "Este PDF excede o limite de {{maxPages}} páginas do serviço atual de análise de documentos. Divida o PDF manualmente e adicione-o novamente.",
+  "knowledge.source.invalid_url": "Introduza um URL válido que comece por http:// ou https://.",
   "notification.action_required.agent": "O agente precisa da sua intervenção",
   "notification.action_required.assistant": "O assistente precisa da sua intervenção",
   "notification.center.backup_failed": "Falha na cópia de segurança",
