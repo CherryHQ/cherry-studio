@@ -237,7 +237,7 @@ describe('MCP JSON export', () => {
     mocks.servers = [{ id: 'builtin', name: '@cherry/filesystem', type: 'stdio', isActive: true }]
     const view = render(<McpServersList />)
     await user.click(screen.getByRole('button', { name: 'Add' }))
-    expect(screen.getByRole('button', { name: 'Export as JSON' })).toBeDisabled()
+    expect(screen.getByRole('menuitem', { name: 'Export as JSON' })).toHaveAttribute('aria-disabled', 'true')
     await user.keyboard('{Escape}')
     mocks.servers = [{ id: 'user', name: 'User server', type: 'stdio', command: 'node', isActive: false }]
     view.rerender(<McpServersList />)
@@ -245,8 +245,8 @@ describe('MCP JSON export', () => {
     await user.type(screen.getByRole('searchbox', { name: 'Search MCP servers' }), 'no matching server')
     expect(await screen.findByText('No results')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Add' }))
-    expect(screen.getByRole('button', { name: 'Export as JSON' })).toBeEnabled()
-    await user.click(screen.getByRole('button', { name: 'Export as JSON' }))
+    expect(screen.getByRole('menuitem', { name: 'Export as JSON' })).not.toHaveAttribute('aria-disabled', 'true')
+    await user.click(screen.getByRole('menuitem', { name: 'Export as JSON' }))
     await waitFor(() => expect(save).toHaveBeenCalledOnce())
     expect(save.mock.calls[0][0]).toBe('mcp-servers.json')
     expect(ArrayBuffer.isView(save.mock.calls[0][1])).toBe(true)
@@ -267,7 +267,7 @@ describe('MCP JSON export', () => {
     ]
     const view = render(<McpServersList />)
     await user.click(screen.getByRole('button', { name: 'Add' }))
-    await user.click(screen.getByRole('button', { name: 'Export as JSON' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Export as JSON' }))
     expect(save).not.toHaveBeenCalled()
     expect(toast.error).toHaveBeenCalledWith('Cannot export MCP servers with duplicate names: same')
     mocks.servers = [mocks.servers[0]]
@@ -279,10 +279,10 @@ describe('MCP JSON export', () => {
     )
     view.rerender(<McpServersList />)
     await user.click(screen.getByRole('button', { name: 'Add' }))
-    await user.click(screen.getByRole('button', { name: 'Export as JSON' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Export as JSON' }))
     await user.click(screen.getByRole('button', { name: 'Add' }))
-    expect(screen.getByRole('button', { name: 'Export as JSON' })).toBeDisabled()
+    expect(screen.getByRole('menuitem', { name: 'Export as JSON' })).toHaveAttribute('aria-disabled', 'true')
     await act(async () => resolve(null))
-    expect(screen.getByRole('button', { name: 'Export as JSON' })).toBeEnabled()
+    expect(screen.getByRole('menuitem', { name: 'Export as JSON' })).not.toHaveAttribute('aria-disabled', 'true')
   })
 })

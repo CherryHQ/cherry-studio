@@ -12,7 +12,7 @@ import {
 } from '@renderer/services/mainWindowNavigation'
 
 import { Route } from '../mcp'
-import { Route as IndexRoute } from '../mcp.index'
+import { redirectToMcpServers } from '../mcp.index'
 import { Route as ServersRoute } from '../mcp/servers'
 import { Route as DetailRoute } from '../mcp/settings.$serverId'
 
@@ -36,7 +36,7 @@ function createMcpRouter(initialEntry: string) {
     search: Route.options.search,
     component: Route.options.component
   })
-  const index = createRoute({ getParentRoute: () => mcp, path: '/', beforeLoad: IndexRoute.options.beforeLoad })
+  const index = createRoute({ getParentRoute: () => mcp, path: '/', beforeLoad: redirectToMcpServers })
   const servers = createRoute({
     getParentRoute: () => mcp,
     path: 'servers',
@@ -110,7 +110,7 @@ describe('standalone MCP navigation', () => {
     await user.click(screen.getByRole('button', { name: /ModelContextProtocol MCP/ }))
     expect(screen.queryByText('Builtin Servers')).not.toBeInTheDocument()
     expect(await screen.findByRole('heading', { name: 'Server content' })).toBeVisible()
-    expect(router.state.matches.at(-1)?.search.mcpStandalone).toBe('true')
+    expect(router.state.matches.at(-1)?.search).toMatchObject({ mcpStandalone: 'true' })
     cleanup()
     const freshRouter = createMcpRouter('/settings/mcp/servers')
     await freshRouter.load()
