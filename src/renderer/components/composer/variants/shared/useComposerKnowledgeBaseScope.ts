@@ -17,6 +17,8 @@ import { composerKnowledgeBaseTokenId, knowledgeBaseToComposerToken } from './co
 const KNOWLEDGE_BASE_IDS_KEY_SEPARATOR = '\u0000'
 
 interface UseComposerKnowledgeBaseScopeParams {
+  /** While true (input-history preview), draft-cache hydration holds for the live draft. */
+  suspendDraftHydration?: boolean
   /** Knowledge base ids configured on the active assistant or Agent. */
   configuredKnowledgeBaseIds: readonly string[] | undefined
   allKnowledgeBases: KnowledgeBase[]
@@ -60,6 +62,7 @@ interface UseComposerKnowledgeBaseScopeResult {
  * knowledge-base ids for one composer scope.
  */
 export function useComposerKnowledgeBaseScope({
+  suspendDraftHydration = false,
   configuredKnowledgeBaseIds,
   allKnowledgeBases,
   isKnowledgeBasesLoading,
@@ -225,7 +228,7 @@ export function useComposerKnowledgeBaseScope({
   }, [filterSelectableKnowledgeBases, scopeKey, setSelectedKnowledgeBases])
 
   useEffect(() => {
-    if (isKnowledgeBaseDraftHydrated || isKnowledgeBasesLoading) return
+    if (isKnowledgeBaseDraftHydrated || isKnowledgeBasesLoading || suspendDraftHydration) return
 
     const wantedIds = new Set(initialKnowledgeBaseIds)
     const restoredIds = selectableKnowledgeBases.filter((base) => wantedIds.has(base.id)).map((base) => base.id)
@@ -237,7 +240,8 @@ export function useComposerKnowledgeBaseScope({
     isKnowledgeBaseDraftHydrated,
     isKnowledgeBasesLoading,
     restoreKnowledgeBaseSelection,
-    selectableKnowledgeBases
+    selectableKnowledgeBases,
+    suspendDraftHydration
   ])
 
   return {

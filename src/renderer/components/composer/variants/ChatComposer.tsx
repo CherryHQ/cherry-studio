@@ -203,6 +203,8 @@ interface SavedComposerDraft {
 
 interface InputHistoryToolSnapshot extends Pick<SavedComposerDraft, 'files' | 'selectedKnowledgeBases'> {
   mentionedModels: Model[]
+  /** The owning draft's full persisted scope, including ids the catalog cannot offer yet. */
+  knowledgeBaseIds: string[]
   pendingKnowledgeBaseIds: readonly string[] | null
 }
 
@@ -481,7 +483,11 @@ const ChatComposerInner = ({
   const knowledgeBasePanelVisible = Boolean(
     quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.KnowledgeBase
   )
+  // A tokenless saved draft can still carry a knowledge scope: an explicit restore or resume
+  // must pull the catalog in so the retry can resolve instead of sending without the scope.
+  const knowledgeRestoreNeedsCatalogRef = useRef(false)
   const knowledgeBasesDataEnabled =
+    knowledgeRestoreNeedsCatalogRef.current ||
     selectedKnowledgeBases.length > 0 ||
     getComposerTokenIds(draftTokens ?? [], 'knowledge').size > 0 ||
     Boolean(editingMessageForCurrentTopic) ||
@@ -500,9 +506,10 @@ const ChatComposerInner = ({
   // through a bridge ref that is re-synced after every render below the hook.
   const knowledgeScopeBridgeRef = useRef<{
     pendingIds: readonly string[] | null
+    persistedIds: readonly string[]
     clearPending: () => void
     resumePending: (ids: readonly string[] | null | undefined) => void
-  }>({ pendingIds: null, clearPending: () => {}, resumePending: () => {} })
+  }>({ pendingIds: null, persistedIds: [], clearPending: () => {}, resumePending: () => {} })
   const applyHistoryDraft = useCallback(
     (historyDraft: ComposerSerializedDraft, options: { source: 'history' | 'draft' }) => {
       skipDraftCacheWriteForHistoryPreviewRef.current = options.source === 'history'
@@ -516,6 +523,7 @@ const ChatComposerInner = ({
           files: filesRef.current,
           mentionedModels: mentionedModelsRef.current,
           selectedKnowledgeBases: selectedKnowledgeBasesRef.current,
+          knowledgeBaseIds: [...knowledgeScopeBridgeRef.current.persistedIds],
           pendingKnowledgeBaseIds: knowledgeScopeBridgeRef.current.pendingIds
         }
         setFiles([])
@@ -533,6 +541,7 @@ const ChatComposerInner = ({
       setMentionedModels(savedTools.mentionedModels)
       setSelectedKnowledgeBases(savedTools.selectedKnowledgeBases)
       // The owning draft is back: a retry suspended for it may resolve again.
+      if (savedTools.pendingKnowledgeBaseIds?.length) knowledgeRestoreNeedsCatalogRef.current = true
       knowledgeScopeBridgeRef.current.resumePending(savedTools.pendingKnowledgeBaseIds)
     },
     [
@@ -731,11 +740,15 @@ const ChatComposerInner = ({
     scopeKey: selectedKnowledgeBasesScopeKey,
     selectedKnowledgeBases,
     setSelectedKnowledgeBases,
-    initialKnowledgeBaseIds: initialDraft.knowledgeBaseIds
+    initialKnowledgeBaseIds: initialDraft.knowledgeBaseIds,
+    // A history preview shows a recalled entry, not the live draft: hydration waits for the
+    // owning draft instead of landing its cached scope in the preview.
+    suspendDraftHydration: isInputHistoryActive
   })
 
   knowledgeScopeBridgeRef.current = {
     pendingIds: pendingKnowledgeBaseRestoreIds,
+    persistedIds: knowledgeBaseIdsRef.current,
     clearPending: clearPendingKnowledgeBaseRestore,
     resumePending: resumePendingKnowledgeBaseRestore
   }
@@ -1037,6 +1050,7 @@ const ChatComposerInner = ({
     setSelectedKnowledgeBases(savedDraft.selectedKnowledgeBases)
     // The parked content owns any knowledge retry pending when editing began
     // (restoreEditableMessageDraft cleared it for the edited message): resume it with its draft.
+    if (savedDraft.pendingKnowledgeBaseIds?.length) knowledgeRestoreNeedsCatalogRef.current = true
     resumePendingKnowledgeBaseRestore(savedDraft.pendingKnowledgeBaseIds)
   }, [
     actionsRef,
@@ -1545,10 +1559,11 @@ const ChatComposerInner = ({
   const knowledgeBaseIdsForSnapshot = useCallback(
     (tools: InputHistoryToolSnapshot | null) =>
       tools
-        ? // The parked draft owns its unresolved ids too: union the pending retry in so a save
-          // during the preview keeps the scope the restore is still waiting on.
+        ? // The parked draft owns its whole scope: the persisted ids (including ones the catalog
+          // cannot offer yet), the resolved selection and any pending retry.
           [
             ...new Set([
+              ...tools.knowledgeBaseIds,
               ...tools.selectedKnowledgeBases.map((base) => base.id),
               ...(tools.pendingKnowledgeBaseIds ?? [])
             ])
@@ -1622,6 +1637,7 @@ const ChatComposerInner = ({
       // Restore the draft's knowledge scope with it, as queued-followup restoration does: the rich
       // editor's replaceDraft suppresses the update events that would reselect matching bases.
       if (item.knowledgeBaseIds) {
+        knowledgeRestoreNeedsCatalogRef.current = true
         restoreKnowledgeBaseSelection(item.knowledgeBaseIds, { retryUnavailable: true })
       } else {
         // A legacy draft restores nothing: drop any retry still pending from the content it replaces.

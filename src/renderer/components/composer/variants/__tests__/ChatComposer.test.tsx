@@ -6168,6 +6168,120 @@ describe('ChatComposer', () => {
       expect(saved.knowledgeBaseIds).toEqual(['kb-1'])
     })
 
+    it("keeps a parked draft's unavailable persisted scope when saving during a history preview", async () => {
+      const knowledgeBase = { id: 'kb-1', name: 'Knowledge One', documentCount: 1 } as KnowledgeBase
+      // The cached prompt carried kb-1, but the assistant now configures a different base: with a
+      // non-empty config, kb-1 is not selectable, so hydration keeps it persisted-but-unselected
+      // (knowledgeBaseIdsRef only). An empty config means "no restriction" and would not exclude it.
+      mocks.assistant = {
+        ...mocks.assistant,
+        knowledgeBaseIds: ['kb-other']
+      }
+      mocks.knowledgeBases = [knowledgeBase]
+      vi.mocked(cacheService.get).mockReturnValue({
+        text: 'cached prompt',
+        tokens: [],
+        files: [],
+        knowledgeBaseIds: ['kb-1'],
+        mentionedModelIds: [],
+        modelMultiSelectMode: false
+      })
+      seedInputHistory(['history entry'])
+      mocks.getDraft.mockImplementation(() => ({
+        text: mocks.surfaceProps?.text ?? '',
+        tokens: []
+      }))
+
+      render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('cached prompt'))
+      expect(mocks.selectedKnowledgeBases).toEqual([])
+
+      act(() => {
+        expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+      })
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('history entry'))
+      clickSaveAsDraft()
+
+      const saved = readSavedDrafts().find((item) => item.draft.text === 'cached prompt')
+      expect(saved).toBeDefined()
+      expect(saved.knowledgeBaseIds).toEqual(['kb-1'])
+    })
+
+    it('holds draft-cache hydration while a history preview is showing', async () => {
+      const knowledgeBase = { id: 'kb-1', name: 'Knowledge One', documentCount: 1 } as KnowledgeBase
+      mocks.assistant = {
+        ...mocks.assistant,
+        knowledgeBaseIds: ['kb-1']
+      }
+      mocks.knowledgeBases = []
+      mocks.knowledgeBasesLoading = true
+      vi.mocked(cacheService.get).mockReturnValue({
+        text: 'cached prompt',
+        tokens: [],
+        files: [],
+        knowledgeBaseIds: ['kb-1'],
+        mentionedModelIds: [],
+        modelMultiSelectMode: false
+      })
+      seedInputHistory(['history entry'])
+      mocks.getDraft.mockImplementation(() => ({
+        text: mocks.surfaceProps?.text ?? '',
+        tokens: []
+      }))
+
+      const view = render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('cached prompt'))
+
+      act(() => {
+        expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+      })
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('history entry'))
+
+      // The catalog arrives during the preview: hydration must not land the cached scope in it.
+      mocks.knowledgeBases = [knowledgeBase]
+      mocks.knowledgeBasesLoading = false
+      view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
+      await waitFor(() => expect(mocks.knowledgeBasesLoading).toBe(false))
+      expect(mocks.selectedKnowledgeBases).toEqual([])
+
+      // Back on the owning draft, hydration runs and selects the cached scope.
+      act(() => {
+        expect(mocks.surfaceProps?.onInputHistoryNavigate?.('down')).toBe(true)
+      })
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('cached prompt'))
+      await waitFor(() => expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBase]))
+    })
+
+    it('enables the knowledge catalog when a tokenless saved draft is restored', async () => {
+      mocks.assistant = {
+        ...mocks.assistant,
+        knowledgeBaseIds: ['kb-1']
+      }
+      MockCacheUtils.setInitialState({
+        memory: [
+          [
+            'saved-drafts.topic-1:assistant-1',
+            [{ id: 'draft-a', draft: { text: 'draft A', tokens: [] }, files: [], knowledgeBaseIds: ['kb-1'] }]
+          ]
+        ]
+      })
+      mocks.knowledgeBases = []
+      mocks.knowledgeBasesLoading = true
+
+      render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+      const catalogEnabled = () =>
+        (mocks.knowledgeBaseHookArgs.at(-1)?.[0] as { enabled?: boolean } | undefined)?.enabled
+      // No selection, no knowledge tokens, no editing, no panel: the catalog stays off.
+      expect(catalogEnabled()).toBe(false)
+
+      await act(async () => savedDraftsDock()?.props.onEdit('draft-a'))
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('draft A'))
+
+      // The restore carries a scope without tokens: the catalog must load so the retry can
+      // resolve instead of the send proceeding without it.
+      await waitFor(() => expect(catalogEnabled()).toBe(true))
+    })
+
     it('resumes a pending knowledge restore when message editing is cancelled', async () => {
       const knowledgeBase = { id: 'kb-1', name: 'Knowledge One', documentCount: 1 } as KnowledgeBase
       mocks.assistant = {
