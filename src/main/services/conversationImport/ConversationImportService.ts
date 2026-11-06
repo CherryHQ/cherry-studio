@@ -258,6 +258,7 @@ export class ConversationImportService extends BaseService {
               continue
             }
           }
+          if (item.existing) throw new Error('invalid_preview')
           if (!session || item.diagnostics.some((d) => d.severity === 'error')) {
             outcomes.push({ ref, status: 'failed', reason: 'preview_blocked' })
             continue

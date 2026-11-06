@@ -24,6 +24,11 @@ import type { AgentSessionDeliveryRoutingError } from '@data/services/AgentSessi
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
+import {
+  getImportedHistoryState,
+  queueImportedHistoryTx,
+  setImportedMetadataTx
+} from '@data/services/importedSessionHistory'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSessionForkOperations'
 import { AgentSessionForkError, type RuntimeForkInput } from '@main/ai/runtime/fork/checkpoint'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
@@ -212,6 +217,51 @@ describe('AgentSessionMessageService', () => {
         .map((id) => 'conversation-import:message:wb-copy:' + id + '-copy')
         .sort()
     )
+  })
+
+  it('refreshes imported history count once after deleting an edit tail', () => {
+    application.get('DbService').withWriteTx((tx) => {
+      setImportedMetadataTx(tx, SESSION_ID, { source: 'claude-code', originalSessionId: 'tail-source' })
+      agentSessionMessageService.importMessagesTx(
+        tx,
+        SESSION_ID,
+        Array.from({ length: 32 }, (_, index) => ({
+          id: 'tail-' + index,
+          role: index === 0 || index === 8 ? 'user' : 'assistant',
+          status: 'success',
+          data: { parts: [{ type: 'text' as const, text: 'History ' + index }] },
+          createdAt: index,
+          updatedAt: index,
+          provenance: { source: 'claude-code' as const, sourceOrder: index }
+        }))
+      )
+      queueImportedHistoryTx(tx, SESSION_ID, 'af21c360-e55a-4ad7-bfb1-31d676a946ec', 32)
+    })
+    const snapshot = agentSessionMessageService.readEditSnapshotTx(dbh.db, SESSION_ID, 'tail-8')
+    const prepare = vi.spyOn(dbh.sqlite, 'prepare')
+    application
+      .get('DbService')
+      .withWriteTx((tx) =>
+        agentSessionMessageService.replaceEditTailTx(
+          tx,
+          SESSION_ID,
+          { messageId: 'tail-8', version: snapshot.version },
+          snapshot.prefix
+        )
+      )
+    const countQueries = prepare.mock.calls.filter(([query]) =>
+      /select count\(\*\).*agent_session_message/i.test(query)
+    )
+    expect(countQueries).toHaveLength(1)
+    prepare.mockRestore()
+    expect(
+      agentSessionMessageService
+        .listSessionMessages(SESSION_ID)
+        .items.map((row) => row.id)
+        .reverse()
+    ).toEqual(Array.from({ length: 8 }, (_, index) => 'tail-' + index))
+    expect(getImportedHistoryState(SESSION_ID)?.messageCount).toBe(8)
+    expect(dbh.db.select().from(appStateTable).all()).toHaveLength(9)
   })
 
   describe('native fork persistence', () => {

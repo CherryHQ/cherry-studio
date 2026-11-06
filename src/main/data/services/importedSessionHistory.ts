@@ -1,11 +1,9 @@
-import { and, eq, gte, isNull, lt, sql, type SQL } from 'drizzle-orm'
+import { and, eq, gte, lt, sql, type SQL } from 'drizzle-orm'
 import * as z from 'zod'
 
 import { application } from '@application'
-import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
-import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
 import type { DbOrTx } from '@data/db/types'
 import {
@@ -14,8 +12,6 @@ import {
   type AgentSessionImportMetadata,
   type MessageProvenance
 } from '@shared/data/types/conversationImport'
-
-import { sessionMessageOrdering } from './agentSessionMessageOrder'
 
 const sessionPrefix = 'conversation-import:session:'
 const messagePrefix = 'conversation-import:message:'
@@ -105,6 +101,9 @@ export function deleteMessageProvenanceTx(tx: DbOrTx, sessionId: string, message
   tx.delete(appStateTable)
     .where(eq(appStateTable.key, messagePrefix + sessionId + ':' + messageId))
     .run()
+}
+
+export function refreshImportedHistoryMessageCountTx(tx: DbOrTx, sessionId: string): void {
   const row = tx
     .select()
     .from(appStateTable)
@@ -144,25 +143,6 @@ export function queueImportedHistoryTx(
     })
     .where(eq(appStateTable.key, sessionPrefix + sessionId))
     .run()
-}
-export function readImportedHistory(sessionId: string) {
-  const db = application.get('DbService').getDb()
-  const session = db
-    .select({ session: agentSessionTable, workspace: agentWorkspaceTable, agent: agentTable })
-    .from(agentSessionTable)
-    .innerJoin(agentWorkspaceTable, eq(agentWorkspaceTable.id, agentSessionTable.workspaceId))
-    .innerJoin(agentTable, eq(agentTable.id, agentSessionTable.agentId))
-    .where(and(eq(agentSessionTable.id, sessionId), isNull(agentSessionTable.deletedAt), isNull(agentTable.deletedAt)))
-    .get()
-  if (!session || session.agent.type !== 'pi') throw new Error('target_changed')
-  const messages = db
-    .select({ row: agentSessionMessageTable, provenance: messageProvenanceSql() })
-    .from(agentSessionMessageTable)
-    .where(eq(agentSessionMessageTable.sessionId, sessionId))
-    .orderBy(...sessionMessageOrdering(db, sessionId).orderBy)
-    .all()
-    .map(({ row, provenance }) => ({ ...row, provenance }))
-  return { ...session, messages }
 }
 export function completeImportedHistoryTx(tx: DbOrTx, sessionId: string, state: ImportedHistoryState): void {
   tx.update(appStateTable)

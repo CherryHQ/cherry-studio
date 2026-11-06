@@ -83,7 +83,12 @@ import type { RuntimeForkCheckpoint } from './agentSessionForkContract'
 import { sessionMessageOrdering } from './agentSessionMessageOrder'
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { presentClaudeHistory, presentImportedTools } from './importedHistoryText'
-import { messageProvenanceSql, setMessageProvenanceTx, deleteMessageProvenanceTx } from './importedSessionHistory'
+import {
+  messageProvenanceSql,
+  setMessageProvenanceTx,
+  deleteMessageProvenanceTx,
+  refreshImportedHistoryMessageCountTx
+} from './importedSessionHistory'
 
 type SessionMessageRow = AgentSessionMessageRow & { provenance?: MessageProvenance | null }
 import { isAssistantActivityTransition, isConversationActivityRole } from './utils/activityTime'
@@ -411,9 +416,11 @@ export class AgentSessionMessageService {
   ): void {
     const snapshot = this.readEditSnapshotTx(tx, sessionId, target.messageId)
     if (snapshot.version !== target.version) throw new AgentSessionEditError('history_changed')
-    for (const row of snapshot.rows.slice(snapshot.prefix.length)) {
-      this.deleteSessionMessageTx(tx, sessionId, row.id)
-    }
+    this.deleteSessionMessagesTx(
+      tx,
+      sessionId,
+      snapshot.rows.slice(snapshot.prefix.length).map((row) => row.id)
+    )
     for (const row of prefix) {
       tx.update(sessionMessagesTable)
         .set({ data: row.data, runtimeResumeToken: row.runtimeResumeToken })
@@ -901,13 +908,28 @@ export class AgentSessionMessageService {
   }
 
   deleteSessionMessageTx(tx: DbOrTx, sessionId: string, messageId: string): { rowsAffected: number } {
-    this.invalidateForkPrefixTx(tx, sessionId, messageId)
-    const result = tx
-      .delete(sessionMessagesTable)
-      .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
-      .run()
-    if (result.changes) deleteMessageProvenanceTx(tx, sessionId, messageId)
-    return { rowsAffected: result.changes }
+    return this.deleteSessionMessagesTx(tx, sessionId, [messageId])
+  }
+
+  private deleteSessionMessagesTx(
+    tx: DbOrTx,
+    sessionId: string,
+    messageIds: readonly string[]
+  ): { rowsAffected: number } {
+    let rowsAffected = 0
+    for (const messageId of messageIds) {
+      this.invalidateForkPrefixTx(tx, sessionId, messageId)
+      const result = tx
+        .delete(sessionMessagesTable)
+        .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
+        .run()
+      if (result.changes) {
+        deleteMessageProvenanceTx(tx, sessionId, messageId)
+        rowsAffected += result.changes
+      }
+    }
+    if (rowsAffected) refreshImportedHistoryMessageCountTx(tx, sessionId)
+    return { rowsAffected }
   }
 
   /** Assistant rows whose in-memory owner cannot survive a main-process restart. */
@@ -1293,6 +1315,25 @@ export class AgentSessionMessageService {
       agentSessionService.notifyReadModelChange([params.sessionId], 'projection')
     }
     return saved
+  }
+
+  readImportedHistory(sessionId: string, db: DbOrTx = application.get('DbService').getDb()) {
+    const session = db
+      .select({ session: sessionTable, workspace: agentWorkspaceTable, agent: agentTable })
+      .from(sessionTable)
+      .innerJoin(agentWorkspaceTable, eq(agentWorkspaceTable.id, sessionTable.workspaceId))
+      .innerJoin(agentTable, eq(agentTable.id, sessionTable.agentId))
+      .where(and(eq(sessionTable.id, sessionId), isNull(sessionTable.deletedAt), isNull(agentTable.deletedAt)))
+      .get()
+    if (!session || session.agent.type !== 'pi') throw new Error('target_changed')
+    const messages = db
+      .select({ row: sessionMessagesTable, provenance: messageProvenanceSql() })
+      .from(sessionMessagesTable)
+      .where(eq(sessionMessagesTable.sessionId, sessionId))
+      .orderBy(...sessionMessageOrdering(db, sessionId).orderBy)
+      .all()
+      .map(({ row, provenance }) => ({ ...row, provenance }))
+    return { ...session, messages }
   }
 
   setImportedAnchorsTx(tx: DbOrTx, sessionId: string, anchors: ReadonlyMap<string, unknown>): void {
