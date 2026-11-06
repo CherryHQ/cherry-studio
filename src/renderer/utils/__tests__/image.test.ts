@@ -252,6 +252,36 @@ describe('utils/image', () => {
     })
   })
 
+  describe('font embedding', () => {
+    it('inlines bundled font files as complete url(data:...) tokens, never url(url(...))', async () => {
+      // Fresh module: buildFontEmbedCSS caches per module instance.
+      vi.resetModules()
+      const style = document.createElement('style')
+      style.textContent = '@font-face{font-family:EmbedTest;src:url(file:///fonts/embed-test.woff2)}'
+      document.head.appendChild(style)
+      try {
+        ipcMocks.request.mockResolvedValue({
+          content: new Uint8Array([1, 2, 3]),
+          mime: 'font/woff2',
+          version: { mtime: 1, size: 3 }
+        })
+        const { captureScrollable: captureWithFonts } = await import('../image')
+        // The re-imported image module sees a fresh html-to-image mock instance.
+        const freshHtmlToImage = await import('html-to-image')
+        const div = document.createElement('div')
+        Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+        Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+        const ref = { current: div } as React.RefObject<HTMLDivElement>
+        await captureWithFonts(ref)
+        const options = vi.mocked(freshHtmlToImage.toCanvas).mock.calls.at(-1)?.[1]
+        expect(options?.fontEmbedCSS).toContain('url(data:font/woff2;base64,')
+        expect(options?.fontEmbedCSS).not.toContain('url(url(')
+      } finally {
+        style.remove()
+      }
+    })
+  })
+
   describe('captureScrollable', () => {
     it('uses the selected solid conversation backdrop when rasterizing a canvas', async () => {
       const root = document.createElement('div')

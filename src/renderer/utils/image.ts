@@ -522,8 +522,9 @@ async function buildFontEmbedCSS(): Promise<string> {
       let last = 0
       for (const token of tokens) {
         out += cssText.slice(last, token.start)
+        // readAsDataUrl returns a complete `url(data:...)` token, so it replaces the whole source token.
         const dataUrl = dataUrlByUrl.get(token.url)
-        out += dataUrl ? `url(${dataUrl})` : cssText.slice(token.start, token.end)
+        out += dataUrl ? dataUrl : cssText.slice(token.start, token.end)
         last = token.end
       }
       return out + cssText.slice(last)
