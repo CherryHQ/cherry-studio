@@ -600,4 +600,36 @@ describe('retained-reply interruption hands B back only after A persists', () =>
 
     void service.closeSession('session-1')
   })
+
+  /**
+   * The entry has already adopted B while A's reply still holds A's connection, so an update for B
+   * — B renamed, not its model — reconciles on the ordinary entry path against a connection frozen
+   * to A. The driver derives under that frozen owner, so A's deleted config comes back `invalid`:
+   * a failure that is not B's. The verdict must close A's connection through the retained handoff
+   * and hand B's deferred input back; invalidating the session would discard B's accepted turn.
+   */
+  it('closes the retained owner instead of invalidating the session when an entry-owner update reconciles it invalid', async () => {
+    const service = new AgentSessionRuntimeService()
+    const { entry, retained, reader, savedId } = await streamAutonomousReplyUnderDeferredSwitch(service)
+
+    // B is renamed: the update names the entry's own agent, so reconcile takes the ordinary path.
+    const agentB = { id: 'agent-2', type: 'test-runtime', name: 'Agent B renamed', model: switchedModelId }
+    await (service as any).handleAgentUpdated('agent-2', { name: 'Agent B renamed' }, agentB)
+
+    // The entry survives (B's model is intact) and only the untrusted A connection is closed.
+    expect((service as any).entries.get('session-1')).toBe(entry)
+    expect(retained.close).toHaveBeenCalled()
+
+    // A's reply settles durably, then B's deferred input resumes as the session's live turn.
+    await vi.waitFor(() => expect(persistedRows().get(savedId)).toBe('paused'))
+    await vi.waitFor(() => {
+      expect(entry.runtimeState.execution).toMatchObject({
+        kind: 'turn',
+        turn: expect.objectContaining({ assistantMessageId: 'assistant-2' })
+      })
+    })
+
+    void reader.cancel().catch(() => undefined)
+    void service.closeSession('session-1')
+  })
 })

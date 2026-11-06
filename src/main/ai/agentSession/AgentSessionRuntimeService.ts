@@ -1005,12 +1005,20 @@ export class AgentSessionRuntimeService extends BaseService {
         }
         this.closeConnectionAsync(entry)
         return
-      case 'invalid':
+      case 'invalid': {
+        // A failure of the connection's own frozen owner, not of the entry's agent (which this
+        // update names, so its model was already validated above): close the retained connection
+        // through the handoff and hand its deferred input back.
+        if (connection.agentId !== undefined && connection.agentId !== entry.agentId) {
+          void this.closeRetainedConnection(entry)
+          return
+        }
         // Desired config no longer derivable (agent/session/model — including the frozen owner's
         // configured model — gone): same full invalidation as a cleared model. `invalid` is never
         // an ownership-only verdict, so suppressing it would keep the pre-deletion tool policy.
         this.invalidateModelClearedEntry(entry)
         return
+      }
       case 'failed':
         // Fail closed: a failed live patch may have left the connection enforcing the OLD (looser)
         // policy — the snapshot's `permissionMode` gates `canUseTool`, so a failed tighten must not
