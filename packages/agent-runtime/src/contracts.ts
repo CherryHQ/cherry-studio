@@ -56,27 +56,9 @@ export type InputState = (
 ) & {
   readonly facts: readonly InputFact[]
   readonly outcome?: 'completed' | 'failed' | 'aborted' | 'unanswered'
-  /** Evidenced terminal response, which may be shared by several inputs or contain a failure. */
-  readonly response?: ItemRef
   readonly error?: RuntimeError
 }
-export type InputQuery =
-  | { readonly by: 'native-ref'; readonly ref: NativeInputRef }
-  | { readonly by: 'deduplication-key'; readonly key: string }
 export type InputLookup = { readonly found: false } | { readonly found: true; readonly input: InputState }
-export interface RetractionReceipt {
-  readonly effect: 'withdrawn' | 'already-placed' | 'already-settled'
-}
-export interface InterruptReceipt {
-  readonly effect: 'requested' | 'native-scope-idle'
-}
-export interface ResumeReceipt {
-  readonly scope: 'runtime'
-  readonly effect: 'scheduling-enabled'
-}
-export interface ShutdownReceipt {
-  readonly effect: 'closed'
-}
 export type JsonValue = null | boolean | number | string | readonly JsonValue[] | { readonly [key: string]: JsonValue }
 export type Completeness = 'partial' | 'complete' | 'unknown'
 /** One native conversation message; tools and their results remain in its ordered parts. */
@@ -89,14 +71,14 @@ export interface Subagent {
   readonly id: SubagentId
   readonly parent: Thread
   readonly child?: Thread
+  /** Evidenced creation call, scoped to parent; continuation does not replace it. */
+  readonly origin?: { readonly toolCallId: string; readonly description?: string }
 }
 export interface Activity {
-  readonly scope: 'foreground'
   readonly state: 'active' | 'idle' | 'unknown'
 }
 export interface ThreadSnapshot {
   readonly type: 'snapshot'
-  readonly coverage: 'live-only' | 'current-view' | 'retained-view'
   readonly messages: readonly RuntimeMessage[]
   readonly inputs: readonly InputState[]
   readonly subagents?: readonly Subagent[]
@@ -114,20 +96,21 @@ export type ObservationPayload =
   | { readonly type: 'closed'; readonly reason: 'stopped' | 'released' | 'shutdown' | 'source-lost' | 'consumer-error' }
 export type ObservationSink = (event: ObservationPayload) => void | Promise<void>
 export interface Observation {
+  /** Join callbacks through facts published before this call; rejects if delivery was discarded. */
+  drain(): Promise<void>
   stop(): Promise<void>
 }
 export interface ThreadInput {
-  readonly policies: readonly BusyPolicy[]
   submit(input: InputDraft): Promise<SubmitResult>
 }
 export interface ThreadHandle {
   readonly thread: Thread
   readonly input?: ThreadInput
   observe(sink: ObservationSink): Promise<OperationResult<Observation>>
-  interrupt?: () => Promise<OperationResult<InterruptReceipt>>
+  interrupt?: () => Promise<OperationResult<void>>
   release(): Promise<void>
 }
 export interface AgentRuntime {
   open(ref: Thread): Promise<OperationResult<ThreadHandle>>
-  shutdown(): Promise<OperationResult<ShutdownReceipt>>
+  shutdown(): Promise<OperationResult<void>>
 }

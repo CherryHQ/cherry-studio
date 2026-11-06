@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 
-import { isToolUIPart } from 'ai'
+import { isDataUIPart, isToolUIPart } from 'ai'
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4, v7 as uuidv7, validate as isUuid } from 'uuid'
 
@@ -64,7 +64,7 @@ import {
 } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 
-import { agentSessionContextService } from './AgentSessionContextService'
+import { agentSessionContextService, type RootProjectionCheckpoint } from './AgentSessionContextService'
 import { AgentSessionEditError } from './AgentSessionEditError'
 import { RuntimeForkAnchorSchema, type RuntimeForkCheckpoint } from './agentSessionForkContract'
 import {
@@ -242,9 +242,9 @@ export class AgentSessionDeliveryRoutingError extends Error {
   }
 }
 
-type SaveAgentSessionMessageOptions =
-  | { db: DbOrTx; publishDataChange?: never }
-  | { db?: undefined; publishDataChange?: boolean }
+type SaveAgentSessionMessageOptions = {
+  projection?: RootProjectionCheckpoint
+} & ({ db: DbOrTx; publishDataChange?: never } | { db?: undefined; publishDataChange?: boolean })
 
 type SavedAgentSessionMessage = {
   entity: AgentSessionMessageEntity
@@ -1127,6 +1127,7 @@ export class AgentSessionMessageService {
     }
     this.invalidateForkPrefixTx(tx, sessionId, messageId)
     if (existing) {
+      agentSessionContextService.removeRootMessageTx(tx, sessionId, messageId)
       tx.update(sessionMessagesTable)
         .set({ parentId: existing.parentId })
         .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.parentId, messageId)))
@@ -1539,6 +1540,7 @@ export class AgentSessionMessageService {
     const timestampMs = Date.now()
     const persist = (tx: DbOrTx) => {
       const saved = this.saveMessageTx(tx, params, timestampMs)
+      if (options.projection) agentSessionContextService.saveRootProjectionTx(tx, params.sessionId, options.projection)
       return saved
     }
     if (db) return persist(db).entity
@@ -2443,14 +2445,27 @@ export class AgentSessionMessageService {
   replaceMessageParts(
     sessionId: string,
     messageId: string,
-    parts: AgentSessionMessageEntity['data']['parts']
+    parts: AgentSessionMessageEntity['data']['parts'],
+    projection?: RootProjectionCheckpoint
   ): AgentSessionMessageEntity {
     const saved = application.get('DbService').withWriteTx((tx) => {
       const existingRow = this.findExistingMessageRow(tx, sessionId, messageId)
       if (!existingRow) throw DataApiErrorFactory.notFound('Message', messageId)
 
       const updatedAt = Date.now()
-      const data = { ...existingRow.data, parts }
+      const data = {
+        ...existingRow.data,
+        parts: projection
+          ? [
+              ...(parts ?? []),
+              ...(existingRow.data.parts ?? []).filter(
+                (part) =>
+                  isDataUIPart(part) &&
+                  !parts?.some((native) => isDataUIPart(native) && native.type === part.type && native.id === part.id)
+              )
+            ]
+          : parts
+      }
       const [updated] = tx
         .update(sessionMessagesTable)
         .set({ data, updatedAt })
@@ -2458,6 +2473,7 @@ export class AgentSessionMessageService {
         .returning()
         .all()
       replaceAgentSessionMessageFileRefsTx(tx, messageId, data)
+      if (projection) agentSessionContextService.saveRootProjectionTx(tx, sessionId, projection)
       agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
       return this.rowToEntity(updated)
     })

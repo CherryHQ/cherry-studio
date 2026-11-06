@@ -1,4 +1,7 @@
+import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { t } from '@main/i18n'
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -6,13 +9,11 @@ vi.mock('@logger', () => ({
   }
 }))
 
-const { mockNetFetch, mockWebSocket } = vi.hoisted(() => ({
-  mockNetFetch: vi.fn(),
-  mockWebSocket: vi.fn()
-}))
-vi.mock('electron', () => ({
-  net: { fetch: (...args: unknown[]) => mockNetFetch(...args) }
-}))
+const mockNetFetch = vi.fn()
+beforeEach(() => {
+  vi.mocked(net.fetch).mockImplementation((...args) => mockNetFetch(...args))
+})
+const { mockWebSocket } = vi.hoisted(() => ({ mockWebSocket: vi.fn() }))
 
 vi.mock('ws', () => {
   Object.assign(mockWebSocket, { OPEN: 1, CONNECTING: 0, CLOSED: 3, CLOSING: 2 })
@@ -59,4 +60,34 @@ describe('DiscordAdapter connection lifecycle', () => {
     expect(observedSignal).toBeInstanceOf(AbortSignal)
     expect(mockWebSocket).not.toHaveBeenCalled()
   })
+})
+
+it('clears a withdrawn draft while keeping the same Discord message for resumed content', async () => {
+  vi.useFakeTimers()
+  const adapter = createAdapter()
+  mockNetFetch.mockReset()
+  mockNetFetch.mockResolvedValue(new Response(JSON.stringify({ id: 'draft' }), { status: 200 }))
+  const calls = (method: string) =>
+    mockNetFetch.mock.calls
+      .filter((call) => call[1].method === method)
+      .map((call) => ({ url: call[0], body: JSON.parse(call[1].body) }))
+  try {
+    await adapter.onTextUpdate('channel:test', '')
+    expect(calls('POST')).toEqual([])
+    await adapter.onTextUpdate('channel:test', 'Withdrawn')
+    await vi.advanceTimersByTimeAsync(2000)
+    await adapter.onTextUpdate('channel:test', '')
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(calls('PATCH').at(-1)).toMatchObject({
+      url: expect.stringContaining('/draft'),
+      body: { content: t('common.channel_processing') }
+    })
+    await adapter.onTextUpdate('channel:test', 'Replacement')
+    await vi.advanceTimersByTimeAsync(2000)
+    await adapter.onStreamComplete('channel:test', 'Final')
+    expect(calls('POST')).toHaveLength(1)
+    expect(calls('PATCH').at(-1)).toMatchObject({ url: expect.stringContaining('/draft'), body: { content: 'Final' } })
+  } finally {
+    vi.useRealTimers()
+  }
 })

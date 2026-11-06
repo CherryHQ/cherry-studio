@@ -21,6 +21,7 @@ import {
 } from '@cherrystudio/agent-runtime'
 
 import { createPiRuntime, type AgentRuntimeEvent, type PiRuntimeOptions } from '../src'
+import { createTestBehavior } from './sessionSupport'
 
 function gate() {
   let resolve!: () => void
@@ -52,7 +53,13 @@ async function setup(load?: PiRuntimeOptions['load']) {
     refreshOnCreate: false
   })
   modelRuntime.registerNativeProvider(faux.provider)
-  const options = { cwd, agentDir: cwd, modelRuntime, model: modelRuntime.getModel('faux', 'faux-1')! }
+  const options = {
+    cwd,
+    agentDir: cwd,
+    modelRuntime,
+    model: modelRuntime.getModel('faux', 'faux-1')!,
+    behavior: createTestBehavior({ provider: 'faux', id: 'faux-1' })
+  }
   const runtime = confirmed(await createPiRuntime({ backendId: runtimeId('native-pi'), load }))
   onTestFinished(async () => {
     await runtime.shutdown()
@@ -151,15 +158,14 @@ it('keeps native command preflight, rejects busy prompts and acknowledges queued
     status: 'acknowledged',
     facts: ['queued']
   })
-  expect(await handle.interrupt!()).toEqual({ status: 'confirmed', value: { effect: 'native-scope-idle' } })
+  expect(await handle.interrupt!()).toEqual({ status: 'confirmed', value: undefined })
   await expect.poll(() => events.at(-1)).toMatchObject({ type: 'activity.changed', activity: { state: 'idle' } })
   const states = events.filter((event) => event.type === 'input.changed').map((event) => event.input)
   expect(states.filter((state) => state.inputId === 'later')).toEqual([{ inputId: 'later', facts: ['queued'] }])
   expect(states.some((state) => state.inputId === 'rejected')).toBe(false)
   expect(states.some((state) => state.outcome === 'completed')).toBe(false)
   expect(states.findLast((state) => state.inputId === 'start')).toMatchObject({
-    outcome: 'aborted',
-    response: { session: handle.thread }
+    outcome: 'aborted'
   })
   expect(handle.pi.cancelQueuedInputs()).toEqual({ status: 'confirmed', value: ['later'] })
   const after = await observe(handle)
@@ -280,18 +286,11 @@ it('correlates identical transformed inputs and shares one response across batch
   for (const item of after[0].messages) {
     if (item.role === 'assistant') expect(item.metadata?.inputId).toBeUndefined()
   }
-  const snapshot = after[0]
-  const responseText = (id: string) => {
-    const state = snapshot.inputs.find((value) => value.inputId === id)
-    const response = snapshot.messages.find((item) => item.id === state?.response?.id)
-    return response?.parts.find((part) => part.type === 'text')?.text
-  }
-  expect(['root', 'steer-1', 'steer-2', 'follow'].map(responseText)).toEqual([
-    'initial answer',
-    'shared steering answer',
-    'shared steering answer',
-    'follow-up answer'
-  ])
+  expect(
+    after[0].messages
+      .filter((message) => message.role === 'assistant')
+      .flatMap((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])))
+  ).toEqual(['initial answer', 'shared steering answer', 'follow-up answer'])
   const placed = nativeEvents.filter((event) => event.type === 'input-placed')
   expect(placed.map((event) => event.inputId)).toEqual(['root', 'steer-1', 'steer-2', 'follow'])
   expect(new Set(placed.map((event) => event.entryId)).size).toBe(4)
@@ -300,20 +299,6 @@ it('correlates identical transformed inputs and shares one response across batch
       type: 'message',
       message: { role: 'user', content: [{ type: 'text', text: 'same' }] }
     })
-  }
-  const settled = nativeEvents.filter((event) => event.type === 'input-settled')
-  expect(settled.map((event) => event.inputIds)).toEqual([['root'], ['steer-1', 'steer-2'], ['follow']])
-  for (const event of settled) {
-    expect(manager.getEntry(event.entryId)).toMatchObject({
-      type: 'message',
-      message: { role: 'assistant', stopReason: 'stop' }
-    })
-    expect(event).toMatchObject({ stopReason: 'stop', aborted: false })
-    expect(
-      nativeEvents
-        .slice(0, nativeEvents.indexOf(event))
-        .some((prior) => prior.type === 'session-append' && prior.entries.some((entry) => entry.id === event.entryId))
-    ).toBe(true)
   }
 })
 
@@ -391,8 +376,7 @@ it('attributes a final answer to the original input and steering delivered after
   if (snapshot.type !== 'snapshot') throw new Error('Missing snapshot')
   expect(snapshot.inputs).toHaveLength(2)
   expect(snapshot.inputs.every((state) => state.outcome === 'completed')).toBe(true)
-  expect(snapshot.inputs[0].response).toEqual(snapshot.inputs[1].response)
-  expect(snapshot.messages.find((item) => item.id === snapshot.inputs[0].response?.id)).toMatchObject({
+  expect(snapshot.messages.findLast((item) => item.role === 'assistant')).toMatchObject({
     parts: [{ type: 'text', text: 'answer using both inputs' }]
   })
 })
@@ -470,14 +454,12 @@ it.each(['stop', 'error'] as const)(
     expect(terminal[0]).toMatchObject({
       input: {
         inputId: 'work',
-        outcome: stopReason === 'stop' ? 'completed' : 'failed',
-        response: { session: handle.thread }
+        outcome: stopReason === 'stop' ? 'completed' : 'failed'
       }
     })
     if (terminal[0].type !== 'input.changed') throw new Error('Missing input outcome')
-    const responseId = terminal[0].input.response?.id
     expect(
-      events.findLast((event) => event.type === 'message.upsert' && event.message.id === responseId)
+      events.findLast((event) => event.type === 'message.upsert' && event.message.role === 'assistant')
     ).toMatchObject({
       message: { parts: [{ type: 'text', text: 'final response' }] }
     })
@@ -504,7 +486,6 @@ it.each(['error', 'length', 'toolUse'] as const)(
       inputId: 'work',
       facts: ['dispatch-started', 'placed'],
       outcome: stopReason === 'error' ? 'failed' : 'unanswered',
-      response: { session: handle.thread },
       error: {
         code: stopReason === 'error' ? 'model-error' : stopReason === 'length' ? 'output-truncated' : 'no-final-answer'
       }
@@ -524,31 +505,33 @@ it.each(['error', 'length', 'toolUse'] as const)(
   }
 )
 
-it('keeps a retrying input pending and attributes only the successful final response', async () => {
+it('reports provider failure without a native retry and accepts a new input afterward', async () => {
   const { runtime, options, faux } = await setup()
-  const retry = gate()
-  const finish = gate()
-  onTestFinished(() => finish.resolve())
   faux.setResponses([
     fauxAssistantMessage('temporary failure', { stopReason: 'error', errorMessage: '429 rate limit exceeded' }),
-    async () => {
-      retry.resolve()
-      await finish.promise
-      return fauxAssistantMessage('recovered answer')
-    }
+    fauxAssistantMessage('recovered answer')
   ])
-  const handle = confirmed(
-    await runtime.create({ ...options, settings: { retry: { enabled: true, maxRetries: 1, baseDelayMs: 1 } } })
-  )
+  const handle = confirmed(await runtime.create({ ...options, settings: { retry: { enabled: true } } }))
   const events = await observe(handle)
-  await handle.input.submit(input('retry me'))
-  await retry.promise
-  expect(events.filter((event) => event.type === 'input.changed').every((event) => !event.input.outcome)).toBe(true)
-  finish.resolve()
-  await expect.poll(() => events.at(-1)).toMatchObject({ type: 'activity.changed', activity: { state: 'idle' } })
-  const states = events.filter((event) => event.type === 'input.changed')
-  expect(states.at(-1)?.input).toMatchObject({ outcome: 'completed', response: { session: handle.thread } })
-  expect(states.some((event) => event.input.outcome === 'failed')).toBe(false)
+  await handle.input.submit(input('first'))
+  await handle.pi.settled()
+  expect(faux.state.callCount).toBe(1)
+  await expect
+    .poll(() => events.filter((event) => event.type === 'input.changed').at(-1)?.input)
+    .toMatchObject({
+      inputId: 'first',
+      outcome: 'failed',
+      error: { code: 'model-error' }
+    })
+  await handle.input.submit(input('next'))
+  await handle.pi.settled()
+  expect(faux.state.callCount).toBe(2)
+  await expect
+    .poll(() => events.filter((event) => event.type === 'input.changed').at(-1)?.input)
+    .toMatchObject({
+      inputId: 'next',
+      outcome: 'completed'
+    })
 })
 
 it('reopens native files after shutdown without requiring the Cherry model bridge', async () => {
@@ -587,9 +570,7 @@ it('reopens native files after shutdown without requiring the Cherry model bridg
 
 it('continues an observed child through its owner, keeps one relationship, and reports the new run once', async () => {
   const { runtime, options, faux } = await setup()
-  const stored = new Map<string, SessionManager>()
   const manager = SessionManager.inMemory(options.cwd)
-  const childNativeEvents: AgentRuntimeEvent[] = []
   faux.setResponses([
     fauxAssistantMessage(fauxToolCall('subagent', { description: 'A', prompt: 'child task' }, { id: 'spawn' }), {
       stopReason: 'toolUse'
@@ -600,16 +581,7 @@ it('continues an observed child through its owner, keeps one relationship, and r
   const parent = confirmed(
     await runtime.create({
       ...options,
-      sessionManager: manager,
-      subagents: {
-        configure: () => ({
-          onEvent: (event) => childNativeEvents.push(event),
-          onSessionCreated: (session) => {
-            stored.set(session.sessionId, session.sessionManager)
-          }
-        }),
-        load: async (id) => stored.get(id)
-      }
+      sessionManager: manager
     })
   )
   const parentEvents = await observe(parent)
@@ -643,17 +615,13 @@ it('continues an observed child through its owner, keeps one relationship, and r
     },
     fauxAssistantMessage('parent received the result')
   ])
-  expect(child.input.policies).toEqual(['steer'])
   expect(await child.input.submit(input('continue', 'follow-up'))).toMatchObject({ status: 'unsupported' })
   expect(await child.input.submit(input('continue', 'steer'))).toMatchObject({
     status: 'acknowledged',
     facts: ['dispatch-started']
   })
   await started.promise
-  expect(await second.input.submit(input('add detail', 'steer'))).toMatchObject({
-    status: 'acknowledged',
-    facts: ['queued']
-  })
+  const steering = second.input.submit(input('add detail', 'steer'))
   await parent.release()
   await child.release()
   expect(await child.input.submit(input('released', 'steer'))).toMatchObject({
@@ -661,6 +629,7 @@ it('continues an observed child through its owner, keeps one relationship, and r
     error: { code: 'closed' }
   })
   finish.resolve()
+  expect(await steering).toMatchObject({ status: 'acknowledged', facts: ['queued'] })
   await expect
     .poll(() =>
       childEvents.some(
@@ -717,113 +686,9 @@ it('continues an observed child through its owner, keeps one relationship, and r
       outcome: 'completed'
     })
   ])
-  const placed = childNativeEvents.filter((event) => event.type === 'input-placed')
-  expect(placed.map((event) => event.inputId)).toEqual(['continue', 'add detail'])
-  expect(new Set(placed.map((event) => event.entryId)).size).toBe(2)
-  for (const event of placed) {
-    expect(stored.get(child.thread.id)?.getEntry(event.entryId)).toMatchObject({
-      type: 'custom_message',
-      customType: 'cherry.subagent-message',
-      content: event.inputId
-    })
-  }
-})
-
-it('joins a child continuation already loading before shutting down its owner', async () => {
-  const { runtime, options, faux } = await setup()
-  const loading = gate()
-  const loaded = gate()
-  onTestFinished(() => loaded.resolve())
-  let stored: SessionManager | undefined
-  faux.setResponses([
-    fauxAssistantMessage(fauxToolCall('subagent', { description: 'A', prompt: 'child task' }), {
-      stopReason: 'toolUse'
-    }),
-    fauxAssistantMessage('child done'),
-    fauxAssistantMessage('parent done')
-  ])
-  const parent = confirmed(
-    await runtime.create({
-      ...options,
-      subagents: {
-        configure: () => ({
-          onSessionCreated: (session) => {
-            stored = session.sessionManager
-          }
-        }),
-        load: async () => {
-          loading.resolve()
-          await loaded.promise
-          return stored
-        }
-      }
-    })
-  )
-  const events = await observe(parent)
-  await parent.input.submit(input('delegate'))
-  await expect.poll(() => events.at(-1)).toMatchObject({ type: 'activity.changed', activity: { state: 'idle' } })
-  const relation = events.find((event) => event.type === 'subagent.upsert')
-  if (relation?.type !== 'subagent.upsert' || !relation.subagent.child) throw new Error('Missing child')
-  const child = confirmed(await runtime.open(relation.subagent.child))
-  faux.setResponses([fauxAssistantMessage('continued')])
-  const admission = child.input.submit(input('continue', 'steer'))
-  await loading.promise
-  let closed = false
-  const shutdown = runtime.shutdown().then((result) => {
-    closed = true
-    return result
-  })
-  await new Promise((resolve) => setImmediate(resolve))
-  expect(closed).toBe(false)
-  loaded.resolve()
-  expect(await admission).toMatchObject({ status: 'acknowledged' })
-  expect(await shutdown).toMatchObject({ status: 'confirmed', value: { effect: 'closed' } })
-  expect(await child.input.submit(input('after close', 'steer'))).toMatchObject({
-    status: 'rejected',
-    error: { code: 'closed' }
-  })
-})
-
-it('binds a child launched during session initialization to its ready parent', async () => {
-  const { runtime, options, faux } = await setup()
-  const manager = SessionManager.inMemory(options.cwd)
-  let settled!: () => void
-  const startup = new Promise<void>((resolve) => {
-    settled = resolve
-  })
-  faux.setResponses([
-    fauxAssistantMessage(fauxToolCall('subagent', { description: 'Startup child', prompt: 'child task' })),
-    fauxAssistantMessage('child report'),
-    fauxAssistantMessage('parent report')
-  ])
-  const parent = confirmed(
-    await runtime.create({
-      ...options,
-      sessionManager: manager,
-      subagents: { configure: () => ({}) },
-      extensionFactories: [
-        (pi) => {
-          pi.on('agent_end', () => {
-            settled()
-          })
-          pi.on('session_start', async () => {
-            pi.sendUserMessage('startup task')
-            await startup
-          })
-        }
-      ]
-    })
-  )
-  const events = await observe(parent)
-  const snapshot = events[0]
-  if (snapshot.type !== 'snapshot') throw new Error('Missing snapshot')
-  expect(JSON.stringify(snapshot.messages)).toContain('child report')
-  expect(JSON.stringify(snapshot.messages)).not.toContain('before initialization')
-  expect(snapshot.subagents).toHaveLength(1)
-  const delegation = snapshot.subagents?.[0]
-  if (!delegation?.child) throw new Error('Missing child thread')
-  const child = confirmed(await runtime.open(delegation.child))
-  expect(await child.interrupt!()).toMatchObject({ status: 'confirmed' })
+  const placed = second.pi.archive().messages.filter((message) => message.metadata?.inputId)
+  expect(placed.map((message) => message.metadata?.inputId)).toEqual(['continue', 'add detail'])
+  expect(new Set(placed.map((message) => message.id)).size).toBe(2)
 })
 
 // A tool update must change its part, without splitting or reordering the surrounding native message.

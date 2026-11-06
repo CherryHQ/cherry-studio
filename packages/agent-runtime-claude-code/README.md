@@ -29,7 +29,10 @@ the Query iterator to a second reader.
 `claudeThread(backendId, sessionId, agentId?)` constructs a reference from established
 native identity. Hosts store the opaque `Thread.id`; they do not parse its encoding.
 A child is a native root session plus stable agent ID, independent of run ID and
-tool invocation. Child accesses have no common input or interrupt operation.
+tool invocation. Its relationship retains evidenced creation origin across continuation and archive
+recovery. `claude.openChild(toolCallId, signal?)` returns that relation and an independently releasable
+access, waiting for known native creation and rejecting unknown/ambiguous evidence. It starts no work.
+Child accesses have no common input or interrupt operation.
 
 Stopping a subscription or releasing a handle only detaches that access. A parent
 result does not end child observation. `shutdown()` closes admission, asks the SDK
@@ -47,7 +50,7 @@ Native Agent/SendMessage own child continuation; no direct child send is fabrica
 
 Each logical input receives a native UUID. Reusing an input ID on the same owner
 is rejected; this is not durable deduplication. The submit receipt initially proves
-only `dispatch-started`. Correlated output establishes placement; the native result
+only `dispatch-started`. Correlated native request membership or output establishes placement; the native result
 establishes completion, failure, interruption, or an unanswered outcome. Several
 inputs can share one response. Process loss leaves uncertain delivery uncompleted
 and never triggers automatic resubmission.
@@ -67,21 +70,48 @@ down all session work. Host Stop policy remains a desktop concern.
 ## Observation and archive
 
 Use either common `observe` or typed `claude.observe` for a projection writer.
-Typed batches pair normalized events with the exact native payload and source
-retractions. Rich blocks, thinking signatures, usage, reset and local-command
+Typed batches pair normalized events with native control facts, completed invocation evidence,
+the exact native payload and source retractions. Rich blocks, thinking signatures, usage, reset and local-command
 metadata remain native types. The adapter never introduces SDK types into the
 common package. `ClaudeFeed` uses `ThreadFeed` for normalized state and bounds
-delivery of paired batches; overflow emits a gap and a matching current baseline.
-Slow or failing consumers cannot block native execution. Closing drains the final
-queued state before the closed event; releasing explicitly discards that subscriber.
+delivery of paired batches. Baseline and recovery are internal delivery modes; aliases,
+retractions and live provenance are captured together. Batch state exposes captured `aborted`;
+`claude.state()` exposes current `active`. Background occupancy stays in private control state. Initial baseline includes current background
+occupancy and pending result origins without replaying historical completion or charges.
+`background-results` tracks child-agent runs by native run ID and current triggering tool-use ID;
+a continuation does not reuse its creation call. Task notifications associate autonomous generation
+with those calls. Empty membership alone does not drain a result: its notification, parent answer
+and native idle barrier must finish. Resident commands retain occupancy without becoming pending
+child-agent results. Overflow recovery retains unseen control
+and invocation facts after their matching body; an unrecoverable backlog reports a gap and closes.
+Slow or failing consumers cannot block native execution. After stopping production, hosts await
+`Observation.drain()` before final archive persistence, then detach and release. `runtime.settled()`
+joins native input and background occupancy without closing the SDK; the desktop backup barrier
+then joins observation and child archive writes. The repository's SDK 0.3.311 patch forwards existing
+host-only `session_state_changed` events to the iterator, preserving SDK state bookkeeping and CLI
+behavior. Native idle releases background occupancy; a missing idle fact cannot become successful
+quiescence. Confirmed shutdown joins the source reader and final observation delivery. `stop()` alone
+discards queued delivery and is not a write barrier.
 
 The typed feed also includes native `command_lifecycle` events, which the pinned
 SDK emits but omits from its `SDKMessage` declaration. `queued` proves native
 admission; `started` proves dispatch into native handling, including local commands.
 Neither alone proves model placement. A typed-prompt turn stamps reply correlation
-once, so a later folded input may appear only in the result's complete UUID list.
-The host can arm a continuation from `started` and bind it at the next reply frame.
-Input outcomes are published before the corresponding terminal result batch.
+once, so a later folded input can be absent from the reply's UUID list.
+Native `status: requesting` carries the request's current input UUIDs before streamed content;
+the adapter validates this field, omitted from the pinned SDK status declaration, to emit
+`input-boundary` before the next reply's body and charges. Main never infers placement from
+`started`. Input outcomes precede the corresponding terminal result batch.
+`ClaudeControlState` owns native lifecycle, task receipts, autonomous work and compaction semantics.
+Control payloads reuse SDK message types; only interpreted state, task/tool correlation and observation
+timestamps are adapter-owned fields. Main maps native payloads to product labels and display fields.
+`ClaudeInvocations` aggregates SDK usage by native response identity before fanout, retaining SDK
+usage fields and types. A task notification finalizes only the completed response on its
+`tool_use_id` lane; a task update without that correlation cannot finalize an invocation.
+Root results leave child responses pending, and incomplete initial usage is never charged.
+Main converts token counts to product usage and owns frozen
+pricing, product attribution and idempotent persistence; Gateway remains the sole capture path for
+Gateway requests. The display decorator owns only MCP presentation, reminders and thinking timing.
 
 Committed message IDs use transcript UUIDs; ordered SDK parts retain their native blocks.
 Provisional root messages carry `replaces` when committed; distinct UUIDs sharing an API response ID remain
@@ -90,12 +120,16 @@ partial. Explicit retractions are retained in live snapshots and archives so rep
 cannot revive removed sources. A newer task run cannot be ended by an older run's
 late event. Missing parent evidence leaves relationships unresolved.
 
-`claude.archive()` returns the native selected view, normalized SDK messages (`content`), source IDs,
-and explicit retractions. SDK history APIs and native export run in an isolated
+`claude.archive()` returns normalized SDK messages (`content`), legacy part mappings and explicit
+retractions. Raw native messages and committed-source membership remain internal. SDK history APIs and native export run in an isolated
 worker with the backend's configuration environment; the caller's environment is
 unchanged. Live events are buffered during reconciliation and applied afterward.
 Compaction selects a new model context without deleting previously observed product
 content. Missing native files return an error instead of a writable replacement.
+`claude.archive({ refresh: false })` captures already observed committed content
+without triggering another observation from inside a projection writer. Default archive
+refresh still reads the selected native view. Permission denial is applied to native tool parts and
+survives out-of-order assistant messages and archive refresh.
 The adapter preserves signatures, files, citations and raw tool outputs in SDK parts/metadata.
 The desktop adds display metadata and persists source mappings/retractions with its checkpoint.
 `legacy` maps prior UUID/block identities to proven whole-message part positions.
@@ -104,7 +138,9 @@ Live content uses SDK discriminated unions; block, stream-delta and message-even
 handling is checked exhaustively against the pinned SDK. Archive `SessionMessage.message`
 is `unknown` in the SDK: its decoder validates the consumed fields without casting
 history to a complete live message. Unknown archive blocks remain in the native
-view and cannot alter normalized tool calls merely by carrying a `tool_use_id`.
+view and cannot alter normalized tool calls merely by carrying a `tool_use_id`. `control.test.ts`
+classifies every pinned SDK message variant and checks that advisory native-only events cannot
+settle a turn; adding a variant requires an explicit owning contract.
 
 Streamed signatures, redacted-thinking ciphertext, citations and MCP source metadata
 survive in late-observer snapshots before a complete message arrives. Tool results
@@ -131,6 +167,6 @@ or Electron acceptance test.
 
 This is the C1 package layer of the
 [Claude migration Spec](../../.agents/notes/proposed/architecture/2026-10-27-agent-runtime-claude-code.md).
-C2 connects desktop contexts, approval/question callbacks, provider routes, prewarm
-ownership, billing, fork/edit, and shared message projections, then removes the
-migrated Claude background-flow writer. The existing desktop driver remains active.
+The desktop driver uses this package for execution and observation. Cherry owns
+desktop contexts, approval/question callbacks, provider routes, prewarm ownership,
+billing, fork/edit, and shared message projections; child content has its own writer.

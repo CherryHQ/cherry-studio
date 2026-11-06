@@ -4,7 +4,13 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { afterEach, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
-import { runtimeId, type RuntimeMessage, type ObservationSink, type ThreadHandle } from '@cherrystudio/agent-runtime'
+import {
+  runtimeId,
+  ThreadFeed,
+  type RuntimeMessage,
+  type ObservationSink,
+  type ThreadHandle
+} from '@cherrystudio/agent-runtime'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
@@ -42,12 +48,11 @@ function fixture(beforeRead?: () => Promise<void>, decorate?: MessageDecorator) 
       sink = consumer
       await consumer({
         type: 'snapshot',
-        coverage: 'live-only',
         messages: [],
         inputs: [],
-        activity: { scope: 'foreground', state: 'active' }
+        activity: { state: 'active' }
       })
-      return { status: 'confirmed', value: { stop: async () => {} } }
+      return { status: 'confirmed', value: { drain: async () => {}, stop: async () => {} } }
     },
     release: async () => {
       throw new Error('Projection cannot release native access')
@@ -88,6 +93,54 @@ function fixture(beforeRead?: () => Promise<void>, decorate?: MessageDecorator) 
     }
   }
 }
+
+// Catches closing or backing up before an entered observation applies the final native tail.
+it.each(['stop', 'drain'] as const)('joins blocked observation delivery before %s flushes', async (action) => {
+  const f = fixture()
+  const entered = Promise.withResolvers<void>()
+  const held = Promise.withResolvers<void>()
+  const feed = new ThreadFeed(
+    {
+      type: 'snapshot',
+      messages: [],
+      inputs: [],
+      activity: { state: 'idle' }
+    },
+    (error) => {
+      throw error
+    }
+  )
+  f.handle.observe = async (sink) => ({
+    status: 'confirmed',
+    value: feed.observe(async (event) => {
+      if (event.type === 'message.upsert') {
+        entered.resolve()
+        await held.promise
+      }
+      await sink(event)
+    })
+  })
+  await f.projection.attach()
+  feed.publish({ type: 'message.upsert', message: f.item('last', 'final tail') })
+  await entered.promise
+  if (action === 'stop') feed.close('shutdown')
+  let finished = false
+  const flushing = f.projection[action]().then(() => {
+    finished = true
+  })
+  try {
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(finished).toBe(false)
+    expect(savedChildView(f.context).messages).toEqual([])
+  } finally {
+    held.resolve()
+  }
+  await flushing
+  expect(savedChildView(f.context).messages).toMatchObject([{ parts: [{ type: 'text', text: 'final tail' }] }])
+  const saved = savedChildView(f.context)
+  await new Promise<void>((resolve) => setImmediate(resolve))
+  expect(savedChildView(f.context)).toEqual(saved)
+})
 
 // Settled archive precedence must not suppress an explicit update to product display metadata.
 it('refreshes committed child display metadata and persists it without new native content', async () => {
@@ -170,10 +223,9 @@ it('serializes asynchronous archives with live completion and retains the previe
   const id = f.projection.snapshot().messages[0].id
   await f.send({
     type: 'snapshot',
-    coverage: 'current-view',
     messages: [f.item('preview', 'partial', 'partial')],
     inputs: [],
-    activity: { scope: 'foreground', state: 'active' }
+    activity: { state: 'active' }
   })
   release = undefined
   const pending = f.projection.flush()
@@ -182,10 +234,9 @@ it('serializes asynchronous archives with live completion and retains the previe
   f.archive.aliases = { entry: 'preview' }
   await f.send({
     type: 'snapshot',
-    coverage: 'current-view',
     messages: f.archive.messages,
     inputs: [],
-    activity: { scope: 'foreground', state: 'idle' }
+    activity: { state: 'idle' }
   })
   release!()
   await pending
@@ -231,10 +282,9 @@ it('keeps a committed prompt before its streaming reply through completion and r
   f.archive.messages = [prompt]
   await f.send({
     type: 'snapshot',
-    coverage: 'current-view',
     messages: [prompt, f.item('preview', 'answer', 'partial')],
     inputs: [],
-    activity: { scope: 'foreground', state: 'active' }
+    activity: { state: 'active' }
   })
   await f.projection.flush()
   const view = f.projection.snapshot()
@@ -247,10 +297,9 @@ it('keeps a committed prompt before its streaming reply through completion and r
 
   await f.send({
     type: 'snapshot',
-    coverage: 'current-view',
     messages: [f.item('preview', 'answer', 'partial'), prompt],
     inputs: [],
-    activity: { scope: 'foreground', state: 'active' }
+    activity: { state: 'active' }
   })
   await f.projection.flush()
   await f.send({ type: 'message.upsert', message: f.item('preview', 'answer more', 'partial') })
@@ -388,7 +437,7 @@ it('keeps the last readable archive on recovery failure and explicitly retries o
   f.archive.messages = [f.item('entry', 'complete')]
   f.archive.aliases = { entry: 'preview' }
   f.failHistory(true)
-  await f.send({ type: 'activity.changed', activity: { scope: 'foreground', state: 'idle' } })
+  await f.send({ type: 'activity.changed', activity: { state: 'idle' } })
   await expect(f.projection.flush()).rejects.toThrow('temporarily unavailable')
   expect(f.projection.snapshot().messages).toEqual(before)
   f.failHistory(false)
@@ -406,7 +455,7 @@ it('keeps failed writes unresolved and retries the same product row without resu
   const before = f.projection.snapshot()
   f.archive.messages = [f.item('entry', 'finished')]
   f.archive.aliases = { entry: 'preview' }
-  await f.send({ type: 'activity.changed', activity: { scope: 'foreground', state: 'idle' } })
+  await f.send({ type: 'activity.changed', activity: { state: 'idle' } })
   vi.spyOn(application.get('DbService'), 'withWriteTx').mockImplementationOnce(() => {
     throw new Error('Archive write failed')
   })
@@ -440,7 +489,7 @@ it('composes native messages by placed input boundaries and restores the same ch
   f.archive.messages.push(steer, second)
   await f.send({ type: 'message.upsert', message: steer })
   await f.send({ type: 'message.upsert', message: second })
-  await f.send({ type: 'activity.changed', activity: { scope: 'foreground', state: 'idle' } })
+  await f.send({ type: 'activity.changed', activity: { state: 'idle' } })
   await f.projection.flush()
   const view = f.projection.snapshot().messages
   expect(view.map((message) => message.role)).toEqual(['user', 'assistant', 'user', 'assistant'])
@@ -553,8 +602,7 @@ it.each(['same-context', 'other-context', 'other-session'] as const)(
         inputId: runtimeId(user.id),
         nativeInput: { session: f.handle.thread, id: runtimeId('native-input') },
         facts: ['placed'],
-        outcome: 'completed',
-        response: { session: f.handle.thread, id: runtimeId('answer') }
+        outcome: 'completed'
       }
     })
     for (const message of f.archive.messages) await f.send({ type: 'message.upsert', message })
@@ -613,8 +661,7 @@ it('keeps two retained inputs and one shared answer across archive replay and re
         inputId: runtimeId(user.id),
         facts: ['placed'],
         outcome: 'completed',
-        nativeInput: { session: f.handle.thread, id: runtimeId(`input-${index}`) },
-        response: { session: f.handle.thread, id: runtimeId('answer') }
+        nativeInput: { session: f.handle.thread, id: runtimeId(`input-${index}`) }
       }
     })
   for (const message of f.archive.messages) await f.send({ type: 'message.upsert', message })

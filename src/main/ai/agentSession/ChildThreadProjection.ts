@@ -35,6 +35,7 @@ export function savedChildView(context: AgentSessionContextRow): AgentChildView 
     revision: 0,
     active: false,
     available: false,
+    canSubmit: false,
     diagnostic: context.checkpointMapping?.child?.gap,
     messages: compose(
       readAgentSessionPath(application.get('DbService').getDb(), context.sessionId).map((row) => ({
@@ -162,7 +163,14 @@ export class ChildThreadProjection {
     await this.flush()
   }
 
-  async refreshDecoration(ids: readonly string[]): Promise<void> {
+  async drain(): Promise<void> {
+    await this.attaching
+    await this.observation?.drain()
+    this.needsHistory = true
+    await this.flush()
+  }
+
+  async refreshDecoration(ids: readonly string[] | true = true): Promise<void> {
     if (this.stopped) return
     await this.projection.accept([], ids)
     this.needsHistory = true
@@ -174,7 +182,7 @@ export class ChildThreadProjection {
       this.timer = undefined
       void this.flush().catch((error) => {
         logger.error('Child archive flush failed', { contextId: this.context.id, error })
-        this.publish({ ...this.view, diagnostic: String(error), available: false })
+        this.publish({ ...this.view, diagnostic: String(error), available: false, canSubmit: false })
       })
     }, 80)
     this.timer.unref()
@@ -236,7 +244,6 @@ export class ChildThreadProjection {
       try {
         await recovered.accept({
           type: 'snapshot',
-          coverage: 'current-view',
           messages: archive.messages.filter((item) => !this.removed.has(item.id)),
           inputs: [],
           activity: current.activity
@@ -351,6 +358,7 @@ export class ChildThreadProjection {
       messages: compose([...next.values()], this.composition),
       active: current.activity.state === 'active',
       available: !this.stopped && !current.closed,
+      canSubmit: !this.stopped && !current.closed && !!this.handle.input,
       diagnostic: current.diagnostic?.message ?? this.archiveGap ?? current.gap
     })
   }
@@ -415,14 +423,15 @@ export class ChildThreadProjection {
   }
 
   async stop(): Promise<void> {
+    await this.attaching
+    await this.observation?.drain()
     this.stopped = true
     this.source = undefined
     this.needsHistory = true
-    await this.attaching
     await this.observation?.stop()
     await this.flush()
     await this.projection.close()
-    this.publish({ ...this.view, available: false, active: false })
+    this.publish({ ...this.view, available: false, canSubmit: false, active: false })
     this.delivery.dispose()
   }
 
