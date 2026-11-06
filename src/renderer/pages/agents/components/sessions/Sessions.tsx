@@ -198,12 +198,7 @@ const Sessions = ({
     restoreSession,
     togglePin
   } = agentSessionsSource
-  const {
-    agents,
-    error: agentsError,
-    isLoading: isAgentsLoading,
-    refetch: refetchAgents
-  } = useAgents({ includeDisabledLocal: true })
+  const { agents, error: agentsError, isLoading: isAgentsLoading, refetch: refetchAgents } = useAgents()
   const listRef = useRef<HTMLDivElement>(null)
   const [optimisticMove, setOptimisticMove] = useState<ResourceListItemReorderPayload | null>(null)
   const [optimisticAgentOrderIds, setOptimisticAgentOrderIds] = useState<string[] | null>(null)

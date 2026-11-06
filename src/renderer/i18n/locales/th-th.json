@@ -6144,7 +6144,7 @@
   "settings.usage.local.turn": "สรุปรอบของเอเจนต์",
   "settings.usage.local.turnHint": "สรุปรอบที่เอเจนต์รายงานจะแยกจากคำขอผู้ให้บริการด้านบนและไม่นำไปรวมในยอดคำขอ",
   "settings.usage.local.turns": "รอบที่รายงาน",
-  "settings.usage.local.unknown": "ไม่ทราบการเชื่อมโยงคำขอผู้ให้บริการ สรุปนี้ไม่ยืนยันจำนวนคำขอหรือยอดเรียกเก็บเงิน",
+  "settings.usage.local.unknown": "ข้อมูลการใช้งานรายงานโดยเอเจนต์ในเครื่อง โปรดดูค่าบริการจากใบแจ้งหนี้ของผู้ให้บริการ",
   "settings.usage.metric.cost": "ค่าใช้จ่าย",
   "settings.usage.metric.requests": "คำขอ",
   "settings.usage.metric.tokens": "โทเค็น",

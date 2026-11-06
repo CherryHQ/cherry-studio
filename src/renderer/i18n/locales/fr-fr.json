@@ -6144,7 +6144,7 @@
   "settings.usage.local.turn": "Résumé du tour de l’agent",
   "settings.usage.local.turnHint": "Les tours signalés par l’agent sont enregistrés séparément des requêtes fournisseur et ne s’ajoutent pas à leurs totaux.",
   "settings.usage.local.turns": "Tours signalés",
-  "settings.usage.local.unknown": "L’attribution des requêtes est inconnue ; ce résumé ne détermine ni leur nombre ni la facturation.",
+  "settings.usage.local.unknown": "L’utilisation est indiquée par l’agent local. Pour les frais, consultez la facture de votre fournisseur.",
   "settings.usage.metric.cost": "Coût",
   "settings.usage.metric.requests": "Demandes",
   "settings.usage.metric.tokens": "Jetons",

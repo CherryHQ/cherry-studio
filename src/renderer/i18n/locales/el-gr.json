@@ -6144,7 +6144,7 @@
   "settings.usage.local.turn": "Σύνοψη γύρου πράκτορα",
   "settings.usage.local.turnHint": "Οι γύροι που αναφέρει ο πράκτορας καταγράφονται χωριστά από τα αιτήματα παρόχου και δεν προστίθενται στα σύνολά τους.",
   "settings.usage.local.turns": "Αναφερθέντες γύροι",
-  "settings.usage.local.unknown": "Η αντιστοίχιση αιτημάτων παρόχου είναι άγνωστη· η σύνοψη δεν τεκμηριώνει πλήθος αιτημάτων ή χρέωση.",
+  "settings.usage.local.unknown": "Η χρήση αναφέρεται από τον τοπικό πράκτορα. Για τις χρεώσεις, ανατρέξτε στον λογαριασμό του παρόχου σας.",
   "settings.usage.metric.cost": "Κόστος",
   "settings.usage.metric.requests": "Αιτήματα",
   "settings.usage.metric.tokens": "Tokens",

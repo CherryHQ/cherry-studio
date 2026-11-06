@@ -6144,7 +6144,7 @@
   "settings.usage.local.turn": "Tóm tắt lượt tác tử",
   "settings.usage.local.turnHint": "Các lượt do tác tử báo cáo được ghi riêng với yêu cầu nhà cung cấp phía trên và không cộng vào tổng yêu cầu.",
   "settings.usage.local.turns": "Lượt được báo cáo",
-  "settings.usage.local.unknown": "Không rõ yêu cầu thuộc nhà cung cấp nào; tóm tắt này không xác định số yêu cầu hay hóa đơn.",
+  "settings.usage.local.unknown": "Mức sử dụng do tác nhân cục bộ báo cáo. Chi phí được xác định theo hóa đơn của nhà cung cấp.",
   "settings.usage.metric.cost": "Chi phí",
   "settings.usage.metric.requests": "Yêu cầu",
   "settings.usage.metric.tokens": "Token",

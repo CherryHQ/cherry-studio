@@ -6144,7 +6144,7 @@
   "settings.usage.local.turn": "Ajan tur özeti",
   "settings.usage.local.turnHint": "Ajanın bildirdiği turlar sağlayıcı isteklerinden ayrı kaydedilir ve toplamlarına eklenmez.",
   "settings.usage.local.turns": "Bildirilen turlar",
-  "settings.usage.local.unknown": "Sağlayıcı isteği ilişkilendirmesi bilinmiyor; bu özet istek sayısını veya faturalamayı belirlemez.",
+  "settings.usage.local.unknown": "Kullanım, yerel ajan tarafından bildirilir. Ücretler için sağlayıcınızın faturasına bakın.",
   "settings.usage.metric.cost": "Maliyet",
   "settings.usage.metric.requests": "İstekler",
   "settings.usage.metric.tokens": "Tokenlar",

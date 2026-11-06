@@ -6144,7 +6144,7 @@
   "settings.usage.local.turn": "Agent turn summary",
   "settings.usage.local.turnHint": "Agent-reported turn summaries are separate from provider requests above and are not added to their totals.",
   "settings.usage.local.turns": "Reported turns",
-  "settings.usage.local.unknown": "Provider-request attribution is unknown; this summary does not establish request count or billing.",
+  "settings.usage.local.unknown": "Usage is reported by the local agent. Refer to your provider’s bill for charges.",
   "settings.usage.metric.cost": "Cost",
   "settings.usage.metric.requests": "Requests",
   "settings.usage.metric.tokens": "Tokens",

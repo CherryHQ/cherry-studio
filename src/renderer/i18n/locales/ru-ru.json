@@ -6144,7 +6144,7 @@
   "settings.usage.local.turn": "Сводка хода агента",
   "settings.usage.local.turnHint": "Сводки ходов агента учитываются отдельно от запросов к провайдеру и не прибавляются к их итогам.",
   "settings.usage.local.turns": "Отчётные ходы",
-  "settings.usage.local.unknown": "Привязка запросов к провайдеру неизвестна; сводка не определяет количество запросов или счёт.",
+  "settings.usage.local.unknown": "Данные об использовании предоставлены локальным агентом. Стоимость указана в счёте провайдера.",
   "settings.usage.metric.cost": "Стоимость",
   "settings.usage.metric.requests": "Запросы",
   "settings.usage.metric.tokens": "Токены",

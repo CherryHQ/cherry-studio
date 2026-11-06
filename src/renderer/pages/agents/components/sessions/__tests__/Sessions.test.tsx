@@ -6,11 +6,13 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { dataApiService } from '@renderer/data/DataApiService'
+import type * as AgentHooks from '@renderer/hooks/agent/useAgent'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { popup } from '@renderer/services/popup'
 import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import type { TopicStreamStatus } from '@shared/ai/transport'
+import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
@@ -307,6 +309,7 @@ const tabsContextMocks = vi.hoisted(() => ({
 const windowFrameMocks = vi.hoisted(() => ({ mode: 'embedded' as 'embedded' | 'window' }))
 
 const dataApiMocks = vi.hoisted(() => ({
+  agentRows: undefined as AgentEntity[] | undefined,
   dataChangeSubscriptions: [] as Array<{ endpoints: string[]; listener: () => void }>,
   deleteAgent: vi.fn().mockResolvedValue(undefined),
   deleteAgentSessions: vi.fn().mockResolvedValue({ deletedIds: [] as string[] }),
@@ -544,7 +547,9 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
     }
 
     if (path === '/agents') {
-      const agentResult = agentDataMocks.useAgents()
+      const agentResult = dataApiMocks.agentRows
+        ? { agents: dataApiMocks.agentRows, isLoading: false, error: undefined }
+        : agentDataMocks.useAgents()
       return {
         data: {
           items: agentResult.agents,
@@ -959,6 +964,7 @@ function groupChevron(groupHeaderButton: HTMLElement): HTMLElement {
 
 describe('Sessions', () => {
   beforeEach(() => {
+    dataApiMocks.agentRows = undefined
     preferenceMocks.values.clear()
     cacheMocks.values.clear()
     imageCaptureTargetsMock.targets = undefined
@@ -4029,6 +4035,42 @@ describe('Sessions', () => {
     fireEvent.click(modelIconMenuItem as HTMLElement)
 
     await vi.waitFor(() => expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.icon_type', 'model'))
+  })
+
+  it('shows local agents only while enabled in Agent Services', async () => {
+    const { useAgents } = await vi.importActual<typeof AgentHooks>('@renderer/hooks/agent/useAgent')
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    setupSessions({ sessions: [] })
+    const openCode: AgentEntity = {
+      createdAt: '2026-11-05T00:00:00.000Z',
+      updatedAt: '2026-11-05T00:00:00.000Z',
+      orderKey: 'a',
+      model: null,
+      modelName: null,
+      id: 'opencode',
+      type: 'local',
+      name: 'OpenCode',
+      configuration: { localRuntime: { protocol: 'acp', presetId: 'opencode', enabled: false, args: [], env: {} } }
+    }
+    dataApiMocks.agentRows = [
+      openCode,
+      { ...openCode, id: 'agent-a', name: 'Regular Agent', type: 'pi', configuration: {} }
+    ]
+    agentDataMocks.useAgents.mockImplementation(useAgents)
+    const { rerender } = render(<SessionsForTest />)
+    expect(screen.queryByRole('button', { name: /^OpenCode/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Regular Agent' })).toBeInTheDocument()
+
+    dataApiMocks.agentRows = [
+      { ...openCode, configuration: { localRuntime: { ...openCode.configuration!.localRuntime!, enabled: true } } },
+      dataApiMocks.agentRows[1]
+    ]
+    rerender(<SessionsForTest key="enabled" />)
+    expect(screen.getByRole('button', { name: /^OpenCode/ })).toBeInTheDocument()
+
+    dataApiMocks.agentRows = [openCode, dataApiMocks.agentRows[1]]
+    rerender(<SessionsForTest key="disabled" />)
+    expect(screen.queryByRole('button', { name: /^OpenCode/ })).not.toBeInTheDocument()
   })
 
   it('hides icon settings for local agents in group menus', async () => {

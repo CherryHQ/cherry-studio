@@ -6144,7 +6144,7 @@
   "settings.usage.local.turn": "Resumen de turno del agente",
   "settings.usage.local.turnHint": "Los turnos informados por el agente se registran aparte de las solicitudes al proveedor y no se suman a sus totales.",
   "settings.usage.local.turns": "Turnos informados",
-  "settings.usage.local.unknown": "Se desconoce la atribución de las solicitudes; este resumen no indica su número ni la facturación.",
+  "settings.usage.local.unknown": "El agente local informa del uso. Consulta la factura de tu proveedor para conocer los cargos.",
   "settings.usage.metric.cost": "Costo",
   "settings.usage.metric.requests": "Solicitudes",
   "settings.usage.metric.tokens": "Tokens",

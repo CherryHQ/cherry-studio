@@ -6144,7 +6144,7 @@
   "settings.usage.local.turn": "Agent-Durchlaufübersicht",
   "settings.usage.local.turnHint": "Vom Agent gemeldete Durchläufe werden getrennt von Anbieteranfragen erfasst und nicht zu deren Summen addiert.",
   "settings.usage.local.turns": "Gemeldete Durchläufe",
-  "settings.usage.local.unknown": "Die Zuordnung zu Anbieteranfragen ist unbekannt; diese Übersicht belegt weder Anfragezahl noch Abrechnung.",
+  "settings.usage.local.unknown": "Die Nutzung wird vom lokalen Agenten gemeldet. Maßgeblich für die Kosten ist die Rechnung Ihres Anbieters.",
   "settings.usage.metric.cost": "Kosten",
   "settings.usage.metric.requests": "Anfragen",
   "settings.usage.metric.tokens": "Tokens",

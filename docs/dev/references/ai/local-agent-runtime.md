@@ -23,6 +23,8 @@ the unified gateway. Direct provider selection is not offered. Selecting a model
 both chat and terminal use; there is no separate provider configuration panel.
 The Agent Services launchpad and sidebar shortcuts open Settings → Agent Services,
 the sole manager for installation, model selection and CLI configuration.
+The conversation sidebar lists local Agents only when enabled in Agent Services;
+saving a disabled Agent configuration does not add a sidebar entry.
 Legacy `/app/code` links and saved tabs redirect to settings, preserve the selected
 Agent, and reuse the existing settings tab.
 WebUI controls separate service lifetime from navigation. One icon button to the
@@ -389,6 +391,18 @@ from provider calls, including historical synthetic local summaries. Main strips
 renderer-authored values and forks drop the original turn's observation. See
 [AI Usage Records](./ai-usage-records.md#local-agent-observations) for gateway
 correlation and counting boundaries.
+
+Codex `thread/tokenUsage/updated` notifications use the same native-turn summary
+surface. The first update establishes the pre-turn total from `total - last`;
+subsequent updates report the difference from that baseline, so multiple model
+requests are included without adding duplicate notifications or earlier turns.
+Only updates for the active thread and turn are accepted. Cache and reasoning
+counts are details within input and output totals. Missing or invalid usage stays
+unknown; native counters do not create provider invocations or model throughput.
+Native-only messages reuse the standard details card with input, output, and total
+Token metrics, followed by nonzero cache/reasoning details and runtime timing.
+Messages with provider usage retain the provider metrics and a separate native
+summary; the two observations are never added together.
 
 ACP `usage_update.cost` is a cumulative native-session snapshot. The usage details
 show its original currency and latest reported amount, including an explicit zero;

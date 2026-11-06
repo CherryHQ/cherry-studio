@@ -803,6 +803,49 @@ describe('local protocol processes', () => {
     expect(events.filter((event) => event.type === 'usage')).toEqual([])
   })
 
+  it('keeps Codex usage scoped to the turn without counting history or duplicate notifications', async () => {
+    const { connection, events, drained } = create('codex', 'codex-usage')
+    await connection.start(cwd, 'native-session')
+    await connection.send(input)
+    await vi.waitFor(() => expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(1))
+    await connection.send(input)
+    await vi.waitFor(() => expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(2))
+    await connection.close()
+    await drained
+    const summaries = events.flatMap((event) => (event.type === 'local-turn-usage' ? [event.summary] : []))
+    expect(summaries.at(-1)?.usage).toEqual({
+      inputTokens: 40,
+      outputTokens: 4,
+      totalTokens: 44,
+      cacheReadTokens: 20,
+      noCacheTokens: 20,
+      reasoningTokens: 2
+    })
+    expect(summaries.find((summary) => summary.usage.totalTokens === 330)?.usage).toEqual({
+      inputTokens: 300,
+      outputTokens: 30,
+      totalTokens: 330,
+      cacheReadTokens: 150,
+      noCacheTokens: 150,
+      reasoningTokens: 15
+    })
+    expect(
+      summaries.every((summary) => summary.nativeSessionId === 'native-session' && summary.correlation === 'unknown')
+    ).toBe(true)
+    expect(events.filter((event) => event.type === 'usage')).toEqual([])
+  })
+
+  it.each(['normal', 'codex-usage-invalid'])('does not invent Codex usage for %s notifications', async (scenario) => {
+    const { connection, events, drained, text } = create('codex', scenario)
+    await connection.start(cwd)
+    await connection.send(input)
+    await vi.waitFor(() => expect(events.some((event) => event.type === 'turn-complete')).toBe(true))
+    await connection.close()
+    await drained
+    expect(text()).toContain('hello')
+    expect(events.filter((event) => event.type === 'local-turn-usage')).toEqual([])
+  })
+
   it('does not invent usage when the agent omits it', async () => {
     const { connection, events, drained } = create('acp')
     await connection.start(cwd)

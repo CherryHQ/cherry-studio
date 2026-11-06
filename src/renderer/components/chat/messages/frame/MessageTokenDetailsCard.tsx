@@ -215,7 +215,7 @@ const MessageTokenDetailsCard = ({
 }) => {
   const { t, i18n } = useTranslation()
   const moreDetailsId = useId()
-  const stats = message.stats
+  const stats = message.stats ?? {}
   const model = getMessageListItemModel(message)
   const providerName = useProviderDisplayName(model?.provider)
   const locale = i18n.resolvedLanguage
@@ -235,15 +235,21 @@ const MessageTokenDetailsCard = ({
     [locale]
   )
 
-  if (!stats) {
-    return message.localTurnUsage ? <NativeTurnUsage summary={message.localTurnUsage} /> : null
-  }
+  if (!message.stats && !message.localTurnUsage) return null
 
-  const { inputTokens, outputTokens } = getMessageTokenUsage(stats)
-  const reasoningTokens = Math.min(Math.max(stats.outputTokenDetails?.reasoningTokens ?? 0, 0), outputTokens ?? 0)
-  const cacheReadTokens = stats.inputTokenDetails?.cacheReadTokens ?? 0
-  const cacheWriteTokens = stats.inputTokenDetails?.cacheWriteTokens ?? 0
-  const noCacheTokens = stats.inputTokenDetails?.noCacheTokens ?? 0
+  const hasProviderUsage =
+    [stats.inputTokens, stats.outputTokens, stats.totalTokens].some((value) => value !== undefined) ||
+    !!(stats.requestCount || stats.costs?.length)
+  const nativeSummary = hasProviderUsage ? undefined : message.localTurnUsage
+  const nativeUsage = nativeSummary?.usage
+  const { inputTokens, outputTokens } = nativeUsage ?? getMessageTokenUsage(stats)
+  const reasoningTokens = Math.min(
+    Math.max(nativeUsage?.reasoningTokens ?? stats.outputTokenDetails?.reasoningTokens ?? 0, 0),
+    outputTokens ?? 0
+  )
+  const cacheReadTokens = nativeUsage?.cacheReadTokens ?? stats.inputTokenDetails?.cacheReadTokens ?? 0
+  const cacheWriteTokens = nativeUsage?.cacheWriteTokens ?? stats.inputTokenDetails?.cacheWriteTokens ?? 0
+  const noCacheTokens = nativeUsage?.noCacheTokens ?? stats.inputTokenDetails?.noCacheTokens ?? 0
   const performance = buildMessagePerformanceViewModel(stats, records)
   const createdAt = Date.parse(message.createdAt)
   const createdAtLabel = Number.isFinite(createdAt) ? dateFormatter.format(new Date(createdAt)) : undefined
@@ -347,7 +353,7 @@ const MessageTokenDetailsCard = ({
 
   return (
     <div className="text-popover-foreground">
-      {message.localTurnUsage ? <NativeTurnUsage summary={message.localTurnUsage} /> : null}
+      {message.localTurnUsage && !nativeSummary ? <NativeTurnUsage summary={message.localTurnUsage} /> : null}
       <header className="flex min-w-0 items-center gap-2.5 p-3">
         {model ? (
           <ModelAvatar
@@ -358,9 +364,15 @@ const MessageTokenDetailsCard = ({
         ) : null}
         <div className="min-w-0 flex-1">
           <div className="truncate font-medium text-foreground text-sm leading-5" title={model?.name}>
-            {model?.name ?? model?.id ?? message.modelId}
+            {nativeSummary
+              ? (nativeSummary.model ?? t('settings.usage.local.turn'))
+              : (model?.name ?? model?.id ?? message.modelId)}
           </div>
-          {providerName ? (
+          {nativeSummary ? (
+            nativeSummary.model ? (
+              <div className="truncate text-muted-foreground text-xs leading-5">{t('settings.usage.local.turn')}</div>
+            ) : null
+          ) : providerName ? (
             <div className="truncate text-muted-foreground text-xs leading-5" title={providerName}>
               {providerName}
             </div>
@@ -388,11 +400,19 @@ const MessageTokenDetailsCard = ({
             label={t('chat.message.token_details.output')}
             value={formatOptionalTokens(outputTokens)}
           />
-          <PrimaryMetric
-            testId="message-metric-speed"
-            label={t('chat.message.token_details.model_throughput')}
-            value={speedLabel}
-          />
+          {nativeUsage ? (
+            <PrimaryMetric
+              testId="message-metric-total"
+              label={t('settings.usage.local.totalTokens')}
+              value={formatTokens(nativeUsage.totalTokens)}
+            />
+          ) : (
+            <PrimaryMetric
+              testId="message-metric-speed"
+              label={t('chat.message.token_details.model_throughput')}
+              value={speedLabel}
+            />
+          )}
         </dl>
 
         {costLabel ? (
@@ -417,6 +437,16 @@ const MessageTokenDetailsCard = ({
               <DetailMetric key={metric.id} label={metric.label} value={metric.value} />
             ))}
           </dl>
+        ) : null}
+
+        {nativeSummary ? (
+          <p className="text-[11px] text-muted-foreground leading-4">
+            {t(
+              nativeSummary.correlation === 'gateway'
+                ? 'settings.usage.local.correlated'
+                : 'settings.usage.local.unknown'
+            )}
+          </p>
         ) : null}
 
         {hasPerformanceBreakdown ? (

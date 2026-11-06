@@ -6144,7 +6144,7 @@
   "settings.usage.local.turn": "Riepilogo del turno agente",
   "settings.usage.local.turnHint": "I turni segnalati dall’agente sono separati dalle richieste al fornitore e non si sommano ai relativi totali.",
   "settings.usage.local.turns": "Turni segnalati",
-  "settings.usage.local.unknown": "L’attribuzione delle richieste è sconosciuta; il riepilogo non determina il numero di richieste o la fatturazione.",
+  "settings.usage.local.unknown": "L’utilizzo è riportato dall’agente locale. Per gli addebiti, consulta la fattura del fornitore.",
   "settings.usage.metric.cost": "Costo",
   "settings.usage.metric.requests": "Richieste",
   "settings.usage.metric.tokens": "Token",

@@ -6144,7 +6144,7 @@
   "settings.usage.local.turn": "Resumo do turno do agente",
   "settings.usage.local.turnHint": "Os turnos comunicados pelo agente são registados separadamente dos pedidos ao fornecedor e não são somados aos seus totais.",
   "settings.usage.local.turns": "Turnos comunicados",
-  "settings.usage.local.unknown": "A atribuição dos pedidos é desconhecida; este resumo não determina o número de pedidos nem a faturação.",
+  "settings.usage.local.unknown": "A utilização é comunicada pelo agente local. Consulte a fatura do fornecedor para saber os custos.",
   "settings.usage.metric.cost": "Custo",
   "settings.usage.metric.requests": "Pedidos",
   "settings.usage.metric.tokens": "Tokens",

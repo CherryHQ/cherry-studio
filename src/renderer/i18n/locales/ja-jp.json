@@ -6144,7 +6144,7 @@
   "settings.usage.local.turn": "エージェントのターン集計",
   "settings.usage.local.turnHint": "エージェントが報告したターン集計は、上記のプロバイダーリクエストとは別に記録され、合計には加算されません。",
   "settings.usage.local.turns": "報告されたターン",
-  "settings.usage.local.unknown": "プロバイダーリクエストの帰属は不明です。この集計からリクエスト数や請求額は判断できません。",
+  "settings.usage.local.unknown": "使用量はローカルエージェントが報告したものです。料金はプロバイダーの請求書をご確認ください。",
   "settings.usage.metric.cost": "コスト",
   "settings.usage.metric.requests": "リクエスト",
   "settings.usage.metric.tokens": "トークン",

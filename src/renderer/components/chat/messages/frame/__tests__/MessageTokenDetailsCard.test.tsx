@@ -117,7 +117,54 @@ describe('native turn observations', () => {
     expect(screen.getByTestId('message-metric-output')).toHaveTextContent('5 Tokens')
     expect(screen.queryByTestId('message-cost')).toBeNull()
     rerender(<MessageTokenDetailsCard message={{ ...message, stats: undefined }} />)
-    expect(screen.getByTestId('native-turn-usage')).toHaveTextContent('1,000')
-    expect(screen.queryByTestId('message-primary-metrics')).toBeNull()
+    expect(screen.queryByTestId('native-turn-usage')).not.toBeInTheDocument()
+    expect(screen.getByTestId('message-metric-input')).toHaveTextContent('700 Tokens')
+    expect(screen.getByTestId('message-metric-output')).toHaveTextContent('300 Tokens')
+    expect(screen.getByTestId('message-metric-total')).toHaveTextContent('1,000 Tokens')
+  })
+})
+
+describe('native-only message details', () => {
+  it.each([22506, 0])(
+    'uses one primary grid for native usage (%i input tokens) and keeps runtime timing',
+    (inputTokens) => {
+      const message = createMessage({
+        requestCount: 0,
+        runtimeTiming: { startedAt: 1000, completedAt: 5300, spans: [] }
+      })
+      message.localTurnUsage = {
+        nativeSessionId: 'native',
+        model: 'gpt-6-astra',
+        reportedAt: 5300,
+        correlation: 'unknown',
+        usage: { inputTokens, outputTokens: 5, totalTokens: inputTokens + 5, cacheReadTokens: 0, reasoningTokens: 0 }
+      }
+      render(<MessageTokenDetailsCard message={message} />)
+      expect(screen.getByTestId('message-metric-input')).toHaveTextContent(
+        `${inputTokens.toLocaleString('en-US')} Tokens`
+      )
+      expect(screen.getByTestId('message-metric-output')).toHaveTextContent('5 Tokens')
+      expect(screen.getByTestId('message-metric-total')).toHaveTextContent(
+        `${(inputTokens + 5).toLocaleString('en-US')} Tokens`
+      )
+      expect(screen.getByText('gpt-6-astra')).toBeInTheDocument()
+      expect(screen.queryByTestId('message-metric-speed')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('native-turn-usage')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('message-cost')).not.toBeInTheDocument()
+      expect(screen.queryByText('Anthropic')).not.toBeInTheDocument()
+      expect(screen.getByTestId('message-secondary-metrics')).toHaveTextContent(
+        'chat.message.token_details.total_duration'
+      )
+      expect(screen.queryByText('chat.message.token_details.cache_read')).not.toBeInTheDocument()
+      expect(screen.queryByText('chat.message.token_details.reasoning')).not.toBeInTheDocument()
+    }
+  )
+
+  it('keeps provider-only tokens and throughput in their existing primary slots', () => {
+    render(<MessageTokenDetailsCard message={createMessage(usage)} />)
+    expect(screen.getByTestId('message-metric-input')).toHaveTextContent('100 Tokens')
+    expect(screen.getByTestId('message-metric-output')).toHaveTextContent('100 Tokens')
+    expect(screen.getByTestId('message-metric-speed')).toBeInTheDocument()
+    expect(screen.queryByTestId('message-metric-total')).not.toBeInTheDocument()
   })
 })

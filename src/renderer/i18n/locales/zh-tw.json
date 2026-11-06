@@ -6144,7 +6144,7 @@
   "settings.usage.local.turn": "智慧體輪次彙總",
   "settings.usage.local.turnHint": "智慧體回報的輪次彙總與上方服務商請求分開記錄，不計入請求總量。",
   "settings.usage.local.turns": "已回報輪次",
-  "settings.usage.local.unknown": "無法確認服務商請求歸屬；此彙總不代表請求次數或帳單。",
+  "settings.usage.local.unknown": "用量由本機智慧體提供，費用以服務商帳單為準。",
   "settings.usage.metric.cost": "成本",
   "settings.usage.metric.requests": "請求數",
   "settings.usage.metric.tokens": "Token",

@@ -6144,7 +6144,7 @@
   "settings.usage.local.turn": "智能体轮次汇总",
   "settings.usage.local.turnHint": "智能体报告的轮次汇总与上方服务商请求分开记录，不计入请求总量。",
   "settings.usage.local.turns": "已报告轮次",
-  "settings.usage.local.unknown": "无法确认服务商请求归属；此汇总不代表请求次数或账单。",
+  "settings.usage.local.unknown": "用量由本地智能体提供，费用以服务商账单为准。",
   "settings.usage.metric.cost": "成本",
   "settings.usage.metric.requests": "请求数",
   "settings.usage.metric.tokens": "Token",

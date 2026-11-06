@@ -6144,7 +6144,7 @@
   "settings.usage.local.turn": "Rezumatul rundei agentului",
   "settings.usage.local.turnHint": "Rundele raportate de agent sunt înregistrate separat de cererile către furnizor și nu se adaugă totalurilor acestora.",
   "settings.usage.local.turns": "Runde raportate",
-  "settings.usage.local.unknown": "Atribuirea cererilor este necunoscută; rezumatul nu stabilește numărul cererilor sau facturarea.",
+  "settings.usage.local.unknown": "Utilizarea este raportată de agentul local. Pentru costuri, consultați factura furnizorului.",
   "settings.usage.metric.cost": "Cost",
   "settings.usage.metric.requests": "Cereri",
   "settings.usage.metric.tokens": "Token-uri",

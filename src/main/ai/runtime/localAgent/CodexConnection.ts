@@ -4,6 +4,7 @@ import { createInterface, type Interface } from 'node:readline'
 import * as z from 'zod'
 
 import { crossPlatformSpawn } from '@main/utils/processRunner'
+import { LocalAgentTurnUsageSchema } from '@shared/ai/localAgentUsage'
 
 import type { AgentRuntimeUserInput } from '../types'
 import { resolveLocalAgentLaunch } from './launch'
@@ -20,12 +21,24 @@ const RpcSchema = z.object({
 const ThreadSchema = z.object({ thread: z.object({ id: z.string() }) })
 const ItemSchema = z.object({ id: z.string(), type: z.string() }).passthrough()
 
+const tokenCount = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
+const TokenUsageSchema = z.object({
+  inputTokens: tokenCount,
+  outputTokens: tokenCount,
+  totalTokens: tokenCount,
+  cachedInputTokens: tokenCount,
+  reasoningOutputTokens: tokenCount,
+  cacheWriteInputTokens: tokenCount.optional()
+})
+const TokenUsageUpdateSchema = z.object({ total: TokenUsageSchema, last: TokenUsageSchema })
+
 export class CodexConnection extends LocalConnection {
   private process?: ChildProcess
   private lines?: Interface
   private nextId = 0
   private threadId?: string
   private turnId?: string
+  private usageBaseline?: z.infer<typeof TokenUsageSchema>
   private readonly approvalItems = new Map<string, z.infer<typeof ItemSchema>>()
   private readonly pending = new Map<
     number,
@@ -208,6 +221,37 @@ export class CodexConnection extends LocalConnection {
       const turn = z.object({ id: z.string() }).parse(params.turn)
       this.turnId = turn.id
     }
+    if (message.method === 'thread/tokenUsage/updated' && this.active && params.turnId === this.turnId) {
+      const parsed = TokenUsageUpdateSchema.safeParse(params.tokenUsage)
+      if (!parsed.success || !this.threadId) return
+      const { total, last } = parsed.data
+      // Codex totals span the thread; last covers only the latest model request.
+      this.usageBaseline ??= Object.fromEntries(
+        Object.entries(total).map(([key, value]) => [key, value - (last[key as keyof typeof last] ?? 0)])
+      ) as z.infer<typeof TokenUsageSchema>
+      const usage = Object.fromEntries(
+        Object.entries(total).map(([key, value]) => [
+          key,
+          value - (this.usageBaseline?.[key as keyof typeof total] ?? 0)
+        ])
+      ) as z.infer<typeof TokenUsageSchema>
+      const summary = LocalAgentTurnUsageSchema.safeParse({
+        nativeSessionId: this.threadId,
+        model: this.localSessionInfo.activeModel?.id ?? null,
+        reportedAt: Date.now(),
+        correlation: 'unknown',
+        usage: {
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+          totalTokens: usage.totalTokens,
+          cacheReadTokens: usage.cachedInputTokens,
+          noCacheTokens: usage.inputTokens - usage.cachedInputTokens - (usage.cacheWriteInputTokens ?? 0),
+          reasoningTokens: usage.reasoningOutputTokens,
+          ...(usage.cacheWriteInputTokens !== undefined ? { cacheWriteTokens: usage.cacheWriteInputTokens } : {})
+        }
+      })
+      if (summary.success) this.events.push({ type: 'local-turn-usage', summary: summary.data })
+    }
     if (message.method === 'item/started' || message.method === 'item/completed') {
       const item = ItemSchema.parse(params.item)
       if (message.method === 'item/completed') this.approvalItems.delete(item.id)
@@ -239,6 +283,7 @@ export class CodexConnection extends LocalConnection {
   async send(input: AgentRuntimeUserInput) {
     const content = await localContent(input, this.localSessionInfo.images)
     this.approvalItems.clear()
+    this.usageBaseline = undefined
     this.begin()
     try {
       await this.request('turn/start', {

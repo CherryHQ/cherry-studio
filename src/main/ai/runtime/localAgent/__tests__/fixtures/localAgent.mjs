@@ -581,6 +581,37 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       reply(id, { turn: { id: 'turn', status: 'inProgress' } })
       emit({ method: 'turn/started', params: { threadId: 'native-session', turn: { id: 'turn' } } })
     }
+    if (protocol === 'codex' && scenario.startsWith('codex-usage')) {
+      const counts = (input, output) => ({
+        inputTokens: input,
+        outputTokens: output,
+        totalTokens: input + output,
+        cachedInputTokens: input / 2,
+        reasoningOutputTokens: output / 2
+      })
+      const notify = (total, last, overrides = {}) =>
+        emit({
+          method: 'thread/tokenUsage/updated',
+          params: { threadId: 'native-session', turnId: 'turn', tokenUsage: { total, last }, ...overrides }
+        })
+      if (scenario === 'codex-usage-invalid') {
+        notify(counts(-10, 2), counts(-10, 2))
+      } else {
+        notify(counts(9000, 900), counts(9000, 900), { threadId: 'other' })
+        notify(counts(9000, 900), counts(9000, 900), { turnId: 'previous-turn' })
+        if (turn === 1) {
+          notify(counts(1100, 110), counts(100, 10))
+          notify(counts(1100, 110), counts(100, 10))
+          notify(counts(1300, 130), counts(200, 20))
+        } else {
+          notify(counts(1340, 134), counts(40, 4))
+        }
+      }
+      text('hello')
+      finish()
+      notify(counts(9990, 990), counts(9990, 990))
+      return
+    }
     if (scenario.startsWith('compaction')) {
       const compact = (compactionId, status, extra = {}) =>
         update({ sessionUpdate: 'compaction_update', compactionId, status, ...extra })
