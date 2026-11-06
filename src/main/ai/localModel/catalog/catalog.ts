@@ -13,7 +13,7 @@ import type { ModelBundle, SharedArtifact, SharedArtifactId } from './types'
  * `../installation/LocalModelStorageService`, mirror resolution in `../acquisition/modelSource`.
  *
  * Adding a model means adding an entry here; nothing else in the subsystem is
- * per-model. See `docs/references/ai/local-models.md` for the checklist.
+ * per-model. See `docs/dev/references/ai/local-models.md` for the checklist.
  *
  * ## Obtaining `sha256`
  * The upstream APIs publish the digest, so no download is needed:
@@ -452,7 +452,7 @@ export const LOCAL_MODEL_BUNDLES = {
       },
       conversion: {
         url: 'https://www.modelscope.cn/models/zengshuishui/FunASR-nano-onnx',
-        revision: '2f25d8e45c1534925cda6a4977d497f383b01535',
+        revision: 'ce0975f2a7a8ad6441223db59ce6e1362295ddfe',
         license: {
           spdx: 'Apache-2.0',
           url: 'https://www.modelscope.cn/models/zengshuishui/FunASR-nano-onnx'
@@ -490,29 +490,19 @@ export const LOCAL_MODEL_BUNDLES = {
       },
       {
         key: 'llm',
-        relPath: 'llm.int8.onnx',
-        sha256: 'dfbf9aa3be41bccc257587f151e15c63fbe1b549f2b517f5ccd5bdce3bf4322a',
-        sizeBytes: 600_356_593,
+        // A distinct path makes existing installs fetch the compat weights instead of
+        // accepting the old decoder, whose size also passes the readiness floor.
+        relPath: 'llm.int8.compat.onnx',
+        sha256: '7f0c5a508b41474b1b1ec1cdbdefafd2cf8b3642c6915a0a425265b7b7d2c960',
+        sizeBytes: 600_339_316,
         minBytes: 400_000_000,
         weight: 600,
         sources: [
           {
-            source: 'huggingface',
-            repo: 'csukuangfj/sherpa-onnx-funasr-nano-int8-2025-12-30',
-            revision: '6f16bd378457e13f36ccf3910df9017f96c346fb',
-            remoteFile: 'llm.int8.onnx'
-          },
-          {
-            source: 'hf-mirror',
-            repo: 'csukuangfj/sherpa-onnx-funasr-nano-int8-2025-12-30',
-            revision: '6f16bd378457e13f36ccf3910df9017f96c346fb',
-            remoteFile: 'llm.int8.onnx'
-          },
-          {
             source: 'modelscope',
             repo: 'zengshuishui/FunASR-nano-onnx',
-            revision: '2f25d8e45c1534925cda6a4977d497f383b01535',
-            remoteFile: 'llm_int8/llm.int8.onnx'
+            revision: 'ce0975f2a7a8ad6441223db59ce6e1362295ddfe',
+            remoteFile: 'llm_int8_compat/llm.int8.onnx'
           }
         ]
       },

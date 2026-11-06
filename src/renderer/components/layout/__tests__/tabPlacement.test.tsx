@@ -35,6 +35,16 @@ function renderTabs() {
 }
 
 describe('tab placement', () => {
+  it('appends to the end when explicitly requested from a middle tab', () => {
+    const { result } = renderTabs()
+    act(() => {
+      result.current.openTab('/app/launchpad', { id: 'launchpad', position: 'end' })
+    })
+
+    expect(result.current.tabs.map((tab) => tab.id)).toEqual(['first', 'middle', 'last', 'launchpad'])
+    expect(result.current.activeTabId).toBe('launchpad')
+  })
+
   it.each(['openTab', 'attachTab'] as const)('inserts %s to the right of the active tab', (entry) => {
     const { result } = renderTabs()
 

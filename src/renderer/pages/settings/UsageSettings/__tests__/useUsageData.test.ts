@@ -50,4 +50,27 @@ describe('useUsageData', () => {
     expect(result.current.exploreStatsLoading).toBe(false)
     expect(result.current.exploreTimelineLoading).toBe(false)
   })
+  it.each([false, true])('distinguishes failed aggregate requests from cached data (cached: %s)', (cached) => {
+    const error = new Error('Stats unavailable')
+    mockUseQuery.mockImplementation((path: string) => ({
+      data: path === '/ai-usage-records/timeline' ? timelineData : cached ? statsData : undefined,
+      isLoading: false,
+      isRefreshing: false,
+      error,
+      refetch: vi.fn().mockResolvedValue(undefined),
+      mutate: vi.fn().mockResolvedValue(undefined)
+    }))
+    const { result } = renderHook(() =>
+      useUsageData({
+        windowRange: range,
+        previousWindowRange: range,
+        groupBy: 'provider',
+        chartMetric: 'tokens',
+        rollup: 'total',
+        topCount: 10
+      })
+    )
+    expect(result.current.exploreStatsError).toBe(cached ? undefined : error)
+    expect(result.current.exploreStatsLoading).toBe(false)
+  })
 })

@@ -23,6 +23,15 @@ describe('getFileIconName', () => {
     expect(getFileIconName('Globals.D.TS')).toBe('typescript-def')
   })
 
+  it('uses the Claude icon for CLAUDE.md instead of the generic Markdown icon', () => {
+    expect(getFileIconName('packages/ui/CLAUDE.md')).toBe('claude')
+  })
+
+  it('uses the Mermaid icon for both Mermaid file extensions', () => {
+    expect(getFileIconName('docs/flow.mmd')).toBe('mermaid')
+    expect(getFileIconName('docs/Flow.MERMAID')).toBe('mermaid')
+  })
+
   it('strips the directory part before looking at the name', () => {
     expect(getFileIconName('src/types/globals.D.ts')).toBe('typescript-def')
     expect(getFileIconName('packages/core/src/index.ts')).toBe('typescript')
@@ -50,9 +59,21 @@ describe('getFileIconName', () => {
 
   it('maps office documents onto the collection glyphs that exist', () => {
     expect(getFileIconName('report.docx')).toBe('word')
+    expect(getFileIconName('report.odt')).toBe('word')
+    expect(getFileIconName('notes.rtf')).toBe('word')
     expect(getFileIconName('budget.xlsx')).toBe('table')
+    expect(getFileIconName('budget.ods')).toBe('table')
     expect(getFileIconName('sheet.csv')).toBe('table')
     expect(getFileIconName('deck.pptx')).toBe('powerpoint')
+    expect(getFileIconName('deck.odp')).toBe('powerpoint')
+    expect(getFileIconName('book.epub')).toBe('epub')
+    expect(getFileIconName('notes.markdown')).toBe('markdown')
+    expect(getFileIconName('data.jsonl')).toBe('json')
+    expect(getFileIconName('notes.text')).toBe('document')
+    expect(getFileIconName('photo.avif')).toBe('image')
+    expect(getFileIconName('photo.heic')).toBe('image')
+    expect(getFileIconName('photo.heif')).toBe('image')
+    expect(getFileIconName('archive.tgz')).toBe('zip')
   })
 
   it('only references icon names that exist in material-icon-theme', () => {

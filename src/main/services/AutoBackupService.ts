@@ -4,7 +4,8 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
-import { hasWritePermission, isPathInside, untildify } from '@main/utils/legacyFile'
+import { isSameOrInside } from '@main/utils/file'
+import { hasWritePermission, untildify } from '@main/utils/legacyFile'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import {
   AUTO_BACKUP_TYPES,
@@ -367,8 +368,8 @@ export class AutoBackupService extends BaseService {
 
   private async validateLocalBackupDirectory(directory: string): Promise<void> {
     if (
-      isPathInside(directory, application.getPath('app.userdata')) ||
-      isPathInside(directory, application.getPath('app.install'))
+      isSameOrInside(directory, application.getPath('app.userdata')) ||
+      isSameOrInside(directory, application.getPath('app.install'))
     ) {
       throw new Error('Local automatic backup directory cannot be inside application data or installation directory.')
     }

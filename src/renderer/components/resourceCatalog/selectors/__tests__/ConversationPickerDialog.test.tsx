@@ -96,7 +96,7 @@ describe('ConversationPickerDialog', () => {
     expect(screen.getByText('Alpha Assistant')).toBeInTheDocument()
 
     // The list scrolls inside the shared Scrollbar viewport (auto-hiding thumb), not the cmdk list.
-    expect(screen.getByText('Alpha Assistant').closest('[data-scrolling]')).toBeInTheDocument()
+    expect(screen.getByText('Alpha Assistant').closest('[data-slot=scroll-area-viewport]')).toBeInTheDocument()
 
     fireEvent.click(screen.getByText('Product Manager'))
 
@@ -398,7 +398,7 @@ describe('ConversationPickerDialog', () => {
     expect(screen.queryByText('Item 5')).not.toBeInTheDocument()
 
     // jsdom reports zero layout metrics, so a scroll event always crosses the bottom threshold.
-    const scroller = screen.getByText('Item 0').closest('[data-scrolling]') as HTMLElement
+    const scroller = screen.getByText('Item 0').closest('[data-slot=scroll-area-viewport]') as HTMLElement
     fireEvent.scroll(scroller)
 
     expect(screen.getByText('Item 9')).toBeInTheDocument()

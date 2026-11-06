@@ -14,6 +14,7 @@ export default function StandaloneHtmlArtifactRenderer({ artifact, block, inline
   const codeBlockProps: ComponentProps<typeof CodeBlock> = {
     blockId: block.id,
     className: 'language-html',
+    sourceFormat: 'raw',
     inlineHtmlPreviewMode,
     isStreaming: block.status === 'streaming',
     children: artifact.html

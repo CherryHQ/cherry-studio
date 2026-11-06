@@ -12,9 +12,9 @@ import type { FormattingState } from '@renderer/components/RichEditor/types'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 
 import { createRichEditorExtensions } from './createExtensions'
-import { codeHighlightPluginKey } from './extensions/codeBlockHighlight/highlightPlugin'
 import { blobToArrayBuffer, compressImage, shouldCompressImage } from './helpers/imageUtils'
 import { pickInlinePasteContent, stripImageNodes, stripImageNodesFromSlice } from './helpers/markdownPaste'
+import { isUserCommandTransaction } from './userCommandIntent'
 
 const logger = loggerService.withContext('useRichEditor')
 
@@ -387,7 +387,8 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     onUpdate: ({ editor, transaction }) => {
       // Ignore non-user updates (initialization/mode toggles/programmatic transactions)
       // to avoid re-serializing markdown while switching view modes.
-      if (!editable || !transaction.docChanged || !editor.isFocused) return
+      if (!editable || !transaction.docChanged) return
+      if (!editor.isFocused && !isUserCommandTransaction(transaction)) return
 
       const content = editor.getText()
       try {
@@ -417,13 +418,6 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
       }
     }
   })
-
-  useEffect(() => {
-    if (editor && !editor.isDestroyed)
-      editor.view.dispatch(
-        editor.state.tr.setMeta(codeHighlightPluginKey, activeCodeTheme).setMeta('addToHistory', false)
-      )
-  }, [editor, activeCodeTheme])
 
   // Handle image paste function
   const handleImagePaste = useCallback(

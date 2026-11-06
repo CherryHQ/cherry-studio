@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { BaseService } from '@main/core/lifecycle/BaseService'
@@ -108,6 +109,99 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
       { senderId: 'test-window' }
     )
   }
+
+  const createChild = (ownerSessionId: string) => {
+    const id = dbh.db.transaction((tx) => agentSessionService.createChildArchiveTx(tx, ownerSessionId, 'Child'))
+    dbh.db
+      .insert(agentSessionMessageTable)
+      .values({
+        id: `${id}-result`,
+        sessionId: id,
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'Child result' }] },
+        status: 'success'
+      })
+      .run()
+    return id
+  }
+
+  it.each(['system', 'user'] as const)(
+    'preserves a reassigned %s root and its child history when deleting the former agent',
+    async (type) => {
+      dbh.db
+        .insert(agentTable)
+        .values({ id: 'replacement', name: 'Replacement', type: 'claude-code', instructions: '', orderKey: 'a1' })
+        .run()
+      const childId = createChild(type)
+      agentSessionService.update(type, { agentId: 'replacement' })
+
+      await lifecycle.deleteActiveAgentPermanently('agent', true)
+
+      expect(dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent')).get()).toBeUndefined()
+      for (const id of [type, childId]) {
+        expect(dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, id)).get()).toMatchObject({
+          agentId: 'replacement',
+          deletedAt: null
+        })
+      }
+      expect(
+        dbh.db
+          .select()
+          .from(agentSessionMessageTable)
+          .where(eq(agentSessionMessageTable.id, `${childId}-result`))
+          .get()
+      ).toMatchObject({ data: { parts: [{ type: 'text', text: 'Child result' }] } })
+      expect(await readFile(path.join(workspacePath(root, type), 'output.txt'), 'utf8')).toBe(`${type} output`)
+
+      await lifecycle.deleteActiveAgentPermanently('replacement', true)
+
+      expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(0)
+      expect(dbh.db.select().from(agentSessionMessageTable).all()).toHaveLength(0)
+      expect(existsSync(workspacePath(root, type))).toBe(type === 'user')
+    }
+  )
+
+  it('restores the shared workspace once and restores child history with the agent', async () => {
+    const childIds = ['system', 'user'].map(createChild)
+    await lifecycle.archiveAgent('agent', { archiveSessions: true })
+    expect(existsSync(`${workspacePath(root, 'system')}.tar.gz`)).toBe(true)
+
+    await lifecycle.restoreAgent('agent')
+
+    expect(dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent')).get()?.deletedAt).toBeNull()
+    for (const id of ['system', 'user', ...childIds]) {
+      expect(dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, id)).get()?.deletedAt).toBeNull()
+    }
+    for (const id of childIds) {
+      expect(
+        dbh.db
+          .select()
+          .from(agentSessionMessageTable)
+          .where(eq(agentSessionMessageTable.id, `${id}-result`))
+          .get()
+      ).toMatchObject({ data: { parts: [{ type: 'text', text: 'Child result' }] } })
+    }
+    const workspace = workspacePath(root, 'system')
+    expect(await readFile(path.join(workspace, 'output.txt'), 'utf8')).toBe('system output')
+    expect(existsSync(`${workspace}.tar.gz`)).toBe(false)
+    expect(existsSync(`${workspace}.storage.json`)).toBe(false)
+  })
+
+  it.each(['purge', 'retention'] as const)('never lets child %s remove its root workspace', async (mode) => {
+    const childId = createChild('system')
+    dbh.db.transaction((tx) => agentSessionService.trashByIdsTx(tx, [childId]))
+
+    if (mode === 'purge') await lifecycle.purgeSessions([childId])
+    else await lifecycle.purgeExpiredSessions(Number.MAX_SAFE_INTEGER, 10)
+
+    expect(dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, childId)).get()).toBeUndefined()
+    expect(dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'system')).get()).toMatchObject({
+      deletedAt: null,
+      workspaceId: 'system'
+    })
+    expect(dbh.db.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.id, 'system')).get()).toBeDefined()
+    expect(await readFile(path.join(workspacePath(root, 'system'), 'output.txt'), 'utf8')).toBe('system output')
+  })
 
   it('registers through IPC idempotently without renaming an existing workspace', async () => {
     const registeredPath = path.join(root, 'registered-project')
@@ -339,6 +433,37 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
       dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'system')).get()?.deletedAt
     ).toBeNull()
   })
+  it.each([false, true])(
+    'archives agent conversations while preserving a background session (busy=%s)',
+    async (busy) => {
+      dbh.db.update(agentSessionTable).set({ type: 'background' }).where(eq(agentSessionTable.id, 'user')).run()
+      mocks.busyForArchive.mockImplementation((sessionId: string) => busy && sessionId === 'user')
+
+      const result = await lifecycle.archiveAgentSessions('agent')
+
+      expect(result.deletedIds).toEqual(['system'])
+      expect(
+        dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'system')).get()?.deletedAt
+      ).toEqual(expect.any(Number))
+      expect(
+        dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'user')).get()?.deletedAt
+      ).toBeNull()
+      expect(await readFile(path.join(workspacePath(root, 'user'), 'output.txt'), 'utf8')).toBe('user output')
+    }
+  )
+
+  it('archives background sessions in the agent-delete cascade', async () => {
+    dbh.db.update(agentSessionTable).set({ type: 'background' }).where(eq(agentSessionTable.id, 'user')).run()
+
+    await lifecycle.archiveAgent('agent', { archiveSessions: true })
+
+    for (const id of ['system', 'user']) {
+      expect(dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, id)).get()?.deletedAt).toEqual(
+        expect.any(Number)
+      )
+    }
+  })
+
   it('archives only system files and restores them before making the session active', async () => {
     await lifecycle.archiveSessions(['system', 'user'])
     expect(existsSync(workspacePath(root, 'system'))).toBe(false)

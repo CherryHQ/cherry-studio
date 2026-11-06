@@ -78,6 +78,11 @@ export const skillHandlers: IpcHandlersFor<typeof skillRequestSchemas> = {
   'skill.install': ({ installSource }) =>
     toSkillResult(() => skillService.install({ installSource }), 'Failed to install skill'),
   'skill.uninstall': ({ skillId }) => toSkillResult(() => skillService.uninstall(skillId), 'Failed to uninstall skill'),
+  'skill.set_mirror_enabled': async ({ skillId, mirrorEnabled }) => {
+    const updated = await skillService.setMirrorEnabled(skillId, mirrorEnabled)
+    if (!updated) throw new Error(`Skill not found: ${skillId}`)
+    return updated
+  },
   'skill.install_from_zip': ({ zipFilePath }) =>
     toSkillResult(
       () => skillService.installFromZip({ zipFilePath }),
