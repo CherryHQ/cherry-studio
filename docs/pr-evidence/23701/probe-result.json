@@ -1,0 +1,199 @@
+{
+  "baseUrl": "http://127.0.0.1:52702/v1",
+  "steps": [
+    {
+      "step": "onboarding-cleared",
+      "at": "2026-11-06T18:45:39.677Z"
+    },
+    {
+      "step": "provider-created",
+      "at": "2026-11-06T18:45:39.809Z",
+      "status": 201
+    },
+    {
+      "step": "provider-enabled",
+      "at": "2026-11-06T18:45:40.012Z",
+      "status": 200
+    },
+    {
+      "step": "model-a-created",
+      "at": "2026-11-06T18:45:40.047Z",
+      "status": 201
+    },
+    {
+      "step": "model-b-created",
+      "at": "2026-11-06T18:45:40.069Z",
+      "status": 201
+    },
+    {
+      "step": "models-read",
+      "at": "2026-11-06T18:45:40.083Z",
+      "status": 200,
+      "effective": [
+        {
+          "modelId": "deepseek-ai/DeepSeek-R1-0528-Qwen3-8B",
+          "capabilities": []
+        },
+        {
+          "modelId": "tool-declared-model-1793990737336",
+          "capabilities": [
+            "function-call"
+          ]
+        }
+      ]
+    },
+    {
+      "step": "agents-created",
+      "at": "2026-11-06T18:45:40.115Z"
+    },
+    {
+      "step": "sessions-created",
+      "at": "2026-11-06T18:45:40.163Z",
+      "a": 201,
+      "b": 201
+    },
+    {
+      "step": "notice-check",
+      "at": "2026-11-06T18:45:42.099Z",
+      "visible": true
+    },
+    {
+      "step": "non-tool-turn-done",
+      "at": "2026-11-06T18:45:43.073Z",
+      "request": {
+        "url": "/v1/chat/completions",
+        "model": "deepseek-ai/DeepSeek-R1-0528-Qwen3-8B",
+        "hasTools": false,
+        "toolsCount": 0,
+        "toolNames": [],
+        "mode": "text",
+        "at": "2026-11-06T18:45:42.259Z"
+      }
+    },
+    {
+      "step": "declared-tools-turn-done",
+      "at": "2026-11-06T18:45:44.037Z",
+      "request": {
+        "url": "/v1/chat/completions",
+        "model": "tool-declared-model-1793990737336",
+        "hasTools": true,
+        "toolsCount": 16,
+        "toolNames": [
+          "read",
+          "bash",
+          "edit",
+          "write",
+          "get_goal",
+          "create_goal",
+          "update_goal",
+          "subagent",
+          "message_subagent",
+          "stop_subagent",
+          "AskUserQuestion",
+          "todo_write",
+          "vcc_recall",
+          "codemode",
+          "mcp__automation__js",
+          "mcp__automation__reset"
+        ],
+        "mode": "reject",
+        "at": "2026-11-06T18:45:43.569Z"
+      },
+      "diagnosisVisible": true,
+      "providerSentenceVisible": true
+    }
+  ],
+  "screenshots": [
+    "/Volumes/cherrydev/development/cherry-studio/worktrees/.tasks/issue-23701/round-1/probe/out2/01-work-non-tool-model-notice.png",
+    "/Volumes/cherrydev/development/cherry-studio/worktrees/.tasks/issue-23701/round-1/probe/out2/02-work-non-tool-model-text-answer.png",
+    "/Volumes/cherrydev/development/cherry-studio/worktrees/.tasks/issue-23701/round-1/probe/out2/03-work-capability-error-diagnosis.png"
+  ],
+  "captured": [
+    {
+      "url": "/v1/chat/completions",
+      "model": "deepseek-ai/DeepSeek-R1-0528-Qwen3-8B",
+      "hasTools": false,
+      "toolsCount": 0,
+      "toolNames": [],
+      "mode": "text",
+      "at": "2026-11-06T18:45:42.259Z"
+    },
+    {
+      "url": "/v1/chat/completions",
+      "model": "tool-declared-model-1793990737336",
+      "hasTools": true,
+      "toolsCount": 16,
+      "toolNames": [
+        "read",
+        "bash",
+        "edit",
+        "write",
+        "get_goal",
+        "create_goal",
+        "update_goal",
+        "subagent",
+        "message_subagent",
+        "stop_subagent",
+        "AskUserQuestion",
+        "todo_write",
+        "vcc_recall",
+        "codemode",
+        "mcp__automation__js",
+        "mcp__automation__reset"
+      ],
+      "mode": "reject",
+      "at": "2026-11-06T18:45:43.569Z"
+    }
+  ],
+  "errors": [],
+  "effectiveModels": [
+    {
+      "modelId": "deepseek-ai/DeepSeek-R1-0528-Qwen3-8B",
+      "capabilities": []
+    },
+    {
+      "modelId": "tool-declared-model-1793990737336",
+      "capabilities": [
+        "function-call"
+      ]
+    }
+  ],
+  "noticeVisibleA": true,
+  "nonToolRequest": {
+    "url": "/v1/chat/completions",
+    "model": "deepseek-ai/DeepSeek-R1-0528-Qwen3-8B",
+    "hasTools": false,
+    "toolsCount": 0,
+    "toolNames": [],
+    "mode": "text",
+    "at": "2026-11-06T18:45:42.259Z"
+  },
+  "declaredToolRequest": {
+    "url": "/v1/chat/completions",
+    "model": "tool-declared-model-1793990737336",
+    "hasTools": true,
+    "toolsCount": 16,
+    "toolNames": [
+      "read",
+      "bash",
+      "edit",
+      "write",
+      "get_goal",
+      "create_goal",
+      "update_goal",
+      "subagent",
+      "message_subagent",
+      "stop_subagent",
+      "AskUserQuestion",
+      "todo_write",
+      "vcc_recall",
+      "codemode",
+      "mcp__automation__js",
+      "mcp__automation__reset"
+    ],
+    "mode": "reject",
+    "at": "2026-11-06T18:45:43.569Z"
+  },
+  "diagnosisVisible": true,
+  "providerSentenceVisible": true
+}
