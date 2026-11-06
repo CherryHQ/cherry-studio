@@ -21,6 +21,7 @@ import { AgentResourceList } from '../AgentResourceList'
 import { AssistantResourceList } from '../AssistantResourceList'
 
 const assistantDataMocks = vi.hoisted(() => ({
+  avatarSrc: undefined as string | undefined,
   deleteTopicsByAssistantId: vi.fn(),
   deleteAssistant: vi.fn(),
   restoreAssistant: vi.fn(),
@@ -288,6 +289,7 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
         name: 'Assistant 1',
         orderKey: 'a',
         emoji: 'A',
+        avatarSrc: assistantDataMocks.avatarSrc,
         modelId: 'openai::gpt-4o',
         modelName: 'GPT-4o'
       },
@@ -494,6 +496,7 @@ describe('classic layout entity resource list actions', () => {
   }
 
   beforeEach(() => {
+    assistantDataMocks.avatarSrc = undefined
     MockUseCacheUtils.resetMocks()
     agentDataMocks.agents = [
       {
@@ -573,6 +576,22 @@ describe('classic layout entity resource list actions', () => {
         return true
       }
     )
+  })
+
+  it('shows assistant image icons and preserves the emoji fallback', () => {
+    assistantDataMocks.avatarSrc = 'file:///avatar.webp'
+    const { rerender } = render(
+      <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
+    )
+    const image = screen.getByAltText('')
+    expect(image).toHaveAttribute('src', 'file:///avatar.webp')
+    fireEvent.error(image)
+    expect(screen.getByText('A')).toBeVisible()
+    assistantDataMocks.avatarSrc = undefined
+    rerender(
+      <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
+    )
+    expect(screen.getByText('A')).toBeVisible()
   })
 
   it('uses archive-assistant actions for the classic layout assistant context and more menus', async () => {

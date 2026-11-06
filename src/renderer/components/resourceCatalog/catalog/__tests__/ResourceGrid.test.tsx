@@ -425,6 +425,22 @@ function createAgentResource(): ResourceItem {
   }
 }
 
+it('renders assistant card images with an emoji fallback for missing or broken images', () => {
+  const { rerender } = render(
+    <ResourceCard
+      resource={createAssistantResource({ avatar: '🎓', avatarSrc: 'file:///avatar.webp' })}
+      {...getResourceCardProps()}
+    />
+  )
+  const image = screen.getByRole('img', { name: 'Assistant' })
+  expect(image).toHaveAttribute('src', 'file:///avatar.webp')
+  fireEvent.error(image)
+  expect(screen.getByText('🎓')).toBeVisible()
+  expect(screen.queryByRole('img')).not.toBeInTheDocument()
+  rerender(<ResourceCard resource={createAssistantResource({ avatar: '🤖' })} {...getResourceCardProps()} />)
+  expect(screen.getByText('🤖')).toBeVisible()
+})
+
 function createSkillResource(version: string | null = null, isGlobalEnabled = true): ResourceItem {
   return {
     id: 'skill-1',

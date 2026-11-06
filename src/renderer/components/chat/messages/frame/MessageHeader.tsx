@@ -1,7 +1,7 @@
 import dayjs from 'dayjs'
 import { ArrowUpRight, Bot, MousePointerClick, Sparkle, Target } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
-import { memo, useCallback, useMemo } from 'react'
+import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Checkbox, Tooltip } from '@cherrystudio/ui'
@@ -125,7 +125,13 @@ const MessageHeader: FC<Props> = memo(
     // so editing/deleting the live entity never changes a past message's name or avatar.
     const authorSnapshot = message.messageSnapshot
     const authorName = authorSnapshot ? authorSnapshot.name : assistantProfile?.name
-    const authorAvatar = authorSnapshot ? authorSnapshot.emoji : assistantProfile?.avatar
+    const snapshotAvatarSrc = authorSnapshot?.avatarFileId
+      ? meta.assistantAvatarSources?.get(authorSnapshot.avatarFileId)
+      : undefined
+    const avatarSource = authorSnapshot ? (snapshotAvatarSrc ?? authorSnapshot.emoji) : assistantProfile?.avatar
+    const [failedAvatarKey, setFailedAvatarKey] = useState<string>()
+    const avatarKey = `${message.id}:${avatarSource}`
+    const authorAvatar = failedAvatarKey === avatarKey ? authorSnapshot?.emoji : avatarSource
     const getUserName = useCallback(() => {
       if (message.role === 'assistant') {
         return authorName || displayModel?.name || displayModel?.id || ''
@@ -158,7 +164,11 @@ const MessageHeader: FC<Props> = memo(
         className={`message-header group/header relative flex gap-2.5 ${hasBodySlot ? 'mb-0 items-start' : 'mb-2 items-center'}`}>
         {isAssistantMessage ? (
           authorAvatar ? (
-            <MessageAvatar avatar={authorAvatar} fallback={avatarName} />
+            <MessageAvatar
+              avatar={authorAvatar}
+              fallback={authorSnapshot?.emoji || avatarName}
+              onErrorCapture={() => setFailedAvatarKey(avatarKey)}
+            />
           ) : ModelIcon ? (
             <MessageAvatarFrame className="bg-background">
               <ModelIcon className={MESSAGE_MODEL_AVATAR_ICON_CLASS} aria-hidden="true" />

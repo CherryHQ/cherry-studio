@@ -1,14 +1,19 @@
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { fileEntryTable } from '@data/db/schemas/file'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { assistantDataService } from '@data/services/AssistantService'
+import { fileRefService } from '@data/services/FileRefService'
 import { messageService } from '@data/services/MessageService'
 import { topicService } from '@data/services/TopicService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { aiStreamAdmissionReasons } from '@shared/ai/transport'
+import type { FileEntryId } from '@shared/data/types/file'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 
@@ -543,6 +548,43 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
         status: 'success',
         data: { parts: [{ type: 'text', text: 'completed answer' }], modelSelection }
       })
+    }
+  )
+
+  it.each(['submit-message', 'steer-continuation'] as const)(
+    'freezes the current assistant image into %s placeholders',
+    async (trigger) => {
+      const fileId = '019606a0-0000-7000-8000-00000000aa06' as FileEntryId
+      dbh.db
+        .insert(fileEntryTable)
+        .values({
+          id: fileId,
+          origin: 'internal',
+          name: 'avatar',
+          ext: 'webp',
+          size: 1,
+          cleanupPolicy: 'delete_when_unreferenced'
+        })
+        .run()
+      const assistant = assistantDataService.create({ name: 'Frozen author', modelId: MODEL_ID })
+      dbh.db.update(topicTable).set({ assistantId: assistant.id }).where(eq(topicTable.id, 'topic-1')).run()
+      dbh.db.transaction((tx) => assistantDataService.setAvatarSlotTx(tx, assistant.id, fileId))
+      vi.mocked(resolveAssistantModelId).mockReturnValueOnce({ assistantId: assistant.id, defaultModelId: MODEL_ID })
+      const request =
+        trigger === 'steer-continuation'
+          ? { topicId: 'topic-1', trigger, userMessageId: 'u1', fastMode: false }
+          : { topicId: 'topic-1', trigger, userMessageParts: [{ type: 'text' as const, text: 'question' }] }
+      const result = await provider.prepareDispatch(makeSubscriber(), request, { hasLiveStream: false })
+      const placeholder = messageService.getById(result.models[0].request.messageId!)
+      expect(placeholder.messageSnapshot).toMatchObject({
+        id: assistant.id,
+        name: assistant.name,
+        emoji: assistant.emoji,
+        avatarFileId: fileId
+      })
+      expect(fileRefService.findBySource({ sourceType: 'chat_message', sourceId: placeholder.id })).toEqual([
+        expect.objectContaining({ role: 'author_avatar', fileEntryId: fileId })
+      ])
     }
   )
 

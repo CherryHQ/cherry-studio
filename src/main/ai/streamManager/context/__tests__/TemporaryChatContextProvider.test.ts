@@ -9,9 +9,11 @@ const getTopicMock = vi.fn()
 const hasTopicMock = vi.fn()
 const appendMessageMock = vi.fn()
 const listMessagesMock = vi.fn()
+const retainAvatarMock = vi.fn()
 
 vi.mock('@main/data/services/TemporaryChatService', () => ({
   temporaryChatService: {
+    retainAvatar: retainAvatarMock,
     getTopic: getTopicMock,
     hasTopic: hasTopicMock,
     appendMessage: appendMessageMock,
@@ -63,6 +65,7 @@ describe('TemporaryChatContextProvider', () => {
     hasTopicMock.mockReset()
     appendMessageMock.mockReset()
     listMessagesMock.mockReset()
+    retainAvatarMock.mockReset()
     getAssistantByIdMock.mockReset()
     getByKeyMock.mockReset()
     MockMainPreferenceServiceUtils.resetMocks()
@@ -235,5 +238,33 @@ describe('TemporaryChatContextProvider', () => {
     )
 
     expect(prepared.models[0].request.knowledgeBaseIds).toEqual(['kb-1', 'kb-2'])
+  })
+
+  it('retains a captured avatar before prepareDispatch first yields', async () => {
+    const fileId = '019606a0-0000-7000-8000-00000000aa05'
+    getAssistantByIdMock.mockReturnValue({
+      id: 'asst_1',
+      name: 'Author',
+      emoji: '🌟',
+      avatarFileId: fileId,
+      modelId: 'openai::gpt-4o'
+    })
+    const preparing = provider.prepareDispatch(makeSubscriber(), openReq(), { hasLiveStream: false })
+    expect(retainAvatarMock).toHaveBeenCalledWith('1', fileId)
+    await preparing
+  })
+  it('does not retain an avatar if preparation fails before dispatch', async () => {
+    getAssistantByIdMock.mockReturnValue({
+      id: 'asst_1',
+      avatarFileId: '019606a0-0000-7000-8000-00000000aa05',
+      modelId: 'openai::gpt-4o'
+    })
+    listMessagesMock.mockImplementation(() => {
+      throw new Error('history failed')
+    })
+    await expect(provider.prepareDispatch(makeSubscriber(), openReq(), { hasLiveStream: false })).rejects.toThrow(
+      'history failed'
+    )
+    expect(retainAvatarMock).not.toHaveBeenCalled()
   })
 })

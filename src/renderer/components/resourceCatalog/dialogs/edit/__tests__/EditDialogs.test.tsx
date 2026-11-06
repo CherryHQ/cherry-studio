@@ -8,7 +8,10 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
+import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/image'
 import type { Assistant } from '@shared/data/types/assistant'
+
+vi.mock('@renderer/utils/image', () => ({ checkEntityImageSize: vi.fn(() => null), prepareEntityImageBytes: vi.fn() }))
 
 const {
   bindPromptMock,
@@ -328,6 +331,9 @@ vi.mock('react-i18next', async (importOriginal) => {
           // definitions' own fallbacks, so copy changes need no edit here.
           'agent.settings.skills.addMore': 'Manage Skills',
           'common.avatar': 'Avatar',
+          'settings.general.image_upload': 'Image Upload',
+          'settings.general.emoji_picker': 'Emoji Picker',
+          'settings.general.avatar.reset': 'Reset Avatar',
           'common.add': 'Add',
           'common.cancel': 'Cancel',
           'common.more': 'More',
@@ -1343,6 +1349,60 @@ describe('edit dialogs', () => {
         })
       })
     )
+    for (const [payload] of updateAssistantMock.mock.calls) {
+      expect(payload.body).not.toHaveProperty('emoji')
+    }
+  })
+
+  it('saves avatar changes through IPC without a PATCH on immediate close', async () => {
+    const data = new Uint8Array([1, 2, 3])
+    vi.mocked(prepareEntityImageBytes).mockResolvedValue(data)
+    ipcRequestMock.mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    const { rerender } = render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} />)
+    await user.clear(screen.getByLabelText('Name'))
+    await user.type(screen.getByLabelText('Name'), 'Renamed assistant')
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
+    expect(updateAssistantMock.mock.calls[0][0].body).not.toHaveProperty('emoji')
+    await user.click(screen.getByRole('button', { name: 'Pick avatar' }))
+    const file = new File(['image'], 'avatar.png', { type: 'image/png' })
+    await user.upload(screen.getByLabelText('Image Upload'), file)
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith('assistant.set_avatar', {
+        assistantId: ASSISTANT.id,
+        avatar: { kind: 'image', data }
+      })
+    )
+    expect(checkEntityImageSize).toHaveBeenCalledWith(file)
+    expect(updateAssistantMock).toHaveBeenCalledTimes(1)
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+    rerender(<AssistantEditDialog open={false} resource={ASSISTANT} onOpenChange={onOpenChange} />)
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(updateAssistantMock).toHaveBeenCalledTimes(1)
+    expect(invalidateCacheMock).toHaveBeenCalledWith([`/assistants/${ASSISTANT.id}`, '/assistants'])
+  })
+
+  it('keeps a late avatar completion out of a reopened editing session without a PATCH', async () => {
+    const pendingAvatar = createDeferred<void>()
+    ipcRequestMock.mockReturnValueOnce(pendingAvatar.promise)
+    const user = userEvent.setup()
+    const { rerender } = render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: 'Pick avatar' }))
+    await user.click(screen.getByRole('button', { name: 'Emoji Picker' }))
+    await user.click(screen.getByRole('button', { name: 'Choose emoji' }))
+    expect(ipcRequestMock).toHaveBeenCalledWith('assistant.set_avatar', {
+      assistantId: ASSISTANT.id,
+      avatar: { kind: 'emoji', emoji: '🎓' }
+    })
+    rerender(<AssistantEditDialog open={false} resource={ASSISTANT} onOpenChange={vi.fn()} />)
+    rerender(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: 'Pick avatar' }))
+    await act(async () => pendingAvatar.resolve(undefined))
+    expect(screen.getByRole('button', { name: 'Reset Avatar' })).toBeVisible()
+    expect(updateAssistantMock).not.toHaveBeenCalled()
   })
 
   it('shows the clear model affordance beside the chevron and clears the selected model', async () => {
@@ -2468,6 +2528,7 @@ describe('edit dialogs', () => {
 
     const dialog = screen.getByRole('dialog')
     fireEvent.click(screen.getByLabelText('Pick avatar'))
+    fireEvent.click(screen.getByRole('button', { name: 'Emoji Picker' }))
 
     expect(dialog).toContainElement(screen.getByRole('button', { name: 'Choose emoji' }))
   })
