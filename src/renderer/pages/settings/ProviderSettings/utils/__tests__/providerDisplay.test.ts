@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 // Stub imported i18n and provider helpers so these tests stay focused on provider eligibility.
@@ -12,7 +13,7 @@ vi.mock('@shared/utils/provider', () => ({
     p.authMethods !== undefined && p.authMethods.length > 0 && !p.authMethods.includes('api-key')
 }))
 
-const { isProviderPresetInstanceSource } = await import('../providerDisplay')
+const { applyPrimaryBaseUrlToMatchingEndpoints, isProviderPresetInstanceSource } = await import('../providerDisplay')
 const { isProviderSettingsListVisibleProvider } = await import('@renderer/utils/providerSettings')
 
 const provider = (id: string): Provider => ({ id }) as Provider
@@ -74,5 +75,56 @@ describe('isProviderPresetInstanceSource', () => {
   it('rejects other presets without a configured default chat endpoint', () => {
     expect(isProviderPresetInstanceSource(presetSource({ defaultChatEndpoint: undefined }))).toBe(false)
     expect(isProviderPresetInstanceSource(presetSource({ endpointConfigs: undefined }))).toBe(false)
+  })
+})
+
+describe('applyPrimaryBaseUrlToMatchingEndpoints', () => {
+  // Catches #20159: editing the visible primary host must also move openai-responses when
+  // it still shares that host. Otherwise Codex connection checks keep hitting Xiaomi MiMo.
+  it('updates openai-responses when it still shares the previous primary baseUrl', () => {
+    const next = applyPrimaryBaseUrlToMatchingEndpoints(
+      {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://api.xiaomimimo.com',
+          adapterFamily: 'openai-compatible'
+        },
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://api.xiaomimimo.com', adapterFamily: 'openai' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+          baseUrl: 'https://api.xiaomimimo.com/anthropic',
+          adapterFamily: 'anthropic'
+        }
+      },
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      'https://token-plan-cn.xiaomimimo.com'
+    )
+
+    expect(next).toEqual({
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+        baseUrl: 'https://token-plan-cn.xiaomimimo.com',
+        adapterFamily: 'openai-compatible'
+      },
+      [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+        baseUrl: 'https://token-plan-cn.xiaomimimo.com',
+        adapterFamily: 'openai'
+      },
+      [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+        baseUrl: 'https://api.xiaomimimo.com/anthropic',
+        adapterFamily: 'anthropic'
+      }
+    })
+  })
+
+  it('leaves an independently configured responses host untouched', () => {
+    const next = applyPrimaryBaseUrlToMatchingEndpoints(
+      {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.xiaomimimo.com' },
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://codex.example.com' }
+      },
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      'https://proxy.example.com'
+    )
+
+    expect(next[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.baseUrl).toBe('https://proxy.example.com')
+    expect(next[ENDPOINT_TYPE.OPENAI_RESPONSES]?.baseUrl).toBe('https://codex.example.com')
   })
 })
