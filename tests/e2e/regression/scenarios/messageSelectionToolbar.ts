@@ -159,9 +159,12 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
       .getByRole('dialog')
       .filter({ has: page.getByRole('button', { name: 'Copy', exact: true }) })
       .filter({ has: page.getByRole('button', { name: 'Quote', exact: true }) })
+      .last()
     const selectedText = () => page.evaluate(() => window.getSelection()?.toString() ?? '')
     const textCoordinates = async (target: Locator, length: number) => {
-      await page.keyboard.press('Escape')
+      if (!(await target.evaluate((element) => !!element.closest('.in-popover')))) {
+        await page.keyboard.press('Escape')
+      }
       const measure = () =>
         target.evaluate((element, length) => {
           const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
@@ -436,13 +439,17 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
           text: 'Grid orchid petals shine.'
         }))
       )
-    const gridText = messages
-      .filter({ has: page.locator('.message-assistant') })
-      .last()
-      .getByText('Grid orchid petals shine.', { exact: true })
+    const gridCard = messages.filter({ has: page.locator('.message-assistant') }).last()
+    const expanded = page.getByRole('dialog').filter({ has: page.locator('.in-popover') })
+    const gridText = expanded.getByText('Grid orchid petals shine.', { exact: true })
+    await gridCard.click()
+    await expect(gridText).toBeVisible()
     await selectReply(gridText, 'Grid orchid petals shine.')
     await expect(toolbar).toBeVisible()
     await copyAndPaste(toolbar.getByRole('button', { name: 'Copy', exact: true }), 'Grid orchid petals shine.')
+    await expect(expanded).toBeHidden()
+    await gridCard.click()
+    await expect(gridText).toBeVisible()
     await selectReply(gridText, 'Grid orchid petals shine.')
     await toolbar.getByRole('button', { name: 'Quote', exact: true }).click()
     await expect(composer.locator('[data-composer-token-kind="quote"]')).toBeVisible()

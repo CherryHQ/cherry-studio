@@ -142,6 +142,14 @@ export async function resetAppData(app: RegressionApp, initialPage: Page, testIn
       () => undefined,
       (error: unknown) => error
     )
+    await testInfo.attach('MP-121 preboot exit', {
+      body: JSON.stringify({
+        name: preboot instanceof Error ? preboot.name : typeof preboot,
+        message: preboot instanceof Error ? preboot.message : String(preboot),
+        cause: preboot instanceof Error ? String(preboot.cause ?? '') : ''
+      }),
+      contentType: 'application/json'
+    })
     expect(preboot).toBeInstanceOf(AppExitedBeforeReadyError)
     expect(preboot).toMatchObject({ exitCode: 0 })
     await expect(stat(marker)).rejects.toMatchObject({ code: 'ENOENT' })

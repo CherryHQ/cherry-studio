@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events'
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -7,7 +8,14 @@ import { vi } from 'vitest'
 const { execFileSync, spawn } = vi.hoisted(() => ({ execFileSync: vi.fn(), spawn: vi.fn() }))
 vi.mock('node:child_process', () => ({ execFileSync, spawn }))
 
-import { ensureProfile, launchApp, readAppRecord, restartApp, stopOwnedApp } from '../lifecycle'
+import {
+  AppExitedBeforeReadyError,
+  ensureProfile,
+  launchApp,
+  readAppRecord,
+  restartApp,
+  stopOwnedApp
+} from '../lifecycle'
 import { ensureRunDirectories, getRunPaths } from '../paths'
 
 beforeEach(() => vi.clearAllMocks())
@@ -428,6 +436,39 @@ it('restarts the isolated profile after an owned pre-main launch has exited', as
   } finally {
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+// A synchronous process probe can observe exit before Node delivers the child's exit event.
+it('preserves the natural exit code when the OS probe wins the child event race', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'cherry-preboot-exit-'))
+  const paths = getRunPaths(directory)
+  ensureRunDirectories(paths)
+  const child = Object.assign(new EventEmitter(), { pid: 42000, exitCode: null as number | null, unref() {} })
+  spawn.mockImplementation(() => {
+    setImmediate(() => {
+      child.exitCode = 0
+      child.emit('exit', 0, null)
+    })
+    return child
+  })
+  execFileSync.mockReturnValue('')
+  vi.spyOn(process, 'kill').mockImplementation(() => {
+    throw new Error('Process not found')
+  })
+  try {
+    const error = await launchApp(paths, {
+      mode: 'branch',
+      platform: 'macos',
+      profile: 'clean',
+      targetRoot: directory,
+      runKey: 'preboot-exit'
+    }).catch((error: unknown) => error)
+    expect(error).toBeInstanceOf(AppExitedBeforeReadyError)
+    expect(error).toMatchObject({ exitCode: 0 })
+  } finally {
+    vi.restoreAllMocks()
     rmSync(directory, { recursive: true, force: true })
   }
 })

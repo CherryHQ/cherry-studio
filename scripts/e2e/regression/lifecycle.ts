@@ -290,6 +290,17 @@ export async function launchApp(
     rmSync(paths.appLaunchFailure, { force: true })
     return record
   } catch (error) {
+    if (child.exitCode === null && !isAlive(child.pid)) {
+      await new Promise<void>((resolve) => {
+        const finish = () => {
+          clearTimeout(timer)
+          child.off('exit', finish)
+          resolve()
+        }
+        const timer = setTimeout(finish, 1_000)
+        child.once('exit', finish)
+      })
+    }
     const exitCode = child.exitCode
     try {
       await stopOwnedRecord(launchRecord)
@@ -299,7 +310,7 @@ export async function launchApp(
         `${String(error)}; owned-process cleanup failed: ${String(cleanupError)}`
       )
     }
-    if (exitCode !== null) throw new AppExitedBeforeReadyError(exitCode, error)
+    if (typeof exitCode === 'number') throw new AppExitedBeforeReadyError(exitCode, error)
     throw error
   }
 }
