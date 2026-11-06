@@ -12,6 +12,7 @@ import type { IpcResult } from '@shared/ipc/errors/IpcError'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
+import { AppExitedBeforeReadyError } from '../../../../scripts/e2e/regression/lifecycle'
 import { isPathInside } from '../../../../scripts/e2e/regression/paths'
 import { isAlive } from '../../../../scripts/e2e/regression/process'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
@@ -135,7 +136,20 @@ export async function resetAppData(app: RegressionApp, initialPage: Page, testIn
   if (app.record.mode === 'branch')
     await dismissNativeMessageBox(app.record.platform, app.paths, 'Manual Restart Required')
   await expect.poll(() => isAlive(oldPid), { timeout: 60_000 }).toBe(false)
-  page = app.record.mode === 'branch' ? await app.restart() : await app.adoptRelaunch()
+  if (app.record.mode === 'branch') {
+    // Preboot wipes the profile, then development mode exits for a second manual start.
+    const preboot = await app.restart().then(
+      () => undefined,
+      (error: unknown) => error
+    )
+    expect(preboot).toBeInstanceOf(AppExitedBeforeReadyError)
+    expect(preboot).toMatchObject({ exitCode: 0 })
+    await expect(stat(marker)).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(stat(seeded.filePath)).rejects.toMatchObject({ code: 'ENOENT' })
+    page = await app.restart()
+  } else {
+    page = await app.adoptRelaunch()
+  }
   expect(app.record.electronPid).not.toBe(oldPid)
   await expect(page.getByRole('button', { name: /Set up later|稍后设置/ })).toBeVisible({ timeout: 60_000 })
   const after = await page.evaluate(

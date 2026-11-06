@@ -32,6 +32,16 @@ import {
 } from './process'
 import type { Platform, RunMode, TestProfile } from './types'
 
+export class AppExitedBeforeReadyError extends Error {
+  constructor(
+    readonly exitCode: number,
+    cause: unknown
+  ) {
+    super(`Application exited with code ${exitCode} before CDP became ready: ${String(cause)}`, { cause })
+    this.name = 'AppExitedBeforeReadyError'
+  }
+}
+
 export interface AppRecord {
   schemaVersion: 1
   ownership: 'regression-driver'
@@ -280,6 +290,7 @@ export async function launchApp(
     rmSync(paths.appLaunchFailure, { force: true })
     return record
   } catch (error) {
+    const exitCode = child.exitCode
     try {
       await stopOwnedRecord(launchRecord)
     } catch (cleanupError) {
@@ -288,6 +299,7 @@ export async function launchApp(
         `${String(error)}; owned-process cleanup failed: ${String(cleanupError)}`
       )
     }
+    if (exitCode !== null) throw new AppExitedBeforeReadyError(exitCode, error)
     throw error
   }
 }
