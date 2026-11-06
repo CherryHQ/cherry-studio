@@ -110,13 +110,13 @@ export default defineProvider({
       imageGeneration: {
         modes: seedream4Modes
       },
-      modelId: 'doubao-seedream-4-0'
+      apiModelId: 'doubao-seedream-4-0'
     },
     {
       imageGeneration: {
         modes: seedream4Modes
       },
-      modelId: 'doubao-seedream-4-5'
+      apiModelId: 'doubao-seedream-4-5'
     },
     {
       apiModelId: 'doubao-seedream-5.0-lite',

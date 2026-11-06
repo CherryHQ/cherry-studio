@@ -15,7 +15,9 @@ describe('FilePreview layout composition', () => {
     )
 
     expect(screen.queryByRole('toolbar')).not.toBeInTheDocument()
-    expect(screen.getByTestId('file-preview-content').parentElement).toHaveClass('bg-transparent')
+    expect(screen.getByTestId('file-preview-content').closest('[data-ui="file-preview.view"]')).toHaveClass(
+      'bg-transparent'
+    )
     expect(screen.getByTestId('file-preview-content')).toHaveTextContent('Preview content')
   })
 

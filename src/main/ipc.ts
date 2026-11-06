@@ -8,7 +8,8 @@ import {
   listDirectory as searchListDirectory,
   listDirectoryEntries as searchListDirectoryEntries
 } from '@main/services/file'
-import { hasWritePermission, isPathInside, untildify } from '@main/utils/legacyFile'
+import { isSameOrInside } from '@main/utils/file'
+import { hasWritePermission, untildify } from '@main/utils/legacyFile'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import { copilotService } from './services/CopilotService'
@@ -67,7 +68,7 @@ export async function registerIpc() {
 
   // Check if a path is inside another path (proper parent-child relationship)
   handleGuarded(IpcChannel.App_IsPathInside, async (_, childPath: string, parentPath: string) => {
-    return isPathInside(childPath, parentPath)
+    return isSameOrInside(childPath, parentPath)
   })
 
   // zip

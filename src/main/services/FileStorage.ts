@@ -306,6 +306,16 @@ class FileStorage {
     await fs.promises.rm(this.resolveStoredPath(id), { recursive: true })
   }
 
+  // Trash is unavailable in some environments (e.g. Flatpak); fall back to permanent removal.
+  private trashOrRemove = async (nativePath: string): Promise<void> => {
+    try {
+      await shell.trashItem(nativePath)
+    } catch (error) {
+      logger.warn(`Failed to move item to trash, deleting permanently: ${nativePath}`, error as Error)
+      await fs.promises.rm(nativePath, { recursive: true, force: true })
+    }
+  }
+
   public deleteExternalFile = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<void> =>
     withNotesFilesystemMutation(async () => {
       try {
@@ -319,7 +329,7 @@ class FileStorage {
           return
         }
 
-        await shell.trashItem(nativePath)
+        await this.trashOrRemove(nativePath)
         logger.debug(`External file moved to trash successfully: ${nativePath}`)
       } catch (error) {
         logger.error('Failed to delete external file:', error as Error)
@@ -340,7 +350,7 @@ class FileStorage {
           return
         }
 
-        await shell.trashItem(nativePath)
+        await this.trashOrRemove(nativePath)
         logger.debug(`External directory moved to trash successfully: ${nativePath}`)
       } catch (error) {
         logger.error('Failed to delete external directory:', error as Error)

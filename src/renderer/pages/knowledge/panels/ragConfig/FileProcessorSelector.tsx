@@ -1,11 +1,11 @@
 import { ChevronDown, CircleSlash, Settings2 } from 'lucide-react'
 import { useState } from 'react'
 
+import { ScrollArea } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { FileProcessorIcon } from '@renderer/components/icons/FileProcessorIcon'
 import { ModelSelectorRow } from '@renderer/components/ModelSelector'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { DEFAULT_SELECTOR_CONTENT_HEIGHT, SelectorShell } from '@renderer/components/SelectorShell'
 import { useListboxKeyboardNavigation } from '@renderer/hooks/useListboxKeyboardNavigation'
 import type { KnowledgeSelectOption } from '@renderer/pages/knowledge/types'
@@ -120,14 +120,17 @@ export const FileProcessorSelector = ({
       }}
       data-testid="file-processor-selector-content">
       {({ availableListHeight }) => (
-        <Scrollbar
-          id={listboxId}
-          ref={listRef}
-          role="listbox"
-          aria-label={ariaLabel}
-          aria-activedescendant={activeOptionId}
-          tabIndex={0}
-          className="min-h-0 flex-1 px-1 py-1 outline-none"
+        <ScrollArea
+          viewportProps={{
+            id: listboxId,
+            ref: listRef,
+            role: 'listbox',
+            'aria-label': ariaLabel,
+            'aria-activedescendant': activeOptionId,
+            tabIndex: 0,
+            className: 'px-1 py-1 outline-none'
+          }}
+          className="min-h-0 flex-1"
           style={{ height: availableListHeight ?? listHeight }}>
           {options.map((option, index) => {
             const selected = option.value === value
@@ -159,7 +162,7 @@ export const FileProcessorSelector = ({
               </div>
             )
           })}
-        </Scrollbar>
+        </ScrollArea>
       )}
     </SelectorShell>
   )

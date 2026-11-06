@@ -14954,15 +14954,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0028
+          "perMillionTokens": 0.0025
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.14
+          "perMillionTokens": 0.119
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.28
+          "perMillionTokens": 0.238
         }
       },
       "providerId": "gateway"
@@ -14973,15 +14973,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0036
+          "perMillionTokens": 0.0028
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.435
+          "perMillionTokens": 0.3045
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.87
+          "perMillionTokens": 0.609
         }
       },
       "providerId": "gateway"
@@ -18243,6 +18243,30 @@
       "providerId": "longcat"
     },
     {
+      "apiModelId": "LongCat-2.5",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages", "openai-responses"],
+      "modelId": "longcat-2-5",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        }
+      },
+      "providerId": "longcat",
+      "reasoningContracts": {
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "kind": "effort",
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "mimo-v2.5",
       "modelId": "mimo-v2-5",
       "providerId": "mimo",
       "reasoningContracts": {
@@ -18342,6 +18366,7 @@
       }
     },
     {
+      "apiModelId": "mimo-v2.5-pro",
       "modelId": "mimo-v2-5-pro",
       "providerId": "mimo",
       "reasoningContracts": {
@@ -18441,6 +18466,7 @@
       }
     },
     {
+      "apiModelId": "mimo-v2.5-pro-ultraspeed",
       "modelId": "mimo-v2-5-pro-ultraspeed",
       "providerId": "mimo",
       "reasoningContracts": {
@@ -18471,6 +18497,7 @@
       }
     },
     {
+      "apiModelId": "mimo-v2.6-flash",
       "modelId": "mimo-v2-6-flash",
       "providerId": "mimo",
       "reasoningContracts": {
@@ -18570,6 +18597,7 @@
       }
     },
     {
+      "apiModelId": "mimo-v2.6-pro",
       "modelId": "mimo-v2-6-pro",
       "providerId": "mimo",
       "reasoningContracts": {
@@ -18669,6 +18697,7 @@
       }
     },
     {
+      "apiModelId": "mimo-v2.6-pro-ultraspeed",
       "modelId": "mimo-v2-6-pro-ultraspeed",
       "providerId": "mimo",
       "reasoningContracts": {
@@ -22073,6 +22102,38 @@
       "name": "Z-Image Turbo",
       "outputModalities": ["image"],
       "providerId": "ollama"
+    },
+    {
+      "apiModelId": "gpt-image-2.6-flare",
+      "endpointTypes": ["openai-image-generation", "openai-image-edit"],
+      "modelId": "gpt-image-2-6-flare",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 30
+        }
+      },
+      "providerId": "openai"
+    },
+    {
+      "apiModelId": "gpt-image-2.6-sunburst",
+      "endpointTypes": ["openai-image-generation", "openai-image-edit"],
+      "modelId": "gpt-image-2-6-sunburst",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 30
+        }
+      },
+      "providerId": "openai"
     },
     {
       "apiModelId": "gpt-5.3-codex-spark",
@@ -31460,15 +31521,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0028
+          "perMillionTokens": 0.08
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.14
+          "perMillionTokens": 0.4
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.28
+          "perMillionTokens": 2
         }
       },
       "providerId": "openrouter",
@@ -31491,15 +31552,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0036
+          "perMillionTokens": 0.096
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.435
+          "perMillionTokens": 0.48
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.87
+          "perMillionTokens": 1.8
         }
       },
       "providerId": "openrouter",
@@ -44582,5 +44643,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "d5c315bd1da2fbdb"
+  "version": "ae42a0ee7c463c59"
 }

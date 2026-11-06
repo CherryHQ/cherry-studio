@@ -2,11 +2,13 @@ import type { AiUsageRecordListSortBy, AiUsageRecordSortOrder } from '@shared/da
 import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { LocalModelStatusSnapshots } from '@shared/data/presets/localModel'
 import type { ChannelStatus } from '@shared/data/types/channel'
+import type { FileProcessingTask } from '@shared/data/types/fileProcessing'
 import type { MiniAppRegion, TransientMiniApp } from '@shared/data/types/miniApp'
 import type { Currency } from '@shared/data/types/model'
 import type { AutoBackupEvent, AutoBackupType } from '@shared/types/backup'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import type { ManagedToolStatusState } from '@shared/types/managedTool'
+import type { SelectionAgentCapsule } from '@shared/types/selection'
 import type { StorageHealth } from '@shared/types/storageMonitor'
 
 import type { TopicStatusSnapshotEntry } from '../../ai/transport'
@@ -335,6 +337,8 @@ export type SharedCacheSchema = {
   'feature.api_gateway.lan_running': boolean
   // Main-owned, session-only local model status and download progress.
   'local_model.statuses': LocalModelStatusSnapshots
+  // Main-owned capsule stack of collapsed selection agent windows on one display, nearest the corner first.
+  'selection.agent_capsules.${displayId}': SelectionAgentCapsule[]
   'feature.binary.latest_versions': Record<string, string>
   // API key rotation state (cross-window, tracks last used key per provider)
   'web_search.provider.last_used_key.${providerId}': string
@@ -372,9 +376,12 @@ export type SharedCacheSchema = {
   // embedding progress, the prepare job owns this runtime-only value.
   'knowledge.item.directory_copy_progress.${itemId}': number | null
   // File-processing progress for a knowledge item, main -> all windows. KnowledgeService
-  // mirrors the progress of the job the item waits on here when it changes, so the row can
-  // show a percentage during the 'processing' wait; absence means no progress was reported.
+  // mirrors the progress of the task the item waits on here when it changes, so the row can
+  // show a percentage during the 'processing' wait; absence means the conversion has not started.
   'knowledge.item.file_processing_progress.${itemId}': number | null
+  // A file-processing task's latest state, main -> all windows. FileProcessingService rewrites it on
+  // every change and lets only a terminal state expire; after that, ask `file_processing.get_task`.
+  'file_processing.task.${taskId}': FileProcessingTask | null
   /**
    * Roots a notes library has occupied in this session, oldest first, ending at
    * the live one. Lets a selection parked on any earlier root follow the library
@@ -410,6 +417,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'feature.remote_access.discovery_status': 'inactive',
   'feature.api_gateway.lan_running': false,
   'local_model.statuses': {},
+  'selection.agent_capsules.${displayId}': [],
   'feature.binary.latest_versions': {},
   'web_search.provider.last_used_key.${providerId}': '',
   'ocr.provider.last_used_key.${providerId}': '',
@@ -425,6 +433,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'backup.auto_sync.state.${type}': null,
   'knowledge.item.directory_copy_progress.${itemId}': null,
   'knowledge.item.file_processing_progress.${itemId}': null,
+  'file_processing.task.${taskId}': null,
   'notes.directory_root_transition': undefined
 }
 

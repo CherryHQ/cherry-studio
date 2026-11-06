@@ -15,6 +15,7 @@ import { notesMigrationLock } from '@renderer/services/notesMigrationLock'
 import { createRichEditorExtensions } from './createExtensions'
 import { blobToArrayBuffer, compressImage, shouldCompressImage } from './helpers/imageUtils'
 import { pickInlinePasteContent, stripImageNodes, stripImageNodesFromSlice } from './helpers/markdownPaste'
+import { isUserCommandTransaction } from './userCommandIntent'
 
 const logger = loggerService.withContext('useRichEditor')
 
@@ -387,7 +388,8 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     onUpdate: ({ editor, transaction }) => {
       // Ignore non-user updates (initialization/mode toggles/programmatic transactions)
       // to avoid re-serializing markdown while switching view modes.
-      if (!editable || !transaction.docChanged || !editor.isFocused) return
+      if (!editable || !transaction.docChanged) return
+      if (!editor.isFocused && !isUserCommandTransaction(transaction)) return
 
       const content = editor.getText()
       try {

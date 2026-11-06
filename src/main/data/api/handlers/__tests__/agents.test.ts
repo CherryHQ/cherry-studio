@@ -114,6 +114,14 @@ describe('agentHandlers', () => {
       })
     })
 
+    it('GET forwards builtinRole to the service', async () => {
+      listAgentsMock.mockReturnValueOnce({ agents: [], total: 0 })
+
+      await agentHandlers['/agents'].GET({ query: { builtinRole: 'assistant' } } as never)
+
+      expect(listAgentsMock).toHaveBeenCalledWith({ limit: 100, offset: 0, builtinRole: 'assistant' })
+    })
+
     it('GET rejects tagIds before calling the service', async () => {
       await expect(
         agentHandlers['/agents'].GET({

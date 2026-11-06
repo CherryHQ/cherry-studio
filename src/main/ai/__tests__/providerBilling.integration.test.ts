@@ -14,7 +14,6 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
-import { buildPiProviderInjection } from '@main/ai/runtime/pi/modelInjection'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
@@ -104,26 +103,23 @@ describe('provider billing through AiService and the real SDK', () => {
     vi.restoreAllMocks()
   })
 
-  it('uses frozen peak pricing for Pi while preserving trusted reported costs', () => {
+  it('uses frozen peak pricing when invocation time is unknown while preserving trusted reported costs', () => {
     vi.setSystemTime(new Date('2026-10-11T23:00:00+08:00'))
-    const injection = buildPiProviderInjection(
-      providerService.getByProviderId('billing-group'),
-      modelService.getByKey('billing-group', 'model'),
-      'test-only-key'
-    )
-    const capture = injection.usageCapture
-    if (capture.owner !== 'agent-sdk') throw new Error('Expected direct SDK capture')
-    providerService.update('billing-group', { providerSettings: { billing: { defaultMultiplier: 100 } } })
+    const provider = providerService.getByProviderId('billing-group')
+    const model = modelService.getByKey('billing-group', 'model')
     const context = createAiUsageCaptureContext({
-      providerId: capture.providerId,
-      modelId: capture.frozenModels[0].modelId,
-      pricingSnapshot: capture.frozenModels[0].pricingSnapshot,
+      providerId: provider.id,
+      modelId: model.id,
+      pricing: model.pricing,
+      billing: provider.settings?.billing,
+      invocationStartedAt: null,
       trustProviderReportedCost: true,
       reportedCostCurrency: 'USD'
     })
+    providerService.update('billing-group', { providerSettings: { billing: { defaultMultiplier: 100 } } })
     for (const providerCost of [undefined, { amount: 0.7, currency: 'USD' as const }]) {
       aiUsageRecordService.recordInvocation({
-        requestId: providerCost ? 'pi:reported' : 'pi:computed',
+        requestId: providerCost ? 'unknown-time:reported' : 'unknown-time:computed',
         context,
         modality: 'language',
         usage: { inputTokens: 1000, outputTokens: 1000 },

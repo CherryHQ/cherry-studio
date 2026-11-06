@@ -37,12 +37,23 @@ vi.mock('@renderer/i18n/label', () => ({
   getProviderLabelKey: (providerId: string) => providerId
 }))
 
-vi.mock('@tanstack/react-router', () => ({
-  Link: ({ children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => <a {...props}>{children}</a>
-}))
-
 vi.mock('react-i18next', () => ({
-  Trans: ({ i18nKey }: { i18nKey: string }) => <>{i18nKey}</>,
+  Trans: ({
+    i18nKey,
+    values,
+    components
+  }: {
+    i18nKey: string
+    values?: Record<string, string>
+    components?: Record<string, React.ReactElement>
+  }) => (
+    <>
+      {i18nKey}
+      {components?.provider &&
+        // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Trans tag interpolation
+        React.cloneElement(components.provider, undefined, values?.provider)}
+    </>
+  ),
   useTranslation: () => ({
     t: (key: string, options?: Record<string, string>) => {
       let translation = mocks.translations.get(key) ?? key
@@ -174,6 +185,40 @@ required service tier.`
 
     expect(screen.queryByLabelText('close')).toBeNull()
     expect(screen.queryByText('common.detail')).toBeNull()
+  })
+
+  it('opens provider settings from the provider name without opening the error detail', () => {
+    const navigateToRoute = vi.fn()
+    const openErrorDetail = vi.fn()
+    mocks.actions = { navigateToRoute, openErrorDetail }
+    mocks.i18nKeys.add('error.chat.no_api_key')
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'Error', message: 'No API key', stack: null, i18nKey: 'chat.no_api_key', providerId: 'openai' }}
+        message={message}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'openai' }))
+    expect(navigateToRoute).toHaveBeenCalledWith({ path: '/settings/provider', query: { id: 'openai' } })
+    expect(openErrorDetail).not.toHaveBeenCalled()
+  })
+
+  it('shows the provider name as plain text when the host cannot navigate', () => {
+    mocks.i18nKeys.add('error.chat.no_api_key')
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'Error', message: 'No API key', stack: null, i18nKey: 'chat.no_api_key', providerId: 'openai' }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText('openai')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'openai' })).toBeNull()
   })
 
   it('offers provider settings recovery when Claude Code reports that the session is not logged in', () => {

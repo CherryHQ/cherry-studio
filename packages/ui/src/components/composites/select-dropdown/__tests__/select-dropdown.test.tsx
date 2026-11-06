@@ -75,7 +75,7 @@ describe('SelectDropdown', () => {
       render(<SelectDropdown {...defaultProps} />)
       fireEvent.click(screen.getByRole('button'))
 
-      const scroller = screen.getByText('Alpha').closest('button')?.parentElement?.parentElement as HTMLDivElement
+      const scroller = screen.getByText('Alpha').closest('[data-slot=scroll-area-viewport]') as HTMLDivElement
       Object.defineProperties(scroller, {
         clientHeight: { configurable: true, value: 20 },
         scrollHeight: { configurable: true, value: 100 },
