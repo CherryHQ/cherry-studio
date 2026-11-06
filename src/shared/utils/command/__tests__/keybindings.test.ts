@@ -319,6 +319,19 @@ describe('resolveCommandByKeybinding', () => {
     ).toBe('topic.create')
   })
 
+  it('routes Ctrl+K to previous-turn navigation only while the message list has focus', () => {
+    const resolve = (focused: boolean) =>
+      resolveCommandByKeybinding({
+        binding: ['CommandOrControl', 'K'],
+        context: { 'chat.messages.focused': focused },
+        platform: 'darwin',
+        scope: 'renderer'
+      })
+
+    expect(resolve(true)).toBe('chat.message.focus_prev')
+    expect(resolve(false)).toBe('chat.context.toggle_new')
+  })
+
   it('resolves additional bindings without changing the primary display binding', () => {
     expect(
       resolveCommandByKeybinding({

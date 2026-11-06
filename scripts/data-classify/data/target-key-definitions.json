@@ -590,6 +590,20 @@
       "description": "Command shortcut: app.print (unified command system)"
     },
     {
+      "targetKey": "shortcut.app.quick_switcher.open",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Shift",
+          "P"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.quick_switcher.open (unified command system)"
+    },
+    {
       "targetKey": "shortcut.app.search",
       "type": "PreferenceTypes.PreferenceShortcutType",
       "defaultValue": {
@@ -693,6 +707,34 @@
       "description": "Command shortcut: app.zoom.reset (unified command system)"
     },
     {
+      "targetKey": "shortcut.chat.conversation.next",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Alt",
+          "Down"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: chat.conversation.next (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.chat.conversation.prev",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Alt",
+          "Up"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: chat.conversation.prev (unified command system)"
+    },
+    {
       "targetKey": "shortcut.chat.input.focus",
       "type": "PreferenceTypes.PreferenceShortcutType",
       "defaultValue": {
@@ -742,6 +784,32 @@
       },
       "status": "classified",
       "description": "Command shortcut: chat.message.edit_last_user (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.chat.message.focus_next",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "J"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: chat.message.focus_next (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.chat.message.focus_prev",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "K"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: chat.message.focus_prev (unified command system)"
     },
     {
       "targetKey": "shortcut.chat.message.search",

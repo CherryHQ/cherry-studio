@@ -31,6 +31,7 @@ import { toCreateAssistantDtoFromCatalogPreset } from '@renderer/hooks/useAssist
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
 import { useComposerFocusRequest } from '@renderer/hooks/useComposerFocusRequest'
 import { useConversationCenterSurface } from '@renderer/hooks/useConversationCenterSurface'
+import { useConversationCycleShortcuts } from '@renderer/hooks/useConversationCycleShortcuts'
 import { useConversationLocateRequest } from '@renderer/hooks/useConversationLocateRequest'
 import { useConversationShellPaneState } from '@renderer/hooks/useConversationShellPaneState'
 import { useModelById } from '@renderer/hooks/useModel'
@@ -341,6 +342,11 @@ const HomePage: FC = () => {
     },
     [clearLocate, closeSurface, setActiveTopic]
   )
+  useConversationCycleShortcuts({
+    conversations: allTopics,
+    activeId: visibleTopic?.id ?? activeTopicId,
+    onSelect: (topic) => setActiveTopicAndCloseResourceView(mapApiTopicToRendererTopic(topic))
+  })
   const clearActiveTopicAndCloseResourceView = useCallback(() => {
     closeSurface()
     reenterChatRoute()
