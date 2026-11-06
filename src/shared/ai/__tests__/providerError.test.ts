@@ -242,6 +242,39 @@ describe('getSafeProviderErrorMessage', () => {
   })
 })
 
+describe('Chinese quota serialization (#23588)', () => {
+  it('extracts Chinese exhaustion from a real API error without retaining private diagnostics', () => {
+    const error = new APICallError({
+      message: 'Forbidden',
+      url: 'https://api.example.com/chat?token=url-secret',
+      requestBodyValues: { prompt: 'private user prompt' },
+      statusCode: 403,
+      responseHeaders: { 'set-cookie': 'session=header-secret' },
+      responseBody: JSON.stringify({ error: { type: 'new_api_error', message: '用户额度不足, 剩余额度: ＄0.000000' } }),
+      data: { apiKey: 'data-secret' },
+      isRetryable: false
+    })
+
+    const serialized = serializeNestedProviderError(error)
+
+    expect(serialized).toMatchObject({
+      name: 'AI_APICallError',
+      message: '用户额度不足, 剩余额度: ＄0.000000',
+      providerErrorCategory: 'quota',
+      statusCode: 403,
+      stack: null,
+      url: '',
+      requestBodyValues: null,
+      responseHeaders: null,
+      responseBody: null,
+      data: null
+    })
+    expect(JSON.stringify(serialized)).not.toMatch(
+      /url-secret|private user prompt|header-secret|data-secret|new_api_error/
+    )
+  })
+})
+
 describe('Groq service-tier serialization', () => {
   it('freshly classifies actual API and retry errors as permission', () => {
     const body =

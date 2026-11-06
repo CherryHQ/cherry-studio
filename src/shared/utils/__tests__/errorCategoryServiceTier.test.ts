@@ -9,6 +9,19 @@ describe('Groq service-tier entitlement', () => {
 required service tier.`
   const flex = 'service_tier flex is not available for this org. See https://console.groq.com/settings/billing/plans'
 
+  it.each(['额度不足', '预扣费额度失败'])(
+    'prioritizes explicit Chinese exhaustion over the Groq entitlement exception: %s',
+    (phrase) => {
+      for (const status of [400, 403, 429]) {
+        expect(classifyErrorCategory({ text: `${G}\n${phrase}`, status })).toBe('quota')
+      }
+    }
+  )
+
+  it.each(['额度不足', '预扣费额度失败'])('recognizes Chinese exhaustion in the exported quota helper: %s', (text) => {
+    expect(isQuotaErrorMessage(text)).toBe(true)
+  })
+
   it.each([
     [G, 400, 'permission'],
     [G, 403, 'permission'],

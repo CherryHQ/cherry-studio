@@ -53,6 +53,20 @@ function makeCopiedRetry(
 }
 
 describe('classifyError', () => {
+  it('routes Chinese quota JSON without a precomputed category to provider quota recovery (#23588)', () => {
+    const error = makeApiCallAttempt({
+      message: 'Forbidden',
+      statusCode: 403,
+      responseBody: JSON.stringify({ error: { type: 'new_api_error', message: '用户额度不足, 剩余额度: ＄0.000000' } })
+    })
+
+    expect(classifyError(error, 'cherryin')).toEqual({
+      category: 'quota',
+      i18nKey: 'error.diagnosis.quota',
+      navTarget: '/settings/provider?id=cherryin'
+    })
+  })
+
   const groqBody = `service_tier auto is not available for this org. You can check your plan at
 [Billing - Plans](https://console.groq.com/settings/billing/plans), and upgrade to access the
 required service tier.`
