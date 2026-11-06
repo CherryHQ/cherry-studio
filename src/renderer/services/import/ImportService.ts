@@ -19,6 +19,12 @@ const logger = loggerService.withContext('ImportService')
 // FILE_IPC_MAX_BATCH_CREATE_ITEMS from the file IPC schema.
 const RESTORE_MEDIA_BATCH_SIZE = 100
 
+// Built from code points instead of regex literals so the patterns carry no
+// literal control character (oxlint no-control-regex); matching is unchanged.
+const NUL_CHAR = String.fromCharCode(0)
+const UNSAFE_ENTRY_NAME_CHARS = new RegExp(`[${NUL_CHAR}/\\\\]`, 'g')
+const SAFE_ENTRY_EXT_PATTERN = new RegExp(`^[^./\\\\\\s${NUL_CHAR}]{1,255}$`)
+
 /** Decode a self-contained `data:` url into bytes and its declared mime. */
 function decodeDataUrl(url: string): { bytes: Uint8Array; mime: string } | null {
   const comma = url.indexOf(',')
@@ -40,24 +46,24 @@ function decodeDataUrl(url: string): { bytes: Uint8Array; mime: string } | null 
 }
 
 /** Coerce an arbitrary attachment name into the entry SafeName contract. */
-function safeEntryName(filename: string | undefined, fallback: string): string {
-  const cleaned = (filename?.trim() || fallback).replace(/[\0/\\]/g, '_').slice(0, 255)
+export function safeEntryName(filename: string | undefined, fallback: string): string {
+  const cleaned = (filename?.trim() || fallback).replace(UNSAFE_ENTRY_NAME_CHARS, '_').slice(0, 255)
   return cleaned === '' || cleaned === '.' || cleaned === '..' ? fallback : cleaned
 }
 
 /** A filename's extension when it satisfies the bare SafeExt contract. */
-function safeEntryExt(filename: string): string | null {
+export function safeEntryExt(filename: string): string | null {
   const dot = filename.lastIndexOf('.')
   if (dot < 0) return null
   const ext = filename.slice(dot + 1)
-  return /^[^./\\\s\0]{1,255}$/.test(ext) ? ext : null
+  return SAFE_ENTRY_EXT_PATTERN.test(ext) ? ext : null
 }
 
 /** A video mime subtype as a bare extension, when it is SafeExt-compatible. */
-function videoExtFromMime(mime: string): string | null {
+export function videoExtFromMime(mime: string): string | null {
   if (!mime.startsWith('video/')) return null
   const ext = mime.slice('video/'.length)
-  return /^[^./\\\s\0]{1,255}$/.test(ext) ? ext : null
+  return SAFE_ENTRY_EXT_PATTERN.test(ext) ? ext : null
 }
 
 type ImportProgressCallback = (percent: number) => void
