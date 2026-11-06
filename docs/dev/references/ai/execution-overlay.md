@@ -16,10 +16,10 @@ sources:
 
 ## Ownership and message model
 
-Root conversations and children use `CherryUIMessage`. Each native owner has an independent projection. Root messages come from the existing `readUIMessageStream` accumulator in `pipeStreamLoop`; child messages come from `ThreadMessageProjection` and native archive reconciliation. The renderer receives message snapshots and patches, without running another SDK reader.
+Root conversations and children use `CherryUIMessage`. Each execution selects one content source: chunk streams use `readUIMessageStream` in `pipeStreamLoop`; all Agent roots use authoritative message views composed with host display state by `RootMessageProjection`. `pipeMessageStream` forwards those views and execution metadata. Their runtime adapters accumulate native content into SDK messages before observer fan-out. Each native owner has an independent projection. Child messages come from `ThreadMessageProjection`, Main-owned reply composition, and native archive reconciliation. The renderer receives message snapshots and patches, without running another SDK reader.
 
 ```text
-Root SDK accumulator → TopicMessageProjection ─┐
+Root message source → TopicMessageProjection ──┐
 Child native observer → ChildThreadProjection ─┤
                                               ↓
                               MessageProjection / ProjectionSubscriptions
@@ -31,17 +31,25 @@ Child native observer → ChildThreadProjection ─┤
 
 A root baseline covers the current live overlay, not the topic's saved history. It includes execution, attempt and message-anchor identities, so parallel models and a retry using the same model/anchor stay distinct. The child baseline covers its own archive and current content; it excludes parent and sibling content. `toolCallId` resolves a child through its owner and is not the child's durable identity.
 
+Concrete runtime observations capture body, aliases, retractions and live/history provenance
+together. Main consumes that complete value instead of reconstructing delivery history or reading
+mutable adapter metadata later. Each child has one connection-owned resource record for its
+relationship, access and projection. Closing joins native production and observation callbacks
+before the final archive flush, then detaches and releases; backup holds that boundary until resume.
+
 Native queues, child lifetime and persistence destinations remain owner-specific. Observing or detaching a view does not submit input, stop a task, or transfer native ownership. Parent completion does not finish a background child's projection. Native owner closure makes the child unavailable while retaining its readable archive.
 
 Archive reconciliation can await a native read. It preserves submitted product user text
 when behavior wraps the corresponding native input, and retains saved source mappings
 when a later snapshot uses committed rather than live preview identities.
+Explicit removals persist with the checkpoint and hide those sources after reopen;
+absence from a compacted native view alone does not remove saved product history.
 
 ## Publication
 
 `MessageProjection` shares diffing, immutable baselines and subscriber delivery. A changed message is upserted; text/reasoning growth with otherwise unchanged structure uses an append patch. Every update carries the complete message order, which also expresses removal. Unchanged messages and parts keep stable references in the renderer.
 
-Root updates coalesce into one pending view over 80 ms. Child reconciliation already batches native updates and writes its archive before publication, so it publishes immediately after that work. Revisions count published batches, not model chunks. Capturing a baseline flushes pending accepted content first.
+Root updates coalesce into one pending view over 80 ms; renderer output projection runs once per flushed batch, not per accepted chunk. Without subscribers, the pending view waits for the next baseline capture instead of a timer. Child reconciliation already batches native updates and writes its archive before publication, so it publishes immediately after that work. Revisions count published batches, not model chunks. Capturing a baseline flushes pending accepted content first.
 
 A root terminal is published in the notification phase, after terminal persistence. The final view includes accepted content, the final execution state and its owning `userMessageId` in the same revision. That identity correlates a queued submit's user-only acknowledgement with its later assistant attempt and recovery completion. Persistence failure publishes an `unresolved` execution with readable content and an error; it does not signal a successful DB handoff. Host-resolved approvals are folded into Main's snapshots so a later SDK snapshot cannot restore a dismissed approval card.
 

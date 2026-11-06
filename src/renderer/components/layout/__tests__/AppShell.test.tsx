@@ -355,6 +355,8 @@ describe('AppShell', () => {
       throw new Error('Expected AppShell to render a root and content column')
     }
 
+    expect(root.matches('[data-ui~="app.shell"]')).toBe(true)
+    expect(container.querySelectorAll('[data-ui~="app.shell"]')).toHaveLength(1)
     expect(sidebar.parentElement).toBe(root)
     expect(contentColumn.parentElement).toBe(root)
     expect(contentColumn).toContainElement(tabBar)
@@ -386,6 +388,8 @@ describe('AppShell', () => {
       throw new Error('Expected AppShell to render macOS left and content columns')
     }
 
+    expect(root.matches('[data-ui~="app.shell"]')).toBe(true)
+    expect(container.querySelectorAll('[data-ui~="app.shell"]')).toHaveLength(1)
     expect(trafficLightDragRegion.parentElement).toBe(root)
     expect(trafficLightDragRegion).toHaveClass('absolute', 'top-0', 'left-0')
     expect(trafficLightDragRegion).toHaveClass('w-[env(titlebar-area-x)]')

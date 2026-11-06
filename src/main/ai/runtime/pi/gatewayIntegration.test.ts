@@ -9,8 +9,13 @@ import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
-import { runtimeId } from '@cherrystudio/agent-runtime'
-import { createAgentRuntimeSession, type AgentRuntimeSession } from '@cherrystudio/agent-runtime-pi'
+import { runtimeId, type Observation, type ObservationPayload, type OperationResult } from '@cherrystudio/agent-runtime'
+import {
+  createPiRuntime,
+  type PiRuntime,
+  type PiSessionOptions,
+  type PiThreadHandle
+} from '@cherrystudio/agent-runtime-pi'
 import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -25,7 +30,7 @@ import type { InputFormat } from '@main/features/apiGateway/adapters/interfaces'
 import { processMessage } from '@main/features/apiGateway/proxyStream'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 
-import { lastAssistant, tempDir } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
+import { createTestBehavior, tempDir } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
 import { createPiGatewayModelBinding } from './gatewayModelBinding'
 import { createPiBehaviorHost } from './piBehaviorHost'
 
@@ -45,6 +50,7 @@ vi.mock('@application', async () => {
     },
     AiService: { streamText: (input: Parameters<AiService['streamText']>[0]) => mocks.ai!.streamText(input) },
     ApiGatewayService: {
+      captureAgentSessionUsage: () => ({ headers: {}, release: () => {} }),
       ensureInternalGateway: async () => ({ baseUrl: mocks.gatewayUrl, apiKey: 'internal-fixture-key' }),
       getAgentSessionUsageHeaders: (sessionId: string) => ({ 'x-cherry-agent-session-id': sessionId }),
       isInternalRequest: (headers: Headers) => headers.get('authorization') === 'Bearer internal-fixture-key',
@@ -68,7 +74,33 @@ describe('native Pi through the production gateway', () => {
   const dbh = setupTestDatabase()
   let server: Server
   let gateway: Server
-  let session: AgentRuntimeSession | undefined
+  let session: PiThreadHandle | undefined
+  let runtime: PiRuntime | undefined
+  let observation: Observation | undefined
+  let events: ObservationPayload[] = []
+  function confirmed<T>(result: OperationResult<T>): T {
+    if (result.status !== 'confirmed') throw new Error(result.error.message)
+    return result.value
+  }
+  async function openSession(options: Omit<PiSessionOptions, 'behavior'>) {
+    runtime = confirmed(await createPiRuntime({ backendId: runtimeId('gateway-test') }))
+    const handle = confirmed(await runtime.create({ ...options, behavior: createTestBehavior(options.model) }))
+    events = []
+    observation = confirmed(
+      await handle.observe((event) => {
+        events.push(event)
+      })
+    )
+    return handle
+  }
+  async function sendUser(text: string) {
+    expect(await session!.input.submit({ inputId: runtimeId(text), text, whenBusy: 'reject' })).toMatchObject({
+      status: 'acknowledged'
+    })
+    await session!.pi.settled()
+    await observation!.drain()
+  }
+  const outcome = () => events.filter((event) => event.type === 'input.changed').at(-1)?.input.outcome
   let holdResponse = false
   let upstreamClosed = false
   let protocol: InputFormat = 'openai'
@@ -261,8 +293,10 @@ describe('native Pi through the production gateway', () => {
       .run()
   })
   afterEach(async () => {
-    await session?.dispose()
+    if (runtime) confirmed(await runtime.shutdown())
+    await session?.release()
     session = undefined
+    runtime = undefined
     await new Promise<void>((done, reject) => server.close((error) => (error ? reject(error) : done())))
     gateway.closeAllConnections()
     await new Promise<void>((done, reject) => gateway.close((error) => (error ? reject(error) : done())))
@@ -291,6 +325,7 @@ describe('native Pi through the production gateway', () => {
         nonBypassableApprovalTools: new Set(),
         delegationTools: new Set()
       },
+      usageSessionId: async () => input.sessionId,
       toolCallId: async (call) => call.key,
       emit: () => {},
       observe: () => {}
@@ -377,7 +412,7 @@ describe('native Pi through the production gateway', () => {
       (usage) => usages.push(usage)
     )
     const directory = tempDir('gateway')
-    session = await createAgentRuntimeSession({
+    session = await openSession({
       ...binding,
       cwd: directory,
       agentDir: directory,
@@ -395,7 +430,7 @@ describe('native Pi through the production gateway', () => {
         })
       ]
     })
-    await session.prompt('Run echo')
+    await sendUser('Run echo')
     expect(toolInputs).toEqual(['native result'])
     expect(requests).toHaveLength(2)
     expect(requests[0]).toMatchObject({ model: 'wire-model', max_tokens: 1024 })
@@ -425,7 +460,7 @@ describe('native Pi through the production gateway', () => {
       modelService.getByKey('port', 'wire-model')
     )
     const directory = tempDir('gateway-invalid-tool')
-    session = await createAgentRuntimeSession({
+    session = await openSession({
       ...binding,
       cwd: directory,
       agentDir: directory,
@@ -443,13 +478,15 @@ describe('native Pi through the production gateway', () => {
         })
       ]
     })
-    await session.prompt('use the optional tool')
+    await sendUser('use the optional tool')
     if (input === 'null') {
       expect(executed).toEqual([])
-      expect(lastAssistant(session.session).stopReason).toBe('error')
+      expect(outcome()).toBe('failed')
     } else {
       expect(executed).toEqual([{}])
-      expect(lastAssistant(session.session).content).toEqual([{ type: 'text', text: 'complete' }])
+      expect(session.pi.archive().messages.findLast((message) => message.role === 'assistant')?.parts).toMatchObject([
+        { type: 'text', text: 'complete' }
+      ])
     }
   })
 
@@ -471,16 +508,16 @@ describe('native Pi through the production gateway', () => {
       modelService.getByKey('port', 'wire-model')
     )
     const directory = tempDir('gateway-responses')
-    session = await createAgentRuntimeSession({
+    session = await openSession({
       ...binding,
       cwd: directory,
       agentDir: directory,
       settings: { retry: { enabled: false } }
     })
-    await session.prompt('first question')
-    expect(lastAssistant(session.session).stopReason).toBe('stop')
-    await session.prompt('continue')
-    expect(lastAssistant(session.session).stopReason).toBe('stop')
+    await sendUser('first question')
+    expect(outcome()).toBe('completed')
+    await sendUser('continue')
+    expect(outcome()).toBe('completed')
     expect(requests).toHaveLength(2)
     expect(requests[1].input).toContainEqual({
       type: 'reasoning',
@@ -510,16 +547,16 @@ describe('native Pi through the production gateway', () => {
         modelService.getByKey('port', 'wire-model')
       )
       const directory = tempDir(`gateway-${format}-replay`)
-      session = await createAgentRuntimeSession({
+      session = await openSession({
         ...binding,
         cwd: directory,
         agentDir: directory,
         settings: { retry: { enabled: false } }
       })
-      await session.prompt('first question')
-      expect(lastAssistant(session.session).stopReason).toBe('stop')
-      await session.prompt('continue')
-      expect(lastAssistant(session.session).stopReason).toBe('stop')
+      await sendUser('first question')
+      expect(outcome()).toBe('completed')
+      await sendUser('continue')
+      expect(outcome()).toBe('completed')
       expect(requests).toHaveLength(2)
       if (format === 'anthropic') {
         const messages = requests[1].messages as Array<{ role: string; content: unknown[] }>
@@ -551,8 +588,8 @@ describe('native Pi through the production gateway', () => {
       modelService.getByKey('port', 'wire-model')
     )
     const directory = tempDir('gateway-attribution')
-    session = await createAgentRuntimeSession({ ...binding, cwd: directory, agentDir: directory })
-    await session.prompt('question')
+    session = await openSession({ ...binding, cwd: directory, agentDir: directory })
+    await sendUser('question')
     expect(dbh.db.select().from(aiUsageRecordTable).all()).toMatchObject([{ messageId: 'original-answer' }])
   })
   it('keeps the explicit reasoning selection through native wire defaults and gateway execution', async () => {
@@ -570,8 +607,8 @@ describe('native Pi through the production gateway', () => {
       modelService.getByKey('port', 'wire-model')
     )
     const directory = tempDir('gateway-options')
-    session = await createAgentRuntimeSession({ ...binding, cwd: directory, agentDir: directory })
-    await session.prompt('Think carefully')
+    session = await openSession({ ...binding, cwd: directory, agentDir: directory })
+    await sendUser('Think carefully')
     expect(requests).toHaveLength(1)
     expect(requests[0].reasoning_effort).toBe('high')
   })
@@ -584,13 +621,13 @@ describe('native Pi through the production gateway', () => {
       modelService.getByKey('port', 'wire-model')
     )
     const directory = tempDir('gateway-abort')
-    session = await createAgentRuntimeSession({ ...binding, cwd: directory, agentDir: directory })
-    const run = session.prompt('Start streaming')
+    session = await openSession({ ...binding, cwd: directory, agentDir: directory })
+    const run = sendUser('Start streaming')
     await expect.poll(() => requests.length).toBe(1)
-    await session.abort()
+    confirmed(await session.interrupt!())
     await run
     await expect.poll(() => upstreamClosed).toBe(true)
-    expect(lastAssistant(session.session).stopReason).toBe('aborted')
+    expect(outcome()).toBe('aborted')
     expect(requests).toHaveLength(1)
   })
 })
