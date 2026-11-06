@@ -185,6 +185,7 @@ vi.mock('react-i18next', () => ({
         'knowledge.data_source.actions.preview_source': '预览原文',
         'knowledge.data_source.actions.view_chunks': '查看 Chunks',
         'knowledge.data_source.actions.reindex': '重新索引',
+        'knowledge.data_source.actions.rename': '重命名',
         'knowledge.data_source.actions.delete': '删除',
         'knowledge.data_source.delete_failed': '删除数据源失败',
         'knowledge.data_source.preview.failed': '预览原文失败',
@@ -699,6 +700,33 @@ describe('KnowledgeItemRow', () => {
       expect(handleReindex).toHaveBeenCalledTimes(1)
     })
     expect(handleClick).not.toHaveBeenCalled()
+  })
+
+  it('offers rename only for settled files and calls onRename', () => {
+    const handleRename = vi.fn()
+
+    const { unmount } = render(
+      <KnowledgeItemRow
+        item={createFileItem({ id: 'file-1', status: 'completed' })}
+        {...defaultHandlers}
+        onRename={handleRename}
+      />
+    )
+    fireEvent.contextMenu(screen.getByRole('row'))
+    fireEvent.click(screen.getByRole('button', { name: '重命名' }))
+    expect(handleRename).toHaveBeenCalledTimes(1)
+    unmount()
+
+    for (const item of [
+      createFileItem({ id: 'file-2', status: 'embedding' }),
+      createUrlItem({ id: 'url-1', status: 'completed' }),
+      createNoteItem({ id: 'note-1', status: 'completed' })
+    ]) {
+      const view = render(<KnowledgeItemRow item={item} {...defaultHandlers} onRename={handleRename} />)
+      fireEvent.contextMenu(screen.getByRole('row'))
+      expect(screen.queryByRole('button', { name: '重命名' })).not.toBeInTheDocument()
+      view.unmount()
+    }
   })
 
   it('shows a failure toast when reindex rejects', async () => {

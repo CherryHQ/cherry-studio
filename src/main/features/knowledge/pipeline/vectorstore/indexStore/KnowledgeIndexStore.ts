@@ -350,6 +350,18 @@ export class KnowledgeIndexStore {
   }
 
   /**
+   * Re-point a material at a new Concept ID without touching its indexed content, so a renamed
+   * file keeps its chunks and embeddings. A no-op when the material is not indexed yet.
+   */
+  renameMaterial(materialId: string, relativePath: string): void {
+    this.driver.execute(`UPDATE material SET relative_path = ?, updated_at = ? WHERE material_id = ?`, [
+      relativePath,
+      Date.now(),
+      materialId
+    ])
+  }
+
+  /**
    * Resolve a Concept ID (a material's `relative_path`, OKF §2) to its material
    * row, or null when no material has that path. `relative_path` is UNIQUE per
    * index, so this is the lookup behind the deep-read tools — they re-validate

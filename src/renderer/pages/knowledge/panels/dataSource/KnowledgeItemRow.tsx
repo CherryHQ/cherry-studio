@@ -1,4 +1,4 @@
-import { BookOpen, Check, CircleAlert, Eye, LoaderCircle, RefreshCw, Trash2 } from 'lucide-react'
+import { BookOpen, Check, CircleAlert, Eye, LoaderCircle, Pencil, RefreshCw, Trash2 } from 'lucide-react'
 import type { KeyboardEvent, ReactNode } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -26,6 +26,7 @@ export interface KnowledgeItemRowProps {
   onDelete: () => void | Promise<unknown>
   onPreviewSource: () => void | Promise<unknown>
   onReindex: () => void | Promise<unknown>
+  onRename?: () => void
   onViewChunks: () => void
 }
 
@@ -122,6 +123,7 @@ const KnowledgeItemRow = ({
   onDelete,
   onPreviewSource,
   onReindex,
+  onRename,
   onViewChunks
 }: KnowledgeItemRowProps) => {
   const {
@@ -135,6 +137,8 @@ const KnowledgeItemRow = ({
   const failureReason = item.status === 'failed' ? getKnowledgeItemFailureReason(item, t) : null
   const canReindex = canReindexKnowledgeItem(item)
   const canViewChunks = item.status === 'completed'
+  // Only settled files are renamed: their stored name is final and no job is writing under it.
+  const canRename = Boolean(onRename) && item.type === 'file' && canReindex
   // Every row's primary click views its original content in-app: files/URLs delegate
   // preview/fallback/error handling to `previewSource`, directories drill into their children, and
   // notes open their stored `data.content`. All are status-independent — a note's text is present
@@ -189,6 +193,16 @@ const KnowledgeItemRow = ({
       })
     }
 
+    if (canRename) {
+      items.push({
+        type: 'item',
+        id: 'rename',
+        label: t('knowledge.data_source.actions.rename'),
+        icon: <Pencil className="size-3.5" />,
+        onSelect: () => onRename?.()
+      })
+    }
+
     items.push({ type: 'separator' })
     items.push({
       type: 'item',
@@ -204,7 +218,7 @@ const KnowledgeItemRow = ({
     })
 
     return items
-  }, [canReindex, canViewChunks, item.type, onDelete, onPreviewSource, onReindex, onViewChunks, t])
+  }, [canReindex, canRename, canViewChunks, item.type, onDelete, onPreviewSource, onReindex, onRename, onViewChunks, t])
 
   // Keyboard equivalent for the row's primary click action. Only handle keys raised on the row
   // itself so Enter/Space on the checkbox (which bubble up) don't also open chunks.
