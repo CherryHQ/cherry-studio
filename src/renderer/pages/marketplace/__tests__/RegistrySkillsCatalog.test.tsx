@@ -6,7 +6,7 @@ import { useState } from 'react'
 import { SWRConfig } from 'swr'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
-import { Scrollbar } from '@cherrystudio/ui'
+import { ScrollArea } from '@cherrystudio/ui'
 import { ipcApi } from '@renderer/ipc'
 
 import { RegistrySkillsCatalog, type SkillRegistrySource } from '../RegistrySkillsCatalog'
@@ -37,9 +37,9 @@ function Catalog() {
         onRefresh={() => {}}
       />
       <input aria-label="Search skills" value={query} onChange={(event) => setQuery(event.target.value)} />
-      <Scrollbar aria-label="Skill catalog" tabIndex={0}>
+      <ScrollArea viewportProps={{ 'aria-label': 'Skill catalog', tabIndex: 0 }}>
         <RegistrySkillsCatalog key={source} source={source} query={query} active />
-      </Scrollbar>
+      </ScrollArea>
     </>
   )
 }

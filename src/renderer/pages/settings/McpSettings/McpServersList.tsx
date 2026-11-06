@@ -16,7 +16,7 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-  Scrollbar,
+  ScrollArea,
   Sortable,
   useDndReorder
 } from '@cherrystudio/ui'
@@ -29,6 +29,11 @@ import EnvironmentDependencies from '@renderer/pages/settings/DependenciesSettin
 import { toast } from '@renderer/services/toast'
 import type { AppRouter } from '@renderer/types/router'
 import { matchKeywordsInString } from '@renderer/utils/match'
+import {
+  DuplicateMcpServerNameError,
+  isExportableMcpServer,
+  serializeMcpServersForExport
+} from '@renderer/utils/mcpTransfer'
 import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { ProtocolMcpInstallRequest } from '@shared/data/types/mcpProtocolInstall'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -61,6 +66,7 @@ const McpServersList: FC = () => {
   const search = mcpServersRouteApi.useSearch<AppRouter>()
   const [isAddModalVisible, setIsAddModalVisible] = useState(false)
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false)
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false)
   const [modalType, setModalType] = useState<ImportMethod>('json')
@@ -239,6 +245,26 @@ const McpServersList: FC = () => {
     setIsAddModalVisible(true)
   }, [])
 
+  const handleExport = useCallback(async () => {
+    setIsAddMenuOpen(false)
+    if (exporting) return
+    setExporting(true)
+    try {
+      const content = serializeMcpServersForExport(mcpServers)
+      await window.api.file.save('mcp-servers.json', new TextEncoder().encode(content), {
+        filters: [{ name: t('assistants.presets.import.file_filter'), extensions: ['json'] }]
+      })
+    } catch (error) {
+      toast.error(
+        error instanceof DuplicateMcpServerNameError
+          ? t('settings.mcp.exportDuplicateName', { name: error.serverName })
+          : t('settings.mcp.exportFailed')
+      )
+    } finally {
+      setExporting(false)
+    }
+  }, [exporting, mcpServers, t])
+
   return (
     <>
       <SettingsContentBody
@@ -277,6 +303,11 @@ const McpServersList: FC = () => {
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => handleImport('mcpb')}>
                   {t('settings.mcp.addServer.importFrom.mcpb')}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => void handleExport()}
+                  disabled={exporting || !mcpServers.some(isExportableMcpServer)}>
+                  {t('settings.mcp.exportAsJson')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -318,7 +349,7 @@ const McpServersList: FC = () => {
         <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
-              <Scrollbar ref={scrollRef} className="min-h-0 flex-1">
+              <ScrollArea viewportProps={{ ref: scrollRef }} className="min-h-0 flex-1">
                 {filteredMcpServers.length > 0 ? (
                   <Sortable
                     className="[&>div:last-child_[data-slot=mcp-server-row]]:border-b-0"
@@ -348,7 +379,7 @@ const McpServersList: FC = () => {
                     className="py-12"
                   />
                 )}
-              </Scrollbar>
+              </ScrollArea>
             </div>
           </div>
         </div>

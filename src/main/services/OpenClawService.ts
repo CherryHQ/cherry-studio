@@ -44,6 +44,12 @@ const DEFAULT_GATEWAY_PORT = 18790
 const GATEWAY_PROBE_INTERVAL_MS = 5000
 const OPENCLAW_COMMAND_TIMEOUT_MS = 10000
 const OPENCLAW_SCHEMA_TIMEOUT_MS = 30000
+const OPENCLAW_VERSION_TIMEOUT_MS = 5000
+// These messages indicate that the CLI does not recognize the subcommand.
+const OPENCLAW_UNSUPPORTED_SCHEMA_COMMAND =
+  /(?:unknown|unrecognized|invalid) (?:command|subcommand)\b|too many arguments for ['"]config['"]|not a command/i
+const OPENCLAW_WARNING_LINE =
+  /^\s*(?:(?:\(node:\d+\)\s+)?(?:\[DEP\d+\]\s+)?(?:ExperimentalWarning|DeprecationWarning|Warning|TimeoutOverflowWarning):|\(Use `node --trace-(?:warnings|deprecation) .*\))/
 const OPENCLAW_COMMAND_CAPTURE_LIMIT_BYTES = 1024 * 1024
 const OPENCLAW_SCHEMA_CAPTURE_LIMIT_BYTES = 32 * 1024 * 1024
 const OPENCLAW_DIAGNOSTIC_LIMIT = 2000
@@ -55,10 +61,12 @@ type OpenClawPreflightFailureKind =
   | 'external_config_invalid'
   | 'preflight_failed'
   | 'preflight_timeout'
+  | 'schema_check_failed'
 
 type OpenClawRuntime = {
   path: AbsoluteFilePath
   env: Record<string, string>
+  version?: string
 }
 
 type OpenClawCommandResult = {
@@ -512,6 +520,7 @@ export class OpenClawService extends BaseService {
 
     return {
       path: AbsoluteFilePathSchema.parse(openclaw.path),
+      ...(openclaw.source !== 'system' ? { version: openclaw.version } : {}),
       env: openclaw.source === 'system' ? await getRawShellEnv() : managedShellEnv
     }
   }
@@ -739,26 +748,108 @@ export class OpenClawService extends BaseService {
       this.throwSchemaCapabilityError(error instanceof Error ? error.message : String(error))
     }
 
-    if (result.exitCode !== 0) {
-      const stderrSummary = result.stderr.trim().split(/\r?\n/, 1)[0]
-      this.throwSchemaCapabilityError(
-        `config schema exited with code ${result.exitCode}${stderrSummary ? `: ${stderrSummary}` : ''}`
-      )
-    }
     if (result.outputTruncated) {
       this.throwSchemaCapabilityError('config schema output exceeded the capture limit')
     }
 
     let schema: unknown
+    let validJson = true
     try {
       schema = JSON.parse(result.stdout)
     } catch {
-      this.throwSchemaCapabilityError('config schema did not return valid JSON')
+      validJson = false
     }
-    if (schema === null || typeof schema !== 'object' || Array.isArray(schema)) {
-      this.throwSchemaCapabilityError('config schema did not return a top-level object')
+    if (schema !== null && typeof schema === 'object' && !Array.isArray(schema)) {
+      if (result.stderr.trim()) {
+        logger.warn('OpenClaw schema capability check warning', { summary: this.sanitizeDiagnostic(result.stderr) })
+      }
+      return schema
     }
-    return schema
+    if (result.exitCode === 0) {
+      this.throwSchemaCapabilityError(
+        validJson ? 'config schema did not return a top-level object' : 'config schema did not return valid JSON'
+      )
+    }
+
+    const stderrSummary = this.firstMeaningfulStderrLine(result.stderr)
+    const stderrDetails = stderrSummary
+      ? `: ${stderrSummary.kind === 'warnings-only' ? 'stderr carried only warnings: ' : ''}${stderrSummary.line}`
+      : ''
+    const diagnostic = `config schema exited with code ${result.exitCode}${stderrDetails}`
+    if (
+      stderrSummary &&
+      stderrSummary.kind !== 'warnings-only' &&
+      OPENCLAW_UNSUPPORTED_SCHEMA_COMMAND.test(stderrSummary.line)
+    ) {
+      this.throwSchemaCapabilityError(diagnostic)
+    }
+    const summary = this.sanitizeDiagnostic(
+      `config schema check failed with exit code ${result.exitCode}${stderrDetails}`
+    )
+    const version = this.sanitizeDiagnostic(runtime.version ?? (await this.detectOpenClawVersion(runtime)))
+    logger.warn('OpenClaw schema capability check failed', { summary })
+    throw new OpenClawPreflightError(
+      'schema_check_failed',
+      t('openclaw.errors.schema_check_failed', { version, details: `\n${summary}` })
+    )
+  }
+
+  private firstMeaningfulStderrLine(
+    stderr: string
+  ): { kind: 'error' | 'other' | 'warnings-only'; line: string } | undefined {
+    let warning: string | undefined
+    let inWarning = false
+    let other: string | undefined
+    for (const line of stderr.split(/\r?\n/).filter((line) => line.trim())) {
+      if (OPENCLAW_WARNING_LINE.test(line)) {
+        warning ??= line.trim()
+        inWarning = true
+        continue
+      }
+      const isStackFrame = /^\s+at\s|^\s*node:internal\//.test(line)
+      if (inWarning && /^\s/.test(line) && !isStackFrame) continue
+      inWarning = false
+      if (
+        /^\s*(?:Error(?: \[[A-Z0-9_]+\])?:|TypeError:|RangeError:|SyntaxError:|ReferenceError:|ERR_[A-Z0-9_]+|error:|error |[A-Z][A-Z0-9_]{2,}:)/.test(
+          line
+        )
+      ) {
+        return { kind: 'error', line: line.trim() }
+      } else if (!isStackFrame && !/^Node\.js v\d/.test(line)) {
+        other ??= line.trim()
+      }
+    }
+    if (other) return { kind: 'other', line: other }
+    if (warning) return { kind: 'warnings-only', line: warning }
+    return undefined
+  }
+
+  private async detectOpenClawVersion(runtime: OpenClawRuntime): Promise<string> {
+    try {
+      const result = await this.runOpenClawCommand(runtime.path, ['--version'], runtime.env, {
+        timeoutMs: OPENCLAW_VERSION_TIMEOUT_MS
+      })
+      if (result.exitCode !== 0) return 'unknown'
+      const versionPattern = /\d+\.\d+\.\d+(?:[-+][\w.]+)?/
+      for (const [output, isStderr] of [
+        [result.stdout, false],
+        [result.stderr, true]
+      ] as const) {
+        const line = output
+          .split(/\r?\n/)
+          .find(
+            (item) =>
+              item.trim() &&
+              !OPENCLAW_WARNING_LINE.test(item) &&
+              (!isStderr || !/^\s*Node\.js\b|^\s*node:|^\s+at\s/.test(item))
+          )
+        const version = line?.match(versionPattern)?.[0]
+        if (version) return version
+      }
+      return 'unknown'
+    } catch {
+      return 'unknown'
+    }
   }
 
   private throwSchemaCapabilityError(diagnostic: string): never {

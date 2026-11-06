@@ -2,7 +2,7 @@ import { Bot, Layers, Network, Settings2, Sparkles } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Scrollbar } from '@cherrystudio/ui'
+import { Button, ScrollArea } from '@cherrystudio/ui'
 import { ResourceCatalogSearchInput } from '@renderer/components/resourceCatalog/ResourceCatalogSearchInput'
 import { useAgentCatalogPresets } from '@renderer/hooks/useAgentCatalogPresets'
 import { buildAssistantCatalogTabs, useAssistantCatalogPresets } from '@renderer/hooks/useAssistantCatalogPresets'
@@ -180,7 +180,7 @@ export default function MarketplacePage() {
             </div>
           ) : null}
           {resourceType === 'all' ? (
-            <Scrollbar showOnHover className="min-h-0 flex-1 space-y-7 pr-1">
+            <ScrollArea type="hover" className="min-h-0 flex-1" contentProps={{ className: 'space-y-7 pr-1' }}>
               {OVERVIEW_TYPES.map((type) => (
                 <section key={type} data-testid={'marketplace-section-' + type}>
                   <div className="mb-3 flex items-center justify-between gap-3">
@@ -192,17 +192,19 @@ export default function MarketplacePage() {
                   {renderCatalog(type, true)}
                 </section>
               ))}
-            </Scrollbar>
+            </ScrollArea>
           ) : (
-            <Scrollbar
-              showOnHover
+            <div
               key={resourceType + ':' + (skillSourceId ?? '') + ':' + moreMcpSources}
-              className={
-                'min-h-0 flex-1 ' +
-                (resourceType === 'agent' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto pr-1')
-              }>
-              {renderCatalog(resourceType)}
-            </Scrollbar>
+              className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              {resourceType === 'agent' ? (
+                renderCatalog(resourceType)
+              ) : (
+                <ScrollArea type="hover" className="min-h-0 flex-1" contentProps={{ className: 'pr-1' }}>
+                  {renderCatalog(resourceType)}
+                </ScrollArea>
+              )}
+            </div>
           )}
         </main>
       </div>

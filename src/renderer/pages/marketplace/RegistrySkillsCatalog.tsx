@@ -72,7 +72,7 @@ export function RegistrySkillsCatalog({
 
   useEffect(() => {
     clear()
-    content.current?.parentElement?.scrollTo({ top: 0 })
+    content.current?.closest<HTMLElement>('[data-slot="scroll-area-viewport"]')?.scrollTo({ top: 0 })
     setVisibleCount(DISPLAY_PAGE_SIZE)
     if (!active || !keyword) {
       setDebouncing(false)
@@ -94,12 +94,15 @@ export function RegistrySkillsCatalog({
   useEffect(() => {
     if (!active || keyword || error || isLoading || isValidating || !sentinel.current) return
     if (visibleCount > ranked.length || (visibleCount === ranked.length && !hasMore)) return
-    const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) {
-        observer.disconnect()
-        setVisibleCount((count) => count + DISPLAY_PAGE_SIZE)
-      }
-    })
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          observer.disconnect()
+          setVisibleCount((count) => count + DISPLAY_PAGE_SIZE)
+        }
+      },
+      { root: content.current?.closest('[data-slot="scroll-area-viewport"]') }
+    )
     observer.observe(sentinel.current)
     return () => observer.disconnect()
   }, [active, keyword, error, isLoading, isValidating, visibleCount, ranked.length, hasMore])

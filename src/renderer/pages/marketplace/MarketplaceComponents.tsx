@@ -11,7 +11,7 @@ import {
   DialogTitle,
   EmptyState,
   Spinner,
-  Scrollbar
+  ScrollArea
 } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 
@@ -98,7 +98,11 @@ export function MarketplaceGrid<T extends { id: string }>({
       </div>
     )
   return (
-    <Scrollbar showOnHover ref={setElement} className="min-h-0 flex-1 pr-1" data-testid="marketplace-virtual-grid">
+    <ScrollArea
+      type="hover"
+      viewportProps={{ ref: setElement }}
+      className="min-h-0 flex-1 pr-1"
+      data-testid="marketplace-virtual-grid">
       <div style={{ height: rows.getTotalSize(), position: 'relative' }}>
         {rows.getVirtualItems().map((row) => (
           <div
@@ -118,7 +122,7 @@ export function MarketplaceGrid<T extends { id: string }>({
           </div>
         ))}
       </div>
-    </Scrollbar>
+    </ScrollArea>
   )
 }
 

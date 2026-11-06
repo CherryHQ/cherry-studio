@@ -1,7 +1,11 @@
 import type { TextSelectionData } from 'selection-hook'
 import * as z from 'zod'
 
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import {
+  SelectionActionSchema,
+  SelectionAgentSummarySchema,
+  SelectionAgentWindowLayoutSchema
+} from '@shared/types/selection'
 
 import { defineRoute } from '../define'
 
@@ -16,24 +20,6 @@ import { defineRoute } from '../define'
  * the handler signatures and the renderer facade; the handler bodies calling the
  * matching `SelectionService` methods make schema↔type drift a compile error.
  */
-
-/**
- * Runtime form of the {@link SelectionActionItem} preference type. The
- * `z.ZodType<SelectionActionItem>` annotation binds the two structurally, so a drift
- * in either is a compile error here at the definition (repo convention — see
- * uiParts.ts / legacyFileMetadata.ts).
- */
-const selectionActionItemSchema: z.ZodType<SelectionActionItem> = z.object({
-  id: z.string(),
-  name: z.string(),
-  enabled: z.boolean(),
-  isBuiltIn: z.boolean(),
-  icon: z.string().optional(),
-  prompt: z.string().optional(),
-  assistantId: z.string().optional(),
-  selectedText: z.string().optional(),
-  searchEngine: z.string().optional()
-})
 
 /** The cached Linux environment probe returned by `SelectionService.getLinuxEnvInfo()`. */
 const linuxEnvInfoSchema = z.object({
@@ -53,10 +39,24 @@ export const selectionRequestSchemas = {
   }),
   'selection.process_action': defineRoute({
     // isFullScreen is macOS-only; default false so non-macOS callers may omit it.
-    input: z.object({ actionItem: selectionActionItemSchema, isFullScreen: z.boolean().default(false) }),
+    input: z.object({ actionItem: SelectionActionSchema, isFullScreen: z.boolean().default(false) }),
     output: z.void()
   }),
   'selection.pin_action_window': defineRoute({ input: z.boolean(), output: z.void() }),
+  'selection.resize_agent_window': defineRoute({ input: SelectionAgentWindowLayoutSchema, output: z.void() }),
+  // An empty compose bar or a settled, unpinned window with no draft: the next selection trigger closes it.
+  'selection.set_agent_window_replaceable': defineRoute({ input: z.boolean(), output: z.void() }),
+  'selection.update_agent_summary': defineRoute({ input: SelectionAgentSummarySchema, output: z.void() }),
+  'selection.collapse_agent_window': defineRoute({ input: z.void(), output: z.void() }),
+  // The renderer's blur rule; main skips it once the window is in a capsule, since hiding it caused the blur.
+  'selection.dismiss_blurred_agent_window': defineRoute({ input: z.enum(['close', 'collapse']), output: z.void() }),
+  // Capsule host routes: only a capsule host may call them, and the id names one of its collapsed agent windows.
+  'selection.determine_capsule_size': defineRoute({
+    input: z.object({ width: z.number(), height: z.number() }),
+    output: z.void()
+  }),
+  'selection.restore_agent_window': defineRoute({ input: z.string(), output: z.void() }),
+  'selection.close_agent_window': defineRoute({ input: z.string(), output: z.void() }),
   'selection.get_linux_env_info': defineRoute({ input: z.void(), output: linuxEnvInfoSchema })
 }
 
