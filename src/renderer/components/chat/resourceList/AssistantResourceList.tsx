@@ -227,6 +227,7 @@ export function AssistantResourceList({
           assistantIconType,
           {
             emoji: assistant.emoji,
+            avatarSrc: assistant.avatarSrc,
             modelId: assistant.modelId,
             modelName: assistant.modelName
           },
