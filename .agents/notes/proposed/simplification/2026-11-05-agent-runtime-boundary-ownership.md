@@ -504,6 +504,72 @@ Local evidence is under `.context/agent-runtime-background-fix-20261106/` (tests
 This section establishes the background-reply repair. The owning Spec stays proposed until the stack's cumulative acceptance and publication are reviewed; it does not declare all earlier migration criteria complete.
 
 
+### 13. Remove Durable's duplicate relationship index (2026-11-07)
+
+The maintainer approved this follow-up on 2026-11-07, against `origin/main` at `4fb6b8a5dc95`. It completes section 3 within `packages/agent-runtime-pi-durable/src/runtime.ts`. The removed `relations` stored `Promise<Subagent & { child: Thread }>` rather than only `ConversationRecord`: it memoized native owner/origin reads, supplied late-parent replay, and served `relation()` and `openChild()`. Its rejected promises also remained cached. The task graph watch existed solely to populate this index. Both are removed; local evidence is recorded in section 13.5.
+
+#### 13.1 Authority and exact removals
+
+Pi Durable 1.4.0 already supplies `tx.conversation(id)`, `tx.task(id)` and paginated `tx.scanConversations({ ownerConversationId }, limit, cursor)`. Native conversation ownership identifies the parent; behavior lineage identifies the original creation call, including when a background owner task differs from that call. Keep this normalization into the existing `Subagent` contract. Keep `ThreadFeed.snapshot.subagents` as the consumer projection, with no second runtime-wide relationship store.
+
+| Location in `runtime.ts` | Remove | Replacement |
+| --- | --- | --- |
+| `relations` and `publishRelation()` | The permanent Map, promise memoization, and all `get/set/has/values` consumers | A private, uncached normalization helper reading the native record, original lineage and tool input through SDK record readers; attachment/access queries use one transaction |
+| Task graph initialization and shutdown | `TaskGraph`/`TaskGraphWatch` imports, `watchTaskGraph()`, `updateRelations()`, `graph.start`, graph-only failure/close handling and `graph.stop()` | Existing commit subscription for newly created conversations; native ownership scans for retained children |
+| `load()` | Behavior-only child discovery through `facts.children` and replay of every cached relation | Paginated immediate-child lookup by native `ownerConversationId`, for both behavior and raw adapters |
+| `durable.relation()` | `relations.get(childId)` | Read this child's native record and normalize its relation on demand |
+| `durable.openChild()` | `Promise.all(relations.values())` across the whole runtime | Query only this parent's native children when resolving the requested creation call |
+
+Retain `entries`, `live`, input correlation, archive retention, the existing tracked-operation Set, native view observation, and Main's child resource records. Their ownership is outside this removal. No SDK upgrade/patch, schema migration, public type expansion, replacement manager, or new relationship cache is required.
+
+#### 13.2 Initial attachment and subsequent creation
+
+1. Keep the existing commit subscription registered before any parent loads. Register the parent's live projection before its initial native child scan. Read all pages and normalize their records within one native transaction; reuse the existing `pages()` helper.
+2. A conversation creation committed before that scan is recovered by the scan. A creation committed after its read is delivered through the subscription. Both may upsert the same child identity; this must produce one projected child. Behavior already commits creation and `subagent-origin` together, so no temporary unknown-origin cache is needed.
+3. Publish newly created children only to an attached parent. Capture that parent entry before asynchronous normalization and check the same entry still owns delivery afterward. An unopened parent needs no retained job or relation: its later scan recovers native ownership. Opening a child directly uses `relation()` even when its parent has never opened.
+4. Track asynchronous relation reads/delivery through the existing operation tracking. `settled()` must join admitted relation operations after native tasks/submissions quiesce; an empty `inspect()` result alone is insufficient for backup. On shutdown, complete admitted native reads before storage closes and deliver their captured relations before feed closure. Observation callbacks must drain before final persistence. Do not discard final relations merely because `shutdown()` has begun. Preserve native/view source-loss reporting after removing graph-only failure handling.
+
+The installed SDK forbids Session API calls inside commit listeners and stops view observers before closing storage. Consequently, creation notifications read immutable ownership/origin/tool-input records through the owned storage, using the same normalizer as transactional lookups. The existing storage-close wrapper joins tracked operations before closing the backend; feeds close on `native.closed`. No mutable task outcome is inferred from those independent reads. Failed initial attachment detaches its view and removes its live entry so retry cannot retain a second observer.
+
+The query includes completed owned children after restart even without shared behavior, where the old live task graph could miss them. This is an explicit recovery correction. It includes only immediate native ownership: a fork's inherited history alone does not establish a parent relation, and grandchildren are discovered through their actual parents. Existing child archives and input/usage completion are unchanged.
+
+#### 13.3 Child access and failure results
+
+`relation()` reads this child's `ConversationRecord` and the original creation evidence together. An ownerless conversation has no relation. Missing origin remains absent; a native read failure remains a failure and can be retried on the next call. Continuation never replaces the creation origin.
+
+`openChild()` retains its existing per-access observation and cancellation lifecycle. A lookup is scoped to the receiving parent and original tool call. Resolve against native children on initial observation, relevant child publication, target tool completion, or recovery; do not query on every unrelated text delta. The native query, rather than the timing of asynchronous `subagent.upsert`, decides whether there are zero, one or several matching children.
+
+A known call still in flight may wait. Before reporting `child-unavailable` for a terminal tool call, perform the native lookup so an already committed child cannot be missed while its relationship delivery is blocked. One match returns relation and handle together; several matches return `ambiguous-origin`; an unknown call, native read failure, abort and owner closure retain their existing distinct results. Opening/releasing access never submits, resumes or stops native work. Concurrent callers receive independently releasable handles, and cancelling one must not cancel another.
+
+#### 13.4 Implementation and verification order
+
+1. Migrate normalization, `relation()` and `openChild()` to scoped native reads. Verify creation-origin stability, terminal-before-delivery access, retry after a transient read failure, ambiguous origins and independent cancellation in `packages/agent-runtime-pi-durable/tests/runtime.test.ts` and `packages/agent-runtime-pi-durable/tests/behaviorContract.test.ts`.
+2. Replace initial discovery/replay, then remove the entire Map and task graph watch. Verify late attachment, creation during initial scan, more than one scan page, nested ownership and SQLite reopen with completed children in the same package tests and `packages/agent-runtime-pi-durable/tests/recoveryConfiguration.test.ts`.
+3. Verify affected Main consumers in `src/main/ai/runtime/piDurable/PiDurableRuntimeConnection.test.ts`: independent child history, continuation/reopen and blocked observation during final persistence. Update the package README's task-graph ownership/discovery wording and any affected paired references only after implementation. Run the package typecheck, scoped lint/format and documentation checks; search production code to prove no `relations` or task graph discovery path remains in this adapter.
+
+The implementation author owns AC24–AC28. The change does not reopen the three-runtime product waiting policy or claim a performance improvement from deleting a Map.
+
+#### 13.5 Local implementation evidence (2026-11-07)
+
+| Criteria | Evidence |
+| --- | --- |
+| AC24 | `relations.test.ts` verifies 260 immediate children, nested ownership, exclusion of ownerless fork ancestry, retry after a failed scan, and creation queued during initial attachment. The extended SQLite test in `runtime.test.ts` failed on the old implementation when opening a completed child before its parent after restart, and passes with native lookup. |
+| AC25 | `relations.test.ts` opens a committed child while relation delivery is blocked, distinguishes unknown/childless/ambiguous calls, and retries a transient native relation read without another model call. Existing Main tests preserve behavior origin through background continuation and reopen. |
+| AC26 | `relations.test.ts` covers independent concurrent access, abort, access release and runtime closure. Failed-open cleanup and the captured-entry identity check fence delivery from a discarded attachment; the scan-retry case verifies the successor can open normally. |
+| AC27 | `relations.test.ts` blocks relation delivery across both `settled()` and shutdown, checking delivery precedes close. Native storage failure still closes observations with `source-lost`. `PiDurableRuntimeConnection.test.ts` retains real SQLite coverage for independent history, continuation/reopen and blocked child observation before final persistence. |
+| AC28 | Production symbol audit finds no relationship Map or task graph subscription in this adapter. A native-storage counter verifies pending child access performs no additional lookups for 20 unrelated text revisions. Public child types and Main resource ownership are unchanged. Package typecheck/build, scoped Oxlint/ESLint and changed-file formatting pass. |
+
+Focused package validation: **82 passed, 3 existing skips**. Main integration validation: **23 passed**. Commands:
+
+```sh
+pnpm exec vitest run --root packages/agent-runtime-pi-durable tests/runtime.test.ts tests/relations.test.ts tests/behaviorContract.test.ts tests/recoveryConfiguration.test.ts tests/pendingObservation.test.ts tests/projection.test.ts
+pnpm --filter @cherrystudio/agent-runtime-pi-durable typecheck
+pnpm --filter @cherrystudio/agent-runtime-pi-durable build
+pnpm test:main src/main/ai/runtime/piDurable/PiDurableRuntimeConnection.test.ts
+```
+
+The three skips retain the documented context-filter and foreground-continuation limitations. These are native-runtime and SQLite tests with scripted providers, not Electron or real-model acceptance. This section records local implementation only; it does not declare the broader Spec's remaining criteria complete or claim remote CI/publication.
+
 ## Alternatives considered
 
 | Alternative | Why it is not selected |
@@ -516,6 +582,8 @@ This section establishes the background-reply repair. The owning Spec stays prop
 | Rewrite the existing content-protocol Spec | Blurs delivered content/persistence fixes with this still-proposed control and lifetime work; separate decision ownership is reviewable. |
 | Delete type members while retaining dedicated construction, copying and old executors | Only declarations shrink, while runtime maintenance remains; this revision requires evidence for each retired production chain. |
 | Keep both Pi behavior entries with deprecation forwarding or a mode switch | The desktop integration is the only current production consumer, and Node contract tests can reuse the existing behavior path; compatibility wrappers would retain a second ownership and test surface. |
+| Retain Durable's promise cache to coalesce native reads | It avoids repeated reads but also retains failures and duplicates native ownership plus the existing projection. Parent-scoped reads at attachment/access boundaries avoid a new cache lifecycle. |
+| Resolve Durable children solely from the latest projected snapshot | Relationship delivery can lag behind a terminal tool result. A scoped native lookup is needed before declaring the child unavailable or resolving an ambiguous origin. |
 
 ## Acceptance criteria
 
@@ -546,6 +614,11 @@ This section establishes the background-reply repair. The owning Spec stays prop
 - AC22 — All three runtimes verify foreground and explicit background modes separately: Stop remains available while waiting and summarizing, Send returns after completion, and reopened history retains correct message counts and attribution. Stop, new input, reconnect and charges preserve their existing contracts. Record native arguments, UI, persistence and real-model evidence separately. (verification: Electron — implementer completes section 12.4 scenario checks; historical green results or independently mocked waiting flags do not count as a pass)
 - AC23 — Model tool arguments retain their existing foreground/background choices and defaults; adapters supply attributed native result facts without deciding product reply waiting. Continuations of the same child attribute results to their current trigger. Display completion, unknown provenance, connection release and resident commands must neither settle unrelated replies incorrectly nor hold them indefinitely. (verification: unit — the implementer verifies section 12.5's argument matrix, native report/notification gaps, continuation across inputs, concurrent commands and unknown provenance, and checks removal of the old fields and decision branches)
 
+- AC24 — Durable discovers each immediately owned child once when the parent opens late, creation races its initial scan, the scan spans multiple pages, or SQLite reopens after completion; behavior and raw adapters preserve ownership without importing siblings or inherited fork history. (verification: unit — implementation author extends runtime.test.ts and recoveryConfiguration.test.ts in the Durable package)
+- AC25 — Child access succeeds when creation is committed but relationship delivery is blocked; origin survives continuation, unknown and ambiguous calls retain distinct errors, and transient native read failures can be retried without starting work. (verification: unit — implementation author extends Durable runtime.test.ts and behaviorContract.test.ts)
+- AC26 — Concurrent child opens yield independently releasable accesses; cancelling one does not affect another, closure settles outstanding opens, and delayed relation delivery cannot target a replacement entry. (verification: unit — implementation author extends Durable runtime.test.ts)
+- AC27 — Removing graph observation preserves independent child history, continuation and reopen; shutdown/backup with a blocked relationship or observation callback waits for final facts and permits no projection writes after final persistence. (verification: unit — implementation author extends Durable runtime.test.ts and PiDurableRuntimeConnection.test.ts)
+- AC28 — The Durable adapter has no runtime-wide relationship cache or task graph discovery subscription; native lookups remain parent-scoped and are not triggered by unrelated text deltas, while its public child contract and Main resource ownership stay intact. (verification: docs gate — implementation author supplies symbol/consumer audit, package typecheck, scoped test evidence and updated README)
 ## Risks
 
 | Risk | Required protection |
@@ -560,5 +633,7 @@ This section establishes the background-reply repair. The owning Spec stays prop
 | Field contraction deletes an internal algorithm or same-named persisted field | Distinguish public batch revision from context revision, root DTO parts from child archive parts, and returned messages from raw NativeArchive; retain source membership, atomic commits and observation drainage. |
 | Removing legacy Pi executors also removes shared history recovery logic | Retain current desktop native ownership and child lineage, and do not rewrite native files or invent replacement tasks. A missing old API is not an explanation for every recovery failure. |
 | Only types/tests shrink while redundant production remains | Verify removal of dedicated construction, state, copying and execution branches per stage. Migrate product scenarios into existing tests first; renaming, new DTOs or deleting tests alone cannot establish convergence. |
+| Recovering completed Durable children increases attachment reads and downstream child observation | Paginate only immediate ownership, avoid runtime-wide scans and per-token queries, and exercise multiple pages. Record the deliberate recovery expansion; do not claim reduced latency without measurement. |
+| Removing the relation cache changes asynchronous delivery timing | Verify blocked relation delivery before tool completion and closure; join existing tracked work before final persistence, and retain explicit native read errors instead of an empty successful lookup. |
 
 No performance benefit is assumed from fewer maps. Success is fewer independent interpretations and synchronization paths with the same observable behavior. Any SDK limitation that blocks a required acceptance criterion must be resolved in the owning contract and reviewed before its consumer stage proceeds.

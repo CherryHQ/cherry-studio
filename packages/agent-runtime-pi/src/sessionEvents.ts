@@ -1,6 +1,7 @@
 import { getCurrentTools, type Message } from '@earendil-works/pi-ai'
 import {
   type AgentSessionEvent,
+  type SessionBeforeCompactEvent,
   buildSessionContext,
   type SessionEntry,
   type SessionManager
@@ -8,7 +9,7 @@ import {
 
 const TOOL_LOADOUT_STATE = 'cherry.tool-loadout'
 
-export type CompactionReason = 'manual' | 'threshold' | 'overflow'
+export type CompactionReason = SessionBeforeCompactEvent['reason']
 export type AgentRuntimeEvent =
   | { type: 'session-append'; entries: SessionEntry[] }
   | { type: 'input-placed'; inputId: string; entryId: string }

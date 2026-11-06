@@ -4,6 +4,7 @@ import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import {
   ConversationBusy,
   ProviderDoc,
+  ToolTask,
   createRegistry,
   configure,
   type AgentChange,
@@ -18,9 +19,8 @@ import {
   type HarnessOptions,
   type Storage,
   type SubmissionRecord,
-  type TaskGraph,
-  type TaskGraphWatch,
-  type ToolTaskInput
+  type ToolTaskInput,
+  type Tx
 } from '@earendil-works/pi-durable'
 
 import {
@@ -169,6 +169,7 @@ export async function createPiDurableRuntime(
     }
   }
   const live = new Map<number, Entry>()
+  const pending = new Set<Promise<unknown>>()
   const archives = new Map<number, PiDurableArchive>()
   let storage: Storage | undefined
   let harness: Harness | undefined
@@ -180,6 +181,7 @@ export async function createPiDurableRuntime(
         if (key === 'close')
           return async () => {
             try {
+              while (pending.size) await Promise.allSettled([...pending])
               for (const entry of live.values()) {
                 const content = new ContentProjection()
                 let cursor: Cursor | undefined
@@ -224,10 +226,8 @@ export async function createPiDurableRuntime(
   }
   const native = harness
   const entries = new Map<number, Promise<OperationResult<Entry>>>()
-  const relations = new Map<number, Promise<Subagent & { child: Thread }>>()
   const logicalIds = new Map<number, InputId>()
   const inputs = new Map<number, SubmissionRecord>()
-  const pending = new Set<Promise<unknown>>()
   let closing = false
   const closingAccess = new AbortController()
   let shutdown: Promise<OperationResult<void>> | undefined
@@ -257,33 +257,42 @@ export async function createPiDurableRuntime(
     return inputState(record)
   }
 
-  const publishRelation = async (record: ConversationRecord) => {
+  // Commit listeners cannot call Session APIs; creation records are immutable.
+  // Tracked reads finish before the owned storage closes.
+  const relationRecords: Pick<Tx, 'scanEntries' | 'task'> = {
+    scanEntries: (query, limit, cursor) => storage.scanEntries(query, limit, cursor, context),
+    task: (id) => storage.task(id, context)
+  }
+  async function readRelation(
+    tx: Pick<Tx, 'scanEntries' | 'task'>,
+    record: ConversationRecord
+  ): Promise<(Subagent & { child: Thread }) | undefined> {
     if (!record.owner) return
     const owner = record.owner
-    let pending = relations.get(record.id)
-    if (!pending) {
-      pending = (async () => {
-        const facts = behavior ? await native.commit((tx) => readFacts(tx, record.id), context) : undefined
-        const lineage = facts?.lineage.kind === 'subagent' ? facts.lineage : undefined
-        const taskId = lineage ? nativeId(lineage.origin.parentToolCallId) : owner.taskId
-        const task = taskId === undefined ? undefined : await native.getTask(taskId as typeof owner.taskId, context)
-        const input = task?.kind === 'pi.tool' ? (task.input as ToolTaskInput) : undefined
-        const toolCallId = input?.kind === 'model' ? input.callId : input?.call.id
-        const description = lineage?.origin.description
-        return {
-          id: runtimeId<'subagent'>(String(record.id)),
-          parent: refFor(owner.conversationId),
-          child: refFor(record.id),
-          ...(toolCallId && { origin: { toolCallId, ...(description && { description }) } })
-        }
-      })()
-      relations.set(record.id, pending)
+    const history = behavior
+      ? historyOf(
+          await pages((cursor) => tx.scanEntries({ conversationId: record.id, order: 'ascending' }, 256, cursor)),
+          []
+        )
+      : []
+    const origin = history.findLast((entry) => entry.kind === 'record' && entry.record.type === 'subagent-origin')
+    const lineage =
+      origin?.kind === 'record' && origin.record.type === 'subagent-origin' ? origin.record.value : undefined
+    const taskId = lineage ? nativeId(lineage.parentToolCallId) : owner.taskId
+    const task = taskId === undefined ? undefined : await tx.task(taskId as typeof owner.taskId)
+    const input = task?.kind === ToolTask.definition.name ? (task.input as ToolTaskInput) : undefined
+    const toolCallId = input?.kind === 'model' ? input.callId : input?.call.id
+    const description = lineage?.description
+    return {
+      id: runtimeId<'subagent'>(String(record.id)),
+      parent: refFor(owner.conversationId),
+      child: refFor(record.id),
+      ...(toolCallId && { origin: { toolCallId, ...(description && { description }) } })
     }
-    const subagent = await pending
-    live.get(record.owner.conversationId)?.projection.feed.publish({
-      type: 'subagent.upsert',
-      subagent
-    })
+  }
+  const readChildren = async (tx: Tx, parent: ConversationId) => {
+    const children = await pages((cursor) => tx.scanConversations({ ownerConversationId: parent }, 256, cursor))
+    return (await Promise.all(children.map((child) => readRelation(tx, child)))).filter((child) => child !== undefined)
   }
   const unsubscribe = native.subscribeCommits((publication) => {
     const changed = new Set<number>()
@@ -312,7 +321,17 @@ export async function createPiDurableRuntime(
         }
         inputs.set(record.id, record)
       }
-      if (change.type === 'conversation') void track(publishRelation(change.value)).catch(report)
+      if (change.type === 'conversation' && change.value.owner) {
+        const parent = change.value.owner.conversationId
+        const entry = live.get(parent)
+        if (entry)
+          void track(
+            readRelation(relationRecords, change.value).then((subagent) => {
+              if (subagent && live.get(parent) === entry)
+                entry.projection.feed.publish({ type: 'subagent.upsert', subagent })
+            })
+          ).catch(report)
+      }
     }
     for (const id of changed) {
       const entry = live.get(id)
@@ -325,33 +344,6 @@ export async function createPiDurableRuntime(
         refreshContext(entry)
       }
     }
-  })
-  let graph: TaskGraphWatch
-  try {
-    graph = await native.watchTaskGraph(context)
-    const updateRelations = async (value: TaskGraph) => {
-      for (const task of Object.values(value.tasks))
-        for (const id of task.conversations) {
-          if (!relations.has(id))
-            await publishRelation({ id, owner: { conversationId: task.conversationId, taskId: task.id } })
-        }
-    }
-    await updateRelations(graph.value)
-    graph.start(async (value) => updateRelations(value))
-  } catch (cause) {
-    report(cause)
-    unsubscribe()
-    try {
-      await native.close(context)
-    } catch (cleanupError) {
-      report(cleanupError)
-    }
-    return { status: 'unknown', error: error('initialize', 'native-error') }
-  }
-  void graph.closed.then((end) => {
-    if (end.reason === 'stopped' || end.reason === 'session_closed') return
-    if ('error' in end) report(end.error)
-    for (const entry of live.values()) entry.projection.feed.publish({ type: 'gap', reason: 'disconnected' })
   })
   void native.closed.then(() => {
     closing = true
@@ -396,9 +388,10 @@ export async function createPiDurableRuntime(
     const existing = entries.get(conversation.id)
     if (existing) return existing
     const loading = (async (): Promise<OperationResult<Entry>> => {
+      const projection = new DurableProjection(refFor(conversation.id), report)
+      let detach: (() => void) | undefined
       try {
-        const projection = new DurableProjection(refFor(conversation.id), report)
-        await conversationViews(native).attach(
+        const attached = await conversationViews(native).attach(
           conversation.id,
           async (view, _release, committed) => {
             const retained = await pages((cursor) =>
@@ -414,7 +407,7 @@ export async function createPiDurableRuntime(
               )
             )
               .flat()
-              .filter((task) => task.kind === 'pi.tool')
+              .filter((task) => task.kind === ToolTask.definition.name)
             const toolTasks = new Map(tasks.map((task) => [task.id, task]))
             const history = () =>
               historyOf(
@@ -449,7 +442,7 @@ export async function createPiDurableRuntime(
                   if (
                     change.type === 'task' &&
                     change.value.conversationId === conversation.id &&
-                    change.value.kind === 'pi.tool'
+                    change.value.kind === ToolTask.definition.name
                   )
                     toolTasks.set(change.value.id, change.value)
                   if (
@@ -475,12 +468,12 @@ export async function createPiDurableRuntime(
               },
               closeSession(failure) {
                 if (failure) report(failure.error)
-                projection.feed.close(failure ? 'source-lost' : 'shutdown')
               }
             } satisfies ViewObserver
           },
           context
         )
+        detach = attached.detach
         const entry: Entry = {
           ref: refFor(conversation.id),
           conversation,
@@ -490,23 +483,13 @@ export async function createPiDurableRuntime(
         }
         live.set(conversation.id, entry)
         refreshContext(entry)
-        if (behavior) {
-          const children = await native.commit(async (tx) => {
-            const facts = await readFacts(tx, conversation.id)
-            return Promise.all(
-              [conversation.id, ...[...facts.children.keys()].map((id) => Number(id) as ConversationId)].map((id) =>
-                tx.conversation(id)
-              )
-            )
-          }, context)
-          for (const child of children) if (child) await publishRelation(child)
-        }
-        for (const pending of relations.values()) {
-          const subagent = await pending
-          if (subagent.parent.id === entry.ref.id) entry.projection.feed.publish({ type: 'subagent.upsert', subagent })
-        }
+        for (const subagent of await native.commit((tx) => readChildren(tx, conversation.id), context))
+          entry.projection.feed.publish({ type: 'subagent.upsert', subagent })
         return { status: 'confirmed', value: entry }
       } catch (cause) {
+        detach?.()
+        if (live.get(conversation.id)?.projection === projection) live.delete(conversation.id)
+        projection.feed.close('source-lost')
         report(cause)
         return { status: 'unknown', error: error('open', 'native-error') }
       }
@@ -558,10 +541,17 @@ export async function createPiDurableRuntime(
       },
       durable: {
         observe: (sink) => observeCaptured(() => entry.projection.observe(sink)),
-        relation: async () => relations.get(entry.conversation.id),
+        relation: () =>
+          track(
+            native.commit(async (tx) => {
+              const record = await tx.conversation(entry.conversation.id)
+              return record && readRelation(tx, record)
+            }, context)
+          ),
         async openChild(toolCallId, signal) {
           if (unavailable() || signal?.aborted) return rejected('open-child', 'closed')
           const found = await new Promise<OperationResult<Subagent & { child: Thread }>>((resolve) => {
+            let checked = false
             const finish = (result: OperationResult<Subagent & { child: Thread }>) => {
               observations.delete(waiting)
               closingAccess.signal.removeEventListener('abort', close)
@@ -573,16 +563,20 @@ export async function createPiDurableRuntime(
             const waiting: Observation = { drain: () => observed.drain(), stop: async () => close() }
             const observed = entry.projection.feed.observe(async (event) => {
               if (unavailable() || event.type === 'closed') return close()
-              const snapshot = entry.projection.feed.snapshot
+              if (event.type !== 'snapshot' && event.type !== 'subagent.upsert' && event.type !== 'message.upsert')
+                return
+              const snapshot = event.type === 'snapshot' ? event : entry.projection.feed.snapshot
               const call = snapshot.messages
                 .flatMap((message) => message.parts)
                 .find((part) => part.type === 'dynamic-tool' && part.toolCallId === toolCallId)
-              if (!call && !snapshot.subagents?.some((child) => child.origin?.toolCallId === toolCallId))
-                return finish(rejected('open-child', 'unknown-call'))
+              const related = snapshot.subagents?.some((child) => child.origin?.toolCallId === toolCallId)
+              if (!call && !related) return finish(rejected('open-child', 'unknown-call'))
+              if (checked && !related && !(call?.type === 'dynamic-tool' && call.state.startsWith('output-'))) return
+              checked = true
               try {
-                const matches = (await Promise.all(relations.values())).filter(
-                  (child) => child.parent.id === entry.ref.id && child.origin?.toolCallId === toolCallId
-                )
+                const matches = (
+                  await track(native.commit((tx) => readChildren(tx, entry.conversation.id), context))
+                ).filter((child) => child.origin?.toolCallId === toolCallId)
                 if (unavailable()) return close()
                 if (matches.length > 1) return finish(rejected('open-child', 'ambiguous-origin'))
                 if (matches[0]) return finish({ status: 'confirmed', value: matches[0] })
@@ -611,9 +605,9 @@ export async function createPiDurableRuntime(
         async behaviorToolCallId(call) {
           if (unavailable() || call.thread !== entry.ref.id || nativeId(call.key) === undefined) return undefined
           const task = await native.getTask(Number(call.key) as never, context)
-          return task?.kind === 'pi.tool' && task.conversationId === entry.conversation.id
-            ? (task.input as { callId?: string }).callId
-            : undefined
+          if (task?.kind !== ToolTask.definition.name || task.conversationId !== entry.conversation.id) return undefined
+          const input = task.input as ToolTaskInput
+          return input.kind === 'model' ? input.callId : undefined
         },
         async configure(change) {
           if (unavailable()) throw new Error('Durable access is closed')
@@ -870,7 +864,11 @@ export async function createPiDurableRuntime(
       try {
         while (!closing) {
           const work = await native.inspect(context)
-          if (!work.tasks.length && !work.submissions.length) return
+          if (!work.tasks.length && !work.submissions.length) {
+            if (!pending.size) return
+            await Promise.all([...pending])
+            continue
+          }
           await Promise.all([
             ...work.tasks.map((task) => native.waitForTask(task.record.id, context)),
             ...work.submissions.map(async (record) => (await native.submission(record.id, context))?.wait(context))
@@ -888,11 +886,11 @@ export async function createPiDurableRuntime(
       shutdown ??= (async () => {
         try {
           await behavior?.close()
+          await Promise.allSettled([...pending])
           await native.close(context)
           stopRegistry?.()
           await Promise.allSettled([...pending])
           await Promise.all([...live.values()].map((entry) => entry.projection.close()))
-          await graph.stop()
           unsubscribe()
           return { status: 'confirmed' as const, value: undefined }
         } catch (cause) {

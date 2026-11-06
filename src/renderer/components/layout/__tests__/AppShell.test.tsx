@@ -6,6 +6,7 @@ import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUI from '@cherrystudio/ui'
+import type * as CommandHooks from '@renderer/hooks/command'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 
 vi.mock('@cherrystudio/ui', async () => vi.importActual<typeof CherryStudioUI>('@cherrystudio/ui'))
@@ -39,13 +40,17 @@ vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
 }))
 
 vi.mock('@renderer/utils/platform', () => ({
+  get platform() {
+    return mocks.platformState.isMac ? 'darwin' : 'win32'
+  },
   get isMac() {
     return mocks.platformState.isMac
   },
   isLinux: false
 }))
 
-vi.mock('@renderer/hooks/command', () => ({
+vi.mock('@renderer/hooks/command', async (importOriginal) => ({
+  ...(await importOriginal<typeof CommandHooks>()),
   useCommandHandler: (command: string, handler: () => void, options?: { enabled?: boolean }) => {
     mocks.commandHandlers.set(command, { handler, options })
   }
