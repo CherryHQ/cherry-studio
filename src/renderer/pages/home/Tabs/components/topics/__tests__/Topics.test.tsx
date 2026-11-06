@@ -1516,6 +1516,71 @@ describe('Topics', () => {
     expect(screen.queryByRole('button', { name: 'Alpha Assistant' })).not.toBeInTheDocument()
   })
 
+  it('orders right-panel topics manually and persists same-group drag reorders', async () => {
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: [
+            createApiTopic({
+              id: 'topic-a',
+              name: 'Alpha topic',
+              assistantId: 'assistant-1',
+              orderKey: 'a',
+              lastActivityAt: '2026-01-01T01:00:00.000Z'
+            }),
+            createApiTopic({
+              id: 'topic-d',
+              name: 'Delta archive',
+              assistantId: 'assistant-1',
+              orderKey: 'd',
+              lastActivityAt: '2026-01-01T02:00:00.000Z'
+            }),
+            createApiTopic({
+              id: 'topic-c',
+              name: 'Gamma topic',
+              assistantId: 'assistant-1',
+              orderKey: 'c',
+              lastActivityAt: '2026-01-01T03:00:00.000Z'
+            })
+          ]
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    renderTopicList({ assistantIdFilter: 'assistant-1', presentation: 'right-panel' })
+
+    const rowTexts = () => screen.getAllByTestId('topic-list-row').map((row) => row.textContent ?? '')
+    const rowIndex = (name: string) => rowTexts().findIndex((text) => text.includes(name))
+    expect(rowIndex('Alpha topic')).toBeLessThan(rowIndex('Gamma topic'))
+    expect(rowIndex('Gamma topic')).toBeLessThan(rowIndex('Delta archive'))
+
+    dndMocks.onDragEnd?.({
+      active: {
+        data: sortableData('item:topic-c'),
+        id: 'item:topic-c',
+        rect: { current: { initial: null, translated: { top: 10, height: 20 } } }
+      },
+      over: { data: sortableData('item:topic-a'), id: 'item:topic-a', rect: { top: 80, height: 20 } }
+    })
+
+    await vi.waitFor(() =>
+      expect(topicDataMocks.moveTopic).toHaveBeenCalledWith('topic-c', {
+        assistantId: undefined,
+        anchor: { before: 'topic-a' }
+      })
+    )
+    expect(topicDataMocks.moveTopic).toHaveBeenCalledTimes(1)
+    await vi.waitFor(() => expect(rowIndex('Gamma topic')).toBeLessThan(rowIndex('Alpha topic')))
+  })
+
   it('pins from the trailing row button without selecting the topic', async () => {
     const { getByText, setActiveTopic } = renderTopicList()
 
