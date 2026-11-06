@@ -7,6 +7,7 @@ import { McpServer } from '@modelcontextprotocol/server'
 import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { DEFAULT_AGENT_TASK_TIMEOUT_MINUTES } from '@main/ai/agents/agentTaskDefaults'
 import type * as ChannelsModule from '@main/ai/channels'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
@@ -220,6 +221,13 @@ describe('cherry-tools autonomy tools', () => {
     expect(tools.find((tool) => tool.name === 'notify')?.description).toContain(
       'Configured recipients: telegram (ch1).'
     )
+  })
+
+  it('advertises the effective default timeout for cron jobs', async () => {
+    const tools = await listTools(createServer('agent_test', WORKSPACE_PATH, null))
+    const cronSchema = tools.find((tool) => tool.name === 'cron')?.inputSchema
+    const description = (cronSchema?.properties?.timeout_minutes as { description?: string } | undefined)?.description
+    expect(description).toContain(`Default is ${DEFAULT_AGENT_TASK_TIMEOUT_MINUTES} on add`)
   })
 
   it('does not offer notify for sessions without a source channel', async () => {

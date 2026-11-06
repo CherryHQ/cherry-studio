@@ -18,6 +18,7 @@ import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@d
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
+import { DEFAULT_AGENT_TASK_TIMEOUT_MINUTES } from '@main/ai/agents/agentTaskDefaults'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import {
   createAgentChannel,
@@ -121,7 +122,7 @@ const CronInputSchema = z.object({
       'Channel IDs to send task results to. On add, omit to use this turn’s configured notification recipients; on update, omit to keep existing recipients; use an empty array [] to skip channel delivery. Explicit IDs must be configured recipients, except a source-channel session may select another live channel owned by this Agent.'
     ),
   timeout_minutes: TimeoutMinutesAtomSchema.describe(
-    'Timeout in minutes before the task is aborted. Default is 2 on add; omit on update to keep the current timeout. Use null for no timeout.'
+    `Timeout in minutes before the task is aborted. Default is ${DEFAULT_AGENT_TASK_TIMEOUT_MINUTES} on add; omit on update to keep the current timeout. Use null for no timeout.`
   ),
   reuse_session: z
     .boolean()
