@@ -51,26 +51,6 @@ export const memoryHandlers: IpcHandlersFor<typeof memoryRequestSchemas> = {
       warningLines: MEMORY_WARNING_LINES
     })),
   'memory.editor.close': ({ editorId }, { senderId }) => operation(() => owner().close(senderId, editorId)),
-  'memory.file.list': ({ editorId }, { senderId }) => operation(() => owner().get(senderId, editorId).list()),
-  'memory.file.read': ({ editorId, path }, { senderId }) => operation(() => owner().get(senderId, editorId).read(path)),
-  'memory.file.write': ({ editorId, receipt, content }, { senderId }) =>
-    operation(() =>
-      owner()
-        .get(senderId, editorId)
-        .commit([{ kind: 'write', receipt, content }], confirmed)
-    ),
-  'memory.file.delete': ({ editorId, receipt }, { senderId }) =>
-    operation(() =>
-      owner()
-        .get(senderId, editorId)
-        .commit([{ kind: 'delete', receipt }], confirmed)
-    ),
-  'memory.file.rename': ({ editorId, receipt, destinationReceipt }, { senderId }) =>
-    operation(() =>
-      owner()
-        .get(senderId, editorId)
-        .commit([{ kind: 'rename', receipt, destinationReceipt }], confirmed)
-    ),
   'memory.clear.preview': ({ editorId }, { senderId }) =>
     operation(() => owner().get(senderId, editorId).previewClear()),
   'memory.clear.confirm': ({ editorId, token }, { senderId }) =>

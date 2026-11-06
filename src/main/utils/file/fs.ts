@@ -388,7 +388,8 @@ export interface PreparedAtomicWrite {
   readonly size: number
   readonly contentHash: ContentHash
   readonly state: PreparedAtomicWriteState
-  commit(): Promise<PathVersion>
+  /** Resolve async validation, then run its synchronous guard immediately before rename. */
+  commit(beforeCommit?: () => Promise<() => void>): Promise<PathVersion>
   abort(): Promise<void>
 }
 
@@ -408,7 +409,7 @@ class PreparedAtomicWriteImpl implements PreparedAtomicWrite {
     return this.currentState
   }
 
-  async commit(): Promise<PathVersion> {
+  async commit(beforeCommit?: () => Promise<() => void>): Promise<PathVersion> {
     if (this.currentState === 'committed') {
       return this.committedVersion!
     }
@@ -421,7 +422,7 @@ class PreparedAtomicWriteImpl implements PreparedAtomicWrite {
       throw new Error(`Prepared atomic write for ${this.target} was already aborted`)
     }
 
-    this.settlement = this.commitOnce()
+    this.settlement = this.commitOnce(beforeCommit)
     return (await this.settlement)!
   }
 
@@ -435,7 +436,7 @@ class PreparedAtomicWriteImpl implements PreparedAtomicWrite {
     await this.settlement
   }
 
-  private async commitOnce(): Promise<PathVersion> {
+  private async commitOnce(beforeCommit?: () => Promise<() => void>): Promise<PathVersion> {
     let version: PathVersion
     try {
       const fd = await fsOpen(this.tmp, 'r+')
@@ -446,6 +447,8 @@ class PreparedAtomicWriteImpl implements PreparedAtomicWrite {
       } finally {
         await fd.close()
       }
+      const assertCurrent = await beforeCommit?.()
+      assertCurrent?.()
       await rename(this.tmp, this.target)
     } catch (err) {
       await bestEffortUnlinkTmp(this.tmp)
@@ -473,7 +476,7 @@ export async function prepareAtomicWrite(
   options?: AtomicWriteModeOptions
 ): Promise<PreparedAtomicWrite> {
   const tmp = tmpNameFor(target)
-  const tmpHandle = await fsOpen(tmp, 'w', options?.mode)
+  const tmpHandle = await fsOpen(tmp, 'wx', options?.mode)
   const bytes = typeof data === 'string' ? Buffer.from(data) : data
   try {
     try {
