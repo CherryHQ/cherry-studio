@@ -14,6 +14,13 @@ import { inferReasoningMembership } from '../patterns/reasoning-heuristics'
  */
 describe('inferReasoningMembership', () => {
   it.each([
+    'step-5-preview',
+    'stepfun/step-5-preview',
+    'STEP-5-PREVIEW',
+    'StepFun/StEp-5-PrEvIeW',
+    // No inferred effort does not mean a model lacks reasoning membership.
+    'step-3-5-flash',
+    'step-3-7-flash',
     // Legacy matrix (verbatim behavior of inferReasoningFromModelId)
     'claude-3.7-sonnet',
     'claude-sonnet-4-5',
@@ -62,6 +69,9 @@ describe('inferReasoningMembership', () => {
   })
 
   it.each([
+    'step-5-preview-non-reasoning',
+    'step-5',
+    'step-router-v1',
     'gpt-5.1-chat',
     'text-embedding-3-small',
     'bge-reranker-v2',

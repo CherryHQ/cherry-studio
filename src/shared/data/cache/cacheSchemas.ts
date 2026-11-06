@@ -2,11 +2,13 @@ import type { AiUsageRecordListSortBy, AiUsageRecordSortOrder } from '@shared/da
 import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { LocalModelStatusSnapshots } from '@shared/data/presets/localModel'
 import type { ChannelStatus } from '@shared/data/types/channel'
+import type { FileProcessingTask } from '@shared/data/types/fileProcessing'
 import type { MiniAppRegion, TransientMiniApp } from '@shared/data/types/miniApp'
 import type { Currency } from '@shared/data/types/model'
 import type { AutoBackupEvent, AutoBackupType } from '@shared/types/backup'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import type { ManagedToolStatusState } from '@shared/types/managedTool'
+import type { SelectionAgentCapsule } from '@shared/types/selection'
 import type { StorageHealth } from '@shared/types/storageMonitor'
 
 import type { TopicStatusSnapshotEntry } from '../../ai/transport'
@@ -333,6 +335,8 @@ export type SharedCacheSchema = {
   'feature.api_gateway.lan_running': boolean
   // Main-owned, session-only local model status and download progress.
   'local_model.statuses': LocalModelStatusSnapshots
+  // Main-owned capsule stack of collapsed selection agent windows on one display, nearest the corner first.
+  'selection.agent_capsules.${displayId}': SelectionAgentCapsule[]
   'feature.binary.latest_versions': Record<string, string>
   // API key rotation state (cross-window, tracks last used key per provider)
   'web_search.provider.last_used_key.${providerId}': string
@@ -370,9 +374,12 @@ export type SharedCacheSchema = {
   // embedding progress, the prepare job owns this runtime-only value.
   'knowledge.item.directory_copy_progress.${itemId}': number | null
   // File-processing progress for a knowledge item, main -> all windows. KnowledgeService
-  // mirrors the progress of the job the item waits on here when it changes, so the row can
-  // show a percentage during the 'processing' wait; absence means no progress was reported.
+  // mirrors the progress of the task the item waits on here when it changes, so the row can
+  // show a percentage during the 'processing' wait; absence means the conversion has not started.
   'knowledge.item.file_processing_progress.${itemId}': number | null
+  // A file-processing task's latest state, main -> all windows. FileProcessingService rewrites it on
+  // every change and lets only a terminal state expire; after that, ask `file_processing.get_task`.
+  'file_processing.task.${taskId}': FileProcessingTask | null
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {
@@ -402,6 +409,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'feature.remote_access.discovery_status': 'inactive',
   'feature.api_gateway.lan_running': false,
   'local_model.statuses': {},
+  'selection.agent_capsules.${displayId}': [],
   'feature.binary.latest_versions': {},
   'web_search.provider.last_used_key.${providerId}': '',
   'ocr.provider.last_used_key.${providerId}': '',
@@ -416,7 +424,8 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'storage.health': { level: 'ok', freeBytes: 0, totalBytes: 0, checkedAt: 0 },
   'backup.auto_sync.state.${type}': null,
   'knowledge.item.directory_copy_progress.${itemId}': null,
-  'knowledge.item.file_processing_progress.${itemId}': null
+  'knowledge.item.file_processing_progress.${itemId}': null,
+  'file_processing.task.${taskId}': null
 }
 
 /**
@@ -461,8 +470,13 @@ export type RendererPersistCacheSchema = {
   'ui.agent.session.expansion.time': string[]
   'ui.agent.session.expansion.agent': string[] | null
   'ui.agent.session.expansion.workdir': string[] | null
+  // Workspace paths whose file tree is unpinned in a wide Agent file pane; absent means pinned.
+  'ui.agent.file_pane.unpinned_tree_workspaces': string[]
+  // File tree column width in a wide Agent file pane, in pixels.
+  'ui.agent.file_pane.tree_width': number
   'settings.provider.last_selected_provider_id': string | null
   'settings.provider.filter_mode': 'all' | 'agent' | 'enabled' | 'disabled'
+  'settings.skills.enabled_only': boolean
   'settings.device_connections.step': 'download' | 'connect' | 'complete'
   // Usage statistics view selections, persisted so leaving and re-entering the page restores
   // them. The heatmap drill-down date stays component-local: a stored past date would reopen
@@ -517,8 +531,11 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.agent.session.expansion.time': [],
   'ui.agent.session.expansion.agent': null,
   'ui.agent.session.expansion.workdir': null,
+  'ui.agent.file_pane.unpinned_tree_workspaces': [],
+  'ui.agent.file_pane.tree_width': 256,
   'settings.provider.last_selected_provider_id': null,
   'settings.provider.filter_mode': 'all',
+  'settings.skills.enabled_only': false,
   'settings.device_connections.step': 'download',
   'settings.usage.window': '30d',
   'settings.usage.group_by': 'provider',

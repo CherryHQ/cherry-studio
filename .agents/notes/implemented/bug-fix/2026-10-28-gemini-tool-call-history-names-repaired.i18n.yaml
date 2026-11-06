@@ -1,5 +1,5 @@
-# Bilingual-pair consistency record (docs/i18n/README.md).
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-28-gemini-tool-call-history-names-repaired.md
-2026-10-28-gemini-tool-call-history-names-repaired.md: b4ac35c1a1385cc17c95c745b905342740779123
-2026-10-28-gemini-tool-call-history-names-repaired.zh.md: 1982c7e21ecadeaf24821aaee68e45b83290a4b7
+2026-10-28-gemini-tool-call-history-names-repaired.md: 496194d48f2ac8dc9e870629af366f3a1f84f649
+2026-10-28-gemini-tool-call-history-names-repaired.zh.md: 5495cb1669d127958820931a6cbf7f12a05f0093

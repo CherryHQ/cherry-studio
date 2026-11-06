@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ReactElement, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -136,7 +137,7 @@ vi.mock('@cherrystudio/ui', () => {
     SelectItem: passthrough('div', 'select-item'),
     SelectTrigger: passthrough('button', 'select-trigger'),
     SelectValue: () => React.createElement('span', { 'data-testid': 'select-value' }),
-    Scrollbar: passthrough('div', 'scrollbar'),
+    ScrollArea: MockCherrystudioUI.ScrollArea,
     Tooltip: ({ children }: MockChildrenProps) => children,
     error: toastErrorMock,
     success: toastSuccessMock

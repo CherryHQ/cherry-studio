@@ -82,10 +82,15 @@ describe('#22577 Gemini tool-call history keeps call and result names consistent
     expect(responses.map((response) => response.name)).toEqual(['kb_search', 'kb_list', 'kb_search'])
   })
 
-  it('repairs a stored part whose name is missing with one placeholder shared by both halves', async () => {
-    const { calls, responses } = expectConsistentPairs(await wire([toolPart('c1', undefined)]))
-    expect(calls.map((call) => call.name)).toEqual(['unknown_tool'])
-    expect(responses.map((response) => response.name)).toEqual(['unknown_tool'])
+  it('drops a stored part whose name is missing with nothing to recover, keeping surrounding text', async () => {
+    const body = await wire([toolPart('c1', undefined)])
+    const calls = body.contents.flatMap((entry) => entry.parts.flatMap((part) => part.functionCall ?? []))
+    const responses = body.contents.flatMap((entry) => entry.parts.flatMap((part) => part.functionResponse ?? []))
+    expect(calls).toEqual([])
+    expect(responses).toEqual([])
+    const texts = body.contents.flatMap((entry) => entry.parts.flatMap((part) => (part.text ? [part.text] : [])))
+    expect(texts).toContain('before')
+    expect(texts).toContain('after')
   })
 
   it('pairs a part whose name only survives in cherry metadata, matching the reported mismatch', async () => {
@@ -132,23 +137,24 @@ describe('#22577 Gemini tool-call history keeps call and result names consistent
     expect(serialized).not.toContain('__da39a3ee')
   })
 
-  it('does not reuse a call-side name for a result whose own name is missing', async () => {
+  it('drops an unrecoverable nameless part beside a recovered one instead of borrowing its name', async () => {
     const callSideNamed = {
       ...toolPart('c1', undefined, 'kb_search'),
       callProviderMetadata: { cherry: { toolName: 'kb_search' } }
     } as UIMessage['parts'][number]
     const bareResult = toolPart('c2', undefined, 'kb_list')
     const { calls, responses } = expectConsistentPairs(await wire([callSideNamed, bareResult]))
-    expect(calls.map((call) => call.name)).toEqual(['kb_search', 'unknown_tool'])
-    expect(responses.map((response) => response.name)).toEqual(['kb_search', 'unknown_tool'])
+    expect(calls.map((call) => call.name)).toEqual(['kb_search'])
+    expect(responses.map((response) => response.name)).toEqual(['kb_search'])
   })
 
-  it('keeps a bare placeholder separate per unnamed call so parallel calls stay distinguishable', async () => {
-    const { calls, responses } = expectConsistentPairs(
-      await wire([toolPart('c1', undefined, 'one'), toolPart('c2', undefined, 'two')])
-    )
-    expect(calls.map((call) => call.args)).toEqual([{ query: 'one' }, { query: 'two' }])
-    expect(responses.map((response) => response.response?.content)).toEqual([{ answer: 'one' }, { answer: 'two' }])
+  it('drops every unrecoverable nameless call without disturbing the rest of the turn', async () => {
+    const body = await wire([toolPart('c1', undefined, 'one'), toolPart('c2', undefined, 'two')])
+    const calls = body.contents.flatMap((entry) => entry.parts.flatMap((part) => part.functionCall ?? []))
+    expect(calls).toEqual([])
+    const texts = body.contents.flatMap((entry) => entry.parts.flatMap((part) => (part.text ? [part.text] : [])))
+    expect(texts).toContain('before')
+    expect(texts).toContain('after')
   })
 })
 
@@ -197,12 +203,13 @@ describe('repairToolNames', () => {
     expect(repairToolNames(messages)).toBe(messages)
   })
 
-  it('repairs only the broken entries of a mixed history', () => {
+  it('repairs the fixable entries of a mixed history and leaves true nameless parts to the sanitizer', () => {
     const good = toolPart('c1', 'kb_search')
     const broken = toolPart('c2', undefined)
     const repaired = repairToolNames([ui('assistant', [good, broken])])
     expect(repaired[0].parts[0]).toBe(good)
-    expect(repaired[0].parts[1]).toMatchObject({ toolName: 'unknown_tool' })
+    expect(repaired[0].parts[1]).toBe(broken)
+    expect(sanitizeDynamicToolNames(repaired)[0].parts).toEqual([good])
   })
 
   it('keeps the part toolName over a divergent cherry copy and stays consistent', () => {
@@ -214,9 +221,10 @@ describe('repairToolNames', () => {
     expect(repaired[0].parts[0]).toMatchObject({ toolName: 'kb_search' })
   })
 
-  it('treats an empty-string toolName as missing and uses the placeholder', () => {
+  it('treats an empty-string toolName with nothing recoverable as nameless for the sanitizer to drop', () => {
     const part = { ...toolPart('c1', undefined), toolName: '' } as UIMessage['parts'][number]
     const repaired = repairToolNames([ui('assistant', [part])])
-    expect(repaired[0].parts[0]).toMatchObject({ toolName: 'unknown_tool' })
+    expect(repaired[0].parts[0]).toBe(part)
+    expect(sanitizeDynamicToolNames(repaired)[0].parts).toEqual([])
   })
 })

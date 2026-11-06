@@ -1,9 +1,9 @@
 import type { PropsWithChildren } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
-import { getCmThemeByName, getCmThemeNames, type CodeMirrorTheme } from '@cherrystudio/ui'
+import { getCherryCmTheme, getCmThemeByName, getCmThemeNames, type CodeMirrorTheme } from '@cherrystudio/ui'
 import { codeBlockSyntaxCss, getCodeBlockPalette } from '@cherrystudio/ui/code-block'
-import { resolveCodeTheme } from '@cherrystudio/ui/code-highlight'
+import { CHERRY_CODE_THEME, resolveCodeTheme } from '@cherrystudio/ui/code-highlight'
 import { usePreference } from '@data/hooks/usePreference'
 import { CodeStyleContext, CodeStyleThemeCatalogContext } from '@renderer/hooks/useCodeStyle'
 import { useTheme } from '@renderer/hooks/useTheme'
@@ -20,8 +20,8 @@ export function CodeStyleProvider({ children }: PropsWithChildren) {
   const { theme } = useTheme()
   const codeThemes = useMemo<[string, string]>(
     () => [
-      resolveCodeTheme(codeViewerThemeLight, 'one-light'),
-      resolveCodeTheme(codeViewerThemeDark, 'material-theme-darker')
+      resolveCodeTheme(codeViewerThemeLight, CHERRY_CODE_THEME),
+      resolveCodeTheme(codeViewerThemeDark, CHERRY_CODE_THEME)
     ],
     [codeViewerThemeLight, codeViewerThemeDark]
   )
@@ -31,7 +31,11 @@ export function CodeStyleProvider({ children }: PropsWithChildren) {
     dark: boolean
     palette: Record<string, string>
   } | null>(null)
-  const isCodeThemeDark = themeAppearance?.name === activeCodeTheme ? themeAppearance.dark : theme !== ThemeMode.light
+  // The Cherry palette follows the application mode instead of a fixed theme appearance.
+  const isCodeThemeDark =
+    activeCodeTheme !== CHERRY_CODE_THEME && themeAppearance?.name === activeCodeTheme
+      ? themeAppearance.dark
+      : theme !== ThemeMode.light
 
   useEffect(() => {
     let cancelled = false
@@ -56,9 +60,10 @@ export function CodeStyleProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (!cmThemeRequested) return
     const selected = theme === ThemeMode.light ? codeEditorThemeLight : codeEditorThemeDark
-    const name = !selected || selected === 'auto' ? (theme === ThemeMode.light ? 'materialLight' : 'dark') : selected
     let cancelled = false
-    void getCmThemeByName(name).then((resolved) => {
+    const loading =
+      !selected || selected === 'auto' ? getCherryCmTheme(theme !== ThemeMode.light) : getCmThemeByName(selected)
+    void loading.then((resolved) => {
       if (!cancelled) setActiveCmTheme(resolved)
     })
     return () => {

@@ -120,10 +120,10 @@ function toWireToolName(name: string): string {
 }
 
 /**
- * Make an illegal `dynamic-tool` name wire-legal. The v1 migrator joins `"{server}: {tool}"` into
- * `toolName` for display (`ChatMappings`), and unlike v1 — which never replayed tool blocks —
- * v2 sends that field as `function_call.name`, which providers reject (#18199). Call and result
- * share one part, so the pair stays consistent.
+ * Make an illegal `dynamic-tool` name wire-legal and drop nameless parts. The v1 migrator joins
+ * `"{server}: {tool}"` into `toolName` for display (`ChatMappings`), and unlike v1 — which never
+ * replayed tool blocks — v2 sends that field as `function_call.name`, which providers reject
+ * (#18199). Call and result share one part, so the pair stays consistent.
  *
  * A name this request declares is never rewritten: the API Gateway shares this path and keys its
  * `ToolSet` by the client's own function name (which Gemini allows to hold `.` / `:`), so
@@ -134,9 +134,20 @@ export function sanitizeDynamicToolNames<T extends UIMessage>(messages: T[], too
   messages.forEach((message, messageIndex) => {
     let parts: T['parts'] | undefined
     message.parts.forEach((part, partIndex) => {
-      if (part.type !== 'dynamic-tool' || WIRE_TOOL_NAME.test(part.toolName) || tools?.[part.toolName]) return
-      parts ??= [...message.parts]
-      parts[partIndex] = { ...part, toolName: toWireToolName(part.toolName) }
+      if (part.type !== 'dynamic-tool') {
+        parts?.push(part)
+        return
+      }
+      if (!part.toolName) {
+        parts ??= message.parts.slice(0, partIndex)
+        return
+      }
+      if (WIRE_TOOL_NAME.test(part.toolName) || tools?.[part.toolName]) {
+        parts?.push(part)
+        return
+      }
+      parts ??= message.parts.slice(0, partIndex)
+      parts.push({ ...part, toolName: toWireToolName(part.toolName) })
     })
     if (parts) {
       out ??= [...messages]
@@ -145,9 +156,6 @@ export function sanitizeDynamicToolNames<T extends UIMessage>(messages: T[], too
   })
   return out ?? messages
 }
-
-/** Placeholder for a tool call whose stored name cannot be recovered. */
-const UNKNOWN_TOOL_NAME = 'unknown_tool'
 
 /** A name a `dynamic-tool` part can still carry outside its (possibly missing) `toolName`. */
 function recoveredToolName(part: Extract<UIMessage['parts'][number], { type: 'dynamic-tool' }>): string | undefined {
@@ -169,8 +177,9 @@ function recoveredToolName(part: Extract<UIMessage['parts'][number], { type: 'dy
  * that is absent makes the provider reject the whole turn ("missing name"), and a name that is not
  * wire-legal makes it reject with `name "kb_list" does not match …` (#22577). The name is recovered
  * from the part's `toolName` first, then its `callProviderMetadata.cherry.toolName` (the approval
- * bridge's pre-finalize copy); nothing recoverable becomes {@link UNKNOWN_TOOL_NAME} rather than an
- * invalid history. A dynamic name that is not a declared tool is rewritten exactly as
+ * bridge's pre-finalize copy). A part with nothing recoverable stays nameless so
+ * {@link sanitizeDynamicToolNames} drops it: an invented placeholder could not match a tool
+ * declaration (#23233's accepted tradeoff). A dynamic name that is not a declared tool is rewritten exactly as
  * {@link sanitizeDynamicToolNames} does, so this is idempotent. A name already present on the part
  * wins over `cherry.toolName`, because for a migrated v1 part that field holds the original tool
  * name while `toolName` is the persisted display join — overwriting it would desync the wire name
@@ -184,13 +193,10 @@ export function repairToolNames<T extends UIMessage>(messages: T[], tools?: Tool
     message.parts.forEach((part, partIndex) => {
       if (!isToolUIPart(part) || part.type !== 'dynamic-tool') return
       const name = recoveredToolName(part)
-      // A recoverable name keeps the sanitizer's legal rewrite; nothing recoverable gets the plain placeholder.
-      const toolName =
-        name === undefined
-          ? UNKNOWN_TOOL_NAME
-          : WIRE_TOOL_NAME.test(name) || tools?.[name]
-            ? name
-            : toWireToolName(name)
+      // Nothing recoverable: leave the part nameless for the sanitizer to drop.
+      if (name === undefined) return
+      // A recoverable name keeps the sanitizer's legal rewrite, so this is idempotent with it.
+      const toolName = WIRE_TOOL_NAME.test(name) || tools?.[name] ? name : toWireToolName(name)
       if (part.toolName === toolName) return
       parts ??= [...message.parts]
       parts[partIndex] = { ...part, toolName }
@@ -337,16 +343,47 @@ export function attributeUserDenialReasons<T extends UIMessage>(messages: T[]): 
 }
 
 /**
+ * Reasoning edited in the renderer keeps a `cherry.editedReasoningReplay`
+ * marker instead of its provider signature. Signed reasoning cannot be replayed
+ * natively after the text changed (the signature covers the original text), so
+ * the marker is rendered into a plain `<think>` text part; the model still sees
+ * the corrected thought without an invalid signature. Unsigned reasoning has no
+ * marker and keeps its native replay.
+ */
+export function renderEditedReasoningAsThinkText<T extends UIMessage>(messages: T[]): T[] {
+  let out: T[] | undefined
+  messages.forEach((message, messageIndex) => {
+    if (message.role !== 'assistant') return
+    let parts: T['parts'] | undefined
+    message.parts.forEach((part, partIndex) => {
+      if (part.type !== 'reasoning') return
+      const marker = (part as { providerMetadata?: { cherry?: { editedReasoningReplay?: unknown } } }).providerMetadata
+        ?.cherry?.editedReasoningReplay
+      if (marker !== 'think') return
+      parts ??= [...message.parts]
+      parts[partIndex] = { type: 'text', text: `<think>\n${part.text}\n</think>` }
+    })
+    if (parts) {
+      out ??= [...messages]
+      out[messageIndex] = { ...message, parts }
+    }
+  })
+  return out ?? messages
+}
+
+/**
  * The message-shaping pipeline `Agent.stream` runs on its conversion input
  * (`originalMessages` stays un-shaped upstream, so none of this leaks to the UI):
  *
  * render persisted tool-output envelopes back into their <persisted-output> markers →
- * attribute a user's denial reason to the user → repair missing/unmatchable tool-call names so a
- * call and its result pair up (recovery first: a sanitized placeholder for an empty name would
- * shadow the real name still carried in provider metadata, and conversion would skip the declared
- * tool's `toModelOutput`) → make remaining undeclared dynamic names wire-legal → strip media the
- * model can't accept → drop tool calls parked on an unanswered approval → drop tool parts with
- * non-object replay inputs → restore inferable legacy step boundaries →
+ * repair recoverable tool-call names so a call and its result pair up (recovery first: rewriting
+ * an empty name before the real one is read would shadow the name still carried in provider
+ * metadata, and conversion would skip the declared tool's `toModelOutput`) →
+ * make remaining undeclared dynamic names wire-legal, dropping any still nameless →
+ * attribute a user's denial reason to the user → strip media the model can't accept → drop tool
+ * calls parked on an unanswered approval → drop tool parts with non-object replay inputs →
+ * restore inferable legacy step boundaries →
+ * rewrite renderer-edited signed reasoning as `<think>` text →
  * convert, dropping incomplete tool calls that would otherwise dangle without a result →
  * gate media inside tool-result outputs by `toolResultCaps` (wire-aware, see
  * `resolveToolResultMediaCapabilities`; defaults to `caps`) → merge adjacent same-role turns
@@ -365,7 +402,10 @@ export async function toModelMessages(
       dropNonObjectToolInputs(dropUnansweredApprovals(stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA)))
     )
   )
-  const model = await convertToModelMessages(shaped, { ignoreIncompleteToolCalls: true, tools })
+  const model = await convertToModelMessages(renderEditedReasoningAsThinkText(shaped), {
+    ignoreIncompleteToolCalls: true,
+    tools
+  })
   const gated = routeToolResultMedia(model, caps ?? ALL_MEDIA, toolResultCaps ?? caps ?? ALL_MEDIA)
   return ensureNonEmptyAssistantContent(coalesceConsecutiveSameRole(gated))
 }

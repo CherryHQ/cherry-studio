@@ -37,12 +37,23 @@ vi.mock('@renderer/i18n/label', () => ({
   getProviderLabelKey: (providerId: string) => providerId
 }))
 
-vi.mock('@tanstack/react-router', () => ({
-  Link: ({ children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => <a {...props}>{children}</a>
-}))
-
 vi.mock('react-i18next', () => ({
-  Trans: ({ i18nKey }: { i18nKey: string }) => <>{i18nKey}</>,
+  Trans: ({
+    i18nKey,
+    values,
+    components
+  }: {
+    i18nKey: string
+    values?: Record<string, string>
+    components?: Record<string, React.ReactElement>
+  }) => (
+    <>
+      {i18nKey}
+      {components?.provider &&
+        // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Trans tag interpolation
+        React.cloneElement(components.provider, undefined, values?.provider)}
+    </>
+  ),
   useTranslation: () => ({
     t: (key: string, options?: Record<string, string>) => {
       let translation = mocks.translations.get(key) ?? key
@@ -88,6 +99,34 @@ describe('ErrorBlock', () => {
     mocks.translations.set('error.diagnosis.go_to_settings', GO_TO_SETTINGS_LABEL)
     mocks.translations.set('HTTP 413', 'Request body too large')
     vi.clearAllMocks()
+  })
+
+  it('renders Groq entitlement copy and opens its provider settings', async () => {
+    const user = userEvent.setup()
+    const navigateErrorTarget = vi.fn()
+    const openErrorDetail = vi.fn()
+    mocks.actions = { navigateErrorTarget, openErrorDetail }
+    mocks.translations = new Map(Object.entries(enUS))
+    const groqBody = `service_tier auto is not available for this org. You can check your plan at
+[Billing - Plans](https://console.groq.com/settings/billing/plans), and upgrade to access the
+required service tier.`
+    const { container } = render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'AI_APICallError', message: groqBody, statusCode: 400, stack: null }}
+        message={{ ...message, model: { ...message.model!, provider: 'groq' } }}
+      />
+    )
+    expect(screen.getByText(enUS['error.diagnosis.permission'], { exact: true })).toBeInTheDocument()
+    expect(screen.queryByText(enUS['error.diagnosis.quota'], { exact: true })).not.toBeInTheDocument()
+    expect(container).not.toHaveTextContent(/recharge/i)
+    expect(container).not.toHaveTextContent(/quota exhausted/i)
+    await user.click(screen.getByRole('button', { name: GO_TO_SETTINGS_LABEL }))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=groq')
+    await user.click(screen.getByText(enUS['common.detail'], { exact: true }))
+    expect(openErrorDetail).toHaveBeenCalledWith(
+      expect.objectContaining({ error: expect.objectContaining({ message: groqBody }) })
+    )
   })
 
   // Main-side copy and mapping are asserted in src/main/features/apiGateway/__tests__/bindError.test.ts.
@@ -146,6 +185,40 @@ describe('ErrorBlock', () => {
 
     expect(screen.queryByLabelText('close')).toBeNull()
     expect(screen.queryByText('common.detail')).toBeNull()
+  })
+
+  it('opens provider settings from the provider name without opening the error detail', () => {
+    const navigateToRoute = vi.fn()
+    const openErrorDetail = vi.fn()
+    mocks.actions = { navigateToRoute, openErrorDetail }
+    mocks.i18nKeys.add('error.chat.no_api_key')
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'Error', message: 'No API key', stack: null, i18nKey: 'chat.no_api_key', providerId: 'openai' }}
+        message={message}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'openai' }))
+    expect(navigateToRoute).toHaveBeenCalledWith({ path: '/settings/provider', query: { id: 'openai' } })
+    expect(openErrorDetail).not.toHaveBeenCalled()
+  })
+
+  it('shows the provider name as plain text when the host cannot navigate', () => {
+    mocks.i18nKeys.add('error.chat.no_api_key')
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'Error', message: 'No API key', stack: null, i18nKey: 'chat.no_api_key', providerId: 'openai' }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText('openai')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'openai' })).toBeNull()
   })
 
   it('offers provider settings recovery when Claude Code reports that the session is not logged in', () => {

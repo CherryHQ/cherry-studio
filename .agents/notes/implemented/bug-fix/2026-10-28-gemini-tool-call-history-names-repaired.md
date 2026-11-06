@@ -25,22 +25,23 @@ The fault was in how Cherry rebuilt the tool-call history for the Gemini request
 
 ## Decision
 
-Add a new pipeline step `repairToolNames` (running after `sanitizeDynamicToolNames`, before media
-gating) that recovers a name for every `dynamic-tool` part and rewrites the part so both halves of
-the pair emit the same legal name.
+Add a new pipeline step `repairToolNames` (running before `sanitizeDynamicToolNames`) that
+recovers the real name for every `dynamic-tool` part whose name survives elsewhere, and rewrites
+the part so both halves of the pair emit the same legal name.
 
 Recovery order per part:
 
 1. `part.toolName` (the canonical field on a dynamic tool part).
 2. `part.callProviderMetadata?.cherry?.toolName` (the approval bridge's pre-finalize copy).
 
-If neither is present, the part receives the plain placeholder `unknown_tool`. If a recovered name
-is wire-illegal and not a declared tool, it is rewritten by `toWireToolName` — exactly what the
-sanitizer does — making this step idempotent with the existing contract.
+If neither is present, the part stays nameless and the sanitizer drops it before conversion —
+#23233's accepted tradeoff, since an invented placeholder cannot identify the original tool. If a
+recovered name is wire-illegal and not a declared tool, it is rewritten by `toWireToolName` —
+exactly what the sanitizer does — making this step idempotent with the existing contract.
 
-The placeholder is not digested: it is a legal wire name (`/^[A-Za-z_][A-Za-z0-9_-]{0,63}$/`) and
-is human-readable in logs. Parallel unnamed calls are distinguishable by their `toolCallId` and
-`args`, so the placeholder is shared only across the call/result pair, not across distinct calls.
+Recovery runs before the sanitizer so an empty `toolName` never shadows the real name still
+carried in provider metadata, and a recovered declared name still routes the output through the
+tool's `toModelOutput`.
 
 Static `tool-{name}` parts are left untouched: their name is their type, which is already what the
 SDK emits.
@@ -48,18 +49,19 @@ SDK emits.
 Pipeline order (documented in the `toModelMessages` JSDoc):
 
 ```
-… → make legacy v1 tool names wire-legal → repair missing/unmatchable tool-call names →
-    strip media the model can't accept → …
+… → repair recoverable tool-call names → make remaining undeclared names wire-legal, dropping
+    any still nameless → strip media the model can't accept → …
 ```
 
 ## Alternatives considered
 
-- Drop the whole call/result pair when a name is missing: rejected because it silently rewrites
-  history, losing the tool execution evidence the user (and the model) expects to see.
-- Fail with a structured error instead of a placeholder: rejected because the history is already
+- Keep the original `unknown_tool` placeholder for names that survive nowhere: rejected after
+  #23233 landed upstream — an invented identity cannot match a tool declaration, so unrecoverable
+  pairs are dropped there instead. This repair now covers only names that genuinely survive (the
+  approval-bridge metadata case #23233 would otherwise drop and lose), and defers the rest to the
+  sanitizer's drop.
+- Fail with a structured error instead of repairing: rejected because the history is already
   stored; a hard failure offers no recovery path and the user cannot fix it.
-- Digest the placeholder (e.g., `unknown_tool_5cf2b45d`): rejected because an opaque digest is
-  harder to grep in logs and cannot be hand-corrected if the user wants to restore the real name.
 - Scope the repair to Gemini only: rejected because the same name-consistency invariant is useful
   for any provider that names call/result from the part, and the repair is harmless for providers
   that match on `toolCallId` instead.
@@ -70,16 +72,17 @@ Pipeline order (documented in the `toModelMessages` JSDoc):
   call history` (HTTP 400).
 - Emitted history keeps each function call's `name` equal to the name of its paired result,
   including entries restored from storage.
-- An entry whose stored name is missing is repaired client-side with `unknown_tool` instead of
-  being sent as an invalid history.
+- An entry whose stored name is missing but recoverable is repaired client-side with its real
+  name; an entry with nothing recoverable is dropped from the replay (#23233's behavior) instead
+  of being sent as an invalid history.
 - N tool calls in history produce N consistent call/result pairs for the Gemini request (asserted
   by regression test `messageRules.geminiToolNames.test.ts`).
 
 ## Verification
 
-- Regression — `messageRules.geminiToolNames.test.ts`: 9 tests capture the wire bytes `@ai-sdk/google` would send (`generateText` fetch bodies); all fail without the fix (7/8), all pass with it.
-- Existing suites: `src/main/ai/messages/` 228 tests pass; `src/main/ai/runtime/aiSdk/` 749 tests
-  pass (one flaky timeout test now runs in 15s vs 20s limit).
-- `oxlint --deny-warnings`, `oxfmt --check`, and `tsc --noEmit` (ignoring pre-existing
-  workspace-link errors) pass on the changed files.
+- Regression — `messageRules.geminiToolNames.test.ts`: 15 tests, 7 of them capturing the wire
+  bytes `@ai-sdk/google` would send (`generateText` fetch bodies); all pass on the merged head.
+- Existing suites on the merged head: `src/main/ai/messages/` 240 tests pass (including the
+  #23233 empty-name drop regression); `src/main/ai/runtime/aiSdk/` 597 tests pass.
+- `oxlint --deny-warnings`, `oxfmt --check`, and `tsc --noEmit` are left to CI on the merged head.
 - No public API surface change; the repair is internal to the `toModelMessages` pipeline.

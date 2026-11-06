@@ -1,3 +1,5 @@
+import path, { resolve as resolvePath } from 'node:path'
+
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
@@ -42,7 +44,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-const MOCK_USER_DATA = '/mock/userData'
+const MOCK_USER_DATA = resolvePath('/mock/userData')
 const ASSISTANT_ID = '11111111-1111-4111-8111-111111111111'
 const FILE_SURVIVOR_ID = '019606a0-0000-7000-8000-000000000401'
 const FILE_SKIPPED_ID = '019606a0-0000-7000-8000-000000000402'
@@ -58,7 +60,9 @@ function dexieFileRow(overrides: Partial<FileMetadata> & Pick<FileMetadata, 'id'
     // Unique per file so migrated relativePaths (now derived from origin_name)
     // stay distinct and need no dedup suffix.
     origin_name: overrides.origin_name ?? `${overrides.id}.pdf`,
-    path: overrides.path ?? `${MOCK_USER_DATA}/Data/Files/${overrides.id}.pdf`,
+    // path.join like the production probes do — a hand-written /-joined string
+    // never matches the internal prefix on Windows.
+    path: overrides.path ?? path.join(MOCK_USER_DATA, 'Data', 'Files', `${overrides.id}.pdf`),
     size: overrides.size ?? 1024,
     ext: overrides.ext ?? '.pdf',
     type: overrides.type ?? 'document',
@@ -93,8 +97,8 @@ function makeCtx(dbh: ReturnType<typeof setupTestDatabase>, dexieFiles: FileMeta
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
     paths: {
       userData: MOCK_USER_DATA,
-      knowledgeBaseDir: `${MOCK_USER_DATA}/Data/KnowledgeBase`,
-      filesDataDir: `${MOCK_USER_DATA}/Data/Files`
+      knowledgeBaseDir: resolvePath(`${MOCK_USER_DATA}/Data/KnowledgeBase`),
+      filesDataDir: resolvePath(`${MOCK_USER_DATA}/Data/Files`)
     }
   } as never
 }
@@ -242,8 +246,8 @@ describe('KnowledgeMigrator reference integrity guards (integration)', () => {
       logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
       paths: {
         userData: MOCK_USER_DATA,
-        knowledgeBaseDir: `${MOCK_USER_DATA}/Data/KnowledgeBase`,
-        filesDataDir: `${MOCK_USER_DATA}/Data/Files`
+        knowledgeBaseDir: resolvePath(`${MOCK_USER_DATA}/Data/KnowledgeBase`),
+        filesDataDir: resolvePath(`${MOCK_USER_DATA}/Data/Files`)
       }
     } as never
 
@@ -333,11 +337,11 @@ describe('KnowledgeMigrator reference integrity guards (integration)', () => {
     expect(knowledgeItemRows).toHaveLength(2)
     expect(knowledgeItemRows.map((row) => row.data).sort((a, b) => a.source.localeCompare(b.source))).toEqual([
       {
-        source: `${MOCK_USER_DATA}/Data/Files/${FILE_SURVIVOR_ID}.pdf`,
+        source: path.join(MOCK_USER_DATA, 'Data', 'Files', `${FILE_SURVIVOR_ID}.pdf`),
         relativePath: `${FILE_SURVIVOR_ID}.pdf`
       },
       {
-        source: `${MOCK_USER_DATA}/Data/Files/${FILE_SKIPPED_ID}.pdf`,
+        source: path.join(MOCK_USER_DATA, 'Data', 'Files', `${FILE_SKIPPED_ID}.pdf`),
         relativePath: `${FILE_SKIPPED_ID}.pdf`
       }
     ])
@@ -390,7 +394,7 @@ describe('KnowledgeMigrator reference integrity guards (integration)', () => {
     const itemRows = await dbh.db.select({ data: knowledgeItemTable.data }).from(knowledgeItemTable)
     expect(itemRows).toHaveLength(FILE_COUNT)
     expect(itemRows[0]?.data).toEqual({
-      source: `${MOCK_USER_DATA}/Data/Files/${fileEntryIdAt(1000)}.pdf`,
+      source: path.join(MOCK_USER_DATA, 'Data', 'Files', `${fileEntryIdAt(1000)}.pdf`),
       relativePath: `${fileEntryIdAt(1000)}.pdf`
     })
 

@@ -94,3 +94,9 @@ export async function getCmThemeByName(name: string): Promise<CodeMirrorTheme> {
   // 3. If not found, fallback to light
   return 'light'
 }
+
+/** The Cherry default CodeMirror theme, loaded on demand like the other themes. */
+export async function getCherryCmTheme(dark: boolean): Promise<Extension> {
+  const { createCherryCmTheme } = await import('./cherry-theme')
+  return createCherryCmTheme(dark)
+}
