@@ -5,19 +5,39 @@ import i18n from 'i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CommandSharedPreferencesContext, ContextKeySnapshotContext } from '@renderer/hooks/command'
+import type * as PlatformUtils from '@renderer/utils/platform'
 
 import { DictationShortcutSettings } from '../DictationShortcutSettings'
+
+const platform = vi.hoisted(() => ({ isMac: false }))
+vi.mock('@renderer/utils/platform', async (importOriginal) => ({
+  ...(await importOriginal<typeof PlatformUtils>()),
+  get isMac() {
+    return platform.isMac
+  }
+}))
 
 vi.unmock('@cherrystudio/ui')
 
 describe('dictation shortcut settings', () => {
   let user: ReturnType<typeof userEvent.setup>
   beforeEach(async () => {
+    platform.isMac = false
     user = userEvent.setup()
     await i18n.changeLanguage('en-US')
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.hold_shortcut', 'AltLeft')
     MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.toggle_shortcut', 'AltLeft+ControlLeft')
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.mouse_hold_enabled', true)
+  })
+  it('shows mouse hold enabled and saves the toggle', async () => {
+    render(<DictationShortcutSettings />)
+    const toggle = screen.getByRole('switch', { name: 'Press and hold the mouse to dictate' })
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
+    await user.click(toggle)
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.dictation.mouse_hold_enabled')).toBe(false)
+    )
   })
   it.each([false, true])('respects whether a configured screenshot shortcut is enabled (%s)', async (enabled) => {
     render(
@@ -49,6 +69,30 @@ describe('dictation shortcut settings', () => {
       expect(screen.queryByRole('alert')).toBeNull()
     }
   })
+  it.each(['KeyG', 'MetaLeft'])('rejects a Dvorak character conflict when releasing %s', async (released) => {
+    platform.isMac = true
+    render(
+      <CommandSharedPreferencesContext
+        value={{
+          shortcutPreferences: { 'tab.close': { binding: ['CommandOrControl', 'I'], enabled: true } },
+          menuPresentationMode: undefined
+        }}>
+        <DictationShortcutSettings />
+      </CommandSharedPreferencesContext>
+    )
+    const hold = screen.getByRole('button', { name: 'Long press' })
+    await user.click(hold)
+    fireEvent.keyDown(hold, { code: 'MetaLeft', key: 'Meta', metaKey: true })
+    fireEvent.keyDown(hold, { code: 'KeyG', key: 'i', metaKey: true })
+    fireEvent.keyUp(hold, {
+      code: released,
+      key: released === 'KeyG' ? 'i' : 'Meta',
+      metaKey: released === 'KeyG'
+    })
+    expect(screen.getByRole('alert')).toHaveTextContent('already in use')
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.dictation.hold_shortcut')).toBe('AltLeft')
+  })
+
   it('shows the requested defaults and saves a sided modifier shortcut', async () => {
     render(<DictationShortcutSettings />)
     const hold = screen.getByRole('button', { name: 'Long press' })

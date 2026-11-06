@@ -97,6 +97,7 @@ const fake = vi.hoisted(() => {
     },
     runtime: {
       assertSessionWritable() {},
+      async prepareBranch() {},
       isSessionBusy: () => false,
       isSessionBusyForArchive: () => false,
       respondToolApproval: vi.fn(() => true),
@@ -644,6 +645,14 @@ describe('remote agent access', () => {
       const message = history.items.find((item: { messageId: string }) => item.messageId === anchor)
       expect(message).toMatchObject({ status: 'error', failure: projection.executions[receipt.executionId].failure })
       expect(message.failure.message).toContain('OpenCode Go subscription')
+      const summaries = await call('agent.messages.list', {
+        sessionId,
+        historyRevision: projection.session.historyRevision,
+        partsMode: 'paged'
+      })
+      const summary = summaries.items.find((item: { messageId: string }) => item.messageId === anchor)
+      expect(summary).toMatchObject({ status: 'error', failure: message.failure, partsMode: 'paged' })
+      expect(summary).not.toHaveProperty('partIds')
       const stored = agentSessionMessageService.getSessionMessage(sessionId, anchor)
       expect(stored.data.parts?.filter((part) => part.type === 'text')).toHaveLength(partial ? 1 : 0)
       expect(await call('agent.commands.get', { commandId })).toMatchObject({ status: 'applied' })
@@ -822,6 +831,17 @@ describe('remote agent access', () => {
       totalTokens: 40,
       outputTokens: 0,
       cacheReadTokens: 12
+    })
+    const summaries = await call('agent.messages.list', {
+      sessionId,
+      historyRevision: projection.session.historyRevision,
+      partsMode: 'paged'
+    })
+    expect(summaries.items.find((message: { messageId: string }) => message.messageId === anchor)).toMatchObject({
+      partsMode: 'paged',
+      status: 'success',
+      usage: { totalTokens: 40, outputTokens: 0, cacheReadTokens: 12 },
+      model: { modelId: 'model', providerId: 'provider', name: 'Historical model' }
     })
   })
 
@@ -1021,6 +1041,7 @@ describe('remote agent access', () => {
           await gate
           return run()
         })
+      const capturedParentId = agentSessionMessageService.captureHead(sessionId)
       const validate = vi.spyOn(agentChatContextProvider, 'validateDispatch').mockImplementation(async () => {
         if (phase === 'preparation') {
           entered()
@@ -1030,6 +1051,7 @@ describe('remote agent access', () => {
           sessionId,
           topicId: `agent-session:${sessionId}`,
           agentId: 'agent-1',
+          parentMessageId: capturedParentId,
           agentUpdatedAt: new Date().toISOString(),
           agentType: 'claude-code',
           agentName: 'Agent',
@@ -1123,6 +1145,7 @@ describe('remote agent access', () => {
         sessionId,
         topicId: `agent-session:${sessionId}`,
         agentId: 'agent-1',
+        parentMessageId: agentSessionMessageService.captureHead(sessionId),
         agentUpdatedAt: new Date().toISOString(),
         agentType: 'claude-code',
         agentName: 'Agent',

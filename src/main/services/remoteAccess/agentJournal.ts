@@ -912,6 +912,10 @@ export class RemoteAgentHub {
     return busy ? this.journal(sessionId).activeExecutionId : undefined
   }
 
+  isIdle(): boolean {
+    return this.journals.size === 0
+  }
+
   sweep(): void {
     this.uploads.sweep()
     for (const journal of this.journals.values()) {

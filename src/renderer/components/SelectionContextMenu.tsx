@@ -9,6 +9,8 @@ import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { isHttpUrl } from '@shared/utils/url'
 
+import { TextSelectionToolbar } from './TextSelectionToolbar'
+
 const logger = loggerService.withContext('SelectionContextMenu')
 
 const TEXT_BLOCK_TAGS = new Set(['BLOCKQUOTE', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'P', 'PRE', 'TR'])
@@ -102,7 +104,7 @@ function extractSelectedText(selection: Selection, mathOptions?: { singleDollar:
 }
 
 /**
- * Right-click actions for website links and selected text in conversation content.
+ * Context menu and automatic toolbar actions for selected conversation content.
  */
 const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, openBrowserUrl }) => {
   const { t } = useTranslation()
@@ -197,9 +199,13 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
   )
 
   return (
-    <CommandContextMenu location="chat.message.context" getExtraItems={getExtraItems}>
-      {children}
-    </CommandContextMenu>
+    <TextSelectionToolbar
+      onCopy={(selection) => handleCopy(extractSelectedText(selection))}
+      onQuote={(selection) => handleQuote(extractSelectedText(selection, { singleDollar: mathEnableSingleDollar }))}>
+      <CommandContextMenu location="chat.message.context" getExtraItems={getExtraItems}>
+        {children}
+      </CommandContextMenu>
+    </TextSelectionToolbar>
   )
 }
 

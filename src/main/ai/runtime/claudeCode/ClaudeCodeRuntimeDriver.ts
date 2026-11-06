@@ -18,11 +18,7 @@ import { loggerService } from '@logger'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
-import {
-  appendAgentAttachmentPaths,
-  buildAgentUserContent,
-  wrapAgentSessionDeliveryContent
-} from '@main/ai/runtime/agentUserContent'
+import { appendAgentAttachmentPaths, wrapAgentSessionDeliveryContent } from '@main/ai/runtime/agentUserContent'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import {
@@ -42,11 +38,11 @@ import type { CherryUIMessage, FileUIPart } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+import { AsyncEventQueue } from '@shared/utils/async'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { imageExts } from '@shared/utils/file'
 import { isVisionModel } from '@shared/utils/model'
 
-import { AsyncEventQueue } from '../AsyncEventQueue'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -81,6 +77,7 @@ import {
 } from './settingsBuilder'
 import { ClaudeCodeStreamAdapter, convertClaudeCodeUsage, v3UsageToStats } from './streamAdapter'
 import type { McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
+import { claudeWorkspaceRelocation } from './workspaceRelocation'
 
 const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
 const HOST_MANAGED_SLASH_COMMANDS = new Set(['effort', 'fast'])
@@ -275,51 +272,9 @@ function mergePendingInvocation(current: PendingInvocationUsage, next: PendingIn
   }
 }
 
-// Compatibility export for the Pi runtime and existing consumers; Claude Code itself uses native attachment routing below.
-export { buildAgentUserContent }
-
-class SdkInputQueue implements AsyncIterable<SDKUserMessage> {
-  private readonly messages: SDKUserMessage[] = []
-  private waitResolve?: (value: IteratorResult<SDKUserMessage>) => void
-  private closed = false
-
-  push(message: SDKUserMessage): void {
-    if (this.closed) return
-    if (this.waitResolve) {
-      const resolve = this.waitResolve
-      this.waitResolve = undefined
-      resolve({ value: message, done: false })
-      return
-    }
-    this.messages.push(message)
-  }
-
-  close(): void {
-    this.closed = true
-    if (this.waitResolve) {
-      const resolve = this.waitResolve
-      this.waitResolve = undefined
-      resolve({ value: undefined, done: true })
-    }
-  }
-
-  [Symbol.asyncIterator](): AsyncIterator<SDKUserMessage> {
-    return {
-      next: () => {
-        const next = this.messages.shift()
-        if (next) return Promise.resolve({ value: next, done: false })
-        if (this.closed) return Promise.resolve({ value: undefined as unknown as SDKUserMessage, done: true })
-        return new Promise<IteratorResult<SDKUserMessage>>((resolve) => {
-          this.waitResolve = resolve
-        })
-      }
-    }
-  }
-}
-
 class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private readonly eventQueue = new AsyncEventQueue<AgentRuntimeEvent>()
-  private sdkInputQueue = new SdkInputQueue()
+  private readonly sdkInputQueue = new AsyncEventQueue<SDKUserMessage>()
   private readonly abortController = new AbortController()
   private query?: Query
   private closePromise?: Promise<void>
@@ -1226,9 +1181,14 @@ async function materializeUserContent(
     }
 
     const preparedDataUrl = part.url ? parseDataUrl(part.url) : null
-    let parsed = preparedDataUrl?.isBase64 ? preparedDataUrl : null
+    if (preparedDataUrl?.isBase64 && preparedDataUrl.data.length === 0) {
+      routeWithoutImage(originalPart)
+      continue
+    }
+    let parsed = fileEntryId && preparedDataUrl?.isBase64 ? preparedDataUrl : null
     if (!parsed) {
-      const materialized = await materializeNativeFilePart(part)
+      const inlineType = toClaudeImageMediaType(preparedDataUrl?.mediaType)
+      const materialized = await materializeNativeFilePart(inlineType ? { ...part, mediaType: inlineType } : part)
       if (!materialized) {
         // Conversion found nothing sendable — the file itself may still be readable at its path.
         routeWithoutImage(originalPart)
@@ -1329,6 +1289,7 @@ async function extractAttachmentPaths(
 
 function isImageFilePart(part: FileUIPart): boolean {
   if (part.mediaType?.toLowerCase().startsWith('image/')) return true
+  if (part.url?.startsWith('data:') && toClaudeImageMediaType(parseDataUrl(part.url)?.mediaType)) return true
   const filename = part.filename?.toLowerCase()
   const url = part.url && !part.url.startsWith('data:') ? part.url.toLowerCase().split(/[?#]/, 1)[0] : undefined
   return imageExts.some((extension) => filename?.endsWith(extension) || url?.endsWith(extension))
@@ -1369,6 +1330,7 @@ function toClaudeImageMediaType(value: string | undefined) {
 }
 
 export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
+  readonly workspaceRelocation = claudeWorkspaceRelocation
   readonly fork = forkClaudeSession
   readonly type = 'claude-code'
   readonly capabilities = ['agent-session'] as const

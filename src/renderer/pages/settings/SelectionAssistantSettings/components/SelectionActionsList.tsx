@@ -1,16 +1,23 @@
-import { DragDropContext } from '@hello-pangea/dnd'
 import type { FC } from 'react'
 
+import { ReorderableList } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import SelectionToolbarView from '@renderer/components/selection/SelectionToolbarView'
 import { SettingDivider, SettingGroup } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import {
+  type AskAgentSelectionAction,
+  SELECTION_BUILTIN_ACTION_ID,
+  type SearchSelectionAction,
+  type SelectionAction
+} from '@shared/types/selection'
 
-import { useActionItems } from '../hooks/useSettingsActionsList'
-import ActionsList from './ActionsList'
+import { ACTIONS_DIVIDER, type ActionRow, useActionItems } from '../hooks/useSettingsActionsList'
 import ActionsListDivider from './ActionsListDivider'
+import ActionsListItem from './ActionsListItem'
+import SelectionActionAskAgentModal from './SelectionActionAskAgentModal'
 import SelectionActionModelSettings from './SelectionActionModelSettings'
 import SelectionActionSearchModal from './SelectionActionSearchModal'
 import SelectionActionUserModal from './SelectionActionUserModal'
@@ -21,28 +28,34 @@ import SettingsActionsListHeader from './SettingsActionsListHeader'
 
 // Props for the main component
 interface SelectionActionsListProps {
-  actionItems: SelectionActionItem[] | undefined // List of all available actions
+  actionItems: SelectionAction[] // List of all available actions
   setActionItems: (items: SelectionActionItem[]) => void // Function to update action items
 }
+
+const getActionRowId = (row: ActionRow) => (row === ACTIONS_DIVIDER ? ACTIONS_DIVIDER : row.id)
 
 const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setActionItems }) => {
   const {
     enabledItems,
-    disabledItems,
     customItemsCount,
     isUserModalOpen,
     isSearchModalOpen,
+    isAskAgentModalOpen,
     userEditingAction,
     setIsUserModalOpen,
     setIsSearchModalOpen,
+    setIsAskAgentModalOpen,
     handleEditActionItem,
     handleAddNewAction,
     handleUserModalOk,
     handleSearchModalOk,
+    handleAskAgentModalOk,
     handleDeleteActionItem,
     handleReset,
-    onDragEnd,
+    actionRows,
+    handleReorderRows,
     getSearchEngineInfo,
+    getAgentInfo,
     MAX_CUSTOM_ITEMS,
     MAX_ENABLED_ITEMS
   } = useActionItems(actionItems, setActionItems)
@@ -50,7 +63,7 @@ const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setA
   const { theme } = useTheme()
   const [isCompact] = usePreference('feature.selection.compact')
 
-  if (!actionItems || actionItems.length === 0) {
+  if (actionItems.length === 0) {
     setActionItems(DefaultPreferences.default['feature.selection.action_items'])
   }
 
@@ -69,7 +82,7 @@ const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setA
 
       <div className="my-6 flex items-center justify-center">
         <SelectionToolbarView
-          actionItems={actionItems?.filter((item) => item.enabled) ?? []}
+          actionItems={actionItems.filter((item) => item.enabled)}
           isCompact={isCompact}
           handleAction={() => {}}
           copyIconStatus="normal"
@@ -77,31 +90,29 @@ const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setA
         />
       </div>
 
-      <DragDropContext onDragEnd={onDragEnd}>
-        <div className="flex flex-col gap-4">
-          <div className="w-full">
-            <ActionsList
-              droppableId="enabled"
-              items={enabledItems}
-              isLastEnabledItem={enabledItems.length === 1}
-              onEdit={handleEditActionItem}
-              onDelete={handleDeleteActionItem}
-              getSearchEngineInfo={getSearchEngineInfo}
-            />
-
+      <ReorderableList
+        items={actionRows}
+        getId={getActionRowId}
+        onReorder={handleReorderRows}
+        isItemDragDisabled={(row) => row === ACTIONS_DIVIDER || (row.enabled && enabledItems.length === 1)}
+        gap={8}
+        itemStyle={{ cursor: 'default' }}
+        className="mb-4"
+        renderItem={(row) =>
+          row === ACTIONS_DIVIDER ? (
             <ActionsListDivider enabledCount={enabledItems.length} maxEnabled={MAX_ENABLED_ITEMS} />
-
-            <ActionsList
-              droppableId="disabled"
-              items={disabledItems}
-              isLastEnabledItem={false}
+          ) : (
+            <ActionsListItem
+              item={row}
+              isLastEnabledItem={row.enabled && enabledItems.length === 1}
               onEdit={handleEditActionItem}
               onDelete={handleDeleteActionItem}
               getSearchEngineInfo={getSearchEngineInfo}
+              getAgentInfo={getAgentInfo}
             />
-          </div>
-        </div>
-      </DragDropContext>
+          )
+        }
+      />
 
       {isUserModalOpen && (
         <SelectionActionUserModal
@@ -116,7 +127,18 @@ const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setA
         isModalOpen={isSearchModalOpen}
         onOk={handleSearchModalOk}
         onCancel={() => setIsSearchModalOpen(false)}
-        currentAction={actionItems?.find((item) => item.id === 'search')}
+        currentAction={actionItems.find(
+          (item): item is SearchSelectionAction => item.isBuiltIn && item.id === SELECTION_BUILTIN_ACTION_ID.SEARCH
+        )}
+      />
+
+      <SelectionActionAskAgentModal
+        isModalOpen={isAskAgentModalOpen}
+        onOk={handleAskAgentModalOk}
+        onCancel={() => setIsAskAgentModalOpen(false)}
+        currentAction={actionItems.find(
+          (item): item is AskAgentSelectionAction => item.isBuiltIn && item.id === SELECTION_BUILTIN_ACTION_ID.ASK_AGENT
+        )}
       />
     </SettingGroup>
   )

@@ -7,7 +7,13 @@ export const PAGE_ITEM_BYTES = 62_279
 export type Page<T> = { items: T[]; nextCursor: string | null }
 
 const itemBytes = (item: unknown): number => Buffer.byteLength(JSON.stringify(item), 'utf8')
-const exhausted = () => new RemoteRpcError('RESOURCE_EXHAUSTED', 'Page item exceeds response byte budget')
+const exhausted = (bytes: number) =>
+  new RemoteRpcError('RESOURCE_EXHAUSTED', 'Page item exceeds response byte budget', {
+    kind: 'ITEM_TOO_LARGE',
+    itemBytes: bytes,
+    budgetBytes: PAGE_ITEM_BYTES,
+    retryable: false
+  })
 
 /** Longest prefix of `items` from the offset cursor whose JSON fits one response record. */
 export function pageOf<T>(items: readonly T[], cursor: string | undefined, limit: number | undefined): Page<T> {
@@ -19,7 +25,7 @@ export function pageOf<T>(items: readonly T[], cursor: string | undefined, limit
   while (end < ceiling) {
     const next = bytes + itemBytes(items[end]) + (end > start ? 1 : 0)
     if (next > PAGE_ITEM_BYTES) {
-      if (end === start) throw exhausted()
+      if (end === start) throw exhausted(next)
       break
     }
     bytes = next
@@ -35,7 +41,7 @@ export function queryPage<T>(read: (limit: number) => Page<T>, limit: number | u
     const page = read(attempt)
     const bytes = page.items.reduce((sum, item) => sum + itemBytes(item), 0) + Math.max(0, page.items.length - 1)
     if (bytes <= PAGE_ITEM_BYTES) return page
-    if (attempt === 1) throw exhausted()
+    if (attempt === 1) throw exhausted(bytes)
     attempt = Math.max(1, Math.floor(attempt / 2))
   }
 }

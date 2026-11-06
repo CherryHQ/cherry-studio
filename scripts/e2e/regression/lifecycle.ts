@@ -1,5 +1,14 @@
 import { spawn } from 'node:child_process'
-import { appendFileSync, closeSync, existsSync, openSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  appendFileSync,
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  rmSync,
+  writeFileSync
+} from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 
 import type { InstallationRecord } from './installation'
@@ -9,6 +18,9 @@ import {
   assertOwnedProcess,
   CDP_PORT,
   findCdpPid,
+  findListeningPid,
+  findProcessGroupId,
+  hasLiveMacProcessGroupMembers,
   isAlive,
   isDescendant,
   MAIN_INSPECTOR_PORT,
@@ -40,6 +52,7 @@ export interface AppRecord {
   logPath: string
   startedAt: string
   restartCount: number
+  locale?: string
 }
 
 type LaunchRecord = Omit<AppRecord, 'electronPid' | 'targetUrl'> & Partial<Pick<AppRecord, 'electronPid' | 'targetUrl'>>
@@ -58,11 +71,21 @@ export async function readCdpTargets(): Promise<Array<{ title: string; type: str
   return (await response.json()) as Array<{ title: string; type: string; url: string }>
 }
 
-async function waitForCdp(runnerPid: number, platform: Platform): Promise<{ electronPid: number; targetUrl: string }> {
-  const deadline = Date.now() + 180_000
+async function waitForCdp(
+  runnerPid: number,
+  platform: Platform,
+  port: number,
+  logPath: string,
+  timeout = 180_000
+): Promise<{ electronPid: number; targetUrl: string }> {
+  const deadline = Date.now() + timeout
   let lastError = 'CDP did not respond'
   while (Date.now() < deadline) {
-    if (!isAlive(runnerPid)) throw new Error(`Application runner ${runnerPid} exited before CDP became ready`)
+    if (!isAlive(runnerPid)) {
+      const snapshot = `CDP port ${port} listener pid: ${findListeningPid(platform, port) ?? 'none'}; inspector port ${MAIN_INSPECTOR_PORT} listener pid: ${findListeningPid(platform, MAIN_INSPECTOR_PORT) ?? 'none'}${platform === 'macos' ? `; process group ${runnerPid} has live members: ${hasLiveMacProcessGroupMembers(runnerPid)}` : ''}`
+      appendFileSync(logPath, `[launch-failure] ${snapshot}\n`)
+      throw new Error(`Application runner ${runnerPid} exited before CDP became ready; ${snapshot}`)
+    }
     try {
       const targets = await readCdpTargets()
       const mainTarget = targets.find(
@@ -83,14 +106,61 @@ async function waitForCdp(runnerPid: number, platform: Platform): Promise<{ elec
   throw new Error(`Timed out waiting for Cherry Studio CDP: ${lastError}`)
 }
 
+/**
+ * Shell known folders Windows resolves from USERPROFILE. The native save dialog opens Desktop by
+ * default, so an isolated home without it reports "Location is not available" and writes nothing.
+ */
+export function windowsShellDirectories(homeDirectory: string): string[] {
+  return ['Desktop', 'Documents', 'Downloads'].map((name) => join(homeDirectory, name))
+}
+
+export function createProfileEnvironment(paths: RunPaths, profile: TestProfile): NodeJS.ProcessEnv {
+  const homeDirectory = join(paths.profiles, profile, 'home')
+  const tempDirectory = join(homeDirectory, 'temp')
+  mkdirSync(tempDirectory, { recursive: true })
+  const windowsDirectories =
+    process.platform === 'win32'
+      ? {
+          APPDATA: join(homeDirectory, 'AppData', 'Roaming'),
+          LOCALAPPDATA: join(homeDirectory, 'AppData', 'Local')
+        }
+      : {}
+  const cliDirectories = ['.claude', '.codex', '.config', '.hermes', join('AppData', 'Local')].map((name) =>
+    join(homeDirectory, name)
+  )
+  for (const directory of [...Object.values(windowsDirectories), ...cliDirectories])
+    mkdirSync(directory, { recursive: true })
+  if (process.platform === 'win32') {
+    for (const directory of windowsShellDirectories(homeDirectory)) mkdirSync(directory, { recursive: true })
+  }
+  return {
+    ...process.env,
+    ...windowsDirectories,
+    HOME: homeDirectory,
+    USERPROFILE: homeDirectory,
+    TEMP: tempDirectory,
+    TMP: tempDirectory,
+    TMPDIR: tempDirectory,
+    // Chromium on macOS resolves its temporary directory from NSTemporaryDirectory or this override, not TMPDIR.
+    MAC_CHROMIUM_TMPDIR: tempDirectory,
+    CLAUDE_CONFIG_DIR: join(homeDirectory, '.claude'),
+    CODEX_HOME: join(homeDirectory, '.codex'),
+    XDG_CONFIG_HOME: join(homeDirectory, '.config'),
+    HERMES_HOME: join(homeDirectory, '.hermes'),
+    LOCALAPPDATA: join(homeDirectory, 'AppData', 'Local')
+  }
+}
+
 function getLaunchSpec(
   paths: RunPaths,
   mode: RunMode,
   targetRoot: string,
   profile: TestProfile,
-  runKey: string
+  runKey: string,
+  locale?: string
 ): Pick<AppRecord, 'args' | 'command' | 'cwd' | 'executablePath' | 'logPath'> & { environment: NodeJS.ProcessEnv } {
   const logPath = join(paths.logs, `electron-${profile}.log`)
+  const environment = createProfileEnvironment(paths, profile)
   if (mode === 'branch') {
     const args = [
       join(targetRoot, 'node_modules', 'dotenv-cli', 'cli.js'),
@@ -98,17 +168,19 @@ function getLaunchSpec(
       process.execPath,
       join(targetRoot, 'node_modules', 'electron-vite', 'bin', 'electron-vite.js'),
       '--',
-      '--inspect',
+      // Honours CHERRY_INSPECTOR_PORT so parallel checkouts do not share a port.
+      `--inspect=${MAIN_INSPECTOR_PORT}`,
       '--sourcemap',
-      '--remote-debugging-port=9222',
+      `--remote-debugging-port=${CDP_PORT}`,
       '--disable-backgrounding-occluded-windows'
     ]
+    if (locale) args.push(`--lang=${locale}`)
     return {
       command: process.execPath,
       args,
       cwd: targetRoot,
       environment: {
-        ...process.env,
+        ...environment,
         CS_DEV_PROFILE_ROOT: join(paths.profiles, profile),
         CS_DEV_USER_DATA_SUFFIX: `Regression-${runKey}-${profile}`
       },
@@ -123,12 +195,20 @@ function getLaunchSpec(
       `--inspect=${MAIN_INSPECTOR_PORT}`,
       `--remote-debugging-port=${CDP_PORT}`,
       '--disable-backgrounding-occluded-windows',
-      `--user-data-dir=${join(paths.profiles, profile)}`
+      `--user-data-dir=${join(paths.profiles, profile)}`,
+      ...(locale ? [`--lang=${locale}`] : [])
     ],
     cwd: dirname(installation.executablePath),
-    environment: { ...process.env },
+    environment,
     executablePath: installation.executablePath,
     logPath
+  }
+}
+
+export function assertNoLaunchFailure(paths: RunPaths): void {
+  if (existsSync(paths.appLaunchFailure)) {
+    const failure = readJson<{ reason: string }>(paths.appLaunchFailure)
+    throw new Error(`Previous application relaunch failed: ${failure.reason}`)
   }
 }
 
@@ -141,12 +221,22 @@ export async function launchApp(
     targetRoot: string
     runKey: string
     restartCount?: number
+    readyTimeoutMs?: number
+    locale?: string
   }
 ): Promise<AppRecord> {
   if (existsSync(paths.appRecord)) await stopOwnedApp(paths)
+  assertNoLaunchFailure(paths)
   if (findCdpPid(options.platform)) throw new Error(`CDP port ${CDP_PORT} is already owned by another process`)
+  // A foreign listener here would only surface later as a failing inspector check.
+  const inspectorOwner = findListeningPid(options.platform, MAIN_INSPECTOR_PORT)
+  if (inspectorOwner)
+    throw new Error(
+      `Inspector port ${MAIN_INSPECTOR_PORT} is already owned by process ${inspectorOwner}; ` +
+        'stop it or set CHERRY_INSPECTOR_PORT to a free port'
+    )
   const targetRoot = resolve(options.targetRoot)
-  const spec = getLaunchSpec(paths, options.mode, targetRoot, options.profile, options.runKey)
+  const spec = getLaunchSpec(paths, options.mode, targetRoot, options.profile, options.runKey, options.locale)
   const logFd = openSync(spec.logPath, 'a', 0o600)
   appendFileSync(spec.logPath, `\n[${new Date().toISOString()}] Launching ${spec.command} ${spec.args.join(' ')}\n`)
   const child = spawn(spec.command, spec.args, {
@@ -177,12 +267,17 @@ export async function launchApp(
     cdpPort: CDP_PORT,
     logPath: spec.logPath,
     startedAt: new Date().toISOString(),
-    restartCount: options.restartCount ?? 0
+    restartCount: options.restartCount ?? 0,
+    ...(options.locale ? { locale: options.locale } : {})
   }
   try {
     writeJson(paths.appRecord, launchRecord)
-    const record: AppRecord = { ...launchRecord, ...(await waitForCdp(child.pid, options.platform)) }
+    const record: AppRecord = {
+      ...launchRecord,
+      ...(await waitForCdp(child.pid, options.platform, launchRecord.cdpPort, spec.logPath, options.readyTimeoutMs))
+    }
     writeJson(paths.appRecord, record)
+    rmSync(paths.appLaunchFailure, { force: true })
     return record
   } catch (error) {
     try {
@@ -197,7 +292,7 @@ export async function launchApp(
   }
 }
 
-function readOwnedRecord(paths: RunPaths): LaunchRecord {
+export function readOwnedRecord(paths: RunPaths): LaunchRecord {
   const record = readJson<LaunchRecord>(paths.appRecord)
   if (record.schemaVersion !== 1 || record.ownership !== 'regression-driver' || record.policy !== 'ephemeral') {
     throw new Error('Refusing to control an unowned application record')
@@ -220,6 +315,13 @@ export async function stopOwnedApp(paths: RunPaths): Promise<void> {
 
 async function stopOwnedRecord(record: LaunchRecord): Promise<void> {
   if (record.platform === 'macos') {
+    if (record.mode === 'tag' && record.electronPid && isAlive(record.electronPid)) {
+      assertOwnedProcess(record, record.electronPid, 'electron')
+      // A relocation renderer exiting before its main process can schedule another relaunch.
+      terminateExactProcess(record.electronPid, record.platform)
+      await waitForExit(record.electronPid)
+      await waitForMacProcessGroupExit(record.runnerPid)
+    }
     terminateOwnedMacProcessGroup(record)
     if (!(await waitForMacProcessGroupExit(record.runnerPid))) {
       terminateOwnedMacProcessGroup(record, 'SIGKILL')
@@ -229,6 +331,11 @@ async function stopOwnedRecord(record: LaunchRecord): Promise<void> {
     }
     if (!(await waitForPortRelease(record.platform, record.cdpPort))) {
       throw new Error(`CDP port ${record.cdpPort} was not released after stopping the owned application`)
+    }
+    if (!(await waitForPortRelease(record.platform, MAIN_INSPECTOR_PORT))) {
+      throw new Error(
+        `Main-process inspector port ${MAIN_INSPECTOR_PORT} was not released after stopping the owned application`
+      )
     }
     return
   }
@@ -270,10 +377,75 @@ async function stopOwnedRecord(record: LaunchRecord): Promise<void> {
   if (!(await waitForPortRelease(record.platform, record.cdpPort))) {
     throw new Error(`CDP port ${record.cdpPort} was not released after stopping the owned application`)
   }
+  if (!(await waitForPortRelease(record.platform, MAIN_INSPECTOR_PORT))) {
+    throw new Error(
+      `Main-process inspector port ${MAIN_INSPECTOR_PORT} was not released after stopping the owned application`
+    )
+  }
+}
+
+function isExpectedWindowUrl(url: string): boolean {
+  try {
+    const { pathname } = new URL(url)
+    return pathname.endsWith('/windows/main/index.html') || pathname.includes('/windows/userDataRelocation/')
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Adopt the instance a packaged restore relaunched on its own. The replacement is not a
+ * descendant of the recorded runner, so cleanup has to be pointed at it explicitly.
+ * Electron exposes CDP before the renderer is ready, so a process is adopted only once an
+ * expected window is up; a further relaunch during bootstrap therefore still counts as a
+ * new replacement instead of being adopted prematurely.
+ */
+export async function adoptRelaunchedApp(paths: RunPaths, timeout = 120_000): Promise<AppRecord> {
+  const record = readAppRecord(paths)
+  if (record.mode !== 'tag') throw new Error('Only a packaged launch relaunches itself')
+  const deadline = Date.now() + timeout
+  let lastError = 'no replacement process took over the CDP port'
+  while (Date.now() < deadline) {
+    try {
+      const targets = await readCdpTargets()
+      const electronPid = findCdpPid(record.platform)
+      if (electronPid && electronPid !== record.electronPid && isAlive(electronPid)) {
+        const readyWindow = targets.some((target) => target.type === 'page' && isExpectedWindowUrl(target.url))
+        if (readyWindow && findCdpPid(record.platform) === electronPid) {
+          const runnerPid = findProcessGroupId(electronPid, record.platform) ?? electronPid
+          const adopted: AppRecord = {
+            ...record,
+            runnerPid,
+            electronPid,
+            startedAt: new Date().toISOString(),
+            restartCount: record.restartCount + 1
+          }
+          assertOwnedProcess(adopted, electronPid, 'electron')
+          writeJson(paths.appRecord, adopted)
+          return readAppRecord(paths)
+        }
+        lastError = readyWindow
+          ? 'the replacement process changed before its window was ready'
+          : 'the replacement process has no window yet'
+      }
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error)
+    }
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 500))
+  }
+  throw new Error(`The relaunched application did not take over the CDP port (${lastError})`)
 }
 
 export async function restartApp(paths: RunPaths, profile?: TestProfile): Promise<AppRecord> {
-  const current = readAppRecord(paths)
+  const current = readOwnedRecord(paths)
+  if (current.platform === 'windows' && current.electronPid && isAlive(current.electronPid)) {
+    const { requestOwnedAppQuit } = await import('./debugBridge')
+    const app = readAppRecord(paths)
+    await requestOwnedAppQuit(app)
+    if (!(await waitForExit(app.electronPid, 30_000))) {
+      throw new Error('Owned Cherry Studio did not exit after a normal shutdown request')
+    }
+  }
   await stopOwnedApp(paths)
   return launchApp(paths, {
     mode: current.mode,
@@ -281,12 +453,15 @@ export async function restartApp(paths: RunPaths, profile?: TestProfile): Promis
     profile: profile ?? current.profile,
     targetRoot: current.targetRoot,
     runKey: current.runKey,
-    restartCount: current.restartCount + 1
+    restartCount: current.restartCount + 1,
+    locale: current.locale
   })
 }
 
 export async function ensureProfile(paths: RunPaths, profile: TestProfile): Promise<AppRecord> {
-  const current = readAppRecord(paths)
-  if (current.profile === profile && isAlive(current.electronPid)) return current
+  const current = readOwnedRecord(paths)
+  if (current.profile === profile && current.electronPid && current.targetUrl && isAlive(current.electronPid)) {
+    return { ...current, electronPid: current.electronPid, targetUrl: current.targetUrl }
+  }
   return restartApp(paths, profile)
 }

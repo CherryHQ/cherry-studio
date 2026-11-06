@@ -1,20 +1,25 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import enUS from '@renderer/i18n/locales/en-us.json'
-import zhCN from '@renderer/i18n/locales/zh-cn.json'
-import type { ScheduledTaskEntity, ScheduledTaskListItem } from '@shared/data/types/agent'
-
-import TasksSettings, {
+import {
   formStateToTrigger,
   type ScheduleFormState,
-  TaskTimeSelect,
   triggerToFormState
-} from '../TasksSettings'
+} from '@renderer/components/ScheduledTask/scheduleForm'
+import { TaskFormDialog, TaskTimeSelect } from '@renderer/components/ScheduledTask/TaskFormDialog'
+import enUS from '@renderer/i18n/locales/en-us.json'
+import zhCN from '@renderer/i18n/locales/zh-cn.json'
+import { toast } from '@renderer/services/toast'
+import type { ScheduledTaskEntity, ScheduledTaskListItem } from '@shared/data/types/agent'
+
+import TasksSettings from '../TasksSettings'
 
 type TranslationFunction = (key: string, values?: Record<string, unknown>) => string
+
+const savedNotificationMock = vi.hoisted(() => ({ taskId: 'task-1' }))
 
 const taskLogsMock = vi.hoisted(() => {
   const defaultTaskLog = {
@@ -107,6 +112,10 @@ const navigationMocks = vi.hoisted(() => ({
   taskId: 'task-1' as string | undefined
 }))
 
+const ipcMocks = vi.hoisted(() => ({
+  request: vi.fn()
+}))
+
 const channelDataMock = vi.hoisted(() => ({
   channels: [] as Array<Record<string, unknown>>,
   isLoading: false
@@ -126,9 +135,20 @@ vi.mock('@renderer/hooks/agent/useChannels', () => ({
 vi.mock('@renderer/data/hooks/useDataApi', async () => ({
   useDataChange: (await import('@renderer/data/hooks/useDataChange')).useDataChange,
   useQuery: (path: string) =>
-    path === '/agents'
-      ? { data: { items: agentDataMock.agents }, error: undefined, isLoading: false }
-      : { data: [], refetch: vi.fn() }
+    path === '/notifications/:id'
+      ? {
+          data: {
+            id: 'result-1',
+            target: {
+              kind: 'scheduled-task',
+              taskId: savedNotificationMock.taskId,
+              result: { errorSummary: 'Saved safe failure' }
+            }
+          }
+        }
+      : path === '/agents'
+        ? { data: { items: agentDataMock.agents }, error: undefined, isLoading: false }
+        : { data: [], refetch: vi.fn() }
 }))
 
 vi.mock('@renderer/components/PromptEditorField', () => ({
@@ -248,6 +268,10 @@ vi.mock('@renderer/hooks/useTheme', () => ({
 
 vi.mock('@renderer/services/mainWindowNavigation', () => ({
   openRoute: navigationMocks.openRoute
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: ipcMocks.request }
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -608,7 +632,7 @@ vi.mock('@cherrystudio/ui', () => {
       ...props
     }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { children?: React.ReactNode }) => <a {...props}>{children}</a>,
     RowFlex: passthrough('div'),
-    Scrollbar: passthrough('div', 'scrollbar'),
+    ScrollArea: MockCherrystudioUI.ScrollArea,
     SearchInput: ({
       'aria-label': ariaLabel,
       clearLabel,
@@ -925,6 +949,17 @@ describe('TasksSettings routing and creation', () => {
     taskMutationMocks.updateTask.mockResolvedValue(taskDataMock.task)
   })
 
+  it.each(['task-1', 'another-task'])(
+    'only displays the saved error for the matching scheduled target (%s)',
+    (taskId) => {
+      savedNotificationMock.taskId = taskId
+      taskLogsMock.logs = []
+      render(<TasksSettings notificationId="result-1" />)
+      if (taskId === 'task-1') expect(screen.getByText('Saved safe failure')).toBeInTheDocument()
+      else expect(screen.queryByText('Saved safe failure')).not.toBeInTheDocument()
+    }
+  )
+
   it('renders only the full-width task list on the base route', async () => {
     navigationMocks.taskId = undefined
 
@@ -1148,8 +1183,37 @@ describe('TasksSettings routing and creation', () => {
     expect(screen.getByRole('menuitem', { name: 'settings.scheduledTasks.manualCreate' })).toBeDisabled()
     const agentCreate = screen.getByRole('menuitem', { name: 'settings.scheduledTasks.agentCreate' })
     expect(agentCreate).toBeEnabled()
-    fireEvent.click(agentCreate)
-    expect(navigationMocks.openRoute).toHaveBeenCalledWith('/app/agents')
+  })
+
+  it('opens a prepared Cherry Assistant chat with the scheduled task intent', async () => {
+    navigationMocks.taskId = undefined
+    ipcMocks.request.mockResolvedValue({ sessionId: 'session-task-chat' })
+
+    render(<TasksSettings />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.scheduledTasks.newTask' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'settings.scheduledTasks.agentCreate' }))
+
+    await waitFor(() =>
+      expect(navigationMocks.openRoute).toHaveBeenCalledWith('/app/agents', {
+        intent: 'task',
+        sessionId: 'session-task-chat'
+      })
+    )
+    expect(ipcMocks.request).toHaveBeenCalledWith('ai.agent.assistant_session.create', {})
+  })
+
+  it('stays on the page and reports the failure when the chat session cannot be created', async () => {
+    navigationMocks.taskId = undefined
+    ipcMocks.request.mockRejectedValue(new Error('restore failed'))
+
+    render(<TasksSettings />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.scheduledTasks.newTask' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'settings.scheduledTasks.agentCreate' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('settings.scheduledTasks.agentCreateFailed'))
+    expect(navigationMocks.openRoute).not.toHaveBeenCalled()
   })
 
   it('uses the header as the only creation entry when the empty state has an Agent', async () => {
@@ -1880,6 +1944,31 @@ describe('TasksSettings detail behavior', () => {
         trigger: { kind: 'interval', ms: 900_000, anchor: 'createdAt' }
       })
     )
+  })
+
+  // The chat card mounts the editor already open on its first Edit click.
+  it('keeps saved channel recipients when the editor mounts already open', async () => {
+    channelDataMock.channels = [
+      { id: 'channel-agent-1', agentId: 'agent-1', name: 'Agent One Telegram', isActive: true, activeChatIds: ['c-1'] }
+    ]
+    const onUpdate = vi.fn().mockResolvedValue(true)
+
+    render(
+      <TaskFormDialog
+        open
+        task={{ ...taskDataMock.defaultTask, channelIds: ['channel-agent-1'] }}
+        agents={[{ id: 'agent-1', name: 'Agent One' }]}
+        onOpenChange={vi.fn()}
+        onUpdate={onUpdate}
+      />
+    )
+    const dialog = screen.getByRole('dialog')
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'agent.tasks.name.label' }), {
+      target: { value: 'Renamed task' }
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'agent.tasks.save' }))
+
+    await waitFor(() => expect(onUpdate).toHaveBeenCalledWith({ name: 'Renamed task' }))
   })
 
   it('keeps the owning Agent fixed while editing an existing task', async () => {

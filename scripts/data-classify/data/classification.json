@@ -805,6 +805,13 @@
               "name": "selection.action.builtin.copy"
             },
             {
+              "enabled": true,
+              "icon": "bot",
+              "id": "ask-agent",
+              "isBuiltIn": true,
+              "name": "selection.action.builtin.ask_agent"
+            },
+            {
               "enabled": false,
               "icon": "wand-sparkles",
               "id": "refine",

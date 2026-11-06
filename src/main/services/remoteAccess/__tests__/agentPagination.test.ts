@@ -40,13 +40,21 @@ describe('agent page byte budget', () => {
 
   it('refuses an indivisible item, including one encountered after a fitting prefix', () => {
     const huge = 'a'.repeat(PAGE_ITEM_BYTES)
-    expect(() => pageOf([huge], undefined, 1)).toThrowError(
-      expect.objectContaining({ data: expect.objectContaining({ reason: 'RESOURCE_EXHAUSTED' }) })
-    )
+    const failure = expect.objectContaining({
+      data: expect.objectContaining({
+        reason: 'RESOURCE_EXHAUSTED',
+        details: {
+          kind: 'ITEM_TOO_LARGE',
+          itemBytes: PAGE_ITEM_BYTES + 2,
+          budgetBytes: PAGE_ITEM_BYTES,
+          retryable: false
+        }
+      })
+    })
+    expect(() => pageOf([huge], undefined, 1)).toThrowError(failure)
     expect(pageOf(['small', huge], undefined, 100)).toEqual({ items: ['small'], nextCursor: '1' })
-    expect(() => pageOf(['small', huge], '1', 100)).toThrowError(
-      expect.objectContaining({ data: expect.objectContaining({ reason: 'RESOURCE_EXHAUSTED' }) })
-    )
+    expect(() => pageOf(['small', huge], '1', 100)).toThrowError(failure)
+    expect(() => queryPage(() => ({ items: [huge], nextCursor: null }), 100)).toThrowError(failure)
   })
 
   it.each(['invalid', '-1', '1.5', '9007199254740992'])('retains NOT_FOUND for cursor %s', (cursor) => {
@@ -75,15 +83,12 @@ describe('agent page byte budget', () => {
     expect(reads).toBe(1)
   })
 
-  it('halves the query limit and returns the successful query items and cursor', () => {
-    const attempts: number[] = []
+  it('shrinks an overflowing query and preserves its service cursor', () => {
     const items = ['a'.repeat(30_000), 'b'.repeat(30_000), 'c'.repeat(30_000)]
     const result = queryPage((limit) => {
-      attempts.push(limit)
       return { items: items.slice(0, limit), nextCursor: `after-${limit}` }
     }, 5)
     expect(result).toEqual({ items: items.slice(0, 2), nextCursor: 'after-2' })
-    expect(attempts).toEqual([5, 2])
   })
 
   it('passes through an empty pin transition and refuses a limit-one oversized query', () => {
@@ -110,6 +115,41 @@ describe('agent page byte budget', () => {
     const response = { jsonrpc: '2.0', id: '\u0000'.repeat(256), result }
     expect(Buffer.byteLength(JSON.stringify(response))).toBe(remoteLimits.recordBytes)
     expect(pageOf(items, undefined, 100).items.length).toBeLessThan(100)
+  })
+
+  it('fits escaped identity and model limits with large usage and failure summaries', () => {
+    const text = '\u0000'
+    const message = {
+      messageId: text.repeat(256),
+      revision: '9'.repeat(40),
+      role: 'assistant',
+      status: 'error',
+      partsMode: 'paged',
+      model: { modelId: text.repeat(2048), providerId: text.repeat(256), name: text.repeat(2048) },
+      usage: {
+        costs: Array.from({ length: 32 }, () => ({
+          currency: 'USD',
+          amount: Number.MAX_VALUE,
+          providerReportedRequestCount: Number.MAX_SAFE_INTEGER,
+          computedRequestCount: Number.MAX_SAFE_INTEGER
+        }))
+      },
+      failure: {
+        message: 'f'.repeat(1024),
+        retryable: false,
+        failure: {
+          version: 1,
+          reasonCode: 'unknown',
+          source: { layer: 'host' },
+          context: { responseBody: 'f'.repeat(2800) }
+        }
+      }
+    }
+    const result = agentMethods['agent.messages.list'].result.parse({ items: [message], nextCursor: text.repeat(256) })
+    expect(pageOf(result.items, undefined, 1).items).toEqual([message])
+    expect(Buffer.byteLength(JSON.stringify({ jsonrpc: '2.0', id: text.repeat(256), result }))).toBeLessThanOrEqual(
+      remoteLimits.recordBytes
+    )
   })
 
   it('measures schema-valid oversized inline content and retained extension fields', () => {

@@ -125,6 +125,8 @@ function findAskUserQuestionPartByCallId(
 
 export interface AgentChatRuntimeState {
   sessionId: string
+  getMessageSiblings: ReturnType<typeof useAgentSessionParts>['getMessageSiblings']
+  setActiveBranch: ReturnType<typeof useAgentSessionParts>['setActiveBranch']
   uiMessages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers: MessageStreamingLayers
@@ -167,9 +169,8 @@ export function useAgentChatRuntimeState({
   const { t } = useTranslation()
   const errorToastsRef = useRef<ReturnType<typeof useConversationErrorToasts> | null>(null)
   const liveSlashCommands = useAgentSessionSlashCommands(sessionId)
-  const canCompact = (liveSlashCommands ?? (agentType ? AGENT_RUNTIME_CAPABILITIES[agentType].slashCommands : [])).some(
-    (command) => command.command === '/compact'
-  )
+  const slashCommands = liveSlashCommands ?? (agentType ? AGENT_RUNTIME_CAPABILITIES[agentType]?.slashCommands : [])
+  const canCompact = slashCommands?.some((command) => command.command === '/compact') ?? false
   const [editDraft, setEditDraft] = useState<AgentSessionEditDraft & { sessionId: string }>()
   const editing = editDraft?.sessionId === sessionId ? editDraft : undefined
   const [editPending, setEditPending] = useState(false)
@@ -203,6 +204,8 @@ export function useAgentChatRuntimeState({
   const sessionTopicId = useMemo(() => (sessionId ? buildAgentSessionTopicId(sessionId) : ''), [sessionId])
   const {
     messages: uiMessages,
+    getMessageSiblings,
+    setActiveBranch,
     persistedPartsByMessageId,
     isLoading,
     hasOlder,
@@ -308,7 +311,16 @@ export function useAgentChatRuntimeState({
     overlay,
     liveAssistants,
     reset: resetOverlay
-  } = useExecutionOverlay(sessionTopicId, activeExecutions, uiMessages, {
+  } = useExecutionOverlay(sessionTopicId, activeExecutions, {
+    onUpdate: (_executionId, event) => {
+      const projected = latestUiMessagesRef.current.find((message) => message.id === event.message.id)
+      const turnOrigin =
+        cacheService.getShared(AGENT_SESSION_TURN_ORIGIN_CACHE_KEY(sessionId, event.message.id)) ??
+        projected?.metadata?.turnOrigin ??
+        event.message.metadata?.turnOrigin
+      autoReadService.update({ ...event, enabled: autoReadEnabled, scope: sessionTopicId, eligible: !turnOrigin })
+    },
+    onLeave: () => autoReadService.cancelScope(sessionTopicId),
     onFinish: (executionId, event) => {
       errorToastsRef.current?.onFinish(executionId, event)
       handleExecutionFinish(executionId, event)
@@ -325,7 +337,7 @@ export function useAgentChatRuntimeState({
   >({})
 
   // Deterministic overlay→DB handoff at terminal (see hook docs).
-  useTopicOverlayHandoffOnTerminal(sessionTopicId, createOverlayRefreshHandoff(refresh, resetOverlay))
+  useTopicOverlayHandoffOnTerminal(sessionTopicId, createOverlayRefreshHandoff(refresh, resetOverlay), liveAssistants)
 
   // Ref-guarded against <Activity> re-show: hide/show re-runs this effect with
   // an unchanged sessionTopicId, and the fresh {} literal would defeat React's
@@ -364,7 +376,12 @@ export function useAgentChatRuntimeState({
   }, [])
 
   const displayMessages = useMemo(
-    () => optimisticMessages ?? mergeMessagesById(uiMessages, liveAssistants),
+    () =>
+      optimisticMessages ??
+      mergeMessagesById(
+        uiMessages,
+        liveAssistants.filter((live) => uiMessages.some((message) => message.id === live.id))
+      ),
     [liveAssistants, optimisticMessages, uiMessages]
   )
 
@@ -485,6 +502,8 @@ export function useAgentChatRuntimeState({
   return {
     sessionId,
     uiMessages: displayMessages,
+    getMessageSiblings,
+    setActiveBranch,
     partsByMessageId,
     streamingLayers,
     optimisticAskUserQuestionInputsByToolCallId,

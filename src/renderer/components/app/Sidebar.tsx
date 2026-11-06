@@ -8,21 +8,31 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useId,
   useMemo,
   useOptimistic,
+  useRef,
   useState
 } from 'react'
 import { useTranslation } from 'react-i18next'
+import useSWR from 'swr'
 
 import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
+import { useCommandRuntime } from '@renderer/hooks/command'
 import useAvatar from '@renderer/hooks/useAvatar'
+import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { getAppEdition } from '@renderer/utils/appEdition'
+import { isMac } from '@renderer/utils/platform'
+import type { CommandId } from '@shared/utils/command'
 
 import { HelpMenu } from '../layout/HelpMenu'
-import { AppUpdateButton, SidebarSettingsButton } from '../layout/ShellTabBarActions'
+import { AppUpdateButton } from '../layout/ShellTabBarActions'
+import { useNotificationCenter } from '../NotificationCenter'
 import {
   getSidebarDisplayWidth,
   getSidebarLayout,
@@ -30,7 +40,6 @@ import {
   type ResolvedSidebarEntry,
   type SidebarIconPresentation,
   type SidebarUser,
-  type SidebarVisibleLayout,
   Sidebar as UISidebar
 } from '../Sidebar'
 import { UserAccountPanel } from '../UserAccountPanel'
@@ -40,6 +49,18 @@ import {
   useSidebarShortcutActivation,
   useSidebarShortcutRegistry
 } from './sidebarShortcuts'
+
+const SIDEBAR_OPEN_COMMANDS: readonly CommandId[] = [
+  'app.sidebar.open_1',
+  'app.sidebar.open_2',
+  'app.sidebar.open_3',
+  'app.sidebar.open_4',
+  'app.sidebar.open_5',
+  'app.sidebar.open_6',
+  'app.sidebar.open_7',
+  'app.sidebar.open_8',
+  'app.sidebar.open_9'
+]
 
 const FeedbackDialog = lazy(() => import('../feedback/FeedbackDialog'))
 
@@ -55,9 +76,25 @@ function applyEntryOrder(entries: ResolvedSidebarEntry[], orderedKeys: readonly 
   ]
 }
 
-export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
+export default function Sidebar({
+  ref,
+  isFullscreen = false
+}: {
+  ref?: Ref<HTMLDivElement | null>
+  isFullscreen?: boolean
+}) {
   const { t } = useTranslation()
+  const notificationCenter = useNotificationCenter()
+  const unreadDescriptionId = useId()
+  const showUserInFooter = isMac && !isFullscreen
   const [userName] = usePreference('app.user.name')
+  const { status: accountStatus } = useCherryAccountSession()
+  const accountId = accountStatus?.phase === 'signed-in' ? accountStatus.accountId : null
+  useSWR(
+    getAppEdition() === 'global' && accountId ? ['cherry-cloud/account-plans', accountId] : null,
+    () => ipcApi.request('cherry_cloud.account_plans.get'),
+    { shouldRetryOnError: false }
+  )
   const { shortcuts, remove, reorder } = useSidebarShortcuts()
   const registry = useSidebarShortcutRegistry()
   const resolutions = useResolvedSidebarShortcuts(shortcuts, registry)
@@ -69,13 +106,19 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const [feedbackDialogMounted, setFeedbackDialogMounted] = useState(false)
   const [feedbackOpen, setFeedbackOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const userMenuOpenedByPointerRef = useRef(false)
+  const openingNotificationsRef = useRef(false)
   const [hoverVisible, setHoverVisible] = useState(false)
   const activeSidebarWidth = previewSidebarWidth ?? sidebarWidth
   const layout = getSidebarLayout(activeSidebarWidth)
 
   useLayoutEffect(() => {
     document.documentElement.style.setProperty('--sidebar-width', `${getSidebarDisplayWidth(activeSidebarWidth)}px`)
-  }, [activeSidebarWidth])
+    document.documentElement.style.setProperty(
+      '--notification-left',
+      layout === 'hidden' ? '0px' : `${getSidebarDisplayWidth(activeSidebarWidth)}px`
+    )
+  }, [activeSidebarWidth, layout])
 
   useEffect(() => {
     if (previewSidebarWidth !== null) return
@@ -84,7 +127,10 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   }, [previewSidebarWidth, setSidebarWidth, sidebarWidth])
 
   useEffect(() => {
-    if (layout === 'hidden') setUserMenuOpen(false)
+    if (layout === 'hidden') {
+      setUserMenuOpen(false)
+      setHoverVisible(false)
+    }
   }, [layout])
 
   const avatar = useAvatar()
@@ -99,28 +145,67 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     () => handleUserMenuOpenChange(!userMenuOpen),
     [handleUserMenuOpenChange, userMenuOpen]
   )
+  useEffect(() => {
+    if (!userMenuOpen) return
+    const handleWindowBlur = () => handleUserMenuOpenChange(false)
+    window.addEventListener('blur', handleWindowBlur)
+    return () => window.removeEventListener('blur', handleWindowBlur)
+  }, [handleUserMenuOpenChange, userMenuOpen])
+
   const sidebarUser = useMemo<SidebarUser>(
     () => ({
       name: userName || t('chat.user', { defaultValue: t('export.user', { defaultValue: 'User' }) }),
       avatar: avatar || undefined,
+      indicator: notificationCenter?.hasUnread ? (
+        <span className="pointer-events-none absolute right-0.5 top-0.5 size-1.5 rounded-full bg-destructive">
+          <span id={unreadDescriptionId} className="sr-only" aria-hidden="true">
+            {t('notification.center.unread')}
+          </span>
+        </span>
+      ) : undefined,
       onClick: handleUserMenuToggle
     }),
-    [avatar, handleUserMenuToggle, t, userName]
+    [avatar, handleUserMenuToggle, notificationCenter?.hasUnread, unreadDescriptionId, t, userName]
   )
   const renderSidebarUserTrigger = useCallback(
-    (trigger: ReactElement) => <PopoverTrigger asChild>{trigger}</PopoverTrigger>,
-    []
+    (trigger: ReactElement) => (
+      <PopoverTrigger
+        asChild
+        className="relative"
+        data-notification-anchor="left"
+        aria-describedby={notificationCenter?.hasUnread ? unreadDescriptionId : undefined}
+        onPointerDown={() => (userMenuOpenedByPointerRef.current = true)}
+        onKeyDown={() => (userMenuOpenedByPointerRef.current = false)}>
+        {trigger}
+      </PopoverTrigger>
+    ),
+    [notificationCenter?.hasUnread, unreadDescriptionId]
   )
   const renderUserMenu = () =>
     userMenuOpen ? (
       <PopoverContent
         aria-label={t('sidebar.account_menu')}
         align="start"
-        side="top"
+        side={showUserInFooter ? 'top' : 'bottom'}
         sideOffset={8}
         className="w-56 rounded-md p-0"
+        onOpenAutoFocus={(event) => {
+          if (userMenuOpenedByPointerRef.current) event.preventDefault()
+        }}
+        onCloseAutoFocus={(event) => {
+          if (openingNotificationsRef.current) {
+            event.preventDefault()
+            openingNotificationsRef.current = false
+          }
+        }}
         onClick={(event) => event.stopPropagation()}>
-        <UserAccountPanel active={userMenuOpen} onRequestClose={() => handleUserMenuOpenChange(false)} />
+        <UserAccountPanel
+          onRequestClose={() => handleUserMenuOpenChange(false)}
+          onNotificationsOpen={() => {
+            openingNotificationsRef.current = true
+          }}>
+          <HelpMenu onFeedbackClick={handleOpenFeedback} onRequestClose={() => handleUserMenuOpenChange(false)} />
+        </UserAccountPanel>
       </PopoverContent>
     ) : null
 
@@ -194,6 +279,17 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   )
   const [entries, setOptimisticEntryOrder] = useOptimistic(resolvedEntries, applyEntryOrder)
 
+  const commandRuntime = useCommandRuntime()
+  useEffect(() => {
+    const disposers = SIDEBAR_OPEN_COMMANDS.map((command, index) =>
+      commandRuntime.registerHandler(command, () => {
+        const entry = entries[index]
+        if (entry && !entry.disabled) entry.onOpen()
+      })
+    )
+    return () => disposers.forEach((dispose) => dispose())
+  }, [commandRuntime, entries])
+
   const handleReorder = useCallback(
     ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
       if (oldIndex === newIndex) return
@@ -217,19 +313,11 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   }, [])
 
   const sidebarProps = {
+    isFullscreen,
     entries,
+    emptyHint: t('sidebar.empty_hint', { launchpad: t('title.launchpad') }),
     user: sidebarUser,
-    actions: (footerLayout: SidebarVisibleLayout, onOverlayOpenChange?: (open: boolean) => void) => (
-      <>
-        <HelpMenu
-          layout={footerLayout}
-          onFeedbackClick={handleOpenFeedback}
-          onOverlayOpenChange={onOverlayOpenChange}
-        />
-        <SidebarSettingsButton layout={footerLayout} />
-      </>
-    ),
-    userAction: layout === 'full' ? <AppUpdateButton placement="top" /> : null,
+    userAction: layout === 'full' ? <AppUpdateButton placement="top" /> : undefined,
     renderUserTrigger: renderSidebarUserTrigger,
     onEntriesReorder: handleReorder
   }

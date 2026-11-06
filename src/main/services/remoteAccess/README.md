@@ -32,6 +32,13 @@ listener flushes pending text while the session still exists.
 | `agentJournal.ts` | Shared per-session journal: stream listener → protocol events, checkpoints, epoch |
 | `agentSubscriptions.ts` | Connection-private subscriptions: prepare, activate, ack credit, reset |
 
+Historical message lists support the advertised `partsMode: 'paged'` extension:
+metadata-only summaries avoid an oversized `partIds` array while existing
+`agent.parts.list` pages retain complete content. The default list mode, live
+events and checkpoints keep full message snapshots. Single-item budget failures
+include terminal size details; consuming those details is a client responsibility.
+See [the protocol contract](../../../../packages/remote-protocol/README.md#paged-message-summaries).
+
 Deviations from the design doc, kept deliberately small:
 
 - Session creation commits its receipt and session in one transaction. Sends first record
@@ -39,7 +46,8 @@ Deviations from the design doc, kept deliberately small:
   reserved messages before runtime activation. A receipt still `accepted` at startup
   becomes `interrupted`, retaining those identities. No external action is automatically replayed.
 - Locally started executions are discovered by a one-second poll of `hasLiveStream`, then
-  attached through `addListener` replay. Remote sends pass the listener at run start.
+  attached through `addListener` replay. Remote sends pass the listener at run start. The poll
+  runs only while LAN ingress is up, or until connections, journals and presented selections drain after it closes.
 - Approval cards persisted after a turn ended are listed and answerable, but not streamed as
   `interaction.updated`; only stream-presented approvals enter the live projection.
 - Legacy files retain metadata-only `data` parts. Remote uploads expose revision-bound file content references.
@@ -143,7 +151,7 @@ Large-file verification: set `REMOTE_UPLOAD_TEST_BYTES=1073741824` when running 
 `RemoteUploads.test.ts` streaming test to exercise 1 GiB and a receiver restart midway.
 This filesystem/RPC validation does not replace device, VPN throughput or OS-background tests.
 
-[Upload Integrity](../../../../docs/references/file/upload-integrity.md) describes the optional
+[Upload Integrity](../../../../docs/dev/references/file/upload-integrity.md) describes the optional
 `agentUploadChecksum: sha256` capability. Prepare fixes checksum mode; complete binds the phone's
 expected SHA-256. Intake checkpoints retain verification failures and rehash bytes on restart.
 Legacy absent-mode clients keep their existing behavior. Shared release and native-device

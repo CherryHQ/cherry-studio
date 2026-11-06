@@ -1,5 +1,31 @@
 # @cherrystudio/ai-core
 
+## 2.4.5
+
+### Patch Changes
+
+- [#23471](https://github.com/CherryHQ/cherry-studio/pull/23471) [`e19a772`](https://github.com/CherryHQ/cherry-studio/commit/e19a772a0620902507fd844f163b122c93512a48) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Discover OpenRouter reranking models and rerank through the OpenRouter provider: the model list now reads the rerank catalog (`?output_modalities=rerank`) and marks those models as rerank-capable, and the OpenRouter extension now provides a reranking model so the connection check reaches `POST /api/v1/rerank` instead of failing with `No such rerankingModel`.
+
+## 2.4.4
+
+### Patch Changes
+
+- Updated dependencies [[`1ad6b7f`](https://github.com/CherryHQ/cherry-studio/commit/1ad6b7f56a8735111641a05005f234b44d8bfcae)]:
+  - @cherrystudio/ai-sdk-provider@0.1.10
+
+## 2.4.3
+
+### Patch Changes
+
+- [#23014](https://github.com/CherryHQ/cherry-studio/pull/23014) [`da43afa`](https://github.com/CherryHQ/cherry-studio/commit/da43afa57cd2456838c3692bbccc85b69ab85812) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Fix the Azure OpenAI chat-mode extension crashing on native web search: the `customProvider` wrapper returned by `AzureExtension.create` now carries the SDK provider's `tools`, so `toolFactories.webSearch` no longer dereferences `provider.tools.webSearchPreview` on `undefined`.
+
+## 2.4.2
+
+### Patch Changes
+
+- Updated dependencies [[`9fb431d`](https://github.com/CherryHQ/cherry-studio/commit/9fb431de1807b6182b7b6bced728eb634444aa03)]:
+  - @cherrystudio/ai-sdk-provider@0.1.9
+
 ## 2.4.1
 
 ### Patch Changes

@@ -142,6 +142,7 @@ export async function canonicalGenerate<T extends PaintingData>(
     prompt,
     ...(options.mode && { mode: options.mode }),
     paramValues,
+    ...(painting.requestTimeoutMs && { requestTimeoutMs: painting.requestTimeoutMs }),
     ...(inputImages && { inputImages })
   })
 }

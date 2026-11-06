@@ -64,7 +64,6 @@ export const AgentPendingAttachments = memo(function AgentPendingAttachments({
                 key={item.attachmentId}
                 name={item.filename}
                 ext={dot > 0 ? item.filename.slice(dot) : ''}
-                size={item.byteLength}
                 transfer={{ state: state === 'ready' ? 'ready' : state === 'failed' ? 'error' : 'uploading', percent }}
               />
             )

@@ -10,6 +10,7 @@ import {
   isDictationShortcutModifier,
   parseDictationShortcut
 } from '@renderer/utils/dictationShortcut'
+import { getDictationTarget } from '@renderer/utils/dictationTarget'
 import { isMac, isWin } from '@renderer/utils/platform'
 import type { SupportedPlatform } from '@shared/types/command'
 
@@ -26,22 +27,22 @@ export function useDictationShortcuts(): void {
 
   useEffect(() => {
     if (dictationShortcutsConflict(hold, toggle)) return
-    const pressed = new Set<string>()
+    const pressed = new Map<string, string>()
     const consumed = new Set<string>()
     const clearNonModifiers = () => {
-      for (const code of pressed) if (!isDictationShortcutModifier(code)) pressed.delete(code)
+      for (const code of pressed.keys()) if (!isDictationShortcutModifier(code)) pressed.delete(code)
     }
     const holdCodes = parseDictationShortcut(hold)
     const toggleCodes = parseDictationShortcut(toggle)
     // Lightweight windows do not mount a renderer command dispatcher.
     const available = (shortcut: string) =>
-      !commandState.current.preferences || !hasDictationCommandConflict(shortcut, commandState.current)
+      !commandState.current.preferences || !hasDictationCommandConflict(shortcut, commandState.current, pressed)
     const matches = (shortcut: string) => dictationShortcutMatches(shortcut, pressed) && available(shortcut)
     const isCompletingToggle = () =>
       available(toggle) &&
       pressed.size < toggleCodes.length &&
       holdCodes.every((code) => pressed.has(code)) &&
-      [...pressed].every((code) => toggleCodes.includes(code))
+      [...pressed.keys()].every((code) => toggleCodes.includes(code))
     let timer: ReturnType<typeof setTimeout> | undefined
     let owned:
       | { run: ReturnType<typeof dictationService.startScoped>; mode: 'hold' | 'toggle'; ready: boolean }
@@ -62,18 +63,9 @@ export function useDictationShortcuts(): void {
       void previous?.run.stop().catch(() => undefined)
     }
     const activateFocusedTarget = () => {
-      const element = document.activeElement
-      const surface = element?.closest('[data-voice-target-id]')
-      const targetId = surface?.getAttribute('data-voice-target-id')
-      if (!(element instanceof HTMLElement) || !surface || !targetId) return false
-      return (
-        ((element.isContentEditable &&
-          (surface === element || surface.querySelector('[contenteditable="true"]') === element)) ||
-          (surface === element &&
-            element.matches('textarea:not(:disabled):not([readonly]), input:not(:disabled):not([readonly])'))) &&
-        voiceTargetManager.markCurrent(targetId) &&
-        voiceTargetManager.captureCurrent()?.owner === window
-      )
+      const target = getDictationTarget(document.activeElement)
+      if (!target || target.input !== document.activeElement) return false
+      return voiceTargetManager.markCurrent(target.targetId) && voiceTargetManager.captureCurrent()?.owner === window
     }
     const start = (mode: 'hold' | 'toggle') => {
       const snapshot = dictationService.getSnapshot()
@@ -99,7 +91,7 @@ export function useDictationShortcuts(): void {
     const consume = (event: KeyboardEvent) => {
       event.preventDefault()
       event.stopPropagation()
-      if (event.type === 'keydown' && !event.repeat) for (const code of pressed) consumed.add(code)
+      if (event.type === 'keydown' && !event.repeat) for (const code of pressed.keys()) consumed.add(code)
     }
     const keydown = (event: KeyboardEvent) => {
       // A fresh press ends ownership if its previous release happened outside this window.
@@ -110,7 +102,7 @@ export function useDictationShortcuts(): void {
         return
       }
       // Recover modifiers whose release never reached this window.
-      for (const code of pressed) {
+      for (const code of pressed.keys()) {
         if (!isDictationShortcutModifier(code)) continue
         const modifier = code.replace(/(Left|Right)$/, '')
         // AltGraph can replace the Control/Alt flags while both physical keys remain held.
@@ -118,7 +110,7 @@ export function useDictationShortcuts(): void {
         if (!event.getModifierState(modifier)) pressed.delete(code)
       }
       if (isMac && event.metaKey && !isDictationShortcutModifier(event.code)) clearNonModifiers()
-      pressed.add(event.code)
+      pressed.set(event.code, event.key)
       clearTimer()
       if (matches(toggle) && (owned || activateFocusedTarget())) {
         consume(event)

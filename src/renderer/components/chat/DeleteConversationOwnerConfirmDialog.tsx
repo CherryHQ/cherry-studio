@@ -2,6 +2,7 @@ import { useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Checkbox, ConfirmDialog, Label } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
@@ -23,15 +24,17 @@ export function DeleteConversationOwnerConfirmDialog({
 }: DeleteConversationOwnerConfirmDialogProps) {
   const { t } = useTranslation()
   const checkboxId = useId()
+  const [archiveRelatedTopics, setArchiveRelatedTopics] = usePreference('assistant.archive.related_topics')
   const [deleteChildren, setDeleteChildren] = useState(false)
   const preventNextCloseRef = useRef(false)
+  const shouldDeleteChildren = type === 'assistant' ? archiveRelatedTopics : deleteChildren
   const checkboxLabel = t(
     type === 'agent' ? 'conversation_owner.archive.related_sessions' : 'conversation_owner.archive.related_topics'
   )
 
   const handleConfirm = async () => {
     try {
-      await onConfirm(deleteChildren)
+      await onConfirm(shouldDeleteChildren)
     } catch {
       preventNextCloseRef.current = true
     }
@@ -66,9 +69,18 @@ export function DeleteConversationOwnerConfirmDialog({
           <div className="flex items-center gap-2">
             <Checkbox
               id={checkboxId}
-              checked={deleteChildren}
+              checked={shouldDeleteChildren}
               disabled={pending}
-              onCheckedChange={(checked) => setDeleteChildren(checked === true)}
+              onCheckedChange={(checked) => {
+                const next = checked === true
+                if (type === 'agent') {
+                  setDeleteChildren(next)
+                } else {
+                  void setArchiveRelatedTopics(next).catch((error) => {
+                    toast.error({ title: t('common.error'), description: formatErrorMessage(error) })
+                  })
+                }
+              }}
             />
             <Label htmlFor={checkboxId}>{checkboxLabel}</Label>
           </div>

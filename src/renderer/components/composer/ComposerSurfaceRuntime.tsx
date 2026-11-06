@@ -2,11 +2,20 @@ import type { JSONContent, TiptapEditorHTMLElement } from '@tiptap/core'
 import type { EditorView } from '@tiptap/pm/view'
 import type { Editor } from '@tiptap/react'
 import { EditorContent, type NodeViewProps } from '@tiptap/react'
-import { Check, CirclePause, LocateFixed, Maximize2, Minimize2, Pencil, X } from 'lucide-react'
-import React, { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Check, ChevronRight, CirclePause, LocateFixed, Maximize2, Minimize2, Pencil, X } from 'lucide-react'
+import React, {
+  startTransition,
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button, ScrollArea, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import type {
@@ -94,7 +103,7 @@ import { useComposerEditorFrameSizing } from './useComposerEditorFrameSizing'
 
 /** Matches NarrowLayout's `px-6` (and the message column's base) — the inline
  * override is invisible until the rail gutter adds onto it; only applied when
- * the caller wires `railGutterPx`. */
+ * the caller wires `railGutterPx`, and replaced by the caller's `sidePaddingPx`. */
 const COMPOSER_SIDE_PADDING_PX = 24
 const ROOT_QUICK_PANEL_TRIGGER_SOURCES = [
   { char: ComposerPanelSymbol.Root, pluginKey: 'composer-root-suggestion' },
@@ -130,6 +139,20 @@ export interface ComposerSurfaceActions {
   getDraft: () => ComposerSerializedDraft
 }
 
+export interface ComposerSurfaceEditingReasoning {
+  value: string
+  /** Visible section label, e.g. "Thinking". */
+  label: string
+  /** Tooltip label for the toggle, e.g. "Edit thinking". */
+  actionLabel: string
+  title: string
+  placeholder: string
+  hint: string
+  onChange: (value: string) => void
+  /** Mirrors the composer's save lock so typing cannot be lost mid-save. */
+  disabled?: boolean
+}
+
 export interface ComposerSurfaceEditingState {
   description?: string
   sendLabel?: string
@@ -140,6 +163,51 @@ export interface ComposerSurfaceEditingState {
   onLocate?: () => void
   /** Save the edit in place, without resending. Omitted when the send button already saves. */
   onSave?: (draft: ComposerSerializedDraft) => void | Promise<void>
+  /** Editable reasoning above the main text, when the edited message has unsigned reasoning. */
+  reasoning?: ComposerSurfaceEditingReasoning
+}
+
+function EditingReasoningSection({ reasoning }: { reasoning: ComposerSurfaceEditingReasoning }) {
+  const [expanded, setExpanded] = useState(false)
+  const contentId = useId()
+
+  return (
+    <div data-composer-editing-reasoning="" className="border-b border-border-subtle px-3 py-2">
+      <div className="flex min-w-0 items-center gap-2">
+        <button
+          type="button"
+          aria-expanded={expanded}
+          aria-controls={contentId}
+          title={reasoning.actionLabel}
+          onClick={() => setExpanded((value) => !value)}
+          className="flex min-w-0 items-center gap-1.5 rounded-md text-left text-muted-foreground text-xs transition-colors hover:text-foreground focus-visible:bg-accent/50 focus-visible:outline-none">
+          <ChevronRight
+            aria-hidden="true"
+            className={cn('size-3.5 shrink-0 transition-transform', expanded && 'rotate-90')}
+          />
+          <span className="font-medium">{reasoning.label}</span>
+        </button>
+        <span className="truncate text-[11px] text-muted-foreground">{reasoning.title}</span>
+      </div>
+      {expanded ? (
+        <div id={contentId} className="mt-2">
+          <textarea
+            value={reasoning.value}
+            onChange={(event) => reasoning.onChange(event.target.value)}
+            onDragEnter={(event) => event.stopPropagation()}
+            onDragOver={(event) => event.stopPropagation()}
+            onDrop={(event) => event.stopPropagation()}
+            placeholder={reasoning.placeholder}
+            aria-label={reasoning.label}
+            disabled={reasoning.disabled}
+            rows={6}
+            className="w-full resize-y rounded-lg border border-border bg-background p-2 font-[var(--font-family)] text-foreground text-xs leading-5 outline-none placeholder:text-muted-foreground focus-visible:border-primary/50 disabled:cursor-not-allowed disabled:opacity-60"
+          />
+          <p className="mt-1 text-[11px] text-muted-foreground leading-4">{reasoning.hint}</p>
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 type ComposerSurfaceSendAccessoryRenderer = (
@@ -180,6 +248,8 @@ export interface ComposerSurfaceProps {
   /** Extra padding on both sides matching the message column's anchor-rail gutter,
    * keeping the composer centred and its margins symmetric while the rail shows. */
   railGutterPx?: number
+  /** The message column's side padding before the gutter, when the caller narrows it. */
+  sidePaddingPx?: number
   onFocus?: () => void
   voiceTarget?: { targetId: string; sourceEntityId: string }
   /** @internal Keeps the outer deferred surface's voice binding stable while the editor swaps. */
@@ -213,6 +283,8 @@ export interface ComposerSurfaceProps {
   topContent?: React.ReactNode
   /** Custom content pinned to the left of the editor, on the same row (e.g. an add-image button). */
   leadingContent?: React.ReactNode
+  /** Drops the card frame, side gutters, and height controls, for a host whose own surface is the composer. */
+  embedded?: boolean
   compactWhenSingleLine?: boolean
   renderCompactControls?: (
     inputAdapter?: QuickPanelInputAdapter,
@@ -516,6 +588,7 @@ export default function ComposerSurfaceRuntime({
   fontSize,
   narrowMode,
   railGutterPx,
+  sidePaddingPx = COMPOSER_SIDE_PADDING_PX,
   onFocus,
   onInputAdapterChange,
   onVoiceTargetInteraction,
@@ -539,6 +612,7 @@ export default function ComposerSurfaceRuntime({
   renderBelowControls,
   topContent,
   leadingContent,
+  embedded = false,
   compactWhenSingleLine = false,
   renderCompactControls,
   sendAccessory,
@@ -736,7 +810,6 @@ export default function ComposerSurfaceRuntime({
     compactFrameStyle,
     fitContentHeight,
     editorContentStyle,
-    editorElementStyle,
     frameRef,
     frameStyle,
     handleResizeKeyDown,
@@ -1384,7 +1457,9 @@ export default function ComposerSurfaceRuntime({
               originalText: triggerText
             },
             trackInputQuery: true,
-            manageListExternally: true
+            manageListExternally: true,
+            // Panel dismissal does not move the editor selection out of the suggestion.
+            onClose: () => options.exit()
           })
         },
         onKeyDown: (props) => {
@@ -1440,7 +1515,6 @@ export default function ComposerSurfaceRuntime({
         <FileComposerToken
           token={fileToken}
           selected={selected}
-          imageIconPreview
           onFilePreviewActivate={previewInputFile ? activateFilePreview : undefined}
           onRemove={() => removeToken(fileToken.id)}
           removeLabel={t('common.delete')}
@@ -1505,11 +1579,9 @@ export default function ComposerSurfaceRuntime({
         dir: 'auto',
         // Keep the input focusable while a send temporarily makes it read-only.
         tabindex: '0',
-        class: cn(
-          'composer-tiptap box-border block w-full overflow-auto rounded-none break-words whitespace-pre-wrap text-foreground transition-none! outline-none [&::-webkit-scrollbar]:w-[3px]',
-          hasCustomHeight && 'h-full'
-        ),
-        style: `${editorElementStyle}; text-align: start`
+        class:
+          'composer-tiptap box-border block w-full rounded-none break-words whitespace-pre-wrap text-foreground transition-none! outline-none',
+        style: 'text-align: start'
       },
       handleKeyDown: (view: EditorView, event: KeyboardEvent) => {
         const isEnterPressed = (event.key === 'Enter' || event.key === 'NumpadEnter') && !event.isComposing
@@ -1694,7 +1766,7 @@ export default function ComposerSurfaceRuntime({
         }
       }
     }),
-    [editorElementStyle, hasCustomHeight, scheduleCompositionEndInputNotify, submitDraft]
+    [scheduleCompositionEndInputNotify, submitDraft]
   )
 
   const memoizedHandlePaste = useCallback(
@@ -2285,15 +2357,16 @@ export default function ComposerSurfaceRuntime({
       onPointerDownCapture={onVoiceTargetInteraction}
       onFocusCapture={onVoiceTargetInteraction}
       className={cn(
-        'inputbar-container relative rounded-[20px] border-[0.5px] border-border bg-card shadow-sm transition-all duration-200 ease-in-out',
-        isCompact || editingState ? 'pt-0' : 'pt-2',
-        belowControls ? 'mb-0.5' : 'mb-3',
+        'inputbar-container relative transition-all duration-200 ease-in-out',
+        !embedded && 'rounded-[20px] border-[0.5px] border-border bg-composer-surface shadow-sm',
+        isCompact || editingState || embedded ? 'pt-0' : 'pt-2',
+        !embedded && (belowControls ? 'mb-0.5' : 'mb-3'),
         isEditingBorderHighlighted && !isDragging && 'border-primary ring-2 ring-primary/20',
         isDragging &&
           "border-2 border-dashed border-success before:pointer-events-none before:absolute before:inset-0 before:z-5 before:rounded-[18px] before:bg-success/[0.03] before:content-['']",
         isExpanded && 'expanded'
       )}>
-      {!isCompact ? (
+      {!isCompact && !embedded ? (
         <>
           <div
             data-composer-resize-handle=""
@@ -2332,6 +2405,7 @@ export default function ComposerSurfaceRuntime({
         </>
       ) : null}
       {editingModeHeader}
+      {editingState?.reasoning ? <EditingReasoningSection reasoning={editingState.reasoning} /> : null}
       {topContent}
       <div
         data-composer-compact-row={isCompact ? '' : undefined}
@@ -2354,16 +2428,25 @@ export default function ComposerSurfaceRuntime({
           )}
           onTransitionEnd={handleTransitionEnd}
           style={isCompact ? compactFrameStyle : frameStyle}>
-          <EditorContent
-            editor={editor}
-            className="min-w-0 flex-1"
+          <ScrollArea
+            type="auto"
+            className={cn(
+              'min-w-0 flex-1 [-webkit-app-region:no-drag]',
+              isCompact && '[&>[data-slot=scroll-area-scrollbar]]:hidden'
+            )}
             style={isCompact ? compactEditorContentStyle : editorContentStyle}
-            onFocus={() => {
-              onVoiceTargetInteraction?.()
-              onFocus?.()
-              pasteHandling.setLastFocusedComponent('inputbar')
-            }}
-          />
+            viewportProps={{ style: isCompact ? { overflowY: 'hidden' } : undefined }}
+            contentProps={{ className: 'grid min-h-full' }}>
+            <EditorContent
+              editor={editor}
+              className="grid min-w-0"
+              onFocus={() => {
+                onVoiceTargetInteraction?.()
+                onFocus?.()
+                pasteHandling.setLastFocusedComponent('inputbar')
+              }}
+            />
+          </ScrollArea>
           <ComposerFocusShortcut focus={focusEditor} editable={editable} />
         </div>
         {isCompact ? (
@@ -2402,8 +2485,8 @@ export default function ComposerSurfaceRuntime({
     // pointer events come back on.
     <NarrowLayout
       narrowMode={narrowMode}
-      withSidePadding
-      className="pointer-events-auto"
+      withSidePadding={!embedded}
+      className="pointer-events-none"
       // Chat wires railGutterPx (0 when the rail is away): the tight base plus the
       // gutter mirrored on both sides keeps the composer centred and aligned with
       // the message column. Other callers keep NarrowLayout's default padding.
@@ -2411,12 +2494,12 @@ export default function ComposerSurfaceRuntime({
         width: '100%',
         ...(railGutterPx != null
           ? {
-              paddingLeft: COMPOSER_SIDE_PADDING_PX + railGutterPx,
-              paddingRight: COMPOSER_SIDE_PADDING_PX + railGutterPx
+              paddingLeft: sidePaddingPx + railGutterPx,
+              paddingRight: sidePaddingPx + railGutterPx
             }
           : {})
       }}>
-      <div className="w-full">
+      <div className="pointer-events-auto w-full">
         <ComposerToolFooterActionsSync />
         <div
           className="inputbar relative z-2 flex flex-col pt-0"

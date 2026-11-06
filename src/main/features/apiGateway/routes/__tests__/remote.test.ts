@@ -338,7 +338,7 @@ describe('remote ws route', () => {
       const { session } = await call('agent.sessions.get', { sessionId })
       return call('agent.messages.list', { sessionId, historyRevision: session.historyRevision, limit: 100 })
     }
-    const readParts = async (message: AgentMessage) => {
+    const readParts = async (message: Pick<AgentMessage, 'messageId' | 'revision'>) => {
       const items: AgentPart[] = []
       let cursor: string | undefined
       do {
@@ -420,8 +420,13 @@ describe('remote ws route', () => {
         remoteIdentity: deviceIdentityId(desktopIdentity.bytes!),
         signal: AbortSignal.timeout(5000)
       })
-      expect(await raw('connection.hello', { protocolVersions: [1] })).toMatchObject({ result: { protocolVersion: 1 } })
+      expect(await raw('connection.hello', { protocolVersions: [1] })).toMatchObject({
+        result: { protocolVersion: 1, agentMessageSummariesVersion: 1 }
+      })
       expect(await raw('agent.agents.list', {})).toMatchObject({ error: { data: { reason: 'UNAUTHENTICATED' } } })
+      expect(await raw('agent.messages.list', { sessionId, historyRevision: '0', partsMode: 'paged' })).toMatchObject({
+        error: { data: { reason: 'UNAUTHENTICATED' } }
+      })
       expect(await raw('connection.authenticate', { deviceId: device.id })).toMatchObject({
         result: { deviceId: device.id }
       })
@@ -610,6 +615,81 @@ describe('remote ws route', () => {
       })
       await survive()
     })
+
+    it.each([1600, 4096].flatMap((parts) => [1, 20, 100].map((limit) => ({ parts, limit }))))(
+      'reads every message and all $parts parts in paged mode with message limit $limit',
+      async ({ parts, limit }) => {
+        save('first', [{ type: 'text', text: 'first' }])
+        save('huge', [
+          ...Array.from({ length: parts - 2 }, (_, i) => ({ type: 'text' as const, text: `漢\\\u0000${i}` })),
+          {
+            type: 'dynamic-tool',
+            toolName: 'probe',
+            toolCallId: 'tool',
+            state: 'output-available',
+            input: 'input',
+            output: 'output'
+          }
+        ])
+        save('last', [{ type: 'text', text: 'last' }])
+        const { session } = await call('agent.sessions.get', { sessionId })
+        const ids: string[] = []
+        let cursor: string | undefined
+        do {
+          const page = await call('agent.messages.list', {
+            sessionId,
+            historyRevision: session.historyRevision,
+            partsMode: 'paged',
+            limit,
+            cursor
+          })
+          for (const message of page.items) {
+            expect(message).toMatchObject({ partsMode: 'paged', role: 'assistant', status: 'success' })
+            expect(message).not.toHaveProperty('partIds')
+            ids.push(message.messageId)
+            if (message.messageId !== messageId('huge')) continue
+            const recovered = await readParts(message)
+            expect(recovered).toEqual([
+              ...Array.from({ length: parts - 2 }, (_, i) =>
+                expect.objectContaining({
+                  partId: `${message.messageId}:${i}`,
+                  kind: 'text',
+                  content: { text: `漢\\\u0000${i}` }
+                })
+              ),
+              expect.objectContaining({
+                partId: `${message.messageId}:${parts - 2}:in`,
+                kind: 'tool-input',
+                content: { text: '"input"' }
+              }),
+              expect.objectContaining({
+                partId: `${message.messageId}:${parts - 2}:out`,
+                kind: 'tool-output',
+                content: { text: '"output"' }
+              })
+            ])
+            expect(
+              await raw('agent.parts.list', { sessionId, messageId: message.messageId, messageRevision: '0' })
+            ).toMatchObject({ error: { data: { reason: 'REVISION_EXPIRED' } } })
+            expect(
+              await raw('agent.parts.list', {
+                sessionId,
+                messageId: message.messageId,
+                messageRevision: message.revision,
+                cursor: 'invalid'
+              })
+            ).toMatchObject({ error: { data: { reason: 'NOT_FOUND' } } })
+          }
+          cursor = page.nextCursor ?? undefined
+          expect(ids.length).toBeLessThanOrEqual(3)
+        } while (cursor !== undefined)
+        expect(ids).toEqual(['last', 'huge', 'first'].map(messageId))
+        expect(await raw('agent.messages.list', { sessionId, historyRevision: '0', partsMode: 'paged' })).toMatchObject(
+          { error: { data: { reason: 'REVISION_EXPIRED' } } }
+        )
+        await survive()
+      }
+    )
 
     it.each([undefined, 1, 100])(
       'preserves small-page counts, values and offset/keyset cursors at limit %s',

@@ -1,66 +1,81 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { AbsoluteFilePath } from '@shared/types/file'
+import type { InputFilePreview } from '@renderer/types/inputFilePreview'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
+import type { MessageListActions } from '../../types'
 import MessageAttachments from '../MessageAttachments'
 
-const { mockUseQuery, mockPreviewFile } = vi.hoisted(() => ({
-  mockUseQuery: vi.fn(),
-  mockPreviewFile: vi.fn()
-}))
+vi.unmock('@cherrystudio/ui')
 
-vi.mock('@data/hooks/useDataApi', () => ({
-  useQuery: mockUseQuery
-}))
-
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
-}))
+const { actions, getFileView } = vi.hoisted(() => ({ actions: {} as MessageListActions, getFileView: vi.fn() }))
 
 vi.mock('../../MessageListProvider', () => ({
-  useOptionalMessageListActions: () => ({ previewFile: mockPreviewFile, openFile: vi.fn() }),
-  useOptionalMessageListUi: () => undefined
+  useOptionalMessageListActions: () => actions,
+  useOptionalMessageListUi: () => ({ getFileView })
 }))
 
-const entryHandle = { kind: 'entry', entryId: '019606a0-0000-7000-8000-000000000001' } as const
+const handle = { kind: 'path', path: AbsoluteFilePathSchema.parse('/managed/report.pdf') } as const
+const inputFilePreview: InputFilePreview = {
+  displayName: 'report.pdf',
+  previewPath: handle.path,
+  fileEntryId: 'entry-report',
+  originalPath: AbsoluteFilePathSchema.parse('/original/report.pdf'),
+  mediaType: 'application/pdf'
+}
 
 describe('MessageAttachments', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mockUseQuery.mockReturnValue({ data: undefined })
+    getFileView.mockReset()
+    actions.previewFile = vi.fn()
+    actions.openFile = vi.fn()
+    actions.previewInputFile = undefined
   })
 
-  // The file part carries no size; without the entry lookup the card reads "0.00 KB".
-  it('shows the size the entry row reports', () => {
-    mockUseQuery.mockReturnValue({
-      data: { id: entryHandle.entryId, origin: 'internal', name: 'report.pdf', ext: '.pdf', size: 2048 }
-    })
+  it.each(['suggestions', 'suggestions.pdf'])('uses the PDF icon when the source name is %s', (name) => {
+    getFileView.mockReturnValue({ displayName: 'suggestions' })
+    render(<MessageAttachments handle={handle} name={name} ext=".pdf" />)
 
-    render(<MessageAttachments handle={entryHandle} name="report.pdf" ext=".pdf" createdAt="2026-01-01" />)
-
-    expect(screen.getByText('2 KB · PDF')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'suggestions' })).toBeEnabled()
+    expect(screen.getByText('PDF')).toBeVisible()
+    // Iconify's network boundary exposes the selected asset through the shared mock.
+    expect(screen.getByTestId('iconify-icon')).toHaveAttribute('data-icon', 'material-icon-theme:pdf')
   })
 
-  it('shows the type alone rather than a fabricated zero size', () => {
-    render(
-      <MessageAttachments
-        handle={{ kind: 'path', path: '/tmp/report.pdf' as AbsoluteFilePath }}
-        name="report.pdf"
-        ext=".pdf"
-        createdAt="2026-01-01"
-      />
-    )
+  it('retains the handle-based preview when right-pane preview is unavailable', async () => {
+    const user = userEvent.setup()
+    render(<MessageAttachments handle={handle} name="report.pdf" ext=".pdf" />)
 
-    expect(screen.getByText('PDF')).toBeInTheDocument()
-    expect(screen.queryByText(/0\.00 KB/)).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'report.pdf' }))
+
+    expect(actions.previewFile).toHaveBeenCalledWith({ handle, name: 'report.pdf', ext: '.pdf' })
   })
 
-  it('hands the untouched handle to the preview action', async () => {
-    render(<MessageAttachments handle={entryHandle} name="report.pdf" ext=".pdf" createdAt="2026-01-01" />)
+  it('opens the same original file in the right pane from pointer and keyboard activation', async () => {
+    const user = userEvent.setup()
+    actions.previewInputFile = vi.fn()
+    render(<MessageAttachments handle={handle} inputFilePreview={inputFilePreview} name="report.pdf" ext=".pdf" />)
 
-    screen.getByRole('button', { name: 'common.preview' }).click()
+    const card = screen.getByRole('button', { name: 'report.pdf' })
+    await user.click(card)
+    expect(actions.previewInputFile).toHaveBeenLastCalledWith(inputFilePreview)
+    vi.mocked(actions.previewInputFile).mockClear()
+    card.focus()
+    await user.keyboard('{Enter}')
+    expect(actions.previewInputFile).toHaveBeenLastCalledWith(inputFilePreview)
+    expect(actions.previewFile).not.toHaveBeenCalled()
+    expect(actions.openFile).not.toHaveBeenCalled()
+  })
 
-    expect(mockPreviewFile).toHaveBeenCalledWith(expect.objectContaining({ handle: entryHandle }))
+  it('opens externally when that is the only available file action', async () => {
+    const user = userEvent.setup()
+    actions.previewFile = undefined
+    render(<MessageAttachments handle={handle} name="report.pdf" ext=".pdf" />)
+
+    await user.click(screen.getByRole('button', { name: 'report.pdf' }))
+
+    expect(actions.openFile).toHaveBeenCalledWith({ handle, name: 'report.pdf', ext: '.pdf' })
   })
 })

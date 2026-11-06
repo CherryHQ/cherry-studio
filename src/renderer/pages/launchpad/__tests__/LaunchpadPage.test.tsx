@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -27,6 +28,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  ScrollArea: MockCherrystudioUI.ScrollArea,
   Sortable: ({ items, itemKey, renderItem, ...props }: any) => {
     mocks.sortableCalls.push({ items, itemKey, renderItem, ...props })
     const getKey = typeof itemKey === 'function' ? itemKey : (item: any) => item[itemKey]
@@ -89,12 +91,6 @@ vi.mock('@renderer/components/MiniApp/MiniApp', () => ({
 
 vi.mock('@renderer/components/ProviderAvatar', () => ({
   ProviderAvatarPrimitive: () => <svg aria-hidden="true" />
-}))
-
-vi.mock('@renderer/components/Scrollbar', () => ({
-  default: ({ children, className }: { children: ReactNode; className?: string }) => (
-    <div className={className}>{children}</div>
-  )
 }))
 
 vi.mock('@renderer/hooks/useMiniApps', () => ({
@@ -160,7 +156,6 @@ vi.mock('react-i18next', () => ({
           'files.title': 'Files',
           'knowledge.title': 'Knowledge',
           'launchpad.apps': 'Apps',
-          'launchpad.deepseek_harness_shortcut': 'DSH',
           'launchpad.miniApps': 'Mini Apps',
           'launchpad.pin_to_sidebar': 'Add to Sidebar',
           'launchpad.unpin_from_sidebar': 'Remove from Sidebar',
@@ -304,26 +299,12 @@ describe('LaunchpadPage', () => {
     expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/knowledge' })
   })
 
-  it('opens the dedicated DeepSeek Harness CodeMate view from its app shortcut', async () => {
-    const user = userEvent.setup()
-
-    render(<LaunchpadPage />)
-    const shortcut = screen.getByRole('button', { name: 'DSH' })
-
-    await user.click(shortcut)
-
-    expect(mocks.navigate).toHaveBeenCalledWith({
-      to: '/app/code',
-      search: { tool: 'deepseek-harness' }
-    })
-  })
-
   it('suppresses only the dragged launchpad item click', () => {
     render(<LaunchpadPage />)
 
     const systemSortable = mocks.sortableCalls.find((call) => call.itemKey === 'id')
     act(() => {
-      systemSortable.onDragStart({ active: { id: 'knowledge' } })
+      systemSortable.onDragStart({ activeId: 'knowledge' })
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Knowledge' }))

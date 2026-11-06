@@ -7,15 +7,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import { SystemSpeechError } from '@cherrystudio/system-speech/contracts'
 import { UtilityProcessError } from '@main/core/utilityProcess/UtilityProcessError'
-import { APPLE_TTS_MODEL_ID, WINDOWS_ASR_MODEL_ID, WINDOWS_TTS_MODEL_ID } from '@shared/ai/localVoice'
+import { WINDOWS_ASR_MODEL_ID, WINDOWS_TTS_MODEL_ID } from '@shared/ai/localVoice'
 
-import {
-  createLocalSpeechModel,
-  createLocalTranscriptionModel,
-  getLocalVoiceStatus,
-  listLocalAsrLocales,
-  listLocalVoices
-} from '../../localAdapters'
+import { getLocalVoiceStatus, listLocalAsrLocales, listLocalVoices } from '../../localAdapters'
+import { createAppleSpeechModel } from '../apple'
+import { createWindowsTranscriptionModel, createWindowsSpeechModel } from '../windows'
 
 const mocks = vi.hoisted(() => ({ nativeRequest: vi.fn(), decode: vi.fn() }))
 vi.mock('@cherrystudio/system-speech/native', () => ({
@@ -133,7 +129,7 @@ describe('Windows system ASR adapter', () => {
   })
 
   it('decodes WebM, uses the selected locale and removes derived WAV before returning', async () => {
-    const result = await createLocalTranscriptionModel(WINDOWS_ASR_MODEL_ID, { language: 'zh-CN' }).doGenerate(input)
+    const result = await createWindowsTranscriptionModel({ language: 'zh-CN' }).doGenerate(input)
     expect(result).toMatchObject({ text: 'private transcript', language: 'zh', durationInSeconds: 1, segments: [] })
     expect(result.response.modelId).toBe(WINDOWS_ASR_MODEL_ID)
     expect(mocks.decode).toHaveBeenCalledWith(
@@ -149,7 +145,7 @@ describe('Windows system ASR adapter', () => {
   })
 
   it('uses the same default language for probing and transcription', async () => {
-    await createLocalTranscriptionModel(WINDOWS_ASR_MODEL_ID, {}).doGenerate(input)
+    await createWindowsTranscriptionModel({}).doGenerate(input)
     expect(mocks.nativeRequest.mock.calls.map(([request]) => request.locale)).toEqual(['en-US', 'en-US'])
   })
 
@@ -162,9 +158,9 @@ describe('Windows system ASR adapter', () => {
         status: unsupported ? 'unsupported' : 'failed',
         reason: unsupported ? 'unsupported' : 'operation_failed'
       })
-      await expect(
-        createLocalTranscriptionModel(WINDOWS_ASR_MODEL_ID, { language: 'zh-CN' }).doGenerate(input)
-      ).rejects.toMatchObject({ reason: unsupported ? 'unsupported' : 'operation_failed' })
+      await expect(createWindowsTranscriptionModel({ language: 'zh-CN' }).doGenerate(input)).rejects.toMatchObject({
+        reason: unsupported ? 'unsupported' : 'operation_failed'
+      })
       expect(mocks.decode).not.toHaveBeenCalled()
       expect(mocks.nativeRequest.mock.calls.every(([request]) => request.operation === 'probe_asr')).toBe(true)
     }
@@ -176,7 +172,7 @@ describe('Windows system ASR adapter', () => {
     ['linux', 'x64']
   ])('rejects Windows ASR on %s/%s without calling a native helper', async (os, arch) => {
     platform(os, arch)
-    await expect(createLocalTranscriptionModel(WINDOWS_ASR_MODEL_ID, {}).doGenerate(input)).rejects.toMatchObject({
+    await expect(createWindowsTranscriptionModel({}).doGenerate(input)).rejects.toMatchObject({
       reason: 'unsupported'
     })
     expect(mocks.nativeRequest).not.toHaveBeenCalled()
@@ -184,7 +180,7 @@ describe('Windows system ASR adapter', () => {
 
   it('rejects a non-WAV container before probing even when the bytes are canonical WAV', async () => {
     await expect(
-      createLocalTranscriptionModel(WINDOWS_ASR_MODEL_ID, {}).doGenerate({ audio: wav, mediaType: 'audio/mpeg' })
+      createWindowsTranscriptionModel({}).doGenerate({ audio: wav, mediaType: 'audio/mpeg' })
     ).rejects.toMatchObject({ reason: 'invalid_audio' })
     expect(mocks.nativeRequest).not.toHaveBeenCalled()
     expect(mocks.decode).not.toHaveBeenCalled()
@@ -192,7 +188,7 @@ describe('Windows system ASR adapter', () => {
   })
 
   it('transcribes canonical PCM16 mono 16 kHz WAV without decoding WebM', async () => {
-    const result = await createLocalTranscriptionModel(WINDOWS_ASR_MODEL_ID, { language: 'zh-CN' }).doGenerate({
+    const result = await createWindowsTranscriptionModel({ language: 'zh-CN' }).doGenerate({
       audio: wav,
       mediaType: 'audio/wav'
     })
@@ -212,7 +208,7 @@ describe('Windows system ASR adapter', () => {
     const audio = offsetWavView()
     expect(audio.byteOffset).not.toBe(0)
     expect(audio.byteLength).toBe(wav.length)
-    const result = await createLocalTranscriptionModel(WINDOWS_ASR_MODEL_ID, { language: 'zh-CN' }).doGenerate({
+    const result = await createWindowsTranscriptionModel({ language: 'zh-CN' }).doGenerate({
       audio,
       mediaType: 'audio/wav'
     })
@@ -229,7 +225,7 @@ describe('Windows system ASR adapter', () => {
     ['a non-16 kHz sample rate', wavWithUInt32(24, 48_000)]
   ])('rejects WAV with %s before probing or decoding', async (_description, audio) => {
     await expect(
-      createLocalTranscriptionModel(WINDOWS_ASR_MODEL_ID, {}).doGenerate({ audio, mediaType: 'audio/wav' })
+      createWindowsTranscriptionModel({}).doGenerate({ audio, mediaType: 'audio/wav' })
     ).rejects.toMatchObject({ reason: 'invalid_audio' })
     expect(mocks.nativeRequest).not.toHaveBeenCalled()
     expect(mocks.decode).not.toHaveBeenCalled()
@@ -251,7 +247,7 @@ describe('Windows system ASR adapter', () => {
       })
     })
     const result = Promise.resolve(
-      createLocalTranscriptionModel(WINDOWS_ASR_MODEL_ID, {}).doGenerate({
+      createWindowsTranscriptionModel({}).doGenerate({
         audio: wav,
         mediaType: 'audio/wav',
         abortSignal: controller.signal
@@ -272,7 +268,7 @@ describe('Windows system ASR adapter', () => {
       throw new SystemSpeechError('timeout')
     })
     await expect(
-      createLocalTranscriptionModel(WINDOWS_ASR_MODEL_ID, {}).doGenerate({ audio: wav, mediaType: 'audio/wav' })
+      createWindowsTranscriptionModel({}).doGenerate({ audio: wav, mediaType: 'audio/wav' })
     ).rejects.toMatchObject({ reason: 'timeout' })
     expect(mocks.decode).not.toHaveBeenCalled()
     expect(await readdir(directory)).toEqual([])
@@ -284,7 +280,7 @@ describe('Windows system ASR adapter', () => {
       expect(await readFile(request.inputPath)).toEqual(wav)
       throw new SystemSpeechError(code)
     })
-    await expect(createLocalTranscriptionModel(WINDOWS_ASR_MODEL_ID, {}).doGenerate(input)).rejects.toMatchObject({
+    await expect(createWindowsTranscriptionModel({}).doGenerate(input)).rejects.toMatchObject({
       reason: code === 'timeout' ? 'timeout' : 'operation_failed'
     })
     expect(await readdir(directory)).toEqual([])
@@ -297,7 +293,7 @@ describe('Windows system ASR adapter', () => {
         remote: { name: 'Error', message: 'invalid audio', code: 'VOICE_AUDIO_INVALID' }
       })
     )
-    await expect(createLocalTranscriptionModel(WINDOWS_ASR_MODEL_ID, {}).doGenerate(input)).rejects.toMatchObject({
+    await expect(createWindowsTranscriptionModel({}).doGenerate(input)).rejects.toMatchObject({
       reason: 'invalid_audio'
     })
     expect(mocks.nativeRequest.mock.calls.map(([request]) => request.operation)).toEqual(['probe_asr'])
@@ -319,7 +315,7 @@ describe('Windows system ASR adapter', () => {
       })
     })
     const result = Promise.resolve(
-      createLocalTranscriptionModel(WINDOWS_ASR_MODEL_ID, {}).doGenerate({
+      createWindowsTranscriptionModel({}).doGenerate({
         ...input,
         abortSignal: controller.signal
       })
@@ -347,7 +343,7 @@ describe('Windows system TTS adapter', () => {
   })
 
   it('returns WAV bytes from the selected voice and removes scratch before completion', async () => {
-    const result = await createLocalSpeechModel(WINDOWS_TTS_MODEL_ID, {
+    const result = await createWindowsSpeechModel({
       voice: voices[0].id,
       language: 'zh-CN',
       speed: 1.5
@@ -364,9 +360,9 @@ describe('Windows system TTS adapter', () => {
         status: 'not_installed',
         reason: 'voice_unavailable'
       })
-      await expect(
-        createLocalSpeechModel(WINDOWS_TTS_MODEL_ID, options).doGenerate({ text: 'private' })
-      ).rejects.toMatchObject({ reason: 'voice_unavailable' })
+      await expect(createWindowsSpeechModel(options).doGenerate({ text: 'private' })).rejects.toMatchObject({
+        reason: 'voice_unavailable'
+      })
       expect(await readdir(directory)).toEqual([])
     }
   )
@@ -390,14 +386,14 @@ describe('Windows system TTS adapter', () => {
     platform(os, arch)
     expect(await getLocalVoiceStatus(WINDOWS_TTS_MODEL_ID)).toEqual({ status: 'unsupported', reason: 'unsupported' })
     await expect(
-      createLocalSpeechModel(WINDOWS_TTS_MODEL_ID, { voice: voices[0].id }).doGenerate({ text: 'private' })
+      createWindowsSpeechModel({ voice: voices[0].id }).doGenerate({ text: 'private' })
     ).rejects.toMatchObject({ reason: 'unsupported' })
   })
 
   it('rejects the explicit Apple model on Windows without fallback', async () => {
-    await expect(
-      createLocalSpeechModel(APPLE_TTS_MODEL_ID, { voice: voices[0].id }).doGenerate({ text: 'private' })
-    ).rejects.toMatchObject({ reason: 'unsupported' })
+    await expect(createAppleSpeechModel({ voice: voices[0].id }).doGenerate({ text: 'private' })).rejects.toMatchObject(
+      { reason: 'unsupported' }
+    )
   })
 
   it('cleans partially written synthesis output when its owner cancels', async () => {
@@ -415,7 +411,7 @@ describe('Windows system TTS adapter', () => {
     })
     const controller = new AbortController()
     const result = Promise.resolve(
-      createLocalSpeechModel(WINDOWS_TTS_MODEL_ID, { voice: voices[0].id }).doGenerate({
+      createWindowsSpeechModel({ voice: voices[0].id }).doGenerate({
         text: 'private',
         abortSignal: controller.signal
       })
@@ -433,7 +429,7 @@ describe('Windows system TTS adapter', () => {
       throw new Error('private transcript ' + directory)
     })
     const error = await Promise.resolve(
-      createLocalSpeechModel(WINDOWS_TTS_MODEL_ID, { voice: voices[0].id }).doGenerate({ text: 'private' })
+      createWindowsSpeechModel({ voice: voices[0].id }).doGenerate({ text: 'private' })
     ).catch((error: unknown) => error)
     expect(error).toMatchObject({ reason: 'operation_failed', message: 'operation_failed' })
     expect((error as Error).cause).toBeUndefined()

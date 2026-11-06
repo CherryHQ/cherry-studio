@@ -1,5 +1,17 @@
 # @cherrystudio/ai-sdk-provider
 
+## 0.1.10
+
+### Patch Changes
+
+- [#23382](https://github.com/CherryHQ/cherry-studio/pull/23382) [`1ad6b7f`](https://github.com/CherryHQ/cherry-studio/commit/1ad6b7f56a8735111641a05005f234b44d8bfcae) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Omit the unsupported `strict` tool field on CherryIN's Anthropic endpoint, whose Bedrock-backed upstream rejects it as an extra input.
+
+## 0.1.9
+
+### Patch Changes
+
+- [#22001](https://github.com/CherryHQ/cherry-studio/pull/22001) [`9fb431d`](https://github.com/CherryHQ/cherry-studio/commit/9fb431de1807b6182b7b6bced728eb634444aa03) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Fix CherryIN Anthropic requests by omitting unsupported tool input examples in both generation and streaming calls while preserving the caller's tools and other endpoints.
+
 ## 0.1.8
 
 ### Patch Changes
