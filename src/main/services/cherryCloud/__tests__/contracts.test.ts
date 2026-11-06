@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@cherrystudio/provider-registry'
 
@@ -22,6 +22,26 @@ const tokenSet = {
 }
 
 describe('Cherry Cloud response contracts', () => {
+  afterEach(() => vi.unstubAllEnvs())
+
+  it('accepts plain HTTP authorization only on the configured development origin', () => {
+    const authorization = (url: string) =>
+      createDesktopAuthorizationResponseSchema.safeParse({
+        authorization_id: '00000000-0000-4000-8000-000000000001',
+        authorization_url: url,
+        expires_at: expiresAt
+      }).success
+
+    vi.stubEnv('MAIN_VITE_CHERRY_CLOUD_API_ORIGIN', '')
+    expect(authorization('http://192.168.1.176:8284/authorize')).toBe(false)
+
+    vi.stubEnv('MAIN_VITE_CHERRY_CLOUD_API_ORIGIN', 'http://192.168.1.176:8284')
+
+    expect(authorization('http://192.168.1.176:8284/authorize')).toBe(true)
+    expect(authorization('http://192.168.1.176:9999/authorize')).toBe(false)
+    expect(authorization('http://evil.example/authorize')).toBe(false)
+  })
+
   it('accepts additional server fields', () => {
     expect(
       createDesktopAuthorizationResponseSchema.safeParse({
