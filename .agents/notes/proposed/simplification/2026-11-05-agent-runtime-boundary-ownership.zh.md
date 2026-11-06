@@ -20,7 +20,7 @@ Status: proposed
 
 维护者已于 2026-11-05 批准实施本后续方案，包括观察排空和跨连接输入保留契约。在完整验收证据记录前，本文保持 proposed。它部分替代[运行时契约](../architecture/2026-10-17-agent-runtime-contract.md)和 [Claude 迁移](../architecture/2026-10-27-agent-runtime-claude-code.md)中桌面输入往返、子线程访问衔接及原生控制的职责安排。[SDK 内容协议](2026-10-29-agent-runtime-content-protocol.md)继续负责消息表示、每个原生线程唯一的内容生产者和产品持久化。本文不重新打开其中已交付的修复，也不把既有验收证据重新标记为全部完成。
 
-2026-11-06 的消费者收缩修订见第 11 节。本次仅编写修改方案，未实现其删除项；该节还明确收缩了[运行时契约](../architecture/2026-10-17-agent-runtime-contract.md)、[SDK 内容协议](2026-10-29-agent-runtime-content-protocol.md)和[上下文用量方案](../architecture/2026-10-30-agent-context-usage.md)中的指定公开能力，原生生命周期与持久化保证保留。
+2026-11-06 的消费者收缩修订见第 11 节。本次仅编写修改方案，未实现其删除项；该节还明确收缩了[运行时契约](../architecture/2026-10-17-agent-runtime-contract.md)、[SDK 内容协议](2026-10-29-agent-runtime-content-protocol.md)和[上下文用量方案](https://github.com/CherryHQ/cherry-studio/pull/23146)中的指定公开能力，原生生命周期与持久化保证保留。
 
 ## 方案
 

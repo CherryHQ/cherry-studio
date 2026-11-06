@@ -18,7 +18,7 @@ Cherry host -> adapters (coding-agent, Durable, fake) -> agent-behavior -> agent
 ```
 
 Dependencies point one way. The package imports no adapter, Pi, Node, Electron, AI SDK, logger or host code, and from
-[`@cherrystudio/agent-runtime`](../agent-runtime/README.md) only types: ids, `JsonValue` and `ContentPart`. That is
+[`@cherrystudio/agent-runtime`](../agent-runtime/README.md) only types: ids and `JsonValue`. That is
 its only declared dependency, used only for types. The emitted JavaScript import graph has no external executable dependency; the common runtime may itself implement AI SDK readers. The fake is the third harness implementation and ships here. Each layer under `src/` has
 one job:
 
@@ -31,10 +31,9 @@ one job:
 | `contract/`      | `harnessContract` and the `ContractHarness` an adapter implements                                                                                                                       | The cases every harness must pass.                                                                                                                             |
 
 The rule functions live in `core/`: each topic folder maps facts to a `Step` or a plain result, synchronously and
-without I/O, and none of them is exported ([The rule core](#the-rule-core)). `orchestration/` runs them over the ports,
-and `install` is its only runtime export ([Installing the package](#installing-the-package)). Until PR-2 moves
-agent-runtime-pi onto this package, goal and subagent semantics stay in the
-[agent-runtime-pi README](../agent-runtime-pi/README.md). Four pure projections and three constants are exported for
+without I/O ([The rule core](#the-rule-core)). `orchestration/` runs them over the ports,
+and `install` wires them into a harness ([Installing the package](#installing-the-package)). Pi and Pi Durable
+both use these shared rules. Four pure projections and three constants are exported for
 adapters and the host: `delegationStatus(record)` gives a run record's active or completed status,
 `turnOrigin(history, item)` names who started the turn an entry belongs to (a person, a goal round or a notification),
 `subagentViews(facts, approvals)` lists the background children as the host shows them,

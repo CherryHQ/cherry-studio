@@ -62,11 +62,11 @@ Large tool output is saved under `feature.agents.outputs`, which read tools may 
 
 ## Desktop ownership
 
-`ThreadProjection` receives authoritative SDK messages from the runtime adapter; the driver declares
-the projection source before opening a connection. Main applies tool display metadata and product
-reply ownership without a second SDK reader. Child output uses an independent `ChildThreadProjection`
-and product archive; only task-card metadata remains on background-flow. Goal rounds and background
-delivery announce autonomous turn boundaries.
+`ThreadMessageProjection` receives authoritative SDK messages from the runtime adapter. Main applies
+tool display metadata, and `RootMessageProjection` groups native messages into product replies without
+a second SDK reader. Child output uses an independent `ChildThreadProjection` and product archive;
+the parent reply carries task-card metadata. Goal rounds and background delivery announce autonomous
+turn boundaries.
 Observation loss fails the turn and retires the owner.
 
 `PiRuntimeConnection` remains the bridge to `AgentSessionRuntimeService`: it owns product input

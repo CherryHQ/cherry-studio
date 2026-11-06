@@ -183,8 +183,6 @@ export type AgentRuntimeEvent =
   | { type: 'background-results'; result: OperationResult<readonly string[]> }
   /** Task lifecycle that arrived with no turn stream to carry it; the host keeps the latest per task. */
   | { type: 'background-task-event'; data: AgentTaskEventPartData }
-  /** Parented subagent content that outlived its spawning turn. The host patches these chunks onto
-   *  the persisted assistant message that owns `rootToolCallId`; they never open a new main turn. */
   /** Runtime-generated content started without a host-admitted user turn. `started` atomically
    *  transfers generation ownership and asks the host to open a receive-only transcript turn,
    *  carrying why the runtime opened it so the transcript can say so; `finished` releases
@@ -243,7 +241,6 @@ export interface AgentRuntimeConnection {
    * reasoning, and knowledge selection, or the agent's latest model with defaults) — the same
    * pinning the host uses for `connect`.
    */
-  // ponytail: single driver — make optional with a capability fallback when a 2nd connection type ships
   reconcile(input: {
     modelId: UniqueModelId
     reasoningEffort?: ReasoningEffortOption

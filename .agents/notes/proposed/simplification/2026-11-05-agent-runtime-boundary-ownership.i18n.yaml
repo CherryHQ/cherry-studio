@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/simplification/2026-11-05-agent-runtime-boundary-ownership.md
-2026-11-05-agent-runtime-boundary-ownership.md: 72e05c0bad47e3b4631f5efa4ca77a171e6b9878
-2026-11-05-agent-runtime-boundary-ownership.zh.md: bc8805b924a2392fd6cbef3ace4273bd620d02dd
+2026-11-05-agent-runtime-boundary-ownership.md: 20dc02447d530a18363bde2eb8984d11e8e06a41
+2026-11-05-agent-runtime-boundary-ownership.zh.md: 73737ee0522978133f9a73844bbf28fca2ff5509

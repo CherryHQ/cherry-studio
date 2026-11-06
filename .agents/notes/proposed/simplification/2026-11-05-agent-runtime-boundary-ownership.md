@@ -20,7 +20,7 @@ The production paths are:
 
 The maintainer approved implementation of this follow-up on 2026-11-05, including the observation drain and cross-connection input-retention contracts. It remains proposed until the complete acceptance evidence is recorded. It partially supersedes the desktop input round-trip, child-access plumbing, and native-control placement in the [runtime contract](../architecture/2026-10-17-agent-runtime-contract.md) and [Claude migration](../architecture/2026-10-27-agent-runtime-claude-code.md). The [SDK content protocol](2026-10-29-agent-runtime-content-protocol.md) continues to own message representation, one content producer per native thread, and product persistence. Its delivered fixes and acceptance evidence are not reopened or relabelled as complete by this proposal.
 
-Section 11 contains the 2026-11-06 consumer-driven contraction revision. This change writes the plan only; its removals are not implemented. It also narrows specified public capabilities in the [runtime contract](../architecture/2026-10-17-agent-runtime-contract.md), [SDK content protocol](2026-10-29-agent-runtime-content-protocol.md), and [context-usage proposal](../architecture/2026-10-30-agent-context-usage.md), retaining native lifecycle and persistence guarantees.
+Section 11 contains the 2026-11-06 consumer-driven contraction revision. This change writes the plan only; its removals are not implemented. It also narrows specified public capabilities in the [runtime contract](../architecture/2026-10-17-agent-runtime-contract.md), [SDK content protocol](2026-10-29-agent-runtime-content-protocol.md), and [context-usage proposal](https://github.com/CherryHQ/cherry-studio/pull/23146), retaining native lifecycle and persistence guarantees.
 
 ## Proposal
 
