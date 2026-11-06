@@ -18,8 +18,13 @@ export function useCherryCloudPlans(enabled = true) {
     () => plansQuery.data?.entitlements.find((item) => item.state === 'active' && !item.plan.is_free),
     [plansQuery.data]
   )
+  // Bought but not started yet: shown and managed like a subscription, though its models stay locked.
+  const upcomingPaid = useMemo(
+    () => plansQuery.data?.entitlements.find((item) => item.state === 'upcoming' && !item.plan.is_free),
+    [plansQuery.data]
+  )
 
-  return { session, plansQuery, activePaid }
+  return { session, plansQuery, activePaid, upcomingPaid }
 }
 
 /**
@@ -29,7 +34,10 @@ export function useCherryCloudPlans(enabled = true) {
 export function useCherryCloudSubscribeReminder(): boolean {
   const [subscribePromptSeen] = usePersistCache('ui.cherry_cloud.subscribe_prompt_seen')
   const remindToSubscribe = getAppEdition() === 'cn' && !subscribePromptSeen
-  const { session, plansQuery, activePaid } = useCherryCloudPlans(remindToSubscribe)
+  const { session, plansQuery, activePaid, upcomingPaid } = useCherryCloudPlans(remindToSubscribe)
   // Wait for the plans of a signed-in account so a paying user never sees the dot flash.
-  return remindToSubscribe && (session.status?.phase === 'signed-out' || (plansQuery.data !== undefined && !activePaid))
+  return (
+    remindToSubscribe &&
+    (session.status?.phase === 'signed-out' || (plansQuery.data !== undefined && !activePaid && !upcomingPaid))
+  )
 }

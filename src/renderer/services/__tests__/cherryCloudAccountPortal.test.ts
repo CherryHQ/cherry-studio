@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { openCherryCloudAccountPortal } from '../cherryCloudAccountPortal'
+import { openCherryCloudAccountPortal, openCherryCloudFaq } from '../cherryCloudAccountPortal'
 
 const request = vi.mocked(window.api.ipcApi.request)
 
@@ -23,5 +23,29 @@ describe('openCherryCloudAccountPortal', () => {
     await openCherryCloudAccountPortal()
 
     expect(request).toHaveBeenCalledWith('system.shell.open_external_website', portalUrl)
+  })
+
+  it('opens the official China-edition subscription FAQ', async () => {
+    vi.stubGlobal('__APP_EDITION__', 'cn')
+    useAccountOrigin('https://cloud-dev.cherry-ai.com')
+
+    await openCherryCloudFaq()
+
+    expect(request).toHaveBeenCalledWith(
+      'system.shell.open_external_website',
+      'https://cherryai.com.cn/subscription/faq'
+    )
+  })
+
+  it('opens the global-edition FAQ on the same origin as the portal', async () => {
+    vi.stubGlobal('__APP_EDITION__', 'global')
+    useAccountOrigin('https://cloud.cherryai.com.cn')
+
+    await openCherryCloudFaq()
+
+    expect(request).toHaveBeenCalledWith(
+      'system.shell.open_external_website',
+      'https://cloud.cherryai.com.cn/account/faq'
+    )
   })
 })
