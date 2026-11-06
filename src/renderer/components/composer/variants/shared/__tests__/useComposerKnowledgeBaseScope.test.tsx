@@ -65,7 +65,7 @@ describe('useComposerKnowledgeBaseScope', () => {
     const bases = [kb('kb-1'), kb('kb-2')]
 
     it('re-selects the persisted ids once the bases have loaded', () => {
-      const { result } = renderHook(useScopeHarness, {
+      const { result } = renderHook((props: HarnessProps) => useScopeHarness(props), {
         initialProps: { allKnowledgeBases: bases, isKnowledgeBasesLoading: false, scopeKey: SCOPE_KEY }
       })
 
@@ -77,7 +77,7 @@ describe('useComposerKnowledgeBaseScope', () => {
     it('restores only ids the send path would accept', () => {
       // `selectableKnowledgeBases`, not the raw list: a queued payload naming a base the agent no
       // longer configures must not come back as a checked-but-unsendable pick.
-      const { result } = renderHook(useScopeHarness, {
+      const { result } = renderHook((props: HarnessProps) => useScopeHarness(props), {
         initialProps: {
           configuredKnowledgeBaseIds: ['kb-1'],
           allKnowledgeBases: bases,
@@ -93,7 +93,7 @@ describe('useComposerKnowledgeBaseScope', () => {
 
     it('keeps ids pending until the catalog offers them, then selects them', () => {
       const base = kb('kb-1')
-      const { result, rerender } = renderHook(useScopeHarness, {
+      const { result, rerender } = renderHook((props: HarnessProps) => useScopeHarness(props), {
         initialProps: { allKnowledgeBases: [], isKnowledgeBasesLoading: false, scopeKey: SCOPE_KEY }
       })
 
@@ -108,7 +108,7 @@ describe('useComposerKnowledgeBaseScope', () => {
     })
 
     it('never selects a pending id the catalog keeps not offering', () => {
-      const { result, rerender } = renderHook(useScopeHarness, {
+      const { result, rerender } = renderHook((props: HarnessProps) => useScopeHarness(props), {
         initialProps: { allKnowledgeBases: [], isKnowledgeBasesLoading: false, scopeKey: SCOPE_KEY }
       })
 
@@ -121,7 +121,7 @@ describe('useComposerKnowledgeBaseScope', () => {
 
     it('reports a pending restore only while the catalog is still loading', () => {
       const base = kb('kb-1')
-      const { result, rerender } = renderHook(useScopeHarness, {
+      const { result, rerender } = renderHook((props: HarnessProps) => useScopeHarness(props), {
         initialProps: { allKnowledgeBases: [], isKnowledgeBasesLoading: true, scopeKey: SCOPE_KEY }
       })
 
@@ -134,7 +134,7 @@ describe('useComposerKnowledgeBaseScope', () => {
     })
 
     it('does not report a pending restore for ids the loaded catalog cannot offer', () => {
-      const { result } = renderHook(useScopeHarness, {
+      const { result } = renderHook((props: HarnessProps) => useScopeHarness(props), {
         initialProps: { allKnowledgeBases: [], isKnowledgeBasesLoading: false, scopeKey: SCOPE_KEY }
       })
 
@@ -143,7 +143,7 @@ describe('useComposerKnowledgeBaseScope', () => {
     })
 
     it('drops a pending restore when the scope changes', () => {
-      const { result, rerender } = renderHook(useScopeHarness, {
+      const { result, rerender } = renderHook((props: HarnessProps) => useScopeHarness(props), {
         initialProps: { allKnowledgeBases: [], isKnowledgeBasesLoading: true, scopeKey: SCOPE_KEY }
       })
 
@@ -162,7 +162,7 @@ describe('useComposerKnowledgeBaseScope', () => {
 
     it('keeps an existing selection while retrying pending ids', () => {
       const [first, second] = [kb('kb-1'), kb('kb-2')]
-      const { result, rerender } = renderHook(useScopeHarness, {
+      const { result, rerender } = renderHook((props: HarnessProps) => useScopeHarness(props), {
         initialProps: {
           allKnowledgeBases: [first],
           isKnowledgeBasesLoading: false,
