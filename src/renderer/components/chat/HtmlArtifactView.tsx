@@ -43,6 +43,7 @@ import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { stripMetaRefresh } from '@renderer/utils/htmlArtifact'
+import { captureScrollableIframeAsDataUrl, ImageCaptureEvent } from '@renderer/utils/image'
 
 const HtmlArtifactsPopup = lazy(() => import('@renderer/components/CodeBlockView/HtmlArtifactsPopup'))
 
@@ -368,8 +369,40 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
     }
   }, [html, isScrollActiveRef, onHeightChange, scrollRuntime, zoomScale])
 
+  // Image export: the clone pipeline can't see the iframe's styled document, so swap in a snapshot.
+  useEffect(() => {
+    const viewport = viewportRef.current
+    if (!viewport) return
+
+    const prepare = async () => {
+      const iframe = iframeRef.current
+      const dataUrl = await captureScrollableIframeAsDataUrl(iframeRef)
+      if (!iframe || !dataUrl) return () => {}
+      const snapshot = document.createElement('img')
+      snapshot.src = dataUrl
+      snapshot.alt = ''
+      snapshot.style.cssText = 'display:block;width:100%;height:auto'
+      const previousDisplay = iframe.style.display
+      iframe.style.display = 'none'
+      iframe.after(snapshot)
+      return () => {
+        snapshot.remove()
+        iframe.style.display = previousDisplay
+      }
+    }
+    const onPrepare = (event: Event) => {
+      if (event instanceof ImageCaptureEvent) event.preparations.push(prepare())
+    }
+    viewport.addEventListener(ImageCaptureEvent.type, onPrepare)
+    return () => viewport.removeEventListener(ImageCaptureEvent.type, onPrepare)
+  }, [])
+
   return (
-    <div ref={viewportRef} data-testid="adaptive-html-preview" className="relative h-full w-full overflow-hidden">
+    <div
+      ref={viewportRef}
+      data-image-capture-content=""
+      data-testid="adaptive-html-preview"
+      className="relative h-full w-full overflow-hidden">
       <div
         data-testid="adaptive-html-zoom-layer"
         className="origin-top-left"
@@ -575,7 +608,7 @@ const HtmlArtifactViewContent = memo(function HtmlArtifactViewContent({
 
   if (isPreviewBlocked && !isPopupOpen) {
     return (
-      <div data-testid="html-artifact-view" className="w-full">
+      <div data-testid="html-artifact-view" data-html-artifact="" className="w-full">
         <HtmlArtifactConsentCard
           title={title}
           description={t('html_artifacts.interactive_preview.description')}
@@ -594,7 +627,10 @@ const HtmlArtifactViewContent = memo(function HtmlArtifactViewContent({
           className="group relative w-full overflow-hidden rounded-lg"
           style={{ height: surfaceHeight }}>
           <div className="relative h-full min-h-0 overflow-hidden bg-background">
-            <div className={cn('h-full min-h-0', showCode && 'hidden')} aria-hidden={showCode || undefined}>
+            <div
+              data-html-artifact={requiresUserConsent ? '' : undefined}
+              className={cn('h-full min-h-0', showCode && 'hidden')}
+              aria-hidden={showCode || undefined}>
               {requiresUserConsent ? (
                 // Not paced: the webview may only ever load the exact bytes the user consented to.
                 <InteractiveHtmlPreview html={html} title={title} zoom={zoom} onHeightChange={setPreviewHeight} />

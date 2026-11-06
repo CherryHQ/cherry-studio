@@ -48,7 +48,7 @@ async function prepareCaptureContents(root: HTMLElement): Promise<() => Promise<
   return restore
 }
 
-/** Marks interactive HTML artifact subtrees; both export paths omit them (shared policy selector). */
+/** Marks live interactive (webview) HTML artifact subtrees, which cannot be rasterized; both export paths omit them. */
 const HTML_ARTIFACT_ATTRIBUTE = 'data-html-artifact'
 
 let htmlToImagePromise: Promise<typeof HtmlToImage> | undefined
@@ -371,7 +371,7 @@ async function captureScrollableElement(el: HTMLElement | null, backdropVariable
 
       const filterHiddenElements = (node: Node) => {
         if (node instanceof HTMLElement) {
-          // Interactive HTML artifacts are intentionally omitted from image exports.
+          // Live interactive HTML artifacts can't be rasterized and are omitted from image exports.
           if (node.hasAttribute(HTML_ARTIFACT_ATTRIBUTE)) {
             return false
           }
