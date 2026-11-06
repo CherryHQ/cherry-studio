@@ -1,4 +1,6 @@
+import { once } from 'node:events'
 import { mkdirSync, realpathSync } from 'node:fs'
+import { createServer, type AddressInfo } from 'node:net'
 import { join } from 'node:path'
 
 import type { Locator, Page } from '@playwright/test'
@@ -120,19 +122,59 @@ test(...caseDefinition('CODE-01'), async ({ app, mainWindow: page }) => {
 })
 
 test(...caseDefinition('CODE-03'), async ({ app, mainWindow: page }) => {
-  await ensureCustomChatProvider(app, page)
-  await closeSettings(page)
-  const baseline = new Set(listOwnedProcessIds(app.record))
-  await openCodeTool(page, 'OpenClaw')
-  await configureTool(page, app.config.customProvider.chatModel, CUSTOM_CHAT_PROVIDER)
-  await page
-    .locator('[data-ui~="code.view"]:visible')
-    .first()
-    .getByRole('button', { name: 'Launch', exact: true })
-    .click()
-  await expect
-    .poll(() => observeOwnedProcess(app.record, 'openclaw', true, baseline).passed, { timeout: 2 * 60_000 })
-    .toBe(true)
+  test.setTimeout(3 * 60_000)
+  const previousPort = await page.evaluate(() => window.api.preference.get('feature.openclaw.gateway_port'))
+  const reservation = createServer().listen(0, '127.0.0.1')
+  await once(reservation, 'listening')
+  const port = (reservation.address() as AddressInfo).port
+  await new Promise<void>((resolve, reject) => reservation.close((error) => (error ? reject(error) : resolve())))
+  const dashboardTab = page.locator('[data-ui~="app.tab-bar"]').getByRole('button', { name: 'OpenClaw', exact: true })
+  const gatewayStatus = () =>
+    page.evaluate(async () => {
+      const result = (await window.api.ipcApi.request('openclaw.get_status')) as IpcResult<
+        OutputFor<'openclaw.get_status'>
+      >
+      if (!result.ok) throw new Error(result.error.message)
+      return result.data.status
+    })
+  try {
+    await page.evaluate((port) => window.api.preference.set('feature.openclaw.gateway_port', port), port)
+    await ensureCustomChatProvider(app, page)
+    await closeSettings(page)
+    await openCodeTool(page, 'OpenClaw')
+    await configureTool(page, app.config.customProvider.chatModel, CUSTOM_CHAT_PROVIDER)
+    const codeView = page.locator('[data-ui~="code.view"]:visible').first()
+    await codeView.getByRole('button', { name: 'Launch', exact: true }).click()
+    // The CLI also spawns config probes; only the running gateway and opened dashboard complete launch.
+    await expect.poll(gatewayStatus, { timeout: 2 * 60_000 }).toBe('running')
+    await expect(dashboardTab).toHaveAttribute('data-active', 'true')
+    const guest = page.locator('webview[data-mini-app-id="openclaw-dashboard"]:visible')
+    await expect(guest).toBeVisible()
+    await expect
+      .poll(() =>
+        guest.evaluate((element) => {
+          const url = (element as unknown as { getURL(): string }).getURL()
+          return url ? new URL(url).origin : ''
+        })
+      )
+      .toBe(`http://127.0.0.1:${port}`)
+    await dashboardTab.getByRole('button', { name: 'Close Tab', exact: true }).click()
+    await expect(dashboardTab).toHaveCount(0)
+    await openCodeTool(page, 'OpenClaw')
+    await codeView.getByRole('button', { name: 'Stop', exact: true }).click()
+    await expect.poll(gatewayStatus).toBe('stopped')
+  } finally {
+    try {
+      const stopped = (await page.evaluate(() => window.api.ipcApi.request('openclaw.stop_gateway'))) as IpcResult<
+        OutputFor<'openclaw.stop_gateway'>
+      >
+      expect(stopped.ok && stopped.data.success, 'Owned OpenClaw gateway must stop').toBe(true)
+      if (await dashboardTab.isVisible())
+        await dashboardTab.getByRole('button', { name: 'Close Tab', exact: true }).click()
+    } finally {
+      await page.evaluate((port) => window.api.preference.set('feature.openclaw.gateway_port', port), previousPort)
+    }
+  }
 })
 
 test(...caseDefinition('MP-97'), async ({ app, mainWindow: page }, testInfo) => {

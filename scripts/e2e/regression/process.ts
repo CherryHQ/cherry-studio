@@ -82,15 +82,19 @@ export function assertOwnedProcess(record: ProcessOwner, pid: number, kind: 'ele
 }
 
 export function terminateOwnedMacProcessGroup(record: ProcessOwner, signal: 'SIGTERM' | 'SIGKILL' = 'SIGTERM'): void {
-  const members = execFileSync('ps', ['-axo', 'pid=,pgid=,command='], { encoding: 'utf8', timeout: 10_000 })
+  const group = execFileSync('ps', ['-axo', 'pid=,pgid=,stat=,command='], { encoding: 'utf8', timeout: 10_000 })
     .split(/\r?\n/)
-    .map((line) => line.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/))
+    .map((line) => line.trim().match(/^(\d+)\s+(\d+)\s+(\S+)\s+(.*)$/))
     .filter((match): match is RegExpMatchArray => Boolean(match && Number(match[2]) === record.runnerPid))
+  const members = group.filter((member) => !member[3].startsWith('Z'))
   if (members.length === 0) {
-    if (isAlive(record.runnerPid)) throw new Error('Refusing cleanup: runner no longer owns its process group')
+    if (group.length === 0 && isAlive(record.runnerPid)) {
+      throw new Error('Refusing cleanup: runner no longer owns its process group')
+    }
     return
   }
-  if (isAlive(record.runnerPid)) {
+  const runnerExited = group.some((member) => Number(member[1]) === record.runnerPid && member[3].startsWith('Z'))
+  if (!runnerExited && isAlive(record.runnerPid)) {
     assertOwnedProcess(record, record.runnerPid, 'runner')
     if (!members.some((member) => Number(member[1]) === record.runnerPid)) {
       throw new Error('Refusing cleanup: runner no longer owns its process group')
@@ -102,7 +106,7 @@ export function terminateOwnedMacProcessGroup(record: ProcessOwner, signal: 'SIG
     if (
       !expected ||
       !members.some(
-        (member) => member[3].includes(expected) || (appContents && member[3].startsWith(`${appContents}/Frameworks/`))
+        (member) => member[4].includes(expected) || (appContents && member[4].startsWith(`${appContents}/Frameworks/`))
       )
     ) {
       throw new Error('Refusing cleanup: orphaned process group does not match the owned application')

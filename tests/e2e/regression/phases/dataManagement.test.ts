@@ -455,7 +455,14 @@ test(...caseDefinition('MP-117'), async ({ app, mainWindow: page }, testInfo) =>
   const lastBackup = page.getByText(/^Last Backup: \d{2}:\d{2}:\d{2}$/)
   const selectInterval = async (name: string) => {
     await interval.click()
-    await page.getByRole('option', { name, exact: true }).click()
+    try {
+      await page.getByRole('listbox').hover()
+      await page.mouse.wheel(0, -1000)
+      await page.getByRole('option', { name, exact: true }).click()
+    } catch (error) {
+      await attachScreenshot(`MP-117 ${name} interval selection failure`)
+      throw error
+    }
     await expect(interval).toHaveText(name)
   }
 
@@ -680,6 +687,9 @@ test(...caseDefinition('MP-120'), async ({ app, mainWindow: page }, testInfo) =>
       await attachScreenshot(`MP-120 ${source} invalid file rejected without partial data`)
       await invalidDialog.getByRole('button', { name: 'Cancel', exact: true }).click()
     }
+  } catch (error) {
+    await attachScreenshot('MP-120 import failure before cleanup')
+    throw error
   } finally {
     const current = await readState()
     const ids = new Set([

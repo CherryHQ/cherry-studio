@@ -1,7 +1,5 @@
-import { execFile } from 'node:child_process'
 import { cp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { promisify } from 'node:util'
 
 import { expect, type Page, type TestInfo } from '@playwright/test'
 
@@ -15,40 +13,11 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { isPathInside } from '../../../../scripts/e2e/regression/paths'
-import { assertOwnedProcess, isAlive } from '../../../../scripts/e2e/regression/process'
+import { isAlive } from '../../../../scripts/e2e/regression/process'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
+import { dismissNativeMessageBox } from '../../../../scripts/e2e/regression/systemAutomation'
 import { openSettingsSection } from '../helpers/settings'
 import type { RegressionApp } from '../RegressionApp'
-
-const runFile = promisify(execFile)
-
-async function confirmNativeDialog(app: RegressionApp, name: string): Promise<void> {
-  assertOwnedProcess(app.record, app.record.electronPid, 'electron')
-  await runFile(
-    'osascript',
-    [
-      '-e',
-      `
-    tell application "System Events"
-      tell (first process whose unix id is ${app.record.electronPid})
-        set frontmost to true
-        repeat 100 times
-          repeat with windowIndex from 1 to count windows
-            if exists button "${name}" of window windowIndex then
-              click button "${name}" of window windowIndex
-              return
-            end if
-          end repeat
-          delay 0.2
-        end repeat
-        error "Native confirmation button was not found: ${name}"
-      end tell
-    end tell
-  `
-    ],
-    { timeout: 30_000 }
-  )
-}
 
 export async function resetAppData(app: RegressionApp, initialPage: Page, testInfo: TestInfo): Promise<void> {
   let page = initialPage
@@ -147,7 +116,7 @@ export async function resetAppData(app: RegressionApp, initialPage: Page, testIn
     dialog = await openConfirmation()
     await Promise.all([
       dialog.getByRole('button', { name: 'Confirm', exact: true }).click(),
-      confirmNativeDialog(app, 'Reset and Restart')
+      dismissNativeMessageBox(app.record.platform, app.paths, 'Reset App Data', 'Reset and Restart')
     ])
     await expect(page.getByText('Failed to start data reset', { exact: true })).toBeVisible()
     expect(isAlive(app.record.electronPid)).toBe(true)
@@ -161,9 +130,10 @@ export async function resetAppData(app: RegressionApp, initialPage: Page, testIn
   dialog = await openConfirmation()
   await Promise.all([
     dialog.getByRole('button', { name: 'Confirm', exact: true }).click(),
-    confirmNativeDialog(app, 'Reset and Restart')
+    dismissNativeMessageBox(app.record.platform, app.paths, 'Reset App Data', 'Reset and Restart')
   ])
-  if (app.record.mode === 'branch') await confirmNativeDialog(app, 'OK')
+  if (app.record.mode === 'branch')
+    await dismissNativeMessageBox(app.record.platform, app.paths, 'Manual Restart Required')
   await expect.poll(() => isAlive(oldPid), { timeout: 60_000 }).toBe(false)
   page = app.record.mode === 'branch' ? await app.restart() : await app.adoptRelaunch()
   expect(app.record.electronPid).not.toBe(oldPid)

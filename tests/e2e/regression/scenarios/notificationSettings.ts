@@ -11,10 +11,11 @@ import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
-import { findMacNotification } from '../../../../scripts/e2e/regression/systemAutomation'
+import { findMacNotification, findWindowsNotification } from '../../../../scripts/e2e/regression/systemAutomation'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { selectSidebarApp } from '../helpers/navigation'
 import { openSettingsSection } from '../helpers/settings'
+import { inspectStartup } from '../helpers/startupInspection'
 import type { RegressionApp } from '../RegressionApp'
 
 // A failure after the case hides the application must not leave it hidden for the cases that follow.
@@ -39,7 +40,10 @@ function restoreAppVisibility(pid: number): void {
 }
 
 export async function notificationSettings(app: RegressionApp, initialPage: Page, testInfo: TestInfo): Promise<void> {
-  expect(process.platform, 'Native notification automation requires macOS').toBe('darwin')
+  const findNotification = (text: string, click = false) =>
+    app.record.platform === 'macos'
+      ? findMacNotification(app.paths, text, click)
+      : findWindowsNotification(app.paths, text, click)
   let page = initialPage
   const keys = [
     'app.notification.assistant.enabled',
@@ -189,16 +193,20 @@ export async function notificationSettings(app: RegressionApp, initialPage: Page
       )
       // The mock holds the real HTTP response until the app is demonstrably in the background.
       await openSettingsSection(page, 'Notifications')
-      execFileSync(
-        'osascript',
-        [
-          '-e',
-          `tell application "System Events" to set visible of (first application process whose unix id is ${app.record.electronPid}) to false`
-        ],
-        { timeout: 10_000 }
-      )
+      if (app.record.platform === 'windows') {
+        expect(await page.evaluate(() => window.api.ipcApi.request('window.minimize'))).toMatchObject({ ok: true })
+      } else {
+        execFileSync(
+          'osascript',
+          [
+            '-e',
+            `tell application "System Events" to set visible of (first application process whose unix id is ${app.record.electronPid}) to false`
+          ],
+          { timeout: 10_000 }
+        )
+      }
       await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(false)
-      expect(findMacNotification(app.paths, answer)).toBe(false)
+      expect(findNotification(answer)).toBe(false)
       await new Promise((resolve) => setTimeout(resolve, 1500))
       request.complete(answer)
       await expect
@@ -224,8 +232,8 @@ export async function notificationSettings(app: RegressionApp, initialPage: Page
         )
         .toBe(true)
       if (enabled) {
-        await expect.poll(() => findMacNotification(app.paths, answer), { timeout: 15_000 }).toBe(true)
-        expect(findMacNotification(app.paths, answer, true)).toBe(true)
+        await expect.poll(() => findNotification(answer), { timeout: 15_000 }).toBe(true)
+        expect(findNotification(answer, true)).toBe(true)
         await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(true)
         await expect(chat).toBeVisible()
         await expect(chat.getByText(answer, { exact: true })).toBeVisible()
@@ -235,19 +243,20 @@ export async function notificationSettings(app: RegressionApp, initialPage: Page
         // Observe a bounded delivery window after confirmed completion, rather than checking too early.
         const deadline = Date.now() + 8000
         while (Date.now() < deadline) {
-          expect(findMacNotification(app.paths, answer), 'Disabled conversation notifications must never appear').toBe(
-            false
-          )
+          expect(findNotification(answer), 'Disabled conversation notifications must never appear').toBe(false)
           await new Promise((resolve) => setTimeout(resolve, 500))
         }
-        execFileSync(
-          'osascript',
-          [
-            '-e',
-            `tell application "System Events" to set frontmost of (first application process whose unix id is ${app.record.electronPid}) to true`
-          ],
-          { timeout: 10_000 }
-        )
+        if (app.record.platform === 'windows') await inspectStartup(app, 'show')
+        else {
+          execFileSync(
+            'osascript',
+            [
+              '-e',
+              `tell application "System Events" to set frontmost of (first application process whose unix id is ${app.record.electronPid}) to true`
+            ],
+            { timeout: 10_000 }
+          )
+        }
         await selectSidebarApp(page, 'Chat')
         await topicRow.click()
         await expect(chat.getByText(answer, { exact: true })).toBeVisible()
@@ -260,7 +269,8 @@ export async function notificationSettings(app: RegressionApp, initialPage: Page
     }
   } finally {
     await server.close()
-    restoreAppVisibility(app.record.electronPid)
+    if (app.record.platform === 'windows') await inspectStartup(app, 'show')
+    else restoreAppVisibility(app.record.electronPid)
     await page.evaluate(
       async ({ keys, original, namingEnabled, assistantId, providerId }) => {
         for (const [index, key] of keys.entries()) await window.api.preference.set(key, original[index])

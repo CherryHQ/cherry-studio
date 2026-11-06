@@ -295,6 +295,18 @@ test(...caseDefinition('MP-123'), async ({ mainWindow: page }, testInfo) => {
     await expect.poll(() => readGuest('document.getElementById("result").textContent')).toBe('Clicked successfully')
     await expect(editor).toBeHidden()
     await screenshot('MP-123 annotations cleared and page interaction restored')
+  } catch (error) {
+    await screenshot('MP-123 annotation failure before cleanup')
+    await testInfo.attach('MP-123 guest state', {
+      body: JSON.stringify(
+        await guest.evaluate((element) => {
+          const webview = element as WebviewTag
+          return { url: webview.getURL(), loading: webview.isLoading(), preload: webview.getAttribute('preload') }
+        })
+      ),
+      contentType: 'application/json'
+    })
+    throw error
   } finally {
     await page.keyboard.press('Escape')
     await selectSidebarApp(page, 'Chat')

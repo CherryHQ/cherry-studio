@@ -1,6 +1,5 @@
 import { execFile, execFileSync } from 'node:child_process'
-import { randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, statSync } from 'node:fs'
 import { basename, dirname, extname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
@@ -33,7 +32,7 @@ export function findMacNotification(paths: RunPaths, text: string, click = false
             repeat with elementReference in alertElements
               set element to contents of elementReference
               if role of element is "AXStaticText" then
-                if value of element as text is item 1 of argv then
+                if (value of element as text) contains item 1 of argv then
                   if item 2 of argv is "click" then perform action "AXPress" of notificationGroup
                   return "found"
                 end if
@@ -56,6 +55,47 @@ export function findMacNotification(paths: RunPaths, text: string, click = false
   )
 }
 
+export function findWindowsNotification(paths: RunPaths, text: string, click = false): boolean {
+  const record = readAppRecord(paths)
+  if (record.platform !== 'windows') throw new Error('Native Windows notifications require Windows')
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  const script = [
+    '$ErrorActionPreference = "Stop"',
+    'Add-Type -AssemblyName UIAutomationClient',
+    'Add-Type -AssemblyName UIAutomationTypes',
+    '$root = [Windows.Automation.AutomationElement]::RootElement',
+    `$text = '${escapePowerShell(text)}'`,
+    '$textCondition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Text)',
+    '$match = $null',
+    'foreach ($hostProcess in @(Get-Process -Name ShellExperienceHost -ErrorAction SilentlyContinue)) {',
+    '  $processCondition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty, $hostProcess.Id)',
+    '  foreach ($window in $root.FindAll([Windows.Automation.TreeScope]::Children, $processCondition)) {',
+    '    $match = @($window.FindAll([Windows.Automation.TreeScope]::Descendants, $textCondition) | Where-Object { $_.Current.Name.Contains($text) }) | Select-Object -First 1',
+    '    if ($match) { break }',
+    '  }',
+    '  if ($match) { break }',
+    '}',
+    'if (-not $match) { Write-Output "absent"; exit }',
+    ...(click
+      ? [
+          `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class ToastMouse { [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y); [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint x, uint y, uint data, UIntPtr extra); }'`,
+          '$bounds = $match.Current.BoundingRectangle',
+          'if ($match.Current.IsOffscreen -or $bounds.Width -le 0 -or $bounds.Height -le 0) { throw "The matching notification is not visible" }',
+          'if (-not [ToastMouse]::SetCursorPos([int]($bounds.X + $bounds.Width / 2), [int]($bounds.Y + $bounds.Height / 2))) { throw "Could not reach the matching notification" }',
+          '[ToastMouse]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)',
+          '[ToastMouse]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)'
+        ]
+      : []),
+    'Write-Output "found"'
+  ].join('\n')
+  return (
+    execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+      encoding: 'utf8',
+      timeout: 10_000
+    }).trim() === 'found'
+  )
+}
+
 export function closeExternalText(platform: Platform): void {
   if (!activeTextResource || activeTextResource.platform !== platform) return
   cleanupExternalResources(activeTextResource.paths, [activeTextResource.id])
@@ -66,10 +106,6 @@ export function closeExternalText(platform: Platform): void {
 
 function escapePowerShell(value: string): string {
   return value.replace(/'/g, "''")
-}
-
-function escapeHtml(value: string): string {
-  return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
 }
 
 function runMacHotkey(keys: string[]): void {
@@ -177,9 +213,14 @@ function runAsync(file: string, args: string[], timeout: number): Promise<void> 
 /**
  * Acknowledge a native message box raised by the main process itself. The process is
  * blocked inside the modal call, so nothing inside the page can dismiss it: click the
- * box's default button from the desktop instead. Resolves once the box is gone.
+ * requested button from the desktop instead. Resolves once the box is gone.
  */
-export async function dismissNativeMessageBox(platform: Platform, paths: RunPaths, title: string): Promise<void> {
+export async function dismissNativeMessageBox(
+  platform: Platform,
+  paths: RunPaths,
+  title: string,
+  buttonName = 'OK'
+): Promise<void> {
   const record = readOwnedRecord(paths)
   let electronPid = record.electronPid
   const deadline = Date.now() + 60_000
@@ -195,19 +236,21 @@ export async function dismissNativeMessageBox(platform: Platform, paths: RunPath
     const script = [
       'on run argv',
       'set targetPid to item 2 of argv as integer',
+      'set buttonName to item 3 of argv',
       'tell application "System Events"',
       'repeat 240 times',
+      'try',
       'if exists (first application process whose unix id is targetPid) then',
       'tell (first application process whose unix id is targetPid)',
       'repeat with w in windows',
-      'if exists button "OK" of w then',
-      'click button "OK" of w',
+      'if exists button buttonName of w then',
+      'click button buttonName of w',
       'return "window"',
       'end if',
       'if (count of sheets of w) > 0 then',
       'repeat with s in sheets of w',
-      'if exists button "OK" of s then',
-      'click button "OK" of s',
+      'if exists button buttonName of s then',
+      'click button buttonName of s',
       'return "sheet"',
       'end if',
       'end repeat',
@@ -215,20 +258,22 @@ export async function dismissNativeMessageBox(platform: Platform, paths: RunPath
       'end repeat',
       'end tell',
       'end if',
+      'on error errorMessage number errorNumber',
+      'if errorNumber is not -1719 and errorNumber is not -1728 then error errorMessage number errorNumber',
+      'end try',
       'delay 0.25',
       'end repeat',
       'error "Native message box was not found"',
       'end tell',
       'end run'
     ].join('\n')
-    return runAsync('osascript', ['-e', script, '--', title, String(electronPid)], 90_000)
+    return runAsync('osascript', ['-e', script, '--', title, String(electronPid), buttonName], 90_000)
   }
   const script = [
     'Set-StrictMode -Version Latest',
     '$ErrorActionPreference = "Stop"',
     'Add-Type -AssemblyName UIAutomationClient',
     'Add-Type -AssemblyName UIAutomationTypes',
-    `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class NativeMessageBox { [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam); }'`,
     '$root = [System.Windows.Automation.AutomationElement]::RootElement',
     `$processCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ProcessIdProperty, ${electronPid})`,
     '$deadline = [DateTime]::UtcNow.AddSeconds(60)',
@@ -239,10 +284,10 @@ export async function dismissNativeMessageBox(platform: Platform, paths: RunPath
     '  if (-not $dialog) { Start-Sleep -Milliseconds 200 }',
     '} while (-not $dialog -and [DateTime]::UtcNow -lt $deadline)',
     'if (-not $dialog) { throw "Native message box was not found" }',
-    '$buttonCondition = [System.Windows.Automation.OrCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "CommandButton_1"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1"))',
+    `$buttonCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, '${escapePowerShell(buttonName)}'))`,
     '$button = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $buttonCondition)',
-    'if (-not $button -or -not $button.Current.NativeWindowHandle) { throw "Native message box confirmation button was not found" }',
-    '$null = [NativeMessageBox]::SendMessage([IntPtr]$button.Current.NativeWindowHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)',
+    'if (-not $button) { throw "Native message box confirmation button was not found" }',
+    '([System.Windows.Automation.InvokePattern]$button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)).Invoke()',
     'Start-Sleep -Milliseconds 500'
   ].join('\n')
   return runAsync(
@@ -256,12 +301,11 @@ export function openExternalText(platform: Platform, paths: RunPaths, candidateP
   const filePath = resolveAllowedPath(candidatePath, [paths.fixtures, paths.evidence])
   if (!existsSync(filePath)) throw new Error(`External text fixture does not exist: ${filePath}`)
   closeExternalText(platform)
-  const title = `Cherry Regression Selection Fixture ${randomUUID()}`
-  const id = registerExternalResource(
-    paths,
-    platform,
-    platform === 'macos' ? { kind: 'document', application: 'TextEdit', path: filePath } : { kind: 'browser', title }
-  )
+  const id = registerExternalResource(paths, platform, {
+    kind: 'document',
+    application: platform === 'macos' ? 'TextEdit' : 'Notepad',
+    path: filePath
+  })
   activeTextResource = { paths, id, platform }
   if (platform === 'macos') {
     activeMacTextFixturePath = filePath
@@ -279,45 +323,19 @@ export function openExternalText(platform: Platform, paths: RunPaths, candidateP
       { stdio: 'ignore', timeout: 10_000 }
     )
   } else {
-    const fixtureHtmlPath = join(paths.fixtures, 'windows-selection-fixture.html')
-    const browserProfilePath = join(paths.fixtures, 'windows-selection-browser-profile')
-    mkdirSync(browserProfilePath, { recursive: true })
-    writeFileSync(
-      fixtureHtmlPath,
-      [
-        '<!doctype html>',
-        '<meta charset="utf-8">',
-        `<title>${title}</title>`,
-        '<style>html,body,textarea{box-sizing:border-box;width:100%;height:100%;margin:0}textarea{padding:24px;font:24px sans-serif}</style>',
-        `<textarea autofocus>${escapeHtml(readFileSync(filePath, 'utf8').trim())}</textarea>`,
-        '<script>addEventListener("load",()=>{const area=document.querySelector("textarea");area.focus();area.select()})</script>'
-      ].join('\n'),
-      'utf8'
-    )
-    const fixtureUrl = pathToFileURL(fixtureHtmlPath).href
     const script = [
-      '$browserCandidates = @(',
-      '  "${env:ProgramFiles}\\Google\\Chrome\\Application\\chrome.exe",',
-      '  "${env:ProgramFiles(x86)}\\Google\\Chrome\\Application\\chrome.exe",',
-      '  "${env:ProgramFiles}\\Microsoft\\Edge\\Application\\msedge.exe",',
-      '  "${env:ProgramFiles(x86)}\\Microsoft\\Edge\\Application\\msedge.exe"',
-      ')',
-      '$browserPath = $browserCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1',
-      'if (-not $browserPath) { throw "Chrome or Edge was not found" }',
-      `$fixtureArgs = @('--user-data-dir="${escapePowerShell(browserProfilePath)}"', '--no-first-run', '--disable-default-apps', '--disable-extensions', '--new-window', '--window-size=800,400', '--window-position=100,100', '"${escapePowerShell(fixtureUrl)}"')`,
-      'Start-Process -FilePath $browserPath -ArgumentList $fixtureArgs | Out-Null',
+      `$fixture = Start-Process -FilePath notepad.exe -ArgumentList '"${escapePowerShell(filePath)}"' -PassThru`,
       '$deadline = [DateTime]::UtcNow.AddSeconds(20)',
-      '$fixture = $null',
       'do {',
-      `  $fixture = Get-Process chrome,msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -like '${escapePowerShell(title)}*' } | Select-Object -First 1`,
-      '  if (-not $fixture) { Start-Sleep -Milliseconds 200 }',
-      '} while (-not $fixture -and [DateTime]::UtcNow -lt $deadline)',
-      'if (-not $fixture) { throw "External text window was not found" }',
+      '  $fixture.Refresh()',
+      '  if ($fixture.HasExited) { throw "External editor exited before opening the file" }',
+      '  if ($fixture.MainWindowHandle -eq 0) { Start-Sleep -Milliseconds 200 }',
+      '} while ($fixture.MainWindowHandle -eq 0 -and [DateTime]::UtcNow -lt $deadline)',
+      'if ($fixture.MainWindowHandle -eq 0) { throw "External editor window was not found" }',
       '$shell = New-Object -ComObject WScript.Shell',
-      'if (-not $shell.AppActivate($fixture.Id)) { throw "External text window could not be activated" }',
-      'Start-Sleep -Milliseconds 1000',
-      '$shell.SendKeys("^a")',
+      'if (-not $shell.AppActivate($fixture.Id)) { throw "External editor could not be activated" }',
       'Start-Sleep -Milliseconds 500',
+      '$shell.SendKeys("^a")',
       '$fixture.Id'
     ].join('\n')
     const output = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
@@ -331,6 +349,36 @@ export function openExternalText(platform: Platform, paths: RunPaths, candidateP
   }
   observeExternalResource(paths, id)
   return filePath
+}
+
+export function readWindowsExternalText(): {
+  text: string
+  selectedText: string
+  bounds: { x: number; y: number; width: number; height: number }
+} {
+  if (!activeWindowsTextFixturePid || activeTextResource?.platform !== 'windows') {
+    throw new Error('No owned Windows external text editor is open')
+  }
+  const script = [
+    '$ErrorActionPreference = "Stop"',
+    'Add-Type -AssemblyName UIAutomationClient',
+    'Add-Type -AssemblyName UIAutomationTypes',
+    `$condition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty, ${activeWindowsTextFixturePid})`,
+    '$window = [Windows.Automation.AutomationElement]::RootElement.FindFirst([Windows.Automation.TreeScope]::Children, $condition)',
+    'if (-not $window) { throw "Owned external text window is unavailable" }',
+    '$editorCondition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Edit)',
+    '$editor = $window.FindFirst([Windows.Automation.TreeScope]::Descendants, $editorCondition)',
+    'if (-not $editor) { throw "Owned external editor has no text control" }',
+    '$text = $editor.GetCurrentPattern([Windows.Automation.TextPattern]::Pattern)',
+    '$bounds = $window.Current.BoundingRectangle',
+    '@{ text = $text.DocumentRange.GetText(-1); selectedText = (($text.GetSelection() | ForEach-Object { $_.GetText(-1) }) -join ""); bounds = @{ x = $bounds.X; y = $bounds.Y; width = $bounds.Width; height = $bounds.Height } } | ConvertTo-Json -Compress'
+  ].join('; ')
+  return JSON.parse(
+    execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+      encoding: 'utf8',
+      timeout: 10_000
+    })
+  )
 }
 
 export async function inspectImageInExternalBrowser(
@@ -362,7 +410,49 @@ export async function inspectImageInExternalBrowser(
   }
 }
 
+export function readWindowsPrintDialog(paths: RunPaths): string[] {
+  const record = readAppRecord(paths)
+  if (record.platform !== 'windows') throw new Error('Native Windows print inspection requires Windows')
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  const script = [
+    '$ErrorActionPreference = "Stop"',
+    'Add-Type -AssemblyName UIAutomationClient',
+    'Add-Type -AssemblyName UIAutomationTypes',
+    `$condition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty, ${record.electronPid})`,
+    '$windows = [Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Children, $condition)',
+    '$dialog = $windows | Where-Object { $_.Current.ClassName -eq "#32770" -and $_.Current.Name -eq "Print" } | Select-Object -First 1',
+    'if (-not $dialog) { Write-Output "[]"; exit }',
+    '$names = @($dialog.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.Condition]::TrueCondition) | ForEach-Object { $_.Current.Name } | Where-Object { $_ })',
+    'ConvertTo-Json -InputObject $names -Compress'
+  ].join('; ')
+  return JSON.parse(
+    execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+      encoding: 'utf8',
+      timeout: 10_000
+    })
+  )
+}
+
 export function chooseNativeFile(platform: Platform, paths: RunPaths, candidatePath: string): string {
+  return chooseNativeSelection(platform, paths, candidatePath)
+}
+
+export function chooseWindowsNativeFiles(paths: RunPaths, candidates: string[]): void {
+  if (candidates.length === 0) throw new Error('Native multi-file selection requires at least one file')
+  const files = candidates.map((candidate) => {
+    const file = resolveAllowedPath(candidate, [paths.fixtures, paths.workspace, paths.evidence])
+    if (!statSync(file).isFile()) throw new Error(`Selected path is not a file: ${file}`)
+    return file
+  })
+  chooseNativeSelection('windows', paths, files[0], files.map((file) => `"${file}"`).join(' '))
+}
+
+function chooseNativeSelection(
+  platform: Platform,
+  paths: RunPaths,
+  candidatePath: string,
+  selectionText?: string
+): string {
   const filePath = resolveAllowedPath(candidatePath, [paths.fixtures, paths.workspace, paths.evidence])
   if (!existsSync(filePath)) throw new Error(`Selected file does not exist: ${filePath}`)
   const electronPid = readAppRecord(paths).electronPid
@@ -628,7 +718,7 @@ public static class NativeDialog {
             '  $seen = ($all | Select-Object -First 40 | ForEach-Object { "$($_.Current.AutomationId)|$($_.Current.ClassName)|$($_.Current.ControlType.ProgrammaticName)|offscreen=$($_.Current.IsOffscreen)|$($_.Current.Name)" }) -join " ; "',
             '  throw ("Native file name input was not found. Dialog descendants: " + $seen)',
             '}',
-            `$requested = '${escapePowerShell(filePath)}'`,
+            `$requested = '${escapePowerShell(selectionText ?? filePath)}'`,
             '$valuePattern = $null',
             'try { $valuePattern = [System.Windows.Automation.ValuePattern]$fileInput.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern) } catch { $valuePattern = $null }',
             'if ($valuePattern) {',

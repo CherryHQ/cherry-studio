@@ -1,11 +1,14 @@
 import { execFileSync } from 'node:child_process'
-import { readFile, rm, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import { join } from 'node:path'
 
 import type { Page } from '@playwright/test'
 import sharp from 'sharp'
 
+import { createDeviceIdentity } from '@cherrystudio/remote-transport'
+import type { AppInfo } from '@renderer/types/app'
 import type { SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
 import { AssistantSchema } from '@shared/data/types/assistant'
 import { createUniqueModelId } from '@shared/data/types/model'
@@ -15,12 +18,14 @@ import { computerUseRequestSchemas } from '@shared/ipc/schemas/computerUse'
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { observeExternalResource, registerExternalResource } from '../../../../scripts/e2e/regression/externalResources'
+import { isPathInside } from '../../../../scripts/e2e/regression/paths'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import {
   saveNativeFile,
   sendSystemHotkey,
   closeExternalText,
-  openExternalText
+  openExternalText,
+  readWindowsExternalText
 } from '../../../../scripts/e2e/regression/systemAutomation'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { expect, test } from '../fixture'
@@ -32,6 +37,7 @@ import {
 } from '../helpers/computerUseNative'
 import { openLaunchpad, selectSidebarApp } from '../helpers/navigation'
 import { openSettingsSection, closeSettings } from '../helpers/settings'
+import { openWindowsTrayMenu, windowsTrayMenu } from '../helpers/windowsTray'
 import { globalSearch } from '../scenarios/globalSearch'
 import { launchpadPinning } from '../scenarios/launchpadPinning'
 import { singleInstanceRelaunch } from '../scenarios/singleInstanceRelaunch'
@@ -43,27 +49,28 @@ test(...caseDefinition('MP-127'), async ({ app, mainWindow: page }, testInfo) =>
     await writeFile(path, await captureMaskedScreenshot(target, getSensitiveConfigValues()))
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
-  if (app.record.platform !== 'macos') throw new Error('UNCOVERED: MP-127 requires macOS Accessibility permissions')
   await openSettingsSection(page, 'Selection Assistant')
-  const trusted = await page.evaluate(async () => {
-    const response = (await window.api.ipcApi.request('system.mac.is_process_trusted')) as {
-      ok: boolean
-      data?: boolean
-      error?: { message: string }
+  if (app.record.platform === 'macos') {
+    const trusted = await page.evaluate(async () => {
+      const response = (await window.api.ipcApi.request('system.mac.is_process_trusted')) as {
+        ok: boolean
+        data?: boolean
+        error?: { message: string }
+      }
+      if (!response.ok) throw new Error(response.error?.message)
+      return response.data
+    })
+    if (!trusted) {
+      await page.getByRole('switch').first().click()
+      const permission = page.getByRole('dialog', { name: 'Accessibility Permission', exact: true })
+      await expect(permission).toContainText('Accessibility Permission')
+      await expect(permission.getByRole('button', { name: 'Open Accessibility Settings', exact: true })).toBeVisible()
+      await screenshot(page, 'MP-127 accessibility permission required')
+      await page.keyboard.press('Escape')
+      // Missing Accessibility trust is a prerequisite gap, not a regression: the controller
+      // records skipped as blocked, while a throw would be reported as a product failure.
+      test.skip(true, 'UNCOVERED: macOS has not granted Accessibility permission to the test application')
     }
-    if (!response.ok) throw new Error(response.error?.message)
-    return response.data
-  })
-  if (!trusted) {
-    await page.getByRole('switch').first().click()
-    const permission = page.getByRole('dialog', { name: 'Accessibility Permission', exact: true })
-    await expect(permission).toContainText('Accessibility Permission')
-    await expect(permission.getByRole('button', { name: 'Open Accessibility Settings', exact: true })).toBeVisible()
-    await screenshot(page, 'MP-127 accessibility permission required')
-    await page.keyboard.press('Escape')
-    // Missing Accessibility trust is a prerequisite gap, not a regression: the controller
-    // records skipped as blocked, while a throw would be reported as a product failure.
-    test.skip(true, 'UNCOVERED: macOS has not granted Accessibility permission to the test application')
   }
 
   // Real native selection and UI; only the external model HTTP responses are mocked.
@@ -82,6 +89,7 @@ test(...caseDefinition('MP-127'), async ({ app, mainWindow: page }, testInfo) =>
     'feature.selection.auto_pin',
     'feature.selection.auto_close',
     'feature.selection.filter_mode',
+    'feature.quick_assistant.assistant_id',
     'shortcut.selection.capture_text',
     'feature.translate.model_id',
     'feature.translate.auto_detection_method'
@@ -138,9 +146,9 @@ test(...caseDefinition('MP-127'), async ({ app, mainWindow: page }, testInfo) =>
         await window.api.preference.setMultiple({
           'feature.selection.action_items': items.map((item) => ({
             ...item,
-            assistantId,
             enabled: ['explain', 'translate', 'copy'].includes(item.id)
           })),
+          'feature.quick_assistant.assistant_id': assistantId,
           'feature.selection.trigger_mode': 'shortcut' as SelectionTriggerMode,
           'feature.selection.filter_mode': 'default' as SelectionFilterMode,
           'feature.selection.auto_pin': false,
@@ -159,49 +167,59 @@ test(...caseDefinition('MP-127'), async ({ app, mainWindow: page }, testInfo) =>
     const textFile = `${app.paths.fixtures}/MP-127-selection.txt`
     await writeFile(textFile, original)
     const invoke = async () => {
-      openExternalText('macos', app.paths, textFile)
-      await expect
-        .poll(() => {
-          execFileSync(
-            'osascript',
-            [
-              '-e',
-              'tell application "TextEdit" to activate',
-              '-e',
-              'tell application "System Events" to tell process "TextEdit"',
-              '-e',
-              'set frontmost to true',
-              '-e',
-              'set focused of text area 1 of scroll area 1 of window 1 to true',
-              '-e',
-              'keystroke "a" using command down',
-              '-e',
-              'end tell'
-            ],
-            { timeout: 10_000 }
-          )
-          return execFileSync(
-            'osascript',
-            [
-              '-e',
-              'tell application "System Events" to tell process "TextEdit" to get value of attribute "AXSelectedText" of text area 1 of scroll area 1 of window 1'
-            ],
-            { encoding: 'utf8', timeout: 10_000 }
-          ).trim()
-        })
-        .toBe(original)
-      sendSystemHotkey('macos', ['Meta', 'Alt', 'Shift', 's'])
+      openExternalText(app.record.platform, app.paths, textFile)
+      if (app.record.platform === 'windows') {
+        await expect.poll(() => readWindowsExternalText().selectedText).toBe(original)
+      } else {
+        await expect
+          .poll(() => {
+            execFileSync(
+              'osascript',
+              [
+                '-e',
+                'tell application "TextEdit" to activate',
+                '-e',
+                'tell application "System Events" to tell process "TextEdit"',
+                '-e',
+                'set frontmost to true',
+                '-e',
+                'set focused of text area 1 of scroll area 1 of window 1 to true',
+                '-e',
+                'keystroke "a" using command down',
+                '-e',
+                'end tell'
+              ],
+              { timeout: 10_000 }
+            )
+            return execFileSync(
+              'osascript',
+              [
+                '-e',
+                'tell application "System Events" to tell process "TextEdit" to get value of attribute "AXSelectedText" of text area 1 of scroll area 1 of window 1'
+              ],
+              { encoding: 'utf8', timeout: 10_000 }
+            ).trim()
+          })
+          .toBe(original)
+      }
+      sendSystemHotkey(app.record.platform, [app.record.platform === 'macos' ? 'Meta' : 'Control', 'Alt', 'Shift', 's'])
       const toolbar = await app.window('/windows/selection/toolbar/')
       await expect(toolbar.getByRole('button', { name: 'Explain', exact: true })).toBeVisible()
       const position = await toolbar.evaluate(() => ({ x: screenX, y: screenY }))
-      const bounds = execFileSync(
-        'osascript',
-        ['-e', 'tell application "System Events" to tell process "TextEdit" to get {position, size} of window 1'],
-        { encoding: 'utf8', timeout: 10_000 }
-      )
-        .trim()
-        .split(', ')
-        .map(Number)
+      const bounds =
+        app.record.platform === 'windows'
+          ? (() => {
+              const { x, y, width, height } = readWindowsExternalText().bounds
+              return [x, y, width, height]
+            })()
+          : execFileSync(
+              'osascript',
+              ['-e', 'tell application "System Events" to tell process "TextEdit" to get {position, size} of window 1'],
+              { encoding: 'utf8', timeout: 10_000 }
+            )
+              .trim()
+              .split(', ')
+              .map(Number)
       expect(position.x).toBeGreaterThanOrEqual(bounds[0] - 50)
       expect(position.x).toBeLessThanOrEqual(bounds[0] + bounds[2] + 50)
       expect(position.y).toBeGreaterThanOrEqual(bounds[1] - 50)
@@ -269,36 +287,55 @@ test(...caseDefinition('MP-127'), async ({ app, mainWindow: page }, testInfo) =>
       await copy.hover()
       await expect(result.getByRole('tooltip', { name: 'Copy Original', exact: true })).toBeVisible()
       await copy.click()
-      await expect.poll(() => execFileSync('pbpaste', { encoding: 'utf8', timeout: 10_000 })).toBe(original)
-      await result.keyboard.press('Escape')
       await expect
         .poll(() =>
+          app.record.platform === 'macos'
+            ? execFileSync('pbpaste', { encoding: 'utf8', timeout: 10_000 })
+            : execFileSync(
+                'powershell.exe',
+                ['-NoProfile', '-NonInteractive', '-Command', '[Console]::Write((Get-Clipboard -Raw))'],
+                { encoding: 'utf8', timeout: 10_000 }
+              )
+        )
+        .toBe(original)
+      await result.keyboard.press('Escape')
+      if (app.record.platform === 'windows') {
+        await expect
+          .poll(() =>
+            result.isClosed() ? true : result.evaluate(() => document.hidden).catch(() => result.isClosed())
+          )
+          .toBe(true)
+        expect(readWindowsExternalText().text).toBe(original)
+      } else {
+        await expect
+          .poll(() =>
+            execFileSync(
+              'osascript',
+              [
+                '-e',
+                `tell application "System Events" to tell (first application process whose unix id is ${app.record.electronPid}) to exists window "${action} - Selection Assistant"`
+              ],
+              { encoding: 'utf8', timeout: 10_000 }
+            ).trim()
+          )
+          .toBe('false')
+        expect(
           execFileSync(
             'osascript',
             [
               '-e',
-              `tell application "System Events" to tell (first application process whose unix id is ${app.record.electronPid}) to exists window "${action} - Selection Assistant"`
+              'tell application "System Events" to tell process "TextEdit" to get value of text area 1 of scroll area 1 of window 1'
             ],
-            { encoding: 'utf8', timeout: 10_000 }
+            {
+              encoding: 'utf8',
+              timeout: 10_000
+            }
           ).trim()
-        )
-        .toBe('false')
-      expect(
-        execFileSync(
-          'osascript',
-          [
-            '-e',
-            'tell application "System Events" to tell process "TextEdit" to get value of text area 1 of scroll area 1 of window 1'
-          ],
-          {
-            encoding: 'utf8',
-            timeout: 10_000
-          }
-        ).trim()
-      ).toBe(original)
+        ).toBe(original)
+      }
     }
   } finally {
-    closeExternalText('macos')
+    closeExternalText(app.record.platform)
     await server.close()
     await page.evaluate(
       async ({ previous, providerId, assistantId }) => {
@@ -412,9 +449,14 @@ test(...caseDefinition('MP-128'), async ({ app, mainWindow: page }, testInfo) =>
     }
     const { window: capturePage, x, y } = await capture()
     await capturePage.getByRole('button', { name: 'Rectangle', exact: true }).click()
+    await expect(capturePage.getByRole('button', { name: 'Rectangle', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
     await capturePage.getByRole('button', { name: 'Red', exact: true }).click()
     await expect(capturePage.getByRole('button', { name: 'Red', exact: true })).toHaveAttribute('aria-pressed', 'true')
     await drag(capturePage, x + 20, y + 20, 400, 100)
+    await screenshot(capturePage, 'MP-128 rectangle before undo')
     const painted = await capturePage
       .locator('canvas')
       .last()
@@ -532,7 +574,10 @@ test(...caseDefinition('MP-128'), async ({ app, mainWindow: page }, testInfo) =>
       noChat.window.getByRole('dialog').getByRole('button', { name: 'Add to chat', exact: true })
     ).toBeDisabled()
   } finally {
-    await overlay?.keyboard.press('Escape').catch(() => undefined)
+    if (overlay && !overlay.isClosed()) {
+      await overlay.evaluate(() => window.api.ipcApi.request('screenshot.cancel'))
+      await expect.poll(() => overlay!.evaluate(() => document.hidden).catch(() => true)).toBe(true)
+    }
     await page.evaluate(async (original) => {
       document.getElementById('mp128-sample')?.remove()
       await window.api.preference.setMultiple({
@@ -696,7 +741,10 @@ test(...caseDefinition('MP-133'), async ({ app, mainWindow }, testInfo) => {
 })
 
 test(...caseDefinition('MP-140'), async ({ app, mainWindow }, testInfo) => {
-  const settingsResource = registerExternalResource(app.paths, app.record.platform, { kind: 'settings' })
+  const settingsResource =
+    app.record.platform === 'macos'
+      ? registerExternalResource(app.paths, app.record.platform, { kind: 'settings' })
+      : undefined
   let page = mainWindow
   const original = await page.evaluate(async () => ({
     language: await window.api.preference.get('app.language'),
@@ -722,50 +770,61 @@ test(...caseDefinition('MP-140'), async ({ app, mainWindow }, testInfo) => {
       timeout: 5_000
     })
 
-    const permissions = [
-      { id: 'accessibility', name: '辅助功能', panel: 'Privacy_Accessibility' },
-      { id: 'screenRecording', name: '屏幕录制', panel: 'Privacy_ScreenCapture' }
-    ] as const
-    const permissionStates = new Map<string, string>()
-    for (const { id, name, panel } of permissions) {
-      const row = settings.getByTestId(`computer-use-permission-${id}`)
-      const status = row.getByText(/^(已授权|已拒绝|未确认|不可用)$/, { exact: true })
-      await expect(status).toBeVisible()
-      const state = await status.innerText()
-      permissionStates.set(name, state)
-      expect(readNativePermission(panel), `${name}: ${state}`).toBe(state === '已授权' ? '1' : '0')
-    }
-    observeExternalResource(app.paths, settingsResource)
-    await screenshot('MP-140 step 2 permission states')
-
-    const refresh = settings.getByRole('button', { name: '重新检查权限', exact: true })
-    await refresh.click()
-    await expect(refresh).toBeEnabled()
-    await expect(settings.getByRole('alert')).toHaveCount(0)
-    await expect(settings.getByTestId('computer-use-permission-accessibility')).toBeVisible()
-    await screenshot('MP-140 step 3 permissions refreshed')
-
-    for (const { name } of permissions) {
-      const guide = settings.getByRole('button', { name: `管理${name}权限`, exact: true })
-      const state = permissionStates.get(name)
-      if (state === '已授权' || state === '不可用') {
-        await expect(guide).toHaveCount(0)
-        continue
+    if (app.record.platform === 'macos') {
+      const permissions = [
+        { id: 'accessibility', name: '辅助功能', panel: 'Privacy_Accessibility' },
+        { id: 'screenRecording', name: '屏幕录制', panel: 'Privacy_ScreenCapture' }
+      ] as const
+      const permissionStates = new Map<string, string>()
+      for (const { id, name, panel } of permissions) {
+        const row = settings.getByTestId(`computer-use-permission-${id}`)
+        const status = row.getByText(/^(已授权|已拒绝|未确认|不可用)$/, { exact: true })
+        await expect(status).toBeVisible()
+        const state = await status.innerText()
+        permissionStates.set(name, state)
+        expect(readNativePermission(panel), `${name}: ${state}`).toBe(state === '已授权' ? '1' : '0')
       }
-      await expect(guide).toBeVisible()
-      await expect(guide).toHaveText('打开授权引导')
-      await guide.click()
-      await expect
-        .poll(() =>
-          nativeComputerUse(`
+      observeExternalResource(app.paths, settingsResource!)
+      await screenshot('MP-140 step 2 permission states')
+
+      const refresh = settings.getByRole('button', { name: '重新检查权限', exact: true })
+      await refresh.click()
+      await expect(refresh).toBeEnabled()
+      await expect(settings.getByRole('alert')).toHaveCount(0)
+      await expect(settings.getByTestId('computer-use-permission-accessibility')).toBeVisible()
+      await screenshot('MP-140 step 3 permissions refreshed')
+
+      for (const { name } of permissions) {
+        const guide = settings.getByRole('button', { name: `管理${name}权限`, exact: true })
+        const state = permissionStates.get(name)
+        if (state === '已授权' || state === '不可用') {
+          await expect(guide).toHaveCount(0)
+          continue
+        }
+        await expect(guide).toBeVisible()
+        await expect(guide).toHaveText('打开授权引导')
+        await guide.click()
+        await expect
+          .poll(() =>
+            nativeComputerUse(`
         tell application "System Events" to tell process "System Settings"
           return entire contents of window 1 as text
         end tell
       `)
-        )
-        .toContain(name)
-      await screenshot(`MP-140 step 3 ${name} guide`)
-      await page.bringToFront()
+          )
+          .toContain(name)
+        await screenshot(`MP-140 step 3 ${name} guide`)
+        await page.bringToFront()
+        await refresh.click()
+        await expect(refresh).toBeEnabled()
+        await expect(settings.getByRole('alert')).toHaveCount(0)
+      }
+    } else {
+      await expect(settings.locator('[data-testid^="computer-use-permission-"]')).toHaveCount(0)
+      await expect(
+        settings.getByText('此运行时没有系统权限申请流程。桌面能力是否可用仍取决于运行环境。', { exact: true })
+      ).toBeVisible()
+      const refresh = settings.getByRole('button', { name: '重新检查权限', exact: true })
       await refresh.click()
       await expect(refresh).toBeEnabled()
       await expect(settings.getByRole('alert')).toHaveCount(0)
@@ -796,14 +855,22 @@ test(...caseDefinition('MP-140'), async ({ app, mainWindow }, testInfo) => {
     await expect(control).toBeChecked()
     await screenshot('MP-140 step 4 enabled after full restart')
 
+    if (app.record.platform === 'windows') {
+      const fixture = join(app.paths.fixtures, 'MP-140-desktop-control.txt')
+      await writeFile(fixture, 'MP-140 controlled application')
+      openExternalText(app.record.platform, app.paths, fixture)
+      await page.bringToFront()
+    }
     const startControl = (ownerId: string) =>
       computerUseMain(
         app,
         `
       const context = service.createTask(${JSON.stringify(ownerId)}, 'MP-140 desktop control')
       const { apps } = await service.listApps(context)
-      const target = apps.find(app => app.id === 'com.apple.systempreferences')
-      if (!target) throw new Error('UNCOVERED: System Settings is not available for desktop control')
+      const matches = apps.filter(app => ${JSON.stringify(app.record.platform)} === 'macos'
+        ? app.id === 'com.apple.systempreferences' : /notepad/i.test(app.name))
+      if (matches.length !== 1) throw new Error('Expected one controlled fixture application')
+      const target = matches[0]
       const session = await service.openApp(context, target.id)
       return session.app.id
     `
@@ -838,7 +905,15 @@ test(...caseDefinition('MP-140'), async ({ app, mainWindow }, testInfo) => {
     await control.setChecked(true)
     await expect(control).toBeEnabled()
     await startControl('MP-140-tray')
-    const menuLabel = stopNativeDesktopControl(app.record.electronPid)
+    let menuLabel: string
+    if (app.record.platform === 'windows') {
+      await openWindowsTrayMenu(app)
+      await expect.poll(() => windowsTrayMenu(app)).toContain('桌面控制')
+      windowsTrayMenu(app, '桌面控制', true)
+      await expect.poll(() => windowsTrayMenu(app)).toContain('停止所有桌面控制')
+      menuLabel = '停止所有桌面控制'
+      windowsTrayMenu(app, menuLabel)
+    } else menuLabel = stopNativeDesktopControl(app.record.electronPid)
     await testInfo.attach('MP-140 tray stop menu label', { body: menuLabel, contentType: 'text/plain' })
     expect(menuLabel).toBe('停止所有桌面控制')
     await expect
@@ -868,6 +943,7 @@ test(...caseDefinition('MP-140'), async ({ app, mainWindow }, testInfo) => {
     )
     await screenshot('MP-140 step 5 tray stopped desktop control')
   } finally {
+    if (app.record.platform === 'windows') closeExternalText(app.record.platform)
     if (page.isClosed()) page = await app.mainWindow()
     await page.evaluate(
       ({ language, enabled }) =>
@@ -914,7 +990,26 @@ test(...caseDefinition('MP-141'), async ({ app, mainWindow: page }, testInfo) =>
   const port = address.port
   await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
 
+  let identityFixture: string | undefined
   try {
+    const info = (await page.evaluate(() => window.api.ipcApi.request('app.get_info'))) as IpcResult<AppInfo>
+    if (!info.ok) throw new Error(info.error.message)
+    expect(isPathInside(app.paths.profiles, info.data.appDataPath)).toBe(true)
+    const runtime = join(info.data.appDataPath, 'Runtime')
+    const plainIdentity = join(runtime, 'remote-identity.key')
+    if (!existsSync(plainIdentity) && !existsSync(join(runtime, 'remote-identity.enc'))) {
+      await mkdir(runtime, { recursive: true })
+      await writeFile(plainIdentity, Buffer.from(await createDeviceIdentity()).toString('base64'), {
+        mode: 0o600,
+        flag: 'wx'
+      })
+      identityFixture = plainIdentity
+    }
+    testInfo.annotations.push({
+      type: 'data-source',
+      description:
+        'Uses a valid profile-owned device identity; system keychain creation is outside this pairing UI scenario.'
+    })
     const stopped = await page.evaluate(() => window.api.ipcApi.request('api_gateway.stop'))
     expect(stopped).toEqual({ ok: true, data: { success: true, outcome: 'stopped' } })
     await page.evaluate(
@@ -1028,14 +1123,18 @@ test(...caseDefinition('MP-141'), async ({ app, mainWindow: page }, testInfo) =>
     await expect(qr()).toHaveCount(0)
     await screenshot('MP-141 disabled state persists after restart')
   } finally {
-    await page.evaluate(async (original) => {
-      await window.api.ipcApi.request('api_gateway.lan.set_enabled', { enabled: false })
-      await window.api.ipcApi.request('api_gateway.stop')
-      await window.api.preference.setMultiple({
-        'feature.api_gateway.host': original.host,
-        'feature.api_gateway.port': original.port
-      })
-      if (original.enabled) await window.api.ipcApi.request('api_gateway.start')
-    }, original)
+    try {
+      await page.evaluate(async (original) => {
+        await window.api.ipcApi.request('api_gateway.lan.set_enabled', { enabled: false })
+        await window.api.ipcApi.request('api_gateway.stop')
+        await window.api.preference.setMultiple({
+          'feature.api_gateway.host': original.host,
+          'feature.api_gateway.port': original.port
+        })
+        if (original.enabled) await window.api.ipcApi.request('api_gateway.start')
+      }, original)
+    } finally {
+      if (identityFixture) await rm(identityFixture, { force: true })
+    }
   }
 })

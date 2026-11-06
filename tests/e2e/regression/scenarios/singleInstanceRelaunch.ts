@@ -1,13 +1,15 @@
 import { execFile } from 'node:child_process'
-import { writeFile } from 'node:fs/promises'
+import { readdir, realpath, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { promisify } from 'node:util'
 
 import { expect, type Page, type TestInfo } from '@playwright/test'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { createProfileEnvironment } from '../../../../scripts/e2e/regression/lifecycle'
-import { findListeningPid } from '../../../../scripts/e2e/regression/process'
+import { findListeningPid, windowsProcessExecutablePath } from '../../../../scripts/e2e/regression/process'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
+import { readWindowsFileOwners } from '../../../../scripts/e2e/regression/windowsFileOwners'
 import { selectSidebarApp } from '../helpers/navigation'
 import type { RegressionApp } from '../RegressionApp'
 
@@ -16,22 +18,31 @@ const exec = promisify(execFile)
 export async function singleInstanceRelaunch(app: RegressionApp, page: Page, testInfo: TestInfo): Promise<void> {
   // Catches duplicate database owners, lost second-launch focus, and dropped deep-link arguments.
   const record = app.record
-  expect(record.platform).toBe('macos')
-  expect(findListeningPid(record.platform, record.cdpPort)).toBe(record.electronPid)
-  const { stdout: cwd } = await exec('lsof', ['-a', '-p', String(record.electronPid), '-d', 'cwd', '-Fn'])
-  // Installer launches run from the executable's directory and record it in `cwd`;
-  // only branch launches start from the repository root.
-  expect(cwd.split('\n')).toContain(`n${record.cwd}`)
-  const { stdout: binaries } = await exec('lsof', ['-a', '-p', String(record.electronPid), '-d', 'txt', '-Fn'])
-  const executable =
-    record.executablePath ??
-    binaries
-      .split('\n')
-      .find((line) => /\.app\/Contents\/MacOS\/Electron$/.test(line))
-      ?.slice(1)
+  let executable: string | undefined
+  let bundle: string | undefined
+  if (record.platform === 'windows') {
+    executable = windowsProcessExecutablePath(record.electronPid)
+    expect(executable).toBeTruthy()
+    expect(findListeningPid(record.platform, record.cdpPort)).toBe(record.electronPid)
+  } else {
+    expect(findListeningPid(record.platform, record.cdpPort)).toBe(record.electronPid)
+    const { stdout: cwd } = await exec('lsof', ['-a', '-p', String(record.electronPid), '-d', 'cwd', '-Fn'])
+    // Installer launches run from the executable's directory and record it in `cwd`;
+    // only branch launches start from the repository root.
+    expect(cwd.split('\n')).toContain(`n${await realpath(record.cwd)}`)
+    const { stdout: binaries } = await exec('lsof', ['-a', '-p', String(record.electronPid), '-d', 'txt', '-Fn'])
+    executable =
+      record.executablePath ??
+      binaries
+        .split('\n')
+        .find((line) => /\.app\/Contents\/MacOS\/Electron$/.test(line))
+        ?.slice(1)
+    if (!executable) throw new Error('Could not identify the owned application executable')
+    bundle = executable.slice(0, executable.indexOf('.app/') + 4)
+    expect(bundle).toMatch(/\.app$/)
+  }
   if (!executable) throw new Error('Could not identify the owned application executable')
-  const bundle = executable.slice(0, executable.indexOf('.app/') + 4)
-  expect(bundle).toMatch(/\.app$/)
+  const executablePath = executable
   const args =
     record.mode === 'branch' ? [record.targetRoot] : [`--user-data-dir=${app.paths.profiles}/${record.profile}`]
   const environment: NodeJS.ProcessEnv = {
@@ -60,6 +71,30 @@ export async function singleInstanceRelaunch(app: RegressionApp, page: Page, tes
   expect(original[0].url).toBe(page.url())
   const title = await page.title()
   const nativeState = async () => {
+    if (record.platform === 'windows') {
+      const { stdout } = await exec(
+        'powershell.exe',
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-Command',
+          [
+            'Add-Type -AssemblyName UIAutomationClient',
+            'Add-Type -AssemblyName UIAutomationTypes',
+            `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class WindowState { [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h); [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow(); [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid); }'`,
+            `$condition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty, ${record.electronPid})`,
+            '$windows = [Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Children, $condition)',
+            `$main = $windows | Where-Object { $_.Current.Name -eq '${title.replaceAll("'", "''")}' } | Select-Object -First 1`,
+            'if (-not $main) { throw "Owned main window was not found" }',
+            '[uint32]$foregroundPid = 0',
+            '$null = [WindowState]::GetWindowThreadProcessId([WindowState]::GetForegroundWindow(), [ref]$foregroundPid)',
+            `@{ minimized = [WindowState]::IsIconic([IntPtr]$main.Current.NativeWindowHandle); frontmost = $foregroundPid -eq ${record.electronPid} } | ConvertTo-Json -Compress`
+          ].join('; ')
+        ],
+        { timeout: 10_000 }
+      )
+      return JSON.parse(stdout) as { minimized: boolean; frontmost: boolean }
+    }
     const { stdout } = await exec('/usr/bin/osascript', [
       '-e',
       `on run argv
@@ -84,33 +119,73 @@ export async function singleInstanceRelaunch(app: RegressionApp, page: Page, tes
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
   const processSnapshot = async () => {
-    const { stdout } = await exec('ps', ['-axo', 'pid=,ppid=,command='])
-    const all = stdout.split('\n').flatMap((line) => {
-      const match = line.trim().match(/^(\d+)\s+(\d+)\s+(.+)$/)
-      return match ? [{ pid: Number(match[1]), parent: Number(match[2]), command: match[3] }] : []
-    })
+    let all: Array<{ pid: number; parent: number; command: string; executable?: string }>
+    if (record.platform === 'windows') {
+      const { stdout } = await exec(
+        'powershell.exe',
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-Command',
+          'Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId, CommandLine, ExecutablePath | ConvertTo-Json -Compress'
+        ],
+        { timeout: 10_000 }
+      )
+      all = (
+        JSON.parse(stdout) as Array<{
+          ProcessId: number
+          ParentProcessId: number
+          CommandLine: string | null
+          ExecutablePath: string | null
+        }>
+      ).map((row) => ({
+        pid: row.ProcessId,
+        parent: row.ParentProcessId,
+        command: row.CommandLine ?? '',
+        executable: row.ExecutablePath ?? ''
+      }))
+    } else {
+      const { stdout } = await exec('ps', ['-axo', 'pid=,ppid=,command='])
+      all = stdout.split('\n').flatMap((line) => {
+        const match = line.trim().match(/^(\d+)\s+(\d+)\s+(.+)$/)
+        return match ? [{ pid: Number(match[1]), parent: Number(match[2]), command: match[3] }] : []
+      })
+    }
     const owned = new Set([record.electronPid])
     for (let previous = 0; previous !== owned.size;) {
       previous = owned.size
       for (const process of all) if (owned.has(process.parent)) owned.add(process.pid)
     }
     const mains = all.filter(
-      (process) => process.command.startsWith(executable) && !process.command.includes('--type=')
+      (process) =>
+        (record.platform === 'windows'
+          ? process.executable?.toLowerCase() === executablePath.toLowerCase()
+          : process.command.startsWith(executablePath)) && !process.command.includes('--type=')
     )
     expect(mains.map(({ pid }) => pid)).toEqual([record.electronPid])
     return all.filter((process) => owned.has(process.pid))
   }
   await selectSidebarApp(page, 'Chat')
   const baseline = await processSnapshot()
-  const { stdout: openFiles } = await exec('lsof', ['-a', '-p', String(record.electronPid), '-Fn'])
-  const databases = [
-    ...new Set(
-      openFiles
-        .split('\n')
-        .filter((line) => line.startsWith(`n${app.paths.profiles}/`) && /\.(db|sqlite|sqlite3)$/.test(line))
-        .map((line) => line.slice(1))
-    )
-  ]
+  let databases: string[]
+  if (record.platform === 'windows') {
+    const entries = await readdir(join(app.paths.profiles, record.profile), { recursive: true, withFileTypes: true })
+    const candidates = entries
+      .filter((entry) => entry.isFile() && /\.(db|sqlite|sqlite3)$/.test(entry.name))
+      .map((entry) => join(entry.parentPath, entry.name))
+    databases = candidates.filter((file) => readWindowsFileOwners(app.paths, file).includes(record.electronPid))
+  } else {
+    const { stdout: openFiles } = await exec('lsof', ['-a', '-p', String(record.electronPid), '-Fn'])
+    const profiles = await realpath(app.paths.profiles)
+    databases = [
+      ...new Set(
+        openFiles
+          .split('\n')
+          .filter((line) => line.startsWith(`n${profiles}/`) && /\.(db|sqlite|sqlite3)$/.test(line))
+          .map((line) => line.slice(1))
+      )
+    ]
+  }
   expect(databases.length, 'The running app must have an open SQLite database').toBeGreaterThan(0)
   const assertReused = async (name: string) => {
     await expect.poll(nativeState).toEqual({ minimized: false, frontmost: true })
@@ -120,8 +195,10 @@ export async function singleInstanceRelaunch(app: RegressionApp, page: Page, tes
     expect(current.length, 'A relaunch must not leave additional application processes').toBe(baseline.length)
     const databaseOwners: Array<{ database: string; owners: number[] }> = []
     for (const database of databases) {
-      const { stdout } = await exec('lsof', ['-t', database])
-      const owners = [...new Set(stdout.trim().split('\n').map(Number))]
+      const owners =
+        record.platform === 'windows'
+          ? readWindowsFileOwners(app.paths, database)
+          : [...new Set((await exec('lsof', ['-t', database])).stdout.trim().split('\n').map(Number))]
       expect(owners).toEqual([record.electronPid])
       databaseOwners.push({ database, owners })
     }
@@ -137,32 +214,36 @@ export async function singleInstanceRelaunch(app: RegressionApp, page: Page, tes
   }
   await screenshot('MP-133 original application before second launch')
   await minimize()
-  // Finder opens through LaunchServices; -n also exercises the actual same-profile exclusion guard.
-  await exec(
-    '/usr/bin/open',
-    [
-      '-n',
-      '-W',
-      '-a',
-      bundle,
-      '--env',
-      `CS_DEV_PROFILE_ROOT=${environment.CS_DEV_PROFILE_ROOT}`,
-      '--env',
-      `CS_DEV_USER_DATA_SUFFIX=${environment.CS_DEV_USER_DATA_SUFFIX}`,
-      ...['ELECTRON_VITE', 'NODE_ENV', 'ELECTRON_RENDERER_URL'].flatMap((key) =>
-        environment[key] ? ['--env', `${key}=${environment[key]}`] : []
-      ),
-      '--args',
-      ...args
-    ],
-    // LaunchServices inherits this process's home; forward the prepared environment
-    // so packaged startup cannot read BootConfig from the controller profile.
-    { timeout: 30_000, env: environment }
-  )
-  await assertReused('MP-133 LaunchServices relaunch reuses original window')
+  if (record.platform === 'windows') {
+    await exec(executablePath, args, { cwd: record.cwd, timeout: 30_000, env: environment })
+  } else {
+    // Finder opens through LaunchServices; -n also exercises the actual same-profile exclusion guard.
+    await exec(
+      '/usr/bin/open',
+      [
+        '-n',
+        '-W',
+        '-a',
+        bundle!,
+        '--env',
+        `CS_DEV_PROFILE_ROOT=${environment.CS_DEV_PROFILE_ROOT}`,
+        '--env',
+        `CS_DEV_USER_DATA_SUFFIX=${environment.CS_DEV_USER_DATA_SUFFIX}`,
+        ...['ELECTRON_VITE', 'NODE_ENV', 'ELECTRON_RENDERER_URL'].flatMap((key) =>
+          environment[key] ? ['--env', `${key}=${environment[key]}`] : []
+        ),
+        '--args',
+        ...args
+      ],
+      // LaunchServices inherits this process's home; forward the prepared environment
+      // so packaged startup cannot read BootConfig from the controller profile.
+      { timeout: 30_000, env: environment }
+    )
+  }
+  await assertReused('MP-133 desktop relaunch reuses original window')
   await expect(page.locator('[data-ui~="chat.view"]:visible')).toBeVisible()
   await minimize()
-  await exec(executable, [...args, 'cherrystudio://navigate/settings/provider'], {
+  await exec(executablePath, [...args, 'cherrystudio://navigate/settings/provider'], {
     cwd: record.targetRoot,
     env: environment,
     timeout: 30_000

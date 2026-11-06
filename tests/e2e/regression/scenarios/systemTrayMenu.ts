@@ -15,12 +15,14 @@ import {
 } from '../../../../scripts/e2e/regression/process'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { nativeComputerUse } from '../helpers/computerUseNative'
+import { inspectStartup } from '../helpers/startupInspection'
+import { openWindowsTrayMenu, windowsTrayMenu } from '../helpers/windowsTray'
 import type { RegressionApp } from '../RegressionApp'
 
 export async function systemTrayMenu(app: RegressionApp, page: Page, testInfo: TestInfo): Promise<void> {
-  if (process.platform !== 'darwin') throw new Error('UNCOVERED: native tray automation requires macOS')
   const original = await page.evaluate(async () => ({
     tray: await window.api.preference.get('app.tray.enabled'),
+    onClose: await window.api.preference.get('app.tray.on_close'),
     language: await window.api.preference.get('app.language')
   }))
   let assistantId: string | undefined
@@ -34,13 +36,15 @@ export async function systemTrayMenu(app: RegressionApp, page: Page, testInfo: T
     const record = app.record
     assertOwnedProcess(record, record.electronPid, 'electron')
     await expect.poll(readMenu, { timeout: 5_000 }).toEqual([])
-    execFileSync(
-      'osascript',
-      [
-        '-l',
-        'JavaScript',
-        '-e',
-        `
+    if (record.platform === 'windows') await openWindowsTrayMenu(app)
+    else {
+      execFileSync(
+        'osascript',
+        [
+          '-l',
+          'JavaScript',
+          '-e',
+          `
       ObjC.import('CoreGraphics')
       const process = Application('System Events').processes.whose({unixId: ${record.electronPid}})[0]
       const item = process.menuBars[1].menuBarItems[0]
@@ -49,13 +53,16 @@ export async function systemTrayMenu(app: RegressionApp, page: Page, testInfo: T
       $.CGEventPost(0, $.CGEventCreateMouseEvent(null, 3, point, 1))
       $.CGEventPost(0, $.CGEventCreateMouseEvent(null, 4, point, 1))
     `
-      ],
-      { encoding: 'utf8', timeout: 10_000 }
-    )
+        ],
+        { encoding: 'utf8', timeout: 10_000 }
+      )
+    }
     await expect.poll(readMenu, { timeout: 5_000 }).toContain('Quit')
   }
   const readMenu = () =>
-    nativeComputerUse(`
+    app.record.platform === 'windows'
+      ? windowsTrayMenu(app)
+      : nativeComputerUse(`
     tell application "System Events" to tell (first process whose unix id is ${app.record.electronPid})
       try
         set actualNames to name of every menu item of menu 1 of menu bar item 1 of menu bar 2
@@ -70,17 +77,25 @@ export async function systemTrayMenu(app: RegressionApp, page: Page, testInfo: T
       return labels as text
     end tell
   `)
-      .split('\n')
-      .filter(Boolean)
+          .split('\n')
+          .filter(Boolean)
   const clickMenu = (label: string) =>
-    nativeComputerUse(`
+    app.record.platform === 'windows'
+      ? windowsTrayMenu(app, label)
+      : nativeComputerUse(`
     tell application "System Events" to tell (first process whose unix id is ${app.record.electronPid})
       click menu item ${JSON.stringify(label)} of menu 1 of menu bar item 1 of menu bar 2
     end tell
   `)
 
   try {
-    await page.evaluate(() => window.api.preference.setMultiple({ 'app.tray.enabled': true, 'app.language': 'en-US' }))
+    await page.evaluate(() =>
+      window.api.preference.setMultiple({
+        'app.tray.enabled': true,
+        'app.tray.on_close': true,
+        'app.language': 'en-US'
+      })
+    )
     const created = await page.evaluate(
       (name) =>
         window.api.dataApi.request({
@@ -94,15 +109,19 @@ export async function systemTrayMenu(app: RegressionApp, page: Page, testInfo: T
     expect(created.status).toBe(201)
     assistantId = AssistantSchema.parse(created.data).id
     await screenshot('MP-132 main window before tray actions')
-    await expect
-      .poll(() =>
-        nativeComputerUse(`
+    if (app.record.platform === 'windows') {
+      await expect.poll(async () => (await inspectStartup(app)).trays.filter((tray) => !tray.destroyed).length).toBe(1)
+    } else {
+      await expect
+        .poll(() =>
+          nativeComputerUse(`
       tell application "System Events" to tell (first process whose unix id is ${app.record.electronPid})
         return count of menu bar items of menu bar 2
       end tell
     `)
-      )
-      .toBe('1')
+        )
+        .toBe('1')
+    }
     await openTray()
     await expect.poll(readMenu).toEqual(['Show Window', 'Selection Assistant - Off', 'Quit'])
     await testInfo.attach('MP-132 native tray menu labels', { body: readMenu().join('\n'), contentType: 'text/plain' })
@@ -129,13 +148,32 @@ export async function systemTrayMenu(app: RegressionApp, page: Page, testInfo: T
       items: expect.arrayContaining([expect.objectContaining({ id: assistantId, name: assistantName })])
     })
     const record = app.record
-    const processRows = execFileSync('ps', ['-axo', 'pid=,ppid=,command='], { encoding: 'utf8' })
-      .trim()
-      .split('\n')
-      .map((line) => line.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/)!)
+    const processRows =
+      record.platform === 'windows'
+        ? (
+            JSON.parse(
+              execFileSync(
+                'powershell.exe',
+                [
+                  '-NoProfile',
+                  '-NonInteractive',
+                  '-Command',
+                  'Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId | ConvertTo-Json -Compress'
+                ],
+                { encoding: 'utf8', timeout: 10_000 }
+              )
+            ) as Array<{ ProcessId: number; ParentProcessId: number }>
+          ).map((row) => ({ pid: row.ProcessId, parent: row.ParentProcessId }))
+        : execFileSync('ps', ['-axo', 'pid=,ppid='], { encoding: 'utf8' })
+            .trim()
+            .split('\n')
+            .map((line) => {
+              const [pid, parent] = line.trim().split(/\s+/).map(Number)
+              return { pid, parent }
+            })
     const ownedPids = new Set([record.electronPid])
     for (let depth = 0; depth < 32; depth++) {
-      for (const row of processRows) if (ownedPids.has(Number(row[2]))) ownedPids.add(Number(row[1]))
+      for (const row of processRows) if (ownedPids.has(row.parent)) ownedPids.add(row.pid)
     }
     await openTray()
     clickMenu('Quit')
@@ -170,9 +208,10 @@ export async function systemTrayMenu(app: RegressionApp, page: Page, testInfo: T
           throw new Error('cleanup left the case assistant in the trash')
       }, assistantId)
     await page.evaluate(
-      ({ tray, language }) =>
+      ({ tray, onClose, language }) =>
         window.api.preference.setMultiple({
           'app.tray.enabled': tray,
+          'app.tray.on_close': onClose,
           'app.language': language
         }),
       original

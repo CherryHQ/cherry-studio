@@ -5,6 +5,8 @@ import { join } from 'node:path'
 
 import { expect, type Page, type TestInfo } from '@playwright/test'
 
+import { TerminalApp } from '@shared/types/codeCli'
+
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import {
   cleanupExternalResources,
@@ -13,6 +15,11 @@ import {
 } from '../../../../scripts/e2e/regression/externalResources'
 import { createRedactor } from '../../../../scripts/e2e/regression/redaction'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
+import {
+  listWindowsCodeTerminals,
+  windowsTerminalText,
+  type WindowsTerminal
+} from '../../../../scripts/e2e/regression/windowsTerminal'
 import { ensureCustomChatProvider } from '../helpers/models'
 import { openLaunchpadApp } from '../helpers/navigation'
 import { closeSettings } from '../helpers/settings'
@@ -24,7 +31,6 @@ function appleScript(script: string, args: string[] = []): string {
 
 export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, testInfo: TestInfo): Promise<void> {
   testInfo.setTimeout(8 * 60_000)
-  if (process.platform !== 'darwin') throw new Error('UNCOVERED: Terminal interaction requires macOS automation')
   const originalPreferences = await page.evaluate(() => window.api.preference.get('feature.code_cli.configs'))
   const readSettings = () =>
     page.evaluate(async () => {
@@ -43,14 +49,17 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
   let terminalWindow: string | undefined
+  let windowsTerminal: WindowsTerminal | undefined
   let terminalResource: string | undefined
   const windowContents = (id: string) =>
-    appleScript(
-      `on run argv
+    app.record.platform === 'windows'
+      ? windowsTerminalText(app.paths, windowsTerminal!)
+      : appleScript(
+          `on run argv
     tell application "Terminal" to return contents of selected tab of window id (item 1 of argv as integer)
   end run`,
-      [id]
-    )
+          [id]
+        )
   const terminalText = () => windowContents(terminalWindow!)
   // Ownership requires a new window and tty, plus workspace evidence from its buffer or a process cwd.
   const terminalWindows = () =>
@@ -126,13 +135,20 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
       return windowContents(id)
     } catch (error) {
       // A window that vanished mid-poll is somebody else's business; any other failure is real.
-      if (/\(-1728\)|Can.t get window/.test(String(error))) return null
+      if (/\(-1728\)|Can.t get window|owned CLI terminal is no longer running/.test(String(error))) return null
       throw error
     }
   }
   const terminalInput = (text: string, keyCode = 36) =>
-    appleScript(
-      `on run argv
+    app.record.platform === 'windows'
+      ? windowsTerminalText(
+          app.paths,
+          windowsTerminal!,
+          text,
+          ({ 36: 13, 53: 27, 125: 40 } as Record<number, number>)[keyCode]
+        )
+      : appleScript(
+          `on run argv
     tell application "Terminal"
       set index of window id (item 1 of argv as integer) to 1
       activate
@@ -144,8 +160,8 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
       end tell
     end tell
   end run`,
-      [terminalWindow!, text, String(keyCode)]
-    )
+          [terminalWindow!, text, String(keyCode)]
+        )
   const codeView = page.locator('[data-ui~="code.view"]:visible').first()
   const providerCard = codeView
     .locator('[data-ui~="code.provider-card"]')
@@ -173,37 +189,61 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
       directory: app.paths.workspace
     })
     terminalResource = resource
-    const baseline = terminalWindows()
+    const baselineWindows = app.record.platform === 'windows' ? listWindowsCodeTerminals(app.paths) : []
+    const baseline = app.record.platform === 'macos' ? terminalWindows() : []
     const baselineIds = baseline.map((w) => w.id)
     const baselineTtys = baseline.map((w) => w.tty)
     await codeView.getByRole('button', { name: 'Launch', exact: true }).click()
     const dialog = page.getByRole('dialog', { name: 'Launch Claude Code', exact: true })
     await expect(dialog.getByRole('textbox')).toHaveValue(app.paths.workspace)
+    if (app.record.platform === 'windows') {
+      await dialog.getByRole('combobox').click()
+      await page.getByRole('option', { name: 'Command Prompt', exact: true }).click()
+    }
     await dialog.getByRole('button', { name: 'Launch', exact: true }).click()
     await expect(dialog).toBeHidden()
-    let observed = ''
-    const deadline = Date.now() + 45_000
-    while (!terminalWindow && Date.now() < deadline) {
-      const candidates = terminalWindows().filter(
-        (w) => w.tty && !baselineIds.includes(w.id) && !baselineTtys.includes(w.tty)
-      )
-      const evidence = candidates.map((w) => ({
-        ...w,
-        buffer: showsWorkspace(windowContentsIfAlive(w.id) ?? ''),
-        cwd: ttyRunsInWorkspace(w.tty)
-      }))
-      observed = evidence.map((w) => `${w.id}@${w.tty} (buffer: ${w.buffer}, cwd: ${w.cwd})`).join(', ')
-      const front = frontWindowId()
-      const owned = evidence
-        .filter((w) => w.buffer || w.cwd)
-        .sort((a, b) => Number(b.id === front) - Number(a.id === front))[0]
-      terminalWindow = owned?.id
-      if (!terminalWindow) await new Promise((resolve) => setTimeout(resolve, 500))
-    }
-    if (!terminalWindow) {
-      throw new Error(
-        `MP-97 could not verify which Terminal window this launch opened; new windows: ${observed || 'none'}`
-      )
+    if (app.record.platform === 'windows') {
+      await expect
+        .poll(
+          () => {
+            const terminals = listWindowsCodeTerminals(app.paths).filter(
+              (candidate) =>
+                !baselineWindows.some(
+                  (previous) => previous.pid === candidate.pid && previous.startedAt === candidate.startedAt
+                )
+            )
+            if (terminals.length === 1) windowsTerminal = terminals[0]
+            return terminals.length
+          },
+          { timeout: 45_000 }
+        )
+        .toBe(1)
+      terminalWindow = String(windowsTerminal!.pid)
+    } else {
+      let observed = ''
+      const deadline = Date.now() + 45_000
+      while (!terminalWindow && Date.now() < deadline) {
+        const candidates = terminalWindows().filter(
+          (w) => w.tty && !baselineIds.includes(w.id) && !baselineTtys.includes(w.tty)
+        )
+        const evidence = candidates.map((w) => ({
+          ...w,
+          buffer: showsWorkspace(windowContentsIfAlive(w.id) ?? ''),
+          cwd: ttyRunsInWorkspace(w.tty)
+        }))
+        observed = evidence.map((w) => `${w.id}@${w.tty} (buffer: ${w.buffer}, cwd: ${w.cwd})`).join(', ')
+        const front = frontWindowId()
+        const owned = evidence
+          .filter((w) => w.buffer || w.cwd)
+          .sort((a, b) => Number(b.id === front) - Number(a.id === front))[0]
+        terminalWindow = owned?.id
+        if (!terminalWindow) await new Promise((resolve) => setTimeout(resolve, 500))
+      }
+      if (!terminalWindow) {
+        throw new Error(
+          `MP-97 could not verify which Terminal window this launch opened; new windows: ${observed || 'none'}`
+        )
+      }
     }
     observeExternalResource(app.paths, resource)
     for (let screen = 0; screen < 6; screen++) {
@@ -246,20 +286,24 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
     cleanupExternalResources(app.paths, [terminalResource])
     terminalResource = undefined
     terminalWindow = undefined
+    windowsTerminal = undefined
   }
   try {
     await ensureCustomChatProvider(app, page)
     await closeSettings(page)
     await page.evaluate(
-      async ({ directory }) => {
+      async ({ directory, terminal }) => {
         const configs = await window.api.preference.get('feature.code_cli.configs')
         const previous = configs['claude-code']
         await window.api.preference.set('feature.code_cli.configs', {
           ...configs,
-          'claude-code': { providers: {}, current: null, ...previous, directory, terminal: 'Terminal' }
+          'claude-code': { providers: {}, current: null, ...previous, directory, terminal }
         })
       },
-      { directory: app.paths.workspace }
+      {
+        directory: app.paths.workspace,
+        terminal: app.record.platform === 'macos' ? TerminalApp.SYSTEM_DEFAULT : TerminalApp.CMD
+      }
     )
     await openLaunchpadApp(page, 'Code Mate')
     await codeView

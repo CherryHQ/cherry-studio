@@ -106,6 +106,8 @@ MP-77 verifies PDF text/fonts, DOCX text and table structure, native PDF preview
 print preview, and empty-note export errors. Editing documents in a third-party
 word processor is outside this application's regression contract.
 
+MP-52 opens the edited source file itself in TextEdit on macOS or Notepad on Windows, copies the editor selection, and compares it with the expected file content. Its registered editor window and newly launched process are cleaned up after the check.
+
 Windows MP-90 opens the exported image in Microsoft Edge with a run-owned profile under `private/`, checks its decoded dimensions, and closes that browser. Edge must be installed on the runner. MP-82 runs the document-drop flow on both platforms. MP-56 uses a tagged Node timer process on Windows and a shell sleep on macOS to verify actual process cleanup after interruption.
 
 `translation-settings` selects only MP-86. The case uses pinned aiMock responses for
@@ -128,6 +130,14 @@ Never attach credentials or enable credential-bearing Playwright traces. HTML re
 
 Use the [frontend testing guidelines](../../../docs/dev/references/testing/frontend-testing.md). Keep local changes separate from hosted runtime validation; successful enumeration and unit tests do not prove desktop permissions or external model availability.
 
+
+## Desktop platform coverage
+
+All 134 registered regression cases participate on both macOS and Windows. Platform-specific subflows use the actual desktop integration: TextEdit or Notepad, native file and print dialogs, native notification and tray menus, and Terminal or the Windows console. macOS permission prompts and transparent window controls are checked only where the product exposes them; shared settings, execution, persistence and cleanup assertions still run on Windows.
+
+Windows single-instance checks use Restart Manager's [resource-user query](https://learn.microsoft.com/en-us/windows/win32/api/_rstmgr/) to verify SQLite file owners. The probe never calls shutdown or restart APIs. Native console input is limited to the new Claude launch process under the isolated run directory, with PID and creation-time checks before each operation.
+
+These adapters require real desktop execution; successful typechecking or enumeration is not cross-platform acceptance.
 
 ## Partial coverage
 

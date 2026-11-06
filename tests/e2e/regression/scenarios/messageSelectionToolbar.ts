@@ -3,6 +3,7 @@ import { writeFile } from 'node:fs/promises'
 import { expect, type Locator, type Page, type TestInfo } from '@playwright/test'
 
 import { AssistantSchema } from '@shared/data/types/assistant'
+import type { BranchMessagesResponse } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { TopicSchema } from '@shared/data/types/topic'
 import type { IpcResult } from '@shared/ipc/errors/IpcError'
@@ -161,8 +162,6 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
     const selectedText = () => page.evaluate(() => window.getSelection()?.toString() ?? '')
     const textCoordinates = async (target: Locator, length: number) => {
       await page.keyboard.press('Escape')
-      await target.evaluate((element) => element.scrollIntoView({ block: 'center', inline: 'nearest' }))
-      await target.hover()
       const measure = () =>
         target.evaluate((element, length) => {
           const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
@@ -195,7 +194,7 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
           point = await measure()
           if (await hitsTarget()) return true
           const viewport = await target.evaluate((element) =>
-            element.closest('[data-ui~="part:scroll-area-viewport"]')?.getBoundingClientRect().toJSON()
+            element.closest('[data-message-virtual-list-scroller]')?.getBoundingClientRect().toJSON()
           )
           if (viewport && (point.y < viewport.top + 30 || point.endY > viewport.bottom - 30)) {
             await page.mouse.move(viewport.x + viewport.width / 2, viewport.y + viewport.height / 2)
@@ -371,7 +370,6 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
       page.getByTestId(`model-selector-item-${createUniqueModelId(providerId, 'mock-grid')}`)
     ).toHaveAttribute('aria-selected', 'true')
     await page.keyboard.press('Escape')
-    const beforeGrid = (await readTopicMessages(page, topicId)).length
     await Promise.all([
       sendChatMarker(page, 'Describe a grid garden', 'Grid orchid petals shine.'),
       (async () => {
@@ -380,7 +378,40 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
         for (const request of requests) request.complete('Grid orchid petals shine.')
       })()
     ])
-    await expect.poll(async () => (await readTopicMessages(page, topicId)).length).toBe(beforeGrid + 3)
+    await expect
+      .poll(async () => {
+        const response = await page.evaluate(
+          (topicId) =>
+            window.api.dataApi.request({
+              id: 'mp149-grid-replies',
+              method: 'GET',
+              path: `/topics/${topicId}/messages`,
+              params: { includeSiblings: true }
+            }),
+          topicId
+        )
+        expect(response.status).toBe(200)
+        const latest = (response.data as BranchMessagesResponse).items.at(-1)
+        return latest
+          ? [latest.message, ...(latest.siblingsGroup ?? [])]
+              .map((message) => ({
+                modelId: message.modelId,
+                status: message.status,
+                text: (message.data.parts ?? [])
+                  .filter((part) => part.type === 'text')
+                  .map((part) => part.text)
+                  .join('')
+              }))
+              .sort((a, b) => (a.modelId ?? '').localeCompare(b.modelId ?? ''))
+          : []
+      })
+      .toEqual(
+        ['mock-chat', 'mock-grid'].map((model) => ({
+          modelId: createUniqueModelId(providerId, model),
+          status: 'success',
+          text: 'Grid orchid petals shine.'
+        }))
+      )
     const gridText = messages
       .filter({ has: page.locator('.message-assistant') })
       .last()
@@ -394,6 +425,9 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
     await composer.locator('[data-composer-token-kind="quote"]').hover()
     await expect(page.getByRole('tooltip')).toContainText('Grid orchid petals shine.')
     await attachScreenshot('MP-149 grid reply selection quote')
+  } catch (error) {
+    await attachScreenshot('MP-149 failure before scenario cleanup')
+    throw error
   } finally {
     await server.close()
     await page.evaluate(

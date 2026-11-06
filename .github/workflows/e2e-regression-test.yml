@@ -184,6 +184,13 @@ jobs:
           echo "RUN_DIR=$RUNNER_TEMP/cherry-regression" >> "$GITHUB_ENV"
           echo "CHERRY_TEST_RUN_DIR=$RUNNER_TEMP/cherry-regression" >> "$GITHUB_ENV"
 
+      - name: Validate native controller adapters
+        shell: bash
+        run: >-
+          pnpm test:scripts
+          scripts/e2e/regression/__tests__/externalAppSyntax.test.ts
+          scripts/e2e/regression/__tests__/windowsNativeAdapters.test.ts
+
       - name: Cache code tool downloads
         uses: actions/cache@v6
         with:
@@ -576,7 +583,6 @@ jobs:
             ${{ runner.temp }}/cherry-regression/evidence
             ${{ runner.temp }}/cherry-regression/agent-workspace
             ${{ runner.temp }}/cherry-regression/fixtures
-            !${{ runner.temp }}/cherry-regression/fixtures/windows-selection-browser-profile/**
             ${{ runner.temp }}/cherry-regression/release/installation.json
 
       - name: Validate platform result

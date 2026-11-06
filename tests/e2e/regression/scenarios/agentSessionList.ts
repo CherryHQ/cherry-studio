@@ -121,7 +121,15 @@ export async function agentSessionList(app: RegressionApp, page: Page, testInfo:
     )
     await page.reload()
     await selectSidebarApp(page, 'Work')
-    await page.locator('[data-ui~="agent.view"]:visible').getByText(agent!.name, { exact: true }).first().click()
+    const view = page.locator('[data-ui~="agent.view"]:visible')
+    const showSidebar = view.getByRole('button', { name: 'Show Sidebar', exact: true })
+    if (await showSidebar.isVisible()) await showSidebar.click()
+    const agents = view.getByTestId('agent-entity-rail')
+    const agentEntry = agents
+      .getByTestId('resource-entity-rail-row')
+      .filter({ has: page.getByText(agent!.name, { exact: true }) })
+    await revealVirtualized(page, agents.getByRole('listbox'), agentEntry)
+    await agentEntry.click()
     if (!(await list().getByRole('textbox', { name: 'Search tasks', exact: true }).isVisible())) {
       await page
         .getByRole('button', { name: /^Tasks/ })

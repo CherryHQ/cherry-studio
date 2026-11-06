@@ -27,12 +27,14 @@ function Inspect-External {
   foreach ($entry in $native) {
     $browser = $entry.Name -match '^(chrome|msedge|firefox|brave)\.exe$'
     $terminal = $entry.Name -match '^(cmd|powershell|pwsh|WindowsTerminal)\.exe$'
-    if (($target.kind -eq 'browser' -and -not $browser) -or ($target.kind -eq 'terminal' -and -not $terminal)) { continue }
-    if ($target.kind -notin @('browser', 'terminal')) { throw 'Unsupported Windows external resource' }
+    $document = $target.kind -eq 'document' -and $target.application -eq 'Notepad' -and $entry.Name -eq 'notepad.exe'
+    if (($target.kind -eq 'browser' -and -not $browser) -or ($target.kind -eq 'terminal' -and -not $terminal) -or ($target.kind -eq 'document' -and -not $document)) { continue }
+    if ($target.kind -notin @('browser', 'terminal', 'document')) { throw 'Unsupported Windows external resource' }
     $process = Get-Process -Id $entry.ProcessId -ErrorAction SilentlyContinue
     if (-not $process) { continue }
     if ($browser -and $entry.CommandLine -match '--type=') { continue }
     $ownedCommand = $entry.CommandLine -and $entry.CommandLine.IndexOf($request.root, [StringComparison]::OrdinalIgnoreCase) -ge 0
+    if ($document) { $ownedCommand = $entry.CommandLine -and $entry.CommandLine.IndexOf($target.path, [StringComparison]::OrdinalIgnoreCase) -ge 0 }
     if ($terminal -and $process.MainWindowHandle -eq 0 -and -not $ownedCommand) { continue }
     $startedAt = $process.StartTime.ToUniversalTime().Ticks.ToString()
     $pidValue = [int]$process.Id

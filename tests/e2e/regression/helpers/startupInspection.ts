@@ -7,7 +7,11 @@ export interface StartupState {
   openAtLogin: boolean
   visible: boolean
   dockVisible: boolean
-  trays: { destroyed: boolean; bounds: { width: number; height: number } }[]
+  trays: {
+    destroyed: boolean
+    bounds: { x: number; y: number; width: number; height: number }
+    screenPoint: { x: number; y: number } | null
+  }[]
 }
 
 export async function inspectStartup(app: RegressionApp, action?: 'show' | 'quit'): Promise<StartupState> {
@@ -47,18 +51,19 @@ export async function inspectStartup(app: RegressionApp, action?: 'show' | 'quit
       socket.send(JSON.stringify({ id: requestId, method, params }))
     })
   try {
-    const prototype = await request('Runtime.evaluate', {
-      expression: "process.mainModule.require('electron').Tray.prototype"
-    })
-    const objects = await request('Runtime.queryObjects', { prototypeObjectId: prototype.result.objectId })
-    const trays = await request('Runtime.callFunctionOn', {
-      objectId: objects.objects.objectId,
-      // Heap queries include JavaScript prototypes without a native Tray receiver.
-      functionDeclaration: `function () { return this.flatMap(tray => {
-        try { return [{ destroyed: tray.isDestroyed(),
-          bounds: tray.isDestroyed() ? { width: 0, height: 0 } : tray.getBounds() }] }
-        catch { return [] }
-      }) }`,
+    const trays = await request('Runtime.evaluate', {
+      expression: `(() => {
+          const application = Object.values(process.mainModule.require('node:module')._cache)
+            .map(module => module.exports?.application).find(candidate => candidate?.getPath)
+          const tray = application.get('TrayService').tray
+          if (!tray) return []
+          const destroyed = tray.isDestroyed()
+          const bounds = destroyed ? { x: 0, y: 0, width: 0, height: 0 } : tray.getBounds()
+          const point = { x: Math.round(bounds.x + bounds.width / 2), y: Math.round(bounds.y + bounds.height / 2) }
+          const screenPoint = destroyed ? null : process.platform === 'win32'
+            ? process.mainModule.require('electron').screen.dipToScreenPoint(point) : point
+          return [{ destroyed, bounds, screenPoint }]
+      })()`,
       returnByValue: true
     })
     const state = await request('Runtime.evaluate', {

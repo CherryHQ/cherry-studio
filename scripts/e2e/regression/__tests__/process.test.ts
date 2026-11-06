@@ -26,8 +26,23 @@ it('treats only zombies as exited, but still waits for live members of the owned
   await expect(waitForMacProcessGroupExit(42000, 0)).resolves.toBe(false)
 })
 
+it.each([false, true])('leaves an already exited zombie-only group alone (runner retained: %s)', (runnerRetained) => {
+  execFileSync.mockReturnValue(`${runnerRetained ? '42000 42000 Z <defunct>\n' : ''}42001 42000 Z <defunct>`)
+  const signals: Array<[number, unknown]> = []
+  vi.spyOn(process, 'kill').mockImplementation((pid, signal) => {
+    if (signal === 0) {
+      if (pid === 42000 && !runnerRetained) throw new Error('ESRCH')
+      return true
+    }
+    signals.push([pid, signal])
+    return true
+  })
+  expect(() => terminateOwnedMacProcessGroup(owner)).not.toThrow()
+  expect(signals).toEqual([])
+})
+
 it('rechecks ownership before escalating to SIGKILL', () => {
-  execFileSync.mockReturnValue('42001 42000 unrelated-app')
+  execFileSync.mockReturnValue('42001 42000 S unrelated-app')
   const kill = vi.spyOn(process, 'kill').mockImplementation((_pid, signal) => {
     if (signal === 0) throw new Error('ESRCH')
     return true
@@ -42,7 +57,7 @@ it.each([true, false])(
     const alive = new Set([42001, 99000, ...(runnerAlive ? [42000] : [])])
     execFileSync.mockImplementation((_file, args) =>
       args.includes('-axo')
-        ? `${runnerAlive ? '42000 42000 node /tmp/regression-target/node_modules/dotenv-cli/cli.js\n' : ''}42001 42000 electron /tmp/regression-target\n99000 99000 TextEdit`
+        ? `${runnerAlive ? '42000 42000 S node /tmp/regression-target/node_modules/dotenv-cli/cli.js\n' : ''}42001 42000 S electron /tmp/regression-target\n99000 99000 S TextEdit`
         : 'node /tmp/regression-target/node_modules/dotenv-cli/cli.js'
     )
     vi.spyOn(process, 'kill').mockImplementation((pid, signal) => {
@@ -60,9 +75,9 @@ it.each([true, false])(
 )
 
 it.each([
-  ['42001 42000 unrelated-app', false],
+  ['42001 42000 S unrelated-app', false],
   [
-    '42000 99000 node /tmp/regression-target/node_modules/dotenv-cli/cli.js\n42001 42000 electron /tmp/regression-target',
+    '42000 99000 S node /tmp/regression-target/node_modules/dotenv-cli/cli.js\n42001 42000 S electron /tmp/regression-target',
     true
   ]
 ] as const)('refuses an unowned or reused group: %s', (processes, runnerAlive) => {

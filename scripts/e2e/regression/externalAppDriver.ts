@@ -6,7 +6,7 @@ import { WINDOWS_EXTERNAL_APP_SCRIPT } from './externalAppWindows'
 import type { Platform } from './types'
 
 export type ExternalTarget =
-  | { kind: 'document'; application: 'Preview' | 'Pages' | 'TextEdit'; path: string }
+  | { kind: 'document'; application: 'Preview' | 'Pages' | 'TextEdit' | 'Notepad'; path: string }
   | { kind: 'folder'; path: string }
   | { kind: 'terminal'; directory: string }
   | { kind: 'browser'; title: string; application?: string }

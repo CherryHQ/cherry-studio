@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { readFile, stat, writeFile } from 'node:fs/promises'
+import { readFile, realpath, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import type { Request } from '@playwright/test'
@@ -352,6 +352,7 @@ test(...caseDefinition('MP-104'), async ({ mainWindow: page }, testInfo) => {
 
 test(...caseDefinition('MP-105'), async ({ app, mainWindow }, testInfo) => {
   let page = mainWindow
+  const supportsTransparentWindow = app.record.platform === 'macos'
   const readAppearance = () =>
     page.evaluate(async () => ({
       theme: await window.api.preference.get('ui.theme_mode'),
@@ -399,15 +400,21 @@ test(...caseDefinition('MP-105'), async ({ app, mainWindow }, testInfo) => {
       page.locator('#setting-appearance-theme-color-primary').getByRole('button', { name: color, exact: true })
     ).toHaveAttribute('aria-pressed', 'true')
     await expect(themeButton('System').locator(':scope > div')).toHaveCSS('border-top-color', rgb)
-    await expect
-      .soft(transparentSwitch(), 'A checked switch must render a filled track')
-      .not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)', { timeout: 3_000 })
+    if (supportsTransparentWindow) {
+      await expect
+        .soft(transparentSwitch(), 'A checked switch must render a filled track')
+        .not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)', { timeout: 3_000 })
+    }
   }
 
   try {
     await openSettingsSection(page, 'Appearance')
-    await transparentSwitch().setChecked(false)
-    await assertStyle(false)
+    if (supportsTransparentWindow) {
+      await transparentSwitch().setChecked(false)
+      await assertStyle(false)
+    } else {
+      await expect(transparentSwitch()).toHaveCount(0)
+    }
     for (const [name, mode] of [
       ['Dark', 'dark'],
       ['Light', 'light'],
@@ -469,21 +476,29 @@ test(...caseDefinition('MP-105'), async ({ app, mainWindow }, testInfo) => {
         .locator('#setting-appearance-theme-color-primary')
         .getByRole('button', { name: color, exact: true })
         .click()
-      await transparentSwitch().setChecked(true)
-      await assertStyle(true)
+      if (supportsTransparentWindow) {
+        await transparentSwitch().setChecked(true)
+        await assertStyle(true)
+      }
       await assertColor()
-      await screenshot('MP-105 primary color and transparent window')
+      await screenshot('MP-105 primary color')
     })
-    await test.step('Both window styles apply immediately', async () => {
-      await transparentSwitch().setChecked(false)
-      await assertStyle(false)
-      await screenshot('MP-105 opaque window')
-      await transparentSwitch().setChecked(finalTransparent)
-      await assertStyle(finalTransparent)
-    })
+    if (supportsTransparentWindow) {
+      await test.step('Both window styles apply immediately', async () => {
+        await transparentSwitch().setChecked(false)
+        await assertStyle(false)
+        await screenshot('MP-105 opaque window')
+        await transparentSwitch().setChecked(finalTransparent)
+        await assertStyle(finalTransparent)
+      })
+    }
     await test.step('Restart preserves System theme, primary color and window style', async () => {
       const before = await readAppearance()
-      expect(before).toEqual({ theme: 'system', color, style: finalTransparent ? 'transparent' : 'opaque' })
+      expect(before).toEqual({
+        theme: 'system',
+        color,
+        style: supportsTransparentWindow ? (finalTransparent ? 'transparent' : 'opaque') : original.style
+      })
       const previousPid = app.record.electronPid
       page = await app.restart()
       watchErrors()
@@ -493,12 +508,17 @@ test(...caseDefinition('MP-105'), async ({ app, mainWindow }, testInfo) => {
       await expect(themeButton('System')).toHaveAttribute('aria-pressed', 'true')
       const systemDark = await page.evaluate(() => matchMedia('(prefers-color-scheme: dark)').matches)
       await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(systemDark)
-      await assertStyle(finalTransparent)
-      // The checked switch is a colored control; restore the persisted state after checking its color.
-      await transparentSwitch().setChecked(true)
+      if (supportsTransparentWindow) {
+        await assertStyle(finalTransparent)
+        await transparentSwitch().setChecked(true)
+      }
       await assertColor()
-      await transparentSwitch().setChecked(finalTransparent)
-      await assertStyle(finalTransparent)
+      if (supportsTransparentWindow) {
+        await transparentSwitch().setChecked(finalTransparent)
+        await assertStyle(finalTransparent)
+      } else {
+        await expect(transparentSwitch()).toHaveCount(0)
+      }
       await screenshot('MP-105 appearance retained after restart')
       expect(errors, 'Theme changes and restart must not cause renderer exceptions').toEqual([])
     })
@@ -1223,6 +1243,29 @@ test(...caseDefinition('MP-111'), async ({ app, mainWindow }, testInfo) => {
   }
   const closeNativeWindow = async () => {
     await expect.poll(async () => (await inspectStartup(app)).visible).toBe(true)
+    if (app.record.platform === 'windows') {
+      const title = (await page.title()).replaceAll("'", "''")
+      execFileSync(
+        'powershell.exe',
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-Command',
+          [
+            'Add-Type -AssemblyName UIAutomationClient',
+            'Add-Type -AssemblyName UIAutomationTypes',
+            `$processCondition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty, ${app.record.electronPid})`,
+            `$titleCondition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty, '${title}')`,
+            '$condition = [Windows.Automation.AndCondition]::new($processCondition, $titleCondition)',
+            '$windows = [Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Children, $condition)',
+            'if ($windows.Count -ne 1) { throw "Expected exactly one owned main window" }',
+            '$windows[0].GetCurrentPattern([Windows.Automation.WindowPattern]::Pattern).Close()'
+          ].join('; ')
+        ],
+        { timeout: 10_000 }
+      )
+      return
+    }
     execFileSync(
       'osascript',
       [
@@ -1282,10 +1325,17 @@ test(...caseDefinition('MP-111'), async ({ app, mainWindow }, testInfo) => {
 
     await inspectStartup(app, 'show')
     await setSwitch('tray-onclose', false)
+    const closingPid = app.record.electronPid
     await closeNativeWindow()
-    await expect.poll(async () => (await inspectStartup(app)).visible).toBe(false)
-    expect((await inspectStartup(app)).dockVisible).toBe(true)
-    expect(isAlive(app.record.electronPid)).toBe(true)
+    if (app.record.platform === 'windows') {
+      await expect.poll(() => isAlive(closingPid), { timeout: 30_000 }).toBe(false)
+      page = await app.restart()
+      expect(app.record.electronPid).not.toBe(closingPid)
+    } else {
+      await expect.poll(async () => (await inspectStartup(app)).visible).toBe(false)
+      expect((await inspectStartup(app)).dockVisible).toBe(true)
+      expect(isAlive(app.record.electronPid)).toBe(true)
+    }
 
     await inspectStartup(app, 'show')
     await setSwitch('launch-onboot', false)
@@ -1581,7 +1631,7 @@ test(...caseDefinition('MP-114'), async ({ app, mainWindow: page }, testInfo) =>
             { encoding: 'utf8', timeout: 10_000 }
           ).trim()
         )
-        .toBe(output)
+        .toBe(await realpath(output))
     } else {
       const script =
         '(New-Object -ComObject Shell.Application).Windows() | ForEach-Object { $_.Document.SelectedItems() } | ForEach-Object { $_.Path }'

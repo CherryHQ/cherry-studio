@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { copyFile, mkdir, mkdtemp, rm, stat, writeFile, access, readFile } from 'node:fs/promises'
+import { copyFile, mkdir, mkdtemp, rm, stat, writeFile, access, readFile, readdir, realpath } from 'node:fs/promises'
 import { join, dirname } from 'node:path'
 
 import * as XLSX from '@e965/xlsx'
@@ -21,7 +21,7 @@ import { evaluateCdpExpression } from '../../../../scripts/e2e/regression/cdpCli
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { observeExternalResource, registerExternalResource } from '../../../../scripts/e2e/regression/externalResources'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
-import { chooseNativeFile } from '../../../../scripts/e2e/regression/systemAutomation'
+import { chooseNativeFile, chooseWindowsNativeFiles } from '../../../../scripts/e2e/regression/systemAutomation'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { expect, test } from '../fixture'
 import { createRtfPreviewFixtures } from '../fixtures/rtfPreviewFixtures'
@@ -457,7 +457,11 @@ test(...caseDefinition('MP-68'), async ({ app, mainWindow }, testInfo) => {
   try {
     const chooseFiles = async (path: string, multiple: boolean) => {
       await view().getByRole('button', { name: 'Upload files', exact: true }).click()
-      if (app.record.platform !== 'macos') throw new Error('MP-68 multi-file native chooser requires macOS automation')
+      if (app.record.platform === 'windows') {
+        const files = multiple ? (await readdir(path)).map((name) => join(path, name)) : [path]
+        chooseWindowsNativeFiles(app.paths, files)
+        return
+      }
       const script = [
         'on run argv',
         'tell application "System Events"',
@@ -660,6 +664,8 @@ test(...caseDefinition('MP-69'), async ({ app, mainWindow: page }, testInfo) => 
       expect(result.failed).toEqual([])
       expect(result.succeeded).toHaveLength(1)
     }
+    // IPC fixture writes do not invalidate the already-mounted renderer's DataApi caches.
+    await page.reload()
     await selectSidebarApp(page, 'Files')
     await expect(view).toBeVisible()
     await screenshot('MP-69 file library with seeded files')
@@ -667,7 +673,7 @@ test(...caseDefinition('MP-69'), async ({ app, mainWindow: page }, testInfo) => 
     expect(all.nextCursor, 'All fixtures and existing files must fit in the verification page').toBeUndefined()
     const allNames = all.items.map(({ name, ext }) => (ext ? `${name}.${ext}` : name))
     // The library renders only its visible window, so it is read while scrolling.
-    const scroller = content.locator('[data-scrolling]').first()
+    const scroller = content.locator('[data-slot="scroll-area-viewport"]').first()
     const listedText = () => collectVirtualizedText(page, scroller)
     const expectListed = async (names: string[], message: string) => {
       const text = await listedText()
@@ -824,6 +830,7 @@ test(...caseDefinition('MP-70'), async ({ app, mainWindow: page }, testInfo) => 
     const folderResource = registerExternalResource(app.paths, app.record.platform, { kind: 'folder', path: pdfPath! })
     await page.getByRole('menuitem', { name: 'Show in folder', exact: true }).click()
     if (app.record.platform === 'macos') {
+      const canonicalPdfPath = await realpath(pdfPath!)
       let selectedPath: string | undefined
       const finderSelection = () => {
         selectedPath = execFileSync(
@@ -844,8 +851,8 @@ test(...caseDefinition('MP-70'), async ({ app, mainWindow: page }, testInfo) => 
         ).trim()
         return selectedPath
       }
-      await expect.soft.poll(finderSelection, { timeout: 15_000 }).toBe(pdfPath)
-      if (selectedPath === pdfPath) {
+      await expect.soft.poll(finderSelection, { timeout: 15_000 }).toBe(canonicalPdfPath)
+      if (selectedPath === canonicalPdfPath) {
         const finderDirectory = execFileSync(
           'osascript',
           ['-e', 'tell application "Finder" to get POSIX path of (target of front window as alias)'],
@@ -853,17 +860,29 @@ test(...caseDefinition('MP-70'), async ({ app, mainWindow: page }, testInfo) => 
         )
           .trim()
           .replace(/\/$/, '')
-        expect(finderDirectory).toBe(dirname(pdfPath!))
+        expect(finderDirectory).toBe(dirname(canonicalPdfPath))
         await testInfo.attach('MP-70 Finder location', {
           body: JSON.stringify({ selected: finderSelection(), directory: finderDirectory }),
           contentType: 'application/json'
         })
       }
     } else {
-      // "Show in folder" hands the path to the platform file manager; the selection readback
-      // above is Finder-only, so other platforms record the action without claiming a result.
+      await expect
+        .poll(() =>
+          execFileSync(
+            'powershell.exe',
+            [
+              '-NoProfile',
+              '-NonInteractive',
+              '-Command',
+              '(New-Object -ComObject Shell.Application).Windows() | ForEach-Object { $_.Document.SelectedItems() } | ForEach-Object { $_.Path }'
+            ],
+            { encoding: 'utf8', timeout: 10_000 }
+          )
+        )
+        .toContain(pdfPath!)
       await testInfo.attach('MP-70 file manager location', {
-        body: JSON.stringify({ platform: app.record.platform, expectedPath: pdfPath, selectionVerified: false }),
+        body: JSON.stringify({ platform: app.record.platform, expectedPath: pdfPath, selectionVerified: true }),
         contentType: 'application/json'
       })
     }

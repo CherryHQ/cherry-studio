@@ -34,36 +34,43 @@ afterEach(() => {
   execFileSync.mockReset()
   execFile.mockReset()
   automation.closeExternalText('macos')
+  automation.closeExternalText('windows')
   rmSync(directory, { recursive: true, force: true })
 })
 
-it('cleans the registered external viewer and removes its recovery record', () => {
-  const paths = getRunPaths(directory)
-  ensureRunDirectories(paths)
-  const filePath = join(paths.fixtures, 'selection.txt')
-  writeFileSync(filePath, 'Test selection')
-  let desktop = {
-    processes: [] as { pid: number; startedAt: string; application: string; shared: boolean }[],
-    windows: [] as { id: string; pid: number; matches: boolean }[]
+it.each(['macos', 'windows'] as const)(
+  'cleans the registered %s external editor and removes its recovery record',
+  (platform) => {
+    const paths = getRunPaths(directory)
+    ensureRunDirectories(paths)
+    const filePath = join(paths.fixtures, 'selection.txt')
+    writeFileSync(filePath, 'Test selection')
+    let desktop = {
+      processes: [] as { pid: number; startedAt: string; application: string; shared: boolean }[],
+      windows: [] as { id: string; pid: number; matches: boolean }[]
+    }
+    execFileSync.mockImplementation((command) => {
+      if (command === 'open' || command === 'powershell.exe')
+        desktop = {
+          processes: [
+            { pid: 42, startedAt: 'viewer', application: platform === 'macos' ? 'TextEdit' : 'Notepad', shared: false }
+          ],
+          windows: [{ id: 'fixture', pid: 42, matches: true }]
+        }
+      return command === 'powershell.exe' ? '42' : ''
+    })
+    externalAppRequest.mockImplementation((_platform, request) => {
+      if (request.action === 'close') desktop.windows = []
+      if (request.action === 'quit') desktop.processes = []
+      return structuredClone(desktop)
+    })
+    automation.openExternalText(platform, paths, filePath)
+    automation.closeExternalText(platform)
+    expect(desktop).toEqual({ processes: [], windows: [] })
+    expect(JSON.parse(readFileSync(join(paths.private, 'external-resources.json'), 'utf8'))).toEqual([])
+    automation.closeExternalText(platform)
   }
-  execFileSync.mockImplementation((command) => {
-    if (command === 'open')
-      desktop = {
-        processes: [{ pid: 42, startedAt: 'viewer', application: 'TextEdit', shared: false }],
-        windows: [{ id: 'fixture', pid: 42, matches: true }]
-      }
-  })
-  externalAppRequest.mockImplementation((_platform, request) => {
-    if (request.action === 'close') desktop.windows = []
-    if (request.action === 'quit') desktop.processes = []
-    return structuredClone(desktop)
-  })
-  automation.openExternalText('macos', paths, filePath)
-  automation.closeExternalText('macos')
-  expect(desktop).toEqual({ processes: [], windows: [] })
-  expect(JSON.parse(readFileSync(join(paths.private, 'external-resources.json'), 'utf8'))).toEqual([])
-  automation.closeExternalText('macos')
-})
+)
 
 it('rejects external text outside the owned input and export directories', () => {
   const paths = getRunPaths(directory)
@@ -71,6 +78,24 @@ it('rejects external text outside the owned input and export directories', () =>
   const filePath = join(directory, 'outside.txt')
   writeFileSync(filePath, 'Unrelated document')
   expect(() => automation.openExternalText('macos', paths, filePath)).toThrow('outside the regression test directories')
+  expect(execFileSync).not.toHaveBeenCalled()
+})
+
+it('refuses to read a native editor when no Windows fixture is owned', () => {
+  expect(() => automation.readWindowsExternalText()).toThrow('No owned Windows external text editor is open')
+  expect(execFileSync).not.toHaveBeenCalled()
+})
+
+it('rejects a multi-file selection if any path escapes the allowed fixture directories', () => {
+  const paths = getRunPaths(directory)
+  ensureRunDirectories(paths)
+  const allowed = join(paths.fixtures, 'allowed.txt')
+  const outside = join(directory, 'outside.txt')
+  writeFileSync(allowed, 'Owned input')
+  writeFileSync(outside, 'Unrelated document')
+  expect(() => automation.chooseWindowsNativeFiles(paths, [allowed, outside])).toThrow(
+    'outside the regression test directories'
+  )
   expect(execFileSync).not.toHaveBeenCalled()
 })
 
@@ -272,7 +297,7 @@ it.each(['macos', 'windows'] as const)('acknowledges only an owned %s pre-main n
   await automation.dismissNativeMessageBox(platform, paths, 'Manual Restart Required')
   const [command, args] = execFile.mock.calls.at(-1)!
   expect(command).toBe(platform === 'macos' ? 'osascript' : 'powershell.exe')
-  if (platform === 'macos') expect(args.slice(-2)).toEqual(['Manual Restart Required', '42001'])
+  if (platform === 'macos') expect(args.slice(-3)).toEqual(['Manual Restart Required', '42001', 'OK'])
   execFile.mockClear()
   execFileSync.mockImplementation((file, args) => {
     if (file === 'lsof') return '42001'

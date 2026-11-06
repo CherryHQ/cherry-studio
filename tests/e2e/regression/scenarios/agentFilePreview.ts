@@ -133,13 +133,27 @@ export async function agentFilePreview(app: RegressionApp, page: Page, testInfo:
   for (const [path, contents] of baseline) {
     expect(await readFile(path, 'utf8'), path).toBe(path === target ? expected : contents)
   }
-  expect(app.record.platform, 'External editor verification currently uses macOS TextEdit').toBe('macos')
+  const mac = app.record.platform === 'macos'
+  await page.evaluate(() => navigator.clipboard.writeText('MP52_COPY_PENDING'))
   try {
     openExternalText(app.record.platform, { ...app.paths, fixtures: app.paths.workspace }, target)
-    execFileSync('pbcopy', [], { input: 'MP52_COPY_PENDING', timeout: 10_000 })
-    sendSystemHotkey(app.record.platform, ['Meta', 'c'])
-    await expect.poll(() => execFileSync('pbpaste', { encoding: 'utf8', timeout: 10_000 })).toBe(expected)
-    await testInfo.attach('MP-52 external TextEdit contents', { body: expected, contentType: 'text/plain' })
+    sendSystemHotkey(app.record.platform, [mac ? 'Meta' : 'Control', 'c'])
+    await expect
+      .poll(() => {
+        const text = mac
+          ? execFileSync('pbpaste', { encoding: 'utf8', timeout: 10_000 })
+          : execFileSync(
+              'powershell.exe',
+              ['-NoProfile', '-NonInteractive', '-Command', '[Console]::Write((Get-Clipboard -Raw))'],
+              { encoding: 'utf8', timeout: 10_000 }
+            )
+        return text.replace(/\r\n/g, '\n')
+      })
+      .toBe(expected)
+    await testInfo.attach(`MP-52 external ${mac ? 'TextEdit' : 'Notepad'} contents`, {
+      body: expected,
+      contentType: 'text/plain'
+    })
   } finally {
     closeExternalText(app.record.platform)
   }
