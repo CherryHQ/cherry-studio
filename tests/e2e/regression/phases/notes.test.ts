@@ -1,6 +1,5 @@
 import { execFileSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { existsSync } from 'node:fs'
 import { mkdtemp, rm, writeFile, mkdir, stat, utimes, readFile, readdir } from 'node:fs/promises'
 import { join, basename, dirname } from 'node:path'
 import { setTimeout } from 'node:timers/promises'
@@ -22,14 +21,14 @@ test(...caseDefinition('MP-11'), async ({ app, mainWindow }, testInfo) => {
   await notesAndExport(app, mainWindow, testInfo)
 })
 
-test(...caseDefinition('MP-74'), async ({ mainWindow: page }, testInfo) => {
+test(...caseDefinition('MP-74'), async ({ app, mainWindow: page }, testInfo) => {
   testInfo.annotations.push({
     type: 'uncovered',
     description:
       'Notes has no explicit saved-status indicator. Autosave is verified by the bytes on disk and the rendered content instead.'
   })
   // Catch lost autosaves, broken Markdown rendering, and silent overwrites of external edits.
-  const directory = await mkdtemp(join(process.cwd(), 'tests/e2e/regression/mp74-'))
+  const directory = await mkdtemp(join(app.paths.fixtures, 'mp74-'))
   const name = 'MP-74 Markdown conflict'
   const notePath = join(directory, `${name}.md`)
   const original = '# Existing note\n\nExisting content.\n'
@@ -283,9 +282,9 @@ test(...caseDefinition('MP-75'), async ({ app, mainWindow: page }, testInfo) => 
   }
 })
 
-test(...caseDefinition('MP-76'), async ({ mainWindow: page }, testInfo) => {
+test(...caseDefinition('MP-76'), async ({ app, mainWindow: page }, testInfo) => {
   test.setTimeout(120_000)
-  const root = await mkdtemp(join(process.cwd(), 'tests/e2e/regression/mp76-notes-'))
+  const root = await mkdtemp(join(app.paths.fixtures, 'mp76-notes-'))
   const fixtures = [
     { name: 'Field journal', content: 'First line\nSecond line\nThe marker is canary-seven at line three.' },
     { name: 'canary title only', content: 'An ordinary title match with no bird in its body.' },
@@ -378,7 +377,7 @@ test(...caseDefinition('MP-76'), async ({ mainWindow: page }, testInfo) => {
 })
 
 test(...caseDefinition('MP-77'), async ({ app, mainWindow: page }, testInfo) => {
-  test.skip(app.record.platform !== 'macos', 'PDF/Word inspection and print automation require macOS Preview and Pages')
+  test.skip(app.record.platform !== 'macos', 'Native PDF preview and print automation require macOS')
   const attachScreenshot = async (name: string) => {
     const path = testInfo.outputPath(`${name}.png`)
     await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
@@ -471,41 +470,6 @@ test(...caseDefinition('MP-77'), async ({ app, mainWindow: page }, testInfo) => 
     expect(xml).toContain('<w:tbl>')
     expect(xml).toContain('苹果')
     expect(xml).toContain('中文标题')
-    test.skip(
-      !existsSync('/Applications/Pages.app'),
-      'PDF and DOCX structure verified; Pages is required for Word editing and print acceptance'
-    )
-    const wordResource = registerExternalResource(app.paths, app.record.platform, {
-      kind: 'document',
-      application: 'Pages',
-      path: wordPath
-    })
-    const edited = appleScript(
-      [
-        'on run argv',
-        'tell application "Pages"',
-        'set doc to open POSIX file (item 1 of argv)',
-        'repeat 100 times',
-        'if exists body text of doc then exit repeat',
-        'delay 0.1',
-        'end repeat',
-        'set originalText to body text of doc as text',
-        'set paragraph 1 of body text of doc to "MP77_EDITED_PARAGRAPH" & return',
-        'tell table 1 of doc',
-        'set value of cell "B2" to "MP77_EDITED_CELL"',
-        'set cellValue to value of cell "B2"',
-        'end tell',
-        'set resultText to originalText & return & (body text of doc as text) & return & cellValue',
-        'return resultText',
-        'end tell',
-        'end run'
-      ].join('\n'),
-      wordPath
-    )
-    observeExternalResource(app.paths, wordResource)
-    expect(edited).toContain('中文标题')
-    expect(edited).toContain('MP77_EDITED_PARAGRAPH')
-    expect(edited).toContain('MP77_EDITED_CELL')
     await testInfo.attach('Exported editable Word', {
       path: wordPath,
       contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'

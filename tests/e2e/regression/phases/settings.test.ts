@@ -147,7 +147,7 @@ test(...caseDefinition('MP-06'), async ({ app }, testInfo) => {
         .getByRole('button', { name: /Back|กลับ|ย้อนกลับ/, exact: true })
         .first()
         .click()
-      await expect(page.locator('[data-ui~="app.shell"]').first()).toContainText(/[\u0e00-\u0e7f]/)
+      await expect(page.locator('[data-ui~="app.main"]')).toContainText(/[\u0e00-\u0e7f]/)
       await screenshot('MP-06 Thai main sidebar')
       await page
         .getByRole('button', { name: /Settings|ตั้งค่า|การตั้งค่า/, exact: true })

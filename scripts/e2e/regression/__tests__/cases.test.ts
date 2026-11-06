@@ -146,7 +146,6 @@ describe('regression execution plan', () => {
       'MP-56',
       'MP-68',
       'MP-70',
-      'MP-72',
       'MP-77',
       'MP-82',
       'MP-90',
@@ -165,7 +164,6 @@ describe('regression execution plan', () => {
     for (const id of [
       'MP-52',
       'MP-68',
-      'MP-72',
       'MP-77',
       'MP-97',
       'MP-105',

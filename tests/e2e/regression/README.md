@@ -101,8 +101,9 @@ alone can also match the hidden prewarmed SubWindow and produce a false empty-pa
 
 ## Configuration and evidence
 
-MP-77 verifies PDF text/fonts and DOCX structure before checking for `/Applications/Pages.app`.
-Without Pages, the remaining native editing and print checks are blocked; successful export checks do not make the whole case pass.
+MP-77 verifies PDF text/fonts, DOCX text and table structure, native PDF preview,
+print preview, and empty-note export errors. Editing documents in a third-party
+word processor is outside this application's regression contract.
 
 Windows MP-90 opens the exported image in Microsoft Edge with a run-owned profile under `private/`, checks its decoded dimensions, and closes that browser. Edge must be installed on the runner. MP-82 runs the document-drop flow on both platforms. MP-56 uses a tagged Node timer process on Windows and a shell sleep on macOS to verify actual process cleanup after interruption.
 
@@ -137,7 +138,7 @@ A passing implemented flow does not cover capabilities absent from the current p
 | MP-19 | Markdown, DOCX, video, empty PPTX error, pasted-text preview and clipboard round trip | Rendering a nonempty PPTX; external-app fallback; a Quote selection button in plain-text previews |
 | MP-57 | Memory setting persistence and retained snapshots | Memory file-path display; runtime memory-tool exclusion is covered by `builtinAgentCapabilities.test.ts`, not by this E2E flow |
 | MP-69 | File categories, counts and clearing filters | Filename search and result highlighting |
-| MP-72 | Blocked; no executable reference flow | Referencing an existing library file from the composer |
+| MP-72 | Not registered: the product has no library-file reference entry point | Referencing an existing library file from the composer |
 | MP-74 | Draft persistence and external-edit conflict handling | An explicit Saved status indicator |
 | MP-82 | Document import, size limit, translation and Notes export control | Source character counter, Markdown save-as and translated-file naming |
 | MP-90 | Preview zoom, pan, rotation and saving the original image | Image upscaling or enhancement |

@@ -385,7 +385,7 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
       // The packaged build relaunches itself; take ownership of the replacement before asserting.
       page = await app.adoptRelaunch()
     }
-    await expect(page.locator('[data-ui~="app.shell"]').first()).toBeVisible()
+    await expect(page.locator('[data-ui~="app.sidebar"]')).toBeVisible()
     const restored = await readTopic()
     expect(restored.status).toBe(200)
     expect(TopicSchema.parse(restored.data)).toMatchObject({ id: topicId, name: topicName, assistantId })

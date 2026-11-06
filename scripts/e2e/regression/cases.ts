@@ -723,14 +723,6 @@ export const REGRESSION_CASES = [
     capabilities: []
   },
   {
-    id: 'MP-72',
-    title: 'Reference library files in chat',
-    tasks: ['files'],
-    phase: 'files',
-    capabilities: [],
-    platforms: ['macos']
-  },
-  {
     id: 'MP-115',
     title: 'Local backups and backup file management',
     tasks: ['data-backup'],

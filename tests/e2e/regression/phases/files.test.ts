@@ -383,7 +383,7 @@ test(...caseDefinition('MP-150'), async ({ app, mainWindow }, testInfo) => {
 
 test(...caseDefinition('MP-68'), async ({ app, mainWindow }, testInfo) => {
   let page = mainWindow
-  const root = await mkdtemp(join(process.cwd(), 'tests/e2e/regression/mp68-assets-'))
+  const root = await mkdtemp(join(app.paths.fixtures, 'mp68-assets-'))
   const upload = join(root, 'upload')
   const documents = app.fixturesPath('documents')
   const images = app.fixturesPath('images')
@@ -581,7 +581,7 @@ test(...caseDefinition('MP-68'), async ({ app, mainWindow }, testInfo) => {
 })
 
 test(...caseDefinition('MP-69'), async ({ app, mainWindow: page }, testInfo) => {
-  const root = await mkdtemp(join(process.cwd(), 'tests/e2e/regression/mp69-assets-'))
+  const root = await mkdtemp(join(app.paths.fixtures, 'mp69-assets-'))
   const prefix = `mp69-${Date.now()}`
   const fixtures = [
     { name: `${prefix}-sample.pdf`, type: 'document', label: 'Document' },
@@ -1008,11 +1008,4 @@ test(...caseDefinition('MP-71'), async ({ app, mainWindow: page }, testInfo) => 
     )
     await rm(directory, { recursive: true, force: true })
   }
-})
-
-test(...caseDefinition('MP-72'), async () => {
-  test.skip(
-    true,
-    'UNCOVERED: referencing library files in chat has no supported UI entry point. The attachment button opens a native file picker, and library rows do not provide file-reference drag data.'
-  )
 })
