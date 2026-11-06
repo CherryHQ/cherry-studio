@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process'
+import { execFileSync } from 'node:child_process'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import { Socket } from 'node:net'
@@ -1013,12 +1013,12 @@ export class OpenClawService extends BaseService {
 
   /**
    * Stop the OpenClaw Gateway.
-   * Kills all openclaw processes to ensure clean shutdown.
+   * Stops listeners on the configured gateway port.
    */
   public async stopGateway(): Promise<OperationResult> {
     const transitionBefore = this.gatewayTransitionId
     try {
-      this.killAllOpenClawProcesses()
+      this.killGatewayProcesses()
 
       const stillRunning = await this.waitForGatewayStop()
       if (stillRunning) {
@@ -1039,36 +1039,30 @@ export class OpenClawService extends BaseService {
     }
   }
 
-  /**
-   * Kill all openclaw processes by finding processes on the gateway port.
-   * This works reliably on Windows where process name may show as bun.exe.
-   */
-  private killAllOpenClawProcesses(): void {
-    const currentPid = process.pid
+  private killGatewayProcesses(): void {
     try {
-      if (isWin) {
-        const output = execSync(`netstat -ano | findstr ":${this.gatewayPort}"`, { encoding: 'utf-8' })
-        const pids = new Set<string>()
-        for (const line of output.split('\n')) {
-          const match = line.trim().match(/LISTENING\s+(\d+)/)
-          if (match && Number(match[1]) !== currentPid) {
-            pids.add(match[1])
-          }
+      const output = isWin
+        ? execFileSync('netstat', ['-ano'], { encoding: 'utf8', windowsHide: true })
+        : execFileSync('lsof', ['-t', `-iTCP:${this.gatewayPort}`, '-sTCP:LISTEN'], { encoding: 'utf8' })
+      const candidates = isWin
+        ? output.split(/\r?\n/).flatMap((line) => {
+            const [protocol, local, , state, pid] = line.trim().split(/\s+/)
+            return protocol === 'TCP' && local.endsWith(`:${this.gatewayPort}`) && state === 'LISTENING' ? [pid] : []
+          })
+        : output.trim().split(/\s+/)
+      const pids = new Set(candidates.filter((value) => /^\d+$/.test(value)).map(Number))
+      for (const pid of pids) {
+        if (pid <= 0 || pid === process.pid) continue
+        try {
+          if (isWin) execFileSync('taskkill', ['/PID', String(pid), '/F'], { stdio: 'ignore', windowsHide: true })
+          else process.kill(pid, 'SIGKILL')
+          logger.info('Stopped gateway listener', { pid, port: this.gatewayPort })
+        } catch (error) {
+          logger.debug('Gateway listener already exited or could not be stopped', { pid, error })
         }
-        for (const pid of pids) {
-          try {
-            execSync(`taskkill /PID ${pid} /F`, { stdio: 'ignore' })
-            logger.info(`Killed process ${pid} on port ${this.gatewayPort}`)
-          } catch {
-            // ignore
-          }
-        }
-      } else {
-        execSync('pkill -9 openclaw', { stdio: 'ignore' })
-        logger.info('Killed all openclaw processes')
       }
     } catch {
-      logger.debug('No openclaw processes to kill')
+      logger.debug('No gateway listeners found on the configured port', { port: this.gatewayPort })
     }
   }
 
