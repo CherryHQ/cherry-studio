@@ -93,12 +93,8 @@ rejects the batch and leaves the Session, its messages, and its pin in place.
 Recycle Bin purge still accepts only archived Sessions and does not apply this pin
 rejection, so a stale Recycle Bin page cannot delete a restored Session.
 
-When that active Session owns a dirty Agent file, confirming the file guard grants
-deferred draft disposal instead of discarding immediately. Cancelling the guard or
-the final deletion, a stale or missing deletion, or an API failure keeps the draft.
-The approved file and draft are discarded only after that Session is actually
-deleted and the active selection still requires removal. Ordinary file navigation
-still discards on confirm.
+Deleting the active Session does not prompt for a dirty Agent file. As with other
+Agent file navigation, the detached file session keeps saving in the background.
 
 Agent menus use the same distinction. `ai.agent.delete_permanently` removes an
 active Agent directly, with the same Agent/Session locks and busy checks as archive.
