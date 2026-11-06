@@ -503,6 +503,72 @@ Electron 验证还发现一条既有持久化旁路：手动压缩的完成标�
 本节证明后台回复修复。所属 Spec 保持 proposed，待核对整个栈的累计验收与发布状态；本节不宣称此前所有迁移验收条件均已完成。
 
 
+### 13. 删除 Durable 重复的关系索引（2026-11-07）
+
+维护者于 2026-11-07 批准本次后续修改，基线为 `origin/main` 的 `4fb6b8a5dc95`，范围是 `packages/agent-runtime-pi-durable/src/runtime.ts` 中第 3 节尚未收敛的部分。已删除的 `relations` 存的是 `Promise<Subagent & { child: Thread }>`，不只是 `ConversationRecord`：它缓存原生归属／来源的读取结果，为迟打开的父会话重放关系，并服务于 `relation()` 和 `openChild()`。失败的 Promise 也会一直保留。task graph 观察仅用于填充这个索引。两者现已删除，本地验证证据记录在第 13.5 节。
+
+#### 13.1 权威来源与准确删除清单
+
+Pi Durable 1.4.0 已提供 `tx.conversation(id)`、`tx.task(id)` 和分页的 `tx.scanConversations({ ownerConversationId }, limit, cursor)`。原生 conversation 归属确定父会话；behavior lineage 确定原始创建调用，也覆盖后台 owner task 与该调用不同的情况。保留将这些事实规范化为现有 `Subagent` 契约的过程。保留 `ThreadFeed.snapshot.subagents` 作为消费者投影，不再维护第二份覆盖整个 runtime 的关系存储。
+
+| `runtime.ts` 中的位置 | 删除内容 | 替代来源 |
+| --- | --- | --- |
+| `relations` 与 `publishRelation()` | 常驻 Map、Promise 缓存及全部 `get/set/has/values` 消费者 | 私有、无缓存的规范化函数，通过 SDK 记录读取接口读取原生记录、原始 lineage 和工具输入；挂载／访问查询在一个事务中完成 |
+| task graph 初始化与关闭 | `TaskGraph`／`TaskGraphWatch` 导入、`watchTaskGraph()`、`updateRelations()`、`graph.start`、仅用于 graph 的失败／关闭处理及 `graph.stop()` | 新创建会话走已有 commit 订阅；历史子会话走原生归属查询 |
+| `load()` | 仅 behavior 路径通过 `facts.children` 发现子会话，以及遍历全部关系缓存的重放 | 按原生 `ownerConversationId` 分页查询直接子会话，覆盖 behavior 与原始 adapter |
+| `durable.relation()` | `relations.get(childId)` | 按需读取当前子会话的原生记录并规范化关系 |
+| `durable.openChild()` | 遍历整个 runtime 的 `Promise.all(relations.values())` | 解析指定创建调用时，只查询当前父会话拥有的原生子会话 |
+
+保留 `entries`、`live`、输入关联、归档保管、现有操作跟踪 Set、原生 view 观察及 Main 的子会话资源记录；它们的所有权不属于本次删除范围。无需升级／修改 SDK、增加 schema migration、扩大公开类型、引入替代 manager 或新增关系缓存。
+
+#### 13.2 初次挂载与后续创建
+
+1. 保持现有 commit 订阅先于任何父会话加载注册。父会话首次查询原生子会话前，先注册其 live projection。在同一个原生事务中读取全部分页并规范化记录，复用现有 `pages()`。
+2. 查询前已提交的创建由查询恢复；查询后提交的创建由订阅交付。两条路径可能 upsert 同一个子会话身份，但投影中只能有一个子会话。behavior 已在同一事务中提交创建和 `subagent-origin`，无需增加临时的未知来源缓存。
+3. 新创建的子会话只向已挂载父会话发布。异步规范化前捕获该父会话 entry，完成后确认仍由同一 entry 接收。父会话尚未打开时不保留任务或关系，后续查询原生归属即可恢复。即使父会话从未打开，直接打开子会话也能通过 `relation()` 获取归属。
+4. 异步关系读取／交付纳入现有操作跟踪。`settled()` 在原生任务／输入清空后，还须等待已接纳的关系操作完成；仅凭 `inspect()` 为空不足以进入备份。关闭时，存储关闭前完成已接纳的原生读取，feed 关闭前交付捕获的关系，最终持久化前排空观察回调。不能因为 `shutdown()` 已开始就丢弃最后的关系。删除 graph 专属故障处理后保留 native／view 的来源丢失报告。
+
+已安装的 SDK 禁止在 commit 监听器中调用 Session API，并且会先停止 view 观察，再关闭存储。因此，创建通知通过所属存储读取不可变的归属／来源／工具输入记录，与事务查询复用同一个规范化函数。现有存储关闭包装在后端关闭前等待跟踪操作完成，feed 在 `native.closed` 时关闭。这些独立读取不用于推断可变的任务结果。初次挂载失败时解绑 view 并移除其 live entry，避免重试残留第二个观察者。
+
+即使没有 shared behavior，重启后查询也会包含已完成的所属子会话，旧的 live task graph 可能遗漏它们；这是明确的恢复修正。查询只包含直接原生归属：fork 继承的历史本身不能证明父子关系，孙会话由其实际父会话发现。现有子会话归档和输入／用量完成语义保持不变。
+
+#### 13.3 子会话访问与失败结果
+
+`relation()` 一起读取当前子会话的 `ConversationRecord` 和原始创建证据。无 owner 的会话没有关系。缺失来源仍保持缺失；原生读取失败仍作为失败返回，下次调用可以重试。续聊不能替换创建来源。
+
+`openChild()` 保留现有每次访问的观察和取消生命周期。查询限定在接收调用的父会话及原始工具调用。初始观察、相关子会话发布、目标工具完成或恢复时，通过原生子会话解析结果，不因无关文本增量逐次查询。匹配到零个、一个还是多个子会话，由原生查询决定，不依赖异步 `subagent.upsert` 何时交付。
+
+已知且仍在执行的调用可以等待。工具进入终态后，报告 `child-unavailable` 前必须完成原生查询，避免关系交付阻塞时漏掉已经提交的子会话。唯一匹配一起返回关系和 handle；多个匹配返回 `ambiguous-origin`；未知调用、原生读取失败、取消和所有者关闭保持既有不同结果。打开／释放访问不提交、恢复调度或停止原生工作。并发调用获得可独立释放的 handle，取消其中一个不能取消另一个。
+
+#### 13.4 实施与验证顺序
+
+1. 将规范化、`relation()` 和 `openChild()` 迁到限定范围的原生读取。在 `packages/agent-runtime-pi-durable/tests/runtime.test.ts` 和 `packages/agent-runtime-pi-durable/tests/behaviorContract.test.ts` 验证创建来源稳定、工具终态先于关系交付时仍能访问、暂时读取失败后的重试、来源歧义及独立取消。
+2. 替换初次发现／重放，再删除整个 Map 和 task graph 观察。在上述 package 测试及 `packages/agent-runtime-pi-durable/tests/recoveryConfiguration.test.ts` 验证迟挂载、初次查询期间创建、跨多个分页、嵌套归属和已完成子会话的 SQLite 重开恢复。
+3. 在 `src/main/ai/runtime/piDurable/PiDurableRuntimeConnection.test.ts` 验证受影响的 Main 消费者：独立子会话历史、续聊／重开及最终持久化期间观察阻塞。实现后再修改 package README 的 task graph 所有权／发现描述及受影响的双语参考文档。运行 package typecheck、限定文件的 lint／format 和文档检查，并搜索生产代码，证明该 adapter 中不再保留 `relations` 或 task graph 发现路径。
+
+AC24–AC28 由实现者负责。本次修改不重新讨论三个 runtime 的产品等待策略，也不因删掉 Map 就宣称性能提升。
+
+#### 13.5 本地实施证据（2026-11-07）
+
+| 验收项 | 证据 |
+| --- | --- |
+| AC24 | `relations.test.ts` 验证 260 个直接子会话、嵌套归属、排除无 owner 的 fork 祖先关系、扫描失败后的重试，以及初次挂载期间排队的创建。`runtime.test.ts` 扩展的 SQLite 测试在旧实现上复现了重启后先于父会话打开已完成子会话时关系缺失的问题，改用原生查询后通过。 |
+| AC25 | `relations.test.ts` 在关系交付阻塞时打开已提交子会话，区分未知／无子会话／歧义调用，并验证暂时的原生关系读取失败后可以重试且不增加模型调用。现有 Main 测试保留后台续聊和重开期间的 behavior 创建来源。 |
+| AC26 | `relations.test.ts` 覆盖独立并发访问、取消、访问释放和 runtime 关闭。失败打开的清理及捕获 entry 的身份检查隔离已丢弃挂载的交付；扫描重试场景验证后继挂载能正常打开。 |
+| AC27 | `relations.test.ts` 在 `settled()` 和 shutdown 期间分别阻塞关系交付，检查交付先于关闭。原生存储失败仍以 `source-lost` 关闭观察。`PiDurableRuntimeConnection.test.ts` 保留真实 SQLite 下独立历史、续聊／重开及最终持久化前子会话观察阻塞的覆盖。 |
+| AC28 | 生产符号审计确认该 adapter 不再有关系 Map 或 task graph 订阅。原生存储计数器验证等待子会话访问期间，20 次无关文本修订不会引发额外查询。公开子会话类型和 Main 资源归属未变。package typecheck／build、限定文件的 Oxlint／ESLint 及变更文件格式检查通过。 |
+
+限定范围的 package 验证：**82 项通过，3 项既有跳过**。Main 集成验证：**23 项通过**。命令：
+
+```sh
+pnpm exec vitest run --root packages/agent-runtime-pi-durable tests/runtime.test.ts tests/relations.test.ts tests/behaviorContract.test.ts tests/recoveryConfiguration.test.ts tests/pendingObservation.test.ts tests/projection.test.ts
+pnpm --filter @cherrystudio/agent-runtime-pi-durable typecheck
+pnpm --filter @cherrystudio/agent-runtime-pi-durable build
+pnpm test:main src/main/ai/runtime/piDurable/PiDurableRuntimeConnection.test.ts
+```
+
+3 项跳过保留已记录的 context-filter 和 foreground-continuation 限制。这些是使用脚本化提供商的原生 runtime 与 SQLite 测试，不是 Electron 或真实模型验收。本节只记录本地实施，不宣称整个 Spec 的其余验收条件完成，也不宣称远端 CI／发布已完成。
+
 ## 考虑过的替代方案
 
 | 替代方案 | 不采用的原因 |
@@ -515,6 +581,8 @@ Electron 验证还发现一条既有持久化旁路：手动压缩的完成标�
 | 重写现有内容协议 Spec | 把已交付的内容／持久化修复与仍处于提案阶段的控制和生命周期工作混在一起；分开决策归属便于审查。 |
 | 只删类型成员，保留专用构造、复制和旧执行器 | 只缩小声明，运行时维护成本没有退出；本修订要求逐条报告被删除的生产链。 |
 | 继续支持两个 Pi 行为入口，增加弃用转发或模式开关 | 当前生产消费者只有桌面接入，Node 契约测试可复用现有 behavior 路径；兼容包装会延续第二套所有权和测试面。 |
+| 保留 Durable Promise 缓存来合并原生读取 | 它能避免重复读取，但也保留失败，并与原生归属及现有投影重复。把读取限定在挂载／访问边界和父会话范围，可以避免新增缓存生命周期。 |
+| 只从最新投影快照解析 Durable 子会话 | 关系交付可能晚于工具终态。判定子会话不可用或解析来源歧义前，需要限定范围的原生查询。 |
 
 ## 验收标准
 
@@ -545,6 +613,11 @@ Electron 验证还发现一条既有持久化旁路：手动压缩的完成标�
 - AC22 — 三个 runtime 分别验证前台与明确后台模式：等待与汇总期间停止入口保留，完成后恢复发送，重开仍保持正确消息数量与归属；停止、新输入、重连和费用沿用原有契约。原生参数、UI、持久化和真实模型证据分别记录。 (verification: Electron — 实现者按第 12.4 节完成逐场景验收，历史绿色记录或单独 mock 的等待标记不算通过)
 - AC23 — 模型工具中的前台／后台选择保持原有参数与默认语义；adapter 只提供有来源的原生结果事实，不决定产品回复是否等待。相同子线程的续接结果按本次触发来源归属，任务展示完成、未知来源、连接释放和常驻命令均不能误结清或无限占用无关回复。 (verification: unit — 实现者验证第 12.5 节的参数矩阵、原生报告／通知间隙、跨输入续接、命令并存及未知来源，并检查旧字段和判断分支已移除)
 
+- AC24 — 父会话迟打开、初次查询与创建并发、查询跨多个分页或完成后重开 SQLite 时，Durable 都能恢复每个直接所属子会话且不重复；behavior 与原始 adapter 保留归属，不混入兄弟会话或继承的 fork 历史。(verification: unit — 实现者扩展 Durable package 的 runtime.test.ts 和 recoveryConfiguration.test.ts)
+- AC25 — 创建已提交但关系交付阻塞时仍能打开子会话；续聊保留创建来源，未知与歧义调用保持不同错误，原生读取暂时失败后可重试且不启动工作。(verification: unit — 实现者扩展 Durable 的 runtime.test.ts 和 behaviorContract.test.ts)
+- AC26 — 并发打开子会话得到可独立释放的访问；取消其中一个不影响另一个，关闭会结束待完成的打开操作，迟到的关系交付不能写入替代 entry。(verification: unit — 实现者扩展 Durable 的 runtime.test.ts)
+- AC27 — 删除 graph 观察后保留独立子会话历史、续聊和重开；关系或观察回调阻塞时，shutdown／backup 等待最终事实，最终持久化后不再发生投影写入。(verification: unit — 实现者扩展 Durable 的 runtime.test.ts 及 PiDurableRuntimeConnection.test.ts)
+- AC28 — Durable adapter 不再有覆盖整个 runtime 的关系缓存或 task graph 发现订阅；原生查询限定在父会话范围且不由无关文本增量触发，公开子会话契约及 Main 资源归属保持不变。(verification: docs gate — 实现者提供符号／消费者审计、package typecheck、限定范围测试证据及更新后的 README)
 ## 风险
 
 | 风险 | 必需保护 |
@@ -559,5 +632,7 @@ Electron 验证还发现一条既有持久化旁路：手动压缩的完成标�
 | 字段收缩误删内部算法或同名持久化字段 | 区分公开 batch revision 与 context revision、root DTO parts 与 child archive parts、返回 messages 与原始 NativeArchive；保留来源成员资格、原子提交及观察排空。 |
 | 删除旧 Pi 执行器时误删共享的历史恢复逻辑 | 保留当前桌面原生归属和 child lineage；原生文件不改写，不制造替代任务，不用缺失旧 API 解释所有恢复失败。 |
 | 只有类型／测试变少，冗余生产链仍存在 | 每阶段核对专用构造器、状态、复制及执行分支的退出；产品场景先迁移到现有测试，不以重命名、新 DTO 或仅删除测试充当收敛。 |
+| 恢复已完成的 Durable 子会话增加挂载读取和下游子会话观察 | 只分页查询直接归属，避免遍历整个 runtime 或逐 token 查询，并覆盖多页场景。记录有意扩展的恢复范围，未测量前不宣称延迟降低。 |
+| 删除关系缓存改变异步交付时序 | 验证工具完成及关闭前关系交付阻塞的场景；最终持久化前等待现有跟踪操作完成，保留明确的原生读取错误，不返回成功的空查询。 |
 
 不因映射减少就假定性能受益。成功标准是在可观察行为不变的前提下，减少独立解释和同步路径。任何阻碍必需验收标准的 SDK 限制，都必须先在所属契约中解决并经过审查，再推进其消费者阶段。
