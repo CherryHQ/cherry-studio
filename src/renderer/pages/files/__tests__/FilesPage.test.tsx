@@ -1,6 +1,6 @@
+import { mockUseInfiniteFlatItems, mockUseInfiniteQuery, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { mockUseInfiniteFlatItems, mockUseInfiniteQuery, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, cleanup, fireEvent, render as renderView, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { type ReactNode, StrictMode } from 'react'
@@ -14,6 +14,7 @@ import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { FileEntryStats } from '@shared/data/api/schemas/files'
 import type { FileEntry } from '@shared/data/types/file'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 
 const platformState = vi.hoisted(() => ({
   isMac: true
@@ -1996,4 +1997,34 @@ describe('FilesPage file operations', () => {
     expect(filePreviewMocks.render).not.toHaveBeenCalled()
     expect(screen.queryByRole('region', { name: 'photo.png' })).not.toBeInTheDocument()
   })
+})
+
+it('keeps HEIC in the image grid with an icon while PNG retains its thumbnail', async () => {
+  const heic = { ...imageEntry, id: 'heic-entry', name: 'heic-photo', ext: 'HEIC' } as FileEntry
+  ipcMocks.request.mockImplementation((route: string) => {
+    if (route === 'file.batch_get_physical_paths')
+      return Promise.resolve({ [heic.id]: '/tmp/heic-photo.HEIC', [imageEntry.id]: '/tmp/photo.png' })
+    return Promise.resolve({})
+  })
+  renderFilesPage([heic, imageEntry])
+  await userEvent.setup().click(screen.getByRole('button', { name: /^files\.image/ }))
+  await waitFor(() =>
+    expect(screen.getByRole('img', { name: 'photo.png' })).toHaveAttribute('src', 'file:///tmp/photo.png')
+  )
+  expect(screen.getByText('heic-photo.HEIC')).toBeInTheDocument()
+  expect(screen.queryByRole('img', { name: 'heic-photo.HEIC' })).toBeNull()
+})
+
+it('shows actionable decoder-unavailable copy when activating a HEIF image from Files', async () => {
+  const heic = { ...imageEntry, id: 'heic-entry', name: 'heic-photo', ext: 'heic' } as FileEntry
+  ipcMocks.request.mockImplementation((route: string) => {
+    if (route === 'file.batch_get_physical_paths') return Promise.resolve({ [heic.id]: '/tmp/heic-photo.heic' })
+    return Promise.resolve({})
+  })
+  imagePreviewMocks.show.mockRejectedValueOnce(new IpcError('FILE_HEIF_UNAVAILABLE'))
+  renderFilesPage([heic])
+  const user = userEvent.setup()
+  await user.click(screen.getByRole('button', { name: /^files\.image/ }))
+  await user.click(await screen.findByText('heic-photo.heic'))
+  await waitFor(() => expect(toast.error).toHaveBeenCalledWith('error.heif_detail_unavailable'))
 })

@@ -1,4 +1,12 @@
 import { fileTypeFromBuffer } from 'file-type'
+import type {
+  MainModule,
+  heif_image as HeifImage,
+  heif_image_handle as HeifImageHandle
+} from 'libheif-js/libheif-wasm/libheif.js'
+
+import { fileErrorCodes } from '@shared/ipc/errors/file'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 
 /** Target square dimension for normalized entity images (avatar / logo). */
 const ENTITY_IMAGE_DIMENSION = 128
@@ -72,4 +80,95 @@ export async function cropPng(
     .extract({ left: region.x, top: region.y, width: region.width, height: region.height })
     .png()
     .toBuffer()
+}
+
+export interface HeifPng {
+  content: Uint8Array
+  mediaType: 'image/png'
+  width: number
+  height: number
+}
+
+export const HEIF_MAX_BYTES = 64 * 1024 * 1024
+
+export function validateHeifDimensions(width: number, height: number): void {
+  if (![width, height].every((n) => Number.isSafeInteger(n) && n > 0 && n <= 16384)) {
+    throw new IpcError(fileErrorCodes.HEIF_TOO_LARGE, 'HEIF dimensions exceed the limit', { limit: 'dimensions' })
+  }
+  if (width * height > 50_000_000) {
+    throw new IpcError(fileErrorCodes.HEIF_TOO_LARGE, 'HEIF pixel count exceeds the limit', { limit: 'pixels' })
+  }
+}
+
+/** Decode only the primary image; libheif's display decode applies container transforms. */
+export async function transcodeHeifToPng(content: Uint8Array, signal?: AbortSignal): Promise<HeifPng> {
+  signal?.throwIfAborted()
+  if (content.byteLength > HEIF_MAX_BYTES) {
+    throw new IpcError(fileErrorCodes.HEIF_TOO_LARGE, 'HEIF input exceeds the limit', { limit: 'input_bytes' })
+  }
+  const type = await fileTypeFromBuffer(content).catch(() => undefined)
+  if (!type || !['image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence'].includes(type.mime)) {
+    throw new IpcError(fileErrorCodes.HEIF_INVALID)
+  }
+  let heif: MainModule
+  try {
+    const { default: factory } = await import('libheif-js/libheif-wasm/libheif-bundle.mjs')
+    heif = await factory()
+  } catch {
+    throw new IpcError(fileErrorCodes.HEIF_UNAVAILABLE)
+  }
+  const context = heif.heif_context_alloc()
+  let handle: HeifImageHandle | undefined
+  let image: HeifImage | undefined
+  try {
+    signal?.throwIfAborted()
+    if (heif.heif_context_read_from_memory(context, content).code.value !== 0) {
+      throw new IpcError(fileErrorCodes.HEIF_INVALID)
+    }
+    const primary = heif.heif_context_get_primary_image_handle(context)
+    if (
+      primary?.code &&
+      primary.subcode?.value !== heif.heif_suberror_code.heif_suberror_No_or_invalid_primary_item.value
+    ) {
+      throw new IpcError(fileErrorCodes.HEIF_INVALID)
+    }
+    handle = primary
+    if (!handle || 'code' in handle) {
+      const ids = heif.heif_context_get_list_of_top_level_image_IDs(context)
+      handle = ids?.length ? heif.heif_context_get_image_handle(context, ids[0]) : undefined
+    }
+    if (!handle || 'code' in handle) throw new IpcError(fileErrorCodes.HEIF_INVALID)
+    validateHeifDimensions(heif.heif_image_handle_get_width(handle), heif.heif_image_handle_get_height(handle))
+    const decoded = heif.heif_js_decode_image2(
+      handle,
+      heif.heif_colorspace.heif_colorspace_RGB,
+      heif.heif_chroma.heif_chroma_interleaved_RGBA
+    )
+    image = decoded?.image
+    signal?.throwIfAborted()
+    if (!image || decoded.code) throw new IpcError(fileErrorCodes.HEIF_INVALID)
+    const channel = decoded.channels.find((c: { id: unknown }) => c.id === heif.heif_channel.heif_channel_interleaved)
+    if (!channel) throw new IpcError(fileErrorCodes.HEIF_INVALID)
+    const { width, height, stride } = channel
+    validateHeifDimensions(width, height)
+    if (stride < width * 4 || channel.data.byteLength < stride * height) throw new IpcError(fileErrorCodes.HEIF_INVALID)
+    const rgba = new Uint8Array(width * height * 4)
+    for (let y = 0; y < height; y++) rgba.set(channel.data.subarray(y * stride, y * stride + width * 4), y * width * 4)
+    const sharp = (await import('sharp')).default
+    const png = await sharp(rgba, { raw: { width, height, channels: 4 } })
+      .png()
+      .toBuffer()
+    signal?.throwIfAborted()
+    if (png.byteLength > HEIF_MAX_BYTES) {
+      throw new IpcError(fileErrorCodes.HEIF_TOO_LARGE, 'HEIF output exceeds the limit', { limit: 'output_bytes' })
+    }
+    return { content: png, mediaType: 'image/png', width, height }
+  } catch (error) {
+    if (signal?.aborted || error instanceof IpcError) throw error
+    throw new IpcError(fileErrorCodes.HEIF_INVALID)
+  } finally {
+    if (image) heif.heif_image_release(image)
+    if (handle && !('code' in handle)) heif.heif_image_handle_release(handle)
+    heif.heif_context_free(context)
+  }
 }

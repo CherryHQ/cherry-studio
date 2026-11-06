@@ -3,8 +3,10 @@ import React from 'react'
 import ImageViewer from '@renderer/components/ImageViewer'
 import { cn } from '@renderer/utils/style'
 
+export type ImageBlockItem = string | { id: string; src: string }
+
 interface Props {
-  images: string[]
+  images: ImageBlockItem[]
   isPending?: boolean
   isSingle?: boolean
   /** Sent attachments read as references, not content: cap them well below the inline size. */
@@ -21,7 +23,9 @@ const ImageBlock: React.FC<Props> = ({ images, isPending = false, isSingle = fal
     return null
   }
 
-  const previewItems = images.map((src, index) => ({ id: `${index}:${src}`, src }))
+  const previewItems = images.map((item, index) =>
+    typeof item === 'string' ? { id: `${index}:${item}`, src: item } : item
+  )
   const style: React.CSSProperties = thumbnail
     ? { maxWidth: 240, maxHeight: 160, padding: 0, borderRadius: 8 }
     : isSingle

@@ -44,11 +44,6 @@ const ImagePreviewContainer: React.FC<PreviewProps> = ({ src, open, resolve }) =
 
   const handleVisibleChange = (visible: boolean) => {
     if (!visible) {
-      // Revoke the object URL on the close path (createObjectURL happens in
-      // imageInputToPreviewUrl for SVG elements and blobs).
-      if (src.startsWith('blob:')) {
-        URL.revokeObjectURL(src)
-      }
       resolve()
     }
   }
@@ -104,7 +99,11 @@ export class ImagePreviewService {
   static async show(input: ImageInput, options: ImagePreviewOptions = {}): Promise<void> {
     try {
       const src = await imageInputToPreviewUrl(input, options)
-      await imagePreviewPopup.show({ src })
+      try {
+        await imagePreviewPopup.show({ src })
+      } finally {
+        if (src.startsWith('blob:')) URL.revokeObjectURL(src)
+      }
     } catch (error) {
       logger.error('Failed to show image preview:', error as Error)
       throw error

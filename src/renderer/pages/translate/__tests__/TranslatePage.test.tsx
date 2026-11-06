@@ -12,6 +12,7 @@ import type * as TranslateUtils from '@renderer/utils/translate'
 import type { FileProcessingTask, FileProcessingTaskId } from '@shared/data/types/fileProcessing'
 import type { BinaryToolSnapshot } from '@shared/types/binary'
 import type { AbsoluteFilePath } from '@shared/types/file'
+import { documentExts, textExts } from '@shared/utils/file'
 
 import type { TranslationFiles } from '../translationFiles'
 
@@ -29,6 +30,7 @@ const fileMock = vi.hoisted(() => ({
   get: vi.fn()
 }))
 
+const fileExtensionsMock = vi.hoisted(() => vi.fn<(extensions: string[]) => void>())
 const ocrTaskSeq = vi.hoisted(() => ({ value: 0 }))
 const uuidMock = vi.hoisted(() => vi.fn(() => 'abort-key'))
 const ipcRequestMock = vi.hoisted(() => vi.fn())
@@ -161,11 +163,14 @@ vi.mock('@renderer/hooks/useDrag', () => ({
 }))
 
 vi.mock('@renderer/hooks/useFiles', () => ({
-  useFiles: () => ({
-    onSelectFile: fileMock.onSelectFile,
-    selecting: false,
-    clearFiles: vi.fn()
-  })
+  useFiles: ({ extensions }: { extensions: string[] }) => {
+    fileExtensionsMock(extensions)
+    return {
+      onSelectFile: fileMock.onSelectFile,
+      selecting: false,
+      clearFiles: vi.fn()
+    }
+  }
 }))
 
 const mockModel = {
@@ -517,6 +522,7 @@ describe('TranslatePage', () => {
       'feature.translate.page.enable_markdown': false
     })
     fileMock.onSelectFile.mockReset()
+    fileExtensionsMock.mockClear()
     fileMock.readText.mockReset()
     fileMock.readExternal.mockReset()
     fileMock.startTask.mockReset()
@@ -606,6 +612,18 @@ describe('TranslatePage', () => {
 
   afterEach(() => {
     cleanup()
+  })
+
+  it('excludes HEIF from the OCR picker while retaining ordinary images, text and documents', () => {
+    const { rerender } = render(<TranslatePage />)
+    const extensions = fileExtensionsMock.mock.calls[0][0]
+
+    expect(extensions).not.toContain('.heic')
+    expect(extensions).not.toContain('.heif')
+    expect(extensions).toEqual(expect.arrayContaining(['.jpg', '.png', ...textExts, ...documentExts]))
+
+    rerender(<TranslatePage />)
+    expect(fileExtensionsMock.mock.lastCall?.[0]).toBe(extensions)
   })
 
   it('hides the model tag filter on the inline selector', () => {

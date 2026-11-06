@@ -222,7 +222,9 @@ function extractImageUrl(part: CherryMessagePart): string | undefined {
 
 function toImageSource(part: CherryMessagePart): MessageImageSource | undefined {
   const url = extractImageUrl(part)
-  return url ? { handle: fileHandleFromPart(part), url } : undefined
+  return url && isFileUIPart(part)
+    ? { handle: fileHandleFromPart(part), url, mediaType: part.mediaType, filename: part.filename }
+    : undefined
 }
 
 export interface HoistedFileAttachment {

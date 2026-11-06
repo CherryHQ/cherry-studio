@@ -1476,3 +1476,77 @@ describe('utils/image', () => {
     })
   })
 })
+
+describe('HEIF preview input resolution', () => {
+  beforeEach(() => {
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:resolved-png') })
+    ipcMocks.request.mockResolvedValue({ content: new Uint8Array([137, 80, 78, 71]) })
+  })
+
+  it('resolves local HEIF URLs and HTML images before browser display', async () => {
+    const image = document.createElement('img')
+    image.src = 'file:///tmp/photo.HEIC'
+    await expect(imageInputToPreviewUrl(image)).resolves.toBe('blob:resolved-png')
+    expect(ipcMocks.request).toHaveBeenCalledWith('file.get_heif_rendition', {
+      source: { kind: 'path', path: '/tmp/photo.HEIC' }
+    })
+    expect(vi.mocked(URL.createObjectURL).mock.calls[0][0]).toMatchObject({ type: 'image/png' })
+  })
+
+  it('sends HEIF Blob bytes to the rendition route and rejects oversized Blobs before reading them', async () => {
+    const blob = new Blob(['heif'], { type: 'image/heif' })
+    const arrayBuffer = vi.fn().mockResolvedValue(new Uint8Array([1, 2]).buffer)
+    Object.defineProperty(blob, 'arrayBuffer', { value: arrayBuffer })
+    await expect(imageInputToPreviewUrl(blob)).resolves.toBe('blob:resolved-png')
+    expect(ipcMocks.request).toHaveBeenCalledWith('file.get_heif_rendition', {
+      source: { kind: 'bytes', content: new Uint8Array([1, 2]) }
+    })
+    Object.defineProperty(blob, 'size', { value: 64 * 1024 * 1024 + 1 })
+    arrayBuffer.mockClear()
+    await expect(imageInputToPreviewUrl(blob)).rejects.toMatchObject({ code: 'FILE_HEIF_TOO_LARGE' })
+    expect(arrayBuffer).not.toHaveBeenCalled()
+  })
+
+  it('leaves ordinary string, Blob and HTML image inputs on their original path without HEIF IPC', async () => {
+    const url = 'file:///tmp/photo.png'
+    const image = document.createElement('img')
+    image.src = url
+    const blob = new Blob(['png'], { type: 'image/png' })
+    await expect(imageInputToPreviewUrl(url)).resolves.toBe(url)
+    await expect(imageInputToPreviewUrl(image)).resolves.toBe(url)
+    await imageInputToPreviewUrl(blob)
+    expect(URL.createObjectURL).toHaveBeenCalledWith(blob)
+    expect(ipcMocks.request).not.toHaveBeenCalled()
+  })
+
+  it('copies a borrowed blob URL so popup cleanup cannot revoke the thumbnail owner’s URL', async () => {
+    const blob = new Blob(['png'], { type: 'image/png' })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ blob: async () => blob }))
+    try {
+      await expect(imageInputToPreviewUrl('blob:thumbnail-owner')).resolves.toBe('blob:resolved-png')
+      expect(URL.createObjectURL).toHaveBeenCalledWith(blob)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+})
+
+it('recognizes an untyped HEIF File by its case-insensitive name and respects a known ordinary MIME', async () => {
+  const createUrl = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:file-png')
+  const file = new File(['heif'], 'photo.HEIF')
+  Object.defineProperty(file, 'arrayBuffer', { value: async () => new Uint8Array([1]).buffer })
+  ipcMocks.request.mockResolvedValueOnce({ content: new Uint8Array([137, 80, 78, 71]) })
+  try {
+    await expect(imageInputToPreviewUrl(file)).resolves.toBe('blob:file-png')
+    expect(ipcMocks.request).toHaveBeenCalledWith('file.get_heif_rendition', {
+      source: { kind: 'bytes', content: new Uint8Array([1]) }
+    })
+    ipcMocks.request.mockClear()
+    const png = new File(['png'], 'misleading.heic', { type: 'image/png' })
+    await imageInputToPreviewUrl(png)
+    expect(ipcMocks.request).not.toHaveBeenCalled()
+    expect(createUrl).toHaveBeenLastCalledWith(png)
+  } finally {
+    createUrl.mockRestore()
+  }
+})
