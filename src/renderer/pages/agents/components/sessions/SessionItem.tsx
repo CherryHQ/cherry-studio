@@ -32,6 +32,9 @@ interface SessionItemProps {
   active?: boolean
   channelType?: string
   onDelete: (id: string) => void | Promise<void>
+  onDeletePermanently?: (id: string) => void | Promise<void>
+  permanentDeleteShortcut?: string
+  isDeleting?: boolean
   onOpenInNewTab?: (session: AgentSessionEntity) => void
   onOpenInNewWindow?: (session: AgentSessionEntity) => void
   onOpenRenameDialog: (session: AgentSessionEntity) => void
@@ -70,6 +73,9 @@ const SessionItem = ({
   active = false,
   channelType,
   onDelete,
+  onDeletePermanently,
+  permanentDeleteShortcut,
+  isDeleting = false,
   onOpenInNewTab,
   onOpenInNewWindow,
   onOpenRenameDialog,
@@ -150,6 +156,10 @@ const SessionItem = ({
   const startInlineEdit = useCallback(() => actions.startRename(session.id), [actions, session.id])
   const startMenuEdit = useCallback(() => onOpenRenameDialog(session), [onOpenRenameDialog, session])
   const handleDelete = useCallback(() => onDelete(session.id), [onDelete, session.id])
+  const handleDeletePermanently = useMemo(
+    () => (onDeletePermanently ? () => onDeletePermanently(session.id) : undefined),
+    [onDeletePermanently, session.id]
+  )
   const handleTogglePin = useCallback(() => {
     void onTogglePin?.(session.id)
   }, [onTogglePin, session.id])
@@ -173,6 +183,9 @@ const SessionItem = ({
       onCopyMarkdown: () => sessionMenuActions.onCopyMarkdown(session),
       onCopyPlainText: () => sessionMenuActions.onCopyPlainText(session),
       onDelete: handleDelete,
+      onDeletePermanently: handleDeletePermanently,
+      permanentDeleteShortcut,
+      isDeleting,
       isBusy: isStreamPending || showAwaitingApprovalBadge,
       onExportImage: () => sessionMenuActions.onExportImage(session),
       onExportJoplin: () => sessionMenuActions.onExportJoplin(session),
@@ -199,6 +212,9 @@ const SessionItem = ({
     }),
     [
       handleDelete,
+      handleDeletePermanently,
+      permanentDeleteShortcut,
+      isDeleting,
       isStreamPending,
       showAwaitingApprovalBadge,
       handleOpenInNewTab,

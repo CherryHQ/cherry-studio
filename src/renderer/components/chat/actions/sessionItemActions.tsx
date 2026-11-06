@@ -11,6 +11,7 @@ import {
   PinIcon,
   PinOffIcon,
   Sparkles,
+  Trash,
   UploadIcon
 } from 'lucide-react'
 
@@ -38,12 +39,15 @@ export type SessionExportMenuOptions = Record<
 export interface SessionActionContext {
   exportMenuOptions?: Partial<SessionExportMenuOptions>
   isActiveInCurrentTab: boolean
+  isDeleting?: boolean
   isRenaming?: boolean
   onAutoRename?: () => void | Promise<void>
   onCopyImage?: () => void | Promise<void>
   onCopyMarkdown?: () => void | Promise<void>
   onCopyPlainText?: () => void | Promise<void>
   onDelete: () => void | Promise<void>
+  onDeletePermanently?: () => void | Promise<void>
+  permanentDeleteShortcut?: string
   isBusy?: boolean
   onExportImage?: () => void | Promise<void>
   onExportJoplin?: () => void | Promise<void>
@@ -286,6 +290,14 @@ sessionActionRegistry.registerCommand({
   run: ({ onDelete }) => onDelete()
 })
 
+sessionActionRegistry.registerCommand({
+  id: 'session.delete-permanently',
+  run: ({ isBusy, isDeleting, onDeletePermanently, pinned }) => {
+    if (!onDeletePermanently || pinned || isBusy || isDeleting) return
+    return onDeletePermanently()
+  }
+})
+
 sessionActionRegistry.registerAction({
   id: 'session.auto-rename',
   commandId: 'session.auto-rename',
@@ -505,6 +517,22 @@ sessionActionRegistry.registerAction({
   order: 90,
   surface: 'menu',
   availability: ({ pinned, isBusy }) => ({ visible: !pinned, enabled: !isBusy })
+})
+
+sessionActionRegistry.registerAction({
+  id: 'session.delete-permanently',
+  commandId: 'session.delete-permanently',
+  label: ({ t }) => t('common.delete_permanently'),
+  icon: () => <Trash size={14} />,
+  group: 'danger',
+  order: 100,
+  surface: 'menu',
+  danger: true,
+  shortcut: ({ permanentDeleteShortcut }) => permanentDeleteShortcut ?? '',
+  availability: ({ isBusy, isDeleting, onDeletePermanently, pinned }) => ({
+    visible: Boolean(onDeletePermanently) && !pinned,
+    enabled: !isBusy && !isDeleting
+  })
 })
 
 export function resolveSessionMenuActions(context: SessionActionContext): ResolvedAction<SessionActionContext>[] {

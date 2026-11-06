@@ -3,12 +3,16 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useTranslation } from 'react-i18next'
 
 import { Tooltip } from '@cherrystudio/ui'
+import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import type { TopicMoveAssistantTarget } from '@renderer/components/chat/actions/topicContextMenuActions'
-import { deleteConversationOwnerPopup } from '@renderer/components/chat/DeleteConversationOwnerConfirmDialog'
+import {
+  deleteConversationOwnerPopup,
+  permanentDeletePopup
+} from '@renderer/components/chat/DeleteConversationOwnerConfirmDialog'
 import {
   renderAssistantEntityIcon,
   resolveDefaultCollapsedGroupIds,
@@ -30,6 +34,7 @@ import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import type { ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { useClearTopicMessages } from '@renderer/hooks/chat/useClearTopicMessages'
 import { useConversationExportMenuOptions } from '@renderer/hooks/chat/useConversationExportMenuOptions'
+import { useResolvedCommand } from '@renderer/hooks/command'
 import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs, useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistant'
@@ -86,6 +91,7 @@ import {
   getSidebarShortcutResourceIds,
   SIDEBAR_SHORTCUT_PROVIDER_IDS
 } from '@renderer/utils/sidebar'
+import { classifyTurn } from '@shared/ai/transport'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import { isTrashTargetNotFoundError, isTrashTopicBusyError } from '@shared/ipc/errors/trash'
 
@@ -106,6 +112,19 @@ import { TopicListBody } from './TopicListBody'
 import { EMPTY_TOPIC_LIST_ITEM_RECONCILIATION, reconcileTopicListItems } from './topicListItemSharing'
 
 const logger = loggerService.withContext('Topics')
+
+function isTopicPermanentDeleteBusy(topicId: string): boolean {
+  const entry = cacheService.getShared(`topic.stream.statuses.${topicId}` as const)
+  const flags = classifyTurn(entry?.status)
+  return flags.isStreamLive || flags.isAwaitingApproval || (entry?.awaitingApprovalAnchors.length ?? 0) > 0
+}
+
+function permanentDeleteFailureMessage(err: unknown, translate: (key: string) => string): string {
+  if (isTrashTargetNotFoundError(err)) return translate('recycle_bin.delete.stale')
+  if (isTrashTopicBusyError(err)) return translate('recycle_bin.delete.busy')
+  if (err instanceof Error && err.message) return err.message
+  return translate('chat.topics.manage.delete.error')
+}
 const ResourceEditDialogHost = lazy(() =>
   import('@renderer/components/resourceCatalog/dialogs/edit').then((module) => ({
     default: module.ResourceEditDialogHost
@@ -132,6 +151,7 @@ interface Props {
   clearActiveTopic: () => void
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onOpenHistoryRecords?: () => void
+  onLocalPermanentDeletePendingChange?: (id: string | null) => void
   onManageAssistants?: () => void | Promise<void>
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   panePosition?: TopicTabPosition
@@ -177,6 +197,7 @@ export function Topics({
   clearActiveTopic,
   onNewTopic,
   onOpenHistoryRecords,
+  onLocalPermanentDeletePendingChange,
   onManageAssistants,
   onSetPanePosition,
   panePosition,
@@ -201,6 +222,7 @@ export function Topics({
     refreshTopics,
     restoreTopic
   } = useTopicMutations()
+  const permanentDeleteShortcut = useResolvedCommand('resource.delete_permanently').shortcutLabel
   const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
   const [storedPanePosition, setStoredPanePosition] = usePreference('topic.tab.position')
   const [assistantIconType, setAssistantIconType] = usePreference('assistant.icon_type')
@@ -344,6 +366,8 @@ export function Topics({
   const topicsRef = useRef(topics)
   const activeTopicRef = useRef(activeTopic)
   const activeTopicIdRef = useRef(activeTopic?.id ?? '')
+  const permanentDeleteLockRef = useRef(false)
+  const assistantPermanentDeleteLockRef = useRef(false)
 
   useEffect(() => {
     topicsRef.current = topics
@@ -402,6 +426,11 @@ export function Topics({
     () => new Map(orderedAssistants.map((assistant) => [assistant.id, assistant])),
     [orderedAssistants]
   )
+  const assistantByIdRef = useRef(assistantById)
+
+  useEffect(() => {
+    assistantByIdRef.current = assistantById
+  }, [assistantById])
   const assistantGroupById = useMemo(
     () => new Map(assistantGroups.map((group) => [group.id, group] as const)),
     [assistantGroups]
@@ -553,6 +582,66 @@ export function Topics({
       })
     },
     [clearActiveTopic, deleteTopicById, refreshTopics, restoreTopic, setActiveTopic, t]
+  )
+
+  const handlePermanentDeleteTopic = useCallback(
+    async (topic: Topic) => {
+      if (permanentDeleteLockRef.current) return
+      permanentDeleteLockRef.current = true
+      try {
+        await permanentDeletePopup.show({
+          kind: 'conversation',
+          target: 'topic',
+          name: topic.name.trim() || t('chat.conversation.new'),
+          action: async () => {
+            const liveTopic = topicsRef.current.find((candidate) => candidate.id === topic.id)
+            if (liveTopic?.pinned) {
+              throw new Error(t('recycle_bin.delete.pinned'))
+            }
+            if (isTopicPermanentDeleteBusy(topic.id)) {
+              throw new Error(t('recycle_bin.delete.busy'))
+            }
+
+            const wasActiveAtStart = topic.id === activeTopicIdRef.current
+            const assistantTopicsBeforeDelete = topicsRef.current.filter(
+              (candidate) => candidate.assistantId === (liveTopic?.assistantId ?? topic.assistantId)
+            )
+            const replacement =
+              pickNeighbourAfterRemoval(assistantTopicsBeforeDelete, topic.id) ??
+              findLatestActive(topicsRef.current.filter((candidate) => candidate.id !== topic.id))
+
+            onLocalPermanentDeletePendingChange?.(topic.id)
+            try {
+              let outcome
+              try {
+                outcome = await deleteTopicById(topic.id, { permanent: true, targetState: 'active' })
+              } catch (err) {
+                logger.error('Failed to permanently delete topic', { topicId: topic.id, err })
+                throw new Error(permanentDeleteFailureMessage(err, t))
+              }
+
+              if (!outcome.deletedIds.includes(topic.id)) {
+                toast.info(t('recycle_bin.delete.stale'))
+                return
+              }
+
+              const currentActiveTopicId = activeTopicIdRef.current
+              const shouldReplaceSelection =
+                (!currentActiveTopicId && wasActiveAtStart) || currentActiveTopicId === topic.id
+              if (shouldReplaceSelection) {
+                if (replacement) setActiveTopic(replacement)
+                else clearActiveTopic()
+              }
+            } finally {
+              onLocalPermanentDeletePendingChange?.(null)
+            }
+          }
+        })
+      } finally {
+        permanentDeleteLockRef.current = false
+      }
+    },
+    [clearActiveTopic, deleteTopicById, onLocalPermanentDeletePendingChange, setActiveTopic, t]
   )
 
   const handleClearMessages = useCallback((topic: Topic) => clearTopicMessages(topic.id), [clearTopicMessages])
@@ -847,76 +936,124 @@ export function Topics({
   }, [refreshAssistants, refreshTopics])
 
   const handleDeleteAssistant = useCallback(
-    async (assistantId: string) => {
-      if (deletingAssistantId) return
+    async (assistantId: string, mode: 'archive' | 'permanent' = 'archive') => {
+      if (mode === 'permanent') {
+        if (assistantPermanentDeleteLockRef.current) return
+        assistantPermanentDeleteLockRef.current = true
+      }
 
-      const assistantName = assistantById.get(assistantId)?.name ?? t('common.unnamed')
-      const performDelete = async (deleteTopics: boolean) => {
-        const currentActiveTopicId = activeTopicIdRef.current
-        setDeletingAssistantId(assistantId)
-        try {
-          let result
-          try {
-            result = await deleteAssistant(assistantId, { deleteTopics })
-          } catch (err) {
-            if (!isTrashTargetNotFoundError(err)) throw err
-            await refreshAssistantResources()
-            toast.info(t('recycle_bin.already_moved'))
-            return
-          }
-          if (!result.deleted) {
-            await refreshAssistantResources()
-            toast.info(t('recycle_bin.already_moved'))
-            return
-          }
+      try {
+        if (deletingAssistantId) return
 
-          const deletedTopicIds = result.deletedTopicIds ?? []
-          showRecycleBinUndo({
-            itemName: assistantName,
-            onUndo: () =>
-              restoreRecycleBinUndoGroup({
-                primary: {
-                  id: assistantId,
-                  restore: restoreAssistant,
-                  getActive: (id) => dataApiService.get(`/assistants/${id}`)
-                },
-                related: {
-                  ids: deletedTopicIds,
-                  restore: restoreTopic,
-                  getActive: (id) => dataApiService.get(`/topics/${id}`)
-                },
-                refresh: refreshAssistantResources
-              })
-          })
-          if (deletedTopicIds.length > 0) closeConversationTabs('assistants', deletedTopicIds)
-          if (currentActiveTopicId && deletedTopicIds.includes(currentActiveTopicId)) {
-            try {
-              await onActiveAssistantDeleted?.(assistantId)
-            } catch (err) {
-              logger.warn('Failed to reconcile active Assistant after deletion from topic group', {
-                assistantId,
-                err
-              })
+        const assistantName = assistantById.get(assistantId)?.name ?? t('common.unnamed')
+        const performDelete = async (deleteTopics: boolean) => {
+          if (mode === 'permanent') {
+            const liveAssistant = assistantByIdRef.current.get(assistantId)
+            const childTopics = topicsRef.current.filter((topic) => topic.assistantId === assistantId)
+            if (!liveAssistant) {
+              await refreshAssistantResources()
+              throw new Error(t('recycle_bin.delete.stale'))
+            }
+            if (childTopics.some((topic) => isTopicPermanentDeleteBusy(topic.id))) {
+              throw new Error(t('recycle_bin.delete.busy'))
             }
           }
 
-          await refreshAssistantResources()
-        } catch (err) {
-          logger.error('Failed to delete assistant from topic group', { assistantId, err })
-          if (isTrashTopicBusyError(err)) {
-            toast.info(t('recycle_bin.move.blocked_generation'))
-            return
-          }
-          throw err
-        } finally {
-          setDeletingAssistantId(null)
-        }
-      }
+          const activeTopicIdAtStart = activeTopicIdRef.current
+          setDeletingAssistantId(assistantId)
+          try {
+            let result
+            try {
+              result = await deleteAssistant(
+                assistantId,
+                mode === 'permanent' ? { deleteTopics, permanent: true } : { deleteTopics }
+              )
+            } catch (err) {
+              if (mode === 'permanent') {
+                await refreshAssistantResources()
+                throw new Error(permanentDeleteFailureMessage(err, t))
+              }
+              if (!isTrashTargetNotFoundError(err)) throw err
+              await refreshAssistantResources()
+              toast.info(t('recycle_bin.already_moved'))
+              return
+            }
+            if (!result.deleted) {
+              await refreshAssistantResources()
+              if (mode === 'permanent') throw new Error(t('recycle_bin.delete.stale'))
+              toast.info(t('recycle_bin.already_moved'))
+              return
+            }
 
-      await deleteConversationOwnerPopup.show({
-        type: 'assistant',
-        action: performDelete
-      })
+            const deletedTopicIds = result.deletedTopicIds ?? []
+            if (mode === 'archive') {
+              showRecycleBinUndo({
+                itemName: assistantName,
+                onUndo: () =>
+                  restoreRecycleBinUndoGroup({
+                    primary: {
+                      id: assistantId,
+                      restore: restoreAssistant,
+                      getActive: (id) => dataApiService.get(`/assistants/${id}`)
+                    },
+                    related: {
+                      ids: deletedTopicIds,
+                      restore: restoreTopic,
+                      getActive: (id) => dataApiService.get(`/topics/${id}`)
+                    },
+                    refresh: refreshAssistantResources
+                  })
+              })
+            }
+            const latestActiveTopicId = activeTopicIdRef.current
+            if (deletedTopicIds.length > 0) closeConversationTabs('assistants', deletedTopicIds)
+            const stillOnDeletedChild =
+              (latestActiveTopicId !== '' && deletedTopicIds.includes(latestActiveTopicId)) ||
+              (latestActiveTopicId === '' &&
+                activeTopicIdAtStart !== '' &&
+                deletedTopicIds.includes(activeTopicIdAtStart))
+            if (stillOnDeletedChild) {
+              try {
+                await onActiveAssistantDeleted?.(assistantId)
+              } catch (err) {
+                logger.warn('Failed to reconcile active Assistant after deletion from topic group', {
+                  assistantId,
+                  err
+                })
+              }
+            }
+
+            await refreshAssistantResources()
+          } catch (err) {
+            if (mode === 'permanent') throw err
+            logger.error('Failed to delete assistant from topic group', { assistantId, err })
+            if (isTrashTopicBusyError(err)) {
+              toast.info(t('recycle_bin.move.blocked_generation'))
+              return
+            }
+            throw err
+          } finally {
+            setDeletingAssistantId(null)
+          }
+        }
+
+        if (mode === 'permanent') {
+          await permanentDeletePopup.show({
+            kind: 'owner',
+            type: 'assistant',
+            name: assistantName,
+            action: (deleteChildren) => performDelete(deleteChildren)
+          })
+          return
+        }
+
+        await deleteConversationOwnerPopup.show({
+          type: 'assistant',
+          action: performDelete
+        })
+      } finally {
+        if (mode === 'permanent') assistantPermanentDeleteLockRef.current = false
+      }
     },
     [
       assistantById,
@@ -929,6 +1066,29 @@ export function Topics({
       restoreTopic,
       t
     ]
+  )
+
+  const handlePermanentDeleteAssistant = useCallback(
+    (assistantId: string) => handleDeleteAssistant(assistantId, 'permanent'),
+    [handleDeleteAssistant]
+  )
+
+  const deleteAssistantGroupPermanently = useCallback(
+    (group: { id: string }) => {
+      const assistantId = getAssistantIdFromTopicGroupId(group.id)
+      if (!assistantId || !assistantById.has(assistantId)) return
+      return handlePermanentDeleteAssistant(assistantId)
+    },
+    [assistantById, handlePermanentDeleteAssistant]
+  )
+
+  const isAssistantGroupPermanentDeleteEligible = useCallback(
+    (group: { id: string }) => {
+      if (assistantPermanentDeleteLockRef.current || deletingAssistantId !== null) return false
+      const assistantId = getAssistantIdFromTopicGroupId(group.id)
+      return Boolean(assistantId && assistantById.has(assistantId))
+    },
+    [assistantById, deletingAssistantId]
   )
 
   const getGroupHeaderAction = useCallback(
@@ -961,6 +1121,8 @@ export function Topics({
                 disabled={isAssistantPinActionDisabled}
                 isGroupGrouping={isGroupGrouping}
                 onDeleteAssistant={handleDeleteAssistant}
+                onPermanentDeleteAssistant={handlePermanentDeleteAssistant}
+                permanentDeleteShortcut={permanentDeleteShortcut}
                 pinned={assistantPinnedIdSet.has(assistantGroupId)}
                 onDeleteAllTopics={handleDeleteAssistantTopics}
                 onEdit={openAssistantEditor}
@@ -997,6 +1159,8 @@ export function Topics({
       displayMode,
       handleDeleteAssistant,
       handleDeleteAssistantTopics,
+      handlePermanentDeleteAssistant,
+      permanentDeleteShortcut,
       handleToggleAssistantPin,
       handleToggleAssistantSidebar,
       isAssistantPinActionDisabled,
@@ -1027,6 +1191,8 @@ export function Topics({
         isGroupGrouping,
         onDeleteAssistant: handleDeleteAssistant,
         onDeleteAllTopics: handleDeleteAssistantTopics,
+        onPermanentDeleteAssistant: handlePermanentDeleteAssistant,
+        permanentDeleteShortcut,
         onEdit: openAssistantEditor,
         onSetAssistantIconType: setAssistantIconType,
         onToggleGrouping: () => setAssistantSortType(isGroupGrouping ? 'list' : 'tags'),
@@ -1052,6 +1218,8 @@ export function Topics({
       displayMode,
       handleDeleteAssistant,
       handleDeleteAssistantTopics,
+      handlePermanentDeleteAssistant,
+      permanentDeleteShortcut,
       handleToggleAssistantPin,
       handleToggleAssistantSidebar,
       isAssistantPinActionDisabled,
@@ -1352,6 +1520,12 @@ export function Topics({
     <>
       <TopicResourceList<Topic>
         key={isRightPanel ? `topic-resource-panel:${assistantIdFilter ?? 'blank'}` : 'topic-resource-left-panel'}
+        permanentDelete={{
+          isItemEligible: (item) => !item.pinned && !isTopicPermanentDeleteBusy(item.id),
+          onDelete: handlePermanentDeleteTopic
+        }}
+        onGroupHeaderDeletePermanently={deleteAssistantGroupPermanently}
+        isGroupHeaderPermanentDeleteEligible={isAssistantGroupPermanentDeleteEligible}
         presentation={presentation}
         items={visibleFilteredTopics}
         status={listStatus}
@@ -1458,6 +1632,8 @@ export function Topics({
             onAutoRename={handleAutoRename}
             onClearMessages={handleClearMessages}
             onDeleteFromMenu={handleDeleteTopicFromMenu}
+            onDeletePermanently={handlePermanentDeleteTopic}
+            permanentDeleteShortcut={permanentDeleteShortcut}
             onOpenInNewTab={tabs && !isWindowFrame ? openTopicInNewTab : undefined}
             onOpenInNewWindow={tabs ? openTopicInNewWindow : undefined}
             onMoveToAssistant={handleMoveTopicToAssistant}

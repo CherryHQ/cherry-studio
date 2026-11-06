@@ -208,6 +208,12 @@ const HomePage: FC = () => {
     clearActiveTopic()
     void navigate({ to: '/app/chat', search: {}, replace: true })
   }, [activeTopicId, routeTopicId, clearActiveTopic, navigate])
+  const pendingLocalPermanentDeleteIdRef = useRef<string | null>(null)
+  const [pendingLocalPermanentDeleteId, setPendingLocalPermanentDeleteId] = useState<string | null>(null)
+  const onLocalPermanentDeletePendingChange = useCallback((id: string | null) => {
+    pendingLocalPermanentDeleteIdRef.current = id
+    setPendingLocalPermanentDeleteId(id)
+  }, [])
   // The URL-bound topic no longer exists: its by-id query settled with NOT_FOUND (deleted while
   // this tab was dormant, or a rotted deep link). Recovery is a plain replace-navigation back
   // through the entry interceptor, which resolves the next target — no in-page state surgery.
@@ -215,8 +221,17 @@ const HomePage: FC = () => {
     if (!routeTopicId || activeTopicId !== routeTopicId) return
     if (activeTopic || isActiveTopicLoading) return
     if (!isDataApiNotFoundError(activeTopicError)) return
+    if (pendingLocalPermanentDeleteIdRef.current === routeTopicId) return
     reenterChatRoute()
-  }, [activeTopic, activeTopicError, activeTopicId, isActiveTopicLoading, reenterChatRoute, routeTopicId])
+  }, [
+    activeTopic,
+    activeTopicError,
+    activeTopicId,
+    isActiveTopicLoading,
+    pendingLocalPermanentDeleteId,
+    reenterChatRoute,
+    routeTopicId
+  ])
   const lastVisibleTopicRef = useRef<Topic | undefined>(undefined)
   const visibleTopic =
     activeTopic ??
@@ -631,6 +646,7 @@ const HomePage: FC = () => {
             onClose={closeHistoryRecords}
             onRecordSelect={handleHistoryRecordsTopicSelect}
             onActiveRecordChange={handleHistoryActiveTopicChange}
+            onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
             toolbarLeading={
               !isWindowFrame ? (
                 <ConversationSidebarToggleButton
@@ -705,6 +721,7 @@ const HomePage: FC = () => {
         onNewTopic={handleCreateEmptyTopic}
         historyRecordsActive={historyRecordsActive}
         onOpenHistoryRecords={isWindowFrame ? undefined : openHistoryRecords}
+        onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
         revealRequest={topicRevealRequest}
         manageAssistantsActive={manageAssistantsActive}
         onManageAssistants={onManageAssistants}
@@ -729,6 +746,7 @@ const HomePage: FC = () => {
               clearActiveTopic={clearActiveTopicAndCloseResourceView}
               setActiveTopic={setActiveTopicAndCloseResourceView}
               onNewTopic={handleCreateEmptyTopic}
+              onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
               onSetPanePosition={setTopicListPosition}
               panePosition="right"
               revealRequest={topicRevealRequest}
