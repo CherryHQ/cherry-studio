@@ -38,6 +38,7 @@ import type {
   BinaryApplication,
   BinaryAvailability,
   BinaryInstallByNameRequest,
+  BinaryInstallStage,
   BinaryOperation,
   BinaryOperations,
   BinaryRemoveRequest,
@@ -1554,10 +1555,15 @@ export class BinaryManager extends BaseService {
     if (definition.tool === 'claude' && isWin && process.arch === 'arm64') {
       const registries = claudeNpmRegistries((await this.getIsolatedEnv()).env.NPM_CONFIG_REGISTRY)
       for (const [index, source] of registries.entries()) {
+        // Each registry is a fresh attempt: a fallback retry starts at
+        // downloading, not at whatever stage the previous attempt died in.
+        this.setInstallStage(definition.name, 'downloading')
         try {
           const pkg = await resolveClaudeNpmPackage(source, requested)
           await this.runMise(['use', '-g', pkg.toolSpec], { timeoutMs: MISE_INSTALL_TIMEOUT_MS })
+          this.setInstallStage(definition.name, 'installing')
           await this.runMise(['reshim'])
+          this.setInstallStage(definition.name, 'verifying')
           return await this.getInstalledVersion(definition.tool, pkg.version)
         } catch (error) {
           if (index === registries.length - 1) throw error
@@ -1602,7 +1608,9 @@ export class BinaryManager extends BaseService {
         prependPath: runtimeBin
       })
     }
+    this.setInstallStage(definition.name, 'installing')
     await this.runMise(['reshim'])
+    this.setInstallStage(definition.name, 'verifying')
     return this.getInstalledVersion(definition.tool, requested)
   }
 
@@ -1718,6 +1726,67 @@ export class BinaryManager extends BaseService {
     this.broadcastAvailabilityChanged()
   }
 
+  /** Publish a new install as `queued` before it waits on the global mutation lock. */
+  private startInstall(name: string, targetVersion: string | undefined) {
+    this.setOperation(name, {
+      status: 'installing',
+      stage: 'queued',
+      startedAt: Date.now(),
+      ...(targetVersion ? { targetVersion } : {})
+    })
+  }
+
+  /** Advance an in-flight install; a no-op once the operation was cleared or replaced. */
+  private setInstallStage(name: string, stage: BinaryInstallStage, currentVersion?: string) {
+    const operation = this.getOperations()[name]
+    if (operation?.status !== 'installing' || (operation.stage === stage && currentVersion === undefined)) return
+    this.setOperation(name, { ...operation, stage, ...(currentVersion ? { currentVersion } : {}) })
+  }
+
+  /**
+   * Record a failed install with the stage it died in, then log the diagnostic
+   * facts (stage, versions, elapsed time, sanitized reason).
+   */
+  private failInstall(name: string, error: string, targetVersion?: string) {
+    const operation = this.getOperations()[name]
+    const progress = operation?.status === 'installing' ? operation : undefined
+    // An explicit one-shot target wins; otherwise inherit the in-flight
+    // operation's target (e.g. a pinned Custom Add) so the failure keeps the
+    // known target version for diagnostics and Retry.
+    const target = targetVersion ?? progress?.targetVersion
+    const elapsedMs = progress?.startedAt === undefined ? undefined : Date.now() - progress.startedAt
+    const failed: BinaryOperation = {
+      status: 'failed',
+      action: 'install',
+      error,
+      ...(target ? { targetVersion: target } : {}),
+      ...(progress?.stage ? { stage: progress.stage } : {}),
+      ...(progress?.startedAt === undefined ? {} : { startedAt: progress.startedAt }),
+      ...(elapsedMs === undefined ? {} : { elapsedMs }),
+      ...(progress?.currentVersion ? { currentVersion: progress.currentVersion } : {})
+    }
+    logger.warn('Managed tool install failed', {
+      name,
+      stage: failed.stage,
+      currentVersion: progress?.currentVersion,
+      targetVersion: target,
+      elapsedMs,
+      reason: this.errorMessage(error)
+    })
+    this.setOperation(name, failed)
+  }
+
+  private snapshotVersion(snapshot: BinaryToolSnapshot): string | undefined {
+    if (snapshot.application && 'version' in snapshot.application && snapshot.application.version) {
+      return snapshot.application.version
+    }
+    return 'version' in snapshot.availability ? snapshot.availability.version : undefined
+  }
+
+  private getOperations(): BinaryOperations {
+    return application.get('CacheService').get<BinaryOperations>(BINARY_OPERATIONS_CACHE_KEY) ?? {}
+  }
+
   // Abandoned markers must not override live availability; queued mutations still count as active.
   private isStaleInFlightOperation(name: string, status: string | undefined): boolean {
     return (status === 'installing' || status === 'removing') && !this.activeMutations.has(name)
@@ -1792,6 +1861,7 @@ export class BinaryManager extends BaseService {
 
     // installWithMise resolves the installed version as verification that mise
     // actually applied the request; the value itself is not consumed.
+    this.setInstallStage(definition.name, 'downloading')
     await this.installWithMise(definition, targetVersion, definitions)
     if (!(await this.isRecipeRunnable(definition.name, definition.tool))) {
       throw new Error(`Tool installed but not runnable: ${definition.name}`)
@@ -1799,6 +1869,7 @@ export class BinaryManager extends BaseService {
 
     // Only explicit updates clean versions no longer referenced by mise.
     if (targetVersion) {
+      this.setInstallStage(definition.name, 'migrating')
       try {
         await this.runMise(['prune', definition.tool])
       } catch (err) {
@@ -1831,7 +1902,8 @@ export class BinaryManager extends BaseService {
     if (targetVersion && !TOOL_KEY_RE.test(targetVersion)) {
       return Promise.reject(new Error(`Invalid tool version: ${targetVersion}`))
     }
-    if (!this.resolveDefinition(name)) {
+    const definition = this.resolveDefinition(name)
+    if (!definition) {
       return Promise.reject(new Error(`Unknown tool: ${name}`))
     }
     const active = this.activeMutations.get(name)
@@ -1846,18 +1918,16 @@ export class BinaryManager extends BaseService {
     }
     if (!this.miseBin) {
       const error = new Error('Binary backend not available')
-      this.setOperation(name, {
-        status: 'failed',
-        action: 'install',
-        error: error.message,
-        ...(targetVersion ? { targetVersion } : {})
-      })
+      this.failInstall(name, error.message, targetVersion ?? definition.requestedVersion)
       return Promise.reject(error)
     }
 
     // Publish before queuing on the global mutex so every renderer can render the
-    // operation while another tool holds mise's process-wide lock.
-    this.setOperation(name, { status: 'installing' })
+    // operation while another tool holds mise's process-wide lock. A name-only
+    // repair of a pinned custom definition still installs its persisted
+    // requestedVersion, so publish that known target for progress display and
+    // failure diagnostics; an explicit one-shot target always wins.
+    this.startInstall(name, targetVersion ?? definition.requestedVersion)
     const promise = this.installByNameImpl(name, targetVersion)
     this.activeMutations.set(name, { action: 'installByName', targetVersion, promise })
     void promise
@@ -1877,7 +1947,9 @@ export class BinaryManager extends BaseService {
 
           // Refresh PATH so a mid-session system install is not shadowed by a managed copy.
           await refreshShellEnv()
+          this.setInstallStage(name, 'verifying')
           const snapshot = (await this.getToolSnapshots([name]))[name]
+          this.setInstallStage(name, 'verifying', this.snapshotVersion(snapshot))
           const status = snapshot.application?.status
           const availability = snapshot.availability
           const source = availability.source
@@ -1932,12 +2004,7 @@ export class BinaryManager extends BaseService {
     if (outcome.kind === 'failed') {
       // Retain the target so Retry cannot silently clear an unmet version
       // through an applied or external name-only no-op.
-      this.setOperation(name, {
-        status: 'failed',
-        action: 'install',
-        error: outcome.error,
-        ...(targetVersion ? { targetVersion } : {})
-      })
+      this.failInstall(name, outcome.error, targetVersion)
       throw new Error(outcome.error)
     }
     // Unknown name: validation found no fixed/custom recipe, so there is no card
@@ -1977,7 +2044,7 @@ export class BinaryManager extends BaseService {
       )
     }
 
-    this.setOperation(definition.name, { status: 'installing' })
+    this.startInstall(definition.name, definition.requestedVersion)
     const promise = this.addCustomToolImpl(definition)
     this.activeMutations.set(definition.name, { action: 'addCustom', definition, promise })
     void promise
@@ -2003,7 +2070,9 @@ export class BinaryManager extends BaseService {
           // Same stale-PATH guard as installByNameImpl: the external-satisfied
           // no-op below must see a live system probe, not the boot-time capture.
           await refreshShellEnv()
+          this.setInstallStage(definition.name, 'verifying')
           const snapshot = (await this.getToolSnapshots([definition.name]))[definition.name]
+          this.setInstallStage(definition.name, 'verifying', this.snapshotVersion(snapshot))
           const applicationFact = snapshot.application
           const status = applicationFact?.status
           const source = snapshot.availability.source
@@ -2051,16 +2120,14 @@ export class BinaryManager extends BaseService {
           }
         }
       )
-      this.setOperation(
-        definition.name,
-        result.ok ? null : { status: 'failed', action: 'install', error: result.error }
-      )
+      if (result.ok) this.setOperation(definition.name, null)
+      else this.failInstall(definition.name, result.error)
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       if (persisted) {
         // Post-persistence failure (e.g. an unreadable backend while deciding):
         // keep the definition, record the failure, and still resolve so the modal closes.
-        this.setOperation(definition.name, { status: 'failed', action: 'install', error: message })
+        this.failInstall(definition.name, message)
         return
       }
       // Validation or the Preference write failed — no backend mutation happened,

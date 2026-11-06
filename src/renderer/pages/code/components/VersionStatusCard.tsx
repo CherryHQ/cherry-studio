@@ -264,9 +264,13 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
         </div>
       </div>
 
-      {installing && <BinaryInstallingHint />}
+      {installing && <BinaryInstallingHint operation={status.operation} />}
       {installError && !busy && onShowError && (
-        <BinaryInstallFailureRow error={installError} onShowError={onShowError} />
+        <BinaryInstallFailureRow
+          error={installError}
+          stage={status.operation?.status === 'failed' ? status.operation.stage : undefined}
+          onShowError={onShowError}
+        />
       )}
     </div>
   )

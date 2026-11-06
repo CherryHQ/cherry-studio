@@ -151,7 +151,7 @@ if (command === 'use') {
       expect(result.content).toContainEqual(
         expect.objectContaining({ type: 'text', text: expect.stringContaining(error) })
       )
-      expect((await service.getToolSnapshots(['uv'])).uv.operation).toEqual({
+      expect((await service.getToolSnapshots(['uv'])).uv.operation).toMatchObject({
         status: 'failed',
         action: 'install',
         error,
