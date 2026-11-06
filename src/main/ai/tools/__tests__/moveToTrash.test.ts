@@ -188,6 +188,22 @@ describe('moveWorkspaceItemToTrash', () => {
     ).toContain('credential')
   })
 
+  it('refuses a target that contains the protected directories, not just one inside them', () => {
+    const workspace = '/Users/alice/Library'
+    const context = {
+      platform: 'darwin' as const,
+      homeDirectory: '/Users/alice',
+      applicationDataDirectory: '/Users/alice/Library/Application Support/CherryStudio'
+    }
+
+    expect(getProtectedTrashTargetReason('/Users/alice/Library/Application Support', workspace, context)).toContain(
+      'application-data'
+    )
+    expect(getProtectedTrashTargetReason('/Users/alice/Library/Keychains', workspace, context)).toContain('credential')
+    expect(getProtectedTrashTargetReason('/Users/alice/Library', workspace, context)).toBe('the session workspace root')
+    expect(getProtectedTrashTargetReason('/Users/alice/Library/MyStuff', workspace, context)).toBeUndefined()
+  })
+
   it('protects paths reached through a `..`-prefixed child or a macOS case variant', () => {
     const darwin = { platform: 'darwin' as const, homeDirectory: '/Users/alice' }
 
