@@ -670,7 +670,7 @@
     }
   ],
   "providers": {
-    "version": "bf5d34485566c802",
+    "version": "4c51709815c4b53a",
     "count": 67,
     "entries": [
       {
@@ -827,11 +827,11 @@
       },
       {
         "id": "dashscope",
-        "name": "Qwen AI Platform"
+        "name": "Qianwen AI platform - CN"
       },
       {
         "id": "qwencloud",
-        "name": "QwenCloud"
+        "name": "Qwen Cloud"
       },
       {
         "id": "stepfun",
