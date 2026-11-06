@@ -366,7 +366,7 @@ describe('useAgentMessageListProviderValue', () => {
         metadata: {
           status: 'success',
           messageSnapshot: snapshot,
-          provenance: { source: 'codex', originalMessageId: 'source-answer', sourceOrder: 2, inferredTimestamp: false }
+          provenance: { source: 'codex', sourceOrder: 2 }
         }
       },
       { id: 'native', role: 'assistant', parts: [], metadata: { messageSnapshot: snapshot } }
@@ -407,7 +407,7 @@ describe('useAgentMessageListProviderValue', () => {
       id,
       role,
       parts: [{ type: 'text', text }],
-      metadata: { provenance: { source: 'codex', originalMessageId: id, sourceOrder: 1, inferredTimestamp: false } }
+      metadata: { provenance: { source: 'codex', sourceOrder: 1 } }
     })
     const preamble = imported('context', 'system', '[Historical project instructions]\nAGENTS.md')
     const setup = imported('setup', 'assistant', 'Starting session')

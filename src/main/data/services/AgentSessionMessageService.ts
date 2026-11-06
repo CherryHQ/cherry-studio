@@ -1,7 +1,21 @@
 import { createHash } from 'node:crypto'
 
 import { isToolUIPart } from 'ai'
-import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, or, type SQL, sql } from 'drizzle-orm'
+import {
+  and,
+  desc,
+  eq,
+  getTableColumns,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  ne,
+  or,
+  type SQL,
+  sql
+} from 'drizzle-orm'
 import { v4 as uuidv4, v7 as uuidv7, validate as isUuid } from 'uuid'
 
 import { application } from '@application'
@@ -9,7 +23,7 @@ import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable as sessionTable } from '@data/db/schemas/agentSession'
 import {
-  type AgentSessionMessageRow as SessionMessageRow,
+  type AgentSessionMessageRow,
   agentSessionMessageTable as sessionMessagesTable,
   type InsertAgentSessionMessageRow as InsertSessionMessageRow
 } from '@data/db/schemas/agentSessionMessage'
@@ -55,6 +69,7 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { SessionMessageContentSearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
+import type { MessageProvenance } from '@shared/data/types/conversationImport'
 import {
   AGENT_SESSION_MESSAGE_SEARCH_ROLES,
   type CherryMessagePart,
@@ -68,6 +83,9 @@ import type { RuntimeForkCheckpoint } from './agentSessionForkContract'
 import { sessionMessageOrdering } from './agentSessionMessageOrder'
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { presentClaudeHistory, presentImportedTools } from './importedHistoryText'
+import { messageProvenanceSql, setMessageProvenanceTx, deleteMessageProvenanceTx } from './importedSessionHistory'
+
+type SessionMessageRow = AgentSessionMessageRow & { provenance?: MessageProvenance | null }
 import { isAssistantActivityTransition, isConversationActivityRole } from './utils/activityTime'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
@@ -357,7 +375,7 @@ export class AgentSessionMessageService {
       .where(eq(sessionTable.id, sessionId))
       .get()!
     const rows = tx
-      .select()
+      .select({ ...getTableColumns(sessionMessagesTable), provenance: messageProvenanceSql() })
       .from(sessionMessagesTable)
       .where(eq(sessionMessagesTable.sessionId, sessionId))
       .orderBy(...sessionMessageOrdering(tx, sessionId).orderBy)
@@ -451,7 +469,7 @@ export class AgentSessionMessageService {
     excludedIds: readonly string[] = []
   ): SessionMessageRow[] | undefined {
     const rows = tx
-      .select()
+      .select({ ...getTableColumns(sessionMessagesTable), provenance: messageProvenanceSql() })
       .from(sessionMessagesTable)
       .where(eq(sessionMessagesTable.sessionId, sessionId))
       .orderBy(...sessionMessageOrdering(tx, sessionId).orderBy)
@@ -475,11 +493,11 @@ export class AgentSessionMessageService {
           modelId: row.modelId,
           messageSnapshot: row.messageSnapshot,
           runtimeResumeToken: row.runtimeResumeToken,
-          provenance: row.provenance,
           createdAt: row.createdAt,
           updatedAt: row.updatedAt
         })
         .run()
+      if (row.provenance) setMessageProvenanceTx(tx, sessionId, row.id, row.provenance)
       replaceAgentSessionMessageFileRefsTx(tx, row.id, row.data)
     }
   }
@@ -760,7 +778,7 @@ export class AgentSessionMessageService {
             .select({
               id: sessionMessagesTable.id,
               createdAt: sessionMessagesTable.createdAt,
-              provenance: sessionMessagesTable.provenance
+              provenance: messageProvenanceSql()
             })
             .from(sessionMessagesTable)
             .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, options.messageId)))
@@ -782,7 +800,7 @@ export class AgentSessionMessageService {
     }
 
     const rows = database
-      .select()
+      .select({ ...getTableColumns(sessionMessagesTable), provenance: messageProvenanceSql() })
       .from(sessionMessagesTable)
       .where(and(...filters))
       .orderBy(...ordering.orderBy)
@@ -802,7 +820,7 @@ export class AgentSessionMessageService {
     const database = application.get('DbService').getDb()
     this.assertActiveSession(database, sessionId)
     return database
-      .select()
+      .select({ ...getTableColumns(sessionMessagesTable), provenance: messageProvenanceSql() })
       .from(sessionMessagesTable)
       .where(
         and(
@@ -874,7 +892,7 @@ export class AgentSessionMessageService {
         .all()
       replaceAgentSessionMessageFileRefsTx(tx, messageId, mergedData)
       agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
-      return this.rowToEntity(updated)
+      return this.rowToEntity({ ...updated, provenance: existing.provenance })
     })
     notifyDataApiDataChange([
       { endpoint: '/agent-sessions/:sessionId/messages', kind: 'projection', routeParams: { sessionId } }
@@ -888,6 +906,7 @@ export class AgentSessionMessageService {
       .delete(sessionMessagesTable)
       .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
       .run()
+    if (result.changes) deleteMessageProvenanceTx(tx, sessionId, messageId)
     return { rowsAffected: result.changes }
   }
 
@@ -1085,7 +1104,7 @@ export class AgentSessionMessageService {
 
   private findExistingMessageRow(db: DbOrTx, sessionId: string, messageId: string): SessionMessageRow | null {
     const rows = db
-      .select()
+      .select({ ...getTableColumns(sessionMessagesTable), provenance: messageProvenanceSql() })
       .from(sessionMessagesTable)
       .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, messageId)))
       .limit(1)
@@ -1279,7 +1298,7 @@ export class AgentSessionMessageService {
   setImportedAnchorsTx(tx: DbOrTx, sessionId: string, anchors: ReadonlyMap<string, unknown>): void {
     for (const [id, anchor] of anchors) {
       const row = tx
-        .select()
+        .select({ ...getTableColumns(sessionMessagesTable), provenance: messageProvenanceSql() })
         .from(sessionMessagesTable)
         .where(and(eq(sessionMessagesTable.id, id), eq(sessionMessagesTable.sessionId, sessionId)))
         .get()
@@ -1291,12 +1310,18 @@ export class AgentSessionMessageService {
     }
   }
 
-  importMessagesTx(tx: DbOrTx, sessionId: string, rows: readonly Omit<InsertSessionMessageRow, 'sessionId'>[]): void {
+  importMessagesTx(
+    tx: DbOrTx,
+    sessionId: string,
+    rows: readonly (Omit<InsertSessionMessageRow, 'sessionId'> & { provenance: MessageProvenance })[]
+  ): void {
     if (this.hasSessionMessages(sessionId)) throw new Error('session_not_empty')
-    for (const row of rows)
+    for (const { provenance, ...row } of rows) {
       tx.insert(sessionMessagesTable)
         .values({ ...row, sessionId })
         .run()
+      setMessageProvenanceTx(tx, sessionId, row.id!, provenance)
+    }
   }
 
   saveMessagesTx(
@@ -1510,7 +1535,7 @@ export class AgentSessionMessageService {
     return application
       .get('DbService')
       .getDb()
-      .select()
+      .select({ ...getTableColumns(sessionMessagesTable), provenance: messageProvenanceSql() })
       .from(sessionMessagesTable)
       .where(and(...filters))
       .orderBy(sessionMessagesTable.createdAt, sessionMessagesTable.id)
@@ -1524,7 +1549,7 @@ export class AgentSessionMessageService {
     return application
       .get('DbService')
       .getDb()
-      .select()
+      .select({ ...getTableColumns(sessionMessagesTable), provenance: messageProvenanceSql() })
       .from(sessionMessagesTable)
       .where(and(...filters))
       .orderBy(sessionMessagesTable.createdAt, sessionMessagesTable.id)
@@ -1536,7 +1561,7 @@ export class AgentSessionMessageService {
     const row = application
       .get('DbService')
       .getDb()
-      .select()
+      .select({ ...getTableColumns(sessionMessagesTable), provenance: messageProvenanceSql() })
       .from(sessionMessagesTable)
       .where(
         and(eq(sessionMessagesTable.deliveryStatus, 'delivering'), eq(sessionMessagesTable.deliveryTurnRef, turnRef))
@@ -1606,7 +1631,7 @@ export class AgentSessionMessageService {
     return application
       .get('DbService')
       .getDb()
-      .select()
+      .select({ ...getTableColumns(sessionMessagesTable), provenance: messageProvenanceSql() })
       .from(sessionMessagesTable)
       .where(and(...filters))
       .orderBy(desc(sessionMessagesTable.createdAt), desc(sessionMessagesTable.id))
@@ -1712,7 +1737,7 @@ export class AgentSessionMessageService {
       }
 
       const existingResult = tx
-        .select()
+        .select({ ...getTableColumns(sessionMessagesTable), provenance: messageProvenanceSql() })
         .from(sessionMessagesTable)
         .where(eq(sessionMessagesTable.deliveryInReplyTo, request.id))
         .limit(1)
@@ -1830,7 +1855,7 @@ export class AgentSessionMessageService {
           .limit(1)
           .all()[0]
         const existingResult = tx
-          .select()
+          .select({ ...getTableColumns(sessionMessagesTable), provenance: messageProvenanceSql() })
           .from(sessionMessagesTable)
           .where(eq(sessionMessagesTable.deliveryInReplyTo, request.id))
           .limit(1)
@@ -1894,7 +1919,7 @@ export class AgentSessionMessageService {
     const deleting = [...new Set(sessionIds)]
     if (deleting.length === 0) return []
     const requests = tx
-      .select()
+      .select({ ...getTableColumns(sessionMessagesTable), provenance: messageProvenanceSql() })
       .from(sessionMessagesTable)
       .where(
         and(
@@ -1973,7 +1998,7 @@ export class AgentSessionMessageService {
     const affected = new Set(sessionIds)
     if (affected.size === 0) return []
     const requests = tx
-      .select()
+      .select({ ...getTableColumns(sessionMessagesTable), provenance: messageProvenanceSql() })
       .from(sessionMessagesTable)
       .where(
         and(
@@ -2126,7 +2151,7 @@ export class AgentSessionMessageService {
         .all()
       replaceAgentSessionMessageFileRefsTx(tx, messageId, data)
       agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
-      return this.rowToEntity(updated)
+      return this.rowToEntity({ ...updated, provenance: existingRow.provenance })
     })
 
     notifyDataApiDataChange([

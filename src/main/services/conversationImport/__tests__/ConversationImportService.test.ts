@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { SessionManager } from '@earendil-works/pi-coding-agent'
-import { setupTestDatabase, replayMigration } from '@test-helpers/db'
+import { setupTestDatabase } from '@test-helpers/db'
 import { createTestSession, scriptedModel, textParts, finish, gatewayModel } from '@test-helpers/piGateway'
 import Database from 'better-sqlite3'
 import { eq } from 'drizzle-orm'
@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import { snapshotTo } from '@data/db/restore/snapshot'
 import { agentTable } from '@data/db/schemas/agent'
-import { agentSessionTable, AGENT_SESSION_IMPORT_STATEMENTS } from '@data/db/schemas/agentSession'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
@@ -171,38 +171,45 @@ describe('local history atomic import', () => {
     expect(await service.commit('window', next.previewId, [next.items[0].ref])).toEqual([
       expect.objectContaining({ status: 'existing', sessionId: created.sessionId, agentId: 'pi' })
     ])
-    expect(counts()).toEqual([1, 2, 1, 1])
+    expect(counts()).toEqual([1, 2, 1, 3])
   })
-  it('preserves archived copies and allows reimport and subsequent restoration after index upgrade', async () => {
+  it('skips archived identities, preserves them on restore, and allows reimport after permanent deletion', async () => {
     await source()
     const p = await preview()
     const [created] = await service.commit('window', p.previewId, [p.items[0].ref])
-    dbh.sqlite.exec(`DROP INDEX agent_session_import_active_identity_idx;
-      CREATE UNIQUE INDEX agent_session_import_identity_uniq ON agent_session (json_extract(import_metadata, '$.source'), json_extract(import_metadata, '$.originalSessionId'))`)
-    dbh.sqlite.exec(AGENT_SESSION_IMPORT_STATEMENTS.join(';'))
-    const original = dbh.db.select().from(agentSessionTable).get()!
-    const originalMessages = dbh.db.select().from(agentSessionMessageTable).all()
+    const state = dbh.db.select().from(appStateTable).all()
     agentSessionService.delete(created.sessionId!)
     const next = await preview('other')
-    expect(next.items[0].existing).toBeUndefined()
-    const [copy] = await service.commit('window', next.previewId, [next.items[0].ref])
-    expect(copy).toMatchObject({ status: 'imported', agentId: 'other' })
-    expect(copy.sessionId).not.toBe(created.sessionId)
-    const archived = dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, created.sessionId!)).get()!
-    expect(archived.deletedAt).not.toBeNull()
-    expect(archived.importMetadata).toEqual(original.importMetadata)
-    expect(
-      dbh.db
-        .select()
-        .from(agentSessionMessageTable)
-        .where(eq(agentSessionMessageTable.sessionId, created.sessionId!))
-        .all()
-    ).toEqual(originalMessages)
-    expect(agentSessionService.restore(created.sessionId!).deletedAt).toBeUndefined()
-    expect(counts().slice(0, 2)).toEqual([2, 4])
-    const again = await preview()
-    expect((await service.commit('window', again.previewId, [again.items[0].ref]))[0].status).toBe('existing')
-    expect(counts().slice(0, 2)).toEqual([2, 4])
+    expect(next.items[0].existing).toMatchObject({ sessionId: created.sessionId, inTrash: true })
+    expect((await service.commit('window', next.previewId, [next.items[0].ref]))[0]).toMatchObject({
+      status: 'existing',
+      agentId: 'pi'
+    })
+    expect(dbh.db.select().from(appStateTable).all()).toEqual(state)
+    expect(agentSessionService.restore(created.sessionId!).importMetadata).toEqual({
+      source: 'claude-code',
+      originalSessionId: 'source'
+    })
+    agentSessionService.delete(created.sessionId!)
+    agentSessionService.delete(created.sessionId!, { permanent: true })
+    expect(dbh.db.select().from(appStateTable).all()).toEqual([])
+    const again = await preview('other')
+    expect((await service.commit('window', again.previewId, [again.items[0].ref]))[0]).toMatchObject({
+      status: 'imported',
+      agentId: 'other'
+    })
+  })
+  it('skips an existing stable identity when source content changes after preview', async () => {
+    const file = await source()
+    const p = await preview()
+    const [created] = await service.commit('window', p.previewId, [p.items[0].ref])
+    const next = await preview('other')
+    await writeFile(file, 'changed source file')
+    expect((await service.commit('window', next.previewId, [next.items[0].ref]))[0]).toMatchObject({
+      status: 'existing',
+      sessionId: created.sessionId
+    })
+    expect(counts()).toEqual([1, 2, 1, 3])
   })
   it('commits valid selections and retries blocked selections without losing or duplicating successes', async () => {
     await source('valid')
@@ -320,7 +327,7 @@ describe('local history atomic import', () => {
       p.items.map((item) => item.ref)
     )
     expect(results.map((result) => result.status)).toEqual(['imported', 'unprocessed'])
-    expect(counts()).toEqual([1, 2, 1, 1])
+    expect(counts()).toEqual([1, 2, 1, 3])
   })
   it('rejects expired previews and keeps initialization failures readable and retryable', async () => {
     await source()
@@ -337,7 +344,40 @@ describe('local history atomic import', () => {
     await ensureImportedSessionHistory(created.sessionId!)
     await ensureImportedSessionHistory(created.sessionId!)
     expect(getImportedHistoryState(created.sessionId!)!.status).toBe('ready')
-    expect(counts()).toEqual([1, 2, 1, 1])
+    expect(counts()).toEqual([1, 2, 1, 3])
+  })
+  it('retries initialization from remaining messages after deletion', async () => {
+    await source()
+    const p = await preview()
+    vi.spyOn(piSdk, 'loadPiSdk').mockRejectedValueOnce(new Error('disk_unavailable'))
+    const [created] = await service.commit('window', p.previewId, [p.items[0].ref])
+    const message = agentSessionMessageService.listSessionMessages(created.sessionId!).items[0]
+    application
+      .get('DbService')
+      .withWriteTx((tx) => agentSessionMessageService.deleteSessionMessageTx(tx, created.sessionId!, message.id))
+    await ensureImportedSessionHistory(created.sessionId!)
+    const directory = path.join(root, 'feature.agents.pi.sessions')
+    const context = SessionManager.open(
+      path.join(directory, (await readdir(directory))[0]),
+      directory
+    ).buildSessionContext()
+    expect(JSON.stringify(context.messages)).toContain('Message 0')
+    expect(JSON.stringify(context.messages)).not.toContain('Message 1')
+    expect(getImportedHistoryState(created.sessionId!)!.messageCount).toBe(1)
+    expect(counts()).toEqual([1, 1, 1, 2])
+  })
+  it('rolls back metadata, messages and workspace when a message-state insert fails', async () => {
+    await source()
+    const p = await preview()
+    dbh.sqlite.exec(
+      "CREATE TRIGGER fail_import_state BEFORE INSERT ON app_state WHEN NEW.key LIKE 'conversation-import:message:%' BEGIN SELECT RAISE(ABORT, 'state_write_failed'); END"
+    )
+    try {
+      expect((await service.commit('window', p.previewId, [p.items[0].ref]))[0].status).toBe('failed')
+      expect(counts()).toEqual([0, 0, 0, 0])
+    } finally {
+      dbh.sqlite.exec('DROP TRIGGER fail_import_state')
+    }
   })
   it('preserves source files and reuses a mapped workspace across separate conversations', async () => {
     const file = await source('one', undefined, root)
@@ -367,7 +407,7 @@ describe('local history atomic import', () => {
         .map((result) => result.status)
         .sort()
     ).toEqual(['existing', 'imported'])
-    expect(counts()).toEqual([1, 2, 1, 1])
+    expect(counts()).toEqual([1, 2, 1, 3])
   })
   it('rebuilds a missing pristine native file but blocks loss after continuation', async () => {
     await source()
@@ -386,7 +426,7 @@ describe('local history atomic import', () => {
     await expect(ensureImportedSessionHistory(created.sessionId!)).rejects.toThrow('history_unrecoverable')
   })
 
-  it('upgrades populated pre-import tables without changing existing history', async () => {
+  it('stores imports without changing the existing database schema', async () => {
     dbh.db
       .insert(agentWorkspaceTable)
       .values({ id: 'old-workspace', name: 'Old', path: root, type: 'user', orderKey: 'a0' })
@@ -403,11 +443,12 @@ describe('local history atomic import', () => {
         data: { parts: [{ type: 'text', text: 'Existing history' }] }
       }
     })
-    dbh.sqlite.exec('DROP INDEX agent_session_import_active_identity_idx')
-    dbh.sqlite.exec('ALTER TABLE agent_session DROP COLUMN import_metadata')
-    dbh.sqlite.exec('ALTER TABLE agent_session_message DROP COLUMN provenance')
-    replayMigration(dbh, '0030_agent_history_import')
-    expect(dbh.db.select().from(agentSessionTable).get()!.importMetadata).toBeNull()
+    const before = dbh.sqlite.prepare('SELECT type, name, sql FROM sqlite_master ORDER BY name').all()
+    await source()
+    const p = await preview()
+    await service.commit('window', p.previewId, [p.items[0].ref])
+    expect(dbh.sqlite.prepare('SELECT type, name, sql FROM sqlite_master ORDER BY name').all()).toEqual(before)
+    expect(agentSessionService.getById('old-session').importMetadata).toBeUndefined()
     expect(agentSessionMessageService.listSessionMessages('old-session').items[0].data.parts).toEqual([
       { type: 'text', text: 'Existing history' }
     ])
@@ -421,17 +462,28 @@ describe('local history atomic import', () => {
     const restored = new Database(file, { readonly: true, fileMustExist: true })
     try {
       const row = restored
-        .prepare('SELECT agent_id, workspace_id, import_metadata FROM agent_session WHERE id = ?')
-        .get(created.sessionId!) as { agent_id: string; workspace_id: string; import_metadata: string }
+        .prepare('SELECT agent_id, workspace_id FROM agent_session WHERE id = ?')
+        .get(created.sessionId!) as { agent_id: string; workspace_id: string }
       expect(row.agent_id).toBe('pi')
-      expect(JSON.parse(row.import_metadata)).toMatchObject({ source: 'claude-code', originalSessionId: 'source' })
+      const state = restored
+        .prepare('SELECT value FROM app_state WHERE key = ?')
+        .get('conversation-import:session:' + created.sessionId) as { value: string }
+      expect(JSON.parse(state.value)).toMatchObject({
+        metadata: { source: 'claude-code', originalSessionId: 'source' },
+        initialization: { status: 'ready' }
+      })
+      expect(
+        restored
+          .prepare('SELECT count(*) AS count FROM app_state WHERE key >= ? AND key < ?')
+          .get('conversation-import:message:', 'conversation-import:message;')
+      ).toEqual({ count: 2 })
       expect(
         restored.prepare('SELECT count(*) AS count FROM agent_workspace WHERE id = ?').get(row.workspace_id)
       ).toEqual({ count: 1 })
       expect(
         restored
           .prepare('SELECT count(*) AS count FROM app_state WHERE key = ?')
-          .get('conversation-import:' + created.sessionId)
+          .get('conversation-import:session:' + created.sessionId)
       ).toEqual({ count: 1 })
     } finally {
       restored.close()
@@ -479,7 +531,7 @@ describe('local history atomic import', () => {
         .select()
         .from(agentSessionTable)
         .all()
-        .map((s) => s.importMetadata?.originalSessionId)
+        .map((s) => agentSessionService.getById(s.id).importMetadata?.originalSessionId)
     ).toEqual(['valid'])
   })
   it('keeps the source fingerprint guard when a prepared session becomes setup-only', async () => {

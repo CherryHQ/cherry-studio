@@ -12,12 +12,14 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
+import { appStateTable } from '@data/db/schemas/appState'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { agentSessionMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionForkService } from '@data/services/AgentSessionForkService'
+import { sessionMessageOrdering } from '@data/services/agentSessionMessageOrder'
 import type { AgentSessionDeliveryRoutingError } from '@data/services/AgentSessionMessageService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -118,7 +120,7 @@ describe('AgentSessionMessageService', () => {
           createdAt: times[sourceOrder],
           updatedAt: times[sourceOrder],
           runtimeResumeToken: 'imported-token',
-          provenance: { source: 'workbuddy', originalMessageId: id, sourceOrder, inferredTimestamp: false }
+          provenance: { source: 'workbuddy', sourceOrder }
         }))
       )
     })
@@ -155,6 +157,61 @@ describe('AgentSessionMessageService', () => {
     expect(
       agentSessionMessageService.listSessionMessages('wb-copy').items.map((row) => row.provenance?.sourceOrder)
     ).toEqual([2, 1, 0])
+
+    const prepare = vi.spyOn(dbh.sqlite, 'prepare')
+    agentSessionMessageService.listSessionMessages(SESSION_ID, { limit: 1 })
+    const smallPageQueries = prepare.mock.calls.length
+    prepare.mockClear()
+    agentSessionMessageService.listSessionMessages(SESSION_ID, { limit: 4 })
+    expect(prepare.mock.calls.length).toBe(smallPageQueries)
+    prepare.mockRestore()
+    const query = dbh.db
+      .select({ id: agentSessionMessageTable.id })
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.sessionId, SESSION_ID))
+      .orderBy(...sessionMessageOrdering(dbh.db, SESSION_ID).orderBy)
+      .limit(2)
+      .toSQL()
+    const plan = dbh.sqlite.prepare('EXPLAIN QUERY PLAN ' + query.sql).all(...query.params)
+    expect(JSON.stringify(plan)).toContain('SEARCH app_state USING INDEX sqlite_autoindex_app_state_1 (key=?)')
+
+    expect(
+      agentSessionMessageService.replaceMessageParts(SESSION_ID, 'wb-call', [{ type: 'text', text: 'Edited' }])
+        .provenance
+    ).toEqual({ source: 'workbuddy', sourceOrder: 1 })
+    agentSessionMessageService.deleteSessionMessage(SESSION_ID, 'wb-result')
+    expect(
+      dbh.db
+        .select()
+        .from(appStateTable)
+        .where(eq(appStateTable.key, 'conversation-import:message:' + SESSION_ID + ':wb-result'))
+        .get()
+    ).toBeUndefined()
+    const edit = agentSessionMessageService.readEditSnapshotTx(dbh.db, SESSION_ID, 'wb-user')
+    application
+      .get('DbService')
+      .withWriteTx((tx) =>
+        agentSessionMessageService.replaceEditTailTx(
+          tx,
+          SESSION_ID,
+          { messageId: 'wb-user', version: edit.version },
+          []
+        )
+      )
+    expect(agentSessionMessageService.listSessionMessages(SESSION_ID).items).toEqual([])
+    expect(
+      dbh.db
+        .select()
+        .from(appStateTable)
+        .all()
+        .map((row) => row.key)
+        .sort()
+    ).toEqual(
+      ids
+        .slice(0, 3)
+        .map((id) => 'conversation-import:message:wb-copy:' + id + '-copy')
+        .sort()
+    )
   })
 
   describe('native fork persistence', () => {

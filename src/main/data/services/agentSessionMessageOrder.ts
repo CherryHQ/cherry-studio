@@ -3,24 +3,20 @@ import { and, asc, desc, eq, gt, gte, lt, lte, or, sql } from 'drizzle-orm'
 import { agentSessionMessageTable as messages } from '@data/db/schemas/agentSessionMessage'
 import type { AgentSessionMessageRow } from '@data/db/schemas/agentSessionMessage'
 import type { DbOrTx } from '@data/db/types'
+import type { MessageProvenance } from '@shared/data/types/conversationImport'
 
+import { hasImportedMessageOrder, messageProvenanceSql } from './importedSessionHistory'
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 
-type Boundary = Pick<AgentSessionMessageRow, 'id' | 'createdAt' | 'provenance'>
-const imported = sql`json_extract(${messages.provenance}, '$.source') = 'workbuddy'`
-const band = sql<number>`CASE WHEN ${imported} THEN 0 ELSE 1 END`
-const position = sql<number>`CASE WHEN ${imported} THEN json_extract(${messages.provenance}, '$.sourceOrder') ELSE ${messages.createdAt} END`
-
+type Boundary = Pick<AgentSessionMessageRow, 'id' | 'createdAt'> & { provenance?: MessageProvenance | null }
 /** Imported WorkBuddy rows form a fixed prefix; native continuation keeps its existing ordering. */
 export function sessionMessageOrdering(db: DbOrTx, sessionId: string, direction: 'asc' | 'desc' = 'asc') {
-  const hasHistory = Boolean(
-    db
-      .select({ id: messages.id })
-      .from(messages)
-      .where(and(eq(messages.sessionId, sessionId), imported))
-      .limit(1)
-      .get()
-  )
+  const provenance = messageProvenanceSql()
+  const imported = sql`json_extract(${provenance}, '$.source') = 'workbuddy'`
+  const band = sql<number>`CASE WHEN ${imported} THEN 0 ELSE 1 END`
+  const position = sql<number>`CASE WHEN ${imported} THEN json_extract(${provenance}, '$.sourceOrder') ELSE ${messages.createdAt} END`
+
+  const hasHistory = hasImportedMessageOrder(db, sessionId)
   const ordinary = keysetOrdering(messages.createdAt, messages.id, { major: direction, tie: direction })
   const sort = direction === 'asc' ? asc : desc
   const compare = direction === 'asc' ? gt : lt
@@ -76,7 +72,7 @@ export function sessionMessageOrdering(db: DbOrTx, sessionId: string, direction:
       if (!cursor) return undefined
       if (!hasHistory) return ordinary.where(cursor)
       const row = db
-        .select()
+        .select({ id: messages.id, createdAt: messages.createdAt, provenance })
         .from(messages)
         .where(and(eq(messages.sessionId, sessionId), eq(messages.id, cursor.id)))
         .get()
