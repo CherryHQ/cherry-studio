@@ -84,7 +84,10 @@ async function aggregateStreamResult(streamed: StreamTextResult<ToolSet, never>)
   if (terminalStreamError !== undefined) {
     // The SDK usually wraps provider failures in an Error, but some parts arrive as plain
     // objects (e.g. a Codex response.failed payload) — keep the readable message either way.
-    const plainMessage = (terminalStreamError as { message?: unknown } | null)?.message
+    const plainMessage: unknown =
+      typeof terminalStreamError === 'object' && terminalStreamError !== null
+        ? Reflect.get(terminalStreamError, 'message')
+        : undefined
     throw terminalStreamError instanceof Error
       ? terminalStreamError
       : new Error(
