@@ -28,6 +28,10 @@ The debug bridge may inspect the owned main process; it must never manufacture a
 Native save helpers are asynchronous so fixture HTTP servers keep serving while the application prepares an export.
 macOS notification lookups treat disappearing accessibility objects as absent; other automation errors still fail the case.
 Scenario cleanup cancels only owned Windows file dialogs, preventing a failed export from intercepting the next case's save.
+External-resource cleanup rechecks target ownership before closing windows or terminating processes. A recorded
+window that gains unrelated content is preserved, and its ledger entry remains available for a later cleanup retry.
+Process ownership requires a newly observed matching window; a new windowless process alone is not evidence.
+Once verified, that process identity remains eligible for cleanup after its windows close.
 The explicit profile/restart operation prepares Windows connections by closing non-main windows before CDP attaches; simply locating a window does not perform this preparation. Both branch and installer launches enable the main-process inspector for this explicit compatibility step.
 
 ## Execution contract

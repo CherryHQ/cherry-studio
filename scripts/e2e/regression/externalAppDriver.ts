@@ -52,6 +52,16 @@ export function externalAppRequest(platform: Platform, request: ExternalAppReque
     }
     if (request.action === 'close' && !nativeRequest.window)
       return { ...snapshot, windows: snapshot.windows.map((window) => ({ ...window, id: key(window.id) })) }
+    if (request.action === 'close' && !nativeRequest.window?.matches)
+      throw new Error('External window contains unrelated content; refusing to close')
+    if (
+      request.action !== 'close' &&
+      snapshot.windows.some(
+        (window) =>
+          window.pid === request.process?.pid && (!nativeRequest.owned?.includes(window.id) || !window.matches)
+      )
+    )
+      throw new Error('External application contains unrelated windows; refusing to terminate')
   }
   const snapshot = runNativeRequest(platform, nativeRequest)
   return { ...snapshot, windows: snapshot.windows.map((window) => ({ ...window, id: key(window.id) })) }

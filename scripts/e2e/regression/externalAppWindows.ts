@@ -64,7 +64,12 @@ function Inspect-External {
 }
 $snapshot = Inspect-External
 if ($request.action -eq 'inspect') { $snapshot | ConvertTo-Json -Depth 8 -Compress; exit }
-if ($request.window -and $handles.ContainsKey($request.window.id) -and $target.kind -eq 'folder') {
+if ($request.action -eq 'close') {
+  $window = @($snapshot.windows | Where-Object { $_.id -eq $request.window.id })
+  if ($window.Count -eq 0) { $snapshot | ConvertTo-Json -Depth 8 -Compress; exit }
+  if (-not $window[0].matches) { throw 'External window contains unrelated content; refusing to close' }
+}
+if ($request.action -eq 'close' -and $request.window -and $handles.ContainsKey($request.window.id) -and $target.kind -eq 'folder') {
   $handles[$request.window.id].explorer.Quit()
 } else {
   $expected = $request.process
@@ -93,7 +98,7 @@ if ($request.window -and $handles.ContainsKey($request.window.id) -and $target.k
       }
     } elseif ($handle.process) { $process.CloseMainWindow() | Out-Null }
   } else {
-    if (@($snapshot.windows | Where-Object { $_.pid -eq $expected.pid -and $_.id -notin $request.owned }).Count) { throw 'External application contains unrelated windows' }
+    if (@($snapshot.windows | Where-Object { $_.pid -eq $expected.pid -and ($_.id -notin $request.owned -or -not $_.matches) }).Count) { throw 'External application contains unrelated windows' }
     if ($request.action -eq 'force') {
       & taskkill.exe /PID $process.Id /T /F | Out-Null
       if ($LASTEXITCODE -ne 0 -and -not $process.HasExited) { throw 'Could not terminate the owned application tree' }

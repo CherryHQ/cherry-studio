@@ -117,6 +117,23 @@ it('closes owned content but refuses to quit a new application that gained unrel
   expect(desktop.processes).toEqual([])
 })
 
+it('preserves a recorded terminal window that gained an unrelated tab and retries only after ownership returns', () => {
+  const id = registerExternalResource(paths, 'macos', { kind: 'terminal', directory: paths.workspace })
+  opened()
+  observeExternalResource(paths, id)
+  desktop.windows[0].matches = false
+  const unrelatedContent = structuredClone(desktop)
+
+  expect(() => cleanupExternalResources(paths)).toThrow('unrelated content; refusing to close')
+  expect(desktop).toEqual(unrelatedContent)
+  expect(ledger()).toHaveLength(1)
+
+  desktop.windows[0].matches = true
+  cleanupExternalResources(paths)
+  expect(desktop).toEqual({ processes: [], windows: [] })
+  expect(ledger()).toEqual([])
+})
+
 it('recovers a registered launch even when the executor never observed its result', () => {
   registerExternalResource(paths, 'macos', target())
   opened()
@@ -134,6 +151,29 @@ it('preserves a replacement process with a reused PID', () => {
   desktop = { processes: [replacement], windows: [] }
   cleanupExternalResources(paths)
   expect(desktop.processes).toEqual([replacement])
+})
+
+it('does not acquire a new windowless process without target evidence', () => {
+  const id = registerExternalResource(paths, 'macos', target())
+  desktop = { processes: [application], windows: [] }
+  observeExternalResource(paths, id)
+
+  cleanupExternalResources(paths)
+
+  expect(desktop).toEqual({ processes: [application], windows: [] })
+  expect(ledger()).toEqual([])
+})
+
+it('still cleans an acquired process after its verified window has closed', () => {
+  const id = registerExternalResource(paths, 'macos', target())
+  opened()
+  observeExternalResource(paths, id)
+  desktop.windows = []
+
+  cleanupExternalResources(paths)
+
+  expect(desktop).toEqual({ processes: [], windows: [] })
+  expect(ledger()).toEqual([])
 })
 
 it('never quits the shared file manager', () => {
@@ -192,8 +232,9 @@ it('force-terminates a real owned process when a graceful request leaves it runn
   await once(child.stdout, 'data')
   const id = registerExternalResource(paths, 'macos', target())
   const owned = { ...application, pid: child.pid! }
-  desktop = { processes: [owned], windows: [] }
+  desktop = { processes: [owned], windows: [{ id: 'owned', pid: owned.pid, matches: true }] }
   observeExternalResource(paths, id)
+  desktop.windows = []
   native.mockImplementation((_platform, request: ExternalAppRequest) => {
     if (request.action === 'quit') child.kill('SIGTERM')
     if (request.action === 'force') {

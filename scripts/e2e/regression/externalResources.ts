@@ -48,7 +48,7 @@ export function registerExternalResource(paths: RunPaths, platform: Platform, ta
   return id
 }
 
-function acquire(resource: ExternalResource, snapshot: ExternalSnapshot, allowEmptyProcesses = false): void {
+function acquire(resource: ExternalResource, snapshot: ExternalSnapshot): void {
   const windows = snapshot.windows.filter(
     (window) => window.matches && !resource.baseline.windows.some((previous) => previous.id === window.id)
   )
@@ -61,10 +61,7 @@ function acquire(resource: ExternalResource, snapshot: ExternalSnapshot, allowEm
       !resource.acquired.processes.some(
         (previous) => previous.pid === process.pid && !sameProcess(previous, process)
       ) &&
-      (windows.some(({ pid }) => pid === process.pid) ||
-        (allowEmptyProcesses &&
-          resource.target.kind !== 'browser' &&
-          !snapshot.windows.some(({ pid }) => pid === process.pid)))
+      windows.some(({ pid }) => pid === process.pid)
   )
   for (const process of processes) {
     if (!resource.acquired.processes.some((previous) => sameProcess(previous, process)))
@@ -78,8 +75,7 @@ export function observeExternalResource(paths: RunPaths, id: string): void {
   if (!resource) throw new Error(`External resource registration is missing: ${id}`)
   acquire(
     resource,
-    externalAppRequest(resource.platform, { action: 'inspect', target: resource.target, root: paths.root }),
-    true
+    externalAppRequest(resource.platform, { action: 'inspect', target: resource.target, root: paths.root })
   )
   writeResources(paths, resources)
 }
@@ -104,6 +100,10 @@ export function cleanupExternalResources(paths: RunPaths, ids?: string[]): void 
       )
         failures.push(new Error(`New external windows could not be linked to registration ${resource.id}`))
       for (const window of snapshot.windows.filter(({ id }) => owned.includes(id))) {
+        if (!window.matches) {
+          failures.push(new Error(`External window ${window.id} contains unrelated content; refusing to close`))
+          continue
+        }
         const process = snapshot.processes.find(({ pid }) => pid === window.pid)
         try {
           request('close', { process, window })
@@ -115,7 +115,11 @@ export function cleanupExternalResources(paths: RunPaths, ids?: string[]): void 
         if (process.shared) continue
         snapshot = request('inspect')
         if (!snapshot.processes.some((current) => sameProcess(current, process))) continue
-        if (snapshot.windows.some((window) => window.pid === process.pid && !owned.includes(window.id))) {
+        if (
+          snapshot.windows.some(
+            (window) => window.pid === process.pid && (!owned.includes(window.id) || !window.matches)
+          )
+        ) {
           failures.push(new Error(`External application ${process.pid} has unrelated windows; refusing to quit`))
           continue
         }

@@ -183,6 +183,11 @@ function run(argv) {
   }
   let snapshot = inspect()
   if (request.action === 'inspect') return JSON.stringify(snapshot)
+  if (request.action === 'close') {
+    const window = snapshot.windows.find(window => window.id === request.window.id)
+    if (!window) return JSON.stringify(snapshot)
+    if (!window.matches) throw new Error('External window contains unrelated content; refusing to close')
+  }
   const expected = request.process
   const current = snapshot.processes.find(process => process.pid === expected.pid && process.startedAt === expected.startedAt)
   if (!current) return JSON.stringify(snapshot)
@@ -191,7 +196,7 @@ function run(argv) {
     if (handle) handle.close()
   } else {
     if (current.shared) throw new Error('Refusing to terminate Finder')
-    if (snapshot.windows.some(window => window.pid === current.pid && request.owned.indexOf(window.id) < 0))
+    if (snapshot.windows.some(window => window.pid === current.pid && (request.owned.indexOf(window.id) < 0 || !window.matches)))
       throw new Error('External application contains unrelated windows')
     const running = processes[current.pid]
     if (request.action === 'force') running.forceTerminate

@@ -51,6 +51,22 @@ it('treats a vanished native handle as closed instead of acting on a replacement
   expect(desktop.windows).toEqual([{ id: '123:replacement:owned-tab', pid: process.pid, matches: false }])
 })
 
+it.each(['close', 'quit', 'force'] as const)(
+  'refuses %s when a recorded window now contains unrelated content',
+  (action) => {
+    desktop.windows = desktop.windows.filter(({ matches }) => matches)
+    const snapshot = externalAppRequest('macos', { action: 'inspect', target, root })
+    const window = snapshot.windows[0]
+    desktop.windows[0].matches = false
+    const unrelatedContent = structuredClone(desktop)
+
+    expect(() => externalAppRequest('macos', { action, target, root, process, window, owned: [window.id] })).toThrow(
+      'unrelated'
+    )
+    expect(desktop).toEqual(unrelatedContent)
+  }
+)
+
 it('reports native failure details without echoing the subprocess command or its arguments', () => {
   execute.mockImplementation(() => {
     throw Object.assign(new Error('Command failed: synthetic-private-command'), { stderr: 'Automation denied' })
