@@ -1,5 +1,11 @@
+import { rm } from 'node:fs/promises'
+import { join } from 'node:path'
+
 import type { ElectronApplication, Page } from '@playwright/test'
-import { _electron as electron, test as base } from '@playwright/test'
+import { _electron as electron, expect, test as base } from '@playwright/test'
+
+import { createProfileEnvironment } from '../../../../scripts/e2e/regression/lifecycle'
+import { getRunPaths } from '../../../../scripts/e2e/regression/paths'
 
 /**
  * Custom fixtures for Electron e2e testing.
@@ -10,7 +16,33 @@ export type ElectronFixtures = {
   mainWindow: Page
 }
 
-export const test = base.extend<ElectronFixtures>({
+export const test = base.extend<ElectronFixtures & { isolatedEnvironment: void }>({
+  isolatedEnvironment: [
+    async ({}, use, testInfo) => {
+      const runtimeRoot = testInfo.outputPath('runtime')
+      const paths = getRunPaths(runtimeRoot)
+      const environment = {
+        ...createProfileEnvironment(paths, 'authenticated'),
+        CS_DEV_PROFILE_ROOT: join(paths.profiles, 'authenticated')
+      }
+      const previous = new Map<string, string | undefined>()
+      for (const [key, value] of Object.entries(environment)) {
+        if (value === process.env[key]) continue
+        previous.set(key, process.env[key])
+        process.env[key] = value
+      }
+      try {
+        await use()
+      } finally {
+        for (const [key, value] of previous) {
+          if (value === undefined) delete process.env[key]
+          else process.env[key] = value
+        }
+        await rm(runtimeRoot, { recursive: true, force: true })
+      }
+    },
+    { auto: true }
+  ],
   electronApp: async ({}, use) => {
     // Launch Electron app from project root
     // The args ['.'] tells Electron to load the app from current directory
@@ -23,22 +55,29 @@ export const test = base.extend<ElectronFixtures>({
       timeout: 60000
     })
 
-    await use(electronApp)
-
-    // Cleanup: close the app after test
-    await electronApp.close()
+    try {
+      await use(electronApp)
+    } finally {
+      await electronApp.close()
+    }
   },
 
   mainWindow: async ({ electronApp }, use) => {
     // Wait for the main window (title: "Cherry Studio", not "Quick Assistant")
     // On Mac, the app may create the QuickAssistant window with a different title
-    const mainWindow = await electronApp.waitForEvent('window', {
-      predicate: async (window) => {
-        const title = await window.title()
-        return title === 'Cherry Studio'
-      },
-      timeout: 60000
-    })
+    let mainWindow: Page | undefined
+    await expect
+      .poll(
+        async () => {
+          for (const window of electronApp.windows()) {
+            if ((await window.title()) === 'Cherry Studio') mainWindow = window
+          }
+          return Boolean(mainWindow)
+        },
+        { timeout: 60000 }
+      )
+      .toBe(true)
+    if (!mainWindow) throw new Error('Main window did not open')
 
     // Wait for React app to mount
     await mainWindow.waitForSelector('#root', { state: 'attached', timeout: 60000 })

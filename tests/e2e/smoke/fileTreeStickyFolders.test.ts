@@ -32,7 +32,7 @@ const test = base.extend<{ stickyProfile: { profile: string; notesPath: string }
     process.env.CS_DEV_PROFILE_ROOT = profile
     try {
       const binaryDirectory = join(profile, '.cherrystudio', 'bin')
-      const ripgrepDestination = join(binaryDirectory, 'rg')
+      const ripgrepDestination = join(binaryDirectory, process.platform === 'win32' ? 'rg.exe' : 'rg')
       try {
         accessSync(ripgrepSource, constants.R_OK | constants.X_OK)
         mkdirSync(binaryDirectory, { recursive: true })

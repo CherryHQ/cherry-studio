@@ -38,7 +38,7 @@ const test = base.extend<{ notesProfile: NotesProfile }>({
       }
       const binaryDirectory = join(profile, '.cherrystudio', 'bin')
       mkdirSync(binaryDirectory, { recursive: true })
-      const destination = join(binaryDirectory, 'rg')
+      const destination = join(binaryDirectory, process.platform === 'win32' ? 'rg.exe' : 'rg')
       copyFileSync(ripgrepSource, destination)
       chmodSync(destination, 0o755)
       const notesPath = join(profile, 'userData', 'Data', 'Notes')

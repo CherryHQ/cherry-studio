@@ -47,6 +47,9 @@ tests/e2e/
 ### Smoke suite
 
 The prerequisites and commands below apply only to the smoke suite in `smoke/`.
+Each test receives an isolated application profile and CLI home under its output directory.
+The fixture closes its Electron application and removes the owned runtime directory after success or failure.
+Reports and screenshots remain in the configured output directory for review.
 
 #### Prerequisites
 

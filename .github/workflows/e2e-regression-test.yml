@@ -527,9 +527,31 @@ jobs:
           done
 
       - name: Stop controlled application
+        id: stop-app
         if: always() && steps.controller-dependencies.outcome == 'success'
         shell: bash
         run: pnpm exec tsx scripts/e2e/regression/cli.ts cleanup --run-dir "$RUN_DIR"
+
+      - name: Build standalone smoke application
+        id: smoke-build
+        if: always() && steps.stop-app.outcome == 'success' && needs.resolve.outputs.mode == 'branch' && needs.resolve.outputs.task == 'all'
+        shell: bash
+        working-directory: target-app
+        run: pnpm exec dotenv -v CHERRY_EDITION=global -- electron-vite build
+
+      - name: Run standalone smoke suite
+        if: always() && steps.smoke-build.outcome == 'success'
+        timeout-minutes: 60
+        shell: bash
+        working-directory: target-app
+        env:
+          PLAYWRIGHT_HTML_OUTPUT_DIR: ${{ runner.temp }}/cherry-regression/report/smoke
+          PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/cherry-regression/report/smoke-results.json
+          PLAYWRIGHT_HTML_OPEN: never
+        run: |
+          export E2E_RIPGREP_BIN="$(node -e 'process.stdout.write(require("node:path").resolve("resources/binaries", `${process.platform}-${process.arch}`, process.platform === "win32" ? "rg.exe" : "rg"))')"
+          pnpm exec playwright test --config "$GITHUB_WORKSPACE/playwright.config.ts" \
+            --output "$RUN_DIR/evidence/smoke" --reporter=html,json --retries=0
 
       - name: Generate platform report
         if: always() && steps.controller-dependencies.outcome == 'success'
@@ -627,6 +649,23 @@ jobs:
           --mode "${{ needs.resolve.outputs.mode }}"
           --provider-mode "${{ inputs.provider_mode }}"
 
+      - name: Summarize standalone smoke results
+        if: needs.resolve.outputs.mode == 'branch' && needs.resolve.outputs.task == 'all'
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs')
+          const rows = ['\n## Standalone smoke suite\n', '| Platform | Passed | Failed | Flaky | Skipped |', '| --- | ---: | ---: | ---: | ---: |']
+          for (const platform of ['macos', 'windows']) {
+            const path = `platform-reports/${platform}/report/smoke-results.json`
+            const stats = fs.existsSync(path) ? JSON.parse(fs.readFileSync(path, 'utf8')).stats : null
+            rows.push(stats ? `| ${platform} | ${stats.expected} | ${stats.unexpected} | ${stats.flaky} | ${stats.skipped} |` : `| ${platform} | Missing report | — | — | — |`)
+          }
+          rows.push('\nDetailed smoke reports: `evidence/<platform>/report/smoke/index.html`. Smoke failures also fail the platform and aggregate jobs.\n')
+          const summary = rows.join('\n')
+          fs.appendFileSync('combined-report/combined-report.md', summary)
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary)
+          NODE
+
       - name: Merge detailed Playwright reports
         env:
           CHERRY_TEST_RUN_DIR: ${{ github.workspace }}/combined-report
@@ -671,6 +710,8 @@ jobs:
 
       - name: Validate aggregate result
         if: always()
-        run: >-
-          pnpm exec tsx scripts/e2e/regression/cli.ts aggregate-gate
-          --report combined-report/combined-results.json
+        env:
+          TEST_RESULT: ${{ needs.test.result }}
+        run: |
+          pnpm exec tsx scripts/e2e/regression/cli.ts aggregate-gate --report combined-report/combined-results.json
+          test "$TEST_RESULT" = "success"

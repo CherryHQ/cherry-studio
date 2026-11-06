@@ -68,6 +68,11 @@ and settings rather than the developer's CLI configuration. Before each UI conne
 the controller verifies the owned process's home, temporary and CLI configuration paths
 and Windows AppData path. It rejects an older running instance whose paths escape the profile.
 
+For branch runs selecting `all`, the workflow closes the regression instance, builds the application,
+then runs the standalone smoke suite with isolated per-test profiles and no retries. Each platform's
+smoke HTML/JSON report is bundled separately and its counts appear in the aggregate summary.
+A failed smoke run fails both platform and aggregate jobs; release-installer runs use the regression suite.
+
 The workflow keeps one separately timed step per phase (21 today). Each calls `run-phase`; the controller intersects its phase with the run's selected task and returns immediately for unselected phases.
 `cases.ts` is the execution manifest. Each case declares `tasks`: the first entry is
 its module task, followed by any focused tasks. Module names follow the case library's
