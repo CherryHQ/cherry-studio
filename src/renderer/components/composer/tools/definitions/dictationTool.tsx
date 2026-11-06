@@ -240,7 +240,6 @@ const DictationComposerRuntime = ({ context }: { context: DictationContext }) =>
 
 const dictationTool = defineTool({
   key: 'dictation',
-  condition: ({ session }) => session?.agentType !== 'local',
   label: DICTATION_TOOLBAR_MANIFEST.label,
   visibleInScopes: [TopicType.Chat, TopicType.Session, 'painting'],
   availableWithoutModel: true,

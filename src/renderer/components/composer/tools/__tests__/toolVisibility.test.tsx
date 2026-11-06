@@ -48,6 +48,7 @@ describe('composer tool visibility', () => {
       (tool) => tool.key
     )
     expect(tools).toContain('attachment')
+    expect(tools).toContain('dictation')
     expect(tools).not.toContain('knowledge_base')
     expect(tools).not.toContain('mcp_status')
     expect(tools).not.toContain('permission_mode')
