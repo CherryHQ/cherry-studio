@@ -97,7 +97,7 @@ inside agent-behavior: orchestration -> core, orchestration -> ports; core impor
 - 每个会话一个空闲驱动，负责人已确认；fork 出的子代理不自驱。
 - YAGNI 审计找出的死字段已删除（`callWindow`、`GateFacts.lineage`、`LiveFacts.reopened`、工具结果的 `blocked`、`turn-stop.by`）。
 
-负责人于 2026-10-27 移除仅限指定 run 的输入约束。`Helpers.message` 只指定 child 和请求 key，不再接受目标 run 参数。迟到消息如果启动另一轮，编排层记录实际 run，并用已接纳的输入 key 创建结果任务，让父会话收到结果且不会重复发送输入。Durable 使用原生 `whenBusy: 'steer'` 即可；条件提交补丁及适配器接口撤回，独立的严格打开存储补丁保留。使用量、结果和定向停止仍需要运行身份，但普通消息不因运行结束而过期。
+负责人于 2026-10-27 移除仅限指定 run 的输入约束。`Helpers.message` 只指定 child 和请求 key，不再接受目标 run 参数。迟到消息如果启动另一轮，编排层记录实际 run，并用已接纳的输入 key 创建结果任务，让父会话收到结果且不会重复发送输入。Durable 使用原生 `whenBusy: 'steer'` 即可；条件提交补丁及适配器接口撤回，严格打开存储补丁保留。负责人同时批准补充原生 run 元数据：已消费的 submission 和 assistant 条目携带首个 generation task id，并跨 generation 交接保持稳定。它用于使用量、结果和定向停止，不让普通消息过期，也不恢复条件接纳。
 
 ### 受 harness 限制的能力
 
@@ -106,13 +106,13 @@ inside agent-behavior: orchestration -> core, orchestration -> ports; core impor
 | # | 设计的能力 | Durable 1.3.0 为什么做不到 | 降级 | 上游 | 升级能否解除 |
 | --- | --- | --- | --- | --- | --- |
 | 1 | 把运行中的前台子智能体转到后台 | 会话的拥有者和任务的 background 标志都不可变。 | 转移活跃 run 仍不属于本包契约。结束该 run 后开始新一轮是另一种操作。 | 没找到 | 能，如果上游能把会话改挂到后台边界下 |
-| 2 | 保持 id，在后台独立续接已结束的前台子智能体 | 支持向同一会话输入，但工具任务仍拥有该子会话；后续工作仍受这条所有权链的中止和空闲遍历约束。 | Pi 和 fake 解除首轮的取消关联，原地续接。Durable 的 behavior 接入必须解决所有权问题，或在写入 run 记录和 report 作业之前拒绝这次续接事务；不能隐式 fork 或转发 id。目前尚未实现其 behavior 适配器。 | 需要经过验证的原生所有权方案，不能让公共规则强制所有 harness fork | 能，如果上游可以将下一轮的执行所有权与会话身份分离 |
+| 2 | 保持 id，在后台独立续接已结束的前台子智能体 | 支持向同一会话输入，但工具任务仍拥有该子会话；后续工作仍受这条所有权链的中止和空闲遍历约束。 | Pi 和 fake 解除首轮的取消关联，原地续接。Durable behavior 适配器在写入 run 记录和 report 作业之前拒绝这次续接事务；不能隐式 fork 或转发 id。契约套件明确声明前台续接用例不可用。 | 需要经过验证的原生所有权方案，不能让公共规则强制所有 harness fork | 能，如果上游可以将下一轮的执行所有权与会话身份分离 |
 | 3 | 在历史里认出 goal 续轮（`onYield`） | `onYield` 只能返回 `{ continue: UserInput }`，续轮写成普通的 `pi.user` 条目。 | 用空闲驱动作业加自定义 kind 的轮条目，代价是多一个后台任务和一次提交。 | 可以提：让 `continue` 支持 `entry: { kind, data }` | 能 |
 | 4 | 在钩子里读历史、写记录 | `HookApi` 只提供 id、模型、memo 和文档读取；钩子不能提交。 | 规则在工具和作业里运行；钩子只问核心拦不拦。 | 可以提：在 `HookApi` 里加只读的条目扫描 | 能，第 5 行随之解除 |
 | 5 | 重复调用的计数窗口跨重启保持连续 | 同第 4 行：`beforeTool` 看不到之前的调用。 | 通过延迟绑定的 Harness 引用，用宿主级的 `Conversation.entries()` 构造窗口（推断）；拿不到时用进程内窗口，重启后清零，最多多放过两次相同的调用。 | 同第 4 行 | 能 |
 | 6 | 用户停止后绝不自动唤醒 | admission 没有先检查某个文档的入口，`admitSubmission` 不导出，Durable 自己的后台例子也会为 Esc 之后才到的报告开一个回合。 | 抑制期内的结果静默追加，检查和追加在同一次提交里（推断）。如果驱动已决定唤醒、提交尚未被接纳时用户按了停止，这一次通知仍会开一个回合。 | 可以提：条件提交或 admission 谓词 | 能 |
 | 7 | 会话忙时，从任务里写一条进模型上下文、但不开回合的条目 | 任务的 handle 只收 input；会话忙时只有 Harness 能写模型上下文。 | 只在空闲且 inbox 为空时 raw 追加（推断）；忙时等到空闲再落下，不唤醒。 | 可以提：`ConversationHandle` 支持 `write` | 能 |
-| 8 | 子智能体每次运行的请求上限 | 没有原语；`beforeRequest` 抛出的错误会被跳过。 | 模型桥按会话计数，第 201 次请求以不可重试的 `quota exceeded` 错误失败；适配器报告 `limit_reached`。 | 可以提：请求预算，或允许 `beforeRequest` 拒绝 | 能 |
+| 8 | 子智能体每次运行的请求上限 | 没有原语；`beforeRequest` 抛出的错误会被跳过。 | 原生模型包装器按实际消费输入的 run 计数，第 201 次请求以不可重试的 `quota exceeded` 错误失败；适配器报告 `limit_reached`。 | 可以提：请求预算，或允许 `beforeRequest` 拒绝 | 能 |
 | 9 | 交互的身份、有效期与迟到的回答；崩溃后不重复提问 | 没有交互原语；`beforeTool` 在 intent 之前等待，崩溃后会重跑。 | 宿主持久记录审批结局，`cherry.approval:` memo 记下每个答复；用户答复之前崩溃，就再问一次。 | 可以提：交互原语 | 部分能：memo 消除了「答过还问」；等待中崩溃仍会再问一次 |
 | 10 | 在 harness 内拦下 `/goal` | 没有输入钩子；Durable spec 自己的 `/plan` 也由宿主路由。 | 宿主把 `/goal` 交给 goal 命令入口；被当成普通输入提交的 `/goal`，模型会当文本读到。 | 不需要，上游有意如此设计 | 不适用 |
 | 11 | 把尚未接纳的 goal 轮对模型隐藏（`ContextFilter`） | 没有上下文钩子；Durable 的提交只有被接纳后才进入历史，未接纳的轮根本到不了模型 | Durable 提供 `ContextFilter` 但从不查询它的处理器（已声明差异）；coding-agent 适配器会查询它 | 不需要 | 不适用 |
@@ -139,7 +139,7 @@ AC1–AC5 是评审的五条守则，AC6 概括边界守卫，AC7–AC11 是测�
 - AC7 — 核心决策是确定的，不修改输入，在 `Date.now`、`Math.random` 和 `crypto.randomUUID` 抛错时仍能完成，能经 JSON 往返，其中的每个 id 都能在输入里找到来处。 (verification: unit — 包负责人，核心纯度测试)
 - AC8 — 每个场景夹具在正常跑完、在每个 await 点崩溃、把历史重放给核心这三种跑法下，都满足重放不变式 I1–I5。 (verification: unit — 包负责人，fake 上的夹具)
 - AC9 — 同一个脚本化场景在 fake、coding-agent 和 Durable 上得到相同的事实序列和决策序列；每个适配器的「已声明差异」表只能引用受 harness 限制能力表的行、端口一节声明在该 harness 上不安装的端口，或 coding-agent 自身的重启限制。 (verification: unit — 包负责人与 coding-agent、Durable 适配器负责人，契约用例)
-- AC10 — 中止父回合会停下其活跃的前台子 run。普通续接保留子智能体 id、原生 Thread 和历史，在后台启动下一轮，并将该轮结果送达一次；已结束 run 的父级取消与过期的子 run 停止请求都不能停下新一轮。消息和停止操作不按工具调用来源转发。显式 fork 仍创建独立子智能体。 (verification: unit — fake 上的核心和编排用例，fake 与 coding-agent 上的公共契约用例；Durable behavior 验收仍待解决第 2 行)
+- AC10 — 中止父回合会停下其活跃的前台子 run。普通续接保留子智能体 id、原生 Thread 和历史，在后台启动下一轮，并将该轮结果送达一次；已结束 run 的父级取消与过期的子 run 停止请求都不能停下新一轮。消息和停止操作不按工具调用来源转发。显式 fork 仍创建独立子智能体。 (verification: unit — fake 上的核心和编排用例，fake 与 coding-agent 上的公共契约用例；Durable 明确声明第 2 行不可用，并验证写入前拒绝)
 - AC11 — 重开带有已武装 goal 或被打断的后台子智能体的会话，不开任何回合，也不续跑任何子智能体；后台子智能体的用量在发生时就计入 active goal 的预算。 (verification: unit — 包负责人，fake 上的重开与预算夹具；适配器负责人，契约用例)
 
 ### 验证计划
@@ -148,7 +148,7 @@ AC1–AC5 是评审的五条守则，AC6 概括边界守卫，AC7–AC11 是测�
 - fake 有持久部分（条目与记录、按请求 id 索引的提交、memo、作业表）和易失部分（进行中的 Promise、进程内窗口）。它有脚本化模型、脚本化宿主端口和不用真实计时器的确定性调度；`crashAt(n)` 在第 n 个 await 点丢掉易失状态，续跑的作业从头重跑，放弃的作业直接丢弃。它与 Durable 同形：端口绑定调用、先读后写、忙时拒绝且不留记录、同键返回原来的提交。
 - 十个夹具，各自写明能抓住的 bug：后台派出与送达；两个子智能体同时结束；用户停止之后才到的结果；连续三轮无进展；同一调用重复五次；goal 运行时审批被拒；重开武装中的 goal；resume 之后不能被去重的轮（`armSeq`）；名额满时并发派出；plan 模式的进入、拦截和被拒绝的退出。
 - 重放不变式：I1 累积状态等于全量重算；I2 同样的事实在重启前后给出同样的决策；I3 增量缓存等于全量重算；I4 每个副作用都有幂等键，至多发生一次；I5 在任意 await 点崩溃再恢复，持久日志与未崩溃时等价，只容许已声明的行。
-- 契约用例在 `src/contract/cases.ts`，用普通的 throw 断言，不依赖测试框架。它们在本包里跑在 fake 上；在 `packages/agent-runtime-pi/tests/` 里跑在 coding-agent 上，重启类用例按声明跳过，因为 Pi 不续跑运行；在 `packages/agent-runtime-pi-durable/tests/` 里跑在 Durable 上，用 faux provider 和内存或 Node SQLite 存储，以关闭再重开模拟崩溃。
+- 契约用例在 `src/contract/cases.ts`，用普通的 throw 断言，不依赖测试框架。它们在本包里跑在 fake 上；在 `packages/agent-runtime-pi/tests/` 里跑在 coding-agent 上，重启类用例按声明跳过，因为 Pi 不续跑运行；在 `packages/agent-runtime-pi-durable/tests/` 里跑在 Durable 上，用 faux provider 和内存或 Node SQLite 存储，验证正常关闭后重新打开。
 
 ### PR 切分
 
@@ -163,13 +163,15 @@ AC1–AC5 是评审的五条守则，AC6 概括边界守卫，AC7–AC11 是测�
 
 `PiSessionOptions.behavior` 为一个根会话及其子会话安装已有的 `HostPorts` 和公共规则。下游 Pi 根集成层（#22107）通过 `piBehaviorHost.ts` 接入桌面连接；本设计层不实现这项集成：审批和问答卡片使用现有 registry，模型选择使用模型目录，摘要和验收通过 Cherry 网关调用 Pi 原生模型，大输出使用应用管理的文件。审批结果仍存放在已有消息 part 中。`piApprovalFacts.ts` 提供环境事实；公共 gate 决定策略，包括已有的跨会话委派仅限交互式用户回合这一边界。
 
-原生调用 ID 由适配器拥有：Pi facet 将 `CallRef` 解析为审批卡片和子 agent 输出锚点所需的 ID。活跃子会话各自订阅输出，通过现有 background-flow 传输渲染。`PiRuntimeConnection` 仍桥接产品持久化、分支绑定、UI chunk 和旧会话服务；退役它需要继续迁移这些消费者。重开根会话恢复历史和子会话关系，不会重建活跃子会话图。省略 `behavior` 时包内暂时保留旧扩展路径，桌面旧审批扩展和 pi-vcc bundle 则由下游 Pi 根集成层移除。这些变更不代表 Durable behavior 验收完成。
+原生调用 ID 由适配器拥有：Pi facet 将 `CallRef` 解析为审批卡片和子 agent 输出锚点所需的 ID。活跃子会话各自订阅输出并拥有独立产品归档，通过共享 projection IPC 渲染；background-flow 仅保留任务元数据。`PiRuntimeConnection` 仍桥接产品持久化、分支绑定、UI chunk 和旧会话服务；退役它需要继续迁移这些消费者。重开根会话恢复历史和子会话关系，不会重建活跃子会话图。省略 `behavior` 时包内暂时保留旧扩展路径，但桌面旧审批扩展和 pi-vcc bundle 已移除。Durable 实现在下文说明。
+
+`createPiDurableRuntime({ behavior })` 现已通过原生事务、钩子和作业实现共享端口。桌面驱动复用 Pi 的网关模型注册表和 HostPorts，通过既有 context 表绑定原生 SQLite 后端和会话，并独立投影子会话。用户 Stop 记录取消；owner 关闭保留普通根会话未完成的任务。重开先执行 `onOpen` 再恢复原生调度，因此中止过的后台子任务会停止、goal 会解除自动运行。契约测试仅跳过两个 context-filter 用例和一个前台续接用例。原生 run 元数据测试覆盖同轮与跨轮 steer 及 SQLite 重开；桌面测试覆盖审批参数修改、问答、子会话输入、归档恢复和停止与关闭的区别。真实 Provider 暴露的响应关联回归还要求：重放快照不能把旧输入关联到新的自主回复。
 
 ## Risks
 
 - Pi Durable 仍是实验性的：它的 README 说明 API 在版本之间会不经通知地变化，1.2.0 有多处破坏性变更，1.3.0 里 spec 的代码块已经落后于 `src`。适配器以 `src` 和类型声明为准，契约用例负责兼容性检查，版本锁定由谁负责尚未确定。
 - 同一个栈里现在有两层抽象：公共访问层和我们的端口，每个适配器都要实现两者。它们保持单向（类型进来，`delegationStatus()` 出去）；如果访问层开始定义 goal 或子智能体语义，或适配器绕开我们的入口去操作子会话，就会开始分叉。
-- 设计依赖的四项 Durable 行为由源码推断，上游的例子和测试都还没覆盖：在工具或作业的提交里 raw 追加仅展示的记录，效果等同被动条目；在空闲且 inbox 为空时 raw 追加进模型上下文的条目，并与检查在同一次提交里；用持久的 `waiting … allSettled` 等待替代内存里的 `waitForTask`；通过延迟绑定的 Harness 引用，用 `Conversation.entries()` 构造闸门的调用窗口。每一项都需要 Durable 适配器上的契约用例确认；只有调用窗口有声明过的退路（第 5 行）。
+- 原生适配器契约测试现已覆盖被动记录、原子静默追加、持久作业等待和全历史调用窗口。测试使用原生内存/SQLite 存储及正常关闭重开，不证明进程强杀后的恢复或外部工具副作用恰好执行一次。
 - 接受的代价：用户停止后残余的唤醒窗口（第 6 行）；拿不到延迟绑定引用时，调用窗口在重启后清零（第 5 行）；审批等待中崩溃会再问一次（第 9 行）；预算停止会比今天按送达计账更早到来；驱动多一个后台任务和一次提交；包名与 harness 边界文档用 behavior 一词描述 harness 职责的用法有重叠。
 - coding-agent 是否继续作为生产后端，是团队尚未决定的问题。本设计两种情况下都成立：规则和编排只依赖端口，fake 让 harness 中立不依赖 coding-agent。
 

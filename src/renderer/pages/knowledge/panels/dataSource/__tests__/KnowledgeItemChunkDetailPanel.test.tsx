@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { CSSProperties, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -94,10 +95,7 @@ vi.mock('@cherrystudio/ui', () => ({
       {description}
     </div>
   ),
-  Scrollbar: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => {
-    delete props.autoHideScrollbar
-    return <div {...props}>{children}</div>
-  }
+  ScrollArea: MockCherrystudioUI.ScrollArea
 }))
 
 vi.mock('@data/hooks/useDataApi', () => ({

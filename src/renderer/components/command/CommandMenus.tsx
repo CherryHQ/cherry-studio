@@ -20,7 +20,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-  Scrollbar,
+  ScrollArea,
   Tooltip
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
@@ -251,7 +251,7 @@ function CommandContextMenuExtraItemView({
           <ContextMenuItemContent icon={item.icon}>{item.label}</ContextMenuItemContent>
         </ContextMenuSubTrigger>
         <ContextMenuSubContent>
-          <Scrollbar className="-mr-1 max-h-72 overflow-x-hidden pr-1">
+          <ScrollArea viewportProps={{ className: 'overflow-x-hidden pr-1' }} className="-mr-1 max-h-72">
             {item.children.map((child, index) => (
               <CommandContextMenuExtraItemView
                 key={`${child.type}-${index}`}
@@ -259,7 +259,7 @@ function CommandContextMenuExtraItemView({
                 onSelectItem={onSelectItem}
               />
             ))}
-          </Scrollbar>
+          </ScrollArea>
         </ContextMenuSubContent>
       </ContextMenuSub>
     )
@@ -674,11 +674,11 @@ function CommandDropdownExtraItemView({
           <ContextMenuItemContent icon={item.icon}>{item.label}</ContextMenuItemContent>
         </DropdownMenuSubTrigger>
         <DropdownMenuSubContent>
-          <Scrollbar className="-mr-1 max-h-72 overflow-x-hidden pr-1">
+          <ScrollArea viewportProps={{ className: 'overflow-x-hidden pr-1' }} className="-mr-1 max-h-72">
             {item.children.map((child, index) => (
               <CommandDropdownExtraItemView key={`${child.type}-${index}`} item={child} onSelectItem={onSelectItem} />
             ))}
-          </Scrollbar>
+          </ScrollArea>
         </DropdownMenuSubContent>
       </DropdownMenuSub>
     )

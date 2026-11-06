@@ -10,7 +10,7 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { readAgentSessionPath } from '@data/services/agentSessionMessageTree'
-import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
+import { preparePiBranch, reservePiBranchTx } from '@main/ai/runtime/pi/piContext'
 import type { AgentChildUpdate } from '@shared/ai/agentChildProjection'
 
 import { ChildThreadProjection, savedChildView } from '../ChildThreadProjection'
@@ -522,16 +522,20 @@ it.each(['same-context', 'other-context', 'other-session'] as const)(
   'reuses child input only within its captured owner (%s)',
   async (target) => {
     const f = fixture()
+    const sessionId =
+      target === 'other-session' ? contexts.context(f.context.parentContextId!).sessionId : f.context.sessionId
+    const user = messages.saveMessage({
+      sessionId,
+      message: { role: 'user', data: { parts: [{ type: 'text', text: 'original user input' }] } }
+    })
     const owner =
       target === 'other-session'
         ? contexts.context(f.context.parentContextId!)
         : target === 'other-context'
-          ? contexts.allocateContext(f.context.sessionId, f.context.backendId, 'another-branch')
+          ? application
+              .get('DbService')
+              .withWriteTx((tx) => reservePiBranchTx(tx, sessionId, user.id, 'another-branch'))
           : f.context
-    const user = messages.saveMessage({
-      sessionId: owner.sessionId,
-      message: { role: 'user', data: { parts: [{ type: 'text', text: 'original user input' }] } }
-    })
     prepareNativeSubmission(owner.sessionId, user.id, owner.id, 'steer')
     await f.projection.attach()
     await f.projection.refresh()

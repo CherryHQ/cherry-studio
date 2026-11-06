@@ -30,11 +30,11 @@ If you relied on Global Memory in v1:
 
 ## Viewing and editing memory in the app
 
-Agent conversations expose a **Memory** button in the toolbar. It opens a dialog
-with the four files that belong to the current agent:
+Open the **Memory** tab in the Agent configuration dialog to view the four files
+that belong to the current agent:
 
 - `SOUL.md`, `USER.md`, and `memory/FACT.md` are rendered as Markdown; `memory/JOURNAL.jsonl` is shown as raw JSONL.
-- The three Markdown files can be edited in place. `JOURNAL.jsonl` is append-only and read-only in the app. Saves are validated against the agent data root, written atomically, and limited to 1 MB of text.
+- The three Markdown files can be edited in place with explicit **Save** and **Cancel**, independently of configuration autosave. Switching files, leaving the Memory tab, or closing the dialog asks for confirmation before discarding unsaved changes. `JOURNAL.jsonl` is append-only and read-only in the app. Saves are validated against the agent data root, written atomically, and limited to 1 MB of text.
 - **Open folder** reveals the agent data directory for external tools.
 
 This is a read/write view over the three editable Markdown files the runtime loads —

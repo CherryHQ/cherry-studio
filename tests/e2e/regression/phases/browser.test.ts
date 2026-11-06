@@ -5,10 +5,13 @@ import type { AddressInfo } from 'node:net'
 
 import type { WebviewTag } from 'electron'
 
+import { AgentEntitySchema } from '@shared/data/api/schemas/agents'
+import { AgentSessionEntitySchema } from '@shared/data/api/schemas/agentSessions'
 import { AssistantSchema } from '@shared/data/types/assistant'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { TopicSchema } from '@shared/data/types/topic'
 import type { IpcResult } from '@shared/ipc/errors/IpcError'
+import type { OutputFor } from '@shared/ipc/types'
 
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
@@ -125,6 +128,186 @@ test(...caseDefinition('MP-122'), async ({ mainWindow: page }, testInfo) => {
     await attachScreenshot('MP-122 unavailable page displays error')
   } finally {
     server.closeAllConnections()
+    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
+  }
+})
+
+test(...caseDefinition('MP-123'), async ({ mainWindow: page }, testInfo) => {
+  test.setTimeout(180_000)
+  // Only website content is a fixture; annotation selection, pins, export and clearing use the real app.
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+    response.end(`<!doctype html><html><head><title>MP-123 Annotation fixture</title>
+      <style>body{font:20px sans-serif;padding:32px}h1,button{display:block;width:100%;max-width:420px;
+      box-sizing:border-box;padding:20px;margin:0 0 80px}button{font:inherit}</style></head>
+      <body><h1 id="heading">Annotation heading</h1>
+      <button id="action" onclick="document.querySelector('#result').textContent='Clicked successfully'">
+      Interactive action</button><p id="result">Not clicked</p></body></html>`)
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('Annotation fixture has no port')
+  const url = `http://127.0.0.1:${address.port}/`
+  const guest = page.getByTestId('webview-browser-guest').filter({ visible: true })
+  const editor = page.getByLabel('Describe what should change or what you noticed…', { exact: true })
+  const annotationDialog = page.getByRole('dialog').filter({ has: editor })
+  const save = annotationDialog.getByRole('button', { name: 'Save', exact: true })
+  const readGuest = (script: string) =>
+    guest.evaluate((element, script) => (element as WebviewTag).executeJavaScript(script), script)
+  const clickElement = async (id: string, pin = false) => {
+    const rect = (await readGuest(
+      `document.getElementById(${JSON.stringify(id)}).getBoundingClientRect().toJSON()`
+    )) as {
+      x: number
+      y: number
+      width: number
+      height: number
+    }
+    // Electron guest input must go to its own webContents rather than the host's CDP input target.
+    await guest.evaluate(
+      (element, point) => {
+        const webview = element as WebviewTag
+        webview.sendInputEvent({ type: 'mouseMove', ...point })
+        webview.sendInputEvent({ type: 'mouseDown', button: 'left', clickCount: 1, ...point })
+        webview.sendInputEvent({ type: 'mouseUp', button: 'left', clickCount: 1, ...point })
+      },
+      { x: Math.round(rect.x + (pin ? 1 : rect.width / 2)), y: Math.round(rect.y + (pin ? 1 : rect.height / 2)) }
+    )
+  }
+  const screenshot = async (name: string) => {
+    const path = testInfo.outputPath(`${name}.png`)
+    await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
+    await testInfo.attach(name, { path, contentType: 'image/png' })
+  }
+  const annotations = [
+    { id: 'heading', text: 'Annotation heading', tag: 'h1', note: 'Make this heading clearer.' },
+    { id: 'action', text: 'Interactive action', tag: 'button', note: 'Explain what this action does.' }
+  ]
+  let sessionId: string | undefined
+
+  try {
+    const agents = await page.evaluate(() =>
+      window.api.dataApi.request({ id: 'MP-123-agents', method: 'GET', path: '/agents', params: { limit: 200 } })
+    )
+    expect(agents.status).toBe(200)
+    const agent = AgentEntitySchema.parse((agents.data as { items: unknown[] }).items[0])
+    const session = await page.evaluate(
+      (agentId) =>
+        window.api.dataApi.request({
+          id: 'MP-123-session',
+          method: 'POST',
+          path: '/agent-sessions',
+          body: { agentId, name: 'MP-123 Annotation', workspace: { type: 'system' } }
+        }),
+      agent.id
+    )
+    expect(session.status).toBe(201)
+    sessionId = AgentSessionEntitySchema.parse(session.data).id
+    const opened = await page.evaluate(
+      (sessionId) =>
+        window.api.ipcApi.request('navigation.open_route_in_main', {
+          path: `/app/agents?sessionId=${sessionId}`
+        }) as Promise<IpcResult<OutputFor<'navigation.open_route_in_main'>>>,
+      sessionId
+    )
+    expect(opened.ok).toBe(true)
+    await page.getByRole('button', { name: 'Browser', exact: true }).click()
+    const maximize = page.getByRole('button', { name: 'Maximize', exact: true })
+    const minimize = page.getByRole('button', { name: 'Minimize', exact: true })
+    await expect(maximize.or(minimize)).toBeVisible()
+    if (await maximize.isVisible()) await maximize.click()
+    await expect(minimize).toBeVisible()
+    const webAddress = page.getByRole('combobox', { name: 'Web address', exact: true })
+    await webAddress.fill(url)
+    await webAddress.press('Enter')
+    await expect(guest).toBeVisible()
+    await expect.poll(() => readGuest('document.title')).toBe('MP-123 Annotation fixture')
+    await page.getByRole('button', { name: 'Annotate page', exact: true }).click()
+
+    for (const [index, annotation] of annotations.entries()) {
+      await clickElement(annotation.id)
+      await expect(editor).toBeVisible()
+      await editor.fill(annotation.note)
+      await save.click()
+      await expect(editor).toBeHidden()
+      await expect(
+        page.getByRole('button', { name: `Stop annotating, ${index + 1} annotation${index ? 's' : ''}`, exact: true })
+      ).toHaveAttribute('aria-pressed', 'true')
+    }
+    expect(await readGuest('document.getElementById("result").textContent')).toBe('Not clicked')
+    await screenshot('MP-123 two saved annotation pins and count')
+
+    // Pins live in a closed shadow root; a real click at each element's corner must reopen its saved note.
+    for (const annotation of annotations) {
+      await clickElement(annotation.id, true)
+      await expect(editor).toHaveText(annotation.note)
+      await expect(annotationDialog.getByRole('button', { name: 'Delete', exact: true })).toBeVisible()
+      await annotationDialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+      await expect(editor).toBeHidden()
+    }
+
+    await page.getByRole('button', { name: 'Copy annotations as Markdown', exact: true }).click()
+    await expect(page.getByText('Annotations copied', { exact: true })).toBeVisible()
+    const markdown = await page.evaluate(() => navigator.clipboard.readText())
+    expect(markdown).toContain(url)
+    expect(markdown.match(/^### \d+\. Annotation$/gm)).toHaveLength(2)
+    for (const [index, annotation] of annotations.entries()) {
+      const section = markdown.split(`### ${index + 1}. Annotation`)[1].split(/^### /m)[0]
+      expect(section).toContain(annotation.note)
+      expect(section).toContain(annotation.text)
+      expect(section).toContain(`<${annotation.tag}>`)
+      expect(section).toContain(`#${annotation.id}`)
+    }
+    await testInfo.attach('MP-123 copied Markdown', { body: markdown, contentType: 'text/markdown' })
+
+    const clear = page.getByRole('button', { name: 'Clear annotations', exact: true })
+    const confirmation = page.getByRole('dialog', { name: 'Clear all annotations?', exact: true })
+    await clear.click()
+    await expect(confirmation).toBeVisible()
+    await expect(
+      page.getByRole('button', { name: 'Stop annotating, 2 annotations', exact: true, includeHidden: true })
+    ).toBeVisible()
+    await confirmation.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await expect(confirmation).toBeHidden()
+    await expect(page.getByRole('button', { name: 'Stop annotating, 2 annotations', exact: true })).toBeVisible()
+    await clear.click()
+    await screenshot('MP-123 clear all confirmation')
+    await confirmation.getByRole('button', { name: 'Clear annotations', exact: true }).click()
+    await expect(confirmation).toBeHidden()
+    const stop = page.getByRole('button', { name: 'Stop annotating', exact: true })
+    await expect(stop).toHaveAttribute('aria-pressed', 'true')
+    await expect(clear).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Copy annotations as Markdown', exact: true })).toHaveCount(0)
+    for (const annotation of annotations) {
+      await clickElement(annotation.id, true)
+      await expect(editor).toBeEmpty()
+      await expect(save).toBeDisabled()
+      await expect(annotationDialog.getByRole('button', { name: 'Delete', exact: true })).toHaveCount(0)
+      await annotationDialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+      await expect(editor).toBeHidden()
+    }
+    await stop.click()
+    await expect(page.getByRole('button', { name: 'Annotate page', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'false'
+    )
+    await clickElement('action')
+    await expect.poll(() => readGuest('document.getElementById("result").textContent')).toBe('Clicked successfully')
+    await expect(editor).toBeHidden()
+    await screenshot('MP-123 annotations cleared and page interaction restored')
+  } finally {
+    await page.keyboard.press('Escape')
+    await selectSidebarApp(page, 'Chat')
+    if (sessionId)
+      await page.evaluate(
+        (sessionId) =>
+          window.api.dataApi.request({
+            id: 'MP-123-cleanup',
+            method: 'DELETE',
+            path: `/agent-sessions/${sessionId}`
+          }),
+        sessionId
+      )
     await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
   }
 })
@@ -274,16 +457,36 @@ test(...caseDefinition('MP-124'), async ({ app, mainWindow: page }, testInfo) =>
     const message = chat.locator(`[data-ui~="chat.message"][data-message-id="${messageId}"]`)
     const link = message.getByRole('link').filter({ hasText: title })
     await expect(link).toHaveAttribute('href', url)
-    const chatBox = await chat.getByRole('region', { name: 'Messages', exact: true }).boundingBox()
+    const chatRegion = chat.getByRole('region', { name: 'Messages', exact: true })
+    const chatBox = await chatRegion.boundingBox()
     const linkBox = await link.boundingBox()
     if (!chatBox || !linkBox) throw new Error('Chat result has no layout bounds')
     const targetY = chatBox.y + chatBox.height / 2
     await page.mouse.move(chatBox.x + chatBox.width - 80, targetY)
     await page.mouse.wheel(0, linkBox.y - targetY)
     await expect(link).toBeInViewport()
+    // Wheel scrolling animates, so read the position only after the animation stops: two
+    // samples 100ms apart still agree mid-scroll, so require three slower consecutive ones.
+    const settledLinkY = async (): Promise<number> => {
+      let previous = Number.NaN
+      let stableSamples = 0
+      await expect
+        .poll(
+          async () => {
+            const y = (await link.boundingBox())?.y ?? Number.NaN
+            stableSamples = Number.isFinite(y) && Math.abs(y - previous) <= 1 ? stableSamples + 1 : 0
+            previous = y
+            return stableSamples
+          },
+          { timeout: 15_000, intervals: [200, 300, 400, 500] }
+        )
+        .toBeGreaterThanOrEqual(3)
+      return previous
+    }
+    const beforeHeight = (await chatRegion.boundingBox())?.height
+    if (!beforeHeight) throw new Error('Chat result has no layout bounds')
+    const beforeY = await settledLinkY()
     await attachScreenshot('MP-124 clickable result in conversation')
-    const before = await link.boundingBox()
-    expect(before).not.toBeNull()
     const originalTabs = await page.locator('[data-ui~="app.tab-bar"] [data-tab-id]').count()
     await link.click()
 
@@ -322,9 +525,16 @@ test(...caseDefinition('MP-124'), async ({ app, mainWindow: page }, testInfo) =>
     await expect(chat).toBeVisible()
     await expect(link).toBeInViewport()
     await expect(topicRow).toBeVisible()
-    const after = await link.boundingBox()
-    expect(after).not.toBeNull()
-    expect(Math.abs(after!.y - before!.y)).toBeLessThanOrEqual(3)
+    // Opening the tab shrinks the conversation area, so its height must be back before the two
+    // positions are comparable; a reflow in progress would hide a real jump or invent one.
+    await expect
+      .poll(async () => Math.abs(((await chatRegion.boundingBox())?.height ?? Number.NaN) - beforeHeight), {
+        timeout: 15_000,
+        intervals: [100, 150, 200, 250]
+      })
+      .toBeLessThanOrEqual(1)
+    const afterY = await settledLinkY()
+    expect(Math.abs(afterY - beforeY)).toBeLessThanOrEqual(3)
     const saved = await page.evaluate(
       (id) => window.api.dataApi.request({ id: 'browser-read-message', method: 'GET', path: `/messages/${id}` }),
       messageId

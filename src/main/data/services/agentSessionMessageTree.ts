@@ -53,7 +53,7 @@ export function readAgentSessionPath(db: DbOrTx, sessionId: string, head?: strin
     .from(messages)
     .where(and(eq(messages.sessionId, sessionId), inArray(messages.id, agentSessionPathIds(sessionId, selected))))
     .all()
-  return orderPath(rows, selected).filter((row) => row.role !== 'root')
+  return orderAgentSessionPath(rows, selected).filter((row) => row.role !== 'root')
 }
 
 export function readAgentSessionAncestry(db: DbOrTx, sessionId: string, head: string) {
@@ -62,10 +62,13 @@ export function readAgentSessionAncestry(db: DbOrTx, sessionId: string, head: st
     .from(messages)
     .where(and(eq(messages.sessionId, sessionId), inArray(messages.id, agentSessionPathIds(sessionId, head))))
     .all()
-  return orderPath(rows, head)
+  return orderAgentSessionPath(rows, head)
 }
 
-function orderPath<T extends { id: string; parentId: string | null }>(rows: T[], selected: string): T[] {
+export function orderAgentSessionPath<T extends { id: string; parentId: string | null }>(
+  rows: T[],
+  selected: string
+): T[] {
   const byId = new Map(rows.map((row) => [row.id, row]))
   const path: T[] = []
   let row = byId.get(selected)
