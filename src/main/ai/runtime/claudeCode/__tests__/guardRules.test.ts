@@ -143,6 +143,63 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     })
   })
 
+  describe('undecodable-image-read', () => {
+    let cwd: string
+
+    beforeAll(async () => {
+      const sharp = (await import('sharp')).default
+      const fsp = await import('node:fs/promises')
+      cwd = await mkdtemp(path.join(os.tmpdir(), 'guard-image-'))
+      const png = await sharp({ create: { width: 120, height: 50, channels: 3, background: '#0c8' } })
+        .png()
+        .toBuffer()
+      await fsp.writeFile(path.join(cwd, 'ok.png'), png)
+      // Keeps the signature and IHDR, so the CLI's header fallback would embed it raw.
+      await fsp.writeFile(path.join(cwd, 'broken.png'), png.subarray(0, Math.floor(png.length / 2)))
+      // The CLI sniffs extensionless files by signature, so these reach the same image path.
+      await fsp.writeFile(path.join(cwd, 'ok'), png)
+      await fsp.writeFile(path.join(cwd, 'broken'), png.subarray(0, Math.floor(png.length / 2)))
+      await fsp.writeFile(path.join(cwd, 'Makefile'), 'all:\n\techo ok\n')
+    })
+
+    afterAll(async () => {
+      await rm(cwd, { recursive: true, force: true })
+    })
+
+    const readCtx = (file: string, overrides: Partial<ToolGuardContext> = {}) =>
+      makeCtx({ toolName: 'Read', cwd, agentDataPath: cwd, input: { file_path: path.join(cwd, file) }, ...overrides })
+
+    it.each(['default', 'bypassPermissions'] as const)('denies a truncated image under %s', async (mode) => {
+      const decision = await evaluate(readCtx('broken.png', { permissionMode: mode, supportsImages: true }))
+      expect(decision?.ruleId).toBe('undecodable-image-read')
+      expect(decision?.effect).toBe('deny')
+    })
+
+    it('denies a truncated extensionless image', async () => {
+      const decision = await evaluate(readCtx('broken', { supportsImages: true }))
+      expect(decision?.ruleId).toBe('undecodable-image-read')
+    })
+
+    it.each(['ok.png', 'ok', 'Makefile', 'missing.png', 'missing'])('allows %s', async (file) => {
+      await expect(evaluate(readCtx(file, { supportsImages: true }))).resolves.toBeUndefined()
+    })
+
+    it.skipIf(process.platform === 'win32').each(['pipe', 'pipe.png'])(
+      'does not block on a named pipe with no writer (%s)',
+      async (file) => {
+        const { execFileSync } = await import('node:child_process')
+        execFileSync('mkfifo', [path.join(cwd, file)])
+        await expect(evaluate(readCtx(file, { supportsImages: true }))).resolves.toBeUndefined()
+      },
+      2000
+    )
+
+    it('leaves text-only models to unsupported-image-read', async () => {
+      const decision = await evaluate(readCtx('broken.png', { supportsImages: false }))
+      expect(decision?.ruleId).toBe('unsupported-image-read')
+    })
+  })
+
   describe('builtin-destructive', () => {
     it('denies destructive Bash for protected built-in agents in every mode', async () => {
       for (const mode of ['default', 'bypassPermissions'] as const) {

@@ -208,7 +208,10 @@ async function clampToolResultImages(
 ): Promise<CallToolResult> {
   const content = await Promise.all(
     response.content.map(async (part) => {
-      if (part.type !== 'image' || !part.data) return part
+      if (part.type !== 'image') return part
+      if (!part.data) {
+        return { type: 'text' as const, text: `[image (${part.mimeType ?? 'unknown'}) could not be processed]` }
+      }
       try {
         const clamped = await clampImageForModel(Buffer.from(part.data, 'base64'))
         return clamped ? { ...part, data: Buffer.from(clamped).toString('base64') } : part
