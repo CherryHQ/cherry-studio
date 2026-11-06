@@ -256,6 +256,7 @@ jobs:
         run: pnpm exec tsx scripts/e2e/regression/cli.ts preflight --run-dir "$RUN_DIR" --task '${{ needs.resolve.outputs.task }}'
 
       - name: Install application dependencies
+        id: app-dependencies
         if: needs.resolve.outputs.mode == 'branch'
         run: pnpm --dir target-app install --frozen-lockfile
 
@@ -541,7 +542,7 @@ jobs:
 
       - name: Build standalone smoke application
         id: smoke-build
-        if: always() && steps.stop-app.outcome == 'success' && needs.resolve.outputs.mode == 'branch' && needs.resolve.outputs.task == 'all'
+        if: "!cancelled() && steps.stop-app.outcome == 'success' && steps.app-dependencies.outcome == 'success' && needs.resolve.outputs.mode == 'branch' && needs.resolve.outputs.task == 'all'"
         shell: bash
         working-directory: target-app
         run: pnpm exec dotenv -v CHERRY_EDITION=global -- electron-vite build
@@ -557,7 +558,7 @@ jobs:
           PLAYWRIGHT_HTML_OPEN: never
         run: |
           export E2E_RIPGREP_BIN="$(node -e 'process.stdout.write(require("node:path").resolve("resources/binaries", `${process.platform}-${process.arch}`, process.platform === "win32" ? "rg.exe" : "rg"))')"
-          pnpm exec playwright test --config "$GITHUB_WORKSPACE/playwright.config.ts" \
+          node "$GITHUB_WORKSPACE/node_modules/@playwright/test/cli.js" test --config "$GITHUB_WORKSPACE/playwright.config.ts" \
             --output "$RUN_DIR/evidence/smoke" --reporter=html,json --retries=0
 
       - name: Generate platform report

@@ -4,11 +4,11 @@ import { join } from 'node:path'
 import type { Page } from '@playwright/test'
 
 import { expect, test } from './fixtures/electron.fixture'
+import { openSettings } from './utils/navigation'
 
 const TOPIC = 'Archive entry refresh regression'
 const ASSISTANT = 'Archive refresh assistant'
 const labels = {
-  settings: /^(设置|Settings)$/,
   archive: /^(归档|Archive)$/,
   all: /^(全部|All)$/,
   topics: /^(话题|Topics)$/,
@@ -18,7 +18,7 @@ const labels = {
 }
 
 async function openArchive(page: Page) {
-  await page.getByRole('button', { name: labels.settings }).first().click({ noWaitAfter: true })
+  await openSettings(page)
   await page.locator('[data-ui~="settings.navigation"]').getByRole('button', { name: labels.archive }).click()
   await expect(page.getByRole('tab', { name: labels.all })).toHaveAttribute('aria-selected', 'true')
   await expect(page.getByRole('tab', { name: labels.topics })).toBeVisible()

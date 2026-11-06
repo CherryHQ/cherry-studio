@@ -1,3 +1,4 @@
+import type { ChildProcess } from 'node:child_process'
 import { mkdir, rm } from 'node:fs/promises'
 
 import { _electron as electron, type ElectronApplication, type Page, type TestInfo } from '@playwright/test'
@@ -28,12 +29,14 @@ const test = base.extend({
     const profile = testInfo.outputPath('profile')
     await mkdir(profile, { recursive: true })
     let app: ElectronApplication | undefined
+    let child: ChildProcess | undefined
     try {
       app = await launch(profile)
+      child = app.process()
       await provideApp(app)
     } finally {
       try {
-        if (app?.process()?.exitCode === null) await closeElectronApp(app)
+        if (app && child?.exitCode === null && child.signalCode === null) await closeElectronApp(app)
       } finally {
         await rm(profile, { recursive: true, force: true })
       }
@@ -47,7 +50,7 @@ async function mainWindow(app: ElectronApplication) {
     .poll(
       async () => {
         for (const window of app.windows()) {
-          if ((await window.title()) === 'Cherry Studio') {
+          if (/\/windows\/main\/index\.html(?:[?#]|$)/.test(window.url())) {
             page = window
             return true
           }
@@ -300,6 +303,6 @@ test('deletes only a branch suffix after confirmation and keeps survivors across
     }
     await screenshot(restartedPage, testInfo, 'branch-delete-after-restart.png')
   } finally {
-    if (restarted.process()?.exitCode === null) await closeElectronApp(restarted)
+    await closeElectronApp(restarted)
   }
 })

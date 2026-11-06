@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { _electron as electron } from '@playwright/test'
 
 import { closeElectronApp, expect, test as base } from './fixtures/electron.fixture'
+import { openSettings } from './utils/navigation'
 import {
   failureEvidence,
   findRow,
@@ -86,7 +87,7 @@ test('ModelSelector sticky header hands off between two provider groups', async 
       }
     })
     await prepareStickyShell(page)
-    await page.getByRole('button', { name: 'Settings', exact: true }).click()
+    await openSettings(page)
     await expect(uiLocator(page, 'settings.view')).toBeVisible()
     await uiLocator(page, 'settings.navigation').getByText('Default Model', { exact: true }).click()
     await expect(uiLocator(page, 'settings.content')).toBeVisible()

@@ -78,14 +78,13 @@ export const test = base.extend<ElectronFixtures & { isolatedEnvironment: void }
   },
 
   mainWindow: async ({ electronApp }, use) => {
-    // Wait for the main window (title: "Cherry Studio", not "Quick Assistant")
-    // On Mac, the app may create the QuickAssistant window with a different title
+    // Pooled windows can initially share the app title; identify the main renderer by its entry path.
     let mainWindow: Page | undefined
     await expect
       .poll(
         async () => {
           for (const window of electronApp.windows()) {
-            if ((await window.title()) === 'Cherry Studio') mainWindow = window
+            if (/\/windows\/main\/index\.html(?:[?#]|$)/.test(window.url())) mainWindow = window
           }
           return Boolean(mainWindow)
         },

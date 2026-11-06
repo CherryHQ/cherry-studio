@@ -25,4 +25,4 @@ Soft-deleted and permanently deleted sessions can release their live Pi owner an
 
 - Regression — real SQLite tests for soft and permanent deletion failed before the fix with Pi interrupt: native-error.
 - Regression — all 40 PiRuntimeConnection tests passed, including active child close and reopen contracts.
-- Electron smoke rerun remains pending.
+- Electron — Agent navigation smoke passed its UI assertions and exited normally in the complete smoke run at `69da843698`; all owned runtime directories and processes were removed.

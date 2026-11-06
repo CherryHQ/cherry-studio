@@ -57,15 +57,15 @@ const test = base.extend<{ isolatedSession: IsolatedSession }>({
       await expect
         .poll(
           async () => {
-            for (const window of ownedApp!.windows()) if ((await window.title()) === 'Cherry Studio') return true
+            for (const window of ownedApp!.windows())
+              if (/\/windows\/main\/index\.html(?:[?#]|$)/.test(window.url())) return true
             return false
           },
           { timeout: 60_000 }
         )
         .toBe(true)
       const windows = ownedApp.windows()
-      const titles = await Promise.all(windows.map((window) => window.title()))
-      const page = windows[titles.indexOf('Cherry Studio')]
+      const page = windows.find((window) => /\/windows\/main\/index\.html(?:[?#]|$)/.test(window.url()))!
       await page.waitForFunction(() => !!window.api?.preference, undefined, { timeout: 60_000 })
       return page
     }

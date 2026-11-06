@@ -1,4 +1,5 @@
 import { expect, test } from './fixtures/electron.fixture'
+import { openSettings } from './utils/navigation'
 
 test('Crawl4AI defaults to Cloud and keeps its setup description visible', async ({ mainWindow: page }, testInfo) => {
   test.setTimeout(300_000)
@@ -25,7 +26,7 @@ test('Crawl4AI defaults to Cloud and keeps its setup description visible', async
   ).toBeVisible({
     timeout: 60_000
   })
-  await page.getByRole('button', { name: 'Settings', exact: true }).first().click({ timeout: 60_000 })
+  await openSettings(page)
   await expect(page.locator('[data-ui="settings.view"]')).toBeVisible({ timeout: 60_000 })
   await page
     .locator('[data-ui="settings.navigation"] [data-slot="menu-item"]')

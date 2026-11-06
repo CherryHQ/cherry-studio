@@ -25,4 +25,4 @@ Agent 导航 smoke 完成界面断言后无法关闭 Electron。运行时清理�
 
 - 回归 — 真实 SQLite 的软删除和永久删除测试在修复前均报 Pi interrupt: native-error。
 - 回归 — 40 项 PiRuntimeConnection 测试全部通过，包括活动子任务关闭和重新打开的契约。
-- Electron smoke 复跑仍待完成。
+- Electron — `69da843698` 的完整 smoke 运行中，Agent 导航用例通过界面断言并正常退出；所有测试拥有的运行目录与进程均已清理。

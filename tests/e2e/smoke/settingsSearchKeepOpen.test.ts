@@ -3,6 +3,7 @@ import type { Page, TestInfo } from '@playwright/test'
 import en from '../../../src/renderer/i18n/locales/en-us.json'
 import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
 import { expect, test as base } from './fixtures/electron.fixture'
+import { openSettings } from './utils/navigation'
 
 const test = base.extend({
   electronApp: async ({ electronApp }, use, testInfo) => {
@@ -46,8 +47,7 @@ async function openSearch(mainWindow: Page) {
     'Setup failure: privacy policy modal reopened after setting the current policy version'
   ).toHaveCount(0)
 
-  const sidebar = mainWindow.locator('[data-ui~="app.sidebar"]').filter({ visible: true })
-  await sidebar.getByRole('button', { name: en['settings.title'], exact: true }).click()
+  await openSettings(mainWindow)
   const settings = mainWindow.locator('[data-ui~="settings.view"]').filter({ visible: true })
   await expect(settings).toHaveCount(1)
   const navigation = settings.locator('[data-ui~="settings.navigation"]')

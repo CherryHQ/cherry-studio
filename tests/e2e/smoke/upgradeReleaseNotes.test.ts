@@ -10,6 +10,7 @@ import { IpcChannel } from '../../../src/shared/IpcChannel'
 import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
 import type { ReleaseNotesEntry } from '../../../src/shared/utils/releaseNotes'
 import { expect, test } from './fixtures/electron.fixture'
+import { openSettings } from './utils/navigation'
 
 async function serveHistory(app: ElectronApplication, releases: ReleaseNotesEntry[] | null) {
   await app.evaluate(({ net }, entries) => {
@@ -74,8 +75,7 @@ test('shows a collapsed version timeline for the upgrade range in About and the 
     await window.api.preference.set('app.language', 'en-US')
   }, LATEST_PRIVACY_POLICY_VERSION)
   await mainWindow.reload()
-  const sidebar = mainWindow.locator('[data-ui~="app.sidebar"]').filter({ visible: true })
-  await sidebar.getByRole('button', { name: en['settings.title'], exact: true }).click()
+  await openSettings(mainWindow)
   const settings = mainWindow.locator('[data-ui~="settings.view"]').filter({ visible: true })
   await settings
     .locator('[data-ui~="settings.navigation"]')

@@ -1,6 +1,7 @@
 import { createServer } from 'node:http'
 
 import { expect, test } from './fixtures/electron.fixture'
+import { openSettings } from './utils/navigation'
 
 const PROBE_URL = 'https://www.querit.ai/en/docs/overview/about'
 const PAGE_FAILURE_DESCRIPTION = `Querit responded, but could not fetch the test page (${PROBE_URL}). URL fetching was not verified.`
@@ -76,7 +77,7 @@ test('Querit fetch check distinguishes page failure, usable content and HTTP fai
     }
     await expect(shell, 'App shell should appear after onboarding dismissal').toBeVisible({ timeout: 60_000 })
     await page.setViewportSize({ width: 1280, height: 900 })
-    await page.getByRole('button', { name: 'Settings', exact: true }).first().click({ timeout: 60_000 })
+    await openSettings(page)
     await expect(page.locator('[data-ui~="settings.view"]')).toBeVisible({ timeout: 60_000 })
     await page
       .locator('[data-ui~="settings.navigation"] [data-slot="menu-item"]')
