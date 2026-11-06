@@ -1532,6 +1532,8 @@
   "error.http.502": "网关错误，请稍后再试",
   "error.http.503": "服务不可用，请稍后再试",
   "error.http.504": "网关超时，请稍后再试",
+  "error.image_resize_failed": "Cherry Studio 无法调整附件图片的大小。请调整图片大小或移除图片后重试。",
+  "error.image_resize_failed_detail": "附件“{{filename}}”：{{width}}x{{height}} 像素；Cherry Studio 的最长边限制为 {{maxEdge}} 像素。",
   "error.image_unreadable_for_non_vision_model": "当前模型未配置图片输入能力，且 Cherry Studio 未能从附件中识别出有效文字。请前往提供商设置，在该模型的输入模态中启用“视觉”，或选择其他视觉模型、移除图片后重试。",
   "error.lastError": "最后错误",
   "error.maxEmbeddingsPerCall": "每次调用的最大嵌入",

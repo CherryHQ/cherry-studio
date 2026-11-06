@@ -1532,6 +1532,8 @@
   "error.http.502": "Erreur de passerelle, veuillez réessayer plus tard.",
   "error.http.503": "Service indisponible, veuillez réessayer plus tard.",
   "error.http.504": "Délai d'expiration de la passerelle, veuillez réessayer plus tard.",
+  "error.image_resize_failed": "Cherry Studio n’a pas pu redimensionner une image jointe. Redimensionnez-la ou supprimez-la, puis réessayez.",
+  "error.image_resize_failed_detail": "Pièce jointe « {{filename}} » : {{width}}x{{height}} px ; la limite du côté le plus long de Cherry Studio est de {{maxEdge}} px.",
   "error.image_unreadable_for_non_vision_model": "Le modèle sélectionné n’est pas configuré pour accepter les images et Cherry Studio n’a pas pu extraire de texte lisible de la pièce jointe. Activez Image pour ce modèle dans les paramètres du fournisseur, choisissez un autre modèle compatible avec les images ou retirez l’image, puis réessayez.",
   "error.lastError": "Dernière erreur",
   "error.maxEmbeddingsPerCall": "Nombre maximal d'embeddings par appel",

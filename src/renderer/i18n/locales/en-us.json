@@ -1532,6 +1532,8 @@
   "error.http.502": "Gateway error. Please try again later",
   "error.http.503": "Service unavailable. Please try again later",
   "error.http.504": "Gateway timeout. Please try again later",
+  "error.image_resize_failed": "Cherry Studio could not resize an attached image. Resize or remove it and try again.",
+  "error.image_resize_failed_detail": "Attachment \"{{filename}}\": {{width}}x{{height}} px; Cherry Studio's longest-edge limit is {{maxEdge}} px.",
   "error.image_unreadable_for_non_vision_model": "The selected model isn't configured for image input, and Cherry Studio couldn't extract readable text from the attachment. Enable Vision for this model in Provider Settings, choose another vision-capable model, or remove the image and try again.",
   "error.lastError": "Last Error",
   "error.maxEmbeddingsPerCall": "Max Embeddings Per Call",

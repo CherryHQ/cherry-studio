@@ -1532,6 +1532,8 @@
   "error.http.502": "ゲートウェイエラーが発生しました。後でもう一度試してください",
   "error.http.503": "サービスが利用できません。後でもう一度試してください",
   "error.http.504": "ゲートウェイタイムアウトが発生しました。後でもう一度試してください",
+  "error.image_resize_failed": "Cherry Studio は添付画像のサイズを変更できませんでした。画像を縮小するか削除して、もう一度お試しください。",
+  "error.image_resize_failed_detail": "添付ファイル「{{filename}}」: {{width}}x{{height}} px。Cherry Studio の長辺の上限は {{maxEdge}} px です。",
   "error.image_unreadable_for_non_vision_model": "選択したモデルは画像入力を受け付けるように設定されておらず、Cherry Studio は添付ファイルから読み取り可能なテキストを抽出できませんでした。プロバイダー設定でこのモデルの「画像」を有効にするか、別の画像対応モデルを選択するか、画像を削除してもう一度お試しください。",
   "error.lastError": "最後のエラー",
   "error.maxEmbeddingsPerCall": "1回の呼び出しでの最大埋め込み数",

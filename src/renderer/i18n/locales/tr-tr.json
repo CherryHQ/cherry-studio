@@ -1532,6 +1532,8 @@
   "error.http.502": "Ağ geçidi hatası. Lütfen daha sonra tekrar deneyin",
   "error.http.503": "Hizmet kullanılamıyor. Lütfen daha sonra tekrar deneyin",
   "error.http.504": "Ağ geçidi zaman aşımına uğradı. Lütfen daha sonra tekrar deneyin",
+  "error.image_resize_failed": "Cherry Studio ekli bir görüntüyü yeniden boyutlandıramadı. Görüntüyü yeniden boyutlandırın veya kaldırıp tekrar deneyin.",
+  "error.image_resize_failed_detail": "Ek \"{{filename}}\": {{width}}x{{height}} px; Cherry Studio için en uzun kenar sınırı {{maxEdge}} px.",
   "error.image_unreadable_for_non_vision_model": "Seçilen model görüntü girişi için yapılandırılmamış ve Cherry Studio ekteki dosyadan okunabilir metin çıkaramadı. Sağlayıcı Ayarları'nda bu model için Vision özelliğini etkinleştirin, görüntü işleyebilen başka bir model seçin veya görüntüyü kaldırıp tekrar deneyin.",
   "error.lastError": "Son Hata",
   "error.maxEmbeddingsPerCall": "Çağrı Başına Maksimum Gömme Sayısı",

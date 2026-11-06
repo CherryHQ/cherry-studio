@@ -10,6 +10,8 @@ import type {
 } from '@anthropic-ai/claude-agent-sdk'
 import type { ImageBlockParam } from '@anthropic-ai/sdk/resources/messages'
 
+import { ModelImageResizeError } from '@main/utils/image'
+
 type BetaUsage = SDKResultMessage['usage']
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
@@ -1183,7 +1185,14 @@ async function materializeUserContent(
     const preparedDataUrl = part.url ? parseDataUrl(part.url) : null
     let parsed = preparedDataUrl?.isBase64 ? preparedDataUrl : null
     if (!parsed) {
-      const materialized = await materializeNativeFilePart(part)
+      let materialized: FileUIPart | null
+      try {
+        materialized = await materializeNativeFilePart(part)
+      } catch (error) {
+        if (!(error instanceof ModelImageResizeError)) throw error
+        routeWithoutImage(originalPart)
+        continue
+      }
       if (!materialized) {
         // Conversion found nothing sendable — the file itself may still be readable at its path.
         routeWithoutImage(originalPart)

@@ -1532,6 +1532,8 @@
   "error.http.502": "Errore del gateway. Riprova più tardi",
   "error.http.503": "Servizio non disponibile. Riprova più tardi",
   "error.http.504": "Tempo di attesa del gateway scaduto. Riprova più tardi",
+  "error.image_resize_failed": "Cherry Studio non è riuscito a ridimensionare un’immagine allegata. Ridimensionala o rimuovila e riprova.",
+  "error.image_resize_failed_detail": "Allegato «{{filename}}»: {{width}}x{{height}} px; il limite del lato più lungo di Cherry Studio è {{maxEdge}} px.",
   "error.image_unreadable_for_non_vision_model": "Il modello selezionato non è configurato per ricevere immagini e Cherry Studio non ha potuto estrarre testo leggibile dall'allegato. Abilita la modalità visiva per questo modello nelle impostazioni del fornitore, scegli un altro modello con capacità visive oppure rimuovi l'immagine e riprova.",
   "error.lastError": "Ultimo errore",
   "error.maxEmbeddingsPerCall": "Numero massimo di embedding per chiamata",

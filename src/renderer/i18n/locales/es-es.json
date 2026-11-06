@@ -1532,6 +1532,8 @@
   "error.http.502": "Error de puerta de enlace, inténtelo de nuevo más tarde",
   "error.http.503": "Servicio no disponible, inténtelo de nuevo más tarde",
   "error.http.504": "Tiempo de espera de la puerta de enlace, inténtelo de nuevo más tarde",
+  "error.image_resize_failed": "Cherry Studio no pudo cambiar el tamaño de una imagen adjunta. Cambia su tamaño o elimínala y vuelve a intentarlo.",
+  "error.image_resize_failed_detail": "Adjunto «{{filename}}»: {{width}}x{{height}} px; el límite del lado más largo de Cherry Studio es {{maxEdge}} px.",
   "error.image_unreadable_for_non_vision_model": "El modelo seleccionado no está configurado para aceptar imágenes y Cherry Studio no pudo extraer texto legible del archivo adjunto. Active Imagen para este modelo en la configuración del proveedor, elija otro modelo con capacidad visual o quite la imagen e inténtelo de nuevo.",
   "error.lastError": "Último error",
   "error.maxEmbeddingsPerCall": "máximo de embeddings por llamada",

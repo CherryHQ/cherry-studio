@@ -101,6 +101,29 @@ describe('ErrorBlock', () => {
     vi.clearAllMocks()
   })
 
+  it('renders the image resize failure measurements', () => {
+    mocks.translations = new Map(Object.entries(enUS))
+    mocks.i18nKeys.add('error.image_resize_failed')
+    mocks.i18nKeys.add('error.image_resize_failed_detail')
+    const { container } = render(
+      <ErrorBlock
+        partId="image-error"
+        message={message}
+        error={{
+          name: 'NativeImageResizeError',
+          message: 'Image resize failed',
+          stack: null,
+          i18nKey: 'image_resize_failed',
+          detailI18nKey: 'image_resize_failed_detail',
+          detailI18nValues: { filename: 'scan.png', width: '4960', height: '6208', maxEdge: '2000' }
+        }}
+      />
+    )
+    expect(container).toHaveTextContent('scan.png')
+    expect(container).toHaveTextContent('4960x6208')
+    expect(container).toHaveTextContent('2000 px')
+  })
+
   it('renders Groq entitlement copy and opens its provider settings', async () => {
     const user = userEvent.setup()
     const navigateErrorTarget = vi.fn()

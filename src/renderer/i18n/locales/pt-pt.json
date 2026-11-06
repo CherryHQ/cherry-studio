@@ -1532,6 +1532,8 @@
   "error.http.502": "Erro de gateway, por favor tente novamente mais tarde",
   "error.http.503": "Serviço indisponível, por favor tente novamente mais tarde",
   "error.http.504": "Tempo de espera do gateway excedido, por favor tente novamente mais tarde",
+  "error.image_resize_failed": "O Cherry Studio não conseguiu redimensionar uma imagem anexada. Redimensione-a ou remova-a e tente novamente.",
+  "error.image_resize_failed_detail": "Anexo «{{filename}}»: {{width}}x{{height}} px; o limite do lado mais longo do Cherry Studio é {{maxEdge}} px.",
   "error.image_unreadable_for_non_vision_model": "O modelo selecionado não está configurado para receber imagens e o Cherry Studio não conseguiu extrair texto legível do anexo. Ative imagem para este modelo nas definições do fornecedor, escolha outro modelo com capacidade visual ou remova a imagem e tente novamente.",
   "error.lastError": "Último erro",
   "error.maxEmbeddingsPerCall": "Máximo de embeddings por chamada",

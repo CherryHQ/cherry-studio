@@ -16,11 +16,13 @@
 
 import { fileURLToPath } from 'node:url'
 
+import { isAbortError } from '@ai-sdk/provider-utils'
 import mime from 'mime'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { read as fsRead } from '@main/utils/file'
+import { clampImageForModel, ModelImageResizeError } from '@main/utils/image'
 import type { FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
@@ -120,8 +122,12 @@ export async function materializeNativeFilePart(part: FileUIPart): Promise<FileU
     // Metadata/magic alone accepts truncated pixel data. Strict decode also
     // rejects malformed-but-displayable files; persisted attachments stay intact.
     await sharp(bytes, { failOn: 'error', limitInputPixels: 100_000_000 }).stats()
-    return normalized
-  } catch {
+    const resized = await clampImageForModel(bytes)
+    return resized
+      ? { ...normalized, url: `data:${normalized.mediaType};base64,${Buffer.from(resized).toString('base64')}` }
+      : normalized
+  } catch (error) {
+    if (error instanceof ModelImageResizeError || isAbortError(error)) throw error
     logger.warn('Unreadable image attachment; using the existing file failure note', {
       filename: normalized.filename,
       mediaType: normalized.mediaType
