@@ -19,7 +19,9 @@ export async function dismissTransientDialogs(page: Page): Promise<void> {
 export async function dismissOnboarding(page: Page): Promise<void> {
   const button = page.getByRole('button', { name: 'Set up later', exact: true })
   if (await button.isVisible().catch(() => false)) await button.click()
-  await expect(page.locator('#app-sidebar')).toBeVisible({ timeout: 30_000 })
+  await expect(page.locator('#app-sidebar, [data-ui~="settings.view"]:visible').first()).toBeVisible({
+    timeout: 30_000
+  })
 }
 
 export async function openLaunchpad(page: Page): Promise<void> {

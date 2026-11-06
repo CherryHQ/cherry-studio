@@ -72,6 +72,7 @@ Run from the repository root, with CDP port 9222 and inspector port 9229 free:
 
 ```sh
 pnpm install
+pnpm download:binaries
 pnpm rebuild:electron
 pnpm run build:utility-process
 TEST_RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/cherry-stream-failure.XXXXXX")"

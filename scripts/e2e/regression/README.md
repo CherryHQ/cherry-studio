@@ -45,7 +45,7 @@ gh workflow run e2e-regression-test.yml --repo CherryHQ/cherry-studio \
   --ref feature/e2e-fix -f ref=feature/e2e-fix -f task=all
 ```
 
-Branch runs prepare `rebuild:electron` and `build:utility-process` once after installing
+Branch runs prepare `download:binaries`, `rebuild:electron`, and `build:utility-process` once after installing
 application dependencies. The controller then launches the development server directly,
 including on profile switches and persistence-test restarts. Local controller runs must
 perform the same preparation in the target checkout before `launch`; release installers
