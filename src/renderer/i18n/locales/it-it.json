@@ -870,6 +870,7 @@
   "chat.input.web_search.route.client_fallback_active": "{{provider}} non è disponibile, quindi la richiesta viene inviata a {{fallbackProvider}}.",
   "chat.input.web_search.route.client_with_fallback": "Cerca con {{provider}}. Se non è disponibile, la richiesta viene inviata automaticamente a {{fallbackProvider}}.",
   "chat.mcp.warning.gemini_web_search": "Gemini non supporta l'uso simultaneo degli strumenti di ricerca web nativi e delle chiamate a funzioni",
+  "chat.message.branches": "Cambia ramo",
   "chat.message.editing_current": "Questo messaggio è in fase di modifica nel campo di composizione",
   "chat.message.flow.branches": "rami",
   "chat.message.flow.copy_topic.created": "Copiato in una nuova conversazione",

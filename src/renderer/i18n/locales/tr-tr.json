@@ -870,6 +870,7 @@
   "chat.input.web_search.route.client_fallback_active": "{{provider}} kullanılamıyor, bu nedenle sorgu {{fallbackProvider}} sağlayıcısına gönderilir.",
   "chat.input.web_search.route.client_with_fallback": "{{provider}} ile arar. Kullanılamıyorsa sorgu otomatik olarak {{fallbackProvider}} sağlayıcısına gönderilir.",
   "chat.mcp.warning.gemini_web_search": "Gemini, yerel web arama araçlarının ve işlev çağrısının aynı anda kullanılmasını desteklemiyor",
+  "chat.message.branches": "Dalı değiştir",
   "chat.message.editing_current": "Bu mesaj, mesaj düzenleyicide düzenleniyor",
   "chat.message.flow.branches": "dallar",
   "chat.message.flow.copy_topic.created": "Yeni bir konuşmaya kopyalandı",

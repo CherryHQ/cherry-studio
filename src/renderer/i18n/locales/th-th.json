@@ -870,6 +870,7 @@
   "chat.input.web_search.route.client_fallback_active": "{{provider}} ไม่พร้อมใช้งาน ดังนั้นคำสั่งค้นหาจึงถูกส่งไปที่ {{fallbackProvider}}",
   "chat.input.web_search.route.client_with_fallback": "ค้นหาด้วย {{provider}} หากไม่พร้อมใช้งาน คำสั่งจะถูกส่งไปที่ {{fallbackProvider}} โดยอัตโนมัติ",
   "chat.mcp.warning.gemini_web_search": "Gemini ไม่รองรับการใช้เครื่องมือค้นหาเว็บในตัวและ function calling พร้อมกัน",
+  "chat.message.branches": "สลับสาขา",
   "chat.message.editing_current": "ข้อความนี้กำลังถูกแก้ไขในคอมโพเซอร์",
   "chat.message.flow.branches": "สาขา",
   "chat.message.flow.copy_topic.created": "คัดลอกไปยังการสนทนาใหม่",

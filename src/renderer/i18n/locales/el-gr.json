@@ -870,6 +870,7 @@
   "chat.input.web_search.route.client_fallback_active": "Το {{provider}} δεν είναι διαθέσιμο, οπότε το ερώτημα αποστέλλεται στο {{fallbackProvider}}.",
   "chat.input.web_search.route.client_with_fallback": "Αναζήτηση με {{provider}}. Αν δεν είναι διαθέσιμο, το ερώτημα αποστέλλεται αυτόματα στο {{fallbackProvider}}.",
   "chat.mcp.warning.gemini_web_search": "Το Gemini δεν υποστηρίζει την ταυτόχρονη χρήση του εργαλείου αυτόματης αναζήτησης και της κλήσης συναρτήσεων",
+  "chat.message.branches": "Εναλλαγή κλάδου",
   "chat.message.editing_current": "Αυτό το μήνυμα επεξεργάζεται στον συνθέτη",
   "chat.message.flow.branches": "κλαδιά",
   "chat.message.flow.copy_topic.created": "Αντιγράφηκε σε μια νέα συνομιλία",
