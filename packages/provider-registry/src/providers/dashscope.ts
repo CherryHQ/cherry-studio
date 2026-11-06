@@ -307,7 +307,7 @@ export default defineProvider({
   // Rebranded to Qwen AI Platform (mainland China); the 'dashscope' id stays
   // unchanged so existing users' keys and configs keep working (ref #18432).
   name: 'Qianwen AI platform - CN',
-  availableInEditions: ['cn'],
+  availableInEditions: ['global', 'cn'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'anthropic-messages': {

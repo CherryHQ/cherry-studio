@@ -531,7 +531,7 @@ describe('ProviderModelMigrator', () => {
       expect(runtime.defaultChatEndpoint).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
     })
 
-    it('migrates official endpoint overrides after v1 delta projection and retains custom proxies', async () => {
+    it('preserves explicit legacy official endpoints and custom proxies during v1 import', async () => {
       const migrationContext = createContext(dbh.db, {
         llm: {
           providers: [
@@ -550,8 +550,8 @@ describe('ProviderModelMigrator', () => {
       const rows = dbh.db.select().from(userProviderTable).all()
       const endpointOf = (id: string) =>
         rows.find((row) => row.providerId === id)?.endpointConfigs?.['openai-chat-completions']?.baseUrl
-      expect(endpointOf('custom-cn')).toBe('https://maas.qianwenaiapi.com:443/compatible-mode/v1/')
-      expect(endpointOf('custom-global')).toBe('https://maas.qwencloudapi.com/compatible-mode/v1/')
+      expect(endpointOf('custom-cn')).toBe('https://dashscope.aliyuncs.com:443/compatible-mode/v1/')
+      expect(endpointOf('custom-global')).toBe('https://dashscope-intl.aliyuncs.com/compatible-mode/v1/')
       expect(endpointOf('custom-proxy')).toBe('https://proxy.example/compatible-mode/v1/')
       expect(rows.find((row) => row.providerId === 'custom-cn')?.apiKeys?.[0].key).toBe('saved-key')
       expect(dbh.db.select().from(userModelTable).where(eq(userModelTable.providerId, 'custom-cn')).all()).toEqual([

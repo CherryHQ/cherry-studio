@@ -73,17 +73,9 @@ function applyJsonMergePatch(target: unknown, patch: unknown): unknown {
 type NewUserProviderInput = Omit<InsertUserProviderRow, 'orderKey'>
 export type ProviderIdentity = Pick<UserProviderRow, 'providerId' | 'presetProviderId'>
 
-function isProviderAvailableInCurrentEdition(
-  provider: Pick<Provider, 'availableInEditions'>,
-  presetProviderId: string | null
-): boolean {
+function isProviderAvailableInCurrentEdition(provider: Pick<Provider, 'availableInEditions'>): boolean {
   const availableInEditions = provider.availableInEditions
-  const requiresEditionMatch = presetProviderId === 'dashscope' || presetProviderId === 'qwencloud'
-  return (
-    (!requiresEditionMatch && isMigratedFromV1()) ||
-    !availableInEditions ||
-    availableInEditions.includes(getAppEdition())
-  )
+  return isMigratedFromV1() || !availableInEditions || availableInEditions.includes(getAppEdition())
 }
 
 function getAvailableProviderMetadata(row: ProviderIdentity): ProviderDisplayMetadata | null {
@@ -93,7 +85,7 @@ function getAvailableProviderMetadata(row: ProviderIdentity): ProviderDisplayMet
     row.providerId,
     row.presetProviderId
   )
-  return isProviderAvailableInCurrentEdition(metadata, row.presetProviderId) ? metadata : null
+  return isProviderAvailableInCurrentEdition(metadata) ? metadata : null
 }
 
 /**
@@ -516,7 +508,7 @@ class ProviderService {
       dto.providerId,
       dto.presetProviderId ?? null
     )
-    if (!isProviderAvailableInCurrentEdition(presetMetadata, dto.presetProviderId ?? null)) {
+    if (!isProviderAvailableInCurrentEdition(presetMetadata)) {
       throw DataApiErrorFactory.invalidOperation(
         `create provider ${dto.providerId}`,
         'provider is unavailable in the current application edition'

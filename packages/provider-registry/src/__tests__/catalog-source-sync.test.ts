@@ -111,14 +111,8 @@ describe('catalog ↔ source sync (regenerate guard)', () => {
 
   it('classifies every source provider by supported application edition', () => {
     for (const provider of PROVIDERS) {
-      expect(provider.availableInEditions?.length).toBeGreaterThan(0)
-      expect(provider.availableInEditions?.every((edition) => edition === 'global' || edition === 'cn')).toBe(true)
+      expect(provider.availableInEditions).toContain('global')
     }
-  })
-
-  it('offers each Qwen platform only in its own edition', () => {
-    expect(PROVIDERS.find((provider) => provider.id === 'dashscope')?.availableInEditions).toEqual(['cn'])
-    expect(PROVIDERS.find((provider) => provider.id === 'qwencloud')?.availableInEditions).toEqual(['global'])
   })
 
   it('every src/providers has a providers.json row with the full source-derived payload (and no extra rows)', () => {

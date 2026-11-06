@@ -1725,7 +1725,7 @@
       "name": "BAICHUAN AI"
     },
     {
-      "availableInEditions": ["cn"],
+      "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Qianwen AI platform - CN - AI model provider",
       "endpointConfigs": {
@@ -2931,5 +2931,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "bcb062a8138cb631"
+  "version": "98c28cba5fe3fb9c"
 }

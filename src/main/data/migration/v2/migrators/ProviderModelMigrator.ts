@@ -27,7 +27,6 @@ import type { InsertUserProviderRow, StoredEndpointConfigOverride } from '@data/
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { ensureCherryAiDefaultProviderAndModelTx } from '@data/db/seeding/seeders/cherryaiDefaultModelSeeder'
 import { assignOrderKeysByScope, assignOrderKeysInSequence } from '@data/migration/v2/utils/orderKey'
-import { migrateQwenEndpointUrl } from '@data/migration/v2/utils/qwenEndpointUrl'
 import { matchesModelPricingBaseline, synthesizePresetFromOverride } from '@data/services/ProviderRegistryService'
 import { generateOrderKeySequenceBetween } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
@@ -553,9 +552,6 @@ export class ProviderModelMigrator extends BaseMigrator {
       const providerRowsWithoutOrderKey: NewUserProviderInput[] = []
       for (const provider of this.providers) {
         const row = this.projectProviderDeltaRow(transformProvider(provider, this.settings), provider)
-        for (const config of Object.values(row.endpointConfigs ?? {})) {
-          if (config?.baseUrl) config.baseUrl = migrateQwenEndpointUrl(config.baseUrl)
-        }
         // v1 stored custom provider logos in Dexie settings under `image://provider-{id}`:
         // either a base64 data URL (an uploaded logo, or a small built-in logo vite inlined)
         // or a built-in-logo asset value from ProviderLogoPicker (`PROVIDER_LOGO_MAP[pickedId]`

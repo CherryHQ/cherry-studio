@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-04-qwen-platform-editions-and-endpoints.md
-2026-11-04-qwen-platform-editions-and-endpoints.md: b796bc44afae2a182175d7cfda25d2527e6b819b
-2026-11-04-qwen-platform-editions-and-endpoints.zh.md: dbaf4f89e39a5e69a3e311a5631927f664ee4d72
+2026-11-04-qwen-platform-editions-and-endpoints.md: e278b3447d7b71aead4605ed7c2c03e41cd0bc79
+2026-11-04-qwen-platform-editions-and-endpoints.zh.md: 0593a33dd7f988b5efd88011d9e80194a6a67318
