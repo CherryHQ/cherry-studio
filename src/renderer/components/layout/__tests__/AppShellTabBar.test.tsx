@@ -32,10 +32,6 @@ vi.mock('@renderer/components/GlobalSearch/GlobalSearchPopup', () => ({
   }
 }))
 
-vi.mock('@renderer/components/NotificationCenter', () => ({
-  NotificationCenterButton: () => <button type="button" aria-label="Notification center" />
-}))
-
 vi.mock('@renderer/services/resourceListRevealEvents', () => ({
   emitResourceListReveal: mocks.emitResourceListReveal
 }))

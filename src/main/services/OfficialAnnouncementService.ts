@@ -8,6 +8,7 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 const logger = loggerService.withContext('OfficialAnnouncementService')
 const SCHEDULE_ID = 'official-announcement:poll'
 const CHECK_INTERVAL_MS = 30 * 60 * 1000
+const FOREGROUND_COOLDOWN_MS = 5 * 60 * 1000
 const RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 const PAGE_SIZE = 100
 const AnnouncementPageSchema = z.object({
@@ -36,6 +37,7 @@ const AnnouncementPageSchema = z.object({
 export class OfficialAnnouncementService extends BaseService {
   private ready = false
   private hasChecked = false
+  private lastCheckAt?: number
   private controller?: AbortController
   private runningController?: AbortController
   private removeFocusListeners?: () => void
@@ -89,7 +91,9 @@ export class OfficialAnnouncementService extends BaseService {
       const returned = (hasFocused || this.hasChecked) && !foreground
       foreground = true
       hasFocused = true
-      if (returned) void this.check(controller)
+      if (returned && (this.lastCheckAt === undefined || Date.now() - this.lastCheckAt >= FOREGROUND_COOLDOWN_MS)) {
+        void this.check(controller)
+      }
     }
     app.on('browser-window-blur', onBlur)
     app.on('browser-window-focus', onFocus)
@@ -110,6 +114,7 @@ export class OfficialAnnouncementService extends BaseService {
   private async check(controller: AbortController): Promise<void> {
     if (controller.signal.aborted || this.runningController === controller) return
     this.hasChecked = true
+    this.lastCheckAt = Date.now()
     this.runningController = controller
     application.get('SchedulerService').unregister(SCHEDULE_ID)
     const cutoff = Date.now() - RETENTION_MS
@@ -168,7 +173,7 @@ export class OfficialAnnouncementService extends BaseService {
       if (!controller.signal.aborted) logger.warn('Failed to check official announcements', { error })
     } finally {
       if (this.runningController === controller) this.runningController = undefined
-      this.schedule(controller, CHECK_INTERVAL_MS)
+      this.schedule(controller, CHECK_INTERVAL_MS * (0.9 + Math.random() * 0.2))
     }
   }
 }

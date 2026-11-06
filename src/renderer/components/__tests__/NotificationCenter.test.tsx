@@ -9,6 +9,7 @@ import { TabsContext, type TabsContextValue } from '@renderer/hooks/tab'
 import type { NotificationRecord } from '@shared/data/types/notification'
 
 import { NotificationCenterButton, NotificationCenterProvider } from '../NotificationCenter'
+import { UserAccountPanel } from '../UserAccountPanel'
 
 vi.unmock('@cherrystudio/ui')
 vi.unmock('@data/hooks/useDataApi')
@@ -37,7 +38,7 @@ describe('NotificationCenter reading', () => {
         </NotificationCenterProvider>
       </SWRConfig>
     )
-    const bell = await screen.findByRole('button', { name: /Notification center/ })
+    const bell = await screen.findByRole('button', { name: /Notifications/ })
     await user.click(bell)
     expect(await screen.findByRole('dialog')).toBeVisible()
     expect(screen.queryByText('120')).not.toBeInTheDocument()
@@ -57,6 +58,35 @@ describe('NotificationCenter reading', () => {
     expect(mockDataApiService.patch).not.toHaveBeenCalled()
   })
 
+  it('keeps unread state on the account-menu entry until notifications are marked read', async () => {
+    let unread = 2
+    mockDataApiService.get.mockImplementation(async (path) =>
+      path === '/notifications/unread-count' ? { count: unread } : { items: [] }
+    )
+    mockDataApiService.post.mockImplementation(async () => {
+      unread = 0
+      return undefined
+    })
+    const closeMenu = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+        <NotificationCenterProvider>
+          <UserAccountPanel onRequestClose={closeMenu} />
+        </NotificationCenterProvider>
+      </SWRConfig>
+    )
+    const entry = await screen.findByRole('button', { name: 'Notifications' })
+    await waitFor(() => expect(entry).toHaveAccessibleDescription(getI18n().t('notification.center.unread')))
+    await user.click(entry)
+    expect(closeMenu).toHaveBeenCalledOnce()
+    expect(await screen.findByRole('dialog')).toBeVisible()
+    expect(entry).toHaveAccessibleDescription(getI18n().t('notification.center.unread'))
+    expect(mockDataApiService.patch).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Mark all as read' }))
+    await waitFor(() => expect(entry).not.toHaveAttribute('aria-describedby'))
+  })
+
   it.each([
     ['left', undefined],
     ['right', 'right']
@@ -72,7 +102,7 @@ describe('NotificationCenter reading', () => {
         </NotificationCenterProvider>
       </SWRConfig>
     )
-    await user.click(await screen.findByRole('button', { name: /Notification center/ }))
+    await user.click(await screen.findByRole('button', { name: /Notifications/ }))
     const drawer = await screen.findByRole('dialog')
     expect(drawer).toHaveAttribute('data-vaul-drawer-direction', side)
     expect(drawer.style.getPropertyValue(side)).toBe('0px')
@@ -95,7 +125,7 @@ describe('NotificationCenter reading', () => {
       </SWRConfig>
     )
     const { rerender } = render(app('/app/chat'))
-    await user.click(await screen.findByRole('button', { name: /Notification center/ }))
+    await user.click(await screen.findByRole('button', { name: /Notifications/ }))
     expect(await screen.findByRole('dialog')).toBeVisible()
     rerender(app('/settings/provider'))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
@@ -200,7 +230,7 @@ describe('NotificationCenter reading', () => {
           </NotificationCenterProvider>
         </SWRConfig>
       )
-      await user.click(await screen.findByRole('button', { name: /Notification center/ }))
+      await user.click(await screen.findByRole('button', { name: /Notifications/ }))
       expect(await screen.findByText('Current agent')).toBeVisible()
       expect(await screen.findByText('Completed source')).toBeVisible()
       expect(await screen.findByText('Saved scheduled task')).toBeVisible()
@@ -246,9 +276,9 @@ describe('NotificationCenter reading', () => {
         </NotificationCenterProvider>
       </SWRConfig>
     )
-    await user.click(await screen.findByRole('button', { name: 'Notification center' }))
+    await user.click(await screen.findByRole('button', { name: 'Notifications' }))
     const item = await screen.findByRole('button', { name: record.title })
-    const bell = screen.getByRole('button', { name: 'Notification center' })
+    const bell = screen.getByRole('button', { name: 'Notifications' })
     expect(item).toHaveAccessibleDescription(readAt === null ? 'Unread' : '')
     expect(bell).toHaveAccessibleDescription(readAt === null ? 'Unread' : '')
     expect(item).toHaveAttribute('aria-expanded', 'false')

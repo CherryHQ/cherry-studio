@@ -291,6 +291,7 @@ describe('NotificationService', () => {
     beforeEach(async () => {
       vi.useFakeTimers()
       vi.setSystemTime(new Date('2026-10-28T02:00:00Z'))
+      vi.spyOn(Math, 'random').mockReturnValue(0.5)
       mocks.focused = true
       mocks.focusListeners.clear()
       mocks.preferenceValues['app.language'] = 'en-US'
@@ -325,7 +326,7 @@ describe('NotificationService', () => {
       vi.clearAllTimers()
     })
 
-    it('refreshes on real foreground transitions, coalesces internal handoffs and cancels focus subscriptions', async () => {
+    it('refreshes after the foreground cooldown, coalesces internal handoffs and cancels focus subscriptions', async () => {
       await announcements._doAllReady()
       mocks.focusListeners.get('browser-window-focus')?.()
       await vi.advanceTimersByTimeAsync(4999)
@@ -341,6 +342,7 @@ describe('NotificationService', () => {
       mocks.focused = false
       mocks.focusListeners.get('browser-window-blur')?.()
       await vi.advanceTimersByTimeAsync(1)
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
       mocks.fetch.mockImplementation(async () => respond([announcement('returned')]))
       mocks.focused = true
       mocks.focusListeners.get('browser-window-focus')?.()
@@ -358,6 +360,7 @@ describe('NotificationService', () => {
       await announcements._doAllReady()
       await vi.advanceTimersByTimeAsync(5000)
       expect(mocks.fetch).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
       mocks.fetch.mockImplementation(async () => respond([announcement('first-activation')]))
       mocks.focused = true
       mocks.focusListeners.get('browser-window-focus')?.()
@@ -366,6 +369,38 @@ describe('NotificationService', () => {
       expect(notificationRecordService.list({}).items.map((record) => record.title)).toContain(
         'Announcement first-activation'
       )
+    })
+
+    it('throttles rapid foreground returns without postponing the scheduled poll, even after failure', async () => {
+      mocks.fetch.mockRejectedValue(new Error('offline'))
+      await announcements._doAllReady()
+      await vi.advanceTimersByTimeAsync(5000)
+      for (const delay of [1, 60_000, 239_998]) {
+        mocks.focused = false
+        mocks.focusListeners.get('browser-window-blur')?.()
+        await vi.advanceTimersByTimeAsync(delay)
+        mocks.focused = true
+        mocks.focusListeners.get('browser-window-focus')?.()
+        await vi.advanceTimersByTimeAsync(0)
+        expect(mocks.fetch).toHaveBeenCalledTimes(1)
+      }
+      await vi.advanceTimersByTimeAsync(interval - 299_999)
+      expect(mocks.fetch).toHaveBeenCalledTimes(2)
+    })
+
+    it.each([
+      [0, 27],
+      [0.5, 30],
+      [1, 33]
+    ])('spreads polling with random value %s over %s minutes after each round', async (random, minutes) => {
+      vi.mocked(Math.random).mockReturnValue(random)
+      await announcements._doAllReady()
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(mocks.fetch).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(minutes * 60_000 - 1)
+      expect(mocks.fetch).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(mocks.fetch).toHaveBeenCalledTimes(2)
     })
 
     it('lets the in-flight round satisfy repeated foreground requests without queuing another round', async () => {
@@ -527,7 +562,7 @@ describe('NotificationService', () => {
         const endpoint = process.env.ANNOUNCEMENT_API_TEST_URL!
         expect(new URL(endpoint).hostname).toMatch(/^(127\.0\.0\.1|localhost|\[::1\])$/)
         const admin = `${endpoint}/api/admin/systems/announcements`
-        const request = async (path: string, body: unknown, method = 'POST') => {
+        const request = async (path: string, body: unknown, method: 'POST' | 'PATCH' = 'POST') => {
           const response = await fetch(path, {
             method,
             headers: { 'Content-Type': 'application/json' },
