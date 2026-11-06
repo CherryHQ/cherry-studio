@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-05-minicpm-ocr-file-processor.md
-2026-11-05-minicpm-ocr-file-processor.md: cde84dbb8e7dc64c9d18e6d87e4399299105fb62
-2026-11-05-minicpm-ocr-file-processor.zh.md: 826b616832b74265e181dda2427d2195350d7857
+2026-11-05-minicpm-ocr-file-processor.md: cdbbd1751b5b02e216a8d54cce8ecddf806b9b2e
+2026-11-05-minicpm-ocr-file-processor.zh.md: dc98f12a85930a37f5a55961e62b44e9ee88dcea
