@@ -7,7 +7,7 @@ import { app, BrowserWindow, clipboard, ClipboardItem, dialog, type Display, nat
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { DIAGNOSTICS_ENABLED } from '@main/core/diagnostics'
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isDev, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
@@ -117,6 +117,20 @@ export class ScreenshotOverlayService extends BaseService {
   /** The overlay the user is currently interacting with, at most one per session. */
   private activeOverlayWindowId: WindowId | null = null
 
+  /** The in-app window that started this session, so its own blur is not read as dismissal.
+   *  Null for hotkey-started sessions. */
+  private requesterWindowId: WindowId | null = null
+
+  private readonly _onSessionEnded = new Emitter<WindowId | null>()
+  /** Fires with the requester once a session is over, so a window that suppressed its
+   *  own hide-on-blur for the overlay can settle whether it should still be visible. */
+  public readonly onSessionEnded: Event<WindowId | null> = this._onSessionEnded.event
+
+  /** Requester waiting behind the screen-recording permission dialog, if any. */
+  private permissionGuideRequesterWindowId: WindowId | null = null
+  /** One guide at a time: a second would overwrite the first one's requester. */
+  private permissionGuideOpen = false
+
   /** Pending reveal per overlay, with the fallback timer it races. Cleared together. */
   private pendingReveals = new Map<WindowId, { reveal: () => void; timer: NodeJS.Timeout }>()
 
@@ -164,6 +178,7 @@ export class ScreenshotOverlayService extends BaseService {
   private latestOcrToken: symbol | null = null
 
   protected onInit(): void {
+    this.registerDisposable(this._onSessionEnded)
     const windowManager = application.get('WindowManager')
     this.registerDisposable(
       windowManager.onWindowCreatedByType(WindowType.Screenshot, ({ id, window }) => {
@@ -229,9 +244,13 @@ export class ScreenshotOverlayService extends BaseService {
    * Returns immediately when a capture is already running or a session is already on
    * screen, when the feature is off, or when screen recording is not granted (guiding
    * the user instead).
+   *
+   * @param requesterWindowId - Window that asked for the capture: hidden while the screen is
+   *   frozen, and reported by {@link isSessionRequestedBy}. Omitted for the global hotkey.
+   * @param consumer - Receives a result the user sends to a chat draft ({@link submitResult}).
    */
   public async startCapture(
-    sourceWindowId?: WindowId,
+    requesterWindowId?: WindowId,
     consumer?: {
       submit: (result: ScreenshotResultData & { text: string }) => Promise<void>
       dispose: () => void
@@ -239,8 +258,9 @@ export class ScreenshotOverlayService extends BaseService {
   ): Promise<void> {
     // `capturing` carries the guard across the capture await, during which
     // `overlayWindowIds` is still empty and a second hotkey press would otherwise pass.
-    if (this.capturing || this.overlayWindowIds.length > 0) return
+    if (this.capturing || this.overlayWindowIds.length > 0 || this.permissionGuideOpen) return
     this.capturing = true
+    this.requesterWindowId = requesterWindowId ?? null
 
     try {
       const preferenceService = application.get('PreferenceService')
@@ -248,7 +268,17 @@ export class ScreenshotOverlayService extends BaseService {
 
       const status = getScreenCapturePermissionStatus()
       if (status !== 'authorized') {
-        void this.guideToPermission(status)
+        // Held across the guide dialog, not awaited: the requester still counts as
+        // owning a session so it does not auto-hide behind the prompt it triggered,
+        // while `screenshot.capture` returns to the renderer right away.
+        const guided = requesterWindowId ?? null
+        this.permissionGuideOpen = true
+        this.permissionGuideRequesterWindowId = guided
+        void this.guideToPermission(status).finally(() => {
+          this.permissionGuideOpen = false
+          this.permissionGuideRequesterWindowId = null
+          this._onSessionEnded.fire(guided)
+        })
         return
       }
 
@@ -262,7 +292,7 @@ export class ScreenshotOverlayService extends BaseService {
       this.overlaysCreated = 0
 
       try {
-        const sourceWindow = sourceWindowId && manager.getWindow(sourceWindowId)
+        const sourceWindow = requesterWindowId && manager.getWindow(requesterWindowId)
         if (
           sourceWindow &&
           !sourceWindow.isDestroyed() &&
@@ -419,6 +449,16 @@ export class ScreenshotOverlayService extends BaseService {
       // Cleared on every exit, or one failed attempt would kill the shortcut for good.
       this.capturing = false
     }
+  }
+
+  /**
+   * Whether a capture this window started is being prepared or on screen. Windows that
+   * auto-hide on blur consult this so opening their own overlay does not dismiss them —
+   * a capture some other window asked for is an ordinary focus loss and should.
+   */
+  public isSessionRequestedBy(windowId: WindowId): boolean {
+    if (this.permissionGuideRequesterWindowId === windowId) return true
+    return this.requesterWindowId === windowId && (this.capturing || this.overlayWindowIds.length > 0)
   }
 
   /** Whether the window belongs to the live session. */
@@ -797,8 +837,10 @@ export class ScreenshotOverlayService extends BaseService {
       for (const windowId of this.overlayWindowIds) windowManager.behavior.setAlwaysOnTopLevel(windowId, null)
     }
 
+    const endedRequesterWindowId = this.requesterWindowId
     this.overlayWindowIds = []
     this.activeOverlayWindowId = null
+    this.requesterWindowId = null
     if (DIAGNOSTICS_ENABLED && this.trace) {
       // Deliberately no usable= number: every overlay left here was revealed by the
       // fallback timer, so the only timestamp available is that timer's deadline —
@@ -812,6 +854,10 @@ export class ScreenshotOverlayService extends BaseService {
 
     // Invalidates every in-flight OCR result; the recognitions themselves run to completion.
     this.latestOcrToken = null
+
+    // Fired once the session state is fully torn down, so a listener that asks
+    // isSessionRequestedBy() sees the session as over.
+    this._onSessionEnded.fire(endedRequesterWindowId)
   }
 
   /** The overlay holding the live selection, used as the save dialog's parent. */

@@ -1,6 +1,7 @@
 import type { TFunction } from 'i18next'
 import { FileSearch, Globe, Image, Mic, Paperclip, Pointer, Zap } from 'lucide-react'
 
+import { isComposerToolVisibleInScope } from './registry'
 import { type ComposerToolScope, type ToolComposerToolbarContribution, TopicType } from './types'
 
 interface ComposerToolbarManifestDefinition {
@@ -109,7 +110,7 @@ export const getComposerToolbarManifestsForScope = (
   scope: ComposerToolScope,
   t: TFunction
 ): ComposerToolbarManifest[] =>
-  COMPOSER_TOOLBAR_MANIFESTS.filter((manifest) => manifest.visibleInScopes.includes(scope))
+  COMPOSER_TOOLBAR_MANIFESTS.filter((manifest) => isComposerToolVisibleInScope(manifest.visibleInScopes, scope))
     .map((manifest) => ({
       ...manifest.toolbar,
       label: manifest.label(t)

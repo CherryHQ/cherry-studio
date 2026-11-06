@@ -106,3 +106,4 @@ YOUR_MEMORY_FILE_PATH
 .omo/
 
 /native/external-app/build/
+/native/selection-panel/build/

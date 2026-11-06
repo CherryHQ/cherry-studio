@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { loggerService } from '@logger'
 import { useOptionalQuickPanel } from '@renderer/components/QuickPanel'
 import { usePreference } from '@renderer/data/hooks/usePreference'
-import { useIsActiveTab } from '@renderer/hooks/tab'
+import { useIsActiveTab, useOptionalTabsContext } from '@renderer/hooks/tab'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { FILE_TYPE } from '@renderer/types/file'
@@ -34,7 +34,10 @@ export function useScreenshotChat({
   isBlocked: () => boolean
 }) {
   const { t } = useTranslation()
-  const isActiveTab = useIsActiveTab()
+  // A window without tabs (the quick assistant) holds a single composer, always current.
+  const isTabActive = useIsActiveTab()
+  const hasTabs = useOptionalTabsContext() !== null
+  const isActiveTab = isTabActive || !hasTabs
   const closeQuickPanel = useOptionalQuickPanel()?.close
   const [enabled] = usePreference('feature.screenshot.enabled')
   const target = useMemo(

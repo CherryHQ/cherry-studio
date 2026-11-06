@@ -502,7 +502,7 @@ export async function resolveTools(
   }
 
   const paintingModel = resolveConfiguredPaintingModel()
-  const selected = registry.selectActive({
+  const selectedEntries = registry.selectActive({
     assistant,
     paintingModel: paintingModel ?? undefined,
     browserEnabled,
@@ -516,6 +516,11 @@ export async function resolveTools(
     knowledgeBaseIds,
     webToolRoutes
   })
+  // Before both the inline tool-set and the request registry, so neither the SDK's native
+  // gate nor the tool_invoke / tool_exec guard (`isApprovalGated`) can still ask.
+  const selected = request.autoApproveTools
+    ? selectedEntries.map((entry) => ({ ...entry, tool: { ...entry.tool, needsApproval: false } }))
+    : selectedEntries
   // Client tools (no `execute`) from assistant-less callers; merged below so
   // they share the registry/defer-exposition path.
   const clientTools = request.callOverrides?.tools

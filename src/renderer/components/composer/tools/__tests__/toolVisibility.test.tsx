@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { getToolsForScope } from '@renderer/components/composer/tools/builtinTools'
+import { getComposerToolbarManifestsForScope } from '@renderer/components/composer/tools/toolbarManifests'
 import { TopicType } from '@renderer/components/composer/tools/types'
 
 const { mockIsGenerateImageModel, mockIsReasoningModel, mockIsSupportedToolUse } = vi.hoisted(() => ({
@@ -77,16 +78,23 @@ describe('composer tool visibility', () => {
     expect(tools).not.toContain('generate_image')
   })
 
-  it('shows MCP status in chat and agent session scopes only', () => {
+  it('inherits chat tools and toolbar manifests in the quick assistant scope', () => {
     const model = {
       id: 'text-only',
       providerId: 'provider-1',
       name: 'Text only'
     } as any
+    // The quick assistant always runs with an assistant, which web search requires.
+    const assistant = { id: 'assistant-1', settings: {} } as any
+    const quickAssistantToolKeys = getToolsForScope('quick-assistant', { model, assistant }).map((tool) => tool.key)
+    const quickAssistantToolbarIds = getComposerToolbarManifestsForScope(
+      'quick-assistant',
+      ((key: string) => key) as any
+    ).map((manifest) => manifest.id)
 
-    expect(getToolsForScope(TopicType.Chat, { model }).map((tool) => tool.key)).toContain('mcp_status')
-    expect(getToolsForScope(TopicType.Session, { model }).map((tool) => tool.key)).toContain('mcp_status')
-    expect(getToolsForScope('quick-assistant', { model }).map((tool) => tool.key)).not.toContain('mcp_status')
+    expect(quickAssistantToolKeys).toEqual(expect.arrayContaining(['web_search', 'knowledge_base', 'mcp_status']))
+    expect(quickAssistantToolbarIds).toEqual(expect.arrayContaining(['web-search', 'knowledge-base']))
+    expect(quickAssistantToolbarIds).not.toContain('permission-mode')
   })
 
   it('makes knowledge selection discoverable in Agent Session scope', () => {
@@ -98,12 +106,13 @@ describe('composer tool visibility', () => {
     expect(tools.map((tool) => tool.key)).toContain('knowledge_base')
   })
 
-  it('exposes shared dictation only in Chat, Agent Session, and Painting composers', () => {
+  it('exposes shared dictation in the Chat, Agent Session, Painting, and quick-assistant composers', () => {
     const model = { id: 'model', providerId: 'provider', name: 'Model' } as any
 
     expect(getToolsForScope(TopicType.Chat, { model }).map((tool) => tool.key)).toContain('dictation')
     expect(getToolsForScope(TopicType.Session, { model }).map((tool) => tool.key)).toContain('dictation')
     expect(getToolsForScope('painting', { model }).map((tool) => tool.key)).toContain('dictation')
-    expect(getToolsForScope('quick-assistant', { model }).map((tool) => tool.key)).not.toContain('dictation')
+    // The quick assistant is a chat composer now; its legacy input had dictation, so it must keep it.
+    expect(getToolsForScope('quick-assistant', { model }).map((tool) => tool.key)).toContain('dictation')
   })
 })

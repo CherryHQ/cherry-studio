@@ -17,11 +17,22 @@ vi.mock('../edit', () => {
   }
 })
 
-import { ResourceEditDialogEventHost } from '../ResourceEditDialogEventHost'
+import { openResourceEditDialog, ResourceEditDialogEventHost } from '../ResourceEditDialogEventHost'
 
 describe('ResourceEditDialogEventHost', () => {
   afterEach(() => {
     EventEmitter.clearListeners()
+  })
+
+  it('delegates management without opening a local editor when the window supplies a destination', async () => {
+    const onOpen = vi.fn()
+    render(<ResourceEditDialogEventHost onOpen={onOpen} />)
+    const target = { kind: 'assistant' as const, id: 'assistant-1', initialTab: 'prompts' }
+    await act(async () => {
+      openResourceEditDialog(target)
+    })
+    expect(onOpen).toHaveBeenCalledWith(target)
+    expect(screen.queryByTestId('resource-edit-dialog-host')).not.toBeInTheDocument()
   })
 
   it('loads the edit dialog only after an open request', async () => {

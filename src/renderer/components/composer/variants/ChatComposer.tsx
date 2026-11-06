@@ -26,6 +26,7 @@ import type { ComposerInputFilePreviewAction } from '@renderer/components/compos
 import { ComposerPanelSymbol, getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { isMcpToolbarActive } from '@renderer/components/composer/tools/definitions/mcpToolbarState'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
+import type { ComposerToolScope } from '@renderer/components/composer/tools/types'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
 import {
@@ -49,6 +50,7 @@ import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
+import type { ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'
 import { type Topic, TopicType } from '@renderer/types/topic'
 import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
 import { resolveSendShortcut } from '@renderer/utils/input'
@@ -157,12 +159,17 @@ export interface ChatContextUsageSource {
 export interface ChatComposerProps {
   topic?: Topic
   contextUsage?: ChatContextUsageSource | null
+  /** Which tool set the toolbar offers. Defaults to Chat; specialized scopes can
+   *  inherit or extend it through the tool registry. */
+  scope?: ComposerToolScope
   scopeKey?: string
   topicId?: string
   assistantId?: string
   resolvedContext?: ChatComposerResolvedContext
   resolvedProviders?: Provider[]
   externalContextControls?: boolean
+  onResourceEdit?: (target: ResourceEditDialogTarget) => void
+  toolbarContextControls?: React.ReactNode
   onConversationControlsChange?: ChatConversationControlsChangeHandler
   onSend: (
     text: string,
@@ -177,6 +184,10 @@ export interface ChatComposerProps {
   ) => boolean | void | Promise<boolean | void>
   chatTarget?: ComposerChatTarget
   sendDisabled?: boolean
+  /** False when the backend cannot take a turn mid-stream (temporary topics have no steer queue). */
+  steerWhileBusy?: boolean
+  /** Stops the running turn; surfaces without a ChatWriteContext must supply it. */
+  onPause?: () => void
   useMentionedModelSelector?: boolean
   onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
@@ -203,7 +214,6 @@ interface InputHistoryToolSnapshot extends Pick<SavedComposerDraft, 'files' | 's
 type ComposerFilePart = Extract<CherryMessagePart, { type: 'file' }>
 
 type ComposerSurfaceProps = React.ComponentProps<typeof ComposerSurface>
-
 function ChatComposerContextUsage({ usage }: { usage?: ChatContextUsageSource | null }) {
   const { t } = useTranslation()
   const { model } = useModelById(usage?.modelId)
@@ -245,9 +255,10 @@ type ChatComposerRootProps = ChatComposerProps &
     deferQuickPanel?: boolean
   }
 
-type ChatPlacementPresentationProps =
-  | { externalContextControls: true; compactWhenSingleLine?: boolean }
-  | { externalContextControls?: false; compactWhenSingleLine?: never }
+type ChatPlacementPresentationProps = {
+  externalContextControls?: boolean
+  compactWhenSingleLine?: boolean
+}
 type ChatPlacementHomeProps = Omit<ChatComposerProps, 'externalContextControls'> & ChatPlacementPresentationProps
 type ChatPlacementDockedProps = Omit<ChatComposerProps, 'externalContextControls' | 'onDraftAssistantChange'> &
   ChatPlacementPresentationProps
@@ -258,16 +269,21 @@ type ChatPlacementComposerProps =
 const ChatComposerRoot = ({
   topic,
   contextUsage,
+  scope = TopicType.Chat,
   scopeKey,
   topicId,
   assistantId,
   resolvedContext,
   resolvedProviders,
   externalContextControls,
+  toolbarContextControls,
+  onResourceEdit,
   onConversationControlsChange,
   onSend,
   chatTarget,
   sendDisabled,
+  steerWhileBusy,
+  onPause: onPauseProp,
   compactWhenSingleLine = false,
   useMentionedModelSelector,
   onDraftAssistantChange,
@@ -281,7 +297,9 @@ const ChatComposerRoot = ({
   const resolvedScopeKey = scopeKey ?? topic?.id
   const resolvedTopicId = topicId ?? topic?.id
   const resolvedAssistantId = assistantId ?? topic?.assistantId
-  const draftCacheScopeKey = resolvedTopicId ?? resolvedScopeKey ?? ''
+  // Scope key first: chat passes its topic id as both, while surfaces whose topic is
+  // re-leased under the user (quick assistant) rely on the scope key to hold the draft.
+  const draftCacheScopeKey = resolvedScopeKey ?? resolvedTopicId ?? ''
   const actionsRef = useRef<ProviderActionHandlers>({ ...emptyActions })
   // Snapshot the topic draft before mounting its tool provider: files seed the provider synchronously so
   // the surface's managed-token sync does not strip restored file tokens, and the same snapshot
@@ -314,6 +332,7 @@ const ChatComposerRoot = ({
         }}>
         {resolvedScopeKey ? (
           <ChatComposerInner
+            scope={scope}
             scopeKey={resolvedScopeKey}
             topicId={resolvedTopicId}
             contextUsage={contextUsage}
@@ -321,6 +340,8 @@ const ChatComposerRoot = ({
             resolvedContext={resolvedContext}
             resolvedProviders={resolvedProviders}
             externalContextControls={externalContextControls}
+            toolbarContextControls={toolbarContextControls}
+            onResourceEdit={onResourceEdit}
             onConversationControlsChange={onConversationControlsChange}
             initialDraft={initialDraft}
             draftCacheScopeKey={draftCacheScopeKey}
@@ -328,6 +349,8 @@ const ChatComposerRoot = ({
             onSend={onSend}
             chatTarget={chatTarget}
             sendDisabled={sendDisabled}
+            steerWhileBusy={steerWhileBusy}
+            onPause={onPauseProp}
             compactWhenSingleLine={compactWhenSingleLine}
             useMentionedModelSelector={useMentionedModelSelector}
             onDraftAssistantChange={onDraftAssistantChange}
@@ -355,6 +378,7 @@ interface ChatComposerInnerProps extends Omit<ChatComposerProps, 'scopeKey'>, Ch
 }
 
 const ChatComposerInner = ({
+  scope = TopicType.Chat,
   scopeKey,
   topicId,
   contextUsage,
@@ -362,6 +386,8 @@ const ChatComposerInner = ({
   resolvedContext,
   resolvedProviders,
   externalContextControls = false,
+  toolbarContextControls,
+  onResourceEdit,
   onConversationControlsChange,
   initialDraft,
   draftCacheScopeKey,
@@ -369,6 +395,8 @@ const ChatComposerInner = ({
   onSend,
   chatTarget,
   sendDisabled = false,
+  steerWhileBusy = true,
+  onPause: onPauseProp,
   compactWhenSingleLine = false,
   useMentionedModelSelector,
   onDraftAssistantChange,
@@ -382,7 +410,6 @@ const ChatComposerInner = ({
   const { t } = useTranslation()
   const streamScopeKey = topicId ?? scopeKey
   const awaitingApproval = useTopicAwaitingApproval(streamScopeKey)
-  const scope = TopicType.Chat
   const config = getComposerToolConfig(scope)
   const { files, mentionedModels, selectedKnowledgeBases, isExpanded } = useComposerToolState()
   const { setFiles, setMentionedModels, setSelectedKnowledgeBases, setIsExpanded, toolsRegistry } =
@@ -413,7 +440,7 @@ const ChatComposerInner = ({
     customizeOpen: customizeToolbarOpen,
     setCustomizeOpen: setCustomizeToolbarOpen,
     customizeFooterAction
-  } = useComposerToolbarPinnedTools('chat.input.toolbar.pinned_tools')
+  } = useComposerToolbarPinnedTools(config.pinnedToolsPreferenceKey ?? 'chat.input.toolbar.pinned_tools')
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
   // Yield the same rail gutter as the message column so the composer stays aligned.
@@ -1088,7 +1115,7 @@ const ChatComposerInner = ({
     stopEditing()
   }, [restoreSavedDraft, staleEditingMessage, stopEditing])
 
-  const placeholderText = t('chat.input.placeholder')
+  const placeholderText = t(config.placeholderKey ?? 'chat.input.placeholder')
 
   const tokens = useMemo(
     () => [...files.map(fileToComposerToken), ...selectedKnowledgeBasesInScope.map(knowledgeBaseToComposerToken)],
@@ -1125,8 +1152,9 @@ const ChatComposerInner = ({
   })
 
   const onPause = useCallback(() => {
-    chatWrite?.pause()
-  }, [chatWrite])
+    if (onPauseProp) onPauseProp()
+    else chatWrite?.pause()
+  }, [chatWrite, onPauseProp])
 
   const handleAssistantChange = useCallback(
     async (nextId: string | null) => {
@@ -1437,7 +1465,9 @@ const ChatComposerInner = ({
     paused: followupPaused,
     setPaused: setFollowupPaused
   } = useFollowupQueue({
-    scopeKey: selectedKnowledgeBasesScopeKey,
+    // Keyed on the stream it drains into, not the draft scope: quick assistant keeps one
+    // draft across temporary topics, and a leftover follow-up must not send into the next one.
+    scopeKey: `${streamScopeKey}:${selectedAssistantId ?? 'no-assistant'}`,
     status: streamStatus,
     lastCompletedAt,
     onDrain: sendQueuedPayload
@@ -1448,8 +1478,10 @@ const ChatComposerInner = ({
     (item) => (item.payload.mentionedModels?.length ?? 0) > 0
   )
   const isQueuedFollowupSteerDisabled = useCallback(
-    (item: FollowupQueueItem) => (isPending || awaitingApproval) && item.payload.chatTarget?.mode === 'reserved-branch',
-    [awaitingApproval, isPending]
+    (item: FollowupQueueItem) =>
+      (isPending && !steerWhileBusy) ||
+      ((isPending || awaitingApproval) && item.payload.chatTarget?.mode === 'reserved-branch'),
+    [awaitingApproval, isPending, steerWhileBusy]
   )
   const { models: allModels } = useModels({ enabled: true }, { fetchEnabled: queuedFollowupModelsDataEnabled })
 
@@ -1727,7 +1759,7 @@ const ChatComposerInner = ({
       unifiedPanelControl?: ComposerUnifiedPanelControl
     }) => (
       <ComposerToolbarShortcuts
-        scope={TopicType.Chat}
+        scope={scope}
         pinnedIds={pinnedToolIds}
         onPinnedIdsChange={setPinnedToolIds}
         onResetPinnedIds={resetPinnedToolIds}
@@ -1746,6 +1778,7 @@ const ChatComposerInner = ({
       pinnedToolIds,
       pinnedToolsAtDefault,
       resetPinnedToolIds,
+      scope,
       setCustomizeToolbarOpen,
       setPinnedToolIds,
       toolbarCustomTools
@@ -1803,7 +1836,7 @@ const ChatComposerInner = ({
       extensions={supportedExts}
       selectableKnowledgeBases={selectableKnowledgeBases}>
       <ComposerToolRuntimeHost scope={scope} assistant={displayAssistant} model={runtimeModel} />
-      <ResourceEditDialogEventHost />
+      <ResourceEditDialogEventHost onOpen={onResourceEdit} />
       <ComposerPinnedToolsProvider value={pinnedToolIds}>
         <ComposerSurface
           showAiDisclaimer
@@ -1914,6 +1947,7 @@ const ChatComposerInner = ({
           onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
           deferQuickPanel={deferQuickPanel}
           sendAccessory={sendAccessory}
+          toolbarContextControls={toolbarContextControls}
           compactWhenSingleLine={compactWhenSingleLine}
           {...controlSlots}
         />

@@ -21,15 +21,15 @@ export function openResourceEditDialog(target: ResourceEditDialogTarget) {
  * surface that should be able to open it (e.g. each composer variant); it renders nothing until a
  * request arrives.
  */
-export function ResourceEditDialogEventHost() {
+export function ResourceEditDialogEventHost({ onOpen }: { onOpen?: (target: ResourceEditDialogTarget) => void } = {}) {
   const [target, setTarget] = useState<ResourceEditDialogTarget | null>(null)
 
   useEffect(
     () =>
       EventEmitter.on(EVENT_NAMES.OPEN_RESOURCE_EDIT_DIALOG, (payload) =>
-        setTarget(payload as ResourceEditDialogTarget)
+        (onOpen ?? setTarget)(payload as ResourceEditDialogTarget)
       ),
-    []
+    [onOpen]
   )
 
   const handleOpenChange = useCallback((open: boolean) => {

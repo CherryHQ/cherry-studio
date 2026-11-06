@@ -3,6 +3,14 @@ import { describe, expect, it } from 'vitest'
 import { parseChatRouteSearch } from '../routeSearch'
 
 describe('parseChatRouteSearch', () => {
+  it('preserves the assistant and settings tab requested by another window', () => {
+    expect(parseChatRouteSearch({ editAssistantId: 'assistant-1', editTab: 'tools.mcp' })).toMatchObject({
+      editAssistantId: 'assistant-1',
+      editTab: 'tools.mcp'
+    })
+    expect(parseChatRouteSearch({ editAssistantId: 42, editTab: 'tools.mcp' })).not.toHaveProperty('editAssistantId')
+  })
+
   it('parses the sidebar assistantId for pinned entity entries', () => {
     expect(parseChatRouteSearch({ assistantId: 'assistant-1' })).toEqual({
       assistantId: 'assistant-1',

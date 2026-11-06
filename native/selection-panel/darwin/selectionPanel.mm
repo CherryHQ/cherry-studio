@@ -336,8 +336,112 @@ static napi_value AnimateWindow(napi_env env, napi_callback_info info) {
   return promise;
 }
 
+static char dragCursorKey;
+static char showingDragCursorKey;
+static IMP originalPanelSendEvent = nullptr;
+
+static NSTimer *dragCursorTimer = nil;
+
+static BOOL IsDragCursorArea(NSWindow *window, NSPoint point) {
+  NSView *view = window.contentView;
+  point = [view convertPoint:point fromView:nil];
+  // Chromium returns nil for HTCAPTION; use its live drag/no-drag decision instead of copied rectangles.
+  return window.visible && !window.ignoresMouseEvents && NSPointInRect(point, view.bounds) &&
+      [view hitTest:[view convertPoint:point toView:view.superview]] == nil;
+}
+
+static void UpdateDragCursor(NSWindow *window, NSPoint point) {
+  BOOL draggingArea = IsDragCursorArea(window, point);
+  if (draggingArea) {
+    [NSCursor.openHandCursor set];
+  } else if (objc_getAssociatedObject(window, &showingDragCursorKey) &&
+             (NSCursor.currentCursor == NSCursor.openHandCursor ||
+              NSCursor.currentCursor == NSCursor.closedHandCursor)) {
+    [NSCursor.arrowCursor set];
+  }
+  objc_setAssociatedObject(window, &showingDragCursorKey, draggingArea ? @YES : nil,
+                           OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+
+static void BeginDragCursor(NSWindow *window) {
+  [dragCursorTimer invalidate];
+  [NSCursor.closedHandCursor set];
+  objc_setAssociatedObject(window, &showingDragCursorKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+  __weak NSWindow *weakWindow = window;
+  // Window-server dragging may consume mouse-up; poll only while the initiating button is held.
+  dragCursorTimer = [NSTimer timerWithTimeInterval:1.0 / 60 repeats:YES block:^(NSTimer *timer) {
+    NSWindow *liveWindow = weakWindow;
+    if (liveWindow.visible && !liveWindow.ignoresMouseEvents && (NSEvent.pressedMouseButtons & 1)) {
+      [NSCursor.closedHandCursor set];
+      return;
+    }
+    [timer invalidate];
+    if (dragCursorTimer == timer) dragCursorTimer = nil;
+    if (liveWindow) {
+      UpdateDragCursor(liveWindow, liveWindow.mouseLocationOutsideOfEventStream);
+    } else if (NSCursor.currentCursor == NSCursor.closedHandCursor) {
+      [NSCursor.arrowCursor set];
+    }
+  }];
+  [NSRunLoop.mainRunLoop addTimer:dragCursorTimer forMode:NSRunLoopCommonModes];
+}
+
+static void SendPanelEvent(id receiver, SEL selector, NSEvent *event) {
+  BOOL marked = objc_getAssociatedObject(receiver, &dragCursorKey) != nil;
+  if (marked && event.type == NSEventTypeLeftMouseDown && event.clickCount == 1 &&
+      !(event.modifierFlags & NSEventModifierFlagControl) && IsDragCursorArea(receiver, event.locationInWindow)) {
+    BeginDragCursor(receiver);
+  }
+  if (marked && event.type == NSEventTypeLeftMouseUp) {
+    [dragCursorTimer invalidate];
+    dragCursorTimer = nil;
+  }
+  reinterpret_cast<void (*)(id, SEL, NSEvent *)>(originalPanelSendEvent)(receiver, selector, event);
+  if (!marked || dragCursorTimer) return;
+  if (event.type == NSEventTypeMouseMoved || event.type == NSEventTypeCursorUpdate ||
+      event.type == NSEventTypeMouseExited || event.type == NSEventTypeLeftMouseUp) {
+    UpdateDragCursor(receiver, event.locationInWindow);
+  }
+}
+
+static void RestorePanelSendEvent(void *) {
+  [dragCursorTimer invalidate];
+  dragCursorTimer = nil;
+  if (NSCursor.currentCursor == NSCursor.closedHandCursor) [NSCursor.arrowCursor set];
+  Method method = class_getInstanceMethod(NSClassFromString(@"ElectronNSPanel"), @selector(sendEvent:));
+  if (method && originalPanelSendEvent && method_getImplementation(method) == reinterpret_cast<IMP>(SendPanelEvent)) {
+    method_setImplementation(method, originalPanelSendEvent);
+  }
+  originalPanelSendEvent = nullptr;
+}
+
+static napi_value EnableDragCursor(napi_env env, napi_callback_info info) {
+  NSWindow *window = GetWindow(env, info);
+  if (!window) return nullptr;
+  Class panel = NSClassFromString(@"ElectronNSPanel");
+  if (!panel || ![window isKindOfClass:panel]) {
+    napi_throw_error(env, nullptr, "Expected an Electron panel window");
+    return nullptr;
+  }
+  if (!originalPanelSendEvent) {
+    Method method = class_getInstanceMethod(panel, @selector(sendEvent:));
+    originalPanelSendEvent = method_getImplementation(method);
+    if (!class_addMethod(panel, @selector(sendEvent:), reinterpret_cast<IMP>(SendPanelEvent),
+                         method_getTypeEncoding(method))) {
+      method_setImplementation(method, reinterpret_cast<IMP>(SendPanelEvent));
+    }
+    napi_add_env_cleanup_hook(env, RestorePanelSendEvent, nullptr);
+  }
+  objc_setAssociatedObject(window, &dragCursorKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+  window.acceptsMouseMovedEvents = YES;
+  napi_value result;
+  napi_get_undefined(env, &result);
+  return result;
+}
+
 static napi_value Init(napi_env env, napi_value exports) {
   napi_property_descriptor properties[] = {
+    {"enableDragCursor", nullptr, EnableDragCursor, nullptr, nullptr, nullptr, napi_default, nullptr},
     {"configurePanel", nullptr, ConfigurePanel, nullptr, nullptr, nullptr, napi_default, nullptr},
     {"moveToActiveSpace", nullptr, MoveToActiveSpace, nullptr, nullptr, nullptr, napi_default, nullptr},
     {"setMiniaturizeHandler", nullptr, SetMiniaturizeHandler, nullptr, nullptr, nullptr, napi_default, nullptr},

@@ -129,7 +129,16 @@ export const renderChatHomeControls: ChatComposerControlsRenderer = (props) => (
             renderChatComposerContextControls({ ...props, useMentionedModelSelector: true }, inputAdapter, placement)
           }
         />
-      )
+      ),
+  renderCompactControls: (inputAdapter, unifiedPanelControl) => (
+    <>
+      {renderChatPersistentCompactControls(props, inputAdapter, unifiedPanelControl)}
+      {renderChatComposerContextControls({ ...props, useMentionedModelSelector: true }, inputAdapter, {
+        side: 'top',
+        iconOnly: true
+      })}
+    </>
+  )
 })
 
 export const renderChatHomeInputControls: ChatComposerControlsRenderer = (props) => ({

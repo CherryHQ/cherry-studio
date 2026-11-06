@@ -15,7 +15,12 @@ const composerToolConfigRegistry: Partial<Record<ComposerToolScope, ComposerTool
   },
   'quick-assistant': {
     enableQuickPanel: true,
-    enableDragDrop: false
+    enableDragDrop: false,
+    inheritedToolScopes: [TopicType.Chat],
+    // The chat placeholder documents three affordances and truncates in a 680px bar.
+    placeholderKey: 'quickAssistant.input.placeholder.empty',
+    // Inherits Chat's tools but adds screenshot and keeps its own defaults and order.
+    pinnedToolsPreferenceKey: 'quick_assistant.input.toolbar.pinned_tools'
   },
   // Image-generation prompt bar: the slash quick panel surfaces only the saved
   // prompts library (the sole root-panel launcher in this scope), plus drag-drop
@@ -30,3 +35,25 @@ const composerToolConfigRegistry: Partial<Record<ComposerToolScope, ComposerTool
 export const getComposerToolConfig = (scope: ComposerToolScope): ComposerToolScopeConfig => {
   return composerToolConfigRegistry[scope] ?? composerToolConfigRegistry[DEFAULT_COMPOSER_TOOL_SCOPE]!
 }
+
+export const isComposerToolVisibleInScope = (
+  visibleInScopes: readonly ComposerToolScope[] | undefined,
+  scope: ComposerToolScope
+): boolean => {
+  if (!visibleInScopes) return true
+
+  return composerToolScopeChain(scope).some((candidate) => visibleInScopes.includes(candidate))
+}
+
+/**
+ * Whether `scope` behaves as `candidate` for tool logic. A tool inherited into another
+ * scope still runs with that scope's name, so an identity check against the scope it was
+ * written for silently disables its behavior — ask this instead.
+ */
+export const resolvesToolScopeAs = (scope: ComposerToolScope, candidate: ComposerToolScope): boolean =>
+  composerToolScopeChain(scope).includes(candidate)
+
+const composerToolScopeChain = (scope: ComposerToolScope): readonly ComposerToolScope[] => [
+  scope,
+  ...(getComposerToolConfig(scope).inheritedToolScopes ?? [])
+]

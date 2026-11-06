@@ -64,6 +64,9 @@ function Harness({ overrides = [] }: { overrides?: readonly ComposerOverride[] }
 beforeEach(() => {
   stageHeight = 700
   chromeHeight = 100
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    return { height: this.offsetHeight } as DOMRect
+  })
   // jsdom has no layout; stub only the browser's measured boxes, including composer controls.
   vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(function (this: HTMLElement) {
     return this.hasAttribute('data-composer-stage') ? stageHeight : 0
@@ -81,6 +84,13 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks())
 
 describe('composer available height', () => {
+  it('keeps fractional control heights inside the available stage', () => {
+    chromeHeight = 100.5
+    render(<Harness />)
+    fireEvent.keyDown(screen.getByRole('separator', { name: 'Resize input' }), { key: 'End' })
+    expect(screen.getByRole('separator', { name: 'Resize input' })).toHaveAttribute('aria-valuenow', '599')
+  })
+
   it('freezes the mounted editor during approval overrides and remeasures on return', async () => {
     const view = render(<Harness />)
     const handle = screen.getByRole('separator', { name: 'Resize input' })

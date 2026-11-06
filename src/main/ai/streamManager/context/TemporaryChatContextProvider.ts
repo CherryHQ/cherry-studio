@@ -132,6 +132,8 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       messageId,
       messages: history,
       knowledgeBaseIds: getKnowledgeBaseIdsFromParts(req.userMessageParts),
+      // No continuation path here: an approval request would strand the turn forever.
+      autoApproveTools: true,
       reasoningEffort: req.trigger === 'submit-message' ? req.reasoningEffort : undefined,
       serviceTier: req.trigger === 'submit-message' ? req.serviceTier : undefined,
       ...(req.trigger === 'submit-message' && req.fastMode ? { fastMode: true } : {})

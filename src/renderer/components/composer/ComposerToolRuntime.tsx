@@ -13,6 +13,7 @@ import {
   useComposerToolProviderLaunchers,
   useComposerToolProviderState
 } from '@renderer/components/composer/tools/ComposerToolProvider'
+import { isComposerToolVisibleInScope } from '@renderer/components/composer/tools/registry'
 import type {
   ComposerToolScope,
   ToolActionKey,
@@ -291,7 +292,7 @@ export function useComposerTokenReconcile(
   return useCallback((draftTokens: readonly ComposerSerializedToken[]) => {
     const current = latestRef.current
     const tokenTools = getAllTools().filter(
-      (tool) => tool.composer?.tokens && (!tool.visibleInScopes || tool.visibleInScopes.includes(current.scope))
+      (tool) => tool.composer?.tokens && isComposerToolVisibleInScope(tool.visibleInScopes, current.scope)
     )
     for (const tool of tokenTools) {
       tool.composer?.tokens?.reconcile(draftTokens, buildReconcileContext(tool, current))

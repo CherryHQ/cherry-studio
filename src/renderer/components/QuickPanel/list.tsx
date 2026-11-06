@@ -313,7 +313,7 @@ export function QuickPanelRow<T extends QuickPanelRowData>({
       }}>
       <div className={cn('flex min-w-0 items-center gap-1.5', hasDescription ? 'max-w-[40%] shrink-0' : 'flex-1')}>
         {reserveIconSlot || item.icon ? (
-          <span className="flex shrink-0 items-center justify-center text-[13px] text-muted-foreground [&>svg:not([class*='text-'])]:text-muted-foreground [&>svg]:size-[1em]">
+          <span className="flex size-4 shrink-0 items-center justify-center text-[13px] text-muted-foreground [&_svg:not([class*='text-'])]:text-muted-foreground [&_svg]:size-4">
             {item.icon}
           </span>
         ) : null}

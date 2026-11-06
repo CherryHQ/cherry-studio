@@ -23,7 +23,7 @@ import { APP_EDITIONS, type AppEdition } from './src/shared/types/appEdition'
 import { parseReleaseHistory, validateCurrentReleaseHistory } from './src/shared/utils/releaseNotes'
 import { getSentryBuildContext } from './src/shared/utils/sentry'
 
-const { buildSelectionPanel, sourcePath: selectionPanelSource } = createRequire(import.meta.url)(
+const { buildSelectionPanel, sourceFiles: selectionPanelSources } = createRequire(import.meta.url)(
   './native/selection-panel/build'
 )
 
@@ -184,8 +184,9 @@ export default defineConfig({
     plugins: [
       {
         name: 'cherry-selection-panel',
+        apply: 'build',
         buildStart() {
-          this.addWatchFile(selectionPanelSource)
+          for (const source of selectionPanelSources) this.addWatchFile(source)
           buildSelectionPanel()
         }
       },

@@ -1,6 +1,16 @@
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import type { FC, HTMLAttributes } from 'react'
-import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { cacheService } from '@data/CacheService'
@@ -38,6 +48,7 @@ import { mapApiTopicToRendererTopic, useActiveTopic, useTopicMutations } from '@
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
 import { toast } from '@renderer/services/toast'
+import type { ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'
 import type { AppRouter } from '@renderer/types/router'
 import type { Topic } from '@renderer/types/topic'
 import { getTopicAssistantDisplayGroupId } from '@renderer/utils/chat/topicsHelpers'
@@ -56,6 +67,12 @@ import { TopicRightPane } from './components/TopicRightPane'
 import { Topics } from './Tabs/components/topics'
 import HomeTabs from './Tabs/HomeTabs'
 import type { AddNewTopicPayload } from './types'
+
+const ResourceEditDialogHost = lazy(() =>
+  import('@renderer/components/resourceCatalog/dialogs/edit').then((module) => ({
+    default: module.ResourceEditDialogHost
+  }))
+)
 
 const logger = loggerService.withContext('HomePage')
 const chatRouteApi = getRouteApi('/app/chat')
@@ -89,6 +106,13 @@ const HomePage: FC = () => {
   const [assistantPickerOpen, setAssistantPickerOpen] = useState(false)
 
   const routeSearch = chatRouteApi.useSearch<AppRouter>()
+  const editTarget = useMemo<ResourceEditDialogTarget | null>(
+    () =>
+      routeSearch.editAssistantId
+        ? { kind: 'assistant', id: routeSearch.editAssistantId, initialTab: routeSearch.editTab }
+        : null,
+    [routeSearch.editAssistantId, routeSearch.editTab]
+  )
   const navigate = useNavigate()
   const routeTopicId = routeSearch.topicId
   const routeAssistantId = routeSearch.assistantId
@@ -754,6 +778,17 @@ const HomePage: FC = () => {
       onOpenChange={isClassicTopicLayout ? setTopicPaneOpen : undefined}
       userOpenIntentSeq={topicPaneUserOpenIntentSeq}
       revealRequest={topicRevealRequest}>
+      {editTarget && (
+        <Suspense fallback={null}>
+          <ResourceEditDialogHost
+            target={editTarget}
+            onOpenChange={(open) => {
+              if (!open)
+                void navigate({ to: '/app/chat', search: { assistantId: routeSearch.editAssistantId }, replace: true })
+            }}
+          />
+        </Suspense>
+      )}
       <HomeTabRuntime
         title={tabTitle}
         emoji={visibleAssistant?.emoji}

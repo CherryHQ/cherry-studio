@@ -111,7 +111,7 @@ export function buildPathRegistry() {
     'feature.selection.native_panel_file': path.join(
       appRootResources,
       'binaries',
-      `darwin-${process.arch}`,
+      `${process.platform}-${process.arch}`,
       'selection-panel.node'
     ),
 
