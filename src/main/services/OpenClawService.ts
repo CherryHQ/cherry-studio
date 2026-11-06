@@ -1013,7 +1013,7 @@ export class OpenClawService extends BaseService {
 
   /**
    * Stop the OpenClaw Gateway.
-   * Stops listeners on the configured gateway port.
+   * Stops verified OpenClaw listeners on the configured gateway port.
    */
   public async stopGateway(): Promise<OperationResult> {
     const transitionBefore = this.gatewayTransitionId
@@ -1053,6 +1053,10 @@ export class OpenClawService extends BaseService {
       const pids = new Set(candidates.filter((value) => /^\d+$/.test(value)).map(Number))
       for (const pid of pids) {
         if (pid <= 0 || pid === process.pid) continue
+        if (!this.isOpenClawGatewayProcess(pid)) {
+          logger.debug('Preserving an unverified gateway-port listener', { pid, port: this.gatewayPort })
+          continue
+        }
         try {
           if (isWin) execFileSync('taskkill', ['/PID', String(pid), '/F'], { stdio: 'ignore', windowsHide: true })
           else process.kill(pid, 'SIGKILL')
@@ -1063,6 +1067,42 @@ export class OpenClawService extends BaseService {
       }
     } catch {
       logger.debug('No gateway listeners found on the configured port', { port: this.gatewayPort })
+    }
+  }
+
+  private isOpenClawGatewayProcess(pid: number): boolean {
+    try {
+      const command = (
+        isWin
+          ? execFileSync(
+              'powershell.exe',
+              [
+                '-NoProfile',
+                '-NonInteractive',
+                '-Command',
+                `(Get-CimInstance Win32_Process -Filter "ProcessId = ${pid}").CommandLine`
+              ],
+              { encoding: 'utf8', windowsHide: true, timeout: 2000 }
+            )
+          : execFileSync('ps', ['-o', 'command=', '-p', String(pid)], { encoding: 'utf8', timeout: 2000 })
+      ).trim()
+      // OpenClaw sets this title after entering its gateway command on POSIX.
+      if (!isWin && command === 'openclaw-gateway') return true
+      const args = (command.match(/"[^"]*"|'[^']*'|\S+/g) ?? []).map((arg) =>
+        arg.replace(/^["']|["']$/g, '').replaceAll('\\', '/')
+      )
+      const executable = path.posix
+        .basename(args[0] ?? '')
+        .toLowerCase()
+        .replace(/\.exe$/, '')
+      if (executable === 'openclaw') return args[1] === 'gateway'
+      return (
+        (executable === 'node' || executable === 'bun') &&
+        /\/openclaw\/(?:openclaw\.mjs|dist\/(?:index|entry)\.js)$/.test(args[1] ?? '') &&
+        args[2] === 'gateway'
+      )
+    } catch {
+      return false
     }
   }
 

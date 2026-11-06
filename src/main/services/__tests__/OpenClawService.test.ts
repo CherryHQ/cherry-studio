@@ -1526,7 +1526,7 @@ describe('OpenClawService gateway status state machine', () => {
   // ─── stopGateway ─────────────────────────────────────────────
 
   describe('stopGateway', () => {
-    it.each([false, true])('stops only the configured gateway port (Windows: %s)', async (windows) => {
+    function mockGatewayListeners(windows: boolean, commandLine: string | Error) {
       platformMock.isWin = windows
       ;(service as any).gatewayPort = 1879
       const listeners = new Map([
@@ -1537,6 +1537,10 @@ describe('OpenClawService gateway status state machine', () => {
         [...listeners].map(([pid, port]) => `  TCP  127.0.0.1:${port}  0.0.0.0:0  LISTENING  ${pid}`).join('\n')
       const command = (file: string, args: string[] = []) => {
         if (file === 'netstat') return netstat()
+        if (file === 'ps' || file === 'powershell.exe') {
+          if (commandLine instanceof Error) throw commandLine
+          return commandLine
+        }
         if (file === 'lsof') {
           const port = Number(args.find((arg) => arg.startsWith('-iTCP:'))?.split(':')[1])
           return [...listeners]
@@ -1559,8 +1563,79 @@ describe('OpenClawService gateway status state machine', () => {
         return true
       })
       checkPortOpenSpy.mockImplementation(async (port: number) => [...listeners.values()].includes(port))
+      return listeners
+    }
 
-      await expect(service.stopGateway()).resolves.toEqual({ success: true })
+    it.each([
+      [false, 'openclaw-gateway'],
+      [false, '/usr/local/bin/openclaw gateway run --force'],
+      [false, '/usr/bin/node /opt/node_modules/openclaw/openclaw.mjs gateway run'],
+      [
+        true,
+        '"C:\\Program Files\\nodejs\\node.exe" "C:\\Program Files\\node_modules\\openclaw\\dist\\index.js" gateway run'
+      ],
+      [true, 'C:\\tools\\bun.exe C:\\tools\\node_modules\\openclaw\\openclaw.mjs gateway run'],
+      [true, 'C:\\tools\\openclaw.exe gateway run']
+    ] as const)(
+      'stops only the verified gateway on its configured port (Windows: %s, %s)',
+      async (windows, commandLine) => {
+        const listeners = mockGatewayListeners(windows, commandLine)
+
+        await expect(service.stopGateway()).resolves.toEqual({ success: true })
+        expect([...listeners]).toEqual([[12342, 18790]])
+      }
+    )
+
+    it.each([false, true])(
+      'preserves unrelated and unreadable listeners on the configured port (Windows: %s)',
+      async (windows) => {
+        vi.useFakeTimers()
+        for (const commandLine of [
+          '/usr/bin/node /workspace/server.js',
+          '/usr/bin/node /workspace/server.js openclaw gateway',
+          '/usr/bin/node /workspace/openclaw-helper.js gateway',
+          '/usr/bin/node /opt/node_modules/openclaw/openclaw.mjs doctor',
+          '',
+          new Error('process metadata unavailable')
+        ]) {
+          const listeners = mockGatewayListeners(windows, commandLine)
+          const result = service.stopGateway()
+          await vi.runAllTimersAsync()
+
+          await expect(result).resolves.toMatchObject({ success: false })
+          expect([...listeners]).toEqual([
+            [12341, 1879],
+            [12342, 18790]
+          ])
+        }
+      }
+    )
+
+    it.each([false, true])(
+      'leaves another application alive on shutdown when no gateway was started (Windows: %s)',
+      async (windows) => {
+        vi.useFakeTimers()
+        const listeners = mockGatewayListeners(windows, '/usr/bin/node /workspace/server.js')
+
+        const stopped = (service as any).onStop()
+        await vi.runAllTimersAsync()
+        await stopped
+
+        expect([...listeners]).toEqual([
+          [12341, 1879],
+          [12342, 18790]
+        ])
+      }
+    )
+
+    it.each([false, true])('stops an identified gateway during application shutdown (Windows: %s)', async (windows) => {
+      const listeners = mockGatewayListeners(
+        windows,
+        windows ? 'C:\\tools\\node.exe C:\\tools\\node_modules\\openclaw\\openclaw.mjs gateway run' : 'openclaw-gateway'
+      )
+
+      await (service as any).onStop()
+
       expect([...listeners]).toEqual([[12342, 18790]])
     })
 

@@ -6,23 +6,25 @@ English | [中文](2026-11-07-openclaw-stop-port-isolation.zh.md)
 
 ## Problem
 
-OpenClaw stop used `pkill -9 openclaw` on POSIX, terminating unrelated gateways. Windows searched netstat output by a port substring, so stopping port 1879 could also terminate a listener on 18790. E2E cleanup must not stop a developer's separate gateway.
+OpenClaw stop used `pkill -9 openclaw` on POSIX, terminating unrelated gateways. Windows searched netstat output by a port substring, so stopping port 1879 could also terminate a listener on 18790. Port matching alone also selected unrelated applications on the configured port, including during application shutdown when no gateway had been started.
 
 ## Decision
 
-Find TCP listeners on the exact configured port. Parse Windows local endpoints and LISTENING states; use lsof's TCP listener filter on POSIX. Deduplicate positive PIDs, exclude the current process, and preserve the existing stopped-port verification.
+Find TCP listeners on the exact configured port. Parse Windows local endpoints and LISTENING states; use lsof's TCP listener filter on POSIX. Deduplicate positive PIDs and exclude the current process. Before terminating each candidate, read its command line through POSIX `ps` or Windows CIM. Accept the exact POSIX `openclaw-gateway` process title, an OpenClaw executable running `gateway`, or Node/Bun running an OpenClaw package entrypoint with that command. Missing, unreadable, and unrelated identities are preserved. Keep the existing stopped-port verification.
 
 ## Alternatives considered
 
 - Global process-name termination crosses instance boundaries.
 - Killing only a spawned child would prevent stopping an already-running gateway managed through the configured port.
 - Prefix matching a port can select a different gateway.
+- Port occupancy or a generic HTTP health response does not establish the listener's OpenClaw identity.
 
 ## Consequences
 
-Stop still manages the configured gateway endpoint, including externally started gateways, but leaves listeners on other ports alone. No configuration or stored-data migration is required.
+Stop still manages identified OpenClaw gateways on the configured endpoint, including externally started gateways. Other ports and unverified listeners remain untouched, including during application shutdown. If an unverified listener keeps the port occupied, stop reports failure rather than claiming it stopped the gateway. No configuration or stored-data migration is required.
 
 ## Verification
 
-- Regression — simulated OS listener tables model gateways on 1879 and 18790; stopping 1879 must succeed while 18790 remains alive on both platforms. Both cases failed before the fix. All process termination is mocked in these tests.
-- Regression — all 149 OpenClawService tests passed. Real gateway start/stop and CODE-03 plus MP-97 reruns remain pending.
+- Regression — `pnpm test:main src/main/services/__tests__/OpenClawService.test.ts`: 159/159 passed, including exact-port isolation, legitimate identities, unrelated and unreadable listeners, misleading arguments, and shutdown without starting a gateway. All process termination is mocked.
+- Review — fresh independent verification confirmed all three review findings resolved, with no new confirmed defect.
+- Electron — the earlier port-isolation revision passed a 13-test focused batch including CODE-03. Real CODE-03/MP-97 and full E2E validation of the current identity check remain pending.
