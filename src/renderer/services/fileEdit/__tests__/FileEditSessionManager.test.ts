@@ -78,6 +78,20 @@ describe('file editing lifetime', () => {
     expect(new TextDecoder().decode(disk.data)).toBe('b')
   })
 
+  it('still latches a non-transient save failure for explicit recovery', async () => {
+    const lease = await manager.acquire('notes', handle)
+    failWrite = true
+    failWriteCode = fileErrorCodes.EDIT_RETIRED_ROOT
+    lease.acceptEdit('b')
+
+    await expect(lease.flush()).rejects.toThrow()
+    expect(lease.getSnapshot().saveError).toBeDefined()
+
+    failWrite = false
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(new TextDecoder().decode(disk.data)).toBe('a')
+  })
+
   it('keeps different owners editable and reports a conflict without losing either draft', async () => {
     const [first, second] = await Promise.all([manager.acquire('notes', handle), manager.acquire('artifact', handle)])
     expect(first.writable).toBe(true)
@@ -435,16 +449,32 @@ describe('file editing lifetime', () => {
     await prepared.finish()
   })
 
-  it('retains the draft without rescheduling when a migration barrier refuses the write', async () => {
+  it('retries through a migration barrier and persists the retained draft once it lifts', async () => {
     const lease = await manager.acquire('notes', handle)
     failWrite = true
     failWriteCode = fileErrorCodes.EDIT_MIGRATION_BLOCKED
     lease.acceptEdit('b')
-    await expect(lease.flush()).rejects.toMatchObject({ code: fileErrorCodes.EDIT_MIGRATION_BLOCKED })
+    // The transient barrier rejection neither fails the caller nor latches saveError.
+    await expect(lease.flush()).resolves.toBeUndefined()
     expect(lease.getSnapshot()).toMatchObject({ draft: 'b', isDirty: true })
+    expect(lease.getSnapshot().saveError).toBeUndefined()
+    expect(writes).toEqual([])
+    // Once the barrier lifts, the scheduled retry persists the same draft without manual recovery.
+    failWrite = false
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(new TextDecoder().decode(disk.data)).toBe('b')
+    expect(lease.getSnapshot().saveError).toBeUndefined()
+  })
+
+  it('falls back to explicit recovery when a migration barrier outlasts the retry budget', async () => {
+    const lease = await manager.acquire('notes', handle)
+    failWrite = true
+    failWriteCode = fileErrorCodes.EDIT_MIGRATION_BLOCKED
+    lease.acceptEdit('b')
+    await expect(lease.flush()).resolves.toBeUndefined()
+    // A barrier that outlives the bounded retry budget latches the same loud saveError as before.
+    await vi.advanceTimersByTimeAsync(30000)
     expect(lease.getSnapshot().saveError).toBeInstanceOf(IpcError)
-    // No automatic retry loop while the barrier is up.
-    await vi.advanceTimersByTimeAsync(5000)
     expect(writes).toEqual([])
     // The session is not evicted: re-acquiring returns the retained draft.
     lease.release()
