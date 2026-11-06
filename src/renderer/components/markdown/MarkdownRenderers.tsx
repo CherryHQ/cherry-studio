@@ -172,12 +172,14 @@ export function MarkdownLinkRenderer({
   }
 
   if (isBareImageUrlLink(props.href, props.children)) {
-    // The link this replaces was keyboard-focusable, so keep a focus target and let
-    // Enter/Space open the image preview (the img click handler's action).
+    // The link this replaces was keyboard-focusable, so expose the preview with button
+    // semantics: focusable, named, and activated by Enter/Space (the img click action).
     return (
       <MarkdownImageRenderer
         src={props.href}
         alt={props.href}
+        role="button"
+        aria-label={`Preview image ${props.href}`}
         tabIndex={0}
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === ' ') {

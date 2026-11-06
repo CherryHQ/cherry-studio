@@ -263,21 +263,26 @@ describe('bare image URLs', () => {
     const url = 'https://example.com/pic.png?x=1'
     const A = MarkdownLinkRenderer
     render(<A href={url}>{url}</A>)
-    expect(screen.getByRole('img')).toHaveAttribute('src', url)
+    expect(screen.getByRole('button', { name: `Preview image ${url}` })).toHaveAttribute('src', url)
     expect(screen.queryByRole('link')).toBeNull()
   })
 
   it('renders a percent-encoded non-ASCII bare image URL as an image', () => {
     const A = MarkdownLinkRenderer
     render(<A href="https://example.com/%E5%9B%BE%E7%89%87.png">https://example.com/图片.png</A>)
-    expect(screen.getByRole('img')).toHaveAttribute('src', 'https://example.com/%E5%9B%BE%E7%89%87.png')
+    expect(
+      screen.getByRole('button', { name: 'Preview image https://example.com/%E5%9B%BE%E7%89%87.png' })
+    ).toHaveAttribute('src', 'https://example.com/%E5%9B%BE%E7%89%87.png')
     expect(screen.queryByRole('link')).toBeNull()
   })
 
   it('matches the label against a scheme-normalized href', () => {
     const A = MarkdownLinkRenderer
     render(<A href="https://example.com/pic.png">HTTPS://example.com/pic.png</A>)
-    expect(screen.getByRole('img')).toHaveAttribute('src', 'https://example.com/pic.png')
+    expect(screen.getByRole('button', { name: 'Preview image https://example.com/pic.png' })).toHaveAttribute(
+      'src',
+      'https://example.com/pic.png'
+    )
     expect(screen.queryByRole('link')).toBeNull()
   })
 
@@ -290,7 +295,9 @@ describe('bare image URLs', () => {
         <span data-sd-animate>.png</span>
       </A>
     )
-    expect(screen.getByRole('img')).toHaveAttribute('src', 'https://example.com/%E5%9B%BE%E7%89%87.png')
+    expect(
+      screen.getByRole('button', { name: 'Preview image https://example.com/%E5%9B%BE%E7%89%87.png' })
+    ).toHaveAttribute('src', 'https://example.com/%E5%9B%BE%E7%89%87.png')
     expect(screen.queryByRole('link')).toBeNull()
   })
 
@@ -305,7 +312,10 @@ describe('bare image URLs', () => {
         <ChatLikeSpan data-sd-animate>pic.png?x=1</ChatLikeSpan>
       </A>
     )
-    expect(screen.getByRole('img')).toHaveAttribute('src', 'https://example.com/pic.png?x=1')
+    expect(screen.getByRole('button', { name: 'Preview image https://example.com/pic.png?x=1' })).toHaveAttribute(
+      'src',
+      'https://example.com/pic.png?x=1'
+    )
     expect(screen.queryByRole('link')).toBeNull()
   })
 
@@ -313,7 +323,7 @@ describe('bare image URLs', () => {
     const A = MarkdownLinkRenderer
     const url = 'https://example.com/my%20photo.png'
     render(<A href={url}>{url}</A>)
-    expect(screen.getByRole('img')).toHaveAttribute('src', url)
+    expect(screen.getByRole('button', { name: `Preview image ${url}` })).toHaveAttribute('src', url)
     expect(screen.queryByRole('link')).toBeNull()
   })
 
@@ -328,7 +338,7 @@ describe('bare image URLs', () => {
     const A = MarkdownLinkRenderer
     const url = 'https://example.com/pic.png'
     render(<A href={url}>{url}</A>)
-    const img = screen.getByRole('img')
+    const img = screen.getByRole('button', { name: `Preview image ${url}` })
     expect(img).toHaveAttribute('tabindex', '0')
     img.focus()
     expect(img).toHaveFocus()
