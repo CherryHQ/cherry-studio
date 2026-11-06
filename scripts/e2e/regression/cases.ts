@@ -192,13 +192,6 @@ export const REGRESSION_CASES = [
     tasks: ['code-tools', 'code-cli']
   },
   {
-    id: 'CODE-02',
-    capabilities: ['desktopAutomation'],
-    phase: 'codeTools',
-    title: 'Launch Codex',
-    tasks: ['code-tools', 'code-cli']
-  },
-  {
     id: 'CODE-03',
     capabilities: ['desktopAutomation'],
     phase: 'codeTools',

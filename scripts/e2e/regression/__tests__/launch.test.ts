@@ -78,7 +78,7 @@ it.each(['macos', 'windows'] as const)(
       expect(process.env.USERPROFILE).toBe('/unrelated/developer-USERPROFILE')
       expect(options.env.CS_DEV_USER_DATA_SUFFIX).toBe('Regression-prepared-authenticated')
       // The app writes CLI provider config against `sys.home`; it must point into the run directory
-      // so CODE-02 cannot rewrite the machine owner's real ~/.codex credentials.
+      // so CLI provider configuration cannot rewrite the machine owner's real credentials.
       expect(options.env.XDG_CONFIG_HOME).toBe(join(isolatedHome, '.config'))
       expect(options.env.HERMES_HOME).toBe(join(isolatedHome, '.hermes'))
       expect(options.env.LOCALAPPDATA).toBe(join(isolatedHome, 'AppData', 'Local'))

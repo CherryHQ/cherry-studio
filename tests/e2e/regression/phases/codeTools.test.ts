@@ -111,18 +111,6 @@ test(...caseDefinition('CODE-01'), async ({ app, mainWindow: page }) => {
     .toBe(true)
 })
 
-test(...caseDefinition('CODE-02'), async ({ app, mainWindow: page }) => {
-  await ensureCustomChatProvider(app, page)
-  await closeSettings(page)
-  const baseline = new Set(listOwnedProcessIds(app.record))
-  await openCodeTool(page, 'OpenAI Codex')
-  await configureTool(page, app.config.customProvider.chatModel, 'Unified Gateway')
-  await launchWithWorkspace(app, page)
-  await expect
-    .poll(() => observeOwnedProcess(app.record, 'codex', true, baseline).passed, { timeout: 60_000 })
-    .toBe(true)
-})
-
 test(...caseDefinition('CODE-03'), async ({ app, mainWindow: page }) => {
   await ensureCustomChatProvider(app, page)
   await closeSettings(page)

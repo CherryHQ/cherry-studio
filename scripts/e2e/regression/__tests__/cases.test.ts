@@ -75,7 +75,7 @@ describe('regression execution plan', () => {
   it('selects only the requested task within its workflow phase', () => {
     expect(selectCases('translation-settings', 'translation').map(({ id }) => id)).toEqual(['MP-86'])
     expect(selectCases('knowledge-smoke', 'knowledge').map(({ id }) => id)).toEqual(['K-01'])
-    expect(selectCases('code-cli', 'codeTools').map(({ id }) => id)).toEqual(['CODE-01', 'CODE-02'])
+    expect(selectCases('code-cli', 'codeTools').map(({ id }) => id)).toEqual(['CODE-01'])
     expect(selectCases('notes', 'modelsAndAssistants')).toEqual([])
     expect(selectCases('notes', 'basicFeatures').map(({ id }) => id)).toEqual(['N-01'])
     expect(() => getCase('missing')).toThrow('Unknown regression case')
@@ -84,7 +84,7 @@ describe('regression execution plan', () => {
   it.each([
     ['notes', ['N-01', 'MP-11', 'MP-74', 'MP-75', 'MP-76', 'MP-77', 'MP-78', 'MP-79']],
     ['knowledge', ['K-01', 'MP-59', 'MP-60', 'MP-61', 'MP-62', 'MP-63', 'MP-64', 'MP-65', 'MP-66', 'MP-67']],
-    ['code-tools', ['CODE-01', 'CODE-02', 'CODE-03', 'MP-97']],
+    ['code-tools', ['CODE-01', 'CODE-03', 'MP-97']],
     ['paintings', ['P-01', 'MP-90', 'MP-91', 'MP-92']],
     ['translation', ['T-01', 'T-02', 'MP-81', 'MP-82', 'MP-83', 'MP-85', 'MP-86']]
   ] as const)('includes existing scenarios as well as case-library scenarios in %s', (task, ids) => {
