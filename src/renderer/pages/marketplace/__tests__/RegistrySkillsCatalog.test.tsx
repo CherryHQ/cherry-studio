@@ -1,11 +1,12 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18next from 'i18next'
 import { useState } from 'react'
 import { SWRConfig } from 'swr'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
+import { Scrollbar } from '@cherrystudio/ui'
 import { ipcApi } from '@renderer/ipc'
 
 import { RegistrySkillsCatalog, type SkillRegistrySource } from '../RegistrySkillsCatalog'
@@ -36,7 +37,9 @@ function Catalog() {
         onRefresh={() => {}}
       />
       <input aria-label="Search skills" value={query} onChange={(event) => setQuery(event.target.value)} />
-      <RegistrySkillsCatalog key={source} source={source} query={query} active />
+      <Scrollbar aria-label="Skill catalog" tabIndex={0}>
+        <RegistrySkillsCatalog key={source} source={source} query={query} active />
+      </Scrollbar>
     </>
   )
 }
@@ -119,4 +122,51 @@ it('recovers from a failed catalog request through retry and shows an empty cata
   await user.click(screen.getByRole('button', { name: 'Retry' }))
   expect(await screen.findByText('No resources found')).toBeVisible()
   expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+})
+
+it('reveals more skills at the scroll sentinel and returns keyboard focus after closing details', async () => {
+  const user = userEvent.setup()
+  let intersect: IntersectionObserverCallback | undefined
+  vi.stubGlobal(
+    'IntersectionObserver',
+    class {
+      constructor(callback: IntersectionObserverCallback) {
+        intersect = callback
+      }
+      observe() {}
+      disconnect() {}
+    }
+  )
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        skills: Array.from({ length: 31 }, (_, index) => ({
+          skillId: 'skill-' + index,
+          name: 'Skill ' + index,
+          source: 'owner/repo',
+          installs: 1
+        })),
+        page: 0,
+        hasMore: false
+      })
+    })
+  )
+  render(
+    <SWRConfig value={{ provider: () => new Map() }}>
+      <Catalog />
+    </SWRConfig>
+  )
+  expect(await screen.findByText('Skill 0')).toBeVisible()
+  expect(screen.queryByText('Skill 30')).not.toBeInTheDocument()
+  await act(async () => {
+    intersect?.([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver)
+  })
+  expect(await screen.findByText('Skill 30')).toBeVisible()
+  const opener = screen.getByRole('button', { name: /^Skill 30 / })
+  await user.click(opener)
+  expect(screen.getByRole('dialog')).toBeVisible()
+  await user.keyboard('{Escape}')
+  await waitFor(() => expect(opener).toHaveFocus())
 })

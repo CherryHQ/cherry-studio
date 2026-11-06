@@ -2,7 +2,7 @@ import { Bot, Layers, Network, Settings2, Sparkles } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@cherrystudio/ui'
+import { Button, Scrollbar } from '@cherrystudio/ui'
 import { ResourceCatalogSearchInput } from '@renderer/components/resourceCatalog/ResourceCatalogSearchInput'
 import { useAgentCatalogPresets } from '@renderer/hooks/useAgentCatalogPresets'
 import { buildAssistantCatalogTabs, useAssistantCatalogPresets } from '@renderer/hooks/useAssistantCatalogPresets'
@@ -180,7 +180,7 @@ export default function MarketplacePage() {
             </div>
           ) : null}
           {resourceType === 'all' ? (
-            <div className="min-h-0 flex-1 space-y-7 overflow-y-auto pr-1">
+            <Scrollbar showOnHover className="min-h-0 flex-1 space-y-7 pr-1">
               {OVERVIEW_TYPES.map((type) => (
                 <section key={type} data-testid={'marketplace-section-' + type}>
                   <div className="mb-3 flex items-center justify-between gap-3">
@@ -192,16 +192,17 @@ export default function MarketplacePage() {
                   {renderCatalog(type, true)}
                 </section>
               ))}
-            </div>
+            </Scrollbar>
           ) : (
-            <div
+            <Scrollbar
+              showOnHover
               key={resourceType + ':' + (skillSourceId ?? '') + ':' + moreMcpSources}
               className={
                 'min-h-0 flex-1 ' +
                 (resourceType === 'agent' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto pr-1')
               }>
               {renderCatalog(resourceType)}
-            </div>
+            </Scrollbar>
           )}
         </main>
       </div>

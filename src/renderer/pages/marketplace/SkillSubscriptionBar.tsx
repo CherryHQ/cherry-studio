@@ -11,7 +11,8 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
-  Label
+  Label,
+  Scrollbar
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { ipcApi } from '@renderer/ipc'
@@ -50,8 +51,9 @@ export function SkillSubscriptionBar({
   )
   return (
     <div className="flex shrink-0 items-center gap-2 py-3">
-      <div
-        className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto"
+      <Scrollbar
+        showOnHover
+        className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto overflow-y-hidden [scrollbar-gutter:auto]"
         aria-label={t('marketplace.subscription.sources')}>
         <Button
           size="sm"
@@ -95,7 +97,7 @@ export function SkillSubscriptionBar({
             <span className="truncate">{source.name}</span>
           </Button>
         ))}
-      </div>
+      </Scrollbar>
       {!SKILL_REGISTRY_SOURCES.some((source) => source === sourceId) && sourceId ? (
         <>
           <Button
