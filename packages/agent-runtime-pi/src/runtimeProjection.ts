@@ -123,7 +123,7 @@ export class PiProjection {
         }
       const settled = delivery !== 'baseline' && this.settled
       return {
-        value: structuredClone({
+        value: {
           events: [event],
           backgroundResults: this.backgroundResults,
           aliases: this.aliases,
@@ -134,7 +134,7 @@ export class PiProjection {
           settled,
           children,
           outcomes
-        }),
+        },
         retain: settled || children.length > 0 || outcomes.length > 0
       }
     })

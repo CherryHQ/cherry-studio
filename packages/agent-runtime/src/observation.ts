@@ -71,7 +71,10 @@ export class ThreadFeed {
     return this.observeCaptured(sink, (event) => ({ value: event }))
   }
 
-  /** Capture adapter-owned metadata on publication, before asynchronous delivery can advance past it. */
+  /**
+   * Capture cloneable adapter metadata synchronously on publication without mutating the supplied facts.
+   * The feed copies each captured value before asynchronous delivery can advance past it.
+   */
   observeCaptured<T>(
     sink: (value: T) => void | Promise<void>,
     capture: (event: ObservationPayload, delivery: 'baseline' | 'update' | 'recovery') => { value: T; retain?: boolean }
@@ -83,9 +86,10 @@ export class ThreadFeed {
     let sent = 1
     let delivered = 0
     let lost = false
-    type Delivery = { event: ObservationPayload; value: T; through: number; recovery?: T }
-    const initial = this.snapshot
-    let pending: Delivery[] = [{ event: initial, value: capture(initial, 'baseline').value, through: sent }]
+    type Delivery = { value: T; through: number; shouldClose: boolean; recovery?: T }
+    const captureFrame = (event: ObservationPayload, delivery: Parameters<typeof capture>[1]) =>
+      structuredClone(capture(event, delivery))
+    let pending: Delivery[] = [{ value: captureFrame(this.value, 'baseline').value, through: sent, shouldClose: false }]
     const barriers = new Set<{ through: number; resolve(): void; reject(error: Error): void }>()
     const settle = () => {
       for (const barrier of barriers) {
@@ -115,11 +119,11 @@ export class ThreadFeed {
         try {
           while (!stopped && pending.length) {
             started = true
-            const { event, value, through } = pending.shift()!
+            const { value, through, shouldClose } = pending.shift()!
             await sink(value)
             delivered = Math.max(delivered, through)
             settle()
-            if (event.type === 'closed') stop()
+            if (shouldClose) stop()
           }
         } catch (error) {
           stop()
@@ -132,25 +136,26 @@ export class ThreadFeed {
     const observer = {
       send: (event: ObservationPayload) => {
         if (stopped || lost) return
-        const captured = capture(event, 'update')
-        pending.push({
-          event: structuredClone(event),
+        const captured = captureFrame(event, 'update')
+        const next: Delivery = {
           value: captured.value,
           through: ++sent,
-          ...(captured.retain && { recovery: capture(this.snapshot, 'recovery').value })
-        })
+          shouldClose: event.type === 'closed',
+          ...(captured.retain && { recovery: captureFrame(this.value, 'recovery').value })
+        }
+        pending.push(next)
         if (pending.length > 100) {
           const retained = pending
             .filter((item) => item.recovery !== undefined)
             .map((item) => ({ ...item, value: item.recovery! }))
           const gap: ObservationPayload = { type: 'gap', reason: 'overflow' }
-          const snapshot = this.snapshot
+          const snapshot = this.value
           if (retained.length > 1000) {
             lost = true
             const closed: ObservationPayload = { type: 'closed', reason: 'source-lost' }
             pending = [
-              { event: gap, value: capture(gap, 'update').value, through: delivered },
-              { event: closed, value: capture(closed, 'update').value, through: sent }
+              { value: captureFrame(gap, 'update').value, through: delivered, shouldClose: false },
+              { value: captureFrame(closed, 'update').value, through: sent, shouldClose: true }
             ]
             report(new Error('Observation exceeded recoverable delivery backlog'))
             schedule()
@@ -158,18 +163,18 @@ export class ThreadFeed {
           }
           pending = [
             ...(started ? [] : [pending[0]]),
-            { event: gap, value: capture(gap, 'update').value, through: delivered },
+            { value: captureFrame(gap, 'update').value, through: delivered, shouldClose: false },
             ...retained,
             ...(retained.at(-1)?.through === sent
               ? []
               : [
                   {
-                    event: snapshot,
-                    value: capture(snapshot, 'recovery').value,
-                    through: event.type === 'closed' ? sent - 1 : sent
+                    value: captureFrame(snapshot, 'recovery').value,
+                    through: next.shouldClose ? sent - 1 : sent,
+                    shouldClose: false
                   }
                 ]),
-            ...(event.type === 'closed' ? [{ event, value: captured.value, through: sent }] : [])
+            ...(next.shouldClose ? [next] : [])
           ]
         }
         schedule()
