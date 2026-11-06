@@ -31,6 +31,9 @@ const logger = loggerService.withContext('ClaudeCodeEnvironment')
 
 const MIN_AUTO_COMPACT_WINDOW = 100_000
 const MAX_AUTO_COMPACT_WINDOW = 1_000_000
+// The SDK retries API errors such as 524/529; bound request and billing amplification (Issue #23552).
+// Agent env_vars may override this default.
+const BOUNDED_AGENT_API_RETRIES = 3
 /**
  * Slack between the SDK's local token estimate and the provider's own count.
  * Widen it if 400s reappear while the reported input sits just under budget.
@@ -167,6 +170,7 @@ export async function buildEnvironment(
     // On by default since SDK 0.3.284: a mid-conversation system turn per tool batch, which
     // kills the prefix cache on endpoints that hoist system messages. Not blocked below.
     CLAUDE_CODE_TOTAL_TOKENS_REMINDER: 'off',
+    CLAUDE_CODE_MAX_RETRIES: String(BOUNDED_AGENT_API_RETRIES),
     // ANTHROPIC_API_KEY and ANTHROPIC_BASE_URL are injected by the runtime query builder,
     // not duplicated here.
     ANTHROPIC_MODEL: apiModelId,
