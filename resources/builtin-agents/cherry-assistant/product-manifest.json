@@ -118,6 +118,7 @@
           "Escape"
         ],
         "editable": false,
+        "enableToggle": true,
         "when": "!webview.focused"
       }
     },

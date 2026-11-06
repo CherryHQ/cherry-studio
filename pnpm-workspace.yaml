@@ -108,7 +108,6 @@ patchedDependencies:
   "@ai-sdk/open-responses@1.0.34": patches/@ai-sdk__open-responses@1.0.34.patch
   ai@6.0.185: patches/ai@6.0.185.patch
   ppu-paddle-ocr@6.0.0: patches/ppu-paddle-ocr@6.0.0.patch
-  "@ai-sdk/react@3.0.187": patches/@ai-sdk__react@3.0.187.patch
   # Version-pinned: hunk targets a content-hashed dist chunk; bumps hard-fail install until key+hunk are re-derived.
   streamdown@2.5.0: patches/streamdown@2.5.0.patch
   app-builder-lib@26.15.6: patches/app-builder-lib@26.15.6.patch
@@ -139,19 +138,15 @@ allowBuilds:
   "@google/genai": false
   "@j178/prek": true
   "@paymoapp/electron-shutdown-handler": true
-  "@scarf/scarf": true
   "@sentry/cli": true
   "@swc/core": true
   better-sqlite3: true
   canvas: false
-  core-js: true
   electron: true
   electron-winstaller: true
   esbuild: true
-  koffi: true
   msw: true
   node-mac-permissions: true
-  node-pty: true
   onnxruntime-node: true
   protobufjs: true
   registry-js: true
@@ -159,7 +154,6 @@ allowBuilds:
   sharp: true
   tesseract.js: true
   unrs-resolver: true
-  zipfile: true
 
 # Every platform builds both arches (`electron-builder --x64 --arm64`), so both prebuilt
 # sets must be installed up front: pnpm does not record supportedArchitectures in the
