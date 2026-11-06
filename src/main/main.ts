@@ -18,6 +18,7 @@ import { serviceList } from '@main/core/application/serviceRegistry'
 import { prepareBackupRestoreSession, runBackupRestoreGate } from '@main/core/preboot/backupRestoreGate'
 import { configureChromiumFlags } from '@main/core/preboot/chromiumFlags'
 import { initCrashTelemetry } from '@main/core/preboot/crashTelemetry'
+import { trackProcessExit } from '@main/core/preboot/exitRecord'
 import { requireSingleInstance } from '@main/core/preboot/singleInstance'
 import { resolveUserDataLocation } from '@main/core/preboot/userDataLocation'
 import { runV2MigrationGate } from '@main/core/preboot/v2MigrationGate'
@@ -32,6 +33,7 @@ import { getApplicationId } from '@main/utils/appEdition'
 // should be the first to resolveUserDataLocation()
 resolveUserDataLocation()
 requireSingleInstance()
+trackProcessExit()
 configureChromiumFlags()
 configureRemoteDebugging()
 initCrashTelemetry()

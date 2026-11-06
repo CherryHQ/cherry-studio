@@ -16,6 +16,7 @@ import {
 } from '@main/core/lifecycle'
 import { buildPathRegistry, type PathKey, type PathMap, shouldAutoEnsure } from '@main/core/paths/pathRegistry'
 import { isDev, isLinux, isMac, isPortable, isWin } from '@main/core/platform'
+import { noteExitReason, recordExit } from '@main/core/preboot/exitRecord'
 import { handleGuarded } from '@main/core/security/guardedIpc'
 import { bootConfigService } from '@main/data/bootConfig'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -290,6 +291,7 @@ export class Application {
     }
 
     // Close logger LAST — after this point, no more logging
+    recordExit('shutdown')
     loggerService.finish()
   }
 
@@ -403,6 +405,8 @@ export class Application {
    * Relaunch the app, with dev mode warning
    */
   public relaunch(options?: Electron.RelaunchOptions): void {
+    noteExitReason('relaunch')
+    recordExit()
     if (isDev || !app.isPackaged) {
       logger.warn('Relaunch is not supported in dev mode. Please restart manually.')
       dialog.showMessageBoxSync({
@@ -452,6 +456,7 @@ export class Application {
     }
 
     process.on('SIGINT', async () => {
+      noteExitReason('signal:SIGINT')
       const timer = setTimeout(forceExit, SHUTDOWN_TIMEOUT_MS)
       try {
         await this.shutdown()
@@ -464,6 +469,7 @@ export class Application {
     })
 
     process.on('SIGTERM', async () => {
+      noteExitReason('signal:SIGTERM')
       const timer = setTimeout(forceExit, SHUTDOWN_TIMEOUT_MS)
       try {
         await this.shutdown()
@@ -658,6 +664,7 @@ export class Application {
    * Used by autoUpdater.quitAndInstall() which has its own quit flow.
    */
   public markQuitting(): void {
+    noteExitReason('update-restart')
     this._isQuitting = true
   }
 
@@ -699,6 +706,7 @@ export class Application {
    * before-quit checks preventQuit holds, then will-quit runs shutdown().
    */
   public quit(reason: 'user' | 'system-shutdown' = 'user'): void {
+    if (reason === 'system-shutdown' || !this._isQuitting) noteExitReason(reason === 'user' ? 'quit' : reason)
     if (reason === 'system-shutdown') this.quitGuardsPassed = true
     if (this._isQuitting) {
       // Re-kick app.quit(): if a prior quit stalled (e.g. a BrowserWindow close
@@ -717,6 +725,8 @@ export class Application {
    * For fatal/unrecoverable errors (service init failure, repeated renderer crash).
    */
   public forceExit(code: number): void {
+    noteExitReason('force-exit')
+    recordExit()
     this._isQuitting = true
     logger.warn(`Force exiting application with code ${code}`)
     app.exit(code)
