@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-02-claude-code-copilot-opus-55-alias.md
+2026-11-02-claude-code-copilot-opus-55-alias.md: 5eede076e1a41dae994a7270faa79f57b568c26c
+2026-11-02-claude-code-copilot-opus-55-alias.zh.md: f44616fcf0f0d87413c45433c88cba31514a16e2

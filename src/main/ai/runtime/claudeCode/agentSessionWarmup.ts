@@ -36,8 +36,8 @@ import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
-import { formatGatewayModelId } from '@shared/utils/apiGateway'
-import { isVisionModel, supportsDynamicallyLoadedTools } from '@shared/utils/model'
+import { formatGatewayModelId, getClaudeCodeGatewayApiModelId } from '@shared/utils/apiGateway'
+import { isGatewayRoutableModel, isVisionModel, supportsDynamicallyLoadedTools } from '@shared/utils/model'
 import {
   isExternalCliProvider,
   isOllamaProvider,
@@ -746,8 +746,15 @@ function deriveRouteFacts(
       ref: RuntimeModelRef,
       reasons: GatewayDegradeReason[]
     ): GatewayDegradedSlot => ({ slot, providerId: ref.providerId, modelId: ref.modelId, reasons })
-    const slotModelId = (ref: RuntimeModelRef) =>
-      toGatewayModelId(ref, isFirstPartyAnthropicSlot(ref, primaryRef, primaryBaseUrl))
+    const siblingsByProvider = new Map<string, Model[]>()
+    const slotModelId = (ref: RuntimeModelRef) => {
+      let siblings = siblingsByProvider.get(ref.providerId)
+      if (!siblings) {
+        siblings = modelService.list({ providerId: ref.providerId, enabled: true }).filter(isGatewayRoutableModel)
+        siblingsByProvider.set(ref.providerId, siblings)
+      }
+      return toGatewayModelId(ref, isFirstPartyAnthropicSlot(ref, primaryRef, primaryBaseUrl), siblings)
+    }
     return {
       // A direct-eligible primary pushed onto the gateway by a background slot is user-visible
       // degradation; when the primary itself needs the gateway this is the expected route.
@@ -959,15 +966,9 @@ function usesAnthropicMessagesEndpoint(ref: RuntimeModelRef): boolean {
   )
 }
 
-/**
- * Gateway-slotted id. Anthropic-dialect slots keep the direct branch's `[1m]` marker, which raises
- * the CLI's local budget; the CLI strips it before egress and the gateway tolerates a stray marker.
- */
-function toGatewayModelId(ref: RuntimeModelRef, isAnthropicNative: boolean): string {
-  const apiModelId = usesAnthropicMessagesEndpoint(ref)
-    ? with1mSuffix(ref.apiModelId, ref.contextWindow, isAnthropicNative)
-    : ref.apiModelId
-  return formatGatewayModelId(ref.providerId, apiModelId)
+function toGatewayModelId(ref: RuntimeModelRef, isAnthropicNative: boolean, siblings: readonly Model[]): string {
+  const alias = ref.model ? getClaudeCodeGatewayApiModelId(ref.model, siblings) : ref.apiModelId
+  return formatGatewayModelId(ref.providerId, with1mSuffix(alias, ref.contextWindow, isAnthropicNative))
 }
 
 /** Per-slot first-party check: each gateway slot resolves its own provider, unlike the direct branch. */

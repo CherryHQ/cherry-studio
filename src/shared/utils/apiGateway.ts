@@ -1,4 +1,5 @@
 import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
+import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 
 /**
  * Separator in the custom-model path Antigravity CLI carries (`gemini-api://<providerId>/models/<apiModelId>`).
@@ -75,4 +76,31 @@ export function stripGeminiGatewayModelSuffix(model: string): string {
  */
 export function isReservedGeminiGatewayModelId(id: string): boolean {
   return id.endsWith(GEMINI_GATEWAY_MODEL_SUFFIX)
+}
+
+export function normalizeClaudeCodeModelId(apiModelId: string): string {
+  return apiModelId.replace(
+    /^(claude-(?:opus|sonnet|haiku|fable)-)([0-9]+)\.([0-9]+)(\[1m\])?$/i,
+    (_match, prefix: string, major: string, minor: string, marker: string | undefined) =>
+      `${prefix.toLowerCase()}${major}-${minor}${marker ?? ''}`
+  )
+}
+
+export function getClaudeCodeGatewayApiModelId(model: Model, routableModels: readonly Model[]): string {
+  const apiId = (row: Model) => row.apiModelId ?? parseUniqueModelId(row.id).modelId
+  const original = apiId(model)
+  const alias = normalizeClaudeCodeModelId(original)
+  if (alias === original || !routableModels.some((row) => row.id === model.id)) return original
+  const strip = (id: string) => id.replace(/\s*\[1m\]\s*$/i, '').trimEnd()
+  const bareAlias = strip(alias)
+  const matches = routableModels.filter((row) => strip(normalizeClaudeCodeModelId(apiId(row))) === bareAlias)
+  if (matches.length !== 1 || matches[0].id !== model.id) return original
+  if (
+    routableModels.some(
+      (row) =>
+        row.id !== model.id && (apiId(row) === alias || apiId(row) === bareAlias || apiId(row) === `${bareAlias}[1m]`)
+    )
+  )
+    return original
+  return alias
 }

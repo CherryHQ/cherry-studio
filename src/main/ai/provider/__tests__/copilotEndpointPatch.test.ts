@@ -23,6 +23,7 @@ describe.each([
     ['gpt-5.3-codex', '/responses'],
     ['gpt-4o', '/chat/completions'],
     ['claude-sonnet-4', '/chat/completions'],
+    ['claude-opus-5.5', '/chat/completions'],
     ['gemini-2.5-pro', '/chat/completions']
   ])('sends %s to %s with the matching request format', async (modelId, endpoint) => {
     let requestUrl: string | undefined

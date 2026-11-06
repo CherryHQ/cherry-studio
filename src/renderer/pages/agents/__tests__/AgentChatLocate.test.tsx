@@ -217,6 +217,7 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
+  useModels: () => ({ models: [], isLoading: false, refetch: vi.fn() }),
   useModelById: (modelId?: string | null) => ({
     model: modelId ? { id: modelId, name: 'Model 1' } : undefined,
     isLoading: false

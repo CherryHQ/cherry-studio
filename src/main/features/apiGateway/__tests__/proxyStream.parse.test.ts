@@ -116,9 +116,10 @@ function mockAvailableModel(providerId: string, internalModelId: string, apiMode
 }
 
 /** Resolve a valid (non-streaming) request after capturing the streamPrompt args. */
-async function resolveValid(model: string): Promise<string | undefined> {
+async function resolveValid(model: string, requestHeaders?: Headers): Promise<string | undefined> {
   const promise = processMessage({
     params: { model, messages: [] },
+    requestHeaders,
     inputFormat: 'openai',
     outputFormat: 'openai'
   })
@@ -130,6 +131,12 @@ async function resolveValid(model: string): Promise<string | undefined> {
 }
 
 describe('processMessage model-id parsing', () => {
+  it('dispatches an internal Claude alias to the original Copilot model', async () => {
+    mockAvailableModel('copilot', 'claude-opus-5.5')
+    mockIsInternalRequest.mockReturnValue(true)
+    expect(await resolveValid('copilot:claude-opus-5-5[1m]', new Headers())).toBe('copilot::claude-opus-5.5')
+  })
+
   it('rejects a missing model field', async () => {
     await expect(
       processMessage({ params: { messages: [] } as any, inputFormat: 'openai', outputFormat: 'openai' })
