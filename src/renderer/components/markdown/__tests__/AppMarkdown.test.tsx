@@ -98,11 +98,14 @@ After`}</AppMarkdown>
 
   it('renders bare non-ASCII and uppercase-scheme image URLs as images', () => {
     const { container } = render(
-      <AppMarkdown>{'https://example.com/图片.png\n\nHTTPS://example.com/pic.png'}</AppMarkdown>
+      <AppMarkdown>
+        {'https://example.com/图片.png\n\nHTTPS://example.com/pic.png\n\nhttps://example.com/my%20图片.png'}
+      </AppMarkdown>
     )
     const srcs = [...container.querySelectorAll('img')].map((img) => img.getAttribute('src'))
     expect(srcs).toContain('https://example.com/%E5%9B%BE%E7%89%87.png')
     expect(srcs).toContain('https://example.com/pic.png')
+    expect(srcs).toContain('https://example.com/my%20%E5%9B%BE%E7%89%87.png')
     expect(screen.queryByRole('link')).toBeNull()
   })
 

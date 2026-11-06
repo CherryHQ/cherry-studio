@@ -10,6 +10,7 @@ import {
   useMemo,
   useState
 } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { Components, ExtraProps } from 'streamdown'
 
 import { CodeBlockView } from '@renderer/components/CodeBlockView/CodeBlockView'
@@ -38,21 +39,27 @@ const URL_SCHEME_PATTERN = /^[a-z][a-z0-9+.-]*:/i
 
 /**
  * The pipeline rewrites a link's href but not its label: remark-rehype percent-encodes
- * non-ASCII characters and rehypeNormalizeLinkScheme lowercases the scheme. Compare
- * equivalent spellings of the same URL so those bare image links still match. Only the
- * href side is percent-decoded: decoding the label too would alias distinct spellings
- * (a `%252F` label against a `%2F` destination) and blur the labelled-link boundary.
+ * non-ASCII characters and rehypeNormalizeLinkScheme lowercases the scheme. A label is the
+ * same bare URL when the URL parser equates the two - parsing encodes raw non-ASCII
+ * (IDN hosts included), preserves valid percent-escapes, and lowercases the scheme and
+ * host - or when the label equals the href percent-decoded, which covers characters the
+ * URL parser preserves verbatim but normalize-uri encodes (a stray `%`). The label is
+ * never decoded: decoding it too would alias distinct spellings (a `%252F` label against
+ * a `%2F` destination) and blur the labelled-link boundary.
  */
-function normalizeUrlSpelling(value: string, { decodeHref }: { decodeHref: boolean }): string {
-  let result = value
-  if (decodeHref) {
-    try {
-      result = decodeURI(value)
-    } catch {
-      // Malformed percent-encoding: compare the raw spelling.
-    }
+function isSameBareUrl(label: string, href: string): boolean {
+  try {
+    if (new URL(label).href === new URL(href).href) return true
+  } catch {
+    // A label the URL parser rejects can still match the decoded href below.
   }
-  return result.replace(URL_SCHEME_PATTERN, (scheme) => scheme.toLowerCase())
+  try {
+    const lowerScheme = (value: string) => value.replace(URL_SCHEME_PATTERN, (scheme) => scheme.toLowerCase())
+    return lowerScheme(label) === decodeURI(lowerScheme(href))
+  } catch {
+    // Malformed percent-encoding in the href.
+    return false
+  }
 }
 
 /**
@@ -87,15 +94,7 @@ function extractBareUrlText(node: ReactNode): string | null {
 function isBareImageUrlLink(href: string | undefined, children: ReactNode): href is string {
   if (!href || !IMAGE_URL_PATTERN.test(href)) return false
   const text = extractBareUrlText(children)
-  if (text === null || text === '') return false
-  const label = normalizeUrlSpelling(text, { decodeHref: false })
-  // The label matches when it is the href verbatim (the common case, including labels that
-  // already contain percent-escapes) or the percent-decoded form of it (raw non-ASCII label
-  // against a remark-rehype-encoded href).
-  return (
-    label === normalizeUrlSpelling(href, { decodeHref: false }) ||
-    label === normalizeUrlSpelling(href, { decodeHref: true })
-  )
+  return text !== null && text !== '' && isSameBareUrl(text, href)
 }
 
 export function shouldShowMarkdownLinkFavicon(node: ExtraProps['node']): boolean {
@@ -140,6 +139,7 @@ export function MarkdownLinkRenderer({
   openExternalUrl: urlOpener,
   ...props
 }: MarkdownRendererProps<'a'> & Pick<MarkdownHost, 'openFilePath' | 'openExternalUrl'>) {
+  const { t } = useTranslation()
   const host = useMarkdownHost()
   const openFilePath = fileOpener ?? host.openFilePath
   const openExternalUrl = urlOpener ?? host.openExternalUrl
@@ -179,7 +179,7 @@ export function MarkdownLinkRenderer({
         src={props.href}
         alt={props.href}
         role="button"
-        aria-label={`Preview image ${props.href}`}
+        aria-label={t('preview.image', { url: props.href })}
         tabIndex={0}
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === ' ') {

@@ -3216,6 +3216,7 @@
   "preview.dialog": "Abrir janela de pré-visualização",
   "preview.flip_horizontal": "Virar Horizontalmente",
   "preview.flip_vertical": "Virar Verticalmente",
+  "preview.image": "Pré-visualização da imagem {{url}}",
   "preview.label": "Pré-visualização",
   "preview.next": "Próxima Imagem",
   "preview.pan_down": "mover para baixo",

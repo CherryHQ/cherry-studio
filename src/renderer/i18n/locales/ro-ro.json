@@ -3216,6 +3216,7 @@
   "preview.dialog": "Deschide dialog",
   "preview.flip_horizontal": "Întoarce orizontal",
   "preview.flip_vertical": "Întoarce vertical",
+  "preview.image": "Previzualizare imagine {{url}}",
   "preview.label": "Previzualizare",
   "preview.next": "Imaginea următoare",
   "preview.pan_down": "Deplasează jos",

@@ -3216,6 +3216,7 @@
   "preview.dialog": "打开预览窗口",
   "preview.flip_horizontal": "水平翻转",
   "preview.flip_vertical": "垂直翻转",
+  "preview.image": "预览图片 {{url}}",
   "preview.label": "预览",
   "preview.next": "下一张图片",
   "preview.pan_down": "下移",

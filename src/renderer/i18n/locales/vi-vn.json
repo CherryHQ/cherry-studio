@@ -3216,6 +3216,7 @@
   "preview.dialog": "Mở hộp thoại",
   "preview.flip_horizontal": "Lật ngang",
   "preview.flip_vertical": "Lật dọc",
+  "preview.image": "Xem trước hình ảnh {{url}}",
   "preview.label": "Xem trước",
   "preview.next": "Ảnh Tiếp Theo",
   "preview.pan_down": "Quay xuống",

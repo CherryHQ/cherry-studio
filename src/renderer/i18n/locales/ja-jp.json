@@ -3216,6 +3216,7 @@
   "preview.dialog": "ダイアログを開く",
   "preview.flip_horizontal": "左右反転",
   "preview.flip_vertical": "垂直反転",
+  "preview.image": "{{url}} のプレビュー",
   "preview.label": "プレビュー",
   "preview.next": "次の画像",
   "preview.pan_down": "下にパン",

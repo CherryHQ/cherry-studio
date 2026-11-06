@@ -3216,6 +3216,7 @@
   "preview.dialog": "Apri finestra di anteprima",
   "preview.flip_horizontal": "Rifletti orizzontalmente",
   "preview.flip_vertical": "Rifletti verticalmente",
+  "preview.image": "Anteprima dell'immagine {{url}}",
   "preview.label": "Anteprima",
   "preview.next": "Immagine successiva",
   "preview.pan_down": "Sposta in basso",

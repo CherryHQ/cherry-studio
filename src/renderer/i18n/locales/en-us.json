@@ -3216,6 +3216,7 @@
   "preview.dialog": "Open Dialog",
   "preview.flip_horizontal": "Flip Horizontal",
   "preview.flip_vertical": "Flip Vertical",
+  "preview.image": "Preview image {{url}}",
   "preview.label": "Preview",
   "preview.next": "Next Image",
   "preview.pan_down": "Pan Down",
