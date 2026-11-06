@@ -121,7 +121,7 @@ describe('local history atomic import', () => {
         .select()
         .from(agentSessionTable)
         .all()
-        .map((row) => row.importMetadata?.originalSessionId)
+        .map((row) => agentSessionService.getById(row.id).importMetadata?.originalSessionId)
         .sort()
     ).toEqual(['one', 'two'])
     const next = await service.discover('window', 'codex', sourceRoot)
@@ -190,7 +190,9 @@ describe('local history atomic import', () => {
       expect(outcome).toMatchObject({ status: 'imported', initialization: 'ready', agentId: 'pi' })
       const stored = dbh.db.select().from(agentSessionMessageTable).all()
       expect(stored[0].data.parts).toEqual([{ type: 'text', text: 'changed' }])
-      expect(stored[0].provenance?.source).toBe('opencode')
+      expect(agentSessionMessageService.getSessionMessage(outcome.sessionId!, stored[0].id).provenance?.source).toBe(
+        'opencode'
+      )
     } finally {
       external.close()
     }
