@@ -46,7 +46,7 @@ const ROUTE_LABELS: Record<string, { icon: string; labelKey: string }> = {
   '/settings/channels': { icon: '📡', labelKey: 'settings.channels.title' },
   '/settings/code-execution': { icon: '⚙️', labelKey: 'chat.settings.code_execution.title' },
   '/settings/dependencies': { icon: '🛠️', labelKey: 'settings.dependencies.title' },
-  '/settings/scheduled-tasks': { icon: '⏰', labelKey: 'settings.scheduledTasks.title' },
+  '/app/scheduled-tasks': { icon: '⏰', labelKey: 'settings.scheduledTasks.title' },
   '/settings/skills': { icon: '🧰', labelKey: 'settings.skills.title' },
   '/settings/usage': { icon: '📊', labelKey: 'settings.usage.title' },
   '/settings/profile': { icon: '👤', labelKey: 'settings.profile.title' },

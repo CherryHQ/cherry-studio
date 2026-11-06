@@ -1,7 +1,7 @@
-import { createFileRoute } from '@tanstack/react-router'
-
-import TasksSettings from '@renderer/pages/settings/TasksSettings'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/settings/scheduled-tasks/$taskId')({
-  component: TasksSettings
+  beforeLoad: ({ params }) => {
+    throw redirect({ to: '/app/scheduled-tasks', search: { taskId: params.taskId }, replace: true })
+  }
 })
