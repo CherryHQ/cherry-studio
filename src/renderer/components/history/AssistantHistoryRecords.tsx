@@ -313,6 +313,7 @@ const AssistantHistoryRecords = ({
       try {
         await permanentDeletePopup.show({
           kind: 'conversation',
+          target: 'topic',
           name: topic.name.trim() || t('chat.default.topic.name'),
           action: async () => {
             const liveTopic = topicsRef.current.find((candidate) => candidate.id === topic.id)

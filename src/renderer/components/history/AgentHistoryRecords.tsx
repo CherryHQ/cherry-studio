@@ -249,6 +249,8 @@ const AgentHistoryRecords = ({
       return permanentDeletePopup
         .show({
           kind: 'conversation',
+          target: 'session',
+          workspace: current?.workspace,
           name: historySessionLabel(current?.name),
           action: async () => {
             if (pinIdBySessionIdRef.current.has(id)) {

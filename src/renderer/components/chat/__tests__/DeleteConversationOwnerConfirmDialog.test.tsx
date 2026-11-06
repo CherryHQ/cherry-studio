@@ -437,7 +437,7 @@ describe('deleteConversationOwnerPopup', () => {
 })
 
 describe('permanent deletion confirmation', () => {
-  it('shows the owner name and irreversibility without deleting before confirm', async () => {
+  it('names the assistant and states what is deleted and kept before confirm', async () => {
     const action = vi.fn()
 
     render(
@@ -452,13 +452,16 @@ describe('permanent deletion confirmation', () => {
       />
     )
 
-    expect(screen.getByRole('dialog', { name: 'Permanently delete "Field Notes"?' })).toBeInTheDocument()
-    expect(screen.getByText('This action cannot be undone.')).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Permanently delete assistant "Field Notes"?' })).toBeInTheDocument()
+    expect(screen.getByText(/Knowledge bases and MCP servers themselves are kept/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Delete Permanently' })).toHaveAttribute('data-variant', 'destructive')
     expect(
-      screen.getByRole('checkbox', { name: 'Also permanently delete related topics, including archived ones' })
+      screen.getByRole('checkbox', {
+        name: 'Also permanently delete all of its topics, including archived and pinned ones'
+      })
     ).not.toBeChecked()
+    expect(screen.getByText('Its topics are kept and move to Unlinked Assistant.')).toBeInTheDocument()
     expect(action).not.toHaveBeenCalled()
   })
 
@@ -492,9 +495,16 @@ describe('permanent deletion confirmation', () => {
         onConfirm={checked}
       />
     )
+    expect(screen.getByRole('dialog', { name: 'Permanently delete agent "Dispatch"?' })).toBeInTheDocument()
+    expect(screen.getByText(/all of its scheduled tasks will be deleted/)).toBeInTheDocument()
+    expect(screen.getByText('Its conversations are kept and move to Unlinked Agent.')).toBeInTheDocument()
     await user.click(
-      screen.getByRole('checkbox', { name: 'Also permanently delete related sessions, including archived ones' })
+      screen.getByRole('checkbox', {
+        name: 'Also permanently delete all of its conversations, including archived and pinned ones'
+      })
     )
+    expect(screen.queryByText('Its conversations are kept and move to Unlinked Agent.')).not.toBeInTheDocument()
+    expect(screen.getByText(/working folders the app created for them will be deleted too/)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Delete Permanently' }))
     expect(checked).toHaveBeenCalledExactlyOnceWith(true)
   })
@@ -534,6 +544,7 @@ describe('permanent deletion confirmation', () => {
 
     render(
       <PermanentConversationDeleteDialog
+        target="topic"
         name="Notes"
         open
         pending={false}
@@ -543,13 +554,45 @@ describe('permanent deletion confirmation', () => {
     )
 
     expect(screen.getByRole('dialog', { name: 'Permanently delete "Notes"?' })).toBeInTheDocument()
-    expect(screen.getByText('This action cannot be undone.')).toBeInTheDocument()
+    expect(screen.getByText(/This topic and all of its messages will be permanently deleted/)).toBeInTheDocument()
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
     expect(onConfirm).not.toHaveBeenCalled()
 
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(onConfirm).not.toHaveBeenCalled()
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('warns that a session in an app-managed workspace also deletes its folder from disk', () => {
+    const { rerender } = render(
+      <PermanentConversationDeleteDialog
+        target="session"
+        workspace={{ type: 'system', path: '/data/Agents/system/ws-1' }}
+        name="Deploy"
+        open
+        pending={false}
+        onOpenChange={() => {}}
+        onConfirm={() => {}}
+      />
+    )
+
+    expect(screen.getByText(/its sub-conversations will be permanently deleted/)).toBeInTheDocument()
+    expect(screen.getByText(/working folder will also be deleted from disk/)).toBeInTheDocument()
+
+    rerender(
+      <PermanentConversationDeleteDialog
+        target="session"
+        workspace={{ type: 'user', path: '/Users/jd/project' }}
+        name="Deploy"
+        open
+        pending={false}
+        onOpenChange={() => {}}
+        onConfirm={() => {}}
+      />
+    )
+
+    expect(screen.queryByText(/working folder will also be deleted from disk/)).not.toBeInTheDocument()
+    expect(screen.getByText(/\/Users\/jd\/project/)).toBeInTheDocument()
   })
 
   it('does not delete a conversation until the permanent action is confirmed', async () => {
@@ -559,7 +602,7 @@ describe('permanent deletion confirmation', () => {
 
     let result!: Promise<boolean>
     act(() => {
-      result = permanentDeletePopup.show({ kind: 'conversation', name: 'Notes', action })
+      result = permanentDeletePopup.show({ kind: 'conversation', target: 'topic', name: 'Notes', action })
     })
 
     expect(await screen.findByRole('dialog', { name: 'Permanently delete "Notes"?' })).toBeInTheDocument()
@@ -578,7 +621,7 @@ describe('permanent deletion confirmation', () => {
 
     let result!: Promise<boolean>
     act(() => {
-      result = permanentDeletePopup.show({ kind: 'conversation', name: 'Notes', action })
+      result = permanentDeletePopup.show({ kind: 'conversation', target: 'topic', name: 'Notes', action })
     })
 
     await user.click(await screen.findByRole('button', { name: 'Delete Permanently' }))
@@ -595,7 +638,7 @@ describe('permanent deletion confirmation', () => {
     let result!: Promise<boolean>
     let duplicate!: Promise<boolean>
     act(() => {
-      result = permanentDeletePopup.show({ kind: 'conversation', name: 'Notes', action })
+      result = permanentDeletePopup.show({ kind: 'conversation', target: 'topic', name: 'Notes', action })
       duplicate = permanentDeletePopup.show({
         kind: 'owner',
         type: 'agent',
@@ -646,7 +689,7 @@ describe('permanent deletion confirmation', () => {
 
     let result!: Promise<boolean>
     act(() => {
-      result = permanentDeletePopup.show({ kind: 'conversation', name: 'Notes', action })
+      result = permanentDeletePopup.show({ kind: 'conversation', target: 'topic', name: 'Notes', action })
     })
 
     await user.click(await screen.findByRole('button', { name: 'Delete Permanently' }))
@@ -672,7 +715,7 @@ describe('permanent deletion confirmation', () => {
 
     let result!: Promise<boolean>
     act(() => {
-      result = permanentDeletePopup.show({ kind: 'conversation', name: 'Notes', action })
+      result = permanentDeletePopup.show({ kind: 'conversation', target: 'topic', name: 'Notes', action })
     })
 
     await user.click(await screen.findByRole('button', { name: 'Delete Permanently' }))

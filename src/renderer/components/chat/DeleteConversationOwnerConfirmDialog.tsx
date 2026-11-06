@@ -6,8 +6,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
-
-const IRREVERSIBLE_DESCRIPTION_KEY = 'settings.data.trash.permanent_delete.confirm_content'
+import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 
 export interface DeleteConversationOwnerConfirmDialogProps {
   type: 'agent' | 'assistant'
@@ -88,12 +87,40 @@ export function DeleteConversationOwnerConfirmDialog({
         ? 'conversation_owner.archive.related_sessions'
         : 'conversation_owner.archive.related_topics'
   )
+  const childrenHint = permanent
+    ? t(
+        type === 'agent'
+          ? shouldDeleteChildren
+            ? 'conversation_owner.delete_permanently.sessions_deleted'
+            : 'conversation_owner.delete_permanently.sessions_kept'
+          : shouldDeleteChildren
+            ? 'conversation_owner.delete_permanently.topics_deleted'
+            : 'conversation_owner.delete_permanently.topics_kept'
+      )
+    : null
 
   return (
     <ConfirmDialog
       open={open}
-      title={permanent ? t('conversation.delete_permanently.title', { name: displayName }) : t('common.archive')}
-      description={permanent ? t(IRREVERSIBLE_DESCRIPTION_KEY) : undefined}
+      title={
+        permanent
+          ? t(
+              type === 'agent'
+                ? 'conversation_owner.delete_permanently.agent_title'
+                : 'conversation_owner.delete_permanently.assistant_title',
+              { name: displayName }
+            )
+          : t('common.archive')
+      }
+      description={
+        permanent
+          ? t(
+              type === 'agent'
+                ? 'conversation_owner.delete_permanently.agent_scope'
+                : 'conversation_owner.delete_permanently.assistant_scope'
+            )
+          : undefined
+      }
       confirmText={permanent ? t('common.delete_permanently') : t('common.archive')}
       cancelText={t('common.cancel')}
       destructive={permanent}
@@ -122,6 +149,7 @@ export function DeleteConversationOwnerConfirmDialog({
             />
             <Label htmlFor={checkboxId}>{checkboxLabel}</Label>
           </div>
+          {childrenHint && <p className="pl-6 text-muted-foreground text-xs">{childrenHint}</p>}
         </div>
       }
     />
@@ -129,6 +157,9 @@ export function DeleteConversationOwnerConfirmDialog({
 }
 
 export interface PermanentConversationDeleteDialogProps {
+  target: 'topic' | 'session'
+  /** Session workspace; a system workspace folder is removed from disk with its session. */
+  workspace?: Pick<AgentWorkspaceEntity, 'type' | 'path'>
   name: string
   open: boolean
   pending: boolean
@@ -137,6 +168,8 @@ export interface PermanentConversationDeleteDialogProps {
 }
 
 export function PermanentConversationDeleteDialog({
+  target,
+  workspace,
   name,
   open,
   pending,
@@ -151,7 +184,24 @@ export function PermanentConversationDeleteDialog({
     <ConfirmDialog
       open={open}
       title={t('conversation.delete_permanently.title', { name: displayName })}
-      description={t(IRREVERSIBLE_DESCRIPTION_KEY)}
+      description={t(
+        target === 'session'
+          ? 'conversation.delete_permanently.session_scope'
+          : 'conversation.delete_permanently.topic_scope'
+      )}
+      content={
+        <div className="space-y-2 text-xs">
+          {target === 'session' && workspace?.type === 'system' && (
+            <p className="text-destructive">{t('conversation.delete_permanently.system_workspace')}</p>
+          )}
+          {target === 'session' && workspace?.type === 'user' && (
+            <p className="break-all text-muted-foreground">
+              {t('conversation.delete_permanently.user_workspace', { path: workspace.path })}
+            </p>
+          )}
+          <p className="text-muted-foreground">{t('conversation.delete_permanently.attachments')}</p>
+        </div>
+      }
       confirmText={t('common.delete_permanently')}
       cancelText={t('common.cancel')}
       destructive
@@ -214,6 +264,8 @@ export const deleteConversationOwnerPopup = createPopup<DeleteConversationOwnerP
 export type PermanentDeletePopupParams =
   | {
       kind: 'conversation'
+      target: 'topic' | 'session'
+      workspace?: Pick<AgentWorkspaceEntity, 'type' | 'path'>
       name: string
       action: () => void | Promise<void>
     }
@@ -256,6 +308,8 @@ function PermanentDeletePopupContainer(props: PermanentDeletePopupParams & Popup
   if (props.kind === 'conversation') {
     return (
       <PermanentConversationDeleteDialog
+        target={props.target}
+        workspace={props.workspace}
         name={props.name}
         open={open}
         pending={pending}

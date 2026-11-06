@@ -591,6 +591,7 @@ export function Topics({
       try {
         await permanentDeletePopup.show({
           kind: 'conversation',
+          target: 'topic',
           name: topic.name.trim() || t('chat.conversation.new'),
           action: async () => {
             const liveTopic = topicsRef.current.find((candidate) => candidate.id === topic.id)

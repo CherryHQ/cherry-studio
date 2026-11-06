@@ -643,6 +643,8 @@ const Sessions = ({
       try {
         await permanentDeletePopup.show({
           kind: 'conversation',
+          target: 'session',
+          workspace: current?.workspace,
           name: current
             ? !current.isNameManuallyEdited && !current.name.trim()
               ? t('agent.session.new')
