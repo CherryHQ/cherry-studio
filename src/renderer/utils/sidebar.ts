@@ -311,14 +311,25 @@ export function addSidebarShortcut(
   const items = normalizeSidebarShortcutItems(values)
   const id = createSidebarShortcutId(target)
   if (items.some((item) => isSidebarShortcutItem(item) && item.id === id)) return items
+  const chatIndex =
+    isBuiltInAppShortcutTarget(target) && target.locator.resourceId === 'scheduled_tasks'
+      ? items.findIndex(
+          (item) =>
+            isSidebarShortcutItem(item) &&
+            isBuiltInAppShortcutTarget(item.target) &&
+            item.target.locator.resourceId === 'assistants'
+        )
+      : -1
+  const insertIndex = chatIndex === -1 ? items.length : chatIndex + 1
   return [
-    ...items,
+    ...items.slice(0, insertIndex),
     {
       type: 'shortcut',
       id,
       target,
       ...(fallbackLabel ? { fallbackLabel } : {})
-    }
+    },
+    ...items.slice(insertIndex)
   ]
 }
 
