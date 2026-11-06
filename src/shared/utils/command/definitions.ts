@@ -56,7 +56,8 @@ export const COMMAND_DEFINITIONS = [
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
     keybinding: {
-      defaultBinding: ['CommandOrControl', '1']
+      defaultBinding: ['CommandOrControl', '1'],
+      when: '!webview.focused'
     }
   }),
   defineCommand({
@@ -65,7 +66,8 @@ export const COMMAND_DEFINITIONS = [
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
     keybinding: {
-      defaultBinding: ['CommandOrControl', '2']
+      defaultBinding: ['CommandOrControl', '2'],
+      when: '!webview.focused'
     }
   }),
   defineCommand({
@@ -74,7 +76,8 @@ export const COMMAND_DEFINITIONS = [
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
     keybinding: {
-      defaultBinding: ['CommandOrControl', '3']
+      defaultBinding: ['CommandOrControl', '3'],
+      when: '!webview.focused'
     }
   }),
   defineCommand({
@@ -83,7 +86,8 @@ export const COMMAND_DEFINITIONS = [
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
     keybinding: {
-      defaultBinding: ['CommandOrControl', '4']
+      defaultBinding: ['CommandOrControl', '4'],
+      when: '!webview.focused'
     }
   }),
   defineCommand({
@@ -92,7 +96,8 @@ export const COMMAND_DEFINITIONS = [
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
     keybinding: {
-      defaultBinding: ['CommandOrControl', '5']
+      defaultBinding: ['CommandOrControl', '5'],
+      when: '!webview.focused'
     }
   }),
   defineCommand({
@@ -101,7 +106,8 @@ export const COMMAND_DEFINITIONS = [
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
     keybinding: {
-      defaultBinding: ['CommandOrControl', '6']
+      defaultBinding: ['CommandOrControl', '6'],
+      when: '!webview.focused'
     }
   }),
   defineCommand({
@@ -110,7 +116,8 @@ export const COMMAND_DEFINITIONS = [
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
     keybinding: {
-      defaultBinding: ['CommandOrControl', '7']
+      defaultBinding: ['CommandOrControl', '7'],
+      when: '!webview.focused'
     }
   }),
   defineCommand({
@@ -119,7 +126,8 @@ export const COMMAND_DEFINITIONS = [
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
     keybinding: {
-      defaultBinding: ['CommandOrControl', '8']
+      defaultBinding: ['CommandOrControl', '8'],
+      when: '!webview.focused'
     }
   }),
   defineCommand({
@@ -128,7 +136,8 @@ export const COMMAND_DEFINITIONS = [
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
     keybinding: {
-      defaultBinding: ['CommandOrControl', '9']
+      defaultBinding: ['CommandOrControl', '9'],
+      when: '!webview.focused'
     }
   }),
   defineCommand({

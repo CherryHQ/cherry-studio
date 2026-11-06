@@ -124,3 +124,35 @@ describe('resolveCommandDisplayState', () => {
     expect(state.shortcutLabel).toBe('⌘N')
   })
 })
+
+describe('sidebar item shortcuts', () => {
+  const sidebarOptions = {
+    preferences: {},
+    scope: 'renderer',
+    platform: 'darwin',
+    canExecuteCommand: () => true
+  } as const
+
+  it.each([1, 2, 3, 4, 5, 6, 7, 8, 9])(
+    'resolves CommandOrControl+%i to its sidebar item without a focused webview',
+    (n) => {
+      expect(
+        resolveCommandByKeybinding({
+          ...sidebarOptions,
+          context: { 'webview.focused': false },
+          binding: ['CommandOrControl', String(n)]
+        })
+      ).toBe(`app.sidebar.open_${n}`)
+    }
+  )
+
+  it.each([1, 2, 3, 4, 5, 6, 7, 8, 9])('leaves CommandOrControl+%i to a focused MiniApp guest', (n) => {
+    expect(
+      resolveCommandByKeybinding({
+        ...sidebarOptions,
+        context: { 'webview.focused': true },
+        binding: ['CommandOrControl', String(n)]
+      })
+    ).toBeUndefined()
+  })
+})
