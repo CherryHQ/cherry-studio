@@ -11,6 +11,7 @@ import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/con
 import { isPathInside } from '../../../../scripts/e2e/regression/paths'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { openAgentPane, startNewAgentTask } from '../helpers/agents'
+import { assertAgentContextUsage } from '../helpers/contextUsage'
 import { ensureCustomChatProvider } from '../helpers/models'
 import { closeSettings } from '../helpers/settings'
 import type { RegressionApp } from '../RegressionApp'
@@ -134,10 +135,7 @@ export async function agentMemoryContext(app: RegressionApp, page: Page, testInf
     )
     await expect(recall).toHaveText('QA-DEMO')
     await openAgentPane(page, 'Status')
-    // Runtime identity snapshots are injected into Messages, not the CLI's Memory files category.
-    const category = page.getByText('Messages', { exact: true })
-    await expect(category).toBeVisible()
-    await expect(category.locator('..')).toContainText(/[1-9][\d,]*\s*\(\d+%\)/)
+    await assertAgentContextUsage(page)
     await screenshot('MP-57 new session recall and context usage')
 
     const disabledSettings = await openMemorySettings()
@@ -170,7 +168,7 @@ export async function agentMemoryContext(app: RegressionApp, page: Page, testInf
       .soft(afterDisable, 'The retained FACT.md identity snapshot still reaches the agent')
       .toContainText('QA-DEMO')
     await openAgentPane(page, 'Status')
-    await expect(page.getByText('Messages', { exact: true })).toBeVisible()
+    await assertAgentContextUsage(page)
     expect(await readMemory(), 'Disabling memory must preserve the saved file').toBe(contents)
     await screenshot('MP-57 new session with memory disabled')
   } finally {

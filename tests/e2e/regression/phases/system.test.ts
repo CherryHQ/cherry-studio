@@ -443,8 +443,27 @@ test(...caseDefinition('MP-128'), async ({ app, mainWindow: page }, testInfo) =>
       const origin = await overlay.evaluate(() => ({ x: screenX, y: screenY }))
       const x = bounds.x + 120 - origin.x
       const y = bounds.y + 100 - origin.y
+      await testInfo.attach('MP-128 capture coordinates', {
+        body: JSON.stringify({
+          bounds,
+          origin,
+          x,
+          y,
+          viewport: await overlay.evaluate(() => ({
+            width: innerWidth,
+            height: innerHeight,
+            ratio: devicePixelRatio
+          }))
+        }),
+        contentType: 'application/json'
+      })
       await drag(overlay, x, y, 560, 220)
       await expect(overlay.getByRole('button', { name: 'Rectangle', exact: true })).toBeVisible()
+      const selection = await overlay.locator('canvas').last().boundingBox()
+      await testInfo.attach('MP-128 selected capture bounds', {
+        body: JSON.stringify(selection),
+        contentType: 'application/json'
+      })
       return { window: overlay, x, y }
     }
     const { window: capturePage, x, y } = await capture()

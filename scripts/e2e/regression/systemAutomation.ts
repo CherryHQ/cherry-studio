@@ -27,14 +27,17 @@ export function findMacNotification(paths: RunPaths, text: string, click = false
         set windowElements to entire contents of window windowIndex
         repeat with groupReference in windowElements
           set notificationGroup to contents of groupReference
-          if role of notificationGroup is "AXGroup" and subrole of notificationGroup is "AXNotificationCenterAlert" then
+          if role of notificationGroup is "AXGroup" then
             set alertElements to entire contents of notificationGroup
             repeat with elementReference in alertElements
               set element to contents of elementReference
               if role of element is "AXStaticText" then
                 if (value of element as text) contains item 1 of argv then
-                  if item 2 of argv is "click" then perform action "AXPress" of notificationGroup
-                  return "found"
+                  if item 2 of argv is not "click" then return "found"
+                  if (name of every action of notificationGroup) contains "AXPress" then
+                    perform action "AXPress" of notificationGroup
+                    return "found"
+                  end if
                 end if
               end if
             end repeat

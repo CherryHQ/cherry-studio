@@ -16,14 +16,16 @@ export function readNativePermission(panel: 'Privacy_Accessibility' | 'Privacy_S
     tell application "System Events"
       tell process "System Settings"
         set frontmost to true
-        repeat 20 times
-          repeat with element in entire contents of window 1
-            if role of element is "AXCheckBox" then
-              if (name of element as text) contains "Open Computer Use" then
-                return value of element as text
+        repeat 40 times
+          if exists window 1 then
+            repeat with element in entire contents of window 1
+              if role of element is "AXCheckBox" then
+                if (name of element as text) contains "Open Computer Use" then
+                  return value of element as text
+                end if
               end if
-            end if
-          end repeat
+            end repeat
+          end if
           delay 0.2
         end repeat
       end tell

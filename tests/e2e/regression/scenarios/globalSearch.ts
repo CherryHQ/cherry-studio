@@ -49,6 +49,10 @@ export async function globalSearch(app: RegressionApp, page: Page, testInfo: Tes
         activeTag: document.activeElement?.tagName,
         activeRole: document.activeElement?.getAttribute('role'),
         activeLabel: document.activeElement?.getAttribute('aria-label'),
+        activeId: document.activeElement?.id,
+        activeType: document.activeElement?.getAttribute('type'),
+        activePlaceholder: document.activeElement?.getAttribute('placeholder'),
+        activeDialog: document.activeElement?.closest('[role="dialog"]')?.getAttribute('data-ui'),
         dialogs: [...document.querySelectorAll('[role="dialog"], [role="alertdialog"]')]
           .filter((element) => element.getClientRects().length)
           .map((element) => ({

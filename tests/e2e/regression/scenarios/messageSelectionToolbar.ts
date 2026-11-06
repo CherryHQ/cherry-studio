@@ -189,20 +189,44 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
             element.contains(document.elementFromPoint(point.endX, point.endY)),
           point
         )
-      await expect
-        .poll(async () => {
-          point = await measure()
-          if (await hitsTarget()) return true
-          const viewport = await target.evaluate((element) =>
-            element.closest('[data-message-virtual-list-scroller]')?.getBoundingClientRect().toJSON()
-          )
-          if (viewport && (point.y < viewport.top + 30 || point.endY > viewport.bottom - 30)) {
-            await page.mouse.move(viewport.x + viewport.width / 2, viewport.y + viewport.height / 2)
-            await page.mouse.wheel(0, point.y - (viewport.y + viewport.height / 2))
+      try {
+        await expect
+          .poll(async () => {
+            point = await measure()
+            if (await hitsTarget()) return true
+            const viewport = await target.evaluate((element) =>
+              element.closest('[data-message-virtual-list-scroller]')?.getBoundingClientRect().toJSON()
+            )
+            if (viewport && (point.y < viewport.top + 30 || point.endY > viewport.bottom - 30)) {
+              await page.mouse.move(viewport.x + viewport.width / 2, viewport.y + viewport.height / 2)
+              await page.mouse.wheel(0, point.y - (viewport.y + viewport.height / 2))
+            }
+            return false
+          })
+          .toBe(true)
+      } catch (error) {
+        const geometry = await target.evaluate((element, point) => {
+          const describe = (target: Element | null) =>
+            target && {
+              tag: target.tagName,
+              role: target.getAttribute('role'),
+              ui: target.getAttribute('data-ui'),
+              rect: target.getBoundingClientRect().toJSON()
+            }
+          return {
+            point,
+            target: describe(element),
+            startHit: describe(document.elementFromPoint(point.x, point.y)),
+            endHit: describe(document.elementFromPoint(point.endX, point.endY)),
+            viewport: describe(element.closest('[data-message-virtual-list-scroller]'))
           }
-          return false
+        }, point)
+        await testInfo.attach('MP-149 inaccessible selection geometry', {
+          body: JSON.stringify(geometry),
+          contentType: 'application/json'
         })
-        .toBe(true)
+        throw error
+      }
       return point
     }
     let selectionAttempt = 0

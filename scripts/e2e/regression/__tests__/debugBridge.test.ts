@@ -86,36 +86,58 @@ const authorizationUrl = 'https://open.cherryin.ai/oauth2/auth?state=test-state'
 const callback = 'http://127.0.0.1:29873/oauth/callback?code=test-code&state=test-state'
 
 describe('owned application debug bridge', () => {
-  it.each([false, true])('sets main-window focus to %s when another owned window is listed first', async (focused) => {
-    const record = ownedApp('windows')
-    mainInspector()
-    let mainFocused = !focused
-    const window = (pathname: string, setFocus: (value: boolean) => void, isFocused: () => boolean) => ({
-      webContents: { getURL: () => `http://localhost:5173${pathname}`, focus: () => {} },
-      focus: () => setFocus(true),
-      blur: () => setFocus(false),
-      isFocused
-    })
-    const main = window(
-      '/windows/main/index.html',
-      (value) => (mainFocused = value),
-      () => mainFocused
-    )
-    const secondary = window(
-      '/windows/selection/index.html',
-      () => {},
-      () => true
-    )
-    const context = createVmContext({
-      URL,
-      process: { mainModule: { require: () => ({ BrowserWindow: { getAllWindows: () => [secondary, main] } }) } }
-    })
-    evaluateCdpExpressionMock.mockImplementation(async (_url: string, expression: string) =>
-      runInContext(expression, context)
-    )
-    expect(await setOwnedMainWindowFocus(record, focused)).toEqual({ focused })
-    expect(mainFocused).toBe(focused)
-  })
+  it.each([
+    ['windows', false],
+    ['windows', true],
+    ['macos', false],
+    ['macos', true]
+  ] as const)(
+    'sets %s main-window focus to %s when another owned window is listed first',
+    async (platform, focused) => {
+      const record = ownedApp(platform)
+      mainInspector()
+      let mainFocused = !focused
+      let applicationActive = platform === 'windows'
+      const window = (pathname: string, setFocus: (value: boolean) => void, isFocused: () => boolean) => ({
+        webContents: { getURL: () => `http://localhost:5173${pathname}`, focus: () => {} },
+        show: () => {},
+        focus: () => setFocus(applicationActive),
+        blur: () => setFocus(false),
+        isFocused
+      })
+      const main = window(
+        '/windows/main/index.html',
+        (value) => (mainFocused = value),
+        () => mainFocused
+      )
+      const secondary = window(
+        '/windows/selection/index.html',
+        () => {},
+        () => true
+      )
+      const context = createVmContext({
+        URL,
+        process: {
+          mainModule: {
+            require: () => ({
+              app: {
+                show: () => {},
+                focus: () => {
+                  applicationActive = true
+                }
+              },
+              BrowserWindow: { getAllWindows: () => [secondary, main] }
+            })
+          }
+        }
+      })
+      evaluateCdpExpressionMock.mockImplementation(async (_url: string, expression: string) =>
+        runInContext(expression, context)
+      )
+      expect(await setOwnedMainWindowFocus(record, focused)).toEqual({ focused })
+      expect(mainFocused).toBe(focused)
+    }
+  )
 
   it.each(['macos', 'windows'] as const)(
     'accepts profile-owned %s paths before connecting the UI',
