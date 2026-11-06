@@ -30,6 +30,7 @@ import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import { AsyncEventQueue } from '@shared/utils/async'
 
 import { buildAgentUserContent } from '../agentUserContent'
+import { childTaskStatus } from '../pi/childTaskStatus'
 import { createPiGatewayModelBinding } from '../pi/gatewayModelBinding'
 import { createPiBehaviorHost } from '../pi/piBehaviorHost'
 import { PiInvalidConnectionSnapshotError } from '../pi/piConnectionSignature'
@@ -348,13 +349,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       for (const view of event.views)
         this.publishChild(
           view.sessionId,
-          view.status === 'finished'
-            ? view.outcome === 'completed'
-              ? 'completed'
-              : view.outcome === 'stopped' || view.outcome === 'aborted'
-                ? 'stopped'
-                : 'error'
-            : 'in_progress',
+          view.status === 'finished' ? childTaskStatus(view.outcome) : 'in_progress',
           true
         )
       if (!this.handle || event.thread === this.handle.thread.id) {
