@@ -15,6 +15,54 @@ const { pathToFileURL } = require('node:url')
 
 const CATALOG_FILES = ['models.json', 'providers.json', 'provider-models.json']
 
+// Frozen v1-v3 share this closed vocabulary; newer application/SDK keys do not belong here.
+const V1_V3_IMAGE_PARAM_KEYS = new Set([
+  'addWatermark',
+  'aspectRatio',
+  'background',
+  'bottomScale',
+  'cfg',
+  'customSize',
+  'detail',
+  'enableInterleave',
+  'function',
+  'guidanceScale',
+  'imageResolution',
+  'imageWeight',
+  'isSketch',
+  'leftScale',
+  'magicPromptOption',
+  'maxImages',
+  'moderation',
+  'negativePrompt',
+  'numImages',
+  'numInferenceSteps',
+  'outputCompression',
+  'outputFormat',
+  'personGeneration',
+  'promptEnhancement',
+  'promptExtend',
+  'quality',
+  'refMode',
+  'refStrength',
+  'renderingSpeed',
+  'resemblance',
+  'resolution',
+  'rightScale',
+  'safetyTolerance',
+  'seed',
+  'sequentialImageGeneration',
+  'size',
+  'sourceLang',
+  'strength',
+  'style',
+  'styleType',
+  'targetLang',
+  'thinkingMode',
+  'topScale',
+  'upscaleFactor'
+])
+
 /** Published schema versions, oldest first: every frozen baseline up to the current one. */
 function listSchemaVersions(compatDirectory, currentVersion) {
   return fs
@@ -49,9 +97,28 @@ function dropIssuePaths(document, issuePaths) {
   return dropped
 }
 
-/** Prune until the frozen validator accepts, or `null` when a break is not droppable. */
-function downconvert(validateCatalogFile, file, document) {
+function dropUnknownImageParams(schemaVersion, file, document) {
+  if (schemaVersion > 3 || file === 'providers.json') return 0
+  const entries = file === 'models.json' ? document?.models : document?.overrides
+  if (!Array.isArray(entries)) return 0
   let dropped = 0
+  for (const entry of entries) {
+    for (const mode of Object.values(entry?.imageGeneration?.modes ?? {})) {
+      const supports = mode?.supports
+      if (!supports || typeof supports !== 'object' || Array.isArray(supports)) continue
+      for (const key of Object.keys(supports)) {
+        if (V1_V3_IMAGE_PARAM_KEYS.has(key)) continue
+        delete supports[key]
+        dropped += 1
+      }
+    }
+  }
+  return dropped
+}
+
+/** Prune until the frozen validator accepts, or `null` when a break is not droppable. */
+function downconvert(validateCatalogFile, file, document, schemaVersion) {
+  let dropped = dropUnknownImageParams(schemaVersion, file, document)
   for (;;) {
     try {
       validateCatalogFile(file, document)
@@ -84,6 +151,7 @@ async function publishRegistryCatalog({
   sourceAppVersion,
   revision
 }) {
+  const { stampAndSerialize } = await import('../packages/provider-registry/scripts/catalogSerialization.mjs')
   const published = []
 
   for (const version of listSchemaVersions(compatDirectory, currentVersion)) {
@@ -98,13 +166,18 @@ async function publishRegistryCatalog({
         contents[file] = original
         continue
       }
-      const result = downconvert(validateCatalogFile, file, JSON.parse(original))
+      const result = downconvert(validateCatalogFile, file, JSON.parse(original), version)
       if (!result) {
         console.error(`v${version}: ${file} has a break that cannot be dropped, leaving the dir untouched`)
         break
       }
       // Re-serialize only what actually changed, so an untouched file stays byte-identical.
-      contents[file] = result.dropped === 0 ? original : Buffer.from(`${JSON.stringify(result.document, null, 2)}\n`)
+      if (result.dropped === 0) {
+        contents[file] = original
+      } else {
+        delete result.document.version
+        contents[file] = Buffer.from(stampAndSerialize(result.document))
+      }
     }
     if (Object.keys(contents).length !== CATALOG_FILES.length) continue
 

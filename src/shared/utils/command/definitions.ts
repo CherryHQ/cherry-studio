@@ -51,6 +51,96 @@ export const COMMAND_DEFINITIONS = [
     }
   }),
   defineCommand({
+    id: 'app.sidebar.open_1',
+    titleKey: 'settings.shortcuts.open_sidebar_item_1',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', '1'],
+      when: '!webview.focused'
+    }
+  }),
+  defineCommand({
+    id: 'app.sidebar.open_2',
+    titleKey: 'settings.shortcuts.open_sidebar_item_2',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', '2'],
+      when: '!webview.focused'
+    }
+  }),
+  defineCommand({
+    id: 'app.sidebar.open_3',
+    titleKey: 'settings.shortcuts.open_sidebar_item_3',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', '3'],
+      when: '!webview.focused'
+    }
+  }),
+  defineCommand({
+    id: 'app.sidebar.open_4',
+    titleKey: 'settings.shortcuts.open_sidebar_item_4',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', '4'],
+      when: '!webview.focused'
+    }
+  }),
+  defineCommand({
+    id: 'app.sidebar.open_5',
+    titleKey: 'settings.shortcuts.open_sidebar_item_5',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', '5'],
+      when: '!webview.focused'
+    }
+  }),
+  defineCommand({
+    id: 'app.sidebar.open_6',
+    titleKey: 'settings.shortcuts.open_sidebar_item_6',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', '6'],
+      when: '!webview.focused'
+    }
+  }),
+  defineCommand({
+    id: 'app.sidebar.open_7',
+    titleKey: 'settings.shortcuts.open_sidebar_item_7',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', '7'],
+      when: '!webview.focused'
+    }
+  }),
+  defineCommand({
+    id: 'app.sidebar.open_8',
+    titleKey: 'settings.shortcuts.open_sidebar_item_8',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', '8'],
+      when: '!webview.focused'
+    }
+  }),
+  defineCommand({
+    id: 'app.sidebar.open_9',
+    titleKey: 'settings.shortcuts.open_sidebar_item_9',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', '9'],
+      when: '!webview.focused'
+    }
+  }),
+  defineCommand({
     id: 'app.settings.open',
     titleKey: 'settings.shortcuts.show_settings',
     categoryKey: 'settings.shortcuts.general',
@@ -259,6 +349,42 @@ export const COMMAND_DEFINITIONS = [
     scope: 'renderer',
     keybinding: {
       defaultBinding: ['CommandOrControl', ']']
+    }
+  }),
+  defineCommand({
+    id: 'assistant.next',
+    titleKey: 'settings.shortcuts.next_assistant',
+    categoryKey: 'settings.shortcuts.topic',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'Alt', 'Right']
+    }
+  }),
+  defineCommand({
+    id: 'assistant.prev',
+    titleKey: 'settings.shortcuts.prev_assistant',
+    categoryKey: 'settings.shortcuts.topic',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'Alt', 'Left']
+    }
+  }),
+  defineCommand({
+    id: 'topic.next',
+    titleKey: 'settings.shortcuts.next_topic',
+    categoryKey: 'settings.shortcuts.topic',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'Alt', 'Down']
+    }
+  }),
+  defineCommand({
+    id: 'topic.prev',
+    titleKey: 'settings.shortcuts.prev_topic',
+    categoryKey: 'settings.shortcuts.topic',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'Alt', 'Up']
     }
   }),
   defineCommand({

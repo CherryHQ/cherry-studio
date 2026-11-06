@@ -617,6 +617,123 @@
       "description": "Command shortcut: app.sidebar.toggle (unified command system)"
     },
     {
+      "targetKey": "shortcut.app.sidebar.open_1",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "1"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.sidebar.open_1 (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.app.sidebar.open_2",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "2"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.sidebar.open_2 (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.app.sidebar.open_3",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "3"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.sidebar.open_3 (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.app.sidebar.open_4",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "4"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.sidebar.open_4 (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.app.sidebar.open_5",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "5"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.sidebar.open_5 (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.app.sidebar.open_6",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "6"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.sidebar.open_6 (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.app.sidebar.open_7",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "7"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.sidebar.open_7 (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.app.sidebar.open_8",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "8"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.sidebar.open_8 (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.app.sidebar.open_9",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "9"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.sidebar.open_9 (unified command system)"
+    },
+    {
       "targetKey": "shortcut.app.settings.open",
       "type": "PreferenceTypes.PreferenceShortcutType",
       "defaultValue": {
@@ -854,6 +971,62 @@
       },
       "status": "classified",
       "description": "Command shortcut: topic.sidebar.toggle (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.assistant.next",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Alt",
+          "Right"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: assistant.next (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.assistant.prev",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Alt",
+          "Left"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: assistant.prev (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.topic.next",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Alt",
+          "Down"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: topic.next (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.topic.prev",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Alt",
+          "Up"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: topic.prev (unified command system)"
     },
     {
       "targetKey": "shortcut.tab.close",
