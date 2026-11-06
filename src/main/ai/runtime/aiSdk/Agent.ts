@@ -79,9 +79,14 @@ async function aggregateStreamResult(streamed: StreamTextResult<ToolSet, never>)
   ])
   await watchTerminalStreamError
   if (terminalStreamError !== undefined) {
+    // The SDK usually wraps provider failures in an Error, but some parts arrive as plain
+    // objects (e.g. a Codex response.failed payload) — keep the readable message either way.
+    const plainMessage = (terminalStreamError as { message?: unknown } | null)?.message
     throw terminalStreamError instanceof Error
       ? terminalStreamError
-      : new Error(`Response stream ended with a terminal provider error: ${String(terminalStreamError)}`)
+      : new Error(
+          `Response stream ended with a terminal provider error: ${typeof plainMessage === 'string' ? plainMessage : String(terminalStreamError)}`
+        )
   }
   // A terminal stream error (e.g. a Codex Responses `response.failed` frame) does not reject
   // these promises: the SDK closes the run with finishReason "error", empty text and partial

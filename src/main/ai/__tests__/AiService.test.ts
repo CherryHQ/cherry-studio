@@ -2218,8 +2218,19 @@ describe('AiService tool approval', () => {
       finishReason: Promise.resolve('error'),
       rawFinishReason: Promise.resolve('error'),
       steps: Promise.resolve([]),
+      // The Codex response.failed error part arrives as a plain object, not an Error.
       fullStream: (async function* () {
-        yield { type: 'error', error: new Error('response.failed: rate limit exceeded') }
+        yield {
+          type: 'error',
+          error: {
+            message: 'Rate limit exceeded',
+            type: 'response.failed',
+            code: 'rate_limit_exceeded',
+            statusCode: 429,
+            isRetryable: true,
+            data: null
+          }
+        }
       })()
     })
     mockCreateAgent.mockResolvedValue({ generate: mockAgentGenerate, stream: mockAgentStream })
@@ -2237,10 +2248,11 @@ describe('AiService tool approval', () => {
       nativeFileSupport: { image: false, pdf: false, audio: false, video: false }
     })
 
-    // The terminal `error` stream part carries the provider's own error, which propagates.
+    // The terminal `error` stream part carries the provider's failure, which propagates with
+    // its readable message even though the part is a plain object rather than an Error.
     await expect(
       service.generateText({ uniqueModelId: 'openai-codex::gpt-5.1-codex', prompt: 'hi' } as never)
-    ).rejects.toThrow('response.failed: rate limit exceeded')
+    ).rejects.toThrow('Response stream ended with a terminal provider error: Rate limit exceeded')
     expect(mockAgentStream).toHaveBeenCalledOnce()
     expect(mockAgentGenerate).not.toHaveBeenCalled()
   })
@@ -2258,7 +2270,16 @@ describe('AiService tool approval', () => {
       usage: Promise.resolve({ inputTokens: 10, outputTokens: 5, totalTokens: 15 }),
       finishReason: Promise.resolve('other'),
       rawFinishReason: Promise.resolve(undefined),
-      steps: Promise.resolve([{ finishReason: 'tool-calls', text: '' }]),
+      steps: Promise.resolve([
+        {
+          finishReason: 'tool-calls',
+          text: '',
+          toolCalls: [{ type: 'tool-call', toolCallId: 'call_1', toolName: 'probeTool', input: {} }],
+          toolResults: [
+            { type: 'tool-result', toolCallId: 'call_1', toolName: 'probeTool', input: {}, output: { ok: true } }
+          ]
+        }
+      ]),
       fullStream: (async function* () {
         yield { type: 'start' }
         yield { type: 'tool-call', toolCallId: 'call_1', toolName: 'probeTool', input: {} }
