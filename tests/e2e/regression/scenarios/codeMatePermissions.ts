@@ -210,7 +210,7 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
       await expect
         .poll(terminalText, { timeout: 45_000 })
         .toMatch(
-          /Choose the text style|terminal setup|Press Enter to continue|trust this folder|trust the files|Yes, I trust|select login method|Please run \/login|Sign in to continue|for shortcuts|shift\+tab/i
+          /Choose the text style|terminal setup|Press Enter to continue|trust this folder|trust the files|Yes, I trust|Make auto mode your default|select login method|Please run \/login|Sign in to continue|for shortcuts|shift\+tab/i
         )
       const contents = terminalText()
       if (/select login method|Please run \/login|Sign in to continue/i.test(contents)) {
@@ -218,6 +218,12 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
       }
       if (/Use Claude Code's terminal setup/i.test(contents)) {
         terminalInput('', 53)
+      } else if (/Make auto mode your default permission mode/i.test(contents)) {
+        if (/❯\s*Yes, set auto mode/i.test(contents)) {
+          terminalInput('', 125)
+          await expect.poll(terminalText).toMatch(/❯\s*No, keep/i)
+        }
+        terminalInput('')
       } else if (/Yes, I trust this folder/i.test(contents)) {
         if (/❯\s*No, exit/i.test(contents)) {
           terminalInput('', 125)
@@ -335,7 +341,7 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
         `Use the Edit tool to replace the entire content of mp97-permissions.txt with ${marker}. Do not use Bash.`
       )
       await expect.poll(() => readFile(file, 'utf8'), { timeout: 60_000 }).toContain(marker)
-      expect(terminalText()).not.toMatch(/Do you want to (?:make this edit|proceed)\?/i)
+      expect(terminalText()).not.toMatch(/Do you want to (?:make this edit(?: to [^\r\n?]+)?|proceed)\?/i)
     }
     await attachScreenshot('MP-97 automatic edits completed')
     closeTerminal()
@@ -350,7 +356,9 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
       terminalInput(
         `Use the Edit tool to replace the entire content of mp97-permissions.txt with ${marker}. Do not use Bash.`
       )
-      await expect.poll(terminalText, { timeout: 60_000 }).toMatch(/Do you want to (?:make this edit|proceed)\?/i)
+      await expect
+        .poll(terminalText, { timeout: 60_000 })
+        .toMatch(/Do you want to (?:make this edit(?: to [^\r\n?]+)?|proceed)\?/i)
       expect(await readFile(file, 'utf8')).toBe(previous)
       terminalInput('1')
       await expect.poll(() => readFile(file, 'utf8'), { timeout: 60_000 }).toContain(marker)

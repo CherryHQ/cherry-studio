@@ -6,7 +6,11 @@ import { expect, type Page, type TestInfo } from '@playwright/test'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
-import { closeExternalText, openExternalText } from '../../../../scripts/e2e/regression/systemAutomation'
+import {
+  closeExternalText,
+  openExternalText,
+  sendSystemHotkey
+} from '../../../../scripts/e2e/regression/systemAutomation'
 import { createAgent, openAgentPane, selectAgentWorkspace, startNewAgentTask } from '../helpers/agents'
 import { ensureCustomChatProvider } from '../helpers/models'
 import { closeSettings } from '../helpers/settings'
@@ -132,13 +136,10 @@ export async function agentFilePreview(app: RegressionApp, page: Page, testInfo:
   expect(app.record.platform, 'External editor verification currently uses macOS TextEdit').toBe('macos')
   try {
     openExternalText(app.record.platform, { ...app.paths, fixtures: app.paths.workspace }, target)
-    const external = execFileSync(
-      'osascript',
-      ['-e', 'tell application "TextEdit" to get text of document "sample.py"'],
-      { encoding: 'utf8' }
-    )
-    expect(external.replace(/\n$/, '')).toBe(await readFile(target, 'utf8'))
-    await testInfo.attach('MP-52 external TextEdit contents', { body: external, contentType: 'text/plain' })
+    execFileSync('pbcopy', [], { input: 'MP52_COPY_PENDING', timeout: 10_000 })
+    sendSystemHotkey(app.record.platform, ['Meta', 'c'])
+    await expect.poll(() => execFileSync('pbpaste', { encoding: 'utf8', timeout: 10_000 })).toBe(expected)
+    await testInfo.attach('MP-52 external TextEdit contents', { body: expected, contentType: 'text/plain' })
   } finally {
     closeExternalText(app.record.platform)
   }

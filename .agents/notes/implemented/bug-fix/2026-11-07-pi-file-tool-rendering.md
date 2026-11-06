@@ -28,3 +28,5 @@ Completed Pi file cards can display file links and edit diffs using the existing
 - Regression — 88 tests passed across the tool-response adapter, shared Agent tool renderer and execution timeline files.
 
 - Regression — MP-52 exposed native `edits: [{ oldText, newText }]` inputs. A two-hunk adapter test failed before the follow-up and verifies every hunk plus unchanged stored arguments.
+
+- Regression — MP-52 passed against the real provider and Pi runtime: rendered edit hunks, unchanged unrelated files, fresh preview contents and TextEdit clipboard contents matched the edited file.

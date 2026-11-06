@@ -161,6 +161,7 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
     const selectedText = () => page.evaluate(() => window.getSelection()?.toString() ?? '')
     const textCoordinates = async (target: Locator, length: number) => {
       await page.keyboard.press('Escape')
+      await target.evaluate((element) => element.scrollIntoView({ block: 'center', inline: 'nearest' }))
       await target.hover()
       const measure = () =>
         target.evaluate((element, length) => {
@@ -192,7 +193,15 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
       await expect
         .poll(async () => {
           point = await measure()
-          return hitsTarget()
+          if (await hitsTarget()) return true
+          const viewport = await target.evaluate((element) =>
+            element.closest('[data-ui~="part:scroll-area-viewport"]')?.getBoundingClientRect().toJSON()
+          )
+          if (viewport && (point.y < viewport.top + 30 || point.endY > viewport.bottom - 30)) {
+            await page.mouse.move(viewport.x + viewport.width / 2, viewport.y + viewport.height / 2)
+            await page.mouse.wheel(0, point.y - (viewport.y + viewport.height / 2))
+          }
+          return false
         })
         .toBe(true)
       return point
@@ -358,8 +367,10 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
     await multiSelect.click()
     await expect(multiSelect).toHaveAttribute('aria-pressed', 'true')
     await selectVisibleModel(page, 'mock-grid', providerId)
+    await expect(
+      page.getByTestId(`model-selector-item-${createUniqueModelId(providerId, 'mock-grid')}`)
+    ).toHaveAttribute('aria-selected', 'true')
     await page.keyboard.press('Escape')
-    await expect(page.getByRole('button', { name: 'Selected models', exact: true })).toContainText('mock-grid')
     const beforeGrid = (await readTopicMessages(page, topicId)).length
     await Promise.all([
       sendChatMarker(page, 'Describe a grid garden', 'Grid orchid petals shine.'),

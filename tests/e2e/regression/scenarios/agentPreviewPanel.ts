@@ -197,19 +197,27 @@ export async function agentPreviewPanel(app: RegressionApp, page: Page, testInfo
     )
     const firstLine = pasted.split('\n')[0]
     const text = overlay.getByText(firstLine, { exact: true })
-    await text.evaluate((node) => {
+    const selected = 'MP19 pasted line 0:'
+    await text.hover()
+    const selectionBounds = await text.evaluate((element, selected) => {
+      const node = document.createTreeWalker(element, NodeFilter.SHOW_TEXT).nextNode()
+      if (!node?.textContent?.startsWith(selected)) throw new Error('Preview text is missing')
       const range = document.createRange()
-      range.selectNodeContents(node)
-      window.getSelection()?.removeAllRanges()
-      window.getSelection()?.addRange(range)
-      document.dispatchEvent(new Event('selectionchange'))
-    })
+      range.setStart(node, 0)
+      range.setEnd(node, selected.length)
+      return range.getBoundingClientRect().toJSON()
+    }, selected)
+    const y = selectionBounds.y + selectionBounds.height / 2
+    await page.mouse.move(selectionBounds.x + 0.5, y)
+    await page.mouse.down()
+    await page.mouse.move(selectionBounds.right - 0.5, y, { steps: 10 })
+    await page.mouse.up()
     await page.keyboard.press('ControlOrMeta+c')
-    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(firstLine)
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(selected)
     await header.getByRole('button', { name: /^Close preview .*Pasted Text/ }).click()
     await editor.click()
     await editor.press('ControlOrMeta+v')
-    await expect(composer).toContainText(firstLine)
+    await expect(composer).toContainText(selected)
     testInfo.annotations.push({
       type: 'uncovered',
       description:

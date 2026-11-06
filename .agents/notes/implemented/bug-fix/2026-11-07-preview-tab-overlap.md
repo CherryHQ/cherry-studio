@@ -24,3 +24,5 @@ Narrow headers show shorter titles while keeping both controls reachable. The ta
 ## Verification
 
 - Regression — MP-19 captured overlapping controls and failed its normal click on the selected second file's close button before the fix. Its close-and-fallback assertions remain the application-level check.
+
+- Regression — MP-19 passed in the real Electron app after the fix, including normal pointer closing of the active overflowed tab, fallback selection, DOCX/video previews and selected-text clipboard round trip.

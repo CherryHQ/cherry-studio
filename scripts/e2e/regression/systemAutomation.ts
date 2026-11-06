@@ -604,15 +604,13 @@ public static class NativeDialog {
             '} while ([DateTime]::UtcNow -lt $deadline)',
             'if ($dialog) {',
             '  if ($editing) { throw "Native folder navigation did not finish" }',
-            '  $acceptHandle = [NativeDialog]::GetDlgItem([IntPtr]$dialogHandle, 1)',
-            '  if ($acceptHandle -eq [IntPtr]::Zero) { throw "Native folder accept button was not found" }',
-            '  $null = [NativeDialog]::SendMessage($acceptHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)',
+            '  $accept = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1"))',
+            '  if (-not $accept) { throw "Native folder accept button was not found" }',
+            '  ([System.Windows.Automation.InvokePattern]$accept.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)).Invoke()',
             '}'
           ]
         : [
-            // Typing into the dialog depends on focus the runner cannot guarantee, so set the name
-            // field directly and accept through the dialog's own default button. The file name
-            // control is populated after the dialog is created, so wait for it before failing.
+            // Use the native controls' automation patterns so the common dialog receives change/accept events.
             '$dialogHandle = [IntPtr]$dialog.Current.NativeWindowHandle',
             '$fileCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1001"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Edit"))',
             '$deadline = [DateTime]::UtcNow.AddSeconds(10)',
@@ -645,9 +643,10 @@ public static class NativeDialog {
             '  $current = $buffer.ToString()',
             '}',
             'if ($current -ne $requested) { throw "Native file name readback mismatch" }',
-            '$acceptHandle = [NativeDialog]::GetDlgItem($dialogHandle, 1)',
-            'if ($acceptHandle -eq [IntPtr]::Zero) { throw "Native file dialog accept button was not found" }',
-            '$null = [NativeDialog]::SendMessage($acceptHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)',
+            '$null = [NativeDialog]::SetForegroundWindow($dialogHandle)',
+            '$accept = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1"))',
+            'if (-not $accept) { throw "Native file dialog accept button was not found" }',
+            '([System.Windows.Automation.InvokePattern]$accept.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)).Invoke()',
             '$deadline = [DateTime]::UtcNow.AddSeconds(10)',
             '$closed = $false',
             'do {',
@@ -860,12 +859,13 @@ async function saveNativeFileWindows(
     `$keepName = $${keepSuggestedName ? 'true' : 'false'}`,
     '$directory = Split-Path -Parent $filePath',
     '$target = if ($keepName) { Join-Path $directory ($initial.ToString()) } else { $filePath }',
-    'if ([NativeSaveDialog]::SetText([IntPtr]$filenameControl.Current.NativeWindowHandle, 0x000C, [IntPtr]::Zero, $target) -eq [IntPtr]::Zero) { throw "Native save filename could not be set" }',
+    '$valuePattern = [System.Windows.Automation.ValuePattern]$filenameControl.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)',
+    '$valuePattern.SetValue($target)',
     '$readback = [System.Text.StringBuilder]::new(32768)',
     '$null = [NativeSaveDialog]::ReadText([IntPtr]$filenameControl.Current.NativeWindowHandle, 0x000D, [IntPtr]$readback.Capacity, $readback)',
     'if ($readback.ToString() -cne $target) { throw "Native save filename does not match the requested path" }',
     '$dialogHandle = $dialog.Current.NativeWindowHandle',
-    '$null = [NativeSaveDialog]::SendMessage([IntPtr]$button.Current.NativeWindowHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)',
+    '([System.Windows.Automation.InvokePattern]$button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)).Invoke()',
     // The dialog is asynchronous: wait for the file the dialog actually wrote. The window may append
     // the extension from the application's filter, so accept the proposed name with or without one.
     '$base = [IO.Path]::GetFileName($target)',
