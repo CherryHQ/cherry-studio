@@ -39,22 +39,29 @@ const URL_SCHEME_PATTERN = /^[a-z][a-z0-9+.-]*:/i
 /**
  * The pipeline rewrites a link's href but not its label: remark-rehype percent-encodes
  * non-ASCII characters and rehypeNormalizeLinkScheme lowercases the scheme. Compare
- * equivalent spellings of the same URL so those bare image links still match.
+ * equivalent spellings of the same URL so those bare image links still match. Only the
+ * href side is percent-decoded: decoding the label too would alias distinct spellings
+ * (a `%252F` label against a `%2F` destination) and blur the labelled-link boundary.
  */
-function normalizeUrlSpelling(value: string): string {
-  let decoded = value
-  try {
-    decoded = decodeURI(value)
-  } catch {
-    // Malformed percent-encoding: compare the raw spelling.
+function normalizeUrlSpelling(value: string, { decodeHref }: { decodeHref: boolean }): string {
+  let result = value
+  if (decodeHref) {
+    try {
+      result = decodeURI(value)
+    } catch {
+      // Malformed percent-encoding: compare the raw spelling.
+    }
   }
-  return decoded.replace(URL_SCHEME_PATTERN, (scheme) => scheme.toLowerCase())
+  return result.replace(URL_SCHEME_PATTERN, (scheme) => scheme.toLowerCase())
 }
 
 /**
  * Reads the text of a bare-URL link label. During animated streaming Streamdown splits the
  * label into `data-sd-animate` spans, so plain `typeof children === 'string'` misses them.
- * Any other element keeps the labelled-link boundary by returning null.
+ * The attribute is the marker (surfaces may map `span` to their own component, e.g. chat's
+ * ChatSpanRenderer); sanitize strips it from author-supplied markup, so only Streamdown's
+ * animation output carries it. Any other element keeps the labelled-link boundary by
+ * returning null.
  */
 function extractBareUrlText(node: ReactNode): string | null {
   if (typeof node === 'string') return node
@@ -70,7 +77,7 @@ function extractBareUrlText(node: ReactNode): string | null {
   }
   if (isValidElement(node)) {
     const props = node.props as { children?: ReactNode; 'data-sd-animate'?: unknown }
-    if (node.type === 'span' && props['data-sd-animate'] !== undefined) {
+    if (props['data-sd-animate'] !== undefined) {
       return extractBareUrlText(props.children)
     }
   }
@@ -80,7 +87,11 @@ function extractBareUrlText(node: ReactNode): string | null {
 function isBareImageUrlLink(href: string | undefined, children: ReactNode): href is string {
   if (!href || !IMAGE_URL_PATTERN.test(href)) return false
   const text = extractBareUrlText(children)
-  return text !== null && text !== '' && normalizeUrlSpelling(text) === normalizeUrlSpelling(href)
+  return (
+    text !== null &&
+    text !== '' &&
+    normalizeUrlSpelling(text, { decodeHref: false }) === normalizeUrlSpelling(href, { decodeHref: true })
+  )
 }
 
 export function shouldShowMarkdownLinkFavicon(node: ExtraProps['node']): boolean {
@@ -157,7 +168,21 @@ export function MarkdownLinkRenderer({
   }
 
   if (isBareImageUrlLink(props.href, props.children)) {
-    return <MarkdownImageRenderer src={props.href} alt={props.href} />
+    // The link this replaces was keyboard-focusable, so keep a focus target and let
+    // Enter/Space open the image preview (the img click handler's action).
+    return (
+      <MarkdownImageRenderer
+        src={props.href}
+        alt={props.href}
+        tabIndex={0}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            event.currentTarget.click()
+          }
+        }}
+      />
+    )
   }
 
   const fileLinkPath = openFilePath ? parseFileLinkHref(props.href) : null

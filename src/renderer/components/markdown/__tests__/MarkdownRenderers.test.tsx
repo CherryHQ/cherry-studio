@@ -294,6 +294,40 @@ describe('bare image URLs', () => {
     expect(screen.queryByRole('link')).toBeNull()
   })
 
+  it('reads labels through surface-mapped animation components', () => {
+    const A = MarkdownLinkRenderer
+    const ChatLikeSpan = ({ children, ...rest }: PropsWithChildren<Record<string, unknown>>) => (
+      <span {...rest}>{children}</span>
+    )
+    render(
+      <A href="https://example.com/pic.png?x=1">
+        <ChatLikeSpan data-sd-animate>https://example.com/</ChatLikeSpan>
+        <ChatLikeSpan data-sd-animate>pic.png?x=1</ChatLikeSpan>
+      </A>
+    )
+    expect(screen.getByRole('img')).toHaveAttribute('src', 'https://example.com/pic.png?x=1')
+    expect(screen.queryByRole('link')).toBeNull()
+  })
+
+  it('keeps a double-encoded label distinct from its destination as a link', () => {
+    const A = MarkdownLinkRenderer
+    render(<A href="https://example.com/%2F.png">https://example.com/%252F.png</A>)
+    expect(screen.queryByRole('img')).toBeNull()
+    expect(screen.getAllByRole('link')).toHaveLength(1)
+  })
+
+  it('renders a bare image URL as a keyboard-focusable image', () => {
+    const A = MarkdownLinkRenderer
+    const url = 'https://example.com/pic.png'
+    render(<A href={url}>{url}</A>)
+    const img = screen.getByRole('img')
+    expect(img).toHaveAttribute('tabindex', '0')
+    img.focus()
+    expect(img).toHaveFocus()
+    fireEvent.keyDown(img, { key: 'Enter' })
+    fireEvent.keyDown(img, { key: ' ' })
+  })
+
   it('keeps labels wrapped in non-animation elements as links', () => {
     const A = MarkdownLinkRenderer
     render(
