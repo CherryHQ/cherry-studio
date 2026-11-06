@@ -6033,6 +6033,98 @@ describe('ChatComposer', () => {
       expect(mocks.selectedKnowledgeBases).toEqual([])
     })
 
+    it('does not save a draft while the assigned assistant is still loading', async () => {
+      mocks.assistantLoading = true
+      mocks.getDraft.mockImplementation(() => ({
+        text: mocks.surfaceProps?.text ?? '',
+        tokens: []
+      }))
+
+      render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+      act(() => {
+        mocks.surfaceProps?.onTextChange('too early')
+      })
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('too early'))
+
+      // Saving now would park the draft under '<scope>:no-assistant' and hide it once the
+      // assistant resolves, so the button stays disabled and the click is a no-op.
+      expect(screen.getByLabelText('chat.input.saved_drafts.save')).toBeDisabled()
+      clickSaveAsDraft()
+      expect(readSavedDrafts()).toHaveLength(0)
+    })
+
+    it('does not edit a saved draft while the assigned assistant is still loading', async () => {
+      mocks.assistantLoading = true
+      MockCacheUtils.setInitialState({
+        memory: [
+          [
+            'saved-drafts.topic-1:assistant-1',
+            [{ id: 'draft-a', draft: { text: 'draft A', tokens: [] }, files: [], knowledgeBaseIds: ['kb-1'] }]
+          ]
+        ]
+      })
+      mocks.getDraft.mockImplementation(() => ({
+        text: mocks.surfaceProps?.text ?? '',
+        tokens: []
+      }))
+
+      render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+      act(() => {
+        mocks.surfaceProps?.onTextChange('live content')
+      })
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('live content'))
+
+      // Restoring now would park the live content under the unresolved scope and wipe the
+      // restored knowledge selection when the assistant resolves, so the edit is held.
+      await act(async () => savedDraftsDock()?.props.onEdit('draft-a'))
+      expect(mocks.surfaceProps?.text).toBe('live content')
+      expect(readSavedDrafts().map((item) => item.id)).toEqual(['draft-a'])
+    })
+
+    it('drops a pending knowledge restore when a message edit replaces the composer content', async () => {
+      const knowledgeBase = { id: 'kb-1', name: 'Knowledge One', documentCount: 1 } as KnowledgeBase
+      mocks.assistant = {
+        ...mocks.assistant,
+        knowledgeBaseIds: ['kb-1']
+      }
+      MockCacheUtils.setInitialState({
+        memory: [
+          [
+            'saved-drafts.topic-1:assistant-1',
+            [{ id: 'draft-a', draft: { text: 'draft A', tokens: [] }, files: [], knowledgeBaseIds: ['kb-1'] }]
+          ]
+        ]
+      })
+      const message = { id: 'edit-target', role: 'user', topicId: topic.id, createdAt: '2026-01-01', status: 'success' }
+      // Fresh element per render: reusing one element object makes React bail out of the rerender.
+      const editor = () => (
+        <MessageEditingProvider>
+          <StartEditingButton message={message} parts={[{ type: 'text', text: 'Old message' }]} />
+          <ChatComposer topic={topic} onSend={vi.fn()} />
+        </MessageEditingProvider>
+      )
+      const view = render(editor())
+      // The catalog is still loading.
+      mocks.knowledgeBases = []
+      mocks.knowledgeBasesLoading = true
+      view.rerender(editor())
+
+      await act(async () => savedDraftsDock()?.props.onEdit('draft-a'))
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('draft A'))
+
+      // Editing a sent message replaces the composer content without a knowledge restore.
+      fireEvent.click(screen.getByRole('button', { name: 'start editing' }))
+      await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('edit-target'))
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('Old message'))
+
+      // The catalog arrives: draft A's knowledge id must not merge into the edited message.
+      mocks.knowledgeBases = [knowledgeBase]
+      mocks.knowledgeBasesLoading = false
+      view.rerender(editor())
+      await waitFor(() => expect(mocks.knowledgeBasesLoading).toBe(false))
+      expect(mocks.selectedKnowledgeBases).toEqual([])
+    })
+
     it('does not save or swap drafts while a conversation reference is still loading', async () => {
       mocks.getDraft.mockImplementation(() => ({
         text: mocks.surfaceProps?.text ?? '',

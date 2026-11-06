@@ -155,6 +155,39 @@ describe('useComposerKnowledgeBaseScope', () => {
       expect(result.current.hasPendingKnowledgeBaseRestore).toBe(false)
     })
 
+    it('replaces the persisted ids on an explicit restore instead of unioning', () => {
+      // The cached scope's unavailable id belongs to the content the restore replaces; the parked
+      // snapshot already kept it, so it must not leak into the restored draft's next save.
+      const initialProps: HarnessProps = {
+        allKnowledgeBases: [kb('kb-1')],
+        isKnowledgeBasesLoading: false,
+        scopeKey: SCOPE_KEY,
+        initialKnowledgeBaseIds: ['cached-gone']
+      }
+      const { result } = renderHook((props: HarnessProps) => useScopeHarness(props), { initialProps })
+
+      act(() => result.current.restoreKnowledgeBaseSelection(['kb-1'], { retryUnavailable: true }))
+      expect(result.current.knowledgeBaseIdsRef.current).toEqual(['kb-1'])
+    })
+
+    it('supersedes the pending draft-cache hydration on an explicit restore', () => {
+      const [cached, picked] = [kb('kb-cached'), kb('kb-picked')]
+      const initialProps: HarnessProps = {
+        allKnowledgeBases: [],
+        isKnowledgeBasesLoading: true,
+        scopeKey: SCOPE_KEY,
+        initialKnowledgeBaseIds: ['kb-cached']
+      }
+      const { result, rerender } = renderHook((props: HarnessProps) => useScopeHarness(props), { initialProps })
+
+      // The user restores a saved draft before the cached scope has hydrated.
+      act(() => result.current.restoreKnowledgeBaseSelection(['kb-picked'], { retryUnavailable: true }))
+
+      // The catalog finishes loading: hydration must not restore the cached scope over the pick.
+      rerender({ ...initialProps, allKnowledgeBases: [cached, picked], isKnowledgeBasesLoading: false })
+      expect(result.current.selectedKnowledgeBases).toEqual([picked])
+    })
+
     it('keeps an existing selection while retrying pending ids', () => {
       const [first, second] = [kb('kb-1'), kb('kb-2')]
       const initialProps: HarnessProps = {

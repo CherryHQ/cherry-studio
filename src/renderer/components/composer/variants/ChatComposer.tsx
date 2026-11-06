@@ -1041,6 +1041,9 @@ const ChatComposerInner = ({
       if (file) originalFilePartsByTokenId.set(chatComposerTokenId.file(file), part)
     })
     editingOriginalFilePartsByTokenIdRef.current = originalFilePartsByTokenId
+    // The edited message replaces the composer content: a knowledge restore still pending for the
+    // previous content must not merge into it when the catalog later offers the ids.
+    clearPendingKnowledgeBaseRestore()
     actionsRef.current.replaceDraft({ text: editableDraft.text, tokens: editableDraft.draftTokens })
     setText(editableDraft.text)
     setDraftTokens(editableDraft.draftTokens)
@@ -1518,7 +1521,7 @@ const ChatComposerInner = ({
   const handleSaveAsDraft = useCallback(() => {
     // A pending conversation reference only fills its transcript into the live editor; a parked
     // snapshot would keep the empty promptText forever, so block saving until it settles.
-    if (editingMessageForCurrentTopic || hasPendingReference) return
+    if (editingMessageForCurrentTopic || hasPendingReference || isAssistantLoading) return
     // A history preview shows a recalled entry, not the live draft: the unfinished prompt and its
     // attachments are parked in the history snapshots, so capture them before reading the draft.
     const historyPreview = exitInputHistoryPreview()
@@ -1541,6 +1544,7 @@ const ChatComposerInner = ({
     exitInputHistoryPreview,
     files,
     hasPendingReference,
+    isAssistantLoading,
     knowledgeBaseIdsForSnapshot,
     saveDraft,
     setSelectedKnowledgeBases
@@ -1550,7 +1554,17 @@ const ChatComposerInner = ({
   const handleEditSavedDraft = useCallback(
     (id: string) => {
       const item = savedDrafts.find((candidate) => candidate.id === id)
-      if (!item || editingMessageForCurrentTopic || directSendInFlightRef.current || hasPendingReference) return
+      // While the assigned assistant is still loading, parking the live content would land under
+      // the unresolved '<scope>:no-assistant' key and the restored knowledge selection would be
+      // wiped when the assistant resolves — hold the restore until loading settles.
+      if (
+        !item ||
+        editingMessageForCurrentTopic ||
+        directSendInFlightRef.current ||
+        hasPendingReference ||
+        isAssistantLoading
+      )
+        return
       // Exit any history preview first: the visible draft is the recalled entry while the
       // composer's own unsent draft and tool state live in the history snapshots — park those,
       // not the preview, so the swap below loses nothing. This also resets the history nav state.
@@ -1582,6 +1596,7 @@ const ChatComposerInner = ({
       exitInputHistoryPreview,
       files,
       hasPendingReference,
+      isAssistantLoading,
       knowledgeBaseIdsForSnapshot,
       removeSavedDraft,
       restoreKnowledgeBaseSelection,
@@ -1901,7 +1916,8 @@ const ChatComposerInner = ({
           disabled={
             (text.trim().length === 0 && files.length === 0) ||
             Boolean(editingMessageForCurrentTopic) ||
-            hasPendingReference
+            hasPendingReference ||
+            isAssistantLoading
           }
           onClick={handleSaveAsDraft}>
           <BookmarkPlus />

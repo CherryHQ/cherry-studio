@@ -148,8 +148,14 @@ export function useComposerKnowledgeBaseScope({
       if (options?.retryUnavailable) {
         const restoredIds = new Set(restored.map((base) => base.id))
         const pending = baseIds.filter((id) => !restoredIds.has(id))
+        // The restored draft's scope replaces the persisted one outright: the content it belonged
+        // to was already parked with its own snapshot, and unioning would leak its unavailable ids
+        // into this draft's next save.
+        knowledgeBaseIdsRef.current = [...new Set(baseIds)]
         setPendingKnowledgeBaseRestoreIds(pending.length > 0 ? pending : null)
-        knowledgeBaseIdsRef.current = [...new Set([...knowledgeBaseIdsRef.current, ...baseIds])]
+        // An explicit restore supersedes the pending draft-cache hydration: it must not run later
+        // and restore the cached scope over this one.
+        setIsKnowledgeBaseDraftHydrated(true)
       } else {
         // A plain restore replaces the composer content: a retry still pending from previous
         // content must not merge its ids into the replacement when the catalog later offers them.
