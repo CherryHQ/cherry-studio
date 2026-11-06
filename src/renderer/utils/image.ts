@@ -511,19 +511,22 @@ async function buildFontEmbedCSS(): Promise<string> {
   // against that block's own stylesheet href.
   const inlined = await Promise.all(
     blocks.map(async ({ cssText, base }) => {
-      const urls = [...cssText.matchAll(/url\((['"]?)([^)'"]+)\1\)/g)]
-        .map((m) => m[2])
-        .filter((u) => !u.startsWith('data:'))
+      const tokens = parseCssUrlTokens(cssText).filter((token) => !token.url.startsWith('data:'))
       const dataUrlByUrl = new Map<string, string | undefined>()
-      await Promise.all(urls.map(async (u) => dataUrlByUrl.set(u, await readAsDataUrl(u, base))))
-      let out = cssText
-      for (const [u, dataUrl] of dataUrlByUrl) {
-        if (!dataUrl) continue
-        out = out.split(`url("${u}")`).join(dataUrl)
-        out = out.split(`url('${u}')`).join(dataUrl)
-        out = out.split(`url(${u})`).join(dataUrl)
+      await Promise.all(
+        [...new Set(tokens.map((token) => token.url))].map(async (u) =>
+          dataUrlByUrl.set(u, await readAsDataUrl(u, base))
+        )
+      )
+      let out = ''
+      let last = 0
+      for (const token of tokens) {
+        out += cssText.slice(last, token.start)
+        const dataUrl = dataUrlByUrl.get(token.url)
+        out += dataUrl ? `url(${dataUrl})` : cssText.slice(token.start, token.end)
+        last = token.end
       }
-      return out
+      return out + cssText.slice(last)
     })
   )
 
@@ -708,7 +711,127 @@ const CSS_URL_PROPERTIES = [
   '-webkit-mask-image',
   'mask-border-source'
 ] as const
-const CSS_URL_REGEX = /url\((['"]?)([^)"']+)\1\)/g
+/** Exported for tests. */
+export interface CssUrlToken {
+  /** Start index of the whole `url(...)` token in the source text. */
+  start: number
+  /** End index (exclusive) of the whole token. */
+  end: number
+  /** Parsed URL value with CSS escapes resolved. */
+  url: string
+}
+
+const CSS_WHITESPACE = new Set([' ', '\t', '\n', '\r', '\f'])
+
+/** Resolves one CSS escape sequence; `pos` points just after the backslash. Returns the char(s) and next index. */
+function readCssEscape(text: string, pos: number): { value: string; next: number } {
+  if (pos >= text.length) return { value: '', next: pos }
+  if (/[0-9a-fA-F]/.test(text[pos])) {
+    let hex = ''
+    let i = pos
+    while (i < text.length && hex.length < 6 && /[0-9a-fA-F]/.test(text[i])) hex += text[i++]
+    if (i < text.length && CSS_WHITESPACE.has(text[i])) i++ // one whitespace after a hex escape is part of it
+    const codePoint = parseInt(hex, 16)
+    return { value: codePoint === 0 || codePoint > 0x10ffff ? '\uFFFD' : String.fromCodePoint(codePoint), next: i }
+  }
+  return { value: text[pos], next: pos + 1 }
+}
+
+/**
+ * Finds every CSS `url()` token in `text`. Unlike a regex this follows the CSS Syntax url-token rules, so it handles
+ * quoted values containing `)`, CSS escapes (including escaped `)` in unquoted values), a case-insensitive `url` name
+ * and surrounding whitespace, and it never mistakes url-like text inside strings or comments for a real token.
+ * Malformed (bad-url) tokens are skipped: the CSS parser drops those declarations, so they never cause a fetch.
+ */
+export function parseCssUrlTokens(text: string): CssUrlToken[] {
+  const tokens: CssUrlToken[] = []
+  const n = text.length
+  let i = 0
+  while (i < n) {
+    const c = text[i]
+    if (c === '/' && text[i + 1] === '*') {
+      const close = text.indexOf('*/', i + 2)
+      i = close === -1 ? n : close + 2
+      continue
+    }
+    if (c === '"' || c === "'") {
+      i++
+      while (i < n && text[i] !== c) i += text[i] === '\\' ? 2 : 1
+      i++ // closing quote (or past the end of an unterminated string)
+      continue
+    }
+    if (/[A-Za-z_-]/.test(c)) {
+      const start = i
+      let ident = ''
+      while (i < n && /[\w-]/.test(text[i])) ident += text[i++]
+      if (ident.toLowerCase() === 'url') {
+        let j = i
+        while (j < n && CSS_WHITESPACE.has(text[j])) j++
+        if (text[j] === '(') {
+          j++
+          while (j < n && CSS_WHITESPACE.has(text[j])) j++
+          let url = ''
+          let valid = true
+          const quote = text[j]
+          if (quote === '"' || quote === "'") {
+            j++
+            while (j < n && text[j] !== quote) {
+              if (text[j] === '\\') {
+                const escape = readCssEscape(text, j + 1)
+                url += escape.value
+                j = escape.next
+              } else {
+                url += text[j++]
+              }
+            }
+            if (j >= n) valid = false
+            else j++ // closing quote
+            while (j < n && CSS_WHITESPACE.has(text[j])) j++
+            if (text[j] !== ')') valid = false
+          } else {
+            while (j < n && text[j] !== ')') {
+              const ch = text[j]
+              if (ch === '\\') {
+                const escape = readCssEscape(text, j + 1)
+                url += escape.value
+                j = escape.next
+              } else if (CSS_WHITESPACE.has(ch)) {
+                let k = j
+                while (k < n && CSS_WHITESPACE.has(text[k])) k++
+                if (text[k] === ')') {
+                  j = k
+                  break
+                }
+                valid = false // whitespace in the middle of an unquoted url: bad-url token
+                j = k
+              } else if (ch === '"' || ch === "'" || ch === '(') {
+                valid = false // bad-url token per the CSS Syntax spec
+                j++
+              } else {
+                url += ch
+                j++
+              }
+            }
+          }
+          if (j < n && text[j] === ')') j++
+          else valid = false
+          if (valid) tokens.push({ start, end: j, url })
+          i = j
+          continue
+        }
+      }
+      continue
+    }
+    i++
+  }
+  return tokens
+}
+
+/** True when a parsed CSS url() value references a resource outside the local-only policy. */
+function isNonLocalCssUrl(url: string, baseUrl: string): boolean {
+  const trimmed = url.trim()
+  return trimmed !== '' && !trimmed.startsWith('#') && !isLocalResourceUrl(trimmed, baseUrl)
+}
 
 /** Neutralizes computed CSS `url()` values that point outside the local-only policy; returns a restore function. */
 function neutralizeNonLocalCssUrls(doc: Document, win: Window): () => void {
@@ -717,10 +840,8 @@ function neutralizeNonLocalCssUrls(doc: Document, win: Window): () => void {
     const computed = win.getComputedStyle(el)
     for (const property of CSS_URL_PROPERTIES) {
       const value = computed.getPropertyValue(property)
-      if (!value || !value.includes('url(')) continue
-      const hasRemote = Array.from(value.matchAll(CSS_URL_REGEX)).some(
-        (match) => !isLocalResourceUrl(match[2], doc.baseURI)
-      )
+      if (!value || !value.toLowerCase().includes('url(')) continue
+      const hasRemote = parseCssUrlTokens(value).some((token) => isNonLocalCssUrl(token.url, doc.baseURI))
       if (!hasRemote) continue
       const previousValue = el.style.getPropertyValue(property)
       const previousPriority = el.style.getPropertyPriority(property)
@@ -736,13 +857,20 @@ function neutralizeNonLocalCssUrls(doc: Document, win: Window): () => void {
 
 const XLINK_NS = 'http://www.w3.org/1999/xlink'
 const SVG_RESOURCE_ATTRIBUTES = ['href', 'src', 'poster', 'data'] as const
-const CSS_URL_ANY_REGEX = /url\(\s*(['"]?)([^)"']*)\1\s*\)/gi
 const LOCAL_CSS_URL_PLACEHOLDER = 'url("data:,")'
 
-function neutralizeCssText(text: string, baseUrl: string): string {
-  return text.replace(CSS_URL_ANY_REGEX, (match, _quote: string, url: string) =>
-    url.trim().startsWith('#') || isLocalResourceUrl(url.trim(), baseUrl) ? match : LOCAL_CSS_URL_PLACEHOLDER
-  )
+/** Rewrites every `url()` token that points outside the local-only policy to a blank local placeholder. Exported for tests. */
+export function neutralizeCssText(text: string, baseUrl: string): string {
+  const tokens = parseCssUrlTokens(text)
+  if (tokens.length === 0) return text
+  let out = ''
+  let last = 0
+  for (const token of tokens) {
+    out += text.slice(last, token.start)
+    out += isNonLocalCssUrl(token.url, baseUrl) ? LOCAL_CSS_URL_PLACEHOLDER : text.slice(token.start, token.end)
+    last = token.end
+  }
+  return out + text.slice(last)
 }
 
 /**
@@ -776,7 +904,7 @@ function neutralizeNonLocalSvgResources(doc: Document): () => void {
         restores.push(() => el.setAttribute('srcset', srcset))
       }
       const style = el.getAttribute('style')
-      if (style && style.includes('url(')) {
+      if (style && style.toLowerCase().includes('url(')) {
         const next = neutralizeCssText(style, baseUrl)
         if (next !== style) {
           el.setAttribute('style', next)
@@ -794,7 +922,7 @@ function neutralizeNonLocalSvgResources(doc: Document): () => void {
         'marker-end'
       ]) {
         const value = el.getAttribute(attr)
-        if (value && value.includes('url(')) {
+        if (value && value.toLowerCase().includes('url(')) {
           const next = neutralizeCssText(value, baseUrl)
           if (next !== value) {
             el.setAttribute(attr, next)
@@ -802,7 +930,7 @@ function neutralizeNonLocalSvgResources(doc: Document): () => void {
           }
         }
       }
-      if (el.tagName.toLowerCase() === 'style' && el.textContent?.includes('url(')) {
+      if (el.tagName.toLowerCase() === 'style' && el.textContent?.toLowerCase().includes('url(')) {
         const text = el.textContent
         const next = neutralizeCssText(text.replace(/@import[^;]*;?/gi, ''), baseUrl)
         if (next !== text) {
@@ -864,7 +992,6 @@ export async function captureScrollableIframe(
   // 内联字体以避免跨域问题
   const inlineFonts = async () => {
     const fontFaceRegex = /@font-face[\s\S]*?\}/g
-    const fontUrlRegex = /url\((['"]?)([^)"']+)\1\)/g
     const fontExtRegex = /\.(woff2?|ttf|otf)(\?|#|$)/i
 
     const fetchAsDataUrl = async (url: string): Promise<string> => {
@@ -892,14 +1019,12 @@ export async function captureScrollableIframe(
         let block = match[0]
         const fontUrls: Array<[string, string]> = []
 
-        let urlMatch: RegExpExecArray | null
-        fontUrlRegex.lastIndex = 0
-        while ((urlMatch = fontUrlRegex.exec(block)) !== null) {
-          const url = urlMatch[2]
+        for (const token of parseCssUrlTokens(block)) {
+          const url = token.url
           if (!url.startsWith('data:') && fontExtRegex.test(url)) {
             try {
               const absoluteUrl = new URL(url, baseUrl).href
-              fontUrls.push([urlMatch[0], absoluteUrl])
+              fontUrls.push([block.slice(token.start, token.end), absoluteUrl])
             } catch {
               // ignore
             }

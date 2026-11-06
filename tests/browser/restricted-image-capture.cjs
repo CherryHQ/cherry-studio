@@ -68,6 +68,7 @@ async function main() {
       'shadow',
       'pseudo content',
       'pseudo background',
+      'quoted paren url',
       'safe content'
     ]
     for (const name of cases)
@@ -94,6 +95,7 @@ async function main() {
               shadow: '<div id="host"></div>',
               'pseudo content': `<style>div::before{content:url('${remote}')}</style><div>hello</div>`,
               'pseudo background': `<style>div::after{content:'';background-image:url('${remote}');display:block;width:20px;height:20px}</style><div>hello</div>`,
+              'quoted paren url': `<style>div{background-image:url('${remote})b.png');width:20px;height:20px}</style><div>hello</div>`,
               'safe content': `<main style="background:#fff;color:#000">Safe text<img src="${placeholder}"></main>`
             }
             document.querySelector('iframe').srcdoc =
@@ -127,7 +129,7 @@ async function main() {
         )
         assert.equal(before, 0, `${name}: preview made a request`)
         assert.deepEqual(requests, [], `${name}: export made a request`)
-        const safe = ['svg', 'xlink', 'safe content'].includes(name)
+        const safe = ['svg', 'xlink', 'quoted paren url', 'safe content'].includes(name)
         assert.equal(result.ok, safe, `${name}: ${result.error}`)
         if (safe) {
           assert.equal(await page.locator('iframe').evaluate((el) => el.style.display), '')
