@@ -75,6 +75,7 @@ export function TextSelectionToolbar({ children, onCopy, onQuote }: TextSelectio
         ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a')
       ) {
         cancelAnimationFrame(frame)
+        selecting = false
         keyboardSelectionKeys ??= new Set()
         keyboardSelectionKeys.add(event.key.toLowerCase())
         canShow = true
