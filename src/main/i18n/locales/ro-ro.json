@@ -79,6 +79,7 @@
   "common.channel_message_processing_error": "⚠️ A apărut o eroare la procesarea mesajului dvs. Încercați din nou mai târziu.",
   "common.channel_new_session_created": "Sesiune nouă creată.",
   "common.channel_no_active_session": "Nu există nicio sesiune activă.",
+  "common.channel_processing": "Se procesează…",
   "common.channel_session_compacted": "Sesiune compactată.",
   "common.channel_session_resolution_error": "⚠️ Nu s-a putut rezolva o sesiune pentru acest agent. Încercați din nou mai târziu.",
   "common.channel_stopped": "Oprit",

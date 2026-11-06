@@ -270,7 +270,6 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     rejectExecution = reject
   })
   let topicId = buildAgentSessionTopicId(session.id)
-  let accumulatedText = ''
   let pausedStatus: 'cancelled' | 'interrupted' | undefined
   let completionActive = true
   const complete = (settle: () => void) => {
@@ -285,16 +284,17 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   const sentinel: StreamListener = {
     id: `agent-task:${scheduleId ?? ctx.jobId}`,
     ownsTaskResult: true,
-    onChunk(chunk) {
-      // `text-delta`'s field is `delta`, not `text` (AI SDK `UIMessageChunk`) — the
-      // previous `as { text }` cast silently never accumulated, so the persisted
-      // result was always the `'Completed'` fallback.
-      if (chunk.type === 'text-delta') accumulatedText += chunk.delta
-    },
+    onChunk() {},
     // Stream manager already snapshots and invokes every listener, including the
     // channel sinks. Re-invoking them here delivered each cron result twice.
-    onDone() {
-      complete(() => resolveExecution(accumulatedText.trim()))
+    onDone(result) {
+      complete(() =>
+        resolveExecution(
+          (
+            result.finalMessage?.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('') ?? ''
+          ).trim()
+        )
+      )
     },
     onPaused(result) {
       if (runSignal.aborted) {

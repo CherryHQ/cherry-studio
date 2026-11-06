@@ -79,6 +79,7 @@
   "common.channel_message_processing_error": "⚠️ 處理您的訊息時發生錯誤。請稍後再試。",
   "common.channel_new_session_created": "已建立新工作階段。",
   "common.channel_no_active_session": "沒有作用中的工作階段。",
+  "common.channel_processing": "處理中…",
   "common.channel_session_compacted": "工作階段已壓縮。",
   "common.channel_session_resolution_error": "⚠️ 無法解析此代理程式的工作階段，請稍後再試。",
   "common.channel_stopped": "已停止",

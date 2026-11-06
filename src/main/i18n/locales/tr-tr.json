@@ -79,6 +79,7 @@
   "common.channel_message_processing_error": "⚠️ Mesaj işlenirken bir hata oluştu. Lütfen daha sonra tekrar deneyin.",
   "common.channel_new_session_created": "Yeni oturum oluşturuldu.",
   "common.channel_no_active_session": "Etkin oturum yok.",
+  "common.channel_processing": "İşleniyor…",
   "common.channel_session_compacted": "Oturum sıkıştırıldı.",
   "common.channel_session_resolution_error": "⚠️ Bu ajan için bir oturum çözümlenemedi. Lütfen daha sonra tekrar deneyin.",
   "common.channel_stopped": "Durduruldu",

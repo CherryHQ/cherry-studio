@@ -4,6 +4,7 @@ import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { APICallError, readUIMessageStream, type UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { AiService } from '@main/ai/AiService'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { applyMessageProjectionUpdate, type MessageProjectionView } from '@shared/ai/messageProjection'
 import { aiStreamAdmissionReasons, type StreamChunkPayload } from '@shared/ai/transport'
@@ -16,6 +17,7 @@ import type { AiStreamRequest } from '../../types/requests'
 import { AiStreamAdmissionError } from '../admission'
 import type * as DispatchModule from '../context/dispatch'
 import type { PersistAssistantInput } from '../persistence/PersistenceBackend'
+import type { AiStreamSource, MessageStreamEvent } from '../types'
 import type {
   AiStreamManagerConfig,
   CherryUIMessage,
@@ -131,9 +133,9 @@ function controlledStream(): {
   }
 }
 
-const mockStreamText = vi.fn<(request: AiStreamRequest) => Promise<ReadableStream<UIMessageChunk>>>(async () =>
-  pendingStream()
-)
+const mockStreamText = vi.fn<
+  (request: Parameters<AiService['streamText']>[0]) => Promise<ReadableStream<UIMessageChunk> | AiStreamSource>
+>(async () => pendingStream())
 
 /**
  * In-memory stand-in for Main's `CacheService`. `AiStreamManager` writes
@@ -160,7 +162,12 @@ vi.mock('@application', async () => {
   // and the mock factory's lookup is keyed by string so the extra entry
   // is wired up regardless of the type.
   return mockApplicationFactory({
-    AiService: { streamText: mockStreamText },
+    AiService: {
+      streamText: async (request: Parameters<AiService['streamText']>[0]) => {
+        const source = await mockStreamText(request)
+        return source instanceof ReadableStream ? { kind: 'chunks', stream: source } : source
+      }
+    },
     CacheService: fakeCacheService,
     TraceStorageService: { saveSpans: mockSaveSpans },
     AgentSessionRuntimeService: {
@@ -381,6 +388,44 @@ describe('AiStreamManager', () => {
     expect(listener.doneResults[0].finalMessage?.parts[0]).toMatchObject(expected)
     expect(view?.messages[0]?.parts[0]).toMatchObject(expected)
     mgr.detachProjection(sender, 'subscription')
+    sender.emit('destroyed')
+  })
+
+  // A replacement must reach subscribers and terminal persistence without reintroducing withdrawn text.
+  it('publishes authoritative replacements and drains the final update before completion', async () => {
+    let controller!: ReadableStreamDefaultController<MessageStreamEvent>
+    mockStreamText.mockResolvedValueOnce({
+      kind: 'messages',
+      stream: new ReadableStream({
+        start: (value) => {
+          controller = value
+        }
+      })
+    })
+    const sender = Object.assign(new EventEmitter(), { isDestroyed: () => false }) as unknown as Electron.WebContents
+    let view: MessageProjectionView | null = null
+    view = await mgr.attachProjection(sender, 'native-topic', 'native-subscription', (update) => {
+      if (view) view = applyMessageProjectionUpdate(view, update)!
+    })
+    const listener = new FakeListener('native-result')
+    startSingle(mgr, { topicId: 'native-topic', modelId: 'p::m', request: req('native-topic'), listeners: [listener] })
+    controller.enqueue({ type: 'control', chunk: { type: 'start' } })
+    controller.enqueue({ type: 'message', parts: [{ type: 'text', text: 'Withdrawn body' }] })
+    await vi.waitFor(() => expect(view?.messages[0]?.parts[0]).toMatchObject({ text: 'Withdrawn body' }))
+    const replay: CherryUIMessage[] = []
+    const late = Object.assign(new FakeListener('late-reader'), {
+      onMessage: (message: CherryUIMessage) => replay.push(message)
+    })
+    expect(mgr.addListener('native-topic', late)).toBe(true)
+    expect(replay.at(-1)?.parts).toEqual([{ type: 'text', text: 'Withdrawn body' }])
+    const replacement: CherryUIMessage['parts'] = [{ type: 'text', text: 'Replacement', state: 'done' }]
+    controller.enqueue({ type: 'message', parts: replacement })
+    controller.close()
+    await vi.waitFor(() => expect(listener.doneResults).toHaveLength(1))
+    expect(listener.doneResults[0].finalMessage?.parts).toEqual(replacement)
+    expect(replay.at(-1)?.parts).toEqual(replacement)
+    expect(view?.messages[0].parts).toEqual(replacement)
+    mgr.detachProjection(sender, 'native-subscription')
     sender.emit('destroyed')
   })
 
@@ -1922,6 +1967,52 @@ describe('AiStreamManager', () => {
       expect(runtime.doneResults).toEqual([])
     })
 
+    it('drains the captured reply through persistence without waiting for its replacement', async () => {
+      const topicId = 'agent-session:drain'
+      const firstFeed = controlledStream()
+      const secondFeed = controlledStream()
+      const writing = Promise.withResolvers<void>()
+      const committed = Promise.withResolvers<void>()
+      const saved: string[] = []
+      const listener = new FakeListener(`persistence:${topicId}`, 'persistence')
+      listener.onDoneImpl = async (result) => {
+        writing.resolve()
+        await committed.promise
+        saved.push(result.finalMessage!.id)
+      }
+      mockStreamText.mockResolvedValueOnce(firstFeed.stream).mockResolvedValueOnce(secondFeed.stream)
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: { ...req(topicId), messageId: 'reply-A' },
+        listeners: [listener]
+      })
+      let drained = false
+      const draining = mgr.drainRuntimeReply(topicId, 'reply-A').then(() => {
+        drained = true
+      })
+      firstFeed.enqueue({ type: 'start', messageId: 'reply-A' })
+      firstFeed.enqueue({ type: 'text-start', id: 'p1' })
+      firstFeed.enqueue(chunk('Persisted before drain'))
+      firstFeed.enqueue({ type: 'text-end', id: 'p1' })
+      firstFeed.close()
+      await writing.promise
+      expect(drained).toBe(false)
+      mgr.startRuntimeTurn({
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: { ...req(topicId), messageId: 'reply-B' },
+        listeners: []
+      })
+      committed.resolve()
+      await draining
+      expect(saved).toEqual(['reply-A'])
+      expect(mgr.inspect(topicId)?.status).not.toBe('done')
+      const drainingB = mgr.drainRuntimeReply(topicId, 'reply-B')
+      secondFeed.close()
+      await drainingB
+    })
+
     it('does not let trace flush failure block terminal completion', async () => {
       mockSaveSpans.mockRejectedValueOnce(new Error('trace write failed'))
       const listener = new FakeListener('l:a')
@@ -2252,6 +2343,98 @@ describe('AiStreamManager', () => {
   })
 
   describe('deferred tool output lookup', () => {
+    it.each([false, true])('hands off prepared output only after a successful save (failure: %s)', async (fail) => {
+      let controller!: ReadableStreamDefaultController<MessageStreamEvent>
+      mockStreamText.mockResolvedValueOnce({
+        kind: 'messages',
+        stream: new ReadableStream({
+          start: (value) => {
+            controller = value
+          }
+        })
+      })
+      const topicId = 'prepared-tools'
+      const gate = Promise.withResolvers<void>()
+      const prepared: CherryUIMessage = {
+        id: 'answer',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'dynamic-tool',
+            toolName: 'Bash',
+            toolCallId: 'call',
+            state: 'output-available',
+            input: {},
+            output: 'Latest answer'.repeat(4096)
+          }
+        ]
+      }
+      const listener = new FakeListener('prepared-observer')
+      const persistence = new PersistenceListener({
+        topicId,
+        prepareMessage: () => prepared,
+        backend: {
+          kind: 'test',
+          persistAssistant: async () => {
+            await gate.promise
+            if (fail) throw new Error('Write failed')
+            return { messageId: 'answer', messageRevision: '1', historyRevision: '1' }
+          }
+        },
+        onPersistFailed: (error) => mgr.broadcastTopicError(topicId, 'p::m', error)
+      })
+      startSingle(mgr, { topicId, modelId: 'p::m', request: req(topicId), listeners: [persistence, listener] })
+      controller.enqueue({ type: 'message', parts: [{ type: 'text', text: 'Before preparation' }] })
+      controller.close()
+      await vi.waitFor(() => expect(mgr.inspect(topicId)?.executions[0].finalMessage).toEqual(prepared))
+      expect(mgr.getDeferredToolOutput(topicId, 'call')).toEqual({ found: true, output: 'Latest answer'.repeat(4096) })
+      gate.resolve()
+      await vi.waitFor(() => expect(fail ? listener.errorResults : listener.doneResults).toHaveLength(1))
+      expect(mgr.inspect(topicId)?.executions[0].finalMessage).toEqual(prepared)
+      expect(mgr.getDeferredToolOutput(topicId, 'call')).toEqual(
+        fail ? { found: true, output: 'Latest answer'.repeat(4096) } : { found: false }
+      )
+    })
+
+    it('reads large native outputs from the current message and respects replacement and removal', async () => {
+      let controller!: ReadableStreamDefaultController<MessageStreamEvent>
+      mockStreamText.mockResolvedValueOnce({
+        kind: 'messages',
+        stream: new ReadableStream({
+          start: (value) => {
+            controller = value
+          }
+        })
+      })
+      const topicId = 'native-tools'
+      const listener = new FakeListener('native-tools')
+      startSingle(mgr, { topicId, modelId: 'p::m', request: req(topicId), listeners: [listener] })
+      const output = {
+        content: [
+          { type: 'text', text: 'x'.repeat(64 * 1024) },
+          { type: 'image', data: 'base64', mimeType: 'image/png' }
+        ]
+      }
+      const tool = {
+        type: 'dynamic-tool' as const,
+        toolCallId: 'call',
+        toolName: 'Bash',
+        state: 'output-available' as const,
+        input: {},
+        output
+      }
+      controller.enqueue({ type: 'message', parts: [tool] })
+      await vi.waitFor(() => expect(mgr.getDeferredToolOutput(topicId, 'call')).toEqual({ found: true, output }))
+      controller.enqueue({ type: 'message', parts: [{ ...tool, output: 'replacement' }] })
+      await vi.waitFor(() =>
+        expect(mgr.getDeferredToolOutput(topicId, 'call')).toEqual({ found: true, output: 'replacement' })
+      )
+      controller.enqueue({ type: 'message', parts: [] })
+      await vi.waitFor(() => expect(mgr.getDeferredToolOutput(topicId, 'call')).toEqual({ found: false }))
+      controller.close()
+      await vi.waitFor(() => expect(listener.doneResults).toHaveLength(1))
+    })
+
     it('retains only outputs large enough to have been stripped on the way out', () => {
       const topicId = 'agent-session:session-1'
       startSingle(mgr, {

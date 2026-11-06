@@ -79,6 +79,7 @@
   "common.channel_message_processing_error": "⚠️ При обработке вашего сообщения произошла ошибка. Повторите попытку позже.",
   "common.channel_new_session_created": "Создан новый сеанс.",
   "common.channel_no_active_session": "Нет активного сеанса.",
+  "common.channel_processing": "Обработка…",
   "common.channel_session_compacted": "Сеанс сжат.",
   "common.channel_session_resolution_error": "⚠️ Не удалось определить сеанс для этого агента. Повторите попытку позже.",
   "common.channel_stopped": "Остановлено",
