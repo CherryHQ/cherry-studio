@@ -211,6 +211,19 @@ describe('local history atomic import', () => {
     })
     expect(counts()).toEqual([1, 2, 1, 3])
   })
+  it('skips an already imported identity despite a newer source version with invalid times', async () => {
+    await source()
+    const p = await preview()
+    const [created] = await service.commit('window', p.previewId, [p.items[0].ref])
+    await source('source', ['2099-01-01T00:00:00Z'])
+    const next = await preview('other')
+    expect(next.items[0].diagnostics).toEqual([])
+    expect((await service.commit('window', next.previewId, [next.items[0].ref]))[0]).toMatchObject({
+      status: 'existing',
+      sessionId: created.sessionId
+    })
+    expect(counts()).toEqual([1, 2, 1, 3])
+  })
   it('commits valid selections and retries blocked selections without losing or duplicating successes', async () => {
     await source('valid')
     await source('blocked', ['2099-01-01T00:00:00Z'])
