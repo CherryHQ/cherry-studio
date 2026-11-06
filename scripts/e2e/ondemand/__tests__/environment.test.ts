@@ -24,3 +24,25 @@ it('classifies a wrong app preference as environment failure even if HTML claims
     code: 'LOCALE_MISMATCH'
   })
 })
+
+it('accepts a Chinese preference on a page that renders no marker when the marker check is off', async () => {
+  const page = {
+    evaluate: async () => 'zh-CN',
+    isClosed: () => false,
+    context: () => ({ browser: () => ({ isConnected: () => true }) })
+  } as unknown as Page
+  await expect(ensureChinese(page, false, { requireVisibleMarker: false })).resolves.toBeUndefined()
+})
+
+it('still rejects a non-Chinese preference when the marker check is off', async () => {
+  const page = {
+    evaluate: async () => 'en-US',
+    isClosed: () => false,
+    context: () => ({ browser: () => ({ isConnected: () => true }) })
+  } as unknown as Page
+  await expect(ensureChinese(page, false, { requireVisibleMarker: false })).rejects.toMatchObject({
+    stage: 'environment',
+    exitCode: 2,
+    code: 'LOCALE_MISMATCH'
+  })
+})

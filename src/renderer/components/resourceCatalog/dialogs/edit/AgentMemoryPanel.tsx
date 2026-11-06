@@ -1,21 +1,24 @@
-import { Brain, Check, Copy, FolderOpen, LoaderCircle, Pencil, RefreshCw, X } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Copy, FolderOpen, LoaderCircle, MoreHorizontal, Pencil, RefreshCw } from 'lucide-react'
+import { type Ref, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
   Button,
   ConfirmDialog,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   ScrollArea,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  Textarea,
   Tooltip
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { StaticMarkdown } from '@renderer/components/markdown'
-import NavbarIcon from '@renderer/components/NavbarIcon'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { AgentMemoryFile, AgentMemoryFileKey, AgentMemorySnapshot } from '@shared/ipc/schemas/agent'
@@ -32,13 +35,7 @@ const FILE_LABEL_KEYS: Record<AgentMemoryFileKey, string> = {
 /** Mirrors AGENT_MEMORY_MAX_WRITE_CHARS in the main-side schema (kept local so zod stays out of the renderer bundle). */
 const MAX_WRITE_CHARS = 1_000_000
 
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-function useMemorySnapshot(agentId: string, open: boolean) {
+function useMemorySnapshot(agentId: string) {
   const [snapshot, setSnapshot] = useState<AgentMemorySnapshot | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
@@ -65,31 +62,35 @@ function useMemorySnapshot(agentId: string, open: boolean) {
   }, [])
 
   useEffect(() => {
-    if (open) void reload()
-  }, [open, reload])
+    void reload()
+  }, [reload])
 
   return { snapshot, loading, error, reload, replaceFile }
 }
 
-type DiscardRequest = { kind: 'switch'; key: AgentMemoryFileKey } | { kind: 'close' }
+type DiscardRequest = { kind: 'switch'; key: AgentMemoryFileKey } | { kind: 'leave' }
 
-export function AgentMemoryDialog({
+export type AgentMemoryPanelHandle = {
+  confirmLeave: () => Promise<boolean>
+}
+
+export function AgentMemoryPanel({
   agent,
-  open,
-  onOpenChange
+  ref
 }: {
   agent: { id: string; name: string }
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  ref?: Ref<AgentMemoryPanelHandle>
 }) {
   const { t, i18n } = useTranslation()
-  const { snapshot, loading, error, reload, replaceFile } = useMemorySnapshot(agent.id, open)
+  const { snapshot, loading, error, reload, replaceFile } = useMemorySnapshot(agent.id)
   const [selectedKey, setSelectedKey] = useState<AgentMemoryFileKey>('soul')
   const [mode, setMode] = useState<'view' | 'edit'>('view')
   const [draft, setDraft] = useState('')
   const [draftVersion, setDraftVersion] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [discardRequest, setDiscardRequest] = useState<DiscardRequest | null>(null)
+
+  const leaveRequest = useRef<{ promise: Promise<boolean>; resolve: (leave: boolean) => void } | null>(null)
 
   const files = snapshot?.files ?? []
   const selected = files.find((file) => file.key === selectedKey) ?? files[0]
@@ -105,14 +106,6 @@ export function AgentMemoryDialog({
         ? 'agent.memory.truncated_readonly'
         : null
   const canEdit = !!selected && readOnlyReason === null
-
-  useEffect(() => {
-    if (!open) return
-    setMode('view')
-    setDraft('')
-    setDraftVersion(null)
-    setDiscardRequest(null)
-  }, [open, agent.id])
 
   useEffect(() => {
     if (!canEdit && mode === 'edit') {
@@ -208,20 +201,30 @@ export function AgentMemoryDialog({
     }
   }
 
-  const handleOpenChange = (next: boolean) => {
-    if (saving) return
-    if (!next && isDirty) {
-      setDiscardRequest({ kind: 'close' })
-      return
+  useImperativeHandle(ref, () => ({
+    confirmLeave: () => {
+      if (saving) return Promise.resolve(false)
+      if (!isDirty) return Promise.resolve(true)
+      if (leaveRequest.current) return leaveRequest.current.promise
+      const { promise, resolve } = Promise.withResolvers<boolean>()
+      leaveRequest.current = { promise, resolve }
+      setDiscardRequest({ kind: 'leave' })
+      return promise
     }
-    onOpenChange(next)
+  }))
+
+  const dismissDiscard = () => {
+    leaveRequest.current?.resolve(false)
+    leaveRequest.current = null
+    setDiscardRequest(null)
   }
 
   const confirmDiscard = () => {
     if (discardRequest?.kind === 'switch') applySelect(discardRequest.key)
-    if (discardRequest?.kind === 'close') {
+    if (discardRequest?.kind === 'leave') {
       cancelEdit()
-      onOpenChange(false)
+      leaveRequest.current?.resolve(true)
+      leaveRequest.current = null
     }
     setDiscardRequest(null)
   }
@@ -249,7 +252,7 @@ export function AgentMemoryDialog({
       return (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
           <p className="text-muted-foreground text-sm">{t('agent.memory.load_failed')}</p>
-          <Button variant="outline" size="sm" onClick={() => void reload()}>
+          <Button type="button" variant="outline" size="sm" onClick={() => void reload()}>
             <RefreshCw className="size-4" aria-hidden="true" />
             {t('common.retry')}
           </Button>
@@ -270,8 +273,8 @@ export function AgentMemoryDialog({
 
     if (mode === 'edit') {
       return (
-        <textarea
-          className="min-h-0 flex-1 resize-none bg-background p-4 font-mono text-xs leading-relaxed outline-none"
+        <Textarea.Input
+          className="min-h-0 flex-1 resize-none font-mono text-xs leading-relaxed"
           value={draft}
           maxLength={MAX_WRITE_CHARS}
           readOnly={saving}
@@ -288,7 +291,7 @@ export function AgentMemoryDialog({
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
           <p className="text-muted-foreground text-sm">{t('agent.memory.not_exists')}</p>
           {canEdit ? (
-            <Button variant="outline" size="sm" onClick={startEdit}>
+            <Button type="button" variant="outline" size="sm" onClick={startEdit}>
               <Pencil className="size-4" aria-hidden="true" />
               {t('agent.memory.create')}
             </Button>
@@ -304,7 +307,7 @@ export function AgentMemoryDialog({
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
           <p className="text-muted-foreground text-sm">{t('agent.memory.empty')}</p>
           {canEdit ? (
-            <Button variant="outline" size="sm" onClick={startEdit}>
+            <Button type="button" variant="outline" size="sm" onClick={startEdit}>
               <Pencil className="size-4" aria-hidden="true" />
               {t('agent.memory.edit')}
             </Button>
@@ -318,11 +321,11 @@ export function AgentMemoryDialog({
     return (
       <ScrollArea className="min-h-0 flex-1">
         {isMarkdown ? (
-          <div className="markdown px-6 py-4 text-sm">
+          <div className="markdown py-4 text-sm">
             <StaticMarkdown id={`agent-memory-${selected.key}`}>{selected.content}</StaticMarkdown>
           </div>
         ) : (
-          <pre className="whitespace-pre-wrap break-words px-4 py-3 font-mono text-xs leading-relaxed">
+          <pre className="whitespace-pre-wrap break-words py-4 font-mono text-xs leading-relaxed">
             {selected.content}
           </pre>
         )}
@@ -331,142 +334,111 @@ export function AgentMemoryDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent
-        size="xl"
-        closeLabel={t('common.close')}
-        className="flex h-[min(44rem,85dvh)] flex-col gap-0 overflow-hidden p-0">
-        <DialogHeader className="shrink-0 px-6 pt-6 pb-4 text-start">
-          <DialogTitle className="flex items-center gap-2">
-            <Brain className="size-5" aria-hidden="true" />
-            {t('agent.memory.title')}
-          </DialogTitle>
-          <DialogDescription>{t('agent.memory.description', { name: agent.name })}</DialogDescription>
-        </DialogHeader>
-
-        <div className="flex min-h-0 flex-1 border-border-subtle border-t">
-          <nav className="flex w-56 shrink-0 flex-col gap-1 border-border-subtle border-e p-2">
-            {files.length === 0 && !error
-              ? FILE_ORDER.map((key) => (
-                  <div key={key} className="h-12 animate-pulse rounded-md bg-accent/40" aria-hidden="true" />
-                ))
-              : files.map((file) => (
-                  <button
-                    key={file.key}
-                    type="button"
-                    disabled={saving}
-                    onClick={() => selectFile(file.key)}
-                    aria-current={selected?.key === file.key ? 'true' : undefined}
-                    className={cn(
-                      'flex min-w-0 flex-col gap-0.5 rounded-md px-2.5 py-2 text-start transition-colors',
-                      selected?.key === file.key
-                        ? 'bg-secondary text-secondary-foreground'
-                        : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
-                    )}>
-                    <span className="flex min-w-0 items-center justify-between gap-2">
-                      <span className="truncate font-medium text-xs">{file.name}</span>
-                      <span className="shrink-0 text-[11px] tabular-nums opacity-70">
-                        {file.exists ? formatSize(file.size) : '—'}
-                      </span>
-                    </span>
-                    <span className="truncate text-[11px] opacity-70">{t(FILE_LABEL_KEYS[file.key])}</span>
-                  </button>
-                ))}
-          </nav>
-
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <div className="flex shrink-0 items-center justify-between gap-3 border-border-subtle border-b px-4 py-2">
-              <div className="min-w-0">
-                <p className="truncate font-medium text-xs">{selected?.path ?? ''}</p>
-                <p className="truncate text-[11px] text-muted-foreground">
-                  {selected?.updatedAt ? t('agent.memory.updated_at', { date: formatDate(selected.updatedAt) }) : ''}
-                  {selected?.truncated
-                    ? ` · ${t('agent.memory.truncated', {
-                        part: t(
-                          selected.key === 'journal' ? 'agent.memory.truncated_tail' : 'agent.memory.truncated_head'
-                        )
-                      })}`
-                    : ''}
-                  {mode === 'edit'
-                    ? ` · ${t('agent.memory.char_count', {
-                        current: draft.length.toLocaleString(i18n.resolvedLanguage),
-                        max: MAX_WRITE_CHARS.toLocaleString(i18n.resolvedLanguage)
-                      })}`
-                    : readOnlyReason
-                      ? ` · ${t(readOnlyReason)}`
-                      : ''}
-                </p>
-              </div>
-              <div className="flex shrink-0 items-center gap-1">
-                {mode === 'edit' ? (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="sm"
+    <>
+      <section className="flex h-[min(28rem,58dvh)] min-h-72 flex-col gap-4" aria-label={t('agent.memory.title')}>
+        <Tabs
+          value={selectedKey}
+          onValueChange={(key) => {
+            const file = files.find((item) => item.key === key)
+            if (file) selectFile(file.key)
+          }}
+          variant="underline"
+          className="min-h-0 flex-1 gap-0">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 border-border-subtle border-b">
+            <TabsList aria-label={t('agent.memory.title')} className="flex-wrap gap-4">
+              {files.length === 0 && !error
+                ? FILE_ORDER.map((key) => (
+                    <div key={key} className="h-8 w-16 animate-pulse rounded-md bg-muted" aria-hidden="true" />
+                  ))
+                : files.map((file) => (
+                    <TabsTrigger
+                      key={file.key}
+                      value={file.key}
                       disabled={saving}
-                      onClick={() => {
-                        cancelEdit()
-                      }}>
-                      <X className="size-4" aria-hidden="true" />
-                      {t('common.cancel')}
-                    </Button>
-                    <Button size="sm" disabled={saving || !isDirty} onClick={() => void save()}>
-                      {saving ? (
-                        <LoaderCircle className="size-4 motion-safe:animate-spin" aria-hidden="true" />
-                      ) : (
-                        <Check className="size-4" aria-hidden="true" />
-                      )}
-                      {t('common.save')}
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Button variant="outline" size="sm" disabled={!canEdit || loading} onClick={startEdit}>
-                      <Pencil className="size-4" aria-hidden="true" />
-                      {t('agent.memory.edit')}
-                    </Button>
-                    <Tooltip content={t('agent.memory.copy')}>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={t('agent.memory.copy')}
+                      className="px-0 text-xs transition-colors">
+                      {t(FILE_LABEL_KEYS[file.key])}
+                    </TabsTrigger>
+                  ))}
+            </TabsList>
+            <div className="ms-auto flex shrink-0 items-center gap-1 py-1">
+              {mode === 'edit' ? (
+                <>
+                  <Button type="button" variant="ghost" size="sm" disabled={saving} onClick={cancelEdit}>
+                    {t('common.cancel')}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    loading={saving}
+                    disabled={saving || !isDirty}
+                    onClick={() => void save()}>
+                    {t('common.save')}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button type="button" variant="ghost" size="sm" disabled={!canEdit || loading} onClick={startEdit}>
+                    {t('agent.memory.edit')}
+                  </Button>
+                  <DropdownMenu>
+                    <Tooltip content={t('common.more')}>
+                      <DropdownMenuTrigger asChild>
+                        <Button type="button" variant="ghost" size="icon-sm" aria-label={t('common.more')}>
+                          <MoreHorizontal className="size-4" aria-hidden="true" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                    </Tooltip>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
                         disabled={!selected?.exists || !selected.content}
-                        onClick={() => void copyContent()}>
+                        onSelect={() => void copyContent()}>
                         <Copy className="size-4" aria-hidden="true" />
-                      </Button>
-                    </Tooltip>
-                    <Tooltip content={t('agent.memory.refresh')}>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={t('agent.memory.refresh')}
-                        disabled={loading}
-                        onClick={() => void reload()}>
+                        {t('agent.memory.copy')}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem disabled={loading} onSelect={() => void reload()}>
                         <RefreshCw className={cn('size-4', loading && 'motion-safe:animate-spin')} aria-hidden="true" />
-                      </Button>
-                    </Tooltip>
-                    <Tooltip content={t('agent.memory.open_folder')}>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={t('agent.memory.open_folder')}
-                        onClick={() => void openFolder()}>
+                        {t('agent.memory.refresh')}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => void openFolder()}>
                         <FolderOpen className="size-4" aria-hidden="true" />
-                      </Button>
-                    </Tooltip>
-                  </>
-                )}
-              </div>
+                        {t('agent.memory.open_folder')}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </>
+              )}
             </div>
-            {renderContent()}
           </div>
-        </div>
-      </DialogContent>
+          <TabsContent value={selectedKey} className="m-0 flex min-h-0 flex-1 flex-col">
+            {renderContent()}
+          </TabsContent>
+          <footer className="flex shrink-0 flex-col gap-1 pt-3 text-muted-foreground text-xs">
+            {readOnlyReason ? <p>{t(readOnlyReason)}</p> : null}
+            {selected?.truncated ? (
+              <p>
+                {t('agent.memory.truncated', {
+                  part: t(selected.key === 'journal' ? 'agent.memory.truncated_tail' : 'agent.memory.truncated_head')
+                })}
+              </p>
+            ) : null}
+            {mode === 'edit' ? (
+              <p>
+                {t('agent.memory.char_count', {
+                  current: draft.length.toLocaleString(i18n.resolvedLanguage),
+                  max: MAX_WRITE_CHARS.toLocaleString(i18n.resolvedLanguage)
+                })}
+              </p>
+            ) : selected?.updatedAt ? (
+              <p>{t('agent.memory.updated_at', { date: formatDate(selected.updatedAt) })}</p>
+            ) : null}
+          </footer>
+        </Tabs>
+      </section>
 
       <ConfirmDialog
         open={discardRequest !== null}
         onOpenChange={(next) => {
-          if (!next) setDiscardRequest(null)
+          if (!next) dismissDiscard()
         }}
         title={t('agent.memory.discard.title')}
         description={t('agent.memory.discard.description')}
@@ -475,23 +447,6 @@ export function AgentMemoryDialog({
         destructive
         onConfirm={confirmDiscard}
       />
-    </Dialog>
-  )
-}
-
-export function AgentMemoryShortcut({ agent }: { agent: { id: string; name: string } }) {
-  const { t } = useTranslation()
-  const [open, setOpen] = useState(false)
-  const label = t('agent.memory.button')
-
-  return (
-    <>
-      <Tooltip content={label} delay={800}>
-        <NavbarIcon tone="conversation" aria-label={label} onClick={() => setOpen(true)}>
-          <Brain className="size-3.5" aria-hidden="true" />
-        </NavbarIcon>
-      </Tooltip>
-      <AgentMemoryDialog key={agent.id} agent={agent} open={open} onOpenChange={setOpen} />
     </>
   )
 }

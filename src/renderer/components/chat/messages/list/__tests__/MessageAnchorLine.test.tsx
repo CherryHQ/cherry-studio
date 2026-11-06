@@ -209,8 +209,14 @@ describe('MessageAnchorLine', () => {
     expect(container.querySelectorAll('[data-message-anchor-tick]')).toHaveLength(5)
   })
 
-  it('renders nothing with fewer than five turns — no anchoring needed', () => {
-    const { container } = renderRail({ messages: messages.slice(0, 5) })
+  it('shows an anchor from the first conversation turn', () => {
+    const { getAllByRole } = renderRail({ messages: messages.slice(0, 2) })
+
+    expect(getAllByRole('button')).toHaveLength(1)
+  })
+
+  it('renders nothing without conversation turns', () => {
+    const { container } = renderRail({ messages: [] })
 
     expect(container.firstElementChild).toBeNull()
   })

@@ -70,8 +70,6 @@ const RAIL_MIN_EDGE_MARGIN_PX = 24
 const RAIL_TICK_PITCH_PX = 10
 /** Length of the fade applied to whichever end still has ticks scrolled past it. */
 const RAIL_FADE_PX = 44
-/** With fewer turns there is nothing worth anchoring — the rail stays hidden. */
-const RAIL_MIN_TURNS = 5
 const EMPTY_MESSAGE_PARTS: CherryMessagePart[] = []
 
 const tickTransitionClassName =
@@ -235,9 +233,7 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
     []
   )
 
-  // The gutter is independent of turn count, so mounting the rail at this
-  // threshold leaves the content layout unchanged.
-  const hasRail = turns.length >= RAIL_MIN_TURNS
+  const hasRail = turns.length > 0
 
   // Keep the strip's reading anchor stable across async page loads:
   // • on entry, start at the bottom — the user enters at the newest turn;
