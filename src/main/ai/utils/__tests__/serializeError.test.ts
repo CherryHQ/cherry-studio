@@ -73,6 +73,20 @@ describe('serializeError', () => {
     })
   })
 
+  it('retains resize measurements across the serialization boundary', () => {
+    const error = Object.assign(new Error('Image resize failed'), {
+      name: 'NativeImageResizeError',
+      i18nKey: 'image_resize_failed',
+      detailI18nKey: 'image_resize_failed_detail',
+      detailI18nValues: { filename: 'scan.png', width: '4960', height: '6208', maxEdge: '2000' }
+    })
+    expect(serializeError(error)).toMatchObject({
+      i18nKey: 'image_resize_failed',
+      detailI18nKey: 'image_resize_failed_detail',
+      detailI18nValues: { filename: 'scan.png', width: '4960', height: '6208', maxEdge: '2000' }
+    })
+  })
+
   describe('null preservation (FIX error-1)', () => {
     it('serializes an absent cause to real null, not the string "null"', () => {
       const result = serializeError(new Error('boom'))

@@ -14,8 +14,8 @@
  * Content is always inlined, so visibility never depends on the model choosing
  * to call `read_file` — weak and non-tool models see it too. Other failures
  * (missing entry, parse error, native materialization) degrade to a model-visible
- * note rather than silently dropping the file or failing the request. Unreadable
- * non-vision images stop the request. Legacy / gateway parts (no `fileEntryId`)
+ * note rather than silently dropping the file. Unreadable non-vision images and
+ * oversized native images that cannot be resized stop the request. Legacy / gateway parts (no `fileEntryId`)
  * keep the eager materialization path, but their image/audio/video parts remain
  * capability-gated.
  *
@@ -32,6 +32,7 @@ import { loggerService } from '@logger'
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
 import type { NativeFileSupport } from '@main/ai/runtime/aiSdk'
 import { surrogateSafeEnd } from '@main/ai/utils/textPaging'
+import { ModelImageResizeError } from '@main/utils/image'
 import { READ_FILE_PAGE_SIZE } from '@shared/ai/builtinTools'
 import type { FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
@@ -82,6 +83,23 @@ class NonVisionImageOcrError extends Error {
       if (detail.kind === 'failed') {
         this.detailI18nValues = { reason: detail.reason.slice(0, MAX_OCR_FAILURE_REASON_LENGTH) }
       }
+    }
+  }
+}
+
+class NativeImageResizeError extends Error {
+  readonly i18nKey = 'image_resize_failed'
+  readonly detailI18nKey = 'image_resize_failed_detail'
+  readonly detailI18nValues: Record<string, string>
+
+  constructor(filename: string, failure: ModelImageResizeError) {
+    super('Cherry Studio could not resize an attached image. Resize or remove it and try again.')
+    this.name = 'NativeImageResizeError'
+    this.detailI18nValues = {
+      filename,
+      width: String(failure.width),
+      height: String(failure.height),
+      maxEdge: String(failure.maxEdge)
     }
   }
 }
@@ -236,7 +254,20 @@ async function prepareChatMessage<T extends UIMessage>(
       // Legacy / gateway part — eager materialization, but do not let media
       // bypass the native-support gate applied to first-party attachments.
       const name = part.filename ?? 'file'
-      const inlined = await materializeNativeFilePart(part)
+      let inlined: FileUIPart | null
+      try {
+        inlined = await materializeNativeFilePart(part)
+      } catch (error) {
+        if (ctx.signal?.aborted) ctx.signal.throwIfAborted()
+        if (isAbortError(error)) throw error
+        if (!(error instanceof ModelImageResizeError)) throw error
+        if (!ctx.nativeSupport.image) {
+          kept.push({ type: 'text', text: '[image attachment omitted: this model does not accept image input]' })
+          continue
+        }
+        logger.error('Failed to resize attached image', error, { messageId: message.id, displayName: name })
+        throw new NativeImageResizeError(name, error)
+      }
       if (!inlined) {
         logger.warn('Dropped unresolved legacy file part; degrading to note', { messageId: message.id })
         kept.push(noteOf(name))
@@ -267,7 +298,7 @@ async function prepareChatMessage<T extends UIMessage>(
     // missing/deleted entry, parse error, failed native
     // materialization — must degrade to a model-visible note rather than reject
     // the whole request before the model is even called (mirrors `read_file`'s
-    // graceful failure). Abort rethrows.
+    // graceful failure). Resize failures and aborts rethrow.
     const ref = ctx.attachments.find((a) => a.fileEntryId === fileEntryId)
     const handle = ref?.handle ?? part.filename ?? 'file'
     const displayName = ref?.displayName ?? handle
@@ -313,7 +344,12 @@ async function prepareChatMessage<T extends UIMessage>(
       const body = await extractNonNativeText(fileEntryId, fileType, handle, ctx.signal)
       defer(kept, pending, handle, body)
     } catch (error) {
-      if (ctx.signal?.aborted || isAbortError(error)) throw error
+      if (ctx.signal?.aborted) ctx.signal.throwIfAborted()
+      if (isAbortError(error)) throw error
+      if (error instanceof ModelImageResizeError) {
+        logger.error('Failed to resize attached image', error, { messageId: message.id, displayName })
+        throw new NativeImageResizeError(displayName, error)
+      }
       if (error instanceof NonVisionImageOcrError) throw error
       logger.error('Failed to prepare attached file', error as Error, { messageId: message.id, displayName })
       kept.push(noteOf(handle))

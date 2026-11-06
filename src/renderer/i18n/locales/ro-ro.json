@@ -1532,6 +1532,8 @@
   "error.http.502": "Eroare gateway. Te rugăm să încerci din nou mai târziu",
   "error.http.503": "Serviciu indisponibil. Te rugăm să încerci din nou mai târziu",
   "error.http.504": "Expirare gateway. Te rugăm să încerci din nou mai târziu",
+  "error.image_resize_failed": "Cherry Studio nu a putut redimensiona o imagine atașată. Redimensioneaz-o sau elimin-o și încearcă din nou.",
+  "error.image_resize_failed_detail": "Atașament „{{filename}}”: {{width}}x{{height}} px; limita laturii celei mai lungi în Cherry Studio este {{maxEdge}} px.",
   "error.image_unreadable_for_non_vision_model": "Modelul selectat nu este configurat pentru intrare de imagini, iar Cherry Studio nu a putut extrage text lizibil din atașament. Activați opțiunea Vizual pentru acest model în setările furnizorului, alegeți un alt model cu suport vizual sau eliminați imaginea și încercați din nou.",
   "error.lastError": "Ultima eroare",
   "error.maxEmbeddingsPerCall": "Max Embeddings per apel",

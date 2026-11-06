@@ -1532,6 +1532,8 @@
   "error.http.502": "Gateway-Fehler. Bitte versuchen Sie es später erneut",
   "error.http.503": "Dienst nicht verfügbar. Bitte versuchen Sie es später erneut",
   "error.http.504": "Gateway-Timeout. Bitte versuchen Sie es später erneut",
+  "error.image_resize_failed": "Cherry Studio konnte ein angehängtes Bild nicht skalieren. Skaliere oder entferne es und versuche es erneut.",
+  "error.image_resize_failed_detail": "Anhang „{{filename}}“: {{width}}x{{height}} px; die maximale Kantenlänge in Cherry Studio beträgt {{maxEdge}} px.",
   "error.image_unreadable_for_non_vision_model": "Das ausgewählte Modell ist nicht für Bildeingaben konfiguriert, und Cherry Studio konnte keinen lesbaren Text aus dem Anhang extrahieren. Aktivieren Sie für dieses Modell unter „Anbietereinstellungen“ die Eingabemodalität „Vision“, wählen Sie ein anderes bildfähiges Modell oder entfernen Sie das Bild und versuchen Sie es erneut.",
   "error.lastError": "Letzter Fehler",
   "error.maxEmbeddingsPerCall": "Maximale Embeddings pro Aufruf",

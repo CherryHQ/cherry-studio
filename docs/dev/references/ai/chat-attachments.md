@@ -57,6 +57,7 @@ Decided per file part in `prepareChatMessages`
   model that accepts images must have **Vision** enabled under Provider Settings
   → model input modalities; that user override takes precedence over the catalog
   and sends the native image without running OCR.
+- An oversized native image that cannot be resized raises a localized error before the provider request.
 - Any other per-file failure (missing entry, parse error, failed materialization)
   degrades to a `[could not read this file].` note rather than dropping the
   file or failing the request.

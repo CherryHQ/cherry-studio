@@ -6,9 +6,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { Worker } from 'node:worker_threads'
 
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import sharp from 'sharp'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistantFileAttachments'
+import type * as FileProcessorModule from '@main/ai/messages/fileProcessor'
+import { ModelImageResizeError } from '@main/utils/image'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import type { RuntimeForkResult } from '../../fork'
@@ -208,8 +211,12 @@ vi.mock('@main/ai/messages/fileProcessor', () => ({
   materializeNativeFilePart: mocks.materializeNativeFilePart
 }))
 
-vi.mock('@main/utils/file', () => ({
-  probeReadable: mocks.probeReadable
+vi.mock('@main/utils/file', async () => ({
+  probeReadable: mocks.probeReadable,
+  read: async (file: string) => ({
+    data: (await (await import('node:fs/promises')).readFile(file)).toString('base64'),
+    mime: 'image/png'
+  })
 }))
 
 vi.mock('../settingsBuilder', async (importActual) => ({
@@ -908,6 +915,59 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     expect(mocks.materializeNativeFilePart).toHaveBeenCalledTimes(1)
     void connection.close()
+  })
+
+  it('clamps directly materialized images and falls back to the path on resize failure', async () => {
+    const dir = await mkdtemp(path.join(process.cwd(), '.claude-image-'))
+    try {
+      const imagePath = path.join(dir, 'large.png')
+      const bytes = await sharp({ create: { width: 2001, height: 1000, channels: 3, background: '#123456' } })
+        .png()
+        .toBuffer()
+      await writeFile(imagePath, bytes)
+      const actual = await vi.importActual<typeof FileProcessorModule>('@main/ai/messages/fileProcessor')
+      for (const fail of [false, true]) {
+        const queryQueue = createAsyncQueue<any>()
+        mocks.createClaudeQuery.mockReturnValue({ ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() })
+        if (fail)
+          mocks.materializeNativeFilePart.mockRejectedValueOnce(
+            new ModelImageResizeError(2001, 1000, 2000, new Error('encode'))
+          )
+        else mocks.materializeNativeFilePart.mockImplementationOnce(actual.materializeNativeFilePart)
+        const connection = await new ClaudeCodeRuntimeDriver().connect({
+          sessionId: 'session-1',
+          agentId: 'agent-1',
+          modelId: 'claude-code::sonnet'
+        })
+        const sdkInput = mocks.createClaudeQuery.mock.calls.at(-1)![0].prompt
+        const nextInput = sdkInput[Symbol.asyncIterator]().next()
+        await connection.send({
+          message: {
+            ...userMessage(),
+            data: {
+              parts: [
+                { type: 'text', text: 'inspect' },
+                { type: 'file', url: pathToFileURL(imagePath).href, mediaType: 'image/png', filename: 'large.png' }
+              ]
+            }
+          }
+        })
+        const result = await nextInput
+        const content = result.value.message.content
+        if (fail) expect(content).toContain(imagePath)
+        else {
+          const image = content.find((item: { type: string }) => item.type === 'image')
+          expect(await sharp(Buffer.from(image.source.data, 'base64')).metadata()).toMatchObject({
+            width: 2000,
+            height: 1000,
+            format: 'png'
+          })
+        }
+        void connection.close()
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
   })
 
   it('passes first-party archive attachments to ordinary Agents as tool-readable paths', async () => {

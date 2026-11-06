@@ -1,3 +1,4 @@
+import { isAbortError } from '@ai-sdk/provider-utils'
 import { fileTypeFromBuffer } from 'file-type'
 
 /** Target square dimension for normalized entity images (avatar / logo). */
@@ -41,6 +42,18 @@ export async function transcodeToPng(bytes: Uint8Array): Promise<Uint8Array> {
   return sharp(bytes).png().toBuffer()
 }
 
+export class ModelImageResizeError extends Error {
+  constructor(
+    readonly width: number,
+    readonly height: number,
+    readonly maxEdge: number,
+    cause: unknown
+  ) {
+    super('Could not resize image for model', { cause })
+    this.name = 'ModelImageResizeError'
+  }
+}
+
 /**
  * Shrink an image so neither edge exceeds the model-bound cap, preserving its format. Only the
  * header is read to decide, so in-bounds input is never decoded or re-encoded.
@@ -52,9 +65,14 @@ export async function clampImageForModel(bytes: Uint8Array): Promise<Uint8Array 
   const { width, height } = await image.metadata()
   if (!width || !height) throw new Error('could not read image dimensions')
   if (width <= MODEL_IMAGE_MAX_EDGE && height <= MODEL_IMAGE_MAX_EDGE) return null
-  return image
-    .resize(MODEL_IMAGE_MAX_EDGE, MODEL_IMAGE_MAX_EDGE, { fit: 'inside', withoutEnlargement: true })
-    .toBuffer()
+  try {
+    return await image
+      .resize(MODEL_IMAGE_MAX_EDGE, MODEL_IMAGE_MAX_EDGE, { fit: 'inside', withoutEnlargement: true })
+      .toBuffer()
+  } catch (error) {
+    if (isAbortError(error)) throw error
+    throw new ModelImageResizeError(width, height, MODEL_IMAGE_MAX_EDGE, error)
+  }
 }
 
 /**
