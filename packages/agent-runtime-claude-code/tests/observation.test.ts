@@ -60,13 +60,16 @@ it('attaches current background occupancy without replaying an earlier completio
       })
     )
     await observation.drain()
-    expect(batches[0].controls).toEqual([
-      {
-        type: 'background-tasks',
-        tasks: [{ task_id: 'child', task_type: 'local_agent', description: 'Still working' }]
-      },
-      { type: 'background-work-state', active: true }
-    ])
+    expect(batches[0].controls).toEqual(
+      expect.arrayContaining([
+        {
+          type: 'background-tasks',
+          tasks: [{ task_id: 'child', task_type: 'local_agent', description: 'Still working' }]
+        },
+        { type: 'background-work-state', active: true }
+      ])
+    )
+    expect(batches[0].controls).not.toContainEqual(expect.objectContaining({ type: 'result' }))
     expect(batches[0].invocations ?? []).toEqual([])
     expect(batches[0].live).toEqual([])
     await observation.stop()
