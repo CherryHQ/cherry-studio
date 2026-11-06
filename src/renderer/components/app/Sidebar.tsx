@@ -19,6 +19,7 @@ import useSWR from 'swr'
 import { Button, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
+import { useCommandRuntime } from '@renderer/hooks/command'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
@@ -27,6 +28,7 @@ import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { getAppEdition } from '@renderer/utils/appEdition'
 import { isMac } from '@renderer/utils/platform'
+import type { CommandId } from '@shared/utils/command'
 
 import { CommandTooltip } from '../command'
 import { HelpMenu } from '../layout/HelpMenu'
@@ -49,6 +51,18 @@ import {
   useSidebarShortcutActivation,
   useSidebarShortcutRegistry
 } from './sidebarShortcuts'
+
+const SIDEBAR_OPEN_COMMANDS: readonly CommandId[] = [
+  'app.sidebar.open_1',
+  'app.sidebar.open_2',
+  'app.sidebar.open_3',
+  'app.sidebar.open_4',
+  'app.sidebar.open_5',
+  'app.sidebar.open_6',
+  'app.sidebar.open_7',
+  'app.sidebar.open_8',
+  'app.sidebar.open_9'
+]
 
 const FeedbackDialog = lazy(() => import('../feedback/FeedbackDialog'))
 
@@ -243,6 +257,17 @@ export default function Sidebar({
     [activateShortcut, navigation, registry, remove, resolutions, shortcuts, t]
   )
   const [entries, setOptimisticEntryOrder] = useOptimistic(resolvedEntries, applyEntryOrder)
+
+  const commandRuntime = useCommandRuntime()
+  useEffect(() => {
+    const disposers = SIDEBAR_OPEN_COMMANDS.map((command, index) =>
+      commandRuntime.registerHandler(command, () => {
+        const entry = entries[index]
+        if (entry && !entry.disabled) entry.onOpen()
+      })
+    )
+    return () => disposers.forEach((dispose) => dispose())
+  }, [commandRuntime, entries])
 
   const handleReorder = useCallback(
     ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
