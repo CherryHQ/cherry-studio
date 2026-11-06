@@ -78,12 +78,17 @@ export async function loadSkillsShLeaderboard(page: number) {
 }
 
 export async function loadSkillRegistryPage(source: 'skills.sh' | 'claude-plugins.dev', cursor: number) {
-  if (source === 'skills.sh') {
-    const page = await loadSkillsShLeaderboard(cursor)
-    return { ...page, nextCursor: cursor + 1 }
+  try {
+    if (source === 'skills.sh') {
+      const page = await loadSkillsShLeaderboard(cursor)
+      return { ...page, nextCursor: cursor + 1 }
+    }
+    const page = await loadClaudePluginsSkills(cursor, fetchJson)
+    return { items: page.items, hasMore: page.hasMore, nextCursor: page.nextOffset }
+  } catch (error) {
+    logger.warn('Skill registry page failed', { source, cursor, error })
+    throw error
   }
-  const page = await loadClaudePluginsSkills(cursor, fetchJson)
-  return { items: page.items, hasMore: page.hasMore, nextCursor: page.nextOffset }
 }
 
 /** Browse the independent skills catalog; pagination counts raw entries, including skipped ones. */

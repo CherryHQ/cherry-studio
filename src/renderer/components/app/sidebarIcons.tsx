@@ -86,7 +86,7 @@ export function SidebarIcon({
 }: LucideProps & { icon: SidebarGlyph; active?: boolean }) {
   const Outline = NAVIGATION_ICON_COMPONENTS[icon]
   if (!active) return <Outline {...props} />
-  if (icon === 'marketplace') return <Outline {...props} fill="var(--sidebar-accent)" />
+  if (icon === 'marketplace') return <Outline {...props} fill="currentColor" stroke="var(--sidebar)" />
   const filledPath = FILLED_PATHS[icon]
   if (filledPath) {
     return (

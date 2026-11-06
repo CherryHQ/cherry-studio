@@ -85,7 +85,7 @@ it('switches registries, browses subsequent raw offsets, searches and installs t
     </SWRConfig>
   )
   expect(await screen.findByText('React patterns')).toBeVisible()
-  await user.click(screen.getByRole('button', { name: 'claude-plugins.dev' }))
+  await user.click(screen.getByRole('button', { name: 'claude-plugins' }))
   expect(await screen.findByText('PDF tools')).toBeVisible()
   expect(screen.queryByText('React patterns')).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: /remove subscription/i })).not.toBeInTheDocument()

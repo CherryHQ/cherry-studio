@@ -72,7 +72,7 @@ export function SkillSubscriptionBar({
             className="shrink-0 rounded-full"
             aria-pressed={sourceId === source}
             onClick={() => onSelect(source)}>
-            {source}
+            {source === 'claude-plugins.dev' ? 'claude-plugins' : source}
           </Button>
         ))}
         <Button

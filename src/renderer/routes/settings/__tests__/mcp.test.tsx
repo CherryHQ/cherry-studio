@@ -24,6 +24,11 @@ vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn().mockResolvedValue(u
 function createMcpRouter(initialEntry: string) {
   const root = createRootRoute()
   const settings = createRoute({ getParentRoute: () => root, path: '/settings', component: SettingsPage })
+  const prompts = createRoute({
+    getParentRoute: () => settings,
+    path: 'prompts',
+    component: () => <h1>Prompt content</h1>
+  })
   const mcp = createRoute({
     getParentRoute: () => settings,
     path: 'mcp',
@@ -45,7 +50,7 @@ function createMcpRouter(initialEntry: string) {
     component: DetailRoute.options.component
   })
   return createRouter({
-    routeTree: root.addChildren([settings.addChildren([mcp.addChildren([index, servers, detail])])]),
+    routeTree: root.addChildren([settings.addChildren([prompts, mcp.addChildren([index, servers, detail])])]),
     history: createMemoryHistory({ initialEntries: [initialEntry] })
   })
 }
@@ -70,7 +75,7 @@ describe('standalone MCP navigation', () => {
     expect(router.state.matches.at(-1)?.search).toMatchObject({ mcpStandalone: 'true' })
   })
 
-  it('retargets an existing tab, retains the mode in details, and clears it through normal settings navigation', async () => {
+  it('retargets an existing tab, retains the mode in details, and retains it across other settings only in this settings instance', async () => {
     const user = userEvent.setup()
     const router = createMcpRouter('/settings/mcp/servers')
     await router.load()
@@ -98,9 +103,18 @@ describe('standalone MCP navigation', () => {
     })
     expect(await screen.findByRole('heading', { name: 'Server details' })).toBeVisible()
     expect(screen.queryByText('Builtin Servers')).not.toBeInTheDocument()
+    await act(async () => {
+      await router.navigate({ to: '/settings/prompts' })
+    })
+    expect(await screen.findByRole('heading', { name: 'Prompt content' })).toBeVisible()
     await user.click(screen.getByRole('button', { name: /ModelContextProtocol MCP/ }))
-    expect(await screen.findByText('Builtin Servers')).toBeVisible()
+    expect(screen.queryByText('Builtin Servers')).not.toBeInTheDocument()
     expect(await screen.findByRole('heading', { name: 'Server content' })).toBeVisible()
-    expect(router.state.matches.at(-1)?.search.mcpStandalone).toBeUndefined()
+    expect(router.state.matches.at(-1)?.search.mcpStandalone).toBe('true')
+    cleanup()
+    const freshRouter = createMcpRouter('/settings/mcp/servers')
+    await freshRouter.load()
+    render(<RouterProvider router={freshRouter} />)
+    expect(await screen.findByText('Builtin Servers')).toBeVisible()
   })
 })
