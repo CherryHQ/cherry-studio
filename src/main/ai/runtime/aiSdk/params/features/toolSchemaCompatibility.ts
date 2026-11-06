@@ -138,7 +138,15 @@ function dropKeywords(node: JSONSchema7, keywords: ReadonlySet<string>): JSONSch
   let changed = false
   const kept: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(node)) {
-    if (keywords.has(key)) {
+    // Zod's catchall(unknown) emits `{}`; omission allows the same additional properties.
+    if (
+      keywords.has(key) ||
+      (key === 'additionalProperties' &&
+        typeof value === 'object' &&
+        value !== null &&
+        !Array.isArray(value) &&
+        Object.keys(value).length === 0)
+    ) {
       changed = true
       continue
     }

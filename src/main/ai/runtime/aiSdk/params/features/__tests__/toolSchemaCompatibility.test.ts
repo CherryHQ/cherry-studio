@@ -2,6 +2,7 @@ import { createAnthropic } from '@ai-sdk/anthropic'
 import { createAzure } from '@ai-sdk/azure'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI } from '@ai-sdk/openai'
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
 import { asSchema, generateText, jsonSchema, streamText, tool, wrapLanguageModel } from 'ai'
@@ -14,6 +15,7 @@ import { createToolInspectTool } from '@main/ai/tools/adapters/aiSdk/meta/toolIn
 import { createToolInvokeTool } from '@main/ai/tools/adapters/aiSdk/meta/toolInvoke'
 import { createToolSearchTool } from '@main/ai/tools/adapters/aiSdk/meta/toolSearch'
 import { ToolRegistry } from '@main/ai/tools/adapters/aiSdk/registry'
+import { AnthropicMessageConverter } from '@main/features/apiGateway/adapters/converters/AnthropicMessageConverter'
 import { readFileInputSchema } from '@shared/ai/builtinTools'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 
@@ -789,6 +791,125 @@ describe('toolSchemaCompatibilityFeature', () => {
     expect(untouched?.[1]).toBe(params.tools?.[1])
   })
 
+  it.each([
+    ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+    ENDPOINT_TYPE.OPENAI_RESPONSES,
+    ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+    ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+  ])(
+    'removes empty additionalProperties recursively on %s without mutation and is idempotent',
+    async (endpointType) => {
+      const params: LanguageModelV3CallOptions = {
+        prompt: [],
+        tools: [
+          {
+            type: 'function',
+            name: 'search',
+            inputSchema: {
+              type: 'object',
+              additionalProperties: {},
+              properties: {
+                additionalProperties: {},
+                propertyNames: { type: 'string' },
+                nested: { type: 'object', properties: {}, additionalProperties: {} },
+                rows: { type: 'array', items: { type: 'object', properties: {}, additionalProperties: {} } },
+                choice: {
+                  oneOf: [{ type: 'object', properties: {}, additionalProperties: {} }],
+                  anyOf: [{ type: 'object', properties: {}, additionalProperties: {} }]
+                }
+              }
+            }
+          }
+        ]
+      }
+      const original = structuredClone(params)
+
+      const normalized = await transform(params, { endpointType })
+      const transformed = normalized.tools?.[0]
+      if (transformed?.type !== 'function') throw new Error('expected a transformed function tool')
+
+      expect(transformed.inputSchema).toEqual({
+        type: 'object',
+        properties: {
+          additionalProperties: {},
+          propertyNames: { type: 'string' },
+          nested: { type: 'object', properties: {} },
+          rows: { type: 'array', items: { type: 'object', properties: {} } },
+          choice: {
+            oneOf: [{ type: 'object', properties: {} }],
+            anyOf: [{ type: 'object', properties: {} }]
+          }
+        }
+      })
+      expect(await transform(normalized, { endpointType })).toEqual(normalized)
+      expect(params).toEqual(original)
+    }
+  )
+
+  it.each([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.ANTHROPIC_MESSAGES])(
+    'preserves absent, boolean, and typed additionalProperties and propertyNames on %s',
+    async (endpointType) => {
+      const inputSchema = {
+        type: 'object' as const,
+        properties: {
+          absent: { type: 'object' as const, properties: {} },
+          open: { type: 'object' as const, additionalProperties: true },
+          closed: { type: 'object' as const, additionalProperties: false },
+          typed: { type: 'object' as const, additionalProperties: { type: 'string' as const } }
+        },
+        propertyNames: { pattern: '^[a-z]+$' },
+        additionalProperties: true
+      }
+      const params: LanguageModelV3CallOptions = {
+        prompt: [],
+        tools: [{ type: 'function', name: 'search', inputSchema }]
+      }
+
+      const transformed = (await transform(params, { endpointType })).tools?.[0]
+      if (transformed?.type !== 'function') throw new Error('expected a transformed function tool')
+
+      expect(transformed.inputSchema).toEqual(inputSchema)
+      expect(transformed.inputSchema.properties?.absent).not.toHaveProperty('additionalProperties')
+    }
+  )
+
+  it.each([true, false, undefined])('keeps the strict keyword policy with strict=%s', async (strict) => {
+    for (const endpointType of [
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      ENDPOINT_TYPE.OPENAI_RESPONSES,
+      ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+    ]) {
+      const params: LanguageModelV3CallOptions = {
+        prompt: [],
+        tools: [
+          {
+            type: 'function',
+            name: 'search',
+            ...(strict === undefined ? {} : { strict }),
+            inputSchema: {
+              type: 'object',
+              properties: { query: { type: 'string', minLength: 1 } },
+              additionalProperties: {}
+            }
+          }
+        ]
+      }
+
+      const transformed = (await transform(params, { endpointType })).tools?.[0]
+      if (transformed?.type !== 'function') throw new Error('expected a transformed function tool')
+
+      expect(transformed.inputSchema).toEqual({
+        type: 'object',
+        properties: { query: strict === true ? { type: 'string' } : { type: 'string', minLength: 1 } }
+      })
+      if (strict === undefined && endpointType !== ENDPOINT_TYPE.OPENAI_RESPONSES) {
+        expect(transformed).not.toHaveProperty('strict')
+      } else {
+        expect(transformed.strict).toBe(strict ?? false)
+      }
+    }
+  })
+
   it('sends Gemini-shaped requests without propertyNames or additionalProperties', async () => {
     // Relay-style scope (e.g. aihubmix/newapi wrapping Gemini): endpointType is
     // GOOGLE_GENERATE_CONTENT while the downstream relay translates schemas
@@ -834,6 +955,127 @@ describe('toolSchemaCompatibilityFeature', () => {
       })
     }
   })
+
+  it.each(['generate', 'stream'] as const)(
+    'normalizes gateway-invented empty additionalProperties in OpenAI-compatible %s requests',
+    async (mode) => {
+      const gatewayTools = new AnthropicMessageConverter().toAiSdkTools({
+        model: 'gateway-model',
+        max_tokens: 64,
+        messages: [],
+        tools: [
+          {
+            name: 'gateway_search',
+            description: 'Search',
+            input_schema: {
+              type: 'object',
+              properties: { options: { type: 'object', properties: { query: { type: 'string' } } } },
+              required: ['options']
+            }
+          }
+        ]
+      })
+      const explicitSchema = {
+        type: 'object' as const,
+        properties: {
+          open: { type: 'object' as const, additionalProperties: true },
+          closed: { type: 'object' as const, additionalProperties: false },
+          typed: { type: 'object' as const, additionalProperties: { type: 'string' as const } }
+        },
+        additionalProperties: true
+      }
+
+      for (const withMiddleware of [false, true]) {
+        const bodies: Array<{
+          stream?: boolean
+          tools: Array<{ type: string; function: { name: string; description: string; parameters: unknown } }>
+        }> = []
+        const captureFetch: typeof globalThis.fetch = async (_input, init) => {
+          bodies.push(JSON.parse(String(init?.body)))
+          const chunk = {
+            id: 'capture',
+            object: 'chat.completion.chunk',
+            created: 0,
+            model: 'gateway-model',
+            choices: [{ index: 0, delta: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }]
+          }
+          return mode === 'stream'
+            ? new Response(`data: ${JSON.stringify(chunk)}\n\ndata: [DONE]\n\n`, {
+                headers: { 'content-type': 'text/event-stream' }
+              })
+            : new Response(
+                JSON.stringify({
+                  id: 'capture',
+                  object: 'chat.completion',
+                  created: 0,
+                  model: 'gateway-model',
+                  choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+                  usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+                }),
+                { headers: { 'content-type': 'application/json' } }
+              )
+        }
+        const sdkModel = createOpenAICompatible({
+          name: 'openai-compatible',
+          baseURL: 'https://provider.test/v1',
+          fetch: captureFetch
+        }).chatModel('gateway-model')
+        const model = withMiddleware
+          ? wrapLanguageModel({
+              model: sdkModel,
+              middleware: await getMiddleware({
+                aiSdkProviderId: 'openai-compatible',
+                endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+              })
+            })
+          : sdkModel
+        const options = {
+          model,
+          prompt: 'hello',
+          maxRetries: 0,
+          tools: {
+            ...gatewayTools,
+            explicit: tool({ description: 'Explicit', inputSchema: jsonSchema(explicitSchema) })
+          }
+        }
+
+        if (mode === 'stream') {
+          const result = streamText(options)
+          await result.consumeStream()
+          expect(await result.text).toBe('ok')
+          expect(await result.finishReason).toBe('stop')
+        } else {
+          expect((await generateText(options)).text).toBe('ok')
+        }
+
+        expect(bodies).toHaveLength(1)
+        if (mode === 'stream') expect(bodies[0].stream).toBe(true)
+        expect(bodies[0].tools).toEqual([
+          {
+            type: 'function',
+            function: {
+              name: 'gateway_search',
+              description: 'Search',
+              parameters: {
+                ...(withMiddleware ? {} : { $schema: 'http://json-schema.org/draft-07/schema#' }),
+                type: 'object',
+                properties: {
+                  options: {
+                    type: 'object',
+                    properties: { query: { type: 'string' } },
+                    ...(withMiddleware ? {} : { additionalProperties: {} })
+                  }
+                },
+                required: ['options'],
+                ...(withMiddleware ? {} : { additionalProperties: {} })
+              }
+            }
+          },
+          { type: 'function', function: { name: 'explicit', description: 'Explicit', parameters: explicitSchema } }
+        ])
+      }
+    }
+  )
 
   it('keeps propertyNames and additionalProperties out of Gemini wire declarations', async () => {
     // Wire-level guard for the same contract: drives the real @ai-sdk/google
