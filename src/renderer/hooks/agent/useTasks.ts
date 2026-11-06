@@ -180,6 +180,34 @@ export const useRunTask = () => {
   return { runTask }
 }
 
+/**
+ * User approval of a `command` guard — the only path that can write the
+ * approval record. `expectedCommand` is the exact string rendered to the user;
+ * main refuses when the stored command has changed under the open dialog.
+ */
+export const useApproveTaskGuard = () => {
+  const { t } = useTranslation()
+  const invalidate = useInvalidateCache()
+  const approveTaskGuard = useCallback(
+    async (agentId: string, taskId: string, expectedCommand: string): Promise<ScheduledTaskEntity | undefined> => {
+      try {
+        const task = await ipcApi.request('ai.agent.task.approve_guard', { agentId, taskId, expectedCommand })
+        toast.success({ key: 'approve-task-guard', title: t('agent.tasks.guard.approveSuccess') })
+        await invalidate(taskReadKeys(agentId))
+        return task
+      } catch (error) {
+        // A stale dialog (agent changed the command after render) fails closed here;
+        // refresh so reopening the dialog shows the command that is actually current.
+        toast.error(formatErrorMessageWithPrefix(error, t('agent.tasks.error.updateFailed', 'Failed to update task')))
+        await invalidate(taskReadKeys(agentId)).catch(() => {})
+        return undefined
+      }
+    },
+    [invalidate, t]
+  )
+  return { approveTaskGuard }
+}
+
 export const useDeleteTask = () => {
   const { t } = useTranslation()
   const invalidate = useInvalidateCache()

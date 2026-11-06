@@ -20,11 +20,14 @@ import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import type {
-  ScheduledTaskEntity,
-  ScheduledTaskListItem,
-  TaskRunLogEntity,
-  TaskRunSummary
+import {
+  type ScheduledTaskEntity,
+  type TaskGuardApproval,
+  type ScheduledTaskListItem,
+  type TaskGuard,
+  TaskGuardSchema,
+  type TaskRunLogEntity,
+  type TaskRunSummary
 } from '@shared/data/api/schemas/agents'
 import {
   AGENT_WORKSPACE_TYPE,
@@ -53,6 +56,7 @@ type AgentTaskJobInputTemplate = {
   prompt: string
   timeoutMinutes: number
   workspace: AgentSessionWorkspaceSource
+  guard: TaskGuard
 }
 
 type TaskOwnerStateChange = {
@@ -72,8 +76,15 @@ function normalizeAgentTaskTemplate(value: unknown): AgentTaskJobInputTemplate |
     prompt: template.prompt,
     timeoutMinutes:
       typeof template.timeoutMinutes === 'number' ? template.timeoutMinutes : DEFAULT_AGENT_TASK_TIMEOUT_MINUTES,
-    workspace: parsedWorkspace.success ? parsedWorkspace.data : { type: 'system' }
+    workspace: parsedWorkspace.success ? parsedWorkspace.data : { type: 'system' },
+    guard: readTaskGuard(template.guard)
   }
+}
+
+/** Missing or malformed guards (rows written before guards existed) fall back to `always`. */
+export function readTaskGuard(value: unknown): TaskGuard {
+  const parsed = TaskGuardSchema.safeParse(value)
+  return parsed.success ? parsed.data : { type: 'always' }
 }
 
 /**
@@ -151,6 +162,132 @@ export function writeTaskSessionReuse(
   reuse: TaskSessionReuse
 ): Record<string, unknown> {
   return { ...(isPlainRecord(metadata) ? metadata : {}), [TASK_REUSE_METADATA_KEY]: reuse }
+}
+
+const TASK_LAST_EXECUTED_METADATA_KEY = 'lastExecutedRunStartedAt'
+
+/**
+ * Durable guard watermark: start time (ms) of the newest run that reached the
+ * agent. Job history is pruned by hourly GC, so `file_changed` guards cannot
+ * derive their baseline from run rows alone without eventually rerunning an
+ * unchanged file.
+ */
+export function readLastExecutedRunStartedAt(metadata: Record<string, unknown> | undefined): number | null {
+  const raw = metadata?.[TASK_LAST_EXECUTED_METADATA_KEY]
+  return typeof raw === 'number' && Number.isFinite(raw) ? raw : null
+}
+
+const TASK_LAST_EXECUTED_JOB_ID_METADATA_KEY = 'lastExecutedRunJobId'
+
+/** Same merge discipline as writeTaskSessionReuse — the column replaces wholesale. */
+export function writeLastExecutedRunStartedAt(
+  metadata: Record<string, unknown> | undefined,
+  startedAtMs: number,
+  jobId?: string
+): Record<string, unknown> {
+  const next = { ...(isPlainRecord(metadata) ? metadata : {}), [TASK_LAST_EXECUTED_METADATA_KEY]: startedAtMs }
+  if (jobId !== undefined) {
+    next[TASK_LAST_EXECUTED_JOB_ID_METADATA_KEY] = jobId
+  }
+  return next
+}
+
+/**
+ * Identity of the most recently admitted job. Pre-overlap schedules carry only
+ * this slot (no `lastAdmittedRunJobIds`), so the replay check keeps slot
+ * equality as its legacy path; with a monotone watermark the admitting job is
+ * not necessarily the one whose start the watermark names.
+ */
+export function readLastExecutedRunJobId(metadata: Record<string, unknown> | undefined): string | null {
+  const raw = metadata?.[TASK_LAST_EXECUTED_JOB_ID_METADATA_KEY]
+  return typeof raw === 'string' && raw.length > 0 ? raw : null
+}
+
+const TASK_ADMITTED_JOB_IDS_METADATA_KEY = 'lastAdmittedRunJobIds'
+
+/**
+ * Identity of every admitted-not-yet-terminal job of this schedule. A single
+ * `lastExecutedRunJobId` slot cannot represent overlapping admissions (the
+ * queue is per-agent with concurrency three): when B is admitted while A is
+ * unfinished, the slot names B and a crash replay of A would fail the identity
+ * check and re-face — and be skipped by — its own guard, dropping unfinished
+ * work. Membership here is what authorizes a recovery replay to bypass the
+ * guard; entries are removed only once the job is durably terminal.
+ */
+export function readAdmittedRunJobIds(metadata: Record<string, unknown> | undefined): string[] {
+  const raw = metadata?.[TASK_ADMITTED_JOB_IDS_METADATA_KEY]
+  if (!Array.isArray(raw)) return []
+  return raw.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0)
+}
+
+/**
+ * Record one admission: the watermark advances monotonically (a replay's
+ * re-admission must never regress it below a concurrent run's), the slot
+ * follows the most recently admitting job, and the job joins the admitted set.
+ */
+export function writeTaskAdmission(
+  metadata: Record<string, unknown> | undefined,
+  startedAtMs: number,
+  jobId: string
+): Record<string, unknown> {
+  const current = readLastExecutedRunStartedAt(metadata)
+  const next = writeLastExecutedRunStartedAt(
+    metadata,
+    current !== null && current > startedAtMs ? current : startedAtMs,
+    jobId
+  )
+  const admitted = readAdmittedRunJobIds(metadata)
+  if (!admitted.includes(jobId)) admitted.push(jobId)
+  next[TASK_ADMITTED_JOB_IDS_METADATA_KEY] = admitted
+  return next
+}
+
+/**
+ * Remove a durably terminal job from the admitted set. The watermark and the
+ * newest slot stay: they describe the baseline, not liveness. Never called
+ * for a job the runtime could still replay.
+ */
+export function clearTaskAdmission(
+  metadata: Record<string, unknown> | undefined,
+  jobId: string
+): Record<string, unknown> {
+  const next = { ...(isPlainRecord(metadata) ? metadata : {}) }
+  const admitted = readAdmittedRunJobIds(metadata).filter((id) => id !== jobId)
+  if (admitted.length > 0) next[TASK_ADMITTED_JOB_IDS_METADATA_KEY] = admitted
+  else delete next[TASK_ADMITTED_JOB_IDS_METADATA_KEY]
+  return next
+}
+
+const TASK_GUARD_APPROVAL_METADATA_KEY = 'guardApproval'
+
+/**
+ * User approval for a `command` guard, bound to the exact approved command.
+ * Agent-driven paths (MCP cron) can persist a command guard but can never
+ * write this record — approval arrives only through the user-originated
+ * `ai.agent.task.approve_guard` command, so an agent without shell
+ * authorization cannot reach main-process `exec` by scheduling a guard.
+ */
+export function readTaskGuardApproval(metadata: Record<string, unknown> | undefined): TaskGuardApproval | null {
+  const raw = metadata?.[TASK_GUARD_APPROVAL_METADATA_KEY]
+  if (!isPlainRecord(raw)) return null
+  const { command, approvedAt } = raw as { command?: unknown; approvedAt?: unknown }
+  if (typeof command !== 'string' || command.length === 0) return null
+  if (typeof approvedAt !== 'string' || approvedAt.length === 0) return null
+  return { command, approvedAt }
+}
+
+/** Same merge discipline as writeTaskSessionReuse; `null` removes the record (re-approval required). */
+export function writeTaskGuardApproval(
+  metadata: Record<string, unknown> | undefined,
+  approval: TaskGuardApproval | null
+): Record<string, unknown> {
+  const next = { ...(isPlainRecord(metadata) ? metadata : {}) }
+  if (approval === null) {
+    delete next[TASK_GUARD_APPROVAL_METADATA_KEY]
+  } else {
+    next[TASK_GUARD_APPROVAL_METADATA_KEY] = approval
+  }
+  return next
 }
 
 export function isMissedTask(metadata: Record<string, unknown>): boolean {
@@ -522,6 +659,8 @@ export class AgentTaskService {
       trigger: snapshot.trigger,
       timeoutMinutes: tmpl.timeoutMinutes,
       workspace: tmpl.workspace,
+      guard: tmpl.guard,
+      guardApproval: tmpl.guard.type === 'command' ? readTaskGuardApproval(snapshot.metadata) : null,
       reuseSession: reuse.enabled,
       reuseSessionId: reuse.enabled ? reuseSessionId : null,
       channelIds: channelRows.map((c) => c.id),
@@ -535,7 +674,7 @@ export class AgentTaskService {
   }
 
   private toTaskRunLogEntity(job: JobSnapshot): TaskRunLogEntity {
-    const output = job.output as { result?: string; sessionId?: string } | null
+    const output = job.output as { result?: string; sessionId?: string; skipped?: boolean } | null
     // New runs persist the link before execution; older v2 job rows only have it in output.
     const sessionId = job.metadata.sessionId ?? output?.sessionId
     const startedAt = job.startedAt ?? job.scheduledAt
@@ -550,7 +689,9 @@ export class AgentTaskService {
       ? 'cancelled'
       : job.status === 'pending' || job.status === 'delayed'
         ? 'running'
-        : job.status
+        : job.status === 'completed' && output?.skipped === true
+          ? 'skipped'
+          : job.status
 
     // Cancelled runs end at the cancel-request time — recovery stamps finishedAt
     // at sweep time, up to a process lifetime after the run actually stopped.

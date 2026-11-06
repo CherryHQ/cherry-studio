@@ -7,20 +7,27 @@
  * whose sticky-pointer branches are covered in the 'session reuse' block.
  */
 
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { JobContext } from '@main/core/job/types'
-import type { AgentEntity } from '@shared/data/api/schemas/agents'
+import type { AgentEntity, TaskGuard } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 
 const {
   mockAbort,
+  mockAbortAndDrain,
   mockRemoveListener,
   mockGetAdapter,
   mockStartRun,
   mockBindTaskSessionReuse,
+  mockRecordTaskExecutionStart,
+  mockPersistRecoveredTaskBaseline,
   mockIsSessionBusy,
   mockUpdateJobScheduleTx,
   mockSyncJobScheduleTimerById,
@@ -30,6 +37,7 @@ const {
   const captured: { listeners: Array<Record<string, (arg?: unknown) => void>> } = { listeners: [] }
   return {
     mockAbort: vi.fn(),
+    mockAbortAndDrain: vi.fn(async () => {}),
     mockRemoveListener: vi.fn(),
     mockGetAdapter: vi.fn(() => undefined),
     mockStartRun: vi.fn(async (opts: { listeners: typeof captured.listeners }) => {
@@ -37,6 +45,8 @@ const {
       return { mode: 'started' as const }
     }),
     mockBindTaskSessionReuse: vi.fn(() => true),
+    mockRecordTaskExecutionStart: vi.fn(),
+    mockPersistRecoveredTaskBaseline: vi.fn(),
     mockIsSessionBusy: vi.fn(() => false),
     mockUpdateJobScheduleTx: vi.fn(),
     mockSyncJobScheduleTimerById: vi.fn(),
@@ -51,8 +61,13 @@ vi.mock('@application', async () => {
     // ChannelManager + AiStreamManager aren't in the default mock service set; the
     // streaming path (post heartbeat-skip) reads both, so wire minimal stubs here.
     ChannelManager: { getAdapter: mockGetAdapter },
-    AiStreamManager: { abort: mockAbort, removeListener: mockRemoveListener },
-    AgentJobsService: { bindTaskSessionReuse: mockBindTaskSessionReuse, syncHeartbeat: syncHeartbeatScheduleMock },
+    AiStreamManager: { abort: mockAbort, abortAndDrain: mockAbortAndDrain, removeListener: mockRemoveListener },
+    AgentJobsService: {
+      bindTaskSessionReuse: mockBindTaskSessionReuse,
+      syncHeartbeat: syncHeartbeatScheduleMock,
+      recordTaskExecutionStart: mockRecordTaskExecutionStart,
+      persistRecoveredTaskBaseline: mockPersistRecoveredTaskBaseline
+    },
     // Gate that keeps a reusing fire off a session with a live turn.
     AgentSessionRuntimeService: { isSessionBusy: mockIsSessionBusy },
     // An untrusted agent directory pauses its heartbeat schedule.
@@ -81,7 +96,7 @@ vi.mock('@data/services/JobScheduleService', () => ({
   jobScheduleService: { getById: vi.fn(), getByIdTx: vi.fn() }
 }))
 vi.mock('@data/services/JobService', () => ({
-  jobService: { getById: vi.fn() }
+  jobService: { getById: vi.fn(), list: vi.fn(() => []) }
 }))
 vi.mock('@main/ai/agents/heartbeat', () => ({
   readHeartbeat: vi.fn()
@@ -137,6 +152,7 @@ type TestAgentTaskInput = {
   prompt: string
   timeoutMinutes: number
   workspace: AgentSessionWorkspaceSource
+  guard?: TaskGuard
   reuseRevision: number
 }
 
@@ -246,6 +262,7 @@ describe('runAgentTask', () => {
     vi.mocked(agentChannelService.getSubscribedChannels).mockReset().mockReturnValue([])
     mockStartRun.mockClear()
     mockAbort.mockClear()
+    mockAbortAndDrain.mockClear()
     mockRemoveListener.mockClear()
     mockGetAdapter.mockClear()
     captured.listeners = []
@@ -253,6 +270,353 @@ describe('runAgentTask', () => {
 
   afterEach(() => {
     vi.clearAllMocks()
+  })
+
+  describe('guard', () => {
+    const taskTemplate = { agentId: 'a1', prompt: 'do work', timeoutMinutes: 2, workspace: { type: 'system' } }
+    const failingCommand = `"${process.execPath}" -e "process.exit(1)"`
+    const passingCommand = `"${process.execPath}" -e "process.exit(0)"`
+
+    const approvedMetadata = (command: string) => ({
+      guardApproval: { command, approvedAt: '2026-05-20T00:00:00.000Z' }
+    })
+
+    function arrange(metadata: Record<string, unknown> = {}) {
+      vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
+      vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('task', metadata, taskTemplate))
+      vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent({}))
+    }
+
+    it('skips with a reason and starts no agent turn when the guard fails', async () => {
+      arrange(approvedMetadata(failingCommand))
+      const out = await runAgentTask(
+        makeCtx({ input: { prompt: 'do work', guard: { type: 'command', command: failingCommand } } })
+      )
+
+      expect(out.skipped).toBe(true)
+      expect(out.result).toMatch(/^Skipped \(guard: command failed \(exit code 1\)/)
+      expect(agentSessionService.create).not.toHaveBeenCalled()
+      expect(mockStartRun).not.toHaveBeenCalled()
+    })
+
+    it('runs the agent turn when the guard passes', async () => {
+      arrange(approvedMetadata(passingCommand))
+      vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession())
+
+      const promise = runAgentTask(
+        makeCtx({ input: { prompt: 'do work', guard: { type: 'command', command: passingCommand } } })
+      )
+      await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+      captured.listeners[0].onDone({ status: 'completed' })
+
+      expect(await promise).toEqual({ result: 'Completed' })
+    })
+
+    it('skips an unapproved command guard without executing it', async () => {
+      arrange()
+      const out = await runAgentTask(
+        makeCtx({ input: { prompt: 'do work', guard: { type: 'command', command: passingCommand } } })
+      )
+
+      expect(out.skipped).toBe(true)
+      expect(out.result).toBe(
+        'Skipped (guard: command pending user approval). After approving the exact command in Settings > Scheduled Tasks, run the task manually or wait for the next scheduled fire.'
+      )
+      expect(agentSessionService.create).not.toHaveBeenCalled()
+      expect(mockStartRun).not.toHaveBeenCalled()
+    })
+
+    it('skips when the approval covers a different command', async () => {
+      arrange(approvedMetadata(`${passingCommand} --extra`))
+      const out = await runAgentTask(
+        makeCtx({ input: { prompt: 'do work', guard: { type: 'command', command: passingCommand } } })
+      )
+
+      expect(out.skipped).toBe(true)
+      expect(out.result).toBe(
+        'Skipped (guard: command pending user approval). After approving the exact command in Settings > Scheduled Tasks, run the task manually or wait for the next scheduled fire.'
+      )
+      expect(agentSessionService.create).not.toHaveBeenCalled()
+      expect(mockStartRun).not.toHaveBeenCalled()
+    })
+
+    it('bypasses the guard on a crash-recovery replay of the admitted job', async () => {
+      // Watermark + admitting jobId are persisted when the run reaches the
+      // agent; a same-job replay must not re-face an unchanged-file guard.
+      arrange({
+        lastExecutedRunStartedAt: Date.now() + 3_600_000,
+        lastExecutedRunJobId: 'j1',
+        ...approvedMetadata(passingCommand)
+      })
+      vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession())
+
+      const promise = runAgentTask(
+        makeCtx({ input: { prompt: 'do work', guard: { type: 'file_changed', path: process.execPath } } })
+      )
+      await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+      captured.listeners[0].onDone({ status: 'completed' })
+
+      expect(await promise).toEqual({ result: 'Completed' })
+    })
+
+    it('still evaluates the guard for a new fire after another job was admitted', async () => {
+      arrange({
+        lastExecutedRunStartedAt: Date.now() + 3_600_000,
+        lastExecutedRunJobId: 'j-other'
+      })
+      const out = await runAgentTask(
+        makeCtx({ input: { prompt: 'do work', guard: { type: 'file_changed', path: process.execPath } } })
+      )
+
+      expect(out.skipped).toBe(true)
+      expect(out.result).toContain('unchanged')
+      expect(mockStartRun).not.toHaveBeenCalled()
+    })
+
+    it('keeps the approval gate on a recovery replay when the command was never approved', async () => {
+      arrange({
+        lastExecutedRunStartedAt: Date.now() + 3_600_000,
+        lastExecutedRunJobId: 'j1'
+      })
+      const out = await runAgentTask(
+        makeCtx({ input: { prompt: 'do work', guard: { type: 'command', command: passingCommand } } })
+      )
+
+      expect(out.skipped).toBe(true)
+      expect(out.result).toBe(
+        'Skipped (guard: command pending user approval). After approving the exact command in Settings > Scheduled Tasks, run the task manually or wait for the next scheduled fire.'
+      )
+      expect(mockStartRun).not.toHaveBeenCalled()
+    })
+
+    it('bypasses the guard on a replay admitted before a newer overlapping run', async () => {
+      // Overlap: B was admitted while A was unfinished, so the single slot
+      // names B. A's crash replay is still a replay of admitted work and must
+      // not re-face the guard against B's watermark.
+      arrange({
+        lastExecutedRunStartedAt: Date.now() + 3_600_000,
+        lastExecutedRunJobId: 'j-other',
+        lastAdmittedRunJobIds: ['j1', 'j-other'],
+        ...approvedMetadata(passingCommand)
+      })
+      vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession())
+
+      const promise = runAgentTask(
+        makeCtx({ input: { prompt: 'do work', guard: { type: 'file_changed', path: process.execPath } } })
+      )
+      await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+      captured.listeners[0].onDone({ status: 'completed' })
+
+      expect(await promise).toEqual({ result: 'Completed' })
+    })
+
+    it('still evaluates the guard for a new fire when only other jobs hold admissions', async () => {
+      arrange({
+        lastExecutedRunStartedAt: Date.now() + 3_600_000,
+        lastExecutedRunJobId: 'j-other',
+        lastAdmittedRunJobIds: ['j-other']
+      })
+      const out = await runAgentTask(
+        makeCtx({ input: { prompt: 'do work', guard: { type: 'file_changed', path: process.execPath } } })
+      )
+
+      expect(out.skipped).toBe(true)
+      expect(out.result).toContain('unchanged')
+      expect(mockStartRun).not.toHaveBeenCalled()
+      // The durable watermark already covers this baseline — nothing recovered.
+      expect(mockPersistRecoveredTaskBaseline).not.toHaveBeenCalled()
+    })
+
+    it('persists a history-recovered baseline when an unchanged file skips', async () => {
+      // Legacy schedule: no durable watermark, but job history holds a
+      // completed run that reached the agent. GC will prune that row; the
+      // baseline must be persisted before it disappears.
+      const baselineMs = Date.now() + 3_600_000
+      arrange()
+      vi.mocked(jobService.list).mockReturnValueOnce([
+        {
+          id: 'j-legacy',
+          scheduleId: 's1',
+          status: 'completed',
+          startedAt: new Date(baselineMs).toISOString(),
+          output: { result: 'Completed' }
+        } as never
+      ])
+      const out = await runAgentTask(
+        makeCtx({ input: { prompt: 'do work', guard: { type: 'file_changed', path: process.execPath } } })
+      )
+
+      expect(out.skipped).toBe(true)
+      expect(out.result).toContain('unchanged')
+      expect(mockStartRun).not.toHaveBeenCalled()
+      expect(mockPersistRecoveredTaskBaseline).toHaveBeenCalledWith({
+        scheduleId: 's1',
+        baselineMs
+      })
+    })
+
+    it('does not persist a baseline when the guard admits the fire', async () => {
+      // No watermark, no executed history: the fire reaches the agent and the
+      // admission path writes its own watermark.
+      arrange()
+      vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession())
+
+      const promise = runAgentTask(
+        makeCtx({ input: { prompt: 'do work', guard: { type: 'file_changed', path: process.execPath } } })
+      )
+      await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+      captured.listeners[0].onDone({ status: 'completed' })
+
+      expect(await promise).toEqual({ result: 'Completed' })
+      expect(mockPersistRecoveredTaskBaseline).not.toHaveBeenCalled()
+    })
+
+    it('advances the durable watermark when the run reaches the agent', async () => {
+      arrange()
+      vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession())
+
+      const promise = runAgentTask(makeCtx({ input: { prompt: 'do work', guard: { type: 'always' } } }))
+      await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+      expect(mockRecordTaskExecutionStart).toHaveBeenCalledWith({
+        scheduleId: 's1',
+        startedAtMs: Date.parse('2026-05-20T00:00:00.000Z'),
+        jobId: 'j1'
+      })
+      captured.listeners[0].onDone({ status: 'completed' })
+      await promise
+    })
+
+    it('stops and drains the activated run when admission bookkeeping fails', async () => {
+      // Fault injection: the stream is live (start returned 'started') but the
+      // admission write throws. The job must cancel the orphaned stream and
+      // await its durable teardown before settling, or a recovery replay (the
+      // rolled-back write never advanced the watermark) could overlap it.
+      arrange()
+      const session = makeSession()
+      vi.mocked(agentSessionService.create).mockReturnValueOnce(session)
+      mockRecordTaskExecutionStart.mockImplementationOnce(() => {
+        throw new Error('admission store down')
+      })
+      let drainResolve!: () => void
+      const drainGate = new Promise<void>((resolve) => {
+        drainResolve = resolve
+      })
+      mockAbortAndDrain.mockReturnValueOnce(drainGate)
+
+      const promise = runAgentTask(makeCtx({ input: { prompt: 'do work', guard: { type: 'always' } } }))
+      const assertion = expect(promise).rejects.toThrow('admission store down')
+
+      const topicId = buildAgentSessionTopicId(session.id)
+      await vi.waitFor(() => expect(mockAbortAndDrain).toHaveBeenCalledWith(topicId, 'task-admission-failed'))
+      // No settle while the orphaned stream is still draining.
+      let settled = false
+      void promise.catch(() => {
+        settled = true
+      })
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(settled).toBe(false)
+      // The dead run's listeners come off so no terminal event can settle the
+      // failed job as if it had completed.
+      expect(mockRemoveListener).toHaveBeenCalledWith(topicId, 'agent-task:s1')
+
+      drainResolve()
+      await assertion
+    })
+
+    it('still surfaces the admission failure when the drain itself fails', async () => {
+      arrange()
+      vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession())
+      mockRecordTaskExecutionStart.mockImplementationOnce(() => {
+        throw new Error('admission store down')
+      })
+      mockAbortAndDrain.mockRejectedValueOnce(new Error('drain failed'))
+
+      await expect(runAgentTask(makeCtx({ input: { prompt: 'do work', guard: { type: 'always' } } }))).rejects.toThrow(
+        'admission store down'
+      )
+    })
+
+    it('derives the history fallback from positive execution evidence only', async () => {
+      // No durable watermark: the fallback must skip failed rows (ambiguous —
+      // the run may never have reached the agent) and legacy busy-skip rows
+      // (completed with a `Skipped (…)` result but no `output.skipped` flag),
+      // landing on the last run that actually executed. Picking the failed
+      // row's past timestamp would make the guard admit an unchanged file.
+      const guardedFile = path.join(os.tmpdir(), `guard-evidence-${process.pid}.txt`)
+      fs.writeFileSync(guardedFile, 'x')
+      const mtime = new Date('2026-05-20T00:00:00.000Z')
+      fs.utimesSync(guardedFile, mtime, mtime)
+      try {
+        vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
+        vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('task', {}, taskTemplate))
+        vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent({}))
+        vi.mocked(jobService.list).mockReturnValueOnce([
+          { id: 'j-fail', status: 'failed', startedAt: '2026-05-19T00:00:00.000Z', output: null },
+          {
+            id: 'j-busy',
+            status: 'completed',
+            startedAt: '2026-05-19T00:00:00.000Z',
+            output: { result: 'Skipped (session busy)' }
+          },
+          { id: 'j-ran', status: 'completed', startedAt: '2026-05-21T00:00:00.000Z', output: { result: 'Done' } }
+        ] as never)
+
+        const out = await runAgentTask(
+          makeCtx({ input: { prompt: 'do work', guard: { type: 'file_changed', path: guardedFile } } })
+        )
+
+        expect(out.skipped).toBe(true)
+        expect(out.result).toContain('unchanged')
+        expect(mockStartRun).not.toHaveBeenCalled()
+      } finally {
+        fs.rmSync(guardedFile, { force: true })
+      }
+    })
+
+    it('treats a history of skips and failures as never executed', async () => {
+      // A first attempt whose session creation failed before admission must not
+      // become the baseline: with no positively-executed run, the guard sees no
+      // prior start and the changed file is processed.
+      vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
+      vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('task', {}, taskTemplate))
+      vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent({}))
+      vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession())
+      vi.mocked(jobService.list).mockReturnValueOnce([
+        { id: 'j-fail', status: 'failed', startedAt: '2026-05-21T00:00:00.000Z', output: null },
+        {
+          id: 'j-skip',
+          status: 'completed',
+          startedAt: '2026-05-21T00:00:00.000Z',
+          output: { skipped: true, result: 'Skipped (guard: unchanged: /x)' }
+        }
+      ] as never)
+
+      const promise = runAgentTask(
+        makeCtx({ input: { prompt: 'do work', guard: { type: 'file_changed', path: process.execPath } } })
+      )
+      await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+      captured.listeners[0].onDone({ status: 'completed' })
+
+      expect(await promise).toEqual({ result: 'Completed' })
+    })
+
+    it('prefers the schedule metadata watermark over disposable run history', async () => {
+      vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
+      vi.mocked(jobScheduleService.getById).mockReturnValueOnce(
+        // Watermark one hour in the future: any real file reads as unchanged.
+        makeSchedule('task', { lastExecutedRunStartedAt: Date.now() + 3_600_000 }, taskTemplate)
+      )
+      vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent({}))
+
+      const out = await runAgentTask(
+        makeCtx({ input: { prompt: 'do work', guard: { type: 'file_changed', path: process.execPath } } })
+      )
+
+      expect(out.skipped).toBe(true)
+      expect(out.result).toContain('unchanged')
+      expect(vi.mocked(jobService.list)).not.toHaveBeenCalled()
+      expect(agentSessionService.create).not.toHaveBeenCalled()
+    })
   })
 
   it('throws when the agent cannot be found', async () => {
@@ -493,7 +857,8 @@ describe('runAgentTask', () => {
         makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0, workspace: { type: 'system' } } })
       )
 
-      expect(out).toEqual({ result: 'Skipped (session busy)' })
+      expect(out).toEqual({ result: 'Skipped (session busy)', skipped: true })
+      expect(mockRecordTaskExecutionStart).not.toHaveBeenCalled()
       expect(mockStartRun).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'sess-sticky' }))
       expect(mockStartRun).toHaveBeenCalledWith(expect.objectContaining({ requireIdle: { expectedAgentId: 'a1' } }))
       expect(mockAbort).not.toHaveBeenCalled()

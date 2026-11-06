@@ -247,6 +247,86 @@ describe('AgentJobsService', () => {
     }
   })
 
+  it('defaults the guard to always and persists guard create/update into the job template', () => {
+    const task = service.createTask(AGENT_ID, form)
+    expect(task.guard).toEqual({ type: 'always' })
+
+    const updated = service.updateTask(AGENT_ID, task.id, { guard: { type: 'file_changed', path: '/tmp/a.txt' } })
+    expect(updated?.guard).toEqual({ type: 'file_changed', path: '/tmp/a.txt' })
+    expect(jobScheduleService.getById(task.id)?.jobInputTemplate).toMatchObject({
+      guard: { type: 'file_changed', path: '/tmp/a.txt' }
+    })
+
+    expect(service.updateTask(AGENT_ID, task.id, { name: 'renamed' })?.guard).toEqual({
+      type: 'file_changed',
+      path: '/tmp/a.txt'
+    })
+  })
+
+  it('keeps an agent-persisted command guard pending until the user approves the exact command', () => {
+    const command = 'check-something --flag'
+    const task = service.createTask(AGENT_ID, { ...form, guard: { type: 'command', command } })
+    expect(task.guard).toEqual({ type: 'command', command })
+    expect(task.guardApproval).toBeNull()
+
+    // A stale dialog (command changed underneath) approves nothing.
+    expect(() => service.approveTaskGuardCommand(AGENT_ID, task.id, 'other-command')).toThrow(/changed/)
+
+    const approved = service.approveTaskGuardCommand(AGENT_ID, task.id, command)
+    expect(approved?.guardApproval?.command).toBe(command)
+    expect(jobScheduleService.getById(task.id)?.metadata?.guardApproval).toMatchObject({ command })
+  })
+
+  it('auto-approves a command guard saved through the user-originated settings form', () => {
+    const command = 'user-typed-command'
+    const task = service.createTask(
+      AGENT_ID,
+      { ...form, guard: { type: 'command', command } },
+      { guardApprovedByUser: true }
+    )
+    expect(task.guardApproval?.command).toBe(command)
+
+    // A user-originated edit of the command re-approves in the same save.
+    const edited = service.updateTask(
+      AGENT_ID,
+      task.id,
+      { guard: { type: 'command', command: 'user-typed-v2' } },
+      { guardApprovedByUser: true }
+    )
+    expect(edited?.guardApproval?.command).toBe('user-typed-v2')
+  })
+
+  it('drops the approval when an agent-origin edit changes the command, and keeps it otherwise', () => {
+    const command = 'original-command'
+    const task = service.createTask(
+      AGENT_ID,
+      { ...form, guard: { type: 'command', command } },
+      { guardApprovedByUser: true }
+    )
+    expect(task.guardApproval?.command).toBe(command)
+
+    // Unrelated update: approval survives.
+    const renamed = service.updateTask(AGENT_ID, task.id, { name: 'renamed' })
+    expect(renamed?.guardApproval?.command).toBe(command)
+
+    // Agent-origin command change: approval is dropped (re-approval required).
+    const edited = service.updateTask(AGENT_ID, task.id, { guard: { type: 'command', command: 'agent-supplied-v2' } })
+    expect(edited?.guard).toEqual({ type: 'command', command: 'agent-supplied-v2' })
+    expect(edited?.guardApproval).toBeNull()
+    expect(jobScheduleService.getById(task.id)?.metadata?.guardApproval).toBeUndefined()
+
+    // Switching away from a command guard also drops the record.
+    service.approveTaskGuardCommand(AGENT_ID, task.id, 'agent-supplied-v2')
+    const switched = service.updateTask(AGENT_ID, task.id, { guard: { type: 'file_changed', path: '/tmp/a.txt' } })
+    expect(switched?.guardApproval).toBeNull()
+    expect(jobScheduleService.getById(task.id)?.metadata?.guardApproval).toBeUndefined()
+  })
+
+  it('rejects approving a guard that is not a command guard', () => {
+    const task = service.createTask(AGENT_ID, form)
+    expect(() => service.approveTaskGuardCommand(AGENT_ID, task.id, 'anything')).toThrow(/no command guard/)
+  })
+
   it('rolls back the Agent, Sessions and schedules together when archive or restore fails', async () => {
     const task = service.createTask(AGENT_ID, form)
     const session = agentSessionService.create({ agentId: AGENT_ID, name: 'Owned', workspace: { type: 'system' } })
@@ -333,6 +413,60 @@ describe('AgentJobsService', () => {
     expect(updated).toMatchObject({ status: 'paused', enabled: false, reuseSession: true })
     expect(jobScheduleService.getById(task.id)?.metadata).toEqual(metadata)
     expect(scheduler.has(`schedule:${task.id}`)).toBe(false)
+  })
+
+  describe('guard admission metadata', () => {
+    it('records overlapping admissions with a monotone watermark and per-job membership', () => {
+      const task = service.createTask(AGENT_ID, form)
+
+      service.recordTaskExecutionStart({ scheduleId: task.id, startedAtMs: 1000, jobId: 'j-a' })
+      service.recordTaskExecutionStart({ scheduleId: task.id, startedAtMs: 2000, jobId: 'j-b' })
+
+      let metadata = jobScheduleService.getById(task.id)?.metadata
+      expect(metadata?.lastExecutedRunStartedAt).toBe(2000)
+      expect(metadata?.lastExecutedRunJobId).toBe('j-b')
+      expect(metadata?.lastAdmittedRunJobIds).toEqual(['j-a', 'j-b'])
+
+      // A crash replay of the older job re-admits with its own start time: the
+      // watermark must not regress below the newer admission.
+      service.recordTaskExecutionStart({ scheduleId: task.id, startedAtMs: 1500, jobId: 'j-a' })
+      metadata = jobScheduleService.getById(task.id)?.metadata
+      expect(metadata?.lastExecutedRunStartedAt).toBe(2000)
+      expect(metadata?.lastAdmittedRunJobIds).toEqual(['j-a', 'j-b'])
+    })
+
+    it('clears membership only at durable terminal and keeps the watermark', () => {
+      const task = service.createTask(AGENT_ID, form)
+      service.recordTaskExecutionStart({ scheduleId: task.id, startedAtMs: 1000, jobId: 'j-a' })
+      service.recordTaskExecutionStart({ scheduleId: task.id, startedAtMs: 2000, jobId: 'j-b' })
+
+      service.clearTaskAdmission({ scheduleId: task.id, jobId: 'j-a' })
+      let metadata = jobScheduleService.getById(task.id)?.metadata
+      expect(metadata?.lastAdmittedRunJobIds).toEqual(['j-b'])
+      expect(metadata?.lastExecutedRunStartedAt).toBe(2000)
+      expect(metadata?.lastExecutedRunJobId).toBe('j-b')
+
+      service.clearTaskAdmission({ scheduleId: task.id, jobId: 'j-b' })
+      metadata = jobScheduleService.getById(task.id)?.metadata
+      expect(metadata?.lastAdmittedRunJobIds).toBeUndefined()
+      expect(metadata?.lastExecutedRunStartedAt).toBe(2000)
+    })
+
+    it('persists a recovered baseline without lowering a newer watermark', () => {
+      const task = service.createTask(AGENT_ID, form)
+
+      service.persistRecoveredTaskBaseline({ scheduleId: task.id, baselineMs: 5000 })
+      let metadata = jobScheduleService.getById(task.id)?.metadata
+      expect(metadata?.lastExecutedRunStartedAt).toBe(5000)
+      // The baseline is not an admission: no slot, no membership.
+      expect(metadata?.lastExecutedRunJobId).toBeUndefined()
+      expect(metadata?.lastAdmittedRunJobIds).toBeUndefined()
+
+      service.recordTaskExecutionStart({ scheduleId: task.id, startedAtMs: 9000, jobId: 'j-x' })
+      service.persistRecoveredTaskBaseline({ scheduleId: task.id, baselineMs: 5000 })
+      metadata = jobScheduleService.getById(task.id)?.metadata
+      expect(metadata?.lastExecutedRunStartedAt).toBe(9000)
+    })
   })
 
   describe('createTask', () => {

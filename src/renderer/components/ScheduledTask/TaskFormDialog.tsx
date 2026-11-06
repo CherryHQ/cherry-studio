@@ -40,6 +40,7 @@ import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useChannels } from '@renderer/hooks/agent/useChannels'
 import { cn } from '@renderer/utils/style'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
+import type { TaskGuard } from '@shared/data/api/schemas/agents'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { ScheduledTaskEntity } from '@shared/data/types/agent'
 import type { AgentTaskForm, AgentTaskPatch } from '@shared/ipc/schemas/ai'
@@ -415,6 +416,61 @@ const TaskSessionReuseField: FC<{
   )
 }
 
+const GUARD_TYPES: TaskGuard['type'][] = ['always', 'file_changed', 'command']
+
+const guardToFormValue = (guard: TaskGuard) =>
+  guard.type === 'file_changed' ? guard.path : guard.type === 'command' ? guard.command : ''
+
+const formToGuard = (type: TaskGuard['type'], value: string): TaskGuard => {
+  const trimmed = value.trim()
+  if (type === 'file_changed') return { type, path: trimmed }
+  if (type === 'command') return { type, command: trimmed }
+  return { type: 'always' }
+}
+
+const TaskGuardField: FC<{
+  type: TaskGuard['type']
+  value: string
+  invalid?: boolean
+  disabled?: boolean
+  onTypeChange: (type: TaskGuard['type']) => void
+  onValueChange: (value: string) => void
+}> = ({ type, value, invalid, disabled, onTypeChange, onValueChange }) => {
+  const { t } = useTranslation()
+
+  return (
+    <Field data-invalid={invalid || undefined}>
+      <FieldLabel htmlFor="task-form-guard">{t('agent.tasks.guard.label')}</FieldLabel>
+      <ItemDescription>{t('agent.tasks.guard.description')}</ItemDescription>
+      <Select value={type} disabled={disabled} onValueChange={(next) => onTypeChange(next as TaskGuard['type'])}>
+        <SelectTrigger id="task-form-guard">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectGroup>
+            {GUARD_TYPES.map((guardType) => (
+              <SelectItem key={guardType} value={guardType}>
+                {t(`agent.tasks.guard.type.${guardType}`)}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        </SelectContent>
+      </Select>
+      {type !== 'always' && (
+        <Input
+          value={value}
+          disabled={disabled}
+          aria-label={t('agent.tasks.guard.label')}
+          aria-invalid={invalid || undefined}
+          placeholder={t(`agent.tasks.guard.placeholder.${type}`)}
+          onChange={(event) => onValueChange(event.target.value)}
+        />
+      )}
+      <FieldError>{invalid ? t('agent.tasks.guard.validation') : undefined}</FieldError>
+    </Field>
+  )
+}
+
 type TaskFormDialogProps = {
   open: boolean
   agents: AgentInfo[]
@@ -445,6 +501,8 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
   const [channelIds, setChannelIds] = useState<string[]>([])
   const [workspaceId, setWorkspaceId] = useState<string | null>(null)
   const [reuseSession, setReuseSession] = useState(false)
+  const [guardType, setGuardType] = useState<TaskGuard['type']>('always')
+  const [guardValue, setGuardValue] = useState('')
   const [saving, setSaving] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [promptPreviewKey, setPromptPreviewKey] = useState(0)
@@ -465,6 +523,8 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
       setChannelIds(draft?.channelIds ?? [])
       setWorkspaceId(draft?.workspaceId ?? null)
       setReuseSession(draft?.reuseSession ?? false)
+      setGuardType(draft?.guard.type ?? 'always')
+      setGuardValue(draft ? guardToFormValue(draft.guard) : '')
       setSaving(false)
       setSubmitted(false)
       setPromptPreviewKey((key) => key + 1)
@@ -497,9 +557,11 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
     scheduleInputsEqual(schedule, initialDraftRef.current?.schedule ?? taskToDraftSnapshot(props.task).schedule)
   const resolvedTrigger = trigger ?? (unchangedExistingSchedule ? props.task?.trigger : null)
 
+  const guardInvalid = guardType !== 'always' && !guardValue.trim()
+
   const handleSave = useCallback(async () => {
     setSubmitted(true)
-    if (!agentId || !name.trim() || !prompt.trim() || !resolvedTrigger) return
+    if (!agentId || !name.trim() || !prompt.trim() || !resolvedTrigger || guardInvalid) return
 
     setSaving(true)
     try {
@@ -509,6 +571,7 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
           ? ({ type: AGENT_WORKSPACE_TYPE.SYSTEM } as const)
           : ({ type: AGENT_WORKSPACE_TYPE.USER, workspaceId } as const)
       const timeoutMinutes = Number.isInteger(timeout) && timeout > 0 ? timeout : null
+      const guard = formToGuard(guardType, guardValue)
 
       let saved: boolean
       if (props.task) {
@@ -522,6 +585,7 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
         }
         if (workspaceId !== initialDraft.workspaceId) updates.workspace = workspace
         if (reuseSession !== initialDraft.reuseSession) updates.reuseSession = reuseSession
+        if (JSON.stringify(guard) !== JSON.stringify(initialDraft.guard)) updates.guard = guard
         if (!stringArraysEqual(channelIds, initialDraft.channelIds)) updates.channelIds = channelIds
         if (!scheduleInputsEqual(schedule, initialDraft.schedule)) {
           const nextTrigger = preserveCompatibleTriggerMetadata(props.task.trigger, resolvedTrigger)
@@ -537,6 +601,7 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
           workspace,
           timeoutMinutes,
           reuseSession,
+          guard,
           channelIds: channelIds.length > 0 ? channelIds : undefined
         })
       }
@@ -544,7 +609,21 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
     } finally {
       setSaving(false)
     }
-  }, [agentId, channelIds, name, onOpenChange, prompt, props, reuseSession, schedule, resolvedTrigger, workspaceId])
+  }, [
+    agentId,
+    channelIds,
+    guardInvalid,
+    guardType,
+    guardValue,
+    name,
+    onOpenChange,
+    prompt,
+    props,
+    reuseSession,
+    schedule,
+    resolvedTrigger,
+    workspaceId
+  ])
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !saving && onOpenChange(nextOpen)}>
@@ -655,6 +734,15 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
               disabled={saving}
               invalid={submitted && !resolvedTrigger}
               onChange={setSchedule}
+            />
+
+            <TaskGuardField
+              type={guardType}
+              value={guardValue}
+              invalid={submitted && guardInvalid}
+              disabled={saving}
+              onTypeChange={setGuardType}
+              onValueChange={setGuardValue}
             />
 
             <TaskSessionReuseField value={reuseSession} disabled={saving} onChange={setReuseSession} />
