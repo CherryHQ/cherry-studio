@@ -3,7 +3,8 @@ import { normalizeContext, Type } from '@earendil-works/pi-ai'
 import { defineTool } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
-import type { CompactionSummarizer, CompactionSummaryRequest } from '../src'
+import type { CompactionSummarizer, CompactionSummaryRequest } from '../src/compaction'
+import { readContextUsage } from '../src/contextUsage'
 import type { ModelCall } from './sessionSupport'
 import { respondingModel } from './sessionSupport'
 import {
@@ -82,7 +83,19 @@ describe('Pi compaction with native providers', () => {
     await session.prompt('Question one, my name is Li')
     await session.prompt('Question two, I live in Paris')
     const result = await session.compact('keep the user facts')
+    const compacted = readContextUsage(session)
+    expect(compacted.status).toBe('confirmed')
+    if (compacted.status !== 'confirmed') throw new Error('Missing context reading')
+    expect(compacted.value.used).toBeUndefined()
+    const requests = calls.length
+    expect(readContextUsage(session)).toEqual(compacted)
+    expect(calls).toHaveLength(requests)
     await session.prompt('Question three')
+    const resumed = readContextUsage(session)
+    expect(resumed.status).toBe('confirmed')
+    if (resumed.status !== 'confirmed') throw new Error('Missing context reading')
+    expect(resumed.value.used?.tokens).toBeGreaterThan(0)
+    expect(resumed.value.revision).not.toBe(compacted.value.revision)
 
     expect(result.summary).toMatch(/Li from Paris/)
     const lastPrompt = JSON.stringify(calls.at(-1)!.messages)
@@ -127,10 +140,9 @@ describe('Pi compaction with native providers', () => {
     expect(finalPrompt.length).toBeLessThan(JSON.stringify(agentCalls[2].messages).length)
     expect(lastAssistant(session).content).toEqual([{ type: 'text', text: 'Done reading.' }])
 
-    const compaction = host.entries.find((entry) => entry.type === 'compaction')
     expect(host.events.filter((event) => event.type.startsWith('compaction-'))).toEqual([
       { type: 'compaction-start', reason: 'threshold' },
-      { type: 'compaction-end', reason: 'threshold', entryId: compaction?.id, aborted: false }
+      { type: 'compaction-end', reason: 'threshold', aborted: false }
     ])
     const next = scriptedModel([assistantReply([{ type: 'text', text: 'Next.' }])])
     const rebuilt = await createTestSession({
@@ -317,7 +329,7 @@ describe('host summarizer', () => {
     await session.compact().catch(() => {})
 
     expect(host.events.filter((event) => event.type === 'compaction-end')).toEqual([
-      { type: 'compaction-end', reason: 'manual', entryId: expect.any(String), aborted: false }
+      { type: 'compaction-end', reason: 'manual', aborted: false }
     ])
     expect(host.entries.flatMap((entry) => (entry.type === 'compaction' ? [entry.summary] : []))).toEqual([
       'HOST-SUMMARY'

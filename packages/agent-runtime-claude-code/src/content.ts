@@ -8,9 +8,7 @@ export type NativeBlock =
 type Part = RuntimeMessage['parts'][number]
 type Metadata = NonNullable<Extract<Part, { type: 'text' }>['providerMetadata']>
 export type ToolResult = { toolUseId: string; output: unknown; errorText?: string }
-export type ProjectedBlock =
-  | { type: NativeBlock['type']; part: Part }
-  | { type: Extract<NativeBlock, { tool_use_id: string }>['type']; result: ToolResult }
+export type ProjectedBlock = { type: NativeBlock['type']; part: Part } | { result: ToolResult }
 
 export function json(value: unknown): Metadata[string][string] {
   return JSON.parse(JSON.stringify(value)) as Metadata[string][string]
@@ -211,7 +209,7 @@ export function decodeArchiveContent(
         case 'text_editor_code_execution_tool_result':
         case 'tool_search_tool_result':
           return typeof block.tool_use_id === 'string'
-            ? { type: block.type, result: toolResult(block.tool_use_id, block.content ?? '', block.is_error === true) }
+            ? { result: toolResult(block.tool_use_id, block.content ?? '', block.is_error === true) }
             : undefined
         case 'image':
         case 'document': {
