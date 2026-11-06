@@ -5,6 +5,7 @@ import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import {
   fetchResolvedProviderModels,
+  PROVIDER_REASONING_LOOKUP_TIMEOUT_MS,
   resolveCreateModelEndpointTypes,
   resolveProviderReasoningForManualAdd,
   toCreateModelDto
@@ -551,5 +552,27 @@ describe('resolveProviderReasoningForManualAdd', () => {
     expect(reasonings.size).toBe(0)
     expect(dataApiGetMock).not.toHaveBeenCalled()
     expect(listModelsMock).not.toHaveBeenCalled()
+  })
+
+  it('releases a manual add when the provider catalog never answers', async () => {
+    const warnSpy = vi.spyOn(mockRendererLoggerService, 'warn').mockImplementation(() => {})
+    dataApiGetMock.mockResolvedValue([])
+    // A stalled catalog leaves the request pending forever; the deadline has to release the add.
+    listModelsMock.mockReturnValue(new Promise(() => {}))
+
+    vi.useFakeTimers()
+    try {
+      const pending = resolveProviderReasoningForManualAdd('custom', ['acme/thinker'])
+      await vi.advanceTimersByTimeAsync(PROVIDER_REASONING_LOOKUP_TIMEOUT_MS + 1)
+
+      await expect(pending).resolves.toEqual(new Map())
+      expect(warnSpy).toHaveBeenCalledWith(
+        'Provider model lookup failed for a manual model add; storing without provider reasoning',
+        expect.objectContaining({ providerId: 'custom' })
+      )
+    } finally {
+      vi.useRealTimers()
+      warnSpy.mockRestore()
+    }
   })
 })

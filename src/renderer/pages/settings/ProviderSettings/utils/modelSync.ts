@@ -85,6 +85,9 @@ export function toCreateModelDto(
   }
 }
 
+/** How long the optional provider catalog may hold up a manual add before it is abandoned. */
+export const PROVIDER_REASONING_LOOKUP_TIMEOUT_MS = 2000
+
 /**
  * Provider-declared reasoning for manually added models, keyed by raw model id.
  *
@@ -92,6 +95,10 @@ export function toCreateModelDto(
  * without leaving SQLite. Everything else has only the provider's catalog, which is remote and
  * therefore runs behind the AI IPC route — never on the DataApi create request, whose network-free
  * path is what keeps the write inside its 3s renderer deadline.
+ *
+ * The catalog is enrichment, so it is bounded: a provider that never answers must not hold the
+ * form in its submitting state. IPC invoke cannot be cancelled, so the deadline abandons the
+ * response rather than the request.
  */
 export async function resolveProviderReasoningForManualAdd(
   providerId: string,
@@ -128,7 +135,17 @@ export async function resolveProviderReasoningForManualAdd(
   }
 
   try {
-    const { models } = await ipcApi.request('ai.provider.model.list', { providerId })
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+    const { models } = await Promise.race([
+      ipcApi.request('ai.provider.model.list', { providerId }),
+      new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(
+          () => reject(new Error('provider catalog lookup timed out')),
+          PROVIDER_REASONING_LOOKUP_TIMEOUT_MS
+        )
+      })
+    ]).finally(() => clearTimeout(timeoutId))
+
     const modelsById = new Map(models.map((model) => [model.apiModelId ?? '', model]))
     for (const id of unresolved) {
       const reasoning = modelsById.get(id)?.reasoning
@@ -137,7 +154,7 @@ export async function resolveProviderReasoningForManualAdd(
       }
     }
   } catch (error) {
-    // A provider with no key (or an offline host) must not block a manual add.
+    // A provider with no key, an offline host, or a stalled catalog must not block a manual add.
     logger.warn('Provider model lookup failed for a manual model add; storing without provider reasoning', {
       providerId,
       error
