@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-07-tool-denial-projection.md
+2026-11-07-tool-denial-projection.md: 8d3e1e595c81c266e0cb87fa268013f674bf5230
+2026-11-07-tool-denial-projection.zh.md: 41de875977f37f1a472b1e666a3d93a8c755b39a

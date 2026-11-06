@@ -350,6 +350,40 @@ describe('AiStreamManager', () => {
     sender.emit('destroyed')
   })
 
+  it.each([false, true])('preserves approval=%s when the runtime later reports a tool error', async (approved) => {
+    const feed = controlledStream()
+    mockStreamText.mockResolvedValueOnce(feed.stream)
+    const listener = new FakeListener('denial-result')
+    const sender = Object.assign(new EventEmitter(), { isDestroyed: () => false }) as unknown as Electron.WebContents
+    let view: MessageProjectionView | null = null
+    view = await mgr.attachProjection(sender, 'denied-projection', 'subscription', (update) => {
+      if (view) view = applyMessageProjectionUpdate(view, update)!
+    })
+    startSingle(mgr, {
+      topicId: 'denied-projection',
+      modelId: 'p::m',
+      request: req('denied-projection'),
+      listeners: [listener]
+    })
+    feed.enqueue({ type: 'start', messageId: 'answer' })
+    feed.enqueue({ type: 'tool-input-available', toolCallId: 'write', toolName: 'Write', input: { path: 'file.txt' } })
+    feed.enqueue({ type: 'tool-approval-request', toolCallId: 'write', approvalId: 'approval-write' })
+    await vi.waitFor(() => expect(view?.messages[0]?.parts[0]).toMatchObject({ state: 'approval-requested' }))
+    expect(mgr.resolveToolApproval('denied-projection', 'write', approved)).toBe(true)
+    feed.enqueue({ type: 'tool-output-error', toolCallId: 'write', errorText: 'The user denied this write.' })
+    feed.enqueue({ type: 'finish' })
+    feed.close()
+    await vi.waitFor(() => expect(listener.doneResults).toHaveLength(1))
+    const expected = {
+      state: approved ? 'output-error' : 'output-denied',
+      approval: { id: 'approval-write', ...(approved ? {} : { approved: false }) }
+    }
+    expect(listener.doneResults[0].finalMessage?.parts[0]).toMatchObject(expected)
+    expect(view?.messages[0]?.parts[0]).toMatchObject(expected)
+    mgr.detachProjection(sender, 'subscription')
+    sender.emit('destroyed')
+  })
+
   // Host approval decisions bypass the SDK stream; later snapshots must not resurrect the old card.
   it('projects a resolved approval immediately and keeps it resolved on later SDK snapshots', async () => {
     const feed = controlledStream()
