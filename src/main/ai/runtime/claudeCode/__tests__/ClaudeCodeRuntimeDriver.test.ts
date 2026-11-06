@@ -6,9 +6,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { Worker } from 'node:worker_threads'
 
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import sharp from 'sharp'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistantFileAttachments'
+import type * as AttachmentRoutingModule from '@main/ai/messages/attachmentRouting'
+import type * as FileProcessorModule from '@main/ai/messages/fileProcessor'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import { MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
@@ -1076,6 +1079,78 @@ describe('ClaudeCodeRuntimeDriver', () => {
       done: false
     })
     expect(mocks.materializeNativeFilePart).toHaveBeenCalledTimes(1)
+    void connection.close()
+  })
+
+  it.each(['managed', 'external', 'failure'])('dispatches real %s image bytes to the SDK', async (kind) => {
+    const bytes = await sharp({ create: { width: 1000, height: 4, channels: 3, background: '#123456' } })
+      .png()
+      .toBuffer()
+    const realFile = await vi.importActual<typeof FileProcessorModule>('@main/ai/messages/fileProcessor')
+    const realRouting = await vi.importActual<typeof AttachmentRoutingModule>('@main/ai/messages/attachmentRouting')
+    mocks.materializeNativeFilePart.mockImplementation(realFile.materializeNativeFilePart)
+    mocks.prepareChatMessages.mockImplementation(realRouting.prepareChatMessages)
+    mocks.collectFileAttachments.mockImplementation(realRouting.collectFileAttachments)
+    const previousGet = mocks.applicationGet.getMockImplementation()!
+    mocks.applicationGet.mockImplementation((name: string) =>
+      name === 'FileManager'
+        ? {
+            getPhysicalPath: mocks.getPhysicalPath,
+            getById: async () => ({ ext: 'png' }),
+            read: async () => ({ content: bytes.toString('base64'), mime: 'image/png' })
+          }
+        : previousGet(name)
+    )
+    const queryQueue = createAsyncQueue<any>()
+    mocks.createClaudeQuery.mockReturnValue({ ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const nextInput = mocks.createClaudeQuery.mock.calls[0][0].prompt[Symbol.asyncIterator]().next()
+    const extend =
+      kind === 'failure'
+        ? vi.spyOn(sharp.prototype, 'extend').mockImplementationOnce(() => {
+            throw new Error('encoder failed')
+          })
+        : undefined
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'describe' },
+            kind === 'managed'
+              ? {
+                  type: 'file',
+                  url: '',
+                  mediaType: 'image/png',
+                  filename: 'strip.png',
+                  providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
+                }
+              : {
+                  type: 'file',
+                  url: `data:image/png;base64,${bytes.toString('base64')}`,
+                  mediaType: 'application/octet-stream',
+                  filename: 'strip.png'
+                }
+          ]
+        }
+      }
+    })
+    const content = (await nextInput).value.message.content
+    const image = content.find((part: any) => part.type === 'image')
+    expect(image.source.media_type).toBe('image/png')
+    expect(await sharp(Buffer.from(image.source.data, 'base64')).metadata()).toMatchObject({
+      width: 1000,
+      height: kind === 'failure' ? 4 : 15
+    })
+    if (kind === 'failure') {
+      expect(Buffer.from(image.source.data, 'base64')).toEqual(bytes)
+      expect(JSON.stringify(content)).not.toContain('could not read')
+      extend?.mockRestore()
+    }
     void connection.close()
   })
 

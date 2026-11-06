@@ -46,7 +46,8 @@ Deviations from the design doc, kept deliberately small:
   reserved messages before runtime activation. A receipt still `accepted` at startup
   becomes `interrupted`, retaining those identities. No external action is automatically replayed.
 - Locally started executions are discovered by a one-second poll of `hasLiveStream`, then
-  attached through `addListener` replay. Remote sends pass the listener at run start.
+  attached through `addListener` replay. Remote sends pass the listener at run start. The poll
+  runs only while LAN ingress is up, or until connections, journals and presented selections drain after it closes.
 - Approval cards persisted after a turn ended are listed and answerable, but not streamed as
   `interaction.updated`; only stream-presented approvals enter the live projection.
 - Legacy files retain metadata-only `data` parts. Remote uploads expose revision-bound file content references.

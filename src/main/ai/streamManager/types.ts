@@ -60,6 +60,8 @@ export interface StreamDoneResult extends TerminalOutcome {
 }
 
 export interface StreamPausedResult extends TerminalOutcome {
+  /** Main-process abort provenance; absent reasons are interruptions, not confirmed user cancellation. */
+  reason?: string
   finalMessage?: CherryUIMessage
   status: 'paused'
   modelId?: UniqueModelId
@@ -89,6 +91,8 @@ export interface StreamErrorResult extends TerminalOutcome {
 // ── StreamListener ──────────────────────────────────────────────────
 
 export interface StreamListener {
+  /** A durable caller (scheduled job) publishes its own final result. */
+  readonly ownsTaskResult?: boolean
   readonly windowId?: string
   /** Stable id used for dedup, detach-by-match, and logging. */
   readonly id: string
@@ -117,6 +121,8 @@ export interface StreamListener {
  * running independently against the same listeners and siblingsGroupId.
  */
 export interface StreamExecution {
+  /** Stable user-task identity across retries and tool-approval continuations. */
+  taskIds?: readonly string[]
   /** Agent input identity survives a queued turn receiving a new execution attempt. */
   userMessageId?: string
   /** Format: "providerId::modelId". */
@@ -166,7 +172,18 @@ export interface StreamExecution {
 
 // ── ActiveStream ────────────────────────────────────────────────────
 
+export interface ConversationUnsuccessfulEvent {
+  topicId: string
+  resultId: string
+  messageId?: string
+  status: 'failed' | 'interrupted' | 'cancelled'
+  finishedAt: number
+  durationMs: number
+  errorSummary?: string
+}
+
 export interface ConversationCompletedEvent {
+  completedTaskCount?: number
   responseText?: string
   topicId: string
   turnId: string
@@ -181,6 +198,10 @@ export interface ConversationCompletedEvent {
  *   → all done → 'done' | any error (none streaming) → 'error' | all aborted → 'aborted'
  */
 export interface ActiveStream {
+  hasTaskResultOwner?: boolean
+  completedTaskCount?: number
+  completionFailed?: boolean
+  terminalLifecyclePending?: boolean
   topicId: string
   /** Unique per stream lifecycle for renderer-side unread/seen tracking. */
   turnId: string
