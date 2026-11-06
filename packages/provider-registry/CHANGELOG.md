@@ -1,5 +1,11 @@
 # @cherrystudio/provider-registry
 
+## 0.3.5
+
+### Patch Changes
+
+- [#23648](https://github.com/CherryHQ/cherry-studio/pull/23648) [`52aecc0`](https://github.com/CherryHQ/cherry-studio/commit/52aecc057f6140b279d6bc4d9872f0197574e99e) Thanks [@ousugo](https://github.com/ousugo)! - Add GPT Image 2.6 Sunburst and Flare with official image API IDs, generation and editing support, and supported painting controls.
+
 ## 0.3.4
 
 ### Patch Changes

@@ -59,6 +59,7 @@ export type AgentTaskInput = {
 }
 
 export type AgentTaskOutput = {
+  kind: 'executed' | 'skipped'
   /** First 200 chars of the assistant reply, or a status marker for skipped runs. */
   result: string
 }
@@ -165,7 +166,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   if (isHeartbeat) {
     if (!isHeartbeatEnabled(config)) {
       logger.debug('Heartbeat skipped (disabled)', { agentId, scheduleId })
-      return { result: 'Skipped (disabled)' }
+      return { kind: 'skipped', result: 'Skipped (disabled)' }
     }
     // Runtime changes may bypass heartbeat configuration events; recheck capabilities at execution.
     const capabilities = Object.hasOwn(AGENT_RUNTIME_CAPABILITIES, agent.type)
@@ -173,7 +174,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       : undefined
     if (capabilities?.heartbeat !== true) {
       logger.debug('Heartbeat skipped (runtime lacks the capability)', { agentId, scheduleId, type: agent.type })
-      return { result: 'Skipped (capability)' }
+      return { kind: 'skipped', result: 'Skipped (capability)' }
     }
     const agentsDataRoot = application.getPath('feature.agents.data')
     const agentDataPath = agentDataDirectoryPath(agentsDataRoot, agentId)
@@ -206,12 +207,12 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
             logger.warn('Post-pause heartbeat sync failed', { agentId, scheduleId, error })
           })
       }
-      return { result: 'Skipped (untrusted agent data path)' }
+      return { kind: 'skipped', result: 'Skipped (untrusted agent data path)' }
     }
     const content = await readHeartbeat(agentDataPath)
     if (!content) {
       logger.debug('Heartbeat skipped (no heartbeat.md)', { agentId, scheduleId })
-      return { result: 'Skipped (no file)' }
+      return { kind: 'skipped', result: 'Skipped (no file)' }
     }
     effectivePrompt = [
       '[Heartbeat]',
@@ -270,6 +271,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   })
   let topicId = buildAgentSessionTopicId(session.id)
   let accumulatedText = ''
+  let pausedStatus: 'cancelled' | 'interrupted' | undefined
   let completionActive = true
   // Store the obligation the moment the terminal dispatch opens (see `prepareTerminal` below): a
   // wake can replace the stream before the callbacks run, and only this fire may bind the chats.
@@ -317,6 +319,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   }
   const sentinel: StreamListener = {
     id: `agent-task:${scheduleId ?? ctx.jobId}`,
+    ownsTaskResult: true,
     // Terminal dispatch awaits persistence before reaching this sentinel. A task completing inside
     // that window wakes and replaces the stream while the fire has recorded nothing, so the wake
     // starts without recipients. Store the obligation before the first await.
@@ -336,13 +339,23 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     onDone() {
       complete(() => resolveExecution(accumulatedText.trim()))
     },
-    onPaused() {
+    onPaused(result) {
       if (runSignal.aborted) {
         const reason = runSignal.reason
         complete(() => rejectExecution(reason instanceof Error ? reason : new Error(String(reason ?? 'Task aborted'))))
         return
       }
-      complete(() => resolveExecution(accumulatedText.trim()))
+      pausedStatus =
+        result.reason === 'user-requested' || result.reason === 'remote-cancel' ? 'cancelled' : 'interrupted'
+      complete(() => rejectExecution(new Error('Task interrupted')))
+      if (pausedStatus === 'cancelled') {
+        void application
+          .get('JobManager')
+          .cancel(ctx.jobId, result.reason)
+          .catch((error) => {
+            logger.warn('Failed to settle stopped task as cancelled', { jobId: ctx.jobId, error })
+          })
+      }
     },
     onError(result) {
       complete(() => rejectExecution(new Error(result.error.message ?? 'Execution failed')))
@@ -389,7 +402,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       }
       if (started.reason === 'busy') {
         completionActive = false
-        return { result: 'Skipped (session busy)' }
+        return { kind: 'skipped', result: 'Skipped (session busy)' }
       }
       if (rebound) throw new Error(`Agent session ${session.id} became invalid while starting task`)
       rebound = true
@@ -414,7 +427,8 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     resultText = await executionDone
   } catch (err) {
     runError = err instanceof Error ? err : new Error(String(err))
-    if (!runSignal.aborted && subscribedChannels.length > 0) {
+    if (pausedStatus) await ctx.patchMetadata({ taskResultStatus: pausedStatus })
+    if (!runSignal.aborted && !pausedStatus && subscribedChannels.length > 0) {
       await notifyTaskError(
         { id: scheduleId, name: taskName, durationMs: Date.now() - startTimeMs },
         runError.message,
@@ -427,7 +441,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     dispose()
   }
 
-  return { result: resultText.slice(0, 200) || 'Completed' }
+  return { kind: 'executed', result: resultText.slice(0, 200) || 'Completed' }
 }
 
 async function notifyTaskError(

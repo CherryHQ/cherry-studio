@@ -243,6 +243,7 @@ class FeishuAdapter extends ChannelAdapter {
       },
       reject: (event) => {
         this.log.warn('Feishu message rejected', { chatId: event.chatId, reason: event.reason })
+        if (event.reason === 'no_mention' || event.reason === 'mention_all_blocked') return
         this.notifyDrop(event.chatId)
       },
       error: (error) => {
