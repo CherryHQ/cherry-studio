@@ -1885,6 +1885,61 @@ describe('ClaudeCodeRuntimeDriver', () => {
     }
   )
 
+  it('anchors the fork checkpoint to the last real message, not the synthetic turn-closer', async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), 'cherry-claude-driver-checkpoint-'))
+    const sessionId = '374c8467-e787-4c67-b890-a3d91b50dba6'
+    const realUuid = '9ad4b714-fe5d-4664-9f76-2b0cd13f4c03'
+    const syntheticUuid = 'b3f2a1c4-5d6e-4f78-90ab-cdef12345678'
+    const queryQueue = createAsyncQueue<any>()
+    mocks.createClaudeQuery.mockReturnValue({ ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() })
+    const request = await mocks.buildRequest()
+    mocks.buildRequest.mockResolvedValue({
+      ...request,
+      options: { ...request.options, cwd: directory, env: { CLAUDE_CONFIG_DIR: directory } }
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    try {
+      await connection.send({ message: userMessage() })
+      queryQueue.push({
+        type: 'assistant',
+        uuid: realUuid,
+        parent_tool_use_id: null,
+        message: { id: 'main-response', content: [{ type: 'text', text: 'answer' }] }
+      })
+      queryQueue.push({
+        type: 'assistant',
+        uuid: syntheticUuid,
+        parent_tool_use_id: null,
+        message: { model: '<synthetic>', content: [{ type: 'text', text: 'No response requested.' }] }
+      })
+      queryQueue.push({ type: 'result', subtype: 'success', session_id: sessionId })
+      const completion = (async () => {
+        for await (const event of connection.events) if (event.type === 'turn-complete') return event
+        throw new Error('missing turn completion')
+      })()
+      await delay(100)
+      const project = path.join(directory, 'projects', 'project')
+      await mkdir(project, { recursive: true })
+      await writeFile(
+        path.join(project, sessionId + '.jsonl'),
+        JSON.stringify({ type: 'assistant', uuid: realUuid }) + '\n'
+      )
+      await expect(completion).resolves.toMatchObject({
+        type: 'turn-complete',
+        forkAnchor: {
+          checkpoint: { runtimeSessionId: sessionId, messageUuid: realUuid, configDir: directory }
+        }
+      })
+    } finally {
+      await connection.close()
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
   it('emits resume token, chunks, and turn-complete events', async () => {
     const queryQueue = createAsyncQueue<any>()
     const contextUsage = {
@@ -4308,5 +4363,206 @@ describe('ClaudeCodeRuntimeDriver', () => {
       await expect(second).resolves.toBe('current')
       expect(secondStarted).toBe(true)
     })
+  })
+
+  it('ignores the synthetic turn-closer in assistant usage capture', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.buildRequest.mockResolvedValue({
+      connectionConfig: {
+        rebuildSignature: 'sig-1',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: { model: 'sonnet' },
+      settings: {},
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100,
+      usageCapture: {
+        owner: 'agent-sdk',
+        credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'key-***' },
+        providerId: 'anthropic',
+        providerName: 'Anthropic',
+        source: null,
+        frozenModels: [
+          {
+            modelId: 'sonnet',
+            apiModelId: 'sonnet-sdk',
+            modelName: 'Sonnet',
+            pricingSnapshot: null,
+            aliases: ['sonnet-sdk']
+          }
+        ]
+      }
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'anthropic::sonnet'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    // The CLI interrupted-turn closer carries a placeholder model; it is not a billable reply.
+    queryQueue.push({
+      type: 'assistant',
+      uuid: 'a1a1a1a1-0000-4000-8000-000000000001',
+      parent_tool_use_id: null,
+      message: {
+        id: 'synthetic-request',
+        model: '<synthetic>',
+        stop_reason: 'end_turn',
+        content: [{ type: 'text', text: 'No response requested.' }],
+        usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
+      }
+    })
+    queryQueue.push({
+      type: 'assistant',
+      uuid: 'a1a1a1a1-0000-4000-8000-000000000002',
+      parent_tool_use_id: null,
+      message: {
+        id: 'real-request',
+        model: 'sonnet-sdk',
+        stop_reason: 'end_turn',
+        content: [{ type: 'text', text: 'answer' }],
+        usage: { input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
+      }
+    })
+    queryQueue.push({ type: 'result', subtype: 'success', session_id: 'synthetic-usage-result' })
+
+    const seen: any[] = []
+    while (!seen.some((event) => event?.type === 'turn-complete')) {
+      seen.push((await events.next()).value)
+    }
+    expect(seen.filter((event) => event?.type === 'usage')).toEqual([
+      {
+        type: 'usage',
+        invocation: {
+          requestId: 'claude-agent:real-request',
+          model: 'sonnet-sdk',
+          messageAssociation: 'current-turn',
+          usage: {
+            inputTokens: 10,
+            outputTokens: 5,
+            totalTokens: 15,
+            noCacheTokens: 10,
+            cacheReadTokens: 0,
+            cacheWriteTokens: 0
+          }
+        }
+      }
+    ])
+    void connection.close()
+  })
+
+  it('does not open a stream invocation for a synthetic message_start', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.buildRequest.mockResolvedValue({
+      connectionConfig: {
+        rebuildSignature: 'sig-1',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: { model: 'sonnet' },
+      settings: {},
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100,
+      usageCapture: {
+        owner: 'agent-sdk',
+        credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'key-***' },
+        providerId: 'anthropic',
+        providerName: 'Anthropic',
+        source: null,
+        frozenModels: [
+          {
+            modelId: 'sonnet',
+            apiModelId: 'sonnet-sdk',
+            modelName: 'Sonnet',
+            pricingSnapshot: null,
+            aliases: ['sonnet-sdk']
+          }
+        ]
+      }
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'anthropic::sonnet'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      event: {
+        type: 'message_start',
+        message: {
+          id: 'synthetic-stream-request',
+          model: '<synthetic>',
+          usage: { input_tokens: 3, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
+        }
+      }
+    })
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      event: {
+        type: 'message_start',
+        message: {
+          id: 'real-stream-request',
+          model: 'sonnet-sdk',
+          usage: { input_tokens: 10, output_tokens: 0, cache_read_input_tokens: 2, cache_creation_input_tokens: 3 }
+        }
+      }
+    })
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      event: {
+        type: 'message_delta',
+        delta: { stop_reason: 'end_turn' },
+        usage: {
+          input_tokens: null,
+          output_tokens: 7,
+          cache_read_input_tokens: null,
+          cache_creation_input_tokens: null
+        }
+      }
+    })
+    queryQueue.push({ type: 'stream_event', parent_tool_use_id: null, event: { type: 'message_stop' } })
+    queryQueue.push({
+      type: 'result',
+      subtype: 'success',
+      session_id: 'synthetic-start-result',
+      usage: { input_tokens: 10, output_tokens: 7, cache_read_input_tokens: 2, cache_creation_input_tokens: 3 }
+    })
+
+    const seen: any[] = []
+    while (!seen.some((event) => event?.type === 'turn-complete')) {
+      seen.push((await events.next()).value)
+    }
+    expect(seen.filter((event) => event?.type === 'usage')).toEqual([
+      {
+        type: 'usage',
+        invocation: {
+          requestId: 'claude-agent:real-stream-request',
+          model: 'sonnet-sdk',
+          messageAssociation: 'current-turn',
+          usage: {
+            inputTokens: 15,
+            outputTokens: 7,
+            totalTokens: 22,
+            noCacheTokens: 10,
+            cacheReadTokens: 2,
+            cacheWriteTokens: 3
+          }
+        }
+      }
+    ])
+    void connection.close()
   })
 })
