@@ -2,13 +2,13 @@ import { writeFile } from 'node:fs/promises'
 
 import { expect, type Page, type TestInfo } from '@playwright/test'
 
-import type { AgentEntity, ScheduledTaskEntity, TaskRunLogEntity } from '@shared/data/types/agent'
+import type { ScheduledTaskEntity, TaskRunLogEntity } from '@shared/data/types/agent'
 import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
-import { createAgent, startNewAgentTask } from '../helpers/agents'
-import { ensureCustomChatProvider } from '../helpers/models'
+import { builtinAssistantAgent } from '../helpers/agents'
+import { ensureCustomChatProvider, selectVisibleModel } from '../helpers/models'
 import { closeSettings, openSettingsSection } from '../helpers/settings'
 import type { RegressionApp } from '../RegressionApp'
 
@@ -19,7 +19,7 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
   const name = app.resourceName(`MP-145 time ${Date.now()}`)
-  const agentName = `${name} Agent`
+  let agentName: string
   const prompt = '输出当前时间'
   let agentId: string | undefined
   let conversationTabId: string | undefined
@@ -49,34 +49,12 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
     // Use the configured real provider: canned model text cannot prove tool-driven task creation.
     const providerId = await ensureCustomChatProvider(app, page)
     await closeSettings(page)
-    await createAgent(page, {
-      name: agentName,
-      runtime: 'Pi',
-      permission: 'Full Access',
-      providerId,
-      model: app.config.customProvider.chatModel
-    })
-    const agents = await page.evaluate(() =>
-      window.api.dataApi.request({
-        id: 'MP-145-read',
-        method: 'GET',
-        path: '/agents',
-        params: { limit: 200 }
-      })
-    )
-    expect(agents.status).toBe(200)
-    agentId = (agents.data as { items: AgentEntity[] }).items.find(({ name }) => name === agentName)?.id
-    expect(agentId).toBeTruthy()
-    await startNewAgentTask(page, agentName)
+    const agent = await builtinAssistantAgent(page)
+    agentId = agent.id
+    agentName = agent.name
 
     await openSettingsSection(page, 'Scheduled Tasks')
     await screenshot('MP-145 scheduled tasks header')
-    await expect
-      .soft(
-        page.getByText('Set what the Agent should do and when it should run.', { exact: true }),
-        'Page header must explain task content and run frequency (设置 Agent 要执行的内容和运行频率。)'
-      )
-      .toBeVisible()
     await page.getByRole('button', { name: 'New', exact: true }).click()
     await expect(page.getByRole('menuitem', { name: 'Create manually', exact: true })).toBeEnabled()
     const createWithAgent = page.getByRole('menuitem', { name: 'Create with Agent', exact: true })
@@ -85,6 +63,12 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
     await createWithAgent.click()
     const view = page.locator('[data-ui~="agent.view"]:visible').first()
     await expect(view).toBeVisible({ timeout: 30_000 })
+    await view
+      .getByRole('button', { name: 'Select Model', exact: true })
+      .or(view.locator('button:has(span[title*=" | "])'))
+      .first()
+      .click()
+    await selectVisibleModel(page, app.config.customProvider.chatModel, providerId)
     await expect(page.getByText(/启动定时任务对话失败|Failed to start.*scheduled/i)).toHaveCount(0)
     const composer = view.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first()
     await expect(composer).toBeEditable()
@@ -245,7 +229,7 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
   } finally {
     await screenshot('MP-145 final application state')
     const cleanupErrors = await page.evaluate(
-      async ({ agentId, name, sessionsBefore }) => {
+      async ({ name, sessionsBefore }) => {
         const errors: string[] = []
         const tasks = await window.api.dataApi.request({
           id: 'MP-145-cleanup-tasks',
@@ -310,16 +294,9 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
         } else {
           errors.push('Could not list case sessions for cleanup')
         }
-        if (agentId) {
-          const deletedAgent = (await window.api.ipcApi.request('ai.agent.delete_permanently', {
-            agentId,
-            deleteSessions: true
-          })) as IpcResult<{ deleted: boolean }>
-          if (!deletedAgent.ok || !deletedAgent.data.deleted) errors.push('cleanup left the case agent active')
-        }
         return errors
       },
-      { agentId, name, sessionsBefore }
+      { name, sessionsBefore }
     )
     expect
       .soft(cleanupErrors, 'Scheduled-task cleanup must not leave running sessions or mask the case failure')

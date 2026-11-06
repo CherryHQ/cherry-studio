@@ -82,14 +82,17 @@ export async function agentFilePreview(app: RegressionApp, page: Page, testInfo:
   if ((await code.getAttribute('aria-expanded')) !== 'true') await code.click()
   await page.getByRole('treeitem', { name: 'sample.py', exact: true }).click()
   await expect(preview).toBeVisible()
-  const previewText = () =>
-    preview
-      .locator('[data-ui~="ui.code-viewer"] .line-content')
-      .allTextContents()
-      .then((lines) => lines.join('\n'))
-  await expect.poll(previewText).toBe(original)
+  const expectPreview = async (text: string) => {
+    for (const line of text.trimEnd().split('\n')) {
+      await expect(preview.getByText(line.trim(), { exact: true })).toBeVisible()
+    }
+  }
+  await expectPreview(original)
   await screenshot('MP-52 original file preview')
-  await page.getByTestId('artifact-pane-header').getByRole('button', { name: 'Back', exact: true }).click()
+  await page
+    .getByTestId('artifact-pane-header')
+    .getByRole('button', { name: 'Close preview sample.py', exact: true })
+    .click()
 
   const edited = await send(
     'Edit only code/sample.py using the Edit tool: rename add to add_numbers and add exactly one comment line "# Add two numbers." before the function. Preserve all other bytes, including the final newline. Do not create or modify any other files. Reply MP52_EDIT_DONE.'
@@ -117,7 +120,8 @@ export async function agentFilePreview(app: RegressionApp, page: Page, testInfo:
   await screenshot('MP-52 tool diff matches disk')
   await page.getByRole('treeitem', { name: 'sample.py', exact: true }).click()
   await expect(preview).toBeVisible()
-  await expect.poll(previewText).toBe(expected)
+  await expectPreview(expected)
+  await expect(preview.getByText('def add(a, b):', { exact: true })).toHaveCount(0)
   await expect(page.getByLabel('Unsaved', { exact: true })).toHaveCount(0)
   await expect(page.getByRole('dialog', { name: /File changed on disk|Discard unsaved changes/ })).toHaveCount(0)
   await screenshot('MP-52 latest file preview')

@@ -6,7 +6,11 @@ import { join } from 'node:path'
 import { expect, type Page, type TestInfo } from '@playwright/test'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
-import { observeExternalResource, registerExternalResource } from '../../../../scripts/e2e/regression/externalResources'
+import {
+  cleanupExternalResources,
+  observeExternalResource,
+  registerExternalResource
+} from '../../../../scripts/e2e/regression/externalResources'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { ensureCustomChatProvider } from '../helpers/models'
 import { openLaunchpadApp } from '../helpers/navigation'
@@ -38,6 +42,7 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
   let terminalWindow: string | undefined
+  let terminalResource: string | undefined
   const windowContents = (id: string) =>
     appleScript(
       `on run argv
@@ -51,6 +56,7 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
     appleScript(
       `on run
     set rows to {}
+    if application "Terminal" is not running then return ""
     tell application "Terminal"
       repeat with w in windows
         if (count of tabs of w) > 0 then
@@ -165,6 +171,7 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
       kind: 'terminal',
       directory: app.paths.workspace
     })
+    terminalResource = resource
     const baseline = terminalWindows()
     const baselineIds = baseline.map((w) => w.id)
     const baselineTtys = baseline.map((w) => w.tty)
@@ -199,19 +206,22 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
     }
     await expect.poll(() => terminalText(), { timeout: 45_000 }).toMatch(/trust|Welcome|Claude Code|❯/i)
     observeExternalResource(app.paths, resource)
+    if (/Choose the text style that looks best with your terminal/i.test(terminalText())) {
+      terminalInput('')
+      await expect.poll(terminalText, { timeout: 30_000 }).not.toMatch(/Choose the text style that looks best/i)
+    }
+    await expect
+      .poll(terminalText, { timeout: 30_000 })
+      .toMatch(/trust|safety|security|permission|shortcuts|login|Sign in/i)
     if (/trust this folder|trust the files|Yes, I trust/i.test(terminalText())) terminalInput('')
     if (/select login method|Please run \/login|Sign in to continue/i.test(terminalText())) {
       throw new Error('UNCOVERED: Claude Code requires an authenticated account')
     }
   }
   const closeTerminal = () => {
-    if (!terminalWindow) return
-    appleScript(
-      `on run argv
-      tell application "Terminal" to close window id (item 1 of argv as integer) saving no
-    end run`,
-      [terminalWindow]
-    )
+    if (!terminalResource) return
+    cleanupExternalResources(app.paths, [terminalResource])
+    terminalResource = undefined
     terminalWindow = undefined
   }
   try {

@@ -157,7 +157,7 @@ window.addEventListener('pageshow', () => navigator.sendBeacon('http://127.0.0.1
         const request = await server.nextRequest()
         expect(request.body.model).toBe(server.modelId)
         expect(request.body.messages).toContainEqual(expect.objectContaining({ role: 'user', content: prompt }))
-        request.complete('```html\n' + html + '\n```')
+        request.complete(title + '\n\n```html\n' + html + '\n```')
       })()
     ])
     const artifact = page.getByTestId('html-artifact-view')

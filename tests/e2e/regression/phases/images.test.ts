@@ -373,7 +373,7 @@ test(...caseDefinition('MP-92'), async ({ mainWindow: page }, testInfo) => {
     await page.locator('[data-selector-shell-root="true"] > button').first().click()
     const selector = page.getByTestId('model-selector-content').last()
     await expect(selector).toBeVisible()
-    await selector.getByTestId('model-selector-search').fill(modelId)
+    await selector.getByTestId('model-selector-search').fill(providerId)
     await selector.getByTestId(`model-selector-item-${providerId}::${modelId}`).click()
   }
   const generating = page.getByRole('status', {

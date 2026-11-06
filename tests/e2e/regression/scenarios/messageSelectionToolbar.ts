@@ -188,15 +188,12 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
             element.contains(document.elementFromPoint(point.endX, point.endY)),
           point
         )
-      if (!(await hitsTarget())) {
-        const height = await page.evaluate(() => innerHeight)
-        await page.mouse.move(point.x, height / 2)
-        await page.mouse.wheel(0, point.y < height / 2 ? -height / 2 : height / 2)
-        await expect.poll(async () => (await measure()).y).not.toBe(point.y)
-        await target.hover()
-        point = await measure()
-      }
-      await expect.poll(hitsTarget).toBe(true)
+      await expect
+        .poll(async () => {
+          point = await measure()
+          return hitsTarget()
+        })
+        .toBe(true)
       return point
     }
     let selectionAttempt = 0

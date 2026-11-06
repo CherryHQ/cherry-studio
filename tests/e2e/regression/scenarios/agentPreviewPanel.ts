@@ -74,7 +74,7 @@ export async function agentPreviewPanel(app: RegressionApp, page: Page, testInfo
   await openAgentPane(page, 'Files')
   await screenshot('MP-19 initial preview panel')
   await expect(page.getByTestId('artifact-pane-header')).toBeVisible()
-  await expect(page.getByRole('treeitem', { name: app.workspaceName, exact: true })).toBeVisible()
+  await expect(page.getByRole('complementary').getByRole('tree')).toBeVisible()
   const composer = view.locator('[data-ui~="chat.composer"]:visible')
   const editor = composer.locator('[contenteditable="true"]').first()
   const messages = view.locator('[data-ui~="chat.message"]:visible')
@@ -94,8 +94,14 @@ export async function agentPreviewPanel(app: RegressionApp, page: Page, testInfo
   const open = async (name: string) => {
     await attachment(name).click()
     await expect(overlay).toBeVisible()
-    await expect(page.getByTestId('artifact-pane-header-title')).toHaveText(parse(name).name)
+    await expect(header.getByRole('tab', { name: parse(name).name, exact: true })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    )
     await expect(overlay.locator('[contenteditable="true"], textarea')).toHaveCount(0)
+  }
+  const closePreview = async (name: string) => {
+    await header.getByRole('button', { name: `Close preview ${parse(name).name}`, exact: true }).click()
   }
   await attachAndSend(markdownName)
   await open(markdownName)
@@ -105,22 +111,35 @@ export async function agentPreviewPanel(app: RegressionApp, page: Page, testInfo
   await expect(overlay).toContainText('# MP19 preview')
   await overlay.getByRole('radio', { name: 'Preview', exact: true }).click()
   await expect(overlay.getByRole('heading', { name: 'MP19 preview', exact: true })).toBeVisible()
-  await header.getByRole('button', { name: 'Copy Content', exact: true }).click()
+  const menuMode = await page.evaluate(() => window.api.preference.get('menu.presentation_mode'))
+  try {
+    await page.evaluate(() => window.api.preference.set('menu.presentation_mode', 'cherry'))
+    await header.getByRole('tab', { name: parse(markdownName).name, exact: true }).click({ button: 'right' })
+    await page.getByRole('menuitem', { name: 'Copy', exact: true }).hover()
+    await page.getByRole('menuitem', { name: 'File Content', exact: true }).click()
+  } finally {
+    await page.evaluate((value) => window.api.preference.set('menu.presentation_mode', value), menuMode)
+  }
   await expect
     .poll(() => page.evaluate(async () => (await navigator.clipboard.readText()).replace(/\r\n/g, '\n')))
     .toBe(markdown)
   await writeFile(join(app.paths.fixtures, markdownName), `${markdown}\nMP19 refreshed content\n`)
-  await header.getByRole('button', { name: 'Refresh', exact: true }).click()
+  await closePreview(markdownName)
+  await open(markdownName)
   await expect(overlay).toContainText('MP19 refreshed content')
-  await header.getByRole('button', { name: 'Back', exact: true }).click()
+  await closePreview(markdownName)
   await expect(overlay).toBeHidden()
   await attachAndSend(secondName)
   await open(markdownName)
   await open(secondName)
   await open(secondName)
-  await header.getByRole('button', { name: 'Back', exact: true }).click()
-  await expect(page.getByTestId('artifact-pane-header-title')).toHaveText(parse(markdownName).name)
-  await header.getByRole('button', { name: 'Back', exact: true }).click()
+  await expect(header.getByRole('tab', { name: parse(secondName).name, exact: true })).toHaveCount(1)
+  await closePreview(secondName)
+  await expect(header.getByRole('tab', { name: parse(markdownName).name, exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true'
+  )
+  await closePreview(markdownName)
   await expect(overlay).toBeHidden()
 
   await attachAndSend(docxName)
@@ -139,20 +158,20 @@ export async function agentPreviewPanel(app: RegressionApp, page: Page, testInfo
   await page.mouse.wheel(0, 300)
   await expect.poll(() => docxScroll.evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
   await screenshot('MP-19 selectable DOCX preview')
-  await header.getByRole('button', { name: 'Back', exact: true }).click()
+  await closePreview(docxName)
   await attachAndSend(videoName)
   await open(videoName)
   await expect(overlay.locator('video[controls]')).toBeVisible()
   await expect
     .poll(() => overlay.locator('video').evaluate((video: HTMLVideoElement) => video.readyState))
     .toBeGreaterThanOrEqual(1)
-  await header.getByRole('button', { name: 'Back', exact: true }).click()
+  await closePreview(videoName)
   await attachAndSend(slidesName)
   await open(slidesName)
   await expect(overlay.getByRole('region', { name: slidesName, exact: true })).toBeVisible()
   await expect(overlay.getByRole('alert')).toContainText('Preview failed')
   await screenshot('MP-19 empty presentation reports a preview error')
-  await header.getByRole('button', { name: 'Back', exact: true }).click()
+  await closePreview(slidesName)
 
   const preferences = await page.evaluate(async () => ({
     enabled: await window.api.preference.get('chat.input.paste_long_text_as_file'),
@@ -186,7 +205,7 @@ export async function agentPreviewPanel(app: RegressionApp, page: Page, testInfo
     })
     await page.keyboard.press('ControlOrMeta+c')
     await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(firstLine)
-    await header.getByRole('button', { name: 'Back', exact: true }).click()
+    await header.getByRole('button', { name: /^Close preview .*Pasted Text/ }).click()
     await editor.click()
     await editor.press('ControlOrMeta+v')
     await expect(composer).toContainText(firstLine)

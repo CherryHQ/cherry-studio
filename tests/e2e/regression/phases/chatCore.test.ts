@@ -206,7 +206,7 @@ test(...caseDefinition('MP-09'), async ({ app, mainWindow: page }, testInfo) => 
       .last()
     await expect(answer).toContainText('731')
     await expect(answer).toContainText('17')
-    await expect(answer).toContainText(/November|11月|十一月/)
+    await expect(answer).toContainText(/November|11\s*月|十一\s*月/i)
     await screenshot('MP-09 document summary')
 
     for (const [path, name] of [
@@ -226,7 +226,10 @@ test(...caseDefinition('MP-09'), async ({ app, mainWindow: page }, testInfo) => 
         const preview = page.getByTestId('artifact-file-preview-overlay')
         await expect(preview).toBeVisible()
         await expect(preview).toContainText(documentText)
-        await page.getByTestId('artifact-pane-header').getByRole('button', { name: 'Back', exact: true }).click()
+        await page
+          .getByTestId('artifact-pane-header')
+          .getByRole('button', { name: `Close preview ${name}`, exact: true })
+          .click()
         await expect(preview).toBeHidden()
       }
       await fileToken(name).hover()

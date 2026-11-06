@@ -77,11 +77,12 @@ export async function agentMemoryContext(app: RegressionApp, page: Page, testInf
     return dialog
   }
   const send = async (prompt: string) => {
-    const completed = view.getByTestId('completed-process-trigger')
-    const before = await completed.count()
+    const messages = view.locator('[data-ui~="chat.message"]')
+    const before = await messages.count()
     await composer.fill(prompt)
     await view.getByRole('button', { name: 'Send', exact: true }).click()
-    await expect(completed).toHaveCount(before + 1, { timeout: 90_000 })
+    await expect(messages).toHaveCount(before + 2, { timeout: 90_000 })
+    await expect(messages.last().locator('.markdown').last()).toBeVisible({ timeout: 90_000 })
     await expect(pause).toBeHidden({ timeout: 90_000 })
     const reply = view.locator('[data-ui~="chat.message"]').last().locator('.markdown').last()
     await expect(reply).toBeVisible()

@@ -168,12 +168,14 @@ test(...caseDefinition('A-02'), async ({ app, mainWindow: page }) => {
   await page.getByRole('button', { name: 'Close', exact: true }).click()
 
   const composer = page.locator('[data-ui~="chat.composer"]:visible [contenteditable="true"]').first()
-  await composer.fill(
-    'Using the selected local skill reference, quote the Validation label field from its fixture catalog.'
-  )
+  await composer.fill('')
   await openSkillsPanel(page)
   await page.getByText('cherry-regression-fixture', { exact: true }).click()
   await expect(composer.locator('[data-composer-token-kind="skill"]')).toHaveCount(1)
+  await composer.press('End')
+  await composer.pressSequentially(
+    ' Using the selected local skill reference, quote the Validation label field from its fixture catalog.'
+  )
   await page.getByRole('button', { name: 'Send', exact: true }).click()
   const response = agentView
     .locator('[data-ui~="chat.message"]')

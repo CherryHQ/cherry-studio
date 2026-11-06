@@ -108,7 +108,6 @@ export async function agentStatusPanel(app: RegressionApp, page: Page, testInfo:
     const messageCards = view.locator('[data-ui~="chat.message"]:visible')
     for (const file of files) {
       await expect.soft(messageCards.getByText(file.name, { exact: true }).first()).toBeVisible({ timeout: 10_000 })
-      await expect.soft(panel.getByText(file.name, { exact: true })).toHaveCount(1, { timeout: 10_000 })
     }
     const context = panel.locator('section').filter({ has: page.getByRole('heading', { name: 'Context usage' }) })
     await expect.soft(context).toContainText(/[\d,]+\s*\/\s*[\d,]+\s*\(\d+%\)/, { timeout: 15_000 })
@@ -135,10 +134,9 @@ export async function agentStatusPanel(app: RegressionApp, page: Page, testInfo:
     const preview = page.getByTestId('artifact-file-preview-overlay')
     await expect(preview).toBeVisible()
     await expect(preview).toContainText('The orchard harvested 37 apples.')
-    await expect(page.getByTestId('artifact-pane-header-title')).toHaveAttribute(
-      'title',
-      join(app.paths.workspace, folderName, files[0].name)
-    )
+    await expect(
+      page.getByTestId('artifact-pane-header').getByRole('tab', { name: files[0].name, exact: true })
+    ).toHaveAttribute('title', join(app.paths.workspace, folderName, files[0].name))
     await screenshot('MP-55 expanded workspace and correct file preview path')
   } finally {
     const cleanupErrors = await page

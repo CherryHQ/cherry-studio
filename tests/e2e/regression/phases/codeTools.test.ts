@@ -47,6 +47,7 @@ async function configureTool(page: Page, model: string, provider: string): Promi
   const save = dialog.getByRole('button', { name: 'Save', exact: true })
   await dialog.getByRole('button', { name: (await save.isEnabled()) ? 'Save' : 'Cancel', exact: true }).click()
   await expect(dialog).toBeHidden()
+  await providerCard.hover()
   const disable = providerCard.getByRole('button', { name: 'Disable', exact: true })
   if (await disable.isVisible()) await disable.click()
   const enable = providerCard.getByRole('button', { name: 'Enable', exact: true }).first()

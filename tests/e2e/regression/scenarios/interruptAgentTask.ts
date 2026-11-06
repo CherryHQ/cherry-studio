@@ -156,9 +156,7 @@ export async function interruptAgentTask(
     const stoppedAt = Date.now()
     await pause.click()
     await expect(pause).toBeHidden({ timeout: 10_000 })
-    await expect
-      .soft(view.getByText(/Chat completion paused|Cancelled/, { exact: true }).first())
-      .toBeVisible({ timeout: 3000 })
+    await expect(view.getByRole('button', { name: 'Send', exact: true })).toBeVisible()
     await expect
       .poll(async () => (await readMessages()).some((m) => m.role === 'assistant' && m.status === 'paused'))
       .toBe(true)

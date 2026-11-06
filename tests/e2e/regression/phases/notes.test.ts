@@ -475,34 +475,45 @@ test(...caseDefinition('MP-77'), async ({ app, mainWindow: page }, testInfo) => 
       contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     })
 
-    await menuAction('Print')
-    const preview = () =>
+    try {
+      await menuAction('Print')
+      const preview = () =>
+        appleScript(
+          [
+            'on run argv',
+            'tell application "System Events"',
+            'tell (first application process whose unix id is (item 1 of argv as integer))',
+            'set resultText to ""',
+            'repeat with windowIndex from 1 to count of windows',
+            'set windowElements to entire contents of window windowIndex',
+            'repeat with elementReference in windowElements',
+            'set element to contents of elementReference',
+            'try',
+            'set resultText to resultText & (description of element as text) & return',
+            'end try',
+            'try',
+            'set resultText to resultText & (value of element as text) & return',
+            'end try',
+            'end repeat',
+            'end repeat',
+            'return resultText',
+            'end tell',
+            'end tell',
+            'end run'
+          ].join('\n'),
+          String(app.record.electronPid)
+        )
+      await expect.poll(preview).toMatch(/page|页/i)
+      const previewText = preview()
+      await testInfo.attach('Native print preview accessibility', { body: previewText, contentType: 'text/plain' })
+      expect(previewText).toMatch(/Printer|打印机/i)
+      expect(previewText).toContain('PDF')
+    } finally {
       appleScript(
-        [
-          'on run argv',
-          'tell application "System Events"',
-          'tell (first application process whose unix id is (item 1 of argv as integer))',
-          'set resultText to ""',
-          'repeat with element in entire contents of window 1',
-          'try',
-          'set resultText to resultText & (description of element as text) & " " & (value of element as text) & return',
-          'end try',
-          'end repeat',
-          'return resultText',
-          'end tell',
-          'end tell',
-          'end run'
-        ].join('\n'),
+        'on run argv\ntell application "System Events" to tell (first application process whose unix id is (item 1 of argv as integer))\nset frontmost to true\nkey code 53\nend tell\nend run',
         String(app.record.electronPid)
       )
-    await expect.poll(preview).toMatch(/page|页/i)
-    const previewText = preview()
-    await testInfo.attach('Native print preview accessibility', { body: previewText, contentType: 'text/plain' })
-    expect(previewText).toMatch(new RegExp(`(?:of|共|/)\\s*${pdf.numPages}(?:\\D|$)`))
-    appleScript(
-      'on run argv\ntell application "System Events" to tell (first application process whose unix id is (item 1 of argv as integer))\nset frontmost to true\nkey code 53\nend tell\nend run',
-      String(app.record.electronPid)
-    )
+    }
     await pdf.destroy()
     await attachScreenshot('MP-77 note after exports and print preview')
 

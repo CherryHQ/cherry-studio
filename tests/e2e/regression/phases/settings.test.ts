@@ -149,10 +149,8 @@ test(...caseDefinition('MP-06'), async ({ app }, testInfo) => {
         .click()
       await expect(page.locator('[data-ui~="app.main"]')).toContainText(/[\u0e00-\u0e7f]/)
       await screenshot('MP-06 Thai main sidebar')
-      await page
-        .getByRole('button', { name: /Settings|ตั้งค่า|การตั้งค่า/, exact: true })
-        .first()
-        .click()
+      await page.locator('#app-sidebar').getByRole('button', { name: 'ผู้ใช้', exact: true }).click()
+      await page.getByLabel('เมนูบัญชี', { exact: true }).getByRole('button', { name: 'การตั้งค่า', exact: true }).click()
       await navigation().getByText('ลักษณะที่ปรากฏ', { exact: true }).click()
       await languagePicker().click()
       await page.getByRole('option', { name: /English/ }).click()
