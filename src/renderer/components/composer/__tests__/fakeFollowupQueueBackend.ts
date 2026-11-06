@@ -117,6 +117,7 @@ export function installFakeFollowupQueueBackend() {
               draft: FollowupQueueRow['draft']
               payload: FollowupQueueRow['payload']
               held?: boolean
+              restorePredecessors?: string[]
             }
           }) => {
             // Mirror production idempotency: a retried POST carries the same
@@ -163,7 +164,21 @@ export function installFakeFollowupQueueBackend() {
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString()
             }
-            state.rows.push(row)
+            if (body.restorePredecessors !== undefined) {
+              // Match the production insertion transaction: removed predecessors
+              // cannot turn an edit restoration into a tail insert.
+              const predecessor = [...body.restorePredecessors]
+                .reverse()
+                .find((id) => state.rows.some((entry) => entry.scopeKey === body.scopeKey && entry.id === id))
+              const index = predecessor ? state.rows.findIndex((entry) => entry.id === predecessor) + 1 : 0
+              state.rows.splice(index, 0, row)
+              // The fake lists by array placement but claims by orderKey.
+              // Normalize the scoped keys so restoration uses one FIFO model.
+              const scoped = state.rows.filter((entry) => entry.scopeKey === body.scopeKey)
+              for (const [order, entry] of scoped.entries()) {
+                entry.orderKey = `a${String(order).padStart(6, '0')}`
+              }
+            } else state.rows.push(row)
             if (body.held) {
               heldRows.add(row.id)
               claimTokens.set(row.id, HELD_TOKEN)

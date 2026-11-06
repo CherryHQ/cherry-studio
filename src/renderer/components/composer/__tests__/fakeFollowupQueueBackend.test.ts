@@ -44,6 +44,27 @@ describe('fakeFollowupQueueBackend', () => {
     })
   })
 
+  it.each([{ restorePredecessors: [] }, { restorePredecessors: ['removed-predecessor'] }])(
+    'keeps restored display order and claim order aligned with predecessors %j',
+    async ({ restorePredecessors }) => {
+      const post = triggerFor('POST', '/followup-queues')
+      await post({ body: { id: 'b', scopeKey: 's', draft: draft('b'), payload: payload('b') } })
+      await post({ body: { id: 'a', scopeKey: 's', draft: draft('a'), payload: payload('a'), restorePredecessors } })
+      await post({ body: { id: 'other', scopeKey: 'other', draft: draft('other'), payload: payload('other') } })
+      await post({ body: { id: 'c', scopeKey: 's', draft: draft('c'), payload: payload('c') } })
+      const claimHead = triggerFor('POST', '/followup-queues/claim:head')
+      const del = triggerFor('DELETE', '/followup-queues/:id')
+      const ids: string[] = []
+      for (let i = 0; i < 3; i++) {
+        const row = (await claimHead({ body: { scopeKey: 's' } })) as { id: string }
+        ids.push(row.id)
+        await del({ params: { id: row.id } })
+      }
+      expect(ids).toEqual(['a', 'b', 'c'])
+      await expect(claimHead({ body: { scopeKey: 'other' } })).resolves.toMatchObject({ id: 'other' })
+    }
+  )
+
   it('keeps claim:head in FIFO order past ten enqueues like production', async () => {
     const post = triggerFor('POST', '/followup-queues')
     const ids: string[] = []
