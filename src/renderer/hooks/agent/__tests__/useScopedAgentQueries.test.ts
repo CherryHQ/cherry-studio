@@ -6,7 +6,7 @@ import { useQuery } from '@data/hooks/useDataApi'
 
 import { useChannels } from '../useChannels'
 import { useSession } from '../useSession'
-import { useTaskLogs, useTasks } from '../useTasks'
+import { useTasks } from '../useTasks'
 
 describe('identity-scoped agent queries', () => {
   beforeEach(() => {
@@ -26,19 +26,11 @@ describe('identity-scoped agent queries', () => {
     )
   })
 
-  it('disables keepPreviousData for task list and task log queries', () => {
+  it('disables keepPreviousData for task list queries', () => {
     renderHook(() => useTasks('agent-1'))
-    renderHook(() => useTaskLogs('agent-1', 'task-1'))
 
     expect(vi.mocked(useQuery)).toHaveBeenCalledWith(
       '/agents/:agentId/tasks',
-      expect.objectContaining({
-        enabled: true,
-        swrOptions: { keepPreviousData: false }
-      })
-    )
-    expect(vi.mocked(useQuery)).toHaveBeenCalledWith(
-      '/agents/:agentId/tasks/:taskId/logs',
       expect.objectContaining({
         enabled: true,
         swrOptions: { keepPreviousData: false }

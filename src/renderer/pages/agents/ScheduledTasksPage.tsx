@@ -33,6 +33,8 @@ export default function ScheduledTasksPage() {
   const navigate = useNavigate()
   const active = useAllTasks('active')
   const paused = useAllTasks('paused')
+  const completed = useAllTasks('completed')
+  const missed = useAllTasks('missed')
   const { task, error: taskError, isLoading: taskLoading, refetch: refreshTask } = useTask(taskId ?? null)
   const selectedTask = task?.id === taskId && !taskError ? task : null
   const conversation = useTaskConversation(selectedTask, runId)
@@ -55,10 +57,13 @@ export default function ScheduledTasksPage() {
   const triggerRef = useRef<HTMLButtonElement>(null)
   const { createTask } = useCreateTask()
   const ids = useMemo(
-    () => [...new Set([...active.tasks, ...paused.tasks].map((item) => item.agentId))].sort(),
-    [active.tasks, paused.tasks]
+    () =>
+      [
+        ...new Set([...active.tasks, ...paused.tasks, ...completed.tasks, ...missed.tasks].map((item) => item.agentId))
+      ].sort(),
+    [active.tasks, paused.tasks, completed.tasks, missed.tasks]
   )
-  const { data: owners } = useQuery('/agents', { query: { ids, limit: 100 }, enabled: ids.length > 0 })
+  const { data: owners } = useQuery('/agents', { query: { ids, limit: 200 }, enabled: ids.length > 0 })
   const names = useMemo(() => new Map(owners?.items.map((agent) => [agent.id, agent.name])), [owners])
   const {
     data: availableAgents,
@@ -93,22 +98,24 @@ export default function ScheduledTasksPage() {
         />
       </ResourceList.Header>
       <div className="min-h-0 flex-1 overflow-y-auto pb-3">
-        <ScheduledTaskGroup
-          status="active"
-          source={active}
-          selectedTaskId={taskId}
-          agents={names}
-          onSelect={selectTask}
-          onDeleted={handleTaskDeleted}
-        />
-        <ScheduledTaskGroup
-          status="paused"
-          source={paused}
-          selectedTaskId={taskId}
-          agents={names}
-          onSelect={selectTask}
-          onDeleted={handleTaskDeleted}
-        />
+        {(
+          [
+            ['active', active],
+            ['paused', paused],
+            ['completed', completed],
+            ['missed', missed]
+          ] as const
+        ).map(([status, source]) => (
+          <ScheduledTaskGroup
+            key={status}
+            status={status}
+            source={source}
+            selectedTaskId={taskId}
+            agents={names}
+            onSelect={selectTask}
+            onDeleted={handleTaskDeleted}
+          />
+        ))}
       </div>
     </ConversationNavigationPane>
   )

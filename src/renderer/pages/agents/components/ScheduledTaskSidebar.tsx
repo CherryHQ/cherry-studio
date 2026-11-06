@@ -30,7 +30,7 @@ const TaskFormDialog = lazy(() =>
 )
 
 export interface ScheduledTaskGroupProps {
-  status: 'active' | 'paused'
+  status: ScheduledTaskListItem['status']
   source: ReturnType<typeof useAllTasks>
   selectedTaskId?: string
   agents: ReadonlyMap<string, string>
@@ -114,23 +114,27 @@ function TaskRow({
           </DropdownMenuTrigger>
         </Tooltip>
         <DropdownMenuContent align="end">
-          <DropdownMenuGroup>
-            <DropdownMenuItem
-              disabled={busy}
-              onSelect={() => void perform(() => setTaskEnabled(task.agentId, task.id, paused))}>
-              {paused ? <CirclePlay /> : <Pause />}
-              {t(paused ? 'scheduledTasks.resume' : 'agent.tasks.pause')}
-            </DropdownMenuItem>
-            <DropdownMenuItem disabled={busy} onSelect={() => void perform(() => runTask(task.agentId, task.id))}>
-              <Play />
-              {t('scheduledTasks.runNow')}
-            </DropdownMenuItem>
-            <DropdownMenuItem disabled={busy} onSelect={() => setEditOpen(true)}>
-              <PencilLine />
-              {t('common.edit')}
-            </DropdownMenuItem>
-          </DropdownMenuGroup>
-          <DropdownMenuSeparator />
+          {task.status !== 'completed' && (
+            <DropdownMenuGroup>
+              {(task.status === 'active' || paused) && (
+                <DropdownMenuItem
+                  disabled={busy}
+                  onSelect={() => void perform(() => setTaskEnabled(task.agentId, task.id, paused))}>
+                  {paused ? <CirclePlay /> : <Pause />}
+                  {t(paused ? 'scheduledTasks.resume' : 'agent.tasks.pause')}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem disabled={busy} onSelect={() => void perform(() => runTask(task.agentId, task.id))}>
+                <Play />
+                {t('scheduledTasks.runNow')}
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled={busy} onSelect={() => setEditOpen(true)}>
+                <PencilLine />
+                {t('common.edit')}
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+          )}
+          {task.status !== 'completed' && <DropdownMenuSeparator />}
           <DropdownMenuGroup>
             <DropdownMenuItem variant="destructive" disabled={busy} onSelect={() => setDeleteOpen(true)}>
               <Trash2 />
@@ -185,12 +189,18 @@ export function ScheduledTaskGroup({
   onDeleted
 }: ScheduledTaskGroupProps) {
   const { t } = useTranslation()
+  const statusLabel = t(
+    {
+      active: 'agent.tasks.status.active',
+      paused: 'agent.tasks.status.paused',
+      completed: 'agent.tasks.status.completed',
+      missed: 'agent.tasks.status.missed'
+    }[status]
+  )
   const [expanded, setExpanded] = useState(true)
   const contentId = useId()
   return (
-    <section
-      aria-label={t(status === 'active' ? 'agent.tasks.status.active' : 'agent.tasks.status.paused')}
-      className="flex flex-col gap-1">
+    <section aria-label={statusLabel} className="flex flex-col gap-1">
       <h2 className="flex h-9 items-center">
         <Button
           variant="ghost"
@@ -198,7 +208,7 @@ export function ScheduledTaskGroup({
           aria-expanded={expanded}
           aria-controls={contentId}
           onClick={() => setExpanded((value) => !value)}>
-          {t(status === 'active' ? 'agent.tasks.status.active' : 'agent.tasks.status.paused')}
+          {statusLabel}
           <span className="text-foreground-tertiary tabular-nums">{source.total}</span>
           <ChevronDown
             aria-hidden="true"
@@ -234,9 +244,7 @@ export function ScheduledTaskGroup({
             ))
           )}
           {(source.hasPrev || source.hasNext) && (
-            <nav
-              aria-label={t(status === 'active' ? 'agent.tasks.status.active' : 'agent.tasks.status.paused')}
-              className="flex items-center justify-between gap-1 pt-2">
+            <nav aria-label={statusLabel} className="flex items-center justify-between gap-1 pt-2">
               <Button
                 variant="ghost"
                 size="sm"
