@@ -43,6 +43,7 @@ import type { DoctorSubjectRef } from '@shared/types/doctor'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 
+import { AgentErrorUpgrade } from './AgentErrorUpgrade'
 import AgentSessionApiRetryStatus from './AgentSessionApiRetryStatus'
 import { agentSessionForkAvailability, agentSessionForkReasonLabel } from './agentSessionFork'
 import {
@@ -516,6 +517,10 @@ export function useAgentMessageListProviderValue({
       deleteMessage,
       ...exportActions,
       ...errorActions,
+      renderLocalAgentUpgrade:
+        normalInteractionsEnabled && resolvedAgentId
+          ? () => <AgentErrorUpgrade agentId={resolvedAgentId} />
+          : undefined,
       navigateErrorTarget: providerErrorSettingsPath ? navigateErrorTarget : errorActions.navigateErrorTarget,
       ...pickMessageLeafActions(leafCapabilities),
       openBrowserUrl,
@@ -556,6 +561,7 @@ export function useAgentMessageListProviderValue({
       errorActions,
       navigateErrorTarget,
       providerErrorSettingsPath,
+      resolvedAgentId,
       exportActions,
       headerCapabilities,
       isDirectory,

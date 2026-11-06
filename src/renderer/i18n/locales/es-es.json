@@ -1471,6 +1471,7 @@
   "error.diagnosis.ai_result": "Resultado del diagnóstico IA",
   "error.diagnosis.auth": "Clave API no válida, por favor verifica y reconfigura",
   "error.diagnosis.bad_request": "La solicitud al proveedor falló (HTTP 400)",
+  "error.diagnosis.codex_model_unsupported": "Codex no puede usar este modelo con la cuenta o versión de CLI actual. Cambia de modelo o actualiza la CLI en Servicios de agentes y vuelve a intentarlo.",
   "error.diagnosis.content": "Contenido bloqueado por el sistema de seguridad, modifica e intenta de nuevo",
   "error.diagnosis.context_length": "Conversación demasiado larga, por favor borra el historial o inicia un nuevo chat",
   "error.diagnosis.deprecated": "Este modelo ha sido retirado, por favor cambia a otro modelo",

@@ -1471,6 +1471,7 @@
   "error.diagnosis.ai_result": "Résultat du diagnostic IA",
   "error.diagnosis.auth": "Clé API invalide, veuillez vérifier et reconfigurer",
   "error.diagnosis.bad_request": "La requête au fournisseur a échoué (HTTP 400)",
+  "error.diagnosis.codex_model_unsupported": "Codex ne peut pas utiliser ce modèle avec le compte ou la version CLI actuels. Changez de modèle ou mettez à jour la CLI dans Services des agents, puis réessayez.",
   "error.diagnosis.content": "Contenu bloqué par le système de sécurité, veuillez modifier et réessayer",
   "error.diagnosis.context_length": "Conversation trop longue, veuillez effacer l’historique ou commencer une nouvelle discussion",
   "error.diagnosis.deprecated": "Ce modèle a été retiré, veuillez passer à un autre modèle",

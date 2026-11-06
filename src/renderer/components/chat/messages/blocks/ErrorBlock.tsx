@@ -127,8 +127,14 @@ const MessageErrorInfo: React.FC<{
   error: Props['error']
   message: MessageListItem
 }> = ({ partId, error, message }) => {
-  const { diagnoseMessageError, removeMessageErrorPart, openErrorDetail, navigateErrorTarget, notifyError } =
-    useMessageListActions()
+  const {
+    diagnoseMessageError,
+    removeMessageErrorPart,
+    openErrorDetail,
+    navigateErrorTarget,
+    notifyError,
+    renderLocalAgentUpgrade
+  } = useMessageListActions()
   const { setTimeoutTimer } = useTimer()
   const { t, i18n } = useTranslation()
   const [aiSummary, setAiSummary] = useState<string>('')
@@ -274,7 +280,8 @@ const MessageErrorInfo: React.FC<{
       </div>
 
       {/* Footer */}
-      <div className="mt-2.5 ml-5.75 flex items-center gap-2">
+      <div className="mt-2.5 ml-5.75 flex flex-wrap items-center gap-2">
+        {classification.i18nKey === 'error.diagnosis.codex_model_unsupported' && renderLocalAgentUpgrade?.()}
         {canNavigate && (
           <Button
             size="sm"

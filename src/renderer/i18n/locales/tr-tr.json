@@ -1471,6 +1471,7 @@
   "error.diagnosis.ai_result": "Yapay Zekâ Tanılama Sonucu",
   "error.diagnosis.auth": "API anahtarı geçersiz; kontrol edip yeniden yapılandırın",
   "error.diagnosis.bad_request": "Sağlayıcıya yapılan istek başarısız oldu (HTTP 400)",
+  "error.diagnosis.codex_model_unsupported": "Codex bu modeli mevcut hesap veya CLI sürümüyle kullanamıyor. Modeli değiştirin veya Ajan Hizmetleri bölümünden CLI sürümünü yükseltip yeniden deneyin.",
   "error.diagnosis.content": "İçerik güvenlik sistemi tarafından engellendi; içeriği değiştirip yeniden deneyin",
   "error.diagnosis.context_length": "Konuşma çok uzun; geçmişi temizleyin veya yeni bir sohbet başlatın",
   "error.diagnosis.deprecated": "Bu model kullanımdan kaldırıldı; başka bir modele geçin",

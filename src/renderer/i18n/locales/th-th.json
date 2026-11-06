@@ -1471,6 +1471,7 @@
   "error.diagnosis.ai_result": "ผลการวินิจฉัยด้วย AI",
   "error.diagnosis.auth": "API Key ไม่ถูกต้อง กรุณาตรวจสอบและกำหนดค่าใหม่",
   "error.diagnosis.bad_request": "คำขอไปยังผู้ให้บริการล้มเหลว (HTTP 400)",
+  "error.diagnosis.codex_model_unsupported": "Codex ไม่สามารถใช้โมเดลนี้กับบัญชีหรือเวอร์ชัน CLI ปัจจุบันได้ โปรดเปลี่ยนโมเดล หรืออัปเกรด CLI ในบริการเอเจนต์แล้วลองอีกครั้ง",
   "error.diagnosis.content": "เนื้อหาถูกบล็อกโดยระบบความปลอดภัย กรุณาแก้ไขและลองอีกครั้ง",
   "error.diagnosis.context_length": "การสนทนายาวเกินไป กรุณาล้างประวัติหรือเริ่มแชทใหม่",
   "error.diagnosis.deprecated": "โมเดลนี้ถูกยกเลิกแล้ว กรุณาเปลี่ยนเป็นโมเดลอื่น",

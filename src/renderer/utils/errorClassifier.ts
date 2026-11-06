@@ -188,6 +188,18 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
 
   if (!error) return classify('unknown')
 
+  if (
+    /model is not supported when using Codex with a ChatGPT account/i.test(
+      [error.message, getSafeProviderErrorMessage(error)].join('\n')
+    )
+  ) {
+    return {
+      category: 'model',
+      i18nKey: 'error.diagnosis.codex_model_unsupported',
+      navTarget: '/settings/local-agents?id=codex'
+    }
+  }
+
   const claudeCodeExitCategory = getClaudeCodeExitCategory(error)
   if (claudeCodeExitCategory) return classify(claudeCodeExitCategory)
 

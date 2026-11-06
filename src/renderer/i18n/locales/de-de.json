@@ -1471,6 +1471,7 @@
   "error.diagnosis.ai_result": "KI-Diagnoseergebnis",
   "error.diagnosis.auth": "API-Schlüssel ungültig, bitte überprüfen und neu konfigurieren",
   "error.diagnosis.bad_request": "Anfrage an den Anbieter fehlgeschlagen (HTTP 400)",
+  "error.diagnosis.codex_model_unsupported": "Codex kann dieses Modell mit dem aktuellen Konto oder der CLI-Version nicht verwenden. Wechseln Sie das Modell oder aktualisieren Sie die CLI unter Agent-Dienste und versuchen Sie es erneut.",
   "error.diagnosis.content": "Inhalt wurde vom Sicherheitssystem blockiert, bitte ändern und erneut versuchen",
   "error.diagnosis.context_length": "Unterhaltung zu lang, bitte Verlauf löschen oder einen neuen Chat beginnen",
   "error.diagnosis.deprecated": "Dieses Modell wurde außer Betrieb genommen, bitte wechseln Sie zu einem anderen Modell",
