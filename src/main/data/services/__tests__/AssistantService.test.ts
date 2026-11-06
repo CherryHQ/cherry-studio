@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { followupQueueStateTable, followupQueueTable } from '@data/db/schemas/followupQueue'
 import { groupTable } from '@data/db/schemas/group'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
@@ -1495,6 +1496,104 @@ describe('AssistantDataService', () => {
       ])
     })
 
+    it('should purge follow-up queue rows and notify consumers on permanent delete', async () => {
+      notifyDataApiDataChangeMock.mockClear()
+      await seedAssistantRow([
+        { id: 'ast-1', name: 'delete with topics' },
+        { id: 'ast-2', name: 'keep topics' }
+      ])
+      await dbh.db.insert(topicTable).values([
+        { id: 'topic-1', name: '', assistantId: 'ast-1', orderKey: 'a0' },
+        { id: 'topic-2', name: 'kept', assistantId: 'ast-2', orderKey: 'a1' }
+      ])
+      await dbh.db.insert(followupQueueTable).values([
+        {
+          id: '11111111-1111-7111-8111-111111111111',
+          scopeKey: 'topic-1:ast-1',
+          draft: { text: 'queued', tokens: [] },
+          payload: { text: 'queued', userMessageParts: [] },
+          status: 'pending',
+          orderKey: 'a0',
+          createdAt: 1,
+          updatedAt: 1
+        },
+        {
+          id: '22222222-2222-7222-8222-222222222222',
+          scopeKey: 'topic-2:ast-2',
+          draft: { text: 'kept', tokens: [] },
+          payload: { text: 'kept', userMessageParts: [] },
+          status: 'pending',
+          orderKey: 'a0',
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ])
+
+      // Trashing keeps the queue restorable; only the permanent delete purges.
+      assistantDataService.delete('ast-1', { deleteTopics: true })
+      expect(await dbh.db.select().from(followupQueueTable)).toHaveLength(2)
+      notifyDataApiDataChangeMock.mockClear()
+      assistantDataService.delete('ast-1', { permanent: true })
+
+      expect((await dbh.db.select().from(followupQueueTable)).map((row) => row.id)).toEqual([
+        '22222222-2222-7222-8222-222222222222'
+      ])
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/followup-queues', kind: 'membership', dimension: 'scopeKey' },
+        { endpoint: '/followup-queue-states' }
+      ])
+    })
+
+    it("should purge only the deleted assistant's own scope on a retained topic", async () => {
+      await seedAssistantRow([
+        { id: 'ast-1', name: 'delete' },
+        { id: 'ast-2', name: 'keep' }
+      ])
+      await dbh.db.insert(topicTable).values([{ id: 'topic-1', name: 'shared', assistantId: 'ast-1', orderKey: 'a0' }])
+      await dbh.db.insert(followupQueueTable).values([
+        {
+          id: '11111111-1111-7111-8111-111111111111',
+          scopeKey: 'topic-1:ast-1',
+          draft: { text: 'theirs', tokens: [] },
+          payload: { text: 'theirs', userMessageParts: [] },
+          status: 'pending',
+          orderKey: 'a0',
+          createdAt: 1,
+          updatedAt: 1
+        },
+        {
+          id: '33333333-3333-7333-8333-333333333333',
+          scopeKey: 'topic-1:ast-1',
+          draft: { text: 'delivered', tokens: [] },
+          payload: { text: 'delivered', userMessageParts: [] },
+          status: 'closed',
+          orderKey: 'a2',
+          createdAt: 1,
+          updatedAt: 1
+        },
+        {
+          id: '22222222-2222-7222-8222-222222222222',
+          scopeKey: 'topic-1:ast-2',
+          draft: { text: 'kept', tokens: [] },
+          payload: { text: 'kept', userMessageParts: [] },
+          status: 'pending',
+          orderKey: 'a1',
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ])
+
+      // Topic retained (no deleteTopics): the deleted assistant's own scope
+      // purges, but another assistant's queue on the same topic must survive,
+      // and the deleted scope's closed receipt stays as the retry barrier.
+      assistantDataService.delete('ast-1')
+      assistantDataService.delete('ast-1', { permanent: true })
+
+      expect((await dbh.db.select().from(followupQueueTable)).map((row) => row.id).sort()).toEqual(
+        ['22222222-2222-7222-8222-222222222222', '33333333-3333-7333-8333-333333333333'].sort()
+      )
+    })
+
     it('should roll back both parent and child trash when the cascade fails midway', async () => {
       await seedAssistantRow({ id: 'ast-1', name: 'rollback' })
       await dbh.db.insert(topicTable).values({
@@ -1914,6 +2013,92 @@ describe('AssistantDataService', () => {
       expect(purgedIds).toEqual(['ast-expired'])
       const pinRows = await dbh.db.select().from(pinTable)
       expect(pinRows.map((row) => row.entityId)).toEqual(['ast-active'])
+    })
+
+    it('should purge follow-up queue rows and paused state for purged assistants’ topics', async () => {
+      await seedAssistantRow([
+        { id: 'ast-expired', name: 'expired', deletedAt: 100 },
+        { id: 'ast-active', name: 'active' }
+      ])
+      await dbh.db.insert(topicTable).values([
+        { id: 'topic-gone', name: '', assistantId: 'ast-expired', orderKey: 'a0' },
+        { id: 'topic-kept', name: '', assistantId: 'ast-active', orderKey: 'a1' }
+      ])
+      await dbh.db.insert(followupQueueTable).values([
+        {
+          id: '11111111-1111-7111-8111-111111111111',
+          scopeKey: 'topic-gone:ast-expired',
+          draft: { text: 'orphaned', tokens: [] },
+          payload: { text: 'orphaned', userMessageParts: [] },
+          status: 'pending',
+          orderKey: 'a0',
+          createdAt: 1,
+          updatedAt: 1
+        },
+        {
+          id: '22222222-2222-7222-8222-222222222222',
+          scopeKey: 'topic-kept:ast-active',
+          draft: { text: 'kept', tokens: [] },
+          payload: { text: 'kept', userMessageParts: [] },
+          status: 'pending',
+          orderKey: 'a0',
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ])
+      await dbh.db.insert(followupQueueStateTable).values([
+        { scopeKey: 'topic-gone:ast-expired', paused: true, createdAt: 1, updatedAt: 1 },
+        { scopeKey: 'topic-kept:ast-active', paused: false, createdAt: 1, updatedAt: 1 }
+      ])
+
+      const purgedIds = assistantDataService.purgeExpiredTx(dbh.db, Date.now(), 500)
+
+      expect(purgedIds).toEqual(['ast-expired'])
+      expect((await dbh.db.select().from(followupQueueTable)).map((row) => row.id)).toEqual([
+        '22222222-2222-7222-8222-222222222222'
+      ])
+      expect((await dbh.db.select().from(followupQueueStateTable)).map((row) => row.scopeKey)).toEqual([
+        'topic-kept:ast-active'
+      ])
+    })
+
+    it("should purge only the expired assistant's own scope on a retained topic", async () => {
+      await seedAssistantRow([
+        { id: 'ast-expired', name: 'expired', deletedAt: 100 },
+        { id: 'ast-active', name: 'active' }
+      ])
+      await dbh.db
+        .insert(topicTable)
+        .values([{ id: 'topic-gone', name: 'shared', assistantId: 'ast-expired', orderKey: 'a0' }])
+      await dbh.db.insert(followupQueueTable).values([
+        {
+          id: '11111111-1111-7111-8111-111111111111',
+          scopeKey: 'topic-gone:ast-expired',
+          draft: { text: 'orphaned', tokens: [] },
+          payload: { text: 'orphaned', userMessageParts: [] },
+          status: 'pending',
+          orderKey: 'a0',
+          createdAt: 1,
+          updatedAt: 1
+        },
+        {
+          id: '22222222-2222-7222-8222-222222222222',
+          scopeKey: 'topic-gone:ast-active',
+          draft: { text: 'kept', tokens: [] },
+          payload: { text: 'kept', userMessageParts: [] },
+          status: 'pending',
+          orderKey: 'a1',
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ])
+
+      const purgedIds = assistantDataService.purgeExpiredTx(dbh.db, Date.now(), 500)
+
+      expect(purgedIds).toEqual(['ast-expired'])
+      expect((await dbh.db.select().from(followupQueueTable)).map((row) => row.id)).toEqual([
+        '22222222-2222-7222-8222-222222222222'
+      ])
     })
 
     it('should be a no-op when nothing is expired', async () => {
