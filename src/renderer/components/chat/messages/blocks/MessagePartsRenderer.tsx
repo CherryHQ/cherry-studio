@@ -50,7 +50,12 @@ import {
 import type { CompactionAnchorData } from '@shared/ai/compaction'
 import type { FileHandle } from '@shared/data/types/file'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
-import type { CherryProviderMetadata, ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
+import type {
+  CherryProviderMetadata,
+  ComposerMessageSnapshot,
+  ComposerMessageToken,
+  ModelFallbackPartData
+} from '@shared/data/types/uiParts'
 import { AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
 import { fileUrlToPath } from '@shared/utils/file'
 
@@ -98,6 +103,7 @@ import {
 } from './messagePartLayouts'
 import { useMessageParts } from './MessagePartsContext'
 import MessageProcessGroup from './MessageProcessGroup'
+import ModelFallbackBlock from './ModelFallbackBlock'
 import PlaceholderBlock, { type PlaceholderStatus } from './PlaceholderBlock'
 import RetryStatusBlock from './RetryStatusBlock'
 import ThinkingBlock, { ThinkingBlockContent } from './ThinkingBlock'
@@ -767,6 +773,9 @@ function renderPart(
 
     case 'data-agent-session-fork':
       return <AgentSessionForkBlock key={partId} sourceSessionId={part.data.sourceSessionId} />
+
+    case 'data-model-fallback':
+      return <ModelFallbackBlock key={partId} data={(part as { data?: ModelFallbackPartData }).data} />
 
     case 'data-translation': {
       const translationData = (part as { data: { content: string } }).data

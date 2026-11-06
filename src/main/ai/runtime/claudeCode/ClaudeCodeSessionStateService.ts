@@ -9,8 +9,9 @@
  * metadata in sync with a live `tools/list_changed`.
  *
  * Container-managed singleton: one instance process-wide guarantees the fire-time lookup and the
- * settings build observe the same maps. `ClaudeCodeRuntimeDriver.teardownSession` is the ONLY
- * per-session dispose path; `onStop`/`onDestroy` sweep whatever shutdown leaves behind.
+ * settings build observe the same maps. `ClaudeCodeRuntimeDriver.teardownSession` (plus its
+ * abandoned-settings disposals when a fallback build dies mid-construction) are the ONLY
+ * per-session dispose paths; `onStop`/`onDestroy` sweep whatever shutdown leaves behind.
  */
 
 import { application } from '@application'
@@ -183,6 +184,18 @@ export class ClaudeCodeSessionStateService extends BaseService {
     origins.delete(toolUseId)
     if (origins.size === 0) this.bashRewriteOrigins.delete(sessionId)
     return original
+  }
+
+  /**
+   * Disposes whatever session-keyed holders the maps hold for a session. For a settings build
+   * that failed partway — it recreated holders lazily and then rejected, so it cannot hand back
+   * the references — only the fallback setup's rejection path may call this, and only after
+   * teardown latched: the closing barrier guarantees no successor connection registered its own
+   * holders in between.
+   */
+  disposeSessionHolders(sessionId: string): void {
+    this.toolApprovalEmitters.get(sessionId)?.dispose?.()
+    this.steerHolders.get(sessionId)?.dispose()
   }
 
   disposeToolPolicySnapshot(sessionId: string): void {

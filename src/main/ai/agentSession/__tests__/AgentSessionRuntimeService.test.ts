@@ -144,7 +144,9 @@ vi.mock('@application', async () => {
   const result = mockApplicationFactory()
   const get = result.application.getContainer().get.bind(result.application.getContainer())
   result.application.get.mockImplementation((name: string) =>
-    name === 'DbService' || name === 'RuntimeActivityService' ? get(name) : mocks.applicationGet(name)
+    name === 'DbService' || name === 'RuntimeActivityService' || name === 'PreferenceService'
+      ? get(name)
+      : mocks.applicationGet(name)
   )
   result.application.getPath.mockImplementation(forkRecoveryMocks.getPath)
   return result

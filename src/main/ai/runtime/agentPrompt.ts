@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { loadBuiltinAgentDefinition, provisionBuiltinAgent } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
 import { type AgentPromptBase, PromptBuilder } from '@main/ai/agents/prompt'
 import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
-import { replacePromptVariables } from '@main/utils/prompt'
+import { replacePromptVariables, type PromptVariableInputs } from '@main/utils/prompt'
 import { REPORT_ARTIFACTS_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 
@@ -42,6 +42,8 @@ export interface BuildAgentRuntimePromptOptions {
   /** Materialized effective language; when omitted the preference is read live. */
   effectiveLanguage?: string | null
   mcpInstructions?: string
+  /** Variable values the turn was admitted with; a rebuild inside that turn must reuse them. */
+  promptVariables?: PromptVariableInputs | null
 }
 
 const promptBuilder = new PromptBuilder()
@@ -54,7 +56,8 @@ export async function buildAgentRuntimePrompt({
   citationsGuidance,
   customBaseContext,
   effectiveLanguage,
-  mcpInstructions
+  mcpInstructions,
+  promptVariables
 }: BuildAgentRuntimePromptOptions): Promise<AgentRuntimePrompt> {
   const builtinRole = agent.configuration?.builtin_role as string | undefined
   const isAssistant = builtinRole === 'assistant'
@@ -70,7 +73,7 @@ export async function buildAgentRuntimePrompt({
   if (builtinRole) await provisionBuiltinAgent(agentDataPath, builtinRole)
 
   const resolvedInstructions = instructions?.trim()
-    ? await replacePromptVariables(instructions, agent.modelName ?? undefined)
+    ? await replacePromptVariables(instructions, agent.modelName ?? undefined, promptVariables)
     : ''
   const hasAgentInstructions = Boolean(resolvedInstructions.trim())
   const parts = await promptBuilder.buildPromptParts(

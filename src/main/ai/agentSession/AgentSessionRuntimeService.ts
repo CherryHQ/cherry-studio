@@ -15,7 +15,9 @@ import { loggerService } from '@logger'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork'
 import { ProjectionSubscriptions } from '@main/ai/messages/ProjectionSubscriptions'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
+import { AgentSessionFallbackConnection } from '@main/ai/runtime/AgentSessionFallbackConnection'
 import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
+import { resolveAgentFallbackPolicy } from '@main/ai/runtime/modelFallback'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
@@ -1975,7 +1977,7 @@ export class AgentSessionRuntimeService extends BaseService {
     this.hydrateResumeToken(entry)
     if (!this.isCurrentEntry(entry)) return false
 
-    const connection = await driver.connect({
+    const connectInput = {
       sessionId: entry.sessionId,
       agentId: entry.agentId,
       modelId: target.modelId,
@@ -1988,9 +1990,20 @@ export class AgentSessionRuntimeService extends BaseService {
       nativeSessionId: agentSessionMessageService.getNativeSessionId(entry.sessionId, entry.branchHead),
       branchHead: entry.branchHead,
       onSteerInjected: (inputs) => this.reserveSteerContinuation(entry, inputs)
-    })
+    }
+    const baseConnection = await driver.connect(connectInput)
+    // Read the intent after startup: a Stop that landed while connecting must still cancel the
+    // work the returned connection owns instead of only shutting it down.
     const attempt = this.connectionAttempts.get(entry.sessionId)
     const interrupt = attempt?.id === attemptId && attempt.interrupt
+    // Without a configured fallback the wrapper has nothing to rebuild for; installing it anyway
+    // would hide the native connection's child-owner capabilities behind an optional-only surface.
+    const fallbackConfigured =
+      (entry.agentType === 'pi' || entry.agentType === 'dsh') &&
+      resolveAgentFallbackPolicy(entry.agentId).fallbackModelIds.length > 0
+    const connection = fallbackConfigured
+      ? new AgentSessionFallbackConnection(driver, connectInput, baseConnection)
+      : baseConnection
     if (!this.isCurrentEntry(entry) || !this.connectionTargetEquals(entry, target)) {
       await this.closeRuntimeConnection(connection, entry.sessionId, false, interrupt)
       return false
@@ -2061,6 +2074,8 @@ export class AgentSessionRuntimeService extends BaseService {
         if (this.runtimeStatus(entry) === 'active') this.refreshContextUsage(entry)
         break
       case 'chunk': {
+        // A Pi/DSH fallback can change the usage owner along with its provider route.
+        if (event.chunk.type === 'data-model-fallback') entry.usageCapture = connection?.usageCapture
         // Any content chunk means the retried request succeeded and the stream resumed — clear the
         // ephemeral retry status (backoff windows produce no chunks, so this never fires mid-retry).
         this.clearApiRetry(entry)

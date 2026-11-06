@@ -257,7 +257,8 @@ describe('buildSystemPrompt — Agent System Prompt authority', () => {
 
     expect(mockReplacePromptVariables).toHaveBeenCalledWith(
       'Address {{username}} while using {{model_name}}.',
-      'Claude Sonnet 4.5'
+      'Claude Sonnet 4.5',
+      undefined
     )
     expect(text).toContain('Address Alice while using Claude Sonnet 4.5.')
     expect(text).not.toContain('{{username}}')
