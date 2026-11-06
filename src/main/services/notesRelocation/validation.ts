@@ -63,8 +63,9 @@ function pathEntryExists(value: string): boolean {
 export function resolveExistingAncestor(value: string): { path: string; effectivePath: string } {
   const absolute = path.isAbsolute(value) ? value : process.cwd() + path.sep + value
   const { root } = path.parse(absolute)
-  // Normalize only separators (win32 altsep), never dot segments.
-  const body = path.altsep ? absolute.slice(root.length).split(path.altsep).join(path.sep) : absolute.slice(root.length)
+  // Normalize only separators (win32 accepts '/' as well), never dot segments.
+  const rest = absolute.slice(root.length)
+  const body = path.sep === '\\' ? rest.split('/').join(path.sep) : rest
   let resolved = root
   for (const segment of body.split(path.sep)) {
     if (segment === '' || segment === '.') {
