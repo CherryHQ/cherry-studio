@@ -12,6 +12,8 @@ Users accumulate conversations in Claude Code, Codex, OpenCode, and WorkBuddy ou
 
 ## Proposal
 
+The 2026-11-06 revision selects app_state storage and simpler reimport rules. Native editing, deletion, and forks remain supported. This is the target design; the existing draft code still uses the earlier columns. This documentation revision does not claim implementation or new runtime validation.
+
 ### Destination and entry point
 
 Expose **Settings → Data settings → Import local application data → source application**. Keep Import external application data and Import local application data in separate settings groups. Each source opens a shared import dialog. Show an enabled source only after its implementation is complete; existing web-export import entries retain their purpose. Give local sources their application icons and the spacing used by other settings rows.
@@ -60,7 +62,7 @@ Use `agent`, `agent_session`, `agent_session_message`, and `agent_workspace`. An
 | [AgentWorkspaceService](../../../../src/main/data/services/AgentWorkspaceService.ts) | Reuse `findOrCreateByPathTx` and `createSystemWorkspaceForSessionTx` |
 | [AgentSessionMessageService](../../../../src/main/data/services/AgentSessionMessageService.ts) | Add an import-specific batch contract for historical timestamps, source identity, and order |
 
-The first version preserves original timestamps. WorkBuddy reuses the existing message `provenance.sourceOrder` for a fixed imported prefix; native continuation follows under the existing `createdAt, id` rule. Main-process pagination, anchors, edit/fork boundaries, export and Pi history initialization use this order. Forks preserve message provenance without copying session-level import identity. No new table, column or data migration is required. Other sources retain their current ordering and timestamp rejection.
+The first version preserves original timestamps. Store message provenance in app_state and project it onto the message read model. WorkBuddy uses `provenance.sourceOrder` for a fixed imported prefix; native continuation follows under `createdAt, id`. Pagination, anchors, edit/fork boundaries, export, and Pi initialization use this order. Other sources retain their current ordering and timestamp rejection. The observed rollback sample does not establish how often rollback occurs.
 
 Future source timestamps are rejected during preview and before any commit writes. Check the maximum timestamp across all messages, not the last record. If it equals the current millisecond, wait outside the transaction and recheck. Display, date filtering and global search use original timestamps. Preview uses the minimum/maximum time; imported session activity uses the maximum.
 
@@ -208,10 +210,10 @@ The real transcript has 240 content/process records. Five tool timestamps decrea
 | Option | Benefit | Cost or constraint |
 |---|---|---|
 | Retain timestamp rejection | No shared behavior change | Useful as an interim guard; does not deliver import for the inspected real conversation |
-| Reuse existing source-order provenance | Preserves source times and causal order without a schema migration; selected | Shared reads, pagination, forks and continuation must preserve the imported prefix |
+| Store source-order provenance in app_state | Preserves source times and causal order without schema changes; selected | Keyed associations, pagination, forks, and continuation must preserve the imported prefix |
 | Normalize internal ordering time; preserve every original time in provenance | May reuse the existing schema and cursor mechanism | Changes the time contract; display, export, search, activity, and continuation must agree on which time they use |
 
-The user selected independent source order and explicitly authorized implementation on 2026-11-05. Reuse the existing provenance field instead of adding a general message sequence or changing timestamps. Two-band pagination uses a local opaque cursor; ordinary cursors and global chronological search remain unchanged. Do not sort only in Renderer. Validate the observed backward intervals through persistence, paging, forks and continuation. This decision does not claim an exact-head GitHub review or completed platform verification.
+The 2026-11-06 decision retains independent source order but moves provenance from the draft column to app_state. Two-band pagination keeps a local opaque cursor; ordinary cursors and global chronological search remain unchanged. Do not sort only in Renderer. Validate backward intervals through persistence, paging, native edits/forks, and continuation. This decision does not establish exact-head GitHub approval or completed platform verification.
 
 Create synthetic fixtures for the observed schema and each supported record shape. Cover missing/cloud-only history, changed index/transcript pairs, duplicate IDs, envelope lookalikes, tool errors, interrupted history, playground workspaces, and the five backward intervals. Declare unsupported attachments, branches, and child histories separately. Verify through the existing Pi continuation and renderer paths after implementation; none of those product checks was run during this research.
 
@@ -256,7 +258,7 @@ Merge adjacent completed historical process-only records into one Processed grou
 
 Project one selected source branch into the flat Agent Session. Use an explicit active branch when available; otherwise require a preview choice. Report other branches as not imported. Independently recoverable subagent sessions are separate candidates under the selected target Agent. Never concatenate mutually exclusive branches.
 
-Convert valid times to UTC milliseconds while preserving raw source strings. For missing/invalid times, use the preceding valid time on the selected path, or a valid session-start time for the first message. Mark inferred values in preview; if no basis exists, block that session. Preserve source message identity and inference markers in typed message provenance, not in body text. Set session activity from historical activity; preserve the existing Agent's creation time.
+Convert valid times to UTC milliseconds. For missing or invalid times, use the preceding valid time on the selected path, or a valid session-start time for the first message. Mark inferred values in preview; without a basis, block that session. Raw timestamps, source message IDs, and inference details stay in bounded parsing/preview state, not durable audit fields or body text. Persist message source and order only; the message row already stores its timestamp. Set session activity from historical activity and preserve the existing Agent creation time.
 
 Record complete historical model information in `messageSnapshot.model`. Leave `modelId` empty when no local model matches, and display missing information as unrecorded. Do not create fake model/account configuration. Historical references remain inert text and follow existing Markdown rendering rules.
 
@@ -266,7 +268,7 @@ Once the actual beginning of history is loaded and a real user message is found,
 
 Continuation ships in layer one, with Pi targets only; disable other runtimes in the selector. Visible messages alone do not establish native context. Reuse [Pi history conversion](../../../../src/main/ai/runtime/pi/retiredSessionHistory.ts) through a separate import entry, without impersonating retired-runtime migration or using external resume tokens. Preserve trailing imported user messages instead of applying retired migration's pending-delivery filtering.
 
-Use the selected Agent's current instructions, model-selection rules, and permissions. History can be imported without a usable model, but continuation requires selecting one through the normal workflow. Initialize Cherry-owned native history after confirmation, without a model request or historical tool execution. Reuse `app_state` for an internal, retryable initialization marker committed with the session; business source identity stays on the session.
+Use the selected Agent's current instructions, model-selection rules, and permissions. History can be imported without a usable model, but continuation requires selecting one through the normal workflow. Initialize Cherry-owned native history after confirmation, without a model request or historical tool execution. Commit retryable initialization state and source identity together in the session app_state record.
 
 Native-file publication and SQLite commit are separate. Use a stable target native-session ID, validated temporary output, and a committed association. Retrying must not duplicate history. If initialization fails, keep history readable, expose retry, and block a context-free request. [The runtime host](../../../../src/main/ai/agentSession/AgentSessionRuntimeService.ts) must admit the first real turn only after the imported history is available. Verification inspects actual model input, not just rendered messages. Current Cherry permissions apply.
 
@@ -274,41 +276,58 @@ Native-file publication and SQLite commit are separate. Use a stable target nati
 
 The destination is the existing Agent ID selected by the user and bound to the preview. Do not add an Agent source marker, source-to-Agent mapping, or source-Agent uniqueness constraint. Source identity belongs to imported sessions and does not determine their owner.
 
-Add nullable `importMetadata` to `agent_session`:
+Reuse app_state without adding tables, columns, or indexes. Use `conversation-import:session:<sessionId>` for session state and `conversation-import:message:<sessionId>:<messageId>` for message provenance. These are proposed owner-private shapes:
 
 ```ts
 interface AgentSessionImportMetadata {
-  version: 1
   source: Source
   originalSessionId: string
-  sourcePaths: string[]
-  sourceVersion?: string
-  originalWorkingDirectory?: string
-  sourceFingerprint: string
-  importedAt: string
-  adapterVersion: number
-  report: { skippedRecords: number; downgradedParts: number }
+}
+
+interface ImportedSessionState {
+  version: 1
+  metadata: AgentSessionImportMetadata
+  initialization?: {
+    nativeSessionId: string
+    status: 'pending' | 'ready'
+    messageCount: number
+  }
+}
+
+interface MessageProvenance {
+  source: Source
+  sourceOrder: number
 }
 ```
 
-Keep the active directory in `workspaceId`; the original path is provenance, not a parallel workspace state. Index `source + originalSessionId` for active sessions, independent of the chosen Agent. Check this identity inside the synchronous write transaction to serialize repeated imports. The lookup index is non-unique so restoring an archived copy can coexist with a later import. Changing targets does not create a second copy or move an existing import; report the existing session and its current owner. Existing sessions without metadata remain unaffected. Paths and content hashes are not identities. Reject sources without a verified stable ID.
+Keep the active directory in `workspaceId`. Do not persist source paths, versions, fingerprints, import reports, or duplicate timestamp fields. Keep them only where needed in bounded preview state. Preserve the response names `importMetadata` and `provenance` with the reduced fields above. No new IPC commands are needed.
+
+One data-layer owner manages these keys and exposes typed operations to session/message services. This namespace is a proposed exception to the disposable-marker contract of app_state: it holds required import data. Backups must preserve it; do not clear it as a cache. Document the exception and key ownership during implementation, without making other namespaces cross-domain APIs.
+
+Find `source + originalSessionId` matches by querying only the session-key range and joining actual sessions, including archived sessions. Identity is global across destination Agents. Do not add a reverse map or JSON index. Recheck inside the synchronous write transaction to serialize repeated imports. Changing targets does not copy or move an existing import. Once a stable source ID is verified, an existing match returns already imported without comparing old paths or content versions. Reject new sources without a verified stable ID.
+
+Use database-side keyed associations for imported-message ordering and pagination. Batch-hydrate read projections; do not query once per message or load all message bodies to paginate. Ordinary-session queries remain unchanged. Search anchors, export, native history, and edit/fork reads use the same enriched ordering contract.
+
+Reuse native editing, deletion, and forks, including their shared runtime checkpoints and normal eligibility rules. Copy message provenance to new message IDs in the fork transaction without copying session import identity. Content edits preserve provenance; native tail replacement removes corresponding state, and generated replacements follow native rules. Single-message deletion removes its state. Session/Agent permanent deletion cleans related state; archive/restore retain it. Initialization retries use current surviving history and must not resurrect deleted messages.
 
 | Case | Result |
 |---|---|
 | Reimport an existing session, including with another target | Return the existing session and owner; do not copy or move it |
 | Source history grows | Report already imported; no automatic append or overwrite |
 | Selected Agent is in the recycle bin | Require an active target |
-| Imported session is archived | Preserve the archived copy and import a new session under the selected Agent; restoring the old copy remains supported |
+| Imported session is archived | Report already imported; retain the archived copy for normal restore |
 | Session was permanently deleted | Allow reimport under the selected valid Agent |
 | User renamed an Agent or moved a session | Preserve those changes; reimport does not move it back |
 | User duplicates or forks a session | Clear the new session's unique import identity |
-| Conflicting copies claim one source ID | Report a conflict without merging silently |
+| Conflicting copies claim one source ID | Skip an already imported identity; otherwise reject ambiguous copies without merging silently |
 
 Use one synchronous `DbService.withWriteTx` per source session. Each transaction revalidates the selected Agent's active state and runtime compatibility, then creates necessary workspace records, the session with that `agentId`, messages, provenance, and the initialization marker together. Failure rolls back that session's writes; the existing Agent and its other sessions remain intact. Sessions commit independently. In a mixed batch, skip blocked sessions and commit valid sessions. Keep successes visible and retry only unresolved, recoverable selections with a fresh preview. Cancellation or target invalidation stops subsequent sessions; report what was already committed.
 
 Read files, parse, validate directories, and calculate fingerprints outside the write transaction. No `await`, file writes, or network calls occur inside it. Compose the owning services' Tx methods and publish their events only after commit. Never break a large session into separately committed chunks to evade transaction limits.
 
-Append migrations for session metadata, typed message provenance, and the active identity lookup index, without Agent source markers or an import-ledger table. Cover populated databases, trash, duplication, and existing full/slim backup restoration. Preserve source identity. Missing native files require reliable reconstruction from persisted history before continuation; otherwise block explicitly. Session-level backup merging is outside this change.
+Withdraw the unmerged `0030_agent_history_import` migration, snapshot, journal entry, added columns, and identity index during implementation. Keep shipped migrations intact. No replacement schema migration is needed. Preserve old development profiles and backups; use a separate profile to validate the new structure. Do not edit old migration ledgers or promise direct restoration of old draft-schema backups.
+
+Existing full/slim backup round trips must retain app_state records with messages, ownership, and workspaces. Missing native files require reliable reconstruction from current persisted history before continuation; otherwise block explicitly. Backup merging and automatic conversion of unpublished draft profiles are out of scope. Source fingerprints still protect first-import preview-to-commit consistency; dropping durable audit fields does not remove that check.
 
 ### Implementation ownership and stack
 
@@ -316,7 +335,7 @@ Place the source adapters, diagnostics, normalization, and Main preview coordina
 
 Extend [ImportMenuSettings](../../../../src/renderer/pages/settings/DataSettings/ImportMenuSettings.tsx) with a separate local-application group and a shared dialog for discovery, target Agent selection, session selection, validation, and results. Put recoverable directory/branch choices in the separate error dialog. Use `@cherrystudio/ui`, i18next, and settings-search integration. Main must not import the renderer's web importer.
 
-Data changes belong to the Agent Session, message, and workspace owners identified above; the Agent owner supplies destination validation. Extend session schemas and typed message provenance. Runtime history initialization belongs to the runtime host and the selected runtime's adapter. Include path registration, migrations, backup compatibility, and post-commit notifications with their owning changes.
+Data changes belong to the Agent Session, message, and workspace owners identified above; the Agent owner supplies destination validation. Extend session schemas and typed message provenance. Runtime history initialization belongs to the runtime host and the selected runtime's adapter. Include path registration, owner-managed state, backup compatibility, and post-commit notifications with their owning changes.
 
 This bilingual Spec is the bottom documentation PR. After explicit human Approval on its current head, implement four source layers sequentially with gh-stack:
 
@@ -331,12 +350,12 @@ main
 
 | Layer | Source | Complete slice | Regression scope |
 |---|---|---|---|
-| 1 | Claude Code | Shared UI/contracts, target Agent selection, directory rules, migrations, atomic writer, supported target-runtime history initialization, and Claude reader | Complete import and continuation; no pre-confirmation writes; no duplicates |
+| 1 | Claude Code | Shared UI/contracts, target Agent selection, directory rules, app_state storage, atomic writer, supported target-runtime history initialization, and Claude reader | Complete import and continuation; no pre-confirmation writes; no duplicates |
 | 2 | Codex | Index and history versions, event deduplication, thread identity, and cwd | Codex plus affected Claude behavior |
 | 3 | OpenCode | Schema detection, consistent read-only database reader, ordering, and directory | OpenCode plus affected earlier sources |
 | 4 | WorkBuddy | Verified desktop index/transcript join, record and directory mapping, with the ordering prerequisite resolved | WorkBuddy and the complete four-source contract |
 
-Common foundations ship with layer 1, not a fifth implementation layer. Create each branch before writing its source-specific code; validate and commit it before adding the next. WorkBuddy research may happen earlier, but its implementation remains last. If the Spec merges first, rebase the first implementation onto main.
+Common foundations ship with layer 1, not a fifth implementation layer. Retain Spec PR #23406 and draft implementation PRs #23441, #23442, #23443, and #23626. Update the Spec first, change shared storage in #23441, and adapt each source in its owning layer. Rebase upward with gh-stack and revise PR descriptions. Do not close and recreate these PRs or add a top-layer reversal. The 2026-11-06 request updates documentation only; implementation follows separately.
 
 Each implementation PR targets the preceding branch and maps its verified AC IDs to this Spec. Changes to shared lower-layer behavior go back to their owner, followed by upstack rebase and affected verification. Material Spec changes require renewed Approval. Use `gh stack view --json` to verify topology. Keep this note proposed until cumulative evidence covers every AC; then the final layer transitions it to implemented.
 
@@ -345,6 +364,7 @@ Each implementation PR targets the preceding branch and maps its verified AC IDs
 | Alternative | Reason not selected |
 |---|---|
 | Create an Assistant and ordinary Topics | Does not meet Agent ownership and per-session working-directory behavior |
+| Add session/message provenance columns | Avoid schema changes with owner-managed app_state records; accept keyed joins and transactional cleanup |
 | Automatically create an Agent per source or transcript | The user chooses an existing destination; automatic creation bypasses that choice |
 | Merge all source histories into one session | Mixes tasks and directories; preserve separate source sessions |
 | Apply the target Agent's default directory to every import | Overrides recorded directories and the explicit No work directory state |
@@ -364,19 +384,19 @@ Each implementation PR targets the preceding branch and maps its verified AC IDs
 - AC4 — Recorded working directories bind correctly, and equivalent normalized paths reuse a user workspace. (verification: unit workspace and session relations)
 - AC5 — Absent working directories display No work directory and use the existing system-workspace semantics. (verification: unit and renderer)
 - AC6 — Missing, inaccessible, and foreign-platform directories require mapping or skipping, without silent fallback. Offer mapping only when it can make the session importable; terminal failures show no ineffective directory choices. (verification: unit, renderer and Electron directory fixtures)
-- AC7 — Repeated/concurrent imports, including different target selections, create no duplicate active imports while an active matching session exists; archived copies do not block a new import; selection uses Agent IDs despite equal names, and existing imports retain their owner. (verification: unit concurrency, cross-target, rename, and namesake fixtures)
+- AC7 — An existing imported identity blocks repeated and concurrent imports across target Agents, including when archived. Changed source paths or versions still return already imported. Permanent deletion releases the identity. Agent names do not affect ownership. (verification: unit concurrency, archive/restore, deletion, and changed-copy fixtures)
 - AC8 — Empty input, cancelled previews, all-duplicate batches, and failed transactions leave no empty session or workspace and do not create or alter Agent configuration. (verification: unit state and source-directory comparisons)
-- AC9 — Preserve original times. WorkBuddy history uses existing provenance source order before native continuation; other sources retain their time-order rules. Persistence, paging, anchors, forks, export and reload preserve that order without new tables or columns. Preview and commit reject any future source time using the maximum across all messages. (verification: controlled-time adapter and database fixtures, renderer paging/reload)
+- AC9 — Preserve original times and store source order in app_state. WorkBuddy history precedes native continuation; other sources retain their time-order rules. Persistence, paging, anchors, forks, export, and reload agree without new tables, columns, or indexes. Preview and commit reject future times using the maximum across all messages. (verification: controlled-time adapter and database fixtures, renderer paging/reload)
 - AC10 — Invalid JSON and unknown records have actionable locations/reasons while recoverable messages still import. A separate error dialog groups failures by session. Definitively unimportable sessions show only terminal reasons, without unrelated branch/directory choices or retry; offer only Close when no recoverable selections remain. (verification: unit mixed-record fixtures, renderer error/recovery cases and Electron)
 - AC11 — A failed session rolls back atomically while valid sessions in the batch are saved. Retry includes only unresolved, recoverable selections and does not duplicate successes. Cancellation retains committed sessions and starts no subsequent session. (verification: unit fault injection/cancellation and renderer mixed-batch retry)
-- AC12 — Changed sources/directories, a changed or deleted target, incompatible runtime changes, or expired previews require renewed selection/preview; foreign-window tokens and substituted target IDs are rejected. (verification: unit and renderer boundary checks)
+- AC12 — For a new import, changed sources/directories, a changed or deleted target, incompatible runtimes, or expired previews require renewed selection/preview. Foreign-window tokens and substituted target IDs are rejected. Already imported identities skip content-version comparison. (verification: unit and renderer boundary checks)
 - AC13 — Codex indexes/events do not duplicate content, and shared root-session IDs do not merge distinct threads. (verification: unit missing-index and fork fixtures)
 - AC14 — OpenCode reads supported schemas including committed WAL data and clearly rejects unknown schemas. (verification: unit real SQLite fixtures)
 - AC15 — WorkBuddy support is limited to declared desktop schema/record samples, starting with the inspected Windows 5.9.3 and runtime 2.165.0 combination. Unsupported releases and unverified content are diagnosed; installed version strings alone do not prove compatibility. (verification: unit versioned adapter fixtures)
 - AC16 — Historical tool calls/results display as completed tool items under Processed, including old imports. Adjacent completed process-only records share one group; user messages, answer text and unfinished records separate groups. Paging, selection and capture preserve original message identities. Opening/importing or expanding them never executes tools, requests approvals, or starts generation. (verification: unit runtime boundaries, renderer grouping/paging/selection/capture and Electron)
 - AC17 — First continuation uses the selected Agent's configuration and includes imported history before the new user message in model input, including accepted clock-skew cases; unsupported target runtimes are explained before import, and initialization failures are retryable without duplicated history. (verification: unit captured model input with controlled time, target-runtime compatibility, and recovery faults)
-- AC18 — Imported sessions support search, duplication, trash, and restore; reimport preserves archived copies, and restoring one after reimport keeps both histories; duplicates do not inherit unique import identity. (verification: unit existing data-service integration)
-- AC19 — Forward migration and existing full/slim backup round trips retain provenance, ownership, and workspaces; missing native history is reliably rebuilt or continuation explicitly blocked. No backup merging is added. (verification: unit populated-database migration and restore fixtures)
+- AC18 — Preserve native search, editing, single-message deletion, forks, trash, and restore. Forks copy message provenance to new IDs but not session import identity. Edits preserve surviving provenance; message/tail/session/Agent deletion cleans related state atomically. Initialization retries never resurrect deleted content. (verification: unit existing data-service integration, native edit/fork and initialization-retry fixtures)
+- AC19 — The final import implementation introduces no schema migration. Existing full/slim backups retain required app_state records, messages, ownership, and workspaces. Missing native history is reliably rebuilt or continuation explicitly blocked. Old draft profiles remain untouched; their direct backup conversion is not promised. (verification: schema-diff check, populated-database import and backup/restore fixtures)
 - AC20 — All enabled sources satisfy path mapping and read-only access on Windows, macOS, and Linux, with simulated and native evidence distinguished. WorkBuddy delivers all three together for a declared OS/distribution, architecture, and source-version matrix. Each platform verifies discovery, read-only SQLite/WAL access, packaged native loading, import/reopen, and Pi continuation. Synthetic tests do not replace native evidence; an unverified platform keeps the WorkBuddy slice incomplete. (verification: unit platform cases, real source-layout checks, and platform-native packaged Electron)
 - AC21 — The Spec is followed by four gh-stack implementation layers ordered Claude Code, Codex, OpenCode, WorkBuddy, each with a scoped diff. (verification: docs gate and gh stack topology/diff inspection)
 - AC22 — Imported assistant headers use the current destination Agent's name/avatar, including old imports and Agent renames, while retaining the source model. Source conversation titles do not appear as authors; ordinary Cherry author snapshots remain unchanged. (verification: renderer author/provenance/capture cases and Electron)
@@ -387,7 +407,7 @@ Each implementation PR targets the preceding branch and maps its verified AC IDs
 - AC27 — WorkBuddy joins the desktop index and transcript by verified session identity, preserves title precedence and recorded cwd, and retains real playground tasks. Cloud-only rows, missing history, deleted local rows, and heartbeat files are not mistaken for ordinary complete local chats. (verification: versioned adapter discovery/identity/workspace fixtures)
 - AC28 — WorkBuddy preserves user/assistant content, readable quotes, source reasoning, inert tool call/result order, and interrupted/error state. Literal tags, duplicated projections, metadata, and snapshots neither erase user text nor create duplicate messages or executable actions. (verification: adapter normalization, renderer projection, and Pi captured-input fixtures)
 - AC29 — A selected WorkBuddy index row and transcript form one fingerprinted preview dependency set. Changes invalidate that preview; unrelated row changes do not. Source stores remain unchanged, WAL commits are included, and cancellation/limits create no partial imported session. (verification: read-only SQLite/file fixtures and coordinator state checks)
-- AC30 — WorkBuddy accepts the observed backward tool intervals when the source chain is valid, without changing original times. Shared reads, pagination, forks, export and Pi continuation preserve source order through existing provenance. Missing ancestors and ambiguous chains block writes. Platform evidence remains a separate enablement requirement. (verification: ordering fixtures, renderer, Pi captured history, and Electron)
+- AC30 — WorkBuddy accepts observed backward tool intervals when the source chain is valid, without changing original times. Shared reads, pagination, forks, export, and Pi continuation use app_state source order through the message read model. Missing ancestors and ambiguous chains block new imports. Platform evidence remains a separate gate. (verification: ordering fixtures, renderer, Pi captured history, and Electron)
 
 Use `setupTestDatabase()` for database cases and explicit affected-test paths per layer. Native platform checks are not replaced by platform simulations. These criteria are future product verification, not evidence supplied by this documentation PR.
 
@@ -396,16 +416,17 @@ Use `setupTestDatabase()` for database cases and explicit affected-test paths pe
 | Risk or open choice | Required resolution |
 |---|---|
 | Target runtime compatibility | Use the selected Agent's runtime; define and verify its history initializer before enabling selection, without silently changing Agent configuration |
-| Timestamp rollback or source clock ahead | Reject conflicting input in preview and before commit; preserve timestamps and test the continuation boundary |
+| Timestamp rollback or source clock ahead | Preserve WorkBuddy source order; other sources retain rollback rejection. Reject future times before commit |
 | Missing directories | Resolve before inserting messages because existing sessions with messages cannot change workspace |
 | Native-file/database consistency | Use persistent initialization markers, stable native identity, validated output, and retry recovery |
 | WorkBuddy and upstream drift | Initial Windows desktop evidence exists; add synthetic boundary fixtures and platform evidence before enabling support |
-| WorkBuddy tool timestamps decrease | Resolve the shared ordering prerequisite explicitly; the inspected real sample fails the current rejection rule |
+| WorkBuddy tool timestamps decrease | Keep original times and source order in app_state; the observed sample does not establish prevalence |
 | WorkBuddy index and transcript diverge | Revalidate both dependencies; do not equate cloud indexes, heartbeat records, or partial files with complete local history |
 | Missing macOS/Linux evidence or native package differences | Keep the three-platform delivery gate open until the declared platform matrix passes; current Windows format inspection is not native import verification |
 | Tool and attachment fidelity | Review the first-version text/reference degradation; disclose every omitted artifact |
 | Large inputs | Establish line, session, and batch limits from fixtures before exposing import |
+| Required provenance in app_state | Restrict ownership to one module; preserve backups and atomic cleanup. Check query plans and prevent per-message lookups |
 | Backup restoration | Preserve identity through existing full/slim backups; no new merge capability |
 | Overlap with #19002 | Reuse shared preview and mapping capabilities where appropriate; retain the four-source implementation sequence |
 
-The first version fixes Pi targets, unchanged source timestamps, inert historical tools and existing backup restoration. WorkBuddy uses existing source-order provenance; other readers retain timestamp-conflict rejection. Reimports skip active matches; archived copies remain intact. Incremental sync is separate work. The user authorized implementation and a fourth stacked PR on 2026-11-05; platform-native scheduling is deferred, not counted as passed. Keep the Spec proposed and the WorkBuddy production entry disabled until the declared platform evidence is complete. Earlier layers may ship independently; #22728 remains incomplete.
+The first version fixes Pi targets, unchanged source timestamps, inert tools, and existing backup restoration. Session identity and message source order move to app_state. Reimports skip active and archived matches; permanent deletion permits reimport. Native editing, deletion, and forks remain supported. Incremental sync is separate work. This revision updates the existing Spec and stack rather than replacing their PRs. Keep the Spec proposed and the WorkBuddy production entry disabled until required platform evidence is complete; #22728 remains incomplete.
