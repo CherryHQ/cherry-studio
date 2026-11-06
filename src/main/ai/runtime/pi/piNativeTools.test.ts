@@ -11,20 +11,20 @@ import {
   createCodemodeExtension,
   createToolSearchExtension,
   ModelRuntime,
-  SessionManager,
-  type AgentSessionEvent
+  SessionManager
 } from '@earendil-works/pi-coding-agent'
 import { Server } from '@modelcontextprotocol/server'
 import { serveMcpTestServer } from '@test-helpers/mcp/client'
 import { expect, it } from 'vitest'
 import * as z from 'zod'
 
-import { createScriptedHost, install } from '@cherrystudio/agent-behavior'
-import { createPiBehavior, createAgentRuntimeSession } from '@cherrystudio/agent-runtime-pi'
+import { createScriptedHost } from '@cherrystudio/agent-behavior'
+import { runtimeId, type ObservationPayload, type OperationResult } from '@cherrystudio/agent-runtime'
+import { createPiRuntime } from '@cherrystudio/agent-runtime-pi'
 
 import { readPiApprovalFacts } from './piApprovalFacts'
 import { createPiMcpExtension } from './piMcpExtension'
-import { PiStreamAdapter, resolvePiMcpToolMetadata } from './piStreamAdapter'
+import { resolvePiMcpToolMetadata } from './PiMessageMetadata'
 
 // Real SDK session + MCP wire + QuickJS: catches bypassed nested policy and lost structured results.
 it.each(['cherry-tools', 'my-server', 'my_server'])(
@@ -45,10 +45,8 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
     )
     const cwd = await mkdtemp(join(tmpdir(), 'cherry-pi-native-'))
     const calls: string[] = []
-    const events: AgentSessionEvent[] = []
-    const chunks: unknown[] = []
+    const events: ObservationPayload[] = []
     let resolveMetadata: (name: string) => ReturnType<typeof resolvePiMcpToolMetadata> = () => undefined
-    const adapter = new PiStreamAdapter({ enqueue: (chunk) => chunks.push(chunk) }, (name) => resolveMetadata(name))
     const server = serveMcpTestServer(() => {
       const fixture = new Server({ name: 'fixture', version: '1.0.0' }, { capabilities: { tools: {} } })
       fixture.setRequestHandler('tools/list', async () => ({
@@ -165,89 +163,68 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
         z.record(z.string(), z.json()).parse(tool.args)
       )
     }
-    const runtime = createPiBehavior({
-      install: (ports) => {
-        install(ports, host)
-      },
-      openSession: async ({ sessionManager, extension, summarize }) => {
-        const native = await createAgentRuntimeSession({
-          cwd,
-          agentDir: cwd,
-          modelRuntime,
-          model: modelRuntime.getModel('fixture', 'fixture')!,
-          sessionManager,
-          settings: { retry: { enabled: false } },
-          compaction: { enabled: false, reserveTokens: 1000, keepRecentTokens: 1000, summarize },
-          extensionFactories: [
-            createCodemodeExtension({ models: false }),
-            createToolSearchExtension(),
-            createPiMcpExtension(
-              pi,
-              {
-                fixture: { id: binding === 'cherry-tools' ? undefined : serverId, name: binding, connect: server },
-                ...(binding === 'cherry-tools' ? {} : { shadow: { id: shadowId, name: shadowName, connect: shadow } })
-              },
-              join(cwd, 'mcp.log')
-            ),
-            extension
-          ]
-        })
-        native.session.subscribe((event) => {
-          events.push(event)
-          adapter.handleEvent(event)
-        })
-        resolveMetadata = (name) => resolvePiMcpToolMetadata(native.session.getToolDefinition(name), snapshots)
-        return native
-      }
-    })
-    const thread = await runtime.openConversation(SessionManager.inMemory(cwd))
+    function confirmed<T>(result: OperationResult<T>): T {
+      if (result.status !== 'confirmed') throw new Error(result.error.message)
+      return result.value
+    }
+    const runtime = confirmed(await createPiRuntime({ backendId: runtimeId('native-tools') }))
+    const handle = confirmed(
+      await runtime.create({
+        cwd,
+        agentDir: cwd,
+        modelRuntime,
+        model: modelRuntime.getModel('fixture', 'fixture')!,
+        sessionManager: SessionManager.inMemory(cwd),
+        behavior: { host, configureChild: () => ({}) },
+        compaction: { enabled: false, reserveTokens: 1000, keepRecentTokens: 1000 },
+        extensionFactories: [
+          createCodemodeExtension({ models: false }),
+          createToolSearchExtension(),
+          createPiMcpExtension(
+            pi,
+            {
+              fixture: { id: binding === 'cherry-tools' ? undefined : serverId, name: binding, connect: server },
+              ...(binding === 'cherry-tools' ? {} : { shadow: { id: shadowId, name: shadowName, connect: shadow } })
+            },
+            join(cwd, 'mcp.log')
+          )
+        ]
+      })
+    )
+    resolveMetadata = (name) => resolvePiMcpToolMetadata(handle.pi.toolDefinition(name), snapshots)
+    const observation = confirmed(
+      await handle.observe((event) => {
+        events.push(event)
+      })
+    )
     try {
-      await runtime.prompt(thread, 'Run the native tools')
-      await expect.poll(() => events.some((event) => event.type === 'agent_end')).toBe(true)
+      expect(
+        await handle.input.submit({ inputId: runtimeId('tools'), text: 'Run the native tools', whenBusy: 'reject' })
+      ).toMatchObject({ status: 'acknowledged' })
+      await handle.pi.settled()
+      await observation.drain()
+      expect(events.filter((event) => event.type === 'input.changed').at(-1)?.input.outcome).toBe('completed')
       await mkdir('.context/cherry-electron-dev', { recursive: true })
       await writeFile(
         `.context/cherry-electron-dev/pi-native-${binding}-events.json`,
-        JSON.stringify({ events, chunks }, null, 2)
+        JSON.stringify({ events }, null, 2)
       )
       expect(calls).toEqual(['read_value', longTool, ...(binding === 'cherry-tools' ? [] : ['shadow:forbidden'])])
-      expect(chunks).toContainEqual(
-        expect.objectContaining({
-          type: 'tool-input-available',
-          toolName: expect.any(String),
-          providerMetadata: expect.objectContaining({
-            cherry: expect.objectContaining({
-              tool: { type: 'mcp', serverId, serverName: binding, name: longTool }
-            })
-          })
-        })
-      )
-      const output = events.find((event) => event.type === 'tool_execution_end' && event.toolName === 'codemode')
+      expect(resolveMetadata(`${nativePrefix}read_value`)).toEqual({
+        type: 'mcp',
+        serverId,
+        serverName: binding,
+        name: 'read_value'
+      })
+      const output = handle.pi
+        .archive()
+        .messages.flatMap((message) => message.parts)
+        .find((part) => part.type === 'dynamic-tool' && part.toolCallId === 'script')
       expect(JSON.stringify(output)).toContain('42')
       expect(JSON.stringify(output)).toContain('disabled for this agent')
-      expect(chunks).toContainEqual(
-        expect.objectContaining({
-          type: 'tool-output-available',
-          toolCallId: 'script',
-          output: expect.stringContaining('42')
-        })
-      )
-      expect(chunks).toContainEqual(
-        expect.objectContaining({
-          type: 'tool-output-available',
-          toolCallId: 'script/1',
-          output: { value: 42 },
-          providerMetadata: expect.objectContaining({
-            cherry: expect.objectContaining({
-              tool: expect.objectContaining({ serverId, serverName: binding, name: 'read_value' })
-            })
-          })
-        })
-      )
-      expect(
-        events.some((event) => event.type === 'tool_execution_start' && event.toolName === `${nativePrefix}read_value`)
-      ).toBe(true)
     } finally {
-      await runtime.close()
+      confirmed(await runtime.shutdown())
+      await handle.release()
       await rm(cwd, { recursive: true, force: true })
     }
   }
