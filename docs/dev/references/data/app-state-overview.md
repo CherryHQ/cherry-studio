@@ -86,7 +86,6 @@ Every key currently in `app_state`. Add a row when introducing a key.
 | `fileManager:contentMetadataGeneration` | `FileManager` | `{ version: number }` | Trust generation for internal-file `size` / `contentHash`; a version change atomically invalidates old hashes before background reconciliation. |
 | `migration_v2_status` | `MigrationEngine` | `MigrationStatusValue`  | **Grandfathered exception.** Bare key predating the `<scope>:` convention. Do not rename and do not model new keys on it. |
 | `agent-runtime-migration:<sessionId>` | `retiredAgentRuntimeMigration` | `{ sessionId: string, resumeToken: string }` | Pending DSH-to-Pi session-history migration. Retained for retry on failure; removed atomically after the imported Pi history and checkpoints are committed. |
-
 | `conversation-import:session:<sessionId>` | `importedSessionHistory` | `{ version: 1, metadata: { source, originalSessionId }, initialization?: { nativeSessionId, status, messageCount } }` | Required import identity and retry state; never disposable. |
 | `conversation-import:message:<sessionId>:<messageId>` | `importedSessionHistory` | `{ source, sourceOrder }` | Required message provenance; database reads use the existing primary key. |
 
