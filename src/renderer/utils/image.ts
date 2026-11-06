@@ -907,7 +907,8 @@ export async function captureScrollableIframe(
       pixelRatio,
       skipAutoScale: true,
       ...(restrictToLocalResources && {
-        filter: (node: Node) => !(node instanceof win.Element) || !hasNonLocalResource(node, doc.baseURI)
+        filter: (node: Node) =>
+          !(node instanceof (win as Window & typeof globalThis).Element) || !hasNonLocalResource(node, doc.baseURI)
       }),
       width: Math.floor(totalWidth),
       height: Math.floor(totalHeight),
