@@ -86,6 +86,9 @@ overrides:
   ai: "6.0.185"
 
 patchedDependencies:
+  # Accumulate streaming chat-completions tool-call deltas missing id and synthesize stable IDs (Issue #23741).
+  # Remove only when an upstream version tolerates first deltas without id and all repository regressions pass unpatched.
+  "@ai-sdk/mistral@3.0.30": patches/@ai-sdk__mistral@3.0.30.patch
   dingtalk-stream@2.1.7-beta.1: patches/dingtalk-stream@2.1.7-beta.1.patch
   "@napi-rs/system-ocr@1.2.0": patches/@napi-rs__system-ocr@1.2.0.patch
   "tesseract.js@6.0.1": patches/tesseract.js-npm-6.0.1-2562a7e46d.patch
