@@ -89,6 +89,61 @@ const spawnOptions: SpawnOptions = {
 }
 
 describe('ClaudeCodeProcessManager', () => {
+  it('reports launch-size failure without changing spawn inputs', () => {
+    const args = [
+      '/private/cli.js',
+      '--mcp-config',
+      '{"mcpServers":{"x":{"command":"secret--value","args":["界😀"]}}}',
+      '--allowedTools',
+      'Read,Write',
+      '--add-dir',
+      '/private/work',
+      '--add-dir=/private/extra'
+    ]
+    const env = { A: '界😀', EMPTY: '', UNSET: undefined }
+    const options = { ...spawnOptions, args, env, cwd: '/private/界😀' }
+    const spawn = vi.fn<SpawnProcess>(() => {
+      throw new Error('spawn ENAMETOOLONG')
+    })
+    const diagnostics = createClaudeCodeProcessDiagnostics('reference')
+    let thrown: any
+    try {
+      new TestProcessManager(spawn).spawn(options, diagnostics)
+    } catch (error) {
+      thrown = error
+    }
+    expect(thrown).toMatchObject({ claudeCodeExitCategory: 'launch_size', diagnosticReference: 'reference' })
+    expect(spawn.mock.calls[0][1]).toBe(args)
+    expect(spawn.mock.calls[0][2].env).toBe(env)
+    expect(diagnostics.spawnFailed).toBe(true)
+    expect(diagnostics.launchSize).toEqual({
+      errno: 'ENAMETOOLONG',
+      argvCount: 8,
+      argvUtf16Units: 167,
+      argvUtf8Bytes: 171,
+      commandUtf16Units: 11,
+      commandUtf8Bytes: 11,
+      envEntryCount: 2,
+      envBlockUtf16Units: 14,
+      envStringsUtf8Bytes: 17,
+      cwdUtf16Units: 12,
+      cwdUtf8Bytes: 16,
+      cwdInherited: false,
+      largestArgs: [
+        { index: 2, owner: '--mcp-config', utf16Units: 63, utf8Bytes: 67 },
+        { index: 7, owner: '--add-dir', utf16Units: 24, utf8Bytes: 24 },
+        { index: 0, owner: '<unattributed>', utf16Units: 15, utf8Bytes: 15 }
+      ]
+    })
+    const logged = mockMainLoggerService.warn.mock.calls.findLast(
+      ([message]) => message === 'Claude Code process failed'
+    )
+    expect(logged?.[1]).toMatchObject({ launchSize: diagnostics.launchSize })
+    const output = JSON.stringify([diagnostics, logged, thrown])
+    for (const secret of ['secret--value', '/private/', '界😀', 'EMPTY', 'spawn ENAMETOOLONG'])
+      expect(output).not.toContain(secret)
+  })
+
   it('confirms native exit only after the OS exit event, not after a kill request', async () => {
     const child = createFakeChild()
     const manager = new TestProcessManager(() => child.process)

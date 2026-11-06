@@ -5,6 +5,7 @@ import {
   createClaudeCodeProcessDiagnostics,
   createClaudeCodeProcessExitError,
   recordClaudeCodeProcessExit,
+  recordClaudeCodeSpawnError,
   resetClaudeCodeProcessDiagnostics
 } from '../processExitDiagnostics'
 
@@ -32,6 +33,24 @@ describe('Claude Code process exit diagnostics', () => {
 
     expect(serialized.claudeCodeExitCategory).toBe(category)
     expect(serialized.diagnosticReference).toBe('known-ref')
+  })
+
+  it('records safe size facts without classifying numeric measurements as HTTP status', () => {
+    const diagnostics = createClaudeCodeProcessDiagnostics()
+    const error = new Error('spawn ENAMETOOLONG private')
+    recordClaudeCodeSpawnError(diagnostics, error, { command: 'cli', args: ['x'.repeat(429)], env: {}, cwd: '.' })
+    expect(diagnostics).toMatchObject({
+      category: 'launch_size',
+      spawnFailed: true,
+      launchSize: { argvUtf16Units: 429 }
+    })
+    expect(diagnostics.terminalReason).toContain('argvUtf16Units=429')
+    expect(diagnostics.terminalReason).not.toContain('private')
+    resetClaudeCodeProcessDiagnostics(diagnostics)
+    expect(diagnostics.launchSize).toBeUndefined()
+    recordClaudeCodeSpawnError(diagnostics, error)
+    expect(diagnostics.terminalReason).toBe('Failed to spawn Claude Code process: spawn ENAMETOOLONG private')
+    expect(diagnostics.category).toBe('unknown')
   })
 
   it('preserves runtime connection recovery without exposing private stderr', () => {

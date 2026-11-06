@@ -5,6 +5,18 @@ import { executionFailureSchema } from '@cherrystudio/remote-protocol/failure'
 import { toExecutionFailure } from '../executionFailure'
 
 describe('execution failure projection', () => {
+  it('projects launch size as schema-valid runtime invalid input without an HTTP status', () => {
+    const result = toExecutionFailure({
+      name: 'Error',
+      message: 'Claude Code process failed to start',
+      stack: null,
+      claudeCodeExitCategory: 'launch_size'
+    })
+    expect(result.failure).toMatchObject({ reasonCode: 'invalid_input', source: { layer: 'runtime' } })
+    expect(result.failure.context?.statusCode).toBeUndefined()
+    expect(executionFailureSchema.safeParse(result).success).toBe(true)
+  })
+
   it('keeps a fresh Groq entitlement failure non-retryable with its HTTP status', () => {
     expect(
       toExecutionFailure(

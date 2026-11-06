@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-03-claude-launch-size-diagnostics.md
+2026-11-03-claude-launch-size-diagnostics.md: fdb7b9d64fdba5f44018cc52e1842c455088e5f8
+2026-11-03-claude-launch-size-diagnostics.zh.md: 2bf4ec7d8410158d2fdf67cb8d2d38adc5f3bc0b
