@@ -10,7 +10,7 @@ Regression MP-51 denied a Pi file write and confirmed that no file was created, 
 
 ## Decision
 
-Apply the host's recorded approval decision to every subsequent snapshot containing that tool's approval identifier. A refusal remains `output-denied`; an allowed call retains its execution result, including real errors. Pending allowed calls still advance to `approval-responded` immediately.
+Apply the host's recorded approval decision to subsequent snapshots of that tool. Native root-message projections can omit approval metadata entirely, so the root projection also retains the real host approval identifier and restores decisions from persisted parts when reconnecting. A refusal remains `output-denied`; an allowed call retains its execution result, including real errors. Pending allowed calls still advance to `approval-responded` immediately.
 
 ## Alternatives considered
 
@@ -20,9 +20,11 @@ Apply the host's recorded approval decision to every subsequent snapshot contain
 
 ## Consequences
 
-The existing stream execution owns the decision; no new storage or approval flow is introduced. The user's refusal remains visible after the tool finishes, while allowed calls can still report failures. Tool execution and permission enforcement are unchanged.
+The stream execution and native root projection retain the decision at their respective message boundaries; no new storage format or approval flow is introduced. The user's refusal remains visible after the tool finishes, while allowed calls can still report failures. Tool execution and permission enforcement are unchanged.
 
 ## Verification
 
 - Regression — `src/main/ai/streamManager/__tests__/AiStreamManager.test.ts`: a real UI message stream receives a request, host decision and later runtime error. Both final persistence input and the subscribed projection preserve the refusal; the allowed variant preserves the execution error. The refusal case failed before the fix.
 - Regression — all 165 tests in the affected stream manager test file passed.
+
+- Regression — `AgentSessionRuntimeService.projection.test.ts` drives the registry response, native result, SQLite persistence and reloaded projection. Denial survives missing native approval metadata, while an allowed call retains its real execution error; both cases failed before the root-projection fix.

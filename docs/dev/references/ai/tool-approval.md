@@ -3,6 +3,7 @@ description: Main-as-writer tool approval through ai.tool.respond_approval, appr
 sources:
   - src/main/ai/AiService.ts
   - src/main/ai/agentSession/AgentSessionRuntimeService.ts
+  - src/main/ai/agentSession/RootMessageProjection.ts
   - src/main/ipc/handlers/ai.ts
   - src/renderer/hooks/useToolApprovalBridge.ts
   - src/renderer/components/chat/messages/tools/hooks/useToolApproval.ts
@@ -74,6 +75,12 @@ persists, and resumes the stream.
 5. **Awaiting-approval clears** — the moment the continue stream
    broadcasts `pending`, the shared-cache entry flips back. Every window
    sees the approval card disappear in the same tick.
+
+For native Agent root messages, the host retains each resolved approval by tool-call
+ID, including its real approval ID. Later native results may omit approval metadata;
+the projection reapplies the decision before publishing and persisting, and restores
+it from persisted parts after reconnecting. A host refusal remains `output-denied`;
+a permitted call can still finish with a genuine execution error.
 
 ## Persistent decisions
 
