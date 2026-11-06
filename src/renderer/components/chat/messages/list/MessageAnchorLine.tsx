@@ -38,6 +38,8 @@ interface MessageLineProps {
   /** Messages that must read their current parts from PartsContext. */
   liveMessageIds: readonly string[]
   scrollToMessageId?: (messageId: string) => void
+  /** Space at the bottom covered by the composer overlay; the rail stops above it. */
+  bottomInset?: number
 }
 
 /** One conversation turn: a user question plus the replies that follow it. */
@@ -82,25 +84,40 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
   hasOlder = false,
   historyPartsByMessageId,
   liveMessageIds,
-  scrollToMessageId
+  scrollToMessageId,
+  bottomInset = 0
 }: MessageLineProps) {
   const { t } = useTranslation()
   const liveMessageIdSet = useMemo(() => new Set(liveMessageIds), [liveMessageIds])
 
   const wrapperRef = useRef<HTMLDivElement>(null)
   const railScrollRef = useRef<HTMLDivElement>(null)
+  /** Scroll anchoring state: first-turn identity and count spot prepends and
+   * appends; `pinned` says the user left the strip on the newest ticks, so
+   * inset/viewport changes re-pin it (a manual scroll clears the pin). */
+  const scrollAnchorRef = useRef<{ firstId: string | null; count: number; entered: boolean; pinned: boolean }>({
+    firstId: null,
+    count: 0,
+    entered: false,
+    pinned: true
+  })
   const latestClientYRef = useRef<number | null>(null)
   const animationFrameRef = useRef<number | null>(null)
 
-  /** Rail height in px; drives every tick position so they never depend on DOM reads. */
-  const [railHeight, setRailHeight] = useState(0)
+  /** Rail height in px; drives every tick position so they never depend on DOM
+   * reads. Null until the first layout measurement, so a rail genuinely
+   * collapsed to zero height (a composer inset taller than the message area) is
+   * told apart from an unmeasured one — only the measured kind may hide it. */
+  const [railHeight, setRailHeight] = useState<number | null>(null)
   /** The rail's own scroll offset (only moves when the user wheels the rail itself). */
   const [scrollTop, setScrollTop] = useState(0)
   /** Cursor Y relative to the rail's top; null when not hovering. */
   const [mouseY, setMouseY] = useState<number | null>(null)
-  /** Hide the rail only when its measured wrapper height is too short to be usable. */
-  const tooShort = railHeight > 0 && railHeight < RAIL_MIN_HEIGHT_PX
+  /** Hide the rail once its measured wrapper height is too short to be usable —
+   * zero included: an inset-collapsed rail must not keep focusable ticks. */
+  const tooShort = railHeight !== null && railHeight < RAIL_MIN_HEIGHT_PX
   const visible = !tooShort
+  const railHeightPx = railHeight ?? 0
   // The 8px base fits the existing right padding; extra width tracks the gutter
   // so the hit strip stays outside the message content even in narrow columns.
   const hitStripWidth = 8 + Math.round(railOpacity * 24)
@@ -163,7 +180,7 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
 
   const geometry = useMemo(() => {
     const count = turns.length
-    const viewport = Math.max(0, railHeight - RAIL_MIN_EDGE_MARGIN_PX * 2)
+    const viewport = Math.max(0, railHeightPx - RAIL_MIN_EDGE_MARGIN_PX * 2)
     const content = count * RAIL_TICK_PITCH_PX
     const free = Math.max(0, viewport - content)
     // Conversations that mounted fully loaded centre the cluster. Ones that
@@ -181,7 +198,7 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
 
   // Nearest tick to the cursor, only when the cursor is genuinely near one.
   const focusedIndex = useMemo(() => {
-    if (mouseY === null || turns.length === 0 || railHeight === 0) return null
+    if (mouseY === null || turns.length === 0 || railHeightPx === 0) return null
     const raw = Math.round((mouseY - geometry.centerOf(0)) / RAIL_TICK_PITCH_PX)
     const index = Math.min(Math.max(raw, 0), turns.length - 1)
     return Math.abs(mouseY - geometry.centerOf(index)) <= FOCUS_MAX_DISTANCE ? index : null
@@ -219,7 +236,14 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
   // The rail scrolls independently of the conversation and never auto-follows
   // reading, so a tick's on-screen position is stable until the user scrolls
   // the rail itself. Mirror that offset into state so the card and wave track it.
-  const handleScroll = (event: ReactUIEvent<HTMLDivElement>) => setScrollTop(event.currentTarget.scrollTop)
+  const handleScroll = (event: ReactUIEvent<HTMLDivElement>) => {
+    const el = event.currentTarget
+    // Recompute the pin on every scroll: a resize re-pin below only fires while
+    // the strip is on the newest ticks, so deliberate positions survive.
+    const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight)
+    scrollAnchorRef.current.pinned = maxScroll - el.scrollTop <= 1
+    setScrollTop(el.scrollTop)
+  }
 
   // Height-based hiding must clear the wave and preview before the rail returns.
   useEffect(() => {
@@ -235,16 +259,21 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
 
   const hasRail = turns.length > 0
 
-  // Keep the strip's reading anchor stable across async page loads:
+  // Keep the strip's reading anchor stable across async page loads and
+  // viewport changes:
   // • on entry, start at the bottom — the user enters at the newest turn;
   // • when older turns prepend, offset the scroll so visible ticks stay put
   //   (the browser clamp lands exactly right when the strip just overflowed);
-  // • when new turns append while pinned to the bottom, stay pinned.
-  const scrollAnchorRef = useRef<{ firstId: string | null; count: number; entered: boolean }>({
-    firstId: null,
-    count: 0,
-    entered: false
-  })
+  // • when new turns append while pinned to the bottom, stay pinned;
+  // • when the rail itself resizes (composer inset growth, window resize), the
+  //   same pin keeps a bottom-pinned strip on the newest ticks — otherwise the
+  //   shrinking viewport clips them until a manual scroll — while a deliberate
+  //   user scroll position (pin cleared by handleScroll) is left alone.
+  // bottomInset is a dependency in its own right (not just via railHeight):
+  // the inset commit must re-pin synchronously, because the pin's own
+  // programmatic scroll event is delivered asynchronously — once the viewport
+  // has already shrunk, that stale event would otherwise read as a user scroll
+  // away from the bottom and clear the pin.
   useLayoutEffect(() => {
     const el = railScrollRef.current
     const anchor = scrollAnchorRef.current
@@ -255,16 +284,21 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
       if (!anchor.entered) {
         el.scrollTop = maxScroll
         anchor.entered = true
+        anchor.pinned = true
       } else if (added > 0 && firstId !== anchor.firstId) {
         el.scrollTop += added * RAIL_TICK_PITCH_PX
       } else if (added > 0 && maxScroll - el.scrollTop <= added * RAIL_TICK_PITCH_PX + 1) {
+        el.scrollTop = maxScroll
+        anchor.pinned = true
+      }
+      if (anchor.pinned) {
         el.scrollTop = maxScroll
       }
       setScrollTop(el.scrollTop)
     }
     anchor.firstId = firstId
     anchor.count = turns.length
-  }, [turns, railHeight])
+  }, [turns, railHeight, bottomInset])
 
   // Track the rail height so tick geometry stays exact across window/composer
   // resizes, and hide the rail once it is too short to be usable. Layout effect
@@ -290,7 +324,7 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
     focusedIndex !== null
       ? Math.min(
           Math.max(geometry.centerOf(focusedIndex), PREVIEW_EDGE_INSET),
-          Math.max(railHeight - PREVIEW_EDGE_INSET, PREVIEW_EDGE_INSET)
+          Math.max(railHeightPx - PREVIEW_EDGE_INSET, PREVIEW_EDGE_INSET)
         )
       : 0
 
@@ -302,7 +336,7 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
 
   // Fade whichever end still has ticks scrolled past it, signalling "there's
   // more" like Codex. Derived from the model — no DOM reads.
-  const railViewport = Math.max(0, railHeight - RAIL_MIN_EDGE_MARGIN_PX * 2)
+  const railViewport = Math.max(0, railHeightPx - RAIL_MIN_EDGE_MARGIN_PX * 2)
   const maxScroll = Math.max(0, turns.length * RAIL_TICK_PITCH_PX - railViewport)
   // hasOlder keeps the top fade on as a "more above" hint even at rest.
   const fadeTop = scrollTop > 1 || hasOlder
@@ -323,7 +357,7 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
       // inert keeps the hidden rail out of the Tab order and the accessibility
       // tree — an invisible layer must not take keyboard focus.
       inert={!visible}
-      style={{ width: hitStripWidth }}
+      style={{ width: hitStripWidth, bottom: bottomInset > 0 ? `calc(2rem + ${bottomInset}px)` : undefined }}
       onMouseMove={handleMouseMove}
       onMouseLeave={clearPointerState}>
       <div
