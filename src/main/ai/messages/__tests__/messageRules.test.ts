@@ -6,7 +6,12 @@ import { mcpResultToModelOutput } from '@main/ai/tools/adapters/aiSdk/mcp/utils'
 
 import { createToolSearchTool } from '../../tools/adapters/aiSdk/meta/toolSearch'
 import { ToolRegistry } from '../../tools/adapters/aiSdk/registry'
-import { coalesceConsecutiveSameRole, ensureNonEmptyAssistantContent, toModelMessages } from '../messageRules'
+import {
+  coalesceConsecutiveSameRole,
+  ensureNonEmptyAssistantContent,
+  prefixUserMessageTimestamps,
+  toModelMessages
+} from '../messageRules'
 
 const ui = (role: UIMessage['role'], parts: UIMessage['parts'], id = 'm'): UIMessage => ({ id, role, parts })
 
@@ -812,5 +817,31 @@ describe('coalesceConsecutiveSameRole', () => {
       { role: 'system', content: 'b' }
     ] as ModelMessage[])
     expect(out).toEqual([{ role: 'system', content: 'a\n\nb' }])
+  })
+})
+
+describe('prefixUserMessageTimestamps', () => {
+  const at = (createdAt: string | undefined, role: UIMessage['role'] = 'user'): UIMessage => ({
+    id: 'm',
+    role,
+    parts: [{ type: 'text', text: 'hi' }],
+    metadata: createdAt ? { createdAt } : undefined
+  })
+
+  it('prepends the local creation time to user messages only', () => {
+    const iso = '2026-11-05T05:03:54.000Z'
+    const d = new Date(iso)
+    const [user, assistant] = prefixUserMessageTimestamps([at(iso), at(iso, 'assistant')])
+    const first = user.parts[0] as { text: string }
+    expect(first.text).toMatch(/^<message-time>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} [+-]\d{2}:\d{2}<\/message-time>$/)
+    expect(first.text).toContain(`${d.getFullYear()}-`)
+    expect(user.parts).toHaveLength(2)
+    expect(assistant.parts).toHaveLength(1)
+  })
+
+  it('leaves messages without a valid createdAt untouched', () => {
+    const [missing, invalid] = prefixUserMessageTimestamps([at(undefined), at('not-a-date')])
+    expect(missing.parts).toHaveLength(1)
+    expect(invalid.parts).toHaveLength(1)
   })
 })

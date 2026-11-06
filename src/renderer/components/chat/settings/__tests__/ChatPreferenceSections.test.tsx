@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
     'chat.message.thought.auto_collapse': true,
     'chat.message.keep_intermediate_text': false,
     'chat.message.user_content.default_expanded': false,
+    'chat.message.timestamp_context.enabled': false,
     'chat.message.multi_model.style': 'horizontal',
     'chat.message.math.single_dollar': true,
     'chat.input.show_estimated_tokens': false,

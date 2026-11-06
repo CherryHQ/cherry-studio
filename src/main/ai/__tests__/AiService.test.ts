@@ -72,7 +72,11 @@ const mockAddFileRefsTx = vi.fn()
 vi.mock('@application', () => ({
   application: {
     get: (name: string) =>
-      name === 'RuntimeActivityService' ? defaultServiceInstances.RuntimeActivityService : mockApplicationGet(name),
+      name === 'RuntimeActivityService'
+        ? defaultServiceInstances.RuntimeActivityService
+        : name === 'PreferenceService'
+          ? defaultServiceInstances.PreferenceService
+          : mockApplicationGet(name),
     getPath: vi.fn((key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`))
   }
 }))

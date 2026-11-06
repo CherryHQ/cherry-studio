@@ -13,6 +13,13 @@
       "description": "Remember whether archiving an assistant also archives its related topics"
     },
     {
+      "targetKey": "chat.message.timestamp_context.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Prefix each user message sent to the model with its creation time so the model can track the current date and elapsed time (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "chat.message.user_content.default_expanded",
       "type": "boolean",
       "defaultValue": false,

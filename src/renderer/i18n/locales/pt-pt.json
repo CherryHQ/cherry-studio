@@ -4990,6 +4990,8 @@
   "settings.messages.navigation.label": "Botão de navegação de conversa",
   "settings.messages.navigation.none": "Não mostrar",
   "settings.messages.show_message_outline": "Exibir esboço da mensagem",
+  "settings.messages.timestamp_context.hint": "Antepõe a hora de envio a cada mensagem do utilizador enviada ao modelo, para que conheça a data atual e o tempo decorrido.",
+  "settings.messages.timestamp_context.label": "Adicionar carimbos de data/hora às mensagens",
   "settings.messages.title": "Configurações de mensagem",
   "settings.messages.use_serif_font": "Usar fonte serif",
   "settings.messages.user_content.default_expanded.hint": "Mostrar as mensagens longas do utilizador na íntegra por predefinição. As mensagens que expandir ou recolher manualmente mantêm a sua escolha durante esta sessão.",

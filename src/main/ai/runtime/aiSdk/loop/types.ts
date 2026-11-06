@@ -123,4 +123,6 @@ export interface AgentLoopParams<T extends AppProviderKey = AppProviderKey> {
   mediaCapabilities?: MediaCapabilities
   /** Media a tool result may carry to this wire+model; defaults to `mediaCapabilities`. */
   toolResultMediaCapabilities?: MediaCapabilities
+  /** Prefix user messages with their creation time in the model input. */
+  messageTimestamps?: boolean
 }

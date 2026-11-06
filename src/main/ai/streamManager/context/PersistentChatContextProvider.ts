@@ -856,14 +856,23 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       role: m.role,
       parts: m.data?.parts ?? [],
       compactionSummary: m.compactionSummary ?? undefined,
-      contextTokens: m.stats?.contextTokens ?? undefined
+      contextTokens: m.stats?.contextTokens ?? undefined,
+      createdAt: m.createdAt
     }
   }
 
   private toServed(row: CompactionRow): CherryUIMessage {
     // Route the role through toContentRole to keep the virtual-root guard that the
     // rest of this file relies on (a `root` row must never reach model history).
-    return { id: row.id, role: toContentRole(row.role as MessageRole), parts: row.parts } as CherryUIMessage
+    // Restore the source row's creation timestamp so downstream model-facing shaping
+    // (e.g. the optional send-time prefix on user messages) can read it; synthetic
+    // summary rows carry no createdAt and get no metadata.
+    return {
+      id: row.id,
+      role: toContentRole(row.role as MessageRole),
+      parts: row.parts,
+      ...(row.createdAt ? { metadata: { createdAt: row.createdAt } } : {})
+    } as CherryUIMessage
   }
 
   private estimateTotal(rows: CompactionRow[], dialect: TokenDialect): number {

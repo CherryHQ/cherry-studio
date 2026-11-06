@@ -99,10 +99,14 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
     })
 
     const prior = temporaryChatService.listMessages(req.topicId)
+    // Keep each row's creation timestamp on the projection: the optional send-time
+    // prefix shaping reads `metadata.createdAt`, and dropping it here made that
+    // preference a no-op for temporary chats.
     const fullHistory: CherryUIMessage[] = prior.map((m) => ({
       id: m.id,
       role: toContentRole(m.role),
-      parts: m.data.parts ?? []
+      parts: m.data.parts ?? [],
+      metadata: { createdAt: m.createdAt }
     }))
     // Same scope rule as the persistent provider, and likewise independent of
     // the `enabled` kill-switch, which owns the overflow policy instead.

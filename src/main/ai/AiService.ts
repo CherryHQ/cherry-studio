@@ -770,7 +770,8 @@ export class AiService extends BaseService {
       toolResultMediaCapabilities: resolveToolResultMediaCapabilities(
         mediaCapabilities,
         resolveModelTokenDialect(provider, model)
-      )
+      ),
+      messageTimestamps: application.get('PreferenceService').get('chat.message.timestamp_context.enabled')
     })
     agentRef.current = agent
 

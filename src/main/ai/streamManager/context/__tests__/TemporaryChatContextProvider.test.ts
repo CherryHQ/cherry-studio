@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AiStreamOpenRequest } from '@shared/ai/transport'
 
+import { prefixUserMessageTimestamps } from '../../../messages/messageRules'
+
 // ── Service mocks ────────────────────────────────────────────────────
 
 const getTopicMock = vi.fn()
@@ -220,6 +222,47 @@ describe('TemporaryChatContextProvider', () => {
     // invocation records can link to it before later promotion rebuilds the
     // same message projection.
     expect(request.messageId).toMatch(/^[0-9a-f-]{36}$/)
+  })
+
+  it('preserves creation timestamps through the model-facing history projection, keeping the send-time prefix effective', async () => {
+    const userCreatedAt = '2026-11-04T21:15:30.000Z'
+    const assistantCreatedAt = '2026-11-04T21:16:02.000Z'
+    const followUpCreatedAt = '2026-11-04T21:17:00.000Z'
+    listMessagesMock.mockReturnValue([
+      {
+        id: 'msg-u',
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'earlier question' }] },
+        createdAt: userCreatedAt
+      },
+      {
+        id: 'msg-a',
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'earlier answer' }] },
+        createdAt: assistantCreatedAt
+      },
+      { id: 'msg-u2', role: 'user', data: { parts: [{ type: 'text', text: 'hi' }] }, createdAt: followUpCreatedAt }
+    ])
+
+    const prepared = await provider.prepareDispatch(makeSubscriber(), openReq(), { hasLiveStream: false })
+    const history = prepared.models[0].request.messages!
+
+    // Producer-generated history carries the stored creation timestamps on metadata...
+    expect(history.map((m) => (m.metadata as { createdAt?: string } | undefined)?.createdAt)).toEqual([
+      userCreatedAt,
+      assistantCreatedAt,
+      followUpCreatedAt
+    ])
+
+    // ...so the optional send-time prefix actually reaches the user turns served to the model.
+    const prefixed = prefixUserMessageTimestamps(history)
+    expect(prefixed[0].parts[0]).toMatchObject({
+      type: 'text',
+      text: expect.stringMatching(/^<message-time>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} [+-]\d{2}:\d{2}<\/message-time>$/)
+    })
+    expect(prefixed[2].parts[0]).toMatchObject({ type: 'text', text: expect.stringMatching(/^<message-time>/) })
+    // Assistant turns are never prefixed.
+    expect(prefixed[1].parts).toEqual(history[1].parts)
   })
 
   it('reads the knowledge scope from the submitted user-message parts', async () => {

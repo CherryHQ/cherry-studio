@@ -4990,6 +4990,8 @@
   "settings.messages.navigation.label": "Bară navigare",
   "settings.messages.navigation.none": "Niciunul",
   "settings.messages.show_message_outline": "Afișează conturul mesajului",
+  "settings.messages.timestamp_context.hint": "Adaugă ora trimiterii la începutul fiecărui mesaj de utilizator trimis modelului, astfel încât acesta să cunoască data curentă și timpul scurs.",
+  "settings.messages.timestamp_context.label": "Adaugă marcaje temporale la mesaje",
   "settings.messages.title": "Setări mesaje",
   "settings.messages.use_serif_font": "Folosește font serif",
   "settings.messages.user_content.default_expanded.hint": "Afișează integral mesajele lungi ale utilizatorului în mod implicit. Mesajele extinse sau restrânse manual păstrează alegerea pentru această sesiune.",

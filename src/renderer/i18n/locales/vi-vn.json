@@ -4990,6 +4990,8 @@
   "settings.messages.navigation.label": "Thanh điều hướng",
   "settings.messages.navigation.none": "Không hiển thị",
   "settings.messages.show_message_outline": "Hiển thị dàn bộ tin nhắn",
+  "settings.messages.timestamp_context.hint": "Thêm thời gian gửi vào đầu mỗi tin nhắn người dùng gửi tới mô hình, để mô hình biết ngày hiện tại và khoảng thời gian đã trôi qua.",
+  "settings.messages.timestamp_context.label": "Thêm dấu thời gian vào tin nhắn",
   "settings.messages.title": "Cài đặt tin nhắn",
   "settings.messages.use_serif_font": "Dùng phông chữ có chân",
   "settings.messages.user_content.default_expanded.hint": "Mặc định hiển thị đầy đủ tin nhắn dài của người dùng. Tin nhắn bạn mở rộng hoặc thu gọn thủ công sẽ giữ lựa chọn đó trong phiên này.",
