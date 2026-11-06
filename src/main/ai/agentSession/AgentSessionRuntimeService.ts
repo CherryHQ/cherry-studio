@@ -89,7 +89,7 @@ import {
   type StreamPausedResult,
   TraceFlushListener
 } from '../streamManager'
-import { type DispatchDecision, toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
+import { type AbortedApproval, type DispatchDecision, toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
 import type { ApprovalRequestedEvent, InProcessUsageContext } from '../types'
 import {
   type AgentSessionRuntimeConnectionTarget,
@@ -133,6 +133,8 @@ const WARM_LEASE_RELEASE_DELAY_MS = 10_000
 const CONTEXT_USAGE_REFRESH_THROTTLE_MS = 3_000
 const BACKGROUND_FLOW_HANDOFF_TTL_MS = 60_000
 const BACKGROUND_FLOW_PUBLISH_THROTTLE_MS = 150
+/** Shown on a card whose requesting runtime went away before the user could answer it. */
+const ABANDONED_APPROVAL_ERROR = 'The runtime connection closed before this request was answered'
 
 function knowledgeScopeEquals(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) return false
@@ -521,6 +523,28 @@ export class AgentSessionRuntimeService extends BaseService {
         })
       })
     )
+    this.registerDisposable(toolApprovalRegistry.onAborted((aborted) => this.retireAbortedApprovalCard(aborted)))
+  }
+
+  /**
+   * Only `message`-presentation cards need this: they are parked in a row of their own that outlives
+   * the turn, so nothing else retires them once their request is aborted.
+   */
+  private retireAbortedApprovalCard(aborted: AbortedApproval): void {
+    if (aborted.presentation !== 'message') return
+    try {
+      agentSessionMessageService.retireAbandonedApproval(
+        aborted.sessionId,
+        aborted.approvalId,
+        ABANDONED_APPROVAL_ERROR
+      )
+    } catch (error) {
+      logger.warn('Failed to retire an aborted tool-approval card', {
+        sessionId: aborted.sessionId,
+        approvalId: aborted.approvalId,
+        error
+      })
+    }
   }
 
   private reconcileStalePendingMessages(protectedSessions = new Set<string>()): void {
@@ -1591,9 +1615,22 @@ export class AgentSessionRuntimeService extends BaseService {
    * interaction messages are settled before their SDK promise; live overlays are cleared after it.
    * Returns `false` if no registry entry matches so the caller can fall back to the MCP path.
    */
-  respondToolApproval(approvalId: string, decision: DispatchDecision, anchorId?: string): boolean {
+  respondToolApproval(approvalId: string, decision: DispatchDecision, anchorId?: string, topicId?: string): boolean {
     const pending = toolApprovalRegistry.peek(approvalId)
-    if (!pending) return false
+    if (!pending) {
+      // The requesting runtime is gone (connection torn down, app restart), so this decision can
+      // never reach it. Settle the card with the decision the user actually made so it stops being
+      // offered; the renderer re-delivers a submitted answer as the session's next message.
+      if (anchorId && topicId && isAgentSessionTopic(topicId)) {
+        agentSessionMessageService.applyToolApprovalDecision(extractAgentSessionId(topicId), anchorId, {
+          approvalId,
+          approved: decision.approved,
+          ...(decision.reason !== undefined && { reason: decision.reason }),
+          ...(decision.updatedInput !== undefined && { updatedInput: decision.updatedInput })
+        })
+      }
+      return false
+    }
 
     if (pending.presentation === 'message') {
       if (!anchorId) {

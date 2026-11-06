@@ -29,6 +29,7 @@ const mocks = vi.hoisted(() => ({
   getSessionMessage: vi.fn(),
   hasSessionMessage: vi.fn(() => true),
   applyToolApprovalDecision: vi.fn(),
+  retireAbandonedApproval: vi.fn(),
   getLastRuntimeResumeToken: vi.fn(),
   relocateSystemWorkspaces: vi.fn<() => Promise<Set<string>>>(),
   sharesBranch: vi.fn(),
@@ -113,6 +114,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     getSessionMessage: mocks.getSessionMessage,
     hasSessionMessage: mocks.hasSessionMessage,
     applyToolApprovalDecision: mocks.applyToolApprovalDecision,
+    retireAbandonedApproval: mocks.retireAbandonedApproval,
     getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken,
     getNativeSessionId: vi.fn(),
     captureHead: () => 'branch-head',
@@ -744,6 +746,67 @@ describe('AgentSessionRuntimeService', () => {
       const service = new AgentSessionRuntimeService()
       expect(service.respondToolApproval('missing', { approved: true })).toBe(false)
       expect(mocks.resolveToolApproval).not.toHaveBeenCalled()
+    })
+
+    it('records the user decision on a card the runtime can no longer answer', () => {
+      const updatedInput = { questions: [], answers: { Choice: 'SQLite' } }
+      const service = new AgentSessionRuntimeService()
+
+      expect(
+        service.respondToolApproval(
+          'approval-gone',
+          { approved: true, updatedInput },
+          'approval-message-1',
+          'agent-session:session-1'
+        )
+      ).toBe(false)
+
+      expect(mocks.applyToolApprovalDecision).toHaveBeenCalledWith('session-1', 'approval-message-1', {
+        approvalId: 'approval-gone',
+        approved: true,
+        updatedInput
+      })
+    })
+  })
+
+  describe('aborted approvals', () => {
+    it('retires the persisted card whose live request the runtime aborted', async () => {
+      const resolve = vi.fn()
+      toolApprovalRegistry.register({
+        approvalId: 'approval-bg',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-bg',
+        toolName: 'AskUserQuestion',
+        originalInput: { questions: [] },
+        presentation: 'message',
+        resolve
+      })
+      const service = new AgentSessionRuntimeService()
+      await (service as any).onInit()
+
+      toolApprovalRegistry.abort('session-1', 'stream-ended')
+
+      expect(resolve).toHaveBeenCalledWith({ approved: false, reason: 'stream-ended' })
+      expect(mocks.retireAbandonedApproval).toHaveBeenCalledWith('session-1', 'approval-bg', expect.any(String))
+    })
+
+    it('leaves streamed approvals to the turn stream, which owns their card', async () => {
+      const resolve = vi.fn()
+      toolApprovalRegistry.register({
+        approvalId: 'approval-stream',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-stream',
+        toolName: 'Bash',
+        originalInput: { command: 'ls' },
+        resolve
+      })
+      const service = new AgentSessionRuntimeService()
+      await (service as any).onInit()
+
+      toolApprovalRegistry.abort('session-1', 'stream-ended')
+
+      expect(resolve).toHaveBeenCalledWith({ approved: false, reason: 'stream-ended' })
+      expect(mocks.retireAbandonedApproval).not.toHaveBeenCalled()
     })
   })
 

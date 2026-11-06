@@ -472,9 +472,15 @@ export class AiService extends BaseService {
         reason: payload.reason,
         updatedInput: payload.updatedInput
       },
-      payload.anchorId
+      payload.anchorId,
+      payload.topicId
     )
     if (dispatched) return { ok: true }
+
+    // An agent-session card is never resolvable through the chat message table — the runtime path
+    // above owns it, and settles it when it cannot deliver the decision. Looking for its anchor in
+    // the chat table only produces a misleading "anchor is missing" warning.
+    if (payload.topicId && isAgentSessionTopic(payload.topicId)) return { ok: false }
 
     // MCP path: write decisions to DB, then dispatch continue-conversation when nothing is pending.
     if (!payload.topicId || !payload.anchorId) {

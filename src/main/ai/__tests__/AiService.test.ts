@@ -1272,6 +1272,7 @@ describe('AiService tool approval', () => {
         reason: undefined,
         updatedInput: undefined
       },
+      undefined,
       undefined
     )
     // Fast-path short-circuits before any DB read or continue dispatch.

@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-06-retire-abandoned-approval-cards.md
+2026-11-06-retire-abandoned-approval-cards.md: 82447662b24a19da011d886f3ff69e15fcf00823
+2026-11-06-retire-abandoned-approval-cards.zh.md: 3e8695460210cb506cc6dad1f09357531b0d1784

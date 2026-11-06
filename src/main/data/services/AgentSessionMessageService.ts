@@ -2517,6 +2517,63 @@ export class AgentSessionMessageService {
     }
     return applied
   }
+
+  /**
+   * Terminalize a persisted approval card whose live request went away without a user decision. The
+   * row keeps its status and role — it is a settled interaction record, not a live turn — and only
+   * the parked part becomes terminal, so the card stops reading as answerable.
+   *
+   * Returns `false` when nothing is parked on that approval: already answered, or already retired.
+   */
+  retireAbandonedApproval(sessionId: string, approvalId: string, errorText: string): boolean {
+    const retired = application.get('DbService').withWriteTx((tx) => {
+      const [parkedRow] = tx
+        .select()
+        .from(sessionMessagesTable)
+        .where(
+          and(
+            eq(sessionMessagesTable.sessionId, sessionId),
+            sql<boolean>`exists (
+              select 1 from json_each(${sessionMessagesTable.data}, '$.parts') as part
+              where json_extract(part.value, '$.state') = 'approval-requested'
+                and json_extract(part.value, '$.approval.id') = ${approvalId}
+            )`
+          )
+        )
+        .limit(1)
+        .all()
+      if (!parkedRow) return null
+
+      const parked = this.rowToEntity(parkedRow)
+      const updatedAt = Date.now()
+      // The part keeps every field it was parked with; only its state leaves the approval machine.
+      const parts = (parked.data.parts ?? []).map((part): CherryMessagePart => {
+        const parkedApprovalId = (part as { approval?: { id?: string } }).approval?.id
+        if (!isToolUIPart(part) || part.state !== 'approval-requested' || parkedApprovalId !== approvalId) {
+          return part
+        }
+        return { ...part, state: 'output-error', errorText } as unknown as CherryMessagePart
+      })
+      tx.update(sessionMessagesTable)
+        .set({ data: { ...parked.data, parts }, updatedAt })
+        .where(eq(sessionMessagesTable.id, parked.id))
+        .run()
+      agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
+      return parked.id
+    })
+
+    if (!retired) return false
+    agentSessionService.notifyReadModelChange([sessionId], 'projection')
+    notifyDataApiDataChange([
+      {
+        endpoint: '/agent-sessions/:sessionId/messages',
+        kind: 'projection',
+        routeParams: { sessionId },
+        entityIds: [retired]
+      }
+    ])
+    return true
+  }
 }
 
 export const agentSessionMessageService = new AgentSessionMessageService()
