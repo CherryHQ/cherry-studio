@@ -1,30 +1,8 @@
-import { rm } from 'node:fs/promises'
-
-import { _electron as electron, type Locator } from '@playwright/test'
+import type { Locator } from '@playwright/test'
 
 import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
 import { selectSidebarApp } from '../regression/helpers/navigation'
-import { expect, test as base } from './fixtures/electron.fixture'
-
-const test = base.extend({
-  electronApp: async ({}, use, testInfo) => {
-    const profile = testInfo.outputPath('profile')
-    const electronApp = await electron.launch({
-      args: ['.'],
-      env: { ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: profile },
-      timeout: 60000
-    })
-    try {
-      await use(electronApp)
-    } finally {
-      try {
-        await electronApp.close()
-      } finally {
-        await rm(profile, { recursive: true, force: true })
-      }
-    }
-  }
-})
+import { expect, test } from './fixtures/electron.fixture'
 
 test('whole-assistant drags show one insertion line within the hovered group and reorder', async ({
   mainWindow

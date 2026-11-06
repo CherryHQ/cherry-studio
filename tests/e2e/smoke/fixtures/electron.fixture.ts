@@ -1,4 +1,5 @@
-import { rm } from 'node:fs/promises'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import type { ElectronApplication, Page } from '@playwright/test'
@@ -18,8 +19,9 @@ export type ElectronFixtures = {
 
 export const test = base.extend<ElectronFixtures & { isolatedEnvironment: void }>({
   isolatedEnvironment: [
-    async ({}, use, testInfo) => {
-      const runtimeRoot = testInfo.outputPath('runtime')
+    async ({}, use) => {
+      // Chromium's macOS singleton socket cannot fit under deeply nested report directories.
+      const runtimeRoot = await mkdtemp(join(process.platform === 'darwin' ? '/tmp' : tmpdir(), 'cs-e2e-'))
       const paths = getRunPaths(runtimeRoot)
       const environment = {
         ...createProfileEnvironment(paths, 'authenticated'),

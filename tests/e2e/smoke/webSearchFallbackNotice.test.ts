@@ -1,33 +1,11 @@
 import { once } from 'node:events'
-import { rm, writeFile } from 'node:fs/promises'
+import { writeFile } from 'node:fs/promises'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
-
-import { _electron as electron } from '@playwright/test'
 
 import { createUniqueModelId } from '../../../src/shared/data/types/model'
 import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
 import { selectSidebarApp } from '../regression/navigation'
-import { expect, test as base } from './fixtures/electron.fixture'
-
-const test = base.extend({
-  electronApp: async ({}, use, testInfo) => {
-    const profileRoot = testInfo.outputPath('profile')
-    const electronApp = await electron.launch({
-      args: ['.'],
-      env: { ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: profileRoot },
-      timeout: 60000
-    })
-    try {
-      await use(electronApp)
-    } finally {
-      try {
-        await electronApp.close()
-      } finally {
-        await rm(profileRoot, { recursive: true, force: true, maxRetries: 3 })
-      }
-    }
-  }
-})
+import { expect, test } from './fixtures/electron.fixture'
 
 test('shows the provider fallback notice after a real search dispatch', async ({ mainWindow: page }, testInfo) => {
   test.setTimeout(180_000)

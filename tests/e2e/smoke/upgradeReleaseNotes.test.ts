@@ -1,6 +1,6 @@
-import { rm, writeFile } from 'node:fs/promises'
+import { writeFile } from 'node:fs/promises'
 
-import { _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
+import type { ElectronApplication, Page } from '@playwright/test'
 import { inc } from 'semver'
 
 import en from '../../../src/renderer/i18n/locales/en-us.json'
@@ -9,24 +9,7 @@ import { ThemeMode } from '../../../src/shared/data/preference/preferenceTypes'
 import { IpcChannel } from '../../../src/shared/IpcChannel'
 import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
 import type { ReleaseNotesEntry } from '../../../src/shared/utils/releaseNotes'
-import { expect, test as base } from './fixtures/electron.fixture'
-
-const test = base.extend({
-  electronApp: async ({}, use, testInfo) => {
-    const profile = testInfo.outputPath('profile')
-    const app = await electron.launch({
-      args: ['.'],
-      env: { ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: profile },
-      timeout: 60000
-    })
-    try {
-      await use(app)
-    } finally {
-      await app.close()
-      await rm(profile, { recursive: true, force: true })
-    }
-  }
-})
+import { expect, test } from './fixtures/electron.fixture'
 
 async function serveHistory(app: ElectronApplication, releases: ReleaseNotesEntry[] | null) {
   await app.evaluate(({ net }, entries) => {

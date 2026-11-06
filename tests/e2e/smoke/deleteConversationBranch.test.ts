@@ -27,12 +27,13 @@ const test = base.extend({
   electronApp: async ({}, provideApp, testInfo) => {
     const profile = testInfo.outputPath('profile')
     await mkdir(profile, { recursive: true })
-    const app = await launch(profile)
+    let app: ElectronApplication | undefined
     try {
+      app = await launch(profile)
       await provideApp(app)
     } finally {
       try {
-        if (app.process()?.exitCode === null) await app.close()
+        if (app?.process()?.exitCode === null) await app.close()
       } catch {
         // The test owns both app lifetimes and may already have closed this one.
       } finally {

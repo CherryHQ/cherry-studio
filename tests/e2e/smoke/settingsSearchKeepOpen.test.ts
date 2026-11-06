@@ -1,6 +1,3 @@
-import { rm } from 'node:fs/promises'
-
-import { _electron as electron } from '@playwright/test'
 import type { Page, TestInfo } from '@playwright/test'
 
 import en from '../../../src/renderer/i18n/locales/en-us.json'
@@ -8,28 +5,14 @@ import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constan
 import { expect, test as base } from './fixtures/electron.fixture'
 
 const test = base.extend({
-  electronApp: async ({}, use, testInfo) => {
-    const profile = testInfo.outputPath('profile')
-    const electronApp = await electron.launch({
-      args: ['.'],
-      env: { ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: profile },
-      timeout: 60000
-    })
+  electronApp: async ({ electronApp }, use, testInfo) => {
+    await electronApp.context().tracing.start({ screenshots: true, snapshots: true })
     try {
-      await electronApp.context().tracing.start({ screenshots: true, snapshots: true })
       await use(electronApp)
     } finally {
-      try {
-        const path = testInfo.outputPath('settings-search-trace.zip')
-        await electronApp.context().tracing.stop({ path })
-        await testInfo.attach('settings-search-trace', { path, contentType: 'application/zip' })
-      } finally {
-        try {
-          await electronApp.close()
-        } finally {
-          await rm(profile, { recursive: true, force: true })
-        }
-      }
+      const path = testInfo.outputPath('settings-search-trace.zip')
+      await electronApp.context().tracing.stop({ path })
+      await testInfo.attach('settings-search-trace', { path, contentType: 'application/zip' })
     }
   }
 })
