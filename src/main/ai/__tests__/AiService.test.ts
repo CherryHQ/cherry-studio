@@ -2309,6 +2309,125 @@ describe('AiService tool approval', () => {
     expect(mockAgentGenerate).not.toHaveBeenCalled()
   })
 
+  it('preserves the provider error when the initial request fails before any output', async () => {
+    // An initial HTTP 403 rejects the aggregation promises with a generic
+    // AI_NoOutputGeneratedError while the actionable provider error only appears as an
+    // error stream part (verified against the pinned SDK with a mocked-fetch probe).
+    // generate() must surface the provider error, not the generic one.
+    const service = createService()
+    const apiCallError = Object.assign(new Error('Your account has no access to this model'), {
+      statusCode: 403,
+      name: 'AI_APICallError'
+    })
+    const noOutput = new Error('No output generated. Check the stream for errors.')
+    noOutput.name = 'AI_NoOutputGeneratedError'
+    const mockAgentStream = vi.fn().mockResolvedValue({
+      text: Promise.reject(noOutput),
+      usage: Promise.reject(noOutput),
+      finishReason: Promise.reject(noOutput),
+      rawFinishReason: Promise.reject(noOutput),
+      steps: Promise.reject(noOutput),
+      fullStream: (async function* () {
+        yield { type: 'start' }
+        yield { type: 'error', error: apiCallError }
+      })()
+    })
+    mockCreateAgent.mockResolvedValue({ generate: mockAgentGenerate, stream: mockAgentStream })
+    vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'openai', providerSettings: {}, modelId: 'gpt-5.1-codex' },
+      credentialReceipt: { attribution: 'matched', id: 'oauth', masked: 'oauth' },
+      provider: { id: 'openai-codex', name: 'OpenAI Codex', reportsActualCost: false },
+      model: { id: 'openai-codex::gpt-5.1-codex', name: 'GPT Codex', capabilities: [] },
+      tools: undefined,
+      plugins: [],
+      system: undefined,
+      options: {},
+      hookParts: [],
+      assistant: undefined,
+      nativeFileSupport: { image: false, pdf: false, audio: false, video: false }
+    })
+
+    await expect(
+      service.generateText({ uniqueModelId: 'openai-codex::gpt-5.1-codex', prompt: 'hi' } as never)
+    ).rejects.toThrow('Your account has no access to this model')
+    expect(mockAgentGenerate).not.toHaveBeenCalled()
+  })
+
+  it('settles generation from the stream when the metadata promises never settle', async () => {
+    // A mid-stream reader failure can leave the aggregation promises pending: the stream is
+    // the only side that still settles. generate() must reject from the captured failure
+    // instead of hanging (and without an unhandled rejection from the stream watcher).
+    const service = createService()
+    const never = new Promise(() => {})
+    const mockAgentStream = vi.fn().mockResolvedValue({
+      text: never,
+      usage: never,
+      finishReason: never,
+      rawFinishReason: never,
+      steps: never,
+      fullStream: (async function* () {
+        yield { type: 'start' }
+        yield { type: 'error', error: new Error('response body failed mid-stream') }
+      })()
+    })
+    mockCreateAgent.mockResolvedValue({ generate: mockAgentGenerate, stream: mockAgentStream })
+    vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'openai', providerSettings: {}, modelId: 'gpt-5.1-codex' },
+      credentialReceipt: { attribution: 'matched', id: 'oauth', masked: 'oauth' },
+      provider: { id: 'openai-codex', name: 'OpenAI Codex', reportsActualCost: false },
+      model: { id: 'openai-codex::gpt-5.1-codex', name: 'GPT Codex', capabilities: [] },
+      tools: undefined,
+      plugins: [],
+      system: undefined,
+      options: {},
+      hookParts: [],
+      assistant: undefined,
+      nativeFileSupport: { image: false, pdf: false, audio: false, video: false }
+    })
+
+    await expect(
+      service.generateText({ uniqueModelId: 'openai-codex::gpt-5.1-codex', prompt: 'hi' } as never)
+    ).rejects.toThrow('response body failed mid-stream')
+    expect(mockAgentGenerate).not.toHaveBeenCalled()
+  })
+
+  it('settles generation when the stream reader itself rejects', async () => {
+    // Same invariant through the reader-rejection path: the fullStream iterator throws and
+    // the metadata promises stay pending; the read failure must settle generation.
+    const service = createService()
+    const never = new Promise(() => {})
+    const mockAgentStream = vi.fn().mockResolvedValue({
+      text: never,
+      usage: never,
+      finishReason: never,
+      rawFinishReason: never,
+      steps: never,
+      fullStream: (async function* () {
+        yield { type: 'start' }
+        throw new Error('socket reset')
+      })()
+    })
+    mockCreateAgent.mockResolvedValue({ generate: mockAgentGenerate, stream: mockAgentStream })
+    vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'openai', providerSettings: {}, modelId: 'gpt-5.1-codex' },
+      credentialReceipt: { attribution: 'matched', id: 'oauth', masked: 'oauth' },
+      provider: { id: 'openai-codex', name: 'OpenAI Codex', reportsActualCost: false },
+      model: { id: 'openai-codex::gpt-5.1-codex', name: 'GPT Codex', capabilities: [] },
+      tools: undefined,
+      plugins: [],
+      system: undefined,
+      options: {},
+      hookParts: [],
+      assistant: undefined,
+      nativeFileSupport: { image: false, pdf: false, audio: false, video: false }
+    })
+
+    await expect(
+      service.generateText({ uniqueModelId: 'openai-codex::gpt-5.1-codex', prompt: 'hi' } as never)
+    ).rejects.toThrow('socket reset')
+    expect(mockAgentGenerate).not.toHaveBeenCalled()
+  })
+
   it('checks embedding models with the normal embedding path', async () => {
     const service = createService()
     const embedSpy = vi.spyOn(service, 'embedMany').mockResolvedValue({ embeddings: [[1]] })
