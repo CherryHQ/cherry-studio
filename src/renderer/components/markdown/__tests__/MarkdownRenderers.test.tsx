@@ -1,4 +1,5 @@
 import { createEvent, fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { Element } from 'hast'
 import type { ComponentType, ImgHTMLAttributes, MouseEvent, PropsWithChildren } from 'react'
 import { describe, expect, it, vi } from 'vitest'
@@ -256,4 +257,40 @@ it('keeps file capability routing ahead of external URL routing', () => {
   expect(event.defaultPrevented).toBe(true)
   expect(openFilePath).toHaveBeenCalledExactlyOnceWith('./notes.md')
   expect(openExternalUrl).not.toHaveBeenCalled()
+})
+
+describe('network file links', () => {
+  const href = String.raw`\\server\share\docs\report.md`
+
+  it('keeps UNC links external unless the host allows network file links', async () => {
+    const user = userEvent.setup()
+    const openFilePath = vi.fn()
+    render(
+      <MarkdownHostProvider openFilePath={openFilePath}>
+        <Renderer name="a" href={href}>
+          Network report
+        </Renderer>
+      </MarkdownHostProvider>
+    )
+
+    await user.click(screen.getByRole('link', { name: 'Network report' }))
+
+    expect(openFilePath).not.toHaveBeenCalled()
+  })
+
+  it('opens a UNC link once when the host allows network file links', async () => {
+    const user = userEvent.setup()
+    const openFilePath = vi.fn()
+    render(
+      <MarkdownHostProvider openFilePath={openFilePath} allowNetworkFileLinks>
+        <Renderer name="a" href={href}>
+          Network report
+        </Renderer>
+      </MarkdownHostProvider>
+    )
+
+    await user.click(screen.getByRole('link', { name: 'Network report' }))
+
+    expect(openFilePath).toHaveBeenCalledExactlyOnceWith(href)
+  })
 })

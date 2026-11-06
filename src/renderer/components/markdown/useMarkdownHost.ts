@@ -13,6 +13,8 @@ export interface MarkdownHost {
   notifyError?: (message: string) => void
   /** Opens a schemeless Markdown link as a local file in the owning surface. */
   openFilePath?: (path: string) => void | Promise<void>
+  /** Owners that open paths from a user-selected document (file preview) keep UNC link targets; chat surfaces must leave this false. */
+  allowNetworkFileLinks?: boolean
 }
 
 export const MarkdownHostContext = createContext<MarkdownHost | null>(null)

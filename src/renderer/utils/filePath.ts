@@ -65,7 +65,10 @@ export function isInlineFilePath(value: string): boolean {
  * inline *text*): any schemeless target is treated as a file, so single-segment
  * links like `README.md` resolve too.
  */
-export function parseFileLinkHref(href: string | undefined): string | null {
+export function parseFileLinkHref(
+  href: string | undefined,
+  options: { allowNetworkTargets?: boolean } = {}
+): string | null {
   if (!href) return null
   const rawPath = href.replace(/[?#].*$/, '') // drop query + hash
   if (!rawPath) return null
@@ -78,6 +81,10 @@ export function parseFileLinkHref(href: string | undefined): string | null {
   }
 
   if (!path || path.startsWith('//')) return null // protocol-relative → external
+  // This check must match the representation consumed by resolveWorkspaceFilePath; otherwise normalizing once
+  // in the check and again in the consumer can expose different path shapes and allow UNC-triggered SMB authentication.
+  if (!options.allowNetworkTargets && /^[\\/]{2}/.test(normalizeInlineFilePath(resolveInlineFilePath(path))))
+    return null
   if (!WINDOWS_DRIVE_FILE_PATH_PATTERN.test(path) && /^[a-z][a-z0-9+.-]*:/i.test(path)) return null
   return path
 }
