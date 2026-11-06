@@ -670,8 +670,8 @@
     }
   ],
   "providers": {
-    "version": "bf5d34485566c802",
-    "count": 67,
+    "version": "8235b3ddc675d97c",
+    "count": 68,
     "entries": [
       {
         "id": "cherryin",
@@ -940,6 +940,10 @@
       {
         "id": "minimax-global",
         "name": "minimax-global"
+      },
+      {
+        "id": "synap",
+        "name": "Synap"
       }
     ]
   },
