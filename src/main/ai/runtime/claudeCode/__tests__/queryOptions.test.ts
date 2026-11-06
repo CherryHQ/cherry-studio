@@ -30,6 +30,7 @@ describe('createClaudeCodeQueryOptions', () => {
         toolPolicySnapshot: {},
         warmQueryInitializeTimeoutMs: 100,
         mcpToolMetadata: {},
+        boundedMcpToolNames: true,
         spawnClaudeCodeProcess: ignoredSpawn
       } as any
     })
@@ -41,6 +42,7 @@ describe('createClaudeCodeQueryOptions', () => {
     expect(opts).not.toHaveProperty('toolPolicySnapshot')
     expect(opts).not.toHaveProperty('warmQueryInitializeTimeoutMs')
     expect(opts).not.toHaveProperty('mcpToolMetadata')
+    expect(opts).not.toHaveProperty('boundedMcpToolNames')
     expect(opts.spawnClaudeCodeProcess).toBe(spawnClaudeCodeProcess)
   })
 })

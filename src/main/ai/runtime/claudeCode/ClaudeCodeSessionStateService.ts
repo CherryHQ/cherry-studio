@@ -37,6 +37,7 @@ const logger = loggerService.withContext('ClaudeCodeSessionStateService')
 export type ToolPolicySnapshot = Awaited<ReturnType<typeof createClaudeAgentToolPolicySnapshot>>
 
 interface McpSessionCatalogState {
+  boundedMcpToolNames: boolean
   agentId: string
   serverIds: Set<string>
   metadata: Record<string, McpToolDisplayMetadata>
@@ -109,7 +110,7 @@ export class ClaudeCodeSessionStateService extends BaseService {
     if (existing) {
       // Connect (including a warm-hit) refreshes the shared instance with the current agent so a
       // policy change made between prewarm and connect is honored on the running subprocess.
-      await existing.update(agent)
+      await existing.update(agent, { boundedMcpToolNames: options?.boundedMcpToolNames ?? false })
       return existing
     }
     const snapshot = await createClaudeAgentToolPolicySnapshot(agent, options)
@@ -200,7 +201,8 @@ export class ClaudeCodeSessionStateService extends BaseService {
     sessionId: string,
     agentId: string,
     mcpIds: readonly string[],
-    metadata: Record<string, McpToolDisplayMetadata> | undefined
+    metadata: Record<string, McpToolDisplayMetadata> | undefined,
+    boundedMcpToolNames = false
   ): void {
     this.mcpSessionCatalogStates.get(sessionId)?.subscription?.dispose()
     this.mcpSessionCatalogStates.delete(sessionId)
@@ -218,6 +220,7 @@ export class ClaudeCodeSessionStateService extends BaseService {
       agentId,
       serverIds,
       metadata,
+      boundedMcpToolNames,
       refreshSequence: 0
     }
     state.subscription = application.get('McpCatalogService').onToolsCacheUpdated(({ serverId }) => {
@@ -238,7 +241,7 @@ export class ClaudeCodeSessionStateService extends BaseService {
 
     const [policyResult, metadataResult] = await Promise.allSettled([
       this.getToolPolicySnapshot(sessionId)?.update(liveAgent),
-      buildMcpToolMetadata(liveAgent)
+      buildMcpToolMetadata(liveAgent, state.boundedMcpToolNames)
     ])
     if (this.mcpSessionCatalogStates.get(sessionId) !== state || sequence !== state.refreshSequence) return
 

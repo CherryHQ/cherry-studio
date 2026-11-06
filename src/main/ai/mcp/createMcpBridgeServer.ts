@@ -15,6 +15,8 @@ import { mcpLegacyResult } from './toolResult'
 const logger = loggerService.withContext('McpBridge')
 
 export interface McpBridgeOptions {
+  mapToolName?: (name: string) => string
+  resolveToolName?: (name: string) => string | undefined
   interactionContext?: McpInteractionContext
   /**
    * Declare `tools.listChanged` and relay cache updates as `tools/list_changed`.
@@ -79,7 +81,7 @@ function toSdkResourceContents(content: McpResource): ReadResourceResult['conten
 export function createMcpBridgeServer(
   mcpId: string,
   serverSnapshot?: McpServerEntity,
-  { listChanged = true, interactionContext }: McpBridgeOptions = {}
+  { listChanged = true, interactionContext, mapToolName, resolveToolName }: McpBridgeOptions = {}
 ): Server {
   const serverConfig = serverSnapshot ?? mcpServerService.findByIdOrName(mcpId)
   if (!serverConfig) {
@@ -229,7 +231,10 @@ export function createMcpBridgeServer(
 
   server.setRequestHandler('tools/list', () =>
     logged('listing tools', {}, async () => ({
-      tools: application.get('McpCatalogService').listTools(serverConfig.id, { includeDisabled: false }).map(toSdkTool)
+      tools: application
+        .get('McpCatalogService')
+        .listTools(serverConfig.id, { includeDisabled: false })
+        .map((tool) => ({ ...toSdkTool(tool), name: mapToolName ? mapToolName(tool.name) : tool.name }))
     }))
   )
 
@@ -250,9 +255,11 @@ export function createMcpBridgeServer(
 
     try {
       logger.debug('MCP bridge: calling tool', { mcpId, tool: request.params.name })
+      const originalName = resolveToolName ? resolveToolName(request.params.name) : request.params.name
+      if (originalName === undefined) throw new Error(`Unknown MCP tool: ${request.params.name}`)
       const result = await application.get('McpRuntimeService').callTool({
         serverId: serverConfig.id,
-        name: request.params.name,
+        name: originalName,
         args: request.params.arguments,
         onProgress,
         signal,

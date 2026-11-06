@@ -9,6 +9,7 @@ import type { McpSdkServerConfigWithInstance, McpServerConfig } from '@anthropic
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
+import { planClaudeMcpToolNames } from '@main/ai/mcp/mcpToolNames'
 import {
   type AgentNotificationContext,
   buildAgentMcpServers,
@@ -33,7 +34,8 @@ export function buildMcpServers(
   linkedChannelSnapshot?: LinkedChannelSnapshot,
   agentDataPath = session.workspace.path,
   selectedKnowledgeBaseIds: readonly string[] = [],
-  notificationContext?: AgentNotificationContext
+  notificationContext?: AgentNotificationContext,
+  boundedMcpToolNames = false
 ): Record<string, McpServerConfig> | undefined {
   const servers = buildAgentMcpServers(
     session,
@@ -43,19 +45,39 @@ export function buildMcpServers(
     linkedChannelSnapshot,
     agentDataPath,
     selectedKnowledgeBaseIds,
-    notificationContext
+    notificationContext,
+    boundedMcpToolNames
+      ? (serverId, sdkServerKey) => {
+          const plan = () =>
+            planClaudeMcpToolNames(
+              { serverId, sdkServerKey },
+              application
+                .get('McpCatalogService')
+                .listTools(serverId, { includeDisabled: false })
+                .map((tool) => tool.name)
+            )
+          return {
+            mapToolName: (name) => plan().toolName(name),
+            resolveToolName: (name) => plan().resolve(name)?.toolName
+          }
+        }
+      : undefined
   )
 
   return Object.fromEntries(
-    Object.entries(servers).map(([id, { name, connect }]) => [
-      id,
-      {
-        type: 'sdk',
-        name,
-        // The SDK only calls `connect` on its own 2025-era transport; v2 serves that era.
-        instance: { connect } as unknown as McpSdkServerConfigWithInstance['instance']
-      } satisfies McpServerConfig
-    ])
+    Object.entries(servers).map(([key, { id, name, connect }]) => {
+      const serverKey =
+        boundedMcpToolNames && id ? planClaudeMcpToolNames({ serverId: id, sdkServerKey: key }, []).serverKey : key
+      return [
+        serverKey,
+        {
+          type: 'sdk',
+          name: boundedMcpToolNames && id ? serverKey : name,
+          // The SDK only calls `connect` on its own 2025-era transport; v2 serves that era.
+          instance: { connect } as unknown as McpSdkServerConfigWithInstance['instance']
+        } satisfies McpServerConfig
+      ]
+    })
   )
 }
 
@@ -133,7 +155,8 @@ export async function warmAgentMcpToolCaches(agent: AgentEntity): Promise<McpWar
 }
 
 export async function buildMcpToolMetadata(
-  agent: AgentEntity
+  agent: AgentEntity,
+  boundedMcpToolNames = false
 ): Promise<Record<string, McpToolDisplayMetadata> | undefined> {
   const mcpIds = agent.mcps
   if (!mcpIds?.length) return undefined
@@ -147,8 +170,17 @@ export async function buildMcpToolMetadata(
       if (!server) continue
 
       const tools = mcpService.listTools(server.id)
+      const plan = boundedMcpToolNames
+        ? planClaudeMcpToolNames(
+            { serverId: server.id, sdkServerKey: mcpId },
+            tools.map((tool) => tool.name)
+          )
+        : undefined
       for (const tool of tools) {
         addMcpToolMetadataAliases(metadataByName, server, tool)
+        if (plan) {
+          metadataByName[`mcp__${plan.serverKey}__${plan.toolName(tool.name)}`] = metadataByName[tool.id]
+        }
       }
     } catch (error) {
       logger.warn('Failed to build MCP tool display metadata', { mcpId, error })

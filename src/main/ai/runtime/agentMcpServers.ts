@@ -9,7 +9,7 @@ import { agentService } from '@data/services/AgentService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { resolveAgentCapabilities, resolveHostTools } from '@main/ai/agents/builtin/builtinAgentCapabilities'
-import { createMcpBridgeServer } from '@main/ai/mcp/createMcpBridgeServer'
+import { createMcpBridgeServer, type McpBridgeOptions } from '@main/ai/mcp/createMcpBridgeServer'
 import { createAgentMemoryServer } from '@main/ai/mcp/servers/agentMemory'
 import { createAssistantServer } from '@main/ai/mcp/servers/assistant'
 import { createAssistantFileToolsServer } from '@main/ai/mcp/servers/AssistantFileToolsServer'
@@ -65,7 +65,11 @@ export function buildAgentMcpServers(
   linkedChannelSnapshot?: LinkedChannelSnapshot,
   agentDataPath = session.workspace.path,
   selectedKnowledgeBaseIds: readonly string[] = [],
-  notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)
+  notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot),
+  bridgeToolNames?: (
+    serverId: string,
+    sdkServerKey: string
+  ) => Pick<McpBridgeOptions, 'mapToolName' | 'resolveToolName'>
 ): Record<string, AgentMcpServer> {
   const interactionContext = {
     sessionId: session.id,
@@ -95,7 +99,12 @@ export function buildAgentMcpServers(
       servers[mcpId] = {
         id: legacyServer.id,
         name: mcpId,
-        connect: serveAgentMcpServer(() => createMcpBridgeServer(mcpId, legacyServer, { interactionContext }))
+        connect: serveAgentMcpServer(() =>
+          createMcpBridgeServer(mcpId, legacyServer, {
+            interactionContext,
+            ...bridgeToolNames?.(legacyServer.id, mcpId)
+          })
+        )
       }
     } catch (error) {
       logger.error(`Failed to create MCP bridge for ${mcpId}`, { error })

@@ -42,6 +42,8 @@ export function createClaudeCodeQueryOptions({
     warmQueryInitializeTimeoutMs: _warmQueryInitializeTimeoutMs,
     // oxlint-disable-next-line no-unused-vars
     mcpToolMetadata: _mcpToolMetadata,
+    // oxlint-disable-next-line no-unused-vars
+    boundedMcpToolNames: _boundedMcpToolNames,
     ...settingsRest
   } = settings
 
