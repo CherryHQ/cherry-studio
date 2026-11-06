@@ -30,9 +30,11 @@ import type {
   UpdateTopicDto
 } from '@shared/data/api/schemas/topics'
 import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
+import { topicFollowupScopePrefix } from '@shared/data/types/followupQueue'
 import type { Topic } from '@shared/data/types/topic'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
+import { followupQueueService } from './FollowupQueueService'
 import { pinService } from './PinService'
 import { tagService } from './TagService'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
@@ -568,6 +570,11 @@ export class TopicService {
       messageService.purgeByTopicIdsTx(tx, chunk)
       tagService.purgeForEntitiesTx(tx, 'topic', chunk)
       pinService.purgeForEntitiesTx(tx, 'topic', chunk)
+      // followup_queue has no FK to conversation tables by design; purge its
+      // rows (and paused state) for every scope rooted at the deleted topics.
+      for (const topicId of chunk) {
+        followupQueueService.purgeForScopePrefixTx(tx, topicFollowupScopePrefix(topicId))
+      }
       tx.delete(topicTable).where(inArray(topicTable.id, chunk)).run()
     }
 

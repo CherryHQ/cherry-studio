@@ -593,6 +593,30 @@ export const translateHistoryRefFields = {
 
 export const translateHistoryFileRefSchema = createRefSchema(translateHistoryRefFields)
 
+// ─── followup_queue variant ───
+//
+// Links a FileEntry to a queued composer follow-up draft. The owning service
+// writes refs at enqueue time for blob attachments the renderer persisted as
+// managed entries, so the entry survives the idle sweep for the draft's whole
+// queue lifetime. The association table has an FK to `followup_queue`, and
+// queue rows are hard-deleted on dequeue - so the ref lives exactly until
+// removal or transfer, which is what keeps the sweep from reclaiming the
+// bytes while the draft is still waiting.
+
+export const followupQueueSourceType = 'followup_queue' as const
+
+export const followupQueueRoles = ['attachment'] as const
+export type FollowupQueueRole = (typeof followupQueueRoles)[number]
+export const followupQueueRoleSchema = z.enum(followupQueueRoles)
+
+export const followupQueueRefFields = {
+  sourceType: z.literal(followupQueueSourceType),
+  sourceId: z.uuid(),
+  role: followupQueueRoleSchema
+}
+
+export const followupQueueFileRefSchema = createRefSchema(followupQueueRefFields)
+
 // ─── Single-file entity-image variants (provider logo / mini-app logo) ───
 //
 // Unlike the collection refs above (`chat_message`, `painting`), these model a
@@ -664,6 +688,7 @@ export const allSourceTypes = [
   paintingSourceType,
   jobSourceType,
   translateHistorySourceType,
+  followupQueueSourceType,
   providerLogoRef.sourceType,
   miniAppLogoRef.sourceType,
   miniAppFileRef.sourceType
@@ -692,6 +717,7 @@ export const FileRefSchema = z.discriminatedUnion('sourceType', [
   paintingFileRefSchema,
   jobFileRefSchema,
   translateHistoryFileRefSchema,
+  followupQueueFileRefSchema,
   providerLogoRef.schema,
   miniAppLogoRef.schema,
   miniAppFileRef.schema
