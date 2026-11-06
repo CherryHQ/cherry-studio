@@ -12,7 +12,7 @@ import { type MemoryAccess, type MemoryApproval, MemoryStore } from '../MemorySt
 
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof fs>()
-  return { ...actual, lstat: vi.fn(actual.lstat) }
+  return { ...actual, lstat: vi.fn(actual.lstat), open: vi.fn(actual.open) }
 })
 
 const approve: MemoryApproval = async () => () => undefined
@@ -45,6 +45,7 @@ beforeEach(async () => {
 afterEach(async () => {
   vi.restoreAllMocks()
   vi.mocked(fs.lstat).mockReset()
+  vi.mocked(fs.open).mockReset()
   await removeFixtureFiles(fixture)
 })
 
@@ -191,12 +192,14 @@ describe('memory save contract', () => {
   it('invalidates only the revoked caller, including an already approved pending edit', async () => {
     const read = await store.read(caller, 'MEMORY.md')
     const revoke: MemoryApproval = async () => {
-      store.invalidate(caller)
+      caller.assertAuthorized = () => {
+        throw new Error('Caller revoked')
+      }
       return () => undefined
     }
     await expect(
       store.commit(caller, [{ kind: 'write', receipt: read.receipt, content: 'Revoked' }], 'controlled', revoke)
-    ).rejects.toMatchObject({ code: 'invalid-receipt' })
+    ).rejects.toThrow('Caller revoked')
     await save('MEMORY.md', 'Other caller still works', access())
     expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('Other caller still works')
   })
@@ -403,18 +406,33 @@ describe('limits, access, and recovery', () => {
     expect((await readFile(path.join(root, 'MEMORY.md'))).equals(oversized)).toBe(true)
   })
 
-  it('checks revocation at the replacement boundary after temporary-file preparation', async () => {
-    const originalWrite = memoryFiles.writeMemoryBytes
-    vi.spyOn(memoryFiles, 'writeMemoryBytes').mockImplementation(async (directory, relative, bytes, assertCurrent) => {
-      if (directory === root) store.invalidate(caller)
-      await originalWrite(directory, relative, bytes, assertCurrent)
-    })
-    const result = await save('MEMORY.md', 'Must remain uncommitted')
-    expect(result.files[0].outcome).toBe('unchanged')
-    expect(result.error).toMatch(/invalidated/)
-    expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('')
-    expect((await readdir(root)).filter((name) => name.endsWith('.tmp'))).toEqual([])
-  })
+  it.each(['writeFile', 'sync', 'stat', 'close'] as const)(
+    'rejects a write revoked during temporary-file %s',
+    async (stage) => {
+      const actual = await vi.importActual<typeof fs>('node:fs/promises')
+      let revoked = false
+      caller.assertAuthorized = () => {
+        if (revoked) throw new Error('Caller revoked')
+      }
+      vi.mocked(fs.open).mockImplementation(async (...args) => {
+        const handle = await actual.open(...args)
+        if (String(args[0]).startsWith(path.join(root, 'MEMORY.md.tmp-'))) {
+          const original = handle[stage].bind(handle)
+          vi.spyOn(handle, stage).mockImplementation(async (...values: unknown[]) => {
+            const result = await Reflect.apply(original, handle, values)
+            revoked = true
+            return result
+          })
+        }
+        return handle
+      })
+      const result = await save('MEMORY.md', 'Must remain uncommitted')
+      expect(result.error).toBe('Caller revoked')
+      expect(result.files[0].outcome).toBe('unchanged')
+      expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('')
+      expect((await readdir(root)).filter((name) => name.includes('.tmp-'))).toEqual([])
+    }
+  )
 
   it('stops a merge before deleting the source when updating its entry link fails', async () => {
     await save('.memories/source.md', 'Condition: only in production')
