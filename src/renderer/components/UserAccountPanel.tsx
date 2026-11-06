@@ -16,7 +16,6 @@ import { isEmoji } from '@renderer/utils/naming'
 
 import { AppearanceMenu } from './layout/AppearanceMenu'
 import { NotificationCenterButton } from './NotificationCenter'
-import UserPopup from './UserPopup'
 
 export function UserAccountPanel({
   onRequestClose,
@@ -48,18 +47,14 @@ export function UserAccountPanel({
     error: plansError,
     mutate: reloadPlans
   } = useSWR(
-    isGlobalEdition && accountId ? ['cherry-cloud/account-plans', accountId] : null,
+    accountId ? ['cherry-cloud/account-plans', accountId] : null,
     () => ipcApi.request('cherry_cloud.account_plans.get'),
     { shouldRetryOnError: false }
   )
 
   const handleOpenAccountDetails = () => {
     onRequestClose?.()
-    if (isGlobalEdition) {
-      openSettingsTab('/settings/profile')
-    } else {
-      void UserPopup.show()
-    }
+    openSettingsTab('/settings/profile')
   }
 
   const handleOpenSettings = () => {
@@ -179,28 +174,26 @@ export function UserAccountPanel({
         </Button>
       </ColFlex>
       <ColFlex className="border-border-subtle gap-0.5 border-t py-1">
-        {isGlobalEdition ? (
-          <Button
-            type="button"
-            className="h-8 min-h-8 w-full justify-start gap-2 rounded-md bg-transparent px-2 py-0 text-[13px] text-foreground leading-5"
-            disabled={subscriptionLoading}
-            onClick={handleSubscriptionClick}
-            size="sm"
-            variant="ghost">
-            {paidPlanName ? (
-              <Gauge className="!text-muted-foreground size-4 shrink-0" aria-hidden />
-            ) : (
-              <CreditCard className="!text-muted-foreground size-4 shrink-0" aria-hidden />
-            )}
-            <span className="shrink-0">
-              {paidPlanName ? t('settings.subscription.usage') : t('settings.subscription.card_label')}
-            </span>
-            <span className="ml-auto flex min-w-0 items-center gap-1 text-muted-foreground">
-              <span className="truncate">{subscriptionAction}</span>
-              <ChevronRight className="size-4 shrink-0" aria-hidden />
-            </span>
-          </Button>
-        ) : null}
+        <Button
+          type="button"
+          className="h-8 min-h-8 w-full justify-start gap-2 rounded-md bg-transparent px-2 py-0 text-[13px] text-foreground leading-5"
+          disabled={subscriptionLoading}
+          onClick={handleSubscriptionClick}
+          size="sm"
+          variant="ghost">
+          {paidPlanName ? (
+            <Gauge className="!text-muted-foreground size-4 shrink-0" aria-hidden />
+          ) : (
+            <CreditCard className="!text-muted-foreground size-4 shrink-0" aria-hidden />
+          )}
+          <span className="shrink-0">
+            {paidPlanName ? t('settings.subscription.usage') : t('settings.subscription.card_label')}
+          </span>
+          <span className="ml-auto flex min-w-0 items-center gap-1 text-muted-foreground">
+            <span className="truncate">{subscriptionAction}</span>
+            <ChevronRight className="size-4 shrink-0" aria-hidden />
+          </span>
+        </Button>
         <NotificationCenterButton
           onRequestClose={() => {
             onNotificationsOpen?.()
