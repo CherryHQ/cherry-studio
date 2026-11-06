@@ -1222,6 +1222,65 @@ describe('buildClaudeCodeSessionSettings', () => {
     ).toBe(true)
   })
 
+  it('denies PDF Read through generated hooks when documents are unsupported', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+      {} as never,
+      { supportsDocuments: false }
+    )
+    const outputs = await Promise.all(
+      (settings.hooks?.PreToolUse?.[0]?.hooks ?? []).map((hook) =>
+        hook(
+          {
+            hook_event_name: 'PreToolUse',
+            tool_name: 'Read',
+            tool_input: { file_path: '/workspace/project/report.PDF' }
+          } as never,
+          'tool-use-1',
+          {} as never
+        )
+      )
+    )
+    expect(outputs).toContainEqual(
+      expect.objectContaining({
+        hookSpecificOutput: expect.objectContaining({
+          permissionDecision: 'deny',
+          permissionDecisionReason:
+            'The selected connection does not support native PDF document input, so Read cannot open /workspace/project/report.PDF. Use mcp__cherry-tools__to_markdown to convert the PDF to Markdown, then Read the returned Markdown path.'
+        })
+      })
+    )
+  })
+
+  it('permits supported PDFs and Markdown through generated hooks', async () => {
+    for (const [supportsDocuments, filePath] of [
+      [true, '/workspace/project/report.PDF'],
+      [false, '/workspace/project/report.md']
+    ] as const) {
+      const settings = await buildClaudeCodeSessionSettings(
+        { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+        {} as never,
+        { supportsDocuments }
+      )
+      const outputs = await Promise.all(
+        (settings.hooks?.PreToolUse?.[0]?.hooks ?? []).map((hook) =>
+          hook(
+            { hook_event_name: 'PreToolUse', tool_name: 'Read', tool_input: { file_path: filePath } } as never,
+            'tool-use-1',
+            {} as never
+          )
+        )
+      )
+      expect(
+        outputs.every(
+          (out) =>
+            (out as { hookSpecificOutput?: { permissionDecision?: string } }).hookSpecificOutput?.permissionDecision !==
+            'deny'
+        )
+      ).toBe(true)
+    }
+  })
+
   it('denies image Read calls before text-only model sessions can persist image tool results', async () => {
     const settings = await buildClaudeCodeSessionSettings(
       {

@@ -452,6 +452,29 @@ describe('ClaudeCodeWarmQueryManager', () => {
     expect(warm.close).toHaveBeenCalledOnce()
   })
 
+  it.each([true, false])('reuses a parked query only when document capability agrees: %s', async (same) => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const warm = warmQuery()
+    startupMock.mockResolvedValueOnce(warm)
+    const signature = (supportsDocuments: boolean) => JSON.stringify({ supportsDocuments })
+    await manager.prewarm({
+      key: 'session-1',
+      options: { model: 'sonnet' },
+      connectionRebuildSignature: signature(true)
+    })
+    const consumed = await manager.consume({
+      key: 'session-1',
+      options: { model: 'sonnet' },
+      connectionRebuildSignature: signature(same)
+    })
+    if (same) expect(consumed?.warmQuery).toBe(warm)
+    else {
+      expect(consumed).toBeUndefined()
+      await Promise.resolve()
+      expect(warm.close).toHaveBeenCalledOnce()
+    }
+  })
+
   it('discards a warm query when knowledge bindings change between park and consume', async () => {
     const manager = new ClaudeCodeWarmQueryManager()
     const warm = warmQuery()

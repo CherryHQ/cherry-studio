@@ -39,6 +39,7 @@ export interface ToolGuardContext {
   readonly signal?: AbortSignal
   /** Whether the connection model accepts native image input. Undefined preserves legacy behavior. */
   readonly supportsImages?: boolean
+  readonly supportsDocuments?: boolean
   readonly interaction: ToolGuardInteractionState
   /** Live disabled predicate; returns false when no snapshot is bound (canUseTool fails closed). */
   readonly isDisabled: (toolName: string) => boolean

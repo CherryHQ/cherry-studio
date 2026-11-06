@@ -239,6 +239,108 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(warmRequest.connectionRebuildSignature).toBe(current.config.rebuildSignature)
   })
 
+  it.each([
+    ['official Claude', 'https://api.anthropic.com', 'claude-sonnet-4-5', false, true],
+    ['compat Claude', 'https://api.moonshot.ai', 'claude-sonnet-4-5', false, false],
+    ['official Kimi', 'https://api.anthropic.com', 'kimi-k2', false, false],
+    ['login Claude', '', 'claude-sonnet-4-5', true, true]
+  ])('resolves document support for %s', async (_label, baseUrl, apiModelId, external, expected) => {
+    mocks.getProviderByProviderId.mockReturnValue(
+      external
+        ? { id: 'provider-1', authMethods: ['external-cli'] }
+        : { id: 'provider-1', endpointConfigs: { 'anthropic-messages': { baseUrl } } }
+    )
+    mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId })
+    const warm = await buildClaudeCodeWarmQueryRequestForAgentSession('session-1')
+    const derived = await deriveConnectionConfig('session-1')
+    expect(mocks.buildSessionSettings).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ supportsDocuments: expected }),
+      expect.anything()
+    )
+    if (!warm || !derived.ok) throw new Error('expected route')
+    expect(warm.connectionRebuildSignature).toBe(derived.config.rebuildSignature)
+  })
+
+  it.each(['unresolved', 'kimi'])('denies document support for a %s secondary model', async (secondary) => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'provider-1::model-1', planModel: 'provider-1::secondary' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'provider-1',
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } }
+    })
+    mocks.getModelByKey.mockImplementation((_provider: string, id: string) =>
+      id === 'model-1'
+        ? { id, apiModelId: 'claude-sonnet-4-5' }
+        : secondary === 'unresolved'
+          ? undefined
+          : { id, apiModelId: 'kimi-k2' }
+    )
+    await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    expect(mocks.buildSessionSettings).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ supportsDocuments: false }),
+      expect.anything()
+    )
+  })
+
+  it('denies document support when a secondary forces the native primary through the gateway', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'provider-1::model-1', planModel: 'other::model-2' })
+    mocks.getProviderByProviderId.mockImplementation((id: string) => ({
+      id,
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } }
+    }))
+    mocks.getModelByKey.mockImplementation((_provider: string, id: string) => ({ id, apiModelId: 'claude-sonnet-4-5' }))
+    await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    expect(mocks.buildSessionSettings).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ supportsDocuments: false }),
+      expect.anything()
+    )
+  })
+
+  it('uses the captured connection model for document support after the agent model changes', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'provider-1::kimi' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'provider-1',
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } }
+    })
+    mocks.getModelByKey.mockImplementation((_provider: string, id: string) => ({
+      id,
+      apiModelId: id === 'captured' ? 'claude-sonnet-4-5' : 'kimi-k2'
+    }))
+    await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, 'provider-1::captured')
+    expect(mocks.buildSessionSettings).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ supportsDocuments: true }),
+      expect.anything()
+    )
+  })
+
+  it('changes route signature when an unresolved Claude secondary becomes recognized', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      planModel: 'provider-1::claude-sonnet-4-5'
+    })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'provider-1',
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } }
+    })
+    let resolved = false
+    mocks.getModelByKey.mockImplementation((_provider: string, id: string) =>
+      id === 'model-1' ? { id, apiModelId: 'claude-sonnet-4-5' } : resolved ? { id, apiModelId: id } : undefined
+    )
+    const before = await deriveConnectionConfig('session-1')
+    resolved = true
+    const after = await deriveConnectionConfig('session-1')
+    if (!before.ok || !after.ok) throw new Error('expected routes')
+    expect(before.config.rebuildFactFingerprints.route).not.toBe(after.config.rebuildFactFingerprints.route)
+  })
+
   it('passes native image support from the captured connection model into settings', async () => {
     mocks.getModelByKey.mockReturnValue({
       id: 'model-1',

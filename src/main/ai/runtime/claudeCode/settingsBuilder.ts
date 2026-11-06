@@ -123,6 +123,7 @@ export interface ClaudeCodeSessionOptions {
   lastAgentSessionId?: string
   /** Whether the connection model accepts native image input. */
   supportsImages?: boolean
+  supportsDocuments?: boolean
   /** Model-declared context window used to align Claude Code's automatic compaction threshold. */
   contextWindow?: number
   /** Model-declared output cap; pinned as the per-request limit and reserved out of the budget. */
@@ -226,7 +227,8 @@ export async function buildClaudeCodeSessionSettings(
     mountedServers,
     agentDataPath,
     await buildPluginDirectoryIndex(plugins?.map((plugin) => plugin.path) ?? []),
-    options?.supportsImages !== false
+    options?.supportsImages !== false,
+    options?.supportsDocuments
   )
 
   // 5. System prompt. The citation guidance is gated on the same resolved scope that decides whether
@@ -481,7 +483,8 @@ async function buildToolPermissions(
   mountedServers: ReadonlySet<string>,
   agentDataPath: string,
   pluginDirectories: ReadonlyMap<string, string>,
-  supportsImages: boolean
+  supportsImages: boolean,
+  supportsDocuments?: boolean
 ): Promise<{
   canUseTool: CanUseTool
   hooks: ClaudeCodeSettings['hooks']
@@ -634,7 +637,8 @@ async function buildToolPermissions(
     builtinRole,
     mountedServers,
     pluginDirectories,
-    supportsImages
+    supportsImages,
+    supportsDocuments
   })
 
   return {

@@ -37,7 +37,7 @@ import type { Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
-import { isVisionModel, supportsDynamicallyLoadedTools } from '@shared/utils/model'
+import { isAnthropicModel, isVisionModel, supportsDynamicallyLoadedTools } from '@shared/utils/model'
 import {
   isExternalCliProvider,
   isOllamaProvider,
@@ -90,6 +90,7 @@ interface GatewayDegradedSlot {
 
 interface ClaudeCodeRouteFacts {
   branch: 'external-cli' | 'gateway' | 'direct'
+  supportsDocuments: boolean
   baseUrl?: string
   /** Rotation-insensitive auth/header identity — see {@link WarmQueryRequest.credentialsFingerprint}. */
   credentialsFingerprint: string
@@ -561,6 +562,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         notificationContext,
         knowledgeBaseIds: selectedKnowledgeBaseIds,
         supportsImages: Array.isArray(model.capabilities) && isVisionModel(model),
+        supportsDocuments: route.supportsDocuments,
         thinkingOptions,
         fastMode: fastModeTransport === 'claude-code',
         effectiveLanguage
@@ -659,6 +661,10 @@ function resolveClaudeCodeThinkingOptions(
  * first use) or `start()` (boots the HTTP server). Credential *values* are materialized by
  * {@link resolveClaudeCodeRuntimeRoute} only when a query (warm or live) is materialized.
  */
+function resolveModelDocumentSupport(model: Model | undefined, baseUrl: string | undefined): boolean {
+  return Boolean(model && isAnthropicOfficialHost(baseUrl) && isAnthropicModel(model))
+}
+
 function deriveRouteFacts(
   primaryProvider: Provider,
   primaryModel: Model,
@@ -714,6 +720,9 @@ function deriveRouteFacts(
     return {
       facts: {
         branch: 'external-cli',
+        supportsDocuments: Object.values(externalRefs).every((ref) =>
+          resolveModelDocumentSupport(ref.model, undefined)
+        ),
         credentialsFingerprint: 'external-cli',
         toolSearchCompatible,
         modelIds,
@@ -760,6 +769,7 @@ function deriveRouteFacts(
             ],
       facts: {
         branch: 'gateway',
+        supportsDocuments: false,
         baseUrl: application.get('ApiGatewayService').getInternalGatewayOrigin(),
         credentialsFingerprint: gatewayCredentialsFingerprint(),
         toolSearchCompatible,
@@ -796,6 +806,9 @@ function deriveRouteFacts(
   return {
     facts: {
       branch: 'direct',
+      supportsDocuments: [primaryRef, opusRef, sonnetRef, haikuRef].every((ref) =>
+        resolveModelDocumentSupport(ref.model, anthropicBaseUrl)
+      ),
       baseUrl: anthropicBaseUrl,
       credentialsFingerprint: fingerprintCredentials([
         ...enabledKeys.map((key) => `api-key:${key}`),
@@ -901,6 +914,7 @@ async function resolveClaudeCodeRuntimeRoute(
 function toConnectionRouteFacts(route: ClaudeCodeRuntimeRoute): ClaudeCodeRouteFacts {
   return {
     branch: route.branch,
+    supportsDocuments: route.supportsDocuments,
     baseUrl: route.baseUrl,
     credentialsFingerprint: route.credentialsFingerprint,
     toolSearchCompatible: route.toolSearchCompatible,
