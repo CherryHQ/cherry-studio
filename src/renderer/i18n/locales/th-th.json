@@ -5020,6 +5020,8 @@
   "settings.messages.navigation.anchor": "Message Anchor",
   "settings.messages.navigation.label": "แถบนำทาง",
   "settings.messages.navigation.none": "ไม่มี",
+  "settings.messages.show_citation_markers.hint": "แสดงเครื่องหมายแหล่งที่มาในข้อความของคำตอบที่ใช้ฐานความรู้หรือการค้นหาเว็บ แหล่งที่มายังแสดงอยู่ใต้ข้อความ และเมื่อซ่อน การคัดลอกจะไม่มีเครื่องหมายเหล่านี้",
+  "settings.messages.show_citation_markers.label": "แสดงเครื่องหมายอ้างอิง",
   "settings.messages.show_message_outline": "แสดงเค้าโครงข้อความ",
   "settings.messages.title": "การตั้งค่าข้อความ",
   "settings.messages.use_serif_font": "ใช้ฟอนต์ Serif",

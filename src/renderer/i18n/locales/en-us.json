@@ -5020,6 +5020,8 @@
   "settings.messages.navigation.anchor": "Message Anchor",
   "settings.messages.navigation.label": "Navigation bar",
   "settings.messages.navigation.none": "None",
+  "settings.messages.show_citation_markers.hint": "Show inline source markers in answers that use knowledge bases or web search. Sources stay listed below the message, and copying omits the markers when hidden.",
+  "settings.messages.show_citation_markers.label": "Show citation markers",
   "settings.messages.show_message_outline": "Show message outline",
   "settings.messages.title": "Message Settings",
   "settings.messages.use_serif_font": "Use serif font",

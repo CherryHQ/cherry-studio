@@ -209,6 +209,13 @@
       "description": "Enable supported hardware acceleration for local embedding and OCR inference (v2 new feature, no v1 source)"
     },
     {
+      "targetKey": "chat.message.show_citation_markers",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Show inline citation markers in knowledge-base and web-search answers (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "chat.message.keep_intermediate_text",
       "type": "boolean",
       "defaultValue": false,

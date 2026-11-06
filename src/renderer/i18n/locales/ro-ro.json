@@ -5020,6 +5020,8 @@
   "settings.messages.navigation.anchor": "Ancoră mesaj",
   "settings.messages.navigation.label": "Bară navigare",
   "settings.messages.navigation.none": "Niciunul",
+  "settings.messages.show_citation_markers.hint": "Afișează marcaje de sursă în text în răspunsurile care folosesc baze de cunoștințe sau căutare web. Sursele rămân listate sub mesaj, iar copierea omite marcajele ascunse.",
+  "settings.messages.show_citation_markers.label": "Afișează marcajele de citare",
   "settings.messages.show_message_outline": "Afișează conturul mesajului",
   "settings.messages.title": "Setări mesaje",
   "settings.messages.use_serif_font": "Folosește font serif",
