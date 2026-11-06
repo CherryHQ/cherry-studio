@@ -415,11 +415,12 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
               returnFocus.current = false
             }
           }}>
-          <div className="flex shrink-0 items-center gap-2 px-4 py-3">
+          <div className="flex shrink-0 items-center gap-2 px-6 py-3">
             <DrawerTitle className="mr-auto text-sm font-medium">{t('notification.center.title')}</DrawerTitle>
             <Button
               variant="ghost"
               size="sm"
+              className="px-0"
               disabled={!unread?.count}
               loading={markingAllRead}
               onClick={() =>
@@ -438,7 +439,7 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
               onDismissRequested={() => setRequestedId(null)}
             />
           </ScrollArea>
-          <DrawerDescription className="shrink-0 border-t border-border-subtle px-4 py-2 text-xs">
+          <DrawerDescription className="shrink-0 border-t border-border-subtle px-6 py-2 text-xs">
             {t('notification.center.retention')}
           </DrawerDescription>
         </DrawerContent>
