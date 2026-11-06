@@ -1,7 +1,7 @@
 import { application } from '@application'
 import type { ContextSettingsOverride, EffectiveContextSettings } from '@shared/data/types/contextSettings'
 import type { Model } from '@shared/data/types/model'
-import { clampThresholdPercent } from '@shared/utils/contextSettings'
+import { clampKeepPercent, clampThresholdPercent } from '@shared/utils/contextSettings'
 
 import type { ConversationRef } from '../types'
 import { type CompressionModelDescriptor, resolveCompressionModel } from './resolveCompressionModel'
@@ -20,7 +20,8 @@ export function resolveGlobalContextSettings(): EffectiveContextSettings {
       modelId: prefs.get('chat.context_settings.compress.model_id'),
       // The generated preference schema carries no min/max, so a hand-edited
       // config could park the trigger at 0 and compact on every step.
-      thresholdPercent: clampThresholdPercent(prefs.get('chat.context_settings.compress.threshold_percent'))
+      thresholdPercent: clampThresholdPercent(prefs.get('chat.context_settings.compress.threshold_percent')),
+      keepPercent: clampKeepPercent(prefs.get('chat.context_settings.compress.keep_percent'))
     }
   }
 }

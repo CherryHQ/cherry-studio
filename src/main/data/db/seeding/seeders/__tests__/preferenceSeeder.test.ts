@@ -79,6 +79,37 @@ describe('PreferenceSeeder', () => {
     expect(toolbar.value).toEqual(['composer:new-conversation', 'web-search'])
   })
 
+  it('seeds the keep share to 37.5 when missing', async () => {
+    new PreferenceSeeder().run(dbh.db)
+    const [row] = await dbh.db
+      .select()
+      .from(preferenceTable)
+      .where(
+        and(
+          eq(preferenceTable.scope, 'default'),
+          eq(preferenceTable.key, 'chat.context_settings.compress.keep_percent')
+        )
+      )
+    expect(row.value).toBe(37.5)
+  })
+
+  it('preserves a stored keep share', async () => {
+    await dbh.db
+      .insert(preferenceTable)
+      .values({ scope: 'default', key: 'chat.context_settings.compress.keep_percent', value: 62.5 })
+    new PreferenceSeeder().run(dbh.db)
+    const [row] = await dbh.db
+      .select()
+      .from(preferenceTable)
+      .where(
+        and(
+          eq(preferenceTable.scope, 'default'),
+          eq(preferenceTable.key, 'chat.context_settings.compress.keep_percent')
+        )
+      )
+    expect(row.value).toBe(62.5)
+  })
+
   it('defaults web tools to model-native capabilities', async () => {
     new PreferenceSeeder().run(dbh.db)
 

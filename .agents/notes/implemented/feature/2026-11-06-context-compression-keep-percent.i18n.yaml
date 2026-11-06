@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-11-06-context-compression-keep-percent.md
+2026-11-06-context-compression-keep-percent.md: 5bb9d9b8e73d446725ffa5f386e1b209ce61ca13
+2026-11-06-context-compression-keep-percent.zh.md: 4b4cb7e1321ec4c89ee9b62dbde34a20cf781522

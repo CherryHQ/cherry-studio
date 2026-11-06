@@ -1,6 +1,8 @@
 import {
   DEFAULT_CONTEXT_SETTINGS,
+  MAX_COMPRESS_KEEP_PERCENT,
   MAX_COMPRESS_THRESHOLD_PERCENT,
+  MIN_COMPRESS_KEEP_PERCENT,
   MIN_COMPRESS_THRESHOLD_PERCENT
 } from '@shared/data/types/contextSettings'
 
@@ -15,4 +17,9 @@ import {
 export function clampThresholdPercent(value: number | null | undefined): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_CONTEXT_SETTINGS.compress.thresholdPercent
   return Math.min(MAX_COMPRESS_THRESHOLD_PERCENT, Math.max(MIN_COMPRESS_THRESHOLD_PERCENT, Math.floor(value)))
+}
+
+export function clampKeepPercent(value: number | null | undefined): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_CONTEXT_SETTINGS.compress.keepPercent
+  return Math.min(MAX_COMPRESS_KEEP_PERCENT, Math.max(MIN_COMPRESS_KEEP_PERCENT, value))
 }

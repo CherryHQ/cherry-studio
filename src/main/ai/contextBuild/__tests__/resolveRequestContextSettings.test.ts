@@ -27,6 +27,7 @@ const setPrefs = (
     maxMessages: number | null
     compressEnabled: boolean
     modelId: string | null
+    keepPercent: number
     thresholdPercent: number
   }> = {}
 ) => {
@@ -38,6 +39,7 @@ const setPrefs = (
     'chat.context_settings.max_messages': over.maxMessages ?? null,
     'chat.context_settings.compress.enabled': over.compressEnabled ?? true,
     'chat.context_settings.compress.model_id': 'modelId' in over ? over.modelId : null,
+    'chat.context_settings.compress.keep_percent': 'keepPercent' in over ? over.keepPercent : 37.5,
     'chat.context_settings.compress.threshold_percent': 'thresholdPercent' in over ? over.thresholdPercent : 80
   }
   mockPrefGet.mockImplementation((k: string) => map[k])
@@ -189,4 +191,17 @@ describe('resolveRequestContextSettings — assistant override layer (P2-D)', ()
     })
     expect(contextSettings.compress.thresholdPercent).toBe(55)
   })
+})
+
+it('resolves the keep share through global and assistant preferences', async () => {
+  setPrefs({ keepPercent: 62.3 })
+  expect((await resolveRequestContextSettings(model, CONVERSATION)).contextSettings.compress.keepPercent).toBe(62.3)
+  expect(
+    (await resolveRequestContextSettings(model, CONVERSATION, { compress: { keepPercent: 75 } })).contextSettings
+      .compress.keepPercent
+  ).toBe(75)
+  setPrefs({ keepPercent: NaN })
+  expect((await resolveRequestContextSettings(model, CONVERSATION)).contextSettings.compress.keepPercent).toBe(37.5)
+  setPrefs({ keepPercent: 0 })
+  expect((await resolveRequestContextSettings(model, CONVERSATION)).contextSettings.compress.keepPercent).toBe(10)
 })

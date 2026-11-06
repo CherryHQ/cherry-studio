@@ -52,6 +52,7 @@ beforeEach(() => {
     if (key === 'chat.context_settings.compress.enabled') return true
     if (key === 'chat.context_settings.compress.model_id') return null
     if (key === 'chat.context_settings.compress.threshold_percent') return 80
+    if (key === 'chat.context_settings.compress.keep_percent') return 37.5
     throw new Error(`unexpected pref ${key}`)
   })
   registryGetAllMock.mockReturnValue([])

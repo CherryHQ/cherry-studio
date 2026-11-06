@@ -52,6 +52,7 @@ describe('ContextManagementSettings', () => {
       'chat.context_settings.truncate_threshold': 50_000,
       'chat.context_settings.compress.enabled': true,
       'chat.context_settings.compress.model_id': null,
+      'chat.context_settings.compress.keep_percent': 37.5,
       'chat.context_settings.compress.threshold_percent': 80
     }
   })
@@ -88,7 +89,8 @@ describe('ContextManagementSettings', () => {
       ['max_messages', 'max_messages_description'],
       ['enabled', 'enabled_description'],
       ['truncate_threshold', 'truncate_threshold_description'],
-      ['compress_enabled', 'compress_enabled_description']
+      ['compress_enabled', 'compress_enabled_description'],
+      ['compress_keep_percent', 'compress_keep_percent_description']
     ]
 
     for (const [title, description] of items) {
@@ -162,5 +164,21 @@ describe('ContextManagementSettings', () => {
     prefs.state['chat.context_settings.compress.enabled'] = false
     render(<ContextManagementSettings />)
     expect(screen.queryByLabelText('settings.models.context_management.compress_threshold')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('settings.models.context_management.compress_keep_percent')).not.toBeInTheDocument()
   })
+})
+
+it('writes and clamps the recent verbatim share', () => {
+  prefs.state['chat.context_settings.enabled'] = true
+  prefs.state['chat.context_settings.compress.enabled'] = true
+  prefs.state['chat.context_settings.compress.keep_percent'] = 37.5
+  render(<ContextManagementSettings />)
+  const input = screen.getByLabelText('settings.models.context_management.compress_keep_percent')
+  expect(input).toHaveValue('37.5')
+  fireEvent.change(input, { target: { value: '62.5' } })
+  fireEvent.blur(input)
+  expect(prefs.setters['chat.context_settings.compress.keep_percent']).toHaveBeenCalledWith(62.5)
+  fireEvent.change(input, { target: { value: '5' } })
+  fireEvent.blur(input)
+  expect(prefs.setters['chat.context_settings.compress.keep_percent']).toHaveBeenCalledWith(10)
 })

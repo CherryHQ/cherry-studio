@@ -1064,7 +1064,8 @@
         "compress": {
           "enabled": true,
           "modelId": null,
-          "thresholdPercent": 80
+          "thresholdPercent": 80,
+          "keepPercent": 37.5
         }
       },
       "limits": {

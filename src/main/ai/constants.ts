@@ -9,21 +9,6 @@ export const CHAT_STREAM_IDLE_TIMEOUT_MS = 120 * 1000 * 60
 export const DEFAULT_MAX_TOKENS = 8192
 
 /**
- * Keep budget for context compaction, shared by both altitudes so they stay in
- * lockstep: turn-start durable compaction (PersistentChatContextProvider) and
- * the in-loop prepareStep hook (inLoopCompaction) keep this fraction of the
- * TRIGGER as recent verbatim turns.
- *
- * A fraction of the trigger, not of the window: the trigger is configurable
- * (`contextSettings.compress.thresholdPercent`), and a window-relative keep
- * budget would exceed the trigger below 30% — the turn-start lane would then
- * never find a boundary (`planKeepBoundary` returns null) while the in-loop
- * lane re-folded an already-folded prompt on every step. 0.375 keeps the
- * default 80% trigger at exactly the 0.3×window budget this replaces.
- */
-export const CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER = 0.375
-
-/**
  * Budget for the compaction request itself. Compaction protects the window, but
  * the summarize call is a window-bound request too: its input carries whole
  * tool outputs, so left un-budgeted it can overflow the compression model's
