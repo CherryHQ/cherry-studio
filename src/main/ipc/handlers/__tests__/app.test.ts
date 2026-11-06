@@ -104,6 +104,15 @@ const fault = {
 }
 
 describe('appHandlers', () => {
+  it('rejects an update handoff when the main window cannot receive it', async () => {
+    deliverToReadyMainMock.mockReturnValue(false)
+
+    await expect(appHandlers['app.updater.present_check'](undefined, ctx)).rejects.toMatchObject({
+      code: 'MAIN_UNAVAILABLE'
+    })
+    expect(deliverToReadyMainMock).toHaveBeenCalledWith('app.updater.run_check', undefined)
+  })
+
   it('rejects an error handoff without treating a missed delivery as success', async () => {
     deliverToReadyMainMock.mockReturnValue(false)
 
@@ -153,7 +162,7 @@ describe('appHandlers', () => {
 
     setMainSurfaceReceiverMock.mockClear()
     windowManager.getWindowType.mockReturnValueOnce(WindowType.Screenshot)
-    await appHandlers['app.surface.receiver']({ kind: 'error', ready: true }, ctx)
+    await appHandlers['app.surface.receiver']({ kind: 'update', ready: true }, ctx)
     expect(setMainSurfaceReceiverMock).not.toHaveBeenCalled()
   })
 
