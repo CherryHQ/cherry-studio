@@ -36,7 +36,8 @@ vi.mock('@application', async () => {
       withDispatchLock: (_id: string, operation: () => Promise<unknown>) => operation(),
       hasUnsettledTopicWork: () => false,
       abortAndDrain: async () => {},
-      pauseRuntimeTurn: () => {}
+      pauseRuntimeTurn: () => {},
+      forgetStoppedStops: () => {}
     },
     AgentSessionRuntimeService: {
       cancelSessionForks: async () => {},

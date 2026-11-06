@@ -108,9 +108,18 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
        connection. Keep this separate from durable shutdown and recovery.
      - `redirect(input)` — native mid-turn steering; without it the host
        queues follow-ups as the next turn. If implemented, you must emit
-       `steer-boundary` when a steer is injected. A driver that returns unplaced inputs
+       `steer-boundary` when a steer is injected and `steer-undelivered` for
+       steers the turn ended before injecting. A driver that returns unplaced inputs
        for the next turn emits `steer-undelivered`; Pi instead records native queued
        inputs as aborted when execution ends without placing them, without automatic resend.
+     - `abortTurn()` — graceful interrupt of the current turn while the
+       session stays alive (background tasks and subagents survive). Resolve
+       `true` when the turn was interrupted and the connection lives — a warm
+       connection whose turn already settled also resolves `true`, since a
+       re-dispatched stop has nothing to interrupt; resolve `false` when the
+       driver cannot gracefully stop (unsupported, or no timely answer) — the
+       host then tears the session down. Without it the host always tears the
+       session down on a user Stop.
      - `retainWhileIdle` — keep an owned in-process runtime beyond the host idle TTL;
        explicit retirement and service shutdown still close it.
      - `background-work-state` with `awaitingReply: false` — retain independent background

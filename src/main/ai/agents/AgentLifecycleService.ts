@@ -313,6 +313,13 @@ export class AgentLifecycleService extends BaseService {
     if (failure) throw failure.reason
   }
 
+  /** A permanently deleted session can no longer receive a delayed Stop twin, so release its ids. */
+  private forgetDeletedStopIdentities(ids: readonly string[]): void {
+    if (ids.length === 0) return
+    const streamManager = application.get('AiStreamManager')
+    for (const id of ids) streamManager.forgetStoppedStops(buildAgentSessionTopicId(id))
+  }
+
   private async purgeExpiredSessionsInternal(
     cutoffMs: number,
     limit: number
@@ -351,6 +358,7 @@ export class AgentLifecycleService extends BaseService {
                 .get('DbService')
                 .withWriteTx((tx) => agentSessionService.purgeExpiredByIdsTx(tx, expiredSessionIds, cutoffMs))
         agentSessionService.notifyPurged(purgedIds)
+        this.forgetDeletedStopIdentities(purgedIds)
         await this.removePurgedSystemWorkspaces(workspaces.filter(({ id }) => purgedIds.includes(id)))
         await reclaimPurgedRuntimeSessions(resumeTokensForDeletedSessions(purgedIds, tokensBySession))
         return { purgedIds, hasMore: sessionIds.length === limit }
@@ -377,6 +385,7 @@ export class AgentLifecycleService extends BaseService {
         ...(targetState === 'active' ? { targetState } : {})
       })
       await this.finishDeletion(result.deletedIds, result.deliveryResults)
+      if (permanent) this.forgetDeletedStopIdentities(result.deletedIds)
       await this.removePurgedSystemWorkspaces(
         workspaces.filter(({ path }) => result.purgedSystemWorkspacePaths.includes(path))
       )
@@ -450,6 +459,7 @@ export class AgentLifecycleService extends BaseService {
         workspaces.filter(({ path }) => result.purgedSystemWorkspacePaths.includes(path))
       )
       if (permanent && targetState === 'active' && deleteSessions) {
+        this.forgetDeletedStopIdentities(result.deletedSessionIds ?? [])
         await reclaimPurgedRuntimeSessions(
           resumeTokensForDeletedSessions(result.deletedSessionIds ?? [], tokensBySession)
         )

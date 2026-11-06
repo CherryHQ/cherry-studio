@@ -49,6 +49,10 @@ export function createClaudeCodeQueryOptions({
     ...settingsRest,
     spawnClaudeCodeProcess,
     model: modelId,
+    // The driver exposes a per-task Stop wired to `stop_task`. Without this declaration the CLI
+    // fails closed and an ordinary interrupt kills every running background task with the turn.
+    // Set it here so cold starts and prewarmed queries share the same contract.
+    perTaskStopAffordance: true,
     ...(abortController ? { abortController } : {}),
     resume: effectiveResume ?? settings.resume
   }
