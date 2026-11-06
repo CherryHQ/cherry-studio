@@ -27,7 +27,8 @@ versions and continue receiving compatible updates; raising the floor in place w
 Before validating an older v1-v3 stream, the publisher removes image `supports` keys outside
 that stream's frozen parameter vocabulary from both model records and provider overrides.
 Otherwise a forward-compatible reader silently drops the entire record even though the
-validator succeeds. Known parameter definitions and mode routing remain unchanged; this
-projection does not invent support for new modes or protocols. The current stream is copied
+validator succeeds. Legacy v1-v3 controls also omit `gif` from output-format enums. Static choices and defaults
+remain intact; a removed GIF default is cleared, and a GIF-only selector is omitted. Mode routing
+is unchanged; this projection does not invent support for new modes or protocols. The current stream is copied
 verbatim. Any converted file receives a content-hash version from the same serializer used
 by catalog generation, and its manifest names that version.
