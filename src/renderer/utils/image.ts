@@ -696,7 +696,14 @@ function hasNonLocalResource(el: Element, baseUrl: string): boolean {
   return false
 }
 
-const CSS_URL_PROPERTIES = ['background-image', 'border-image-source', 'list-style-image', 'mask-image'] as const
+const CSS_URL_PROPERTIES = [
+  'background-image',
+  'border-image-source',
+  'list-style-image',
+  'mask-image',
+  '-webkit-mask-image',
+  'mask-border-source'
+] as const
 const CSS_URL_REGEX = /url\((['"]?)([^)"']+)\1\)/g
 
 /** Neutralizes computed CSS `url()` values that point outside the local-only policy; returns a restore function. */
@@ -721,6 +728,87 @@ function neutralizeNonLocalCssUrls(doc: Document, win: Window): () => void {
     }
   })
   return () => restores.forEach((restore) => restore())
+}
+
+const XLINK_NS = 'http://www.w3.org/1999/xlink'
+const SVG_RESOURCE_ATTRIBUTES = ['href', 'src', 'poster', 'data'] as const
+const CSS_URL_ANY_REGEX = /url\(\s*(['"]?)([^)"']*)\1\s*\)/gi
+const LOCAL_CSS_URL_PLACEHOLDER = 'url("data:,")'
+
+function neutralizeCssText(text: string, baseUrl: string): string {
+  return text.replace(CSS_URL_ANY_REGEX, (match, _quote: string, url: string) =>
+    url.trim().startsWith('#') || isLocalResourceUrl(url.trim(), baseUrl) ? match : LOCAL_CSS_URL_PLACEHOLDER
+  )
+}
+
+/**
+ * html-to-image deep-clones `<svg>` subtrees without applying its `filter` and then fetches every `<image>` URL it
+ * finds there. Strip non-local resource references (`href`/`xlink:href` on image, use, feImage, pattern, etc., inline
+ * styles and `<style>` text) from every SVG subtree before cloning; returns a function that restores them.
+ */
+function neutralizeNonLocalSvgResources(doc: Document): () => void {
+  const restores: Array<() => void> = []
+  const baseUrl = doc.baseURI
+  doc.querySelectorAll('svg').forEach((svg) => {
+    const nodes: Element[] = [svg, ...Array.from(svg.querySelectorAll('*'))]
+    for (const el of nodes) {
+      for (const attr of SVG_RESOURCE_ATTRIBUTES) {
+        const value = el.getAttribute(attr)
+        if (value && !value.trim().startsWith('#') && !isLocalResourceUrl(value.trim(), baseUrl)) {
+          el.removeAttribute(attr)
+          restores.push(() => el.setAttribute(attr, value))
+        }
+      }
+      const xlink = el.getAttributeNS(XLINK_NS, 'href')
+      if (xlink && !xlink.trim().startsWith('#') && !isLocalResourceUrl(xlink.trim(), baseUrl)) {
+        el.removeAttributeNS(XLINK_NS, 'href')
+        restores.push(() => el.setAttributeNS(XLINK_NS, 'xlink:href', xlink))
+      }
+      const srcset = el.getAttribute('srcset')
+      if (srcset) {
+        el.removeAttribute('srcset')
+        restores.push(() => el.setAttribute('srcset', srcset))
+      }
+      const style = el.getAttribute('style')
+      if (style && style.includes('url(')) {
+        const next = neutralizeCssText(style, baseUrl)
+        if (next !== style) {
+          el.setAttribute('style', next)
+          restores.push(() => el.setAttribute('style', style))
+        }
+      }
+      for (const attr of [
+        'fill',
+        'stroke',
+        'filter',
+        'mask',
+        'clip-path',
+        'marker-start',
+        'marker-mid',
+        'marker-end'
+      ]) {
+        const value = el.getAttribute(attr)
+        if (value && value.includes('url(')) {
+          const next = neutralizeCssText(value, baseUrl)
+          if (next !== value) {
+            el.setAttribute(attr, next)
+            restores.push(() => el.setAttribute(attr, value))
+          }
+        }
+      }
+      if (el.tagName.toLowerCase() === 'style' && el.textContent?.includes('url(')) {
+        const text = el.textContent
+        const next = neutralizeCssText(text.replace(/@import[^;]*;?/gi, ''), baseUrl)
+        if (next !== text) {
+          el.textContent = next
+          restores.push(() => {
+            el.textContent = text
+          })
+        }
+      }
+    }
+  })
+  return () => restores.reverse().forEach((restore) => restore())
 }
 
 export async function captureScrollableIframe(
@@ -846,6 +934,7 @@ export async function captureScrollableIframe(
   const animationStyle = disableAnimations()
   let injectedFontStyle: HTMLStyleElement | null = null
   let restoreCssUrls: (() => void) | undefined
+  let restoreSvgResources: (() => void) | undefined
 
   const createFontStyle = (css: string): HTMLStyleElement => {
     const style = doc.createElement('style')
@@ -859,7 +948,10 @@ export async function captureScrollableIframe(
     // 等待渲染稳定
     await new Promise((r) => win.requestAnimationFrame(() => win.requestAnimationFrame(() => r(null))))
 
-    if (restrictToLocalResources) restoreCssUrls = neutralizeNonLocalCssUrls(doc, win)
+    if (restrictToLocalResources) {
+      restoreCssUrls = neutralizeNonLocalCssUrls(doc, win)
+      restoreSvgResources = neutralizeNonLocalSvgResources(doc)
+    }
 
     // 强制加载懒加载图片
     doc.querySelectorAll('img[loading="lazy"]').forEach((img) => img.setAttribute('loading', 'eager'))
@@ -925,6 +1017,7 @@ export async function captureScrollableIframe(
     logger.error('Error capturing iframe:', error as Error)
     return undefined
   } finally {
+    restoreSvgResources?.()
     restoreCssUrls?.()
     injectedFontStyle?.remove()
     // 恢复动画
