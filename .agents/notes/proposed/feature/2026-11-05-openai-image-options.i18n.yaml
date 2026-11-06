@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-05-openai-image-options.md
+2026-11-05-openai-image-options.md: ae0bf17fb1c5e6da1389f2ec93e469d5bd3a71e6
+2026-11-05-openai-image-options.zh.md: a91944ae6444fb511fb0339080fc118ac0c7e5d7
