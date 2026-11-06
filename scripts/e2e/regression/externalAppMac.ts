@@ -31,6 +31,37 @@ function run(argv) {
   }
   if (target.path) target.path = path(target.path)
   if (target.directory) target.directory = path(target.directory)
+  const shell = Application.currentApplication()
+  shell.includeStandardAdditions = true
+  function containsTerminalDirectory(text) {
+    return [target.directory, originalDirectory].some(directory => {
+      for (let index = text.indexOf(directory); index >= 0; index = text.indexOf(directory, index + 1)) {
+        const next = text[index + directory.length]
+        if (next === undefined || !/[A-Za-z0-9._-]/.test(next)) return true
+      }
+      return false
+    })
+  }
+  function terminalTabMatches(tab) {
+    if (containsTerminalDirectory(tab.contents())) return true
+    const tty = tab.tty().replace(/^\/dev\//, '')
+    if (!/^ttys[0-9]+$/.test(tty)) return false
+    const pids = value(() => shell.doShellScript('/bin/ps -t ' + tty + ' -o pid='), '').trim().split(/\s+/)
+    return pids.some(pid => {
+      if (!/^[0-9]+$/.test(pid)) return false
+      const cwd = value(() => shell.doShellScript('/usr/sbin/lsof -a -p ' + pid + ' -d cwd -Fn'), '')
+      return cwd.split(/[\r\n]+/).some(line => line[0] === 'n' && path(line.slice(1)) === target.directory)
+    })
+  }
+  function dismissCloseConfirmation(window) {
+    delay(0.2)
+    for (const sheet of value(() => window.sheets(), [])) {
+      for (const button of sheet.buttons()) {
+        if (['Delete', 'Don’t Save', "Don't Save", '不存储', '不保存', 'Terminate', '终止'].indexOf(button.name()) >= 0)
+          button.click()
+      }
+    }
+  }
   function inspect() {
     const result = { processes: [], windows: [] }
     if (target.kind === 'browser') result.browserApplication = bundles[0]
@@ -112,18 +143,16 @@ function run(argv) {
             const containsDirectory = (element, depth) => {
               if (element.role() === 'AXTextArea') {
                 const text = String(element.value())
-                return text.indexOf(target.directory) >= 0 || text.indexOf(originalDirectory) >= 0
+                return containsTerminalDirectory(text)
               }
               return depth < 8 && element.uiElements().some(child => containsDirectory(child, depth + 1))
             }
             matches = containsDirectory(window, 0)
           }
           const terminalWindow = Application('com.apple.Terminal').windows.byId(number)
-          if (matches && terminalWindow.exists()) {
-            matches = terminalWindow.tabs().every(tab => {
-              const text = tab.contents()
-              return text.indexOf(target.directory) >= 0 || text.indexOf(originalDirectory) >= 0
-            })
+          if (terminalWindow.exists()) {
+            const tabs = terminalWindow.tabs()
+            matches = tabs.length > 0 && tabs.every(terminalTabMatches)
           }
         }
         if (target.kind === 'browser') matches = title.indexOf(target.title) >= 0
@@ -133,6 +162,7 @@ function run(argv) {
             const terminalWindow = Application('com.apple.Terminal').windows.byId(number)
             if (terminalWindow.exists()) {
               terminalWindow.close({ saving: 'no' })
+              dismissCloseConfirmation(window)
               return
             }
           }
@@ -145,13 +175,7 @@ function run(argv) {
           const buttons = window.buttons.whose({ subrole: 'AXCloseButton' })()
           if (!buttons.length) throw new Error('External window has no close button: ' + id)
           buttons[0].click()
-          delay(0.2)
-          for (const sheet of value(() => window.sheets(), [])) {
-            for (const button of sheet.buttons()) {
-              if (['Delete', 'Don’t Save', "Don't Save", '不存储', '不保存', 'Terminate', '终止'].indexOf(button.name()) >= 0)
-                button.click()
-            }
-          }
+          dismissCloseConfirmation(window)
         } }
       }
     }
