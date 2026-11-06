@@ -284,6 +284,7 @@ const AgentChat = ({
     [currentSessionId]
   )
   const isConversationHistorySettled = !runtime.isLoading && !runtime.isPending
+  const isConversationHistoryLoaded = !runtime.isLoading
   const isEmptyConversation = Boolean(
     sessionSnapshot &&
     sessionMessagesEnabled &&
@@ -291,9 +292,9 @@ const AgentChat = ({
     !runtime.hasOlder &&
     runtime.uiMessages.length === 0
   )
-  // Emptiness is unknown until history settles: only a settled, non-empty conversation is
-  // established enough to warn before re-pointing it.
-  const isEstablishedConversation = isConversationHistorySettled && !isEmptyConversation
+  // Emptiness is unknown only while history is arriving; an established conversation can still
+  // be streaming, and re-pointing it warns regardless of stream activity.
+  const isEstablishedConversation = isConversationHistoryLoaded && !isEmptyConversation
   const canChangeWorkspace = Boolean(onSessionWorkspaceChange && isEmptyConversation)
   const runAfterFileNavigation = useCallback(
     (transition: () => void) => {
