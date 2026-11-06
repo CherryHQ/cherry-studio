@@ -49,6 +49,8 @@ import {
   GENERATE_IMAGE_TOOL_NAME,
   REPORT_ARTIFACTS_DESCRIPTION,
   REPORT_ARTIFACTS_TOOL_NAME,
+  VOICE_EXPRESSIVE_TOOL_NAME,
+  voiceExpressiveInputSchema,
   reportArtifactsInputSchema,
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME,
@@ -103,6 +105,37 @@ function registerBuiltinTools(server: McpServer): void {
     REPORT_ARTIFACTS_TOOL_NAME,
     { description: REPORT_ARTIFACTS_DESCRIPTION, inputSchema: reportArtifactsInputSchema },
     async ({ artifacts }) => ({ content: [{ type: 'text', text: `Recorded ${artifacts.length} artifact(s).` }] })
+  )
+
+  server.registerTool(
+    VOICE_EXPRESSIVE_TOOL_NAME,
+    {
+      description:
+        'Maintain the labels that speech playback substitutes for emoji and kaomoji. The built-in table covers common faces; anything else is dropped from spoken text. When the user says an emoji or kaomoji was not read, or you use one in a reply that will be read aloud, add a short label here. action=list shows the current rules; set adds or updates one by kind and match; remove deletes by id. Provide short Chinese and English labels.',
+      inputSchema: voiceExpressiveInputSchema
+    },
+    async (input) => {
+      const service = application.get('VoiceExpressiveService')
+      if (input.action === 'list') {
+        return { content: [{ type: 'text', text: JSON.stringify(service.list()) }] }
+      }
+      if (input.action === 'remove') {
+        if (!input.id) throw new Error('id is required for remove')
+        const removed = await service.remove(input.id)
+        return { content: [{ type: 'text', text: removed ? 'removed' : 'rule not found' }] }
+      }
+      if (!input.kind || !input.match || !input.zh || !input.en) {
+        throw new Error('kind, match, zh and en are required for set')
+      }
+      const result = await service.set({
+        kind: input.kind,
+        match: input.match,
+        zh: input.zh,
+        en: input.en,
+        source: 'ai'
+      })
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] }
+    }
   )
 
   const configuredModel = resolveConfiguredPaintingModel()

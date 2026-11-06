@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 
+import { setCustomExpressiveRules } from '../expressiveText'
 import {
   READABLE_TEXT_CHUNK_LIMIT,
   READABLE_TEXT_CONFIRMATION_THRESHOLD,
@@ -53,6 +54,24 @@ Read [Cherry Studio](https://example.com/private-path) today. ![Architecture dia
       '运行 answer()，返回 <think>**结果**</think>。'
     )
     expect(normalizeReadableText('运行 <code>answer()</code>。')).toBe('运行 answer()。')
+  })
+
+  it('leaves emoji and kaomoji inside code spans literal', () => {
+    expect(normalizeReadableText('Use `😄` literally.')).toBe('Use 😄 literally.')
+    expect(normalizeReadableText('代码 `(T_T)` 保持原样。')).toBe('代码 (T_T) 保持原样。')
+    expect(normalizeReadableText('HTML <code>😄</code> 也保持原样。')).toBe('HTML 😄 也保持原样。')
+  })
+
+  it('protects the whole code element when one child is already marked', () => {
+    expect(normalizeReadableText('Use <code>😄 `x` 😄</code> now.')).toBe('Use 😄 x 😄 now.')
+  })
+
+  it('leaves emoji and kaomoji inside fenced code literal', () => {
+    expect(normalizeReadableText('```\n😄 (T_T)\n```')).toBe('😄 (T_T)')
+  })
+
+  it('rewrites prose around protected code without touching the code itself', () => {
+    expect(normalizeReadableText('完成 😄 后运行 `echo 😄`。')).toBe('完成 [开心] 后运行 echo 😄。')
   })
 
   it('preserves literal markup and entities inside fenced code', () => {
@@ -234,5 +253,47 @@ describe('planReadableText', () => {
       normalizedLength: input.length,
       chunks: []
     })
+  })
+})
+
+describe('expression labels in readable text', () => {
+  afterEach(() => setCustomExpressiveRules([]))
+
+  it('rewrites emoji and kaomoji before the text reaches speech', () => {
+    expect(normalizeReadableText('完成了 😄 (＾▽＾)')).toBe('完成了 [开心] [开心]')
+  })
+
+  it('uses English labels when asked', () => {
+    expect(normalizeReadableText('done 😄', { language: 'en' })).toBe('done [happy]')
+  })
+
+  it('applies the same rewrite to an explicit selection', () => {
+    expect(normalizeReadableText('😭 太难了', { mode: 'selection' })).toBe('[大哭] 太难了')
+  })
+
+  it('leaves ordinary parentheses and inline code alone', () => {
+    expect(normalizeReadableText('调用 `f(x)` 计算 (a+b)')).toBe('调用 f(x) 计算 (a+b)')
+  })
+
+  it('keeps a face intact through Markdown extraction before labeling it', () => {
+    expect(normalizeReadableText('他 ¯\\_(ツ)_/¯ 走了')).toBe('他 [摊手] 走了')
+  })
+
+  it('keeps the delimiters of a custom face', () => {
+    setCustomExpressiveRules([{ kind: 'kaomoji', match: '*^_^*', zh: '开心', en: 'happy' }])
+
+    expect(normalizeReadableText('完成 *^_^* 了')).toBe('完成 [开心] 了')
+    expect(normalizeReadableText('done *^_^*', { language: 'en' })).toBe('done [happy]')
+  })
+
+  it('leaves a face inside a code fence untouched', () => {
+    expect(normalizeReadableText('```\n¯\\_(ツ)_/¯ *^_^*\n```')).toBe('¯\\_(ツ)_/¯ *^_^*')
+  })
+
+  it('carries the language into the plan', () => {
+    const plan = planReadableText('😄', { trigger: 'manual', language: 'en' })
+
+    expect(plan.status).toBe('ready')
+    expect(plan.chunks.join('')).toBe('[happy]')
   })
 })

@@ -102,6 +102,8 @@ describe('readTextAloud', () => {
       focusOnClose
     })
 
+    // Labels hydrate before the preflight, so the start promise is created a tick later.
+    await vi.waitFor(() => expect(finish).toBeTypeOf('function'))
     finish()
     await playback
 
