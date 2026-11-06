@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "5c2aaeaf-1e74-4d32-9712-0f114ebb37fd",
+  "id": "21fa5fe5-e74e-4e5c-94f1-5fae6691f254",
   "prevId": "67e751ec-a76d-4cba-a92a-90fb1c7c01cd",
   "tables": {
     "agent": {
@@ -107,13 +107,6 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
-        },
-        "group_id": {
-          "name": "group_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
         }
       },
       "indexes": {
@@ -135,13 +128,6 @@
           "name": "agent_order_key_idx",
           "columns": [
             "order_key"
-          ],
-          "isUnique": false
-        },
-        "agent_group_id_idx": {
-          "name": "agent_group_id_idx",
-          "columns": [
-            "group_id"
           ],
           "isUnique": false
         }
@@ -179,19 +165,6 @@
           "tableTo": "user_model",
           "columnsFrom": [
             "small_model"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "agent_group_id_group_id_fk": {
-          "name": "agent_group_id_group_id_fk",
-          "tableFrom": "agent",
-          "tableTo": "group",
-          "columnsFrom": [
-            "group_id"
           ],
           "columnsTo": [
             "id"
@@ -5332,6 +5305,111 @@
           "value": "\"note\".\"is_starred\" = 1 OR \"note\".\"is_expanded\" = 1"
         }
       }
+    },
+    "notification_record": {
+      "name": "notification_record",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "event_key": {
+          "name": "event_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "category": {
+          "name": "category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "message": {
+          "name": "message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "read_at": {
+          "name": "read_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "dismissed_at": {
+          "name": "dismissed_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "target": {
+          "name": "target",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "notification_record_event_key_idx": {
+          "name": "notification_record_event_key_idx",
+          "columns": [
+            "event_key"
+          ],
+          "isUnique": true
+        },
+        "notification_record_time_idx": {
+          "name": "notification_record_time_idx",
+          "columns": [
+            "created_at",
+            "id"
+          ],
+          "isUnique": false
+        },
+        "notification_record_category_time_idx": {
+          "name": "notification_record_category_time_idx",
+          "columns": [
+            "category",
+            "created_at",
+            "id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
     },
     "painting": {
       "name": "painting",

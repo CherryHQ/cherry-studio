@@ -111,7 +111,7 @@ export async function errorRecovery(app: RegressionApp, page: Page, testInfo: Te
   }
   const send = async (prompt: string) => {
     await page.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first().fill(prompt)
-    await page.getByRole('button', { name: 'Send', exact: true }).click({ noWaitAfter: true })
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
   }
   const message = () => page.locator('[data-ui~="chat.message"][data-message-id]:visible').last()
   const expectError = async (detail: string, action: string) => {
