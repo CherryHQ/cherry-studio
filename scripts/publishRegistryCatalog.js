@@ -97,7 +97,7 @@ function dropIssuePaths(document, issuePaths) {
   return dropped
 }
 
-function dropUnknownImageParams(schemaVersion, file, document) {
+function projectLegacyImageParams(schemaVersion, file, document) {
   if (schemaVersion > 3 || file === 'providers.json') return 0
   const entries = file === 'models.json' ? document?.models : document?.overrides
   if (!Array.isArray(entries)) return 0
@@ -111,6 +111,14 @@ function dropUnknownImageParams(schemaVersion, file, document) {
         delete supports[key]
         dropped += 1
       }
+      // Legacy image controls cannot execute animated output; retain their static choices.
+      const format = supports.outputFormat
+      if (format?.type === 'enum' && Array.isArray(format.options) && format.options.includes('gif')) {
+        format.options = format.options.filter((option) => option !== 'gif')
+        if (format.options.length === 0) delete supports.outputFormat
+        else if (format.default === 'gif') delete format.default
+        dropped += 1
+      }
     }
   }
   return dropped
@@ -118,7 +126,7 @@ function dropUnknownImageParams(schemaVersion, file, document) {
 
 /** Prune until the frozen validator accepts, or `null` when a break is not droppable. */
 function downconvert(validateCatalogFile, file, document, schemaVersion) {
-  let dropped = dropUnknownImageParams(schemaVersion, file, document)
+  let dropped = projectLegacyImageParams(schemaVersion, file, document)
   for (;;) {
     try {
       validateCatalogFile(file, document)
