@@ -489,11 +489,15 @@ const AgentChat = ({
     })
   }, [runtime.sessionId])
   const locateLoadRequestRef = useRef<string | undefined>(undefined)
+  // One locate request settles once: the effect re-runs on every parent render, and the callback
+  // hands ownership of the pending throw away after the first settle.
+  const locateHandledRef = useRef(false)
   const sessionTopicId = runtimeSessionId ? buildAgentSessionTopicId(runtimeSessionId) : ''
 
   useEffect(() => {
     if (centerSurface || !runtimeSessionId || (!locateMessageId && !locateToEnd)) {
       locateLoadRequestRef.current = undefined
+      locateHandledRef.current = false
       return
     }
 
@@ -510,6 +514,8 @@ const AgentChat = ({
     }
 
     locateLoadRequestRef.current = undefined
+    if (locateHandledRef.current) return
+    locateHandledRef.current = true
     // Claim scroll ownership before the list's pending initial-restore frame.
     if (locateToEnd || !targetLoaded) scrollAgentMessageListToEnd(sessionTopicId)
     else if (locateMessageId) locateAgentMessageInList(sessionTopicId, locateMessageId, true)
