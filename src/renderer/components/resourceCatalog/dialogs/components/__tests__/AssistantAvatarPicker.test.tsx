@@ -141,6 +141,47 @@ describe('AssistantAvatarPicker persistence', () => {
     await waitFor(() => expect(ipcApi.request).toHaveBeenCalledTimes(1))
   })
 
+  it('discards a preprocessed upload after the assistant session changes', async () => {
+    let finish!: (data: Uint8Array<ArrayBuffer>) => void
+    vi.mocked(prepareEntityImageBytes).mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve
+      })
+    )
+    const onChanged = vi.fn()
+    const { rerender } = render(<AssistantAvatarPicker {...props} onChanged={onChanged} />)
+    const user = await openPicker()
+    await user.upload(screen.getByLabelText(uploadLabel), file)
+    rerender(<AssistantAvatarPicker {...props} assistantId="assistant-2" onChanged={onChanged} />)
+    await user.click(screen.getByRole('button', { name: 'Avatar' }))
+    await act(async () => finish(bytes))
+    expect(ipcApi.request).not.toHaveBeenCalled()
+    expect(invalidate).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(onChanged).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Reset Avatar' })).toBeEnabled()
+  })
+
+  it('persists a preprocessed upload while its session remains active', async () => {
+    let finish!: (data: Uint8Array<ArrayBuffer>) => void
+    vi.mocked(prepareEntityImageBytes).mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve
+      })
+    )
+    render(<AssistantAvatarPicker {...props} />)
+    const user = await openPicker()
+    await user.upload(screen.getByLabelText(uploadLabel), file)
+    expect(ipcApi.request).not.toHaveBeenCalled()
+    await act(async () => finish(bytes))
+    expect(ipcApi.request).toHaveBeenCalledWith('assistant.set_avatar', {
+      assistantId: 'assistant-1',
+      avatar: { kind: 'image', data: bytes }
+    })
+    expect(invalidate).toHaveBeenCalledWith(['/assistants/assistant-1', '/assistants'])
+    expect(screen.getByRole('button', { name: 'Avatar' })).toBeEnabled()
+  })
+
   it('drops a late completion after unmount', async () => {
     let finish!: () => void
     vi.mocked(ipcApi.request).mockReturnValue(

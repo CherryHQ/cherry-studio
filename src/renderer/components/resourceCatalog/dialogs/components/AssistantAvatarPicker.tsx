@@ -67,6 +67,7 @@ export function AssistantAvatarPicker({
       } else {
         avatar = intent
       }
+      if (!session.active) return
       await ipcApi.request('assistant.set_avatar', { assistantId: id, avatar })
       await invalidate([`/assistants/${id}`, '/assistants'])
       if (!session.active) return

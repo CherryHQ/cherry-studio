@@ -6,6 +6,7 @@ import { v7 as uuidv7 } from 'uuid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { assistantTable } from '@data/db/schemas/assistant'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { assistantDataService } from '@data/services/AssistantService'
 import { fileEntryService } from '@data/services/FileEntryService'
@@ -108,6 +109,32 @@ describe('AssistantAvatarService', () => {
     expect(assistantDataService.getById(assistantId).emoji).toBe('🎉')
     expect(assistantDataService.getById(assistantId).avatarFileId).toBeUndefined()
   })
+
+  it.each([{ kind: 'emoji' as const, emoji: '🎉' }, { kind: 'default' as const }, image])(
+    'advances freshness for $kind avatar mutations in filtered public reads',
+    async (avatar) => {
+      await upload()
+      const now = Date.now()
+      const oldUpdatedAt = now - 60_000
+      const cutoff = now - 30_000
+      dbh.db.update(assistantTable).set({ updatedAt: oldUpdatedAt }).where(eq(assistantTable.id, assistantId)).run()
+      expect(
+        assistantDataService.list({ page: 1, limit: 10, updatedAtFrom: new Date(cutoff).toISOString() }).items
+      ).toEqual([])
+      expect(assistantDataService.search({ q: 'Avatar owner', limit: 10, updatedAtFrom: cutoff })).toEqual([])
+
+      await assistantAvatarService.apply({ assistantId, avatar })
+
+      const assistant = assistantDataService.getById(assistantId)
+      expect(Date.parse(assistant.updatedAt)).toBeGreaterThan(oldUpdatedAt)
+      expect(
+        assistantDataService.list({ page: 1, limit: 10, updatedAtFrom: new Date(cutoff).toISOString() }).items
+      ).toContainEqual(assistant)
+      expect(assistantDataService.search({ q: 'Avatar owner', limit: 10, updatedAtFrom: cutoff })).toContainEqual(
+        expect.objectContaining({ id: assistantId, updatedAt: assistant.updatedAt })
+      )
+    }
+  )
 
   it('rolls back failed binding and compensates only the newly created file', async () => {
     const first = await upload()

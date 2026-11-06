@@ -125,11 +125,11 @@ export class AssistantDataService {
     this.assertActiveTx(tx, assistantId)
     this.clearAvatarSlotTx(tx, assistantId)
     insertSingleFileRefTx(tx, assistantAvatarFileRefTable, assistantId, fileId)
-    tx.update(assistantTable).set({ updatedAt: Date.now() }).where(eq(assistantTable.id, assistantId)).run()
   }
 
   clearAvatarSlotTx(tx: DbOrTx, assistantId: string): void {
     clearSingleFileRefTx(tx, assistantAvatarFileRefTable, assistantId)
+    tx.update(assistantTable).set({ updatedAt: Date.now() }).where(eq(assistantTable.id, assistantId)).run()
   }
 
   setAvatarEmojiTx(tx: DbOrTx, assistantId: string, emoji: string): void {
