@@ -100,7 +100,8 @@ describe('startCherryCloudSubscription', () => {
     status = signedIn
     request.mockImplementation(async (route) => {
       if (route === 'cherry_cloud.status.get') return { ok: true, data: status }
-      if (route === 'cherry_cloud.account_origin.get') return { ok: false, error: { code: 'INTERNAL', message: 'down' } }
+      if (route === 'cherry_cloud.account_origin.get')
+        return { ok: false, error: { code: 'INTERNAL', message: 'down' } }
       return { ok: true, data: undefined }
     })
 
