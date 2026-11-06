@@ -3343,6 +3343,7 @@
   "provider.radeon-cloud": "AMD GPU Cloud",
   "provider.silicon": "SiliconFlow",
   "provider.sophnet": "SophNet",
+  "provider.steadyrouter": "SteadyRouter",
   "provider.stepfun": "StepFun",
   "provider.system": "OCR système",
   "provider.tencent-cloud-ti": "Tencent Cloud TI",

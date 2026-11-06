@@ -153,6 +153,7 @@ export const PROVIDER_ICON_LOADERS = {
   smithery: () => import('./smithery').then(({ SmitheryIcon }) => SmitheryIcon),
   sophnet: () => import('./sophnet').then(({ SophnetIcon }) => SophnetIcon),
   stability: () => import('./stability').then(({ StabilityIcon }) => StabilityIcon),
+  steadyrouter: () => import('./steadyrouter').then(({ SteadyRouterIcon }) => SteadyRouterIcon),
   step: () => import('./step').then(({ StepIcon }) => StepIcon),
   streamlake: () => import('./streamlake').then(({ StreamlakeIcon }) => StreamlakeIcon),
   suno: () => import('./suno').then(({ SunoIcon }) => SunoIcon),

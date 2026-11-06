@@ -153,6 +153,7 @@ import { SkyworkIcon } from './skywork'
 import { SmitheryIcon } from './smithery'
 import { SophnetIcon } from './sophnet'
 import { StabilityIcon } from './stability'
+import { SteadyRouterIcon } from './steadyrouter'
 import { StepIcon } from './step'
 import { StreamlakeIcon } from './streamlake'
 import { SunoIcon } from './suno'
@@ -328,6 +329,7 @@ export const PROVIDER_ICON_CATALOG = {
   smithery: SmitheryIcon,
   sophnet: SophnetIcon,
   stability: StabilityIcon,
+  steadyrouter: SteadyRouterIcon,
   step: StepIcon,
   streamlake: StreamlakeIcon,
   suno: SunoIcon,

@@ -670,8 +670,8 @@
     }
   ],
   "providers": {
-    "version": "bf5d34485566c802",
-    "count": 67,
+    "version": "7503c15bd3551fb1",
+    "count": 68,
     "entries": [
       {
         "id": "cherryin",
@@ -756,6 +756,10 @@
       {
         "id": "tokendance",
         "name": "TokenDance"
+      },
+      {
+        "id": "steadyrouter",
+        "name": "SteadyRouter"
       },
       {
         "id": "new-api",

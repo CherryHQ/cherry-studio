@@ -56,6 +56,7 @@ import p_qwencloud from './qwencloud'
 import p_radeon_cloud from './radeon-cloud'
 import p_silicon from './silicon'
 import p_sophnet from './sophnet'
+import p_steadyrouter from './steadyrouter'
 import p_stepfun from './stepfun'
 import p_together from './together'
 import p_tokendance from './tokendance'
@@ -90,6 +91,7 @@ export const PROVIDERS: Provider[] = [
   p_ollama,
   p_radeon_cloud,
   p_tokendance,
+  p_steadyrouter,
   p_new_api,
   p_lmstudio,
   p_litellm,
