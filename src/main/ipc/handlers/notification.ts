@@ -9,5 +9,8 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
 export const notificationHandlers: IpcHandlersFor<typeof notificationRequestSchemas> = {
   'notification.send': async (notification) => {
     await application.get('NotificationService').sendNotification(notification)
+  },
+  'notification.activate': async ({ id }) => {
+    await application.get('NotificationService').activateNotification(id)
   }
 }

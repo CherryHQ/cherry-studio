@@ -32,6 +32,10 @@ vi.mock('@renderer/components/GlobalSearch/GlobalSearchPopup', () => ({
   }
 }))
 
+vi.mock('@renderer/components/NotificationCenter', () => ({
+  NotificationCenterButton: () => <button type="button" aria-label="Notification center" />
+}))
+
 vi.mock('@renderer/services/resourceListRevealEvents', () => ({
   emitResourceListReveal: mocks.emitResourceListReveal
 }))
@@ -197,6 +201,14 @@ afterEach(() => {
 })
 
 describe('AppShellTabBar', () => {
+  it('does not mount a separate notification entry in the focused settings tab bar', () => {
+    renderTabBar({
+      tabs: [createTab('settings', { url: '/settings/notifications' })],
+      activeTabId: 'settings',
+      isFocusedTab: true
+    })
+    expect(screen.queryByRole('button', { name: 'Notification center' })).not.toBeInTheDocument()
+  })
   it('keeps the Windows title bar at least as tall as the native overlay when zoomed out', () => {
     mocks.platformState.isWin = true
     renderTabBar({ tabs: [createTab('home')], activeTabId: 'home' })

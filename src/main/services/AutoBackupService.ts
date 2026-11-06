@@ -4,6 +4,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
+import { publishBackupResult } from '@main/services/backupNotifications'
 import { isSameOrInside } from '@main/utils/file'
 import { hasWritePermission, untildify } from '@main/utils/legacyFile'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
@@ -434,6 +435,9 @@ export class AutoBackupService extends BaseService {
 
   private emit(event: AutoBackupEventInput): void {
     if (!this.active) return
+    if (event.status === 'succeeded' || event.status === 'warning' || event.status === 'failed') {
+      publishBackupResult(`backup:auto:${event.type}:${event.timestamp}`, event.status, event.timestamp)
+    }
     const emittedEvent = { ...event, id: ++this.nextEventId }
     application.get('CacheService').setShared(`backup.auto_sync.state.${event.type}`, emittedEvent)
     if (event.status === 'warning' || event.status === 'failed') {
