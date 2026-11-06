@@ -1,4 +1,4 @@
-import { Bell, Check } from 'lucide-react'
+import { Bell, CalendarClock, Check } from 'lucide-react'
 import { createContext, lazy, Suspense, use, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -59,7 +59,7 @@ function NotificationItem({
   const announcement = record.target?.kind === 'announcement' ? record.target : null
   const announcementUrl = announcement?.url
   const expandable = !!(release || announcement)
-  const Icon = notificationCategoryIcons[record.category]
+  const Icon = record.target?.kind === 'scheduled-task' ? CalendarClock : notificationCategoryIcons[record.category]
   const task =
     record.target?.kind === 'scheduled-task' ||
     (record.target?.kind === 'conversation' &&
@@ -125,17 +125,12 @@ function NotificationItem({
             {task ? (
               <NotificationTaskIdentity record={record} />
             ) : (
-              <>
-                <span className="flex size-5 shrink-0 items-center justify-center">
-                  <Icon aria-hidden="true" className="size-4 text-muted-foreground" />
-                </span>
-                <span className="min-w-0 flex-1 truncate">
-                  <NotificationTitle record={record} />
-                </span>
-              </>
+              <span className="min-w-0 flex-1 truncate">
+                <NotificationTitle record={record} />
+              </span>
             )}
           </span>
-          <span className="block pl-7">
+          <span className="block">
             {task ? (
               <span
                 className={
@@ -152,12 +147,17 @@ function NotificationItem({
                 {notificationPreview(record.message)}
               </span>
             )}
-            <time
-              dateTime={created.toISOString()}
-              aria-label={created.toLocaleString(i18n.language, { dateStyle: 'full', timeStyle: 'long' })}
-              className="mt-1 block text-xs text-muted-foreground">
-              {timeLabel}
-            </time>
+            <span className="mt-1 flex min-h-4 items-center justify-between gap-2 text-foreground-tertiary">
+              <time
+                dateTime={created.toISOString()}
+                aria-label={created.toLocaleString(i18n.language, { dateStyle: 'full', timeStyle: 'long' })}
+                className="text-xs text-muted-foreground">
+                {timeLabel}
+              </time>
+              {(!task || record.target?.kind === 'scheduled-task') && (
+                <Icon aria-hidden="true" className="size-3.5 shrink-0" />
+              )}
+            </span>
           </span>
         </Button>
         <Button
@@ -178,7 +178,7 @@ function NotificationItem({
         </Button>
       </div>
       {expanded && (release || announcementUrl) && (
-        <div className="space-y-3 pb-4 pl-9 pr-2">
+        <div className="space-y-3 px-2 pb-4">
           {release && (
             <Suspense fallback={<p className="text-sm text-muted-foreground">{t('common.loading')}</p>}>
               <ReleaseNotes content={release.releaseNotes} />
