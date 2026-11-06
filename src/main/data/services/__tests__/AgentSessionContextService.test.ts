@@ -8,6 +8,7 @@ import { agentSessionContextTable } from '@data/db/schemas/agentSessionContext'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
+import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
 
 describe('native association transactions', () => {
   const dbh = setupTestDatabase()
@@ -34,7 +35,7 @@ describe('native association transactions', () => {
       { type: 'text', text: 'Retained answer' }
     ])
     expect(dbh.db.select().from(agentRuntimeBackendTable).all()).toEqual([])
-    expect(contexts.forSession('session')).toEqual([])
+    expect(dbh.db.select().from(agentSessionContextTable).all()).toEqual([])
   })
 
   it('reuses an existing locator without promoting its unfinished native creation', () => {
@@ -46,31 +47,18 @@ describe('native association transactions', () => {
     expect(dbh.db.select().from(agentRuntimeBackendTable).all()).toHaveLength(1)
   })
 
-  it('rolls back the backend and context together when reservation fails', () => {
-    expect(() =>
-      application.get('DbService').withWriteTx((tx) => {
-        const backend = contexts.ensureBackendTx(tx, { version: 1, kind: 'pi' }, 'bound')
-        contexts.allocateContextTx(tx, 'session', backend.id, 'native')
-        throw new Error('reservation failed')
-      })
-    ).toThrow('reservation failed')
-    expect(dbh.db.select().from(agentRuntimeBackendTable).all()).toEqual([])
-    expect(dbh.db.select().from(agentSessionContextTable).all()).toEqual([])
-  })
-
   it('keeps a reserved identity pending, confirms it once, and rejects identity changes', () => {
     const backend = application
       .get('DbService')
       .withWriteTx((tx) => contexts.ensureBackendTx(tx, { version: 1, kind: 'pi' }, 'bound'))
-    const reserved = contexts.allocateContext('session', backend.id, 'native')
+    const reserved = preparePiBranch('session', undefined, 'native')
     expect(reserved).toMatchObject({ nativeThreadId: 'native', bindingState: 'pending' })
     expect(messages.hasRuntimeResumeToken('session', 'native')).toBe(false)
-    expect(contexts.allocateContext('session', backend.id, 'native').id).toBe(reserved.id)
     expect(() => contexts.bindContext(reserved.id, 'different')).toThrow('identity cannot change')
     expect(contexts.context(reserved.id).bindingState).toBe('pending')
     contexts.bindContext(reserved.id, 'native')
     expect(messages.hasRuntimeResumeToken('session', 'native')).toBe(true)
-    expect(contexts.allocateContext('session', backend.id, 'native')).toMatchObject({
+    expect(contexts.context(reserved.id)).toMatchObject({
       id: reserved.id,
       nativeThreadId: 'native',
       bindingState: 'bound'

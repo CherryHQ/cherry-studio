@@ -74,7 +74,6 @@ export {
   PageSidePanelSection,
   type PageSidePanelSectionProps
 } from './composites/page-side-panel'
-export { default as Scrollbar } from './composites/scrollbar'
 export { SearchInput, type SearchInputProps } from './composites/search-input'
 export { SelectDropdown, type SelectDropdownProps } from './composites/select-dropdown'
 
@@ -198,6 +197,7 @@ export * from './primitives/pagination'
 export * from './primitives/popover'
 export * from './primitives/radio-group'
 export * from './primitives/resizable'
+export { ScrollArea } from './primitives/scroll-area'
 export * from './primitives/segmented-control'
 export * from './primitives/select'
 export * from './primitives/separator'

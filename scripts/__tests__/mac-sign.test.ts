@@ -53,7 +53,7 @@ describe('macOS signing policy', () => {
     const builder = parse(readFileSync(path.join(projectRoot, 'electron-builder.yml'), 'utf8'))
 
     expect(builder.mac.extraFiles).toContainEqual({
-      from: 'packages/system-speech/dist/native/darwin-${arch}/cherry-system-speech',
+      from: 'native/system-speech/dist/native/darwin-${arch}/cherry-system-speech',
       to: 'Helpers/cherry-system-speech'
     })
     expect(JSON.stringify(builder.mac.extraResources ?? [])).not.toContain('cherry-system-speech')

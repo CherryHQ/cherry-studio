@@ -1,9 +1,10 @@
 import { writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 
 import type { Page } from '@playwright/test'
 
 import { AssistantSchema } from '@shared/data/types/assistant'
-import { MessageSchema } from '@shared/data/types/message'
+import { MessageSchema, type BranchMessagesResponse } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { TopicSchema } from '@shared/data/types/topic'
 import type { IpcResult } from '@shared/ipc/errors/IpcError'
@@ -11,18 +12,273 @@ import type { IpcResult } from '@shared/ipc/errors/IpcError'
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
+import { chooseNativeFile } from '../../../../scripts/e2e/regression/systemAutomation'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { test, expect } from '../fixture'
-import { sendChatMarker } from '../helpers/chat'
+import { openAttachmentPicker, sendChatMarker, submitChatMarker } from '../helpers/chat'
 import { selectSidebarApp } from '../helpers/navigation'
 import { openSettingsSection } from '../helpers/settings'
+import { chatEfficiency } from '../scenarios/chatEfficiency'
 import { chatImageGeneration } from '../scenarios/chatImageGeneration'
+import { chatStreamingStopContinue } from '../scenarios/chatStreamingStopContinue'
+import { codeBlockToolbar } from '../scenarios/codeBlockToolbar'
+import { documentAttachments } from '../scenarios/documentAttachments'
+import { dragDropPasteAttachments } from '../scenarios/dragDropPasteAttachments'
 import { htmlArtifactPreview } from '../scenarios/htmlArtifactPreview'
 import { imageAttachments } from '../scenarios/imageAttachments'
+import { knowledgeAttachmentExclusion } from '../scenarios/knowledgeAttachmentExclusion'
 import { manageChatContext } from '../scenarios/manageChatContext'
+import { mcpPromptsAndResources } from '../scenarios/mcpPromptsAndResources'
 import { messageBranches } from '../scenarios/messageBranches'
+import { messageOperations } from '../scenarios/messageOperations'
+import { messageSelectionToolbar } from '../scenarios/messageSelectionToolbar'
 import { messageTokenDetails } from '../scenarios/messageTokenDetails'
+import { polishPrompt } from '../scenarios/polishPrompt'
 import { searchAndFetch } from '../scenarios/searchAndFetch'
+import { searchChatMessages } from '../scenarios/searchChatMessages'
+
+test(...caseDefinition('MP-09'), async ({ app, mainWindow: page }, testInfo) => {
+  test.setTimeout(6 * 60_000)
+  const providerId = `mp09-${Date.now()}`
+  const assistantName = app.resourceName('Attachment input')
+  const topicName = app.resourceName('Attachment conversation')
+  const imageText = `ORCHID ${Date.now()}`
+  const documentText = `The project is named IRIS. Its launch date is 17 November. Its budget is 731 dollars.`
+  const imageName = 'mp09-readable.png'
+  const textName = 'mp09-summary.txt'
+  const imagePath = join(app.paths.fixtures, imageName)
+  const textPath = join(app.paths.fixtures, textName)
+  const unsupportedPath = join(app.paths.fixtures, 'mp09-unsupported.lrmx')
+  const previous = await page.evaluate(async () => ({
+    naming: await window.api.preference.get('topic.naming.enabled'),
+    menu: await window.api.preference.get('menu.presentation_mode'),
+    screenshot: await window.api.preference.get('feature.screenshot.enabled')
+  }))
+  let assistantId: string | undefined
+  const screenshot = async (name: string) => {
+    const path = testInfo.outputPath(`${name}.png`)
+    await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
+    await testInfo.attach(name, { path, contentType: 'image/png' })
+  }
+
+  try {
+    await page.evaluate(() =>
+      window.api.preference.setMultiple({
+        'topic.naming.enabled': false,
+        'menu.presentation_mode': 'cherry',
+        'feature.screenshot.enabled': true
+      })
+    )
+    // Use the configured real provider: canned answers cannot establish OCR or document comprehension.
+    const config = app.config.customProvider
+    const created = await page.evaluate(
+      async ({ providerId, config }) => {
+        const provider = await window.api.dataApi.request({
+          id: 'mp09-provider',
+          method: 'POST',
+          path: '/providers',
+          body: {
+            providerId,
+            name: 'MP-09 real provider',
+            defaultChatEndpoint: 'openai-chat-completions',
+            endpointConfigs: { 'openai-chat-completions': { baseUrl: config.baseUrl } },
+            apiKeys: [{ id: 'mp09-key', key: config.apiKey, isEnabled: true }]
+          }
+        })
+        const enabled = await window.api.dataApi.request({
+          id: 'mp09-enable',
+          method: 'PATCH',
+          path: `/providers/${providerId}`,
+          body: { isEnabled: true }
+        })
+        const model = await window.api.dataApi.request({
+          id: 'mp09-model',
+          method: 'POST',
+          path: '/models',
+          body: [
+            {
+              providerId,
+              modelId: config.chatModel,
+              endpointTypes: ['openai-chat-completions'],
+              inputModalities: ['text', 'image'],
+              outputModalities: ['text']
+            }
+          ]
+        })
+        return [provider.status, enabled.status, model.status]
+      },
+      { providerId, config }
+    )
+    expect(created).toEqual([201, 200, 201])
+    const assistant = await page.evaluate(
+      ({ name, modelId }) =>
+        window.api.dataApi.request({
+          id: 'mp09-assistant',
+          method: 'POST',
+          path: '/assistants',
+          body: { name, modelId }
+        }),
+      { name: assistantName, modelId: createUniqueModelId(providerId, config.chatModel) }
+    )
+    expect(assistant.status).toBe(201)
+    assistantId = AssistantSchema.parse(assistant.data).id
+    const topic = await page.evaluate(
+      ({ name, assistantId }) =>
+        window.api.dataApi.request({
+          id: 'mp09-topic',
+          method: 'POST',
+          path: '/topics',
+          body: { name, assistantId }
+        }),
+      { name: topicName, assistantId }
+    )
+    expect(topic.status).toBe(201)
+    const topicId = TopicSchema.parse(topic.data).id
+    const image = await page.evaluate((text) => {
+      const canvas = document.createElement('canvas')
+      canvas.width = 900
+      canvas.height = 220
+      const context = canvas.getContext('2d')!
+      context.fillStyle = 'white'
+      context.fillRect(0, 0, canvas.width, canvas.height)
+      context.fillStyle = 'black'
+      context.font = 'bold 48px sans-serif'
+      context.fillText(text, 30, 125)
+      return canvas.toDataURL('image/png').split(',')[1]
+    }, imageText)
+    await writeFile(imagePath, Buffer.from(image, 'base64'))
+    await writeFile(textPath, documentText)
+    await writeFile(unsupportedPath, Buffer.from([0, 255, 0, 255]))
+
+    await page.reload()
+    await selectSidebarApp(page, 'Chat')
+    const chat = page.locator('[data-ui~="chat.view"]:visible')
+    const group = chat.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
+    await expect(group).toBeVisible()
+    await group.hover()
+    const expand = group.getByRole('button', { name: 'Expand', exact: true })
+    if (await expand.isVisible()) await expand.click()
+    await chat.getByTestId('topic-list-row').filter({ hasText: topicName }).click()
+    await expect(page.getByRole('button', { name: 'Selected models', exact: true })).toContainText(
+      'MP-09 real provider'
+    )
+    const composer = chat.locator('[data-ui~="chat.composer"]')
+    const editor = composer.locator('[contenteditable="true"]').first()
+    const fileToken = (name: string) => composer.locator('[data-composer-token-kind="file"]').filter({ hasText: name })
+    const upload = async (path: string) => {
+      await openAttachmentPicker(page, composer)
+      chooseNativeFile(app.record.platform, app.paths, path)
+    }
+    const readMessages = async () => {
+      const result = await page.evaluate(
+        (topicId) =>
+          window.api.dataApi.request({
+            id: 'mp09-messages',
+            method: 'GET',
+            path: `/topics/${topicId}/messages`
+          }),
+        topicId
+      )
+      expect(result.status).toBe(200)
+      return (result.data as BranchMessagesResponse).items.map(({ message }) => MessageSchema.parse(message))
+    }
+
+    await editor.fill('图里写了什么')
+    await upload(imagePath)
+    await expect(fileToken(imageName)).toBeVisible()
+    await fileToken(imageName).hover()
+    await expect(page.locator('[data-file-token-image-preview] img')).toBeVisible()
+    expect(
+      await page.locator('[data-file-token-image-preview] img').evaluate((img: HTMLImageElement) => img.naturalWidth)
+    ).toBeGreaterThan(0)
+    await screenshot('MP-09 image uploaded')
+    await submitChatMarker(page, imageText, false)
+    await expect(fileToken(imageName)).toHaveCount(0)
+    await screenshot('MP-09 real model reads image text')
+
+    await editor.fill('总结这个文件，请保留项目的英文名称、日期和预算数字。')
+    await upload(textPath)
+    await expect(fileToken(textName)).toBeVisible()
+    await submitChatMarker(page, 'IRIS', false)
+    const answer = chat
+      .locator('[data-ui~="chat.message"]')
+      .filter({ has: page.locator('.message-assistant') })
+      .last()
+    await expect(answer).toContainText('731')
+    await expect(answer).toContainText('17')
+    await expect(answer).toContainText(/November|11月|十一月/)
+    await screenshot('MP-09 document summary')
+
+    for (const [path, name] of [
+      [imagePath, imageName],
+      [textPath, textName]
+    ]) {
+      await upload(path)
+      await expect(fileToken(name)).toBeVisible()
+      await fileToken(name).click()
+      if (name === imageName) {
+        const preview = page.getByRole('dialog', { name: 'Preview', exact: true })
+        await expect(preview).toBeVisible()
+        await expect(preview.locator('img').first()).toBeVisible()
+        await preview.getByRole('button', { name: 'Close Preview', exact: true }).click()
+        await expect(preview).toBeHidden()
+      } else {
+        const preview = page.getByTestId('artifact-file-preview-overlay')
+        await expect(preview).toBeVisible()
+        await expect(preview).toContainText(documentText)
+        await page.getByTestId('artifact-pane-header').getByRole('button', { name: 'Back', exact: true }).click()
+        await expect(preview).toBeHidden()
+      }
+      await fileToken(name).hover()
+      await fileToken(name).getByRole('button', { name: 'Delete', exact: true }).click()
+      await expect(fileToken(name)).toHaveCount(0)
+    }
+    await sendChatMarker(page, '这是一条不带附件的新消息。请只回复 MP09_NO_ATTACHMENT。', 'MP09_NO_ATTACHMENT')
+    const latestUser = (await readMessages()).filter(({ role }) => role === 'user').at(-1)!
+    expect((latestUser.data.parts ?? []).some(({ type }) => type === 'file')).toBe(false)
+    await screenshot('MP-09 deleted attachments absent from sent message')
+
+    await upload(unsupportedPath)
+    await expect(page.getByText(/not supported|unsupported|failed|不支持|失败/i).last()).toBeVisible()
+    await expect(fileToken('mp09-unsupported.lrmx')).toHaveCount(0)
+    await screenshot('MP-09 unsupported file readable feedback')
+
+    await composer.getByRole('button', { name: 'Input Quick Panel', exact: true }).click()
+    await page.getByText('Take Screenshot', { exact: true }).last().click()
+    const capture = await app.window('/screenshot/')
+    await capture.mouse.move(100, 100)
+    await capture.mouse.down()
+    await capture.mouse.move(600, 350, { steps: 10 })
+    await capture.mouse.up()
+    await capture.getByRole('button', { name: 'Add to chat', exact: true }).click()
+    await capture.getByRole('dialog').getByRole('button', { name: 'Add to chat', exact: true }).click()
+    await expect(composer.locator('[data-file-token-variant="image"]')).toHaveCount(1)
+    await composer.locator('[data-file-token-variant="image"]').hover()
+    await expect(page.locator('[data-file-token-image-preview] img')).toBeVisible()
+    expect((await readMessages()).filter(({ role }) => role === 'user')).toHaveLength(3)
+    await expect(editor).toBeEditable()
+    await screenshot('MP-09 screenshot added to current conversation draft')
+  } finally {
+    await page.evaluate(
+      async ({ assistantId, providerId, previous }) => {
+        await window.api.preference.setMultiple({
+          'topic.naming.enabled': previous.naming,
+          'menu.presentation_mode': previous.menu,
+          'feature.screenshot.enabled': previous.screenshot
+        })
+        if (assistantId) {
+          const deleted = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
+            assistantId,
+            deleteTopics: true
+          })) as IpcResult<unknown>
+          if (!deleted.ok) throw new Error(deleted.error.message)
+        }
+        await window.api.dataApi.request({ id: 'mp09-cleanup', method: 'DELETE', path: `/providers/${providerId}` })
+      },
+      { assistantId, providerId, previous }
+    )
+  }
+})
 
 test(...caseDefinition('MP-10'), async ({ app, mainWindow }, testInfo) => {
   let page = mainWindow
@@ -289,6 +545,19 @@ test(...caseDefinition('MP-10'), async ({ app, mainWindow }, testInfo) => {
   }
 })
 
+test(...caseDefinition('MP-149'), async ({ app, mainWindow }, testInfo) => {
+  test.setTimeout(3 * 60_000)
+  await messageSelectionToolbar(app, mainWindow, testInfo)
+})
+
+test(...caseDefinition('MP-16'), async ({ app, mainWindow }, testInfo) => {
+  await polishPrompt(app, mainWindow, testInfo)
+})
+
+test(...caseDefinition('MP-18'), async ({ app, mainWindow }, testInfo) => {
+  await chatEfficiency(app, mainWindow, testInfo)
+})
+
 test(...caseDefinition('MP-27'), async ({ app, mainWindow }, testInfo) => {
   let page = mainWindow
   const errors: string[] = []
@@ -548,6 +817,10 @@ test(...caseDefinition('MP-27'), async ({ app, mainWindow }, testInfo) => {
   }
 })
 
+test(...caseDefinition('MP-28'), async ({ app, mainWindow }, testInfo) => {
+  await messageOperations(app, mainWindow, testInfo)
+})
+
 test(...caseDefinition('MP-29'), async ({ app, mainWindow }, testInfo) => {
   await messageBranches(app, mainWindow, testInfo)
 })
@@ -557,8 +830,22 @@ test(...caseDefinition('MP-30'), async ({ app, mainWindow }, testInfo) => {
   await manageChatContext(app, mainWindow, testInfo)
 })
 
+test(...caseDefinition('MP-31'), async ({ app, mainWindow }, testInfo) => {
+  test.setTimeout(6 * 60_000)
+  await documentAttachments(app, mainWindow, testInfo)
+})
+
 test(...caseDefinition('MP-32'), async ({ app, mainWindow }, testInfo) => {
   await imageAttachments(app, mainWindow, testInfo)
+})
+
+test(...caseDefinition('MP-33'), async ({ app, mainWindow }, testInfo) => {
+  test.setTimeout(3 * 60_000)
+  await dragDropPasteAttachments(app, mainWindow, testInfo)
+})
+
+test(...caseDefinition('MP-34'), async ({ app, mainWindow }, testInfo) => {
+  await knowledgeAttachmentExclusion(app, mainWindow, testInfo)
 })
 
 test(...caseDefinition('MP-35'), async ({ app, mainWindow }, testInfo) => {
@@ -566,15 +853,34 @@ test(...caseDefinition('MP-35'), async ({ app, mainWindow }, testInfo) => {
   await searchAndFetch(app, mainWindow, testInfo)
 })
 
+test(...caseDefinition('MP-36'), async ({ app, mainWindow }, testInfo) => {
+  test.setTimeout(5 * 60_000)
+  await mcpPromptsAndResources(app, mainWindow, testInfo)
+})
+
 test(...caseDefinition('MP-37'), async ({ app, mainWindow }, testInfo) => {
   await chatImageGeneration(app, mainWindow, testInfo)
+})
+
+test(...caseDefinition('MP-38'), async ({ app, mainWindow }, testInfo) => {
+  test.setTimeout(180_000)
+  await searchChatMessages(app, mainWindow, testInfo)
 })
 
 test(...caseDefinition('MP-39'), async ({ app, mainWindow }, testInfo) => {
   await messageTokenDetails(app, mainWindow, testInfo)
 })
 
+test(...caseDefinition('MP-40'), async ({ app, mainWindow }, testInfo) => {
+  await codeBlockToolbar(app, mainWindow, testInfo)
+})
+
 test(...caseDefinition('MP-41'), async ({ app, mainWindow }, testInfo) => {
   test.setTimeout(3 * 60_000)
   await htmlArtifactPreview(app, mainWindow, testInfo)
+})
+
+test(...caseDefinition('MP-02'), async ({ app, mainWindow }, testInfo) => {
+  test.setTimeout(3 * 60_000)
+  await chatStreamingStopContinue(app, mainWindow, testInfo)
 })
