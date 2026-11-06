@@ -10,7 +10,7 @@ The existing GPT Image 2.6 integration generates and edits static images but doe
 
 ## Proposal
 
-Keep the SDK upgrade separate from the feature integration. Use the AI SDK 6-compatible OpenAI adapter 3.0.137, preserve Cherry's existing compatibility patches, and retain ai 6.0.185. The infrastructure Issue remains a local draft at the user's request.
+The independently reviewed SDK maintenance in [PR #23678](https://github.com/CherryHQ/cherry-studio/pull/23678), tracked by [Issue #23677](https://github.com/CherryHQ/cherry-studio/issues/23677), is a prerequisite. This Spec governs the dependent Desktop integration in [PR #23684](https://github.com/CherryHQ/cherry-studio/pull/23684); AC1-AC2 record required dependency evidence. Use the AI SDK 6-compatible OpenAI adapter 3.0.137, preserve Cherry's existing compatibility patches, and retain ai 6.0.185.
 
 Add complexity to generation and editing for Sunburst and Flare. Expose animated GIF output, frame count and frame duration for generation. The current adapter rejects GIF edits even though the OpenAI API documentation now lists that format; extending the upstream edit adapter is outside this feature. The public catalog records API capabilities, including GIF edits and encoded frame durations up to 655350 ms. Desktop projects these through each endpoint's selected adapter: OpenAI 3.0.137 limits duration to 2000 ms and hides GIF edits and their timing controls. Other adapters retain their own contract.
 
@@ -37,4 +37,4 @@ The guide and SDK allow 2–64 frames, but the current API Reference specifies 2
 
 Sources: [OpenAI image guide](https://developers.openai.com/api/docs/guides/image-generation), [AI SDK 6 backport](https://github.com/vercel/ai/pull/24561), [Images API Reference](https://developers.openai.com/api/reference/resources/images/methods/generate).
 
-A local publish probe confirms the existing publisher forwards new parameter keys to v3, whose reader drops both target models. Fix legacy-stream conversion independently before publishing this feature catalog. Frozen legacy validators remain unchanged; release compatibility acceptance is still pending. Local implementation and runtime validation may proceed.
+The independent publisher repair in [PR #23687](https://github.com/CherryHQ/cherry-studio/pull/23687) is merged and preserves legacy model records by removing unknown image parameter keys. It preserves known parameter definitions, including their option values, so AC6 still requires verifying that older clients are not offered GIF options unsupported by their installed SDK. Frozen legacy validators remain unchanged. The existing implementation stays draft pending Approval of this Spec head and completion of release compatibility acceptance.

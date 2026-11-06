@@ -10,7 +10,7 @@ Status: proposed
 
 ## Proposal
 
-SDK 升级与功能接入分别交付。使用兼容 AI SDK 6 的 OpenAI 适配器 3.0.137，保留 Cherry 兼容补丁及 ai 6.0.185。按用户要求，基础设施 Issue 先保留本地草稿。
+[PR #23678](https://github.com/CherryHQ/cherry-studio/pull/23678) 中独立审查的 SDK 维护是前置依赖，由 [Issue #23677](https://github.com/CherryHQ/cherry-studio/issues/23677) 跟踪。本 Spec 约束其上的 [PR #23684](https://github.com/CherryHQ/cherry-studio/pull/23684) Desktop 接入；AC1-AC2 记录必需的依赖验证证据。使用兼容 AI SDK 6 的 OpenAI 适配器 3.0.137，保留 Cherry 兼容补丁及 ai 6.0.185。
 
 Sunburst 和 Flare 的生图、改图增加复杂度；生图增加 GIF 格式、帧数和每帧时长。OpenAI 当前接口文档已列出 GIF 改图，但目标 SDK 仍拒绝该格式，扩展上游改图适配器不在本次范围内。公共目录记录 API 能力，包括 GIF 改图及最高 655350 ms 的编码帧时长。Desktop 按各端点实际选择的适配器投影：OpenAI 3.0.137 将帧时长限制为 2000 ms，并隐藏 GIF 改图与时序控件；其他适配器保留各自契约。
 
@@ -37,4 +37,4 @@ SDK 7 会扩大迁移范围。自行序列化 HTTP 或增加下游 GIF 改图补
 
 来源：[OpenAI 图片指南](https://developers.openai.com/api/docs/guides/image-generation)、[AI SDK 6 回移](https://github.com/vercel/ai/pull/24561)、[Images API Reference](https://developers.openai.com/api/reference/resources/images/methods/generate)。
 
-本地发布探针已确认既有发布器会向 v3 写入新参数，v3 读取器随后会丢弃两款目标模型。发布器的兼容转换需独立修复；在此之前，本功能仅供本地验证，不得发布目录。冻结的旧验证器保持不变，发布兼容性验收仍待完成。
+独立发布器修复 [PR #23687](https://github.com/CherryHQ/cherry-studio/pull/23687) 已合并，通过移除未知图片参数键来保留旧版模型记录。它保留已知参数定义及选项值，因此 AC6 仍需验证旧客户端不会获得其已安装 SDK 不支持的 GIF 选项。冻结的旧验证器保持不变。现有实现继续保持草稿，等待本 Spec 当前提交获得 Approval，并完成发布兼容性验收。
