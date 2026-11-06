@@ -104,7 +104,7 @@ function mapSchemas(schema: JSONSchema7Definition, mapNode: (node: JSONSchema7) 
       next = Array.isArray(value) ? mapSchemaList(value, mapNode) : mapSchemas(value, mapNode)
     }
     if (next !== value) changed = true
-    result[key] = next
+    Object.defineProperty(result, key, { value: next, enumerable: true, writable: true, configurable: true })
   }
   const mapped = mapNode(result)
   if (mapped !== (result as JSONSchema7)) changed = true
@@ -128,7 +128,12 @@ function mapSchemaMap(
   let changed = false
   const next: Record<string, JSONSchema7Definition> = {}
   for (const [key, value] of Object.entries(map)) {
-    next[key] = mapSchemas(value, mapNode)
+    Object.defineProperty(next, key, {
+      value: mapSchemas(value, mapNode),
+      enumerable: true,
+      writable: true,
+      configurable: true
+    })
     if (next[key] !== value) changed = true
   }
   return changed ? next : map
@@ -145,12 +150,13 @@ function dropKeywords(node: JSONSchema7, keywords: ReadonlySet<string>): JSONSch
         typeof value === 'object' &&
         value !== null &&
         !Array.isArray(value) &&
+        (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null) &&
         Object.keys(value).length === 0)
     ) {
       changed = true
       continue
     }
-    kept[key] = value
+    Object.defineProperty(kept, key, { value, enumerable: true, writable: true, configurable: true })
   }
   return changed ? kept : node
 }

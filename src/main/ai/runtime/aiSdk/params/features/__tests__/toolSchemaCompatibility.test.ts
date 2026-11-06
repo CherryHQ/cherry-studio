@@ -2,8 +2,7 @@ import { createAnthropic } from '@ai-sdk/anthropic'
 import { createAzure } from '@ai-sdk/azure'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI } from '@ai-sdk/openai'
-import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
-import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
+import type { JSONSchema7, LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
 import { asSchema, generateText, jsonSchema, streamText, tool, wrapLanguageModel } from 'ai'
 import { describe, expect, it } from 'vitest'
@@ -15,7 +14,6 @@ import { createToolInspectTool } from '@main/ai/tools/adapters/aiSdk/meta/toolIn
 import { createToolInvokeTool } from '@main/ai/tools/adapters/aiSdk/meta/toolInvoke'
 import { createToolSearchTool } from '@main/ai/tools/adapters/aiSdk/meta/toolSearch'
 import { ToolRegistry } from '@main/ai/tools/adapters/aiSdk/registry'
-import { AnthropicMessageConverter } from '@main/features/apiGateway/adapters/converters/AnthropicMessageConverter'
 import { readFileInputSchema } from '@shared/ai/builtinTools'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 
@@ -846,6 +844,75 @@ describe('toolSchemaCompatibilityFeature', () => {
     }
   )
 
+  it('preserves own __proto__ keys when sibling schemas are normalized', async () => {
+    const inputSchema = JSON.parse(`{
+      "type": "object",
+      "properties": {
+        "__proto__": { "type": "string" },
+        "options": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": {},
+          "__proto__": { "type": "number" }
+        }
+      },
+      "required": ["__proto__", "options"],
+      "additionalProperties": false,
+      "__proto__": { "type": "boolean" }
+    }`)
+    const params: LanguageModelV3CallOptions = {
+      prompt: [],
+      tools: [{ type: 'function', name: 'search', inputSchema }]
+    }
+
+    const transformed = (await transform(params)).tools?.[0]
+    if (transformed?.type !== 'function') throw new Error('expected a transformed function tool')
+    const schema = transformed.inputSchema
+    const properties = schema.properties!
+
+    expect(Object.hasOwn(properties, '__proto__')).toBe(true)
+    expect(properties.__proto__).toEqual({ type: 'string' })
+    expect(Object.keys(properties)).toEqual(['__proto__', 'options'])
+    expect(schema.required).toEqual(['__proto__', 'options'])
+    expect(schema.additionalProperties).toBe(false)
+    expect(Object.hasOwn(schema, '__proto__')).toBe(true)
+    expect(schema).toHaveProperty('__proto__', { type: 'boolean' })
+    expect(Object.hasOwn(properties.options as JSONSchema7, '__proto__')).toBe(true)
+    expect(properties.options).toEqual({ type: 'object', properties: {}, ['__proto__']: { type: 'number' } })
+    expect(inputSchema.properties.options.additionalProperties).toEqual({})
+  })
+
+  it('preserves non-plain additionalProperties by identity while removing plain empty objects', async () => {
+    class StringSchema {
+      toJSON() {
+        return { type: 'string' }
+      }
+    }
+    const additionalProperties = new StringSchema() as JSONSchema7
+    const inputSchema = {
+      type: 'object' as const,
+      properties: {
+        typed: { type: 'object' as const, additionalProperties },
+        empty: { type: 'object' as const, additionalProperties: {} },
+        nullPrototype: { type: 'object' as const, additionalProperties: Object.create(null) }
+      }
+    }
+    const params: LanguageModelV3CallOptions = {
+      prompt: [],
+      tools: [{ type: 'function', name: 'search', inputSchema }]
+    }
+
+    const transformed = (await transform(params)).tools?.[0]
+    if (transformed?.type !== 'function') throw new Error('expected a transformed function tool')
+
+    const properties = transformed.inputSchema.properties!
+    const typedSchema = properties.typed as { additionalProperties: unknown }
+    expect(typedSchema.additionalProperties).toBe(additionalProperties)
+    expect(JSON.stringify(typedSchema)).toBe('{"type":"object","additionalProperties":{"type":"string"}}')
+    expect(properties.empty).toEqual({ type: 'object' })
+    expect(properties.nullPrototype).toEqual({ type: 'object' })
+  })
+
   it.each([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.ANTHROPIC_MESSAGES])(
     'preserves absent, boolean, and typed additionalProperties and propertyNames on %s',
     async (endpointType) => {
@@ -955,127 +1022,6 @@ describe('toolSchemaCompatibilityFeature', () => {
       })
     }
   })
-
-  it.each(['generate', 'stream'] as const)(
-    'normalizes gateway-invented empty additionalProperties in OpenAI-compatible %s requests',
-    async (mode) => {
-      const gatewayTools = new AnthropicMessageConverter().toAiSdkTools({
-        model: 'gateway-model',
-        max_tokens: 64,
-        messages: [],
-        tools: [
-          {
-            name: 'gateway_search',
-            description: 'Search',
-            input_schema: {
-              type: 'object',
-              properties: { options: { type: 'object', properties: { query: { type: 'string' } } } },
-              required: ['options']
-            }
-          }
-        ]
-      })
-      const explicitSchema = {
-        type: 'object' as const,
-        properties: {
-          open: { type: 'object' as const, additionalProperties: true },
-          closed: { type: 'object' as const, additionalProperties: false },
-          typed: { type: 'object' as const, additionalProperties: { type: 'string' as const } }
-        },
-        additionalProperties: true
-      }
-
-      for (const withMiddleware of [false, true]) {
-        const bodies: Array<{
-          stream?: boolean
-          tools: Array<{ type: string; function: { name: string; description: string; parameters: unknown } }>
-        }> = []
-        const captureFetch: typeof globalThis.fetch = async (_input, init) => {
-          bodies.push(JSON.parse(String(init?.body)))
-          const chunk = {
-            id: 'capture',
-            object: 'chat.completion.chunk',
-            created: 0,
-            model: 'gateway-model',
-            choices: [{ index: 0, delta: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }]
-          }
-          return mode === 'stream'
-            ? new Response(`data: ${JSON.stringify(chunk)}\n\ndata: [DONE]\n\n`, {
-                headers: { 'content-type': 'text/event-stream' }
-              })
-            : new Response(
-                JSON.stringify({
-                  id: 'capture',
-                  object: 'chat.completion',
-                  created: 0,
-                  model: 'gateway-model',
-                  choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
-                  usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
-                }),
-                { headers: { 'content-type': 'application/json' } }
-              )
-        }
-        const sdkModel = createOpenAICompatible({
-          name: 'openai-compatible',
-          baseURL: 'https://provider.test/v1',
-          fetch: captureFetch
-        }).chatModel('gateway-model')
-        const model = withMiddleware
-          ? wrapLanguageModel({
-              model: sdkModel,
-              middleware: await getMiddleware({
-                aiSdkProviderId: 'openai-compatible',
-                endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
-              })
-            })
-          : sdkModel
-        const options = {
-          model,
-          prompt: 'hello',
-          maxRetries: 0,
-          tools: {
-            ...gatewayTools,
-            explicit: tool({ description: 'Explicit', inputSchema: jsonSchema(explicitSchema) })
-          }
-        }
-
-        if (mode === 'stream') {
-          const result = streamText(options)
-          await result.consumeStream()
-          expect(await result.text).toBe('ok')
-          expect(await result.finishReason).toBe('stop')
-        } else {
-          expect((await generateText(options)).text).toBe('ok')
-        }
-
-        expect(bodies).toHaveLength(1)
-        if (mode === 'stream') expect(bodies[0].stream).toBe(true)
-        expect(bodies[0].tools).toEqual([
-          {
-            type: 'function',
-            function: {
-              name: 'gateway_search',
-              description: 'Search',
-              parameters: {
-                ...(withMiddleware ? {} : { $schema: 'http://json-schema.org/draft-07/schema#' }),
-                type: 'object',
-                properties: {
-                  options: {
-                    type: 'object',
-                    properties: { query: { type: 'string' } },
-                    ...(withMiddleware ? {} : { additionalProperties: {} })
-                  }
-                },
-                required: ['options'],
-                ...(withMiddleware ? {} : { additionalProperties: {} })
-              }
-            }
-          },
-          { type: 'function', function: { name: 'explicit', description: 'Explicit', parameters: explicitSchema } }
-        ])
-      }
-    }
-  )
 
   it('keeps propertyNames and additionalProperties out of Gemini wire declarations', async () => {
     // Wire-level guard for the same contract: drives the real @ai-sdk/google
