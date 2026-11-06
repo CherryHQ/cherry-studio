@@ -814,3 +814,11 @@ it.each([
 it('keeps baseline inline literal after a second indented underline', () => {
   expect(stripModelScratchpadBlocks('  - `\n  ===\n    ===\n    `<thinking>MARK</thinking>`\n  - \n')).toContain('MARK')
 })
+
+it.each([
+  '[docs](https://example.com "Use `") `<analysis>example</analysis>`',
+  "[docs](https://example.com 'Use `') `<analysis>example</analysis>`"
+])('preserves inline XML after link titles and simple mixed-container lazy lines: %s', (raw) => {
+  expect(stripModelScratchpadBlocks(raw)).toBe(raw.trimEnd())
+  expect(ContextPrompts.formatCompactSummary(raw)).toContain(raw.includes('MARK') ? 'MARK' : 'example')
+})

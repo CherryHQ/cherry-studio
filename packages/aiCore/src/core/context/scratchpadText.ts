@@ -102,9 +102,35 @@ function htmlTextElementEnd(text: string, parsed: ParsedOpeningTag, openIndex: n
   return close ? bodyStart + close.index + close[0].length : text.length
 }
 
+/** Valid inline-link titles own backticks; delimiter-like title text is not code. */
+function linkTitleLookup(text: string): (index: number) => boolean {
+  const ranges: Array<{ start: number; end: number }> = []
+  // Bound this repair to ordinary nonempty labels and nonempty URL destinations.
+  // Empty/escaped/nested labels and reference links retain the existing policy.
+  const links = /\[([a-zA-Z0-9 _-]+)\]\((https?:\/\/[^\s()"'<>\\]+)[ \t]+(["'])([^\r\n]*?)\3[ \t]*\)/g
+  let match: RegExpExecArray | null
+  while ((match = links.exec(text)) !== null) {
+    if (match.index > 0 && /[\\[\]`]/.test(text[match.index - 1])) continue
+    if (match[4].includes('\\')) continue
+    const start = match.index + match[0].indexOf(match[3], match[1].length + 3)
+    ranges.push({ start, end: links.lastIndex - 1 })
+  }
+  return (index) => {
+    let low = 0,
+      high = ranges.length
+    while (low < high) {
+      const mid = (low + high) >>> 1
+      if (ranges[mid].end <= index) low = mid + 1
+      else high = mid
+    }
+    return low < ranges.length && ranges[low].start <= index
+  }
+}
+
 /** HTML attributes and text-element bodies are opaque to Markdown code-span openers. */
 function htmlOpeningTagLookup(text: string): (index: number) => boolean {
   const ranges: Array<{ start: number; end: number }> = []
+  const inLinkTitle = linkTitleLookup(text)
   let pos = 0
   let cachedCodeBlockEnd = -1
   const paragraphAt = inlineParagraphLookup(text)
@@ -114,7 +140,7 @@ function htmlOpeningTagLookup(text: string): (index: number) => boolean {
     // A completed code span owns apparent HTML within it. Discover that span
     // before allowing a literal <textarea> to claim all following code ticks.
     const tick = text.indexOf('`', pos)
-    if (tick !== -1 && tick < start && !isBackslashEscaped(text, tick)) {
+    if (tick !== -1 && tick < start && !isBackslashEscaped(text, tick) && !inLinkTitle(tick)) {
       let runEnd = tick + 1
       while (text[runEnd] === '`') runEnd++
       const run = runEnd - tick
@@ -161,7 +187,7 @@ function htmlOpeningTagLookup(text: string): (index: number) => boolean {
       else if (index >= range.end) low = mid + 1
       else return true
     }
-    return false
+    return inLinkTitle(index)
   }
 }
 
