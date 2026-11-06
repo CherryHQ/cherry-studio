@@ -4,6 +4,7 @@ import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import enUS from '@renderer/i18n/locales/en-us.json'
+import zhCN from '@renderer/i18n/locales/zh-cn.json'
 
 import type { MessageListActions, MessageListItem } from '../../types'
 
@@ -101,6 +102,32 @@ describe('ErrorBlock', () => {
     vi.clearAllMocks()
   })
 
+  it.each([
+    { language: 'en-US', detail: '' },
+    { language: 'en-US', detail: 'Provider unavailable' },
+    { language: 'zh-CN', detail: '' },
+    { language: 'zh-CN', detail: 'Provider unavailable' }
+  ] as const)(
+    'shows localized response interruption for a persisted stream failure ($language, $detail)',
+    ({ language, detail }) => {
+      const catalog = language === 'en-US' ? enUS : zhCN
+      mocks.language = language
+      mocks.translations = new Map(Object.entries(catalog))
+
+      render(
+        <ErrorBlock
+          partId="message-1-part-0"
+          error={{ name: 'StreamError', message: detail, stack: null, streamStage: 'response-stream' }}
+          message={message}
+        />
+      )
+
+      expect(screen.getAllByText(catalog['error.diagnosis.stream'], { exact: true })).toHaveLength(1)
+      expect(screen.queryByText(catalog['error.diagnosis.unknown'], { exact: true })).not.toBeInTheDocument()
+      if (detail) expect(screen.getByText(detail, { exact: true })).toBeInTheDocument()
+    }
+  )
+
   it('renders Groq entitlement copy and opens its provider settings', async () => {
     const user = userEvent.setup()
     const navigateErrorTarget = vi.fn()
@@ -168,6 +195,7 @@ required service tier.`
           name: 'ToolLoopTerminalError',
           message: 'fallback message',
           stack: null,
+          streamStage: 'response-stream',
           i18nKey
         }}
         message={message}

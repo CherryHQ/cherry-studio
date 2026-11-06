@@ -33,6 +33,7 @@ interface Props {
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onCreateEmptyTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   locateMessageId?: string
+  locateToEnd?: boolean
   onLocateMessageHandled?: () => void
   onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
   assistantContext?: ChatComposerResolvedContext
@@ -57,6 +58,7 @@ const ChatContent: FC<Props> = ({
   onNewTopic,
   onCreateEmptyTopic,
   locateMessageId,
+  locateToEnd,
   onLocateMessageHandled,
   onBranchLiveStateChange,
   assistantContext,
@@ -84,6 +86,7 @@ const ChatContent: FC<Props> = ({
       onNewTopic={onNewTopic}
       onCreateEmptyTopic={onCreateEmptyTopic}
       locateMessageId={locateMessageId}
+      locateToEnd={locateToEnd}
       onLocateMessageHandled={onLocateMessageHandled}
       onBranchLiveStateChange={onBranchLiveStateChange}
       assistantContext={assistantContext}
@@ -132,6 +135,7 @@ const ChatContentInner: FC<InnerProps> = ({
   onNewTopic,
   onCreateEmptyTopic,
   locateMessageId,
+  locateToEnd,
   onLocateMessageHandled,
   onBranchLiveStateChange,
   assistantContext,
@@ -181,21 +185,13 @@ const ChatContentInner: FC<InnerProps> = ({
   }, [activeNodeId, isHistoryStale, uiMessages])
 
   useEffect(() => {
-    if (!locateMessageId) {
+    if (!locateMessageId && !locateToEnd) {
       locateLoadRequestRef.current = undefined
       return
     }
-
-    if (uiMessages.some((message) => message.id === locateMessageId)) {
-      locateLoadRequestRef.current = undefined
-      window.requestAnimationFrame(() => {
-        locateRuntimeMessage(locateMessageId, true)
-      })
-      onLocateMessageHandled?.()
-      return
-    }
-
-    if (hasOlder && !isHistoryLoading) {
+    if (isHistoryLoading || isHistoryStale) return
+    const targetLoaded = uiMessages.some((message) => message.id === locateMessageId)
+    if (!targetLoaded && !locateToEnd && hasOlder) {
       const requestKey = `${locateMessageId}:${uiMessages.length}`
       if (locateLoadRequestRef.current !== requestKey) {
         locateLoadRequestRef.current = requestKey
@@ -203,12 +199,22 @@ const ChatContentInner: FC<InnerProps> = ({
       }
       return
     }
-
-    if (!hasOlder && !isHistoryLoading) {
-      locateLoadRequestRef.current = undefined
-      onLocateMessageHandled?.()
-    }
-  }, [hasOlder, isHistoryLoading, loadOlder, locateMessageId, locateRuntimeMessage, onLocateMessageHandled, uiMessages])
+    locateLoadRequestRef.current = undefined
+    // Claim scroll ownership before the list's pending initial-restore frame.
+    if (locateToEnd || !targetLoaded) locateRuntimeMessage(null)
+    else if (locateMessageId) locateRuntimeMessage(locateMessageId, true)
+    onLocateMessageHandled?.()
+  }, [
+    hasOlder,
+    isHistoryLoading,
+    isHistoryStale,
+    loadOlder,
+    locateMessageId,
+    locateToEnd,
+    locateRuntimeMessage,
+    onLocateMessageHandled,
+    uiMessages
+  ])
 
   const isEmptyConversation = !isHistoryLoading && runtime.messages.length === 0
   const main = (
