@@ -1136,6 +1136,12 @@
       "defaultChatEndpoint": "openai-responses",
       "description": "OpenAI - AI model provider",
       "endpointConfigs": {
+        "openai-image-edit": {
+          "adapterFamily": "openai"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "openai"
+        },
         "openai-responses": {
           "adapterFamily": "openai",
           "baseUrl": "https://api.openai.com",
@@ -2959,5 +2965,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "ad2a4650c994b3a0"
+  "version": "dfb76df71d91b989"
 }

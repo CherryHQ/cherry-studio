@@ -14,7 +14,13 @@ const mockUseProviders = vi.fn()
 const mockUsePins = vi.fn()
 const cloudAvailability = vi.hoisted(() => {
   const isModelHidden: (model: Model, includeAgentOnlyModels: boolean) => boolean = () => false
-  return { isModelHidden, isModelUnavailable: () => false, getModelDescription: () => undefined }
+  return {
+    isAvailabilityReady: true,
+    availabilityError: undefined as Error | undefined,
+    isModelHidden,
+    isModelUnavailable: () => false,
+    getModelDescription: () => undefined
+  }
 })
 vi.mock('@renderer/hooks/useCherryCloudModelAvailability', () => ({
   useCherryCloudModelAvailability: () => cloudAvailability
@@ -106,6 +112,8 @@ beforeEach(() => {
   mockUseModels.mockReset()
   mockUseProviders.mockReset()
   mockUsePins.mockReset()
+  cloudAvailability.isAvailabilityReady = true
+  cloudAvailability.availabilityError = undefined
 })
 
 describe('useModelSelectorData', () => {
@@ -376,6 +384,31 @@ describe('useModelSelectorData', () => {
       'openai::gpt-4'
     ])
     expect(mockUseModels).toHaveBeenLastCalledWith({ enabled: true }, { fetchEnabled: true })
+  })
+
+  it('propagates Cherry Cloud availability readiness and error through the selector contract', () => {
+    wireDeps({ providers: [makeProvider('openai')], models: [makeModel('gpt-4', 'openai')] })
+
+    cloudAvailability.isAvailabilityReady = false
+    cloudAvailability.availabilityError = undefined
+    const pending = renderHook(() => useModelSelectorData({ searchText: '' }))
+    expect(pending.result.current.cloudAvailabilityReady).toBe(false)
+    expect(pending.result.current.cloudAvailabilityError).toBeUndefined()
+    pending.unmount()
+
+    const failure = new Error('sync failed')
+    cloudAvailability.availabilityError = failure
+    const failed = renderHook(() => useModelSelectorData({ searchText: '' }))
+    expect(failed.result.current.cloudAvailabilityReady).toBe(false)
+    expect(failed.result.current.cloudAvailabilityError).toBe(failure)
+    failed.unmount()
+
+    cloudAvailability.isAvailabilityReady = true
+    cloudAvailability.availabilityError = undefined
+    const ready = renderHook(() => useModelSelectorData({ searchText: '' }))
+    expect(ready.result.current.cloudAvailabilityReady).toBe(true)
+    expect(ready.result.current.cloudAvailabilityError).toBeUndefined()
+    ready.unmount()
   })
 
   it('hides models the Cloud availability excludes for the picker context', () => {

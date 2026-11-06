@@ -856,6 +856,62 @@
       "description": "Command shortcut: topic.sidebar.toggle (unified command system)"
     },
     {
+      "targetKey": "shortcut.assistant.next",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Alt",
+          "Right"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: assistant.next (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.assistant.prev",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Alt",
+          "Left"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: assistant.prev (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.topic.next",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Alt",
+          "Down"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: topic.next (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.topic.prev",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Alt",
+          "Up"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: topic.prev (unified command system)"
+    },
+    {
       "targetKey": "shortcut.tab.close",
       "type": "PreferenceTypes.PreferenceShortcutType",
       "defaultValue": {
