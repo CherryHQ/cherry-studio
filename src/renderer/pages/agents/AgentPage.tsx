@@ -388,7 +388,6 @@ const AgentPage = () => {
     })
 
     return unsubscribe
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest session without resubscribing.
   }, [currentTabId])
   const targetSessionId = activeSessionId ?? undefined
   const { locateMessageId, locateToEnd, requestLocate, clearLocate } = useConversationLocateRequest({
@@ -753,7 +752,6 @@ const AgentPage = () => {
       unsubscribeSession()
       unsubscribeMessage()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads latest tab/session state without resubscribing.
   }, [currentTabId])
 
   const runFeedbackIntent = useEffectEvent(async (intentGuardCacheKey: string) => {
@@ -796,7 +794,6 @@ const AgentPage = () => {
     if (cacheService.hasCasual(intentGuardCacheKey)) return
     cacheService.setCasual(intentGuardCacheKey, true, FEEDBACK_INTENT_GUARD_TTL_MS)
     void runFeedbackIntent(intentGuardCacheKey)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest feedback orchestration without resubscribing.
   }, [currentTabId, isFeedbackIntent, routeSessionId])
 
   const runSkillIntent = useEffectEvent(async (intentGuardCacheKey: string) => {
@@ -844,7 +841,6 @@ const AgentPage = () => {
     if (cacheService.hasCasual(intentGuardCacheKey)) return
     cacheService.setCasual(intentGuardCacheKey, true, SKILL_INTENT_GUARD_TTL_MS)
     void runSkillIntent(intentGuardCacheKey)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest Skill orchestration without resubscribing.
   }, [currentTabId, isSkillIntent, routeSessionId, routeSkillId])
 
   const runTaskIntent = useEffectEvent(async (intentGuardCacheKey: string) => {
@@ -876,7 +872,6 @@ const AgentPage = () => {
     if (cacheService.hasCasual(intentGuardCacheKey)) return
     cacheService.setCasual(intentGuardCacheKey, true, TASK_INTENT_GUARD_TTL_MS)
     void runTaskIntent(intentGuardCacheKey)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest task orchestration without resubscribing.
   }, [currentTabId, isTaskIntent, routeSessionId])
 
   const visibleSessionId = visibleSession?.id

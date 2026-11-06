@@ -45,7 +45,7 @@ export function useAutoBackupEvents(): void {
     }
   })
 
-  const notify = useEffectEvent((event: AutoBackupEvent) => {
+  const notify = (event: AutoBackupEvent) => {
     const cacheKey = notificationCacheKey(event)
     if ((event.status === 'warning' || event.status === 'failed') && !cacheService.hasCasual(cacheKey)) {
       cacheService.setCasual(cacheKey, true, 24 * 60 * 60 * 1000) // 24 hours
@@ -61,7 +61,8 @@ export function useAutoBackupEvents(): void {
         .request('backup.acknowledge_auto_sync_notification', { type: event.type, id: event.id })
         .catch((error) => logger.error('Failed to acknowledge automatic backup notification', error as Error))
     }
-  })
+  }
+  const notifyPending = useEffectEvent(notify)
 
   useEffect(() => {
     events.forEach((event) => {
@@ -74,7 +75,7 @@ export function useAutoBackupEvents(): void {
   useEffect(() => {
     void ipcApi
       .request('backup.get_auto_sync_state')
-      .then(({ pendingNotifications }) => pendingNotifications.forEach(notify))
+      .then(({ pendingNotifications }) => pendingNotifications.forEach(notifyPending))
       .catch((error) => logger.error('Failed to load automatic backup notifications', error as Error))
-  }, [notify])
+  }, [notifyPending])
 }
