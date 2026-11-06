@@ -91,7 +91,7 @@ const PI_CAPABILITIES = {
     !isManagedCherryAiDefaultModel(model.providerId, model.apiModelId ?? parseUniqueModelId(model.id).modelId),
   transport: 'pi-agent',
   builtinTools: () =>
-    PI_BUILTIN_TOOLS.map((tool) => ({
+    PI_BUILTIN_TOOLS.filter((tool) => tool.name !== 'powershell').map((tool) => ({
       id: tool.name,
       labelKey: `agent.tools.builtin.${tool.name}.label`,
       descriptionKey: `agent.tools.builtin.${tool.name}.description`,

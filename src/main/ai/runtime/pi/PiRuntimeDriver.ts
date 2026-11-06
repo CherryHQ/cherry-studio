@@ -6,7 +6,7 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { mcpServerService } from '@data/services/McpServerService'
 import { getRetiredAgentSessionMigration } from '@data/services/retiredAgentRuntimeMigration'
 import { prepareAgentSessionWorkspaceDirectory } from '@main/ai/runtime/agentSessionWorkspace'
-import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
+import { isPiShellToolDisabled, normalizePiDisabledToolId, PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
@@ -20,6 +20,7 @@ import type {
 import { forkPiSession } from './piFork'
 import { buildPiMcpToolName } from './piMcpExtension'
 import { PiRuntimeConnection } from './PiRuntimeConnection'
+import { resolvePiShellSelection } from './piShell'
 import { ensureRetiredSessionHistory, migrateRetiredSessionHistories } from './retiredSessionHistory'
 import { piWorkspaceRelocation } from './workspaceRelocation'
 
@@ -46,8 +47,8 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
     await prepareAgentSessionWorkspaceDirectory(session)
   }
 
-  listAvailableTools(mcpIds: string[]): Promise<Tool[]> {
-    return listPiAvailableTools(mcpIds)
+  listAvailableTools(mcpIds: string[], disabledTools: readonly string[] = []): Promise<Tool[]> {
+    return listPiAvailableTools(mcpIds, disabledTools)
   }
 
   async connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection> {
@@ -103,8 +104,14 @@ function piResumeTokenOf(fileName: string): string | null {
   return token.length > 0 ? token : null
 }
 
-export async function listPiAvailableTools(mcpIds: string[]): Promise<Tool[]> {
-  const builtins: Tool[] = PI_BUILTIN_TOOLS.map((tool) => ({
+export async function listPiAvailableTools(mcpIds: string[], disabledTools: readonly string[] = []): Promise<Tool[]> {
+  const disabled = new Set(disabledTools.map(normalizePiDisabledToolId))
+  const shell = resolvePiShellSelection().shell
+  const builtins: Tool[] = PI_BUILTIN_TOOLS.filter(
+    (tool) =>
+      !isPiShellToolDisabled(disabled, tool.name) &&
+      ((tool.name !== 'bash' && tool.name !== 'powershell') || tool.name === shell)
+  ).map((tool) => ({
     id: tool.name,
     name: tool.name,
     origin: 'builtin',

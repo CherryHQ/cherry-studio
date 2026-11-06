@@ -1,5 +1,5 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { delimiter, join } from 'node:path'
 
 import type { AssistantMessage } from '@earendil-works/pi-ai'
 import { createAssistantMessageEventStream, Type } from '@earendil-works/pi-ai'
@@ -22,6 +22,8 @@ import { prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
 import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
+import { getBinaryShimsDir } from '@main/utils/binaryEnv'
+import type * as ShellEnv from '@main/utils/shellEnv'
 import type { AgentChildUpdate } from '@shared/ai/agentChildProjection'
 import { ModelSchema } from '@shared/data/types/model'
 import { ProviderSchema } from '@shared/data/types/provider'
@@ -41,7 +43,9 @@ import type { PiConnectionSnapshot } from './piConnectionSignature'
 import type * as PiMcpExtension from './piMcpExtension'
 import { buildPiMcpToolName } from './piMcpExtension'
 import { PiRuntimeConnection } from './PiRuntimeConnection'
+import * as piSdk from './piSdk'
 import { buildPiLoginPathPrefix } from './piShell'
+import * as piShell from './piShell'
 
 const modelId = 'test::test-model'
 
@@ -50,7 +54,8 @@ const mocks = vi.hoisted(() => ({
   binding: vi.fn(),
   prompt: vi.fn(),
   interaction: vi.fn<() => ToolGuardInteractionState>(),
-  delegated: vi.fn()
+  delegated: vi.fn(),
+  shellEnv: vi.fn<() => Record<string, string>>()
 }))
 vi.mock('@application', async () => {
   const { mockApplicationFactory, defaultServiceInstances } = await import('@test-mocks/main/application')
@@ -91,7 +96,10 @@ vi.mock('./piMcpExtension', async (original) => ({
       })
   }
 }))
-vi.mock('@main/utils/shellEnv', () => ({ getShellEnv: async () => ({}), getPathFromEnvironment: () => undefined }))
+vi.mock('@main/utils/shellEnv', async (original) => ({
+  ...(await original<typeof ShellEnv>()),
+  getShellEnv: async () => mocks.shellEnv()
+}))
 
 // Real Runtime, native Pi and SQLite; only provider/environment configuration is substituted.
 describe('desktop Pi root connection', () => {
@@ -105,6 +113,7 @@ describe('desktop Pi root connection', () => {
   beforeEach(() => {
     mocks.interaction.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
     mocks.delegated.mockClear()
+    mocks.shellEnv.mockReturnValue({})
     directory = tempDir('desktop-pi')
     vi.mocked(application.getPath).mockImplementation((key, file) => {
       const dir = join(directory, key)
@@ -1024,6 +1033,58 @@ describe('desktop Pi root connection', () => {
     const saved = messages.getSessionMessage(input.sessionId, user.id)
     expect(saved).not.toHaveProperty('inputContextId')
     expect(saved).not.toHaveProperty('nativeInputId')
+  })
+
+  it.each([false, true])('preserves prepared and Pi PATH entries with caller mise: %s', async (callerMise) => {
+    vi.spyOn(piShell, 'resolvePiShellSelection').mockReturnValue({ shell: 'powershell' })
+    const preparedDir = join(directory, 'MinGit', 'cmd')
+    const piDir = join(directory, 'pi-bin')
+    const callerDir = join(directory, 'caller-bin')
+    const shimsDir = getBinaryShimsDir()
+    mocks.shellEnv.mockReturnValue({ PATH: [shimsDir, preparedDir].join(delimiter) })
+    const sdk = await piSdk.loadPiSdk()
+    const createPowerShell = vi.fn(sdk.createPowerShellToolDefinition)
+    vi.spyOn(piSdk, 'loadPiSdk').mockResolvedValue({ ...sdk, createPowerShellToolDefinition: createPowerShell })
+    await connect()
+    const hook = createPowerShell.mock.calls[0][1]!.spawnHook!
+    const context = {
+      command: 'git status',
+      cwd: directory,
+      env: {
+        PATH: [callerDir, piDir].join(delimiter),
+        PI_SESSION_ID: 'caller-session',
+        ...(callerMise ? { MISE_DATA_DIR: callerDir } : {})
+      }
+    }
+    const spawned = hook(context)
+    const paths = spawned.env.PATH!.split(delimiter)
+    expect(paths).toContain(preparedDir)
+    expect(paths).toContain(piDir)
+    expect(paths).toContain(callerDir)
+    if (callerMise) {
+      expect(paths).not.toContain(shimsDir)
+      expect(spawned.env.MISE_DATA_DIR).toBe(callerDir)
+    }
+    expect(paths.indexOf(callerDir)).toBeLessThan(paths.indexOf(preparedDir))
+    expect(spawned.env.PI_SESSION_ID).toBe('caller-session')
+    expect(spawned.command).toBe('git status')
+    expect(spawned.cwd).toBe(directory)
+    expect(context.env.PATH).toBe([callerDir, piDir].join(delimiter))
+  })
+
+  it.each([
+    ['powershell', 'bash'],
+    ['bash', 'powershell']
+  ] as const)('omits selected %s when %s is disabled', async (shell, disabled) => {
+    vi.spyOn(piShell, 'resolvePiShellSelection').mockReturnValue({ shell })
+    snapshot.agent.disabledTools = [disabled]
+    setScript([assistantReply([{ type: 'text', text: 'ready' }])])
+    const { connection, events } = await connect()
+    await connection.send({ message: message('hello') })
+    await done(events)
+    const names = script.calls[0].tools?.map((tool) => tool.name) ?? []
+    expect(names).not.toContain(shell)
+    expect(names).toEqual(expect.arrayContaining(['read', 'edit', 'write']))
   })
 
   it('blocks disabled native tools before they can modify the workspace', async () => {

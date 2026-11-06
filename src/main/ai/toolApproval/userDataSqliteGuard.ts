@@ -18,7 +18,7 @@ interface ToolBinding {
 
 const PI_TOOL_BINDING = {
   pathFields: { write: 'path', edit: 'path' },
-  shellFields: { bash: 'command' },
+  shellFields: { bash: 'command', powershell: 'command' },
   normalizeStructuredPath: normalizePiNativePathInput
 } satisfies ToolBinding
 
@@ -97,7 +97,7 @@ export async function evaluateUserDataSqliteGuard(
     return classification === 'safe' ? undefined : deny()
   }
 
-  const shellTokens = parseShellTokens(rawValue)
+  const shellTokens = parseShellTokens(rawValue, input.toolName === 'powershell' ? 'powershell' : 'bash')
   const interpreterSegments = new Set(
     shellTokens
       .filter(({ commandStart, value }) => commandStart && isBundledInterpreter(value))
@@ -186,6 +186,7 @@ function resolveLiteralPath(rawPath: string, cwd: string): string | undefined {
     }
   }
 
+  value = value.replace(/^\$(?:home|\{home\})(?=$|[/\\])/i, (match) => match.toUpperCase())
   const homePath = application.getPath('sys.home')
   if (value === '~') value = homePath
   else if (value.startsWith('~/') || value.startsWith('~\\'))
@@ -296,14 +297,15 @@ interface ShellToken {
   segment: number
 }
 
-export function tokenizeShellCommand(command: string): string[] {
-  return parseShellTokens(command).map(({ value }) => value)
+export function tokenizeShellCommand(command: string, shell: 'bash' | 'powershell' = 'bash'): string[] {
+  return parseShellTokens(command, shell).map(({ value }) => value)
 }
 
-function parseShellTokens(command: string): ShellToken[] {
+function parseShellTokens(command: string, shell: 'bash' | 'powershell' = 'bash'): ShellToken[] {
   const tokens: ShellToken[] = []
   let current = ''
   let quote: '"' | "'" | undefined
+  let stopParsing = false
   let commandStart = true
   let segment = 0
   const pushCurrent = () => {
@@ -316,7 +318,17 @@ function parseShellTokens(command: string): ShellToken[] {
 
   for (let index = 0; index < command.length; index++) {
     const character = command[index]
-    if (character === '\\' && quote !== "'") {
+    if (stopParsing) {
+      if (character === '"') quote = quote ? undefined : '"'
+      else if (/\s/.test(character) && !quote) pushCurrent()
+      else current += character
+    } else if (shell === 'powershell' && !quote && !current && /^--%(?=\s|$)/.test(command.slice(index))) {
+      stopParsing = true
+      current = '--%'
+      index += 2
+    } else if (shell === 'powershell' && character === '`' && quote !== "'" && command[index + 1]) {
+      current += command[++index]
+    } else if (character === '\\' && quote !== "'") {
       const next = command[index + 1]
       if (next === '\\' && (!current || current.endsWith('='))) {
         current += '\\\\'
@@ -328,11 +340,14 @@ function parseShellTokens(command: string): ShellToken[] {
         current += character
       }
     } else if (quote) {
-      if (character === quote) quote = undefined
+      if (shell === 'powershell' && quote === "'" && character === "'" && command[index + 1] === "'") {
+        current += "'"
+        index++
+      } else if (character === quote) quote = undefined
       else current += character
     } else if (character === '"' || character === "'") {
       quote = character
-    } else if (/\s|[;&|<>]/.test(character)) {
+    } else if (/\s|[;&|<>]/.test(character) || (shell === 'powershell' && /[()]/.test(character))) {
       pushCurrent()
       if (character === '\n' || /[;&|]/.test(character)) {
         commandStart = true

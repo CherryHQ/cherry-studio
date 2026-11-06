@@ -1,3 +1,5 @@
+import { hasAmbiguousShellSyntax, splitShellSegments } from './shellSegments'
+
 /**
  * Detects shell commands whose damage is not undoable, so the `auto` permission mode can hand the
  * decision back to the user instead of running them unattended.
@@ -16,6 +18,10 @@
 
 /** Prefixes that delegate to the real command behind them. */
 const WRAPPERS = new Set(['time', 'nohup', 'env', 'command', 'exec', 'builtin', 'xargs'])
+const RESERVED_WORDS = {
+  bash: new Set('if then else elif while until do ! { } ( )'.split(' ')),
+  powershell: new Set('{ } ( ) if else while do until'.split(' '))
+}
 const SHELLS = new Set(['sh', 'bash', 'zsh', 'ksh', 'dash', 'fish'])
 /** Service-manager subcommands that only report state (`list-units`, `is-system-running`, …). */
 const READ_ONLY_SERVICE_ARG = /(?:^|\s)(?:status|list[\w-]*|show|is-[\w-]+|cat|print|-l|--status-all)(?:\s|$)/
@@ -110,23 +116,55 @@ const RULES: Array<{ test: (stage: Stage) => boolean; reason: string }> = [
 ]
 
 /** Resolve one pipeline stage's command word, looking through `VAR=x`, `sudo`, and wrappers. */
-function parseStage(text: string): Stage {
-  const tokens = text.trim().split(/\s+/).filter(Boolean)
+function parseStage(text: string, shell: 'bash' | 'powershell'): Stage {
+  const input = shell === 'powershell' ? text.trim().replace(/^&/, '& ') : text.trim()
+  const tokens = splitShellSegments(input, /^\s+/, shell)
+    .map((token) => {
+      let word = ''
+      let quote: "'" | '"' | undefined
+      for (let index = 0; index < token.length; index++) {
+        const char = token[index]
+        if (quote !== "'" && char === (shell === 'bash' ? '\\' : '`') && token[index + 1] !== undefined) {
+          const next = token[++index]
+          if (next !== '\n') word += next
+        } else if (shell === 'powershell' && quote === "'" && char === "'" && token[index + 1] === "'") {
+          word += "'"
+          index++
+        } else if (quote) {
+          if (char === quote) quote = undefined
+          else word += char
+        } else if (char === "'" || char === '"') {
+          quote = char
+        } else {
+          word += char
+        }
+      }
+      return { word, quoted: token.startsWith("'") || token.startsWith('"') }
+    })
+    .filter((token) => token.word)
   let elevated = false
   let index = 0
   while (index < tokens.length) {
-    const token = tokens[index]
+    if (shell === 'powershell' && tokens[index].quoted && !['&', '.'].includes(tokens[index - 1]?.word)) {
+      return { command: '', text, elevated }
+    }
+    const token = tokens[index].word
+    if (shell === 'powershell' && ['&', '.'].includes(token)) {
+      index++
+      continue
+    }
     if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(token)) {
       index++
       continue
     }
-    const name = token.replace(/^.*\//, '').toLowerCase()
+    const word = token.replace(shell === 'powershell' ? /^.*[\\/]/ : /^.*\//, '').toLowerCase()
+    const name = shell === 'powershell' ? word.replace(/\.exe$/i, '') : word
     if (name === 'sudo' || name === 'doas') {
       elevated = true
       index++
       continue
     }
-    if (WRAPPERS.has(name)) {
+    if (WRAPPERS.has(name) || RESERVED_WORDS[shell].has(name)) {
       index++
       continue
     }
@@ -135,15 +173,119 @@ function parseStage(text: string): Stage {
   return { command: '', text, elevated }
 }
 
+/** Tokenize a stage and mark each nested command position. */
+function parseCommandPositions(text: string, shell: 'bash' | 'powershell'): Stage[] {
+  const words: Array<{ start: number; end: number; startsCommand: boolean; group: number }> = []
+  let wordStart = -1
+  let startsCommand = true
+  let group = 0
+  let quote: "'" | '"' | undefined
+  const contexts: Array<{ quote: typeof quote; closing: ')' | '}' }> = []
+  let escapedIndex = -1
+  const pushWord = (end: number) => {
+    if (wordStart < 0) return
+    words.push({ start: wordStart, end, startsCommand, group })
+    startsCommand = false
+    wordStart = -1
+  }
+
+  for (let index = 0; index < text.length; index++) {
+    const char = text[index]
+    if (char === (shell === 'bash' ? '\\' : '`') && quote !== "'" && text[index + 1]) {
+      if (wordStart < 0) wordStart = index
+      escapedIndex = ++index
+    } else if (shell === 'powershell' && quote === "'" && char === "'" && text[index + 1] === "'") {
+      index++
+    } else if (quote !== "'" && char === '$' && text[index + 1] === '(') {
+      pushWord(index)
+      contexts.push({ quote, closing: ')' })
+      quote = undefined
+      startsCommand = true
+      group++
+      index++
+    } else if (quote) {
+      if (char === quote) quote = undefined
+    } else if (char === "'" || char === '"') {
+      if (wordStart < 0) wordStart = index
+      quote = char
+    } else if (char === '#' && (index === 0 || (escapedIndex !== index - 1 && /[\s;&|()]/.test(text[index - 1])))) {
+      pushWord(index)
+      while (index + 1 < text.length && text[index + 1] !== '\n') index++
+    } else if (
+      char === '(' ||
+      (char === '{' &&
+        (index === 0 || /[\s&]/.test(text[index - 1])) &&
+        (shell === 'powershell' || /[\s}]/.test(text[index + 1] ?? ' ')))
+    ) {
+      pushWord(index)
+      contexts.push({ quote, closing: char === '(' ? ')' : '}' })
+      startsCommand = true
+      group++
+    } else if ((char === ')' || char === '}') && contexts.at(-1)?.closing === char) {
+      pushWord(index)
+      quote = contexts.pop()!.quote
+      startsCommand = false
+      group++
+    } else if (/\s/.test(char)) {
+      pushWord(index)
+    } else if (wordStart < 0) {
+      wordStart = index
+    }
+  }
+  pushWord(text.length)
+
+  const stages: Stage[] = []
+  for (let index = 0; index < words.length; index++) {
+    if (!words[index].startsCommand) continue
+    let end = index + 1
+    while (end < words.length && words[end].group === words[index].group && !words[end].startsCommand) end++
+    stages.push(parseStage(text.slice(words[index].start, words[end - 1].end), shell))
+    index = end - 1
+  }
+  return stages
+}
+
 /**
  * Returns a short human reason when `command` looks irreversibly destructive, or `null` otherwise.
  * Each `&&`/`||`/`;`/newline segment is parsed on its own so a flag in one command is never
  * attributed to a keyword in another.
  */
-export function detectDestructiveCommand(command: string): string | null {
-  for (const segment of command.split(/&&|\|\||[;\n]/)) {
+export function detectDestructiveCommand(command: string, shell: 'bash' | 'powershell' = 'bash'): string | null {
+  if (hasAmbiguousShellSyntax(command, shell)) return 'unparseable shell command requires approval'
+  const separator = shell === 'powershell' ? /^(?:&&|\|\||[;\n]|(?=&))/ : /^(?:&&|\|\||[&;\n])/
+  if (shell === 'powershell') {
+    for (const segment of splitShellSegments(command, separator, shell)) {
+      const stages = splitShellSegments(segment, /^\|/, shell).flatMap((stage) => parseCommandPositions(stage, shell))
+      if (
+        stages.some((s) =>
+          ['iwr', 'irm', 'invoke-webrequest', 'invoke-restmethod', 'curl', 'wget'].includes(s.command)
+        ) &&
+        stages.some((s) => ['iex', 'invoke-expression'].includes(s.command))
+      )
+        return 'remote script piped into PowerShell'
+      for (const s of stages) {
+        if (['remove-item', 'ri', 'del', 'erase', 'rm', 'rd', 'rmdir'].includes(s.command))
+          return 'PowerShell file deletion'
+        if (
+          [
+            'clear-disk',
+            'format-volume',
+            'initialize-disk',
+            'remove-partition',
+            'stop-computer',
+            'restart-computer'
+          ].includes(s.command)
+        )
+          return 'PowerShell system operation'
+        if (s.command === 'stop-process' && /(?:^|\s)-force\b/i.test(s.text)) return 'forced process termination'
+        if (s.command === 'reg' && /\s+delete\b/i.test(s.text)) return 'registry deletion'
+        if (s.command === 'cmd' && /\s+\/c\s+(?:rd|del|format)\b/i.test(s.text)) return 'destructive cmd operation'
+      }
+    }
+  }
+  for (const segment of splitShellSegments(command, separator, shell)) {
     if (!segment.trim()) continue
-    const stages = segment.split('|').map(parseStage)
+    const stages = splitShellSegments(segment, /^\|/, shell).flatMap((stage) => parseCommandPositions(stage, shell))
 
     // Piping a download into an interpreter is arbitrary remote code execution.
     const fetches = stages.some((stage) => stage.command === 'curl' || stage.command === 'wget')

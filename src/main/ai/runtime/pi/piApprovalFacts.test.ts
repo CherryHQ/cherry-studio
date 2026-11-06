@@ -733,3 +733,45 @@ describe('Browser control permission', () => {
     }
   )
 })
+
+describe('shell approval facts', () => {
+  const context: PiApprovalContext = {
+    sessionId: 's1',
+    workspacePath: '/workspace',
+    agentDataPath: '/agent',
+    additionalReadOnlyRoots: [],
+    getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'stream' }),
+    getPermissionMode: () => 'default',
+    isDisabled: () => false,
+    autoApprovedTools: new Set(),
+    approvalRequiredTools: new Set(),
+    nonBypassableApprovalTools: new Set(),
+    delegationTools: new Set()
+  }
+
+  it.each([
+    ['Remove-Item -Recurse C:\\temp', true, false],
+    ['Install-Module x', false, true],
+    ['Get-ChildItem', false, false]
+  ])('classifies PowerShell command %s without a bash rewrite', async (command, destructive, globalInstall) => {
+    const { readPiApprovalFacts } = await import('./piApprovalFacts')
+    const facts = await readPiApprovalFacts(context, 'powershell', { command })
+    expect(facts.destructive).toBe(destructive)
+    expect(Boolean(facts.globalInstall)).toBe(globalInstall)
+    expect(mocks.rtkRewrite).not.toHaveBeenCalled()
+  })
+
+  it('preserves bash destructive and global install detection', async () => {
+    const { readPiApprovalFacts } = await import('./piApprovalFacts')
+    const facts = await readPiApprovalFacts(context, 'bash', { command: 'rm -rf x; npm install -g x' })
+    expect(facts.destructive).toBe(true)
+    expect(facts.globalInstall).toBeTruthy()
+  })
+  it('marks disabled PowerShell as disabled', async () => {
+    const { readPiApprovalFacts } = await import('./piApprovalFacts')
+    const facts = await readPiApprovalFacts({ ...context, isDisabled: (name) => name === 'powershell' }, 'powershell', {
+      command: 'Get-ChildItem'
+    })
+    expect(facts.disabled).toBe(true)
+  })
+})

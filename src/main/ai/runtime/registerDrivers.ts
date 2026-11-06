@@ -32,8 +32,8 @@ class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
     return this.loadImplementation().then((driver) => driver.validateSession(session))
   }
 
-  listAvailableTools(mcpIds: string[]): Promise<Tool[]> {
-    return this.loadImplementation().then((driver) => driver.listAvailableTools(mcpIds))
+  listAvailableTools(mcpIds: string[], disabledTools?: readonly string[]): Promise<Tool[]> {
+    return this.loadImplementation().then((driver) => driver.listAvailableTools(mcpIds, disabledTools))
   }
 
   connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection> {

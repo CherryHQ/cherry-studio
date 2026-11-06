@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { McpTool } from '@shared/types/mcp'
 
+import * as piShell from './piShell'
+
 const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
   findByIdOrName: vi.fn(),
@@ -31,6 +33,26 @@ beforeEach(() => {
 })
 
 describe('PiRuntimeDriver.listAvailableTools', () => {
+  it.each([{ shell: 'powershell' } as const, { shell: 'bash', shellPath: 'C:\\Git\\bash.exe' } as const])(
+    'exposes the selected shell: $shell',
+    async (selection) => {
+      vi.spyOn(piShell, 'resolvePiShellSelection').mockReturnValueOnce(selection)
+      const ids = (await new PiRuntimeDriver().listAvailableTools([])).map((tool) => tool.id)
+      expect(ids).toContain(selection.shell)
+      expect(ids).not.toContain(selection.shell === 'bash' ? 'powershell' : 'bash')
+    }
+  )
+
+  it.each([
+    ['bash', 'powershell'],
+    ['powershell', 'bash']
+  ] as const)('hides %s when %s is disabled without hiding file tools', async (shell, disabled) => {
+    vi.spyOn(piShell, 'resolvePiShellSelection').mockReturnValueOnce({ shell })
+    const ids = (await new PiRuntimeDriver().listAvailableTools([], [disabled])).map((tool) => tool.id)
+    expect(ids).not.toContain(shell)
+    expect(ids).toEqual(expect.arrayContaining(['read', 'edit', 'write']))
+  })
+
   it('returns the pi builtin set when no MCP servers are selected', async () => {
     const tools = await new PiRuntimeDriver().listAvailableTools([])
 

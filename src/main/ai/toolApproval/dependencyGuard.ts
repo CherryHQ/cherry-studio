@@ -1,3 +1,5 @@
+import { splitShellSegments } from './shellSegments'
+
 /**
  * Detects shell commands that install dependencies into a GLOBAL / shared
  * location and would therefore leak across agent sessions.
@@ -80,13 +82,26 @@ const RULES: Array<{ test: (seg: string) => boolean; reason: string }> = [
  * Returns a short human reason when `command` performs a global/shared install,
  * or `null` when it is safe (project-local, ephemeral, or unrelated).
  */
-export function detectGlobalInstall(command: string): string | null {
+export function detectGlobalInstall(command: string, shell: 'bash' | 'powershell' = 'bash'): string | null {
   // Test each chained segment independently so a flag in one command can't be
   // mis-attributed to a manager keyword in another (`ls && npm i -g x`).
-  const segments = command.split(/&&|\|\||[;\n|]/)
+  const segments = splitShellSegments(command, /^(?:&&|\|\||[&;\n|])/, shell)
   for (const raw of segments) {
-    const seg = raw.trim()
+    const seg =
+      shell === 'powershell'
+        ? raw
+            .trim()
+            .replace(/^(?:'([^']+)'|"([^"]+)"|(\S+))(?=\s|$)/, (_match, single, double, bare) =>
+              (single ?? double ?? bare).replace(/\.exe$/i, '')
+            )
+        : raw.trim()
     if (!seg) continue
+    if (
+      shell === 'powershell' &&
+      (/^(?:install-module|install-script)\b/i.test(seg) || /^(?:winget|choco|scoop)\s+install\b/i.test(seg))
+    ) {
+      return 'PowerShell shared package install'
+    }
     for (const rule of RULES) {
       if (rule.test(seg)) return rule.reason
     }

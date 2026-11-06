@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-05-pi-powershell-fallback.md
+2026-11-05-pi-powershell-fallback.md: e56edf7651fc7a534d3eeefa3764c6cbe4544cd1
+2026-11-05-pi-powershell-fallback.zh.md: 7d1ca0c7b1a63f3cc42747c30e530d45a04099c0
