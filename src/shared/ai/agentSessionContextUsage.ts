@@ -4,7 +4,10 @@
 // pi driver synthesizes it from pi's `ContextUsage`, which has no per-category breakdown (so
 // `categories: []`). Only the fields the renderer actually reads live here, so a shape change in
 // either driver surfaces at compile time instead of silently diverging the cached contract.
+// `sessionId` is stamped by AgentSessionRuntimeService when publishing the reading to shared cache.
 export interface AgentSessionContextUsage {
+  /** Session that owns a cached reading; stamped when the runtime publishes it. */
+  sessionId?: string
   /** Per-category token breakdown. Empty when the driver can't produce one (pi). */
   categories: { name: string; tokens: number }[]
   /** Tokens currently occupying the context window. */

@@ -28,6 +28,7 @@ beforeEach(() => {
   cacheService.deleteShared(KEY)
   // 200,000 tokens reported by a small-window model.
   cacheService.setShared(KEY, {
+    sessionId: SESSION_ID,
     categories: [],
     totalTokens: 200_000,
     maxTokens: 250_000,
@@ -41,6 +42,24 @@ afterEach(() => {
 })
 
 describe('useAgentSessionContextUsage', () => {
+  it('does not display a reading stamped for another session', () => {
+    cacheService.setShared(KEY, {
+      sessionId: 'another-session',
+      categories: [],
+      totalTokens: 200_000,
+      maxTokens: 250_000,
+      percentage: 80,
+      model: 'small-model'
+    })
+
+    const { result } = renderHook(() =>
+      useAgentSessionContextUsage(SESSION_ID, model('openai::small-model', 500_000))
+    )
+
+    expect(result.current.usage).toBeNull()
+    expect(result.current.percentage).toBeNull()
+  })
+
   it('drops a reading published by a different model', () => {
     const { result } = renderHook(() => useAgentSessionContextUsage(SESSION_ID, model('openai::big-model', 1_000_000)))
 
@@ -68,6 +87,7 @@ describe('useAgentSessionContextUsage', () => {
   // session would otherwise read 5x low. Claude Code applies its own window, and reports it.
   it('defers to the runtime window for a model Claude Code sizes itself', () => {
     cacheService.setShared(KEY, {
+      sessionId: SESSION_ID,
       categories: [],
       totalTokens: 100_000,
       maxTokens: 200_000,
