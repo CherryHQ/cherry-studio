@@ -40,6 +40,13 @@ const cherryCloudSubscriptionPriceSchema = z.looseObject({
   unit_amount: z.number().int().nonnegative()
 })
 
+const cherryCloudPlanModelSchema = z.looseObject({
+  id: z.string(),
+  display_name: z.string().min(1),
+  capabilities: z.array(z.string()).optional(),
+  available_features: z.array(cherryCloudModelFeatureSchema)
+})
+
 const cherryCloudPlanSummarySchema = z.looseObject({
   id: z.uuid(),
   display_name: z.string().min(1),
@@ -49,7 +56,23 @@ const cherryCloudPlanSummarySchema = z.looseObject({
   quota_pool_count: z.number().int().nonnegative(),
   model_count: z.number().int().nonnegative(),
   subscription_price: cherryCloudSubscriptionPriceSchema.optional(),
-  purchase_available: z.boolean()
+  purchase_available: z.boolean(),
+  /** Catalog entries of the models the plan grants, so the client can show what subscribing unlocks. */
+  models: z.array(cherryCloudPlanModelSchema).optional()
+})
+
+/** The deployment's plans and the models each grants; readable without a session. */
+export const cherryCloudPublicPlanCatalogSchema = z.looseObject({
+  measured_at: z.iso.datetime(),
+  plans: z.array(
+    z.looseObject({
+      id: z.uuid(),
+      display_name: z.string().min(1),
+      is_free: z.boolean(),
+      models: z.array(cherryCloudPlanModelSchema),
+      subscription_price: cherryCloudSubscriptionPriceSchema.optional()
+    })
+  )
 })
 
 const cherryCloudQuotaWindowSchema = z.looseObject({
@@ -88,6 +111,8 @@ export const cherryCloudAccountPlansSchema = z.looseObject({
 })
 
 export type CherryCloudAccountPlans = z.infer<typeof cherryCloudAccountPlansSchema>
+export type CherryCloudPlanModel = z.infer<typeof cherryCloudPlanModelSchema>
+export type CherryCloudPublicPlanCatalog = z.infer<typeof cherryCloudPublicPlanCatalogSchema>
 
 export const cherryCloudRequestSchemas = {
   'cherry_cloud.status.get': defineRoute({ input: z.void(), output: cherryCloudStatusSchema }),
@@ -99,7 +124,8 @@ export const cherryCloudRequestSchemas = {
     input: z.void(),
     output: cherryCloudModelSyncResultSchema
   }),
-  'cherry_cloud.account_plans.get': defineRoute({ input: z.void(), output: cherryCloudAccountPlansSchema })
+  'cherry_cloud.account_plans.get': defineRoute({ input: z.void(), output: cherryCloudAccountPlansSchema }),
+  'cherry_cloud.public_plans.get': defineRoute({ input: z.void(), output: cherryCloudPublicPlanCatalogSchema })
 }
 
 export type CherryCloudEventSchemas = {

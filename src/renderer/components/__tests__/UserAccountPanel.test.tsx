@@ -1,3 +1,4 @@
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -232,6 +233,22 @@ describe('UserAccountPanel', () => {
     expect(await screen.findByRole('button', { name: /去订阅/ })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '用户名' }))
     expect(request).toHaveBeenCalledWith('navigation.open_route_in_main', { path: '/settings/profile' })
+  })
+
+  it.each([
+    ['a signed-out user who has not used Subscribe', 'signed-out', false, true],
+    ['a user who already used Subscribe', 'signed-out', true, false],
+    ['a paying account', 'paid', false, false]
+  ] as const)('marks the China-edition Subscribe entry for %s: %s', async (_case, account, seen, marked) => {
+    vi.stubGlobal('__APP_EDITION__', 'cn')
+    MockUseCacheUtils.setPersistCacheValue('ui.cherry_cloud.subscribe_prompt_seen', seen)
+    if (account === 'signed-out') session = { phase: 'signed-out', accountId: null, displayName: null }
+    else plans = paidPlans('Plus')
+
+    renderAccount(<UserAccountPanel />)
+
+    await screen.findByText(account === 'paid' ? 'Plus' : '去订阅')
+    await waitFor(() => expect(screen.queryByTestId('subscribe-reminder-dot') !== null).toBe(marked))
   })
 
   it('offers subscription sign-in without querying plans when signed out', async () => {

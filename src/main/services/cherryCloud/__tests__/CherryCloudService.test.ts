@@ -500,6 +500,32 @@ describe('CherryCloudService', () => {
     expect(mocks.netFetch).not.toHaveBeenCalled()
   })
 
+  it('reads the public plan catalog without a session or signature', async () => {
+    const service = await createService()
+    mockCloudRoute(
+      '/api/v1/public/plans',
+      jsonResponse({
+        measured_at: '2030-01-02T03:00:00Z',
+        plans: [
+          {
+            id: '00000000-0000-4000-8000-000000000041',
+            display_name: 'Plus',
+            is_free: false,
+            default_for_new_accounts: false,
+            models: [{ id: 'plus-model', display_name: 'Plus model', capabilities: [], available_features: ['chat'] }]
+          }
+        ]
+      })
+    )
+
+    const catalog = await service.getPublicPlans()
+
+    expect(catalog.plans[0].models.map((model) => model.id)).toEqual(['plus-model'])
+    const headers = new Headers(requestCalls('/api/v1/public/plans')[0][1].headers)
+    expect(headers.has('Authorization')).toBe(false)
+    expect(headers.has('X-Signature')).toBe(false)
+  })
+
   it('reuses the device key after logout and a service restart', async () => {
     const service = await createSignedInService()
     const firstDevicePublicKey = mocks.savedDevice?.publicKey
