@@ -292,6 +292,7 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
     new CherryInAnthropicMessagesLanguageModel(modelId, {
       provider: `${CHERRYIN_PROVIDER_NAME}.anthropic`,
       baseURL: anthropicBaseURL,
+      supportsStrictTools: false,
       headers: () => {
         const headers = getJsonHeaders()
         const apiKey = toBearerToken(headers.Authorization)

@@ -137,18 +137,21 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
     [t]
   )
 
-  const messageNavigationItems = useMemo<SelectOption<'none' | 'buttons' | 'anchor'>[]>(
+  const messageNavigationItems = useMemo<SelectOption<'none' | 'anchor'>[]>(
     () => [
       { value: 'none', label: t('settings.messages.navigation.none') },
-      { value: 'buttons', label: t('settings.messages.navigation.buttons') },
       { value: 'anchor', label: t('settings.messages.navigation.anchor') }
     ],
     [t]
   )
 
   const codeStyleItems = useMemo<SelectOption<CodeStyleVarious>[]>(
-    () => themeNames.map((themeName) => ({ value: themeName, label: themeName })),
-    [themeNames]
+    () =>
+      themeNames.map((themeName) => ({
+        value: themeName,
+        label: themeName === 'auto' ? t('chat.settings.code_theme.cherry_default') : themeName
+      })),
+    [themeNames, t]
   )
 
   // Send / newline / steer are mutually exclusive: each select hides the two keys already in use.
@@ -493,7 +496,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
               <SelectContent className="text-sm">
                 {cmThemeNames.map((name) => (
                   <SelectItem className="text-sm" key={name} value={name}>
-                    {name}
+                    {name === 'auto' ? t('chat.settings.code_theme.cherry_default') : name}
                   </SelectItem>
                 ))}
               </SelectContent>

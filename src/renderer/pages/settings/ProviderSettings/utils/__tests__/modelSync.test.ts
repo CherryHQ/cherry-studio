@@ -336,3 +336,25 @@ describe('toCreateModelDto', () => {
     expect(dto.capabilities).toBeUndefined()
   })
 })
+
+it('preserves fetched Poe routing through registry enrichment and the create DTO', async () => {
+  const row = {
+    id: 'poe::perplexity-adv-deep-research',
+    providerId: 'poe',
+    apiModelId: 'perplexity-adv-deep-research',
+    name: 'perplexity-adv-deep-research'
+  }
+  listModelsMock.mockResolvedValueOnce({ models: [{ ...row, endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] }] })
+  dataApiGetMock.mockResolvedValueOnce([
+    { ...row, name: 'Perplexity research', endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] }
+  ])
+  const {
+    models: [model]
+  } = await fetchResolvedProviderModels('poe')
+  expect(model.endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])
+  expect(toCreateModelDto('poe', model)).toMatchObject({
+    providerId: 'poe',
+    modelId: row.apiModelId,
+    endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+  })
+})

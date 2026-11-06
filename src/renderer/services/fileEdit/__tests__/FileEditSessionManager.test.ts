@@ -118,6 +118,25 @@ describe('file editing lifetime', () => {
     expect(writes).toEqual(['b', 'a', 'c'])
   })
 
+  it('holds edits until an explicit flush while autosave is off, and saves pending edits when it turns back on', async () => {
+    const lease = await manager.acquire('artifact', handle)
+    lease.setAutoSave(false)
+    lease.acceptEdit('b')
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect(writes).toEqual([])
+    expect(lease.getSnapshot()).toMatchObject({ draft: 'b', isDirty: true })
+
+    await lease.flush()
+    expect(writes).toEqual(['b'])
+
+    lease.acceptEdit('c')
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect(writes).toEqual(['b'])
+    lease.setAutoSave(true)
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(writes).toEqual(['b', 'c'])
+  })
+
   it('treats a committed write whose reply was lost as saved on the next flush', async () => {
     const lease = await manager.acquire('notes', handle)
     const original = vi.mocked(ipcApi.request).getMockImplementation()!

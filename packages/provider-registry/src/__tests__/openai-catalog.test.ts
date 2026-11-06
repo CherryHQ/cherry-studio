@@ -80,6 +80,34 @@ describe('OpenAI catalog', () => {
     })
   })
 
+  it.each(['flare', 'sunburst'])('resolves GPT Image 2.6 %s for generation and editing', (variant) => {
+    const apiModelId = `gpt-image-2.6-${variant}`
+    const model = loader.findModel(apiModelId)
+    expect(model).toMatchObject({
+      ownedBy: 'openai',
+      capabilities: ['image-recognition', 'image-generation'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['image'],
+      endpointTypes: ['openai-image-generation', 'openai-image-edit']
+    })
+    expect(loader.findOverride('openai', apiModelId)).toMatchObject({
+      apiModelId,
+      endpointTypes: ['openai-image-generation', 'openai-image-edit']
+    })
+    for (const mode of ['generate', 'edit'] as const) {
+      const support = model?.imageGeneration
+      expect(support?.modes[mode]?.supports).toMatchObject({
+        quality: { type: 'enum', options: ['auto', 'low', 'medium', 'high'] },
+        size: { type: 'enum', options: ['auto', '1024x1024', '1536x1024', '1024x1536'] },
+        background: { type: 'enum', options: ['auto', 'transparent', 'opaque'] },
+        numImages: { type: 'range', min: 1, max: 10, default: 1 }
+      })
+      expect(
+        buildParamsSchema(support, mode).parse({ quality: 'low', size: '1536x1024', background: 'transparent' })
+      ).toMatchObject({ quality: 'low', size: '1536x1024', background: 'transparent' })
+    }
+  })
+
   it.each(['gpt-image-2-5-flare', 'gpt-image-2-5-sunburst'])(
     'offers only generate quality and size for %s within the API limits',
     (id) => {
