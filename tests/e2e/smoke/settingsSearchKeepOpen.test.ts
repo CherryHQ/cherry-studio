@@ -57,7 +57,7 @@ async function openSearch(mainWindow: Page) {
     await window.api.preference.set('app.language', 'en-US')
   }, LATEST_PRIVACY_POLICY_VERSION)
   await mainWindow.reload()
-  await expect(mainWindow.locator('[data-ui~="app.shell"]').first()).toBeVisible({ timeout: 60000 })
+  await expect(mainWindow.locator('[data-ui~="app.content"]').first()).toBeVisible({ timeout: 60000 })
   await expect(
     mainWindow.getByRole('dialog', { name: en['privacy_policy_update.title'], exact: true }),
     'Setup failure: privacy policy modal reopened after setting the current policy version'

@@ -55,6 +55,7 @@ Reports and screenshots remain in the configured output directory for review.
 
 1. Install dependencies: `pnpm install`
 2. Build the application: `pnpm build`
+3. Download managed binaries with `pnpm download:binaries`, then set `E2E_RIPGREP_BIN` to the absolute `resources/binaries/<platform>-<arch>/rg` path (`rg.exe` on Windows). Notes cases fail when this executable is missing; the regression workflow sets it automatically.
 
 #### Commands
 

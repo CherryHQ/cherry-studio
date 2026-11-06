@@ -151,7 +151,7 @@ test('local skill import reports complete Chinese failures and installs valid ZI
   }
 
   try {
-    const shell = page.locator('[data-ui~="app.shell"]').first()
+    const shell = page.locator('[data-ui~="app.content"]').first()
     const onboarding = page.locator('[data-onboarding-language-select]')
     const skipOnboarding = page.getByRole('button', { name: '稍后设置', exact: true })
     const settingsButton = shell.getByRole('button', { name: '设置', exact: true }).filter({ visible: true }).first()

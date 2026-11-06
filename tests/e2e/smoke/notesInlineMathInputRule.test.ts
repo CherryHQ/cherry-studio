@@ -30,8 +30,8 @@ const test = base.extend<{ notesProfile: NotesProfile }>({
     try {
       try {
         accessSync(ripgrepSource, constants.R_OK | constants.X_OK)
-      } catch {
-        test.skip(true, 'Managed ripgrep unavailable; set E2E_RIPGREP_BIN to an executable rg')
+      } catch (cause) {
+        throw new Error('Set E2E_RIPGREP_BIN to an executable rg before running Notes smoke tests', { cause })
       }
       const binaryDirectory = join(profile, '.cherrystudio', 'bin')
       mkdirSync(binaryDirectory, { recursive: true })
@@ -63,8 +63,6 @@ const test = base.extend<{ notesProfile: NotesProfile }>({
     await use(await stickyWindow(electronApp))
   }
 })
-
-test.skip(!ripgrepSource, 'dev builds do not ship the managed ripgrep binary; set E2E_RIPGREP_BIN=<path to rg>')
 
 test('inline math completion preserves adjacent edits and autosaves them', async ({
   mainWindow: page,

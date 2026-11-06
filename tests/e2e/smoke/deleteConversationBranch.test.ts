@@ -70,7 +70,7 @@ async function ready(page: Page) {
     await window.api.preference.set('app.language', 'en-US')
   }, LATEST_PRIVACY_POLICY_VERSION)
   await page.reload()
-  await expect(page.locator('[data-ui~="app.shell"]').first()).toBeVisible({ timeout: 60_000 })
+  await expect(page.locator('[data-ui~="app.content"]').first()).toBeVisible({ timeout: 60_000 })
   await expect(
     page.getByRole('dialog', { name: en['privacy_policy_update.title'], exact: true }),
     'Setup failure: privacy policy modal reopened after setting the current policy version'

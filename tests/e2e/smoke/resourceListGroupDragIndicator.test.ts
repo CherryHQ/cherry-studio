@@ -30,7 +30,7 @@ test('whole-assistant drags show one insertion line within the hovered group and
   mainWindow
 }, testInfo) => {
   test.setTimeout(120_000)
-  const shell = mainWindow.locator('[data-ui~="app.shell"]')
+  const shell = mainWindow.locator('[data-ui~="app.content"]')
   const onboarding = mainWindow.locator('[data-onboarding-language-select]')
   await expect(shell.or(onboarding).filter({ visible: true }).first()).toBeVisible({ timeout: 60000 })
   const previous = await mainWindow.evaluate(async () => ({

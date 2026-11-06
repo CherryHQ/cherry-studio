@@ -44,14 +44,11 @@ export const test = base.extend<ElectronFixtures & { isolatedEnvironment: void }
     { auto: true }
   ],
   electronApp: async ({}, use) => {
-    // Launch Electron app from project root
-    // The args ['.'] tells Electron to load the app from current directory
+    const env = { ...process.env, NODE_ENV: 'development' }
+    Reflect.deleteProperty(env, 'ELECTRON_RENDERER_URL')
     const electronApp = await electron.launch({
       args: ['.'],
-      env: {
-        ...process.env,
-        NODE_ENV: 'development'
-      },
+      env,
       timeout: 60000
     })
 

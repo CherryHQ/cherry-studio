@@ -79,8 +79,6 @@ const test = base.extend<{ stickyProfile: { profile: string; notesPath: string }
   }
 })
 
-test.skip(!ripgrepSource, 'dev builds do not ship the managed ripgrep binary; set E2E_RIPGREP_BIN=<path to rg>')
-
 // #22368: actual Notes folders must occupy ancestor slots and yield to later siblings/roots.
 test('Notes FileTree sticky folders hand off across parent child sibling and root', async ({
   mainWindow: page,

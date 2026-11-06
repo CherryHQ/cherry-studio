@@ -138,7 +138,7 @@ test('shows the provider fallback notice after a real search dispatch', async ({
       await window.api.preference.set('topic.naming.enabled', false)
     }, LATEST_PRIVACY_POLICY_VERSION)
     await page.reload()
-    await expect(page.locator('[data-ui~="app.shell"]').first()).toBeVisible({ timeout: 60_000 })
+    await expect(page.locator('[data-ui~="app.content"]').first()).toBeVisible({ timeout: 60_000 })
 
     const providerId = `fallback-smoke-${Date.now()}`
     const assistantName = `Fallback smoke ${providerId}`

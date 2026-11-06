@@ -1,9 +1,9 @@
-import { mkdir, readFile, readdir } from 'node:fs/promises'
+import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { _electron as electron, type Page } from '@playwright/test'
+import type { Page } from '@playwright/test'
 
-import { expect, test as base } from './fixtures/electron.fixture'
+import { expect, test } from './fixtures/electron.fixture'
 
 const TOPIC = 'Archive entry refresh regression'
 const ASSISTANT = 'Archive refresh assistant'
@@ -16,24 +16,6 @@ const labels = {
   empty: /^(暂无已归档的项目|No archived items)$/,
   back: /^(返回|Back)$/
 }
-const test = base.extend({
-  electronApp: async ({}, provideApp, testInfo) => {
-    const profile = testInfo.outputPath('profile')
-    await mkdir(profile, { recursive: true })
-    const env: NodeJS.ProcessEnv = { ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: profile }
-    delete env.ELECTRON_RENDERER_URL
-    const app = await electron.launch({
-      args: ['.'],
-      env: Object.fromEntries(Object.entries(env).filter((pair): pair is [string, string] => pair[1] !== undefined)),
-      timeout: 60_000
-    })
-    try {
-      await provideApp(app)
-    } finally {
-      await app.close()
-    }
-  }
-})
 
 async function openArchive(page: Page) {
   await page.getByRole('button', { name: labels.settings }).first().click({ noWaitAfter: true })
@@ -93,7 +75,7 @@ test('All re-reads after archiving through the topic context menu inside the ded
   await expect(topicRow).toBeVisible({ timeout: 30_000 })
   await expect(topicRow.getByText(TOPIC, { exact: true })).toBeVisible()
 
-  const logsDir = testInfo.outputPath('profile', 'logs')
+  const logsDir = join(process.env.CS_DEV_PROFILE_ROOT!, 'logs')
   const logs = async () => {
     const names = (await readdir(logsDir)).filter((name) => /^app\..*\.log$/.test(name)).sort()
     const contents = await Promise.all(names.map((name) => readFile(join(logsDir, name), 'utf8')))

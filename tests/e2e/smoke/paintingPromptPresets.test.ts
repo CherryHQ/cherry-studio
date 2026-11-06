@@ -43,7 +43,10 @@ const form = (page: Page, edit = false) =>
 
 async function prepare(page: Page) {
   await expect(
-    uiLocator(page, 'app.shell').or(page.locator('[data-onboarding-language-select]')).filter({ visible: true }).first()
+    uiLocator(page, 'app.content')
+      .or(page.locator('[data-onboarding-language-select]'))
+      .filter({ visible: true })
+      .first()
   ).toBeVisible({ timeout: 60000 })
   await page.evaluate(async (privacyVersion) => {
     await window.api.preference.set('app.language', 'en-US')
@@ -76,7 +79,7 @@ async function prepare(page: Page) {
     return result
   })
   await page.reload()
-  await expect(uiLocator(page, 'app.shell').first()).toBeVisible({ timeout: 60000 })
+  await expect(uiLocator(page, 'app.content').first()).toBeVisible({ timeout: 60000 })
   await selectSidebarApp(page, 'Paintings')
   const view = uiLocator(page, 'paintings.view').filter({ visible: true })
   await expect(view).toBeVisible()
