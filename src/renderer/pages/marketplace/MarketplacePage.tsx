@@ -14,7 +14,7 @@ import { MarketplaceMcp } from './MarketplaceMcp'
 import { MarketplaceSkills } from './MarketplaceSkills'
 import { buildMarketplaceTemplates } from './marketplaceTemplateCatalog'
 import { MarketplaceTemplates } from './MarketplaceTemplates'
-import { SkillsShCatalog, SKILLS_SH_SOURCE_ID } from './SkillsShCatalog'
+import { RegistrySkillsCatalog } from './RegistrySkillsCatalog'
 import { SkillSubscriptionBar } from './SkillSubscriptionBar'
 import { useMarketplace } from './useMarketplace'
 
@@ -40,10 +40,10 @@ export default function MarketplacePage() {
   const [moreMcpSources, setMoreMcpSources] = useState(false)
   const query = queries[resourceType]
   const skillSourceId = resourceType === 'skill' ? sourceId : null
-  const isSkillsSh = skillSourceId === SKILLS_SH_SOURCE_ID
+  const registrySource = skillSourceId === 'skills.sh' || skillSourceId === 'claude-plugins.dev' ? skillSourceId : null
   const skills = useMarketplace(
-    isSkillsSh ? null : skillSourceId,
-    !isSkillsSh && (resourceType === 'all' || resourceType === 'skill')
+    registrySource ? null : skillSourceId,
+    !registrySource && (resourceType === 'all' || resourceType === 'skill')
   )
   const agents = useAgentCatalogPresets({ enabled: resourceType === 'all' || resourceType === 'agent' })
   const assistants = useAssistantCatalogPresets({
@@ -66,7 +66,7 @@ export default function MarketplacePage() {
     [templates]
   )
   const counts: Record<MarketplaceView, number | null> = {
-    skill: isSkillsSh ? null : skillSourceId ? (skills.catalog.data?.length ?? null) : skills.curatedCount,
+    skill: registrySource ? null : skillSourceId ? (skills.catalog.data?.length ?? null) : skills.curatedCount,
     agent: agents.isLoading || agents.error || assistants.isLoading || assistants.error ? null : templates.length,
     mcp: mcp.presets.length,
     all: null
@@ -82,7 +82,8 @@ export default function MarketplacePage() {
     setResourceType(type)
   }
   const renderCatalog = (type: MarketplaceResourceType, preview = false) => {
-    if (type === 'skill' && !preview && isSkillsSh) return <SkillsShCatalog query={query} active />
+    if (type === 'skill' && !preview && registrySource)
+      return <RegistrySkillsCatalog source={registrySource} query={query} active />
     if (type === 'skill') return <MarketplaceSkills market={skills} query={query} preview={preview} active />
     if (type === 'mcp')
       return (

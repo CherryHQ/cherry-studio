@@ -20,7 +20,7 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 import { skillErrorCodes } from '@shared/ipc/errors/skill'
 import { normalizeSubscriptionUrl } from '@shared/utils/skillSubscription'
 
-import { SKILLS_SH_SOURCE_ID } from './SkillsShCatalog'
+import { SKILL_REGISTRY_SOURCES } from './RegistrySkillsCatalog'
 
 export function SkillSubscriptionBar({
   sourceId,
@@ -62,14 +62,17 @@ export function SkillSubscriptionBar({
           onClick={() => onSelect(null)}>
           {t('marketplace.curated')}
         </Button>
-        <Button
-          size="sm"
-          variant={sourceId === SKILLS_SH_SOURCE_ID ? 'default' : 'ghost'}
-          className="shrink-0 rounded-full"
-          aria-pressed={sourceId === SKILLS_SH_SOURCE_ID}
-          onClick={() => onSelect(SKILLS_SH_SOURCE_ID)}>
-          skills.sh
-        </Button>
+        {SKILL_REGISTRY_SOURCES.map((source) => (
+          <Button
+            key={source}
+            size="sm"
+            variant={sourceId === source ? 'default' : 'ghost'}
+            className="shrink-0 rounded-full"
+            aria-pressed={sourceId === source}
+            onClick={() => onSelect(source)}>
+            {source}
+          </Button>
+        ))}
         <Button
           ref={addRef}
           size="icon-sm"
@@ -93,7 +96,7 @@ export function SkillSubscriptionBar({
           </Button>
         ))}
       </div>
-      {sourceId && sourceId !== SKILLS_SH_SOURCE_ID ? (
+      {!SKILL_REGISTRY_SOURCES.some((source) => source === sourceId) && sourceId ? (
         <>
           <Button
             variant="ghost"

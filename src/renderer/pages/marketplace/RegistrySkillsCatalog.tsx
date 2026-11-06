@@ -6,7 +6,7 @@ import useSWRInfinite from 'swr/infinite'
 import { Spinner } from '@cherrystudio/ui'
 import { useInstalledSkills, useSkillInstall, useSkillSearch } from '@renderer/hooks/useSkills'
 import { toast } from '@renderer/services/toast'
-import { loadSkillsShLeaderboard } from '@renderer/utils/skillSearch'
+import { loadSkillRegistryPage } from '@renderer/utils/skillSearch'
 import type { SkillSearchResult } from '@shared/types/skill'
 import type { MarketplaceSkill } from '@shared/types/skillMarketplace'
 import { parseSkillSourceUrl } from '@shared/utils/skillMarketplace'
@@ -14,10 +14,19 @@ import { parseSkillSourceUrl } from '@shared/utils/skillMarketplace'
 import { MarketplaceCard, MarketplaceCardAction, MarketplaceGrid, MarketplaceLoadState } from './MarketplaceComponents'
 import { MarketplaceSkillDialog } from './MarketplaceSkillDialog'
 
-export const SKILLS_SH_SOURCE_ID = 'skills.sh'
+export const SKILL_REGISTRY_SOURCES = ['skills.sh', 'claude-plugins.dev'] as const
+export type SkillRegistrySource = (typeof SKILL_REGISTRY_SOURCES)[number]
 const DISPLAY_PAGE_SIZE = 30
 
-export function SkillsShCatalog({ query, active }: { query: string; active: boolean }) {
+export function RegistrySkillsCatalog({
+  query,
+  active,
+  source
+}: {
+  query: string
+  active: boolean
+  source: SkillRegistrySource
+}) {
   const { t, i18n } = useTranslation()
   const keyword = query.trim()
   const [selected, setSelected] = useState<SkillSearchResult | null>(null)
@@ -26,15 +35,17 @@ export function SkillsShCatalog({ query, active }: { query: string; active: bool
   const [visibleCount, setVisibleCount] = useState(DISPLAY_PAGE_SIZE)
   const sentinel = useRef<HTMLDivElement>(null)
   const content = useRef<HTMLDivElement>(null)
-  const { results, searching, error: searchError, search, clear } = useSkillSearch('skills.sh')
+  const { results, searching, error: searchError, search, clear } = useSkillSearch(source)
   const [debouncing, setDebouncing] = useState(false)
   const installed = useInstalledSkills()
   const { install, isInstalling } = useSkillInstall()
   const pending = useRef(new Set<string>())
   const ranking = useSWRInfinite(
     (page, previous) =>
-      active && !keyword && (!previous || previous.hasMore) ? ['skills.sh.leaderboard', page] : null,
-    ([, page]: [string, number]) => loadSkillsShLeaderboard(page),
+      active && !keyword && (!previous || previous.hasMore)
+        ? ['skill.registry', source, page === 0 ? 0 : previous.nextCursor]
+        : null,
+    ([, registry, cursor]: [string, SkillRegistrySource, number]) => loadSkillRegistryPage(registry, cursor),
     { revalidateOnFocus: false, revalidateFirstPage: false, shouldRetryOnError: false }
   )
   const { data, error, isLoading, isValidating, size, setSize, mutate } = ranking
@@ -110,8 +121,13 @@ export function SkillsShCatalog({ query, active }: { query: string; active: bool
 
   const selectedSource = selected?.sourceUrl ? parseSkillSourceUrl(selected.sourceUrl) : null
   const repository =
-    selectedSource?.sourceRegistry === 'skills.sh'
-      ? 'https://github.com/' + selectedSource.installSource.slice('skills.sh:'.length).split('/').slice(0, 2).join('/')
+    selectedSource?.sourceRegistry === source && selectedSource.installSource === selected?.installSource
+      ? 'https://github.com/' +
+        selectedSource.installSource
+          .slice(selectedSource.installSource.indexOf(':') + 1)
+          .split('/')
+          .slice(0, 2)
+          .join('/')
       : null
   const selectedSkill: MarketplaceSkill | null = selected
     ? {
@@ -152,7 +168,7 @@ export function SkillsShCatalog({ query, active }: { query: string; active: bool
         renderItem={(item) => {
           const added = installedSources.has(item.installSource)
           const busy = isInstalling(item.installSource)
-          const supported = parseSkillSourceUrl(item.sourceUrl ?? '')?.sourceRegistry === 'skills.sh'
+          const supported = parseSkillSourceUrl(item.sourceUrl ?? '')?.installSource === item.installSource
           return (
             <MarketplaceCard
               name={item.name}

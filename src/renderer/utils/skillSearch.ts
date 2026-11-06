@@ -1,8 +1,14 @@
 import * as z from 'zod'
 
 import { loggerService } from '@logger'
-import { SkillsShSearchItemSchema, type SkillSearchResult, type SkillSearchSource } from '@shared/types/skill'
 import {
+  ClaudePluginsSearchResponseSchema,
+  SkillsShSearchItemSchema,
+  type SkillSearchResult,
+  type SkillSearchSource
+} from '@shared/types/skill'
+import {
+  normalizeClaudePlugins,
   normalizeSkillsSh,
   searchSkillMarketplaces,
   SKILL_SEARCH_FAILED_ERROR as SHARED_SKILL_SEARCH_FAILED_ERROR
@@ -69,4 +75,42 @@ export async function loadSkillsShLeaderboard(page: number) {
     skills: data.skills.map((skill) => ({ ...skill, id: skill.source + '/' + skill.skillId }))
   })
   return { items, hasMore: data.hasMore }
+}
+
+export async function loadSkillRegistryPage(source: 'skills.sh' | 'claude-plugins.dev', cursor: number) {
+  if (source === 'skills.sh') {
+    const page = await loadSkillsShLeaderboard(cursor)
+    return { ...page, nextCursor: cursor + 1 }
+  }
+  const page = await loadClaudePluginsSkills(cursor, fetchJson)
+  return { items: page.items, hasMore: page.hasMore, nextCursor: page.nextOffset }
+}
+
+/** Browse the independent skills catalog; pagination counts raw entries, including skipped ones. */
+export async function loadClaudePluginsSkills(
+  offset: number,
+  fetchJson: (url: string) => Promise<unknown>,
+  limit = 20
+): Promise<{ items: SkillSearchResult[]; hasMore: boolean; nextOffset: number }> {
+  if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isInteger(limit) || limit < 1 || limit > 100) {
+    throw new Error('Invalid claude-plugins.dev pagination')
+  }
+  const url = new URL('https://claude-plugins.dev/api/skills')
+  url.searchParams.set('limit', String(limit))
+  url.searchParams.set('offset', String(offset))
+  const data = ClaudePluginsSearchResponseSchema.parse(await fetchJson(url.toString()))
+  const total = data.total
+  if (
+    data.offset !== offset ||
+    data.limit !== limit ||
+    total === undefined ||
+    !Number.isSafeInteger(total) ||
+    total < 0 ||
+    data.skills.length > limit ||
+    (data.skills.length === 0 && offset < total)
+  ) {
+    throw new Error('Invalid claude-plugins.dev pagination')
+  }
+  const nextOffset = offset + data.skills.length
+  return { items: normalizeClaudePlugins(data), hasMore: nextOffset < total, nextOffset }
 }
