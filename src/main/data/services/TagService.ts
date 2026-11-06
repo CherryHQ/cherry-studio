@@ -156,6 +156,9 @@ export class TagService {
       }
     )
 
+    // Cross-window convergence: a committed create changes the `/tags` catalog
+    // read model; other windows only refetch it on this signal.
+    notifyDataApiDataChange([{ endpoint: '/tags', kind: 'membership' }])
     logger.info('Created tag', { id: row.id, name: row.name })
 
     return rowToTag(row)
@@ -191,6 +194,9 @@ export class TagService {
       throw DataApiErrorFactory.notFound('Tag', id)
     }
 
+    // Cross-window convergence: a committed rename/recolor changes the `/tags`
+    // catalog projection for this tag.
+    notifyDataApiDataChange([{ endpoint: '/tags', kind: 'projection', entityIds: [id] }])
     logger.info('Updated tag', { id, changes: Object.keys(dto) })
 
     return rowToTag(row)
@@ -206,6 +212,12 @@ export class TagService {
       throw DataApiErrorFactory.notFound('Tag', id)
     }
 
+    // Cross-window convergence: the hard delete removes the tag from the
+    // `/tags` catalog and cascades its bindings out of `/entity-tags`.
+    notifyDataApiDataChange([
+      { endpoint: '/tags', kind: 'membership' },
+      { endpoint: '/entity-tags', kind: 'membership' }
+    ])
     logger.info('Deleted tag', { id })
   }
 

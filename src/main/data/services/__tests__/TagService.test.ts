@@ -186,6 +186,63 @@ describe('TagService', () => {
     })
   })
 
+  describe('catalog change notifications', () => {
+    it('should publish a /tags membership change after a create commits', () => {
+      notifyDataApiDataChangeMock.mockClear()
+
+      tagService.create({ name: 'work' })
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([{ endpoint: '/tags', kind: 'membership' }])
+    })
+
+    it('should publish nothing when a create rolls back', async () => {
+      notifyDataApiDataChangeMock.mockClear()
+      await seedTags()
+
+      expect(() => tagService.create({ name: 'work' })).toThrow()
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+    })
+
+    it('should publish a /tags projection change after an update commits', async () => {
+      notifyDataApiDataChangeMock.mockClear()
+      await seedTags()
+
+      tagService.update(TAG_1, { color: '#0000ff' })
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/tags', kind: 'projection', entityIds: [TAG_1] }
+      ])
+    })
+
+    it('should publish nothing for a provably empty update', async () => {
+      notifyDataApiDataChangeMock.mockClear()
+      await seedTags()
+
+      tagService.update(TAG_1, {})
+
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+    })
+
+    it('should publish /tags and /entity-tags membership changes after a delete commits', async () => {
+      notifyDataApiDataChangeMock.mockClear()
+      await seedTags()
+      await dbh.db.insert(entityTagTable).values({
+        entityType: 'assistant',
+        entityId: ASSISTANT_1,
+        tagId: TAG_1,
+        createdAt: 10,
+        updatedAt: 10
+      })
+
+      tagService.delete(TAG_1)
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/tags', kind: 'membership' },
+        { endpoint: '/entity-tags', kind: 'membership' }
+      ])
+    })
+  })
+
   describe('getTagsByEntity', () => {
     it('should return mapped tags for an entity ordered by tag name', async () => {
       await seedTags()

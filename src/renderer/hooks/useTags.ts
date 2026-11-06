@@ -35,8 +35,13 @@ export function useEntityTags(entityType: EntityType, options: UseEntityTagsOpti
   })
 
   // Mutations refresh only this window's SWR cache; another window's tag edits
-  // arrive as a data-change notification and refetch the bindings here.
-  useDataChange(enabled ? '/entity-tags' : [], () => void refetchBindings())
+  // arrive as data-change notifications. Refetch both read models: a binding
+  // can reference a tag this window's catalog has not seen yet, and the join
+  // below drops unknown tag ids.
+  useDataChange(enabled ? ['/tags', '/entity-tags'] : [], () => {
+    void refetchTags()
+    void refetchBindings()
+  })
 
   const tags = tagsData ?? EMPTY_TAGS
   const tagsByEntityId = useMemo(() => {

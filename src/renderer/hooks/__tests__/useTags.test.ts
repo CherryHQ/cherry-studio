@@ -59,7 +59,7 @@ describe('useEntityTags', () => {
     MockDataApiUtils.resetMocks()
   })
 
-  it('refetches bindings when another window changes entity-tag data', () => {
+  it('refetches bindings and the catalog when another window changes entity-tag data', () => {
     const { refetchTags, refetchBindings } = wireQueries()
     renderHook(() => useEntityTags('assistant'))
 
@@ -68,10 +68,23 @@ describe('useEntityTags', () => {
     })
 
     // The mutation-driven refresh covers only the initiating window; a
-    // data-change notification refetches the bindings in this one. The tag
-    // list itself is untouched by a membership change.
+    // data-change notification refetches both read models in this one. A new
+    // binding can reference a tag created in the other window that this
+    // window's catalog has not seen yet, and the join drops unknown tag ids.
     expect(refetchBindings).toHaveBeenCalledTimes(1)
-    expect(refetchTags).not.toHaveBeenCalled()
+    expect(refetchTags).toHaveBeenCalledTimes(1)
+  })
+
+  it('refetches both read models when another window changes the tag catalog', () => {
+    const { refetchTags, refetchBindings } = wireQueries()
+    renderHook(() => useEntityTags('assistant'))
+
+    act(() => {
+      MockUseDataApiUtils.emitDataChange([{ endpoint: '/tags', kind: 'membership' }])
+    })
+
+    expect(refetchTags).toHaveBeenCalledTimes(1)
+    expect(refetchBindings).toHaveBeenCalledTimes(1)
   })
 
   it('skips the change subscription when disabled', () => {
@@ -79,5 +92,6 @@ describe('useEntityTags', () => {
     renderHook(() => useEntityTags('assistant', { enabled: false }))
 
     expect(MockDataApiUtils.getCurrentState().dataChangeListeners.has('/entity-tags')).toBe(false)
+    expect(MockDataApiUtils.getCurrentState().dataChangeListeners.has('/tags')).toBe(false)
   })
 })
