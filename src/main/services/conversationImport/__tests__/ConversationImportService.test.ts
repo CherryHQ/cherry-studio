@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, writeFile, rm, readdir } from 'node:fs/promises'
+import { mkdtemp, mkdir, writeFile, rm, readdir, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -223,6 +223,28 @@ describe('local history atomic import', () => {
       sessionId: created.sessionId
     })
     expect(counts()).toEqual([1, 2, 1, 3])
+  })
+  it('requires a new preview when an existing import is deleted before commit', async () => {
+    const file = await source()
+    const first = await preview()
+    const [created] = await service.commit('window', first.previewId, [first.items[0].ref])
+    await writeFile(file, (await readFile(file, 'utf8')).replaceAll('2.1.284', '3.0.0'))
+    const next = await preview()
+    expect(next.items[0].existing?.sessionId).toBe(created.sessionId)
+    expect(next.items[0].diagnostics).toEqual([])
+    agentSessionService.delete(created.sessionId!)
+    agentSessionService.delete(created.sessionId!, { permanent: true })
+    expect((await service.commit('window', next.previewId, [next.items[0].ref]))[0]).toMatchObject({
+      status: 'failed',
+      reason: 'invalid_preview'
+    })
+    expect(counts()).toEqual([0, 0, 0, 0])
+    const fresh = await preview()
+    expect(fresh.items[0].diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'unsupported_version', severity: 'error' })
+    )
+    expect((await service.commit('window', fresh.previewId, [fresh.items[0].ref]))[0].status).toBe('failed')
+    expect(counts()).toEqual([0, 0, 0, 0])
   })
   it('commits valid selections and retries blocked selections without losing or duplicating successes', async () => {
     await source('valid')

@@ -3,11 +3,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
-import {
-  completeImportedHistoryTx,
-  getImportedHistoryState,
-  readImportedHistory
-} from '@data/services/importedSessionHistory'
+import { completeImportedHistoryTx, getImportedHistoryState } from '@data/services/importedSessionHistory'
 import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
 
 import { appendHistoricalMessage } from './historicalMessage'
@@ -32,7 +28,7 @@ async function initialize(sessionId: string): Promise<void> {
     agentSessionMessageService.getLastRuntimeResumeToken(sessionId) !== state.nativeSessionId
   )
     return
-  const history = readImportedHistory(sessionId)
+  const history = agentSessionMessageService.readImportedHistory(sessionId)
   const sessions = application.getPath('feature.agents.pi.sessions')
   const file = path.join(sessions, '1970-01-01T00-00-00-000Z_' + state.nativeSessionId + '.jsonl')
   const sdk = await loadPiSdk()
@@ -82,11 +78,17 @@ async function initialize(sessionId: string): Promise<void> {
       verified.getEntries().length !== manager.getEntries().length
     )
       throw new Error('history_corrupt')
-    if (JSON.stringify(readImportedHistory(sessionId).messages) !== JSON.stringify(history.messages))
+    if (
+      JSON.stringify(agentSessionMessageService.readImportedHistory(sessionId).messages) !==
+      JSON.stringify(history.messages)
+    )
       throw new Error('history_changed')
     await rename(temporary, file)
     application.get('DbService').withWriteTx((tx) => {
-      if (JSON.stringify(readImportedHistory(sessionId).messages) !== JSON.stringify(history.messages))
+      if (
+        JSON.stringify(agentSessionMessageService.readImportedHistory(sessionId, tx).messages) !==
+        JSON.stringify(history.messages)
+      )
         throw new Error('history_changed')
       agentSessionMessageService.setImportedAnchorsTx(tx, sessionId, anchors)
       completeImportedHistoryTx(tx, sessionId, state)
