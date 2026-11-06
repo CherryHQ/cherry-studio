@@ -1,9 +1,12 @@
 import { execFile } from 'node:child_process'
-import { createHash, randomUUID } from 'node:crypto'
+import { createHash } from 'node:crypto'
 import { constants } from 'node:fs'
-import { lstat, mkdir, open, readdir, realpath, rename, unlink } from 'node:fs/promises'
+import { lstat, mkdir, open, readdir, realpath, unlink } from 'node:fs/promises'
 import path from 'node:path'
 import { promisify } from 'node:util'
+
+import { prepareAtomicWrite } from '@main/utils/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 export const MEMORY_ENTRY = 'MEMORY.md'
 export const MEMORY_TOPICS = '.memories'
@@ -207,24 +210,11 @@ export async function writeMemoryBytes(
     await unlink(target)
     return
   }
-  const temporary = `${relative}.${randomUUID()}.tmp`
-  const temporaryPath = await assertMemoryPath(root, temporary)
-  const handle = await open(temporaryPath, 'wx', 0o600)
-  try {
-    try {
-      await handle.writeFile(bytes)
-      await handle.sync()
-    } finally {
-      await handle.close()
-    }
+  const prepared = await prepareAtomicWrite(AbsoluteFilePathSchema.parse(target), bytes, { mode: 0o600 })
+  await prepared.commit(async () => {
     await assertMemoryPath(root, relative)
-    assertCurrent()
-    await rename(temporaryPath, target)
-  } finally {
-    await unlink(temporaryPath).catch((error: NodeJS.ErrnoException) => {
-      if (error.code !== 'ENOENT') throw error
-    })
-  }
+    return assertCurrent
+  })
 }
 
 export async function ensureMemoryDirectory(root: string, relative: string): Promise<void> {

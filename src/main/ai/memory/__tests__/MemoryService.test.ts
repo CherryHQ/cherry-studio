@@ -1,6 +1,7 @@
 import '@data/services/AgentSessionMessageService'
 import { randomUUID } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, readdir, rmdir, unlink } from 'node:fs/promises'
+import * as fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -30,6 +31,11 @@ import {
 import { MemoryService } from '../MemoryService'
 import type { MemoryApproval } from '../MemoryStore'
 
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof fs>()
+  return { ...actual, open: vi.fn(actual.open) }
+})
+
 const approve: MemoryApproval = async () => () => undefined
 let fixture: string
 let service: MemoryService
@@ -55,6 +61,7 @@ beforeEach(async () => {
 afterEach(async () => {
   await service['onStop']()
   vi.restoreAllMocks()
+  vi.mocked(fs.open).mockReset()
   MockApplicationUtils.resetServices()
   await removeFixture(fixture)
 })
@@ -168,33 +175,55 @@ describe('lifecycle memory owner', () => {
     expect((await service.open(authority()).read('MEMORY.md')).content).toBe('')
   })
 
-  it('does not revive a stored edit after the real assistant setting is disabled and re-enabled', async () => {
-    const assistantId = randomUUID()
-    const topicId = randomUUID()
-    dbh.db
-      .insert(assistantTable)
-      .values({
-        id: assistantId,
-        name: 'A',
-        emoji: '🌟',
-        orderKey: 'a0',
-        settings: { ...DEFAULT_ASSISTANT_SETTINGS, enableSharedMemory: true }
-      })
-      .run()
-    dbh.db.insert(topicTable).values({ id: topicId, assistantId, orderKey: 'a0' }).run()
-    const caller = assistantMemoryAuthority(
-      { kind: 'conversation', topicId, assistantId },
-      { assertActive: () => undefined, isHeadless: () => false }
-    )
-    const session = service.open(caller)
-    const read = await session.read('MEMORY.md')
-    assistantDataService.update(assistantId, { settings: { enableSharedMemory: false } })
-    assistantDataService.update(assistantId, { settings: { enableSharedMemory: true } })
-    await expect(
-      session.commit([{ kind: 'write', receipt: read.receipt, content: 'Revoked edit' }], approve)
-    ).rejects.toThrow('expired')
-    expect(await readFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), 'utf8')).toBe('')
-  })
+  it.each(['before', 'writeFile', 'sync'] as const)(
+    'keeps real assistant revocation effective during %s',
+    async (stage) => {
+      const assistantId = randomUUID()
+      const topicId = randomUUID()
+      dbh.db
+        .insert(assistantTable)
+        .values({
+          id: assistantId,
+          name: 'A',
+          emoji: '🌟',
+          orderKey: 'a0',
+          settings: { ...DEFAULT_ASSISTANT_SETTINGS, enableSharedMemory: true }
+        })
+        .run()
+      dbh.db.insert(topicTable).values({ id: topicId, assistantId, orderKey: 'a0' }).run()
+      const caller = assistantMemoryAuthority(
+        { kind: 'conversation', topicId, assistantId },
+        { assertActive: () => undefined, isHeadless: () => false }
+      )
+      const session = service.open(caller)
+      const read = await session.read('MEMORY.md')
+      const revoke = () => {
+        assistantDataService.update(assistantId, { settings: { enableSharedMemory: false } })
+        assistantDataService.update(assistantId, { settings: { enableSharedMemory: true } })
+      }
+      if (stage === 'before') revoke()
+      else {
+        const actual = await vi.importActual<typeof fs>('node:fs/promises')
+        vi.mocked(fs.open).mockImplementation(async (...args) => {
+          const handle = await actual.open(...args)
+          if (String(args[0]).startsWith(path.join(fixture, 'feature.memory.data', 'MEMORY.md.tmp-'))) {
+            const original = handle[stage].bind(handle)
+            vi.spyOn(handle, stage).mockImplementation(async (...values: unknown[]) => {
+              const result = await Reflect.apply(original, handle, values)
+              revoke()
+              return result
+            })
+          }
+          return handle
+        })
+      }
+      const pending = session.commit([{ kind: 'write', receipt: read.receipt, content: 'Revoked edit' }], approve)
+      if (stage === 'before') await expect(pending).rejects.toThrow('expired')
+      else expect((await pending).error).toBe('Memory session expired')
+      await expect(session.read('MEMORY.md')).rejects.toThrow('expired')
+      expect(await readFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), 'utf8')).toBe('')
+    }
+  )
 
   it('shares one scope lock while keeping read receipts private to each caller', async () => {
     const first = service.open(authority())
