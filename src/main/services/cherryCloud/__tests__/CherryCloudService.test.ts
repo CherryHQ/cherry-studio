@@ -105,6 +105,7 @@ vi.mock('../CherryCloudLoopbackCallback', () => ({
 
 import { uuid } from 'systeminformation'
 
+import { application } from '@application'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 
 import { CherryCloudLoginUnavailableError, CherryCloudService } from '../CherryCloudService'
@@ -294,6 +295,42 @@ async function createService(): Promise<CherryCloudService> {
   const service = new CherryCloudService()
   await service._doInit()
   return service
+}
+
+function accountPlansWith(entitlementIds: string[]): Response {
+  return jsonResponse({
+    measured_at: '2030-01-02T03:00:00Z',
+    available_plans: [],
+    entitlements: entitlementIds.map((id) => ({
+      id,
+      source: 'checkout',
+      plan: {
+        id: '00000000-0000-4000-8000-000000000041',
+        display_name: 'Plus',
+        is_free: false,
+        default_for_new_accounts: false,
+        quota_pool_count: 0,
+        model_count: 1,
+        purchase_available: true
+      },
+      state: 'active',
+      starts_at: '2030-01-02T03:00:00Z',
+      quota_pools: []
+    }))
+  })
+}
+
+async function signIn(service: CherryCloudService): Promise<void> {
+  mockAuthorizationFlow()
+  mockModelSync({ ...accountSnapshot, entitlements: [] }, { data: [] })
+  await service.startLogin()
+  const createBody = authorizationRequestBody()
+  await loopbackCallback()(
+    new URL(
+      `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
+    )
+  )
+  await service['syncEntitledModels']()
 }
 
 async function createSignedInService(): Promise<CherryCloudService> {
@@ -1362,6 +1399,95 @@ describe('CherryCloudService', () => {
     }
   })
 
+  it.each([
+    [403, 'ENTITLEMENT_INACTIVE'],
+    [429, 'QUOTA_EXHAUSTED']
+  ])('asks for models again after a model request is rejected with %i %s', async (status, code) => {
+    const service = await createSignedInService()
+    mockModelSync()
+    await service.syncEntitledModelsIfStale()
+    mockCloudRoute('/v1/messages', cloudErrorResponse(status, code))
+    await service.authenticatedFetch('/v1/messages', { method: 'POST' })
+    mocks.netFetch.mockClear()
+
+    mockModelSync()
+    await service.syncEntitledModelsIfStale()
+
+    expect(requestCalls('/v1/models?limit=1000')).toHaveLength(1)
+  })
+
+  it('asks for models again after the system wakes from sleep', async () => {
+    const service = await createSignedInService()
+    mockModelSync()
+    await service.syncEntitledModelsIfStale()
+    const [onResume] = vi.mocked(application.get('PowerService').onResume).mock.calls.at(-1) as unknown as [() => void]
+    onResume()
+    mocks.netFetch.mockClear()
+
+    mockModelSync()
+    await service.syncEntitledModelsIfStale()
+
+    expect(requestCalls('/v1/models?limit=1000')).toHaveLength(1)
+  })
+
+  it('does not keep a model snapshot alive when the system clock moves back', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2030-01-02T03:00:00Z'))
+      const service = await createSignedInService()
+      mockModelSync()
+      await service['syncEntitledModels']()
+      vi.setSystemTime(new Date('2030-01-02T02:00:00Z'))
+      await vi.advanceTimersByTimeAsync(60_001)
+      mocks.netFetch.mockClear()
+
+      mockModelSync()
+      await service.syncEntitledModelsIfStale()
+
+      expect(requestCalls('/v1/models?limit=1000')).toHaveLength(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('refreshes the model snapshot once account plans show a new active entitlement', async () => {
+    const service = await createSignedInService()
+    const plansWith = accountPlansWith
+    mockModelSync()
+    await service.syncEntitledModelsIfStale()
+    mockCloudRoute('/api/v1/account/plans', plansWith([]))
+    await service.getAccountPlans()
+    mockCloudRoute('/api/v1/account/plans', plansWith([]))
+    await service.getAccountPlans()
+    mocks.netFetch.mockClear()
+    await service.syncEntitledModelsIfStale()
+    expect(requestCalls('/v1/models?limit=1000')).toHaveLength(0)
+
+    mockCloudRoute('/api/v1/account/plans', plansWith(['00000000-0000-4000-8000-000000000050']))
+    await service.getAccountPlans()
+    mockModelSync()
+    await service.syncEntitledModelsIfStale()
+
+    expect(requestCalls('/v1/models?limit=1000')).toHaveLength(1)
+  })
+
+  it('compares account plans only with plans seen in the same session', async () => {
+    const service = await createSignedInService()
+    mockCloudRoute('/api/v1/account/plans', accountPlansWith(['00000000-0000-4000-8000-000000000050']))
+    await service.getAccountPlans()
+    mockCloudRoute('/api/v1/product-sessions/current', new Response(null, { status: 204 }))
+    await service.revokeCurrentSession()
+
+    await signIn(service)
+    mocks.netFetch.mockClear()
+    // The next account's first plans differ from the previous account's; that is not a purchase.
+    mockCloudRoute('/api/v1/account/plans', accountPlansWith([]))
+    await service.getAccountPlans()
+    await service.syncEntitledModelsIfStale()
+
+    expect(requestCalls('/v1/models?limit=1000')).toHaveLength(0)
+  })
+
   it('bounds model sync requests without clearing the retriable Session', async () => {
     const service = await createSignedInService()
     const timeoutController = new AbortController()
@@ -1665,12 +1791,14 @@ describe('CherryCloudService', () => {
 
   it('observes recovery rejection when session expiry synchronously cancels model sync', async () => {
     const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2030-01-02T03:00:00Z'))
+    const elapsed = vi.spyOn(performance, 'now').mockReturnValue(0)
     try {
       const service = await createSignedInService()
       const unauthorized = deferred<Response>()
       mockCloudRoute('/api/v1/account', unauthorized.promise)
       mockCloudRoute('/v1/models?limit=1000', jsonResponse({ data: [] }))
       clock.mockReturnValue(Date.parse('2030-01-02T03:02:00Z'))
+      elapsed.mockReturnValue(120_000)
       const sync = service.syncEntitledModelsIfStale()
       const cancelled = expect(sync).rejects.toMatchObject({ name: 'AbortError' })
       await vi.waitFor(() => expect(requestCalls('/api/v1/account')).toHaveLength(1))
@@ -1682,6 +1810,7 @@ describe('CherryCloudService', () => {
       expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(0)
     } finally {
       clock.mockRestore()
+      elapsed.mockRestore()
     }
   })
 

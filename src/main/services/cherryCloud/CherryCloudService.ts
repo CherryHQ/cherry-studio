@@ -7,7 +7,7 @@ import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import { SignatureClient } from '@main/ai/provider/cherryai'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getAppEdition } from '@main/utils/appEdition'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import {
@@ -146,6 +146,7 @@ function abortable<T>(promise: Promise<T>, signal?: AbortSignal | null): Promise
 
 @Injectable('CherryCloudService')
 @ServicePhase(Phase.WhenReady)
+@DependsOn(['PowerService'])
 export class CherryCloudService extends BaseService {
   private cloudState = emptyState()
   private machineCode: string | null = null
@@ -164,6 +165,7 @@ export class CherryCloudService extends BaseService {
     result: CherryCloudModelSyncResult
   } | null = null
   private sessionGeneration = 0
+  private knownActiveEntitlements: { sessionGeneration: number; ids: string } | null = null
   private loopbackCallback: CherryCloudLoopbackCallback | null = null
   private pendingExpiryTimer: ReturnType<typeof setTimeout> | null = null
   private sessionExpiryTimer: ReturnType<typeof setTimeout> | null = null
@@ -184,6 +186,8 @@ export class CherryCloudService extends BaseService {
       this.clearPendingExpiryTimer()
       this.clearSessionExpiryTimer()
     })
+    // A plan can end while the machine sleeps, so the snapshot taken before sleep is not reused.
+    this.registerDisposable(application.get('PowerService').onResume(() => (this.modelSyncCache = null)))
     await this.restoreSession()
     if (this.cloudState.session) void this.syncEntitledModels().catch(() => undefined)
   }
@@ -587,7 +591,7 @@ export class CherryCloudService extends BaseService {
     const sync = this.syncEntitledModelsOnce(generation, signal)
       .then((result) => {
         if (this.sessionGeneration === generation) {
-          this.modelSyncCache = { generation, syncedAt: Date.now(), result }
+          this.modelSyncCache = { generation, syncedAt: performance.now(), result }
         }
         return result
       })
@@ -609,7 +613,11 @@ export class CherryCloudService extends BaseService {
   public async syncEntitledModelsIfStale(): Promise<CherryCloudModelSyncResult> {
     await this.pruneExpiredState()
     const cached = this.modelSyncCache
-    if (cached?.generation === this.sessionGeneration && Date.now() - cached.syncedAt < CLOUD_MODEL_SYNC_CACHE_TTL_MS) {
+    // Monotonic time, so moving the system clock back cannot keep a snapshot alive.
+    if (
+      cached?.generation === this.sessionGeneration &&
+      performance.now() - cached.syncedAt < CLOUD_MODEL_SYNC_CACHE_TTL_MS
+    ) {
       return cached.result
     }
     return this.syncEntitledModels()
@@ -626,9 +634,22 @@ export class CherryCloudService extends BaseService {
   }
 
   public async getAccountPlans(): Promise<CherryCloudAccountPlans> {
-    return this.getAuthenticatedJson('/api/v1/account/plans', accountPlansSchema, {
+    const sessionGeneration = this.sessionGeneration
+    const plans = await this.getAuthenticatedJson('/api/v1/account/plans', accountPlansSchema, {
       signal: AbortSignal.timeout(CLOUD_CONTROL_REQUEST_TIMEOUT_MS)
     })
+    if (sessionGeneration !== this.sessionGeneration) return plans
+    // A started or ended entitlement changes model access, so the cached model snapshot is stale.
+    // Only plans of the same session count; another account's are not a change.
+    const ids = plans.entitlements
+      .filter((item) => item.state === 'active')
+      .map((item) => item.id)
+      .sort()
+      .join()
+    const known = this.knownActiveEntitlements
+    if (known?.sessionGeneration === sessionGeneration && ids !== known.ids) this.invalidateModelSync()
+    this.knownActiveEntitlements = { sessionGeneration, ids }
+    return plans
   }
 
   private async syncEntitledModelsOnce(
@@ -851,6 +872,13 @@ export class CherryCloudService extends BaseService {
 
     // Cloud strips upstream Cherry-* headers, so upstream 401 bodies cannot invalidate the login.
     const code = response.headers.get('Cherry-Error-Code')
+    // The snapshot let this request through, so the next check asks the server again.
+    if (
+      (response.status === 403 && code === 'ENTITLEMENT_INACTIVE') ||
+      (response.status === 429 && code === 'QUOTA_EXHAUSTED')
+    ) {
+      this.modelSyncCache = null
+    }
     const refreshRequired = response.status === 401 && code === 'AUTH_REQUIRED'
     const replayed = response.status === 409 && code === 'REQUEST_REPLAYED'
     if (!refreshRequired && !replayed) return response
