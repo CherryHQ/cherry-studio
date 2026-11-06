@@ -8,8 +8,9 @@ import { usePreference } from '@data/hooks/usePreference'
 import { CommandShortcut } from '@renderer/components/command'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
+import { useCherryCloudSubscribeReminder } from '@renderer/hooks/useCherryCloudPlans'
 import { ipcApi } from '@renderer/ipc'
-import { openCherryCloudAccountPortal } from '@renderer/services/cherryCloudAccountPortal'
+import { startCherryCloudSubscription } from '@renderer/services/cherryCloudSubscription'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { getAppEdition } from '@renderer/utils/appEdition'
 import { isEmoji } from '@renderer/utils/naming'
@@ -39,6 +40,7 @@ export function UserAccountPanel({
     isAuthorizing
   } = useCherryAccountSession()
   const isGlobalEdition = getAppEdition() === 'global'
+  const showSubscribeDot = useCherryCloudSubscribeReminder()
   const isCloudSignedIn = cloudStatus?.phase === 'signed-in'
 
   const accountId = isCloudSignedIn ? cloudStatus.accountId : null
@@ -98,7 +100,7 @@ export function UserAccountPanel({
     if (cloudStatusLoadState === 'error') {
       void loadCloudStatus()
     } else if (!isCloudSignedIn) {
-      void handleCloudLogin()
+      void startCherryCloudSubscription()
     } else if (plansError && !plans) {
       void reloadPlans().catch(() => {})
     } else if (plans) {
@@ -106,7 +108,7 @@ export function UserAccountPanel({
       if (paidPlanName) {
         openSettingsTab('/settings/profile')
       } else {
-        void openCherryCloudAccountPortal()
+        void startCherryCloudSubscription()
       }
     }
   }
@@ -191,6 +193,13 @@ export function UserAccountPanel({
           </span>
           <span className="ml-auto flex min-w-0 items-center gap-1 text-muted-foreground">
             <span className="truncate">{subscriptionAction}</span>
+            {showSubscribeDot && !subscriptionLoading && (
+              <span
+                aria-hidden
+                data-testid="subscribe-reminder-dot"
+                className="size-1.5 shrink-0 rounded-full bg-destructive"
+              />
+            )}
             <ChevronRight className="size-4 shrink-0" aria-hidden />
           </span>
         </Button>

@@ -5,6 +5,7 @@ import type { ChannelStatus } from '@shared/data/types/channel'
 import type { FileProcessingTask } from '@shared/data/types/fileProcessing'
 import type { MiniAppRegion, TransientMiniApp } from '@shared/data/types/miniApp'
 import type { Currency } from '@shared/data/types/model'
+import type { CherryCloudPlanModel } from '@shared/ipc/schemas/cherryCloud'
 import type { AutoBackupEvent, AutoBackupType } from '@shared/types/backup'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import type { ManagedToolStatusState } from '@shared/types/managedTool'
@@ -508,6 +509,11 @@ export type RendererPersistCacheSchema = {
   'ui.screenshot.annotation_color': string
   'ui.screenshot.annotation_stroke_width': number
   'ui.screenshot.annotation_font_size': number
+  // Set once any Subscribe touchpoint is used; hides the account-avatar subscription dot for good.
+  'ui.cherry_cloud.subscribe_prompt_seen': boolean
+  // Paid plan models last seen while signed in; the plans API needs a session, and the model picker
+  // keeps offering them as locked rows after sign-out.
+  'ui.cherry_cloud.plan_models': CherryCloudPlanModel[]
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
@@ -559,7 +565,9 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   // or the overlay opens with no swatch, width or size marked as current.
   'ui.screenshot.annotation_color': '#F54A45',
   'ui.screenshot.annotation_stroke_width': 4,
-  'ui.screenshot.annotation_font_size': 20
+  'ui.screenshot.annotation_font_size': 20,
+  'ui.cherry_cloud.subscribe_prompt_seen': false,
+  'ui.cherry_cloud.plan_models': []
 }
 
 /**
