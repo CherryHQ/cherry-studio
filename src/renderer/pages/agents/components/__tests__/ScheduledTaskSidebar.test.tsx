@@ -38,32 +38,6 @@ const task = {
   trigger: { kind: 'interval', ms: 60000 }
 } as ScheduledTaskListItem
 
-it.each(['completed', 'missed'] as const)('opens %s task history and keeps valid actions', async (status) => {
-  const select = vi.fn()
-  const user = userEvent.setup()
-  render(
-    <ScheduledTaskGroup
-      status={status}
-      source={source({ tasks: [{ ...task, status }] })}
-      agents={new Map()}
-      onSelect={select}
-    />
-  )
-  expect(screen.getByRole('region', { name: status === 'completed' ? 'Completed' : 'Missed' })).toBeVisible()
-  await user.click(screen.getByRole('button', { name: /Daily report agent/ }))
-  expect(select).toHaveBeenCalledWith('task')
-  await user.click(screen.getByRole('button', { name: 'More Daily report' }))
-  expect(screen.queryByRole('menuitem', { name: 'Pause' })).not.toBeInTheDocument()
-  expect(screen.queryByRole('menuitem', { name: 'Continue' })).not.toBeInTheDocument()
-  expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeVisible()
-  if (status === 'completed') {
-    expect(screen.queryByRole('menuitem', { name: 'Edit' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('menuitem', { name: 'Run now' })).not.toBeInTheDocument()
-  } else {
-    expect(screen.getByRole('menuitem', { name: 'Edit' })).toBeVisible()
-    expect(screen.getByRole('menuitem', { name: 'Run now' })).toBeVisible()
-  }
-})
 function source(overrides: Partial<ScheduledTaskGroupProps['source']> = {}): ScheduledTaskGroupProps['source'] {
   return {
     tasks: [task],

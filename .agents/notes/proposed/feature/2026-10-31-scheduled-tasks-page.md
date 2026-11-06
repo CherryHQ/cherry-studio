@@ -20,7 +20,7 @@ The implementation branch now contains the page. This Spec remains proposed unti
 
 - Add a Scheduled tasks entry to the global sidebar and a dedicated page using the Chat and Agents layout.
 - Put Add scheduled task at the top of the page sidebar; open a centered Create scheduled task modal in the current window.
-- Keep four groups below the button: Active, Paused, Completed, and Missed. Selecting a task displays its associated conversation on the same page.
+- Keep two groups below the button: Active and Paused. Selecting a task displays its associated conversation on the same page.
 - Reuse the shared form and the creation integration pattern from [PR #21849](https://github.com/CherryHQ/cherry-studio/pull/21849).
 - Preserve the conversation composer, runtime events, tool output, approvals, and busy-state protections.
 
@@ -45,8 +45,6 @@ Task execution, retries, recovery, and concurrency rules remain owned by the exi
 |                 | Paused (total)           |                                    |
 |                 |   Task C                 |                                    |
 |                 |   Group pagination       | Existing conversation composer     |
-|                 | Completed / Missed       |                                    |
-|                 |   Group pagination       |                                    |
 +-----------------+--------------------------+------------------------------------+
 ```
 
@@ -101,8 +99,8 @@ If removal from a group leaves its current page out of range, return to that gro
 | --- | --- | --- |
 | `active` | Active | Uses the existing derived state; it does not mean currently executing |
 | `paused` | Paused | Uses the existing derived state; it does not include every disabled task |
-| `completed` | Completed | A one-shot schedule has fired; this does not imply successful output |
-| `missed` | Missed | Preserves the existing missed-execution meaning |
+| `completed` | Not listed | A one-shot schedule has fired; this does not imply successful output |
+| `missed` | Not listed | Preserves the existing missed-execution meaning |
 
 `deriveStatus` in `AgentTaskService.ts` gives `missed` precedence, then a fired one-shot `completed`, then `paused / active`.
 Do not classify by `enabled` alone or interpret the schedule's `completed` state as successful execution output.
@@ -114,8 +112,8 @@ Add an optional `status` enum query to `/agent-tasks`, preserving current behavi
 Filter in the main process using the existing derivation before calculating `total` and taking the page slice.
 Do not filter only the current 50 records, transfer every task to the renderer, or join per-Agent queries.
 
-The settings entry and its duplicate page are removed. All four states remain accessible on this page.
-Completed tasks offer Delete only; missed tasks offer Run now, Edit, and Delete. Only active and paused tasks offer pause/resume.
+The settings entry and its duplicate page are removed. Only active and paused tasks are listed on this page.
+Completed and missed tasks have no sidebar group. Preserve their stored records and shared APIs. Existing task links and an already-selected conversation remain valid.
 When the selected task reaches an end state, update the list without forcibly closing its already-open conversation.
 
 ### Resolving an associated conversation
@@ -224,7 +222,7 @@ If repeated group scans cause noticeable stalls, address them within the owning 
 1. Confirm the implementation baseline and shared-form contract, then review the design, data, and frontend testing rules.
 2. Add state filtering before pagination and expose log paging; verify totals, state precedence, and old-caller compatibility.
 3. Add the entry, route, title, icon, and preference upgrade; adapt the existing conversation composition layer.
-4. Connect the shared form, all four task groups, pause and resume, association resolution, and empty states.
+4. Connect the shared form, both task groups, pause and resume, association resolution, and empty states.
 5. Verify the affected contracts, desktop behavior, accessibility, concurrency, and performance; update affected documentation and generated route materials.
 
 ## Alternatives considered
@@ -258,6 +256,6 @@ This documentation change runs the docs gates only; none of the product criteria
 ## Risks
 
 - Route coupling: `AgentPage` and navigation ownership assume the Agents route. A partial adapter can redirect selection or duplicate a stream; keep the extraction small and verify both views and multiple windows.
-- Scan cost: four filtered groups may repeat the existing task scan, and log totals require counting. Measure those costs instead of describing limited log hydration as constant-cost database work.
-- End-state placement: all four states stay accessible after removing the settings page. Do not close an open conversation when its task changes state.
+- Scan cost: two filtered groups may repeat the existing task scan, and log totals require counting. Measure those costs instead of describing limited log hydration as constant-cost database work.
+- End-state placement: completed and missed tasks are intentionally omitted from the sidebar. Do not close an open conversation when its task changes state.
 - Scheduled execution and user input may share a reused session. Preserve existing concurrency, busy-state, and approval rules; the new page must not bypass them or make pause appear to cancel active work.
