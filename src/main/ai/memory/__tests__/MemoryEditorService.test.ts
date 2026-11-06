@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, readdir, rmdir, unlink } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rmdir, unlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -65,56 +65,39 @@ describe('memory editor command boundary', () => {
     expect(await readdir(fixture)).toEqual([])
   })
 
-  it('binds editor IDs and read receipts to their real window and reports stale saves', async () => {
+  it('binds clear tokens to their real window', async () => {
     const a = await memoryHandlers['memory.editor.open']({ kind: 'shared' }, main)
-    const b = await memoryHandlers['memory.editor.open']({ kind: 'shared' }, { senderId: 'second' })
-    const read = await memoryHandlers['memory.file.read']({ editorId: a.editorId, path: 'MEMORY.md' }, main)
+    const second = { senderId: 'second' }
+    const b = await memoryHandlers['memory.editor.open']({ kind: 'shared' }, second)
+    await memoryHandlers['memory.clear.preview']({ editorId: a.editorId }, main)
+    await writeFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), 'Keep me')
+    const preview = await memoryHandlers['memory.clear.preview']({ editorId: a.editorId }, main)
+    await expect(memoryHandlers['memory.clear.preview']({ editorId: a.editorId }, second)).rejects.toThrow()
     await expect(
-      memoryHandlers['memory.file.read']({ editorId: a.editorId, path: 'MEMORY.md' }, { senderId: 'second' })
-    ).rejects.toThrow()
-    await expect(
-      memoryHandlers['memory.file.write'](
-        { editorId: b.editorId, receipt: read.receipt, content: 'Stolen' },
-        { senderId: 'second' }
-      )
+      memoryHandlers['memory.clear.confirm']({ editorId: b.editorId, token: preview.token }, second)
     ).rejects.toMatchObject({ data: { reason: 'invalid-receipt' } })
-    const other = await memoryHandlers['memory.file.read'](
-      { editorId: b.editorId, path: 'MEMORY.md' },
-      { senderId: 'second' }
-    )
-    await memoryHandlers['memory.file.write'](
-      { editorId: b.editorId, receipt: other.receipt, content: 'New content' },
-      { senderId: 'second' }
-    )
-    await expect(
-      memoryHandlers['memory.file.write']({ editorId: a.editorId, receipt: read.receipt, content: 'Stale' }, main)
-    ).rejects.toMatchObject({ data: { reason: 'conflict' } })
-    expect(await readFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), 'utf8')).toBe('New content')
+    expect(await readFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), 'utf8')).toBe('Keep me')
   })
 
   it('requires a matching clear preview and restores the confirmed operation', async () => {
     const { editorId } = await memoryHandlers['memory.editor.open']({ kind: 'shared' }, main)
-    const read = await memoryHandlers['memory.file.read']({ editorId, path: 'MEMORY.md' }, main)
-    await memoryHandlers['memory.file.write']({ editorId, receipt: read.receipt, content: 'Remember me' }, main)
+    await memoryHandlers['memory.clear.preview']({ editorId }, main)
+    await writeFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), 'Remember me')
     const preview = await memoryHandlers['memory.clear.preview']({ editorId }, main)
     const cleared = await memoryHandlers['memory.clear.confirm']({ editorId, token: preview.token }, main)
     expect(cleared.files).toMatchObject([{ path: 'MEMORY.md', outcome: 'applied' }])
     const recovery = await memoryHandlers['memory.recovery.preview']({ editorId }, main)
     await memoryHandlers['memory.recovery.confirm']({ editorId, token: recovery!.token }, main)
-    expect((await memoryHandlers['memory.file.read']({ editorId, path: 'MEMORY.md' }, main)).content).toBe(
-      'Remember me'
-    )
+    expect(await readFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), 'utf8')).toBe('Remember me')
   })
 
   it('expires editors when their window is destroyed even if that window ID is later reused', async () => {
     const { editorId } = await memoryHandlers['memory.editor.open']({ kind: 'shared' }, main)
-    const read = await memoryHandlers['memory.file.read']({ editorId, path: 'MEMORY.md' }, main)
+    const preview = await memoryHandlers['memory.clear.preview']({ editorId }, main)
     windows.delete('main')
     destroyed.fire({ id: 'main' })
     windows.add('main')
-    await expect(
-      memoryHandlers['memory.file.write']({ editorId, receipt: read.receipt, content: 'Old window' }, main)
-    ).rejects.toThrow()
+    await expect(memoryHandlers['memory.clear.confirm']({ editorId, token: preview.token }, main)).rejects.toThrow()
     expect(await readFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), 'utf8')).toBe('')
   })
 })
