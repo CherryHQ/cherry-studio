@@ -51,7 +51,6 @@ import AgentChatMain from './AgentChatMain'
 import AgentComposerSlot from './AgentComposerSlot'
 import { AgentChatNavbar } from './components/AgentChatNavbar'
 import AgentCitationsPanel from './components/AgentCitationsPanel'
-import { AgentMemoryShortcut } from './components/AgentMemoryDialog'
 import { type AgentFileNavigationRequest, AgentRightPane, AgentTaskProgressCapsule } from './components/AgentRightPane'
 import { locateAgentMessageInList } from './messages/agentMessageListAdapter'
 import type { CreateAgentSessionDefaults } from './types'
@@ -532,7 +531,6 @@ const AgentChat = ({
     !centerSurface && (sessionSnapshot || resourcePane) ? (
       <>
         {resourcePaneCount && <ResourcePaneCountButton {...resourcePaneCount} />}
-        {activeAgent && <AgentMemoryShortcut agent={activeAgent} />}
         <AgentRightPane.Shortcuts
           browserEnabled={!!activeAgent && !activeAgent.disabledTools?.includes(BROWSER_TOOL_GROUP)}
         />
