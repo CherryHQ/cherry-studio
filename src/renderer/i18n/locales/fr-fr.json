@@ -3006,7 +3006,6 @@
   "notification.center.result.failed": "Échec",
   "notification.center.result.interrupted": "Interrompu",
   "notification.center.result.succeeded": "Terminé",
-  "notification.center.retention": "Les notifications sont conservées pendant 30 jours.",
   "notification.center.system": "Système",
   "notification.center.title": "Centre de notifications",
   "notification.center.unavailable": "Cette notification n’est plus disponible.",

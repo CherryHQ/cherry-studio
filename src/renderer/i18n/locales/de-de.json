@@ -3006,7 +3006,6 @@
   "notification.center.result.failed": "Fehlgeschlagen",
   "notification.center.result.interrupted": "Unterbrochen",
   "notification.center.result.succeeded": "Abgeschlossen",
-  "notification.center.retention": "Benachrichtigungen werden 30 Tage lang gespeichert.",
   "notification.center.system": "System",
   "notification.center.title": "Benachrichtigungszentrale",
   "notification.center.unavailable": "Diese Benachrichtigung ist nicht mehr verfügbar.",

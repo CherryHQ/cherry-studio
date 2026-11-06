@@ -3006,7 +3006,6 @@
   "notification.center.result.failed": "ล้มเหลว",
   "notification.center.result.interrupted": "ถูกขัดจังหวะ",
   "notification.center.result.succeeded": "เสร็จสิ้น",
-  "notification.center.retention": "การแจ้งเตือนจะถูกเก็บไว้เป็นเวลา 30 วัน",
   "notification.center.system": "ระบบ",
   "notification.center.title": "ศูนย์การแจ้งเตือน",
   "notification.center.unavailable": "การแจ้งเตือนนี้ไม่พร้อมใช้งานอีกต่อไป",

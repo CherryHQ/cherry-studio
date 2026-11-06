@@ -2,7 +2,7 @@ import { Bell, CalendarClock, Check } from 'lucide-react'
 import { createContext, lazy, Suspense, use, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Drawer, DrawerContent, DrawerTitle, DrawerDescription, ScrollArea, Tooltip } from '@cherrystudio/ui'
+import { Button, Drawer, DrawerContent, DrawerTitle, ScrollArea, Tooltip } from '@cherrystudio/ui'
 import { useDataChange, useInfiniteFlatItems, useInfiniteQuery, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
@@ -391,6 +391,7 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
       <Drawer open={open} onOpenChange={changeOpen} direction={side} modal={false}>
         <DrawerContent
           id="notification-center"
+          aria-describedby={undefined}
           showOverlay={false}
           portalContainer={portalContainer}
           style={{
@@ -439,9 +440,6 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
               onDismissRequested={() => setRequestedId(null)}
             />
           </ScrollArea>
-          <DrawerDescription className="shrink-0 border-t border-border-subtle px-6 py-2 text-xs">
-            {t('notification.center.retention')}
-          </DrawerDescription>
         </DrawerContent>
       </Drawer>
     </NotificationCenterContext>

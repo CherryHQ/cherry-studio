@@ -3006,7 +3006,6 @@
   "notification.center.result.failed": "Eșuat",
   "notification.center.result.interrupted": "Întrerupt",
   "notification.center.result.succeeded": "Finalizat",
-  "notification.center.retention": "Notificările sunt păstrate timp de 30 de zile.",
   "notification.center.system": "Sistem",
   "notification.center.title": "Centru de notificări",
   "notification.center.unavailable": "Această notificare nu mai este disponibilă.",

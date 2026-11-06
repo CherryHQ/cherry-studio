@@ -3006,7 +3006,6 @@
   "notification.center.result.failed": "Ошибка",
   "notification.center.result.interrupted": "Прервано",
   "notification.center.result.succeeded": "Завершено",
-  "notification.center.retention": "Уведомления хранятся 30 дней.",
   "notification.center.system": "Система",
   "notification.center.title": "Центр уведомлений",
   "notification.center.unavailable": "Это уведомление больше недоступно.",
