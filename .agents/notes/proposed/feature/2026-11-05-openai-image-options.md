@@ -33,7 +33,7 @@ SDK 7 would expand the migration beyond the image requirement. Custom HTTP seria
 
 ## Risks
 
-The guide and SDK allow 2–64 frames, but the current API Reference specifies 2–16; the catalog follows the stricter endpoint reference. The SDK limits frame duration to 20–2000 ms, so Desktop exposes that subset without narrowing the public API catalog. Real validation records actual response metadata. GIF editing and other new SDK options such as SVG and markup are deferred. The catalog release floor must match the release that actually ships the runtime changes.
+The OpenAI guide and API Reference specify 2–16 frames, while SDK 3.0.137 permits 2–64; the catalog follows the documented 16-frame ceiling. The SDK limits frame duration to 20–2000 ms, so Desktop exposes that subset without narrowing the public API catalog. Real validation records actual response metadata. GIF editing and other new SDK options such as SVG and markup are deferred. The catalog release floor must match the release that actually ships the runtime changes.
 
 Sources: [OpenAI image guide](https://developers.openai.com/api/docs/guides/image-generation), [AI SDK 6 backport](https://github.com/vercel/ai/pull/24561), [Images API Reference](https://developers.openai.com/api/reference/resources/images/methods/generate).
 
