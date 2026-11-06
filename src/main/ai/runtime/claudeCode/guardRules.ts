@@ -85,6 +85,14 @@ const unsupportedImageRead = (ctx: ToolGuardContext): GuardHit | null => {
   return { evidence: requestedPath }
 }
 
+const unsupportedDocumentRead = (ctx: ToolGuardContext): GuardHit | null => {
+  if (ctx.supportsDocuments !== false) return null
+  const requestedPath = ctx.input?.file_path
+  if (typeof requestedPath !== 'string' || !requestedPath || path.extname(requestedPath).toLowerCase() !== '.pdf')
+    return null
+  return { evidence: requestedPath }
+}
+
 const pathOutsideAllowedRoots = async (ctx: ToolGuardContext): Promise<GuardHit | null> => {
   const pathField = WORKSPACE_PATH_FIELDS[ctx.toolName as keyof typeof WORKSPACE_PATH_FIELDS]
   if (!pathField) return null
@@ -149,6 +157,14 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     effect: 'deny',
     reason: (hit) =>
       `The selected model does not support image input, so Read cannot open ${hit.evidence}. Use a vision-capable model or inspect the file through a text-only alternative.`
+  },
+  {
+    id: 'unsupported-document-read',
+    bypassBehavior: 'enforce',
+    match: { tool: 'Read', when: unsupportedDocumentRead },
+    effect: 'deny',
+    reason: (hit) =>
+      `The selected connection does not support native PDF document input, so Read cannot open ${hit.evidence}. Use mcp__cherry-tools__to_markdown to convert the PDF to Markdown, then Read the returned Markdown path.`
   },
   {
     // Global/shared installs leak into ~/.bun, ~/.local/share/uv, … shared by every agent, so this

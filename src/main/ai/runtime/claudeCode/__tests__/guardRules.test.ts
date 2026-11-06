@@ -143,6 +143,49 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     })
   })
 
+  describe('unsupported-document-read', () => {
+    it.each(['default', 'acceptEdits', 'bypassPermissions'] as const)(
+      'enforces PDF denial under %s',
+      async (permissionMode) => {
+        for (const filePath of ['/ws/report.pdf', '/ws/report.PDF']) {
+          for (const interaction of [INTERACTIVE, HEADLESS]) {
+            expect(
+              await evaluate(
+                makeCtx({
+                  toolName: 'Read',
+                  input: { file_path: filePath, pages: '1' },
+                  supportsDocuments: false,
+                  permissionMode,
+                  interaction
+                })
+              )
+            ).toEqual({
+              effect: 'deny',
+              ruleId: 'unsupported-document-read',
+              reason: `The selected connection does not support native PDF document input, so Read cannot open ${filePath}. Use mcp__cherry-tools__to_markdown to convert the PDF to Markdown, then Read the returned Markdown path.`
+            })
+          }
+        }
+      }
+    )
+
+    it('does not match supported, missing, malformed, non-PDF or other tool calls', async () => {
+      for (const overrides of [
+        { supportsDocuments: true, input: { file_path: '/ws/a.pdf' } },
+        { input: { file_path: '/ws/a.pdf' } },
+        { supportsDocuments: false, input: { file_path: '/ws/a.docx' } },
+        { supportsDocuments: false, input: { file_path: '' } },
+        { supportsDocuments: false, input: { file_path: 123 } },
+        { supportsDocuments: false, input: undefined },
+        { supportsDocuments: false, toolName: 'Bash', input: { command: 'pdftotext /ws/a.pdf' } }
+      ]) {
+        expect((await evaluate(makeCtx({ toolName: 'Read', ...overrides })))?.ruleId).not.toBe(
+          'unsupported-document-read'
+        )
+      }
+    })
+  })
+
   describe('builtin-destructive', () => {
     it('denies destructive Bash for protected built-in agents in every mode', async () => {
       for (const mode of ['default', 'bypassPermissions'] as const) {
