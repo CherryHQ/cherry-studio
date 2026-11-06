@@ -1,9 +1,11 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { stampAndSerialize } from '../../packages/provider-registry/scripts/catalogSerialization.mjs'
 import { REGISTRY_MIN_APP_VERSION, REGISTRY_SCHEMA_VERSION } from '../../packages/provider-registry/src/registry-loader'
 import { publishRegistryCatalog } from '../publishRegistryCatalog'
 
@@ -35,6 +37,24 @@ function writeCatalog(sourceDirectory: string, override: Record<string, unknown>
     path.join(sourceDirectory, 'provider-models.json'),
     JSON.stringify({ version: 'pm1', overrides: [override] })
   )
+}
+
+// Legacy validators discard parse results; expose the actual reader in a temporary copy.
+// The immutable shipped bundle and its schema implementation remain unchanged.
+async function readFrozenCatalog(version: number) {
+  const baselinePath = path.join(COMPAT_DIRECTORY, `v${version}-validator.mjs`)
+  const baseline = await import(pathToFileURL(baselinePath).href)
+  const validateSource = baseline.validateCatalogFile.toString()
+  const readSource = validateSource.replace(/(\{\s*)([\w$]+\[[\w$]+\]\.parse\([\w$]+\))(;?\s*\})$/, '$1return $2$3')
+  if (validateSource === readSource) throw new Error('Unsupported frozen validator entry point')
+  const source = fs.readFileSync(baselinePath, 'utf8')
+  if (!source.includes(validateSource)) throw new Error('Frozen validator function source was not found')
+  // Keep Node resolution available for v2's immutable external semver import.
+  const directory = fs.mkdtempSync(path.join(__dirname, 'registry-reader-'))
+  temporaryDirectories.push(directory)
+  const readerPath = path.join(directory, `v${version}-reader.mjs`)
+  fs.writeFileSync(readerPath, source.replace(validateSource, readSource))
+  return (await import(pathToFileURL(readerPath).href)).validateCatalogFile
 }
 
 const OVERRIDE_WITH_UNKNOWN_EFFORT = {
@@ -120,6 +140,132 @@ describe('publishRegistryCatalog', () => {
     expect(() => validateCatalogFile('provider-models.json', v1)).not.toThrow()
   })
 
+  it('retains a legacy model when optional image parameter vocabulary expands', async () => {
+    const { sourceDirectory, destinationDirectory } = makeDirectories()
+    writeCatalog(sourceDirectory, OVERRIDE_WITH_UNKNOWN_EFFORT)
+    const readV3 = await readFrozenCatalog(3)
+    const model = {
+      id: 'legacy-image-model',
+      name: 'Legacy image model',
+      imageGeneration: {
+        modes: {
+          generate: {
+            supports: {
+              quality: { type: 'enum', options: ['low', 'high'] }
+            }
+          }
+        }
+      }
+    }
+    expect(readV3('models.json', { version: 'm1', models: [model] }).models).toHaveLength(1)
+    const expanded = structuredClone(model)
+    Object.assign(expanded.imageGeneration.modes.generate.supports, {
+      futureImageOption: { type: 'text' }
+    })
+    const input = JSON.stringify({ version: 'm1', models: [expanded] })
+    expect(readV3('models.json', JSON.parse(input)).models).toHaveLength(0)
+    fs.writeFileSync(path.join(sourceDirectory, 'models.json'), input)
+
+    await publishRegistryCatalog({ ...publishOptions, sourceDirectory, destinationDirectory, currentVersion: 4 })
+
+    const wire = JSON.parse(fs.readFileSync(path.join(destinationDirectory, 'v3/models.json'), 'utf8'))
+    // Independently calculated SHA-256 of the version-less canonical fixture.
+    expect(wire.version).toBe('157664e676b7c329')
+    const manifest = JSON.parse(fs.readFileSync(path.join(destinationDirectory, 'v3/manifest.json'), 'utf8'))
+    expect(manifest.files['models.json']).toBe(wire.version)
+    const decoded = readV3('models.json', wire)
+    expect(decoded.models).toContainEqual(
+      expect.objectContaining({
+        id: 'legacy-image-model',
+        imageGeneration: {
+          modes: {
+            generate: {
+              supports: {
+                quality: { type: 'enum', options: ['low', 'high'] }
+              }
+            }
+          }
+        }
+      })
+    )
+    expect(fs.readFileSync(path.join(sourceDirectory, 'models.json'), 'utf8')).toBe(input)
+  })
+
+  it.each([1, 2, 3])('preserves models and overrides in every v%s image mode', async (version) => {
+    const { sourceDirectory, destinationDirectory } = makeDirectories()
+    writeCatalog(sourceDirectory, OVERRIDE_WITH_UNKNOWN_EFFORT)
+    const read = await readFrozenCatalog(version)
+    const known = { quality: { type: 'enum', options: ['high', 'low'] } }
+    const modes = Object.fromEntries(
+      ['generate', 'edit', 'remix', 'upscale', 'merge'].map((mode) => [
+        mode,
+        {
+          supports: { ...known, futureImageOption: { type: 'text' }, anotherFutureOption: { type: 'switch' } }
+        }
+      ])
+    )
+    for (const [file, key, identity] of [
+      ['models.json', 'models', { id: 'image-model', name: 'Image model' }],
+      ['provider-models.json', 'overrides', { providerId: 'openai', modelId: 'image-model' }]
+    ] as const) {
+      fs.writeFileSync(
+        path.join(sourceDirectory, file),
+        JSON.stringify({
+          version: 'original',
+          [key]: [{ ...identity, imageGeneration: { modes } }, identity]
+        })
+      )
+    }
+
+    await publishRegistryCatalog({ ...publishOptions, sourceDirectory, destinationDirectory, currentVersion: 4 })
+
+    for (const [file, key] of [
+      ['models.json', 'models'],
+      ['provider-models.json', 'overrides']
+    ]) {
+      const raw = JSON.parse(fs.readFileSync(path.join(destinationDirectory, `v${version}`, file), 'utf8'))
+      const decoded = read(file, raw)
+      expect(decoded[key]).toHaveLength(2)
+      for (const mode of Object.keys(modes)) {
+        expect(raw[key][0].imageGeneration.modes[mode].supports).toEqual(known)
+        expect(decoded[key][0].imageGeneration.modes[mode].supports).toEqual(known)
+      }
+    }
+  })
+
+  it('preserves current and unchanged legacy catalog bytes', async () => {
+    const { sourceDirectory, destinationDirectory } = makeDirectories()
+    writeCatalog(sourceDirectory, { providerId: 'openai', modelId: 'image-model' })
+    const input =
+      '{ "version": "untouched", "models": [{ "id": "image-model", "name": "Image model", "imageGeneration": { "modes": { "generate": { "supports": { "quality": { "type": "enum", "options": ["high"] } } } } } }] }'
+    fs.writeFileSync(path.join(sourceDirectory, 'models.json'), input)
+    await publishRegistryCatalog({ ...publishOptions, sourceDirectory, destinationDirectory, currentVersion: 3 })
+    for (const version of [1, 2, 3]) {
+      for (const file of ['models.json', 'providers.json', 'provider-models.json']) {
+        expect(fs.readFileSync(path.join(destinationDirectory, `v${version}`, file))).toEqual(
+          fs.readFileSync(path.join(sourceDirectory, file))
+        )
+      }
+    }
+    const expanded = JSON.parse(input)
+    expanded.models[0].imageGeneration.modes.generate.supports.futureImageOption = { type: 'text' }
+    fs.writeFileSync(path.join(sourceDirectory, 'models.json'), JSON.stringify(expanded))
+    await publishRegistryCatalog({ ...publishOptions, sourceDirectory, destinationDirectory, currentVersion: 3 })
+    expect(fs.readFileSync(path.join(destinationDirectory, 'v3/models.json'))).toEqual(
+      fs.readFileSync(path.join(sourceDirectory, 'models.json'))
+    )
+  })
+
+  it.each(['models.json', 'providers.json', 'provider-models.json'])(
+    'preserves the generator content version and write shape for %s',
+    (file) => {
+      const original = fs.readFileSync(path.resolve(COMPAT_DIRECTORY, '../data', file), 'utf8')
+      const body = JSON.parse(original)
+      delete body.version
+      expect(stampAndSerialize(body)).toBe(`${JSON.stringify(JSON.parse(original), null, 2)}\n`)
+    }
+  )
+
   it('publishes the current version untouched', async () => {
     const { sourceDirectory, destinationDirectory } = makeDirectories()
     writeCatalog(sourceDirectory, OVERRIDE_WITH_UNKNOWN_EFFORT)
@@ -162,6 +308,8 @@ describe('publishRegistryCatalog', () => {
     const v2 = JSON.parse(fs.readFileSync(path.join(destinationDirectory, 'v2/manifest.json'), 'utf8'))
     expect(v1).toMatchObject({ minAppVersion: '2.0.9', schemaVersion: 1, revision: 41 })
     expect(v2).toMatchObject({ minAppVersion: '2.0.13', schemaVersion: 2 })
-    expect(v1.files).toEqual({ 'models.json': 'm1', 'providers.json': 'p1', 'provider-models.json': 'pm1' })
+    const override = JSON.parse(fs.readFileSync(path.join(destinationDirectory, 'v1/provider-models.json'), 'utf8'))
+    expect(v1.files).toEqual({ 'models.json': 'm1', 'providers.json': 'p1', 'provider-models.json': override.version })
+    expect(override.version).not.toBe('pm1')
   })
 })
