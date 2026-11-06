@@ -414,7 +414,7 @@ describe('slidingWindowFallbackActive', () => {
     ],
     ['caller-owned context', { compressionModel: null, request: { contextOwner: 'caller' } }, false]
   ] as const)('%s', (_name, overrides, expected) => {
-    const scope = makeScope({ contextSettings: DEFAULT_CONTEXT_SETTINGS, ...(overrides as object) } as never)
+    const scope = makeScope({ contextSettings: DEFAULT_CONTEXT_SETTINGS, ...overrides })
     expect(slidingWindowFallbackActive(scope)).toBe(expected)
     expect(Boolean(buildContextOptions(scope)?.onBeforeCompress)).toBe(expected)
   })
