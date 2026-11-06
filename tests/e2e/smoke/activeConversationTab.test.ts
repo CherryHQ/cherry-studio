@@ -12,7 +12,7 @@ import {
 import en from '../../../src/renderer/i18n/locales/en-us.json'
 import { ThemeMode } from '../../../src/shared/data/preference/preferenceTypes'
 import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
-import { expect, test as base } from './fixtures/electron.fixture'
+import { closeElectronApp, expect, test as base } from './fixtures/electron.fixture'
 
 const ALPHA = 'Active tab Alpha'
 const BETA = 'Active tab Beta'
@@ -41,7 +41,7 @@ const test = base.extend<{ isolatedSession: IsolatedSession }>({
     let ownedApp: ElectronApplication | undefined
     const launch = async () => {
       if (ownedApp) {
-        await ownedApp.close()
+        await closeElectronApp(ownedApp)
         ownedApp = undefined
       }
       ownedApp = await electron.launch({
@@ -73,7 +73,7 @@ const test = base.extend<{ isolatedSession: IsolatedSession }>({
       await use({ launch, profile })
     } finally {
       try {
-        await ownedApp?.close()
+        if (ownedApp) await closeElectronApp(ownedApp)
       } finally {
         await rm(profile, { recursive: true, force: true })
       }

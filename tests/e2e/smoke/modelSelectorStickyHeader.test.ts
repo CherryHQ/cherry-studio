@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 
 import { _electron as electron } from '@playwright/test'
 
-import { expect, test as base } from './fixtures/electron.fixture'
+import { closeElectronApp, expect, test as base } from './fixtures/electron.fixture'
 import {
   failureEvidence,
   findRow,
@@ -41,7 +41,7 @@ const test = base.extend<{ stickyProfile: string }>({
     try {
       await use(app)
     } finally {
-      await app.close()
+      await closeElectronApp(app)
     }
   },
   mainWindow: async ({ electronApp }, use, info) => {

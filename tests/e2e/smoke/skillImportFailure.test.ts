@@ -4,7 +4,7 @@ import path from 'node:path'
 import { _electron as electron } from '@playwright/test'
 import AdmZip from 'adm-zip'
 
-import { expect, test as base } from './fixtures/electron.fixture'
+import { closeElectronApp, expect, test as base } from './fixtures/electron.fixture'
 
 const test = base.extend<{ isolatedProfile: string }>({
   // oxlint-disable-next-line no-empty-pattern -- Playwright requires destructured fixture arguments.
@@ -26,7 +26,7 @@ const test = base.extend<{ isolatedProfile: string }>({
     try {
       await use(app)
     } finally {
-      await app.close()
+      await closeElectronApp(app)
     }
   }
 })

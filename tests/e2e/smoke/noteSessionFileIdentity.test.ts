@@ -15,7 +15,7 @@ import { join } from 'node:path'
 import type { Page, TestInfo } from '@playwright/test'
 import { _electron as electron } from '@playwright/test'
 
-import { expect, test as base } from './fixtures/electron.fixture'
+import { closeElectronApp, expect, test as base } from './fixtures/electron.fixture'
 import { jsonEvidence, prepareStickyShell, stickyWindow, waitForStickyShell } from './utils/stickySmoke'
 import { uiLocator } from './utils/uiLocator'
 
@@ -59,7 +59,7 @@ const test = base.extend<{ notesProfile: NotesProfile }>({
     try {
       await use(app)
     } finally {
-      await app.close()
+      await closeElectronApp(app)
     }
   },
   mainWindow: async ({ electronApp }, use) => {

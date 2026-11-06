@@ -88,13 +88,15 @@ export function windowsTerminalText(paths: RunPaths, terminal: WindowsTerminal, 
   if (!current) throw new Error('The owned CLI terminal is no longer running')
   const script = [
     '$ErrorActionPreference = "Stop"',
+    '$output = [Console]::OpenStandardOutput()',
     `Add-Type -TypeDefinition ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${Buffer.from(CONSOLE_DRIVER).toString('base64')}')))`,
     input === undefined
       ? '$text = $null'
       : `$text = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${Buffer.from(input).toString('base64')}'))`,
     `$result = [OwnedConsole]::Run(${terminal.pid}, $${input !== undefined}, $text, ${key})`,
-    '[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)',
-    '[Console]::Write($result)'
+    '$bytes = [Text.Encoding]::UTF8.GetBytes($result)',
+    '$output.Write($bytes, 0, $bytes.Length)',
+    '$output.Flush()'
   ].join('; ')
   return execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
     encoding: 'utf8',

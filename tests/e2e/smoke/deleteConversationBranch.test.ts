@@ -8,7 +8,7 @@ import type { DataRequest, DataResponse } from '../../../src/shared/data/api/typ
 import type { Message, TreeResponse } from '../../../src/shared/data/types/message'
 import type { Topic } from '../../../src/shared/data/types/topic'
 import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
-import { expect, test as base } from './fixtures/electron.fixture'
+import { closeElectronApp, expect, test as base } from './fixtures/electron.fixture'
 
 const ASSISTANT = 'Branch deletion smoke assistant'
 const TOPIC = 'Delete one exclusive conversation branch'
@@ -33,9 +33,7 @@ const test = base.extend({
       await provideApp(app)
     } finally {
       try {
-        if (app?.process()?.exitCode === null) await app.close()
-      } catch {
-        // The test owns both app lifetimes and may already have closed this one.
+        if (app?.process()?.exitCode === null) await closeElectronApp(app)
       } finally {
         await rm(profile, { recursive: true, force: true })
       }
@@ -286,7 +284,7 @@ test('deletes only a branch suffix after confirmation and keeps survivors across
   await assertSurvivors(page)
   await expect(leaf).toHaveCount(0)
   await screenshot(page, testInfo, 'branch-delete-survivors.png')
-  await electronApp.close()
+  await closeElectronApp(electronApp)
   const restarted = await launch(testInfo.outputPath('profile'))
   try {
     const restartedPage = await mainWindow(restarted)
@@ -302,6 +300,6 @@ test('deletes only a branch suffix after confirmation and keeps survivors across
     }
     await screenshot(restartedPage, testInfo, 'branch-delete-after-restart.png')
   } finally {
-    if (restarted.process()?.exitCode === null) await restarted.close()
+    if (restarted.process()?.exitCode === null) await closeElectronApp(restarted)
   }
 })

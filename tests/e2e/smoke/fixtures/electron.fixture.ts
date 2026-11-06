@@ -17,6 +17,22 @@ export type ElectronFixtures = {
   mainWindow: Page
 }
 
+export async function closeElectronApp(app: ElectronApplication): Promise<void> {
+  const child = app.process()
+  let forced = false
+  const deadline = setTimeout(() => {
+    if (child.exitCode !== null || child.signalCode !== null) return
+    forced = true
+    child.kill('SIGKILL')
+  }, 15_000)
+  try {
+    await app.close()
+    if (forced) throw new Error('Owned Electron did not quit within 15 seconds; cleanup terminated it')
+  } finally {
+    clearTimeout(deadline)
+  }
+}
+
 export const test = base.extend<ElectronFixtures & { isolatedEnvironment: void }>({
   isolatedEnvironment: [
     async ({}, use) => {
@@ -57,7 +73,7 @@ export const test = base.extend<ElectronFixtures & { isolatedEnvironment: void }
     try {
       await use(electronApp)
     } finally {
-      await electronApp.close()
+      await closeElectronApp(electronApp)
     }
   },
 
