@@ -171,6 +171,11 @@ export function useComposerKnowledgeBaseScope({
     setPendingKnowledgeBaseRestoreIds(null)
   }, [])
 
+  /** Re-attaches ids parked with their owning draft; for that content returning to the composer. */
+  const resumePendingKnowledgeBaseRestore = useCallback((ids: readonly string[] | null | undefined) => {
+    setPendingKnowledgeBaseRestoreIds(ids && ids.length > 0 ? [...ids] : null)
+  }, [])
+
   // Retry restored ids the catalog could not offer when the restore ran.
   useEffect(() => {
     if (!pendingKnowledgeBaseRestoreIds || pendingKnowledgeBaseRestoreIds.length === 0) return
@@ -240,7 +245,9 @@ export function useComposerKnowledgeBaseScope({
     restoreKnowledgeBaseSelection,
     isKnowledgeBaseDraftHydrated,
     hasPendingKnowledgeBaseRestore: pendingKnowledgeBaseRestoreIds !== null && isKnowledgeBasesLoading,
+    pendingKnowledgeBaseRestoreIds,
     clearPendingKnowledgeBaseRestore,
+    resumePendingKnowledgeBaseRestore,
     knowledgeBaseIdsRef,
     syncKnowledgeBaseIds
   }

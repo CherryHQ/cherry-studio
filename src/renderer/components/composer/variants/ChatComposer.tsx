@@ -197,10 +197,13 @@ interface SavedComposerDraft {
   mentionedModelSelectionWasPending: boolean
   selectedKnowledgeBases: KnowledgeBase[]
   knowledgeBaseIds: string[]
+  /** Knowledge restore retry pending when the content was parked; resumes with it. */
+  pendingKnowledgeBaseIds: readonly string[] | null
 }
 
 interface InputHistoryToolSnapshot extends Pick<SavedComposerDraft, 'files' | 'selectedKnowledgeBases'> {
   mentionedModels: Model[]
+  pendingKnowledgeBaseIds: readonly string[] | null
 }
 
 type ComposerFilePart = Extract<CherryMessagePart, { type: 'file' }>
@@ -493,6 +496,13 @@ const ChatComposerInner = ({
   const editingMessageForCurrentTopicRef = useLatest(editingMessageForCurrentTopic)
   const inputHistoryToolsRef = useRef<InputHistoryToolSnapshot | null>(null)
   const skipDraftCacheWriteForHistoryPreviewRef = useRef(false)
+  // applyHistoryDraft is declared above the knowledge-scope hook: reach its pending-retry API
+  // through a bridge ref that is re-synced after every render below the hook.
+  const knowledgeScopeBridgeRef = useRef<{
+    pendingIds: readonly string[] | null
+    clearPending: () => void
+    resumePending: (ids: readonly string[] | null | undefined) => void
+  }>({ pendingIds: null, clearPending: () => {}, resumePending: () => {} })
   const applyHistoryDraft = useCallback(
     (historyDraft: ComposerSerializedDraft, options: { source: 'history' | 'draft' }) => {
       skipDraftCacheWriteForHistoryPreviewRef.current = options.source === 'history'
@@ -505,10 +515,14 @@ const ChatComposerInner = ({
         inputHistoryToolsRef.current ??= {
           files: filesRef.current,
           mentionedModels: mentionedModelsRef.current,
-          selectedKnowledgeBases: selectedKnowledgeBasesRef.current
+          selectedKnowledgeBases: selectedKnowledgeBasesRef.current,
+          pendingKnowledgeBaseIds: knowledgeScopeBridgeRef.current.pendingIds
         }
         setFiles([])
         setSelectedKnowledgeBases([])
+        // The previewed entry is different content: suspend a retry still pending for the live
+        // draft so its ids cannot merge into the preview when the catalog later offers them.
+        knowledgeScopeBridgeRef.current.clearPending()
         return
       }
 
@@ -518,10 +532,13 @@ const ChatComposerInner = ({
       setFiles(savedTools.files)
       setMentionedModels(savedTools.mentionedModels)
       setSelectedKnowledgeBases(savedTools.selectedKnowledgeBases)
+      // The owning draft is back: a retry suspended for it may resolve again.
+      knowledgeScopeBridgeRef.current.resumePending(savedTools.pendingKnowledgeBaseIds)
     },
     [
       actionsRef,
       filesRef,
+      knowledgeScopeBridgeRef,
       mentionedModelsRef,
       selectedKnowledgeBasesRef,
       setFiles,
@@ -703,6 +720,8 @@ const ChatComposerInner = ({
     isKnowledgeBaseDraftHydrated,
     hasPendingKnowledgeBaseRestore,
     clearPendingKnowledgeBaseRestore,
+    pendingKnowledgeBaseRestoreIds,
+    resumePendingKnowledgeBaseRestore,
     knowledgeBaseIdsRef,
     syncKnowledgeBaseIds
   } = useComposerKnowledgeBaseScope({
@@ -714,6 +733,12 @@ const ChatComposerInner = ({
     setSelectedKnowledgeBases,
     initialKnowledgeBaseIds: initialDraft.knowledgeBaseIds
   })
+
+  knowledgeScopeBridgeRef.current = {
+    pendingIds: pendingKnowledgeBaseRestoreIds,
+    clearPending: clearPendingKnowledgeBaseRestore,
+    resumePending: resumePendingKnowledgeBaseRestore
+  }
 
   const exitInputHistoryPreview = useCallback(() => {
     const draft = takeDraftBeforeHistory()
@@ -1010,10 +1035,14 @@ const ChatComposerInner = ({
       savedDraft.mentionedModelMultiSelectMode
     )
     setSelectedKnowledgeBases(savedDraft.selectedKnowledgeBases)
+    // The parked content owns any knowledge retry pending when editing began
+    // (restoreEditableMessageDraft cleared it for the edited message): resume it with its draft.
+    resumePendingKnowledgeBaseRestore(savedDraft.pendingKnowledgeBaseIds)
   }, [
     actionsRef,
     exitInputHistoryPreview,
     restoreMentionedModelSelection,
+    resumePendingKnowledgeBaseRestore,
     runtimeModelRef,
     setFiles,
     setSelectedKnowledgeBases
@@ -1073,7 +1102,8 @@ const ChatComposerInner = ({
         mentionedModelMultiSelectMode: mentionedModelMultiSelectModeRef.current,
         mentionedModelSelectionWasPending: runtimeModelPending && mentionedModelSelectorValueRef.current.length === 0,
         selectedKnowledgeBases: currentTools?.selectedKnowledgeBases ?? selectedKnowledgeBasesRef.current,
-        knowledgeBaseIds: [...knowledgeBaseIdsRef.current]
+        knowledgeBaseIds: [...knowledgeBaseIdsRef.current],
+        pendingKnowledgeBaseIds: currentTools?.pendingKnowledgeBaseIds ?? knowledgeScopeBridgeRef.current.pendingIds
       }
     } else {
       exitInputHistoryPreview()

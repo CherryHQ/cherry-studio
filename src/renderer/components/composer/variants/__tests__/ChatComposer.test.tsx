@@ -6081,6 +6081,106 @@ describe('ChatComposer', () => {
       expect(readSavedDrafts().map((item) => item.id)).toEqual(['draft-a'])
     })
 
+    it('suspends a pending knowledge restore while previewing input history', async () => {
+      const knowledgeBase = { id: 'kb-1', name: 'Knowledge One', documentCount: 1 } as KnowledgeBase
+      mocks.assistant = {
+        ...mocks.assistant,
+        knowledgeBaseIds: ['kb-1']
+      }
+      MockCacheUtils.setInitialState({
+        memory: [
+          [
+            'saved-drafts.topic-1:assistant-1',
+            [{ id: 'draft-a', draft: { text: 'draft A', tokens: [] }, files: [], knowledgeBaseIds: ['kb-1'] }]
+          ]
+        ]
+      })
+      seedInputHistory(['history entry'])
+      mocks.getDraft.mockImplementation(() => ({
+        text: mocks.surfaceProps?.text ?? '',
+        tokens: []
+      }))
+      mocks.knowledgeBases = []
+      mocks.knowledgeBasesLoading = true
+
+      const view = render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+      await act(async () => savedDraftsDock()?.props.onEdit('draft-a'))
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('draft A'))
+      await waitFor(() => expect(mocks.surfaceProps?.sendDisabled).toBe(true))
+
+      // Previewing a history entry replaces the composer content: the pending retry must be
+      // suspended with the owning draft, not resolve into the preview.
+      act(() => {
+        expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+      })
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('history entry'))
+
+      mocks.knowledgeBases = [knowledgeBase]
+      mocks.knowledgeBasesLoading = false
+      view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
+      await waitFor(() => expect(mocks.knowledgeBasesLoading).toBe(false))
+      expect(mocks.selectedKnowledgeBases).toEqual([])
+
+      // Returning to the live draft resumes its retry: the catalog can resolve A now.
+      act(() => {
+        expect(mocks.surfaceProps?.onInputHistoryNavigate?.('down')).toBe(true)
+      })
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('draft A'))
+      await waitFor(() => expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBase]))
+    })
+
+    it('resumes a pending knowledge restore when message editing is cancelled', async () => {
+      const knowledgeBase = { id: 'kb-1', name: 'Knowledge One', documentCount: 1 } as KnowledgeBase
+      mocks.assistant = {
+        ...mocks.assistant,
+        knowledgeBaseIds: ['kb-1']
+      }
+      MockCacheUtils.setInitialState({
+        memory: [
+          [
+            'saved-drafts.topic-1:assistant-1',
+            [{ id: 'draft-a', draft: { text: 'draft A', tokens: [] }, files: [], knowledgeBaseIds: ['kb-1'] }]
+          ]
+        ]
+      })
+      const message = { id: 'edit-target', role: 'user', topicId: topic.id, createdAt: '2026-01-01', status: 'success' }
+      mocks.getDraft.mockImplementation(() => ({
+        text: mocks.surfaceProps?.text ?? '',
+        tokens: []
+      }))
+      // Fresh element per render: reusing one element object makes React bail out of the rerender.
+      const editor = () => (
+        <MessageEditingProvider>
+          <StartEditingButton message={message} parts={[{ type: 'text', text: 'Old message' }]} />
+          <ChatComposer topic={topic} onSend={vi.fn()} />
+        </MessageEditingProvider>
+      )
+      mocks.knowledgeBases = []
+      mocks.knowledgeBasesLoading = true
+      const view = render(editor())
+
+      await act(async () => savedDraftsDock()?.props.onEdit('draft-a'))
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('draft A'))
+      await waitFor(() => expect(mocks.surfaceProps?.sendDisabled).toBe(true))
+
+      fireEvent.click(screen.getByRole('button', { name: 'start editing' }))
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('Old message'))
+
+      // The catalog arrives during the edit: the cleared retry must not merge into the message.
+      mocks.knowledgeBases = [knowledgeBase]
+      mocks.knowledgeBasesLoading = false
+      view.rerender(editor())
+      await waitFor(() => expect(mocks.knowledgeBasesLoading).toBe(false))
+      expect(mocks.selectedKnowledgeBases).toEqual([])
+
+      // Cancelling returns the parked draft: its retry resumes and resolves A for it.
+      act(() => {
+        mocks.surfaceProps?.editingState?.onCancel()
+      })
+      await waitFor(() => expect(mocks.surfaceProps?.text).toBe('draft A'))
+      await waitFor(() => expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBase]))
+    })
+
     it('drops a pending knowledge restore when a message edit replaces the composer content', async () => {
       const knowledgeBase = { id: 'kb-1', name: 'Knowledge One', documentCount: 1 } as KnowledgeBase
       mocks.assistant = {
