@@ -1549,6 +1549,7 @@
   "error.ocr_detail_failed": "設定的 OCR 處理器執行失敗：{{reason}} 請在「設定 → 檔案處理」中檢查或更換 OCR 處理器。",
   "error.originalError": "原錯誤",
   "error.originalMessage": "原始訊息",
+  "error.output_token_limit": "已達到輸出上限，因此本次回答尚未完成。如需繼續，請在目前對話中傳送後續訊息，讓助理從中斷處接著回答。",
   "error.parameter": "參數",
   "error.prompt": "提示詞",
   "error.provider": "供應商",

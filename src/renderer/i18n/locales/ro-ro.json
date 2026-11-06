@@ -1549,6 +1549,7 @@
   "error.ocr_detail_failed": "Procesatorul OCR configurat a eșuat: {{reason}} Verificați sau schimbați procesatorul OCR în Setări → Procesarea fișierelor.",
   "error.originalError": "Eroare originală",
   "error.originalMessage": "Mesaj original",
+  "error.output_token_limit": "A fost atinsă limita de ieșire, așa că acest răspuns este incomplet. Pentru a continua, trimite un nou mesaj în această conversație și cere-i asistentului să reia de unde s-a oprit.",
   "error.parameter": "Parametru",
   "error.prompt": "Prompt",
   "error.provider": "Furnizor",

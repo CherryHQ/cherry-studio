@@ -167,6 +167,7 @@ const mocks = vi.hoisted(() => ({
   materializeNativeFilePart: vi.fn(),
   processManagerSpawn: vi.fn(),
   registerMcpSessionCatalogSync: vi.fn(),
+  useRealAdapter: false,
   adapterInstances: [] as any[]
 }))
 
@@ -261,6 +262,7 @@ vi.mock('../streamAdapter', async (importActual) => {
       private pendingInit: any
 
       constructor(private readonly options: any) {
+        if (mocks.useRealAdapter) return new actualStreamAdapter.ClaudeCodeStreamAdapter(options) as unknown as this
         mocks.adapterInstances.push(this)
       }
 
@@ -487,6 +489,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     vi.clearAllMocks()
 
     mocks.adapterInstances.length = 0
+    mocks.useRealAdapter = false
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'ClaudeCodeWarmQueryManager') {
         return {
@@ -526,6 +529,218 @@ describe('ClaudeCodeRuntimeDriver', () => {
       config: {
         rebuildSignature: 'sig-1',
         live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      }
+    })
+  })
+
+  describe('output-cap completion with the real adapter', () => {
+    const sessionId = '374c8467-e787-4c67-b890-a3d91b50dba6'
+    const messageUuid = '9ad4b714-fe5d-4664-9f76-2b0cd13f4c03'
+    const diagnostic = "API Error: Claude's response exceeded the 128000 output token maximum."
+    const assistant = (text: string, overrides: Record<string, unknown> = {}) => ({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      uuid: messageUuid,
+      session_id: sessionId,
+      message: {
+        id: 'real-response',
+        model: 'sonnet-sdk',
+        content: [{ type: 'text', text }],
+        stop_reason: 'max_tokens',
+        usage: { input_tokens: 3, output_tokens: 5 }
+      },
+      ...overrides
+    })
+    const marker = () =>
+      assistant(diagnostic, {
+        uuid: '4b00462e-fdd9-4189-95e1-5345bcf12b9d',
+        error: 'max_output_tokens',
+        message: { id: 'synthetic-cap', content: [{ type: 'text', text: diagnostic }] }
+      })
+    const result = (capped = true) => ({
+      type: 'result',
+      subtype: 'success',
+      session_id: sessionId,
+      is_error: capped,
+      terminal_reason: capped ? 'api_error' : 'completed',
+      api_error_status: null,
+      stop_reason: capped ? 'stop_sequence' : 'end_turn',
+      result: capped ? diagnostic : 'recovered',
+      usage: { input_tokens: 12, output_tokens: 20 }
+    })
+    const input = { sessionId: 'session-1', agentId: 'agent-1', modelId: 'claude-code::sonnet' } as const
+
+    it.each([true, false])(
+      'completes once, retires the query and resumes cleanly (real fork anchor: %s)',
+      async (hasRealAssistant) => {
+        // Captured protocol: .tasks/issue-23662/round-1/probe/cli-pin-stream.json.
+        mocks.useRealAdapter = true
+        const queryQueue = createAsyncQueue<any>()
+        const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+        mocks.createClaudeQuery.mockReturnValue(query)
+        const pendingSteer = { message: userMessage() }
+        const approvalEmitter = { dispose: vi.fn() }
+        const steerHolder = { pending: [pendingSteer], dispose: vi.fn() }
+        const request = await mocks.buildRequest()
+        mocks.buildRequest.mockResolvedValue({
+          ...request,
+          options: { model: 'sonnet', env: { CLAUDE_CONFIG_DIR: '/mock-claude-config' } },
+          settings: { approvalEmitter, steerHolder },
+          usageCapture: {
+            owner: 'agent-sdk',
+            credentialReceipt: { attribution: 'explicit', id: 'key', masked: '***' },
+            providerId: 'anthropic',
+            providerName: 'Anthropic',
+            source: null,
+            frozenModels: []
+          }
+        })
+        const connection = await new ClaudeCodeRuntimeDriver().connect(input)
+        await connection.send({ message: userMessage() })
+        if (hasRealAssistant) queryQueue.push(assistant('partial answer'))
+        queryQueue.push(marker())
+        queryQueue.push(result())
+        queryQueue.push({ ...result(), result: 'late SDK failure', api_error_status: 500 })
+        const seen: any[] = []
+        for await (const event of connection.events) seen.push(event)
+
+        expect(seen.filter((e) => e.type === 'turn-complete')).toEqual([
+          {
+            type: 'turn-complete',
+            forkAnchor: hasRealAssistant
+              ? {
+                  checkpoint: {
+                    runtime: 'claude-code',
+                    runtimeSessionId: sessionId,
+                    messageUuid,
+                    configDir: '/mock-claude-config'
+                  }
+                }
+              : undefined
+          }
+        ])
+        const chunks = seen.filter((e) => e.type === 'chunk').map((e) => e.chunk)
+        expect(chunks.filter((c) => c.type === 'data-error')).toEqual([
+          { type: 'data-error', data: { code: 'output_token_limit', i18nKey: 'output_token_limit' } }
+        ])
+        expect(chunks.filter((c) => c.type === 'finish')).toEqual([expect.objectContaining({ finishReason: 'length' })])
+        expect(
+          chunks
+            .filter((c) => c.type === 'text-delta')
+            .map((c) => c.delta)
+            .join('')
+        ).toBe(hasRealAssistant ? 'partial answer' : '')
+        expect(chunks).toContainEqual(
+          expect.objectContaining({
+            type: 'message-metadata',
+            messageMetadata: expect.objectContaining({
+              stats: expect.objectContaining({ inputTokens: 12, outputTokens: 20, totalTokens: 32 })
+            })
+          })
+        )
+        expect(seen.filter((e) => e.type === 'error')).toEqual([])
+        expect(seen.filter((e) => e.type === 'resume-token')).toEqual([{ type: 'resume-token', token: sessionId }])
+        expect(seen.filter((e) => e.type === 'steer-undelivered')).toEqual([
+          { type: 'steer-undelivered', inputs: [pendingSteer] }
+        ])
+        expect(seen.filter((e) => e.type === 'usage' && e.invocation.usage)).toEqual(
+          hasRealAssistant
+            ? [
+                expect.objectContaining({
+                  invocation: expect.objectContaining({
+                    requestId: 'claude-agent:real-response',
+                    usage: expect.objectContaining({ inputTokens: 3, outputTokens: 5 })
+                  })
+                })
+              ]
+            : []
+        )
+        expect(JSON.stringify(chunks)).not.toContain(diagnostic)
+        expect(query.close).toHaveBeenCalledOnce()
+        expect(query.return).toHaveBeenCalledOnce()
+        expect(approvalEmitter.dispose).toHaveBeenCalledOnce()
+        expect(steerHolder.dispose).toHaveBeenCalledOnce()
+        expect(await connection.reconcile({ modelId: input.modelId })).toBe('rebuild')
+        await connection.close()
+
+        const nextQueue = createAsyncQueue<any>()
+        const nextQuery = { ...nextQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+        mocks.createClaudeQuery.mockReturnValue(nextQuery)
+        const resumed = await new ClaudeCodeRuntimeDriver().connect({ ...input, resumeToken: sessionId })
+        const events = resumed.events[Symbol.asyncIterator]()
+        try {
+          const sdkInput = mocks.createClaudeQuery.mock.calls.at(-1)![0].prompt[Symbol.asyncIterator]()
+          await resumed.send({ message: userMessage() })
+          expect((await sdkInput.next()).value.session_id).toBe(sessionId)
+          nextQueue.push(assistant('next turn'))
+          nextQueue.push(result(false))
+          const nextSeen: any[] = []
+          while (!nextSeen.some((e) => e.type === 'turn-complete')) {
+            const event = await events.next()
+            expect(event.done).toBe(false)
+            nextSeen.push(event.value)
+          }
+          expect(
+            nextSeen.filter((e) => e.type === 'error' || (e.type === 'chunk' && e.chunk.type === 'data-error'))
+          ).toEqual([])
+          expect(nextSeen.filter((e) => e.type === 'chunk' && e.chunk.type === 'finish')).toEqual([
+            expect.objectContaining({ chunk: expect.objectContaining({ finishReason: 'stop' }) })
+          ])
+          expect(nextQuery.close).not.toHaveBeenCalled()
+
+          await resumed.send({ message: userMessage() })
+          nextQueue.push(result())
+          const resultOnly: any[] = []
+          for (let event = await events.next(); !event.done; event = await events.next()) resultOnly.push(event.value)
+          expect(resultOnly.filter((e) => e.type === 'error')).toEqual([
+            expect.objectContaining({ error: expect.objectContaining({ name: 'ClaudeCodeResultError' }) })
+          ])
+          expect(
+            resultOnly.filter(
+              (e) => e.type === 'turn-complete' || (e.type === 'chunk' && e.chunk.type === 'data-error')
+            )
+          ).toEqual([])
+        } finally {
+          await resumed.close()
+        }
+      }
+    )
+
+    it('keeps a recovered connection warm across turns without emitting a cap notice', async () => {
+      mocks.useRealAdapter = true
+      const queryQueue = createAsyncQueue<any>()
+      const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+      mocks.createClaudeQuery.mockReturnValue(query)
+      const connection = await new ClaudeCodeRuntimeDriver().connect(input)
+      const events = connection.events[Symbol.asyncIterator]()
+      try {
+        for (const turn of [1, 2]) {
+          await connection.send({ message: userMessage() })
+          if (turn === 1) {
+            queryQueue.push(assistant('partial '))
+            queryQueue.push(marker())
+            queryQueue.push({ type: 'stream_event', event: { type: 'message_start' }, parent_tool_use_id: null })
+          }
+          queryQueue.push(assistant('recovered', { uuid: messageUuid }))
+          queryQueue.push(result(false))
+          const seen: any[] = []
+          while (!seen.some((e) => e.type === 'turn-complete')) {
+            const event = await events.next()
+            expect(event.done).toBe(false)
+            seen.push(event.value)
+          }
+          expect(seen.filter((e) => e.type === 'turn-complete')).toHaveLength(1)
+          expect(
+            seen.filter((e) => e.type === 'error' || (e.type === 'chunk' && e.chunk.type === 'data-error'))
+          ).toEqual([])
+          expect(seen.filter((e) => e.type === 'chunk' && e.chunk.type === 'finish')).toEqual([
+            expect.objectContaining({ chunk: expect.objectContaining({ finishReason: 'stop' }) })
+          ])
+          expect(query.close).not.toHaveBeenCalled()
+          expect(await connection.reconcile({ modelId: input.modelId })).toBe('current')
+        }
+      } finally {
+        await connection.close()
       }
     })
   })

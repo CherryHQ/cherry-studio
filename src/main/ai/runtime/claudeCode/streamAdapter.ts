@@ -37,6 +37,7 @@ import type {
 
 import { loggerService } from '@logger'
 import { extractSystemReminderBodies, SystemReminderTextFilter } from '@main/ai/steerReminder'
+import { t } from '@main/i18n'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCompaction'
@@ -136,6 +137,7 @@ type StreamContext = {
   deniedToolUseIds: Set<string>
   /** Set when the SDK flags an assistant message as interrupt-truncated (`aborted`). */
   sawAbortedMessage: boolean
+  pendingOutputCap: { diagnostic: string } | undefined
   textBlocksByIndex: Map<number, string>
   reasoningBlocksByIndex: Map<number, string>
   currentReasoningPartId: string | undefined
@@ -192,7 +194,7 @@ export type ClaudeCodeStreamAdapterOptions = {
 
 export type ClaudeCodeStreamAdapterResult =
   | { type: 'continue' }
-  | { type: 'result'; sessionId: string; message: SDKResultMessage }
+  | { type: 'result'; sessionId: string; message: SDKResultMessage; outputCapExhausted?: true }
 
 function isClaudeCodeTruncationError(error: unknown, bufferedText: string): boolean {
   const err = error as { name?: string; message?: string } | null
@@ -539,6 +541,7 @@ export class ClaudeCodeStreamAdapter {
       toolResultsEmitted: new Set(),
       deniedToolUseIds: new Set(),
       sawAbortedMessage: false,
+      pendingOutputCap: undefined,
       textBlocksByIndex: new Map(),
       reasoningBlocksByIndex: new Map(),
       currentReasoningPartId: undefined,
@@ -675,23 +678,37 @@ export class ClaudeCodeStreamAdapter {
         this.handleToolProgressMessage(message)
         return { type: 'continue' }
       case 'stream_event':
+        if (message.event.type === 'message_start') this.ctx.pendingOutputCap = undefined
         this.handleStreamEvent(message, this.ctx)
         return { type: 'continue' }
       case 'assistant':
+        if (message.error === 'max_output_tokens') {
+          this.ctx.pendingOutputCap = {
+            diagnostic: message.message.content.map((block) => (block.type === 'text' ? block.text : '')).join('')
+          }
+          return { type: 'continue' }
+        }
+        this.ctx.pendingOutputCap = undefined
         this.handleAssistantMessage(message, this.ctx)
         return { type: 'continue' }
       case 'user':
         this.handleUserMessage(message, this.ctx)
         return { type: 'continue' }
-      case 'result':
-        this.handleResultMessage(message, this.ctx)
+      case 'result': {
+        const outputCapExhausted = this.handleResultMessage(message, this.ctx)
         this.detachFlowContexts()
         this.turnActive = false
         if (this.autonomousTurn) {
           this.autonomousTurn = false
           this.statusSink.emit({ type: 'autonomous-turn-state', state: 'finished' })
         }
-        return { type: 'result', sessionId: message.session_id, message }
+        return {
+          type: 'result',
+          sessionId: message.session_id,
+          message,
+          ...(outputCapExhausted ? { outputCapExhausted } : {})
+        }
+      }
       case 'system':
         this.handleSystemMessage(message, this.ctx)
         return { type: 'continue' }
@@ -1251,7 +1268,7 @@ export class ClaudeCodeStreamAdapter {
     ctx.toolResultsEmitted.add(result.tool_use_id)
   }
 
-  private handleResultMessage(message: SDKResultMessage, ctx: StreamContext): void {
+  private handleResultMessage(message: SDKResultMessage, ctx: StreamContext): true | undefined {
     const finalUsage = convertClaudeCodeUsage(message.usage)
     ctx.usage = {
       ...finalUsage,
@@ -1261,6 +1278,52 @@ export class ClaudeCodeStreamAdapter {
       }
     }
     this.setSessionId(message.session_id)
+
+    if (
+      ctx.pendingOutputCap &&
+      message.subtype === 'success' &&
+      message.is_error === true &&
+      message.terminal_reason === 'api_error' &&
+      message.api_error_status == null &&
+      message.result === ctx.pendingOutputCap.diagnostic
+    ) {
+      // JSON text deltas are buffered; input_json deltas already reached the text stream.
+      if (ctx.options.responseFormat?.type === 'json' && !ctx.hasStreamedJson && ctx.accumulatedText) {
+        if (!ctx.textPartId) {
+          ctx.textPartId = generateId()
+          ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId })
+        }
+        ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: ctx.accumulatedText })
+      }
+      this.closeActiveTextPart(ctx)
+      for (const index of ctx.reasoningBlocksByIndex.keys()) {
+        this.handleContentBlockStop({ type: 'content_block_stop', index }, ctx)
+      }
+      ctx.sink.enqueue({ type: 'message-metadata', messageMetadata: this.buildMessageMetadata(ctx.usage) })
+      for (const [toolCallId, state] of ctx.toolStates) {
+        const independentlyRunning =
+          this.flowContexts.some((flow) => flow.rootToolCallId === toolCallId) ||
+          this.backgroundTasks.some((task) => this.backgroundTaskToolCallIds.get(task.id) === toolCallId)
+        if (ctx.toolResultsEmitted.has(toolCallId) || state.parentToolCallId != null || independentlyRunning) continue
+        ctx.sink.enqueue({
+          type: 'tool-output-error',
+          toolCallId,
+          errorText: t('agent.session.claude.output_token_limit_tool'),
+          dynamic: true,
+          providerExecuted: true,
+          providerMetadata: this.buildToolProviderMetadata(state)
+        })
+        ctx.toolResultsEmitted.add(toolCallId)
+        ctx.activeTaskTools.delete(toolCallId)
+      }
+      ctx.sink.enqueue({ type: 'data-error', data: { code: 'output_token_limit', i18nKey: 'output_token_limit' } })
+      ctx.sink.enqueue({
+        type: 'finish',
+        finishReason: 'length',
+        messageMetadata: this.buildMessageMetadata(ctx.usage)
+      })
+      return true
+    }
 
     const resultError = createClaudeCodeResultError(message)
     if (resultError) {
@@ -1308,6 +1371,7 @@ export class ClaudeCodeStreamAdapter {
       finishReason: finishReason.unified,
       messageMetadata: this.buildMessageMetadata(ctx.usage)
     })
+    return undefined
   }
 
   private handleSystemMessage(message: SdkRuntimeSystemMessage, ctx: StreamContext): void {

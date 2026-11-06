@@ -1521,7 +1521,9 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
   const completedToolItems = buildToolRenderItems(completedHistoryEntries, message.id, true)
   const completedHasError = (() => {
     const historyHasError = completedHistoryEntries.some((entry) => {
-      if ((entry.part.type as string) === 'data-error') return true
+      if (entry.part.type === 'data-error') {
+        return entry.part.data.code !== 'output_token_limit' && entry.part.data.i18nKey !== 'output_token_limit'
+      }
       if (!isToolUIPart(entry.part)) return false
 
       const toolResponse = getCachedToolProjection(entry.part, `${message.id}-part-${entry.index}`).toolResponse
@@ -1535,7 +1537,10 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
       const entry = entries[index]
       if (!projectedIndexes.has(entry.index) || !isPotentiallyVisibleEntry(entry, message.id)) continue
       if (isReasoningMessagePart(entry.part)) continue
-      if ((entry.part.type as string) === 'data-error') return true
+      if (entry.part.type === 'data-error') {
+        if (entry.part.data.code === 'output_token_limit' || entry.part.data.i18nKey === 'output_token_limit') continue
+        return true
+      }
       if (!isToolUIPart(entry.part)) return false
 
       const toolResponse = getCachedToolProjection(entry.part, `${message.id}-part-${entry.index}`).toolResponse

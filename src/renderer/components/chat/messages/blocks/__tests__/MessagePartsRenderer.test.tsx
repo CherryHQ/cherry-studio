@@ -4,6 +4,7 @@ import React from 'react'
 import { SWRConfig } from 'swr'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import enUS from '@renderer/i18n/locales/en-us.json'
 import { ipcApi } from '@renderer/ipc'
 import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
 import { readComposerFileTokenIdSuffix } from '@renderer/utils/message/composerFileTokenSource'
@@ -14,6 +15,7 @@ import { CherryTextMetaSchema } from '@shared/data/types/uiParts'
 import { KeyedMessageActivityStore } from '../../hooks/useMessageActivityState'
 import { MessageListProvider } from '../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem, type MessageListProviderValue } from '../../types'
+import type * as ErrorBlockModule from '../ErrorBlock'
 import { PartsProvider } from '../MessagePartsContext'
 
 const mockThinkingBlockMounted = vi.hoisted(() => vi.fn())
@@ -110,8 +112,11 @@ vi.mock('@renderer/components/icons/FallbackFavicon', () => ({
 
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
+  Trans: ({ i18nKey }: { i18nKey: string }) => i18nKey,
   useTranslation: () => ({
+    i18n: { language: 'en-US', exists: (key: string) => key in enUS },
     t: (key: string, params?: Record<string, number>) => {
+      if (key === 'error.output_token_limit') return enUS[key]
       if (key === 'message.tools.groupHeader') return `${params?.count} tool calls`
       if (key === 'message.processing') return 'Processing'
       if (key === 'agent_session_fork.continue_in_source') return 'Continue in the original chat'
@@ -209,10 +214,16 @@ vi.mock('../../frame/MessageVideo', () => ({
   )
 }))
 
-vi.mock('../ErrorBlock', () => ({
-  __esModule: true,
-  default: ({ error }: any) => <div data-testid="mock-error-block" data-error-message={error?.message ?? ''} />
-}))
+vi.mock('../ErrorBlock', async (importOriginal) => {
+  const { default: ErrorBlock } = await importOriginal<typeof ErrorBlockModule>()
+  return {
+    default: (props: React.ComponentProps<typeof ErrorBlock>) => (
+      <div data-testid="mock-error-block" data-error-message={props.error?.message ?? ''}>
+        <ErrorBlock {...props} />
+      </div>
+    )
+  }
+})
 
 vi.mock('../ThinkingBlock', () => ({
   __esModule: true,
@@ -3036,6 +3047,49 @@ describe('MessagePartsRenderer', () => {
       renderParts([toolPart('failed', 'output-error')] as unknown as CherryMessagePart[])
 
       expect(screen.getByRole('button', { name: 'Error' })).toBeInTheDocument()
+    })
+
+    it.each([false, true])('keeps the cap notice outside collapsed tools with answer text=%s', (hasText) => {
+      renderParts([
+        toolPart('read'),
+        ...(hasText ? [{ type: 'text', text: 'Partial answer' }] : []),
+        { type: 'data-error', data: { code: 'output_token_limit', i18nKey: 'output_token_limit' } }
+      ] as CherryMessagePart[])
+
+      expect(screen.getByText(enUS['error.output_token_limit'])).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Processed' })).toHaveAttribute('aria-expanded', 'false')
+      expect(screen.queryByRole('button', { name: 'Error' })).not.toBeInTheDocument()
+      expect(screen.queryByTestId('mock-message-tools')).not.toBeInTheDocument()
+      if (hasText) expect(screen.getByText('Partial answer')).toBeInTheDocument()
+    })
+
+    it('does not classify a cap notice inside process history as a failed run', async () => {
+      const user = userEvent.setup()
+      renderParts([
+        toolPart('read'),
+        { type: 'data-error', data: { i18nKey: 'output_token_limit' } },
+        { type: 'reasoning', text: 'Last reasoning', state: 'done' }
+      ] as CherryMessagePart[])
+
+      const historyTrigger = screen.getByRole('button', { name: 'Processed' })
+      expect(historyTrigger).toHaveAttribute('aria-expanded', 'false')
+      await user.click(historyTrigger)
+      expect(screen.getByText(enUS['error.output_token_limit'])).toBeInTheDocument()
+    })
+
+    it.each([
+      [{ type: 'data-error', data: { message: 'A real failure' } }],
+      [toolPart('failed', 'output-error')],
+      [{ ...toolPart('failed'), output: { isError: true } }]
+    ])('does not let a terminal cap notice mask an earlier failure: %j', (...failures) => {
+      renderParts([
+        toolPart('read'),
+        ...failures,
+        { type: 'data-error', data: { code: 'output_token_limit', i18nKey: 'output_token_limit' } }
+      ] as CherryMessagePart[])
+
+      expect(screen.getByText(enUS['error.output_token_limit'])).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Error' })).toHaveAttribute('aria-expanded', 'false')
     })
 
     it('keeps terminal reasoning alongside the process error', () => {

@@ -647,7 +647,17 @@ The driver converts Claude SDK messages into runtime events:
   ([claude-agent-sdk#383](https://github.com/anthropics/claude-agent-sdk-typescript/issues/383)),
   so that result belongs to the task, not to the open turn, which keeps waiting for the
   user query's own result (a CLI death in between surfaces through the normal error path);
-- a failed `result` -> preserve its final usage and resume token, then emit `error` and
+- exhausted CLI output-token recovery (a root `assistant` with `error: 'max_output_tokens'`
+  followed by a `result` with `subtype: 'success'`, `is_error: true`,
+  `terminal_reason: 'api_error'`, null/absent `api_error_status`, and matching diagnostic
+  text) -> an incomplete turn: keep delivered answer segments once, omit the synthetic
+  diagnostic from answer text, and interrupt unfinished foreground tool parts. Emit one
+  durable `data-error` part with `data: { code: 'output_token_limit', i18nKey: 'output_token_limit' }`
+  (a localized notice), then `finish` with `finishReason: 'length'`, and exactly one
+  `turn-complete` with a fork anchor from the last real root assistant message, if any.
+  Preserve final usage and the resume token, then retire the connection without `error`.
+  An output cap recovered internally by the CLI still completes as a normal success;
+- any other failed `result` -> preserve its final usage and resume token, then emit `error` and
   tear down the connection. This includes SDK envelopes whose subtype is `success` but
   whose `is_error`, `terminal_reason: 'api_error'`, or `api_error_status` fields report
   an API failure;
