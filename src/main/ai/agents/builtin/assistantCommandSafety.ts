@@ -169,10 +169,17 @@ const CONTAINER_RUN_VALUE_FLAGS = new Set([
   '--workdir'
 ])
 
-/** Characters after which a `/` divides rather than starting a regular expression. */
+/**
+ * Whether the `/` at `index` divides rather than starting a regular expression.
+ *
+ * Decided by the last token, not the adjacent character: `8 / 2` divides across whitespace, and a
+ * value-ender such as an identifier, number, closing bracket, quote, or dot can only be divided.
+ */
 function endsExpression(code: string, index: number): boolean {
-  const previous = code[index - 1]
-  return previous !== undefined && (/[A-Za-z0-9_$)\]'"`]/.test(previous) || previous === '.')
+  let last = index - 1
+  while (last >= 0 && /\s/.test(code[last])) last--
+  if (last < 0) return false
+  return /[A-Za-z0-9_$)\]'"`.\\]/.test(code[last])
 }
 
 /**

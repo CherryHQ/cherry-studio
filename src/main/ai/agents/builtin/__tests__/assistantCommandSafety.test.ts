@@ -320,6 +320,37 @@ describe('detectDestructiveAssistantCommand scripts', () => {
   it('keeps division out of regular-expression scanning', () => {
     expect(detectDestructiveAssistantCommand("node -e 'const a=6, b=2; console.log(`${a / b}`)'")).toBeUndefined()
     expect(detectDestructiveAssistantCommand('node -e \'const x="p"; console.log(`${x.length / 2}`)\'')).toBeUndefined()
+    // Whitespace before the slash does not make it a regex start; the last token decides. A pair of
+    // divisions would otherwise open a scan at the first slash and swallow the deletion between them.
+    expect(
+      detectDestructiveAssistantCommand(
+        'node -e \'const fs=require("fs"); const a=8 / 2; fs.unlinkSync("victim"); const b=6 / 3;\''
+      )
+    ).toBe('scripted permanent file deletion')
+    expect(
+      detectDestructiveAssistantCommand(
+        'node -e \'const fs=require("fs"); const a = 10 / 2; fs.rmdirSync("victim"); const b = 4 / 2;\''
+      )
+    ).toBe('scripted permanent file deletion')
+    // The same pairing inside a template interpolation, where the expression is sliced alone.
+    expect(
+      detectDestructiveAssistantCommand(
+        'node -e \'const fs=require("fs"); console.log(`${8 / 2}`, `${fs.unlinkSync("victim")}`, `${6 / 3}`)\''
+      )
+    ).toBe('scripted permanent file deletion')
+  })
+
+  it('does not treat a consumed regular expression as hiding what follows it', () => {
+    // A regex whose pattern cannot close before the next slash falls back to division, so the code
+    // after it stays visible to the deletion patterns.
+    expect(
+      detectDestructiveAssistantCommand('node -e \'const fs=require("fs"); const q = a / b; fs.unlinkSync("victim")\'')
+    ).toBe('scripted permanent file deletion')
+    expect(
+      detectDestructiveAssistantCommand(
+        'node -e \'const fs=require("fs"); const a = b / c; fs.rmSync("victim"); const d = e / f;\''
+      )
+    ).toBe('scripted permanent file deletion')
   })
 })
 
