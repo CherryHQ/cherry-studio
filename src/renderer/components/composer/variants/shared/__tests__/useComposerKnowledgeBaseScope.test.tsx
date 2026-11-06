@@ -93,9 +93,8 @@ describe('useComposerKnowledgeBaseScope', () => {
 
     it('keeps ids pending until the catalog offers them, then selects them', () => {
       const base = kb('kb-1')
-      const { result, rerender } = renderHook((props: HarnessProps) => useScopeHarness(props), {
-        initialProps: { allKnowledgeBases: [], isKnowledgeBasesLoading: false, scopeKey: SCOPE_KEY }
-      })
+      const initialProps: HarnessProps = { allKnowledgeBases: [], isKnowledgeBasesLoading: false, scopeKey: SCOPE_KEY }
+      const { result, rerender } = renderHook((props: HarnessProps) => useScopeHarness(props), { initialProps })
 
       act(() => result.current.restoreKnowledgeBaseSelection(['kb-1'], { retryUnavailable: true }))
       expect(result.current.selectedKnowledgeBases).toEqual([])
@@ -108,9 +107,8 @@ describe('useComposerKnowledgeBaseScope', () => {
     })
 
     it('never selects a pending id the catalog keeps not offering', () => {
-      const { result, rerender } = renderHook((props: HarnessProps) => useScopeHarness(props), {
-        initialProps: { allKnowledgeBases: [], isKnowledgeBasesLoading: false, scopeKey: SCOPE_KEY }
-      })
+      const initialProps: HarnessProps = { allKnowledgeBases: [], isKnowledgeBasesLoading: false, scopeKey: SCOPE_KEY }
+      const { result, rerender } = renderHook((props: HarnessProps) => useScopeHarness(props), { initialProps })
 
       act(() => result.current.restoreKnowledgeBaseSelection(['deleted-base'], { retryUnavailable: true }))
 
@@ -121,9 +119,8 @@ describe('useComposerKnowledgeBaseScope', () => {
 
     it('reports a pending restore only while the catalog is still loading', () => {
       const base = kb('kb-1')
-      const { result, rerender } = renderHook((props: HarnessProps) => useScopeHarness(props), {
-        initialProps: { allKnowledgeBases: [], isKnowledgeBasesLoading: true, scopeKey: SCOPE_KEY }
-      })
+      const initialProps: HarnessProps = { allKnowledgeBases: [], isKnowledgeBasesLoading: true, scopeKey: SCOPE_KEY }
+      const { result, rerender } = renderHook((props: HarnessProps) => useScopeHarness(props), { initialProps })
 
       act(() => result.current.restoreKnowledgeBaseSelection(['kb-1'], { retryUnavailable: true }))
       expect(result.current.hasPendingKnowledgeBaseRestore).toBe(true)
@@ -134,18 +131,16 @@ describe('useComposerKnowledgeBaseScope', () => {
     })
 
     it('does not report a pending restore for ids the loaded catalog cannot offer', () => {
-      const { result } = renderHook((props: HarnessProps) => useScopeHarness(props), {
-        initialProps: { allKnowledgeBases: [], isKnowledgeBasesLoading: false, scopeKey: SCOPE_KEY }
-      })
+      const initialProps: HarnessProps = { allKnowledgeBases: [], isKnowledgeBasesLoading: false, scopeKey: SCOPE_KEY }
+      const { result } = renderHook((props: HarnessProps) => useScopeHarness(props), { initialProps })
 
       act(() => result.current.restoreKnowledgeBaseSelection(['deleted-base'], { retryUnavailable: true }))
       expect(result.current.hasPendingKnowledgeBaseRestore).toBe(false)
     })
 
     it('drops a pending restore when the scope changes', () => {
-      const { result, rerender } = renderHook((props: HarnessProps) => useScopeHarness(props), {
-        initialProps: { allKnowledgeBases: [], isKnowledgeBasesLoading: true, scopeKey: SCOPE_KEY }
-      })
+      const initialProps: HarnessProps = { allKnowledgeBases: [], isKnowledgeBasesLoading: true, scopeKey: SCOPE_KEY }
+      const { result, rerender } = renderHook((props: HarnessProps) => useScopeHarness(props), { initialProps })
 
       act(() => result.current.restoreKnowledgeBaseSelection(['kb-1'], { retryUnavailable: true }))
       expect(result.current.hasPendingKnowledgeBaseRestore).toBe(true)
@@ -162,14 +157,13 @@ describe('useComposerKnowledgeBaseScope', () => {
 
     it('keeps an existing selection while retrying pending ids', () => {
       const [first, second] = [kb('kb-1'), kb('kb-2')]
-      const { result, rerender } = renderHook((props: HarnessProps) => useScopeHarness(props), {
-        initialProps: {
-          allKnowledgeBases: [first],
-          isKnowledgeBasesLoading: false,
-          scopeKey: SCOPE_KEY,
-          initialSelection: [first]
-        }
-      })
+      const initialProps: HarnessProps = {
+        allKnowledgeBases: [first],
+        isKnowledgeBasesLoading: false,
+        scopeKey: SCOPE_KEY,
+        initialSelection: [first]
+      }
+      const { result, rerender } = renderHook((props: HarnessProps) => useScopeHarness(props), { initialProps })
 
       act(() => result.current.restoreKnowledgeBaseSelection(['kb-2'], { retryUnavailable: true }))
       expect(result.current.selectedKnowledgeBases).toEqual([])
