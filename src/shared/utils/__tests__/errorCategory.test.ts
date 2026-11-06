@@ -208,6 +208,8 @@ describe('classifyErrorCategory client refusals', () => {
 // Protocol failures need the existing parse diagnosis without swallowing request or transport failures.
 describe('classifyErrorCategory provider response protocol', () => {
   const phrases = [
+    'Failed to process successful response',
+    'Invalid JSON response',
     'Invalid input: expected object, received undefined',
     'Type validation failed:',
     "Expected 'function.name' to be a string.",
@@ -235,6 +237,10 @@ describe('classifyErrorCategory provider response protocol', () => {
   it('keeps a request-body parse failure out of the parse diagnosis', () => {
     expect(classifyErrorCategory({ text: 'Failed to parse request body' })).toBe('unknown')
     expect(classifyErrorCategory({ status: 400, text: 'Failed to parse request body' })).toBe('bad_request')
+  })
+
+  it('does not infer a protocol failure from a successful status alone', () => {
+    expect(classifyErrorCategory({ status: 200, text: 'Something happened' })).toBe('unknown')
   })
 
   it.each([
