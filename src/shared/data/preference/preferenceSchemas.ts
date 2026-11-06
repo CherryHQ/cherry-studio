@@ -47,6 +47,8 @@ export interface PreferenceSchemas {
     // target-key-definitions/complex/complex
     'agent.session.display_mode': PreferenceTypes.AgentSessionDisplayMode
     // target-key-definitions/complex/complex
+    'agent.session.idle_ttl_minutes': number
+    // target-key-definitions/complex/complex
     'agent.session.position': PreferenceTypes.TopicTabPosition
     // target-key-definitions/complex/complex
     'app.browser.agent_control.enabled': boolean
@@ -695,6 +697,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'agent.input.toolbar.pinned_tools': ['composer:new-session', 'skills', 'permission-mode'],
     'agent.language': null,
     'agent.session.display_mode': 'agent',
+    'agent.session.idle_ttl_minutes': 5,
     'agent.session.position': 'left',
     'app.browser.agent_control.enabled': true,
     'app.browser.auto_open_panel': true,
@@ -1022,7 +1025,7 @@ export const DefaultPreferences: PreferenceSchemas = {
 
 /**
  * 生成统计:
- * - 总配置项: 324
+ * - 总配置项: 325
  * - electronStore项: 2
  * - redux项: 173
  * - localStorage项: 0

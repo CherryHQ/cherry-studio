@@ -19,7 +19,7 @@ import {
 import type { ClaudeCodeProcessDiagnostics } from './processExitDiagnostics'
 
 const logger = loggerService.withContext('ClaudeCodeWarmQueryManager')
-const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
+const idleTtlMs = (): number => application.get('PreferenceService').get('agent.session.idle_ttl_minutes') * 60 * 1000
 
 type WarmQueryEntry = {
   signature: string
@@ -332,7 +332,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
       if (this.entries.get(key) !== entry) return
       this.entries.delete(key)
       this.closeDetached(key, entry)
-    }, DEFAULT_IDLE_TTL_MS)
+    }, idleTtlMs())
     entry.idleTimer.unref?.()
   }
 

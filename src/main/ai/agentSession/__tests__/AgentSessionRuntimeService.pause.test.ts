@@ -182,6 +182,9 @@ describe('AgentSessionRuntimeService pause / drainInFlight', () => {
       if (name === 'CacheService') {
         return { setShared: mocks.cacheSetShared, getShared: () => undefined, deleteShared: mocks.cacheDeleteShared }
       }
+      if (name === 'PreferenceService') {
+        return { get: (key: string) => (key === 'agent.session.idle_ttl_minutes' ? 5 : null) }
+      }
       throw new Error(`Unexpected application.get(${name})`)
     })
   })

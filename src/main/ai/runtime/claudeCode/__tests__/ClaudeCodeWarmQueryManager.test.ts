@@ -81,6 +81,9 @@ describe('ClaudeCodeWarmQueryManager', () => {
       if (name === 'ClaudeCodeTraceBridgeService') {
         return { isTraceModeEnabled: traceModeEnabledMock, prepareTrace: prepareTraceMock }
       }
+      if (name === 'PreferenceService') {
+        return { get: (key: string) => (key === 'agent.session.idle_ttl_minutes' ? 5 : null) }
+      }
       throw new Error(`Unexpected application.get(${name})`)
     })
     traceModeEnabledMock.mockReturnValue(false)
