@@ -107,6 +107,7 @@ function htmlOpeningTagLookup(text: string): (index: number) => boolean {
   const ranges: Array<{ start: number; end: number }> = []
   let pos = 0
   let cachedCodeBlockEnd = -1
+  const paragraphAt = inlineParagraphLookup(text)
   while (pos < text.length) {
     const start = text.indexOf('<', pos)
     if (start < 0) break
@@ -118,7 +119,9 @@ function htmlOpeningTagLookup(text: string): (index: number) => boolean {
       while (text[runEnd] === '`') runEnd++
       const run = runEnd - tick
       const blockEnd =
-        runEnd < cachedCodeBlockEnd ? cachedCodeBlockEnd : (cachedCodeBlockEnd = inlineBlockEnd(text, runEnd))
+        runEnd < cachedCodeBlockEnd
+          ? cachedCodeBlockEnd
+          : (cachedCodeBlockEnd = inlineBlockEnd(text, runEnd, paragraphAt))
       let close = runEnd
       let found = -1
       while (close < blockEnd) {
@@ -482,7 +485,7 @@ function paragraphQuoteDepth(line: string): number {
   }
 }
 
-function inlineBlockStart(text: string, index: number): number {
+function inlineBlockStart(text: string, index: number, paragraphAt = inlineParagraphLookup(text)): number {
   let start = 0
   let quoteDepth = 0
   let inList = false
@@ -492,7 +495,7 @@ function inlineBlockStart(text: string, index: number): number {
     const depth = explicitQuoteDepth(line)
     if (depth > 0 && depth !== quoteDepth) start = pos
     if (end > index) break
-    if (isInlineBlockBoundary(line)) {
+    if (isInlineBlockBoundary(line) && !(/^ {0,3}(?:=+|-+)[ \t]*$/.test(line) && paragraphAt(pos).lazyUnderline)) {
       start = end
       quoteDepth = 0
       inList = false
@@ -509,18 +512,52 @@ function inlineBlockStart(text: string, index: number): number {
   return start
 }
 
-function inlineBlockEnd(text: string, from: number): number {
+/** Only resolve lazy paragraph ownership; keep the existing HTML/block policy unchanged. */
+function inlineParagraphLookup(text: string): (start: number) => { quoteDepth: number; lazyUnderline: boolean } {
+  let lines: Map<number, { quoteDepth: number; lazyUnderline: boolean }> | undefined
+  return (start) => {
+    if (!lines) {
+      lines = new Map()
+      // This repair is limited to Markdown paragraphs, not HTML block ownership.
+      if (
+        /^ {0,3}> ? {0,3}>/m.test(text) ||
+        /^ {4,}(?:[-*+][ \t]+|(?:=+|-+)[ \t]*$)/m.test(text) ||
+        (/^ {0,3}>/m.test(text) && /^(?: {0,3}> ?)* {0,3}(?:[-*+] |\d+[.)] |(?:=+|-+)[ \t]*$)/m.test(text)) ||
+        (!/^ {0,3}>/m.test(text) && /^ *(?:\d+[.)]|>)/m.test(text)) ||
+        /<\/?(?!analysis\b|assessment\b|thinking\b)[a-z][a-z0-9-]*(?:[ \t>]|$)|<!|<\?/im.test(text)
+      )
+        return { quoteDepth: 0, lazyUnderline: false }
+      const state = initialContainerState()
+      for (let pos = 0; pos < text.length; pos = lineEndAfter(text, pos)) {
+        const raw = text.slice(pos, lineContentEnd(text, pos))
+        const paragraph = state.paragraph
+        const verdict = containerLine(state, raw)
+        lines.set(pos, {
+          quoteDepth: state.stack.filter((container) => container.kind === 'quote').length,
+          lazyUnderline:
+            paragraph !== null && state.paragraph === paragraph && /^ {0,3}(?:=+|-+)[ \t]*$/.test(verdict.content)
+        })
+      }
+    }
+    return lines.get(start) ?? { quoteDepth: 0, lazyUnderline: false }
+  }
+}
+
+function inlineBlockEnd(text: string, from: number, paragraphAt = inlineParagraphLookup(text)): number {
   const currentStart = lineStartBefore(text, from)
   const currentEnd = lineEndAfter(text, from)
-  // A heading is its own leaf, including when its code span is unfinished.
   if (isInlineBlockBoundary(text.slice(currentStart, lineContentEnd(text, currentStart)))) return currentEnd
   const inList = isListItemStart(text.slice(currentStart, lineContentEnd(text, currentStart)))
   let quoteDepth = explicitQuoteDepth(text.slice(currentStart, lineContentEnd(text, currentStart)))
+  // A lazy opener inherits its paragraph's quote depth. Explicit markers still
+  // use the existing boundary rules, including HTML and code placeholders.
+  if (quoteDepth === 0 && currentStart > 0 && text.includes('>')) quoteDepth = paragraphAt(currentStart).quoteDepth
   for (let start = currentEnd; start < text.length; start = lineEndAfter(text, start)) {
     const line = text.slice(start, lineContentEnd(text, start))
     const depth = explicitQuoteDepth(line)
+    const underline = /^ {0,3}(?:=+|-+)[ \t]*$/.test(line)
     if (
-      isInlineBlockBoundary(line) ||
+      (isInlineBlockBoundary(line) && !(underline && paragraphAt(start).lazyUnderline)) ||
       isInterruptingListItemStart(line) ||
       (inList && isListItemStart(line)) ||
       (depth > 0 && depth !== quoteDepth)
@@ -535,10 +572,14 @@ function inlineBlockEnd(text: string, from: number): number {
  * True when `index` sits inside a complete inline-code span. Spans cannot
  * cross leaf-block boundaries, so start at the containing block's edge.
  */
-function isInsideCompleteInlineCodeSpan(text: string, index: number): boolean {
+function isInsideCompleteInlineCodeSpan(
+  text: string,
+  index: number,
+  paragraphAt = inlineParagraphLookup(text)
+): boolean {
   let cachedBlockEnd = -1
   const inHtml = htmlOpeningTagLookup(text)
-  const blockStart = inlineBlockStart(text, index)
+  const blockStart = inlineBlockStart(text, index, paragraphAt)
   let pos = blockStart
   while (pos < index) {
     const tick = text.indexOf('`', pos)
@@ -560,7 +601,7 @@ function isInsideCompleteInlineCodeSpan(text: string, index: number): boolean {
     }
     let j = tick + run
     let closedAt = -1
-    const blockEnd = j < cachedBlockEnd ? cachedBlockEnd : (cachedBlockEnd = inlineBlockEnd(text, j))
+    const blockEnd = j < cachedBlockEnd ? cachedBlockEnd : (cachedBlockEnd = inlineBlockEnd(text, j, paragraphAt))
     while (j < blockEnd) {
       if (text[j] !== '`') {
         j++
@@ -959,6 +1000,7 @@ function findScratchpadBlockRanges(text: string): Array<{ start: number; end: nu
   const ranges: Array<{ start: number; end: number }> = []
   let searchFrom = 0
   let cachedBlockEnd = -1
+  const paragraphAt = inlineParagraphLookup(text)
   while (searchFrom < text.length) {
     const openIndex = text.indexOf('<', searchFrom)
     if (openIndex === -1) break
@@ -971,7 +1013,7 @@ function findScratchpadBlockRanges(text: string): Array<{ start: number; end: nu
       while (text[tick + run] === '`') run++
       let j = tick + run
       let closedAt = -1
-      const blockEnd = j < cachedBlockEnd ? cachedBlockEnd : (cachedBlockEnd = inlineBlockEnd(text, j))
+      const blockEnd = j < cachedBlockEnd ? cachedBlockEnd : (cachedBlockEnd = inlineBlockEnd(text, j, paragraphAt))
       while (j < blockEnd) {
         if (text[j] !== '`') {
           j++
@@ -1035,6 +1077,7 @@ function maskInlineCodeSpans(text: string): {
   placeholderBase: string
 } {
   let cachedBlockEnd = -1
+  const paragraphAt = inlineParagraphLookup(text)
   const inHtml = htmlOpeningTagLookup(text)
   const placeholderBase = pickPlaceholderBase(text, 'INLINE_CODE')
   const spans: string[] = []
@@ -1073,7 +1116,7 @@ function maskInlineCodeSpans(text: string): {
     const contentStart = i
     let j = contentStart
     let closedAt = -1
-    const blockEnd = j < cachedBlockEnd ? cachedBlockEnd : (cachedBlockEnd = inlineBlockEnd(text, j))
+    const blockEnd = j < cachedBlockEnd ? cachedBlockEnd : (cachedBlockEnd = inlineBlockEnd(text, j, paragraphAt))
     while (j < blockEnd) {
       if (text[j] !== '`') {
         j++
@@ -2063,6 +2106,7 @@ export function maskCodeFences(
   // No delimiter run can open a fenced block; avoid unrelated ownership/inline scans.
   if (!/[`~]{3}/.test(text)) return { text, fences: [], placeholderBase }
   const fences: string[] = []
+  const paragraphAt = inlineParagraphLookup(text)
   const inlineRanges = maskInlineCodeSpans(text).ranges
   const scratchpadScan = { pos: 0, stack: [] as string[] }
   let out = ''
@@ -2224,7 +2268,7 @@ export function maskCodeFences(
           // code content (e.g. Example `</analysis>` in the following
           // summary), never the block boundary (cherry-pr-review
           // inv_4b313ccdbd33f14b).
-          if (isInsideCompleteInlineCodeSpan(text, match.index)) continue
+          if (isInsideCompleteInlineCodeSpan(text, match.index, paragraphAt)) continue
           return match.index
         }
         return -1
@@ -2280,6 +2324,7 @@ export function textEndsWithPartialFenceMarker(text: string): boolean {
 /** True when an inline code span opened by backticks has no closing delimiter yet. */
 export function textHasUnclosedInlineCode(text: string): boolean {
   let cachedBlockEnd = -1
+  const paragraphAt = inlineParagraphLookup(text)
   const inHtml = htmlOpeningTagLookup(text)
   let pos = 0
   while (pos < text.length) {
@@ -2307,7 +2352,7 @@ export function textHasUnclosedInlineCode(text: string): boolean {
     const contentStart = i
     let j = contentStart
     let closedAt = -1
-    const blockEnd = j < cachedBlockEnd ? cachedBlockEnd : (cachedBlockEnd = inlineBlockEnd(text, j))
+    const blockEnd = j < cachedBlockEnd ? cachedBlockEnd : (cachedBlockEnd = inlineBlockEnd(text, j, paragraphAt))
     while (j < blockEnd) {
       if (text[j] !== '`') {
         j++
@@ -2845,6 +2890,7 @@ function findScratchpadBlockEnd(text: string, openIndex: number, tagName: string
   const collectSpansUntil = (limit: number): void => {
     let pos = spanCursor
     let cachedBlockEnd = -1
+    const paragraphAt = inlineParagraphLookup(text)
     while (pos < limit) {
       const tick = text.indexOf('`', pos)
       if (tick === -1 || tick >= limit) break
@@ -2861,7 +2907,7 @@ function findScratchpadBlockEnd(text: string, openIndex: number, tagName: string
       // or the span swallows the block's real closing tag and the strip
       // deletes the public continuation (cherry-pr-review
       // inv_4f2b0c2d3f9c4a0b).
-      const blockEnd = j < cachedBlockEnd ? cachedBlockEnd : (cachedBlockEnd = inlineBlockEnd(text, j))
+      const blockEnd = j < cachedBlockEnd ? cachedBlockEnd : (cachedBlockEnd = inlineBlockEnd(text, j, paragraphAt))
       // A complete span may hold literal wrapper markup (opener, then the
       // block's own closing tag, then the pair backtick): it is legitimate
       // inline code (cherry-pr-review round-7 inline-wrapper-boundary). But

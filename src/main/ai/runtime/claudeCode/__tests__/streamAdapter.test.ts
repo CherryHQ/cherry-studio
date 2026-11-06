@@ -6346,6 +6346,21 @@ describe('cherry-pr-review round-11', () => {
       .join('')
   }
 
+  it.each([
+    '- x\n``` a`b\n\t\t<analysis>MARK</analysis>\n--\n```aa```\n',
+    '- x\n``` a`b\n\t\t<analysis>MARK</analysis>\n===\n```aa```\n',
+    '> x\n    `\n> <thinking>MARK</thinking>\n    `\n'
+  ])('preserves inline XML across lazy container continuations: %s', (raw) => {
+    expect(runWithSnapshot([raw], raw)).toBe(raw)
+    expect(runWithSnapshot([], raw)).toBe(raw)
+    expect(runWithSnapshot(Array.from(raw), raw)).toBe(raw)
+    const twos: string[] = []
+    for (let j = 0; j < raw.length; j += 2) twos.push(raw.slice(j, j + 2))
+    expect(runWithSnapshot(twos, raw)).toBe(raw)
+    for (let cut = 0; cut <= raw.length; cut++)
+      expect(runWithSnapshot([raw.slice(0, cut), raw.slice(cut)], raw), `split ${cut}`).toBe(raw)
+  })
+
   it('retains literal XML after an invalid backtick fence and setext underline', () => {
     const raw = '```aa```\n-\n    <thinking>literal</thinking>\n'
     expect(runWithSnapshot([raw], raw)).toBe(raw)

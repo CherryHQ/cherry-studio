@@ -372,10 +372,445 @@ it('does not let invalid lazy fence info drop an existing list fence boundary', 
   expect(ContextPrompts.formatCompactSummary(raw)).not.toContain('MARK')
 })
 
-it.fails.each(['--', '==='])(
-  'known limitation: retains an inline literal across invalid fence/list lines: %s',
-  (underline) => {
-    const raw = `- x\n\x60\x60\x60 a\x60b\n\t\t<analysis>MARK</analysis>\n${underline}\n\x60\x60\x60aa\x60\x60\x60\n`
-    expect(ContextPrompts.formatCompactSummary(raw)).toContain('MARK')
-  }
-)
+it.each(['--', '==='])('retains an inline literal across invalid fence/list lines: %s', (underline) => {
+  const raw = `- x\n\x60\x60\x60 a\x60b\n\t\t<analysis>MARK</analysis>\n${underline}\n\x60\x60\x60aa\x60\x60\x60\n`
+  expect(ContextPrompts.formatCompactSummary(raw)).toContain('MARK')
+})
+
+it('preserves inline literal ownership across lazy quote continuation', () => {
+  const raw = '> x\n    `\n> <thinking>MARK</thinking>\n    `\n'
+  expect(ContextPrompts.formatCompactSummary(raw)).toContain('<thinking>MARK</thinking>')
+})
+
+it.each([
+  ['    plain\n2. ``` a`b\n2. `<thinking>MARK</thinking>`\n', 'plain\n2. ``` a`b\n2. `<thinking>MARK</thinking>`'],
+  ['> <div>\n`open\n2. `<thinking>MARK</thinking>`\n', '> <div>\n`open\n2. ``'],
+  ['- `\r\n    <p>\r\n  `<thinking>MARK</thinking>`\r\n', '- `\r\n    <p>\r\n  ``'],
+  ['> text\n</script>\n> `<thinking>MARK</thinking>`\n', '> text\n</script>\n> `<thinking>MARK</thinking>`'],
+  ['> text\n</pre>\n> `<thinking>MARK</thinking>`\n', '> text\n</pre>\n> `<thinking>MARK</thinking>`'],
+  ['> text\n</style>\n> `<thinking>MARK</thinking>`\n', '> text\n</style>\n> `<thinking>MARK</thinking>`'],
+  ['> text\n<source>\n> `<thinking>MARK</thinking>`\n', '> text\n<source>\n> `<thinking>MARK</thinking>`'],
+  ['> text\n</source>\n> `<thinking>MARK</thinking>`\n', '> text\n</source>\n> `<thinking>MARK</thinking>`'],
+  ['</div>\n> text\n`open\n2. `<thinking>MARK</thinking>`\n', '</div>\n> text\n`open\n2. ``'],
+  ['<div>\n> text\n`<thinking>MARK</thinking>\n> quoted `code`\n', '<div>\n> text\n`\n> quoted `code`'],
+  ['<?php echo\n> > nested\n``` a`b\n2. `<thinking>MARK</thinking>`\n', '<?php echo\n> > nested\n``` a`b\n2. ``'],
+  ['<pre>\ntext\n2. ``` a`b\n`<thinking>MARK</thinking>`\n2. ``` a`b\n', '<pre>\ntext\n2. ``` a`b\n``\n2. ``` a`b'],
+  ['<pre>\n</textarea>\n`<analysis>MARK</analysis>`\n', '<pre>\n</textarea>\n`<analysis>MARK</analysis>`'],
+  ['> <section>\n\t`<thinking>MARK</thinking>\na `b` c\n', '> <section>\n\t`<thinking>MARK</thinking>\na `b` c'],
+  ['>> <ul>\n> > x\n``<analysis>MARK</analysis>``\n', '>> <ul>\n> > x\n``<analysis>MARK</analysis>``'],
+  [
+    '> 2. <summary>\n\t`<thinking>MARK</thinking>\ntext `tick` more\n',
+    '> 2. <summary>\n\t`<thinking>MARK</thinking>\ntext `tick` more'
+  ],
+  [
+    '2. 2. item\n   <li>\n   text\n``<thinking>MARK</thinking>``\n',
+    '2. 2. item\n   <li>\n   text\n``<thinking>MARK</thinking>``'
+  ],
+  ['>> <table>\n>> `open\n> `<thinking>MARK</thinking>`\n', '>> <table>\n>> `open\n> `<thinking>MARK</thinking>`'],
+  ['`<thinking>MARK</thinking>\r\n<frame>\r\n``` a`b\r\n', '`\r\n<frame>\r\n``` a`b'],
+  ['`\n<analysis>MARK</analysis>\n<frame>\n`open\n', '`\n\n<frame>\n`open'],
+  ['+ <source>\r\n  <li>\r\n``` a`b\r\n2. `<thinking>MARK</thinking>`\r\n', '+ <source>\r\n  <li>\r\n``` a`b\r\n2. ``'],
+  ['> <em>\n>> `<thinking>MARK</thinking>\n> text `tick` more\n', '> <em>\n>> `\n> text `tick` more']
+])('keeps the existing policy outside lazy paragraph repair: %s', (raw, expected) => {
+  expect(stripModelScratchpadBlocks(raw)).toBe(expected)
+})
+
+it.each([
+  [
+    '> x\r\n  `open\r\n2. item\r\n> `<thinking>MARK</thinking>\r\n  `open\r\n',
+    '> x\r\n  `open\r\n2. item\r\n> `<thinking>MARK</thinking>\r\n  `open'
+  ],
+  ['>> z\n    `<thinking>MARK</thinking>\n2. item\n> > nested `d`\n', '>> z\n    `\n2. item\n> > nested `d`'],
+  ['> x\n    `\n===\n2. item\n    <thinking>MARK</thinking>\n\t`\n', '> x\n    `\n===\n2. item\n    \n\t`'],
+  [
+    '>> z\r\n  `open\r\n    ``\r\n===\r\n  ``<thinking>MARK</thinking>``\r\n> quoted `code`\r\n',
+    '>> z\r\n  `open\r\n    ``\r\n===\r\n  ``<thinking>MARK</thinking>``\r\n> quoted `code`'
+  ],
+  [
+    '>> z\n    `\n> `\n--\n    `<thinking>MARK</thinking>\n    `\n',
+    '>> z\n    `\n> `\n--\n    `<thinking>MARK</thinking>\n    `'
+  ],
+  [
+    '>> z\n> quoted `code`\n    `\n> > nested `d`\nlazy `\n===\n    `<thinking>MARK</thinking>\nlazy `\n',
+    '>> z\n> quoted `code`\n    `\n> > nested `d`\nlazy `\n===\n    `<thinking>MARK</thinking>\nlazy `'
+  ],
+  ['>> z\n    `\n> `\n--\n`<thinking>MARK</thinking>`\n', '>> z\n    `\n> `\n--\n`<thinking>MARK</thinking>`'],
+  [
+    '>> z\n    `\n--\nx `<thinking>MARK</thinking>` y\n> quoted `code`\n    `\n`<thinking>MARK</thinking>`\n',
+    '>> z\n    `\n--\nx `<thinking>MARK</thinking>` y\n> quoted `code`\n    `\n``'
+  ],
+  ['> ``\n--\n2. item\n> ``<thinking>MARK</thinking>``\n', '> ``\n--\n2. item\n> ``<thinking>MARK</thinking>``'],
+  [
+    '> x\r\n    `\r\n2. item\r\n> x `<thinking>MARK</thinking>` y\r\n',
+    '> x\r\n    `\r\n2. item\r\n> x `<thinking>MARK</thinking>` y'
+  ],
+  [
+    '>> z\n  `open\n2. item\n--\n    `<thinking>MARK</thinking>`\n',
+    '>> z\n  `open\n2. item\n--\n    `<thinking>MARK</thinking>`'
+  ],
+  [
+    '> a `b`\n2. item\n--\nlazy `\n> `<analysis>MARK</analysis>`\n',
+    '> a `b`\n2. item\n--\nlazy `\n> `<analysis>MARK</analysis>`'
+  ],
+  [
+    '>> z\n  `open\n> quoted `code`\n    `\n===\n  `<analysis>MARK</analysis>`\n',
+    '>> z\n  `open\n> quoted `code`\n    `\n===\n  `<analysis>MARK</analysis>`'
+  ],
+  [
+    '> a `b`\n===\nlazy `\n2. item\n> ``\n`<analysis>MARK</analysis>`\n',
+    '> a `b`\n===\nlazy `\n2. item\n> ``\n`<analysis>MARK</analysis>`'
+  ],
+  [
+    '>> z\n    `\n2. item\n--\n    x `<thinking>MARK</thinking>` y\n',
+    '>> z\n    `\n2. item\n--\n    x `<thinking>MARK</thinking>` y'
+  ],
+  [
+    '> x\n\t`\n> x `<thinking>MARK</thinking>` y\n2. item\n    x `<thinking>MARK</thinking>` y\n',
+    '> x\n\t`\n> x `<thinking>MARK</thinking>` y\n2. item\n    x `<thinking>MARK</thinking>` y'
+  ],
+  [
+    '>> z\n    `\n> > nested `d`\n`<analysis>MARK</analysis>`\n> `\n> `<analysis>MARK</analysis>`\n',
+    '>> z\n    `\n> > nested `d`\n`<analysis>MARK</analysis>`\n> `\n> ``'
+  ],
+  [
+    '> x\r\n\t`\r\n2. item\r\n  <thinking>MARK</thinking>\r\n> quoted `code`\r\n',
+    '> x\r\n\t`\r\n2. item\r\n  \r\n> quoted `code`'
+  ],
+  [
+    '1. > 2. qord\n``` a`b\n> x `<thinking>MARK</thinking>` y\n',
+    '1. > 2. qord\n``` a`b\n> x `<thinking>MARK</thinking>` y'
+  ],
+  ['> <thinking>MARK</thinking>\n`<thinking>MARK</thinking>\n2. item\n> close`\n', '> \n`\n2. item\n> close`'],
+  [
+    '> a `b`\n2. item\n  `open\n===\n> `<thinking>MARK</thinking>`\n',
+    '> a `b`\n2. item\n  `open\n===\n> `<thinking>MARK</thinking>`'
+  ],
+  [
+    '>> <thinking>MARK</thinking>\r\n\t`\r\n>> `<thinking>MARK</thinking>`\r\n2. x `<thinking>MARK</thinking>` y\r\n',
+    '>> \r\n\t`\r\n>> `<thinking>MARK</thinking>`\r\n2. x `<thinking>MARK</thinking>` y'
+  ],
+  [
+    '> text `t`\r\nlazy `\r\n--\r\n> ``\r\n    ``<thinking>MARK</thinking>``\r\n2. item\r\n    `\r\n',
+    '> text `t`\r\nlazy `\r\n--\r\n> ``\r\n    ````\r\n2. item\r\n    `'
+  ],
+  ['>> z\n  `open\n> `<thinking>MARK</thinking>\n===\n  `open\n', '>> z\n  `open\n> `\n===\n  `open'],
+  [
+    '>> deep\n    `\n2. item\n>> x `<thinking>MARK</thinking>` y\n',
+    '>> deep\n    `\n2. item\n>> x `<thinking>MARK</thinking>` y'
+  ],
+  [
+    '> text `t`\n\t`\n2. item\n===\n  `<thinking>MARK</thinking>\n    `\n',
+    '> text `t`\n\t`\n2. item\n===\n  `<thinking>MARK</thinking>\n    `'
+  ],
+  [
+    '> x\n    `\n2. item\n    <thinking>MARK</thinking>\n> quoted `code`\n',
+    '> x\n    `\n2. item\n    \n> quoted `code`'
+  ],
+  [
+    '> x\r\n    ``\r\n2. item\r\n> <assessment>MARK</assessment>\r\n    ``\r\n',
+    '> x\r\n    ``\r\n2. item\r\n> \r\n    ``'
+  ],
+  [
+    '> text `t`\nlazy `\n2. item\n> <assessment>MARK</assessment>\n===\n  `open\n',
+    '> text `t`\nlazy `\n2. item\n> \n===\n  `open'
+  ],
+  [
+    '> > inner\r\n\t`\r\n> close`\r\n===\r\n<assessment>MARK</assessment>\r\n\t`\r\n',
+    '> > inner\r\n\t`\r\n> close`\r\n===\r\n\r\n\t`'
+  ],
+  [
+    '>> z\nlazy `\n2. item\n    `\nlazy `\n<assessment>MARK</assessment>\n> > nested `d`\n',
+    '>> z\nlazy `\n2. item\n    `\nlazy `\n\n> > nested `d`'
+  ],
+  ['> > `<thinking>MARK</thinking>\r\n--\r\n2. - y `tick`\r\n', '> > `\r\n--\r\n2. - y `tick`'],
+  [
+    '>> z\r\n  `<thinking>MARK</thinking>\r\n2. item\r\n> > inner\r\n  `open\r\n',
+    '>> z\r\n  `\r\n2. item\r\n> > inner\r\n  `open'
+  ],
+  ['> `\n--\n2. item\n    `<analysis>MARK</analysis>`\n', '> `\n--\n2. item\n    `<analysis>MARK</analysis>`'],
+  [
+    '> text `t`\n  `open\n--\n2. item\n    `<analysis>MARK</analysis>`\n',
+    '> text `t`\n  `open\n--\n2. item\n    `<analysis>MARK</analysis>`'
+  ],
+  ['>> z\n\t`\n  <assessment>MARK</assessment>\n2. item\n> > nested `d`\n', '>> z\n\t`\n  \n2. item\n> > nested `d`'],
+  [
+    '> x\n    `\n2. item\n> x `<thinking>MARK</thinking>` y\n',
+    '> x\n    `\n2. item\n> x `<thinking>MARK</thinking>` y'
+  ],
+  [
+    '> `\r\n2. item\r\n--\r\n  x `<thinking>MARK</thinking>` y\r\n',
+    '> `\r\n2. item\r\n--\r\n  x `<thinking>MARK</thinking>` y'
+  ],
+  ['>> z\r\n\t`\r\n> `<thinking>MARK</thinking>\r\n===\r\n    `\r\n', '>> z\r\n\t`\r\n> `\r\n===\r\n    `'],
+  [
+    '> >> deep\r\n  `<thinking>MARK</thinking>\r\n=\r\n2. text `tick` more\r\n',
+    '> >> deep\r\n  `\r\n=\r\n2. text `tick` more'
+  ],
+  [
+    '>> z\n  `open\n===\n2. item\n`<analysis>MARK</analysis>`\n',
+    '>> z\n  `open\n===\n2. item\n`<analysis>MARK</analysis>`'
+  ],
+  [
+    '> ``\r\n2. item\r\n===\r\n> ``<thinking>MARK</thinking>``\r\n',
+    '> ``\r\n2. item\r\n===\r\n> ``<thinking>MARK</thinking>``'
+  ],
+  ['> a `b`\n    `\n2. item\n--\n  <thinking>MARK</thinking>\n    `\n', '> a `b`\n    `\n2. item\n--\n  \n    `'],
+  [
+    '>> z\nlazy `\n<thinking>MARK</thinking>\n> > inner\n2. item\nlazy `\n',
+    '>> z\nlazy `\n\n> > inner\n2. item\nlazy `'
+  ],
+  [
+    '> x\n  `open\n===\n2. item\n  `<thinking>MARK</thinking>`\n',
+    '> x\n  `open\n===\n2. item\n  `<thinking>MARK</thinking>`'
+  ],
+  [
+    '> text `t`\r\n2. item\r\n  `open\r\n> quoted `code`\r\n===\r\n  <assessment>MARK</assessment>\r\n    `\r\n',
+    '> text `t`\r\n2. item\r\n  `open\r\n> quoted `code`\r\n===\r\n  \r\n    `'
+  ],
+  ['> x\n    `<thinking>MARK</thinking>\n2. item\n> quoted `code`\n', '> x\n    `\n2. item\n> quoted `code`'],
+  [
+    '> quoted `code`\n\t`\n--\n2. item\n> `<analysis>MARK</analysis>`\n',
+    '> quoted `code`\n\t`\n--\n2. item\n> `<analysis>MARK</analysis>`'
+  ],
+  [
+    '>> z\n    `\n===\n    `<thinking>MARK</thinking>`\n> <thinking>MARK</thinking>\n  `open\n',
+    '>> z\n    `\n===\n    `<thinking>MARK</thinking>`\n> \n  `open'
+  ],
+  ['>> z\n    ``\n> ``\n  <thinking>MARK</thinking>\n===\n> ``\n', '>> z\n    ``\n> ``\n  \n===\n> ``'],
+  [
+    '> x\n\t`\n2. item\n> `<thinking>MARK</thinking>\n  `open\n',
+    '> x\n\t`\n2. item\n> `<thinking>MARK</thinking>\n  `open'
+  ],
+  ['> `\n2. item\n--\n> `<analysis>MARK</analysis>`\n', '> `\n2. item\n--\n> `<analysis>MARK</analysis>`'],
+  ['> `<thinking>MARK</thinking>\r\n2. item\r\n--\r\n\t`\r\n', '> `\r\n2. item\r\n--\r\n\t`'],
+  [
+    '> close`\r\n2. item\r\n--\r\n> `<analysis>MARK</analysis>`\r\n',
+    '> close`\r\n2. item\r\n--\r\n> `<analysis>MARK</analysis>`'
+  ],
+  [
+    '> x\n  `open\n  `open\n    `<thinking>MARK</thinking>\n2. item\n> quoted `code`\n',
+    '> x\n  `open\n  `open\n    `\n2. item\n> quoted `code`'
+  ],
+  [
+    '> > ===\t\n``` a`b\n2. `<analysis>MARK</analysis>`\n>> `<thinking>MARK</thinking>`\n',
+    '> > ===\t\n``` a`b\n2. ``\n>> `<thinking>MARK</thinking>`'
+  ],
+  ['> `<thinking>MARK</thinking>\r\n===\r\n2. item\r\n> close`\r\n', '> `\r\n===\r\n2. item\r\n> close`'],
+  [
+    '> > inner\n  `open\n> ``\n  `open\n===\n  x `<thinking>MARK</thinking>` y\n',
+    '> > inner\n  `open\n> ``\n  `open\n===\n  x `<thinking>MARK</thinking>` y'
+  ],
+  [
+    '>> z\n`<thinking>MARK</thinking>\n> ``\n--\n    `\n``<thinking>MARK</thinking>``\n',
+    '>> z\n`\n> ``\n--\n    `\n``<thinking>MARK</thinking>``'
+  ],
+  [
+    '> > inner\nlazy `\n2. item\n> > inner\n`<thinking>MARK</thinking>`\n',
+    '> > inner\nlazy `\n2. item\n> > inner\n`<thinking>MARK</thinking>`'
+  ],
+  ['> x\n\t`\n2. item\n> <assessment>MARK</assessment>\n\t`\n', '> x\n\t`\n2. item\n> \n\t`'],
+  ['> x\n  `<thinking>MARK</thinking>\n===\n2. item\n\t`\n', '> x\n  `\n===\n2. item\n\t`'],
+  ['> 2. qord\n`<thinking>MARK</thinking>\n1.     `\n> `q tick`\n', '> 2. qord\n`\n1.     `\n> `q tick`'],
+  [
+    '> x\n    ``\n2. item\n--\n  ``<thinking>MARK</thinking>``\n',
+    '> x\n    ``\n2. item\n--\n  ``<thinking>MARK</thinking>``'
+  ],
+  ['> `<thinking>MARK</thinking>\r\n2. item\r\n===\r\n    `\r\n', '> `\r\n2. item\r\n===\r\n    `'],
+  [
+    '> x\n    `\n2. item\n> `<thinking>MARK</thinking>\n\t`\n',
+    '> x\n    `\n2. item\n> `<thinking>MARK</thinking>\n\t`'
+  ],
+  ['> close`\n===\n2. item\n`<thinking>MARK</thinking>`\n', '> close`\n===\n2. item\n`<thinking>MARK</thinking>`'],
+  [
+    '> a `b`\n2. item\n--\nlazy `\n> ``\n    `<thinking>MARK</thinking>\n    ``\n',
+    '> a `b`\n2. item\n--\nlazy `\n> ``\n    `<thinking>MARK</thinking>\n    ``'
+  ],
+  ['> `\n<assessment>MARK</assessment>\n--\n2. item\n> `\n', '> `\n\n--\n2. item\n> `'],
+  [
+    '>> z\nlazy `\n2. item\n> > inner\n    `<thinking>MARK</thinking>`\n',
+    '>> z\nlazy `\n2. item\n> > inner\n    `<thinking>MARK</thinking>`'
+  ],
+  [
+    '> a `b`\n2. item\n  `<thinking>MARK</thinking>\n> <thinking>MARK</thinking>\n===\n\t`\n',
+    '> a `b`\n2. item\n  `\n> \n===\n\t`'
+  ],
+  ['> x\n    `\n2. item\n===\n`<thinking>MARK</thinking>`\n', '> x\n    `\n2. item\n===\n`<thinking>MARK</thinking>`'],
+  ['>> z\n    `<thinking>MARK</thinking>\n> > inner\n2. item\n    `\n', '>> z\n    `\n> > inner\n2. item\n    `'],
+  [
+    '2. item\r\nclose`\r\n=\r\n2. `<thinking>MARK</thinking>`\r\n',
+    '2. item\r\nclose`\r\n=\r\n2. `<thinking>MARK</thinking>`'
+  ],
+  [
+    '> x\n    ``\n2. item\n  `<thinking>MARK</thinking>\n> quoted `code`\n',
+    '> x\n    ``\n2. item\n  `\n> quoted `code`'
+  ],
+  ['> ``\n===\n2. item\n``<thinking>MARK</thinking>``\n', '> ``\n===\n2. item\n``<thinking>MARK</thinking>``'],
+  ['> x\n\t`\n2. item\n    `\n  `<thinking>MARK</thinking>\n> `\n', '> x\n\t`\n2. item\n    `\n  `\n> `'],
+  ['> close`\r\n--\r\n2. item\r\n<thinking>MARK</thinking>\r\n\t`\r\n', '> close`\r\n--\r\n2. item\r\n\r\n\t`'],
+  [
+    '> > inner\n> `\n> > inner\n\t`\n===\n    `<thinking>MARK</thinking>`\n',
+    '> > inner\n> `\n> > inner\n\t`\n===\n    `<thinking>MARK</thinking>`'
+  ],
+  [
+    '> text `t`\nlazy `\n--\n2. item\n    x `<thinking>MARK</thinking>` y\n',
+    '> text `t`\nlazy `\n--\n2. item\n    x `<thinking>MARK</thinking>` y'
+  ],
+  [
+    '>> z\n  `open\n> > inner\n    `<thinking>MARK</thinking>`\n> `\n> `<thinking>MARK</thinking>`\n',
+    '>> z\n  `open\n> > inner\n    `<thinking>MARK</thinking>`\n> `\n> ``'
+  ],
+  [
+    '> a `b`\n    `\n--\n2. item\n    `<thinking>MARK</thinking>\nlazy `\n',
+    '> a `b`\n    `\n--\n2. item\n    `<thinking>MARK</thinking>\nlazy `'
+  ],
+  [
+    '> quoted `code`\r\nlazy `\r\nlazy `\r\n2. item\r\nlazy `\r\n===\r\n> x `<thinking>MARK</thinking>` y\r\n',
+    '> quoted `code`\r\nlazy `\r\nlazy `\r\n2. item\r\nlazy `\r\n===\r\n> x `<thinking>MARK</thinking>` y'
+  ],
+  [
+    '>> z\n    `\n> ``\n> close`\n===\n``<thinking>MARK</thinking>``\n',
+    '>> z\n    `\n> ``\n> close`\n===\n``<thinking>MARK</thinking>``'
+  ],
+  ['> x\n    `\n    <assessment>MARK</assessment>\n2. item\n> `\n', '> x\n    `\n    \n2. item\n> `'],
+  [
+    '> a `b`\n\t`\n2. item\n\t`\n  `open\n--\n  x `<thinking>MARK</thinking>` y\n',
+    '> a `b`\n\t`\n2. item\n\t`\n  `open\n--\n  x `<thinking>MARK</thinking>` y'
+  ],
+  [
+    '> 2. qord\n    close`\nclose`\n    `\n2. item\n> x `<thinking>MARK</thinking>` y\n',
+    '> 2. qord\n    close`\nclose`\n    `\n2. item\n> x `<thinking>MARK</thinking>` y'
+  ],
+  ['>> 1. one\n\t```\n2. <thinking>MARK</thinking>\n>> ``` a`b\n', '>> 1. one\n\t```\n2. \n>> ``` a`b'],
+  [
+    '>>   - nested\r\n``` a`b\r\n``\r\n> > deep2\r\n  ``<thinking>MARK</thinking>``\r\n> `q tick`\r\n',
+    '>>   - nested\r\n``` a`b\r\n``\r\n> > deep2\r\n  ``<thinking>MARK</thinking>``\r\n> `q tick`'
+  ],
+  [
+    '> text `t`\n\t`\n--\n2. item\n    `<thinking>MARK</thinking>`\n',
+    '> text `t`\n\t`\n--\n2. item\n    `<thinking>MARK</thinking>`'
+  ],
+  ['> `\n===\n2. item\n    <assessment>MARK</assessment>\nlazy `\n', '> `\n===\n2. item\n    \nlazy `'],
+  [
+    '>> z\n\t`\n> > nested `d`\n2. item\n    `<analysis>MARK</analysis>`\n',
+    '>> z\n\t`\n> > nested `d`\n2. item\n    `<analysis>MARK</analysis>`'
+  ],
+  ['> text `t`\n===\n2. item\n    `<thinking>MARK</thinking>\n> close`\n', '> text `t`\n===\n2. item\n    `\n> close`'],
+  ['> x\n    `\n2. item\n> `<thinking>MARK</thinking>`\n', '> x\n    `\n2. item\n> `<thinking>MARK</thinking>`'],
+  ['> x\n\t`\n2. item\n> `<analysis>MARK</analysis>`\n', '> x\n\t`\n2. item\n> `<analysis>MARK</analysis>`'],
+  ['> ``\n--\n2. ``<thinking>MARK</thinking>``\n', '> ``\n--\n2. ``<thinking>MARK</thinking>``'],
+  [
+    '> close`\n--\n2. item\n  x `<thinking>MARK</thinking>` y\n',
+    '> close`\n--\n2. item\n  x `<thinking>MARK</thinking>` y'
+  ],
+  [
+    '> > nested `d`\n  `open\n2. item\n===\nx `<thinking>MARK</thinking>` y\n',
+    '> > nested `d`\n  `open\n2. item\n===\nx `<thinking>MARK</thinking>` y'
+  ],
+  [
+    '> `\r\n2. item\r\n===\r\n  `<thinking>MARK</thinking>\r\nlazy `\r\n',
+    '> `\r\n2. item\r\n===\r\n  `<thinking>MARK</thinking>\r\nlazy `'
+  ],
+  [
+    '>> z\n    `\n> `\n===\n  x `<thinking>MARK</thinking>` y\n',
+    '>> z\n    `\n> `\n===\n  x `<thinking>MARK</thinking>` y'
+  ],
+  [
+    '> - qitem\n``` a`b\n2. <thinking>MARK</thinking>\n> <thinking>MARK</thinking>\ntext `tick` more\n',
+    '> - qitem\n``` a`b\n2. \n> \ntext `tick` more'
+  ],
+  [
+    '> text `t`\r\n===\r\n2. item\r\nlazy `\r\n> quoted `code`\r\n`<thinking>MARK</thinking>`\r\n',
+    '> text `t`\r\n===\r\n2. item\r\nlazy `\r\n> quoted `code`\r\n`<thinking>MARK</thinking>`'
+  ],
+  [
+    '> text `t`\r\n    `\r\n===\r\n2. item\r\n    `<thinking>MARK</thinking>`\r\n',
+    '> text `t`\r\n    `\r\n===\r\n2. item\r\n    `<thinking>MARK</thinking>`'
+  ],
+  ['> x\n    `<thinking>MARK</thinking>\n===\n2. item\n\t`\n', '> x\n    `\n===\n2. item\n\t`'],
+  [
+    '>> z\n  `open\n> close`\n===\n  `<analysis>MARK</analysis>`\n',
+    '>> z\n  `open\n> close`\n===\n  `<analysis>MARK</analysis>`'
+  ],
+  [
+    '- > - qitem\n    `open\n``` a`b\n2. `open\n> x `<thinking>MARK</thinking>` y\n',
+    '- > - qitem\n    `open\n``` a`b\n2. `open\n> x `<thinking>MARK</thinking>` y'
+  ],
+  ['> x\n    `\n2. item\n> `<analysis>MARK</analysis>`\n', '> x\n    `\n2. item\n> `<analysis>MARK</analysis>`'],
+  [
+    '> x\n    `\n> quoted `code`\n2. item\n    `<analysis>MARK</analysis>`\n',
+    '> x\n    `\n> quoted `code`\n2. item\n    `<analysis>MARK</analysis>`'
+  ],
+  ['> x\n  `<thinking>MARK</thinking>\n2. item\n> `\n', '> x\n  `\n2. item\n> `'],
+  [
+    '>> z\r\nlazy `\r\nlazy `\r\n    `\r\n> close`\r\n===\r\n> `<analysis>MARK</analysis>`\r\n',
+    '>> z\r\nlazy `\r\nlazy `\r\n    `\r\n> close`\r\n===\r\n> `<analysis>MARK</analysis>`'
+  ],
+  [
+    '>> z\n    `\n2. item\n> > nested `d`\n    `<thinking>MARK</thinking>`\n',
+    '>> z\n    `\n2. item\n> > nested `d`\n    `<thinking>MARK</thinking>`'
+  ],
+  [
+    '- x\n``` a`b\n===\t\n2. x `<thinking>MARK</thinking>` y\n',
+    '- x\n``` a`b\n===\t\n2. x `<thinking>MARK</thinking>` y'
+  ],
+  ['>> z\n  `open\n> `\n> <assessment>MARK</assessment>\n--\nlazy `\n', '>> z\n  `open\n> `\n> \n--\nlazy `'],
+  [
+    '> text `t`\n\t`\n===\n2. item\n    `<analysis>MARK</analysis>`\n',
+    '> text `t`\n\t`\n===\n2. item\n    `<analysis>MARK</analysis>`'
+  ],
+  [
+    '>> <assessment>MARK</assessment>\n\tclose`\n2. item\n=\n  `<analysis>MARK</analysis>`\n',
+    '>> \n\tclose`\n2. item\n=\n  `<analysis>MARK</analysis>`'
+  ],
+  [
+    '2. > > deep2\r\n``\r\n> > ``<thinking>MARK</thinking>``\r\n',
+    '2. > > deep2\r\n``\r\n> > ``<thinking>MARK</thinking>``'
+  ],
+  [
+    '> x\r\n    `\r\n2. item\r\n> `<analysis>MARK</analysis>`\r\n',
+    '> x\r\n    `\r\n2. item\r\n> `<analysis>MARK</analysis>`'
+  ],
+  [
+    '>> z\n    `\n> close`\n--\nx `<thinking>MARK</thinking>` y\n',
+    '>> z\n    `\n> close`\n--\nx `<thinking>MARK</thinking>` y'
+  ],
+  [
+    '> text `t`\n  `open\n--\n2. item\n  `<analysis>MARK</analysis>`\n',
+    '> text `t`\n  `open\n--\n2. item\n  `<analysis>MARK</analysis>`'
+  ],
+  [
+    '>> z\r\n  `open\r\n\t`\r\n> quoted `code`\r\n`<thinking>MARK</thinking>\r\n> > nested `d`\r\n  `open\r\n===\r\n  `<thinking>MARK</thinking>`\r\n',
+    '>> z\r\n  `open\r\n\t`\r\n> quoted `code`\r\n`\r\n> > nested `d`\r\n  `open\r\n===\r\n  `<thinking>MARK</thinking>`'
+  ],
+  [
+    '> a `b`\n===\n2. item\n\t`\n> `<thinking>MARK</thinking>`\n',
+    '> a `b`\n===\n2. item\n\t`\n> `<thinking>MARK</thinking>`'
+  ],
+  [
+    '> close`\r\n`<thinking>MARK</thinking>\r\n  `open\r\n===\r\n2. item\r\n  `<thinking>MARK</thinking>`\r\n',
+    '> close`\r\n`\r\n  `open\r\n===\r\n2. item\r\n  `<thinking>MARK</thinking>`'
+  ],
+  ['>> z\n\t`\n> close`\n===\n> <thinking>MARK</thinking>\n> `\n', '>> z\n\t`\n> close`\n===\n> \n> `'],
+  [
+    '>> z\n    `\n> > nested `d`\n  `<analysis>MARK</analysis>`\n    `\n    `\n> `\n`<thinking>MARK</thinking>`\n',
+    '>> z\n    `\n> > nested `d`\n  `<analysis>MARK</analysis>`\n    `\n    `\n> `\n``'
+  ],
+  ['> x\r\n`<thinking>MARK</thinking>\r\n2. item\r\n> close`\r\n', '> x\r\n`\r\n2. item\r\n> close`'],
+  [
+    '> ``\r\n--\r\n2. item\r\n``<thinking>MARK</thinking>``\r\n',
+    '> ``\r\n--\r\n2. item\r\n``<thinking>MARK</thinking>``'
+  ]
+])('leaves excluded mixed-container shapes at the baseline policy: %s', (raw, expected) => {
+  expect(stripModelScratchpadBlocks(raw)).toBe(expected)
+})
+
+it.each([
+  '- `t`\r\n``` a`b\r\n-- \r\n    - deep\r\n`<thinking>MARK</thinking>`\r\n',
+  '* item\r\n``` a`b\r\n=\r\n    - deep\r\nx `<thinking>MARK</thinking>` y\r\n'
+])('keeps baseline literal code when a nested item follows a setext-like line: %s', (raw) => {
+  expect(stripModelScratchpadBlocks(raw)).toContain('MARK')
+})
+
+it('keeps baseline inline literal after a second indented underline', () => {
+  expect(stripModelScratchpadBlocks('  - `\n  ===\n    ===\n    `<thinking>MARK</thinking>`\n  - \n')).toContain('MARK')
+})
