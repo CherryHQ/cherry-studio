@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-03T17:49:24.179880+00:00",
+  "generated_at": "2026-11-06T17:50:17.118673+00:00",
   "total": 500,
   "by_category": [
     {
@@ -7,11 +7,11 @@
       "count": 107
     },
     {
-      "category": "Assistant | \u52a9\u624b",
+      "category": "Assistant | 助手",
       "count": 75
     },
     {
-      "category": "KnowledgeBase | \u77e5\u8bc6\u5e93",
+      "category": "KnowledgeBase | 知识库",
       "count": 65
     },
     {
@@ -19,7 +19,7 @@
       "count": 59
     },
     {
-      "category": "UI & UX | \u754c\u9762\u4ea4\u4e92",
+      "category": "UI & UX | 界面交互",
       "count": 53
     },
     {
@@ -27,27 +27,27 @@
       "count": 42
     },
     {
-      "category": "Model & Provider | \u6a21\u578b\u548c\u670d\u52a1\u5546",
+      "category": "Model & Provider | 模型和服务商",
       "count": 21
     },
     {
-      "category": "Internet Search | \u8054\u7f51\u641c\u7d22",
+      "category": "Internet Search | 联网搜索",
       "count": 17
     },
     {
-      "category": "Data Manage | \u6570\u636e\u7ba1\u7406",
+      "category": "Data Manage | 数据管理",
       "count": 16
     },
     {
-      "category": "MCP | \u6a21\u578b\u4e0a\u4e0b\u6587\u534f\u8bae",
+      "category": "MCP | 模型上下文协议",
       "count": 14
     },
     {
-      "category": "Import & Export | \u5bfc\u5165\u5bfc\u51fa",
+      "category": "Import & Export | 导入导出",
       "count": 8
     },
     {
-      "category": "Translate | \u7ffb\u8bd1",
+      "category": "Translate | 翻译",
       "count": 6
     },
     {
@@ -55,7 +55,7 @@
       "count": 4
     },
     {
-      "category": "MiniApp | \u5c0f\u7a0b\u5e8f",
+      "category": "MiniApp | 小程序",
       "count": 4
     },
     {
@@ -63,11 +63,11 @@
       "count": 3
     },
     {
-      "category": "Image Generation | \u56fe\u7247\u751f\u6210",
+      "category": "Image Generation | 图片生成",
       "count": 2
     },
     {
-      "category": "QuickAssistant | \u5feb\u6377\u52a9\u624b",
+      "category": "QuickAssistant | 快捷助手",
       "count": 2
     },
     {
@@ -75,7 +75,7 @@
       "count": 1
     },
     {
-      "category": "Messages | \u6d88\u606f",
+      "category": "Messages | 消息",
       "count": 1
     }
   ],
@@ -97,56 +97,56 @@
     },
     {
       "number": 2025,
-      "title": "\u5bf9\u8bdd\u548c\u6d88\u606f\u5220\u9664\u3001\u91cd\u65b0\u751f\u6210\u3001\u5206\u652f\u529f\u80fd\u6709\u70b9\u5947\u602a",
+      "title": "对话和消息删除、重新生成、分支功能有点奇怪",
       "category": "General",
       "updatedAt": "2026-04-02T08:54:04Z",
       "comments": 12
     },
     {
       "number": 1870,
-      "title": "[UI/UX \u5efa\u8bae]\uff1a\u8bdd\u9898\u548c\u52a9\u624b UI \u4fee\u6539\u5efa\u8bae",
+      "title": "[UI/UX 建议]：话题和助手 UI 修改建议",
       "category": "General",
       "updatedAt": "2025-02-18T02:40:21Z",
       "comments": 3
     },
     {
       "number": 1864,
-      "title": "\u667a\u80fd\u753b\u5e03",
+      "title": "智能画布",
       "category": "Ideas",
       "updatedAt": "2026-03-22T00:14:17Z",
       "comments": 2
     },
     {
       "number": 1848,
-      "title": "\u5386\u53f2\u8bdd\u9898\u652f\u6301\u6279\u91cf\u6e05\u7406",
+      "title": "历史话题支持批量清理",
       "category": "Ideas",
       "updatedAt": "2025-02-17T20:48:24Z",
       "comments": 3
     },
     {
       "number": 320,
-      "title": "\u5229\u7528Quciker, \u5b9e\u73b0\u9009\u4e2d\u6587\u672c\u540e\u53d1\u9001\u5230cherry studio",
+      "title": "利用Quciker, 实现选中文本后发送到cherry studio",
       "category": "Show and tell",
       "updatedAt": "2024-11-10T08:22:51Z",
       "comments": 0
     },
     {
       "number": 1863,
-      "title": "FR: \u6c42\u9002\u914d Vertex AI",
-      "category": "Model & Provider | \u6a21\u578b\u548c\u670d\u52a1\u5546",
+      "title": "FR: 求适配 Vertex AI",
+      "category": "Model & Provider | 模型和服务商",
       "updatedAt": "2025-06-29T09:25:06Z",
       "comments": 11
     },
     {
       "number": 2408,
-      "title": "\u5e0c\u671b\u652f\u6301 mem0.ai \u670d\u52a1\u83b7\u5f97\u6301\u4e45\u5316\u8bb0\u5fc6\u80fd\u529b",
+      "title": "希望支持 mem0.ai 服务获得持久化记忆能力",
       "category": "Ideas",
       "updatedAt": "2026-03-22T00:14:02Z",
       "comments": 3
     },
     {
       "number": 1865,
-      "title": "[\u529f\u80fd]: \u6a21\u578b\u591akey\u5efa\u8bae\u52a0\u4e0a\u5931\u8d25\u91cd\u8bd5",
+      "title": "[功能]: 模型多key建议加上失败重试",
       "category": "Ideas",
       "updatedAt": "2025-02-17T21:32:05Z",
       "comments": 0
@@ -156,42 +156,42 @@
   "top_upvoted": [
     {
       "number": 2382,
-      "title": "[\u529f\u80fd]: \u5e0c\u671b\u652f\u6301\u5c55\u793a\u706b\u5c71\u5f15\u64ce API \uff08Bot \u5e94\u7528\uff09\u7684\u8fd4\u56de\u7684\u300c\u8054\u7f51\u641c\u7d22\u7684\u6765\u6e90\u300d",
+      "title": "[功能]: 希望支持展示火山引擎 API （Bot 应用）的返回的「联网搜索的来源」",
       "upvoteCount": 12,
       "comments": 16,
       "answered": false
     },
     {
       "number": 4040,
-      "title": "[\u529f\u80fd]: \u5efa\u8baeCherry Studio\u589e\u52a0\u753b\u5e03\u5f0f\u3010\u8282\u70b9\u804a\u5929\u3011\u6a21\u5f0f",
+      "title": "[功能]: 建议Cherry Studio增加画布式【节点聊天】模式",
       "upvoteCount": 11,
       "comments": 13,
       "answered": false
     },
     {
       "number": 1862,
-      "title": "[\u529f\u80fd]: Add support for Amazon Bedrock",
+      "title": "[功能]: Add support for Amazon Bedrock",
       "upvoteCount": 7,
       "comments": 2,
       "answered": false
     },
     {
       "number": 1891,
-      "title": "[\u529f\u80fd]: \u5bf9\u8bdd\u9875\u9762ctrl+f \u9ad8\u4eae\u641c\u7d22\u529f\u80fd",
+      "title": "[功能]: 对话页面ctrl+f 高亮搜索功能",
       "upvoteCount": 7,
       "comments": 4,
       "answered": false
     },
     {
       "number": 3823,
-      "title": "[\u529f\u80fd]: MCP\u5efa\u8bae\uff1a\u7ed1\u5b9a\u5230\u52a9\u624b\u3001\u9010Tool\u5f00\u5173\u63a7\u5236\u3001\u8c03\u7528\u524d\u786e\u8ba4",
+      "title": "[功能]: MCP建议：绑定到助手、逐Tool开关控制、调用前确认",
       "upvoteCount": 7,
       "comments": 4,
       "answered": false
     },
     {
       "number": 1893,
-      "title": "[\u529f\u80fd]: \u65b0\u589e\u6570\u636e\u5907\u4efd/\u540c\u6b65\u5206\u9879\u9009\u62e9\u529f\u80fd - \u63d0\u5347\u7528\u6237\u4f53\u9a8c\u548c\u6548\u7387",
+      "title": "[功能]: 新增数据备份/同步分项选择功能 - 提升用户体验和效率",
       "upvoteCount": 6,
       "comments": 18,
       "answered": false
@@ -205,26 +205,26 @@
     },
     {
       "number": 2836,
-      "title": "[Feature]: \u5141\u8bb8\u7528\u6237\u5b8c\u5168\u5730\u8bbe\u7f6e\u6a21\u578b\u5185\u7684\u6240\u6709parameters",
+      "title": "[Feature]: 允许用户完全地设置模型内的所有parameters",
       "upvoteCount": 6,
       "comments": 2,
       "answered": false
     },
     {
       "number": 3320,
-      "title": "[\u529f\u80fd]: \u652f\u6301Mistral OCR",
+      "title": "[功能]: 支持Mistral OCR",
       "upvoteCount": 6,
       "comments": 7,
       "answered": false
     },
     {
       "number": 1887,
-      "title": "[Discussion]: \u4e0d\u652f\u6301docker \u670d\u52a1\u90e8\u7f72\uff1f",
+      "title": "[Discussion]: 不支持docker 服务部署？",
       "upvoteCount": 5,
       "comments": 9,
       "answered": false
     }
   ],
   "last_updated": "2026-11-04T17:47:28Z",
-  "note": "Discussions data not refreshed (GraphQL unavailable in this environment); retaining previous snapshot."
+  "note": "GraphQL unavailable in this run; data carried from 2026-11-03"
 }
