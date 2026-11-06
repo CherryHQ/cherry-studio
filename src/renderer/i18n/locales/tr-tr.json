@@ -5201,6 +5201,7 @@
   "settings.notification.backup": "Yedekleme Mesajı",
   "settings.notification.knowledge_embed": "Bilgi Tabanı Mesajı",
   "settings.notification.mini_app": "Mini Uygulama Bildirimleri (tüm uygulamalar)",
+  "settings.notification.taskbar_badge": "Görev çubuğu okunmamış rozeti (Windows)",
   "settings.notification.title": "Bildirimler",
   "settings.notification.update": "Uygulama Güncellemesi",
   "settings.openai.title": "OpenAI Ayarları",

@@ -5201,6 +5201,7 @@
   "settings.notification.backup": "Sauvegarder",
   "settings.notification.knowledge_embed": "Base de connaissances",
   "settings.notification.mini_app": "Notifications des mini-programmes (tous)",
+  "settings.notification.taskbar_badge": "Badge de non-lus dans la barre des tâches (Windows)",
   "settings.notification.title": "Notifications",
   "settings.notification.update": "Mise à jour de l'application",
   "settings.openai.title": "Paramètres OpenAI",

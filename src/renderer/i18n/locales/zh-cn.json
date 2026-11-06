@@ -5201,6 +5201,7 @@
   "settings.notification.backup": "备份",
   "settings.notification.knowledge_embed": "知识库",
   "settings.notification.mini_app": "小程序通知（所有小程序）",
+  "settings.notification.taskbar_badge": "任务栏未读角标（Windows）",
   "settings.notification.title": "通知",
   "settings.notification.update": "应用更新",
   "settings.openai.title": "OpenAI 设置",

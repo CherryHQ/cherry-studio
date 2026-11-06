@@ -5201,6 +5201,7 @@
   "settings.notification.backup": "ข้อความสำรอง",
   "settings.notification.knowledge_embed": "ข้อความฐานความรู้",
   "settings.notification.mini_app": "การแจ้งเตือนมินิแอป (ทุกแอป)",
+  "settings.notification.taskbar_badge": "ป้ายแจ้งเตือนที่ยังไม่ได้อ่านบนแถบงาน (Windows)",
   "settings.notification.title": "การแจ้งเตือน",
   "settings.notification.update": "อัปเดตแอป",
   "settings.openai.title": "การตั้งค่า OpenAI",

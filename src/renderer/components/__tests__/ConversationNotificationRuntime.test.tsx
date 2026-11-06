@@ -100,6 +100,28 @@ describe('ConversationNotificationRuntime', () => {
     expect(mocks.toastWarning).not.toHaveBeenCalled()
   })
 
+  it('marks the active conversation viewed on mount and when a notification targets it', () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    renderRuntime(
+      tabsContext({ id: 'active', type: 'route', url: '/app/chat?topicId=topic-2', title: 'Research notes' })
+    )
+    const target = { conversationType: 'assistant', conversationId: 'topic-2' }
+
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('notification.mark_conversation_viewed', target)
+    mocks.ipcRequest.mockClear()
+    emitNotification()
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('notification.mark_conversation_viewed', target)
+  })
+
+  it('does not mark a conversation viewed while the window is unfocused', () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(false)
+    renderRuntime(
+      tabsContext({ id: 'active', type: 'route', url: '/app/chat?topicId=topic-2', title: 'Research notes' })
+    )
+
+    expect(mocks.ipcRequest).not.toHaveBeenCalled()
+  })
+
   it('shows completion as success and approval requests as warning', () => {
     renderRuntime(
       tabsContext({ id: 'active', type: 'route', url: '/app/chat?topicId=topic-1', title: 'Current topic' })

@@ -5201,6 +5201,7 @@
   "settings.notification.backup": "Mesaj backup",
   "settings.notification.knowledge_embed": "Mesaj bază de cunoștințe",
   "settings.notification.mini_app": "Notificări mini-aplicații (toate aplicațiile)",
+  "settings.notification.taskbar_badge": "Insignă de necitite în bara de activități (Windows)",
   "settings.notification.title": "Notificări",
   "settings.notification.update": "Actualizare aplicație",
   "settings.openai.title": "Setări OpenAI",

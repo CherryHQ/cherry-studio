@@ -160,6 +160,7 @@
   "notification.action_required.assistant": "Asistentul are nevoie de intervenția ta",
   "notification.completion.agent": "Sarcina agentului a fost finalizată",
   "notification.completion.assistant": "Răspunsul asistentului a fost finalizat",
+  "notification.taskbar_badge.description": "{{count}} conversații necesită atenția ta",
   "openclaw.errors.binary_incompatible": "Fișierul binar OpenClaw utilizat de Cherry Studio este incompatibil cu configurația generată. Actualizează OpenClaw.{{details}}",
   "openclaw.errors.external_config_invalid": "OpenClaw a respins o configurație din afara secțiunii de furnizori gestionate de Cherry Studio. Corectează configurația respectivă sau actualizează OpenClaw.{{details}}",
   "openclaw.errors.more_issues": "și alte {{count}} probleme",

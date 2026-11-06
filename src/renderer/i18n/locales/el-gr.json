@@ -5201,6 +5201,7 @@
   "settings.notification.backup": "Δημιουργία αντιγράφου ασφαλείας",
   "settings.notification.knowledge_embed": "Βάση γνώσης",
   "settings.notification.mini_app": "Ειδοποιήσεις μικροπρογραμμάτων (όλα)",
+  "settings.notification.taskbar_badge": "Ένδειξη μη αναγνωσμένων στη γραμμή εργασιών (Windows)",
   "settings.notification.title": "Ειδοποιήσεις",
   "settings.notification.update": "Ενημέρωση Εφαρμογής",
   "settings.openai.title": "Ρυθμίσεις OpenAI",

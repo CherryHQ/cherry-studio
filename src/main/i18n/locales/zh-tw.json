@@ -160,6 +160,7 @@
   "notification.action_required.assistant": "助手需要你的回應",
   "notification.completion.agent": "Agent 任務已完成",
   "notification.completion.assistant": "助手回覆已完成",
+  "notification.taskbar_badge.description": "{{count}} 個對話需要你處理",
   "openclaw.errors.binary_incompatible": "Cherry Studio 目前使用的 OpenClaw 與產生的設定不相容。請升級 OpenClaw。{{details}}",
   "openclaw.errors.external_config_invalid": "OpenClaw 拒絕了 Cherry Studio 管理的供應商區段以外的設定。請修正該設定或升級 OpenClaw。{{details}}",
   "openclaw.errors.more_issues": "另有 {{count}} 個問題",

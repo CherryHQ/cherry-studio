@@ -5201,6 +5201,7 @@
   "settings.notification.backup": "Copia de seguridad",
   "settings.notification.knowledge_embed": "Base de conocimiento",
   "settings.notification.mini_app": "Notificaciones de miniaplicaciones (todas)",
+  "settings.notification.taskbar_badge": "Insignia de no leídos en la barra de tareas (Windows)",
   "settings.notification.title": "Notificaciones",
   "settings.notification.update": "Actualización de la aplicación",
   "settings.openai.title": "Configuración de OpenAI",

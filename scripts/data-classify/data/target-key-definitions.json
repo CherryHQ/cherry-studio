@@ -69,6 +69,13 @@
       "description": "Prevent system sleep while the app has active work (v2 new feature, no v1 source)"
     },
     {
+      "targetKey": "app.notification.taskbar_badge.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Show the number of conversations needing attention as an overlay badge on the Windows taskbar icon (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "app.notification.update.enabled",
       "type": "boolean",
       "defaultValue": false,

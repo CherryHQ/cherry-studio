@@ -1,4 +1,4 @@
-import { app, Notification as ElectronNotification } from 'electron'
+import { app, nativeImage, Notification as ElectronNotification } from 'electron'
 
 import { application } from '@application'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -8,9 +8,11 @@ import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSessio
 import type { ConversationCompletedEvent } from '@main/ai/streamManager'
 import type { ApprovalRequestedEvent } from '@main/ai/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
 import { getFullChromeWindowInfos } from '@main/utils/fullChromeWindows'
+import { renderTaskbarBadgeBitmap } from '@main/utils/taskbarBadgeIcon'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import type { ConversationNavigationTarget } from '@shared/types/navigation'
 import {
@@ -31,6 +33,12 @@ const OS_NOTIFICATION_PREF_KEYS = [
   'app.notification.mini_app.enabled'
 ] as const satisfies readonly UnifiedPreferenceKeyType[]
 
+const TASKBAR_BADGE_PREF_KEY = 'app.notification.taskbar_badge.enabled'
+
+function conversationKey(target: ConversationNavigationTarget): string {
+  return `${target.conversationType}:${target.conversationId}`
+}
+
 function isConversationTarget(meta: unknown): meta is ConversationNavigationTarget {
   if (!meta || typeof meta !== 'object') return false
 
@@ -46,6 +54,9 @@ function isConversationTarget(meta: unknown): meta is ConversationNavigationTarg
 @DependsOn(['AgentSessionRuntimeService', 'AiStreamManager', 'ConversationNavigationService'])
 @ServicePhase(Phase.WhenReady)
 export class NotificationService extends BaseService {
+  /** Conversations with an unviewed reply or pending approval; drives the Windows taskbar badge. */
+  private readonly unreadConversations = new Set<string>()
+
   protected onInit(): void {
     this.registerDisposable(
       application.get('AiStreamManager').onConversationCompleted((event) => this.handleConversationCompleted(event))
@@ -61,7 +72,22 @@ export class NotificationService extends BaseService {
         .get('PreferenceService')
         .subscribeMultipleChanges([...OS_NOTIFICATION_PREF_KEYS], () => this.syncDockBadgeWithNotificationPrefs())
     )
+    this.registerDisposable(
+      application.get('PreferenceService').subscribeChange(TASKBAR_BADGE_PREF_KEY, () => this.syncTaskbarBadge())
+    )
+    this.registerDisposable(
+      application.get('WindowManager').onWindowCreatedByType(WindowType.Main, () => this.syncTaskbarBadge())
+    )
     this.syncDockBadgeWithNotificationPrefs()
+  }
+
+  protected onStop(): void {
+    this.unreadConversations.clear()
+  }
+
+  /** Called when the user is looking at a conversation; drops it from the taskbar badge count. */
+  public markConversationViewed(target: ConversationNavigationTarget): void {
+    if (this.unreadConversations.delete(conversationKey(target))) this.syncTaskbarBadge()
   }
 
   public async sendNotification(notification: Notification): Promise<void> {
@@ -93,6 +119,7 @@ export class NotificationService extends BaseService {
     responseText
   }: ConversationCompletedEvent): void {
     const target = this.resolveConversationTarget(topicId)
+    this.markConversationUnread(target)
     const fallbackTitle =
       target.conversationType === 'agent' ? t('notification.completion.agent') : t('notification.completion.assistant')
     const conversationName = this.resolveConversationName(target, fallbackTitle)
@@ -113,6 +140,7 @@ export class NotificationService extends BaseService {
 
   private handleApprovalRequested({ topicId, approvalId, requestedAt }: ApprovalRequestedEvent): void {
     const target = this.resolveConversationTarget(topicId)
+    this.markConversationUnread(target)
     const title =
       target.conversationType === 'agent'
         ? t('notification.action_required.agent')
@@ -141,6 +169,30 @@ export class NotificationService extends BaseService {
 
     if (!application.get('PreferenceService').get('app.notification.assistant.enabled')) return
     void this.sendNotification(notification)
+  }
+
+  private markConversationUnread(target: ConversationNavigationTarget): void {
+    const key = conversationKey(target)
+    if (this.unreadConversations.has(key)) return
+    this.unreadConversations.add(key)
+    this.syncTaskbarBadge()
+  }
+
+  /** Projects the unread-conversation count onto each main window's Windows taskbar button. */
+  private syncTaskbarBadge(): void {
+    if (!isWin) return
+
+    const count = application.get('PreferenceService').get(TASKBAR_BADGE_PREF_KEY) ? this.unreadConversations.size : 0
+    let overlay: Electron.NativeImage | null = null
+    if (count > 0) {
+      const { buffer, width, height } = renderTaskbarBadgeBitmap(count)
+      overlay = nativeImage.createFromBitmap(buffer, { width, height, scaleFactor: 2 })
+    }
+    const description = count > 0 ? t('notification.taskbar_badge.description', { count }) : ''
+
+    for (const window of application.get('WindowManager').getWindowsByType(WindowType.Main)) {
+      if (!window.isDestroyed()) window.setOverlayIcon(overlay, description)
+    }
   }
 
   private areAllOsNotificationPrefsDisabled(): boolean {

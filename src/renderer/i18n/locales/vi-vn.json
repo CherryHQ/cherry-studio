@@ -5201,6 +5201,7 @@
   "settings.notification.backup": "Tin nhắn sao lưu",
   "settings.notification.knowledge_embed": "Thông báo từ KnowledgeBase",
   "settings.notification.mini_app": "Thông báo từ Mini App (tất cả)",
+  "settings.notification.taskbar_badge": "Huy hiệu chưa đọc trên thanh tác vụ (Windows)",
   "settings.notification.title": "Thông báo",
   "settings.notification.update": "Cập nhật Ứng dụng",
   "settings.openai.title": "Cài đặt OpenAI",
