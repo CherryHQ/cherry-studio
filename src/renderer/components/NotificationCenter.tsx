@@ -1,8 +1,8 @@
-import { Bell, Check } from 'lucide-react'
+import { Bell, CalendarClock, Check, ChevronRight } from 'lucide-react'
 import { createContext, lazy, Suspense, use, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Drawer, DrawerContent, DrawerTitle, DrawerDescription, ScrollArea, Tooltip } from '@cherrystudio/ui'
+import { Button, Drawer, DrawerContent, DrawerTitle, ScrollArea } from '@cherrystudio/ui'
 import { useDataChange, useInfiniteFlatItems, useInfiniteQuery, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
@@ -26,9 +26,9 @@ const NotificationCenterContext = createContext<{
 } | null>(null)
 
 const visibleTrigger = () =>
-  Array.from(document.querySelectorAll<HTMLButtonElement>('[data-notification-trigger]')).find(
-    (button) => button.getClientRects().length > 0
-  )
+  Array.from(
+    document.querySelectorAll<HTMLButtonElement>('[data-notification-anchor], [data-notification-trigger]')
+  ).find((button) => button.getClientRects().length > 0)
 
 function NotificationItem({
   record,
@@ -59,7 +59,7 @@ function NotificationItem({
   const announcement = record.target?.kind === 'announcement' ? record.target : null
   const announcementUrl = announcement?.url
   const expandable = !!(release || announcement)
-  const Icon = notificationCategoryIcons[record.category]
+  const Icon = record.target?.kind === 'scheduled-task' ? CalendarClock : notificationCategoryIcons[record.category]
   const task =
     record.target?.kind === 'scheduled-task' ||
     (record.target?.kind === 'conversation' &&
@@ -111,31 +111,25 @@ function NotificationItem({
           aria-label={task ? undefined : record.title}
           aria-describedby={record.readAt === null ? unreadDescriptionId : undefined}
           aria-expanded={expandable ? expanded : undefined}
-          className="block h-auto w-full min-w-0 whitespace-normal px-2 py-2 text-left"
+          className="block h-auto w-full min-w-0 whitespace-normal px-2 py-2 text-left group-hover:bg-accent group-focus-within:bg-accent"
           disabled={activating}
           onClick={() => void activate()}>
-          <span className="relative mb-1 flex min-h-5 min-w-0 items-center gap-2 pr-8 font-medium">
-            {record.readAt === null && (
-              <span className="absolute -left-4.5 top-2 size-1.5 rounded-full bg-primary">
-                <span id={unreadDescriptionId} className="sr-only" aria-hidden="true">
-                  {t('notification.center.unread')}
-                </span>
-              </span>
-            )}
+          <span
+            className={`mb-1 flex min-h-5 min-w-0 items-center gap-2 pr-8 ${record.readAt === null ? 'font-semibold text-foreground' : 'font-normal text-muted-foreground'}`}>
             {task ? (
               <NotificationTaskIdentity record={record} />
             ) : (
-              <>
-                <span className="flex size-5 shrink-0 items-center justify-center">
-                  <Icon aria-hidden="true" className="size-4 text-muted-foreground" />
-                </span>
-                <span className="min-w-0 flex-1 truncate">
-                  <NotificationTitle record={record} />
-                </span>
-              </>
+              <span className="min-w-0 flex-1 truncate">
+                <NotificationTitle record={record} />
+              </span>
+            )}
+            {record.readAt === null && (
+              <span id={unreadDescriptionId} aria-hidden="true" className="sr-only">
+                {t('notification.center.unread')}
+              </span>
             )}
           </span>
-          <span className="block pl-7">
+          <span className="block">
             {task ? (
               <span
                 className={
@@ -152,12 +146,17 @@ function NotificationItem({
                 {notificationPreview(record.message)}
               </span>
             )}
-            <time
-              dateTime={created.toISOString()}
-              aria-label={created.toLocaleString(i18n.language, { dateStyle: 'full', timeStyle: 'long' })}
-              className="mt-1 block text-xs text-muted-foreground">
-              {timeLabel}
-            </time>
+            <span className="mt-1 flex min-h-4 items-center justify-between gap-2 text-foreground-tertiary">
+              <time
+                dateTime={created.toISOString()}
+                aria-label={created.toLocaleString(i18n.language, { dateStyle: 'full', timeStyle: 'long' })}
+                className="text-xs text-muted-foreground">
+                {timeLabel}
+              </time>
+              {(!task || record.target?.kind === 'scheduled-task') && (
+                <Icon aria-hidden="true" className="size-3.5 shrink-0" />
+              )}
+            </span>
           </span>
         </Button>
         <Button
@@ -165,7 +164,7 @@ function NotificationItem({
           size="icon-sm"
           className="absolute right-1 top-3 text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
           aria-label={t('notification.center.dismiss')}
-          loading={dismissing}
+          disabled={dismissing}
           onClick={() =>
             void dismiss()
               .then(onDismiss)
@@ -174,11 +173,11 @@ function NotificationItem({
                 toast.error(t('notification.center.error'))
               })
           }>
-          <Check className="size-4" />
+          <Check className="lucide-custom size-4 text-foreground-tertiary" />
         </Button>
       </div>
       {expanded && (release || announcementUrl) && (
-        <div className="space-y-3 pb-4 pl-7">
+        <div className="space-y-3 px-2 pb-4">
           {release && (
             <Suspense fallback={<p className="text-sm text-muted-foreground">{t('common.loading')}</p>}>
               <ReleaseNotes content={release.releaseNotes} />
@@ -298,41 +297,49 @@ function NotificationList({
   )
 }
 
+export function useNotificationCenter() {
+  return use(NotificationCenterContext)
+}
+
 export function NotificationCenterButton({
-  className = '',
-  placement,
+  onRequestClose,
   drawerSide = 'left'
 }: {
-  className?: string
-  placement?: 'top' | 'right' | 'bottom' | 'left'
+  onRequestClose?: () => void
   drawerSide?: DrawerSide
 }) {
   const { t } = useTranslation()
   const unreadDescriptionId = useId()
-  const center = use(NotificationCenterContext)
+  const center = useNotificationCenter()
   if (!center) return null
   return (
-    <Tooltip content={t('notification.center.title')} placement={placement} asChild>
-      <Button
-        variant="ghost"
-        size="icon"
-        data-notification-trigger={drawerSide}
-        className={`shell-navigation-item relative size-9 rounded-full ${className}`}
-        aria-label={t('notification.center.title')}
-        aria-describedby={center.hasUnread ? unreadDescriptionId : undefined}
-        aria-expanded={center.open}
-        aria-controls="notification-center"
-        onClick={() => center.toggle(drawerSide)}>
-        <Bell className="size-4.5" strokeWidth={1.6} />
-        {center.hasUnread && (
-          <span className="absolute right-1 top-1 size-1.5 rounded-full bg-primary">
-            <span id={unreadDescriptionId} className="sr-only" aria-hidden="true">
-              {t('notification.center.unread')}
-            </span>
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      data-notification-trigger={drawerSide}
+      className="h-8 min-h-8 w-full justify-start gap-2 rounded-md bg-transparent px-2 py-0 text-[13px] text-foreground leading-5"
+      aria-label={t('settings.notification.title')}
+      aria-describedby={center.hasUnread ? unreadDescriptionId : undefined}
+      aria-expanded={center.open}
+      aria-controls="notification-center"
+      onClick={() => {
+        center.toggle(drawerSide)
+        onRequestClose?.()
+      }}>
+      <Bell className="!text-muted-foreground size-4" aria-hidden="true" />
+      <span className="min-w-0 flex-1 text-left">{t('settings.notification.title')}</span>
+      {center.hasUnread && (
+        <span className="size-1.5 shrink-0 rounded-full bg-destructive">
+          <span id={unreadDescriptionId} className="sr-only" aria-hidden="true">
+            {t('notification.center.unread')}
           </span>
-        )}
-      </Button>
-    </Tooltip>
+        </span>
+      )}
+      <span className="shrink-0 text-muted-foreground">
+        <ChevronRight className="size-4" aria-hidden="true" />
+      </span>
+    </Button>
   )
 }
 
@@ -352,7 +359,11 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
   })
   useIpcOn('notification.open', ({ id }) => {
     setRequestedId(id)
-    setSide(visibleTrigger()?.dataset.notificationTrigger === 'right' ? 'right' : 'left')
+    setSide(
+      (visibleTrigger()?.dataset.notificationAnchor ?? visibleTrigger()?.dataset.notificationTrigger) === 'right'
+        ? 'right'
+        : 'left'
+    )
     setOpen(true)
   })
   const changeOpen = (value: boolean) => {
@@ -391,6 +402,7 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
       <Drawer open={open} onOpenChange={changeOpen} direction={side} modal={false}>
         <DrawerContent
           id="notification-center"
+          aria-describedby={undefined}
           showOverlay={false}
           portalContainer={portalContainer}
           style={{
@@ -415,11 +427,12 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
               returnFocus.current = false
             }
           }}>
-          <div className="flex shrink-0 items-center gap-2 px-4 py-3">
+          <div className="flex shrink-0 items-center gap-2 px-6 pt-3 pb-1">
             <DrawerTitle className="mr-auto text-sm font-medium">{t('notification.center.title')}</DrawerTitle>
             <Button
               variant="ghost"
               size="sm"
+              className="px-0"
               disabled={!unread?.count}
               loading={markingAllRead}
               onClick={() =>
@@ -431,16 +444,13 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
               {t('notification.center.mark_all_read')}
             </Button>
           </div>
-          <ScrollArea className="min-h-0 flex-1 px-5">
+          <ScrollArea className="min-h-0 flex-1 px-4">
             <NotificationList
               requestedId={requestedId}
               onNavigate={() => changeOpen(false)}
               onDismissRequested={() => setRequestedId(null)}
             />
           </ScrollArea>
-          <DrawerDescription className="shrink-0 border-t border-border-subtle px-4 py-2 text-xs">
-            {t('notification.center.retention')}
-          </DrawerDescription>
         </DrawerContent>
       </Drawer>
     </NotificationCenterContext>

@@ -3006,7 +3006,6 @@
   "notification.center.result.failed": "Απέτυχε",
   "notification.center.result.interrupted": "Διακόπηκε",
   "notification.center.result.succeeded": "Ολοκληρώθηκε",
-  "notification.center.retention": "Οι ειδοποιήσεις διατηρούνται για 30 ημέρες.",
   "notification.center.system": "Σύστημα",
   "notification.center.title": "Κέντρο ειδοποιήσεων",
   "notification.center.unavailable": "Αυτή η ειδοποίηση δεν είναι πλέον διαθέσιμη.",

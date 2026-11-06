@@ -3006,7 +3006,6 @@
   "notification.center.result.failed": "Başarısız",
   "notification.center.result.interrupted": "Kesintiye uğradı",
   "notification.center.result.succeeded": "Tamamlandı",
-  "notification.center.retention": "Bildirimler 30 gün saklanır.",
   "notification.center.system": "Sistem",
   "notification.center.title": "Bildirim merkezi",
   "notification.center.unavailable": "Bu bildirim artık kullanılamıyor.",

@@ -17,6 +17,8 @@ import { type WindowInfo, WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
 import { NotificationRecordSchema, type TaskResultNotificationInput } from '@shared/data/types/notification'
 
+const originalPlatform = process.platform
+
 const NOTIFICATION_PREF_KEYS = [
   'app.notification.assistant.enabled',
   'app.notification.backup.enabled',
@@ -37,7 +39,6 @@ const mocks = vi.hoisted(() => ({
     click?: () => void
     show: ReturnType<typeof vi.fn<() => void>>
   }>,
-  edition: vi.fn(() => 'global'),
   fetch: vi.fn<typeof fetch>(),
   focused: true,
   focusListeners: new Map<string, () => void>(),
@@ -47,7 +48,7 @@ const mocks = vi.hoisted(() => ({
   loggerError: vi.fn(),
   loggerWarn: vi.fn(),
   preferenceGet: vi.fn(),
-  preferenceValues: {} as Record<string, boolean | number>,
+  preferenceValues: {} as Record<string, boolean | number | string>,
   send: vi.fn(),
   setBadgeCount: vi.fn(() => true),
   showMainWindow: vi.fn(),
@@ -91,6 +92,7 @@ vi.mock('electron', () => ({
   app: {
     on: (event: string, listener: () => void) => mocks.focusListeners.set(event, listener),
     removeListener: (event: string) => mocks.focusListeners.delete(event),
+    getLocale: () => 'en-US',
     setBadgeCount: (...args: Parameters<typeof mocks.setBadgeCount>) => mocks.setBadgeCount(...args)
   },
   Notification: class {
@@ -111,7 +113,6 @@ vi.mock('electron', () => ({
     }
   }
 }))
-vi.mock('@main/utils/appEdition', () => ({ getAppEdition: mocks.edition }))
 
 const { activateNotification } = await import('../notificationActivation')
 const { ConversationNotificationService } = await import('../ConversationNotificationService')
@@ -270,14 +271,16 @@ describe('NotificationService', () => {
     let announcements: InstanceType<typeof OfficialAnnouncementService>
     let scheduler: SchedulerService
     let preferenceChanged: () => void
+    let languageChanged: () => void
     const interval = 30 * 60 * 1000
     const announcement = (id: string, published_at = '2026-10-28T01:00:00.000001Z') => ({
       id,
       published_at,
       title: `Announcement ${id}`,
       content: '**中文** 😀\n<b>plain text</b>',
-      platforms: ['desktop'],
-      products: ['global', 'cn']
+      platforms: ['windows', 'macos', 'linux'],
+      product: 'community',
+      language: 'en'
     })
     const respond = (items = [announcement('one')], total = items.length) => Response.json({ items, total })
     const enable = (enabled: boolean) => {
@@ -288,9 +291,10 @@ describe('NotificationService', () => {
     beforeEach(async () => {
       vi.useFakeTimers()
       vi.setSystemTime(new Date('2026-10-28T02:00:00Z'))
+      vi.spyOn(Math, 'random').mockReturnValue(0.5)
       mocks.focused = true
       mocks.focusListeners.clear()
-      mocks.edition.mockReturnValue('global')
+      mocks.preferenceValues['app.language'] = 'en-US'
       mocks.fetch.mockReset().mockImplementation(async () => respond())
       scheduler = new SchedulerService()
       const get = vi.mocked(application.get).getMockImplementation()!
@@ -300,10 +304,12 @@ describe('NotificationService', () => {
         if (name === 'PreferenceService')
           return {
             ...get(name),
-            subscribeChange: (_key: string, listener: () => void) => {
-              preferenceChanged = listener
+            subscribeChange: (key: string, listener: () => void) => {
+              if (key === 'app.language') languageChanged = listener
+              else preferenceChanged = listener
               return () => {
-                preferenceChanged = () => {}
+                if (key === 'app.language') languageChanged = () => {}
+                else preferenceChanged = () => {}
               }
             }
           }
@@ -314,12 +320,13 @@ describe('NotificationService', () => {
     })
 
     afterEach(async () => {
+      Object.defineProperty(process, 'platform', { value: originalPlatform })
       await announcements._doStop()
       await scheduler._doStop()
       vi.clearAllTimers()
     })
 
-    it('refreshes on real foreground transitions, coalesces internal handoffs and cancels focus subscriptions', async () => {
+    it('refreshes after the foreground cooldown, coalesces internal handoffs and cancels focus subscriptions', async () => {
       await announcements._doAllReady()
       mocks.focusListeners.get('browser-window-focus')?.()
       await vi.advanceTimersByTimeAsync(4999)
@@ -335,6 +342,7 @@ describe('NotificationService', () => {
       mocks.focused = false
       mocks.focusListeners.get('browser-window-blur')?.()
       await vi.advanceTimersByTimeAsync(1)
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
       mocks.fetch.mockImplementation(async () => respond([announcement('returned')]))
       mocks.focused = true
       mocks.focusListeners.get('browser-window-focus')?.()
@@ -352,6 +360,7 @@ describe('NotificationService', () => {
       await announcements._doAllReady()
       await vi.advanceTimersByTimeAsync(5000)
       expect(mocks.fetch).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
       mocks.fetch.mockImplementation(async () => respond([announcement('first-activation')]))
       mocks.focused = true
       mocks.focusListeners.get('browser-window-focus')?.()
@@ -360,6 +369,38 @@ describe('NotificationService', () => {
       expect(notificationRecordService.list({}).items.map((record) => record.title)).toContain(
         'Announcement first-activation'
       )
+    })
+
+    it('throttles rapid foreground returns without postponing the scheduled poll, even after failure', async () => {
+      mocks.fetch.mockRejectedValue(new Error('offline'))
+      await announcements._doAllReady()
+      await vi.advanceTimersByTimeAsync(5000)
+      for (const delay of [1, 60_000, 239_998]) {
+        mocks.focused = false
+        mocks.focusListeners.get('browser-window-blur')?.()
+        await vi.advanceTimersByTimeAsync(delay)
+        mocks.focused = true
+        mocks.focusListeners.get('browser-window-focus')?.()
+        await vi.advanceTimersByTimeAsync(0)
+        expect(mocks.fetch).toHaveBeenCalledTimes(1)
+      }
+      await vi.advanceTimersByTimeAsync(interval - 299_999)
+      expect(mocks.fetch).toHaveBeenCalledTimes(2)
+    })
+
+    it.each([
+      [0, 27],
+      [0.5, 30],
+      [1, 33]
+    ])('spreads polling with random value %s over %s minutes after each round', async (random, minutes) => {
+      vi.mocked(Math.random).mockReturnValue(random)
+      await announcements._doAllReady()
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(mocks.fetch).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(minutes * 60_000 - 1)
+      expect(mocks.fetch).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(mocks.fetch).toHaveBeenCalledTimes(2)
     })
 
     it('lets the in-flight round satisfy repeated foreground requests without queuing another round', async () => {
@@ -389,10 +430,14 @@ describe('NotificationService', () => {
       expect(mocks.fetch).toHaveBeenCalledTimes(2)
     })
 
-    it.each(['global', 'cn'])(
-      'requests the %s desktop feed after all-ready and polls after completion',
-      async (edition) => {
-        mocks.edition.mockReturnValue(edition)
+    it.each([
+      ['win32', 'windows'],
+      ['darwin', 'macos'],
+      ['linux', 'linux']
+    ] as const)(
+      'requests the community feed for %s after all-ready and polls after completion',
+      async (os, platform) => {
+        Object.defineProperty(process, 'platform', { value: os })
         await vi.advanceTimersByTimeAsync(10_000)
         expect(mocks.fetch).not.toHaveBeenCalled()
         await announcements._doAllReady()
@@ -400,7 +445,7 @@ describe('NotificationService', () => {
         expect(notificationRecordService.unreadCount()).toBe(0)
         await vi.advanceTimersByTimeAsync(1)
         expect(mocks.fetch.mock.calls[0][0]).toBe(
-          `https://api.cherry-ai.com/api/announcements?platform=desktop&product=${edition}&limit=100&offset=0`
+          `https://api.cherry-ai.com/api/announcements?platform=${platform}&product=community&language=en&limit=100&offset=0`
         )
         expect(notificationRecordService.list({}).items[0]).toMatchObject({
           createdAt: Date.parse('2026-10-28T01:00:00Z'),
@@ -415,6 +460,213 @@ describe('NotificationService', () => {
         expect(notificationRecordService.unreadCount()).toBe(1)
         expect(mocks.electronNotifications).toHaveLength(0)
       }
+    )
+
+    it.each(['zh-CN', 'zh-TW', 'en-US', 'ja-JP', 'de-DE'])(
+      'requests only the selected language for %s and preserves read state when changing language',
+      async (locale) => {
+        const expected = locale.toLowerCase().startsWith('zh-') ? 'zh' : 'en'
+        mocks.preferenceValues['app.language'] = locale
+        mocks.fetch.mockImplementation(async (url) =>
+          respond([{ ...announcement('one'), language: new URL(String(url)).searchParams.get('language')! }])
+        )
+        await announcements._doAllReady()
+        await vi.advanceTimersByTimeAsync(5000)
+        expect(new URL(String(mocks.fetch.mock.calls[0][0])).searchParams.get('language')).toBe(expected)
+        const original = notificationRecordService.list({}).items[0]
+        notificationRecordService.markRead(original.id)
+        mocks.preferenceValues['app.language'] = expected === 'zh' ? 'ja-JP' : 'zh-CN'
+        mocks.fetch.mockImplementation(async (url) =>
+          respond([
+            {
+              ...announcement('one'),
+              title: 'Translated',
+              content: 'Translated content',
+              language: new URL(String(url)).searchParams.get('language')!
+            }
+          ])
+        )
+        languageChanged()
+        await vi.advanceTimersByTimeAsync(1)
+        const records = notificationRecordService.list({}).items
+        expect(records).toHaveLength(1)
+        expect(records[0]).toMatchObject({
+          id: original.id,
+          title: 'Translated',
+          target: { content: 'Translated content' },
+          readAt: expect.any(Number)
+        })
+        expect(notificationRecordService.unreadCount()).toBe(0)
+      }
+    )
+
+    it('accepts fractional publication timestamps with an explicit UTC offset', async () => {
+      const timestamp = '2026-10-28T09:00:00.000001+08:00'
+      mocks.fetch.mockImplementation(async () => respond([announcement('offset', timestamp)]))
+      await announcements._doAllReady()
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(notificationRecordService.list({}).items[0]).toMatchObject({
+        createdAt: Date.parse(timestamp),
+        eventKey: `announcement:api:${JSON.stringify(['offset', timestamp])}`
+      })
+    })
+
+    it('updates live corrections in place without resurrecting dismissed announcements', async () => {
+      await announcements._doAllReady()
+      await vi.advanceTimersByTimeAsync(5000)
+      const original = notificationRecordService.list({}).items[0]
+      notificationRecordService.markRead(original.id)
+      mocks.fetch.mockImplementation(async () =>
+        respond([{ ...announcement('one'), title: 'Corrected', content: 'New body' }])
+      )
+      await vi.advanceTimersByTimeAsync(interval)
+      expect(notificationRecordService.list({}).items).toEqual([
+        expect.objectContaining({
+          id: original.id,
+          title: 'Corrected',
+          target: { kind: 'announcement', content: 'New body' },
+          readAt: expect.any(Number)
+        })
+      ])
+      notificationRecordService.dismiss(original.id)
+      mocks.fetch.mockImplementation(async () => respond([{ ...announcement('one'), title: 'Another correction' }]))
+      await vi.advanceTimersByTimeAsync(interval)
+      expect(notificationRecordService.list({}).items).toEqual([])
+      expect(notificationRecordService.unreadCount()).toBe(0)
+    })
+
+    it('aborts a previous-language request and rejects its late response', async () => {
+      let finish!: (response: Response) => void
+      mocks.fetch.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve
+          })
+      )
+      await announcements._doAllReady()
+      await vi.advanceTimersByTimeAsync(5000)
+      const signal = mocks.fetch.mock.calls[0][1]!.signal!
+      mocks.preferenceValues['app.language'] = 'zh-CN'
+      mocks.fetch.mockImplementation(async () => respond([{ ...announcement('current'), language: 'zh' }]))
+      languageChanged()
+      expect(signal.aborted).toBe(true)
+      finish(respond([announcement('stale')]))
+      await vi.advanceTimersByTimeAsync(1)
+      expect(notificationRecordService.list({}).items.map((record) => record.title)).toEqual(['Announcement current'])
+    })
+
+    it.runIf(process.env.ANNOUNCEMENT_API_TEST_URL)(
+      'interoperates with the Go announcement API over HTTP and persists selected content in SQLite',
+      async () => {
+        vi.useRealTimers()
+        const endpoint = process.env.ANNOUNCEMENT_API_TEST_URL!
+        expect(new URL(endpoint).hostname).toMatch(/^(127\.0\.0\.1|localhost|\[::1\])$/)
+        const admin = `${endpoint}/api/admin/systems/announcements`
+        const request = async (path: string, body: unknown, method: 'POST' | 'PATCH' = 'POST') => {
+          const response = await fetch(path, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          })
+          expect(response.ok, await response.clone().text()).toBe(true)
+          return response.json()
+        }
+        const content = {
+          product: 'community',
+          platforms: ['windows', 'macos', 'linux'],
+          translations: {
+            zh: { title: '联调中文公告', content: '中文正文\n保留换行' },
+            en: { title: 'Contract English notice', content: 'English body\nKeep line breaks' }
+          }
+        }
+        let remote = await request(admin, content)
+        remote = await request(`${admin}/${remote.id}/publish`, { expected_revision: remote.revision })
+        const publicationTime = remote.published_at
+        const chineseOnly = await request(admin, {
+          ...content,
+          translations: { zh: { title: '仅中文', content: '中文正文' }, en: { title: '', content: '' } }
+        })
+        await request(`${admin}/${chineseOnly.id}/publish`, { expected_revision: chineseOnly.revision })
+        const privateDraft = await request(admin, {
+          ...content,
+          translations: { zh: { title: '未发布草稿', content: '' }, en: { title: '', content: '' } }
+        })
+        expect(privateDraft.status).toBe('draft')
+        const responses: Array<{ language: string; items: Array<Record<string, unknown>>; total: number }> = []
+        mocks.fetch.mockImplementation(async (input, init) => {
+          const url = new URL(String(input))
+          expect(url.searchParams.get('product')).toBe('community')
+          const response = await fetch(`${endpoint}${url.pathname}${url.search}`, init)
+          const page = await response.clone().json()
+          responses.push({ language: url.searchParams.get('language')!, ...page })
+          return response
+        })
+        mocks.preferenceValues['app.language'] = 'zh-CN'
+        await announcements._doAllReady()
+        languageChanged()
+        await vi.waitFor(() => expect(notificationRecordService.list({}).items).toHaveLength(2))
+        const original = notificationRecordService.list({}).items.find((record) => record.title === '联调中文公告')!
+        notificationRecordService.markRead(original.id)
+        mocks.preferenceValues['app.language'] = 'ja-JP'
+        languageChanged()
+        await vi.waitFor(() =>
+          expect(notificationRecordService.getById(original.id)?.title).toBe('Contract English notice')
+        )
+        expect(notificationRecordService.getById(original.id)?.readAt).not.toBeNull()
+        expect(notificationRecordService.list({}).items).toHaveLength(2)
+        expect(responses.at(-1)).toMatchObject({ language: 'en', total: 1 })
+        remote = await request(
+          `${admin}/${remote.id}`,
+          {
+            ...content,
+            translations: { ...content.translations, en: { title: 'Corrected notice', content: 'Corrected body' } },
+            expected_revision: remote.revision
+          },
+          'PATCH'
+        )
+        remote = await request(`${admin}/${remote.id}/publish`, { expected_revision: remote.revision })
+        expect(remote.published_at).toBe(publicationTime)
+        mocks.preferenceValues['app.language'] = 'de-DE'
+        languageChanged()
+        await vi.waitFor(() => expect(notificationRecordService.getById(original.id)?.title).toBe('Corrected notice'))
+        expect(notificationRecordService.getById(original.id)?.readAt).not.toBeNull()
+        notificationRecordService.dismiss(original.id)
+        for (const [os, platform] of [
+          ['win32', 'windows'],
+          ['darwin', 'macos'],
+          ['linux', 'linux']
+        ] as const) {
+          Object.defineProperty(process, 'platform', { value: os })
+          const previous = mocks.fetch.mock.calls.length
+          languageChanged()
+          await vi.waitFor(() => expect(mocks.fetch.mock.calls.length).toBe(previous + 1))
+          expect(new URL(String(mocks.fetch.mock.calls.at(-1)![0])).searchParams.get('platform')).toBe(platform)
+          await vi.waitFor(() => expect(responses).toHaveLength(previous + 1))
+          expect(notificationRecordService.getById(original.id)).toBeNull()
+        }
+        remote = await request(`${admin}/${remote.id}/unpublish`, { expected_revision: remote.revision })
+        remote = await request(`${admin}/${remote.id}/publish`, { expected_revision: remote.revision })
+        expect(remote.published_at).not.toBe(publicationTime)
+        mocks.preferenceValues['app.language'] = 'zh-TW'
+        languageChanged()
+        await vi.waitFor(() =>
+          expect(
+            notificationRecordService
+              .list({})
+              .items.some((record) => record.id !== original.id && record.title === '联调中文公告')
+          ).toBe(true)
+        )
+        for (const response of responses) {
+          for (const item of response.items) {
+            expect(item.language).toBe(response.language)
+            expect(item).not.toHaveProperty('translations')
+            expect(item).not.toHaveProperty('published')
+            expect(item).not.toHaveProperty('revision')
+            expect(item.title).not.toBe('未发布草稿')
+          }
+        }
+      },
+      30_000
     )
 
     it('preserves read and dismissed versions across restart and distinguishes fractional republication', async () => {
@@ -490,6 +742,29 @@ describe('NotificationService', () => {
       ['invalid JSON', () => new Response('{')],
       ['null items', () => Response.json({ items: null, total: 1 })],
       ['invalid total', () => Response.json({ items: [], total: -1 })],
+      ['wrong product', () => respond([{ ...announcement('bad'), product: 'enterprise' }])],
+      ['wrong language', () => respond([{ ...announcement('bad'), language: 'zh' }])],
+      [
+        'wrong platform',
+        () => respond([{ ...announcement('bad'), platforms: [process.platform === 'darwin' ? 'windows' : 'macos'] }])
+      ],
+      [
+        'legacy response',
+        () =>
+          Response.json({
+            items: [
+              {
+                id: 'old',
+                title: 'old',
+                content: 'old',
+                products: ['cn'],
+                platforms: ['desktop'],
+                published_at: '2026-10-28T01:00:00Z'
+              }
+            ],
+            total: 1
+          })
+      ],
       ['invalid timestamp', () => respond([announcement('bad', '2026-02-30T00:00:00Z')])]
     ] as const)('retains history after %s and retries next round', async (_name, response) => {
       await announcements._doAllReady()

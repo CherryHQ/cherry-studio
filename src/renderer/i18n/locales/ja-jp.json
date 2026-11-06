@@ -3006,7 +3006,6 @@
   "notification.center.result.failed": "失敗",
   "notification.center.result.interrupted": "中断",
   "notification.center.result.succeeded": "完了",
-  "notification.center.retention": "通知は30日間保存されます。",
   "notification.center.system": "システム",
   "notification.center.title": "通知センター",
   "notification.center.unavailable": "この通知は利用できなくなりました。",

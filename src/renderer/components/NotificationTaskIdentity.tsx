@@ -1,4 +1,3 @@
-import { CalendarClock } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { EmojiIcon, Tooltip } from '@cherrystudio/ui'
@@ -12,18 +11,16 @@ import { notificationPreview } from './notificationPresentation'
 function NotificationIdentity({ name, emoji }: { name: string; emoji?: string }) {
   return (
     <span className="flex min-w-0 flex-1 items-center gap-2">
-      <span className="flex size-5 shrink-0 items-center justify-center">
-        {emoji ? (
-          <EmojiIcon emoji={emoji} size={18} />
-        ) : (
-          <CalendarClock aria-hidden="true" className="size-4 text-muted-foreground" />
-        )}
-      </span>
       <Tooltip content={name} asChild>
         <span tabIndex={0} className="min-w-0 truncate rounded-sm focus-visible:bg-accent">
           {name}
         </span>
       </Tooltip>
+      {emoji && (
+        <span className="flex size-5 shrink-0 items-center justify-center">
+          <EmojiIcon emoji={emoji} size={18} />
+        </span>
+      )}
     </span>
   )
 }

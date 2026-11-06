@@ -3006,7 +3006,6 @@
   "notification.center.result.failed": "失败",
   "notification.center.result.interrupted": "已中断",
   "notification.center.result.succeeded": "已完成",
-  "notification.center.retention": "通知保留 30 天。",
   "notification.center.system": "系统",
   "notification.center.title": "通知中心",
   "notification.center.unavailable": "此通知已不可用。",

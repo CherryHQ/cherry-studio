@@ -55,10 +55,6 @@ vi.mock('@renderer/components/command', () => ({
   CommandTooltip: ({ children }: { children: React.ReactNode }) => children
 }))
 
-vi.mock('@renderer/components/NotificationCenter', () => ({
-  NotificationCenterButton: () => <button type="button" aria-label="Notification center" />
-}))
-
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) =>
@@ -149,12 +145,11 @@ describe('ShellTabBarActions', () => {
     expect(screen.getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual([
       'Found new version',
       'Open global search',
-      'Notification center',
       'Settings'
     ])
   })
 
-  it.each([50, 180])('keeps settings in the sidebar at width %ipx', (width) => {
+  it.each([50, 180])('keeps standalone settings out of the tab bar at width %ipx', (width) => {
     cacheService.setPersist('ui.sidebar.width', width)
     render(<ShellTabBarActions />)
 
