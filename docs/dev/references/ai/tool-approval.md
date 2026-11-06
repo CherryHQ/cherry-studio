@@ -107,6 +107,11 @@ does not set `updatedInput`, the decision adapter returns `originalInput`
 unchanged as the SDK's execution input
 (`src/main/ai/runtime/claudeCode/ToolApprovalRegistry.ts:16`).
 
+Pi file-tool cards adapt native `path`, `oldText` and `newText` fields to the
+shared renderer's `file_path`, `old_string` and `new_string` fields in
+`toolResponse.ts`. This presentation mapping preserves the original message
+and execution input; it does not rewrite the approved operation.
+
 The rendered card is not byte-bound to that object: the stream approval chunk
 carries only IDs, the card uses earlier streamed tool input, and a configured
 `PreToolUse` hook may rewrite input before approval
