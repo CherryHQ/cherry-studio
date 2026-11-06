@@ -65,7 +65,7 @@ describe('agentSessionExport', () => {
     const row = createSessionMessage({
       id: 'imported-answer',
       role: 'assistant',
-      provenance: { source: 'codex', originalMessageId: 'source-answer', sourceOrder: 3, inferredTimestamp: false },
+      provenance: { source: 'codex', sourceOrder: 3 },
       messageSnapshot: {
         id: 'source-session',
         name: 'Source title',

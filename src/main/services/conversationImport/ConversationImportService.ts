@@ -195,11 +195,6 @@ export class ConversationImportService extends BaseService {
           )
           if (existing) {
             item.existing = { sessionId: existing.id, agentId: existing.agentId, inTrash: existing.deletedAt !== null }
-            if (
-              existing.importMetadata?.sourceFingerprint !== session.sourceFingerprint &&
-              !existing.importMetadata?.sourcePaths.some((p) => session.sourcePaths.includes(p))
-            )
-              item.diagnostics.push({ code: 'identity_conflict', severity: 'error', path: file })
           }
           items.set(selection.ref, { item, session })
         } catch (error) {
@@ -251,11 +246,21 @@ export class ConversationImportService extends BaseService {
           outcomes.push({ ref, status: 'filtered', reason: item.filteredReason })
           continue
         }
-        if (!session || item.diagnostics.some((d) => d.severity === 'error')) {
-          outcomes.push({ ref, status: 'failed', reason: 'preview_blocked' })
-          continue
-        }
         try {
+          if (session?.originalSessionId) {
+            const existing = application.get('DbService').withWriteTx((tx) => {
+              agentService.getImportTargetTx(tx, preview.targetAgentId)
+              return agentSessionService.findImportedTx(tx, session.source, session.originalSessionId)
+            })
+            if (existing) {
+              outcomes.push({ ref, status: 'existing', sessionId: existing.id, agentId: existing.agentId })
+              continue
+            }
+          }
+          if (!session || item.diagnostics.some((d) => d.severity === 'error')) {
+            outcomes.push({ ref, status: 'failed', reason: 'preview_blocked' })
+            continue
+          }
           this.target(preview.targetAgentId)
           if ((await realpath(item.sourcePath)) !== item.sourcePath) throw new Error('source_changed')
           const fresh = await scan.adapter.read(scan.refs.get(ref)!, scan.abort.signal, item.branchId)
@@ -277,11 +282,6 @@ export class ConversationImportService extends BaseService {
             if (end >= Date.now()) throw new Error('clock_skew')
             const existing = agentSessionService.findImportedTx(tx, session.source, session.originalSessionId)
             if (existing) {
-              if (
-                existing.importMetadata?.sourceFingerprint !== session.sourceFingerprint &&
-                !existing.importMetadata?.sourcePaths.some((sourcePath) => session.sourcePaths.includes(sourcePath))
-              )
-                throw new Error('identity_conflict')
               return { sessionId: existing.id, agentId: existing.agentId, existing: true }
             }
             const sessionId = randomUUID()
@@ -306,16 +306,8 @@ export class ConversationImportService extends BaseService {
               tx,
               sessionId,
               {
-                version: 1,
                 source: session.source,
-                originalSessionId: session.originalSessionId,
-                sourcePaths: session.sourcePaths,
-                sourceVersion: session.sourceVersion,
-                originalWorkingDirectory: session.workingDirectory,
-                sourceFingerprint: session.sourceFingerprint,
-                importedAt: new Date().toISOString(),
-                adapterVersion: 1,
-                report: { skippedRecords: session.skippedRecords, downgradedParts: session.downgradedParts }
+                originalSessionId: session.originalSessionId
               },
               end
             )

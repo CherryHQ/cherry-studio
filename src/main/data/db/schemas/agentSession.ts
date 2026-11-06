@@ -1,8 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { type AnySQLiteColumn, check, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
-import type { AgentSessionImportMetadata } from '@shared/data/types/conversationImport'
-
 import { createUpdateDeleteTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
 import { agentTable } from './agent'
 import { agentWorkspaceTable } from './agentWorkspace'
@@ -29,7 +27,6 @@ export const agentSessionTable = sqliteTable(
     isTaskReuseTarget: integer({ mode: 'boolean' }).notNull().default(false),
     traceId: text(),
     activeNodeId: text(),
-    importMetadata: text({ mode: 'json' }).$type<AgentSessionImportMetadata>(),
     ...orderKeyColumns,
     // Dedicated conversation activity time. Name, owner, workspace and order
     // changes must not move this column.
@@ -52,10 +49,3 @@ export const agentSessionTable = sqliteTable(
 export type AgentSessionRow = typeof agentSessionTable.$inferSelect
 export type InsertAgentSessionRow = typeof agentSessionTable.$inferInsert
 export type AgentSessionType = AgentSessionRow['type']
-
-export const AGENT_SESSION_IMPORT_STATEMENTS = [
-  `DROP INDEX IF EXISTS agent_session_import_identity_uniq`,
-  `CREATE INDEX IF NOT EXISTS agent_session_import_active_identity_idx
-   ON agent_session (json_extract(import_metadata, '$.source'), json_extract(import_metadata, '$.originalSessionId'))
-   WHERE deleted_at IS NULL`
-]

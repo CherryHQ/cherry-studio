@@ -39,7 +39,10 @@ async function initialize(sessionId: string): Promise<void> {
   try {
     await stat(file)
     const existing = sdk.SessionManager.open(file, sessions, history.workspace.path)
-    if (existing.getSessionId() !== state.nativeSessionId || !existing.getEntries().length)
+    if (
+      existing.getSessionId() !== state.nativeSessionId ||
+      (history.messages.length > 0 && !existing.getEntries().length)
+    )
       throw new Error('history_corrupt')
     if (state.status === 'ready') return
   } catch (error) {
@@ -79,9 +82,12 @@ async function initialize(sessionId: string): Promise<void> {
       verified.getEntries().length !== manager.getEntries().length
     )
       throw new Error('history_corrupt')
-    readImportedHistory(sessionId)
+    if (JSON.stringify(readImportedHistory(sessionId).messages) !== JSON.stringify(history.messages))
+      throw new Error('history_changed')
     await rename(temporary, file)
     application.get('DbService').withWriteTx((tx) => {
+      if (JSON.stringify(readImportedHistory(sessionId).messages) !== JSON.stringify(history.messages))
+        throw new Error('history_changed')
       agentSessionMessageService.setImportedAnchorsTx(tx, sessionId, anchors)
       completeImportedHistoryTx(tx, sessionId, state)
     })

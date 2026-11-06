@@ -2,6 +2,7 @@
 description: app_state SQLite table for durable owner-private completion and reconciliation markers
 sources:
   - src/main/data/db/schemas/appState.ts
+  - src/main/data/services/importedSessionHistory.ts
   - src/main/data/db/seeding/SeedRunner.ts
   - src/main/data/migration/v2/core/MigrationEngine.ts
   - src/main/services/file/tasks/contentMetadataGeneration.ts
@@ -13,6 +14,8 @@ sources:
 the app's record of one-time work or reconciliation generations it has already
 applied. Losing a value does not directly delete user data, but may repeat an
 expensive migration, seed, or metadata reconciliation.
+
+The `conversation-import` namespace is a bounded exception: it holds necessary import identity, message source order, and retryable native-history initialization state. It is not a cache and must survive database backup and restore.
 
 ## When to Use
 
@@ -67,8 +70,10 @@ cross-domain API.
 
 ### Disposability
 
-- Keys are disposable: an owner may drop a key or switch to a new one at will. Orphaned rows in old installs are harmless — no reader means dead data.
+- Except for the import namespace below, keys are disposable: an owner may drop a key or switch to a new one at will. Orphaned rows in old installs are harmless — no reader means dead data.
 - **Exception:** a key recording an irreversible "done" event (e.g. a completed migration) must not be silently renamed once shipped. Existing installs would lose the "done" fact and re-run the flow. Keep the key, or read the old key as a fallback during the rename.
+
+- **Import exception:** `importedSessionHistory.ts` owns `conversation-import:session:<sessionId>` and `conversation-import:message:<sessionId>:<messageId>`. Services use its typed methods and SQL projections. Archive/restore retains these records. Message deletion and tail replacement remove matching records in the data transaction; session purge removes all owned records. Forks copy message provenance without inheriting the source identity. Full and simplified database backups retain these records.
 
 ## Key Registry
 
@@ -81,6 +86,9 @@ Every key currently in `app_state`. Add a row when introducing a key.
 | `fileManager:contentMetadataGeneration` | `FileManager` | `{ version: number }` | Trust generation for internal-file `size` / `contentHash`; a version change atomically invalidates old hashes before background reconciliation. |
 | `migration_v2_status` | `MigrationEngine` | `MigrationStatusValue`  | **Grandfathered exception.** Bare key predating the `<scope>:` convention. Do not rename and do not model new keys on it. |
 | `agent-runtime-migration:<sessionId>` | `retiredAgentRuntimeMigration` | `{ sessionId: string, resumeToken: string }` | Pending DSH-to-Pi session-history migration. Retained for retry on failure; removed atomically after the imported Pi history and checkpoints are committed. |
+
+| `conversation-import:session:<sessionId>` | `importedSessionHistory` | `{ version: 1, metadata: { source, originalSessionId }, initialization?: { nativeSessionId, status, messageCount } }` | Required import identity and retry state; never disposable. |
+| `conversation-import:message:<sessionId>:<messageId>` | `importedSessionHistory` | `{ source, sourceOrder }` | Required message provenance; database reads use the existing primary key. |
 
 ## Related Source Code
 

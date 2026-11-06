@@ -15,7 +15,7 @@ export interface NormalizedMessage {
   data: MessageData
   status: 'success' | 'error' | 'paused'
   timestamp: number
-  provenance: MessageProvenance
+  provenance: MessageProvenance & { originalMessageId: string; originalTimestamp?: string; inferredTimestamp: boolean }
   messageSnapshot: MessageSnapshot | null
 }
 export interface NormalizedSession {
