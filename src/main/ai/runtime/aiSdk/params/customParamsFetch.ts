@@ -7,6 +7,19 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
+function deepMergeSdkWins(base: Record<string, unknown>, override: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = { ...base }
+  for (const [key, value] of Object.entries(override)) {
+    const existing = result[key]
+    if (isRecord(existing) && isRecord(value)) {
+      result[key] = deepMergeSdkWins(existing, value)
+    } else {
+      result[key] = value
+    }
+  }
+  return result
+}
+
 /**
  * Keep flat custom parameters for HTTP-body passthrough while excluding
  * provider-scoped option bags that only belong inside `providerOptions`.
@@ -58,7 +71,7 @@ export function createCustomParamsFetch(
       if (isRecord(body)) {
         return innerFetch(input, {
           ...init,
-          body: JSON.stringify({ ...customParamsSnapshot, ...body })
+          body: JSON.stringify(deepMergeSdkWins(customParamsSnapshot, body))
         })
       }
     }
