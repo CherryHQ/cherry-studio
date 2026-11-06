@@ -63,7 +63,11 @@ vi.mock('@renderer/components/Selector', () => ({
     options: Array<{ value: 'system' | 'custom' | 'none'; label: string }>
   }) => (
     <select
-      aria-label="settings.proxy.mode.title"
+      aria-label={
+        options.some((option) => option.value === 'custom')
+          ? 'settings.proxy.mode.title'
+          : 'settings.power.prevent_sleep.title'
+      }
       value={value ?? ''}
       onChange={(event) => onChange(event.target.value as 'system' | 'custom' | 'none')}>
       {options.map((option) => (

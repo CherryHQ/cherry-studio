@@ -40,6 +40,9 @@ export type MenuPresentationMode = 'native' | 'cherry'
 /** Side of a wide Agent file pane that holds the file tree. */
 export type AgentFilePaneTreePosition = 'left' | 'right'
 
+/** Prevent-sleep policy: never, only while tasks run, or while the app runs. */
+export type PreventSleepMode = 'off' | 'tasks' | 'always'
+
 export type OnboardingProviderSetupStatus = 'pending' | 'completed' | 'skipped'
 
 export type RetryFallbackModelId = UniqueModelId
