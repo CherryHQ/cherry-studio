@@ -26,6 +26,8 @@ import { startAgentSessionRun } from '@main/ai/streamManager'
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '@main/ai/streamManager'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import { createUniqueModelId } from '@shared/data/types/model'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import {
   contentOf,
@@ -255,11 +257,15 @@ export class SessionJournal {
     expectedAgentId: string,
     onPersist: (tx: DbOrTx, reservation: { executionId: string; messageId: string; userMessageId: string }) => void,
     beforePersist?: () => void,
-    attachments: CherryMessagePart[] = []
+    attachments: CherryMessagePart[] = [],
+    turnOptions?: { model?: { modelId: string; providerId: string }; reasoningEffort?: ReasoningEffortOption }
   ): Promise<{ started: true; executionId: string } | { started: false; reason: 'busy' | 'session-invalid' }> {
     const listener = new RemoteAgentListener(this, randomUUID())
     this.starting += 1
     try {
+      const overrideModelId = turnOptions?.model
+        ? createUniqueModelId(turnOptions.model.providerId, turnOptions.model.modelId)
+        : undefined
       const result = await startAgentSessionRun({
         sessionId: this.sessionId,
         userParts: [...(text.trim() ? [{ type: 'text' as const, text }] : []), ...attachments],
@@ -272,7 +278,9 @@ export class SessionJournal {
             messageId: messages.assistantMessageId,
             userMessageId: messages.userMessageId
           })
-        }
+        },
+        overrideModelId,
+        reasoningEffort: turnOptions?.reasoningEffort
       })
       if (result.mode !== 'started') {
         listener.current = false

@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-05-remote-workspace-files.md
+2026-11-05-remote-workspace-files.md: e0d7f9ed69beca5ae4eafacd3b953439a0afab88
+2026-11-05-remote-workspace-files.zh.md: 20801e1097c5a02db39aca455b86ed8d8b463e01

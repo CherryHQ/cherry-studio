@@ -9,7 +9,7 @@ import { topicService } from '@main/data/services/TopicService'
 import type { AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
 import type { AiStreamOpenRequest, AiStreamOpenResponse, ApprovalDecision } from '@shared/ai/transport'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
-import type { ServiceTierSelection } from '@shared/data/types/model'
+import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { WindowId } from '@shared/ipc/types'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
@@ -70,6 +70,8 @@ export type MainDispatchRequest = (
   agentDeliveryMessage?: AgentSessionMessageEntity
   /** Trusted main-process sender identity for targeted MCP interaction requests. */
   interactionWindowId?: WindowId
+  overrideModelId?: UniqueModelId
+  reasoningEffort?: ReasoningEffortOption
 }
 
 const logger = loggerService.withContext('chatContextDispatch')

@@ -17,6 +17,7 @@ export const remoteFailureSchema = z.looseObject({
     'REVISION_EXPIRED',
     'RATE_LIMITED',
     'RESOURCE_EXHAUSTED',
+    'INVALID_ARGUMENT',
     'INTERNAL'
   ]),
   message: z.string().max(512),

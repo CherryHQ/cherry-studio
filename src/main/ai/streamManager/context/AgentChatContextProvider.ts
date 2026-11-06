@@ -15,14 +15,20 @@ import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { getAgentSessionHead } from '@data/services/agentSessionMessageTree'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { modelService } from '@data/services/ModelService'
+import { providerService } from '@data/services/ProviderService'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import { reservePiBranchTx } from '@main/ai/runtime/pi/piContext'
 import { topicNamingService } from '@main/services/TopicNamingService'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import { resolveReasoningEffortForModel } from '@shared/ai/reasoning'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
-import { parseUniqueModelId, type ServiceTierSelection, type UniqueModelId } from '@shared/data/types/model'
+import { parseUniqueModelId, type Model, type ServiceTierSelection, type UniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import { isNonChatModel } from '@shared/utils/model'
 
 import { validateEditedInput } from '../../agentSession/editInput'
 import { extractAgentSessionId, isAgentSessionTopic } from '../../agentSession/topic'
@@ -141,8 +147,40 @@ export class AgentChatContextProvider implements ChatContextProvider {
       throw new Error('Invalid durable agent delivery message')
     }
 
-    const uniqueModelId = agent.model
+    let uniqueModelId = agent.model
+    let resolvedModel: Model | null = null
+    if (req.overrideModelId) {
+      const db = application.get('DbService').getDb()
+      resolvedModel = modelService.findByIdTx(db, req.overrideModelId)
+      if (!resolvedModel) {
+        throw new AgentSessionDeliveryRoutingError(
+          'TARGET_UNAVAILABLE',
+          `Override model not found: ${req.overrideModelId}`
+        )
+      }
+      let provider: Provider | undefined
+      try {
+        provider = providerService.getByProviderId(resolvedModel.providerId)
+      } catch {
+        provider = undefined
+      }
+      const caps = agent.type ? AGENT_RUNTIME_CAPABILITIES[agent.type] : undefined
+      const isCompatible =
+        !isNonChatModel(resolvedModel) && (!caps?.isModelCompatible || caps.isModelCompatible(provider, resolvedModel))
+      if (!isCompatible) {
+        throw new AgentSessionDeliveryRoutingError(
+          'TARGET_UNAVAILABLE',
+          `Model ${req.overrideModelId} is not compatible with agent runtime ${agent.type}`
+        )
+      }
+      uniqueModelId = req.overrideModelId
+    }
+
     const { providerId, modelId: rawModelId } = parseUniqueModelId(uniqueModelId)
+    const requestedEffort = req.reasoningEffort ?? agent.configuration?.reasoning_effort ?? 'default'
+    const reasoningEffort = resolvedModel
+      ? (resolveReasoningEffortForModel(resolvedModel, requestedEffort) ?? 'default')
+      : requestedEffort
     const shouldAutoNameInitialTurn = deliveryMessage
       ? !agentSessionMessageService.hasSessionMessages(sessionId, deliveryMessage.id)
       : !agentSessionMessageService.hasSessionMessages(sessionId)
@@ -155,7 +193,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       agentType: agent.type,
       agentName: agent.name,
       uniqueModelId,
-      reasoningEffort: req.reasoningEffort ?? agent.configuration?.reasoning_effort ?? 'default',
+      reasoningEffort,
       serviceTier: req.serviceTier ?? agent.configuration?.service_tier ?? 'standard',
       fastMode: req.fastMode,
       headless: req.headless === true,
@@ -167,7 +205,11 @@ export class AgentChatContextProvider implements ChatContextProvider {
         name: agent.name,
         // Normalized effective avatar (mirrors renderer `getAgentAvatar`).
         emoji: agent.configuration?.avatar?.trim() || '🤖',
-        model: { id: rawModelId, name: agent.modelName ?? rawModelId, provider: providerId }
+        model: {
+          id: rawModelId,
+          name: (resolvedModel?.name ?? (req.overrideModelId ? undefined : agent.modelName)) || rawModelId,
+          provider: providerId
+        }
       },
       userMessageId: deliveryMessage?.id ?? uuidv7(),
       userMessageParts: deliveryMessage?.data.parts ?? req.userMessageParts ?? [],

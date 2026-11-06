@@ -27,6 +27,7 @@ import { pageOf, queryPage } from './agentPagination'
 import {
   createSessionTx,
   getSession,
+  getWorkspaceFile,
   listAgents,
   listMessages,
   listParts,
@@ -35,6 +36,7 @@ import {
   listWorkspaces,
   readPersistedContent,
   readPersistedFileContent,
+  readWorkspaceFileChunk,
   sha256,
   sliceContent,
   toSessionSummary
@@ -171,6 +173,19 @@ export function registerAgentMethods(
       agentSessionService.notifyReadModelChange([admission.receipt.sessionId], 'membership')
     return admission.receipt
   })
+  on('agent.sessions.update', (params, auth) => {
+    getSession(params.sessionId)
+    return command(auth, 'agent.sessions.update', params, params.sessionId, async () => {
+      getSession(params.sessionId)
+      agentSessionService.update(params.sessionId, { name: params.title })
+      hub.publishSession(params.sessionId)
+      return {
+        status: 'applied',
+        sessionId: params.sessionId,
+        result: { sessionId: params.sessionId, title: params.title }
+      }
+    })
+  })
   on('agent.messages.list', ({ sessionId, historyRevision, cursor, limit, partsMode }) =>
     listMessages(sessionId, historyRevision, cursor, limit, partsMode)
   )
@@ -193,6 +208,8 @@ export function registerAgentMethods(
     if (!bytes) throw new RemoteRpcError('NOT_FOUND', 'Content not found')
     return { contentId, revision, ...sliceContent(bytes, offset, maxBytes) }
   })
+  on('agent.files.get', ({ sessionId, path }) => getWorkspaceFile(sessionId, path))
+  on('agent.files.read', (params) => readWorkspaceFileChunk(params))
   const presence = application.get('AttachmentPresenceService')
   const generation = presence.connection()
   on('agent.attachments.present', (params, auth) => {
@@ -225,7 +242,8 @@ export function registerAgentMethods(
               if (summaryOf(params.sessionId).idleRevision !== params.expectedIdleRevision)
                 throw new RemoteRpcError('CONFLICT', 'Session is not idle at the expected revision')
             },
-            attachments
+            attachments,
+            { model: params.model, reasoningEffort: params.reasoningEffort }
           )
           if (!started.started)
             return {

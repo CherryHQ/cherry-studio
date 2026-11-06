@@ -2,6 +2,8 @@ import * as z from 'zod'
 
 import { directEndpointSchema } from './discovery'
 
+export { desktopProfileSchema, type DesktopProfile } from './connection'
+
 const pairingProofShape = {
   t: z.literal('cherry-studio-pair'),
   name: z.string().min(1).max(128),

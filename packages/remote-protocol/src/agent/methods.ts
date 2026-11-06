@@ -6,14 +6,19 @@ import { attachmentSelectionSchema, attachmentDraftSubmissionSchema } from './at
 import { agentCheckpointDescriptorSchema, agentCheckpointPageSchema } from './checkpoints'
 import {
   agentCursorSchema,
+  agentModelOptionSchema,
   commandReceiptSchema,
   interactionSchema,
   interactionResponseSchema,
+  modelOverrideSchema,
+  reasoningEffortSchema,
   workspaceSelectionSchema,
   messageListItemSchema,
   modelSummarySchema,
   partSchema,
-  sessionSchema
+  sessionSchema,
+  workspaceFileChunkSchema,
+  workspaceFileMetadataSchema
 } from './resources'
 import {
   uploadMetadataSchema,
@@ -32,6 +37,13 @@ const method = <P extends z.ZodType, R extends z.ZodType>(params: P, result: R) 
 const session = { sessionId: opaqueId }
 const command = { commandId: opaqueId, ...session }
 const subscription = { subscriptionId: opaqueId }
+
+export const agentSessionUpdateParamsSchema = z.strictObject({
+  commandId: opaqueId,
+  sessionId: opaqueId,
+  title: unicodeText.trim().min(1).max(4096)
+})
+
 export const agentMethods = {
   'agent.agents.list': method(
     z.strictObject(pageParams),
@@ -40,7 +52,9 @@ export const agentMethods = {
         agentId: opaqueId,
         name: unicodeText.max(4096),
         emoji: unicodeText.trim().min(1).max(64).optional(),
-        model: modelSummarySchema.nullable().optional()
+        model: modelSummarySchema.nullable().optional(),
+        reasoningEffort: reasoningEffortSchema.optional(),
+        availableModels: z.array(agentModelOptionSchema).max(512).optional()
       })
     )
   ),
@@ -61,17 +75,22 @@ export const agentMethods = {
         commandId: opaqueId,
         agentId: opaqueId,
         workspace: workspaceSelectionSchema,
-        title: unicodeText.max(4096).optional()
+        title: unicodeText.max(4096).optional(),
+        model: modelOverrideSchema.optional(),
+        reasoningEffort: reasoningEffortSchema.optional()
       }),
       z.strictObject({
         commandId: opaqueId,
         agentId: opaqueId,
         workspaceId: opaqueId,
-        title: unicodeText.max(4096).optional()
+        title: unicodeText.max(4096).optional(),
+        model: modelOverrideSchema.optional(),
+        reasoningEffort: reasoningEffortSchema.optional()
       })
     ]),
     commandReceiptSchema
   ),
+  'agent.sessions.update': method(agentSessionUpdateParamsSchema, commandReceiptSchema),
   'agent.messages.list': method(
     z.strictObject({ ...session, historyRevision: decimal, partsMode: z.literal('paged').optional(), ...pageParams }),
     pageOf(messageListItemSchema)
@@ -112,7 +131,9 @@ export const agentMethods = {
         expectedIdleRevision: decimal,
         attachments: uploadReferencesSchema.optional(),
         selectionId: opaqueId.optional(),
-        attachmentDraft: attachmentDraftSubmissionSchema.optional()
+        attachmentDraft: attachmentDraftSubmissionSchema.optional(),
+        model: modelOverrideSchema.optional(),
+        reasoningEffort: reasoningEffortSchema.optional()
       })
       .refine(
         (input) => Boolean(input.text.trim()) || Boolean(input.attachments?.length) || Boolean(input.attachmentDraft)
@@ -181,13 +202,28 @@ export const agentMethods = {
     z.strictObject({ ...subscription, cursor: agentCursorSchema }),
     z.looseObject({ acknowledged: agentCursorSchema })
   ),
-  'agent.subscriptions.close': method(z.strictObject(subscription), z.looseObject({ closed: z.literal(true) }))
+  'agent.subscriptions.close': method(z.strictObject(subscription), z.looseObject({ closed: z.literal(true) })),
+  'agent.files.get': method(
+    z.strictObject({ sessionId: opaqueId, path: unicodeText.min(1).max(4096) }),
+    workspaceFileMetadataSchema
+  ),
+  'agent.files.read': method(
+    z.strictObject({
+      sessionId: opaqueId,
+      path: unicodeText.min(1).max(4096),
+      expectedRevision: unicodeText.min(1).max(256).optional(),
+      offset: z.number().int().nonnegative().optional(),
+      length: z.number().int().positive().max(24_576).optional()
+    }),
+    workspaceFileChunkSchema
+  )
 }
 export type AgentMethod = keyof typeof agentMethods
 export type AgentParams<M extends AgentMethod> = z.infer<(typeof agentMethods)[M]['params']>
 export type AgentResult<M extends AgentMethod> = z.infer<(typeof agentMethods)[M]['result']>
 export type AgentMutation =
   | 'agent.sessions.create'
+  | 'agent.sessions.update'
   | 'agent.messages.send'
   | 'agent.executions.cancel'
   | 'agent.interactions.respond'

@@ -41,6 +41,7 @@ import { fileRefService } from '@data/services/FileRefService'
 import { remoteCommandService } from '@data/services/RemoteCommandService'
 import { AgentLifecycleService } from '@main/ai/agents/AgentLifecycleService'
 import { AgentSessionMessageBackend } from '@main/ai/agentSession/persistence/AgentSessionMessageBackend'
+import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
 import type { StreamErrorResult } from '@main/ai/streamManager'
 import {
@@ -55,6 +56,7 @@ import type { FileManagerDeps } from '@main/services/file/internal/deps'
 import { createInternal } from '@main/services/file/internal/entry/create'
 import { FileEntryIdSchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 
 import { COALESCE_WINDOW_MS, RemoteAgentHub } from '../agentJournal'
@@ -1921,5 +1923,290 @@ describe('remote agent access', () => {
         expectedExecutionId: receipt.executionId
       })
     ).toMatchObject({ status: 'applied', result: { disposition: 'cancelled' } })
+  })
+
+  it('updates session title via agent.sessions.update, verifies persistence and idempotency', async () => {
+    const commandId = randomUUID()
+    const newTitle = 'Renamed Exploration Session'
+    const receipt = await call('agent.sessions.update', {
+      commandId,
+      sessionId,
+      title: `  ${newTitle}  `
+    })
+
+    expect(receipt).toMatchObject({
+      status: 'applied',
+      sessionId,
+      result: { sessionId, title: newTitle }
+    })
+
+    // Verify session row in SQLite was updated with trimmed title
+    const session = agentSessionService.getById(sessionId)
+    expect(session.name).toBe(newTitle)
+
+    // Idempotent retry returns the same receipt without error
+    const replayed = await call('agent.sessions.update', {
+      commandId,
+      sessionId,
+      title: `  ${newTitle}  `
+    })
+    expect(replayed).toEqual(receipt)
+
+    // Rejects if session does not exist
+    await expect(
+      call('agent.sessions.update', {
+        commandId: randomUUID(),
+        sessionId: 'non-existent-session',
+        title: 'New Title'
+      })
+    ).rejects.toMatchObject({ data: { reason: 'NOT_FOUND' } })
+  })
+
+  it('populates availableModels and reasoningEffort in agent.agents.list', async () => {
+    seedModel('provider-chat-1', 'model-chat-1', 'Chat Model 1')
+    seedModel('provider-chat-2', 'model-chat-2', 'Chat Model 2')
+
+    const result = await call('agent.agents.list', {})
+    expect(result.items.length).toBeGreaterThanOrEqual(1)
+    const agentItem = result.items.find((item: { agentId: string }) => item.agentId === 'agent-1')
+    expect(agentItem).toBeDefined()
+    expect(agentItem.reasoningEffort).toBe('default')
+    expect(Array.isArray(agentItem.availableModels)).toBe(true)
+
+    const modelIds = agentItem.availableModels.map((m: { modelId: string }) => m.modelId)
+    expect(modelIds).toContain('model-chat-1')
+    expect(modelIds).toContain('model-chat-2')
+    expect(agentItem.availableModels.find((m: { modelId: string }) => m.modelId === 'model-chat-1')).toMatchObject({
+      modelId: 'model-chat-1',
+      providerId: 'provider-chat-1',
+      name: 'Chat Model 1'
+    })
+  })
+
+  it('forwards model and reasoningEffort overrides in agent.messages.send without mutating agentTable', async () => {
+    seedModel('anthropic', 'claude-sonnet', 'Claude Sonnet')
+    dbh.db.update(agentTable).set({ model: 'anthropic::claude-sonnet' }).where(eq(agentTable.id, 'agent-1')).run()
+    seedModel('openai', 'gpt-4o', 'GPT-4o')
+
+    const { session } = await call('agent.sessions.get', { sessionId })
+    const commandId = randomUUID()
+    const start = vi.mocked(startAgentSessionRun)
+    start.mockClear()
+
+    const receipt = await call('agent.messages.send', {
+      commandId,
+      sessionId,
+      text: 'hello with overrides',
+      expectedIdleRevision: session.idleRevision,
+      model: { providerId: 'openai', modelId: 'gpt-4o' },
+      reasoningEffort: 'high'
+    })
+
+    expect(receipt.status).toBe('applied')
+    expect(start).toHaveBeenCalledTimes(1)
+    expect(start).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId,
+        overrideModelId: 'openai::gpt-4o',
+        reasoningEffort: 'high'
+      })
+    )
+
+    // Verify agentTable was NOT mutated
+    const [agentRow] = dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-1')).all()
+    expect(agentRow.model).toBe('anthropic::claude-sonnet')
+  })
+
+  it('validates overrideModelId and resolves reasoningEffort in AgentChatContextProvider without mutating agent', async () => {
+    runtimeDriverRegistry.register({
+      type: 'claude-code',
+      capabilities: ['agent-session'],
+      connect: vi.fn(),
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    seedModel('anthropic', 'claude-sonnet', 'Claude Sonnet')
+    seedModel('openai', 'o3-mini', 'o3 Mini')
+    dbh.db
+      .update(userModelTable)
+      .set({
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        reasoning: { selectableEfforts: ['low', 'medium', 'high'] }
+      })
+      .where(eq(userModelTable.id, 'openai::o3-mini'))
+      .run()
+
+    dbh.db.update(agentTable).set({ model: 'anthropic::claude-sonnet' }).where(eq(agentTable.id, 'agent-1')).run()
+
+    const provider = new AgentChatContextProvider()
+
+    // 1. Missing model throws TARGET_UNAVAILABLE
+    await expect(
+      provider.validateDispatch({
+        trigger: 'submit-message',
+        topicId: `agent-session:${sessionId}`,
+        overrideModelId: 'openai::non-existent',
+        userMessageParts: [{ type: 'text', text: 'hi' }]
+      })
+    ).rejects.toMatchObject({ code: 'TARGET_UNAVAILABLE' })
+
+    // 2. Incompatible (embedding non-chat) model throws TARGET_UNAVAILABLE
+    seedModel('openai-emb', 'text-embedding-3', 'Embedding Model')
+    dbh.db
+      .update(userModelTable)
+      .set({
+        capabilities: [MODEL_CAPABILITY.EMBEDDING]
+      })
+      .where(eq(userModelTable.id, 'openai-emb::text-embedding-3'))
+      .run()
+
+    await expect(
+      provider.validateDispatch({
+        trigger: 'submit-message',
+        topicId: `agent-session:${sessionId}`,
+        overrideModelId: 'openai-emb::text-embedding-3',
+        userMessageParts: [{ type: 'text', text: 'hi' }]
+      })
+    ).rejects.toMatchObject({ code: 'TARGET_UNAVAILABLE' })
+
+    // 3. Valid override model with reasoning effort resolution
+    const validated = await provider.validateDispatch({
+      trigger: 'submit-message',
+      topicId: `agent-session:${sessionId}`,
+      overrideModelId: 'openai::o3-mini',
+      reasoningEffort: 'high',
+      userMessageParts: [{ type: 'text', text: 'hi' }]
+    })
+
+    expect(validated.uniqueModelId).toBe('openai::o3-mini')
+    expect(validated.reasoningEffort).toBe('high')
+    expect(validated.messageSnapshot.model).toEqual({
+      id: 'o3-mini',
+      name: 'o3 Mini',
+      provider: 'openai'
+    })
+
+    // Verify agentTable was not mutated
+    const [agentRow] = dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-1')).all()
+    expect(agentRow.model).toBe('anthropic::claude-sonnet')
+  })
+
+  it('inspects and reads workspace files via agent.files.get and agent.files.read with containment enforcement', async () => {
+    const wsDir = await mkdtemp(path.join(tmpdir(), 'agent-files-test-'))
+    try {
+      const workspace = dbh.db.transaction((tx) => agentWorkspaceService.findOrCreateByPathTx(tx, wsDir))
+      const sessionWithWs = agentSessionService.create({
+        agentId: 'agent-1',
+        name: 'Workspace Files Session',
+        workspace: { type: 'user', workspaceId: workspace.id }
+      }).id
+
+      // 1. Create test file in workspace
+      const fileContent = 'Hello workspace deliverable! This is chunk testing data.'
+      await writeFile(path.join(wsDir, 'output.txt'), fileContent, 'utf-8')
+
+      // Create a nested file in a subdirectory
+      await mkdir(path.join(wsDir, 'nested'), { recursive: true })
+      await writeFile(path.join(wsDir, 'nested', 'data.json'), '{"result":42}', 'utf-8')
+
+      // 2. agent.files.get retrieves exact metadata
+      const meta = await call('agent.files.get', {
+        sessionId: sessionWithWs,
+        path: 'output.txt'
+      })
+      expect(meta).toMatchObject({
+        path: 'output.txt',
+        name: 'output.txt',
+        byteLength: Buffer.byteLength(fileContent),
+        revision: expect.any(String),
+        sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+        updatedAt: expect.any(String)
+      })
+
+      // 3. agent.files.read slices chunks correctly
+      const chunk1 = await call('agent.files.read', {
+        sessionId: sessionWithWs,
+        path: 'output.txt',
+        offset: 0,
+        length: 5
+      })
+      expect(chunk1).toMatchObject({
+        revision: meta.revision,
+        offset: 0,
+        totalBytes: meta.byteLength,
+        eof: false,
+        encoding: 'base64',
+        data: Buffer.from('Hello').toString('base64')
+      })
+
+      // Read remaining chunk to EOF
+      const chunk2 = await call('agent.files.read', {
+        sessionId: sessionWithWs,
+        path: 'output.txt',
+        expectedRevision: meta.revision,
+        offset: 5
+      })
+      expect(chunk2).toMatchObject({
+        revision: meta.revision,
+        offset: 5,
+        totalBytes: meta.byteLength,
+        eof: true,
+        encoding: 'base64',
+        data: Buffer.from(fileContent.slice(5)).toString('base64')
+      })
+
+      // 4. Nested file retrieval
+      const nestedMeta = await call('agent.files.get', {
+        sessionId: sessionWithWs,
+        path: 'nested/data.json'
+      })
+      expect(nestedMeta).toMatchObject({
+        path: 'nested/data.json',
+        name: 'data.json',
+        byteLength: 13
+      })
+
+      // 5. Mismatched expectedRevision throws REVISION_EXPIRED
+      await expect(
+        call('agent.files.read', {
+          sessionId: sessionWithWs,
+          path: 'output.txt',
+          expectedRevision: '9999999999999'
+        })
+      ).rejects.toMatchObject({ data: { reason: 'REVISION_EXPIRED' } })
+
+      // 6. Path traversal attempts are rejected with FORBIDDEN
+      await expect(
+        call('agent.files.get', {
+          sessionId: sessionWithWs,
+          path: '../../etc/passwd'
+        })
+      ).rejects.toMatchObject({ data: { reason: 'FORBIDDEN' } })
+
+      await expect(
+        call('agent.files.read', {
+          sessionId: sessionWithWs,
+          path: '../outside.txt'
+        })
+      ).rejects.toMatchObject({ data: { reason: 'FORBIDDEN' } })
+
+      // 7. Non-existent file throws NOT_FOUND
+      await expect(
+        call('agent.files.get', {
+          sessionId: sessionWithWs,
+          path: 'non-existent.txt'
+        })
+      ).rejects.toMatchObject({ data: { reason: 'NOT_FOUND' } })
+
+      // 8. Directory target throws INVALID_ARGUMENT
+      await expect(
+        call('agent.files.get', {
+          sessionId: sessionWithWs,
+          path: 'nested'
+        })
+      ).rejects.toMatchObject({ data: { reason: 'INVALID_ARGUMENT' } })
+    } finally {
+      await rm(wsDir, { recursive: true, force: true }).catch(() => {})
+    }
   })
 })

@@ -4,6 +4,8 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import type { UniqueModelId } from '@shared/data/types/model'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { buildAgentSessionTopicId } from '../../agentSession/topic'
 import { agentChatContextProvider } from '../context/AgentChatContextProvider'
@@ -32,6 +34,8 @@ export async function startAgentSessionRun(input: {
   beforePersist?: () => void
   /** Commit caller-owned durable admission alongside the reserved messages, before activation. */
   onPersist?: (tx: DbOrTx, messages: { assistantMessageId: string; userMessageId: string }) => void
+  overrideModelId?: UniqueModelId
+  reasoningEffort?: ReasoningEffortOption
 }): Promise<StartAgentSessionRunResult> {
   if (input.listeners.length === 0) {
     throw new Error('startAgentSessionRun requires at least one listener')
@@ -84,7 +88,9 @@ export async function startAgentSessionRun(input: {
           trigger: 'submit-message',
           topicId,
           userMessageParts: input.userParts,
-          headless: input.headless === true
+          headless: input.headless === true,
+          overrideModelId: input.overrideModelId,
+          reasoningEffort: input.reasoningEffort
         },
         { trustedNotifyChannels: input.trustedNotifyChannels },
         {
