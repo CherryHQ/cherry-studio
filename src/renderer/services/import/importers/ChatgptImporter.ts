@@ -174,9 +174,16 @@ export class ChatgptImporter implements ConversationImporter {
         return extractTextParts(message.content?.parts).some((part) => part.trim().length > 0) ? [sourceId] : []
       })
     )
+    // Walk up the parent chain until an imported message is reached, so filtered-out
+    // messages (and the export's null-message root sentinel) never leak into the
+    // imported tree. The visited set keeps cyclic parent pointers in malformed exports
+    // from hanging (aligns with AnthropicImporter.resolveUsableSourceId).
     const resolveImportedNodeId = (sourceId?: string): string | undefined => {
+      const visited = new Set<string>()
       let candidate = sourceId
       while (candidate && !importedNodeIds.has(candidate)) {
+        if (visited.has(candidate)) return undefined
+        visited.add(candidate)
         candidate = conversation.mapping[candidate]?.parent
       }
       return candidate

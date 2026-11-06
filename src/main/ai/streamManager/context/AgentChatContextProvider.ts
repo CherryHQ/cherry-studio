@@ -13,8 +13,10 @@ import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { getAgentSessionHead } from '@data/services/agentSessionMessageTree'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
+import { reservePiBranchTx } from '@main/ai/runtime/pi/piContext'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
@@ -52,6 +54,7 @@ export type ValidatedAgentDispatch = {
   sessionId: string
   topicId: string
   agentId: string
+  parentMessageId: string
   agentUpdatedAt: string
   agentType: string
   agentName: string
@@ -128,6 +131,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
     if (!driver) {
       throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', `Unsupported agent runtime type: ${agent.type}`)
     }
+    const parentMessageId = agentSessionMessageService.captureHead(sessionId)
     await driver.validateSession(session)
 
     const deliveryMessage = req.agentDeliveryMessage
@@ -145,6 +149,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       : !agentSessionMessageService.hasSessionMessages(sessionId)
     return {
       sessionId,
+      parentMessageId,
       topicId: req.topicId,
       agentId,
       agentUpdatedAt: agent.updatedAt,
@@ -179,13 +184,16 @@ export class AgentChatContextProvider implements ChatContextProvider {
   persistDispatchTx(
     tx: DbOrTx,
     validated: ValidatedAgentDispatch,
-    expectedAgent?: string | { id: string; updatedAt: string; model: string; type: string }
+    expectedAgent?: string | { id: string; updatedAt: string; model: string; type: string },
+    intent: 'append' | 'edit' = 'append'
   ): PersistedAgentDispatch {
+    if (intent === 'append') this.assertAppendable(validated, tx)
     const assistantMessageId = uuidv7()
     const savedMessages = agentSessionMessageService.saveMessagesTx(
       tx,
       {
         sessionId: validated.sessionId,
+        parentId: validated.parentMessageId,
         messages: [
           {
             id: validated.userMessageId,
@@ -211,6 +219,16 @@ export class AgentChatContextProvider implements ChatContextProvider {
       traceId: agentSessionService.ensureTraceIdTx(tx, validated.sessionId),
       userMessage: savedMessages[0],
       savedMessages
+    }
+  }
+
+  private assertAppendable(validated: ValidatedAgentDispatch, tx?: DbOrTx): void {
+    if (
+      !validated.deliveryMessage &&
+      agentSessionMessageService.branchTip(validated.sessionId, validated.parentMessageId, tx) !==
+        validated.parentMessageId
+    ) {
+      throw DataApiErrorFactory.resourceLocked('Agent session', validated.sessionId, 'a changed message branch')
     }
   }
 
@@ -324,21 +342,29 @@ export class AgentChatContextProvider implements ChatContextProvider {
         validated.sessionId,
         req.editTarget,
         (tx, nativeSessionId, storedUserParts) => {
+          validated.parentMessageId = getAgentSessionHead(tx, validated.sessionId)!
           // The composer rebuilds the resent message from text, so the hidden source-chat identity
           // of a channel-originated turn would silently drop off the edit. storedUserParts was
-          // captured from the version-checked snapshot inside this transaction, before the target
-          // row was deleted - it is the only authoritative copy. Restore onto a clean local copy;
-          // the shared validated object is never mutated here.
+          // captured from the version-checked snapshot inside this transaction - it is the only
+          // authoritative copy. Restore onto a clean local copy; the shared validated object is
+          // never mutated here.
           const editValidated = {
             ...validated,
             userMessageParts: restoreStoredChannelContext(validated.userMessageParts, storedUserParts)
           }
-          const result = this.persistDispatchTx(tx, editValidated, {
-            id: validated.agentId,
-            updatedAt: validated.agentUpdatedAt,
-            model: validated.uniqueModelId,
-            type: validated.agentType
-          })
+          const result = this.persistDispatchTx(
+            tx,
+            editValidated,
+            {
+              id: validated.agentId,
+              updatedAt: validated.agentUpdatedAt,
+              model: validated.uniqueModelId,
+              type: validated.agentType
+            },
+            'edit'
+          )
+          if (validated.agentType === 'pi')
+            reservePiBranchTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId)
           agentSessionMessageService.setEditRuntimeTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId)
           return result
         }
@@ -353,14 +379,18 @@ export class AgentChatContextProvider implements ChatContextProvider {
       return this.activateDispatch(persisted, subscriber)
     }
 
+    await runtime.prepareBranch(validated.sessionId, validated.deliveryMessage?.id ?? validated.parentMessageId)
+
     // Ordinary interactive follow-ups still use the runtime FIFO. Durable cross-Session deliveries
     // are gated by AgentSessionDeliveryService and never enter this branch.
     if (application.get('AgentSessionRuntimeService').isSessionBusy(validated.sessionId)) {
       if (ctx?.requireIdle) {
         throw DataApiErrorFactory.resourceLocked('Agent session', validated.sessionId, 'an active turn')
       }
+      this.assertAppendable(validated)
       const savedUserMessage = agentSessionMessageService.saveMessage({
         sessionId: validated.sessionId,
+        parentId: validated.parentMessageId,
         message: {
           id: validated.userMessageId,
           role: 'user',

@@ -1,11 +1,12 @@
 import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
-import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -72,7 +73,7 @@ describe('AgentSessionForkOperations edit persist contract (real database)', () 
     })
   }
 
-  it('hands the persist callback the stored parts captured BEFORE the target row is deleted', async () => {
+  it('hands the persist callback the stored parts captured from the version-checked snapshot', async () => {
     const storedContext = createChannelContextPart({ channel: 'feishu', chatId: 'oc_123', chatType: 'group' })
     agentSessionMessageService.saveMessage({
       sessionId: SESSION_ID,
@@ -84,28 +85,39 @@ describe('AgentSessionForkOperations edit persist contract (real database)', () 
       }
     })
 
-    const seen: { storedUserParts?: unknown; targetGoneError?: string } = {}
+    const seen: { storedUserParts?: unknown } = {}
     const result = await forks.edit(
       SESSION_ID,
       targetFor(USER_MESSAGE_ID),
       async () => {},
-      (tx, nativeSessionId, storedUserParts) => {
+      (_tx, nativeSessionId, storedUserParts) => {
         seen.storedUserParts = storedUserParts
-        // Order proof: inside this same transaction the edit target is already gone, so the
-        // authoritative parts could only have come from the pre-delete capture.
-        try {
-          agentSessionMessageService.readEditSnapshotTx(tx, SESSION_ID, USER_MESSAGE_ID)
-        } catch (error) {
-          seen.targetGoneError = error instanceof AgentSessionEditError ? error.reason : String(error)
-        }
         expect(nativeSessionId).toBeTruthy()
         return 'persisted'
       }
     )
 
     expect(result).toBe('persisted')
-    expect(seen.targetGoneError).toBe('invalid_target')
+    // The capture comes from the stored row, so the hidden context survives even though the
+    // renderer's resent parts never carry it.
     expect(seen.storedUserParts).toEqual([{ type: 'text', text: 'original' }, storedContext])
+    // Sibling-branch model: the edit target stays in history; the head moves to its parent.
+    const db = application.get('DbService').getDb()
+    const target = db
+      .select({ parentId: agentSessionMessageTable.parentId })
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.id, USER_MESSAGE_ID))
+      .get()
+    const session = db
+      .select({ activeNodeId: agentSessionTable.activeNodeId })
+      .from(agentSessionTable)
+      .where(eq(agentSessionTable.id, SESSION_ID))
+      .get()
+    expect(session?.activeNodeId ?? null).toBe(target?.parentId ?? null)
+    expect(agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID).data.parts).toEqual([
+      { type: 'text', text: 'original' },
+      storedContext
+    ])
   })
 
   it('passes ordinary non-channel parts through unchanged and restores nothing', async () => {

@@ -16,4 +16,6 @@ export interface BasicPreviewHandles {
   zoom: (delta: number, absolute?: boolean) => void
   copy: () => Promise<boolean>
   download: (format: 'svg' | 'png') => Promise<void>
+  /** Opens the image in the full-size viewer. */
+  dialog: () => Promise<void>
 }

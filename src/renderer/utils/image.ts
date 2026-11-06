@@ -330,7 +330,7 @@ export async function captureElement(elRef: React.RefObject<HTMLElement>) {
  * @param el 目标元素
  * @returns Promise<HTMLCanvasElement | undefined> 捕获的画布对象，如果失败则返回 undefined
  */
-async function captureScrollableElement(el: HTMLElement | null) {
+async function captureScrollableElement(el: HTMLElement | null, backdropVariable = '--background') {
   if (el) {
     const htmlToImage = await loadHtmlToImage()
     let restoreLocalImageSources: (() => void) | undefined
@@ -388,7 +388,7 @@ async function captureScrollableElement(el: HTMLElement | null) {
       const fontEmbedCSS = await buildFontEmbedCSS()
       const captureOptions = {
         filter: filterHiddenElements,
-        backgroundColor: getComputedStyle(el).getPropertyValue('--background'),
+        backgroundColor: getComputedStyle(el).getPropertyValue(backdropVariable),
         cacheBust: true,
         fontEmbedCSS,
         imagePlaceholder: TRANSPARENT_IMAGE_PLACEHOLDER,
@@ -432,7 +432,8 @@ async function captureScrollableElement(el: HTMLElement | null) {
   return Promise.resolve(undefined)
 }
 
-export const captureScrollable = (elRef: React.RefObject<HTMLElement | null>) => captureScrollableElement(elRef.current)
+export const captureScrollable = (elRef: React.RefObject<HTMLElement | null>, backdropVariable?: string) =>
+  captureScrollableElement(elRef.current, backdropVariable)
 
 let fontEmbedCSSCache: string | undefined
 
@@ -537,13 +538,14 @@ async function buildFontEmbedCSS(): Promise<string> {
  * @returns Promise<string | undefined> PNG data URL，失败返回 undefined
  */
 export const captureScrollableImage = async (
-  elRef: React.RefObject<HTMLElement | null>
+  elRef: React.RefObject<HTMLElement | null>,
+  backdropVariable?: string
 ): Promise<string | undefined> => {
   const el = elRef.current
   if (!el) return undefined
 
   await waitForCaptureAssets(el)
-  const canvas = await captureScrollableElement(el)
+  const canvas = await captureScrollableElement(el, backdropVariable)
   return canvas?.toDataURL('image/png')
 }
 
@@ -552,8 +554,11 @@ export const captureScrollableImage = async (
  * @param elRef 可滚动元素的引用
  * @returns Promise<string | undefined> 图像数据 URL，如果失败则返回 undefined
  */
-export const captureScrollableAsDataUrl = async (elRef: React.RefObject<HTMLElement | null>) => {
-  return captureScrollableImage(elRef)
+export const captureScrollableAsDataUrl = async (
+  elRef: React.RefObject<HTMLElement | null>,
+  backdropVariable?: string
+) => {
+  return captureScrollableImage(elRef, backdropVariable)
 }
 
 /**
@@ -581,8 +586,12 @@ export function dataUrlToBlob(dataUrl: string): Blob {
  * @param func Blob 回调函数
  * @returns Promise<void> 处理结果
  */
-export const captureScrollableAsBlob = async (elRef: React.RefObject<HTMLElement | null>, func: BlobCallback) => {
-  const dataUrl = await captureScrollableImage(elRef)
+export const captureScrollableAsBlob = async (
+  elRef: React.RefObject<HTMLElement | null>,
+  func: BlobCallback,
+  backdropVariable?: string
+) => {
+  const dataUrl = await captureScrollableImage(elRef, backdropVariable)
   if (dataUrl) {
     func(dataUrlToBlob(dataUrl))
   }

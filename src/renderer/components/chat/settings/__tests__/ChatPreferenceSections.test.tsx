@@ -141,9 +141,20 @@ describe('ChatPreferenceSections', () => {
     expect(screen.getByText('settings.math.single_dollar.label')).toBeInTheDocument()
     expect(screen.getByText('chat.settings.code_fancy_block.label')).toBeInTheDocument()
     expect(screen.getByText('settings.messages.show_message_outline')).toBeInTheDocument()
+    expect(screen.getByText('settings.messages.navigation.none')).toBeInTheDocument()
+    expect(screen.getByText('settings.messages.navigation.anchor')).toBeInTheDocument()
+    expect(screen.queryByText('settings.messages.navigation.buttons')).not.toBeInTheDocument()
     expect(screen.getByText('message.message.multi_model_style.label')).toBeInTheDocument()
     expect(screen.getByText('settings.messages.input.show_estimated_tokens')).toBeInTheDocument()
     expect(screen.queryByText('settings.messages.input.enable_quick_triggers')).toBeNull()
+  })
+
+  it('labels the auto code themes as the Cherry default while keeping the stored value', () => {
+    render(<ChatPreferenceSections />)
+
+    const autoItems = screen.getAllByText('chat.settings.code_theme.cherry_default')
+    expect(autoItems.map((item) => item.getAttribute('data-value'))).toEqual(['auto', 'auto'])
+    expect(screen.queryByText('auto')).toBeNull()
   })
 
   it('does not render input translation controls', () => {

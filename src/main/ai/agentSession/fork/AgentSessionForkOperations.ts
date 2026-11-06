@@ -7,6 +7,7 @@ import { application } from '@application'
 import type { AgentSessionMessageRow } from '@data/db/schemas/agentSessionMessage'
 import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
+import { agentSessionContextService } from '@data/services/AgentSessionContextService'
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { AgentSessionForkSourceError, agentSessionForkService } from '@data/services/AgentSessionForkService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
@@ -17,6 +18,7 @@ import { loggerService } from '@logger'
 import { type RuntimeForkCheckpoint, RuntimeForkAnchorSchema } from '@main/ai/runtime/fork'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { t } from '@main/i18n'
+import { isOutsidePath } from '@main/utils/file'
 import type { AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { Sequencer } from '@shared/utils/async'
@@ -28,11 +30,6 @@ import { type AgentSessionForkResources, readForkResources, writeForkResources, 
 import { workspaceHasReferences } from './workspaceCleanup'
 
 const logger = loggerService.withContext('AgentSessionForkOperations')
-
-function isInside(root: string, file: string): boolean {
-  const relative = path.relative(root, file)
-  return Boolean(relative) && !relative.startsWith('..') && !path.isAbsolute(relative)
-}
 
 function isMissing(error: unknown): boolean {
   return (error as NodeJS.ErrnoException)?.code === 'ENOENT'
@@ -105,7 +102,7 @@ export class AgentSessionForkOperations {
     const driver = agent && runtimeDriverRegistry.getAgentSessionDriver(agent.type)
     if (!agent || !driver?.fork) throw new AgentSessionForkError('unsupported_checkpoint')
     const prefix = structuredClone(source.prefix)
-    const nativeSessionId = randomUUID()
+    let nativeSessionId: string = randomUUID()
     let resources: AgentSessionForkResources | undefined
     try {
       if (prefix.length) {
@@ -143,6 +140,7 @@ export class AgentSessionForkOperations {
         })
         if (!native.resumeToken.trim() || native.checkpoints.length !== checkpoints.length)
           throw new AgentSessionForkError('history_corrupt')
+        nativeSessionId = native.resumeToken
         resources.resumeToken = native.resumeToken
         await writeForkResources(resources)
         remapNativeHistory(prefix, native.resumeToken, native.checkpoints)
@@ -152,10 +150,21 @@ export class AgentSessionForkOperations {
       await closeSource()
       signal.throwIfAborted()
       return database.withWriteTx((tx) => {
-        // replaceEditTailTx re-reads and version-checks the snapshot in this transaction, then
-        // deletes the target; its return is the only authoritative copy of the stored user parts.
-        const storedUserParts = agentSessionMessageService.replaceEditTailTx(tx, sessionId, target, prefix)
-        return persist(tx, nativeSessionId, storedUserParts)
+        // selectEditParentTx re-reads and version-checks the snapshot in this transaction; its
+        // return is the only authoritative copy of the stored user parts (hidden host-owned
+        // metadata for the resent turn).
+        const storedUserParts = agentSessionMessageService.selectEditParentTx(tx, sessionId, target)
+        const result = persist(tx, nativeSessionId, storedUserParts)
+        if (resources) {
+          const checkpointMapping = Object.fromEntries(
+            prefix.flatMap((row) => {
+              const anchor = RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor)
+              return anchor.success ? [[row.id, anchor.data.checkpoint]] : []
+            })
+          )
+          agentSessionContextService.publishBranchTx(tx, sessionId, nativeSessionId, checkpointMapping)
+        }
+        return result
       })
     } catch (error) {
       if (resources && !this.hasPublishedResources(resources)) {
@@ -322,7 +331,8 @@ export class AgentSessionForkOperations {
     signal: AbortSignal
   ): Promise<void> {
     for (const artifact of artifacts) {
-      if (!isInside(resources.artifactDirectory, artifact.source)) throw new Error('Unowned SDK fork artifact')
+      const relativeSource = path.relative(resources.artifactDirectory, artifact.source)
+      if (!relativeSource || isOutsidePath(relativeSource)) throw new Error('Unowned SDK fork artifact')
       await forkFileIdentity(artifact.source)
       await mkdir(path.dirname(artifact.target), { recursive: true })
       const owned = { ...artifact, identity: undefined as string | undefined }
@@ -340,7 +350,8 @@ export class AgentSessionForkOperations {
     if (path.resolve(resources.artifactDirectory) !== path.resolve(root, resources.operationId))
       throw new Error('Unowned fork directory')
     for (const artifact of resources.published) {
-      if (!isInside(resources.artifactDirectory, artifact.source)) throw new Error('Unowned fork file')
+      const relativeSource = path.relative(resources.artifactDirectory, artifact.source)
+      if (!relativeSource || isOutsidePath(relativeSource)) throw new Error('Unowned fork file')
       try {
         const targetIdentity = await forkFileIdentity(artifact.target)
         if (targetIdentity !== (artifact.identity ?? (await forkFileIdentity(artifact.source))))

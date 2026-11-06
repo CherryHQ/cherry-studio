@@ -25,7 +25,7 @@ import { ConversationResourceView } from '@renderer/components/resourceCatalog/c
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
-import { useCurrentTabId } from '@renderer/hooks/tab'
+import { useCurrentTabId, useIsActiveTab } from '@renderer/hooks/tab'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { toCreateAssistantDtoFromCatalogPreset } from '@renderer/hooks/useAssistantCatalogPresets'
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
@@ -42,6 +42,7 @@ import type { AppRouter } from '@renderer/types/router'
 import type { Topic } from '@renderer/types/topic'
 import { getTopicAssistantDisplayGroupId } from '@renderer/utils/chat/topicsHelpers'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 
@@ -52,7 +53,7 @@ import {
 } from './components/AssistantConversationPickerDialog'
 import { HomeTabRuntime } from './components/HomeTabRuntime'
 import { TopicRightPane } from './components/TopicRightPane'
-import { Topics } from './Tabs/components/Topics'
+import { Topics } from './Tabs/components/topics'
 import HomeTabs from './Tabs/HomeTabs'
 import type { AddNewTopicPayload } from './types'
 
@@ -117,7 +118,7 @@ const HomePage: FC = () => {
   })
   // Shared full-topics list source plus exact latest/reusable lookups.
   const assistantTopicsSource = useAssistantTopicsSource()
-  const { topics: allTopics, loadLatestTopic, reuseOrCreateTopic } = assistantTopicsSource
+  const { topics: allTopics, rendererTopics, loadLatestTopic, reuseOrCreateTopic } = assistantTopicsSource
 
   const { createTopic, refreshTopics } = useTopicMutations()
   const {
@@ -311,6 +312,9 @@ const HomePage: FC = () => {
     activeConversationId: targetTopicId,
     visibleConversationId: visibleTopic?.id
   })
+  // Label this tab with its assistant emoji + topic name so multiple chat tabs are distinguishable.
+  const preserveTabVisuals = !!targetTopicId && visibleTopic?.id !== targetTopicId
+  const tabTitle = visibleTopic?.name?.trim() || visibleAssistant?.name?.trim() || getDefaultRouteTitle('/app/chat')
 
   useEffect(() => {
     if (activeTopic) lastVisibleTopicRef.current = activeTopic
@@ -436,6 +440,38 @@ const HomePage: FC = () => {
     },
     [activateCreatedTopic, resolveEmptyTopic, t]
   )
+
+  const isActiveTab = useIsActiveTab()
+  const cycleTopic = useCallback(
+    (step: 1 | -1) => {
+      // Cycle the renderer topics the list actually shows: the visible assistant's topics, or
+      // only unlinked topics when no assistant is visible (matches `matchesAssistantFilter`).
+      const scopedTopics = visibleAssistantId
+        ? rendererTopics.filter((topic) => topic.assistantId === visibleAssistantId)
+        : rendererTopics.filter((topic) => !topic.assistantId)
+      if (scopedTopics.length === 0) return
+      const currentIndex = scopedTopics.findIndex((topic) => topic.id === activeTopicId)
+      const nextIndex = currentIndex === -1 ? 0 : (currentIndex + step + scopedTopics.length) % scopedTopics.length
+      const nextTopic = scopedTopics[nextIndex]
+      if (nextTopic.id !== activeTopicId) setActiveTopicAndCloseResourceView(nextTopic)
+    },
+    [activeTopicId, rendererTopics, setActiveTopicAndCloseResourceView, visibleAssistantId]
+  )
+  const cycleAssistant = useCallback(
+    (step: 1 | -1) => {
+      if (assistants.length === 0) return
+      const currentIndex = assistants.findIndex((assistant) => assistant.id === visibleAssistantId)
+      const nextIndex = currentIndex === -1 ? 0 : (currentIndex + step + assistants.length) % assistants.length
+      const nextAssistant = assistants[nextIndex]
+      if (nextAssistant.id === visibleAssistantId) return
+      void handleAssistantConversationSelect({ type: 'assistant', assistantId: nextAssistant.id })
+    },
+    [assistants, handleAssistantConversationSelect, visibleAssistantId]
+  )
+  useCommandHandler('topic.next', () => cycleTopic(1), { enabled: isActiveTab })
+  useCommandHandler('topic.prev', () => cycleTopic(-1), { enabled: isActiveTab })
+  useCommandHandler('assistant.next', () => cycleAssistant(1), { enabled: isActiveTab })
+  useCommandHandler('assistant.prev', () => cycleAssistant(-1), { enabled: isActiveTab })
 
   const handleCreateEmptyTopic = useCallback(
     async (payload?: AddNewTopicPayload) => {
@@ -721,7 +757,13 @@ const HomePage: FC = () => {
       onOpenChange={isClassicTopicLayout ? setTopicPaneOpen : undefined}
       userOpenIntentSeq={topicPaneUserOpenIntentSeq}
       revealRequest={topicRevealRequest}>
-      <HomeTabRuntime activeTopicId={activeTopic?.id} activeTopicSource={activeTopicSource} />
+      <HomeTabRuntime
+        title={tabTitle}
+        emoji={visibleAssistant?.emoji}
+        preserveVisuals={preserveTabVisuals}
+        activeTopicId={activeTopic?.id}
+        activeTopicSource={activeTopicSource}
+      />
       <Container id="home-page">
         <ContentContainer $detached={isWindowFrame}>
           <Chat
