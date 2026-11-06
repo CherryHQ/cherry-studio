@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
+
 const {
   getConversationByIdMock,
   listSessionMessagesMock,
@@ -59,79 +61,53 @@ describe('agentSessionMessageHandlers', () => {
       expect(result).toBe(response)
     })
 
-    it('replaces an oversized assistant tool output with a reference, leaving the stored data alone', async () => {
-      const output = { content: 'x'.repeat(64 * 1024) }
-      const assistant = {
-        id: 'assistant-message',
-        role: 'assistant',
-        data: {
-          parts: [
-            { type: 'text', text: 'answer' },
-            { type: 'dynamic-tool', toolCallId: 'tool-call-1', state: 'output-available', input: {}, output }
-          ]
-        }
+    it.each([true, false])(
+      'forwards explicit deferToolOutputs=%s and preserves the response cursor',
+      async (deferToolOutputs) => {
+        const response = { items: [], nextCursor: '100:message-1' }
+        listSessionMessagesMock.mockReturnValueOnce(response)
+        const result = await agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'].GET({
+          params: { sessionId: 'session-1' },
+          query: { deferToolOutputs, limit: '25', messageId: 'message-1' }
+        } as never)
+        expect(listSessionMessagesMock).toHaveBeenCalledWith('session-1', {
+          deferToolOutputs,
+          limit: 25,
+          messageId: 'message-1'
+        })
+        expect(result).toBe(response)
       }
-      const user = { id: 'user-message', role: 'user', data: { parts: [{ type: 'dynamic-tool', output: 'keep' }] } }
-      listSessionMessagesMock.mockReturnValueOnce({ items: [assistant, user], nextCursor: undefined })
+    )
 
-      const result = (await agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'].GET({
-        params: { sessionId: 'session-1' },
-        query: { deferToolOutputs: true }
-      } as never)) as unknown as { items: { data: { parts: unknown[] } }[] }
-
-      expect(result.items[0].data.parts[1]).toEqual({
-        type: 'dynamic-tool',
-        toolCallId: 'tool-call-1',
-        state: 'output-available',
-        input: {},
-        output: {
-          $deferredToolResult: {
-            topicId: 'agent-session:session-1',
-            messageId: 'assistant-message',
-            toolCallId: 'tool-call-1'
-          }
-        }
-      })
-      expect(result.items[1]).toBe(user)
-      expect(assistant.data.parts[1]).toMatchObject({ output })
-    })
-
-    it('leaves a small tool output inline so no round trip is needed to render it', async () => {
-      const assistant = {
-        id: 'assistant-message',
-        role: 'assistant',
-        data: {
-          parts: [{ type: 'dynamic-tool', toolCallId: 'tool-call-1', state: 'output-available', output: { a: 1 } }]
-        }
-      }
-      listSessionMessagesMock.mockReturnValueOnce({ items: [assistant], nextCursor: undefined })
-
-      const result = (await agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'].GET({
-        params: { sessionId: 'session-1' },
-        query: { deferToolOutputs: true }
-      } as never)) as unknown as { items: unknown[] }
-
-      expect(result.items[0]).toBe(assistant)
-    })
-
-    it('returns stored tool outputs verbatim unless the caller opts in', async () => {
-      const output = { content: 'x'.repeat(64 * 1024) }
-      const assistant = {
-        id: 'assistant-message',
-        role: 'assistant',
-        data: {
-          parts: [{ type: 'dynamic-tool', toolCallId: 'tool-call-1', state: 'output-available', output }]
-        }
-      }
-      const response = { items: [assistant], nextCursor: undefined }
-      listSessionMessagesMock.mockReturnValueOnce(response)
-
-      // Default read is verbatim, so a read-modify-write caller cannot persist a trimmed copy.
+    it.each([201, 0, -1, 1.5])('rejects invalid list limit %s before reading messages', async (limit) => {
       await expect(
         agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'].GET({
-          params: { sessionId: 'session-1' }
-        })
-      ).resolves.toBe(response)
+          params: { sessionId: 'session-1' },
+          query: { limit }
+        } as never)
+      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+      expect(listSessionMessagesMock).not.toHaveBeenCalled()
+    })
+
+    it('propagates a non-retryable service DataApiError unchanged', async () => {
+      const details = {
+        operation: 'listSessionMessages',
+        reason: 'AGENT_SESSION_MESSAGE_READ_BUDGET_EXCEEDED',
+        scope: 'message',
+        messageId: 'message-1'
+      }
+      const error = DataApiErrorFactory.create(
+        ErrorCode.INVALID_OPERATION,
+        'History read exceeds the safety limit',
+        details
+      )
+      listSessionMessagesMock.mockImplementationOnce(() => {
+        throw error
+      })
+      await expect(
+        agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'].GET({ params: { sessionId: 'session-1' } })
+      ).rejects.toBe(error)
+      expect(error.isRetryable).toBe(false)
     })
 
     it('hides the message list of a session outside the conversation scope', async () => {

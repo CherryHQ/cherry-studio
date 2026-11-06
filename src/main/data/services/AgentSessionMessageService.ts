@@ -23,6 +23,7 @@ import { agentSessionReadModelEffects, agentSessionService } from '@data/service
 import { registerDataService } from '@data/services/dataServiceRegistry'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
+import { projectMessagePartsForRenderer } from '@main/utils/messageOutputProjection'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import {
   extractFtsTokens,
@@ -41,7 +42,7 @@ import {
   type AgentSessionDeliveryStatus
 } from '@shared/ai/agentSessionDelivery'
 import { applyApprovalDecisions, type ApprovalDecision } from '@shared/ai/transport'
-import { DataApiErrorFactory } from '@shared/data/api/errors'
+import { DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import type {
   AgentSessionMessageEntity,
   CreateAgentSessionMessageDto,
@@ -92,6 +93,74 @@ const RANKED_SESSION_SEARCH_MAX_FALLBACK_TERMS = 128
 const MESSAGE_CURSOR_CONFIG = {
   fieldMessage: 'must be a valid message cursor',
   errorMessage: 'Invalid message cursor'
+}
+
+export const AGENT_SESSION_MESSAGE_READ_INPUT_BUDGET = 16_777_216
+export const AGENT_SESSION_MESSAGE_READ_PAGE_INPUT_BUDGET = 16_777_216
+export const AGENT_SESSION_MESSAGE_READ_DEFERRED_PAGE_INPUT_BUDGET = 536_870_912
+export const AGENT_SESSION_MESSAGE_READ_PAGE_RESULT_BUDGET = 16_777_216
+
+const MESSAGE_TEXT_COLUMNS = [
+  sessionMessagesTable.id,
+  sessionMessagesTable.sessionId,
+  sessionMessagesTable.parentId,
+  sessionMessagesTable.role,
+  sessionMessagesTable.data,
+  sessionMessagesTable.searchableText,
+  sessionMessagesTable.status,
+  sessionMessagesTable.modelId,
+  sessionMessagesTable.messageSnapshot,
+  sessionMessagesTable.stats,
+  sessionMessagesTable.runtimeResumeToken,
+  sessionMessagesTable.inputContextId,
+  sessionMessagesTable.nativeInputId,
+  sessionMessagesTable.delivery,
+  sessionMessagesTable.deliveryStatus,
+  sessionMessagesTable.deliveryTurnRef,
+  sessionMessagesTable.deliveryInReplyTo,
+  sessionMessagesTable.deliverySenderSessionId
+]
+const MESSAGE_INPUT_BYTES = sql<number>`${sql.join(
+  MESSAGE_TEXT_COLUMNS.map((column) => sql`coalesce(octet_length(${column}), 0)`),
+  sql` + `
+)}`
+
+function assertMessageReadBudget(
+  sessionId: string,
+  messageId: string,
+  scope: 'message' | 'page-input' | 'page-result',
+  bytes: number,
+  budget: number,
+  deferToolOutputs: boolean
+): void {
+  if (bytes <= budget) return
+  const details = {
+    operation: 'listSessionMessages',
+    reason: 'AGENT_SESSION_MESSAGE_READ_BUDGET_EXCEEDED',
+    scope,
+    sessionId,
+    messageId,
+    bytes,
+    budget,
+    deferToolOutputs
+  }
+  throw DataApiErrorFactory.create(
+    ErrorCode.INVALID_OPERATION,
+    'Message history read exceeds the safety limit',
+    details
+  )
+}
+
+function messageReadAllocationCode(error: unknown): string | undefined {
+  const seen = new Set<object>()
+  while (typeof error === 'object' && error !== null && !seen.has(error)) {
+    seen.add(error)
+    if ('code' in error && (error.code === 'SQLITE_NOMEM' || error.code === 'SQLITE_IOERR_NOMEM')) {
+      return error.code
+    }
+    error = 'cause' in error ? error.cause : undefined
+  }
+  return undefined
 }
 
 export interface AgentSessionMessageRangeMetadata {
@@ -182,6 +251,7 @@ type ListSessionMessagesOptions = {
   cursor?: string
   limit?: number
   messageId?: string
+  deferToolOutputs?: boolean
 }
 
 type SaveAgentSessionMessageParams = {
@@ -948,76 +1018,173 @@ export class AgentSessionMessageService {
     sessionId: string,
     options: ListSessionMessagesOptions = {}
   ): CursorPaginationResponse<AgentSessionMessageEntity> {
-    const database = application.get('DbService').getDb()
+    const deferToolOutputs = options.deferToolOutputs === true
+    const pageInputBudget = deferToolOutputs
+      ? AGENT_SESSION_MESSAGE_READ_DEFERRED_PAGE_INPUT_BUDGET
+      : AGENT_SESSION_MESSAGE_READ_PAGE_INPUT_BUDGET
+    let stage = 'transaction'
+    let messageId: string | undefined
+    try {
+      const database = application.get('DbService').getDb()
+      return database.transaction(
+        (tx) => {
+          stage = 'active-session'
+          this.assertActiveSession(tx, sessionId)
+          stage = 'anchor'
+          const limit = Math.min(
+            options.limit ?? AGENT_SESSION_MESSAGES_DEFAULT_LIMIT,
+            AGENT_SESSION_MESSAGES_MAX_LIMIT
+          )
+          const ordering = keysetOrdering(sessionMessagesTable.createdAt, sessionMessagesTable.id, {
+            major: 'desc',
+            tie: 'desc'
+          })
+          const cursor = decodeListCursor(options.cursor, asNumericKey, 'agent-session-message')
+          const [anchor] = options.messageId
+            ? tx
+                .select({ id: sessionMessagesTable.id, createdAt: sessionMessagesTable.createdAt })
+                .from(sessionMessagesTable)
+                .where(
+                  and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, options.messageId))
+                )
+                .limit(1)
+                .all()
+            : []
+          if (!options.cursor && options.messageId && !anchor) {
+            logger.warn('Session message anchor not found, falling back to newest page', {
+              sessionId,
+              messageId: options.messageId
+            })
+          }
 
-    this.assertActiveSession(database, sessionId)
+          const head = anchor?.id ?? getAgentSessionHead(tx, sessionId)
+          const filters = [
+            eq(sessionMessagesTable.sessionId, sessionId),
+            ne(sessionMessagesTable.role, 'root'),
+            head ? inArray(sessionMessagesTable.id, agentSessionPathIds(sessionId, head)) : sql`0`
+          ]
+          if (cursor) {
+            filters.push(ordering.where(cursor))
+          } else if (anchor) {
+            // Anchor the first page so previews include the matched message and older context.
+            filters.push(
+              or(
+                lt(sessionMessagesTable.createdAt, anchor.createdAt),
+                and(eq(sessionMessagesTable.createdAt, anchor.createdAt), lte(sessionMessagesTable.id, anchor.id))
+              )!
+            )
+          }
 
-    const limit = Math.min(options.limit ?? AGENT_SESSION_MESSAGES_DEFAULT_LIMIT, AGENT_SESSION_MESSAGES_MAX_LIMIT)
-    const ordering = keysetOrdering(sessionMessagesTable.createdAt, sessionMessagesTable.id, {
-      major: 'desc',
-      tie: 'desc'
-    })
-    const cursor = decodeListCursor(options.cursor, asNumericKey, 'agent-session-message')
-    const [anchor] = options.messageId
-      ? database
-          .select({ id: sessionMessagesTable.id, createdAt: sessionMessagesTable.createdAt })
-          .from(sessionMessagesTable)
-          .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, options.messageId)))
-          .limit(1)
-          .all()
-      : []
-    if (!options.cursor && options.messageId && !anchor) {
-      logger.warn('Session message anchor not found, falling back to newest page', {
+          const where = and(...filters)
+          stage = 'metadata'
+          const metadata = tx
+            .select({
+              id: sessionMessagesTable.id,
+              createdAt: sessionMessagesTable.createdAt,
+              inputBytes: MESSAGE_INPUT_BYTES
+            })
+            .from(sessionMessagesTable)
+            .where(where)
+            .orderBy(...ordering.orderBy)
+            .limit(limit + 1)
+            .all()
+
+          const hasNext = metadata.length > limit
+          const pageMetadata = hasNext ? metadata.slice(0, limit) : metadata
+          stage = 'page-input'
+          let inputBytes = 0
+          for (const meta of pageMetadata) {
+            messageId = meta.id
+            assertMessageReadBudget(
+              sessionId,
+              meta.id,
+              'message',
+              meta.inputBytes,
+              AGENT_SESSION_MESSAGE_READ_INPUT_BUDGET,
+              deferToolOutputs
+            )
+            inputBytes += meta.inputBytes
+            assertMessageReadBudget(sessionId, meta.id, 'page-input', inputBytes, pageInputBudget, deferToolOutputs)
+          }
+
+          const items: AgentSessionMessageEntity[] = []
+          const pageRows: Array<{ id: string; parentId: string | null }> = []
+          let resultBytes = 0
+          for (const meta of pageMetadata) {
+            messageId = meta.id
+            stage = 'payload'
+            const row = tx
+              .select()
+              .from(sessionMessagesTable)
+              .where(and(where, eq(sessionMessagesTable.id, meta.id)))
+              .get()!
+            let entity = this.rowToEntity(row)
+            if (deferToolOutputs && entity.role === 'assistant' && entity.data.parts) {
+              stage = 'projection'
+              const parts = projectMessagePartsForRenderer(entity.data.parts, `agent-session:${sessionId}`, entity.id)
+              if (parts !== entity.data.parts) entity = { ...entity, data: { ...entity.data, parts } }
+            }
+            stage = 'page-result'
+            resultBytes += Buffer.byteLength(JSON.stringify(entity), 'utf8')
+            items.push(entity)
+            pageRows.push({ id: row.id, parentId: row.parentId })
+            // Stop decoding once rejection is inevitable; count siblings before reporting the exact bytes.
+            if (resultBytes > AGENT_SESSION_MESSAGE_READ_PAGE_RESULT_BUDGET) break
+          }
+          stage = 'siblings'
+          const parents = pageRows.flatMap((row) => (row.parentId ? [row.parentId] : []))
+          const siblings = parents.length
+            ? tx
+                .select({ id: sessionMessagesTable.id, parentId: sessionMessagesTable.parentId })
+                .from(sessionMessagesTable)
+                .where(
+                  and(eq(sessionMessagesTable.sessionId, sessionId), inArray(sessionMessagesTable.parentId, parents))
+                )
+                .orderBy(asc(sessionMessagesTable.createdAt), asc(sessionMessagesTable.id))
+                .all()
+            : []
+          resultBytes = 0
+          for (const [index, row] of pageRows.entries()) {
+            messageId = row.id
+            const entity = items[index]
+            entity.siblings = siblings
+              .filter((sibling) => sibling.parentId === row.parentId)
+              .map((sibling) => sibling.id)
+            stage = 'page-result'
+            resultBytes += Buffer.byteLength(JSON.stringify(entity), 'utf8')
+            assertMessageReadBudget(
+              sessionId,
+              row.id,
+              'page-result',
+              resultBytes,
+              AGENT_SESSION_MESSAGE_READ_PAGE_RESULT_BUDGET,
+              deferToolOutputs
+            )
+          }
+          const tail = pageMetadata[pageMetadata.length - 1]
+          const nextCursor = hasNext && tail ? encodeCursor(tail.createdAt, tail.id) : undefined
+          stage = 'commit'
+          return { items, nextCursor }
+        },
+        { behavior: 'deferred' }
+      )
+    } catch (error) {
+      const nativeCode = messageReadAllocationCode(error)
+      if (!nativeCode) throw error
+      const details = {
+        operation: 'listSessionMessages',
+        reason: 'AGENT_SESSION_MESSAGE_READ_ALLOCATION_FAILED',
         sessionId,
-        messageId: options.messageId
-      })
-    }
-
-    const head = anchor?.id ?? getAgentSessionHead(database, sessionId)
-    const filters = [
-      eq(sessionMessagesTable.sessionId, sessionId),
-      ne(sessionMessagesTable.role, 'root'),
-      head ? inArray(sessionMessagesTable.id, agentSessionPathIds(sessionId, head)) : sql`0`
-    ]
-    if (cursor) {
-      filters.push(ordering.where(cursor))
-    } else if (anchor) {
-      // Anchor the first page so previews include the matched message and older context.
-      filters.push(
-        or(
-          lt(sessionMessagesTable.createdAt, anchor.createdAt),
-          and(eq(sessionMessagesTable.createdAt, anchor.createdAt), lte(sessionMessagesTable.id, anchor.id))
-        )!
+        stage,
+        nativeCode,
+        ...(messageId ? { messageId } : {})
+      }
+      throw DataApiErrorFactory.create(
+        ErrorCode.INVALID_OPERATION,
+        'Message history read failed to allocate memory safely',
+        details
       )
     }
-
-    const rows = database
-      .select()
-      .from(sessionMessagesTable)
-      .where(and(...filters))
-      .orderBy(...ordering.orderBy)
-      .limit(limit + 1)
-      .all()
-
-    const hasNext = rows.length > limit
-    const pageRows = hasNext ? rows.slice(0, limit) : rows
-    const parents = pageRows.flatMap((row) => (row.parentId ? [row.parentId] : []))
-    const siblings = parents.length
-      ? database
-          .select({ id: sessionMessagesTable.id, parentId: sessionMessagesTable.parentId })
-          .from(sessionMessagesTable)
-          .where(and(eq(sessionMessagesTable.sessionId, sessionId), inArray(sessionMessagesTable.parentId, parents)))
-          .orderBy(asc(sessionMessagesTable.createdAt), asc(sessionMessagesTable.id))
-          .all()
-      : []
-    const items = pageRows.map((row) => ({
-      ...this.rowToEntity(row),
-      siblings: siblings.filter((sibling) => sibling.parentId === row.parentId).map((sibling) => sibling.id)
-    }))
-    const tail = pageRows[pageRows.length - 1]
-    const nextCursor = hasNext && tail ? encodeCursor(tail.createdAt, tail.id) : undefined
-
-    return { items, nextCursor }
   }
 
   listApprovalMessages(sessionId: string): AgentSessionMessageEntity[] {

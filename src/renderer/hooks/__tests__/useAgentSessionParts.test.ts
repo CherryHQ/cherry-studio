@@ -140,6 +140,65 @@ describe('useAgentSessionParts', () => {
     mockAgentSessionPartsDataApi()
   })
 
+  it('preserves loaded history and stops automatic pagination after a read error', () => {
+    const pages = [{ items: [sessionMessageRow('loaded-message')], nextCursor: 'older-page' }]
+    const loadNext = vi.fn()
+    const query = {
+      pages,
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined as Error | undefined,
+      hasNext: true,
+      loadNext,
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    }
+    dataApiMocks.useInfiniteQuery.mockImplementation(() => query)
+    const { result, rerender } = renderHook(() => useAgentSessionParts('session-1'))
+    const loadedMessages = result.current.messages
+
+    act(() => result.current.selectAllPagination.start())
+    expect(result.current.selectAllPagination.isLoading).toBe(true)
+    expect(loadNext).toHaveBeenCalledTimes(1)
+
+    query.isLoading = true
+    rerender()
+    expect(result.current.isLoading).toBe(true)
+    act(() => result.current.loadOlder())
+    expect(loadNext).toHaveBeenCalledTimes(1)
+    query.isLoading = false
+    query.isRefreshing = true
+    rerender()
+    act(() => result.current.loadOlder())
+    expect(loadNext).toHaveBeenCalledTimes(1)
+    const readError = new Error('Agent session message history exceeds the safe read budget')
+    query.error = readError
+    query.isRefreshing = false
+    rerender()
+
+    expect(result.current.error).toBe(readError)
+    expect(result.current.isLoading).toBe(false)
+    expect(result.current.messages).toEqual(loadedMessages)
+    expect(result.current.messages[0].parts).toEqual([{ type: 'text', text: 'loaded-message' }])
+    expect(result.current.hasOlder).toBe(true)
+    expect(query.pages[0].nextCursor).toBe('older-page')
+    expect(result.current.selectAllPagination.isLoading).toBe(false)
+    act(() => {
+      result.current.loadOlder()
+      result.current.loadOlder()
+    })
+    rerender()
+    expect(loadNext).toHaveBeenCalledTimes(1)
+
+    query.error = undefined
+    rerender()
+    expect(result.current.error).toBeUndefined()
+    expect(loadNext).toHaveBeenCalledTimes(1)
+    act(() => result.current.loadOlder())
+    expect(loadNext).toHaveBeenCalledTimes(2)
+  })
+
   it('keeps the selected branch when reservations for another branch arrive late', async () => {
     const selected = { ...sessionMessageRow('selected-user'), siblings: ['old-user', 'selected-user'] }
     mockLiveAgentSessionParts([selected])
