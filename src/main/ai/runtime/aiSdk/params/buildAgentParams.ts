@@ -76,10 +76,11 @@ import type { AgentLoopHooks, AgentOptions } from '../loop/types'
 import { assembleSystemPrompt } from './assembleSystemPrompt'
 import { buildTelemetry } from './buildTelemetry'
 import { resolveCapabilities } from './capabilities'
-import { collectFromFeatures } from './collectFromFeatures'
+import { collectFromFeatures, featureApplies } from './collectFromFeatures'
 import { createCustomParamsFetch, selectCustomBodyParameters } from './customParamsFetch'
 import type { RequestFeature } from './feature'
 import { hasAnchorRow } from './features/contextBuild'
+import { inLoopCompactionFeature } from './features/inLoopCompaction'
 import { INTERNAL_FEATURES } from './features/internalFeatures'
 import { type NativeFileSupport, resolveNativeFileSupport } from './nativeFileSupport'
 import type { RequestScope, SdkConfig } from './scope'
@@ -126,6 +127,10 @@ export interface BuiltAgentParams {
   /** Attachment routing inputs for `prepareChatMessages` (chat path). */
   nativeFileSupport: NativeFileSupport
   fileAttachments: FileAttachmentRef[]
+  /** True when the in-loop compaction hook is active for this request — `streamText`
+   *  keeps `read_file` exposed then, since a mid-loop fold can summarize a fully-inline
+   *  attachment out of the prompt and the reader is the only path back to it. */
+  inLoopCompactionActive: boolean
 }
 
 export async function buildAgentParams(input: BuildAgentParamsInput): Promise<BuiltAgentParams> {
@@ -338,6 +343,10 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
 
   const features = extraFeatures?.length ? [...INTERNAL_FEATURES, ...extraFeatures] : INTERNAL_FEATURES
   const contributions = collectFromFeatures(scope, features)
+  // `streamText` gates the `read_file` overflow tool on this: the compaction hook can
+  // fold a fully-inline attachment out of the prompt mid-loop, and the reader is then
+  // the model's only way back to the exact contents the summary dropped.
+  const inLoopCompactionActive = featureApplies(inLoopCompactionFeature, scope)
 
   const mcpInstructions = buildMcpInstructionsContext(mcpServerIds)
   const system =
@@ -388,7 +397,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     options,
     hookParts,
     nativeFileSupport,
-    fileAttachments
+    fileAttachments,
+    inLoopCompactionActive
   }
 }
 

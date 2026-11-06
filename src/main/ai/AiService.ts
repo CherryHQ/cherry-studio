@@ -626,7 +626,8 @@ export class AiService extends BaseService {
       assistant,
       hookParts,
       nativeFileSupport,
-      fileAttachments
+      fileAttachments,
+      inLoopCompactionActive
     } = await this.buildAgentParamsFor(request, signal, extraFeatures, () => repairUsagePlugins.current ?? [])
     const usageContext = createCaptureContext({
       provider,
@@ -679,10 +680,17 @@ export class AiService extends BaseService {
 
     // `read_file` only pages overflow: when every attachment is fully inline and none were
     // folded out of the served history, drop it so the model is not nudged into needless calls.
+    // Keep it while in-loop compaction is active — a later fold can still summarize an inline
+    // attachment away mid-request, and the reader is the only path back to the exact contents.
     const readFileNeeded =
-      attachmentTruncated || collectFileAttachments(request.messages).length < fileAttachments.length
+      attachmentTruncated ||
+      collectFileAttachments(request.messages).length < fileAttachments.length ||
+      inLoopCompactionActive
+    // A caller-owned `read_file` (gateway `callOverrides.tools`) is not the builtin attachment
+    // reader — client overrides win in `resolveTools`, so never filter that entry out.
+    const callerOwnsReadFile = request.callOverrides?.tools ? READ_FILE_TOOL_NAME in request.callOverrides.tools : false
     const agentTools =
-      tools && READ_FILE_TOOL_NAME in tools && !readFileNeeded
+      tools && READ_FILE_TOOL_NAME in tools && !readFileNeeded && !callerOwnsReadFile
         ? Object.fromEntries(Object.entries(tools).filter(([name]) => name !== READ_FILE_TOOL_NAME))
         : tools
 
