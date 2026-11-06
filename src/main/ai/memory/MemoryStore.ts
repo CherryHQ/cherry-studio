@@ -48,10 +48,7 @@ interface ReadBaseline {
   generation: number
 }
 
-export type MemoryMutation =
-  | { kind: 'write'; receipt: string; content: string }
-  | { kind: 'delete'; receipt: string }
-  | { kind: 'rename'; receipt: string; destinationReceipt: string }
+export type MemoryMutation = { kind: 'write'; receipt: string; content: string } | { kind: 'delete'; receipt: string }
 
 export interface MemoryChangePreview {
   path: string
@@ -96,7 +93,6 @@ export class MemoryStore {
   private readonly lock = new Mutex()
   private readonly reads = new WeakMap<MemoryAccess, Map<string, ReadBaseline>>()
   private readonly recoveries = new WeakMap<MemoryAccess, Map<string, RecoveryBaseline>>()
-  private readonly accessEpochs = new WeakMap<MemoryAccess, number>()
   private readonly clears = new WeakMap<
     MemoryAccess,
     Map<string, Array<Pick<MemoryRead, 'path' | 'hash' | 'receipt'>>>
@@ -127,49 +123,36 @@ export class MemoryStore {
     })
   }
 
-  invalidate(access?: MemoryAccess): void {
-    if (access) {
-      this.accessEpochs.set(access, (this.accessEpochs.get(access) ?? 0) + 1)
-      this.reads.delete(access)
-      this.recoveries.delete(access)
-      this.clears.delete(access)
-    } else {
-      this.generation++
-    }
+  invalidate(): void {
+    this.generation++
   }
 
   async list(access: MemoryAccess): Promise<string[]> {
-    const epoch = this.accessEpochs.get(access) ?? 0
     const generation = this.generation
     access.assertAuthorized()
     const files = await listMemoryFiles(this.root)
     access.assertAuthorized()
-    this.assertAccessEpoch(access, epoch)
     this.assertGeneration(generation)
     return files
   }
 
   async entry(access: MemoryAccess): Promise<{ content: string; truncated: boolean }> {
-    const epoch = this.accessEpochs.get(access) ?? 0
     const generation = this.generation
     access.assertAuthorized()
     const entry = await readMemoryEntry(this.root)
     access.assertAuthorized()
-    this.assertAccessEpoch(access, epoch)
     this.assertGeneration(generation)
     return entry
   }
 
   async read(access: MemoryAccess, target: string): Promise<MemoryRead> {
     assertMemoryTarget(target)
-    const epoch = this.accessEpochs.get(access) ?? 0
     access.assertAuthorized()
     const generation = this.generation
     const bytes = await readMemoryBytes(this.root, target)
     const content = bytes === null ? null : this.decode(bytes)
     access.assertAuthorized()
     this.assertGeneration(generation)
-    this.assertAccessEpoch(access, epoch)
     const receipt = randomUUID()
     const hash = memoryHash(bytes)
     let receipts = this.reads.get(access)
@@ -189,7 +172,6 @@ export class MemoryStore {
     conditions: MemoryCommitConditions = {}
   ): Promise<MemoryCommitResult> {
     const intent = mutations.map((mutation) => ({ ...mutation }))
-    const epoch = this.accessEpochs.get(access) ?? 0
     access.assertAuthorized()
     const generation = this.generation
     const dependencies = (conditions.readReceipts ?? []).map((receipt) => this.baseline(access, receipt))
@@ -211,14 +193,8 @@ export class MemoryStore {
       if (mutation.kind === 'write') {
         assertMemoryContent(baseline.path, mutation.content)
         changes.push({ path: baseline.path, before, after: Buffer.from(mutation.content) })
-      } else if (mutation.kind === 'delete') {
-        if (before === null) throw new MemoryError('conflict', 'Cannot delete an absent memory file')
-        changes.push({ path: baseline.path, before, after: null })
       } else {
-        if (before === null) throw new MemoryError('conflict', 'Cannot rename an absent memory file')
-        const destination = this.baseline(access, mutation.destinationReceipt)
-        assertMemoryContent(destination.path, this.decode(before))
-        changes.push({ path: destination.path, before: await this.readMatching(destination), after: before })
+        if (before === null) throw new MemoryError('conflict', 'Cannot delete an absent memory file')
         changes.push({ path: baseline.path, before, after: null })
       }
     }
@@ -226,9 +202,8 @@ export class MemoryStore {
     this.assertGeneration(generation)
     const approval = await approve(this.preview(changes))
     const validateApproval = (): undefined => {
-      this.assertAccessEpoch(access, epoch)
       approval()
-      this.assertAccessEpoch(access, epoch)
+      access.assertAuthorized()
       return undefined
     }
     return this.lock.runExclusive(async () => {
@@ -246,15 +221,7 @@ export class MemoryStore {
       this.assertGeneration(generation)
       const advanceGeneration = source === 'clear' || source === 'recovery'
       if (advanceGeneration) this.invalidate()
-      return this.apply(
-        access,
-        changes,
-        source,
-        validateApproval,
-        epoch,
-        generation + Number(advanceGeneration),
-        legacy
-      )
+      return this.apply(access, changes, source, validateApproval, generation + Number(advanceGeneration), legacy)
     })
   }
 
@@ -290,7 +257,6 @@ export class MemoryStore {
 
   async previewRecovery(access: MemoryAccess): Promise<MemoryRecoveryPreview | undefined> {
     return this.lock.runExclusive(async () => {
-      const epoch = this.accessEpochs.get(access) ?? 0
       const generation = this.generation
       access.assertAuthorized()
       const batch = await this.latestRecoverableBatch()
@@ -305,7 +271,6 @@ export class MemoryStore {
       }
       access.assertAuthorized()
       const token = randomUUID()
-      this.assertAccessEpoch(access, epoch)
       this.assertGeneration(generation)
       this.recoveries.set(access, new Map([[token, { batch, hashes, generation: this.generation }]]))
       return { token, batchId: batch.id, files }
@@ -313,7 +278,6 @@ export class MemoryStore {
   }
 
   async recover(access: MemoryAccess, token: string, approve: MemoryApproval): Promise<MemoryCommitResult> {
-    const epoch = this.accessEpochs.get(access) ?? 0
     access.assertAuthorized()
     const preview = this.recoveries.get(access)?.get(token)
     if (!preview) throw new MemoryError('invalid-receipt', 'Recovery requires this caller to preview the latest batch')
@@ -335,9 +299,8 @@ export class MemoryStore {
     }
     const approval = await approve(this.preview(changes))
     const validateApproval = (): undefined => {
-      this.assertAccessEpoch(access, epoch)
       approval()
-      this.assertAccessEpoch(access, epoch)
+      access.assertAuthorized()
       return undefined
     }
     return this.lock.runExclusive(async () => {
@@ -358,7 +321,7 @@ export class MemoryStore {
       await saveMemoryBackup(this.backupRoot, preview.batch)
       let result: MemoryCommitResult
       try {
-        result = await this.apply(access, changes, 'recovery', validateApproval, epoch, preview.generation + 1)
+        result = await this.apply(access, changes, 'recovery', validateApproval, preview.generation + 1)
       } catch (error) {
         preview.batch.status = previousStatus
         await saveMemoryBackup(this.backupRoot, preview.batch).catch(() => undefined)
@@ -386,10 +349,11 @@ export class MemoryStore {
     proposed: readonly MemoryFileChange[],
     source: MemoryMutationSource,
     approval: () => undefined,
-    epoch: number,
     generation: number,
     legacy?: MemoryLegacyOriginal
   ): Promise<MemoryCommitResult> {
+    access.assertAuthorized()
+    approval()
     this.assertGeneration(generation)
     const changes = proposed.filter((change) => memoryHash(change.before) !== memoryHash(change.after))
     if (!changes.length && !legacy) {
@@ -413,7 +377,6 @@ export class MemoryStore {
           access.assertAuthorized()
           approval()
           this.assertGeneration(generation)
-          this.assertAccessEpoch(access, epoch)
         })
         const actual = await readMemoryBytes(this.root, change.path)
         if (memoryHash(actual) !== memoryHash(change.after))
@@ -497,12 +460,6 @@ export class MemoryStore {
   private assertGeneration(generation: number): void {
     if (generation !== this.generation)
       throw new MemoryError('invalid-receipt', 'The memory operation has been invalidated')
-  }
-
-  private assertAccessEpoch(access: MemoryAccess, epoch: number): void {
-    if ((this.accessEpochs.get(access) ?? 0) !== epoch) {
-      throw new MemoryError('invalid-receipt', 'The caller memory operation has been invalidated')
-    }
   }
 
   private preview(changes: readonly MemoryFileChange[]): readonly Readonly<MemoryChangePreview>[] {

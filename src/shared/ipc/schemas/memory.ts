@@ -1,11 +1,8 @@
 import * as z from 'zod'
 
-import { MemoryScopeSchema } from '@shared/types/memory'
-
 import { defineRoute } from '../define'
 
 const editor = z.object({ editorId: z.uuid() })
-const receipt = editor.extend({ receipt: z.uuid() })
 const token = editor.extend({ token: z.uuid() })
 const file = z.object({ path: z.string(), hash: z.string().nullable() })
 const result = z.object({
@@ -16,7 +13,7 @@ const result = z.object({
 
 export const memoryRequestSchemas = {
   'memory.editor.open': defineRoute({
-    input: MemoryScopeSchema,
+    input: z.object({ kind: z.literal('shared') }),
     output: z.object({
       editorId: z.uuid(),
       maxBytes: z.number(),
@@ -26,14 +23,6 @@ export const memoryRequestSchemas = {
     })
   }),
   'memory.editor.close': defineRoute({ input: editor, output: z.void() }),
-  'memory.file.list': defineRoute({ input: editor, output: z.array(z.string()) }),
-  'memory.file.read': defineRoute({
-    input: editor.extend({ path: z.string().min(1).max(512) }),
-    output: file.extend({ content: z.string().nullable(), receipt: z.uuid() })
-  }),
-  'memory.file.write': defineRoute({ input: receipt.extend({ content: z.string().max(25000) }), output: result }),
-  'memory.file.delete': defineRoute({ input: receipt, output: result }),
-  'memory.file.rename': defineRoute({ input: receipt.extend({ destinationReceipt: z.uuid() }), output: result }),
   'memory.clear.preview': defineRoute({ input: editor, output: z.object({ token: z.uuid(), files: z.array(file) }) }),
   'memory.clear.confirm': defineRoute({ input: token, output: result }),
   'memory.recovery.preview': defineRoute({
