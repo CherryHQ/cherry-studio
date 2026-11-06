@@ -39,6 +39,11 @@ function dataErrorPart(cherry?: Record<string, unknown>): Extract<CherryMessageP
 // ============================================================================
 
 describe('CherryTextMetaSchema', () => {
+  it('preserves the plaintext contract while stripping unknown metadata', () => {
+    expect(CherryTextMetaSchema.parse({ plainText: true, unknownField: 'discard' })).toEqual({ plainText: true })
+    expect(CherryTextMetaSchema.safeParse({ plainText: false }).success).toBe(false)
+  })
+
   it('accepts references as array of anything', () => {
     expect(CherryTextMetaSchema.safeParse({ references: [{ category: 'citation' }] }).success).toBe(true)
     expect(CherryTextMetaSchema.safeParse({}).success).toBe(true)

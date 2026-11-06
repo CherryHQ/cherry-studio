@@ -158,6 +158,8 @@ export type CherryDataPartTypes = {
 
 /** Cherry metadata on a TextUIPart. */
 export interface CherryTextMeta {
+  /** Render literally without Markdown interpretation; CLI banners require plaintext by SDK contract. */
+  plainText?: true
   /** Content references (citations, mentions). */
   references?: unknown[]
   /** Composer inline token display snapshot — on user TextUIPart by convention. */
@@ -293,6 +295,7 @@ const ComposerMessageSnapshotSchema: z.ZodType<ComposerMessageSnapshot> = z.obje
 })
 
 export const CherryTextMetaSchema: z.ZodType<CherryTextMeta> = z.object({
+  plainText: z.literal(true).optional(),
   references: z.array(z.unknown()).optional(),
   composer: ComposerMessageSnapshotSchema.optional()
 })

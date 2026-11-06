@@ -88,6 +88,20 @@ function successResult(overrides: Record<string, unknown> = {}) {
   } as any
 }
 
+async function accumulateMessage(parts: CherryUIMessageChunk[]): Promise<CherryUIMessage> {
+  const stream = new ReadableStream<CherryUIMessageChunk>({
+    start(controller) {
+      for (const part of parts) controller.enqueue(part)
+      controller.close()
+    }
+  })
+  let message: CherryUIMessage = { id: 'assistant-hook', role: 'assistant', parts: [] }
+  for await (const snapshot of readUIMessageStream<CherryUIMessage>({ stream, message })) {
+    message = snapshot
+  }
+  return message
+}
+
 describe('ClaudeCodeStreamAdapter', () => {
   describe('turn activity', () => {
     it('starts inactive and ignores metadata chunks', () => {
@@ -296,6 +310,197 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(result).toEqual({ type: 'continue' })
     expect(parts).toEqual([])
     expect(loggerMocks.debug).not.toHaveBeenCalledWith(expect.stringContaining('Received system message subtype:'))
+  })
+
+  describe('terminating informational feedback', () => {
+    const banner = 'UserPromptSubmit operation blocked by hook:\ntest\n\nOriginal prompt: hello there'
+    const informational = {
+      type: 'system',
+      subtype: 'informational',
+      level: 'warning',
+      prevent_continuation: true,
+      content: banner,
+      session_id: 'sdk-hook',
+      uuid: 'hook-warning'
+    } as const
+
+    it('replays the pinned CLI 2.1.284 hook block once through accumulation and persistence', async () => {
+      const { adapter, parts } = createAdapter()
+      // Verbatim lines from the CLI 2.1.284 capture of issue #22830; surrounding session/init lines
+      // were omitted because they carry machine-local paths that do not affect this behaviour.
+      const capture = String.raw`{"type":"system","subtype":"informational","content":"UserPromptSubmit operation blocked by hook:\ntest\n\nOriginal prompt: hello there","level":"warning","prevent_continuation":true,"uuid":"f7f25267-f644-43bf-9061-00d76729adcd","session_id":"e2be63cc-578f-4cee-93ef-4be4c218be1f"}
+{"is_error":false,"duration_api_ms":0,"num_turns":0,"stop_reason":null,"session_id":"e2be63cc-578f-4cee-93ef-4be4c218be1f","total_cost_usd":0,"usage":{"output_tokens_details":{"thinking_tokens":0},"input_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":0,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{},"permission_denials":[],"fast_mode_state":"off","fast_mode_disabled_reason":"sdk_opt_in_required","subagent_stats":{"spawned":0,"requested":{"background":0,"foreground":0,"unset":0},"started_in_background":0,"max_depth":0,"spawned_by_subagents":0,"completed":0,"failed":0,"killed":{"parent":0,"user":0,"system":0},"refused":{"depth_limit":0,"concurrency_limit":0,"budget":0},"by_type":{}},"subtype":"success","result":"UserPromptSubmit operation blocked by hook:\ntest\n\nOriginal prompt: hello there","type":"result","duration_ms":29,"uuid":"39582f82-a1c7-4c82-a17e-164340afb7b8","queued_turn_count":0,"result_index":0}`
+      for (const line of capture.split('\n')) {
+        adapter.handleMessage(JSON.parse(line))
+      }
+
+      const finalMessage = await accumulateMessage(parts)
+      const persisted: CherryUIMessage[] = []
+      const listener = new PersistenceListener({
+        topicId: 'agent-session:session-1',
+        backend: {
+          kind: 'test',
+          persistAssistant: async ({ finalMessage }) => {
+            if (finalMessage) persisted.push(finalMessage)
+          }
+        },
+        onPersistFailed: vi.fn()
+      })
+      await listener.onDone({ status: 'success', isTopicDone: true, finalMessage })
+
+      expect(finalMessage.parts).toEqual([
+        { type: 'text', text: banner, state: 'done', providerMetadata: { cherry: { plainText: true } } }
+      ])
+      expect(persisted.map((message) => message.parts)).toEqual([
+        [{ type: 'text', text: banner, state: 'done', providerMetadata: { cherry: { plainText: true } } }]
+      ])
+      expect(parts.filter((part) => part.type === 'text-start')).toHaveLength(1)
+      expect(parts.filter((part) => part.type === 'data-error')).toEqual([])
+      expect(parts.filter((part) => part.type === 'finish')).toHaveLength(1)
+      expect(adapter.isTurnActive).toBe(false)
+    })
+
+    it.each([
+      { level: 'notice' },
+      { level: 'suggestion' },
+      { level: 'warning' },
+      { level: 'warning', tool_use_id: 'tool-hook' }
+    ])('immediately completes eligible informational text: %j', async (fields) => {
+      const { adapter, parts, statusEvents } = createAdapter()
+      const result = adapter.handleMessage({
+        ...informational,
+        ...fields,
+        content: `  ${banner}\n`
+      } as any)
+
+      expect(result).toEqual({ type: 'continue' })
+      expect(parts.map((part) => part.type)).toEqual(['text-start', 'text-delta', 'text-end'])
+      expect((await accumulateMessage(parts)).parts).toEqual([
+        { type: 'text', text: `  ${banner}\n`, state: 'done', providerMetadata: { cherry: { plainText: true } } }
+      ])
+      expect(statusEvents).toEqual([])
+      expect(adapter.isTurnActive).toBe(true)
+    })
+
+    it('accumulates Markdown and HTML banner syntax verbatim with plaintext metadata', async () => {
+      const { adapter, parts } = createAdapter()
+      const banner = '  hook blocked\n![audit](https://example.com/pixel)\n<!-- hidden -->\n'
+      adapter.handleMessage({ ...informational, content: banner } as any)
+
+      expect(parts[0]).toEqual({
+        type: 'text-start',
+        id: expect.any(String),
+        providerMetadata: { cherry: { plainText: true } }
+      })
+      const finalMessage = await accumulateMessage(parts)
+      expect(finalMessage.parts).toEqual([
+        { type: 'text', text: banner, state: 'done', providerMetadata: { cherry: { plainText: true } } }
+      ])
+    })
+
+    it('preserves system-reminder tags in literal feedback through emission, accumulation and persistence', async () => {
+      const { adapter, parts } = createAdapter()
+      const banner =
+        'UserPromptSubmit operation blocked by hook:\n<system-reminder>Policy denied: secret detected</system-reminder>\n\nOriginal prompt: hello there'
+      adapter.handleMessage({ ...informational, content: banner } as any)
+
+      const finalMessage = await accumulateMessage(parts)
+      const persisted: CherryUIMessage[] = []
+      const listener = new PersistenceListener({
+        topicId: 'agent-session:session-1',
+        backend: {
+          kind: 'test',
+          persistAssistant: async ({ finalMessage }) => {
+            if (finalMessage) persisted.push(finalMessage)
+          }
+        },
+        onPersistFailed: vi.fn()
+      })
+      await listener.onDone({ status: 'success', isTopicDone: true, finalMessage })
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toBe(banner)
+      expect(parts[0]).toEqual({
+        type: 'text-start',
+        id: expect.any(String),
+        providerMetadata: { cherry: { plainText: true } }
+      })
+      expect(finalMessage.parts).toEqual([
+        { type: 'text', text: banner, state: 'done', providerMetadata: { cherry: { plainText: true } } }
+      ])
+      expect(persisted.map((message) => message.parts)).toEqual([
+        [{ type: 'text', text: banner, state: 'done', providerMetadata: { cherry: { plainText: true } } }]
+      ])
+    })
+
+    it('keeps the next ordinary streamed answer unchanged after a blocked turn', async () => {
+      const { adapter, parts } = createAdapter()
+      adapter.handleMessage(informational as any)
+      adapter.handleMessage(
+        successResult({
+          result: banner,
+          num_turns: 0,
+          total_cost_usd: 0,
+          usage: { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }
+        })
+      )
+      const ordinaryStart = parts.length
+
+      adapter.beginTurn()
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Ordinary answer.' } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+      adapter.handleMessage(successResult({ result: 'Ordinary answer.' }))
+
+      const ordinaryParts = parts.slice(ordinaryStart)
+      expect(JSON.stringify((await accumulateMessage(ordinaryParts)).parts)).toBe(
+        '[{"type":"text","text":"Ordinary answer.","state":"done"}]'
+      )
+      expect(ordinaryParts.filter((part) => part.type === 'text-start')).toHaveLength(1)
+      expect(ordinaryParts.filter((part) => part.type === 'data-error')).toEqual([])
+      expect(ordinaryParts.filter((part) => part.type === 'finish')).toHaveLength(1)
+      expect(adapter.isTurnActive).toBe(false)
+    })
+
+    it('finishes a truly empty zero-turn success without body chunks', async () => {
+      const { adapter, parts } = createAdapter()
+      adapter.handleMessage(
+        successResult({
+          result: '',
+          num_turns: 0,
+          total_cost_usd: 0,
+          usage: { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }
+        })
+      )
+
+      expect(parts.map((part) => part.type)).toEqual(['finish'])
+      expect((await accumulateMessage(parts)).parts).toEqual([])
+      expect(adapter.isTurnActive).toBe(false)
+    })
+
+    it.each([
+      { label: 'info level', fields: { level: 'info' }, openTurn: true },
+      { label: 'absent continuation flag', fields: { prevent_continuation: undefined }, openTurn: true },
+      { label: 'false continuation flag', fields: { prevent_continuation: false }, openTurn: true },
+      { label: 'blank content', fields: { content: ' \n\t ' }, openTurn: true },
+      { label: 'outside a turn', fields: {}, openTurn: false }
+    ])('ignores informational feedback with $label', ({ fields, openTurn }) => {
+      const { adapter, parts, statusEvents } = createAdapter({}, { openTurn })
+      const message = { ...informational, ...fields }
+      if (message.prevent_continuation === undefined) delete (message as any).prevent_continuation
+
+      expect(adapter.handleMessage(message as any)).toEqual({ type: 'continue' })
+      expect(parts).toEqual([])
+      expect(statusEvents).toEqual([])
+      expect(adapter.isTurnActive).toBe(openTurn)
+    })
   })
 
   it('maps thinking token estimates to a full cumulative metadata snapshot', () => {

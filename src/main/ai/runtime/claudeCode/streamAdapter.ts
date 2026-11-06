@@ -559,20 +559,33 @@ export class ClaudeCodeStreamAdapter {
   ): StreamContext['sink'] {
     let destination = sink
     const textFilters = new Map<string, SystemReminderTextFilter>()
+    const plainTextPartIds = new Set<string>()
     return {
       redirect: (nextSink) => {
         destination = nextSink
       },
       enqueue: (chunk) => {
         if (chunk.type === 'text-start') {
-          textFilters.set(chunk.id, new SystemReminderTextFilter(reminderBodies))
+          if (chunk.providerMetadata?.cherry?.plainText === true) {
+            plainTextPartIds.add(chunk.id)
+          } else {
+            textFilters.set(chunk.id, new SystemReminderTextFilter(reminderBodies))
+          }
         } else if (chunk.type === 'text-delta') {
+          if (plainTextPartIds.has(chunk.id)) {
+            destination.enqueue(chunk)
+            return
+          }
           const filter = textFilters.get(chunk.id) ?? new SystemReminderTextFilter(reminderBodies)
           textFilters.set(chunk.id, filter)
           const delta = filter.write(chunk.delta)
           if (delta) destination.enqueue({ ...chunk, delta })
           return
         } else if (chunk.type === 'text-end') {
+          if (plainTextPartIds.delete(chunk.id)) {
+            destination.enqueue(chunk)
+            return
+          }
           const filter = textFilters.get(chunk.id)
           if (filter) {
             const delta = filter.flush()
@@ -1366,6 +1379,10 @@ export class ClaudeCodeStreamAdapter {
       case 'api_retry':
         this.handleApiRetrySystemMessage(message)
         return
+      case 'informational':
+        logger.debug(`Received system message subtype: ${message.subtype}`, { message })
+        this.handleInformationalSystemMessage(message, ctx)
+        return
       case 'hook_started':
       case 'hook_progress':
       case 'hook_response':
@@ -1379,7 +1396,6 @@ export class ClaudeCodeStreamAdapter {
       case 'model_refusal_fallback':
       case 'model_refusal_no_fallback':
       case 'control_request_progress':
-      case 'informational':
       case 'worker_shutting_down':
         // TODO: Implement handling for these system message subtypes as needed. For now, they are
         // acknowledged at debug level in the logger to avoid being silently ignored. The two
@@ -1397,6 +1413,25 @@ export class ClaudeCodeStreamAdapter {
         return
       }
     }
+  }
+
+  private handleInformationalSystemMessage(
+    message: Extract<SDKMessage, { subtype: 'informational' }>,
+    ctx: StreamContext
+  ): void {
+    if (
+      !this.turnActive ||
+      message.prevent_continuation !== true ||
+      message.level === 'info' ||
+      !message.content.trim()
+    ) {
+      return
+    }
+
+    const id = generateId()
+    ctx.sink.enqueue({ type: 'text-start', id, providerMetadata: { cherry: { plainText: true } } })
+    ctx.sink.enqueue({ type: 'text-delta', id, delta: message.content })
+    ctx.sink.enqueue({ type: 'text-end', id })
   }
 
   private handlePermissionDeniedSystemMessage(
