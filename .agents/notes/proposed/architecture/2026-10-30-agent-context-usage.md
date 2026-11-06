@@ -10,6 +10,8 @@ The desktop context panel currently consumes `AgentSessionContextUsage`, a host 
 
 This proposal partially supersedes the [runtime contract](2026-10-17-agent-runtime-contract.md) statement that context usage stays in the Pi-specific facet. Native execution, input, history, billing and compaction ownership remain unchanged. It extends the common observation boundary; it does not move context management policy into the renderer or `agent-behavior`.
 
+The proposed [runtime ownership contraction](../simplification/2026-11-05-agent-runtime-boundary-ownership.md), revised on 2026-11-06, withdraws the unproduced inputLimit field and the unconsumed public compactionThreshold field. It keeps native limit/threshold computations, full-window semantics, reserved/free, revision isolation and passive reads. This is a partial supersession of the output contract, not completed implementation or new acceptance evidence.
+
 ## Proposal
 
 ### Public boundary and ownership
@@ -32,7 +34,7 @@ The adapter translates native data into the common contract. Main supplies the r
 |---|---|
 | Model identity and context revision | Identify the model and native context boundary the reading describes. The adapter's opaque revision changes when model configuration or selected context changes. A host connection epoch also fences replaced accesses. |
 | Full context window | The usable model window after native capability restrictions, before output or compaction reservations. Host catalog capacity alone cannot enlarge a native plan limit. |
-| Input limit and compaction threshold | Separate optional limits. They are not alternate names for the full window and need not be additive reservations. |
+| Native input limit and compaction threshold | Remain distinct native computation inputs, not public output fields under the contraction revision. Neither substitutes for the full window or automatically becomes an additive reservation. |
 | Used tokens | Current occupancy with `reported` or `estimated` provenance and a basis of current context or last model request. An unknown current value remains absent. Provider invocation totals across turns are never occupancy. |
 | Reserved and free tokens | Optional allocation facts in the same full-window units. Only known, non-overlapping reservations may be combined. Free space is derived only when all required allocation facts are known; a missing reserve is not zero. |
 | Categories | Stable common keys, token counts, provenance, and `included` or `deferred` occupancy. Missing breakdown means unavailable; an empty supported breakdown means no entries. Partial coverage is explicit. |
@@ -81,7 +83,7 @@ Use real native loops with deterministic model endpoints for the three adapter s
 ## Acceptance criteria
 
 - AC1 — All three adapters expose the same required passive context-usage operation; missing, released and unsupported child access return explicit outcomes without model/tool work. (verification: unit — shared contract matrix over real adapters)
-- AC2 — Claude native, Claude gateway and Pi model readings distinguish full window, input limit and compaction threshold; the composer and details use one denominator, including the reduced-budget gateway fixture above. (verification: unit — adapter fixtures and renderer integration)
+- AC2 — Claude native, Claude gateway and Pi readings preserve the full usable window without substituting native input or compaction limits; composer and details use one denominator, including the reduced-budget gateway fixture above, without requiring separate public limit fields. (verification: unit — adapter fixtures and renderer integration)
 - AC3 — Pi and Durable supply real root readings from native context preparation; estimated and post-compaction unknown values remain distinguishable, and no root implementation is an unconditional unsupported stub. (verification: unit — native package and adapter integration)
 - AC4 — Included, deferred, reserved and free tokens do not double count; partial breakdowns and unknown allocation facts remain explicit, while resource lists preserve identity, provenance and loading state. (verification: unit — native fixtures and common semantic matrix)
 - AC5 — Child reads remain thread-scoped; compaction, reset, fork/rewind and model changes invalidate old readings, and late reads from replaced connections cannot overwrite current state. (verification: unit — native transition and host race tests)
