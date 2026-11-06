@@ -129,11 +129,10 @@ export async function agentMemoryContext(app: RegressionApp, page: Page, testInf
     )
     await expect(recall).toHaveText('QA-DEMO')
     await openAgentPane(page, 'Status')
-    const category = page.getByText('Memory files', { exact: true })
-    await expect.soft(category, 'Context panel must classify memory file token usage').toBeVisible({ timeout: 3_000 })
-    if (await category.isVisible()) {
-      await expect(category.locator('..')).toContainText(/[1-9][\d,]*\s*\(\d+%\)/)
-    }
+    // Runtime identity snapshots are injected into Messages, not the CLI's Memory files category.
+    const category = page.getByText('Messages', { exact: true })
+    await expect(category).toBeVisible()
+    await expect(category.locator('..')).toContainText(/[1-9][\d,]*\s*\(\d+%\)/)
     await screenshot('MP-57 new session recall and context usage')
 
     const disabledSettings = await openMemorySettings()
@@ -166,12 +165,7 @@ export async function agentMemoryContext(app: RegressionApp, page: Page, testInf
       .soft(afterDisable, 'The retained FACT.md identity snapshot still reaches the agent')
       .toContainText('QA-DEMO')
     await openAgentPane(page, 'Status')
-    await expect
-      .soft(
-        page.getByText('Memory files', { exact: true }),
-        'Disabling the Memory tools must not drop the retained memory context'
-      )
-      .toBeVisible({ timeout: 3_000 })
+    await expect(page.getByText('Messages', { exact: true })).toBeVisible()
     expect(await readMemory(), 'Disabling memory must preserve the saved file').toBe(contents)
     await screenshot('MP-57 new session with memory disabled')
   } finally {

@@ -1070,7 +1070,7 @@ test(...caseDefinition('MP-48'), async ({ app, mainWindow }, testInfo) => {
 
   try {
     await page.evaluate(() => window.api.preference.set('topic.naming.enabled', false))
-    // Only the model HTTP endpoint is mocked; draft persistence and Electron restart remain real.
+    // Only the model HTTP endpoint is mocked; topic-switch recovery and sending remain real.
     const provider = await page.evaluate(
       ({ providerId, baseUrl }) =>
         window.api.dataApi.request({
@@ -1156,14 +1156,11 @@ test(...caseDefinition('MP-48'), async ({ app, mainWindow }, testInfo) => {
     await expect(composer()).toBeFocused()
     expect(await readMessages(topic.id)).toEqual([])
 
-    const beforeRestart = app.record
-    page = await app.restart()
-    expect(app.record.electronPid).not.toBe(beforeRestart.electronPid)
-    await openTopics()
-    await row(topic.name).click()
-    await screenshot('MP-48 draft after full application restart')
-    await expect(composer(), 'Unsent text must survive a complete application restart').toHaveText(draft)
-    expect(await readMessages(topic.id)).toEqual([])
+    testInfo.annotations.push({
+      type: 'coverage',
+      description:
+        'Composer drafts are window-local memory cache (data/README.md); this case verifies topic-switch recovery and clearing after send, not process-restart recovery.'
+    })
 
     await page.getByRole('button', { name: 'Send', exact: true }).click()
     const request = await server.nextRequest()

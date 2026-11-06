@@ -160,6 +160,7 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
       .filter({ has: page.getByRole('button', { name: 'Quote', exact: true }) })
     const selectedText = () => page.evaluate(() => window.getSelection()?.toString() ?? '')
     const textCoordinates = async (target: Locator, length: number) => {
+      await page.keyboard.press('Escape')
       await target.hover()
       const measure = () =>
         target.evaluate((element, length) => {
@@ -315,16 +316,6 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
     for (let i = 1; i < excerpt.length; i++) await page.keyboard.press('ArrowRight')
     await page.keyboard.up('Shift')
     await expect.poll(selectedText).toBe(excerpt)
-    await testInfo.attach('MP-149 keyboard selection focus', {
-      body: JSON.stringify(
-        await page.evaluate(() => ({
-          documentFocused: document.hasFocus(),
-          activeTag: document.activeElement?.tagName,
-          selection: window.getSelection()?.toString()
-        }))
-      ),
-      contentType: 'application/json'
-    })
     await expect(toolbar).toBeVisible()
     await paragraph.click({ button: 'right', position: { x: 20, y: 8 } })
     await copyAndPaste(page.getByRole('menuitem', { name: 'Copy', exact: true }), excerpt)

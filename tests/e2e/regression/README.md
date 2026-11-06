@@ -137,7 +137,8 @@ A passing implemented flow does not cover capabilities absent from the current p
 | --- | --- | --- |
 | MP-18 | Message queue, hover card, attachment preview, copy source, MCP inline images, URL fallback and Chinese title search | A direct Delete action in the sent-image menu; public tool-result image URL previews; pinyin-initial search |
 | MP-19 | Markdown, DOCX, video, empty PPTX error, pasted-text preview and clipboard round trip | Rendering a nonempty PPTX; external-app fallback; a Quote selection button in plain-text previews |
-| MP-57 | Memory setting persistence and retained snapshots | Memory file-path display; runtime memory-tool exclusion is covered by `builtinAgentCapabilities.test.ts`, not by this E2E flow |
+| MP-48 | Window-local draft recovery across topic switches and clearing after send | Process-restart recovery is outside the documented composer memory-cache contract |
+| MP-57 | Real memory-file writes, recall across sessions, setting persistence and retained snapshots | Memory file-path display; runtime memory-tool exclusion is covered by `builtinAgentCapabilities.test.ts`, not by this E2E flow |
 | MP-69 | File categories, counts and clearing filters | Filename search and result highlighting |
 | MP-72 | Not registered: the product has no library-file reference entry point | Referencing an existing library file from the composer |
 | MP-74 | Draft persistence and external-edit conflict handling | An explicit Saved status indicator |

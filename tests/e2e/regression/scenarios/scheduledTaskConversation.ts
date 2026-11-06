@@ -13,6 +13,11 @@ import { closeSettings, openSettingsSection } from '../helpers/settings'
 import type { RegressionApp } from '../RegressionApp'
 
 export async function scheduledTaskConversation(app: RegressionApp, page: Page, testInfo: TestInfo): Promise<void> {
+  testInfo.annotations.push({
+    type: 'coverage',
+    description:
+      'Recurring tasks remain enabled after a successful run; cards show its summary and Run History shows the persisted result.'
+  })
   const screenshot = async (name: string) => {
     const path = testInfo.outputPath(`${name}.png`)
     await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
@@ -86,7 +91,8 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
     await expect.poll(async () => (await activeTab())?.url).toContain('/app/agents')
     conversationTabId = (await activeTab())!.id
     const returnToConversation = async () => {
-      await page.getByTestId('app-shell-tab-strip').locator(`[data-tab-id="${conversationTabId}"]`).click()
+      await closeSettings(page)
+      await expect.poll(async () => (await activeTab())?.id).toBe(conversationTabId)
       await expect(view).toBeVisible()
     }
     const messages = view.locator('[data-ui~="chat.message"]:visible')
@@ -180,18 +186,20 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
     await expect(card).toContainText(/每\s*5\s*分钟|Every 5 minutes/i)
     await expect(card).toContainText(/已启用|Enabled/i)
     await screenshot('MP-145 created task card')
+    const taskSettings = page.locator('[data-ui~="settings.content"]:visible')
     const openTask = async () => {
       await card.getByRole('button', { name: /查看任务|View task/i }).click()
       await expect.poll(async () => (await activeTab())?.url).toBe(`/settings/scheduled-tasks/${created.id}`)
-      await expect(page.getByText(name, { exact: true })).toBeVisible()
-      await expect(page.getByText(prompt, { exact: true })).toBeVisible()
-      await page.getByRole('tab', { name: 'General', exact: true }).click()
-      await expect(page.getByText(agentName, { exact: true })).toBeVisible()
-      await expect(page.getByText('Every 5 minutes', { exact: true })).toBeVisible()
+      await expect(taskSettings.getByText(name, { exact: true })).toBeVisible()
+      await taskSettings.getByRole('tab', { name: 'Prompt', exact: true }).click()
+      await expect(taskSettings.getByText(prompt, { exact: true })).toBeVisible()
+      await taskSettings.getByRole('tab', { name: 'General Settings', exact: true }).click()
+      await expect(taskSettings.getByText(agentName, { exact: true })).toBeVisible()
+      await expect(taskSettings.getByText('Every 5 minutes', { exact: true })).toBeVisible()
     }
     await openTask()
     await screenshot('MP-145 corresponding task settings')
-    await page.getByRole('button', { name: 'Run', exact: true }).click()
+    await taskSettings.getByRole('button', { name: 'Run', exact: true }).click()
     let result: string | null | undefined
     await expect
       .poll(
@@ -215,11 +223,14 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
       .toBe('completed')
     expect(result?.trim()).toBeTruthy()
     await returnToConversation()
-    await expect(card).toContainText(/已触发|Triggered/i)
-    await expect(card).toContainText(result!)
-    await screenshot('MP-145 triggered card and latest result')
+    await expect(card).toContainText('Enabled')
+    await expect(card).toContainText('Last run succeeded')
+    await screenshot('MP-145 recurring card and successful run summary')
     await openTask()
-    await page.getByRole('button', { name: 'More', exact: true }).click()
+    await taskSettings.getByRole('tab', { name: 'Run History', exact: true }).click()
+    await expect(taskSettings.getByText(result!, { exact: true })).toBeVisible()
+    await screenshot('MP-145 persisted run result')
+    await taskSettings.getByRole('button', { name: 'More', exact: true }).click()
     await page.getByRole('menuitem', { name: 'Delete', exact: true }).click()
     await page.getByRole('dialog').getByRole('button', { name: 'Delete', exact: true }).click()
     await expect.poll(async () => (await readTasks()).some((task) => task.id === created.id)).toBe(false)

@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, realpathSync } from 'node:fs'
 import { join } from 'node:path'
 
 import type { Locator, Page } from '@playwright/test'
@@ -63,7 +63,11 @@ async function launchWithWorkspace(app: RegressionApp, page: Page): Promise<void
   await expect(dialog).toBeVisible()
   await dialog.getByRole('button', { name: 'Select Folder', exact: true }).click()
   chooseNativeFile(app.record.platform, app.paths, workspace)
-  await expect(dialog.getByPlaceholder('Select working directory', { exact: true })).toHaveValue(workspace)
+  await expect
+    .poll(async () =>
+      realpathSync(await dialog.getByPlaceholder('Select working directory', { exact: true }).inputValue())
+    )
+    .toBe(realpathSync(workspace))
   if (app.record.platform === 'windows') {
     await dialog.getByRole('combobox').click()
     await page.getByRole('option', { name: 'Command Prompt', exact: true }).click()

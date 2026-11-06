@@ -170,7 +170,8 @@ test(...caseDefinition('A-02'), async ({ app, mainWindow: page }) => {
   const composer = page.locator('[data-ui~="chat.composer"]:visible [contenteditable="true"]').first()
   await composer.fill('')
   await openSkillsPanel(page)
-  await page.getByText('cherry-regression-fixture', { exact: true }).click()
+  await composer.pressSequentially('cherry-regression-fixture')
+  await page.getByTestId('quick-panel').getByText('cherry-regression-fixture', { exact: true }).click()
   await expect(composer.locator('[data-composer-token-kind="skill"]')).toHaveCount(1)
   await composer.press('End')
   await composer.pressSequentially(

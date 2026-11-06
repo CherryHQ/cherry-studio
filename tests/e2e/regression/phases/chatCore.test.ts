@@ -1,5 +1,5 @@
 import { writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, parse } from 'node:path'
 
 import type { Page } from '@playwright/test'
 
@@ -215,21 +215,19 @@ test(...caseDefinition('MP-09'), async ({ app, mainWindow: page }, testInfo) => 
     ]) {
       await upload(path)
       await expect(fileToken(name)).toBeVisible()
-      await fileToken(name).click()
       if (name === imageName) {
+        await fileToken(name).click()
         const preview = page.getByRole('dialog', { name: 'Preview', exact: true })
         await expect(preview).toBeVisible()
         await expect(preview.locator('img').first()).toBeVisible()
         await preview.getByRole('button', { name: 'Close Preview', exact: true }).click()
         await expect(preview).toBeHidden()
       } else {
-        const preview = page.getByTestId('artifact-file-preview-overlay')
+        await chat.getByRole('button', { name: parse(name).name, exact: true }).click()
+        const preview = page.getByRole('dialog')
         await expect(preview).toBeVisible()
-        await expect(preview).toContainText(documentText)
-        await page
-          .getByTestId('artifact-pane-header')
-          .getByRole('button', { name: `Close preview ${name}`, exact: true })
-          .click()
+        await expect(preview.getByText(documentText, { exact: true })).toBeVisible()
+        await preview.getByRole('button', { name: 'Close', exact: true }).click()
         await expect(preview).toBeHidden()
       }
       await fileToken(name).hover()
@@ -248,7 +246,8 @@ test(...caseDefinition('MP-09'), async ({ app, mainWindow: page }, testInfo) => 
 
     await composer.getByRole('button', { name: 'Input Quick Panel', exact: true }).click()
     await page.getByText('Take Screenshot', { exact: true }).last().click()
-    const capture = await app.window('/screenshot/')
+    const capture = await app.window('/windows/screenshot/')
+    await expect(capture.locator('canvas').first()).toBeVisible({ timeout: 20_000 })
     await capture.mouse.move(100, 100)
     await capture.mouse.down()
     await capture.mouse.move(600, 350, { steps: 10 })

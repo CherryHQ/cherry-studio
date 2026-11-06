@@ -107,9 +107,9 @@ export async function agentPreviewPanel(app: RegressionApp, page: Page, testInfo
   await open(markdownName)
   await expect(overlay).toContainText('Selectable preview quotation MP19.')
   await screenshot('MP-19 markdown read-only preview')
-  await overlay.getByRole('radio', { name: 'Source', exact: true }).click()
-  await expect(overlay).toContainText('# MP19 preview')
-  await overlay.getByRole('radio', { name: 'Preview', exact: true }).click()
+  await overlay.getByRole('button', { name: 'Source', exact: true }).click()
+  await expect(overlay.getByText('# MP19 preview', { exact: true })).toBeVisible()
+  await overlay.getByRole('button', { name: 'Preview', exact: true }).click()
   await expect(overlay.getByRole('heading', { name: 'MP19 preview', exact: true })).toBeVisible()
   const menuMode = await page.evaluate(() => window.api.preference.get('menu.presentation_mode'))
   try {
@@ -134,6 +134,7 @@ export async function agentPreviewPanel(app: RegressionApp, page: Page, testInfo
   await open(secondName)
   await open(secondName)
   await expect(header.getByRole('tab', { name: parse(secondName).name, exact: true })).toHaveCount(1)
+  await screenshot('MP-19 two file tabs')
   await closePreview(secondName)
   await expect(header.getByRole('tab', { name: parse(markdownName).name, exact: true })).toHaveAttribute(
     'aria-selected',

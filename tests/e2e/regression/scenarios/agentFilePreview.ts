@@ -95,24 +95,22 @@ export async function agentFilePreview(app: RegressionApp, page: Page, testInfo:
     .click()
 
   const edited = await send(
-    'Edit only code/sample.py using the Edit tool: rename add to add_numbers and add exactly one comment line "# Add two numbers." before the function. Preserve all other bytes, including the final newline. Do not create or modify any other files. Reply MP52_EDIT_DONE.'
+    'Edit only code/sample.py using exactly one Edit tool call covering the whole file: rename add to add_numbers and add exactly one comment line "# Add two numbers." before the function. Preserve all other bytes, including the final newline. Do not create or modify any other files. Reply MP52_EDIT_DONE.'
   )
   await expect.poll(() => readFile(target, 'utf8'), { timeout: 30_000 }).toBe(expected)
   await edited.getByTestId('completed-process-trigger').click()
-  for (let round = 0; round < 3; round += 1) {
-    const controls = await edited
-      .locator('[aria-expanded="false"][aria-controls]')
-      .filter({ hasText: /\S/ })
-      .evaluateAll((elements) => elements.map((element) => element.getAttribute('aria-controls')!))
-    for (const control of controls) {
-      const disclosure = edited.locator(`[aria-controls=${JSON.stringify(control)}]`)
-      if ((await disclosure.getAttribute('aria-expanded')) === 'false') await disclosure.click()
-    }
+  for (const group of await edited.getByTestId('child-tool-group').all()) {
+    const trigger = group.getByRole('button', { expanded: false }).first()
+    if (await trigger.isVisible()) await trigger.click()
   }
-  const editToggle = edited.getByRole('button', { name: /^(Edit|Modify)(?:\s|$)/i }).first()
+  const diff = edited.getByTestId('collapse-content-MultiEdit').or(edited.getByTestId('collapse-content-Edit'))
+  await expect(diff).toHaveCount(1)
+  const editToggle = edited.locator(`[aria-controls="${await diff.getAttribute('id')}"]`)
   await expect(editToggle).toBeVisible()
-  if ((await editToggle.getAttribute('aria-expanded')) !== 'true') await editToggle.click()
-  const diff = edited.getByTestId('collapse-content-Edit')
+  if ((await editToggle.getAttribute('aria-expanded')) !== 'true') {
+    await editToggle.focus()
+    await editToggle.press('Enter')
+  }
   await expect(diff).toBeVisible()
   await expect(diff.getByText('def add(a, b):', { exact: true })).toBeVisible()
   await expect(diff.getByText('# Add two numbers.', { exact: true })).toBeVisible()

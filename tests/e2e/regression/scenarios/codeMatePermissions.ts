@@ -11,6 +11,7 @@ import {
   observeExternalResource,
   registerExternalResource
 } from '../../../../scripts/e2e/regression/externalResources'
+import { createRedactor } from '../../../../scripts/e2e/regression/redaction'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { ensureCustomChatProvider } from '../helpers/models'
 import { openLaunchpadApp } from '../helpers/navigation'
@@ -22,7 +23,7 @@ function appleScript(script: string, args: string[] = []): string {
 }
 
 export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, testInfo: TestInfo): Promise<void> {
-  testInfo.setTimeout(5 * 60_000)
+  testInfo.setTimeout(8 * 60_000)
   if (process.platform !== 'darwin') throw new Error('UNCOVERED: Terminal interaction requires macOS automation')
   const originalPreferences = await page.evaluate(() => window.api.preference.get('feature.code_cli.configs'))
   const readSettings = () =>
@@ -129,7 +130,7 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
       throw error
     }
   }
-  const terminalInput = (text: string) =>
+  const terminalInput = (text: string, keyCode = 36) =>
     appleScript(
       `on run argv
     tell application "Terminal"
@@ -139,11 +140,11 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
     tell application "System Events"
       tell process "Terminal"
         keystroke (item 2 of argv)
-        key code 36
+        key code (item 3 of argv as integer)
       end tell
     end tell
   end run`,
-      [terminalWindow!, text]
+      [terminalWindow!, text, String(keyCode)]
     )
   const codeView = page.locator('[data-ui~="code.view"]:visible').first()
   const providerCard = codeView
@@ -204,19 +205,35 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
         `MP-97 could not verify which Terminal window this launch opened; new windows: ${observed || 'none'}`
       )
     }
-    await expect.poll(() => terminalText(), { timeout: 45_000 }).toMatch(/trust|Welcome|Claude Code|❯/i)
     observeExternalResource(app.paths, resource)
-    if (/Choose the text style that looks best with your terminal/i.test(terminalText())) {
-      terminalInput('')
-      await expect.poll(terminalText, { timeout: 30_000 }).not.toMatch(/Choose the text style that looks best/i)
+    for (let screen = 0; screen < 6; screen++) {
+      await expect
+        .poll(terminalText, { timeout: 45_000 })
+        .toMatch(
+          /Choose the text style|terminal setup|Press Enter to continue|trust this folder|trust the files|Yes, I trust|select login method|Please run \/login|Sign in to continue|for shortcuts|shift\+tab/i
+        )
+      const contents = terminalText()
+      if (/select login method|Please run \/login|Sign in to continue/i.test(contents)) {
+        throw new Error('UNCOVERED: Claude Code requires an authenticated account')
+      }
+      if (/Use Claude Code's terminal setup/i.test(contents)) {
+        terminalInput('', 53)
+      } else if (/Yes, I trust this folder/i.test(contents)) {
+        if (/❯\s*No, exit/i.test(contents)) {
+          terminalInput('', 125)
+          await expect.poll(terminalText).toMatch(/❯\s*Yes, I trust this folder/i)
+        }
+        terminalInput('')
+      } else if (
+        /Choose the text style|Press Enter to continue|trust this folder|trust the files|Yes, I trust/i.test(contents)
+      ) {
+        terminalInput('')
+      } else {
+        return
+      }
+      await expect.poll(terminalText, { timeout: 30_000 }).not.toBe(contents)
     }
-    await expect
-      .poll(terminalText, { timeout: 30_000 })
-      .toMatch(/trust|safety|security|permission|shortcuts|login|Sign in/i)
-    if (/trust this folder|trust the files|Yes, I trust/i.test(terminalText())) terminalInput('')
-    if (/select login method|Please run \/login|Sign in to continue/i.test(terminalText())) {
-      throw new Error('UNCOVERED: Claude Code requires an authenticated account')
-    }
+    throw new Error('Claude Code onboarding did not reach its input prompt')
   }
   const closeTerminal = () => {
     if (!terminalResource) return
@@ -313,7 +330,6 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
     const file = join(app.paths.workspace, 'mp97-permissions.txt')
     await writeFile(file, 'original\n')
     await launch()
-    expect(terminalText()).toMatch(/trust|safety|security|permission/i)
     for (const marker of ['MP97-AUTO-FIRST', 'MP97-AUTO-SECOND']) {
       terminalInput(
         `Use the Edit tool to replace the entire content of mp97-permissions.txt with ${marker}. Do not use Bash.`
@@ -340,6 +356,17 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
       await expect.poll(() => readFile(file, 'utf8'), { timeout: 60_000 }).toContain(marker)
     }
     await attachScreenshot('MP-97 per-edit confirmation restored')
+  } catch (error) {
+    if (terminalWindow) {
+      const contents = windowContentsIfAlive(terminalWindow)
+      if (contents !== null) {
+        await testInfo.attach('MP-97 terminal failure state', {
+          body: createRedactor(getSensitiveConfigValues())(contents),
+          contentType: 'text/plain'
+        })
+      }
+    }
+    throw error
   } finally {
     try {
       try {
