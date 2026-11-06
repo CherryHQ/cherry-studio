@@ -103,6 +103,8 @@ export async function renameKnowledgeFileItem(
     }
 
     const moves = resolveRenameTargets(base, item, newRelativePath)
+    // Open the index before touching files: if acquisition throws, nothing has moved yet.
+    const store = application.get('KnowledgeVectorStoreService').getIndexStoreIfExists(base)
     const done: typeof moves = []
     const restoreFiles = async () => {
       for (const move of done.reverse()) {
@@ -131,7 +133,6 @@ export async function renameKnowledgeFileItem(
 
     const newIndexedRelativePath = moves.length > 1 ? moves[1].to : undefined
     const materialRelativePath = newIndexedRelativePath ?? item.data.indexedRelativePath ?? newRelativePath
-    const store = application.get('KnowledgeVectorStoreService').getIndexStoreIfExists(base)
     let rowUpdated = false
     try {
       knowledgeItemService.updateFileRelativePaths(itemId, {

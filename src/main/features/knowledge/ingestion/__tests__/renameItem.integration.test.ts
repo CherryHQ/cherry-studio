@@ -15,16 +15,17 @@ import { DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP, DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE
 import { KeyedMutex } from '@shared/utils/async'
 import type { PosixRelativeFilePath } from '@shared/utils/file'
 
-const { dataDir, renameMaterialMock } = vi.hoisted(() => ({
+const { dataDir, renameMaterialMock, getIndexStoreIfExistsMock } = vi.hoisted(() => ({
   dataDir: `${process.env.TMPDIR ?? '/tmp'}/kb-rename-${process.pid}`,
-  renameMaterialMock: vi.fn()
+  renameMaterialMock: vi.fn(),
+  getIndexStoreIfExistsMock: vi.fn()
 }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   const mocked = mockApplicationFactory({
     KnowledgeVectorStoreService: {
-      getIndexStoreIfExists: vi.fn(() => ({ renameMaterial: renameMaterialMock }))
+      getIndexStoreIfExists: getIndexStoreIfExistsMock
     }
   } as Parameters<typeof mockApplicationFactory>[0])
   mocked.application.getPath = vi.fn((key: string, filename?: string) =>
@@ -56,6 +57,8 @@ describe('renameKnowledgeFileItem', () => {
 
   beforeEach(async () => {
     renameMaterialMock.mockReset()
+    getIndexStoreIfExistsMock.mockReset()
+    getIndexStoreIfExistsMock.mockImplementation(() => ({ renameMaterial: renameMaterialMock }))
     fs.rmSync(dataDir, { recursive: true, force: true })
     fs.mkdirSync(rawDir, { recursive: true })
     fs.writeFileSync(nodePath.join(rawDir, 'paper.pdf'), 'pdf')
@@ -233,5 +236,20 @@ describe('renameKnowledgeFileItem', () => {
       relativePath: 'paper.pdf',
       indexedRelativePath: 'paper.md'
     })
+  })
+
+  it('leaves files and the row untouched when the index cannot be opened', async () => {
+    getIndexStoreIfExistsMock.mockImplementationOnce(() => {
+      throw new Error('index unavailable')
+    })
+
+    await expect(rename(PDF_ID, 'renamed.pdf')).rejects.toThrow('index unavailable')
+
+    expect(files()).toEqual(['other.txt', 'paper.md', 'paper.pdf'])
+    expect(knowledgeItemService.getById(PDF_ID).data).toMatchObject({
+      relativePath: 'paper.pdf',
+      indexedRelativePath: 'paper.md'
+    })
+    expect(renameMaterialMock).not.toHaveBeenCalled()
   })
 })
