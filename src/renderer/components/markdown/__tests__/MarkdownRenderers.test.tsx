@@ -309,6 +309,14 @@ describe('bare image URLs', () => {
     expect(screen.queryByRole('link')).toBeNull()
   })
 
+  it('renders a bare image URL whose label already contains percent-escapes as an image', () => {
+    const A = MarkdownLinkRenderer
+    const url = 'https://example.com/my%20photo.png'
+    render(<A href={url}>{url}</A>)
+    expect(screen.getByRole('img')).toHaveAttribute('src', url)
+    expect(screen.queryByRole('link')).toBeNull()
+  })
+
   it('keeps a double-encoded label distinct from its destination as a link', () => {
     const A = MarkdownLinkRenderer
     render(<A href="https://example.com/%2F.png">https://example.com/%252F.png</A>)

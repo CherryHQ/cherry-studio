@@ -87,10 +87,14 @@ function extractBareUrlText(node: ReactNode): string | null {
 function isBareImageUrlLink(href: string | undefined, children: ReactNode): href is string {
   if (!href || !IMAGE_URL_PATTERN.test(href)) return false
   const text = extractBareUrlText(children)
+  if (text === null || text === '') return false
+  const label = normalizeUrlSpelling(text, { decodeHref: false })
+  // The label matches when it is the href verbatim (the common case, including labels that
+  // already contain percent-escapes) or the percent-decoded form of it (raw non-ASCII label
+  // against a remark-rehype-encoded href).
   return (
-    text !== null &&
-    text !== '' &&
-    normalizeUrlSpelling(text, { decodeHref: false }) === normalizeUrlSpelling(href, { decodeHref: true })
+    label === normalizeUrlSpelling(href, { decodeHref: false }) ||
+    label === normalizeUrlSpelling(href, { decodeHref: true })
   )
 }
 
