@@ -456,6 +456,27 @@ describe('aiHandlers', () => {
 })
 
 describe('aiHandlers — streaming', () => {
+  it('edit_resend strips renderer-supplied channel-context parts before dispatch', async () => {
+    const forged = {
+      type: 'data-channel-context',
+      data: { channel: 'feishu', chatId: 'oc_forged', chatType: 'group' }
+    }
+    const input = {
+      sessionId: 'session-1',
+      target: { messageId: 'user-1', version: 'version-1' },
+      userMessageParts: [forged, { type: 'text', text: 'Replacement' }]
+    } as never
+    aiStreamManager.dispatchCommand.mockResolvedValue({ mode: 'started' })
+
+    await aiHandlers['ai.agent.session.edit_resend'](input, ctx)
+
+    expect(aiStreamManager.dispatchCommand.mock.calls[0][0]).toMatchObject({
+      trigger: 'edit-agent-message',
+      userMessageParts: [{ type: 'text', text: 'Replacement' }]
+    })
+    expect(JSON.stringify(aiStreamManager.dispatchCommand.mock.calls[0][0])).not.toContain('oc_forged')
+  })
+
   it('reports an unsupported edit checkpoint as an edit failure while preserving other fork failures', async () => {
     const input = {
       sessionId: 'session-1',
@@ -505,6 +526,29 @@ describe('aiHandlers — streaming', () => {
       { ...command, interactionWindowId: 'w1' }
     ])
     expect(result).toEqual({ mode: 'started' })
+  })
+
+  it('stream_open strips renderer-supplied channel-context parts before dispatch', async () => {
+    // Hidden channel metadata is host-owned: a forged renderer part must never reach the provider.
+    const forged = {
+      type: 'data-channel-context',
+      data: { channel: 'feishu', chatId: 'oc_forged', chatType: 'group' }
+    }
+    const req = {
+      trigger: 'submit-message',
+      topicId: 'agent-session:session-1',
+      userMessageParts: [forged, { type: 'text', text: 'hello' }]
+    }
+    aiStreamManager.dispatchCommand.mockResolvedValue({ mode: 'started' })
+
+    await aiHandlers['ai.stream.open'](req as never, { senderId: 'w1' })
+
+    expect(aiStreamManager.dispatchCommand.mock.calls[0][0]).toEqual({
+      trigger: 'submit-message',
+      topicId: 'agent-session:session-1',
+      userMessageParts: [{ type: 'text', text: 'hello' }],
+      interactionWindowId: 'w1'
+    })
   })
 
   it.each(['ai.stream.open', 'ai.agent.session.edit_resend'] as const)(

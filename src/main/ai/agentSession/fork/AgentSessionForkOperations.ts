@@ -20,6 +20,7 @@ import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { t } from '@main/i18n'
 import { isOutsidePath } from '@main/utils/file'
 import type { AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { Sequencer } from '@shared/utils/async'
 
 import { ensureRetiredSessionHistory } from '../../runtime/pi/retiredSessionHistory'
@@ -71,7 +72,7 @@ export class AgentSessionForkOperations {
     sessionId: string,
     target: AgentSessionEditTarget,
     closeSource: () => Promise<void>,
-    persist: (tx: DbOrTx, nativeSessionId: string) => T
+    persist: (tx: DbOrTx, nativeSessionId: string, storedUserParts: CherryMessagePart[]) => T
   ): Promise<T> {
     if (this.edits.has(sessionId)) return Promise.reject(new AgentSessionEditError('busy'))
     const operationId = randomUUID()
@@ -89,7 +90,7 @@ export class AgentSessionForkOperations {
     operationId: string,
     signal: AbortSignal,
     closeSource: () => Promise<void>,
-    persist: (tx: DbOrTx, nativeSessionId: string) => T
+    persist: (tx: DbOrTx, nativeSessionId: string, storedUserParts: CherryMessagePart[]) => T
   ): Promise<T> {
     await ensureRetiredSessionHistory(sessionId)
     const database = application.get('DbService')
@@ -149,8 +150,11 @@ export class AgentSessionForkOperations {
       await closeSource()
       signal.throwIfAborted()
       return database.withWriteTx((tx) => {
-        agentSessionMessageService.selectEditParentTx(tx, sessionId, target)
-        const result = persist(tx, nativeSessionId)
+        // selectEditParentTx re-reads and version-checks the snapshot in this transaction; its
+        // return is the only authoritative copy of the stored user parts (hidden host-owned
+        // metadata for the resent turn).
+        const storedUserParts = agentSessionMessageService.selectEditParentTx(tx, sessionId, target)
+        const result = persist(tx, nativeSessionId, storedUserParts)
         if (resources) {
           const checkpointMapping = Object.fromEntries(
             prefix.flatMap((row) => {

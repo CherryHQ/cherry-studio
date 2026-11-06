@@ -138,6 +138,8 @@ export interface ClaudeCodeSessionOptions {
   notificationContext?: AgentNotificationContext
   /** Per-turn composer selection captured by the connection builder. */
   knowledgeBaseIds?: readonly string[]
+  /** Formatted source-chat identity for channel-originated sessions; surfaced via the system prompt. */
+  channelContext?: string
   thinkingOptions?: {
     effort?: Options['effort']
     thinking?: Options['thinking']
@@ -239,7 +241,8 @@ export async function buildClaudeCodeSessionSettings(
     agentDataPath,
     knowledgeBaseScope,
     disallowedTools,
-    options?.effectiveLanguage
+    options?.effectiveLanguage,
+    options?.channelContext
   )
 
   // 6. MCP servers (session + built-in)
@@ -654,7 +657,9 @@ export async function buildSystemPrompt(
   /** Final SDK visibility after declarative exposure, runtime gates, and dependency propagation. */
   disallowedTools: readonly string[] = resolveDisallowedTools({ disabledTools: agent.disabledTools }, { cwd }),
   /** Materialized effective language; when omitted the preference is read live. */
-  effectiveLanguage?: string | null
+  effectiveLanguage?: string | null,
+  /** Formatted source-chat identity for channel-originated sessions. */
+  channelContext?: string
 ): Promise<ClaudeCodeSettings['systemPrompt']> {
   const canReadAllKnowledgeBases = resolveAgentCapabilities(agent).allKnowledgeBases
   const unavailableTools = new Set(disallowedTools)
@@ -675,6 +680,7 @@ export async function buildSystemPrompt(
     agentDataPath,
     agent,
     citationsGuidance,
+    channelContext,
     customBaseContext,
     effectiveLanguage
   })

@@ -16,6 +16,7 @@ import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { AiStreamAdmissionError, type MainDispatchRequest } from '@main/ai/streamManager'
 import { openRequestPath } from '@main/services/file'
+import { stripChannelContextParts } from '@main/utils/channelContextParts'
 import { PathStaleVersionError } from '@main/utils/file'
 import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
 import type { MessageProjectionUpdate } from '@shared/ai/messageProjection'
@@ -158,7 +159,18 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     if (!senderId) throw new Error('ai.stream.open requires a managed window')
     const wc = senderWebContents(senderId)
     if (!wc) throw new Error('ai.stream.open requires a managed window')
-    const dispatchRequest: MainDispatchRequest = { ...request, interactionWindowId: senderId }
+    // Renderer ingress: hidden channel metadata is host-owned, so renderer-supplied parts never
+    // keep it (schema-valid is not authority). Trusted main-process facades dispatch directly and
+    // never pass through this strip. Only submit turns carry parts (regenerate forbids them), so
+    // narrow on the trigger instead of spreading conditionally.
+    const dispatchRequest: MainDispatchRequest =
+      request.trigger === 'submit-message'
+        ? {
+            ...request,
+            userMessageParts: stripChannelContextParts(request.userMessageParts),
+            interactionWindowId: senderId
+          }
+        : { ...request, interactionWindowId: senderId }
     return exposeAiStreamAdmission(() => application.get('AiStreamManager').dispatchCommand(dispatchRequest))
   },
   'ai.stream.attach': async (request, { senderId }) => {
@@ -283,6 +295,9 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
       try {
         return await application.get('AiStreamManager').dispatchCommand({
           ...input,
+          // Renderer ingress strip; the resent turn's hidden metadata is restored from the
+          // stored edit target inside the edit transaction, never from renderer input.
+          userMessageParts: stripChannelContextParts(input.userMessageParts ?? []),
           trigger: 'edit-agent-message',
           topicId: buildAgentSessionTopicId(sessionId),
           editTarget: target,

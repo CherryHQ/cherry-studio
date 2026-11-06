@@ -204,6 +204,19 @@ describe('desktop Pi Durable connection', () => {
     events
       .flatMap((event) => (event.type === 'chunk' && event.chunk.type === 'text-delta' ? [event.chunk.delta] : []))
       .join('')
+  it('passes the source-chat identity through to the desktop prompt', async () => {
+    input.channelContext = 'channel=feishu chat_id=oc_123 chat_type=group'
+    await connect()
+    expect(mocks.prompt).toHaveBeenCalledWith(expect.objectContaining({ channelContext: input.channelContext }))
+  })
+
+  it('rebuilds a warm connection prepared without the channel identity the next turn carries', async () => {
+    const { connection } = await connect()
+    const next = { modelId: input.modelId, channelContext: 'channel=feishu chat_id=oc_123 chat_type=group' }
+    await expect(connection.reconcile({ modelId: input.modelId })).resolves.toBe('current')
+    await expect(connection.reconcile(next)).resolves.toBe('rebuild')
+  })
+
   // An idle observation during summary generation must not finish the owning desktop turn.
   it.each(['complete', 'error', 'stop', 'close'] as const)(
     'keeps manual compaction owned through %s',

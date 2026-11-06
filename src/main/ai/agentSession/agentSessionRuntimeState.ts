@@ -27,6 +27,8 @@ export interface AgentSessionRuntimeConnectionTarget {
   reasoningEffort: string
   serviceTier: string
   knowledgeBaseIds: readonly string[]
+  /** Formatted source-chat identity for channel-originated sessions; stable within a session. */
+  channelContext?: string
   trustedNotifyChannels?: readonly NotifyChannel[]
 }
 

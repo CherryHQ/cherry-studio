@@ -865,6 +865,10 @@ function renderPart(
       // User-turn capability scope is consumed by Main and never rendered inline.
       return null
 
+    case 'data-channel-context':
+      // Source chat identity is consumed by Main (system prompt) and never rendered inline.
+      return null
+
     case 'data-clear':
       // Context boundaries render at the message-frame level as a divider.
       return null

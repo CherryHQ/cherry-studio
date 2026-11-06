@@ -272,6 +272,21 @@ describe('FeishuAdapter', () => {
     expect(mockSend).toHaveBeenCalledWith('oc_123', { markdown: 'Hello Feishu' }, { replyTo: 'msg-in-1' })
   })
 
+  it('carries the source chat type on emitted message events', async () => {
+    const adapter = createAdapter()
+    const onMessage = vi.fn()
+    adapter.on('message', onMessage)
+    await adapter.connect()
+
+    await channelHandlers.message(incomingMessage({ chatType: 'group' }))
+    expect(onMessage).toHaveBeenCalledTimes(1)
+    expect(onMessage.mock.calls[0][0]).toMatchObject({ chatId: 'oc_123', chatType: 'group' })
+
+    await channelHandlers.message(incomingMessage({ chatType: 'p2p', messageId: 'msg-in-2' }))
+    expect(onMessage).toHaveBeenCalledTimes(2)
+    expect(onMessage.mock.calls[1][0]).toMatchObject({ chatId: 'oc_123', chatType: 'p2p' })
+  })
+
   it('sends images and files through typed media inputs', async () => {
     const adapter = createAdapter()
     await adapter.connect()
@@ -429,6 +444,7 @@ describe('FeishuAdapter', () => {
 
     expect(onMessage).toHaveBeenCalledWith({
       chatId: 'oc_123',
+      chatType: 'p2p',
       userId: 'ou_user1',
       userName: 'Alice',
       messageId: 'msg-in-1',

@@ -517,6 +517,9 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
         if (next.permissionChanged) await this.handle!.durable.permissionModeChanged()
         if (
           this.failure ||
+          // The source-chat identity is baked into the system prompt when the desktop is built; a
+          // warm connection prepared without it (or with another chat's) must rebuild.
+          (input.channelContext ?? undefined) !== this.input.channelContext ||
           next.signature !== this.desktop!.snapshot.signature ||
           input.reasoningEffort !== this.input.reasoningEffort ||
           input.serviceTier !== this.input.serviceTier ||

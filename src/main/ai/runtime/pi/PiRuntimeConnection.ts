@@ -205,6 +205,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       agentDataPath,
       agent,
       citationsGuidance,
+      channelContext: this.input.channelContext,
       effectiveLanguage: initialSnapshot.effectiveLanguage
     })
     const mountedServers = resolveMountedMcpServers(agent, {
@@ -774,6 +775,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     serviceTier?: AgentRuntimeConnectInput['serviceTier']
     fastMode?: boolean
     knowledgeBaseIds?: readonly string[]
+    channelContext?: string
   }): Promise<AgentRuntimeReconcileResult> {
     const run = this.reconcileChain.then(() => this.reconcileOnce(input))
     this.reconcileChain = run.catch(() => undefined)
@@ -786,7 +788,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     serviceTier?: AgentRuntimeConnectInput['serviceTier']
     fastMode?: boolean
     knowledgeBaseIds?: readonly string[]
+    channelContext?: string
   }): Promise<AgentRuntimeReconcileResult> {
+    // The source-chat identity is baked into the system prompt at session creation; a warm
+    // connection built without it (or with another chat's) must rebuild before the turn runs.
+    if ((input.channelContext ?? undefined) !== this.input.channelContext) return 'rebuild'
     let snapshot: PiConnectionSnapshot
     try {
       snapshot = await capturePiConnectionSnapshot(

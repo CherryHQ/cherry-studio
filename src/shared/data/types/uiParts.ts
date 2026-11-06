@@ -147,6 +147,9 @@ export type CherryDataPartTypes = {
   'agent-task-event': AgentTaskEventPartData
   'agent-session-fork': { sourceSessionId: string }
   'knowledge-scope': KnowledgeScopePartData
+  // Hidden host-side carrier for the source chat identity of channel-originated turns; the
+  // runtime reads it and surfaces the identity through the system prompt, never the user text.
+  'channel-context': ChannelContextPartData
   clear: ClearPartData
   code: CodePartData
   retry: RetryPartData
@@ -362,6 +365,7 @@ function schemaForPartType(type: string): z.ZodTypeAny | null {
 
 const KNOWLEDGE_SCOPE_PART_TYPE = 'data-knowledge-scope'
 const CLEAR_CONTEXT_PART_TYPE = 'data-clear'
+const CHANNEL_CONTEXT_PART_TYPE = 'data-channel-context'
 
 export type ClearContextPart = Extract<CherryMessagePart, { type: typeof CLEAR_CONTEXT_PART_TYPE }>
 
@@ -400,6 +404,51 @@ export function withKnowledgeScopePart(parts: CherryMessagePart[], baseIds: read
       data: { baseIds: uniqueBaseIds }
     }
   ]
+}
+
+/** Platform identifiers render onto one system-prompt line; embedded newlines would break it. */
+const SingleLineIdentifierSchema = z
+  .string()
+  .min(1)
+  .regex(/^[^\r\n]+$/)
+
+export const ChannelContextPartDataSchema = z.strictObject({
+  channel: SingleLineIdentifierSchema,
+  chatId: SingleLineIdentifierSchema,
+  chatType: SingleLineIdentifierSchema
+})
+export type ChannelContextPartData = z.infer<typeof ChannelContextPartDataSchema>
+
+export type ChannelContextPart = Extract<CherryMessagePart, { type: typeof CHANNEL_CONTEXT_PART_TYPE }>
+
+/**
+ * Create the hidden DataUIPart that carries the source chat identity for a channel-originated
+ * turn. Hidden on purpose: it must never join the model-facing user text, because downstream
+ * consumers gate on that text's exact content (pi's command parses). The runtime reads it
+ * host-side and surfaces the identity through the system prompt instead.
+ */
+export function createChannelContextPart(data: ChannelContextPartData): ChannelContextPart {
+  return {
+    type: CHANNEL_CONTEXT_PART_TYPE,
+    data
+  }
+}
+
+/** Read the last valid channel context. Missing or malformed parts yield `undefined`. */
+export function getChannelContextFromParts(parts: readonly CherryMessagePart[]): ChannelContextPartData | undefined {
+  for (let index = parts.length - 1; index >= 0; index -= 1) {
+    const part = parts[index]
+    if (part.type !== CHANNEL_CONTEXT_PART_TYPE || !('data' in part)) continue
+
+    const result = ChannelContextPartDataSchema.safeParse(part.data)
+    if (result.success) return result.data
+  }
+  return undefined
+}
+
+/** One-line host-consumable rendering, stable for connection-target equality. */
+export function formatChannelContext(data: ChannelContextPartData): string {
+  return `channel=${data.channel} chat_id=${data.chatId} chat_type=${data.chatType}`
 }
 
 /** Read the last valid aggregate scope. Missing or malformed parts yield `undefined`. */

@@ -318,7 +318,8 @@ export async function deriveConnectionConfig(
   connectionModelId?: UniqueModelId,
   reasoningEffort: ReasoningEffortOption = 'default',
   fastMode = false,
-  selectedKnowledgeBaseIds: readonly string[] = []
+  selectedKnowledgeBaseIds: readonly string[] = [],
+  channelContext?: string
 ): Promise<DeriveConnectionConfigResult> {
   const unroutable = { ok: false, reason: 'unroutable' } as const
 
@@ -336,6 +337,7 @@ export async function deriveConnectionConfig(
         reasoningEffort,
         fastMode,
         selectedKnowledgeBaseIds,
+        channelContext,
         undefined
       )
     }
@@ -374,6 +376,7 @@ async function deriveConnectionConfigFromSnapshot(
   reasoningEffort: ReasoningEffortOption,
   fastMode: boolean,
   selectedKnowledgeBaseIds: readonly string[] = [],
+  channelContext?: string,
   materialized?: ConnectionMaterializationFacts
 ): Promise<ConnectionConfig> {
   const cwd = session.workspace?.path
@@ -432,6 +435,9 @@ async function deriveConnectionConfigFromSnapshot(
     proxyEnvironment: proxyEnvironmentFingerprint,
     disabledTools: [...(agent.disabledTools ?? [])].sort(),
     knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
+    // Baked into the system prompt at spawn: a changed or newly-present source chat identity must
+    // rebuild the subprocess, never ride a warm one missing it.
+    channelContext: channelContext ?? null,
     mcp: materialized?.mcp ?? deriveMcpDefinitionFacts(agent.mcps),
     notificationContext
   }
@@ -497,7 +503,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   /** Fast selection frozen when the turn was submitted. */
   fastMode = false,
   /** Composer knowledge selection frozen when the turn was submitted. */
-  selectedKnowledgeBaseIds: readonly string[] = []
+  selectedKnowledgeBaseIds: readonly string[] = [],
+  channelContext?: string
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
   const session = agentSessionService.getById(sessionId)
   if (!session?.agentId) return undefined
@@ -560,6 +567,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         linkedChannelSnapshot,
         notificationContext,
         knowledgeBaseIds: selectedKnowledgeBaseIds,
+        channelContext,
         supportsImages: Array.isArray(model.capabilities) && isVisionModel(model),
         thinkingOptions,
         fastMode: fastModeTransport === 'claude-code',
@@ -580,6 +588,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     reasoningEffort,
     fastMode,
     selectedKnowledgeBaseIds,
+    channelContext,
     {
       route: toConnectionRouteFacts(route),
       mcp: deriveMcpDefinitionFacts(agent.mcps, mcpServerSnapshots),
