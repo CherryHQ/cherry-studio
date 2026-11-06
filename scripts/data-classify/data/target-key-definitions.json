@@ -34,6 +34,13 @@
       "description": "Let the Claude Code runtime append its own attribution to git commits and PR bodies (Co-Authored-By trailer, Generated-with footer). Disable to omit that attribution (v2 new feature, no v1 source)"
     },
     {
+      "targetKey": "agent.session.idle_ttl_minutes",
+      "type": "number",
+      "defaultValue": 5,
+      "status": "classified",
+      "description": "Minutes an idle agent session (and its warm Claude Code query) is kept alive before being recycled (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "app.browser.agent_control.enabled",
       "type": "boolean",
       "defaultValue": true,
