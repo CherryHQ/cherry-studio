@@ -23,32 +23,28 @@ storage, and joins tracked calls. Unfinished durable tasks are not marked cancel
 It captures committed archives after native execution has quiesced and before storage
 closes; retained accesses can flush these archives until `release()`.
 
-`resume()` enables the entire Harness scheduler. Reading with `open`, `observe`, or
-`lookupInput` does not resume it. Native `submit` and `interrupt` can resume the entire
+`resume()` enables the entire Harness scheduler. Reading with `open` or `observe` does not resume it. Native `submit` and `interrupt` can resume the entire
 Harness, including other conversations. Without shared behavior, `interrupt()` uses native ordinary-scope
 abort: queued inputs and owned non-background work are included; queued writes and
 background subtrees are not. These effects are not application-wide cancellation.
 
 ## Input and output
 
-Every Durable access provides `input.submit({ ...input, deduplicationKey? })` and
-`input.policies`, plus `lookupInput(query)` and `retractInput(nativeRef)`. Busy rejection comes from native
-`ConversationBusy`; uncertain failures return `unknown`. Once native admission
-returns, a failed status read cannot erase the acknowledged receipt. Deduplication
-is native and conversation-scoped: the host must reuse the original immutable
-input and policy with its key. Inputs submitted through this adapter retain their
-logical InputId in native entry metadata, so placement and later status reads can
-recover it after reopening. External native submissions may lack that logical ID.
+Every Durable access provides `input.submit(input)`. Busy rejection comes from native
+`ConversationBusy`; uncertain failures return `unknown`. Once native admission returns, a failed
+status read cannot erase the acknowledged receipt. Inputs retain their logical InputId in native
+entry metadata, so observations recover their placement and outcome after reopening. External
+native submissions may lack that logical ID. The adapter exposes no separate host deduplication,
+lookup or retraction API; unknown admission is reconciled from captured facts without resubmitting.
 
 `whenBusy: 'steer'` delivers input at the next native input boundary. If the current
 run finishes normally before taking it, the input starts a subsequent run. `follow-up`
 waits for the final boundary. Both policies start a run when the conversation is idle;
 normal completion does not discard accepted input. Explicit interruption still follows
-the native cancellation scope. Read `lookupInput` or `input.changed` to distinguish
+the native cancellation scope. Read captured input facts to distinguish
 acceptance from placement and completion.
 
-Settled input exposes `response` from the native answer entry when available. Several submissions
-may share it. Native `done` alone is insufficient: Durable 1.3.0 also uses it for truncated output
+Several inputs can share a native answer. Native `done` alone is insufficient: Durable also uses it for truncated output
 and tool-only termination. The adapter reads the actual assistant stop reason before reporting
 `completed`; truncation becomes `unanswered` with `output-truncated`. Native aborted submissions
 map to `aborted`, known model/task failures to `failed`, and other unanswered reasons remain
@@ -59,7 +55,7 @@ enable the scheduler.
 one committed `ConversationView` revision. The existing Pi Durable 1.4.0 dependency patch exports
 `conversationViews` and `ViewObserver` without upgrading the SDK. The public coalesced watch cannot establish that atomic contract. Reopen reads all submission
 facts, including placed native-only inputs. Completion stays pending during admission, unresolved input,
-foreground work or compaction, and carries the revision and terminal inputs after their content.
+foreground work or compaction, and carries terminal inputs after their content. Revision and pending state stay private to the projection.
 A confirmed rejection releases only its temporary admission hold; unknown admission remains unresolved.
 Initial observation never replays earlier completion. Slow observers retain terminal batches through
 recovery; final persistence must await `Observation.drain()` after native production stops.
@@ -67,8 +63,8 @@ recovery; final persistence must await `Observation.drain()` after native produc
 without closing storage. The desktop backup barrier joins this before observation and archive writes.
 
 Observations normalize committed `ConversationView` snapshots, live assistant
-partials, tool calls/results, and retained live tool output. Coverage is
-`current-view`, not a history archive. Persistent entries use native entry IDs;
+partials, tool calls/results, and retained live tool output. These snapshots describe the current
+view; `archive()` supplies committed history. Persistent entries use native entry IDs;
 live previews use an internal source namespace. The adapter associates a disappearing
 preview only with a unique later entry produced by its native task. Where that
 association is not proven, it emits `gap: mapping-reset` and a replacing snapshot.
@@ -103,14 +99,14 @@ raw adapter never delivers child results to the parent; native tasks own that be
 Its receipt distinguishes a committed summary from a no-op (including a declined
 summary); a failed or unplaced summary is never reported as committed.
 
-Input deltas publish changed evidence only. Status lookup is read-only and does not emit another
+Input deltas publish changed evidence only. Internal status reads do not emit another
 `input.changed` or wake a reconciliation loop. Main consumes the captured completion batch instead
 of polling retained inputs or deriving completion from idle activity.
 
 ## Shared behavior
 
 The optional `behavior` factory option installs `agent-behavior` with Cherry's
-`HostPorts` and a `configureChild` model-binding callback. Native tools, transactional
+`HostPorts` and a `configureChild({ thread, modelKey })` model-binding callback. Native tools, transactional
 records, hooks, memo, jobs and waits implement the harness ports. Product rules remain
 in `agent-behavior`; this adapter contains no second subagent or goal policy engine.
 
@@ -140,8 +136,9 @@ does not shift the identity of its next run. Reservations never restrict steer a
 
 The concrete `durable` facet exposes native configuration, compaction, behavior facts,
 provider session identity and tool-call resolution for the desktop adapter. These stay
-outside the harness-neutral Runtime contract. `onInputPlaced` runs synchronously at
-native placement so the host reserves input attribution before the next model request.
+outside the harness-neutral Runtime contract. `onInputPlaced(inputId)` runs synchronously at
+native placement so the host reserves input attribution before the next model request; native-only
+input may report an undefined logical ID.
 
 Declared differences in the shared contract suite:
 

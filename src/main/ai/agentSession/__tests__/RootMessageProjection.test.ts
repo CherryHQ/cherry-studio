@@ -231,10 +231,9 @@ it('keeps root history when incremental thread reconciliation drops compacted so
       events: [
         {
           type: 'snapshot',
-          coverage: 'current-view',
           messages: [],
           inputs: [],
-          activity: { scope: 'foreground', state: 'idle' }
+          activity: { state: 'idle' }
         }
       ],
       live: [],
@@ -253,13 +252,12 @@ it('keeps root history when incremental thread reconciliation drops compacted so
       events: [
         {
           type: 'snapshot',
-          coverage: 'current-view',
           messages: [
             { ...text('new', 'Live'), metadata: undefined },
             { ...text('canonical', 'Committed'), metadata: undefined }
           ],
           inputs: [],
-          activity: { scope: 'foreground', state: 'idle' }
+          activity: { state: 'idle' }
         }
       ],
       live: ['new', 'canonical'],
@@ -412,7 +410,7 @@ it('migrates saved block ownership without duplicating content or changing the p
   const message = { ...text('uuid', 'Before'), parts: [...text('', 'Before').parts, ...text('', 'After').parts] }
   const update = f.update([message], {
     live: [],
-    legacy: { 'uuid:0': { messageId: 'uuid', parts: [0] }, 'uuid:1': { messageId: 'uuid', parts: [1] } }
+    legacy: { 'uuid:0': { messageId: 'uuid' }, 'uuid:1': { messageId: 'uuid' } }
   })
   expect(restored.accept(update)).toEqual(new Map([[id, message.parts]]))
   expect(restored.parts(id)).toEqual(message.parts)

@@ -17,12 +17,9 @@ import { ContentProjection, entryMessageId } from './content'
 
 export interface DurableObservation {
   readonly events: readonly ObservationPayload[]
-  readonly delivery: 'baseline' | 'update' | 'recovery'
-  readonly revision?: number
   readonly aliases: Readonly<Record<string, string>>
   readonly live: readonly string[]
-  readonly pending: boolean
-  readonly completion?: { readonly revision: number; readonly inputs: readonly InputState[] }
+  readonly completion?: { readonly inputs: readonly InputState[] }
 }
 
 /** One normalized source shared by every access to a native conversation. */
@@ -46,11 +43,10 @@ export class DurableProjection {
     this.feed = new ThreadFeed(
       {
         type: 'snapshot',
-        coverage: 'current-view',
         messages: [],
         inputs: [],
         subagents: [],
-        activity: { scope: 'foreground', state: 'unknown' }
+        activity: { state: 'unknown' }
       },
       report
     )
@@ -71,14 +67,11 @@ export class DurableProjection {
       return {
         value: structuredClone({
           events: [event],
-          delivery,
-          revision: this.revision,
           aliases: this.aliases,
           live:
             delivery === 'baseline'
               ? []
               : messages.filter((message) => !historical.has(message.id)).map((message) => message.id),
-          pending: this.pending,
           completion
         }),
         retain: Boolean(completion)
@@ -144,7 +137,7 @@ export class DurableProjection {
     const pending = Boolean(this.admitting.size || live?.run || live?.compactions?.length || unfinished)
     this.completion =
       !pending && (this.pending || this.cycle.size > 0) && revision !== undefined
-        ? { revision, inputs: inputs.filter((input) => this.cycle.has(input.nativeInput?.id ?? input.inputId!)) }
+        ? { inputs: inputs.filter((input) => this.cycle.has(input.nativeInput?.id ?? input.inputId!)) }
         : undefined
     if (this.completion) this.cycle.clear()
     this.pending = pending
@@ -173,7 +166,7 @@ export class DurableProjection {
       ...this.feed.snapshot,
       messages: content.messages,
       inputs,
-      activity: { scope: 'foreground', state: live?.run ? 'active' : 'idle' }
+      activity: { state: live?.run ? 'active' : 'idle' }
     })
     this.completion = undefined
     for (const input of changed) this.feed.publish({ type: 'input.changed', input })
@@ -186,7 +179,7 @@ export function submissionState(
   entry?: EntryRecord,
   inputId?: InputId
 ): InputState {
-  let terminal: Pick<InputState, 'outcome' | 'response' | 'error'> = {}
+  let terminal: Pick<InputState, 'outcome' | 'error'> = {}
   if (record.type === 'input' && record.status === 'done') {
     const index = entry?.model?.findIndex((message) => message.role === 'assistant') ?? -1
     const message = entry?.model?.[index]
@@ -194,7 +187,6 @@ export function submissionState(
       const reason = message.stopReason
       const completed = reason === 'stop' && !message.content.some((part) => part.type === 'toolCall')
       terminal = {
-        response: { session: thread, id: runtimeId(`entry:${record.answer}:${index}`) },
         outcome: completed
           ? 'completed'
           : reason === 'aborted'

@@ -68,7 +68,7 @@ it('reconciles an archive read overlapping live output without losing the commit
     ])
     expect(view.snapshot.messages.some((item) => item.id.startsWith('live:'))).toBe(false)
     const final = confirmed(await root.claude.archive())
-    expect(final.sources.filter((source) => source.ref.id.startsWith('live:'))).toEqual([])
+    expect(final.content.some((message) => message.id.startsWith('live:'))).toBe(false)
     expect(final.content.filter((item) => item.role === 'assistant')).toHaveLength(2)
     await expect.poll(() => view.snapshot.messages.map((item) => item.id)).toEqual(final.content.map((item) => item.id))
     expect(view.snapshot.messages[0]).toMatchObject({ role: 'user' })
@@ -101,12 +101,24 @@ it('places steer at a native tool boundary and associates one answer with both i
     )
     expect(JSON.stringify(reply.body.messages)).toContain('Use the revised requirement')
     reply.reply.block({ type: 'text', text: 'Shared answer' })
+    await expect.poll(() => textOf(view.snapshot)).toContain('Shared answer')
+    const boundary = view.batches.findIndex((batch) =>
+      batch.controls?.some((control) => control.type === 'input-boundary' && control.inputIds.includes(second))
+    )
+    const answer = view.batches.findIndex((batch) =>
+      batch.events.some(
+        (event) =>
+          event.type === 'message.upsert' &&
+          event.message.parts.some((part) => part.type === 'text' && part.text === 'Shared answer')
+      )
+    )
+    expect(boundary).toBeGreaterThanOrEqual(0)
+    expect(boundary).toBeLessThan(answer)
     reply.reply.finish()
     await expect.poll(() => view.snapshot.inputs.find((input) => input.inputId === second)?.outcome).toBe('completed')
     const inputs = view.snapshot.inputs.filter((input) => input.inputId === first || input.inputId === second)
     expect(inputs.map((input) => input.outcome)).toEqual(['completed', 'completed'])
-    expect(inputs[0].response).toEqual(inputs[1].response)
-    expect(inputs[0].response).toBeDefined()
+    expect(textOf(view.snapshot)).toContain('Shared answer')
     const resultIndex = view.batches.findIndex((batch) =>
       batch.native.some((native) => native.message.type === 'result')
     )
@@ -143,9 +155,8 @@ it('keeps end-boundary steer as the next turn instead of rejecting it', async ()
     next.reply.block({ type: 'text', text: 'Next answer' })
     next.reply.finish()
     await expect.poll(() => view.snapshot.inputs.find((input) => input.inputId === nextId)?.outcome).toBe('completed')
-    expect(view.snapshot.inputs.find((input) => input.inputId === firstId)?.response).not.toEqual(
-      view.snapshot.inputs.find((input) => input.inputId === nextId)?.response
-    )
+    expect(textOf(view.snapshot)).toEqual(expect.arrayContaining(['First answer', 'Next answer']))
+    expect(view.snapshot.inputs.find((input) => input.inputId === firstId)?.outcome).toBe('completed')
   } finally {
     await test.close()
   }
@@ -177,7 +188,7 @@ it('stops only the addressed sibling and keeps the other child observable', asyn
     expect(await root.claude.stopTask('unknown')).toMatchObject({ status: 'rejected', error: { code: 'unknown-task' } })
     expect(await root.claude.stopTask(task.task_id)).toMatchObject({
       status: 'confirmed',
-      value: { effect: 'requested' }
+      value: undefined
     })
     await leftRequest.reply.closed
     rightRequest.reply.block({ type: 'text', text: 'Sibling survived' })
@@ -325,7 +336,7 @@ it.each([false, true])(
       expect(child.thread).toEqual(childThread)
       expect(textOf(childView.snapshot)).toContain('Original child answer')
       expect(
-        confirmed(await child.claude.archive()).messages.filter((message) => message.type === 'assistant')
+        confirmed(await child.claude.archive()).content.filter((message) => message.role === 'assistant')
       ).toHaveLength(2)
     } finally {
       await test.close()
@@ -467,9 +478,9 @@ it('observes a background child after its parent result without adding child bod
     await expect.poll(() => textOf(childView.snapshot)).toEqual(['Child block one', 'Child block two'])
     expect(textOf(parent.snapshot)).not.toContain('Child block one')
     const archive = confirmed(await child.claude.archive())
-    const assistant = archive.messages.filter((message) => message.type === 'assistant')
+    const assistant = archive.content.filter((message) => message.role === 'assistant')
     expect(assistant).toHaveLength(2)
-    expect(new Set(assistant.map((message) => message.uuid)).size).toBe(2)
+    expect(new Set(assistant.map((message) => message.id)).size).toBe(2)
     expect(archive.content.filter((item) => item.role === 'assistant').map((item) => item.id)).toEqual(
       childView.snapshot.messages.filter((item) => item.role === 'assistant').map((item) => item.id)
     )
@@ -484,7 +495,6 @@ it('preserves interrupted partial output and later queued input, without claimin
     const runtime = test.runtime()
     const root = confirmed(await runtime.create(test.options))
     const view = await observe(root)
-    expect(root.input!.policies).toEqual(['steer', 'follow-up'])
     expect(await root.input!.submit({ inputId: inputId(), text: 'Reject', whenBusy: 'reject' })).toMatchObject({
       status: 'unsupported'
     })
@@ -498,7 +508,7 @@ it('preserves interrupted partial output and later queued input, without claimin
     await view.event(
       (event) => (event as { type: string }).type === 'command_lifecycle' && JSON.stringify(event).includes(laterId)
     )
-    expect(await root.interrupt!()).toMatchObject({ status: 'confirmed', value: { effect: 'requested' } })
+    expect(await root.interrupt!()).toMatchObject({ status: 'confirmed', value: undefined })
     const later = await test.request()
     later.reply.block({ type: 'text', text: 'Later answer' })
     later.reply.finish()

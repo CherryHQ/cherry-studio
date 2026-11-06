@@ -30,7 +30,7 @@ import {
 import { ClaudeControlState, type ClaudeControl } from './control'
 import { ClaudeInvocations } from './invocations'
 import { ClaudeFeed } from './observation'
-import type { ClaudeArchive, ClaudeNativeMessage, ClaudeSource } from './types'
+import type { ClaudeArchive, ClaudeNativeMessage } from './types'
 
 type Part = RuntimeMessage['parts'][number]
 type ToolPart = Extract<Part, { type: 'dynamic-tool' }>
@@ -40,7 +40,7 @@ export class ClaudeProjection {
   private readonly pendingControls: ClaudeControl[] = []
   readonly control = new ClaudeControlState((event) => this.pendingControls.push(event))
   readonly retracted = new Set<string>()
-  private readonly sources = new Map<string, ClaudeSource[]>()
+  private readonly sources = new Set<string>()
   private readonly legacy: Record<string, { messageId: string; parts: number[] }> = {}
   private readonly messages = new Map<string, RuntimeMessage>()
   private readonly calls = new Map<string, { id: string; part: ToolPart }>()
@@ -111,10 +111,8 @@ export class ClaudeProjection {
     )
     return {
       ...archive,
-      coverage: 'retained-view',
       content,
       legacy: { ...this.legacy },
-      sources: content.flatMap((message) => this.sources.get(message.id) ?? []),
       retracted: [...this.retracted]
     }
   }
@@ -177,10 +175,8 @@ export class ClaudeProjection {
       parts: [],
       metadata: { completeness: this.aborted.has(uuid) ? 'partial' : 'complete', inputId: options.inputId }
     }
-    const sources: ClaudeSource[] = []
     const bound: number[] = []
     for (const [index, block] of content.entries()) {
-      sources.push({ ref: this.ref(uuid), uuid, block: index })
       if (!block) continue
       if ('result' in block) {
         events.push(...this.applyResult(uuid, block.result))
@@ -220,7 +216,7 @@ export class ClaudeProjection {
       this.legacy[`${uuid}:${index}`] = { messageId: uuid, parts: [value.parts.length] }
       value.parts.push(part)
     }
-    this.sources.set(uuid, sources)
+    this.sources.add(uuid)
     if (value.parts.length || content.length === 0) {
       const replaces = bound.length && this.stream ? [this.ref(this.stream.id)] : undefined
       events.push(this.upsert(value, replaces))
@@ -290,7 +286,7 @@ export class ClaudeProjection {
         await this.stream?.reader.close()
         const id = `live:${randomUUID()}`
         this.stream = { apiId: event.message.id, id, reader: new RuntimeMessageStream(id), blocks: new Map() }
-        return [{ type: 'activity.changed', activity: { scope: 'foreground', state: 'active' } }]
+        return [{ type: 'activity.changed', activity: { state: 'active' } }]
       }
       // Turn usage/outcome comes from SDK result; message_stop also occurs on interrupted input.
       case 'message_delta':
@@ -469,7 +465,6 @@ export class ClaudeProjection {
     this.feed.publish([
       {
         ...this.feed.snapshot,
-        coverage: retained.size ? 'retained-view' : 'current-view',
         messages: [
           ...(retained.get(undefined) ?? []),
           ...content.flatMap((message) => [message, ...(retained.get(message.id) ?? [])])
@@ -477,12 +472,8 @@ export class ClaudeProjection {
       }
     ])
     return {
-      thread: this.thread,
-      coverage: 'current-view',
       content,
       legacy: { ...this.legacy },
-      sources: selected.flatMap((message) => this.sources.get(message.uuid) ?? []),
-      messages: selected,
       retracted: [...this.retracted]
     }
   }

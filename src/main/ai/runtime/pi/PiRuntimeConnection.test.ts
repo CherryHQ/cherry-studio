@@ -989,11 +989,10 @@ describe('desktop Pi root connection', () => {
     expect(text(events.slice(0, boundary))).toBe('before steer')
     expect(text(events.slice(boundary))).toBe('Hello world')
     const responses = [
-      ...new Map(nativeInputs.filter((state) => state.response).map((state) => [state.inputId, state])).values()
+      ...new Map(nativeInputs.filter((state) => state.outcome).map((state) => [state.inputId, state])).values()
     ]
     expect(responses.map((response) => response.inputId).sort()).toEqual([first.id, followup.id].sort())
     expect(responses.map((response) => response.outcome)).toEqual(['completed', 'completed'])
-    expect(new Set(responses.map((response) => response.response?.id)).size).toBe(2)
   })
 
   it('cancels queued input on stop without automatically sending it in the next owner', async () => {

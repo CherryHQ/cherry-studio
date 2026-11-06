@@ -9,8 +9,7 @@ import type {
   RuntimeMessage,
   Subagent,
   Thread,
-  ThreadHandle,
-  ThreadSnapshot
+  ThreadHandle
 } from '@cherrystudio/agent-runtime'
 import { loggerService } from '@logger'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -19,7 +18,6 @@ const logger = loggerService.withContext('ThreadMessageProjection')
 type Gap = Extract<ObservationPayload, { type: 'gap' }>['reason']
 type Closed = Extract<ObservationPayload, { type: 'closed' }>['reason']
 interface ProjectionState {
-  coverage?: ThreadSnapshot['coverage']
   activity: Activity
   inputs: readonly InputState[]
   subagents: readonly Subagent[]
@@ -49,7 +47,7 @@ export class ThreadMessageProjection {
   private sources = new Map<string, RuntimeMessage>()
   private messages = new Map<string, CherryUIMessage>()
   private readonly listeners = new Set<(update: ThreadProjectionUpdate) => void>()
-  private state: ProjectionState = { activity: { scope: 'foreground', state: 'unknown' }, inputs: [], subagents: [] }
+  private state: ProjectionState = { activity: { state: 'unknown' }, inputs: [], subagents: [] }
   private revision = 0
   private pending: Promise<void> = Promise.resolve()
   private attachment: Promise<void> = Promise.resolve()
@@ -182,7 +180,6 @@ export class ThreadMessageProjection {
 
   private validateInput(input: InputState): void {
     if (input.nativeInput) this.assertThread(input.nativeInput.session)
-    if (input.response) this.assertThread(input.response.session)
   }
 
   private mergeInputs(inputs: readonly InputState[]): readonly InputState[] {
@@ -199,7 +196,6 @@ export class ThreadMessageProjection {
         ...input,
         facts: [...new Set([...(previous?.facts ?? []), ...input.facts])],
         outcome: input.outcome ?? previous?.outcome,
-        response: input.response ?? previous?.response,
         error: input.error ?? previous?.error
       }
       if (index < 0) merged.push(next)
@@ -223,7 +219,6 @@ export class ThreadMessageProjection {
       removed = [...this.messages.keys()].filter((id) => !sources.has(id))
       orderChanged = !isDeepStrictEqual([...this.messages.keys()], [...sources.keys()])
       nextState = {
-        coverage: event.coverage,
         activity: event.activity,
         inputs: this.mergeInputs(event.inputs),
         subagents: event.subagents ?? []

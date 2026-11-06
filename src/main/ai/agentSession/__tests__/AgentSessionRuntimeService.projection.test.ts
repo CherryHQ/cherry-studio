@@ -70,9 +70,7 @@ async function fixture() {
   const emit = (event: AgentRuntimeEvent) => new Promise<void>((consumed) => queue.push({ event, consumed }))
   runtimeDriverRegistry.register({
     type: 'pi',
-    capabilities: ['agent-session'],
     validateSession: () => {},
-    listAvailableTools: async () => [],
     connect: async () => {
       const activeQueue = queue
       return {

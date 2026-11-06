@@ -84,7 +84,7 @@ it.each([false, true])('discovers persisted pending inputs on reopen (concurrent
       events.push(event)
     })
   )
-  await expect.poll(() => events[0]).toMatchObject({ type: 'snapshot', coverage: 'current-view' })
+  await expect.poll(() => events[0]).toMatchObject({ type: 'snapshot' })
   const snapshot = events[0]
   if (snapshot.type !== 'snapshot') throw new Error('Missing snapshot')
   if (!resume) {

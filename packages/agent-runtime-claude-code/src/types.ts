@@ -15,7 +15,6 @@ import type {
   BusyPolicy,
   RuntimeMessage,
   InputId,
-  ItemRef,
   Observation,
   ObservationPayload,
   OperationResult,
@@ -77,12 +76,8 @@ export interface ClaudeInvocation {
 export interface ClaudeObservation {
   readonly controls?: readonly ClaudeControl[]
   readonly state?: {
-    readonly active: boolean
     readonly aborted: boolean
-    readonly backgroundTasks?: Extract<ClaudeControl, { type: 'background-tasks' }>['tasks']
-    readonly backgroundWorkActive?: boolean
   }
-  readonly delivery?: 'baseline' | 'update' | 'recovery'
   /** Completed native invocations not yet delivered to this observation; absent from its baseline. */
   readonly invocations?: readonly ClaudeInvocation[]
   /** Sources produced by native execution, retained through observer recovery. */
@@ -99,26 +94,16 @@ export interface ClaudeObservation {
 
 export type ClaudeObservationSink = (batch: ClaudeObservation) => void | Promise<void>
 
-export interface ClaudeSource {
-  readonly ref: ItemRef
-  readonly uuid: string
-  readonly block: number
-}
-
 export interface ClaudeArchive {
-  readonly thread: Thread
-  readonly coverage: 'current-view' | 'retained-view'
   readonly content: readonly RuntimeMessage[]
-  readonly sources: readonly ClaudeSource[]
   readonly legacy: Readonly<Record<string, { messageId: string; parts: number[] }>>
-  readonly messages: readonly SessionMessage[]
   /** Explicit native retractions; absence from the selected view is not a deletion. */
   readonly retracted: readonly string[]
 }
 
 export interface ClaudeThreadHandle extends ThreadHandle {
   readonly claude: {
-    state(): { readonly active: boolean; readonly aborted: boolean }
+    state(): { readonly active: boolean }
     relation(): Subagent | undefined
     openChild(
       toolCallId: string,
@@ -130,7 +115,6 @@ export interface ClaudeThreadHandle extends ThreadHandle {
       }>
     >
     readonly sessionId: string
-    readonly agentId?: string
     /** Start the native connection without submitting input; a warm handoff transfers sole ownership. */
     start(warm?: { query: WarmQuery; exited: Promise<void> }): OperationResult<void>
     supportedCommands(): Promise<OperationResult<Awaited<ReturnType<Query['supportedCommands']>>>>
@@ -140,7 +124,7 @@ export interface ClaudeThreadHandle extends ThreadHandle {
     observe(sink: ClaudeObservationSink): Promise<OperationResult<Observation>>
     /** Without refresh, reads already observed committed sources without producing new observation events. */
     archive(options?: { readonly refresh: boolean }): Promise<OperationResult<ClaudeArchive>>
-    stopTask(taskId: string): Promise<OperationResult<{ readonly effect: 'requested' }>>
+    stopTask(taskId: string): Promise<OperationResult<void>>
   }
 }
 

@@ -127,14 +127,19 @@ describe('Pi Durable runtime contract', () => {
       })
     )
     await handle.input.submit(draft('atomic'))
-    await expect.poll(() => fast.some((batch) => batch.pending)).toBe(true)
+    await expect
+      .poll(() =>
+        fast.some((batch) =>
+          batch.events.some((event) => event.type === 'snapshot' && event.activity.state === 'active')
+        )
+      )
+      .toBe(true)
     expect(fast.some((batch) => batch.completion)).toBe(false)
     provider.resolve()
     await expect.poll(() => fast.some((batch) => batch.completion)).toBe(true)
     expect(slow).toHaveLength(1)
     const final = fast.find((batch) => batch.completion)!
     expect(final.completion).toMatchObject({
-      revision: final.revision,
       inputs: [{ inputId: 'atomic', outcome: 'unanswered', error: { code: 'output-truncated' } }]
     })
     expect(final.events).toMatchObject([
@@ -154,7 +159,7 @@ describe('Pi Durable runtime contract', () => {
       })
     )
     await attached.drain()
-    expect(late[0]).toMatchObject({ delivery: 'baseline', live: [], completion: undefined })
+    expect(late[0]).toMatchObject({ live: [], completion: undefined })
   })
 
   it('streams a current view shared by accesses, isolates release, and reports durable input completion', async () => {
@@ -188,16 +193,12 @@ describe('Pi Durable runtime contract', () => {
     expect(current(right)?.messages.filter((item) => item.role === 'assistant')).toHaveLength(1)
     if (receipt.status !== 'acknowledged' || !receipt.nativeInput) throw new Error('No native receipt')
     await expect
-      .poll(async () => confirmed(await second.lookupInput({ by: 'native-ref', ref: receipt.nativeInput! })))
-      .toMatchObject({ found: true, input: { outcome: 'completed' } })
-    const settled = confirmed(await second.lookupInput({ by: 'native-ref', ref: receipt.nativeInput }))
-    if (!settled.found) throw new Error('Missing input')
-    const response = current(right)?.messages.find((item) => item.id === settled.input.response?.id)
-    expect(response).toMatchObject({
-      parts: [{ type: 'text', text: 'a sufficiently long streaming answer' }]
-    })
+      .poll(() => current(right)?.inputs.find((input) => input.nativeInput?.id === receipt.nativeInput!.id))
+      .toMatchObject({ inputId: 'question', outcome: 'completed' })
+    const response = current(right)?.messages.find((item) => item.role === 'assistant')
+    expect(response).toMatchObject({ parts: [{ type: 'text', text: 'a sufficiently long streaming answer' }] })
     const archive = confirmed(await second.archive())
-    const committed = archive.messages.find((item) => item.id === settled.input.response?.id)
+    const committed = archive.messages.find((item) => item.id === response?.id)
     expect(committed).toEqual(response)
     const preview = right
       .flatMap((event) => (event.type === 'snapshot' ? event.messages : []))
@@ -254,38 +255,28 @@ describe('Pi Durable runtime contract', () => {
         }
       ])
       const handle = confirmed(await runtime.create(sessionOptions))
-      await handle.input.submit({ ...draft('root'), deduplicationKey: 'root' })
+      const events = await observe(handle)
+      await handle.input.submit(draft('root'))
       await entered.promise
       if (timing === 'after') {
         finish.resolve()
         await expect
-          .poll(() => handle.lookupInput({ by: 'deduplication-key', key: 'root' }))
-          .toMatchObject({
-            status: 'confirmed',
-            value: { found: true, input: { outcome: 'completed' } }
-          })
+          .poll(() => current(events)?.inputs.find((input) => input.inputId === 'root')?.outcome)
+          .toBe('completed')
       }
-      const input = { ...draft('additional input', 'steer'), deduplicationKey: 'additional' }
+      const input = draft('additional input', 'steer')
       const receipt = await handle.input.submit(input)
       expect(receipt.status).toBe('acknowledged')
       finish.resolve()
       await expect
-        .poll(() => handle.lookupInput({ by: 'deduplication-key', key: 'additional' }))
-        .toMatchObject({
-          status: 'confirmed',
-          value: { found: true, input: { outcome: 'completed' } }
-        })
-      const root = confirmed(await handle.lookupInput({ by: 'deduplication-key', key: 'root' }))
-      const additional = confirmed(await handle.lookupInput({ by: 'deduplication-key', key: 'additional' }))
-      if (!root.found || !additional.found) throw new Error('Missing input receipt')
-      expect(additional.input.response).not.toEqual(root.input.response)
+        .poll(() => current(events)?.inputs.find((state) => state.inputId === input.inputId)?.outcome)
+        .toBe('completed')
+      expect(current(events)?.inputs.find((state) => state.inputId === 'root')?.outcome).toBe('completed')
       expect(
-        confirmed(await handle.archive()).messages.find((item) => item.id === additional.input.response?.id)
-      ).toMatchObject({ parts: [{ type: 'text', text: 'continued' }] })
-      expect(await handle.input.submit(input)).toMatchObject({
-        status: 'acknowledged',
-        nativeInput: receipt.status === 'acknowledged' ? receipt.nativeInput : undefined
-      })
+        confirmed(await handle.archive())
+          .messages.filter((item) => item.role === 'assistant')
+          .flatMap((item) => item.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])))
+      ).toEqual(['first', 'continued'])
       expect(
         confirmed(await handle.archive()).messages.filter((item) =>
           item.parts.some((part) => 'text' in part && part.text === input.text)
@@ -295,65 +286,23 @@ describe('Pi Durable runtime contract', () => {
     }
   )
 
-  it('deduplicates queued input, rejects busy input without admission, and scopes withdrawal to its session', async () => {
+  it('rejects busy input without admission and withdraws queued input on interrupt', async () => {
     const { runtime, faux } = await setup()
     const hold = blocked()
     faux.setResponses([hold.step])
     const session = confirmed(await runtime.create(sessionOptions))
-    const other = confirmed(await runtime.create(sessionOptions))
+    const events = await observe(session)
     await session.input.submit(draft('start'))
     await hold.reached
-    expect(await session.input.submit({ ...draft('rejected'), deduplicationKey: 'rejected' })).toMatchObject({
-      status: 'rejected',
-      error: { code: 'busy' }
-    })
-    expect(confirmed(await session.lookupInput({ by: 'deduplication-key', key: 'rejected' }))).toEqual({ found: false })
-    const input = { ...draft('queued', 'follow-up'), deduplicationKey: 'queue-key' }
-    const first = await session.input.submit(input)
-    const duplicate = await session.input.submit(input)
-    expect(first).toMatchObject({ status: 'acknowledged', facts: ['accepted', 'queued'] })
-    expect(duplicate).toEqual(first)
-    if (first.status !== 'acknowledged' || !first.nativeInput) throw new Error('No native receipt')
-    expect(await other.retractInput(first.nativeInput)).toMatchObject({
-      status: 'rejected',
-      error: { code: 'not-found' }
-    })
-    expect(await session.retractInput(first.nativeInput)).toEqual({
-      status: 'confirmed',
-      value: { effect: 'withdrawn' }
-    })
-    expect(confirmed(await session.lookupInput({ by: 'deduplication-key', key: 'queue-key' }))).toMatchObject({
-      found: true,
-      input: { outcome: 'aborted' }
-    })
-    expect(await session.interrupt!()).toEqual({ status: 'confirmed', value: { effect: 'native-scope-idle' } })
-  })
-
-  it('does not re-emit unchanged input evidence when an observer polls its pending receipt', async () => {
-    const { runtime, faux } = await setup()
-    const hold = blocked()
-    faux.setResponses([hold.step])
-    const handle = confirmed(await runtime.create(sessionOptions))
-    const events = await observe(handle)
-    const receipt = await handle.input.submit(draft('pending input'))
-    if (receipt.status !== 'acknowledged' || !receipt.nativeInput) throw new Error('Missing receipt')
-    await hold.reached
+    expect(await session.input.submit(draft('rejected'))).toMatchObject({ status: 'rejected', error: { code: 'busy' } })
+    expect(current(events)?.inputs.some((input) => input.inputId === 'rejected')).toBe(false)
+    const queued = await session.input.submit(draft('queued', 'follow-up'))
+    expect(queued).toMatchObject({ status: 'acknowledged', facts: ['accepted', 'queued'] })
+    expect(await session.interrupt!()).toEqual({ status: 'confirmed', value: undefined })
     await expect
-      .poll(() => events.filter((event) => event.type === 'input.changed').at(-1)?.input.facts)
-      .toContain('placed')
-    const observed = events.filter((event) => event.type === 'input.changed').length
-    for (let i = 0; i < 3; i++) {
-      expect(confirmed(await handle.lookupInput({ by: 'native-ref', ref: receipt.nativeInput }))).toMatchObject({
-        found: true,
-        input: { inputId: 'pending input', facts: ['accepted', 'placed'] }
-      })
-    }
-    await new Promise((resolve) => setTimeout(resolve, 0))
-    expect(events.filter((event) => event.type === 'input.changed')).toHaveLength(observed)
-    await handle.interrupt!()
-    await expect
-      .poll(() => events.filter((event) => event.type === 'input.changed').at(-1)?.input.outcome)
+      .poll(() => current(events)?.inputs.find((input) => input.inputId === 'queued')?.outcome)
       .toBe('aborted')
+    expect(faux.state.callCount).toBe(1)
   })
 
   it('preserves a truncated native answer without reporting successful input completion', async () => {
@@ -364,11 +313,8 @@ describe('Pi Durable runtime contract', () => {
     const receipt = await handle.input.submit(draft('long answer'))
     if (receipt.status !== 'acknowledged' || !receipt.nativeInput) throw new Error('Missing receipt')
     await expect
-      .poll(async () => confirmed(await handle.lookupInput({ by: 'native-ref', ref: receipt.nativeInput! })))
-      .toMatchObject({
-        found: true,
-        input: { outcome: 'unanswered', response: { session: handle.thread }, error: { code: 'output-truncated' } }
-      })
+      .poll(() => current(events)?.inputs.find((input) => input.nativeInput?.id === receipt.nativeInput!.id))
+      .toMatchObject({ outcome: 'unanswered', error: { code: 'output-truncated' } })
     expect(
       events.filter((event) => event.type === 'input.changed').some((event) => event.input.outcome === 'completed')
     ).toBe(false)
@@ -421,8 +367,7 @@ describe('Pi Durable runtime contract', () => {
     finish.resolve()
     await expect.poll(latest).toMatchObject({
       inputId: 'recoverable',
-      outcome: 'completed',
-      response: { session: handle.thread }
+      outcome: 'completed'
     })
   })
 
@@ -454,26 +399,20 @@ describe('Pi Durable runtime contract', () => {
     ])
     const handle = confirmed(await runtime.create(sessionOptions))
     const events = await observe(handle)
-    const first = await handle.input.submit({ ...draft('root'), deduplicationKey: 'root' })
+    const first = await handle.input.submit(draft('root'))
     if (first.status !== 'acknowledged' || !first.nativeInput) throw new Error('Missing input reference')
     await executing.promise
-    await handle.input.submit({
-      ...draft('steering', 'steer'),
-      deduplicationKey: 'steering'
-    })
+    await handle.input.submit(draft('steering', 'steer'))
     finish.resolve()
-    const lookup = async (key: string) => {
-      const result = confirmed(await handle.lookupInput({ by: 'deduplication-key', key }))
-      if (!result.found) throw new Error('Missing input')
-      return result.input
-    }
-    await expect.poll(() => lookup('steering')).toMatchObject({ outcome: 'completed' })
-    const root = await lookup('root')
-    const steering = await lookup('steering')
-    expect(root).toMatchObject({ outcome: 'completed', response: steering.response })
-    expect(current(events)?.messages.find((item) => item.id === root.response?.id)).toMatchObject({
-      parts: [{ type: 'text', text: 'answer using both inputs' }]
-    })
+    await expect
+      .poll(() => current(events)?.inputs.find((input) => input.inputId === 'steering')?.outcome)
+      .toBe('completed')
+    expect(current(events)?.inputs.find((input) => input.inputId === 'root')?.outcome).toBe('completed')
+    expect(
+      current(events)
+        ?.messages.filter((item) => item.role === 'assistant')
+        .flatMap((item) => item.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])))
+    ).toEqual(['answer using both inputs'])
   })
 
   it('discovers native forks and archives only child-owned output independently of the parent', async () => {
@@ -591,8 +530,8 @@ describe('Pi Durable runtime contract', () => {
       .toBe(true)
     if (continued.status !== 'acknowledged' || !continued.nativeInput) throw new Error('Missing receipt')
     await expect
-      .poll(async () => confirmed(await retained.lookupInput({ by: 'native-ref', ref: continued.nativeInput! })))
-      .toMatchObject({ found: true, input: { outcome: 'completed' } })
+      .poll(() => current(retainedEvents)?.inputs.find((input) => input.nativeInput?.id === continued.nativeInput!.id))
+      .toMatchObject({ outcome: 'completed' })
     const reopenedParent = confirmed(await runtime.open(parent.thread))
     const restored = await observe(reopenedParent)
     await expect.poll(() => current(restored)).toMatchObject({ subagents: [relationship.subagent] })
@@ -607,10 +546,10 @@ describe('Pi Durable runtime contract', () => {
     const hold = blocked()
     faux.setResponses([hold.step])
     const session = confirmed(await runtime.create(sessionOptions))
-    const receipt = await session.input.submit({ ...draft('survive restart'), deduplicationKey: 'restart-key' })
+    const receipt = await session.input.submit(draft('survive restart'))
     await hold.reached
     expect(receipt.status).toBe('acknowledged')
-    expect(await runtime.shutdown()).toEqual({ status: 'confirmed', value: { effect: 'closed' } })
+    expect(await runtime.shutdown()).toEqual({ status: 'confirmed', value: undefined })
     expect(await session.input.submit(draft('too late'))).toMatchObject({
       status: 'rejected',
       error: { code: 'closed' }
@@ -625,14 +564,15 @@ describe('Pi Durable runtime contract', () => {
     const access = confirmed(a)
     const events = await observe(confirmed(b))
     const before = faux.state.callCount
-    const input = confirmed(await access.lookupInput({ by: 'deduplication-key', key: 'restart-key' }))
-    expect(input).toMatchObject({ found: true, input: { facts: ['accepted', 'placed'] } })
-    if (input.found) expect(input.input.outcome).toBeUndefined()
+    await expect
+      .poll(() => current(events)?.inputs.find((input) => input.inputId === 'survive restart'))
+      .toMatchObject({ facts: ['accepted', 'placed'] })
+    expect(current(events)?.inputs.find((input) => input.inputId === 'survive restart')?.outcome).toBeUndefined()
     await new Promise((resolve) => setTimeout(resolve, 40))
     expect(faux.state.callCount).toBe(before)
     expect(await reopened.resume()).toEqual({
       status: 'confirmed',
-      value: { scope: 'runtime', effect: 'scheduling-enabled' }
+      value: undefined
     })
     await expect
       .poll(() =>

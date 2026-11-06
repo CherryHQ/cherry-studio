@@ -145,7 +145,7 @@ export class ClaudeControlState {
     this.messageUuid = undefined
   }
 
-  accept(message: SDKMessage): SDKResultMessage | undefined {
+  accept(message: SDKMessage): void {
     if ('parent_tool_use_id' in message && message.parent_tool_use_id != null) {
       if (message.type === 'assistant')
         this.emit({ type: 'response-start', responseId: message.message.id, messageUuid: message.uuid })
@@ -169,7 +169,7 @@ export class ClaudeControlState {
         this.autonomousTurn = false
         this.emit({ type: 'autonomous-turn-state', state: 'finished' })
       }
-      return message
+      return
     }
     if (
       !this.isTurnActive &&

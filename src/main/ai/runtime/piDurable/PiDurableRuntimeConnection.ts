@@ -145,8 +145,8 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
             return { model: { provider: configured.model.provider, modelId: configured.model.id } }
           }
         },
-        onInputPlaced: (state) => {
-          const steer = state.inputId && this.steers.has(state.inputId) ? state.inputId : undefined
+        onInputPlaced: (inputId) => {
+          const steer = inputId && this.steers.has(inputId) ? inputId : undefined
           if (steer) this.input.onSteerInjected?.([steer])
         },
         onError: (error) => {

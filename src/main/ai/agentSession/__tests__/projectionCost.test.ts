@@ -92,10 +92,9 @@ it.each([
           events: [
             {
               type: 'snapshot',
-              coverage: 'current-view',
               messages: history,
               inputs: [],
-              activity: { scope: 'foreground', state: 'active' }
+              activity: { state: 'active' }
             }
           ],
           live: [],

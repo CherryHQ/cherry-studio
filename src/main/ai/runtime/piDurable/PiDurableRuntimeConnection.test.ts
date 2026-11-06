@@ -752,38 +752,28 @@ describe('desktop Pi Durable connection', () => {
       })
     }
     const queued: InputState = { nativeInput, facts: ['accepted', 'queued'] }
-    vi.spyOn(handle, 'lookupInput').mockResolvedValue({ status: 'confirmed', value: { found: true, input: queued } })
     const observer = connection as unknown as {
       onObservation(batch: DurableObservation): Promise<void>
     }
-    const snapshot = { type: 'snapshot' as const, coverage: 'retained-view' as const, messages: [], inputs: [queued] }
+    const snapshot = { type: 'snapshot' as const, messages: [], inputs: [queued] }
     await observer.onObservation({
-      events: [{ ...snapshot, activity: { scope: 'foreground', state: 'active' } }],
-      delivery: 'update',
-      revision: 1,
+      events: [{ ...snapshot, activity: { state: 'active' } }],
       aliases: {},
-      live: [],
-      pending: true
+      live: []
     })
     await observer.onObservation({
-      events: [{ ...snapshot, activity: { scope: 'foreground', state: 'idle' } }],
-      delivery: 'update',
-      revision: 2,
+      events: [{ ...snapshot, activity: { state: 'idle' } }],
       aliases: {},
-      live: [],
-      pending: true
+      live: []
     })
     expect(events.some((event) => event.type === 'autonomous-turn-state' && event.state === 'started')).toBe(true)
     expect(events.filter((event) => event.type === 'turn-complete' || event.type === 'error')).toEqual([])
     const completed = { ...queued, outcome: 'completed' as const }
     await observer.onObservation({
-      events: [{ ...snapshot, inputs: [completed], activity: { scope: 'foreground', state: 'idle' } }],
-      delivery: 'update',
-      revision: 3,
+      events: [{ ...snapshot, inputs: [completed], activity: { state: 'idle' } }],
       aliases: {},
       live: [],
-      pending: false,
-      completion: { revision: 3, inputs: [completed] }
+      completion: { inputs: [completed] }
     })
     await done(events)
     expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(1)

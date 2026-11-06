@@ -74,11 +74,7 @@ describe('Agent fork publication', () => {
     previous = runtimeDriverRegistry.getAgentSessionDriver('pi')
     runtimeDriverRegistry.register({
       type: 'pi',
-      capabilities: ['agent-session'],
       validateSession() {},
-      async listAvailableTools() {
-        return []
-      },
       async connect() {
         throw new Error('Fork must not start a conversation')
       },

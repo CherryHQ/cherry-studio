@@ -167,10 +167,9 @@ it('joins native steer to the shared answer while keeping foreground child histo
   expect(boundary.inputIds).toEqual([second.message.id])
   await test.wait('turn-complete')
   const replies = [
-    ...new Map(test.nativeInputs.filter((state) => state.response).map((state) => [state.inputId, state])).values()
+    ...new Map(test.nativeInputs.filter((state) => state.outcome).map((state) => [state.inputId, state])).values()
   ]
   expect(replies.map((state) => state.inputId)).toEqual(expect.arrayContaining([first.message.id, second.message.id]))
-  expect(new Set(replies.map((state) => state.response?.id)).size).toBe(1)
   const context = contexts.findChild(test.sessionId, 'toolu_desktop')!
   expect(context).toBeDefined()
   await expect.poll(() => JSON.stringify(savedChildView(context).messages)).toContain('Independent child answer')
@@ -690,7 +689,7 @@ it('recovers current content and one terminal result after observer overflow, th
       .toBe(true)
     // More lifecycle updates can arrive after the result while this observer is still blocked.
     for (let index = 0; index < 101; index++)
-      observed.feed!.publish([{ type: 'activity.changed', activity: { scope: 'foreground', state: 'idle' } }])
+      observed.feed!.publish([{ type: 'activity.changed', activity: { state: 'idle' } }])
     resume.resolve()
     await test.wait('turn-complete')
     const projections = test.events.flatMap((event) => (event.type === 'message-projection' ? [event.projection] : []))

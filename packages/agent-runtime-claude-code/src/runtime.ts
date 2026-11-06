@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 
-import type { Observation, OperationResult, ShutdownReceipt, Subagent, Thread } from '@cherrystudio/agent-runtime'
+import type { Observation, OperationResult, Subagent, Thread } from '@cherrystudio/agent-runtime'
 
 import { isUuid, nativeIdentity, rejected, runtimeError } from './identity'
 import { ClaudeOwner } from './owner'
@@ -21,7 +21,7 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
   const live = new Set<ClaudeOwner>()
   let closed = false
   const closingAccess = new AbortController()
-  let shutdown: Promise<OperationResult<ShutdownReceipt>> | undefined
+  let shutdown: Promise<OperationResult<void>> | undefined
   const report = (error: unknown) => {
     try {
       options.onError?.(error)
@@ -79,9 +79,7 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
         : owner.submit(projection, inputId, content, whenBusy)
     return {
       thread: projection.thread,
-      input: agentId
-        ? undefined
-        : { policies: ['steer', 'follow-up'], submit: (input) => submit(input.inputId, input.text, input.whenBusy) },
+      input: agentId ? undefined : { submit: (input) => submit(input.inputId, input.text, input.whenBusy) },
       interrupt: agentId
         ? undefined
         : () => (released ? Promise.resolve(rejected('interrupt', 'released')) : owner.interrupt(projection)),
@@ -90,7 +88,7 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
           for (const event of batch.events) await sink(event)
         }),
       claude: {
-        state: () => ({ active: projection.control.isTurnActive, aborted: projection.control.sawAbortedMessage }),
+        state: () => ({ active: projection.control.isTurnActive }),
         relation: () =>
           [...owner.projections.values()]
             .flatMap((parent) => parent.feed.snapshot.subagents ?? [])
@@ -140,7 +138,6 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
           return { status: 'confirmed', value: { relation: found.value, handle: opened.value } }
         },
         sessionId,
-        agentId,
         start: (warm) =>
           released || agentId
             ? rejected('start', agentId ? 'child-control' : 'released')
@@ -243,7 +240,7 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
           shutdown = undefined
           return uncertain
         }
-        return { status: 'confirmed' as const, value: { effect: 'closed' as const } }
+        return { status: 'confirmed' as const, value: undefined }
       })()
       return shutdown
     }

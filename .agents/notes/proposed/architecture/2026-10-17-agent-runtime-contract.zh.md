@@ -4,6 +4,8 @@ Status: proposed
 
 [English](2026-10-17-agent-runtime-contract.md) | 中文
 
+旧 Pi 执行器的源码／测试链接固定在收缩前的 `46d76e4`，仅保留历史证据。现行实现及测试归属见[运行时边界收缩方案](../simplification/2026-11-05-agent-runtime-boundary-ownership.md)第 11 节；这些旧入口已退出生产路径。
+
 ## Problem
 
 Cherry 需要跨 harness 打开原生上下文、提交输入、独立于某次提交观察工作，并释放资源。要求所有 harness 采用 Cherry 的会话引擎，会重复实现原生调度和恢复；庞大的能力矩阵则会迫使每个消费者自行解释差异。
@@ -13,6 +15,8 @@ Cherry 需要跨 harness 打开原生上下文、提交输入、独立于某次�
 [SDK 内容协议](../simplification/2026-10-29-agent-runtime-content-protocol.md)维护已实现的 `ContentItem` 替换，以及共享观察来源中的 SDK 内容累积。其 `RuntimeMessage` 契约取代下文的 item 事件和 Main reader 描述。访问、输入接纳、生命周期、原生恢复和产品所有权继续由本文维护。
 
 proposed [运行时边界所有权后续方案](../simplification/2026-11-05-agent-runtime-boundary-ownership.md)拟部分替代桌面输入往返、子线程访问衔接及原生控制解释的职责安排。它复用本文的访问／生命周期契约，不向 package 增加产品依赖；该后续方案获批并实现前，现有要求继续有效。
+
+同一后续方案的 2026-11-06 修订拟退役未消费的 policies、输入 response／snapshot coverage 输出、receipt value 和原生专有 facet，同时保留原生身份、接纳、观察、恢复与持久化。新增删减范围不由旧批准覆盖；替代后的公开接口由该后续方案维护。
 
 ## Proposal
 
@@ -166,7 +170,7 @@ Pi 根会话的桌面路径现为 `AgentChatContextProvider → AgentSessionRunt
 | 位置 | 计划改动 | 继续保留的职责 |
 | --- | --- | --- |
 | [公共契约](../../../../packages/agent-runtime/src/contracts.ts) | 优先使用已有 Thread、可选输入、关系和观察契约。只有原生证据与消费者都需要时才增加字段。 | 不放产品行、投递日志、调度器或 UI lane。 |
-| [Pi Runtime](../../../../packages/agent-runtime-pi/src/runtime.ts)、[投影](../../../../packages/agent-runtime-pi/src/runtimeProjection.ts)和[子智能体所有者](../../../../packages/agent-runtime-pi/src/subagent.ts) | 增加可验证的输入关联，并通过原生所有者恢复 child 访问。 | 原生会话、child 执行、结果交付和强类型 Pi 扩展。 |
+| [Pi Runtime](../../../../packages/agent-runtime-pi/src/runtime.ts)、[投影](../../../../packages/agent-runtime-pi/src/runtimeProjection.ts)和[子智能体所有者](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/src/subagent.ts) | 增加可验证的输入关联，并通过原生所有者恢复 child 访问。 | 原生会话、child 执行、结果交付和强类型 Pi 扩展。 |
 | [Durable Runtime](../../../../packages/agent-runtime-pi-durable/src/runtime.ts) | 激活调度前，依据原生 submission/task 对账持久输入映射和 child 所有权。 | 原生 Harness/storage 所有权与恢复语义。 |
 | [桌面 Pi 接入](../../../../src/main/ai/runtime/pi/README.md) | 复用宿主配置与装配，将原生 Pi provider 绑定到内部网关，逐步替换执行和输出路由。 | Prompt、skills、MCP、审批、shell 环境、模型政策、用量和 tracing。 |
 | [AgentSessionRuntimeService](../../../../src/main/ai/agentSession/AgentSessionRuntimeService.ts) 及其持久化模块 | 持有已配置 Runtime 实例、逻辑输入投递和每个 Thread 的投影。`ThreadProjection.ts` 在现有模块中转换实时内容。 | 产品生命周期、授权、持久化屏障，以及与投递、fork 操作的集成。 |

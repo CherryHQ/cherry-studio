@@ -17,7 +17,6 @@ import {
   type Cursor,
   type HarnessOptions,
   type Storage,
-  type SubmissionId,
   type SubmissionRecord,
   type TaskGraph,
   type TaskGraphWatch,
@@ -28,7 +27,6 @@ import {
   install,
   type HostPorts,
   type Entries,
-  type SubagentOrigin,
   type CallRef,
   type ConversationFacts
 } from '@cherrystudio/agent-behavior'
@@ -37,21 +35,14 @@ import {
   type AgentRuntime,
   type RuntimeMessage,
   type BackendId,
-  type InputDraft,
   type InputId,
-  type InputLookup,
-  type InputQuery,
   type InputState,
-  type NativeInputRef,
   type Observation,
   type OperationResult,
-  type ResumeReceipt,
-  type RetractionReceipt,
   type RuntimeError,
   type ThreadHandle,
   type ThreadInput,
   type Thread,
-  type ShutdownReceipt,
   type Subagent,
   type SubmitResult
 } from '@cherrystudio/agent-runtime'
@@ -69,19 +60,16 @@ export interface PiDurableRuntimeOptions {
   readonly harness: HarnessOptions
   readonly behavior?: PiDurableRuntimeBehavior
   /** Synchronous placement notification before the scheduler can issue the next model request. */
-  readonly onInputPlaced?: (input: InputState) => void
+  readonly onInputPlaced?: (inputId: InputId | undefined) => void
   readonly onError?: (error: unknown) => void
 }
 export interface PiDurableRuntimeBehavior {
   readonly host: HostPorts
-  configureChild(child: { thread: Thread; parent: Thread; origin: SubagentOrigin }): AgentChange | Promise<AgentChange>
+  configureChild(child: { thread: Thread; modelKey: string }): AgentChange | Promise<AgentChange>
 }
 export type PiDurableSessionOptions = ConversationCreateOptions
-export interface PiDurableThreadInput extends ThreadInput {
-  submit(input: InputDraft & { readonly deduplicationKey?: string }): Promise<SubmitResult>
-}
 export interface PiDurableThreadHandle extends ThreadHandle {
-  readonly input: PiDurableThreadInput
+  readonly input: ThreadInput
   readonly durable: {
     observe(sink: (batch: DurableObservation) => void | Promise<void>): Promise<OperationResult<Observation>>
     relation(): Promise<Subagent | undefined>
@@ -101,8 +89,6 @@ export interface PiDurableThreadHandle extends ThreadHandle {
     compact(instructions?: string): Promise<OperationResult<{ compacted: boolean }>>
     permissionModeChanged(): Promise<OperationResult<void>>
   }
-  lookupInput(query: InputQuery): Promise<OperationResult<InputLookup>>
-  retractInput(ref: NativeInputRef): Promise<OperationResult<RetractionReceipt>>
   /** Committed conversation-owned history, including entries before reset/compaction. Does not resume work. */
   archive(): Promise<OperationResult<PiDurableArchive>>
 }
@@ -116,7 +102,7 @@ export interface PiDurableArchive {
 export interface PiDurableRuntime extends AgentRuntime {
   create(options: PiDurableSessionOptions): Promise<OperationResult<PiDurableThreadHandle>>
   open(ref: Thread): Promise<OperationResult<PiDurableThreadHandle>>
-  resume(): Promise<OperationResult<ResumeReceipt>>
+  resume(): Promise<OperationResult<void>>
   /** Join all admitted native work, including background tasks, without closing the owner. */
   settled(): Promise<void>
 }
@@ -158,8 +144,8 @@ export async function createPiDurableRuntime(
       install: (ports) => {
         behaviorEntries = install(ports, config.host).entries
       },
-      configureChild: (child, parent, origin) =>
-        config.configureChild({ thread: refFor(Number(child)), parent: refFor(Number(parent)), origin }),
+      configureChild: (child, _parent, origin) =>
+        config.configureChild({ thread: refFor(Number(child)), modelKey: origin.modelKey }),
       onError: report
     })
     const registry = createRegistry()
@@ -240,7 +226,7 @@ export async function createPiDurableRuntime(
   const pending = new Set<Promise<unknown>>()
   let closing = false
   const closingAccess = new AbortController()
-  let shutdown: Promise<OperationResult<ShutdownReceipt>> | undefined
+  let shutdown: Promise<OperationResult<void>> | undefined
   const inputState = async (record: SubmissionRecord): Promise<InputState> => {
     const answer =
       record.type === 'input' && record.status === 'done'
@@ -306,11 +292,7 @@ export async function createPiDurableRuntime(
             (placed?.type === 'entry' ? (placed.value.data as { cherryInputId?: string })?.cherryInputId : undefined)
           if (id) logicalIds.set(record.id, runtimeId(id))
           try {
-            options.onInputPlaced?.({
-              nativeInput: { session: refFor(record.conversationId), id: runtimeId(String(record.id)) },
-              ...(id && { inputId: runtimeId(id) }),
-              facts: ['accepted', 'placed']
-            })
+            options.onInputPlaced?.(id ? runtimeId(id) : undefined)
           } catch (cause) {
             report(cause)
           }
@@ -456,7 +438,6 @@ export async function createPiDurableRuntime(
     let released = false
     const observations = new Set<Observation>()
     const unavailable = () => released || closing
-    const sameSession = (ref: Thread) => ref.backendId === entry.ref.backendId && ref.id === entry.ref.id
     const observeCaptured = async (subscribe: () => Observation): Promise<OperationResult<Observation>> => {
       if (unavailable()) return rejected('observe', 'closed')
       try {
@@ -606,7 +587,6 @@ export async function createPiDurableRuntime(
         )
       },
       input: {
-        policies: ['reject', 'steer', 'follow-up'],
         submit(input) {
           if (unavailable()) return Promise.resolve({ ...rejected('submit', 'closed'), inputId: input.inputId })
           if (!['reject', 'steer', 'follow-up'].includes(input.whenBusy))
@@ -627,7 +607,7 @@ export async function createPiDurableRuntime(
                         ports,
                         entry.ref.id,
                         input.text,
-                        input.deduplicationKey ?? input.inputId,
+                        input.inputId,
                         new AbortController().signal
                       ),
                     { inputId: input.inputId }
@@ -652,7 +632,7 @@ export async function createPiDurableRuntime(
                       ports,
                       entry.ref.id,
                       input.text.slice('/goal'.length).trim(),
-                      input.deduplicationKey ?? input.inputId
+                      input.inputId
                     )
                   )
                   native.resume()
@@ -666,7 +646,6 @@ export async function createPiDurableRuntime(
                   type: 'input',
                   content: input.text,
                   whenBusy: input.whenBusy === 'follow-up' ? 'followUp' : input.whenBusy,
-                  requestId: input.deduplicationKey,
                   entry: { kind: 'cherry.user-input', data: { cherryInputId: input.inputId } }
                 },
                 context
@@ -714,58 +693,6 @@ export async function createPiDurableRuntime(
         }
       },
       observe: (sink) => observeCaptured(() => entry.projection.feed.observe(sink)),
-      lookupInput(query) {
-        if (unavailable()) return Promise.resolve(rejected('lookup-input', 'closed'))
-        return track(
-          (async (): Promise<OperationResult<InputLookup>> => {
-            try {
-              let record: SubmissionRecord | undefined
-              if (query.by === 'native-ref') {
-                const id = nativeId(query.ref.id)
-                if (!sameSession(query.ref.session) || id === undefined)
-                  return { status: 'confirmed', value: { found: false } }
-                const submission = await native.submission(id as SubmissionId, context)
-                record = await submission?.status(context)
-              } else
-                record = await native.commit((tx) => tx.submissionByRequest(entry.conversation.id, query.key), context)
-              if (!record || record.conversationId !== entry.conversation.id || record.type !== 'input')
-                return { status: 'confirmed', value: { found: false } }
-              return { status: 'confirmed', value: { found: true, input: await readInputState(record) } }
-            } catch (cause) {
-              report(cause)
-              return { status: 'unknown', error: error('lookup-input', 'native-error') }
-            }
-          })()
-        )
-      },
-      retractInput(ref) {
-        if (unavailable()) return Promise.resolve(rejected('retract-input', 'closed'))
-        const id = nativeId(ref.id)
-        if (!sameSession(ref.session) || id === undefined)
-          return Promise.resolve(rejected('retract-input', 'not-found'))
-        return track(
-          (async (): Promise<OperationResult<RetractionReceipt>> => {
-            try {
-              const result = await native.abortSubmission(id as SubmissionId, context, entry.conversation.id)
-              if (result === 'not_found') return rejected('retract-input', 'not-found')
-              return {
-                status: 'confirmed',
-                value: {
-                  effect:
-                    result === 'aborted'
-                      ? 'withdrawn'
-                      : result === 'already_placed'
-                        ? 'already-placed'
-                        : 'already-settled'
-                }
-              }
-            } catch (cause) {
-              report(cause)
-              return { status: 'unknown', error: error('retract-input', 'native-error') }
-            }
-          })()
-        )
-      },
       interrupt() {
         if (unavailable()) return Promise.resolve(rejected('interrupt', 'closed'))
         return track(
@@ -778,7 +705,7 @@ export async function createPiDurableRuntime(
               })
             : entry.conversation.abort(context)
           ).then(
-            () => ({ status: 'confirmed' as const, value: { effect: 'native-scope-idle' as const } }),
+            () => ({ status: 'confirmed' as const, value: undefined }),
             (cause) => {
               report(cause)
               return { status: 'unknown' as const, error: error('interrupt', 'native-error') }
@@ -835,7 +762,7 @@ export async function createPiDurableRuntime(
       if (closing) return rejected('resume', 'closed')
       try {
         native.resume()
-        return { status: 'confirmed', value: { scope: 'runtime', effect: 'scheduling-enabled' } }
+        return { status: 'confirmed', value: undefined }
       } catch (cause) {
         report(cause)
         return { status: 'unknown', error: error('resume', 'native-error') }
@@ -869,7 +796,7 @@ export async function createPiDurableRuntime(
           await Promise.all([...live.values()].map((entry) => entry.projection.close()))
           await graph.stop()
           unsubscribe()
-          return { status: 'confirmed' as const, value: { effect: 'closed' as const } }
+          return { status: 'confirmed' as const, value: undefined }
         } catch (cause) {
           report(cause)
           return { status: 'unknown' as const, error: error('shutdown', 'native-error') }

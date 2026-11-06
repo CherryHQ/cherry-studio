@@ -11,7 +11,6 @@ import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } 
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
-import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AiUsagePricingSnapshot } from '@shared/data/types/aiUsageRecord'
@@ -22,8 +21,6 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import type { RuntimeForkInput, RuntimeForkResult } from './fork'
 import type { RuntimeWorkspaceRelocation } from './workspaceRelocation'
-
-export type AiRuntimeCapability = 'agent-session' | 'chat-turn' | 'generate-text' | 'embed' | 'image'
 
 /**
  * Agent-session usage has exactly one capture owner per runtime route.
@@ -46,11 +43,6 @@ export type AgentSessionUsageCapture =
       }>
     }
   | { owner: 'provider-calls' }
-
-export interface AiRuntimeDriver {
-  readonly type: string
-  readonly capabilities: readonly AiRuntimeCapability[]
-}
 
 export interface AgentRuntimeTraceContext {
   topicId: string
@@ -116,7 +108,7 @@ export interface AgentRuntimeToolApprovalRequest {
 }
 
 export interface RuntimeMessageProjection {
-  readonly legacy?: Readonly<Record<string, { messageId: string; parts: number[] }>>
+  readonly legacy?: Readonly<Record<string, { messageId: string }>>
   contextId: string
   messages: readonly CherryUIMessage[]
   live: readonly string[]
@@ -284,7 +276,8 @@ export interface AgentRuntimeConnection {
   closeForEdit?(): Promise<void>
 }
 
-export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
+export interface AgentSessionRuntimeDriver {
+  readonly type: string
   /** Native artifact ownership and checkpoint remapping before session recovery. */
   readonly workspaceRelocation?: RuntimeWorkspaceRelocation
   /** Restore persisted runtime history after generic fork, crash and delivery recovery. */
@@ -296,8 +289,6 @@ export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
    * this before `connect()` instead of hard-coding driver-specific guards.
    */
   validateSession(session: AgentSessionEntity): void | Promise<void>
-  /** Enumerate the tools this driver exposes for the given MCP server set. */
-  listAvailableTools(mcpIds: string[]): Promise<Tool[]>
   connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection>
   /**
    * Notified when a session goes idle and its runtime is torn down. Lets a

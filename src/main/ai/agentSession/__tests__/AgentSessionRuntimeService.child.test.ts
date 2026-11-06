@@ -107,10 +107,8 @@ function fixture() {
   const connect = vi.fn(() => ready.promise)
   runtimeDriverRegistry.register({
     type: 'pi',
-    capabilities: ['agent-session'],
     connect,
-    validateSession: () => {},
-    listAvailableTools: async () => []
+    validateSession: () => {}
   })
   const service = new AgentSessionRuntimeService()
   const emitter = new EventEmitter()

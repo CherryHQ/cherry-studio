@@ -25,7 +25,6 @@ type PiContext = { message: PiMessage; id: string }[]
 
 export interface PiObservation {
   readonly events: readonly ObservationPayload[]
-  readonly delivery: 'baseline' | 'update' | 'recovery'
   readonly aliases: Readonly<Record<string, string>>
   readonly live: readonly string[]
   readonly settled: boolean
@@ -63,11 +62,10 @@ export class PiProjection {
     this.feed = new ThreadFeed(
       {
         type: 'snapshot',
-        coverage: 'current-view',
         messages: [],
         inputs: [],
         ...(children ? { subagents: [] } : {}),
-        activity: { scope: 'foreground', state: session.isIdle ? 'idle' : 'active' }
+        activity: { state: session.isIdle ? 'idle' : 'active' }
       },
       report
     )
@@ -121,7 +119,6 @@ export class PiProjection {
       return {
         value: structuredClone({
           events: [event],
-          delivery,
           aliases: this.aliases,
           live:
             delivery === 'baseline'
@@ -157,7 +154,7 @@ export class PiProjection {
     this.feed.publish({
       ...this.feed.snapshot,
       messages: this.snapshotMessages,
-      activity: { scope: 'foreground', state: session.isIdle ? 'idle' : 'active' }
+      activity: { state: session.isIdle ? 'idle' : 'active' }
     })
     this.snapshotMessages = undefined
   }
@@ -471,7 +468,6 @@ export class PiProjection {
         this.recordInput({
           inputId: runtimeId(inputId),
           facts: [],
-          response: this.itemRef(event.entryId),
           outcome: completed
             ? 'completed'
             : reason === 'aborted'
@@ -539,7 +535,7 @@ export class PiProjection {
       this.settled = event.type === 'agent_settled'
       this.feed.publish({
         type: 'activity.changed',
-        activity: { scope: 'foreground', state: event.type === 'agent_start' ? 'active' : 'idle' }
+        activity: { state: event.type === 'agent_start' ? 'active' : 'idle' }
       })
       this.settled = false
     }

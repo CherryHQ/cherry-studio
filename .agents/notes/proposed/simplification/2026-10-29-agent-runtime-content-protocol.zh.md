@@ -14,6 +14,8 @@ Status: proposed
 
 proposed [运行时边界所有权后续方案](2026-11-05-agent-runtime-boundary-ownership.md)通过补齐输入、子线程访问和原生控制事实，并收敛其桌面资源所有者，补充本文的内容契约。SDK 内容表示、来源到产品消息的组合、持久化及已记录证据仍归本文；后续方案不把未完成验收标记为完成。
 
+该后续方案的 2026-11-06 修订明确拟撤去公开 InputState.response、ThreadSnapshot.coverage 和 Claude 重复归档输出。现有 aliases、实际响应到产品回复的计费关联、SDK 内容、历史保留算法及唯一产品写入者继续保留；旧批准和证据不覆盖这些新增删除项。
+
 ## 方案
 
 ### 1. 复用 SDK 模型，保留观察契约

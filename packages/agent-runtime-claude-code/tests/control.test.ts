@@ -1,4 +1,4 @@
-import type { SDKMessage, SDKResultMessage } from '@anthropic-ai/claude-agent-sdk'
+import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 import { describe, expect, it } from 'vitest'
 
 import { ClaudeControlState, type ClaudeControl } from '../src/control'
@@ -82,7 +82,7 @@ describe('Claude native lifecycle', () => {
   it('settles a task-notification result only when it belongs to an autonomous wake', () => {
     const f = fixture()
     f.state.beginTurn()
-    expect(f.accept(f.result({ origin: { kind: 'task-notification' } }))).toBeUndefined()
+    f.accept(f.result({ origin: { kind: 'task-notification' } }))
     expect(f.state.isTurnActive).toBe(true)
     f.accept(f.result())
     f.accept({ type: 'assistant', parent_tool_use_id: null, message: { content: [{ type: 'text', text: 'wake' }] } })
@@ -90,7 +90,7 @@ describe('Claude native lifecycle', () => {
       type: 'autonomous-turn-state',
       state: 'started'
     })
-    expect(f.accept(f.result({ origin: { kind: 'task-notification' } }))).toMatchObject({ subtype: 'success' })
+    f.accept(f.result({ origin: { kind: 'task-notification' } }))
     expect(f.events.at(-1)).toEqual({ type: 'autonomous-turn-state', state: 'finished' })
     expect(f.state.isTurnActive).toBe(false)
   })
@@ -218,8 +218,7 @@ describe('Claude native lifecycle', () => {
       reasoningTokens: 4
     })
     f.state.beginTurn()
-    const result = f.accept(f.result()) as SDKResultMessage
-    expect(result.type).toBe('result')
+    f.accept(f.result())
     expect(f.events.at(-1)).not.toMatchObject({
       type: 'result',
       reasoningTokens: 4

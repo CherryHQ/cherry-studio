@@ -4,6 +4,8 @@ Status: proposed
 
 English | [中文](2026-10-17-agent-runtime-contract.zh.md)
 
+Legacy Pi executor source/test links are pinned to pre-contraction `46d76e4` as historical evidence. Current implementation and test ownership are defined in section 11 of the [runtime boundary contraction plan](../simplification/2026-11-05-agent-runtime-boundary-ownership.md); those legacy entry points have left the production path.
+
 ## Problem
 
 Cherry needs to open native contexts, submit input, observe work independently of a particular submission, and release resources across different harnesses. Requiring every harness to adopt Cherry's session engine would duplicate native scheduling and recovery. A large capability matrix would instead make every consumer interpret those differences itself.
@@ -13,6 +15,8 @@ This note replaces the stack's runtime ownership and behavior design. It records
 The [SDK content protocol](../simplification/2026-10-29-agent-runtime-content-protocol.md) owns the implemented replacement of `ContentItem` and SDK content accumulation at the shared observation source. Its `RuntimeMessage` contract supersedes the item events and Main readers described below. Access, input admission, lifecycle, native recovery, and product ownership remain governed here.
 
 The proposed [runtime boundary ownership follow-up](../simplification/2026-11-05-agent-runtime-boundary-ownership.md) would partially supersede the desktop input round-trip, child-access plumbing and placement of native control interpretation. It reuses this access/lifecycle contract and adds no product dependencies to the packages; the existing requirements remain in force until that follow-up is approved and implemented.
+
+The 2026-11-06 revision in that same follow-up proposes retiring unconsumed policies, input-response/snapshot-coverage outputs, receipt values and native-only facets, while retaining native identity, admission, observation, recovery and persistence. Its new removal scope is not covered by earlier approval; the follow-up owns the replacement public surface.
 
 ## Proposal
 
@@ -166,7 +170,7 @@ The Pi root desktop path now runs `AgentChatContextProvider → AgentSessionRunt
 | Location | Planned change | Responsibility retained there |
 | --- | --- | --- |
 | [Common contract](../../../../packages/agent-runtime/src/contracts.ts) | Use existing thread, optional input, relationship, and observation contracts first. Add a field only after native evidence and a consumer require it. | No product rows, delivery journal, scheduler, or UI lane. |
-| [Pi runtime](../../../../packages/agent-runtime-pi/src/runtime.ts), [projection](../../../../packages/agent-runtime-pi/src/runtimeProjection.ts), and [subagent owner](../../../../packages/agent-runtime-pi/src/subagent.ts) | Add verifiable input correlation and restore child access through its native owner. | Native sessions, child execution, result delivery, and typed Pi extensions. |
+| [Pi runtime](../../../../packages/agent-runtime-pi/src/runtime.ts), [projection](../../../../packages/agent-runtime-pi/src/runtimeProjection.ts), and [subagent owner](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/src/subagent.ts) | Add verifiable input correlation and restore child access through its native owner. | Native sessions, child execution, result delivery, and typed Pi extensions. |
 | [Durable runtime](../../../../packages/agent-runtime-pi-durable/src/runtime.ts) | Reconcile persisted input mappings and child ownership against native submissions/tasks before scheduler activation. | Native Harness/storage ownership and recovery semantics. |
 | [Desktop Pi integration](../../../../src/main/ai/runtime/pi/README.md) | Reuse host configuration/materialization and bind native Pi providers to the internal gateway; replace execution and output routing incrementally. | Prompt, skills, MCP, approvals, shell environment, model policy, usage, and tracing. |
 | [AgentSessionRuntimeService](../../../../src/main/ai/agentSession/AgentSessionRuntimeService.ts) and its persistence modules | Own configured runtime instances, logical input delivery, and a projection per thread. `ThreadProjection.ts` converts live content inside the existing module. | Product lifecycle, authorization, persistence barriers, and integration with delivery/fork operations. |

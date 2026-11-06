@@ -74,7 +74,8 @@ persistence, branch bindings, message views, trace context and configuration rec
 class requires moving those consumers to `ThreadHandle`; installing behavior alone does not remove it.
 
 Before dispatch, Main binds the existing user row to its native context; placement adds the native
-input entry ID. Input outcomes and response associations remain in the live runtime projection.
+input entry ID. Input outcomes remain in the live runtime projection; Main owns product reply
+identity and joins billing through native response identity.
 Saving an assistant row confirms its branch binding and stores its resume token and checkpoint in
 the same transaction. Attachments retain Cherry's existing file-path input representation.
 

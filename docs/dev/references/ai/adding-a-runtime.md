@@ -76,12 +76,11 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
 `src/main/ai/runtime/types.ts`:
 
 1. **Driver** (`AgentSessionRuntimeDriver`) — required members:
-   - `type` (the `AgentType` literal) and `capabilities: ['agent-session']`
+   - `type` (the `AgentType` literal)
    - `validateSession(session)` — throw if the session can't be served
      (missing workspace, agent, model, unusable provider). Must be
      **side-effect free**: it runs on every dispatch, so it must not consume
      API-key rotation, open connections, or write state.
-   - `listAvailableTools(mcpIds)` — the tool catalog for approval UI.
    - `connect(input)` — build an `AgentRuntimeConnection`.
    - `workspaceRelocation`, when the runtime persists workspace-dependent history:
      own native validation and opaque checkpoint remapping here, stage artifacts through

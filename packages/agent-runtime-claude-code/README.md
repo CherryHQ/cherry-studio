@@ -50,7 +50,7 @@ Native Agent/SendMessage own child continuation; no direct child send is fabrica
 
 Each logical input receives a native UUID. Reusing an input ID on the same owner
 is rejected; this is not durable deduplication. The submit receipt initially proves
-only `dispatch-started`. Correlated output establishes placement; the native result
+only `dispatch-started`. Correlated native request membership or output establishes placement; the native result
 establishes completion, failure, interruption, or an unanswered outcome. Several
 inputs can share one response. Process loss leaves uncertain delivery uncompleted
 and never triggers automatic resubmission.
@@ -74,8 +74,9 @@ Typed batches pair normalized events with native control facts, completed invoca
 the exact native payload and source retractions. Rich blocks, thinking signatures, usage, reset and local-command
 metadata remain native types. The adapter never introduces SDK types into the
 common package. `ClaudeFeed` uses `ThreadFeed` for normalized state and bounds
-delivery of paired batches. `delivery` distinguishes baseline, update and recovery; aliases,
-retractions and live provenance are captured together. Initial baseline includes current background
+delivery of paired batches. Baseline and recovery are internal delivery modes; aliases,
+retractions and live provenance are captured together. Batch state exposes captured `aborted`;
+`claude.state()` exposes current `active`. Background occupancy stays in private control state. Initial baseline includes current background
 occupancy without replaying historical completion or charges. Overflow recovery retains unseen control
 and invocation facts after their matching body; an unrecoverable backlog reports a gap and closes.
 Slow or failing consumers cannot block native execution. After stopping production, hosts await
@@ -91,9 +92,11 @@ The typed feed also includes native `command_lifecycle` events, which the pinned
 SDK emits but omits from its `SDKMessage` declaration. `queued` proves native
 admission; `started` proves dispatch into native handling, including local commands.
 Neither alone proves model placement. A typed-prompt turn stamps reply correlation
-once, so a later folded input may appear only in the result's complete UUID list.
-The adapter joins command and response membership to emit `input-boundary`; Main never infers
-placement from `started`. Input outcomes precede the corresponding terminal result batch.
+once, so a later folded input can be absent from the reply's UUID list.
+Native `status: requesting` carries the request's current input UUIDs before streamed content;
+the adapter validates this field, omitted from the pinned SDK status declaration, to emit
+`input-boundary` before the next reply's body and charges. Main never infers placement from
+`started`. Input outcomes precede the corresponding terminal result batch.
 `ClaudeControlState` owns native lifecycle, task receipts, autonomous work and compaction semantics.
 Control payloads reuse SDK message types; only interpreted state, task/tool correlation and observation
 timestamps are adapter-owned fields. Main maps native payloads to product labels and display fields.
@@ -112,14 +115,14 @@ partial. Explicit retractions are retained in live snapshots and archives so rep
 cannot revive removed sources. A newer task run cannot be ended by an older run's
 late event. Missing parent evidence leaves relationships unresolved.
 
-`claude.archive()` returns the native selected view, normalized SDK messages (`content`), source IDs,
-and explicit retractions. SDK history APIs and native export run in an isolated
+`claude.archive()` returns normalized SDK messages (`content`), legacy part mappings and explicit
+retractions. Raw native messages and committed-source membership remain internal. SDK history APIs and native export run in an isolated
 worker with the backend's configuration environment; the caller's environment is
 unchanged. Live events are buffered during reconciliation and applied afterward.
 Compaction selects a new model context without deleting previously observed product
 content. Missing native files return an error instead of a writable replacement.
-`claude.archive({ refresh: false })` captures already observed committed sources with `retained-view`
-coverage, without triggering another observation from inside a projection writer. Default archive
+`claude.archive({ refresh: false })` captures already observed committed content
+without triggering another observation from inside a projection writer. Default archive
 refresh still reads the selected native view. Permission denial is applied to native tool parts and
 survives out-of-order assistant messages and archive refresh.
 The adapter preserves signatures, files, citations and raw tool outputs in SDK parts/metadata.

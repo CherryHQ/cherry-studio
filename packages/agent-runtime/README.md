@@ -5,8 +5,8 @@ facts, interrupting foreground work, and releasing access/resources. This packag
 Claude SDK, Electron, or application dependency and does not schedule agent execution.
 
 `Thread` is the stable native context identity within a backend. `ThreadHandle` is a live access
-with observation and release operations. Its optional `input` groups `submit` with supported
-busy `policies`; observation-only access omits it. Releasing an access does not delete the thread
+with observation and release operations. Its optional `input` exposes `submit`; observation-only
+access omits it. Concrete adapters validate `whenBusy` before dispatch. Releasing an access does not delete the thread
 or abort its work. The host stores product-session relationships separately from native context storage.
 
 `Subagent { id, parent, child?, origin? }` describes an observed relationship. Its ID is scoped to the
@@ -17,10 +17,11 @@ description; continuation does not replace that origin. Concrete facets provide 
 to await an admitted creation and return its relationship and access together, without starting execution.
 Open an available child separately to observe its output or use its input.
 
-`InputState.response` links a logical input to its evidenced terminal response. Several inputs
-may share that message; a response may be failed, aborted or truncated, so its presence alone is not
-success. Missing outcome remains unknown. References follow the source's current-view identity
-and coverage rules; the host retains native correlation separately when it needs restart recovery.
+`InputState` carries admission/placement facts, native input references and the terminal outcome.
+Missing outcome remains unknown. The host retains native input bindings separately for restart
+recovery; product reply identity and billing do not come from a common response pointer.
+Interrupt, resume and shutdown return `OperationResult<void>`; success confirms the operation's
+native contract, not application-wide cancellation.
 
 `RuntimeMessage` specializes AI SDK `UIMessage` with native completeness and optional placed-input metadata.
 `ThreadSnapshot.messages`, `message.upsert`, and `message.remove` expose whole native messages.

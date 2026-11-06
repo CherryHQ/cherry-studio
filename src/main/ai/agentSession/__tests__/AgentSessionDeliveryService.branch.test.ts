@@ -66,9 +66,7 @@ describe('durable delivery native branch admission', () => {
     })
     runtimeDriverRegistry.register({
       type: 'pi',
-      capabilities: ['agent-session'],
       validateSession: async () => {},
-      listAvailableTools: async () => [],
       connect: async ({ sessionId, branchHead, resumeToken }) => {
         const branch = resumeToken ?? 'missing-history'
         const context = preparePiBranch(sessionId, branchHead, resumeToken)

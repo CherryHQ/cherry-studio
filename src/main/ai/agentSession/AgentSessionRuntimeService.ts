@@ -2403,9 +2403,9 @@ export class AgentSessionRuntimeService extends BaseService {
   private handleCompactionComplete(entry: AgentSessionRuntimeEntry, anchor?: AgentSessionCompactionAnchorData): void {
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'compaction', active: false })
 
-    const turn = this.currentTurn(entry)
-    if (anchor && turn?.controller && this.isTurnLive(entry, turn)) {
-      this.enqueueTurnChunk(entry, turn, {
+    const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
+    if (anchor && turn && this.isTurnLive(entry, turn)) {
+      this.deliverRuntimeChunk(entry, {
         type: 'data-compaction-anchor',
         id: crypto.randomUUID(),
         data: anchor

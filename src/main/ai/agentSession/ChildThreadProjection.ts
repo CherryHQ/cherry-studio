@@ -244,7 +244,6 @@ export class ChildThreadProjection {
       try {
         await recovered.accept({
           type: 'snapshot',
-          coverage: 'current-view',
           messages: archive.messages.filter((item) => !this.removed.has(item.id)),
           inputs: [],
           activity: current.activity

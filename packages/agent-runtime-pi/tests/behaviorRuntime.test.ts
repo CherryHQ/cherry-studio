@@ -135,7 +135,7 @@ it('cancels an input stopped during preflight before its first model request', a
   const root = confirmed(await runtime.create(config))
   const pending = root.input.submit(draft('pending'))
   await held.reached
-  expect(confirmed(await root.interrupt!()).effect).toBe('requested')
+  confirmed(await root.interrupt!())
   held.open()
   await pending
   confirmed(await runtime.shutdown())
@@ -211,8 +211,7 @@ it('correlates a steer placed in an already running child', async () => {
     .poll(() => inputs(events, 'steer child').at(-1))
     .toMatchObject({
       facts: expect.arrayContaining(['queued', 'placed']),
-      outcome: 'completed',
-      response: { session: child.thread }
+      outcome: 'completed'
     })
   const archive = child.pi.archive().messages
   const placed = archive.find(
@@ -421,7 +420,7 @@ it('routes manual compaction to the host and preserves the native identity on re
   const provider = respondingModel(() => assistantReply('answer'))
   const { runtime, config, host, errors } = await setup(provider.model)
   const requests: Parameters<HostPorts['summarizer']['summarize']>[0][] = []
-  const behavior = config.behavior!
+  const behavior = config.behavior
   const root = confirmed(
     await runtime.create({
       ...config,
@@ -475,7 +474,7 @@ it.each(['interrupt', 'shutdown'] as const)('cancels a standalone manual compact
     await runtime.create({
       ...config,
       behavior: {
-        ...config.behavior!,
+        ...config.behavior,
         host: {
           ...host,
           summarizer: {
@@ -499,7 +498,7 @@ it.each(['interrupt', 'shutdown'] as const)('cancels a standalone manual compact
     await expect.poll(() => signal.aborted).toBe(true)
     expect(await stopping).toMatchObject({
       status: 'confirmed',
-      value: { effect: action === 'interrupt' ? 'requested' : 'closed' }
+      value: undefined
     })
     expect((await compacting).status).not.toBe('confirmed')
     expect(root.pi.history().some((entry) => entry.type === 'compaction')).toBe(false)
@@ -569,7 +568,7 @@ it('uses host approvals and question answers through the shared behavior tools',
     await runtime.create({
       ...config,
       behavior: {
-        ...config.behavior!,
+        ...config.behavior,
         host: {
           ...host,
           approvals: {
@@ -589,6 +588,82 @@ it('uses host approvals and question answers through the shared behavior tools',
   expect(writes).toEqual([])
   expect(JSON.stringify(provider.calls[1].messages)).toContain('Leave the file alone')
   expect(JSON.stringify(provider.calls[2].messages)).toContain('Redis')
+  expect(errors).toEqual([])
+})
+
+// Catches a pending question surviving Stop, or its late answer causing an unrequested model turn.
+it('cancels a native question and ignores its late answer', async () => {
+  const provider = respondingModel(() =>
+    assistantReply(
+      [
+        toolCallPart('ask', 'AskUserQuestion', {
+          questions: [
+            {
+              question: 'Which database?',
+              header: 'Database',
+              options: [
+                { label: 'Postgres', description: 'Relational' },
+                { label: 'Redis', description: 'In memory' }
+              ]
+            }
+          ]
+        })
+      ],
+      'toolUse'
+    )
+  )
+  const { runtime, config, host, errors } = await setup(provider.model)
+  const root = confirmed(await runtime.create(config))
+  const events = await observe(root)
+  await root.input.submit(draft('help choose'))
+  await expect.poll(() => host.asked.questions).toBe(1)
+  confirmed(await root.interrupt!())
+  await root.pi.settled()
+  await expect.poll(() => inputs(events, 'help choose').at(-1)?.outcome).toBe('aborted')
+  const result = () =>
+    root.pi.history().find((entry) => entry.type === 'message' && entry.message.role === 'toolResult')
+  expect(result()).toMatchObject({ message: { details: { outcome: 'aborted' } } })
+  host.answerQuestion({ status: 'answered', answers: { 'Which database?': 'Redis' } })
+  await root.pi.settled()
+  expect(result()).toMatchObject({ message: { details: { outcome: 'aborted' } } })
+  expect(provider.calls).toHaveLength(1)
+  expect(errors).toEqual([])
+})
+
+// Catches a Todo result kept only in extension memory, or a reopen that starts work to recover it.
+it('restores Todo output from its native file without submitting input', async () => {
+  const todos = [{ content: 'Keep the saved task', status: 'in_progress' }]
+  const provider = respondingModel((_call, n) =>
+    n === 1
+      ? assistantReply([toolCallPart('todo', 'todo_write', { todos })], 'toolUse')
+      : assistantReply('task recorded')
+  )
+  const { runtime, config, errors } = await setup(provider.model)
+  const manager = SessionManager.create(config.cwd, join(config.cwd, 'sessions'))
+  const root = confirmed(await runtime.create({ ...config, sessionManager: manager }))
+  await root.input.submit(draft('record the task'))
+  await root.pi.settled()
+  confirmed(await runtime.shutdown())
+  const reopened = confirmed(
+    await createPiRuntime({
+      backendId: root.thread.backendId,
+      load: async () => ({
+        ...config,
+        sessionManager: SessionManager.openExisting(manager.getSessionFile()!, root.thread.id)
+      })
+    })
+  )
+  onTestFinished(async () => {
+    await reopened.shutdown()
+  })
+  const handle = confirmed(await reopened.open(root.thread))
+  expect(
+    handle.pi.history().find((entry) => entry.type === 'message' && entry.message.role === 'toolResult')
+  ).toMatchObject({
+    message: { toolName: 'todo_write', details: { todos, counts: { pending: 0, inProgress: 1, completed: 0 } } }
+  })
+  expect(JSON.stringify(handle.pi.archive().messages)).toContain('Keep the saved task')
+  expect(provider.calls).toHaveLength(2)
   expect(errors).toEqual([])
 })
 
@@ -622,7 +697,7 @@ it('withdraws a pending child input and closes the native graph on shutdown', as
       root.pi.history().some((entry) => entry.type === 'custom' && entry.customType === 'cherry.subagent-steer')
     )
     .toBe(true)
-  expect(await runtime.shutdown()).toMatchObject({ status: 'confirmed', value: { effect: 'closed' } })
+  expect(await runtime.shutdown()).toMatchObject({ status: 'confirmed', value: undefined })
   expect(await submitted).toMatchObject({ status: 'rejected' })
   await expect.poll(() => childEvents.at(-1)).toMatchObject({ type: 'closed', reason: 'shutdown' })
   expect(await child.input.submit(draft('too late', 'steer'))).toMatchObject({
@@ -634,7 +709,6 @@ it('withdraws a pending child input and closes the native graph on shutdown', as
 // Catches silently loading a persisted child as an independent root, losing its behavior ownership.
 it('restores child relations on reopen and refuses a child without its live owner', async () => {
   let rootId = ''
-  let childManager: SessionManager | undefined
   const provider = respondingModel((call) => {
     if (call.sessionId !== rootId) return assistantReply('child done')
     if (JSON.stringify(call.messages.at(-1)).includes('delegate'))
@@ -642,25 +716,15 @@ it('restores child relations on reopen and refuses a child without its live owne
     return assistantReply('parent done')
   })
   const { runtime, config } = await setup(provider.model)
-  const root = confirmed(
-    await runtime.create({
-      ...config,
-      behavior: {
-        ...config.behavior!,
-        configureChild: () => ({
-          onSessionCreated: (session) => {
-            childManager = session.sessionManager
-          }
-        })
-      }
-    })
-  )
+  const root = confirmed(await runtime.create(config))
   rootId = root.thread.id
   const events = await observe(root)
   await root.input.submit(draft('delegate'))
   await expect.poll(() => inputs(events, 'delegate').at(-1)?.outcome).toBe('completed')
   const relation = events.find((event) => event.type === 'subagent.upsert')
   if (relation?.type !== 'subagent.upsert' || !relation.subagent.child) throw new Error('No child')
+  const childAccess = confirmed(await runtime.open(relation.subagent.child))
+  const childManager = SessionManager.inMemory(config.cwd, { id: childAccess.thread.id }, [...childAccess.pi.history()])
   confirmed(await runtime.shutdown())
   const reopened = confirmed(
     await createPiRuntime({
@@ -706,7 +770,7 @@ it('isolates child restore failures and recovers the same child after its model 
   })
   const alternate = await createTestBinding({ stream: provider.model, model: { ...MODEL, id: 'alternate' } })
   const { runtime, config, host } = await setup(provider.model, { cwd, agentDir: cwd, sessionManager: manager })
-  const children = new Map<string, SessionManager>()
+  const childIds = new Map<string, string>()
   let unavailable = false
   config.behavior = {
     host: {
@@ -716,24 +780,18 @@ it('isolates child restore failures and recovers the same child after its model 
         find: async () => [{ key: 'test/alternate', provider: 'test', model: 'Alternate', exact: true }]
       }
     },
-    configureChild: ({ origin }) => {
-      if (origin.modelKey === 'test/alternate' && unavailable) throw new Error('Unknown subagent model: test/alternate')
-      return {
-        ...(origin.modelKey === 'test/alternate' ? alternate : {}),
-        onSessionCreated: (session) => {
-          children.set(origin.description, session.sessionManager)
-        }
-      }
+    configureChild: ({ thread, modelKey }) => {
+      if (modelKey === 'test/alternate' && unavailable) throw new Error('Unknown subagent model: test/alternate')
+      childIds.set(modelKey, thread.id)
+      return modelKey === 'test/alternate' ? alternate : {}
     }
   }
   const root = confirmed(await runtime.create(config))
   const events = await observe(root)
   await root.input.submit(draft('delegate'))
   await expect.poll(() => inputs(events, 'delegate').at(-1)?.outcome).toBe('completed')
-  expect(children.size).toBe(2)
-  const childManager = children.get('Unavailable')!
-  const healthyManager = children.get('Healthy')!
-  const childRef = { backendId: root.thread.backendId, id: runtimeId<'thread'>(childManager.getSessionId()) }
+  expect(childIds.size).toBe(2)
+  const childRef = { backendId: root.thread.backendId, id: runtimeId<'thread'>(childIds.get('test/alternate')!) }
   const child = confirmed(await runtime.open(childRef))
   const archive = child.pi.archive()
   const runs = () =>
@@ -747,11 +805,8 @@ it('isolates child restore failures and recovers the same child after its model 
       await createPiRuntime({
         backendId: root.thread.backendId,
         load: async (ref) => {
-          const saved =
-            ref.id === rootId ? manager : [...children.values()].find((child) => child.getSessionId() === ref.id)
-          return saved
-            ? { ...config, sessionManager: SessionManager.openExisting(saved.getSessionFile()!, ref.id) }
-            : undefined
+          const saved = (await SessionManager.list(cwd, join(cwd, 'sessions'))).find((saved) => saved.id === ref.id)
+          return saved ? { ...config, sessionManager: SessionManager.openExisting(saved.path, ref.id) } : undefined
         },
         onError: (error) => {
           errors.push(error)
@@ -776,7 +831,7 @@ it('isolates child restore failures and recovers the same child after its model 
     status: 'rejected',
     error: { code: 'child-owner-unavailable' }
   })
-  const healthy = confirmed(await reopened.open({ ...childRef, id: runtimeId(healthyManager.getSessionId()) }))
+  const healthy = confirmed(await reopened.open({ ...childRef, id: runtimeId(childIds.get('test/test-model')!) }))
   expect(JSON.stringify(healthy.pi.archive().messages)).toContain('child answer')
   expect(
     rootAgain.pi.history().filter((entry) => entry.type === 'custom' && entry.customType === 'cherry.subagent-run')

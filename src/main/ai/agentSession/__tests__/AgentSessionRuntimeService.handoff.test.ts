@@ -104,9 +104,7 @@ async function fixture(opts: { headless?: boolean; redirect?: boolean } = {}) {
   const emit = (event: AgentRuntimeEvent) => new Promise<void>((consumed) => queue.push({ event, consumed }))
   runtimeDriverRegistry.register({
     type: 'pi',
-    capabilities: ['agent-session'],
     validateSession: () => {},
-    listAvailableTools: async () => [],
     connect: async () => ({
       contextId: context.id,
       events: {
@@ -355,6 +353,29 @@ it('keeps ordinary content and usage attached to the original reply', async () =
     dbh.db.select().from(aiUsageRecordTable).where(eq(aiUsageRecordTable.requestId, 'response-B')).get()
   ).toMatchObject({ messageId: f.replyB.id, totalTokens: 120 })
 })
+
+it.each([false, true])(
+  'persists compaction-only replies when completion precedes stream opening: %s',
+  async (early) => {
+    const f = await fixture()
+    const anchor = {
+      status: 'done' as const,
+      phase: 'agent-session' as const,
+      trigger: 'manual' as const,
+      completedAt: '2026-11-06T00:00:00.000Z'
+    }
+    let finish = early ? undefined : f.openB()
+    await f.emit({ type: 'compaction-start', trigger: 'manual' })
+    await f.emit({ type: 'compaction-complete', anchor })
+    finish ??= f.openB()
+    await f.emit({ type: 'turn-complete' })
+    await finish()
+    expect(messages.getSessionMessage('root', f.replyB.id)).toMatchObject({
+      status: 'success',
+      data: { parts: [{ type: 'data-compaction-anchor', data: anchor }] }
+    })
+  }
+)
 
 it('waits for final observations before close persists a failed reply, and retries a failed close', async () => {
   const f = await fixture()

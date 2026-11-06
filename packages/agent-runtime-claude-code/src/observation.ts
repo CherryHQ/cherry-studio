@@ -1,6 +1,6 @@
 import { ThreadFeed, type Observation, type ObservationPayload, type ThreadSnapshot } from '@cherrystudio/agent-runtime'
 
-import type { ClaudeControl } from './control'
+import type { ClaudeControl, ClaudeControlState } from './control'
 import type { ClaudeInvocation, ClaudeNativeMessage, ClaudeObservation, ClaudeObservationSink } from './types'
 
 /** Keeps typed native payloads and normalized changes in the same bounded delivery queue. */
@@ -15,17 +15,16 @@ export class ClaudeFeed {
   private readonly observers = new Set<(batch: ClaudeObservation) => void>()
   private ended = false
   private legacy: NonNullable<ClaudeObservation['legacy']> = {}
-  private controlState: ClaudeObservation['state'] = { active: false, aborted: false }
+  private controlState?: ClaudeControlState['snapshot']
 
   constructor(private readonly report: (error: unknown) => void) {
     this.state = new ThreadFeed(
       {
         type: 'snapshot',
-        coverage: 'live-only',
         messages: [],
         inputs: [],
         subagents: [],
-        activity: { scope: 'foreground', state: 'unknown' }
+        activity: { state: 'unknown' }
       },
       report
     )
@@ -38,8 +37,7 @@ export class ClaudeFeed {
   private baseline(): ClaudeObservation {
     return {
       events: [this.snapshot],
-      delivery: 'baseline',
-      state: this.controlState,
+      state: { aborted: this.controlState?.aborted ?? false },
       controls: this.controlState?.backgroundTasks
         ? [
             { type: 'background-tasks', tasks: this.controlState.backgroundTasks },
@@ -60,7 +58,7 @@ export class ClaudeFeed {
     legacy?: ClaudeObservation['legacy'],
     invocations: readonly ClaudeInvocation[] = [],
     controls: readonly ClaudeControl[] = [],
-    state?: ClaudeObservation['state']
+    state?: ClaudeControlState['snapshot']
   ): void {
     if (this.ended) return
     if (state) this.controlState = state
@@ -105,8 +103,7 @@ export class ClaudeFeed {
     const batch: ClaudeObservation = {
       events,
       controls,
-      state: this.controlState,
-      delivery: 'update',
+      state: { aborted: this.controlState?.aborted ?? false },
       invocations,
       native,
       live: events.flatMap((event) =>
@@ -135,12 +132,12 @@ export class ClaudeFeed {
     let sent = 1
     let delivered = 0
     const historical = new Set(this.snapshot.messages.map((message) => message.id))
-    const capture = (batch: ClaudeObservation): ClaudeObservation => ({
+    const capture = (batch: ClaudeObservation, baseline = false): ClaudeObservation => ({
       ...structuredClone(batch),
-      live: batch.delivery === 'baseline' ? [] : batch.live?.filter((id) => !historical.has(id))
+      live: baseline ? [] : batch.live?.filter((id) => !historical.has(id))
     })
     type Delivery = { batch: ClaudeObservation; through: number; recovery?: ClaudeObservation }
-    let pending: Delivery[] = [{ batch: capture(this.baseline()), through: sent }]
+    let pending: Delivery[] = [{ batch: capture(this.baseline(), true), through: sent }]
     const barriers = new Set<{ through: number; resolve(): void; reject(error: Error): void }>()
     const settle = () => {
       for (const barrier of barriers) {
@@ -181,8 +178,7 @@ export class ClaudeFeed {
       if (stopped || lost) return
       for (const [previous, replacement] of Object.entries(batch.replaces ?? {}))
         if (historical.has(previous)) historical.add(replacement)
-      const recover = () =>
-        capture({ ...this.baseline(), delivery: 'recovery', controls: batch.controls, invocations: batch.invocations })
+      const recover = () => capture({ ...this.baseline(), controls: batch.controls, invocations: batch.invocations })
       const critical = Boolean(batch.controls?.length || batch.invocations?.length)
       pending.push({ batch: capture(batch), through: ++sent, ...(critical && { recovery: recover() }) })
       if (pending.length > 100) {

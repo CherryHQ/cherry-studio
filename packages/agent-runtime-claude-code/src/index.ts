@@ -10,8 +10,7 @@ export type {
   ClaudeObservationSink,
   ClaudeNativeMessage,
   ClaudeCommandLifecycle,
-  ClaudeArchive,
-  ClaudeSource
+  ClaudeArchive
 } from './types'
 
 export type { ClaudeControl, ClaudeResultFailure, ClaudeTaskFact } from './control'

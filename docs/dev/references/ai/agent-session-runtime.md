@@ -209,8 +209,9 @@ Stop is now the only abort source). `enqueueUserMessage()`:
    submits the immutable input to the native queue. Claude Code uses SDK
    `priority: 'next'`: native admission either folds it into the running turn
    or starts a later turn. The host does not resend an accepted input. Its
-   `steer-boundary` carries input IDs from the adapter's evidenced command/response
-   membership, even if the preceding product turn has already settled. Native
+   `steer-boundary` carries input IDs from evidenced native request/response
+   membership, even if the preceding product turn has already settled. Claude's
+   correlated `requesting` status establishes this boundary before streamed content;
    `started` alone is not placement evidence.
    Pi consumes its own queue: unplaced inputs remaining after stop/error
    receive native aborted evidence and are not automatically resent.
@@ -547,6 +548,9 @@ waiting user reply, and admitted input is never resent by these retries.
 checkpoint excludes other replies whose bodies have not committed. Response IDs bind usage
 to the reserved reply immediately, while the message foreign key waits for the row to exist;
 usage itself is recorded at once. Opening a stream does not infer content or accounting ownership.
+Compaction completion anchors use this same projection/control delivery path, including when
+the stream has not opened. A direct stream enqueue would omit the anchor from the final saved
+message and leave a successful compaction looking like an empty response after reload.
 
 ## Resume token persistence
 
@@ -895,7 +899,9 @@ Runtime content uses whole native SDK messages. Pi and Claude decode deltas once
 the adapter source; Durable materializes committed native view revisions directly.
 Tool results and preliminary progress update the originating tool part, while activity
 and input outcomes remain separate facts within the same captured delivery. Concrete observations
-include aliases and live/history provenance with their content. Initial baselines do not replay
+include aliases and live/history provenance with their content. Delivery modes and Durable commit
+revisions stay internal; consumers receive the captured body, input outcomes and completion facts.
+Input facts retain native input bindings without duplicating product reply identity. Initial baselines do not replay
 completion or charges; overflow recovery retains unseen control facts after their matching body.
 Main never fetches mutable alias state later or guesses whether a snapshot is live. Claude's
 package also owns permission denial, native archives and SDK invocation aggregation; its Main

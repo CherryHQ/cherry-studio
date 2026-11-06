@@ -14,6 +14,8 @@ This proposal partially supersedes the content representation and reader placeme
 
 The proposed [runtime boundary ownership follow-up](2026-11-05-agent-runtime-boundary-ownership.md) complements this content contract by completing input, child-access and native-control facts and consolidating their desktop resource owners. This note remains the owner of SDK content representation, source-to-product composition, persistence and its recorded evidence; the follow-up does not mark outstanding acceptance complete.
 
+The 2026-11-06 revision in that follow-up explicitly proposes withdrawing public InputState.response, ThreadSnapshot.coverage and duplicate Claude archive outputs. Existing aliases, actual response-to-product billing joins, SDK content, retained-history algorithms and the sole product writer remain required; earlier approval and evidence do not approve these new removals.
+
 ## Proposal
 
 ### 1. Reuse the SDK model and retain the observation contract

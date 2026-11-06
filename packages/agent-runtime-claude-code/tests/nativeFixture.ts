@@ -173,10 +173,9 @@ export async function observe(handle: ClaudeThreadHandle) {
   const native: (SDKMessage | ClaudeCommandLifecycle)[] = []
   const initial: ThreadSnapshot = {
     type: 'snapshot',
-    coverage: 'live-only',
     messages: [],
     inputs: [],
-    activity: { scope: 'foreground', state: 'unknown' }
+    activity: { state: 'unknown' }
   }
   const state = new ThreadFeed(initial, (error) => {
     throw error

@@ -502,7 +502,6 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
     async submitUser(thread, text) {
       accepting()
       users += 1
-      // A person's submissions get adapter-local keys; rules never see them.
       submit(adapter, conversation(thread), `user:${users}`, text)
     },
     prompt(thread, text, promptOptions, signal) {

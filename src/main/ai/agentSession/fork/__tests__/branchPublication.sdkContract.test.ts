@@ -54,12 +54,8 @@ describe('Pi branch publication with native files', () => {
       .run()
     runtimeDriverRegistry.register({
       type: 'pi',
-      capabilities: ['agent-session'],
       fork: forkPiSession,
       validateSession() {},
-      async listAvailableTools() {
-        return []
-      },
       async connect() {
         throw new Error('Browsing and fork must not run a model')
       }

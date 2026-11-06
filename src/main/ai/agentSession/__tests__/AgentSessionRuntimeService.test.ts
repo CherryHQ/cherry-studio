@@ -950,10 +950,8 @@ describe('AgentSessionRuntimeService', () => {
     }
     runtimeDriverRegistry.register({
       type: 'test-runtime',
-      capabilities: ['agent-session'],
       connect: vi.fn().mockResolvedValue(connection),
-      validateSession: vi.fn(),
-      listAvailableTools: vi.fn().mockResolvedValue([])
+      validateSession: vi.fn()
     })
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn({
@@ -1651,10 +1649,8 @@ describe('AgentSessionRuntimeService', () => {
       const onSessionIdle = vi.fn()
       runtimeDriverRegistry.register({
         type: 'test-runtime',
-        capabilities: ['agent-session'],
         connect: vi.fn(),
         validateSession: vi.fn(),
-        listAvailableTools: vi.fn().mockResolvedValue([]),
         onSessionIdle
       })
       const service = new AgentSessionRuntimeService()
@@ -1677,10 +1673,8 @@ describe('AgentSessionRuntimeService', () => {
       const onSessionIdle = vi.fn()
       runtimeDriverRegistry.register({
         type: 'test-runtime',
-        capabilities: ['agent-session'],
         connect: vi.fn(),
         validateSession: vi.fn(),
-        listAvailableTools: vi.fn().mockResolvedValue([]),
         onSessionIdle
       })
       const service = new AgentSessionRuntimeService()
@@ -1760,10 +1754,8 @@ describe('AgentSessionRuntimeService', () => {
     const connect = vi.fn().mockResolvedValueOnce(firstConnection).mockResolvedValueOnce(secondConnection)
     runtimeDriverRegistry.register({
       type: 'test-runtime',
-      capabilities: ['agent-session'],
       connect,
-      validateSession: vi.fn(),
-      listAvailableTools: vi.fn().mockResolvedValue([])
+      validateSession: vi.fn()
     })
     const service = new AgentSessionRuntimeService()
     const first = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
@@ -1825,10 +1817,8 @@ describe('AgentSessionRuntimeService', () => {
     const connect = vi.fn().mockReturnValueOnce(firstConnect.promise).mockResolvedValueOnce(secondConnection)
     runtimeDriverRegistry.register({
       type: 'test-runtime',
-      capabilities: ['agent-session'],
       connect,
-      validateSession: vi.fn(),
-      listAvailableTools: vi.fn().mockResolvedValue([])
+      validateSession: vi.fn()
     })
     const service = new AgentSessionRuntimeService()
     service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
@@ -1869,10 +1859,8 @@ describe('AgentSessionRuntimeService', () => {
     const connect = vi.fn().mockResolvedValue(connection)
     runtimeDriverRegistry.register({
       type: 'test-runtime',
-      capabilities: ['agent-session'],
       connect,
-      validateSession: vi.fn(),
-      listAvailableTools: vi.fn().mockResolvedValue([])
+      validateSession: vi.fn()
     })
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
@@ -1927,10 +1915,8 @@ describe('AgentSessionRuntimeService', () => {
     const connect = vi.fn().mockReturnValue(pendingConnect.promise)
     runtimeDriverRegistry.register({
       type: 'test-runtime',
-      capabilities: ['agent-session'],
       connect,
-      validateSession: vi.fn(),
-      listAvailableTools: vi.fn().mockResolvedValue([])
+      validateSession: vi.fn()
     })
     const service = new AgentSessionRuntimeService()
     service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
@@ -1965,10 +1951,8 @@ describe('AgentSessionRuntimeService', () => {
     const connect = vi.fn().mockResolvedValue(connection)
     runtimeDriverRegistry.register({
       type: 'test-runtime',
-      capabilities: ['agent-session'],
       connect,
-      validateSession: vi.fn(),
-      listAvailableTools: vi.fn().mockResolvedValue([])
+      validateSession: vi.fn()
     })
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
@@ -2030,10 +2014,8 @@ describe('AgentSessionRuntimeService', () => {
     const connect = vi.fn().mockResolvedValue(reconnected)
     runtimeDriverRegistry.register({
       type: 'test-runtime',
-      capabilities: ['agent-session'],
       connect,
-      validateSession: vi.fn(),
-      listAvailableTools: vi.fn().mockResolvedValue([])
+      validateSession: vi.fn()
     })
     const service = new AgentSessionRuntimeService()
     service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
@@ -2321,10 +2303,8 @@ describe('AgentSessionRuntimeService', () => {
     }
     runtimeDriverRegistry.register({
       type: 'test-runtime',
-      capabilities: ['agent-session'],
       connect: vi.fn().mockResolvedValue(connection),
-      validateSession: vi.fn(),
-      listAvailableTools: vi.fn().mockResolvedValue([])
+      validateSession: vi.fn()
     })
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
@@ -2452,10 +2432,8 @@ describe('AgentSessionRuntimeService', () => {
       })
       runtimeDriverRegistry.register({
         type: 'test-runtime',
-        capabilities: ['agent-session'],
         connect: async (input) => connectionFor(input.reasoningEffort),
-        validateSession: vi.fn(),
-        listAvailableTools: vi.fn().mockResolvedValue([])
+        validateSession: vi.fn()
       })
       const service = new AgentSessionRuntimeService()
       service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
@@ -2477,7 +2455,6 @@ describe('AgentSessionRuntimeService', () => {
       const sent: Array<AgentRuntimeConnectInput['reasoningEffort']> = []
       runtimeDriverRegistry.register({
         type: 'test-runtime',
-        capabilities: ['agent-session'],
         connect: async (input) => ({
           ...createAsyncQueue<never>(),
           send: () => {
@@ -2486,8 +2463,7 @@ describe('AgentSessionRuntimeService', () => {
           redirect: vi.fn(() => true),
           reconcile: async (target) => (target.reasoningEffort === input.reasoningEffort ? 'current' : 'rebuild')
         }),
-        validateSession: vi.fn(),
-        listAvailableTools: vi.fn().mockResolvedValue([])
+        validateSession: vi.fn()
       })
       const service = new AgentSessionRuntimeService()
       const handle = service.beginTurn({ ...baseTurnInput, reasoningEffort: 'max', userMessage: userMessage('user-1') })
@@ -2531,10 +2507,8 @@ describe('AgentSessionRuntimeService', () => {
       const connect = vi.fn().mockResolvedValue(secondConnection)
       runtimeDriverRegistry.register({
         type: 'test-runtime',
-        capabilities: ['agent-session'],
         connect,
-        validateSession: vi.fn(),
-        listAvailableTools: vi.fn().mockResolvedValue([])
+        validateSession: vi.fn()
       })
       const service = new AgentSessionRuntimeService()
       service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
@@ -2581,10 +2555,8 @@ describe('AgentSessionRuntimeService', () => {
       const connect = vi.fn().mockResolvedValue(secondConnection)
       runtimeDriverRegistry.register({
         type: 'test-runtime',
-        capabilities: ['agent-session'],
         connect,
-        validateSession: vi.fn(),
-        listAvailableTools: vi.fn().mockResolvedValue([])
+        validateSession: vi.fn()
       })
       const service = new AgentSessionRuntimeService()
       service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
@@ -4253,10 +4225,8 @@ describe('AgentSessionRuntimeService', () => {
     const connect = vi.fn().mockResolvedValue(connection)
     runtimeDriverRegistry.register({
       type: 'test-runtime',
-      capabilities: ['agent-session'],
       connect,
-      validateSession: vi.fn(),
-      listAvailableTools: vi.fn().mockResolvedValue([])
+      validateSession: vi.fn()
     })
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
@@ -4312,10 +4282,8 @@ describe('AgentSessionRuntimeService', () => {
     const connect = vi.fn().mockResolvedValue(connection)
     runtimeDriverRegistry.register({
       type: 'test-runtime',
-      capabilities: ['agent-session'],
       connect,
-      validateSession: vi.fn(),
-      listAvailableTools: vi.fn().mockResolvedValue([])
+      validateSession: vi.fn()
     })
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
@@ -4474,10 +4442,8 @@ describe('AgentSessionRuntimeService', () => {
       const connect = vi.fn().mockResolvedValue(connection)
       runtimeDriverRegistry.register({
         type: 'test-runtime',
-        capabilities: ['agent-session'],
         connect,
-        validateSession: vi.fn(),
-        listAvailableTools: vi.fn().mockResolvedValue([])
+        validateSession: vi.fn()
       })
       mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
       mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
@@ -4543,10 +4509,8 @@ describe('AgentSessionRuntimeService', () => {
       const connect = vi.fn().mockResolvedValue(connection)
       runtimeDriverRegistry.register({
         type: 'test-runtime',
-        capabilities: ['agent-session'],
         connect,
-        validateSession: vi.fn(),
-        listAvailableTools: vi.fn().mockResolvedValue([])
+        validateSession: vi.fn()
       })
       mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
       mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
@@ -4798,10 +4762,8 @@ describe('AgentSessionRuntimeService', () => {
     }
     runtimeDriverRegistry.register({
       type: 'test-runtime',
-      capabilities: ['agent-session'],
       connect: vi.fn().mockResolvedValue(connection),
-      validateSession: vi.fn(),
-      listAvailableTools: vi.fn().mockResolvedValue([])
+      validateSession: vi.fn()
     })
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
@@ -4867,10 +4829,8 @@ describe('AgentSessionRuntimeService', () => {
     const connect = vi.fn().mockResolvedValue(connection)
     runtimeDriverRegistry.register({
       type: 'test-runtime',
-      capabilities: ['agent-session'],
       connect,
-      validateSession: vi.fn(),
-      listAvailableTools: vi.fn().mockResolvedValue([])
+      validateSession: vi.fn()
     })
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
@@ -4916,10 +4876,8 @@ describe('AgentSessionRuntimeService', () => {
     const connect = vi.fn().mockResolvedValue(connection)
     runtimeDriverRegistry.register({
       type: 'test-runtime',
-      capabilities: ['agent-session'],
       connect,
-      validateSession: vi.fn(),
-      listAvailableTools: vi.fn().mockResolvedValue([])
+      validateSession: vi.fn()
     })
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn({
@@ -4984,10 +4942,8 @@ describe('AgentSessionRuntimeService', () => {
     const connect = vi.fn().mockResolvedValue(connection)
     runtimeDriverRegistry.register({
       type: agentType,
-      capabilities: ['agent-session'],
       connect,
-      validateSession: vi.fn(),
-      listAvailableTools: vi.fn().mockResolvedValue([])
+      validateSession: vi.fn()
     })
     const service = new AgentSessionRuntimeService()
     const firstMessage = userMessage('first-user')
@@ -5037,10 +4993,8 @@ describe('AgentSessionRuntimeService', () => {
     const connect = vi.fn().mockResolvedValue(connection)
     runtimeDriverRegistry.register({
       type: 'test-runtime',
-      capabilities: ['agent-session'],
       connect,
-      validateSession: vi.fn(),
-      listAvailableTools: vi.fn().mockResolvedValue([])
+      validateSession: vi.fn()
     })
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
@@ -5112,10 +5066,8 @@ describe('AgentSessionRuntimeService', () => {
       }
       runtimeDriverRegistry.register({
         type: 'test-runtime',
-        capabilities: ['agent-session'],
         connect: async () => connection,
-        validateSession: async () => {},
-        listAvailableTools: async () => []
+        validateSession: async () => {}
       })
       const next = service.beginTurn({ ...baseTurnInput, assistantMessageId: 'branch-b' })
       const reader = openChunkStream(service, {
@@ -5157,10 +5109,8 @@ describe('AgentSessionRuntimeService', () => {
     const connect = vi.fn().mockResolvedValueOnce(firstConnection).mockResolvedValueOnce(secondConnection)
     runtimeDriverRegistry.register({
       type: 'test-runtime',
-      capabilities: ['agent-session'],
       connect,
-      validateSession: vi.fn(),
-      listAvailableTools: vi.fn().mockResolvedValue([])
+      validateSession: vi.fn()
     })
     const service = new AgentSessionRuntimeService()
     const first = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
@@ -5219,10 +5169,8 @@ describe('AgentSessionRuntimeService', () => {
     }
     runtimeDriverRegistry.register({
       type: 'test-runtime',
-      capabilities: ['agent-session'],
       connect: vi.fn().mockResolvedValue(connection),
-      validateSession: vi.fn(),
-      listAvailableTools: vi.fn().mockResolvedValue([])
+      validateSession: vi.fn()
     })
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
@@ -5260,10 +5208,8 @@ describe('AgentSessionRuntimeService', () => {
     const connect = vi.fn().mockReturnValueOnce(pendingConnection.promise).mockResolvedValueOnce(secondConnection)
     runtimeDriverRegistry.register({
       type: 'test-runtime',
-      capabilities: ['agent-session'],
       connect,
-      validateSession: vi.fn(),
-      listAvailableTools: vi.fn().mockResolvedValue([])
+      validateSession: vi.fn()
     })
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
@@ -5324,10 +5270,8 @@ describe('AgentSessionRuntimeService', () => {
       const connect = vi.fn().mockResolvedValue(connection)
       runtimeDriverRegistry.register({
         type: 'test-runtime',
-        capabilities: ['agent-session'],
         connect,
-        validateSession: vi.fn(),
-        listAvailableTools: vi.fn().mockResolvedValue([])
+        validateSession: vi.fn()
       })
       const service = new AgentSessionRuntimeService()
       const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
@@ -5445,10 +5389,8 @@ describe('AgentSessionRuntimeService', () => {
       const connect = vi.fn().mockResolvedValue(connection)
       runtimeDriverRegistry.register({
         type: 'test-runtime',
-        capabilities: ['agent-session'],
         connect,
-        validateSession: vi.fn(),
-        listAvailableTools: vi.fn().mockResolvedValue([])
+        validateSession: vi.fn()
       })
       const service = new AgentSessionRuntimeService()
       const firstMessage = userMessage('user-1', ['kb-1'])
@@ -5505,10 +5447,8 @@ describe('AgentSessionRuntimeService', () => {
       const connect = vi.fn().mockResolvedValueOnce(firstConnection).mockResolvedValueOnce(secondConnection)
       runtimeDriverRegistry.register({
         type: 'test-runtime',
-        capabilities: ['agent-session'],
         connect,
-        validateSession: vi.fn(),
-        listAvailableTools: vi.fn().mockResolvedValue([])
+        validateSession: vi.fn()
       })
       const service = new AgentSessionRuntimeService()
       const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1', ['kb-1']) })
@@ -5558,10 +5498,8 @@ describe('AgentSessionRuntimeService', () => {
       }
       runtimeDriverRegistry.register({
         type: 'test-runtime',
-        capabilities: ['agent-session'],
         connect: vi.fn().mockResolvedValue(connection),
-        validateSession: vi.fn(),
-        listAvailableTools: vi.fn().mockResolvedValue([])
+        validateSession: vi.fn()
       })
       const service = new AgentSessionRuntimeService()
       const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1', ['kb-1', 'kb-2']) })
@@ -5599,10 +5537,8 @@ describe('AgentSessionRuntimeService', () => {
       const connect = vi.fn().mockResolvedValue(connection)
       runtimeDriverRegistry.register({
         type: 'test-runtime',
-        capabilities: ['agent-session'],
         connect,
-        validateSession: vi.fn(),
-        listAvailableTools: vi.fn().mockResolvedValue([])
+        validateSession: vi.fn()
       })
       const service = new AgentSessionRuntimeService()
       const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1', ['kb-1']) })
@@ -5655,10 +5591,8 @@ describe('AgentSessionRuntimeService', () => {
       }
       runtimeDriverRegistry.register({
         type: 'test-runtime',
-        capabilities: ['agent-session'],
         connect: vi.fn().mockResolvedValue(connection),
-        validateSession: vi.fn(),
-        listAvailableTools: vi.fn().mockResolvedValue([])
+        validateSession: vi.fn()
       })
       const service = new AgentSessionRuntimeService()
       const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1', ['kb-1']) })
@@ -5693,10 +5627,8 @@ describe('AgentSessionRuntimeService', () => {
       }
       runtimeDriverRegistry.register({
         type: 'test-runtime',
-        capabilities: ['agent-session'],
         connect: vi.fn().mockResolvedValue(connection),
-        validateSession: vi.fn(),
-        listAvailableTools: vi.fn().mockResolvedValue([])
+        validateSession: vi.fn()
       })
       const service = new AgentSessionRuntimeService()
       const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
@@ -5737,10 +5669,8 @@ describe('AgentSessionRuntimeService', () => {
       }
       runtimeDriverRegistry.register({
         type: 'test-runtime',
-        capabilities: ['agent-session'],
         connect: vi.fn().mockResolvedValue(connection),
-        validateSession: vi.fn(),
-        listAvailableTools: vi.fn().mockResolvedValue([])
+        validateSession: vi.fn()
       })
       const service = new AgentSessionRuntimeService()
       const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1', ['kb-1']) })
@@ -5807,10 +5737,8 @@ describe('AgentSessionRuntimeService', () => {
       const connect = vi.fn().mockResolvedValueOnce(original).mockResolvedValueOnce(successor)
       runtimeDriverRegistry.register({
         type: 'test-runtime',
-        capabilities: ['agent-session'],
         connect,
-        validateSession: vi.fn(),
-        listAvailableTools: async () => []
+        validateSession: vi.fn()
       })
       const service = new AgentSessionRuntimeService()
       const turn = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
@@ -5890,10 +5818,8 @@ describe('AgentSessionRuntimeService', () => {
       const connect = vi.fn().mockResolvedValue(connection)
       runtimeDriverRegistry.register({
         type: 'test-runtime',
-        capabilities: ['agent-session'],
         connect,
-        validateSession: vi.fn(),
-        listAvailableTools: vi.fn().mockResolvedValue([])
+        validateSession: vi.fn()
       })
       const service = new AgentSessionRuntimeService()
       const handle = service.beginTurn({
@@ -5997,10 +5923,8 @@ describe('AgentSessionRuntimeService', () => {
       const connect = vi.fn().mockResolvedValue(connection)
       runtimeDriverRegistry.register({
         type: 'test-runtime',
-        capabilities: ['agent-session'],
         connect,
-        validateSession: vi.fn(),
-        listAvailableTools: vi.fn().mockResolvedValue([])
+        validateSession: vi.fn()
       })
       const service = new AgentSessionRuntimeService()
       const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
@@ -6057,10 +5981,8 @@ describe('AgentSessionRuntimeService', () => {
       }
       runtimeDriverRegistry.register({
         type: 'test-runtime',
-        capabilities: ['agent-session'],
         connect: vi.fn().mockResolvedValue(connection),
-        validateSession: vi.fn(),
-        listAvailableTools: vi.fn().mockResolvedValue([])
+        validateSession: vi.fn()
       })
       const service = new AgentSessionRuntimeService()
       const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
@@ -6178,10 +6100,8 @@ describe('AgentSessionRuntimeService', () => {
     }
     runtimeDriverRegistry.register({
       type: 'test-runtime',
-      capabilities: ['agent-session'],
       connect: vi.fn().mockResolvedValue(connection),
-      validateSession: vi.fn(),
-      listAvailableTools: vi.fn().mockResolvedValue([])
+      validateSession: vi.fn()
     })
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
@@ -6213,10 +6133,8 @@ describe('AgentSessionRuntimeService', () => {
     }
     runtimeDriverRegistry.register({
       type: 'test-runtime',
-      capabilities: ['agent-session'],
       connect: vi.fn().mockResolvedValue(connection),
-      validateSession: vi.fn(),
-      listAvailableTools: vi.fn().mockResolvedValue([])
+      validateSession: vi.fn()
     })
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
@@ -6258,10 +6176,8 @@ describe('AgentSessionRuntimeService', () => {
       }
       runtimeDriverRegistry.register({
         type: 'test-runtime',
-        capabilities: ['agent-session'],
         connect: async () => connection,
-        validateSession: async () => {},
-        listAvailableTools: async () => []
+        validateSession: async () => {}
       })
       const service = new AgentSessionRuntimeService()
       const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
@@ -6311,13 +6227,11 @@ describe('AgentSessionRuntimeService', () => {
       }
       runtimeDriverRegistry.register({
         type: 'test-runtime',
-        capabilities: ['agent-session'],
         connect: () => {
           connecting.resolve()
           return connected.promise
         },
-        validateSession: async () => {},
-        listAvailableTools: async () => []
+        validateSession: async () => {}
       })
       const service = new AgentSessionRuntimeService()
       const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })

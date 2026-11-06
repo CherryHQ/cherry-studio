@@ -31,15 +31,9 @@ import { appendAgentAttachmentPaths, wrapAgentSessionDeliveryContent } from '@ma
 import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
-import {
-  buildClaudeToolPolicy,
-  descriptorToTool,
-  listClaudeAgentToolDescriptors
-} from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { probeReadable } from '@main/utils/file'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
-import type { Tool } from '@shared/ai/tool'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -1275,7 +1269,6 @@ export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly workspaceRelocation = claudeWorkspaceRelocation
   readonly fork = forkClaudeSession
   readonly type = 'claude-code'
-  readonly capabilities = ['agent-session'] as const
 
   async validateSession(session: AgentSessionEntity): Promise<void> {
     await application.get('ClaudeCodeBinaryService').ensureExecutable()
@@ -1284,12 +1277,6 @@ export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
       throw new AgentSessionWorkspaceError(`Agent session ${session.id} has no workspace configured`)
     }
     await prepareClaudeCodeWorkspaceDirectory(session)
-  }
-
-  async listAvailableTools(mcpIds: string[]): Promise<Tool[]> {
-    const catalog = await listClaudeAgentToolDescriptors({ mcps: mcpIds })
-    const policy = buildClaudeToolPolicy({})
-    return catalog.descriptors.map((descriptor) => descriptorToTool(descriptor, policy))
   }
 
   async connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection> {

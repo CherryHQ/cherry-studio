@@ -15,11 +15,9 @@ import {
   type InputFact,
   type InputId,
   type InputState,
-  type ItemRef,
   type ObservationPayload,
   type Observation,
   type OperationResult,
-  type ShutdownReceipt,
   type Subagent,
   type SubmitResult
 } from '@cherrystudio/agent-runtime'
@@ -70,7 +68,6 @@ export class ClaudeOwner {
   private lost = false
   private resetFrom?: string
   private activeSession: string
-  private response?: ItemRef
   private readonly archives = new Map<string, ClaudeArchive>()
   private reading?: Promise<void>
   private buffered?: SDKMessage[]
@@ -217,7 +214,7 @@ export class ClaudeOwner {
             await projection.close()
             projection.publish([
               { type: 'gap', reason: 'disconnected' },
-              { type: 'activity.changed', activity: { scope: 'foreground', state: 'unknown' } }
+              { type: 'activity.changed', activity: { state: 'unknown' } }
             ])
             projection.feed.close('source-lost')
           }
@@ -274,7 +271,7 @@ export class ClaudeOwner {
   private inputFacts(
     input: Input,
     facts: readonly InputFact[],
-    terminal?: Pick<InputState, 'outcome' | 'response' | 'error'>
+    terminal?: Pick<InputState, 'outcome' | 'error'>
   ): ObservationPayload {
     input.state = { ...input.state, facts: [...new Set([...input.state.facts, ...facts])], ...terminal }
     const event: ObservationPayload = { type: 'input.changed', input: input.state }
@@ -362,13 +359,13 @@ export class ClaudeOwner {
     const child = task.agent ? this.projection(task.sessionId, message.task_id) : undefined
     const events: ObservationPayload[] = []
     if (message.subtype === 'task_started' || message.subtype === 'task_progress') {
-      if (!task.terminal) events.push({ type: 'activity.changed', activity: { scope: 'foreground', state: 'active' } })
+      if (!task.terminal) events.push({ type: 'activity.changed', activity: { state: 'active' } })
     } else if (
       message.subtype === 'task_notification' ||
       (message.subtype === 'task_updated' && ['completed', 'failed', 'killed'].includes(message.patch.status ?? ''))
     ) {
       task.terminal = true
-      events.push({ type: 'activity.changed', activity: { scope: 'foreground', state: 'idle' } })
+      events.push({ type: 'activity.changed', activity: { state: 'idle' } })
     }
     child?.publish(events, { source: 'live', message })
     return false
@@ -405,7 +402,6 @@ export class ClaudeOwner {
         source: 'live',
         message
       })
-      this.response = undefined
       return
     }
     if (
@@ -442,12 +438,6 @@ export class ClaudeOwner {
       events.push(...projection.message(message, { live: !agentId, aborted: message.aborted }))
       for (const block of message.message.content)
         if (block.type === 'tool_use') this.toolOwners.set(block.id, projection)
-      if (!agentId) {
-        const response = events.findLast(
-          (event) => event.type === 'message.upsert' && event.message.role === 'assistant'
-        )
-        if (response?.type === 'message.upsert') this.response = projection.ref(response.message.id)
-      }
     } else if (message.type === 'user') {
       events.push(
         ...projection.message(message, {
@@ -504,9 +494,8 @@ export class ClaudeOwner {
       const content = projection.result(message)
       if (content.length) {
         events.push(...content)
-        if (!agentId) this.response = projection.ref(message.uuid)
       }
-      events.push({ type: 'activity.changed', activity: { scope: 'foreground', state: 'idle' } })
+      events.push({ type: 'activity.changed', activity: { state: 'idle' } })
     } else {
       switch (message.type) {
         // These advisory signals remain available to the host through the native facet.
@@ -523,8 +512,17 @@ export class ClaudeOwner {
       }
     }
     const steers: string[] = []
-    if (message.type === 'assistant' || message.type === 'stream_event' || message.type === 'result') {
-      for (const uuid of message.user_message_uuids ?? (message.user_message_uuid ? [message.user_message_uuid] : [])) {
+    const requesting = message.type === 'system' && message.subtype === 'status' && message.status === 'requesting'
+    if (message.type === 'assistant' || message.type === 'stream_event' || message.type === 'result' || requesting) {
+      // Request membership precedes streamed content; reply UUIDs may still describe the original turn.
+      const uuids: readonly unknown[] =
+        'user_message_uuids' in message && Array.isArray(message.user_message_uuids)
+          ? message.user_message_uuids
+          : 'user_message_uuid' in message && typeof message.user_message_uuid === 'string'
+            ? [message.user_message_uuid]
+            : []
+      for (const uuid of uuids) {
+        if (typeof uuid !== 'string') continue
         const input = this.inputs.get(uuid)
         if (!input) continue
         if (input.steer && !input.boundary) {
@@ -544,12 +542,10 @@ export class ClaudeOwner {
                   : 'unanswered'
           this.inputFacts(input, local ? ['locally-handled'] : ['placed'], {
             outcome,
-            response: local ? undefined : this.response,
             error: outcome === 'failed' ? runtimeError('submit', 'native-result-error') : undefined
           })
         }
       }
-      if (message.type === 'result') this.response = undefined
     }
     projection.publish(
       events,
@@ -561,14 +557,14 @@ export class ClaudeOwner {
   async interrupt(projection: ClaudeProjection) {
     if (this.closing || this.lost || this.resetFrom || projection.thread.id !== this.activeSession)
       return rejected('interrupt', 'closed')
-    if (!this.sdk) return { status: 'confirmed' as const, value: { effect: 'native-scope-idle' as const } }
+    if (!this.sdk) return { status: 'confirmed' as const, value: undefined }
     try {
       const receipt = await this.sdk.interrupt()
       for (const uuid of receipt?.still_queued ?? []) {
         const input = this.inputs.get(uuid)
         if (input) this.inputFacts(input, ['accepted', 'queued'])
       }
-      return { status: 'confirmed' as const, value: { effect: 'requested' as const } }
+      return { status: 'confirmed' as const, value: undefined }
     } catch (error) {
       this.report(error)
       return { status: 'unknown' as const, error: runtimeError('interrupt', 'native-error') }
@@ -580,7 +576,7 @@ export class ClaudeOwner {
     if (!this.tasks.has(taskId) || !this.sdk) return rejected('stopTask', 'unknown-task')
     try {
       await this.sdk.stopTask(taskId)
-      return { status: 'confirmed' as const, value: { effect: 'requested' as const } }
+      return { status: 'confirmed' as const, value: undefined }
     } catch (error) {
       this.report(error)
       return { status: 'unknown' as const, error: runtimeError('stopTask', 'native-error') }
@@ -683,7 +679,7 @@ export class ClaudeOwner {
     }
   }
 
-  async shutdown(): Promise<OperationResult<ShutdownReceipt>> {
+  async shutdown(): Promise<OperationResult<void>> {
     this.closing = true
     this.wake?.()
     this.failPending()
@@ -711,6 +707,6 @@ export class ClaudeOwner {
       await projection.close()
       projection.feed.close('shutdown')
     }
-    return { status: 'confirmed', value: { effect: 'closed' } }
+    return { status: 'confirmed', value: undefined }
   }
 }

@@ -11,10 +11,9 @@ const item = (id: string, text = id): RuntimeMessage => ({
 })
 const snapshot = (): ThreadSnapshot => ({
   type: 'snapshot',
-  coverage: 'current-view',
   messages: [],
   inputs: [],
-  activity: { scope: 'foreground', state: 'idle' }
+  activity: { state: 'idle' }
 })
 const tick = () => new Promise<void>((resolve) => setImmediate(resolve))
 
@@ -79,11 +78,10 @@ describe('normalized observation delivery', () => {
         feed.publish({ type: 'message.upsert', message: item(`turn-${turn}`, `body-${revision}`) })
       }
       terminal = true
-      feed.publish({ type: 'activity.changed', activity: { scope: 'foreground', state: 'idle' } })
+      feed.publish({ type: 'activity.changed', activity: { state: 'idle' } })
       terminal = false
     }
-    for (let index = 0; index < 120; index++)
-      feed.publish({ type: 'activity.changed', activity: { scope: 'foreground', state: 'idle' } })
+    for (let index = 0; index < 120; index++) feed.publish({ type: 'activity.changed', activity: { state: 'idle' } })
     revision = 999
     blockedResolve()
     await observed.drain()
@@ -137,7 +135,7 @@ describe('normalized observation delivery', () => {
     expect(feed.snapshot.subagents).toEqual([subagent])
     const child = { ...ref, id: runtimeId<'thread'>('child-context') }
     feed.publish({ type: 'subagent.upsert', subagent: { ...subagent, child } })
-    feed.publish({ type: 'activity.changed', activity: { scope: 'foreground', state: 'idle' } })
+    feed.publish({ type: 'activity.changed', activity: { state: 'idle' } })
     feed.publish({ type: 'subagent.upsert', subagent: { ...subagent, child } })
     const events: ObservationPayload[] = []
     feed.observe((event) => {

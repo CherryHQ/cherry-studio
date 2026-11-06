@@ -9,28 +9,19 @@ import {
   SettingsManager
 } from '@earendil-works/pi-coding-agent'
 
-import {
-  install,
-  ENTRY_KINDS,
-  type CallRef,
-  type Entries,
-  type HostPorts,
-  type SubagentOrigin
-} from '@cherrystudio/agent-behavior'
+import { install, ENTRY_KINDS, type CallRef, type Entries, type HostPorts } from '@cherrystudio/agent-behavior'
 import {
   runtimeId,
   type AgentRuntime,
   type BackendId,
   type InputFact,
   type InputId,
-  type InterruptReceipt,
   type Observation,
   type OperationResult,
   type RuntimeError,
   type ThreadHandle,
   type ThreadInput,
   type Thread,
-  type ShutdownReceipt,
   type Subagent,
   type SubmitResult
 } from '@cherrystudio/agent-runtime'
@@ -39,17 +30,16 @@ import { createPiBehavior, type PiBehavior } from './behavior/harness'
 import { historyOf } from './behavior/history'
 import { PiProjection, type PiObservation } from './runtimeProjection'
 import { createAgentRuntimeSession, type AgentRuntimeSession, type AgentRuntimeSessionOptions } from './session'
-import type { SubagentSessionOptions } from './subagent'
 
 export interface PiRuntimeBehavior {
   readonly host: HostPorts
   /** Native resources for the model selected by the behavior rules; called once per child context. */
   configureChild(child: {
     readonly thread: Thread
-    readonly parent: Thread
-    readonly origin: SubagentOrigin
-    readonly toolCallId: string
-  }): SubagentSessionOptions | Promise<SubagentSessionOptions>
+    readonly modelKey: string
+  }):
+    | Partial<Pick<AgentRuntimeSessionOptions, 'model' | 'modelRuntime'>>
+    | Promise<Partial<Pick<AgentRuntimeSessionOptions, 'model' | 'modelRuntime'>>>
 }
 
 export interface PiRuntimeOptions {
@@ -58,9 +48,9 @@ export interface PiRuntimeOptions {
   load?: (ref: Thread) => Promise<PiSessionOptions | undefined>
   onError?: (error: unknown) => void
 }
-export type PiSessionOptions = AgentRuntimeSessionOptions & {
-  /** Opt in during host migration; do not also install the legacy behavior extensions. */
-  behavior?: PiRuntimeBehavior
+export type PiSessionOptions = Omit<AgentRuntimeSessionOptions, 'compaction'> & {
+  behavior: PiRuntimeBehavior
+  compaction?: Omit<NonNullable<AgentRuntimeSessionOptions['compaction']>, 'summarize'>
 }
 export interface PiThreadHandle extends ThreadHandle {
   readonly input: ThreadInput
@@ -98,9 +88,7 @@ interface Entry {
   projection: PiProjection
   session: AgentSession
   owner?: AgentRuntimeSession
-  /** For a subagent's session: the session that runs it, whose controls stop it. */
-  parentSession?: AgentRuntimeSession
-  behavior?: { harness: PiBehavior; entries: Entries }
+  behavior: { harness: PiBehavior; entries: Entries }
   admission: Promise<void>
   pending: Set<Promise<void>>
   readonly messages: Set<AbortController>
@@ -117,7 +105,7 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
   const live = new Set<Entry>()
   let closing = false
   const closingAccess = new AbortController()
-  let shutdown: Promise<OperationResult<ShutdownReceipt>> | undefined
+  let shutdown: Promise<OperationResult<void>> | undefined
   const report = (cause: unknown) => {
     try {
       options.onError?.(cause)
@@ -127,10 +115,16 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
   }
   const refFor = (id: string): Thread => Object.freeze({ backendId: options.backendId, id: runtimeId<'thread'>(id) })
 
-  function attach(session: AgentSession, owner?: AgentRuntimeSession, children = false): Entry {
+  function attach(
+    session: AgentSession,
+    behavior: Entry['behavior'],
+    owner?: AgentRuntimeSession,
+    children = false
+  ): Entry {
     const existing = [...live].find((entry) => entry.ref.id === session.sessionId)
     if (existing) {
       existing.session = session
+      existing.behavior = behavior
       existing.projection.rebind(session)
       return existing
     }
@@ -138,6 +132,7 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
       ref: refFor(session.sessionId),
       session,
       owner,
+      behavior,
       projection: new PiProjection(refFor(session.sessionId), session, report, children),
       admission: Promise.resolve(),
       pending: new Set(),
@@ -148,76 +143,15 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
   }
 
   async function build(config: PiSessionOptions): Promise<OperationResult<Entry>> {
-    let entry: Entry | undefined
     try {
-      if (config.behavior) return await buildBehavior(config, config.behavior)
-      const subagents = config.subagents
-      const childRelations: { entry: Entry; origin: Subagent['origin'] }[] = []
-      let parent: Entry | undefined = undefined
-      const publishChild = (child: Entry, origin: Subagent['origin']) =>
-        parent?.projection.feed.publish({
-          type: 'subagent.upsert',
-          subagent: {
-            id: runtimeId(child.ref.id),
-            parent: parent.ref,
-            child: child.ref,
-            origin
-          }
-        })
-      const owner = await createAgentRuntimeSession(
-        {
-          ...config,
-          sessionManager: config.sessionManager,
-          subagents: subagents && {
-            ...subagents,
-            configure: async (child, signal) => {
-              const configured = await subagents.configure(child, signal)
-              return {
-                ...configured,
-                onSessionCreated: (session: AgentSession) => {
-                  configured.onSessionCreated?.(session)
-                  const entry = attach(session)
-                  entry.parentSession = parent?.owner
-                  entries.set(session.sessionId, Promise.resolve({ status: 'confirmed', value: entry }))
-                  const origin = { toolCallId: child.parentToolCallId, description: child.description }
-                  if (!parent) childRelations.push({ entry, origin })
-                  publishChild(entry, origin)
-                }
-              }
-            }
-          },
-          onEvent: (event) => {
-            try {
-              config.onEvent?.(event)
-            } catch (cause) {
-              report(cause)
-            }
-          }
-        },
-        (session) => {
-          entry = attach(session, undefined, Boolean(subagents))
-        }
-      )
-      parent = entry!
-      parent.owner = owner
-      for (const child of childRelations) {
-        child.entry.parentSession = owner
-        publishChild(child.entry, child.origin)
-      }
-      return { status: 'confirmed', value: parent }
+      return await buildBehavior(config, config.behavior)
     } catch (cause) {
-      if (entry) {
-        live.delete(entry)
-        await entry.projection.close()
-      }
       report(cause)
       return rejected('open', 'native-error')
     }
   }
 
   async function buildBehavior(config: PiSessionOptions, behavior: PiRuntimeBehavior): Promise<OperationResult<Entry>> {
-    if (config.subagents || config.offload || config.compaction?.summarize)
-      return rejected('open', 'conflicting-behavior')
     if (
       config
         .sessionManager!.getBranch()
@@ -242,40 +176,37 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
         const configured = child
           ? await behavior.configureChild({
               thread: refFor(sessionManager.getSessionId()),
-              parent: refFor(child.parent),
-              origin: child.origin,
-              toolCallId: nativeCallId!
+              modelKey: child.origin.modelKey
             })
           : undefined
         const model = configured?.model ?? config.model
         if (child && `${model.provider}/${model.id}` !== child.origin.modelKey)
           throw new Error(`Child model does not match ${child.origin.modelKey}`)
         const settings = SettingsManager.inMemory(config.settings).getCompactionSettings(model)
-        const native = await createAgentRuntimeSession({
-          ...config,
-          ...configured,
-          model,
-          sessionManager,
-          settings: { ...config.settings, retry: { enabled: false }, cacheWarming: 'off' },
-          compaction: { ...settings, ...config.compaction, summarize },
-          extensionFactories: [...(configured?.extensionFactories ?? config.extensionFactories ?? []), extension],
-          onEvent: (event) => {
-            try {
-              ;(child ? configured?.onEvent : config.onEvent)?.(event)
-            } catch (cause) {
-              report(cause)
+        let entry!: Entry
+        const native = await createAgentRuntimeSession(
+          {
+            ...config,
+            ...configured,
+            model,
+            sessionManager,
+            settings: { ...config.settings, retry: { enabled: false }, cacheWarming: 'off' },
+            compaction: { ...settings, ...config.compaction, summarize },
+            extensionFactories: [...(config.extensionFactories ?? []), extension],
+            onEvent: (event) => {
+              try {
+                if (!child) config.onEvent?.(event)
+              } catch (cause) {
+                report(cause)
+              }
             }
+          },
+          (session) => {
+            entry = attach(session, { harness, entries: installed }, undefined, !child)
+            owned.push(entry)
           }
-        })
-        try {
-          configured?.onSessionCreated?.(native.session)
-        } catch (cause) {
-          await native.dispose().catch(report)
-          throw cause
-        }
-        const entry = attach(native.session, child ? undefined : native, !child)
-        entry.behavior = { harness, entries: installed }
-        owned.push(entry)
+        )
+        entry.owner = child ? undefined : native
         if (child) {
           entries.set(entry.ref.id, Promise.resolve({ status: 'confirmed', value: entry }))
           const parent = owned.find((candidate) => candidate.ref.id === child.parent)!
@@ -401,13 +332,13 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
         },
         async settled() {
           await entry.admission
-          if (entry.behavior) await entry.behavior.harness.settled()
+          await entry.behavior.harness.settled()
           await Promise.allSettled([...entry.pending])
           await entry.session.waitForIdle()
         },
         toolDefinition: (name) => (unavailable() ? undefined : entry.session.getToolDefinition(name)),
         toolCallId: (ref) =>
-          !unavailable() && ref.thread === entry.ref.id ? entry.behavior?.harness.toolCallId(ref) : undefined,
+          !unavailable() && ref.thread === entry.ref.id ? entry.behavior.harness.toolCallId(ref) : undefined,
         cancelQueuedInputs() {
           if (unavailable()) return rejected('cancel-queued-inputs', 'closed')
           if (!entry.owner) return rejected('cancel-queued-inputs', 'not-owner')
@@ -430,9 +361,8 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
               if (event.type === 'compaction_end' && event.reason === 'manual') compacted = event.result !== undefined
             })
             try {
-              if (entry.behavior) await entry.behavior.harness.compact(entry.ref.id, instructions)
-              else await entry.owner.compact(instructions)
-              if (entry.behavior && !compacted) return rejected('compact', 'declined')
+              await entry.behavior.harness.compact(entry.ref.id, instructions)
+              if (!compacted) return rejected('compact', 'declined')
               return { status: 'confirmed', value: undefined }
             } catch (cause) {
               report(cause)
@@ -446,7 +376,6 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
         },
         async permissionModeChanged() {
           if (unavailable()) return rejected('permission-mode-changed', 'closed')
-          if (!entry.behavior) return { status: 'unsupported', error: error('permission-mode-changed', 'behavior') }
           try {
             const { harness, entries } = entry.behavior
             await harness.withCall(entry.ref.id, (ports) => entries.permissionModeChanged(ports, entry.ref.id))
@@ -458,7 +387,6 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
         }
       },
       input: {
-        policies: entry.owner ? ['reject', 'steer', 'follow-up'] : ['steer'],
         submit(input): Promise<SubmitResult> {
           if (unavailable()) return Promise.resolve({ ...rejected('submit', 'closed'), inputId: input.inputId })
           if (!entry.owner) {
@@ -471,36 +399,28 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
             const attempt = entry.admission.then(async (): Promise<SubmitResult> => {
               if (unavailable()) return { ...rejected('submit', 'closed'), inputId: input.inputId }
               try {
-                if (entry.behavior) {
-                  const controller = new AbortController()
-                  entry.messages.add(controller)
-                  try {
-                    const { harness, entries } = entry.behavior
-                    const receipt = await harness.withCall(
-                      entry.ref.id,
-                      (ports) =>
-                        entries.messageSubagent(ports, entry.ref.id, input.text, randomUUID(), controller.signal),
-                      { inputId: input.inputId, signal: controller.signal }
-                    )
-                    if (receipt.status === 'refused')
-                      return {
-                        status: 'rejected',
-                        inputId: input.inputId,
-                        error: { operation: 'submit', code: 'behavior-refused', message: receipt.reason }
-                      }
-                    const facts: InputFact[] = receipt.status === 'continued' ? ['dispatch-started'] : ['queued']
-                    entry.projection.recordInput({ inputId: input.inputId, facts })
-                    return { status: 'acknowledged', inputId: input.inputId, facts }
-                  } finally {
-                    entry.messages.delete(controller)
-                  }
+                const controller = new AbortController()
+                entry.messages.add(controller)
+                try {
+                  const { harness, entries } = entry.behavior
+                  const receipt = await harness.withCall(
+                    entry.ref.id,
+                    (ports) =>
+                      entries.messageSubagent(ports, entry.ref.id, input.text, randomUUID(), controller.signal),
+                    { inputId: input.inputId, signal: controller.signal }
+                  )
+                  if (receipt.status === 'refused')
+                    return {
+                      status: 'rejected',
+                      inputId: input.inputId,
+                      error: { operation: 'submit', code: 'behavior-refused', message: receipt.reason }
+                    }
+                  const facts: InputFact[] = receipt.status === 'continued' ? ['dispatch-started'] : ['queued']
+                  entry.projection.recordInput({ inputId: input.inputId, facts })
+                  return { status: 'acknowledged', inputId: input.inputId, facts }
+                } finally {
+                  entry.messages.delete(controller)
                 }
-                const receipt = await entry.parentSession!.messageSubagent(entry.ref.id, input.text, {
-                  inputId: input.inputId
-                })
-                const facts: InputFact[] = receipt.continued ? ['dispatch-started'] : ['queued']
-                entry.projection.recordInput({ inputId: input.inputId, facts })
-                return { status: 'acknowledged', inputId: input.inputId, facts }
               } catch (cause) {
                 report(cause)
                 return { status: 'unknown', inputId: input.inputId, error: error('submit', 'native-error') }
@@ -526,7 +446,6 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
               release = done
             })
             const prompt = async (text: string, promptOptions: Parameters<AgentRuntimeSession['prompt']>[1]) => {
-              if (!entry.behavior) return entry.owner!.prompt(text, promptOptions)
               const { harness, entries } = entry.behavior
               if (/^\/goal(?:\s|$)/.test(text)) {
                 await harness.withCall(entry.ref.id, (ports) =>
@@ -606,27 +525,17 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
         }
       },
       observe: (sink) => observeCaptured(() => entry.projection.feed.observe(sink)),
-      async interrupt(): Promise<OperationResult<InterruptReceipt>> {
+      async interrupt(): Promise<OperationResult<void>> {
         if (unavailable()) return rejected('interrupt', 'closed')
         try {
-          const pending = entry.messages.size > 0 || entry.session.isCompacting
           for (const controller of entry.messages) controller.abort()
           entry.session.abortCompaction()
-          if (entry.behavior) {
-            const { harness, entries } = entry.behavior
-            await harness.withCall(entry.ref.id, async (ports) => {
-              if (entry.owner) await entries.userStop(ports, entry.ref.id, randomUUID())
-              else await entries.stopSubagent(ports, entry.ref.id, randomUUID())
-            })
-          } else if (entry.owner) await entry.owner.abort()
-          else if (entry.parentSession) {
-            // The user's stop of a subagent (background spec §9): a background run stops through its
-            // parent; a foreground one is part of the parent's turn, which stops with it.
-            if (entry.parentSession.stopSubagent(entry.ref.id))
-              return { status: 'confirmed', value: { effect: 'requested' } }
-            if (entry.session.isStreaming) await entry.parentSession.abort()
-          } else await entry.session.abort()
-          return { status: 'confirmed', value: { effect: pending ? 'requested' : 'native-scope-idle' } }
+          const { harness, entries } = entry.behavior
+          await harness.withCall(entry.ref.id, async (ports) => {
+            if (entry.owner) await entries.userStop(ports, entry.ref.id, randomUUID())
+            else await entries.stopSubagent(ports, entry.ref.id, randomUUID())
+          })
+          return { status: 'confirmed', value: undefined }
         } catch (cause) {
           report(cause)
           return { status: 'unknown', error: error('interrupt', 'native-error') }
@@ -691,13 +600,10 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
             entry.session.abortCompaction()
           }
           await Promise.all([...live].map((entry) => entry.admission))
-          await Promise.all(
-            owners.map((entry) => (entry.behavior ? entry.behavior.harness.close() : entry.session.abort()))
-          )
+          await Promise.all(owners.map((entry) => entry.behavior.harness.close()))
           await Promise.all(owners.flatMap((entry) => [...entry.pending]))
-          await Promise.all(owners.filter((entry) => !entry.behavior).map((entry) => entry.owner!.dispose()))
           for (const entry of live) await entry.projection.close()
-          return { status: 'confirmed' as const, value: { effect: 'closed' as const } }
+          return { status: 'confirmed' as const, value: undefined }
         } catch (cause) {
           report(cause)
           return { status: 'unknown' as const, error: error('shutdown', 'native-error') }
