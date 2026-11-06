@@ -8,11 +8,23 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 import TextFilePreview from '../TextFilePreview'
 
 const mocks = vi.hoisted(() => ({
+  fileEditor: vi.fn(),
   readText: vi.fn()
 }))
 
 vi.mock('@renderer/components/FileEditor', () => ({
-  default: (props: { value: string }) => <div data-testid="code-viewer">{props.value}</div>
+  default: (props: {
+    className?: string
+    expanded?: boolean
+    fileName: string
+    onLineComment?: unknown
+    readOnly?: boolean
+    value: string
+    wrapLines?: boolean
+  }) => {
+    mocks.fileEditor(props)
+    return <div data-testid="code-viewer">{props.value}</div>
+  }
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -54,11 +66,33 @@ describe('TextFilePreview', () => {
     })
   })
 
-  it('renders loaded source text', async () => {
+  it('renders loaded source text through the read-only editor', async () => {
     renderPreview()
 
     expect(await screen.findByTestId('code-viewer')).toHaveTextContent('const answer = 42')
     expect(mocks.readText).toHaveBeenCalledWith(filePath)
+    // The preview hands the content to the read-only editor with wrapping enabled; highlighting
+    // and virtualization belong to that editor, not to this component.
+    expect(mocks.fileEditor).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        value: 'const answer = 42',
+        fileName: filePath,
+        readOnly: true,
+        expanded: true,
+        wrapLines: true
+      })
+    )
+  })
+
+  it('renders the editor in a bounded flex viewport', async () => {
+    renderPreview()
+
+    await screen.findByTestId('code-viewer')
+    // The editor's virtualizer windows rows against its own scroller, so it must stretch within
+    // the preview frame instead of being handed an unbounded viewport.
+    expect(mocks.fileEditor).toHaveBeenLastCalledWith(
+      expect.objectContaining({ expanded: true, className: expect.stringContaining('flex-1') })
+    )
   })
 
   it('shows a zero-byte empty state without reading the file', async () => {
