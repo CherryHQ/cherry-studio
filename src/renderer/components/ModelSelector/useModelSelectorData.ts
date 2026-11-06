@@ -19,8 +19,7 @@ import {
   type Model,
   MODEL_CAPABILITY,
   type ModelCapability,
-  parseUniqueModelId,
-  type UniqueModelId
+  parseUniqueModelId
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isExternalCliProvider } from '@shared/utils/provider'
@@ -128,8 +127,14 @@ export function useModelSelectorData({
     togglePin
   } = usePins('model', { enabled })
   const { tagSelection, selectedTags, tagFilter, toggleTag, resetTags } = useModelTagFilter()
-  const { isAvailabilityReady, availabilityError, isModelHidden, isModelFree, isModelUnavailable, getModelDescription } =
-    useCherryCloudModelAvailability(enabled)
+  const {
+    isAvailabilityReady,
+    availabilityError,
+    isModelHidden,
+    isModelFree,
+    isModelUnavailable,
+    getModelDescription
+  } = useCherryCloudModelAvailability(enabled)
   const { session, plansQuery, activePaid } = useCherryCloudPlans(enabled)
   const [cachedPlanModels, setCachedPlanModels] = usePersistCache('ui.cherry_cloud.plan_models')
   // Like the usage page, ignore purchase_available: the portal decides.
