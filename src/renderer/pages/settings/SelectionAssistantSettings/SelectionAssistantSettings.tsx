@@ -37,6 +37,7 @@ const SelectionAssistantSettings: FC = () => {
   const [selectionEnabled, setSelectionEnabled] = usePreference('feature.selection.enabled')
   const [triggerMode, setTriggerMode] = usePreference('feature.selection.trigger_mode')
   const [isCompact, setIsCompact] = usePreference('feature.selection.compact')
+  const [isTranslateOnly, setIsTranslateOnly] = usePreference('feature.selection.translate_only')
   const [isAutoClose, setIsAutoClose] = usePreference('feature.selection.auto_close')
   const [isAutoPin, setIsAutoPin] = usePreference('feature.selection.auto_pin')
   const [isFollowToolbar, setIsFollowToolbar] = usePreference('feature.selection.follow_toolbar')
@@ -249,6 +250,14 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingDescription>{t('selection.settings.toolbar.compact_mode.description')}</SettingDescription>
               </SettingLabel>
               <Switch checked={isCompact} onCheckedChange={setIsCompact} />
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow>
+              <SettingLabel>
+                <SettingRowTitle>{t('selection.settings.toolbar.translate_only.title')}</SettingRowTitle>
+                <SettingDescription>{t('selection.settings.toolbar.translate_only.description')}</SettingDescription>
+              </SettingLabel>
+              <Switch checked={isTranslateOnly} onCheckedChange={setIsTranslateOnly} />
             </SettingRow>
           </SettingGroup>
 

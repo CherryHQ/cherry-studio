@@ -3638,6 +3638,8 @@
   "selection.settings.toolbar.compact_mode.description": "În modul compact, sunt afișate doar pictogramele, fără text",
   "selection.settings.toolbar.compact_mode.title": "Mod compact",
   "selection.settings.toolbar.title": "Bară de instrumente",
+  "selection.settings.toolbar.translate_only.description": "Omite bara de instrumente și afișează direct traducerea după selectarea textului",
+  "selection.settings.toolbar.translate_only.title": "Doar traducere",
   "selection.settings.toolbar.trigger_mode.ctrlkey": "Tasta Ctrl",
   "selection.settings.toolbar.trigger_mode.ctrlkey_note": "După selecție, ține apăsată tasta Ctrl pentru a afișa bara de instrumente",
   "selection.settings.toolbar.trigger_mode.description": "Modul de declanșare a asistentului de selecție și de afișare a barei de instrumente",

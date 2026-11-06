@@ -3638,6 +3638,8 @@
   "selection.settings.toolbar.compact_mode.description": "In compact mode, only icons are displayed without text",
   "selection.settings.toolbar.compact_mode.title": "Compact Mode",
   "selection.settings.toolbar.title": "Toolbar",
+  "selection.settings.toolbar.translate_only.description": "Skip the toolbar and show the translation directly after selecting text",
+  "selection.settings.toolbar.translate_only.title": "Translate Only",
   "selection.settings.toolbar.trigger_mode.ctrlkey": "Ctrl Key",
   "selection.settings.toolbar.trigger_mode.ctrlkey_note": "After selection, hold down the Ctrl key to show the toolbar",
   "selection.settings.toolbar.trigger_mode.description": "The way to trigger the selection assistant and show the toolbar",

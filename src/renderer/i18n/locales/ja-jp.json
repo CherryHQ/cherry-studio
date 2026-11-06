@@ -3638,6 +3638,8 @@
   "selection.settings.toolbar.compact_mode.description": "アイコンのみ表示（テキスト非表示）",
   "selection.settings.toolbar.compact_mode.title": "コンパクトモード",
   "selection.settings.toolbar.title": "ツールバー",
+  "selection.settings.toolbar.translate_only.description": "テキスト選択後、ツールバーを省略して翻訳結果を直接表示します",
+  "selection.settings.toolbar.translate_only.title": "翻訳のみ",
   "selection.settings.toolbar.trigger_mode.ctrlkey": "Ctrlキー",
   "selection.settings.toolbar.trigger_mode.ctrlkey_note": "テキスト選択後、Ctrlキーを押下して表示",
   "selection.settings.toolbar.trigger_mode.description": "テキスト選択後、取詞ツールバーを表示する方法",

@@ -3638,6 +3638,8 @@
   "selection.settings.toolbar.compact_mode.description": "ในโหมดกะทัดรัด จะแสดงเฉพาะไอคอนโดยไม่มีข้อความ",
   "selection.settings.toolbar.compact_mode.title": "โหมดกะทัดรัด",
   "selection.settings.toolbar.title": "แถบเครื่องมือ",
+  "selection.settings.toolbar.translate_only.description": "ข้ามแถบเครื่องมือและแสดงผลการแปลทันทีหลังเลือกข้อความ",
+  "selection.settings.toolbar.translate_only.title": "แปลอย่างเดียว",
   "selection.settings.toolbar.trigger_mode.ctrlkey": "ปุ่ม Ctrl",
   "selection.settings.toolbar.trigger_mode.ctrlkey_note": "หลังจากเลือก กดปุ่ม Ctrl ค้างไว้เพื่อแสดงแถบเครื่องมือ",
   "selection.settings.toolbar.trigger_mode.description": "วิธีเรียกใช้ผู้ช่วยเลือกและแสดงแถบเครื่องมือ",

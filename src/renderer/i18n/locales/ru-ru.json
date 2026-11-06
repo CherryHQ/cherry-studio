@@ -3638,6 +3638,8 @@
   "selection.settings.toolbar.compact_mode.description": "Отображать только иконки без текста",
   "selection.settings.toolbar.compact_mode.title": "Компактный режим",
   "selection.settings.toolbar.title": "Панель инструментов",
+  "selection.settings.toolbar.translate_only.description": "Пропускать панель инструментов и сразу показывать перевод после выделения текста",
+  "selection.settings.toolbar.translate_only.title": "Только перевод",
   "selection.settings.toolbar.trigger_mode.ctrlkey": "По Ctrl",
   "selection.settings.toolbar.trigger_mode.ctrlkey_note": "После выделения, удерживайте Ctrl для показа панели. Пожалуйста, установите Ctrl в настройках клавиатуры и активируйте его.",
   "selection.settings.toolbar.trigger_mode.description": "Показывать панель сразу при выделении, или только при удержании Ctrl, или только при нажатии на сочетание клавиш",

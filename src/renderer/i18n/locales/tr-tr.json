@@ -3638,6 +3638,8 @@
   "selection.settings.toolbar.compact_mode.description": "Kompakt modda metin olmadan yalnızca simgeler görüntülenir",
   "selection.settings.toolbar.compact_mode.title": "Kompakt Mod",
   "selection.settings.toolbar.title": "Araç Çubuğu",
+  "selection.settings.toolbar.translate_only.description": "Araç çubuğunu atlayıp metin seçildikten sonra çeviriyi doğrudan göster",
+  "selection.settings.toolbar.translate_only.title": "Yalnızca çeviri",
   "selection.settings.toolbar.trigger_mode.ctrlkey": "Ctrl Tuşu",
   "selection.settings.toolbar.trigger_mode.ctrlkey_note": "Seçimden sonra araç çubuğunu göstermek için Ctrl tuşunu basılı tutun",
   "selection.settings.toolbar.trigger_mode.description": "Seçim asistanını tetikleme ve araç çubuğunu gösterme yöntemi",

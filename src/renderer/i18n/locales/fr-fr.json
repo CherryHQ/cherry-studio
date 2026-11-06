@@ -3638,6 +3638,8 @@
   "selection.settings.toolbar.compact_mode.description": "En mode compact, seules les icônes sont affichées, sans texte",
   "selection.settings.toolbar.compact_mode.title": "Mode Compact",
   "selection.settings.toolbar.title": "Barre d'outils",
+  "selection.settings.toolbar.translate_only.description": "Ignorer la barre d'outils et afficher directement la traduction après la sélection du texte",
+  "selection.settings.toolbar.translate_only.title": "Traduction uniquement",
   "selection.settings.toolbar.trigger_mode.ctrlkey": "Touche Ctrl",
   "selection.settings.toolbar.trigger_mode.ctrlkey_note": "Sélectionnez un mot, puis maintenez la touche Ctrl enfoncée pour afficher la barre d'outils",
   "selection.settings.toolbar.trigger_mode.description": "Méthode permettant de déclencher l'assistant de sélection et d'afficher la barre d'outils",

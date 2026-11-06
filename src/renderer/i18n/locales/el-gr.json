@@ -3638,6 +3638,8 @@
   "selection.settings.toolbar.compact_mode.description": "Σε συμπαγή λειτουργία, εμφανίζονται μόνο εικονίδια, χωρίς κείμενο",
   "selection.settings.toolbar.compact_mode.title": "Συμπαγής Λειτουργία",
   "selection.settings.toolbar.title": "Γραμμή εργαλείων",
+  "selection.settings.toolbar.translate_only.description": "Παράλειψη της γραμμής εργαλείων και άμεση εμφάνιση της μετάφρασης μετά την επιλογή κειμένου",
+  "selection.settings.toolbar.translate_only.title": "Μόνο μετάφραση",
   "selection.settings.toolbar.trigger_mode.ctrlkey": "Πλήκτρο Ctrl",
   "selection.settings.toolbar.trigger_mode.ctrlkey_note": "Επιλέξτε μια λέξη και, στη συνέχεια, κρατήστε πατημένο το πλήκτρο Ctrl για να εμφανιστεί η γραμμή εργαλείων",
   "selection.settings.toolbar.trigger_mode.description": "Ο τρόπος ενεργοποίησης της λήψης λέξεων και εμφάνισης της γραμμής εργαλείων μετά την επιλογή",
