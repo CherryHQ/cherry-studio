@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import { captureScrollableIframeAsBlob, captureScrollableIframeAsDataUrl } from '@renderer/utils/image'
 
 import HtmlArtifactsPopup from '../HtmlArtifactsPopup'
 
@@ -26,6 +27,11 @@ vi.mock('@renderer/components/LazyCodeEditor', () => ({
   LazyCodeEditor: mocks.CodeEditor
 }))
 
+vi.mock('@renderer/utils/image', () => ({
+  captureScrollableIframeAsDataUrl: vi.fn().mockResolvedValue(undefined),
+  captureScrollableIframeAsBlob: vi.fn().mockResolvedValue(undefined)
+}))
+
 vi.mock('@renderer/components/CodeViewer', () => ({
   default: mocks.CodeViewer
 }))
@@ -45,6 +51,21 @@ describe('HtmlArtifactsPopup', () => {
     vi.clearAllMocks()
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setPreferenceValue('chat.message.font_size', 14)
+  })
+
+  it.each(['to_file', 'to_clipboard'])('keeps popup %s capture inside the restricted iframe policy', (destination) => {
+    render(<HtmlArtifactsPopup open editable={false} title="HTML Artifacts" html="<h1>Hello</h1>" onClose={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'html_artifacts.capture.label' }))
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(`html_artifacts\\.capture\\.${destination}`) }))
+    if (destination === 'to_file') {
+      expect(captureScrollableIframeAsDataUrl).toHaveBeenCalledWith(expect.anything(), {
+        restrictToLocalResources: true
+      })
+    } else {
+      expect(captureScrollableIframeAsBlob).toHaveBeenCalledWith(expect.anything(), expect.any(Function), {
+        restrictToLocalResources: true
+      })
+    }
   })
 
   it('defaults to preview and switches to read-only source', async () => {

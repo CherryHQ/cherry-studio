@@ -18,6 +18,7 @@ import {
   dataUrlToBlob,
   getImageBlobFromSource,
   IMAGE_CAPTURE_ATTRIBUTE,
+  ImageCaptureEvent,
   imageInputToPreviewUrl,
   isKatexGeneratedSvg,
   makeSvgSizeAdaptive,
@@ -1528,4 +1529,22 @@ describe('utils/image', () => {
       await expect(pending).rejects.toThrow('Failed to load SVG image')
     })
   })
+})
+
+describe('failed image export preparations', () => {
+  it.each([captureElement, captureScrollableAsDataUrl])(
+    'does not run the outer capture after a preparation rejects',
+    async (capture) => {
+      const root = document.createElement('div')
+      root.addEventListener(ImageCaptureEvent.type, (event) => {
+        ;(event as ImageCaptureEvent).preparations.push(Promise.reject(new Error('restricted failure')))
+      })
+      let rejected = false
+      await capture({ current: root }).catch(() => {
+        rejected = true
+      })
+      expect(rejected).toBe(true)
+      expect(htmlToImage.toCanvas).not.toHaveBeenCalled()
+    }
+  )
 })

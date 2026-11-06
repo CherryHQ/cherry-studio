@@ -376,8 +376,11 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
 
     const prepare = async () => {
       const iframe = iframeRef.current
+      if (!iframe) return () => {}
       const dataUrl = await captureScrollableIframeAsDataUrl(iframeRef, { restrictToLocalResources: true })
-      if (!iframe || !dataUrl) return () => {}
+      // Both outer export entry points abort on a rejected preparation. Never leave the
+      // live iframe for an unrestricted retry: the parent clone is outside its CSP.
+      if (!dataUrl) throw new Error('Restricted HTML preview image capture failed')
       const snapshot = document.createElement('img')
       snapshot.src = dataUrl
       snapshot.alt = ''
@@ -493,6 +496,7 @@ export function HtmlArtifactPopupOutlet() {
         // Maximize opens the interactive tier directly (upstream for documents, this
         // PR's extension for active fragments); the card path defers to View webpage.
         canCapturePreview={!requiresInteractivePreview}
+        restrictCaptureToLocalResources
         renderPreview={(iframeRef) => (
           <HtmlArtifactPreviewSurface
             html={popupSession.html}

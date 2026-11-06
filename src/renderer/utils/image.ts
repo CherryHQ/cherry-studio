@@ -311,7 +311,11 @@ export async function captureElement(elRef: React.RefObject<HTMLElement>) {
     try {
       const htmlToImage = await loadHtmlToImage()
       restoreContents = await prepareCaptureContents(elRef.current)
-      const canvas = await htmlToImage.toCanvas(elRef.current)
+      const canvas = await htmlToImage.toCanvas(elRef.current, {
+        filter: (node: Node) =>
+          !(node instanceof HTMLElement) ||
+          (!node.hasAttribute(HTML_ARTIFACT_ATTRIBUTE) && window.getComputedStyle(node).display !== 'none')
+      })
       const imageData = canvas.toDataURL('image/png')
       return imageData
     } catch (error) {
@@ -755,13 +759,15 @@ function neutralizeNonLocalSvgResources(doc: Document): () => void {
       for (const attr of SVG_RESOURCE_ATTRIBUTES) {
         const value = el.getAttribute(attr)
         if (value && !value.trim().startsWith('#') && !isLocalResourceUrl(value.trim(), baseUrl)) {
-          el.removeAttribute(attr)
+          if (el.localName === 'image' && attr === 'href') el.setAttribute(attr, TRANSPARENT_IMAGE_PLACEHOLDER)
+          else el.removeAttribute(attr)
           restores.push(() => el.setAttribute(attr, value))
         }
       }
       const xlink = el.getAttributeNS(XLINK_NS, 'href')
       if (xlink && !xlink.trim().startsWith('#') && !isLocalResourceUrl(xlink.trim(), baseUrl)) {
-        el.removeAttributeNS(XLINK_NS, 'href')
+        if (el.localName === 'image') el.setAttributeNS(XLINK_NS, 'xlink:href', TRANSPARENT_IMAGE_PLACEHOLDER)
+        else el.removeAttributeNS(XLINK_NS, 'href')
         restores.push(() => el.setAttributeNS(XLINK_NS, 'xlink:href', xlink))
       }
       const srcset = el.getAttribute('srcset')
@@ -809,6 +815,27 @@ function neutralizeNonLocalSvgResources(doc: Document): () => void {
     }
   })
   return () => restores.reverse().forEach((restore) => restore())
+}
+
+/** Reject surfaces the local-only clone cannot safely traverse. Never retry these without restrictions. */
+function assertRestrictedCaptureIsSafe(doc: Document, win: Window): void {
+  for (const el of doc.querySelectorAll('*')) {
+    // html-to-image enters nested documents and open shadow roots, including SVG descendants
+    // where its filter is bypassed. Until those trees have a policy-aware cloner, fail closed.
+    if (el.localName === 'iframe' || el.shadowRoot) {
+      throw new Error('Restricted image capture does not support nested frames or shadow roots')
+    }
+    // The library serializes pseudo-element computed styles separately from the element.
+    for (const pseudo of ['::before', '::after']) {
+      const style = win.getComputedStyle(el, pseudo)
+      for (const property of Array.from(style)) {
+        const value = style.getPropertyValue(property)
+        if (value.toLowerCase().includes('url(') && neutralizeCssText(value, doc.baseURI) !== value) {
+          throw new Error('Restricted image capture cannot export remote pseudo-element resources')
+        }
+      }
+    }
+  }
 }
 
 export async function captureScrollableIframe(
@@ -949,6 +976,7 @@ export async function captureScrollableIframe(
     await new Promise((r) => win.requestAnimationFrame(() => win.requestAnimationFrame(() => r(null))))
 
     if (restrictToLocalResources) {
+      assertRestrictedCaptureIsSafe(doc, win)
       restoreCssUrls = neutralizeNonLocalCssUrls(doc, win)
       restoreSvgResources = neutralizeNonLocalSvgResources(doc)
     }
@@ -1039,9 +1067,10 @@ export const captureScrollableIframeAsDataUrl = async (
 
 export const captureScrollableIframeAsBlob = async (
   iframeRef: React.RefObject<HTMLIFrameElement | null>,
-  func: BlobCallback
+  func: BlobCallback,
+  options?: CaptureScrollableIframeOptions
 ) => {
-  await captureScrollableIframe(iframeRef).then((canvas) => {
+  await captureScrollableIframe(iframeRef, options).then((canvas) => {
     canvas?.toBlob(func, 'image/png')
   })
 }
