@@ -23,3 +23,11 @@ a renamed or retyped field, a removed required field.
 A new runtime wire behavior that requires a higher `REGISTRY_MIN_APP_VERSION` also gets a new schema
 stream and baseline, even if the JSON still parses. Older streams retain their published minimum
 versions and continue receiving compatible updates; raising the floor in place would cut them off.
+
+Before validating an older v1-v3 stream, the publisher removes image `supports` keys outside
+that stream's frozen parameter vocabulary from both model records and provider overrides.
+Otherwise a forward-compatible reader silently drops the entire record even though the
+validator succeeds. Known parameter definitions and mode routing remain unchanged; this
+projection does not invent support for new modes or protocols. The current stream is copied
+verbatim. Any converted file receives a content-hash version from the same serializer used
+by catalog generation, and its manifest names that version.
