@@ -979,6 +979,7 @@
   "chat.settings.code_image_tools.tip": "Ativar ferramentas de visualização para imagens renderizadas de blocos de código como mermaid",
   "chat.settings.code_theme.cherry_default": "Cherry (predefinido)",
   "chat.settings.code_wrappable": "Bloco de código com quebra de linha",
+  "chat.settings.mermaid_auto_render": "Renderizar diagramas Mermaid automaticamente",
   "chat.settings.show_line_numbers": "Exibir números de linha no código",
   "chat.settings.thought_auto_collapse.label": "Conteúdo de pensamento colapsado automaticamente",
   "chat.settings.thought_auto_collapse.tip": "O conteúdo de pensamento será colapsado automaticamente após a conclusão do pensamento",

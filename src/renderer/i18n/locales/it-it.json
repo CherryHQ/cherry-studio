@@ -979,6 +979,7 @@
   "chat.settings.code_image_tools.tip": "Abilita gli strumenti di anteprima per le immagini generate dai blocchi di codice, come Mermaid",
   "chat.settings.code_theme.cherry_default": "Cherry (predefinito)",
   "chat.settings.code_wrappable": "A capo automatico nei blocchi di codice",
+  "chat.settings.mermaid_auto_render": "Renderizza automaticamente i diagrammi Mermaid",
   "chat.settings.show_line_numbers": "Mostra numeri di riga nel codice",
   "chat.settings.thought_auto_collapse.label": "Comprimi il ragionamento",
   "chat.settings.thought_auto_collapse.tip": "Comprimi automaticamente il contenuto del ragionamento al termine",

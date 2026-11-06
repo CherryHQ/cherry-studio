@@ -113,6 +113,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   const [codeExecutionTimeoutMinutes] = usePreference('chat.code.execution.timeout_minutes')
   const [codeCollapsible] = usePreference('chat.code.collapsible')
   const [codeWrappable] = usePreference('chat.code.wrappable')
+  const [mermaidAutoRender] = usePreference('chat.code.mermaid.auto_render')
   const wrapLines = useCodeBlockWrapLines()
   const [codeImageTools] = usePreference('chat.code.image_tools')
   const [fontSize] = usePreference('chat.message.font_size')
@@ -131,10 +132,23 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     ? SPECIAL_VIEW_COMPONENTS[language as keyof typeof SPECIAL_VIEW_COMPONENTS]
     : undefined
 
-  const [viewState, setViewState] = useState({
-    mode: 'special' as ViewMode,
-    previousMode: 'special' as ViewMode
+  const [viewState, setViewState] = useState<{
+    mode: ViewMode
+    previousMode: ViewMode
+    language: string
+    explicit: boolean
+  }>(() => {
+    const initialMode: ViewMode = language === 'mermaid' && !mermaidAutoRender ? 'source' : 'special'
+    return { mode: initialMode, previousMode: initialMode, language, explicit: false }
   })
+  if (viewState.language !== language) {
+    const mode: ViewMode = language === 'mermaid' && !mermaidAutoRender ? 'source' : 'special'
+    setViewState({
+      ...viewState,
+      language,
+      ...(viewState.explicit ? {} : { mode, previousMode: mode })
+    })
+  }
   const viewMode = useMemo<ViewMode>(() => {
     if (viewState.mode === 'edit' && !canEdit) return 'source'
     if (!hasSpecialView && viewState.mode !== 'edit') {
@@ -145,6 +159,8 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
 
   const setViewMode = useCallback((newMode: ViewMode) => {
     setViewState((current) => ({
+      ...current,
+      explicit: true,
       mode: newMode,
       // 当新模式不是 'split' 时才更新
       previousMode: newMode !== 'split' ? newMode : current.previousMode
@@ -155,9 +171,9 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     setViewState((current) => {
       // 如果当前是 split 模式，恢复到上一个模式
       if (current.mode === 'split') {
-        return { ...current, mode: current.previousMode }
+        return { ...current, explicit: true, mode: current.previousMode }
       }
-      return { mode: 'split', previousMode: current.mode }
+      return { ...current, explicit: true, mode: 'split', previousMode: current.mode }
     })
   }, [])
 
