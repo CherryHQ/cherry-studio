@@ -599,6 +599,10 @@ export interface PreferenceSchemas {
     // target-key-definitions/complex/complex
     'shortcut.app.zoom.reset': PreferenceTypes.PreferenceShortcutType
     // target-key-definitions/complex/complex
+    'shortcut.assistant.next': PreferenceTypes.PreferenceShortcutType
+    // target-key-definitions/complex/complex
+    'shortcut.assistant.prev': PreferenceTypes.PreferenceShortcutType
+    // target-key-definitions/complex/complex
     'shortcut.chat.context.toggle_new': PreferenceTypes.PreferenceShortcutType
     // target-key-definitions/complex/complex
     'shortcut.chat.input.focus': PreferenceTypes.PreferenceShortcutType
@@ -628,6 +632,10 @@ export interface PreferenceSchemas {
     'shortcut.topic.clear_messages': PreferenceTypes.PreferenceShortcutType
     // target-key-definitions/complex/complex
     'shortcut.topic.create': PreferenceTypes.PreferenceShortcutType
+    // target-key-definitions/complex/complex
+    'shortcut.topic.next': PreferenceTypes.PreferenceShortcutType
+    // target-key-definitions/complex/complex
+    'shortcut.topic.prev': PreferenceTypes.PreferenceShortcutType
     // target-key-definitions/complex/complex
     'shortcut.topic.rename': PreferenceTypes.PreferenceShortcutType
     // target-key-definitions/complex/complex
@@ -949,6 +957,8 @@ export const DefaultPreferences: PreferenceSchemas = {
     'shortcut.app.zoom.in': { binding: ['CommandOrControl', '='], enabled: true },
     'shortcut.app.zoom.out': { binding: ['CommandOrControl', '-'], enabled: true },
     'shortcut.app.zoom.reset': { binding: ['CommandOrControl', '0'], enabled: true },
+    'shortcut.assistant.next': { binding: ['CommandOrControl', 'Alt', 'Right'], enabled: true },
+    'shortcut.assistant.prev': { binding: ['CommandOrControl', 'Alt', 'Left'], enabled: true },
     'shortcut.chat.context.toggle_new': { binding: ['CommandOrControl', 'K'], enabled: true },
     'shortcut.chat.input.focus': { binding: ['CommandOrControl', 'I'], enabled: true },
     'shortcut.chat.message.copy_last': { binding: ['CommandOrControl', 'Shift', 'C'], enabled: false },
@@ -964,6 +974,8 @@ export const DefaultPreferences: PreferenceSchemas = {
     'shortcut.tab.prev': { binding: ['CommandOrControl', 'Shift', 'Tab'], enabled: true },
     'shortcut.topic.clear_messages': { binding: ['CommandOrControl', 'L'], enabled: true },
     'shortcut.topic.create': { binding: ['CommandOrControl', 'N'], enabled: true },
+    'shortcut.topic.next': { binding: ['CommandOrControl', 'Alt', 'Down'], enabled: true },
+    'shortcut.topic.prev': { binding: ['CommandOrControl', 'Alt', 'Up'], enabled: true },
     'shortcut.topic.rename': { binding: ['CommandOrControl', 'T'], enabled: false },
     'shortcut.topic.sidebar.toggle': { binding: ['CommandOrControl', ']'], enabled: true },
     'topic.naming.enabled': true,
