@@ -59,6 +59,25 @@ driver internals behind the same host contract.
 | Usage capture | Each driver exposes provider-invocation capture according to its transport. Pi uses native providers through the internal gateway and one gateway-owned billing path; native totals serve context/UI statistics only. Gateway-backed calls use AiService middleware. |
 | Runtime timing | `AiStreamManager` owns the message clock. Drivers contribute provider/tool timing when their SDK exposes it; approval waits are captured independently from approval request to decision/abort. |
 
+## Context usage
+
+Each runtime package implements passive `ThreadHandle.contextUsage()` and publishes the same
+result through `context.changed` and snapshots. Main forwards the common result into a
+thread-scoped cache; renderer code does not parse native SDK categories or infer model capacity.
+Connection replacement, model changes and compaction invalidate cached readings. Late reads
+from an old connection cannot overwrite the new context, and child caches use child handles.
+
+The full model window is distinct from input limits and compaction thresholds. Counts state
+whether they are reported or estimated. Partial breakdowns are not rescaled to match a total,
+and deferred resources do not occupy current context. Unknown reserves or free capacity stay
+absent. Context reads neither submit input nor add billable usage records.
+
+Pi and Pi Durable record section and tool provenance while preparing native context. Their
+adapters expose individual memory-file fragments, skill catalog entries and tool schemas;
+MCP classification uses explicit origin metadata. Codemode-only tools are deferred, and skill
+bodies subsequently loaded through tools count as messages. Reads use committed provenance,
+not a new filesystem scan or prompt render. Older unannotated sections remain prompt estimates.
+
 ## Heartbeat execution deadline
 
 In the agent's heartbeat settings, **Maximum Execution Time (minutes)** controls
@@ -708,8 +727,9 @@ The package interprets Claude SDK frames once and delivers typed control facts b
   A task notification finalizes only its correlated, completed response. Unscoped task
   updates do not finalize usage, and a root result leaves active child responses pending.
 - `session` updates the native binding and opaque resume token, including before failure.
-- `context-usage` describes occupancy at the current provider call; the post-turn
-  `getContextUsage()` pull remains authoritative.
+- Top-level input usage is published by the package as a common `context.changed` reading
+  marked `last-request`, excluding output and cumulative billing. The host's post-turn
+  `getContextUsage()` pull replaces it with the native current-context estimate.
 - `result` carries cumulative display usage, native identity and a typed failure when present.
   Main publishes the corresponding body before ending the product turn. A replayed
   task-notification result cannot settle a user turn; a result belonging to an active
@@ -723,7 +743,6 @@ The package interprets Claude SDK frames once and delivers typed control facts b
   metadata decorator handles display-only MCP metadata, reminders and thinking timing.
   Each reasoning block stops its timer at the block's end, independently of later answer
   generation; native message replacement preserves the completed block timings.
-
 
 The settings builder also installs `PostToolUse` and
 `PostToolUseFailure` hooks. Their SDK-reported `duration_ms` is forwarded to

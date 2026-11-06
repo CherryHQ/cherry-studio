@@ -1332,6 +1332,7 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
   const { t } = useTranslation()
   const tab = scope.flowTab && getFlowTabValue(scope.flowTab.toolCallId) === panelId ? scope.flowTab : null
   const child = useAgentChildProjection(meta.sessionId ?? '', tab?.toolCallId, active && !!meta.sessionId)
+  const contextUsage = useAgentSessionContextUsage(child?.view?.sessionId)
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [inputError, setInputError] = useState<string>()
@@ -1422,6 +1423,14 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
           </Badge>
         )}
       </div>
+      {child?.view && (
+        <AgentContextUsageSummary
+          usage={contextUsage.usage}
+          percentage={contextUsage.percentage}
+          showCategories={false}
+          className="shrink-0 border-b border-border-subtle px-4 py-2"
+        />
+      )}
       <div className="min-h-0 flex-1">
         <AgentToolFlowMessageList
           childActive={child?.view?.active}
@@ -1816,7 +1825,7 @@ function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPa
   const meta = useAgentRightPaneMeta()
   const actions = useAgentRightPaneActions()
   const status = useAgentRightPaneStatus(active)
-  const { usage, percentage, maxTokens } = useAgentSessionContextUsage(meta.sessionId, meta.model)
+  const { usage, percentage } = useAgentSessionContextUsage(meta.sessionId, meta.model)
   const compaction = useAgentSessionCompaction(meta.sessionId)
   const isCompacting = compaction.status === 'compacting'
   const artifacts = actions.canOpenArtifactFile ? status.artifacts : []
@@ -1828,7 +1837,6 @@ function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPa
       <AgentContextUsageSummary
         usage={usage}
         percentage={percentage}
-        maxTokens={maxTokens}
         isCompacting={isCompacting}
         className="rounded-md border border-border-subtle px-3 py-2"
       />
@@ -2045,7 +2053,7 @@ function AgentRightPaneHighlights({
 function AgentRightPaneStatusPreview() {
   const meta = useAgentRightPaneMeta()
   const status = useAgentRightPaneStatus()
-  const { usage, percentage, maxTokens } = useAgentSessionContextUsage(meta.sessionId, meta.model)
+  const { usage, percentage } = useAgentSessionContextUsage(meta.sessionId, meta.model)
   const compaction = useAgentSessionCompaction(meta.sessionId)
   const isCompacting = compaction.status === 'compacting'
 
@@ -2054,12 +2062,7 @@ function AgentRightPaneStatusPreview() {
       viewportProps={{ className: 'overflow-x-hidden pr-3' }}
       contentProps={{ className: 'space-y-3' }}
       className="-mr-2 max-h-[calc(70vh-1.5rem)]">
-      <AgentContextUsageSummary
-        usage={usage}
-        percentage={percentage}
-        maxTokens={maxTokens}
-        isCompacting={isCompacting}
-      />
+      <AgentContextUsageSummary usage={usage} percentage={percentage} isCompacting={isCompacting} />
       <AgentRightPaneHighlights status={status} compact />
     </ScrollArea>
   )

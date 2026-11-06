@@ -133,9 +133,12 @@ describe('Pi runtime contract', () => {
     await expect
       .poll(() => parentEvents.at(-1))
       .toMatchObject({ type: 'activity.changed', activity: { state: 'idle' } })
+    const childUsage = confirmed(await childAccess.contextUsage())
+    expect(childUsage.revision).not.toBe(confirmed(await root.contextUsage()).revision)
     await root.input.submit(draft('again'))
     await expect.poll(() => texts(childEvents)).toContain('child second')
     expect(childEvents.some((event) => event.type === 'gap')).toBe(false)
+    expect(confirmed(await childAccess.contextUsage()).revision).not.toBe(childUsage.revision)
     const relations = parentEvents.filter((event) => event.type === 'subagent.upsert')
     expect(relations).toHaveLength(1)
     expect(childAccess.thread).toEqual(relationship.subagent.child)

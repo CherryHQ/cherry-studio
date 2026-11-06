@@ -50,6 +50,10 @@ export class ThreadFeed {
           ]
         }
         break
+      case 'context.changed':
+        if (JSON.stringify(this.value.contextUsage) === JSON.stringify(next.result)) return
+        this.value = { ...this.value, contextUsage: next.result }
+        break
       case 'activity.changed':
         this.value = { ...this.value, activity: next.activity }
         break

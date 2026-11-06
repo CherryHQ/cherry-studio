@@ -88,7 +88,6 @@ export function claudeControlEvents(control: ClaudeControl): AgentRuntimeEvent[]
       return [control]
     case 'input-boundary':
     case 'session':
-    case 'context-usage':
     case 'diagnostic':
     case 'archive-changed':
       return []

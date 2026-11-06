@@ -186,6 +186,10 @@ describe('ThreadMessageProjection', () => {
     value.subscribe((event) => events.push(event))
     await value.attach({
       thread: root,
+      contextUsage: async () => ({
+        status: 'unsupported',
+        error: { operation: 'contextUsage', code: 'fixture', message: 'Observation-only fixture' }
+      }),
       release: async () => {},
       observe: async (sink) => ({ status: 'confirmed', value: feed.observe(sink) })
     })
@@ -246,6 +250,10 @@ describe('ThreadMessageProjection', () => {
     let retired!: ObservationSink
     const handle = (answer: string): ThreadHandle => ({
       thread: root,
+      contextUsage: async () => ({
+        status: 'unsupported',
+        error: { operation: 'contextUsage', code: 'fixture', message: 'Observation-only fixture' }
+      }),
       release: async () => {},
       async observe(sink) {
         retired = sink
@@ -271,6 +279,10 @@ describe('ThreadMessageProjection', () => {
     const feed = new ThreadFeed(snapshot([message(root, 'last readable')]), (error) => errors.push(error))
     await value.attach({
       thread: root,
+      contextUsage: async () => ({
+        status: 'unsupported',
+        error: { operation: 'contextUsage', code: 'fixture', message: 'Observation-only fixture' }
+      }),
       release: async () => {},
       observe: async (sink) => ({ status: 'confirmed', value: feed.observe(sink) })
     })
@@ -286,6 +298,10 @@ describe('ThreadMessageProjection', () => {
     const recovered = new ThreadFeed(snapshot([message(root, 'restored')]), (error) => errors.push(error))
     await value.attach({
       thread: root,
+      contextUsage: async () => ({
+        status: 'unsupported',
+        error: { operation: 'contextUsage', code: 'fixture', message: 'Observation-only fixture' }
+      }),
       release: async () => {},
       observe: async (sink) => ({ status: 'confirmed', value: recovered.observe(sink) })
     })
@@ -310,6 +326,10 @@ describe('ThreadMessageProjection', () => {
     let observing = true
     const handle: ThreadHandle = {
       thread: root,
+      contextUsage: async () => ({
+        status: 'unsupported',
+        error: { operation: 'contextUsage', code: 'fixture', message: 'Observation-only fixture' }
+      }),
       release: async () => {},
       async observe(sink) {
         arrive()

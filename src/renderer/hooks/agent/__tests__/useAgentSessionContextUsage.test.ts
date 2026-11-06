@@ -1,11 +1,6 @@
 import { renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-/**
- * The usage cache survives reconnects, so an entry published by the previous model outlives a model
- * switch. The denominator now comes from the passed model rather than the payload, so an unfiltered
- * reading would divide the old model's tokens by the new model's window.
- */
 import { cacheService } from '@data/CacheService'
 import { AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY } from '@shared/ai/agentSessionContextUsage'
 import type { Model } from '@shared/data/types/model'
@@ -26,13 +21,18 @@ beforeEach(() => {
     value: { cache: { broadcastSync: vi.fn(), onSync: vi.fn(), getAllShared: vi.fn(async () => ({})) } }
   })
   cacheService.deleteShared(KEY)
-  // 200,000 tokens reported by a small-window model.
   cacheService.setShared(KEY, {
-    categories: [],
-    totalTokens: 200_000,
-    maxTokens: 250_000,
-    percentage: 80,
-    model: 'small-model'
+    modelId: 'openai::small-model',
+    result: {
+      status: 'confirmed',
+      value: {
+        model: 'small-model',
+        revision: 'r1',
+        contextWindow: 250_000,
+        used: { tokens: 200_000, precision: 'reported' },
+        basis: 'current-context'
+      }
+    }
   })
 })
 
@@ -49,61 +49,37 @@ describe('useAgentSessionContextUsage', () => {
     expect(result.current.percentage).toBeNull()
   })
 
-  it('measures a matching reading against the model window, not the compaction budget', () => {
-    const { result } = renderHook(() => useAgentSessionContextUsage(SESSION_ID, model('openai::small-model', 500_000)))
-
-    expect(result.current.maxTokens).toBe(500_000)
-    expect(result.current.percentage).toBe(40)
-  })
-
-  // An id `ModelSchema` should have rejected must neither unmount the pane nor silently disable
-  // filtering — the reading belongs to another model either way.
-  it('fails closed on a model id it cannot parse', () => {
-    const { result } = renderHook(() => useAgentSessionContextUsage(SESSION_ID, model('provider:legacy', 500_000)))
-
-    expect(result.current.usage).toBeNull()
-  })
-
-  // Both claude-code rows for Sonnet 4.6 resolve to the same 1M catalog entry, so a plain 200K
-  // session would otherwise read 5x low. Claude Code applies its own window, and reports it.
-  it('defers to the runtime window for a model Claude Code sizes itself', () => {
-    cacheService.setShared(KEY, {
-      categories: [],
-      totalTokens: 100_000,
-      maxTokens: 200_000,
-      percentage: 50,
-      model: 'claude-sonnet-4-6'
-    })
-
-    const { result } = renderHook(() =>
-      useAgentSessionContextUsage(SESSION_ID, model('claude-code::claude-sonnet-4-6', 1_000_000))
-    )
-
-    expect(result.current.maxTokens).toBe(200_000)
-    expect(result.current.percentage).toBe(50)
-  })
-
-  it('does not mistake a gateway SDK raw window for the full model window', () => {
-    const nativeUsage = {
-      categories: [],
-      totalTokens: 34_087,
-      maxTokens: 854_560,
-      rawMaxTokens: 854_560,
-      percentage: 4,
-      model: 'small-model'
-    }
-    cacheService.setShared(KEY, nativeUsage)
+  it('uses the harness window even when the catalog disagrees', () => {
     const { result } = renderHook(() =>
       useAgentSessionContextUsage(SESSION_ID, model('openai::small-model', 1_000_000))
     )
-    expect(result.current.maxTokens).toBe(1_000_000)
-    expect(result.current.percentage).toBe(3)
-  })
-
-  it('falls back to the payload when the model declares no window', () => {
-    const { result } = renderHook(() => useAgentSessionContextUsage(SESSION_ID, model('openai::small-model', 0)))
-
     expect(result.current.maxTokens).toBe(250_000)
     expect(result.current.percentage).toBe(80)
+  })
+
+  it('preserves unknown occupancy instead of showing zero', () => {
+    cacheService.setShared(KEY, {
+      modelId: 'openai::small-model',
+      result: {
+        status: 'confirmed',
+        value: { model: 'small-model', revision: 'after-compact', contextWindow: 250_000, basis: 'current-context' }
+      }
+    })
+    const { result } = renderHook(() => useAgentSessionContextUsage(SESSION_ID, model('openai::small-model', 250_000)))
+    expect(result.current.percentage).toBeNull()
+    expect(result.current.maxTokens).toBe(250_000)
+  })
+
+  it('hides an unavailable native reading', () => {
+    cacheService.setShared(KEY, {
+      modelId: 'openai::small-model',
+      result: {
+        status: 'unsupported',
+        error: { operation: 'contextUsage', code: 'child', message: 'Unsupported child access' }
+      }
+    })
+    const { result } = renderHook(() => useAgentSessionContextUsage(SESSION_ID))
+    expect(result.current.usage).toBeNull()
+    expect(result.current.percentage).toBeNull()
   })
 })

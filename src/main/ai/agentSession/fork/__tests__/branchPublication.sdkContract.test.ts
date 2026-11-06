@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -104,7 +105,9 @@ describe('Pi branch publication with native files', () => {
     const shared = answer('Shared answer', source)
     const old = input('Old question', source)
     answer('Old answer', source)
-    const originalFile = await readFile(source.getSessionFile()!, 'utf8')
+    const sourceFile = source.getSessionFile()
+    assert(sourceFile)
+    const originalFile = await readFile(sourceFile, 'utf8')
     const originalRow = dbh.db
       .select()
       .from(agentSessionMessageTable)
@@ -152,7 +155,7 @@ describe('Pi branch publication with native files', () => {
     expect(second.nativeId).not.toBe(first.nativeId)
     expect(messages.inputBinding('product', first.row.id)).toBeDefined()
     expect(messages.inputBinding('product', second.row.id)).toBeUndefined()
-    expect(await readFile(source.getSessionFile()!, 'utf8')).toBe(originalFile)
+    expect(await readFile(sourceFile, 'utf8')).toBe(originalFile)
     expect(
       dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, shared.id)).get()
     ).toEqual(originalRow)

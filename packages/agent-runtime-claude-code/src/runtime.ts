@@ -79,6 +79,12 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
         : owner.submit(projection, inputId, content, whenBusy)
     return {
       thread: projection.thread,
+      contextUsage: async () => {
+        if (released) return rejected('contextUsage', 'released')
+        if (agentId) return { status: 'unsupported', error: runtimeError('contextUsage', 'child-control') }
+        const result = await owner.contextUsage(projection)
+        return released ? rejected('contextUsage', 'released') : result
+      },
       input: agentId ? undefined : { submit: (input) => submit(input.inputId, input.text, input.whenBusy) },
       interrupt: agentId
         ? undefined
@@ -146,10 +152,6 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
           released || agentId
             ? Promise.resolve(rejected('supportedCommands', agentId ? 'child-control' : 'released'))
             : owner.control(projection, 'supportedCommands', (query) => query.supportedCommands()),
-        contextUsage: () =>
-          released || agentId
-            ? Promise.resolve(rejected('contextUsage', agentId ? 'child-control' : 'released'))
-            : owner.control(projection, 'contextUsage', (query) => query.getContextUsage()),
         setPermissionMode: (mode) =>
           released || agentId
             ? Promise.resolve(rejected('setPermissionMode', agentId ? 'child-control' : 'released'))

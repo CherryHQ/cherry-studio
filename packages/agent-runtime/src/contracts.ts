@@ -77,8 +77,48 @@ export interface Subagent {
 export interface Activity {
   readonly state: 'active' | 'idle' | 'unknown'
 }
+export type ContextCategoryKey =
+  | 'messages'
+  | 'system-prompt'
+  | 'system-tools'
+  | 'mcp-tools'
+  | 'mcp-instructions'
+  | 'memory-files'
+  | 'skills'
+  | 'agents'
+  | 'other'
+export interface ContextTokenCount {
+  readonly tokens: number
+  readonly precision: 'reported' | 'estimated'
+}
+export interface ContextCategory extends ContextTokenCount {
+  readonly id: string
+  readonly key: ContextCategoryKey
+  readonly label?: string
+  readonly occupancy: 'included' | 'deferred'
+}
+export interface ContextResource {
+  readonly id: string
+  readonly category: ContextCategoryKey
+  readonly name: string
+  readonly source?: string
+  readonly count?: ContextTokenCount
+  readonly state?: 'loaded' | 'deferred'
+}
+export interface ThreadContextUsage {
+  readonly model: string
+  readonly revision: string
+  readonly contextWindow: number
+  readonly used?: ContextTokenCount
+  readonly basis: 'current-context' | 'last-request'
+  readonly reserved?: ContextTokenCount
+  readonly free?: ContextTokenCount
+  readonly breakdown?: { readonly coverage: 'partial' | 'complete'; readonly categories: readonly ContextCategory[] }
+  readonly resources?: readonly ContextResource[]
+}
 export interface ThreadSnapshot {
   readonly type: 'snapshot'
+  readonly contextUsage?: OperationResult<ThreadContextUsage>
   readonly messages: readonly RuntimeMessage[]
   readonly inputs: readonly InputState[]
   readonly subagents?: readonly Subagent[]
@@ -86,6 +126,7 @@ export interface ThreadSnapshot {
 }
 export type ObservationPayload =
   | ThreadSnapshot
+  | { readonly type: 'context.changed'; readonly result: OperationResult<ThreadContextUsage> }
   | { readonly type: 'message.upsert'; readonly message: RuntimeMessage; readonly replaces?: readonly ItemRef[] }
   | { readonly type: 'message.remove'; readonly ref: ItemRef }
   | { readonly type: 'input.changed'; readonly input: InputState }
@@ -105,6 +146,7 @@ export interface ThreadInput {
 }
 export interface ThreadHandle {
   readonly thread: Thread
+  contextUsage(): Promise<OperationResult<ThreadContextUsage>>
   readonly input?: ThreadInput
   observe(sink: ObservationSink): Promise<OperationResult<Observation>>
   interrupt?: () => Promise<OperationResult<void>>

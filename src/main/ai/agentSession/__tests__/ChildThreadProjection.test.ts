@@ -44,6 +44,10 @@ function fixture(beforeRead?: () => Promise<void>, decorate?: MessageDecorator) 
   let sink!: ObservationSink
   const handle: ThreadHandle = {
     thread,
+    contextUsage: async () => ({
+      status: 'unsupported',
+      error: { operation: 'contextUsage', code: 'fixture', message: 'Observation-only fixture' }
+    }),
     observe: async (consumer) => {
       sink = consumer
       await consumer({
@@ -679,4 +683,37 @@ it('keeps two retained inputs and one shared answer across archive replay and re
   projections.push(reopened)
   await reopened.attach()
   expect(reopened.snapshot().messages).toEqual(expected)
+})
+
+it('keeps a child observation newer than its pending context read without writing message history', async () => {
+  const f = fixture()
+  const reading = Promise.withResolvers<Awaited<ReturnType<ThreadHandle['contextUsage']>>>()
+  const started = Promise.withResolvers<void>()
+  f.handle.contextUsage = () => {
+    started.resolve()
+    return reading.promise
+  }
+  const attaching = f.projection.attach()
+  await started.promise
+  const current = {
+    status: 'confirmed' as const,
+    value: {
+      model: 'child-model',
+      revision: 'child-current',
+      contextWindow: 1000,
+      used: { tokens: 25, precision: 'reported' as const },
+      basis: 'current-context' as const
+    }
+  }
+  await f.send({ type: 'context.changed', result: current })
+  reading.resolve({ status: 'unknown', error: { operation: 'contextUsage', code: 'stale', message: 'Old context' } })
+  await attaching
+  const key = `agent.session.context_usage.${f.context.sessionId}` as const
+  expect(application.get('CacheService').getShared(key)).toEqual({ result: current })
+  expect(readAgentSessionPath(dbh.db, f.context.sessionId)).toEqual([])
+  const revision = f.projection.snapshot().revision
+  await f.send({ type: 'context.changed', result: current })
+  expect(f.projection.snapshot().revision).toBe(revision)
+  await f.projection.stop()
+  expect(application.get('CacheService').getShared(key)).toBeUndefined()
 })

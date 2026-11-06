@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -757,4 +757,167 @@ it('streams interleaved content and preliminary tool output in the same native m
   const committed = archive.messages.find((message) => message.parts.some((part) => part.type === 'dynamic-tool'))!
   expect(committed.parts).toEqual(latest().parts)
   expect(archive.messages.filter((message) => message.role === 'assistant')).toHaveLength(2)
+})
+
+it('reads native context without submitting work and rejects released access', async () => {
+  const { runtime, options } = await setup()
+  const handle = confirmed(await runtime.create({ ...options, systemPrompt: 'Native context contract' }))
+  const events = await observe(handle)
+  const before = confirmed(await handle.contextUsage())
+  expect(before.contextWindow).toBe(options.model.contextWindow)
+  expect(before.used?.precision).toBe('estimated')
+  expect(before.breakdown?.categories.map((row) => row.key)).toContain('messages')
+  const messages = events.filter((event) => event.type === 'message.upsert')
+  expect(confirmed(await handle.contextUsage())).toEqual(before)
+  await Promise.resolve()
+  expect(events.filter((event) => event.type === 'message.upsert')).toEqual(messages)
+  expect(events.filter((event) => event.type === 'activity.changed' && event.activity.state === 'active')).toEqual([])
+  await handle.release()
+  expect(await handle.contextUsage()).toMatchObject({ status: 'rejected', error: { code: 'released' } })
+})
+
+it.each(['deferred', 'codemode'] as const)(
+  'retains prepared %s resource provenance instead of recounting discovered files',
+  async (exposure) => {
+    const { runtime, options, faux } = await setup()
+    const skillDir = join(options.cwd, 'skills', 'example')
+    mkdirSync(skillDir, { recursive: true })
+    writeFileSync(
+      join(skillDir, 'SKILL.md'),
+      '---\nname: example\ndescription: A loaded summary\n---\nFull body is not in the catalog.'
+    )
+    writeFileSync(join(options.cwd, 'AGENTS.md'), 'Use project instructions.')
+    faux.setResponses([fauxAssistantMessage('ready')])
+    const handle = confirmed(
+      await runtime.create({
+        ...options,
+        contextFiles: true,
+        skillPaths: [skillDir],
+        builtinTools: ['read'],
+        tools: [
+          defineTool({
+            name: 'direct_lookup',
+            label: 'Direct',
+            description: 'Loaded external schema',
+            parameters: Type.Object({}),
+            contextSource: { kind: 'mcp-tools', source: 'direct-server' },
+            execute: async () => ({ content: [{ type: 'text' as const, text: 'ok' }], details: {} })
+          }),
+          defineTool({
+            name: 'external_lookup',
+            label: 'External',
+            description: 'Deferred external schema',
+            parameters: Type.Object({}),
+            exposure,
+            contextSource: { kind: 'mcp-tools', source: 'test-server' },
+            execute: async () => ({ content: [{ type: 'text' as const, text: 'ok' }], details: {} })
+          })
+        ]
+      })
+    )
+    const events = await observe(handle)
+    await handle.input.submit(input('prepare resource context'))
+    await expect
+      .poll(() => events.some((event) => event.type === 'activity.changed' && event.activity.state === 'idle'))
+      .toBe(true)
+    const before = confirmed(await handle.contextUsage())
+    expect(before.resources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category: 'memory-files',
+          source: join(options.cwd, 'AGENTS.md'),
+          state: 'loaded',
+          count: { precision: 'estimated', tokens: expect.any(Number) }
+        }),
+        expect.objectContaining({
+          category: 'skills',
+          name: 'example',
+          source: join(skillDir, 'SKILL.md'),
+          state: 'loaded'
+        }),
+        expect.objectContaining({
+          category: 'mcp-tools',
+          name: 'external_lookup',
+          source: 'test-server',
+          state: 'deferred',
+          count: { precision: 'estimated', tokens: expect.any(Number) }
+        })
+      ])
+    )
+    expect(before.breakdown?.categories).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: 'memory-files', occupancy: 'included', tokens: expect.any(Number) }),
+        expect.objectContaining({ key: 'skills', occupancy: 'included', tokens: expect.any(Number) }),
+        expect.objectContaining({ key: 'mcp-tools', occupancy: 'deferred' })
+      ])
+    )
+    expect(before.resources).toContainEqual(
+      expect.objectContaining({
+        category: 'mcp-tools',
+        name: 'direct_lookup',
+        source: 'direct-server',
+        state: 'loaded'
+      })
+    )
+    writeFileSync(join(options.cwd, 'AGENTS.md'), 'Changed after the request '.repeat(100))
+    expect(confirmed(await handle.contextUsage())).toEqual(before)
+  }
+)
+
+it('publishes a local extension model switch to existing and newly attached observers', async () => {
+  const { runtime, options } = await setup()
+  const provider = fauxProvider({
+    models: [
+      { id: 'wide', contextWindow: 128_000 },
+      { id: 'small', contextWindow: 64_000 }
+    ]
+  })
+  options.modelRuntime.registerNativeProvider(provider.provider)
+  await options.modelRuntime.refresh({ allowNetwork: false })
+  let switched = false
+  const handle = confirmed(
+    await runtime.create({
+      ...options,
+      model: options.modelRuntime.getModel('faux', 'wide')!,
+      extensionFactories: [
+        (pi) => {
+          pi.registerCommand('smaller', {
+            handler: async () => {
+              switched = await pi.setModel(options.modelRuntime.getModel('faux', 'small')!)
+            }
+          })
+        }
+      ]
+    })
+  )
+  const events = await observe(handle)
+  await expect
+    .poll(() => events[0])
+    .toMatchObject({
+      type: 'snapshot',
+      contextUsage: { status: 'confirmed', value: { model: 'wide', contextWindow: 128_000 } }
+    })
+  expect(await handle.input.submit(input('/smaller'))).toMatchObject({
+    status: 'acknowledged',
+    facts: ['locally-handled']
+  })
+  await handle.pi.settled()
+  expect(switched).toBe(true)
+  const attached = await observe(confirmed(await runtime.open(handle.thread)))
+  await expect
+    .poll(() => attached[0])
+    .toMatchObject({
+      type: 'snapshot',
+      contextUsage: { status: 'confirmed', value: { model: 'small', contextWindow: 64_000 } }
+    })
+  expect(events).toContainEqual(
+    expect.objectContaining({
+      type: 'context.changed',
+      result: expect.objectContaining({
+        status: 'confirmed',
+        value: expect.objectContaining({ model: 'small', contextWindow: 64_000 })
+      })
+    })
+  )
+  expect(provider.state.callCount).toBe(0)
 })
