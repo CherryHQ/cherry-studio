@@ -45,7 +45,9 @@ function normalizeForCompare(value: string): string {
 }
 
 function effectiveFilesystemPath(filePath: string): string {
-  return resolveExistingAncestor(path.resolve(filePath)).effectivePath
+  // resolveExistingAncestor walks segments in filesystem order (symlinks first,
+  // then `..`); pre-collapsing with path.resolve would guard the wrong tree.
+  return resolveExistingAncestor(filePath).effectivePath
 }
 
 function pathUnderRoot(filePath: string, root: string): boolean {

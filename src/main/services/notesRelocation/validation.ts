@@ -52,18 +52,43 @@ function pathEntryExists(value: string): boolean {
   }
 }
 
+/**
+ * Resolve a path the way the filesystem will traverse it: symlinks resolve as
+ * each component is entered, and `..` climbs the SYMLINK-RESOLVED parent.
+ * Collapsing `..` lexically first (path.resolve/path.normalize) diverges from
+ * kernel traversal whenever `..` follows a symlink - `outside/link/../note.md`
+ * with link -> source/child writes source/note.md, not outside/note.md - so a
+ * containment check over the lexical path guards the wrong tree.
+ */
 export function resolveExistingAncestor(value: string): { path: string; effectivePath: string } {
-  let cursor = path.resolve(value)
-  const missingParts: string[] = []
-  while (!pathEntryExists(cursor)) {
-    const parent = path.dirname(cursor)
-    if (parent === cursor) {
+  const absolute = path.isAbsolute(value) ? value : process.cwd() + path.sep + value
+  const { root } = path.parse(absolute)
+  // Normalize only separators (win32 altsep), never dot segments.
+  const body = path.altsep ? absolute.slice(root.length).split(path.altsep).join(path.sep) : absolute.slice(root.length)
+  let resolved = root
+  for (const segment of body.split(path.sep)) {
+    if (segment === '' || segment === '.') {
+      continue
+    }
+    if (segment === '..') {
+      // Parent of an already symlink-resolved directory; dirname of the root is the root.
+      resolved = path.dirname(resolved)
+      continue
+    }
+    const candidate = path.join(resolved, segment)
+    resolved = pathEntryExists(candidate) ? realPath(candidate) : candidate
+  }
+  // The existing prefix of `resolved` is real by construction; climb it to
+  // expose the deepest existing ancestor, as the previous contract did.
+  let ancestor = resolved
+  while (!pathEntryExists(ancestor)) {
+    const parent = path.dirname(ancestor)
+    if (parent === ancestor) {
       invalid('invalid_target', `no existing ancestor for target: ${value}`)
     }
-    missingParts.unshift(path.basename(cursor))
-    cursor = parent
+    ancestor = parent
   }
-  return { path: cursor, effectivePath: path.join(realPath(cursor), ...missingParts) }
+  return { path: ancestor, effectivePath: resolved }
 }
 
 /**

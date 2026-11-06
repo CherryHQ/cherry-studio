@@ -49,6 +49,23 @@ describe('notes migration session', () => {
     )
   })
 
+  it('blocks writes whose `..` follows a symlink into the source root', () => {
+    const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-src-linkdot-'))
+    const child = path.join(source, 'child')
+    fs.mkdirSync(child)
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-outside-linkdot-'))
+    fs.symlinkSync(child, path.join(outside, 'link'))
+    const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-tgt-linkdot-'))
+
+    setNotesMigrationBlockedRoots(source, target)
+
+    // Kernel traversal enters link (-> source/child) BEFORE applying `..`, so
+    // this path writes source/note.md. Built with separators, not path.join,
+    // which would collapse the `..` lexically and hide the traversal.
+    const crafted = [outside, 'link', '..', 'note.md'].join(path.sep)
+    expect(() => assertNotesPathNotMutatingDuringMigration(crafted)).toThrow(/migration is in progress/)
+  })
+
   it('blocks child filenames that start with double dots but stay inside the root', () => {
     const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-src-dotdot-'))
     const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-tgt-dotdot-'))
