@@ -33,7 +33,7 @@ SDK 7 会扩大迁移范围。自行序列化 HTTP 或增加下游 GIF 改图补
 
 ## Risks
 
-指南及 SDK 接受 2–64 帧，但当前 API Reference 规定 2–16 帧，目录采用更严格的接口参考范围。SDK 将每帧时长限制为 20–2000 毫秒，本次暴露这一可执行子集。真实验证记录实际返回元数据。GIF 改图、SVG、markup 等能力延期。目录最低版本需与真正包含运行时改动的版本对应。
+OpenAI 指南和 API Reference 均规定 2–16 帧，而 SDK 3.0.137 允许 2–64 帧；目录遵循文档规定的 16 帧上限。SDK 将每帧时长限制为 20–2000 毫秒，本次暴露这一可执行子集。真实验证记录实际返回元数据。GIF 改图、SVG、markup 等能力延期。目录最低版本需与真正包含运行时改动的版本对应。
 
 来源：[OpenAI 图片指南](https://developers.openai.com/api/docs/guides/image-generation)、[AI SDK 6 回移](https://github.com/vercel/ai/pull/24561)、[Images API Reference](https://developers.openai.com/api/reference/resources/images/methods/generate)。
 
