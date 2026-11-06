@@ -418,10 +418,38 @@ describe('runAgentTask', () => {
       expect(mockStartRun).not.toHaveBeenCalled()
     })
 
-    it('keeps blocking on a legacy text-only skip marker persisted before the structured field', async () => {
-      arm({ taskId: 'dep' }, lastRun('completed', new Date().toISOString(), 'Skipped (disabled)'))
+    it.each([
+      'Skipped (assistant role)',
+      'Skipped (capability)',
+      'Skipped (disabled)',
+      'Skipped (no file)',
+      'Skipped (session busy)',
+      'Skipped (untrusted agent data path)',
+      'Skipped (untrusted workspace path)',
+      'Skipped (workspace deleted)'
+    ])('keeps blocking on the legacy text-only skip marker %s', async (marker) => {
+      arm({ taskId: 'dep' }, lastRun('completed', new Date().toISOString(), marker))
       await expect(runTask()).resolves.toEqual({ result: 'Skipped (dependency failed)', skipped: true })
       expect(mockStartRun).not.toHaveBeenCalled()
+    })
+
+    it('runs when a legacy successful reply begins with the Skipped ( prefix', async () => {
+      arm(
+        { taskId: 'dep' },
+        lastRun('completed', new Date().toISOString(), 'Skipped (2 duplicate files); backup completed successfully.')
+      )
+      const promise = runTask()
+      await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+      captured.listeners[0].onDone()
+      await expect(promise).resolves.toBeDefined()
+    })
+
+    it('runs when a legacy reply extends a historical marker beyond its exact text', async () => {
+      arm({ taskId: 'dep' }, lastRun('completed', new Date().toISOString(), 'Skipped (disabled) items were kept'))
+      const promise = runTask()
+      await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+      captured.listeners[0].onDone()
+      await expect(promise).resolves.toBeDefined()
     })
 
     it('runs when a successful dependency reply merely starts with the word Skipped', async () => {

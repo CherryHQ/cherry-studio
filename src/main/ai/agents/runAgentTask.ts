@@ -146,6 +146,24 @@ function resolveTaskSession(params: {
   return session
 }
 
+/**
+ * Skip markers a pre-upgrade runner could persist, from when a skip was just
+ * text in `result` with no structured field. Successful runs stored raw
+ * assistant prose there, so historical classification must match these exact
+ * strings rather than any "Skipped (" prefix. Enumerated from every shipped
+ * version of this file.
+ */
+const LEGACY_SKIP_MARKERS = new Set([
+  'Skipped (assistant role)',
+  'Skipped (capability)',
+  'Skipped (disabled)',
+  'Skipped (no file)',
+  'Skipped (session busy)',
+  'Skipped (untrusted agent data path)',
+  'Skipped (untrusted workspace path)',
+  'Skipped (workspace deleted)'
+])
+
 /** Returns why the dependency blocks this fire, or `null` when its latest run succeeded in the window. */
 function dependencyBlockReason(metadata: Record<string, unknown> | undefined): string | null {
   const dependency = readTaskDependency(metadata)
@@ -154,14 +172,15 @@ function dependencyBlockReason(metadata: Record<string, unknown> | undefined): s
   const last = jobService.listRecentTerminalByScheduleId(dependency.taskId, 1)[0]
   if (!last) return 'dependency not run'
   const output = last.output as { result?: unknown; skipped?: unknown } | null
-  // The structured marker wins. The text-prefix fallback only classifies runs
-  // persisted before the marker existed (every historical skip marker used the
-  // `Skipped (` form), so old skipped runs keep blocking dependents while a
-  // genuine reply that happens to start with "Skipped" no longer suppresses
-  // the whole chain.
+  // The structured marker wins. Runs persisted before it existed stored raw
+  // assistant prose in `result`, so a prefix test collides with a genuine
+  // reply that happens to begin with "Skipped (". Every skip the pre-upgrade
+  // runner could persist is one of the exact LEGACY_SKIP_MARKERS strings, so
+  // exact matching keeps old skipped runs blocking dependents without
+  // misclassifying prose.
   const skipped =
     output?.skipped === true ||
-    (output?.skipped === undefined && typeof output?.result === 'string' && output.result.startsWith('Skipped ('))
+    (output?.skipped === undefined && typeof output?.result === 'string' && LEGACY_SKIP_MARKERS.has(output.result))
   if (last.status !== 'completed' || skipped) {
     return 'dependency failed'
   }
