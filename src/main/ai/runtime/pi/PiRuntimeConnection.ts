@@ -12,6 +12,7 @@ import { runtimeId, type InputState, type Observation, type ObservationPayload }
 import type { AgentRuntimeEvent as PiEvent, PiRuntime, PiThreadHandle } from '@cherrystudio/agent-runtime-pi'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
@@ -46,6 +47,7 @@ import {
 import { normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
 import { LEGACY_DSH_TOOL_PREFIX } from '@shared/ai/retiredAgentRuntime'
 import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
+import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
@@ -870,20 +872,30 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private async finishClose(): Promise<void> {
     toolApprovalRegistry.abort(this.input.sessionId, 'pi-session-closed')
     if (!this.nativeClosed) {
-      if (this.handle?.interrupt) {
-        const interrupted = await this.handle.interrupt()
-        if (interrupted.status !== 'confirmed') throw new Error(interrupted.error.message)
+      let activeArchive = true
+      try {
+        agentSessionService.getById(this.input.sessionId)
+      } catch (error) {
+        if (!isDataApiError(error) || error.code !== ErrorCode.NOT_FOUND) throw error
+        activeArchive = false
+      }
+      // User-stop persists behavior state and reads approval rows; deleted archives only need owner shutdown.
+      if (activeArchive) {
+        if (this.handle?.interrupt) {
+          const interrupted = await this.handle.interrupt()
+          if (interrupted.status !== 'confirmed') throw new Error(interrupted.error.message)
+        }
+        await Promise.all(
+          [...this.childHandles.values()].map(async (child) => {
+            const handle = await child
+            if (handle?.interrupt) {
+              const result = await handle.interrupt()
+              if (result.status !== 'confirmed') throw new Error(result.error.message)
+            }
+          })
+        )
       }
       this.cancelQueuedInputs()
-      await Promise.all(
-        [...this.childHandles.values()].map(async (child) => {
-          const handle = await child
-          if (handle?.interrupt) {
-            const result = await handle.interrupt()
-            if (result.status !== 'confirmed') throw new Error(result.error.message)
-          }
-        })
-      )
       const result = await this.runtime?.shutdown()
       if (result && result.status !== 'confirmed') throw new Error(result.error.message)
       this.nativeClosed = true
