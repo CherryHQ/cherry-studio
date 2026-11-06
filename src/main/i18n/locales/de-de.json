@@ -149,6 +149,7 @@
   "dialog.screenshot_failed.title": "Screenshot fehlgeschlagen",
   "dialog.select_folder": "Ordner auswählen",
   "dialog.word_document": "Word-Dokument",
+  "error.adaptive_thinking_budget": "Adaptives Denken akzeptiert keine budget_tokens. Entfernen Sie thinking.budget_tokens oder verwenden Sie den Denkmodus enabled, sofern das Modell ihn unterstützt.",
   "file_processing.errors.document_size_limit_exceeded": "Der aktuelle Dienst zur Dokumentverarbeitung erfordert Dateien kleiner als {{maxSize}}. Komprimieren oder teilen Sie diese Datei und fügen Sie sie dann erneut hinzu.",
   "file_processing.errors.open_mineru_endpoint_changed": "Die Serveradresse von Open MinerU wurde geändert. Versuchen Sie die Dokumentverarbeitung erneut, um den neuen Server zu verwenden.",
   "file_processing.errors.open_mineru_invalid_response": "Open MinerU hat eine ungültige oder nicht unterstützte Antwort zurückgegeben.",

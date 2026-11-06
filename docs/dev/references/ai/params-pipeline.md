@@ -207,6 +207,15 @@ namespace bags remain exclusive to `providerOptions`, non-JSON requests are
 left unchanged, and SDK-produced body fields take precedence over custom
 parameters.
 
+For a resolved `anthropic-messages` endpoint, this wrapper rejects the merged
+body before transport when its top-level `thinking` object has
+`type: 'adaptive'` and an own `budget_tokens` property, regardless of value.
+It throws `InvalidAdaptiveThinkingBudgetError` with the main catalog's
+`error.adaptive_thinking_budget` message. SDK thinking that replaces the raw
+object is checked as a whole; nested data and other endpoint protocols keep
+their existing passthrough behavior. Native Claude direct requests bypass this
+wrapper. Configured cross-model fallback may still send a later attempt.
+
 ## Where to read more
 
 - Code: `src/main/ai/runtime/aiSdk/params/`

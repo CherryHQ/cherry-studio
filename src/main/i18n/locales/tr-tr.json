@@ -149,6 +149,7 @@
   "dialog.screenshot_failed.title": "Ekran Görüntüsü Alınamadı",
   "dialog.select_folder": "Klasör Seç",
   "dialog.word_document": "Word Belgesi",
+  "error.adaptive_thinking_budget": "Uyarlanabilir düşünme budget_tokens kabul etmez. thinking.budget_tokens alanını kaldırın veya model destekliyorsa enabled düşünme modunu kullanın.",
   "file_processing.errors.document_size_limit_exceeded": "Geçerli belge ayrıştırma hizmeti, dosyaların {{maxSize}} boyutundan küçük olmasını gerektiriyor. Bu dosyayı sıkıştırın veya bölün, ardından yeniden ekleyin.",
   "file_processing.errors.open_mineru_endpoint_changed": "Open MinerU sunucu adresi değişti. Yeni sunucuyu kullanmak için belgeyi yeniden işlemeyi deneyin.",
   "file_processing.errors.open_mineru_invalid_response": "Open MinerU geçersiz veya desteklenmeyen bir yanıt döndürdü.",

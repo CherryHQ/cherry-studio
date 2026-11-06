@@ -149,6 +149,7 @@
   "dialog.screenshot_failed.title": "Chụp ảnh màn hình thất bại",
   "dialog.select_folder": "Chọn thư mục",
   "dialog.word_document": "Tài liệu Word",
+  "error.adaptive_thinking_budget": "Chế độ suy luận thích ứng không chấp nhận budget_tokens. Hãy xóa thinking.budget_tokens hoặc dùng chế độ suy luận enabled nếu mô hình hỗ trợ.",
   "file_processing.errors.document_size_limit_exceeded": "Dịch vụ phân tích tài liệu hiện tại yêu cầu tệp nhỏ hơn {{maxSize}}. Hãy nén hoặc chia nhỏ tệp này rồi thêm lại.",
   "file_processing.errors.open_mineru_endpoint_changed": "Địa chỉ máy chủ Open MinerU đã thay đổi. Hãy thử xử lý lại tài liệu để dùng máy chủ mới.",
   "file_processing.errors.open_mineru_invalid_response": "Open MinerU trả về phản hồi không hợp lệ hoặc không được hỗ trợ.",

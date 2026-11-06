@@ -149,6 +149,7 @@
   "dialog.screenshot_failed.title": "截图失败",
   "dialog.select_folder": "选择文件夹",
   "dialog.word_document": "Word 文档",
+  "error.adaptive_thinking_budget": "自适应思考不接受 budget_tokens。请移除 thinking.budget_tokens，或在模型支持的情况下使用 enabled 思考模式。",
   "file_processing.errors.document_size_limit_exceeded": "当前文档解析服务要求文件小于 {{maxSize}}，请压缩或拆分后重新添加。",
   "file_processing.errors.open_mineru_endpoint_changed": "Open MinerU 服务地址已更改。请重试该文档以使用新服务。",
   "file_processing.errors.open_mineru_invalid_response": "Open MinerU 返回了无效或不支持的响应。",

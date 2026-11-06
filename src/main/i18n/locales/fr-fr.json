@@ -149,6 +149,7 @@
   "dialog.screenshot_failed.title": "Échec de la capture d’écran",
   "dialog.select_folder": "Sélectionner un dossier",
   "dialog.word_document": "Document Word",
+  "error.adaptive_thinking_budget": "Le raisonnement adaptatif n’accepte pas budget_tokens. Supprimez thinking.budget_tokens ou utilisez le raisonnement en mode enabled si le modèle le prend en charge.",
   "file_processing.errors.document_size_limit_exceeded": "Le service actuel d’analyse de documents exige des fichiers inférieurs à {{maxSize}}. Compressez ou fractionnez ce fichier, puis ajoutez-le à nouveau.",
   "file_processing.errors.open_mineru_endpoint_changed": "L’adresse du serveur Open MinerU a changé. Relancez le traitement du document pour utiliser le nouveau serveur.",
   "file_processing.errors.open_mineru_invalid_response": "Open MinerU a renvoyé une réponse invalide ou non prise en charge.",
