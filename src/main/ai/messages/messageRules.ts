@@ -346,7 +346,18 @@ export async function toModelMessages(
       dropNonObjectToolInputs(dropUnansweredApprovals(stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA)))
     )
   )
-  const model = await convertToModelMessages(renderEditedReasoningAsThinkText(shaped), {
+  // Anthropic serializes signed reasoning even when blank, which Bedrock rejects.
+  // Redacted thinking has redactedData instead of a signature and must survive.
+  const replayable = shaped.map((message) => {
+    const parts = message.parts.filter(
+      (part) =>
+        part.type !== 'reasoning' ||
+        part.text.trim().length > 0 ||
+        typeof part.providerMetadata?.anthropic?.signature !== 'string'
+    )
+    return parts.length === message.parts.length ? message : { ...message, parts }
+  })
+  const model = await convertToModelMessages(renderEditedReasoningAsThinkText(replayable), {
     ignoreIncompleteToolCalls: true,
     tools
   })
