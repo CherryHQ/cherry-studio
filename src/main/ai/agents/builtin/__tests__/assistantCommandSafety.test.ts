@@ -338,6 +338,24 @@ describe('detectDestructiveAssistantCommand scripts', () => {
         'node -e \'const fs=require("fs"); console.log(`${8 / 2}`, `${fs.unlinkSync("victim")}`, `${6 / 3}`)\''
       )
     ).toBe('scripted permanent file deletion')
+    // A comment between the operands ends with the character under test, so it has to be skipped
+    // rather than treated as the thing being divided.
+    expect(
+      detectDestructiveAssistantCommand(
+        'node -e \'const fs=require("fs"); const a=8 /* n */ / 2; fs.unlinkSync("victim"); const b=6 / 3;\''
+      )
+    ).toBe('scripted permanent file deletion')
+    expect(
+      detectDestructiveAssistantCommand(
+        'node -e \'const fs=require("fs"); const a=8 // n\n / 2; fs.unlinkSync("victim"); const b=6 / 3;\''
+      )
+    ).toBe('scripted permanent file deletion')
+    // A block or object literal closes an expression, so the `/` after it divides.
+    expect(
+      detectDestructiveAssistantCommand(
+        'node -e \'const fs=require("fs"); const a={} / 2; fs.unlinkSync("victim"); const b=6 / 3;\''
+      )
+    ).toBe('scripted permanent file deletion')
   })
 
   it('does not treat a consumed regular expression as hiding what follows it', () => {

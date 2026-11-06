@@ -169,17 +169,37 @@ const CONTAINER_RUN_VALUE_FLAGS = new Set([
   '--workdir'
 ])
 
+/** Last index at or before `from` that is neither whitespace nor part of a comment. */
+function skipBackwardsPastTrivia(code: string, from: number): number {
+  let index = from
+  while (index >= 0) {
+    if (/\s/.test(code[index])) {
+      index--
+      continue
+    }
+    // A comment ends on the character under test — `*/` for a block, a newline after `//` — so it
+    // has to be stepped over rather than read as the thing being divided.
+    const before = code.slice(0, index + 1)
+    const block = before.endsWith('*/') ? before.lastIndexOf('/*') : -1
+    const line = before.lastIndexOf('//')
+    const open = Math.max(block, line)
+    if (open === -1) return index
+    index = open - 1
+  }
+  return -1
+}
+
 /**
  * Whether the `/` at `index` divides rather than starting a regular expression.
  *
- * Decided by the last token, not the adjacent character: `8 / 2` divides across whitespace, and a
- * value-ender such as an identifier, number, closing bracket, quote, or dot can only be divided.
+ * Decided by the last token, not the adjacent character: `8 / 2`, an object or block literal, and
+ * an operand behind a comment all divide, and a value-ender such as an identifier, number, closing
+ * bracket, quote, or dot can only be divided.
  */
 function endsExpression(code: string, index: number): boolean {
-  let last = index - 1
-  while (last >= 0 && /\s/.test(code[last])) last--
+  const last = skipBackwardsPastTrivia(code, index - 1)
   if (last < 0) return false
-  return /[A-Za-z0-9_$)\]'"`.\\]/.test(code[last])
+  return /[A-Za-z0-9_$)\]}'"`.\\]/.test(code[last])
 }
 
 /**
