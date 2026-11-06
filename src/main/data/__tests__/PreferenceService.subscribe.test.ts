@@ -1,7 +1,7 @@
 import { pathToFileURL } from 'node:url'
 
 import type { IpcMainInvokeEvent } from 'electron'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * Tests for the Preference_Subscribe IPC handler.
@@ -13,6 +13,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  * resolvable window.
  */
 import { IpcChannel } from '@shared/IpcChannel'
+
+import type { PreferenceService as PreferenceServiceType } from '../PreferenceService'
 
 // Undo the global mock from main.setup.ts — we want the REAL PreferenceService
 vi.unmock('@main/data/PreferenceService')
@@ -97,11 +99,16 @@ describe('Preference_Subscribe IPC handler', () => {
   let service: any
   let handler: (event: IpcMainInvokeEvent, ...args: any[]) => unknown
 
-  beforeEach(async () => {
+  let PreferenceService: typeof PreferenceServiceType
+
+  beforeAll(async () => {
+    ;({ PreferenceService } = await import('../PreferenceService'))
+  }, 30_000)
+
+  beforeEach(() => {
     vi.clearAllMocks()
     ipcHandlers.clear()
 
-    const { PreferenceService } = await import('../PreferenceService')
     service = new PreferenceService()
     service.onReady()
     handler = ipcHandlers.get(IpcChannel.Preference_Subscribe)!

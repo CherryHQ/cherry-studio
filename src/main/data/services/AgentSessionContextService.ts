@@ -102,7 +102,6 @@ class AgentSessionContextService {
   ): AgentSessionContextRow {
     this.backendTx(tx, binding.backendId)
     if (!binding.anchorMessageId) throw new Error('Branch anchor is required')
-    readAgentSessionAncestry(tx, binding.sessionId, binding.anchorMessageId)
     const nativeId = binding.nativeThreadId
     const existing = nativeId
       ? tx
@@ -176,31 +175,6 @@ class AgentSessionContextService {
     })
   }
 
-  allocateContext(sessionId: string, backendId: string, nativeThreadId?: string): AgentSessionContextRow {
-    return application
-      .get('DbService')
-      .withWriteTx((tx) => this.allocateContextTx(tx, sessionId, backendId, nativeThreadId))
-  }
-
-  allocateContextTx(tx: DbOrTx, sessionId: string, backendId: string, nativeThreadId?: string): AgentSessionContextRow {
-    this.backendTx(tx, backendId)
-    if (nativeThreadId) {
-      const existing = tx
-        .select()
-        .from(contexts)
-        .where(
-          and(
-            eq(contexts.sessionId, sessionId),
-            eq(contexts.backendId, backendId),
-            eq(contexts.nativeThreadId, nativeThreadId)
-          )
-        )
-        .get()
-      if (existing) return existing
-    }
-    return tx.insert(contexts).values({ sessionId, backendId, nativeThreadId }).returning().get()
-  }
-
   context(id: string): AgentSessionContextRow {
     return this.contextTx(application.get('DbService').getDb(), id)
   }
@@ -225,10 +199,6 @@ class AgentSessionContextService {
         .returning()
         .get()
     })
-  }
-
-  forSession(sessionId: string): AgentSessionContextRow[] {
-    return application.get('DbService').getDb().select().from(contexts).where(eq(contexts.sessionId, sessionId)).all()
   }
 }
 
