@@ -27,6 +27,8 @@ export interface ShellHeredoc {
   delimiter: string
   body: string
   stripTabs: boolean
+  /** A quoted delimiter (`<<'EOF'`) suppresses expansions; an unquoted one still evaluates them. */
+  quoted: boolean
   /** The physical line that carried the `<<` operator. */
   line: string
 }
@@ -40,6 +42,24 @@ const OPERATOR_CHARS = new Set(['&', '|', ';', '(', ')', '<', '>'])
 const WHITESPACE = new Set([' ', '\t', '\r'])
 const REDIRECTIONS = new Set(['>', '>>', '>|', '&>', '>&', '<', '<<', '<<-', '<<<', '<>'])
 const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/
+/** Keywords and group delimiters that precede a compound command's body (`if … then`, `{ …; }`). */
+const RESERVED_WORDS = new Set([
+  'if',
+  'then',
+  'else',
+  'elif',
+  'fi',
+  'for',
+  'while',
+  'until',
+  'do',
+  'done',
+  'case',
+  'esac',
+  '{',
+  '}',
+  '!'
+])
 /** Wrappers that delegate to the command that follows them. */
 const WRAPPERS = new Set([
   'time',
@@ -296,8 +316,11 @@ function tokenize(text: string): Token[] {
   return tokens
 }
 
-/** Resolve the command word through assignments, sudo, and wrappers like `xargs`. */
-function resolveCommand(words: readonly string[]): { command: string; args: string[] } | undefined {
+/**
+ * Resolve the command word through assignments, sudo, and wrappers like `xargs`. Also resolves
+ * argument vectors that are exec'd as argv rather than re-parsed as shell text (`docker exec …`).
+ */
+export function resolveCommand(words: readonly string[]): { command: string; args: string[] } | undefined {
   let index = 0
   while (index < words.length) {
     const word = words[index]
@@ -326,12 +349,14 @@ function parseCommands(text: string): ShellPipeline[] {
   let commands: ShellCommand[] = []
   let words: string[] = []
   let substitutions: string[] = []
-  let redirectionTarget = false
+  let redirection: string | undefined
 
   const flushCommand = () => {
     if (words.length > 0) {
       const resolved = resolveCommand(words)
       if (resolved) commands.push({ ...resolved, substitutions })
+      // `x=$(rm -f a)` runs its substitution without ever resolving a command word.
+      else if (substitutions.length > 0) commands.push({ command: '', args: [], substitutions })
     }
     words = []
     substitutions = []
@@ -350,7 +375,7 @@ function parseCommands(text: string): ShellPipeline[] {
     if (token.kind === 'operator') {
       if (token.value === '|') flushCommand()
       else if (!REDIRECTIONS.has(token.value)) flushPipeline()
-      redirectionTarget = REDIRECTIONS.has(token.value)
+      redirection = REDIRECTIONS.has(token.value) ? token.value : undefined
       continue
     }
     const next = tokens[index + 1]
@@ -358,10 +383,16 @@ function parseCommands(text: string): ShellPipeline[] {
     if (/^\d+$/.test(token.value) && next?.kind === 'operator' && next.glued && REDIRECTIONS.has(next.value)) {
       continue
     }
-    if (redirectionTarget) {
-      redirectionTarget = false
+    if (redirection !== undefined) {
+      const operator = redirection
+      redirection = undefined
+      substitutions.push(...token.substitutions)
+      // `<<<` feeds the word to stdin (`sqlite3 db <<< "DROP TABLE t"`); other targets are filenames.
+      if (operator === '<<<') words.push(token.value)
       continue
     }
+    // A reserved word opens or continues a compound body; the command after it is what executes.
+    if (words.length === 0 && RESERVED_WORDS.has(token.value.toLowerCase())) continue
     words.push(token.value)
     substitutions.push(...token.substitutions)
   }
@@ -370,8 +401,8 @@ function parseCommands(text: string): ShellPipeline[] {
 }
 
 /** Locate `<<`/`<<-` operators and their delimiters on one line. */
-function findHeredocOperators(line: string): Array<{ delimiter: string; stripTabs: boolean }> {
-  const operators: Array<{ delimiter: string; stripTabs: boolean }> = []
+function findHeredocOperators(line: string): Array<{ delimiter: string; stripTabs: boolean; quoted: boolean }> {
+  const operators: Array<{ delimiter: string; stripTabs: boolean; quoted: boolean }> = []
   let index = 0
   let quote: string | undefined
   let atWordStart = true
@@ -405,20 +436,23 @@ function findHeredocOperators(line: string): Array<{ delimiter: string; stripTab
       }
       while (line[cursor] === ' ' || line[cursor] === '\t') cursor++
       let delimiter = ''
+      let quoted = false
       if (line[cursor] === "'" || line[cursor] === '"') {
         const close = line.indexOf(line[cursor], cursor + 1)
         if (close === -1) break
         delimiter = line.slice(cursor + 1, close)
+        quoted = true
         cursor = close + 1
       } else if (line[cursor] === '\\') {
         delimiter = line[cursor + 1] ?? ''
+        quoted = true
         cursor += 2
       } else {
         const wordStart = cursor
         while (cursor < line.length && !/[\s;&|()<>]/.test(line[cursor])) cursor++
         delimiter = line.slice(wordStart, cursor)
       }
-      if (delimiter) operators.push({ delimiter, stripTabs })
+      if (delimiter) operators.push({ delimiter, stripTabs, quoted })
       index = cursor
       atWordStart = false
       continue
@@ -438,7 +472,7 @@ function extractHeredocs(command: string): { commandText: string; heredocs: Shel
   const lines = command.split('\n')
   const kept: string[] = []
   const heredocs: ShellHeredoc[] = []
-  const pending: Array<{ delimiter: string; stripTabs: boolean; line: string }> = []
+  const pending: Array<{ delimiter: string; stripTabs: boolean; quoted: boolean; line: string }> = []
   let index = 0
   while (index < lines.length) {
     if (pending.length > 0) {
@@ -450,7 +484,13 @@ function extractHeredocs(command: string): { commandText: string; heredocs: Shel
         if (candidate === spec.delimiter) break
         body.push(candidate)
       }
-      heredocs.push({ delimiter: spec.delimiter, stripTabs: spec.stripTabs, line: spec.line, body: body.join('\n') })
+      heredocs.push({
+        delimiter: spec.delimiter,
+        stripTabs: spec.stripTabs,
+        quoted: spec.quoted,
+        line: spec.line,
+        body: body.join('\n')
+      })
       continue
     }
     const line = lines[index]

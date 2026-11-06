@@ -1,4 +1,4 @@
-import { parseShellCommand, type ShellCommand, type ShellHeredoc } from './shellCommandParser'
+import { parseShellCommand, resolveCommand, type ShellCommand, type ShellHeredoc } from './shellCommandParser'
 
 const MAX_ANALYSIS_DEPTH = 4
 
@@ -89,6 +89,24 @@ const KUBECTL_VALUE_FLAGS = new Set([
   '--cluster',
   '--user'
 ])
+/** Docker object types whose `rm`/`rmi`/`prune` subcommands destroy containers, images, or volumes. */
+const CONTAINER_OBJECTS = new Set([
+  'builder',
+  'buildx',
+  'config',
+  'container',
+  'context',
+  'image',
+  'network',
+  'node',
+  'plugin',
+  'secret',
+  'service',
+  'stack',
+  'swarm',
+  'system',
+  'volume'
+])
 const CONTAINER_EXEC_VALUE_FLAGS = new Set([
   '-e',
   '--env',
@@ -157,7 +175,13 @@ function stripScriptLiterals(code: string, language: 'python' | 'javascript'): s
   let index = 0
   while (index < code.length) {
     const char = code[index]
-    if (char === "'" || char === '"' || (language === 'javascript' && char === '`')) {
+    if (language === 'javascript' && char === '`') {
+      const template = stripTemplateLiteral(code, index)
+      output += template.output
+      index = template.end
+      continue
+    }
+    if (char === "'" || char === '"') {
       const triple = language === 'python' && code.startsWith(char.repeat(3), index)
       const quote = triple ? char.repeat(3) : char
       const close = findClosingQuote(code, index + quote.length, quote)
@@ -197,6 +221,58 @@ function findClosingQuote(code: string, start: number, quote: string): number {
       continue
     }
     if (code.startsWith(quote, index)) return index
+    index++
+  }
+  return -1
+}
+
+/** Blank a template literal's text but keep its `${…}` expressions, which execute. */
+function stripTemplateLiteral(code: string, start: number): { output: string; end: number } {
+  let output = ' '
+  let index = start + 1
+  while (index < code.length) {
+    const char = code[index]
+    if (char === '\\') {
+      index += 2
+      continue
+    }
+    if (char === '`') return { output, end: index + 1 }
+    if (char === '$' && code[index + 1] === '{') {
+      const end = findTemplateExpressionEnd(code, index + 1)
+      const expression = code.slice(index + 2, end === -1 ? code.length : end)
+      output += ` ${stripScriptLiterals(expression, 'javascript')}`
+      index = end === -1 ? code.length : end + 1
+      continue
+    }
+    index++
+  }
+  return { output, end: code.length }
+}
+
+/** Index of the `}` closing a `${` expression, skipping nested strings and template literals. */
+function findTemplateExpressionEnd(code: string, braceStart: number): number {
+  let depth = 0
+  let index = braceStart
+  while (index < code.length) {
+    const char = code[index]
+    if (char === '\\') {
+      index += 2
+      continue
+    }
+    if (char === "'" || char === '"') {
+      const close = findClosingQuote(code, index + 1, char)
+      index = close === -1 ? code.length : close + 1
+      continue
+    }
+    if (char === '`') {
+      index = stripTemplateLiteral(code, index).end
+      continue
+    }
+    if (char === '{') depth++
+    if (char === '}') {
+      depth--
+      if (depth === 0) return index
+    }
     index++
   }
   return -1
@@ -276,26 +352,26 @@ function suCommand(args: readonly string[]): string | undefined {
 }
 
 /** `chroot [options] newroot [command]` */
-function chrootCommand(args: readonly string[]): string | undefined {
+function chrootArgv(args: readonly string[]): readonly string[] {
   const root = skipOptions(args, 0, CHROOT_VALUE_FLAGS)
-  return args.slice(root + 1).join(' ') || undefined
+  return args.slice(root + 1)
 }
 
-/** `kubectl exec … [--] command` */
-function kubectlCommand(args: readonly string[]): string | undefined {
+/** `kubectl exec … [--] command arg…` */
+function kubectlArgv(args: readonly string[]): readonly string[] | undefined {
   if (args[0] !== 'exec') return undefined
   const separator = args.indexOf('--')
-  if (separator >= 0) return args.slice(separator + 1).join(' ') || undefined
+  if (separator >= 0) return args.slice(separator + 1)
   const container = skipOptions(args, 1, KUBECTL_VALUE_FLAGS)
-  return args.slice(container + 1).join(' ') || undefined
+  return args.slice(container + 1)
 }
 
-/** `docker|podman exec … container command` / `run … image command` */
-function containerCommand(args: readonly string[]): string | undefined {
+/** `docker|podman exec … container command arg…` / `run … image command arg…` */
+function containerArgv(args: readonly string[]): readonly string[] | undefined {
   if (args[0] !== 'exec' && args[0] !== 'run') return undefined
   const options = args[0] === 'exec' ? CONTAINER_EXEC_VALUE_FLAGS : CONTAINER_RUN_VALUE_FLAGS
   const positional = skipOptions(args, 1, options)
-  return args.slice(positional + 1).join(' ') || undefined
+  return args.slice(positional + 1)
 }
 
 function isDeletionWord(word: string | undefined): boolean {
@@ -370,13 +446,10 @@ function isInfrastructureDeletion(name: string, args: readonly string[]): boolea
   if (name === 'kubectl') return args[0] === 'delete'
   if (name === 'helm') return args[0] === 'uninstall'
   if (name === 'docker') {
-    return (
-      args[0] === 'prune' ||
-      args[0] === 'rm' ||
-      args[0] === 'rmi' ||
-      (args[0] === 'system' && args[1] === 'prune') ||
-      (args[0] === 'volume' && args[1] === 'rm')
-    )
+    const [subcommand, action] = args
+    if (subcommand === 'prune' || subcommand === 'rm' || subcommand === 'rmi') return true
+    // `docker container rm`, `docker image rm`, `docker volume prune`, `docker system prune`, …
+    return CONTAINER_OBJECTS.has(subcommand) && ['rm', 'rmi', 'prune'].includes(action ?? '')
   }
   if (name === 'aws' || name === 'gcloud' || name === 'az') {
     return args.some((arg) => ['delete', 'destroy', 'remove'].includes(arg.toLowerCase()))
@@ -405,6 +478,13 @@ function analyzeNested(command: string | undefined, depth: number): string | und
   return command === undefined ? undefined : analyze(command, depth + 1)
 }
 
+/** These exec a vector, not shell text, so a `-c` program stays one argument. */
+function analyzeArgv(argv: readonly string[] | undefined, depth: number): string | undefined {
+  if (argv === undefined) return undefined
+  const resolved = resolveCommand(argv)
+  return resolved === undefined ? undefined : reasonForCommand({ ...resolved, substitutions: [] }, depth + 1)
+}
+
 function reasonForNestedCommand(name: string, args: readonly string[], depth: number): string | undefined {
   if (depth >= MAX_ANALYSIS_DEPTH) return undefined
   if (SHELLS.has(name)) return analyzeNested(shellCodeArgument(args), depth)
@@ -420,9 +500,9 @@ function reasonForNestedCommand(name: string, args: readonly string[], depth: nu
   if (CMD.has(name)) return analyzeNested(cmdCommand(args), depth)
   if (name === 'ssh') return analyzeNested(sshCommand(args), depth)
   if (name === 'su' || name === 'runuser') return analyzeNested(suCommand(args), depth)
-  if (name === 'chroot') return analyzeNested(chrootCommand(args), depth)
-  if (name === 'kubectl') return analyzeNested(kubectlCommand(args), depth)
-  if (name === 'docker' || name === 'podman') return analyzeNested(containerCommand(args), depth)
+  if (name === 'chroot') return analyzeArgv(chrootArgv(args), depth)
+  if (name === 'kubectl') return analyzeArgv(kubectlArgv(args), depth)
+  if (name === 'docker' || name === 'podman') return analyzeArgv(containerArgv(args), depth)
   return undefined
 }
 
@@ -463,15 +543,30 @@ function readsStandardInput(name: string, args: readonly string[]): boolean {
   return true
 }
 
+/** `$(…)` and backtick expansions an unquoted heredoc evaluates before its consumer reads it. */
+function heredocExpansions(body: string): string[] {
+  const { pipelines } = parseShellCommand(body)
+  return pipelines.flatMap((pipeline) => pipeline.commands.flatMap((command) => command.substitutions))
+}
+
 function reasonForHeredoc(heredoc: ShellHeredoc, depth: number): string | undefined {
   if (depth >= MAX_ANALYSIS_DEPTH) return undefined
   const { pipelines } = parseShellCommand(heredoc.line)
   for (const pipeline of pipelines) {
     for (const command of pipeline.commands) {
+      // `sqlite3 app.db <<'SQL'` executes the heredoc body as SQL.
+      if (DATABASES.has(command.command) && SQL_DESTRUCTIVE.test(heredoc.body)) return 'destructive database operation'
       if (!readsStandardInput(command.command, command.args)) continue
       if (SHELLS.has(command.command)) return analyze(heredoc.body, depth + 1)
       if (PYTHON.has(command.command)) return detectPythonDeletion(heredoc.body)
       if (NODE.has(command.command)) return detectNodeDeletion(heredoc.body)
+    }
+  }
+  // An unquoted delimiter (`<<EOF`) still evaluates expansions while `cat` ships the prose body.
+  if (!heredoc.quoted) {
+    for (const expansion of heredocExpansions(heredoc.body)) {
+      const reason = analyze(expansion, depth + 1)
+      if (reason) return reason
     }
   }
   return undefined

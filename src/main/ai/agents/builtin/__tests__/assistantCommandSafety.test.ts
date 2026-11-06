@@ -27,7 +27,13 @@ describe('detectDestructiveAssistantCommand', () => {
     ['git --git-dir=.git --work-tree=. clean -fd', 'discarding version-control data'],
     ['git --work-tree . reset --hard', 'discarding version-control data'],
     ['sqlite3 app.db "DROP TABLE users"', 'destructive database operation'],
+    ['printf text > "$(rm -f victim; printf note)"', 'permanent file deletion'],
+    ['x=$(rm -f victim)', 'permanent file deletion'],
+    ['seed=$(rm -f victim); echo done', 'permanent file deletion'],
     ['terraform destroy -auto-approve', 'destructive infrastructure operation'],
+    ['docker container rm -f -v app', 'destructive infrastructure operation'],
+    ['docker image rm app', 'destructive infrastructure operation'],
+    ['docker container prune -f', 'destructive infrastructure operation'],
     ['sudo shutdown -h now', 'system shutdown or service destruction'],
     ['history -c', 'security-log or shell-history erasure'],
     [':(){ :|:& };:', 'a process-exhaustion payload']
@@ -46,7 +52,9 @@ describe('detectDestructiveAssistantCommand', () => {
     'mkdir -p output',
     'mv draft.md final.md',
     'cp source.md backup.md',
-    'grep -R "delete" src'
+    'grep -R "delete" src',
+    'docker container ls -a',
+    'docker volume create myvol'
   ])('allows non-destructive command: %s', (command) => {
     expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
   })
@@ -154,6 +162,119 @@ describe('detectDestructiveAssistantCommand precision', () => {
   it('does not treat command -v or a bare shell flag as execution', () => {
     expect(detectDestructiveAssistantCommand('command -v rm')).toBeUndefined()
     expect(detectDestructiveAssistantCommand('bash -e script.sh')).toBeUndefined()
+  })
+})
+
+describe('detectDestructiveAssistantCommand compound commands', () => {
+  it.each([
+    ['if [ -f victim ]; then rm -f victim; fi', 'permanent file deletion'],
+    ['if [ -f a ]; then echo a; elif [ -f b ]; then rm -f b; fi', 'permanent file deletion'],
+    ['for f in a b; do rm -f "$f"; done', 'permanent file deletion'],
+    ['while true; do rm -f victim; done', 'permanent file deletion'],
+    ['until false; do rm -f victim; done', 'permanent file deletion'],
+    ['{ rm -f victim; }', 'permanent file deletion'],
+    ['if [ -f victim ]\nthen\nrm -f victim\nfi', 'permanent file deletion'],
+    ['! rm -f victim', 'permanent file deletion'],
+    ['( if true; then rm -f victim; fi )', 'permanent file deletion']
+  ])('resolves the body of %s', (command, reason) => {
+    expect(detectDestructiveAssistantCommand(command)).toBe(reason)
+  })
+
+  it('still allows compound bodies that only read or report', () => {
+    expect(detectDestructiveAssistantCommand('if [ -f README.md ]; then echo found; fi')).toBeUndefined()
+    expect(detectDestructiveAssistantCommand('for f in *.md; do echo "$f"; done')).toBeUndefined()
+    expect(detectDestructiveAssistantCommand('while read -r line; do echo "$line"; done < list.txt')).toBeUndefined()
+    expect(detectDestructiveAssistantCommand('{ echo hi; }')).toBeUndefined()
+    expect(detectDestructiveAssistantCommand('case $mode in a) echo a;; esac')).toBeUndefined()
+  })
+})
+
+describe('detectDestructiveAssistantCommand heredocs', () => {
+  it('analyzes expansions an unquoted heredoc evaluates before its consumer reads it', () => {
+    expect(detectDestructiveAssistantCommand('cat > note <<EOF\n$(rm -f victim)\nEOF')).toBe('permanent file deletion')
+    expect(detectDestructiveAssistantCommand('cat > note <<EOF\n`rm -f victim`\nEOF')).toBe('permanent file deletion')
+    expect(detectDestructiveAssistantCommand('cat > note <<EOF\n$(sh -c "rm -f victim")\nEOF')).toBe(
+      'permanent file deletion'
+    )
+    expect(detectDestructiveAssistantCommand('cat > note <<EOF\n${payload:-$(rm -f victim)}\nEOF')).toBe(
+      'permanent file deletion'
+    )
+  })
+
+  it('leaves a quoted-delimiter heredoc and literal prose inert', () => {
+    expect(detectDestructiveAssistantCommand("cat > note <<'EOF'\n$(rm -f victim)\nEOF")).toBeUndefined()
+    expect(detectDestructiveAssistantCommand('cat > note <<EOF\nrm -rf is dangerous\nEOF')).toBeUndefined()
+  })
+
+  it('analyzes SQL a database client reads from stdin', () => {
+    expect(detectDestructiveAssistantCommand("sqlite3 app.db <<'SQL'\nDROP TABLE users;\nSQL")).toBe(
+      'destructive database operation'
+    )
+    expect(detectDestructiveAssistantCommand("mysql -u root <<'SQL'\ndelete from users;\nSQL")).toBe(
+      'destructive database operation'
+    )
+    expect(detectDestructiveAssistantCommand("psql -U root <<'SQL'\nTRUNCATE TABLE users;\nSQL")).toBe(
+      'destructive database operation'
+    )
+    expect(detectDestructiveAssistantCommand('sqlite3 app.db <<< "DROP TABLE users"')).toBe(
+      'destructive database operation'
+    )
+  })
+
+  it('allows read-only SQL on stdin', () => {
+    expect(detectDestructiveAssistantCommand("sqlite3 app.db <<'SQL'\nSELECT * FROM users;\nSQL")).toBeUndefined()
+    expect(detectDestructiveAssistantCommand("echo '.tables' | sqlite3 app.db <<'SQL'\nSELECT 1;\nSQL")).toBeUndefined()
+  })
+})
+
+describe('detectDestructiveAssistantCommand executors', () => {
+  it('keeps argv intact for executors that do not use a shell', () => {
+    expect(detectDestructiveAssistantCommand('docker exec app python3 -c \'import os; os.remove("victim")\'')).toBe(
+      'scripted permanent file deletion'
+    )
+    expect(detectDestructiveAssistantCommand("docker exec -u root app sh -c 'rm -rf /data'")).toBe(
+      'permanent file deletion'
+    )
+    expect(detectDestructiveAssistantCommand('kubectl exec -n ns pod python3 -c \'import os; os.remove("x")\'')).toBe(
+      'scripted permanent file deletion'
+    )
+    expect(detectDestructiveAssistantCommand('chroot /mnt python3 -c \'import os; os.remove("x")\'')).toBe(
+      'scripted permanent file deletion'
+    )
+    expect(detectDestructiveAssistantCommand('docker exec app echo rm -rf /x')).toBeUndefined()
+    expect(detectDestructiveAssistantCommand('docker exec -it app ls -la /data')).toBeUndefined()
+  })
+
+  it('covers nested docker removal subcommands', () => {
+    expect(detectDestructiveAssistantCommand('docker container rm -f -v app')).toBe(
+      'destructive infrastructure operation'
+    )
+    expect(detectDestructiveAssistantCommand('docker image rm app')).toBe('destructive infrastructure operation')
+    expect(detectDestructiveAssistantCommand('docker image prune -a')).toBe('destructive infrastructure operation')
+    expect(detectDestructiveAssistantCommand('docker volume prune')).toBe('destructive infrastructure operation')
+    expect(detectDestructiveAssistantCommand('docker network rm bridge')).toBe('destructive infrastructure operation')
+    expect(detectDestructiveAssistantCommand('docker image inspect rm')).toBeUndefined()
+    expect(detectDestructiveAssistantCommand('docker volume create myvol')).toBeUndefined()
+  })
+})
+
+describe('detectDestructiveAssistantCommand scripts', () => {
+  it('analyzes template-literal interpolations in executed JavaScript', () => {
+    expect(
+      detectDestructiveAssistantCommand('node -e \'const fs=require("fs"); console.log(`${fs.unlinkSync("victim")}`)\'')
+    ).toBe('scripted permanent file deletion')
+    expect(detectDestructiveAssistantCommand('node -e \'console.log(`${`${require("fs").rmSync("x")}`}`)\'')).toBe(
+      'scripted permanent file deletion'
+    )
+    expect(detectDestructiveAssistantCommand('node -e \'const o={v:`${fs.rmdirSync("x")}`}; console.log(o)\'')).toBe(
+      'scripted permanent file deletion'
+    )
+  })
+
+  it('ignores template-literal text and harmless interpolations', () => {
+    expect(detectDestructiveAssistantCommand('node -e \'console.log(`fs.rmSync("x")`)\'')).toBeUndefined()
+    expect(detectDestructiveAssistantCommand("node -e 'console.log(`a ${{b: 1}.b}`)'")).toBeUndefined()
+    expect(detectDestructiveAssistantCommand('node -e \'const n = "x"; console.log(`file ${n}`)\'')).toBeUndefined()
   })
 })
 
