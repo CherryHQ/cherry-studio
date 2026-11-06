@@ -4711,6 +4711,7 @@
   "settings.doctor.error_category.region": "Not available in this region",
   "settings.doctor.error_category.server": "The service is temporarily unavailable",
   "settings.doctor.error_category.stream": "The streamed response was interrupted",
+  "settings.doctor.error_category.tool_calling_unsupported": "Appels aux outils non pris en charge",
   "settings.doctor.error_category.unknown": "The cause is unknown",
   "settings.doctor.evidence.consent_required": "Affiché avec autorisation",
   "settings.doctor.evidence.local_details": "Détails locaux",

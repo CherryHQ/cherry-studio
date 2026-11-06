@@ -4711,6 +4711,7 @@
   "settings.doctor.error_category.region": "ไม่พร้อมใช้งานในภูมิภาคนี้",
   "settings.doctor.error_category.server": "บริการใช้งานไม่ได้ชั่วคราว",
   "settings.doctor.error_category.stream": "การรับคำตอบแบบสตรีมถูกขัดจังหวะ",
+  "settings.doctor.error_category.tool_calling_unsupported": "ไม่รองรับการเรียกใช้เครื่องมือ",
   "settings.doctor.error_category.unknown": "ไม่ทราบสาเหตุ",
   "settings.doctor.evidence.consent_required": "แสดงโดยได้รับอนุญาตแล้ว",
   "settings.doctor.evidence.local_details": "รายละเอียดในเครื่อง",

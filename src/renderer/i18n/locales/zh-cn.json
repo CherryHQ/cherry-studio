@@ -4711,6 +4711,7 @@
   "settings.doctor.error_category.region": "当前地区不可用",
   "settings.doctor.error_category.server": "服务暂时不可用",
   "settings.doctor.error_category.stream": "流式输出中断",
+  "settings.doctor.error_category.tool_calling_unsupported": "不支持工具调用",
   "settings.doctor.error_category.unknown": "原因未知",
   "settings.doctor.evidence.consent_required": "获得授权后显示",
   "settings.doctor.evidence.local_details": "本地详细信息",

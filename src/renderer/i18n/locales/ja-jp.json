@@ -4711,6 +4711,7 @@
   "settings.doctor.error_category.region": "この地域では利用できません",
   "settings.doctor.error_category.server": "サービスは一時的に利用できません",
   "settings.doctor.error_category.stream": "ストリーミングが中断されました",
+  "settings.doctor.error_category.tool_calling_unsupported": "ツール呼び出し未対応",
   "settings.doctor.error_category.unknown": "原因は不明です",
   "settings.doctor.evidence.consent_required": "許可した場合のみ表示",
   "settings.doctor.evidence.local_details": "ローカルの詳細",

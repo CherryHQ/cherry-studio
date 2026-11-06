@@ -4711,6 +4711,7 @@
   "settings.doctor.error_category.region": "目前地區無法使用",
   "settings.doctor.error_category.server": "服務暫時無法使用",
   "settings.doctor.error_category.stream": "串流輸出中斷",
+  "settings.doctor.error_category.tool_calling_unsupported": "不支援工具呼叫",
   "settings.doctor.error_category.unknown": "原因未知",
   "settings.doctor.evidence.consent_required": "經許可後顯示",
   "settings.doctor.evidence.local_details": "本機詳細資訊",

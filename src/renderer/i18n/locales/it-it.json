@@ -4711,6 +4711,7 @@
   "settings.doctor.error_category.region": "Non disponibile in questa regione",
   "settings.doctor.error_category.server": "Il servizio è temporaneamente non disponibile",
   "settings.doctor.error_category.stream": "La risposta in streaming è stata interrotta",
+  "settings.doctor.error_category.tool_calling_unsupported": "Chiamate agli strumenti non supportate",
   "settings.doctor.error_category.unknown": "La causa è sconosciuta",
   "settings.doctor.evidence.consent_required": "Mostrato con autorizzazione",
   "settings.doctor.evidence.local_details": "Dettagli locali",
