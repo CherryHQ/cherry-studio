@@ -212,7 +212,7 @@ const AppShellContent = () => {
   )
 
   useEffect(() => {
-    if (isSettingsTabActive) document.documentElement.style.setProperty('--notification-left', '0px')
+    if (isSettingsTabActive) document.documentElement.style.setProperty('--notification-left', '6px')
   }, [isSettingsTabActive])
 
   const contentColumn = (

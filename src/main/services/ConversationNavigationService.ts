@@ -58,7 +58,7 @@ function compareWindowPriority(left: WindowInfo, right: WindowInfo): number {
 export class ConversationNavigationService extends BaseService {
   private readonly pendingQueries = new Map<string, PendingOwnershipQuery>()
   private readonly pendingCommands = new Map<string, PendingNavigationCommand>()
-  private readonly inFlightTargets = new Map<string, Promise<void>>()
+  private readonly inFlightTargets = new Map<string, { messageId?: string | null; promise: Promise<void> }>()
   private nextRequestId = 0
   private isStopping = false
 
@@ -70,18 +70,20 @@ export class ConversationNavigationService extends BaseService {
     target: ConversationNavigationTarget,
     title: string,
     requestingWindowId: WindowId | null = null,
-    draft?: ConversationDraft
+    draft?: ConversationDraft,
+    messageId?: string | null
   ): Promise<void> {
     if (this.isStopping) return Promise.resolve()
 
     const targetKey = conversationTargetKey(target)
     const existing = this.inFlightTargets.get(targetKey)
-    if (existing) return existing
+    if (existing && !draft && existing.messageId === messageId) return existing.promise
 
-    const operation = this.focusOrOpenDirect(target, title, requestingWindowId, draft).finally(() => {
-      if (this.inFlightTargets.get(targetKey) === operation) this.inFlightTargets.delete(targetKey)
+    const navigate = () => this.focusOrOpenDirect(target, title, requestingWindowId, draft, messageId)
+    const operation = (existing ? existing.promise.then(navigate, navigate) : navigate()).finally(() => {
+      if (this.inFlightTargets.get(targetKey)?.promise === operation) this.inFlightTargets.delete(targetKey)
     })
-    this.inFlightTargets.set(targetKey, operation)
+    this.inFlightTargets.set(targetKey, { messageId, promise: operation })
     return operation
   }
 
@@ -129,7 +131,8 @@ export class ConversationNavigationService extends BaseService {
     target: ConversationNavigationTarget,
     title: string,
     requestingWindowId: WindowId | null,
-    draft: ConversationDraft | undefined
+    draft?: ConversationDraft,
+    messageId?: string | null
   ): Promise<void> {
     const discoveryDeadline = Date.now() + NAVIGATION_DISCOVERY_TIMEOUT_MS
     let coldRouteOpened = false
@@ -168,16 +171,14 @@ export class ConversationNavigationService extends BaseService {
       // `openRouteInMainWindow` used durable init data because no Main window existed. Wait until
       // that new Main renderer reports the target as committed; sending another force-open command
       // while its init-data route is still mounting could create a duplicate.
-      if (coldRouteOpened) {
-        const mainOwner = owners.find((window) => window.type === WindowType.Main)
-        if (mainOwner) {
-          // Init data opened the route without the draft; the committed owner takes it like any focus request.
-          if (draft) await this.commitFocusOrOpen(mainOwner, query.requestId, target, title, draft)
-          else this.focusWindow(mainOwner)
-          return
-        }
+      const coldMainOwner = coldRouteOpened ? owners.find((window) => window.type === WindowType.Main) : undefined
+      if (coldRouteOpened && !coldMainOwner) {
         await this.waitBeforeOwnershipRetry(discoveryDeadline, target)
         continue
+      }
+      if (coldMainOwner && !draft && messageId === undefined) {
+        this.focusWindow(coldMainOwner)
+        return
       }
 
       const owner = owners[0]
@@ -188,7 +189,7 @@ export class ConversationNavigationService extends BaseService {
       const respondingMainWindow = liveWindows
         .filter((window) => window.type === WindowType.Main && respondingWindowIds.has(window.id))
         .sort(compareWindowPriority)[0]
-      const destination = owner ?? requester ?? respondingMainWindow
+      const destination = coldMainOwner ?? owner ?? requester ?? respondingMainWindow
 
       if (!destination) {
         openRouteInMainWindow(conversationRouteUrl(target))
@@ -197,7 +198,7 @@ export class ConversationNavigationService extends BaseService {
         continue
       }
 
-      await this.commitFocusOrOpen(destination, query.requestId, target, title, draft)
+      await this.commitFocusOrOpen(destination, query.requestId, target, title, draft, messageId)
       return
     }
   }
@@ -207,9 +208,10 @@ export class ConversationNavigationService extends BaseService {
     requestId: string,
     target: ConversationNavigationTarget,
     title: string,
-    draft: ConversationDraft | undefined
+    draft: ConversationDraft | undefined,
+    messageId?: string | null
   ): Promise<void> {
-    const completed = await this.sendFocusOrOpenCommand(destination, requestId, target, title, draft)
+    const completed = await this.sendFocusOrOpenCommand(destination, requestId, target, title, draft, messageId)
     if (!completed && !this.isStopping) {
       throw new Error(`Conversation navigation was not completed: ${conversationTargetKey(target)}`)
     }
@@ -220,7 +222,8 @@ export class ConversationNavigationService extends BaseService {
     requestId: string,
     target: ConversationNavigationTarget,
     title: string,
-    draft: ConversationDraft | undefined
+    draft?: ConversationDraft,
+    messageId?: string | null
   ): Promise<boolean> {
     return new Promise((resolve) => {
       const timer = setTimeout(() => this.settleNavigationCommand(requestId, false), NAVIGATION_COMMAND_TIMEOUT_MS)
@@ -231,7 +234,8 @@ export class ConversationNavigationService extends BaseService {
         requestId,
         target,
         title,
-        ...(draft && { draft })
+        ...(draft && { draft }),
+        ...(messageId !== undefined ? { messageId } : {})
       })
       this.focusWindow(destination)
     })

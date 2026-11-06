@@ -2,7 +2,7 @@ import { resolve } from 'node:path'
 
 import { vi } from 'vitest'
 
-import type { NotificationRecord } from '@shared/data/types/notification'
+import type { NotificationRecord, TaskResultNotificationInput } from '@shared/data/types/notification'
 import type { NotificationSource } from '@shared/types/notification'
 
 import { mockAttachmentPresenceService } from './AttachmentPresenceService'
@@ -88,6 +88,7 @@ export const mockJobManager = {
 }
 
 export const mockNotificationService = {
+  publishTaskResult: vi.fn(async (_input: TaskResultNotificationInput) => true),
   publish: vi.fn(
     async (_input: Partial<NotificationRecord>, _options?: { source?: NotificationSource; completion?: boolean }) =>
       true

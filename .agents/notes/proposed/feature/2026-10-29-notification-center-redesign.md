@@ -23,6 +23,12 @@ The dependency chain is `#23043 → Spec → notification center → task result
 
 The account-menu behavior remains owned by [Account menu cache and interaction](../../implemented/bug-fix/2026-10-29-account-menu-cache.md). This proposal adds the notification entry beside that experience; it does not redesign account actions.
 
+The approved implementation separates business producers from delivery. `ConversationNotificationService` owns AI completion, unsuccessful-outcome and approval subscriptions; `UsageBudgetNotificationService` owns usage subscriptions, daily thresholds and budget cycles. Both depend on `NotificationService`. That service owns notification preferences, foreground policy, persistence calls and delivery, and depends only on `ConversationNavigationService` among WhenReady services. `notificationActivation.ts` owns target validation and navigation. `NotificationRecordService` remains the durable record and consumption owner.
+
+Scheduled outcomes come from the existing awaited `agentTaskJobHandler.onSettled` hook through `agentTaskNotification.ts`. The adapter reads the committed terminal job and schedule, then supplies a complete result to `NotificationService.publishTaskResult`. An explicit `AgentTaskOutput.kind` distinguishes `executed` from `skipped`; completed skipped runs do not produce success notifications. Stream completion and unsuccessful events both respect the result owner captured at registration, even after its listener is removed. Ordinary conversation success retains its turn/batch identity, and unsuccessful outcomes retain their attempt identity.
+
+`AgentJobsService`, `AutoBackupService` and `AppUpdaterService` declare their notification dependency. JobManager remains generic and retains its existing shutdown settlement wait; no notification-specific dependency or new event bus is added. Result persistence remains callable after notification subscriptions stop, while BeforeReady data services remain available through stop. Shutdown deadlines and native delivery failures still apply; this does not introduce crash replay, an outbox or exactly-once OS delivery.
+
 ### Entry and unread indicator
 
 - In the full and icon-only sidebars, place the bell directly above the user avatar. Use the sidebar footer action slot. Remove the old permanently visible bell from the tab bar.

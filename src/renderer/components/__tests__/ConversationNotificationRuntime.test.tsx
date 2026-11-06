@@ -128,6 +128,35 @@ describe('ConversationNotificationRuntime', () => {
     }
   )
 
+  it.each(['failed', 'interrupted'])('shows a %s result as an error with its snapshot identity', (status) => {
+    renderRuntime(tabsContext())
+    act(() =>
+      mocks.ipcHandlers.get('notification.present')?.({
+        id: 'result-1',
+        kind: 'task-result',
+        category: 'system',
+        title: 'Task failed',
+        message: 'Safe error',
+        target: {
+          kind: 'conversation',
+          conversationType: 'agent',
+          conversationId: 'session-1',
+          result: { status, source: 'agent', name: 'Saved task', actor: { name: 'Saved agent', emoji: '🤖' } }
+        }
+      })
+    )
+    const options = mocks.toastError.mock.calls[0][0]
+    render(
+      <>
+        {options.title}
+        {options.description}
+      </>
+    )
+    expect(screen.getByText('Saved agent')).toBeInTheDocument()
+    expect(screen.getByText('Safe error')).toBeInTheDocument()
+    expect(mocks.toastSuccess).not.toHaveBeenCalled()
+  })
+
   it('continues presenting notifications when Web Audio is unavailable', () => {
     vi.stubGlobal(
       'AudioContext',

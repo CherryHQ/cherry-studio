@@ -74,7 +74,7 @@ export function ShellTabBarActions() {
             <Search size={16} strokeWidth={1.8} />
           </Button>
         </CommandTooltip>
-        {sidebarLayout === 'hidden' && <NotificationCenterButton />}
+        {sidebarLayout === 'hidden' && <NotificationCenterButton drawerSide="right" />}
         {sidebarLayout === 'hidden' && (
           <CommandTooltip command="app.settings.open" label={t('settings.title')} placement="bottom" delay={800}>
             <Button

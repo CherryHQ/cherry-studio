@@ -74,6 +74,7 @@ export function createChatStreamLifecycle(
         stream.status === 'done' &&
         completedAt !== undefined &&
         stream.isPersistentConversation &&
+        !stream.hasTaskResultOwner &&
         !stream.completionFailed
       ) {
         const responseText = [...stream.executions.values()]

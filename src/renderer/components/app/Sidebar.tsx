@@ -322,16 +322,24 @@ export default function Sidebar({
     userAction: (footerLayout: SidebarVisibleLayout) => (
       <>
         {layout === 'full' && <AppUpdateButton placement="top" />}
-        {showUserInFooter && footerLayout === 'full' && renderSettingsButton('icon')}
+        {showUserInFooter && footerLayout === 'full' && (
+          <>
+            <NotificationCenterButton placement="top" />
+            {renderSettingsButton('icon')}
+          </>
+        )}
       </>
     ),
     renderUserTrigger: renderSidebarUserTrigger,
-    actions: (footerLayout: SidebarVisibleLayout) => (
-      <>
-        {showUserInFooter && footerLayout === 'full' ? null : renderSettingsButton(footerLayout)}
-        {layout !== 'hidden' && <NotificationCenterButton className={footerLayout === 'full' ? 'ml-1' : ''} />}
-      </>
-    ),
+    actions: (footerLayout: SidebarVisibleLayout) =>
+      showUserInFooter && footerLayout === 'full' ? null : (
+        <>
+          {layout !== 'hidden' && (
+            <NotificationCenterButton className={footerLayout === 'full' ? 'ml-1' : ''} placement="right" />
+          )}
+          {renderSettingsButton(footerLayout)}
+        </>
+      ),
     onEntriesReorder: handleReorder
   }
 

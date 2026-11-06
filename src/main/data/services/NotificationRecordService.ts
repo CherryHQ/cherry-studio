@@ -2,7 +2,9 @@ import { and, count, eq, gt, isNull, lte, sql } from 'drizzle-orm'
 
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
+import { appStateTable } from '@data/db/schemas/appState'
 import { notificationRecordTable as table } from '@data/db/schemas/notificationRecord'
+import type { DbOrTx } from '@data/db/types'
 import {
   ListNotificationsQuerySchema,
   type ListNotificationsQuery,
@@ -16,7 +18,7 @@ import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './
 export type CreateNotificationRecordInput = Pick<
   NotificationRecord,
   'eventKey' | 'category' | 'kind' | 'title' | 'message' | 'createdAt'
-> & { target?: NotificationTarget | null }
+> & { target?: NotificationTarget | null; readAt?: number | null }
 
 const RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 const visible = () => and(isNull(table.dismissedAt), gt(table.createdAt, Date.now() - RETENTION_MS))
@@ -33,14 +35,34 @@ class NotificationRecordService {
   }
 
   create(input: CreateNotificationRecordInput): NotificationRecord | null {
+    const record = this.createTx(this.db, input)
+    if (record) notifyChanged()
+    return record
+  }
+
+  /** Keep the consumption tombstone after dismissal or history expiry, including suppressed outcomes. */
+  consumeTaskResult(eventKey: string, input: CreateNotificationRecordInput | null): NotificationRecord | null {
+    const record = application.get('DbService').withWriteTx((tx) => {
+      const consumed = tx
+        .insert(appStateTable)
+        .values({ key: `notification:consumed:${eventKey}`, value: true })
+        .onConflictDoNothing()
+        .returning({ key: appStateTable.key })
+        .get()
+      return consumed && input ? this.createTx(tx, input) : null
+    })
+    if (record) notifyChanged()
+    return record
+  }
+
+  private createTx(db: DbOrTx, input: CreateNotificationRecordInput): NotificationRecord | null {
     if (input.createdAt <= Date.now() - RETENTION_MS) return null
-    const record = this.db
+    const record = db
       .insert(table)
       .values({ ...input, target: input.target ?? null })
       .onConflictDoNothing({ target: table.eventKey })
       .returning()
       .get()
-    if (record) notifyChanged()
     return record ?? null
   }
 

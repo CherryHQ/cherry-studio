@@ -48,20 +48,24 @@ function AssistantNotificationLabel({ topicId }: { topicId: string }) {
 }
 
 export function NotificationTitle({ record }: { record: NotificationRecord }) {
+  const result = record.target?.result
   const target =
-    (record.kind === 'task-completion' || record.kind === 'queue-completion') && record.target?.kind === 'conversation'
+    (record.kind === 'task-completion' || record.kind === 'queue-completion' || result) &&
+    record.target?.kind === 'conversation'
       ? record.target
       : undefined
-  if (!target) return notificationPreview(record.title, true)
+  if (!target && !result?.actor) return notificationPreview(record.title, true)
 
   return (
     <span className="flex min-w-0 items-center gap-2">
       <span className="min-w-0 truncate">{notificationPreview(record.title, true)}</span>
-      {target.conversationType === 'agent' ? (
+      {result?.actor ? (
+        <NotificationIdentity {...result.actor} />
+      ) : target?.conversationType === 'agent' ? (
         <AgentNotificationLabel sessionId={target.conversationId} />
-      ) : (
+      ) : target ? (
         <AssistantNotificationLabel topicId={target.conversationId} />
-      )}
+      ) : null}
     </span>
   )
 }

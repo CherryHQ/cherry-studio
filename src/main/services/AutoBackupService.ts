@@ -68,7 +68,8 @@ const createScheduleState = (): ScheduleState => ({
   'ChannelManager',
   'AiStreamManager',
   'AgentSessionRuntimeService',
-  'JobManager'
+  'JobManager',
+  'NotificationService'
 ])
 export class AutoBackupService extends BaseService {
   private active = false

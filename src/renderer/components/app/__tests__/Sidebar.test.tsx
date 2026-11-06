@@ -68,6 +68,11 @@ vi.mock('../../layout/ShellTabBarActions', () => ({
     </button>
   )
 }))
+vi.mock('../../NotificationCenter', () => ({
+  NotificationCenterButton: ({ className }: { className?: string }) => (
+    <button type="button" aria-label="notification.center.title" className={className} />
+  )
+}))
 vi.mock('../../Sidebar', async () => {
   const constants = await vi.importActual<typeof SidebarConstantsModule>('../../Sidebar/constants')
   const { SidebarFooter } = await vi.importActual<typeof SidebarFooterModule>('../../Sidebar/SidebarFooter')
@@ -201,6 +206,33 @@ describe('app Sidebar', () => {
     await user.click(settingsButton)
     expect(mocks.openSettingsTab).toHaveBeenCalledOnce()
     expect(screen.queryByTestId('account-menu')).not.toBeInTheDocument()
+  })
+
+  it('places the notification action above settings in the sidebar footer', () => {
+    render(<Sidebar />)
+
+    const labels = within(screen.getByTestId('sidebar-footer-user'))
+      .getAllByRole('button')
+      .map((button) => button.getAttribute('aria-label'))
+
+    expect(labels.indexOf('notification.center.title')).toBeLessThan(labels.indexOf('settings.title'))
+  })
+
+  it('keeps the notification action in the expanded account row beside settings', () => {
+    mocks.isMac = true
+    render(<Sidebar />)
+
+    const footer = within(screen.getByTestId('sidebar-footer-user'))
+    const account = footer.getByRole('button', { name: 'User' })
+    const commonRow = (element: Element) => {
+      let node = element.parentElement
+      while (node && !node.contains(account)) node = node.parentElement
+      return node
+    }
+
+    expect(commonRow(footer.getByRole('button', { name: 'notification.center.title' }))).toBe(
+      commonRow(footer.getByRole('button', { name: 'settings.title' }))
+    )
   })
 
   it('opens and closes the anchored account menu from the sidebar identity', async () => {
