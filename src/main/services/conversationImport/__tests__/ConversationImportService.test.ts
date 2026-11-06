@@ -146,7 +146,7 @@ describe('local history atomic import', () => {
     ).toEqual([expect.objectContaining({ status: 'existing', sessionId: imported.sessionId })])
     expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(1)
   })
-  it('imports Codex threads independently and rejects an index changed after preview', async () => {
+  it('imports Codex threads independently and skips existing identities after index changes', async () => {
     const sourceRoot = path.join(root, 'source')
     for (const id of ['one', 'two'])
       await writeFile(
@@ -201,7 +201,7 @@ describe('local history atomic import', () => {
           preview.previewId,
           preview.items.map((item) => item.ref)
         )
-      ).every((item) => item.reason === 'source_changed')
+      ).every((item) => item.status === 'existing')
     ).toBe(true)
   })
   it('imports OpenCode from a read-only database snapshot and rechecks changed rows', async () => {
