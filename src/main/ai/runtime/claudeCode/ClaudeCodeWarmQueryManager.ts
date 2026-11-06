@@ -19,8 +19,7 @@ import {
 import type { ClaudeCodeProcessDiagnostics } from './processExitDiagnostics'
 
 const logger = loggerService.withContext('ClaudeCodeWarmQueryManager')
-const idleTtlMs = (): number =>
-  application.get('PreferenceService').get('agent.session.idle_ttl_minutes') * 60 * 1000
+const idleTtlMs = (): number => application.get('PreferenceService').get('agent.session.idle_ttl_minutes') * 60 * 1000
 
 type WarmQueryEntry = {
   signature: string

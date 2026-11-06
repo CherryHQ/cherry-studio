@@ -123,8 +123,7 @@ import { relocateSystemWorkspaces } from './relocateSystemWorkspaces'
 import { buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } from './topic'
 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
-const idleTtlMs = (): number =>
-  application.get('PreferenceService').get('agent.session.idle_ttl_minutes') * 60 * 1000
+const idleTtlMs = (): number => application.get('PreferenceService').get('agent.session.idle_ttl_minutes') * 60 * 1000
 /**
  * Grace period before a session with no remaining warm-lease holders is actually torn down.
  * Absorbs <Activity> tab switches, where the session view releases on hide and re-acquires on
