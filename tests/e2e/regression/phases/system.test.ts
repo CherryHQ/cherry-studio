@@ -814,7 +814,13 @@ test(...caseDefinition('MP-140'), async ({ app, mainWindow }, testInfo) => {
         await expect(status).toBeVisible()
         const state = await status.innerText()
         permissionStates.set(name, state)
-        expect(readNativePermission(panel), `${name}: ${state}`).toBe(state === '已授权' ? '1' : '0')
+        const nativeState = readNativePermission(panel)
+        await testInfo.attach(`MP-140 ${id} native permission`, {
+          body: JSON.stringify({ state, nativeState }),
+          contentType: 'application/json'
+        })
+        if (nativeState === 'not-listed') expect(state, `${name}: no native permission entry`).not.toBe('已授权')
+        else expect(nativeState, `${name}: ${state}`).toBe(state === '已授权' ? '1' : '0')
       }
       observeExternalResource(app.paths, settingsResource!)
       await screenshot('MP-140 step 2 permission states')
@@ -945,7 +951,7 @@ test(...caseDefinition('MP-140'), async ({ app, mainWindow }, testInfo) => {
       await expect.poll(() => windowsTrayMenu(app)).toContain('停止所有桌面控制')
       menuLabel = '停止所有桌面控制'
       windowsTrayMenu(app, menuLabel)
-    } else menuLabel = stopNativeDesktopControl(app.record.electronPid)
+    } else menuLabel = stopNativeDesktopControl(app)
     await testInfo.attach('MP-140 tray stop menu label', { body: menuLabel, contentType: 'text/plain' })
     expect(menuLabel).toBe('停止所有桌面控制')
     await expect

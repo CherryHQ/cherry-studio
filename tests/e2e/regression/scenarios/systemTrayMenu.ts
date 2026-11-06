@@ -14,6 +14,7 @@ import {
   waitForPortRelease
 } from '../../../../scripts/e2e/regression/process'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
+import { openMacTrayMenu } from '../../../../scripts/e2e/regression/systemAutomation'
 import { nativeComputerUse } from '../helpers/computerUseNative'
 import { inspectStartup } from '../helpers/startupInspection'
 import { openWindowsTrayMenu, windowsTrayMenu } from '../helpers/windowsTray'
@@ -37,29 +38,7 @@ export async function systemTrayMenu(app: RegressionApp, page: Page, testInfo: T
     assertOwnedProcess(record, record.electronPid, 'electron')
     await expect.poll(readMenu, { timeout: 5_000 }).toEqual([])
     if (record.platform === 'windows') await openWindowsTrayMenu(app)
-    else {
-      execFileSync(
-        'osascript',
-        [
-          '-l',
-          'JavaScript',
-          '-e',
-          `
-      ObjC.import('CoreGraphics')
-      ObjC.import('Foundation')
-      const process = Application('System Events').processes.whose({unixId: ${record.electronPid}})[0]
-      const item = process.menuBars[1].menuBarItems[0]
-      const position = item.position(), size = item.size()
-      const point = {x: position[0] + size[0] / 2, y: position[1] + size[1] / 2}
-      $.CGEventPost(0, $.CGEventCreateMouseEvent(null, 5, point, 0))
-      $.NSThread.sleepForTimeInterval(0.1)
-      $.CGEventPost(0, $.CGEventCreateMouseEvent(null, 3, point, 1))
-      $.CGEventPost(0, $.CGEventCreateMouseEvent(null, 4, point, 1))
-    `
-        ],
-        { encoding: 'utf8', timeout: 10_000 }
-      )
-    }
+    else openMacTrayMenu(app.paths)
     await expect.poll(readMenu, { timeout: 5_000 }).toContain('Quit')
   }
   const readMenu = () =>

@@ -16,6 +16,34 @@ let activeWindowsTextFixturePid: number | undefined
 let activeMacTextFixturePath: string | undefined
 let macProductMajor: number | undefined
 
+export function openMacTrayMenu(paths: RunPaths): void {
+  const record = readAppRecord(paths)
+  if (record.platform !== 'macos') throw new Error('Native tray automation requires macOS')
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  execFileSync(
+    'osascript',
+    [
+      '-l',
+      'JavaScript',
+      '-e',
+      `
+    ObjC.import('CoreGraphics')
+    ObjC.import('Foundation')
+    const process = Application('System Events').processes.whose({unixId: ${record.electronPid}})[0]
+    const item = process.menuBars[1].menuBarItems[0]
+    const position = item.position(), size = item.size()
+    const point = {x: position[0] + size[0] / 2, y: position[1] + size[1] / 2}
+    $.CGEventPost(0, $.CGEventCreateMouseEvent(null, 5, point, 0))
+    $.NSThread.sleepForTimeInterval(0.15)
+    $.CGEventPost(0, $.CGEventCreateMouseEvent(null, 3, point, 1))
+    $.NSThread.sleepForTimeInterval(0.15)
+    $.CGEventPost(0, $.CGEventCreateMouseEvent(null, 4, point, 1))
+  `
+    ],
+    { timeout: 10_000, stdio: 'ignore' }
+  )
+}
+
 export function dragMacPointer(paths: RunPaths, from: { x: number; y: number }, to: { x: number; y: number }): void {
   const record = readAppRecord(paths)
   if (record.platform !== 'macos') throw new Error('Native pointer dragging requires macOS')
