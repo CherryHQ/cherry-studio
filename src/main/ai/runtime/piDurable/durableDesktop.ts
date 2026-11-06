@@ -65,6 +65,7 @@ export async function prepareDurableDesktop(input: AgentRuntimeConnectInput, emi
     agent,
     workspacePath: cwd,
     agentDataPath,
+    channelContext: input.channelContext,
     effectiveLanguage: snapshot.effectiveLanguage,
     mcpInstructions: snapshot.mcpInstructions,
     citationsGuidance: buildCitationsGuidance({

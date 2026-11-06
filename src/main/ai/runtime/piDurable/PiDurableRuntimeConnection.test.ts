@@ -204,6 +204,12 @@ describe('desktop Pi Durable connection', () => {
     events
       .flatMap((event) => (event.type === 'chunk' && event.chunk.type === 'text-delta' ? [event.chunk.delta] : []))
       .join('')
+  it('passes the source-chat identity through to the desktop prompt', async () => {
+    input.channelContext = 'channel=feishu chat_id=oc_123 chat_type=group'
+    await connect()
+    expect(mocks.prompt).toHaveBeenCalledWith(expect.objectContaining({ channelContext: input.channelContext }))
+  })
+
   // An idle observation during summary generation must not finish the owning desktop turn.
   it.each(['complete', 'error', 'stop', 'close'] as const)(
     'keeps manual compaction owned through %s',
