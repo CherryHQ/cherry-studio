@@ -1181,9 +1181,14 @@ async function materializeUserContent(
     }
 
     const preparedDataUrl = part.url ? parseDataUrl(part.url) : null
-    let parsed = preparedDataUrl?.isBase64 ? preparedDataUrl : null
+    if (preparedDataUrl?.isBase64 && preparedDataUrl.data.length === 0) {
+      routeWithoutImage(originalPart)
+      continue
+    }
+    let parsed = fileEntryId && preparedDataUrl?.isBase64 ? preparedDataUrl : null
     if (!parsed) {
-      const materialized = await materializeNativeFilePart(part)
+      const inlineType = toClaudeImageMediaType(preparedDataUrl?.mediaType)
+      const materialized = await materializeNativeFilePart(inlineType ? { ...part, mediaType: inlineType } : part)
       if (!materialized) {
         // Conversion found nothing sendable — the file itself may still be readable at its path.
         routeWithoutImage(originalPart)
@@ -1284,6 +1289,7 @@ async function extractAttachmentPaths(
 
 function isImageFilePart(part: FileUIPart): boolean {
   if (part.mediaType?.toLowerCase().startsWith('image/')) return true
+  if (part.url?.startsWith('data:') && toClaudeImageMediaType(parseDataUrl(part.url)?.mediaType)) return true
   const filename = part.filename?.toLowerCase()
   const url = part.url && !part.url.startsWith('data:') ? part.url.toLowerCase().split(/[?#]/, 1)[0] : undefined
   return imageExts.some((extension) => filename?.endsWith(extension) || url?.endsWith(extension))
