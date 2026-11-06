@@ -13,7 +13,9 @@
  * retry condition does not handle request-scope timeout or abort errors.
  *
  * Streaming caveat: ai-retry can only retry/fall back before the first
- * content chunk is emitted; mid-stream errors surface as stream errors.
+ * content chunk is emitted. Mid-stream interruptions of plain-text replies are
+ * resumed by `withStreamContinuation` (same retry budget); other mid-stream
+ * errors surface as stream errors.
  */
 import type { LanguageModelV3 } from '@ai-sdk/provider'
 import { APICallError, RetryError, type ToolCallRepairFunction, type ToolSet, wrapLanguageModel } from 'ai'
@@ -31,6 +33,7 @@ import { loggerService } from '@logger'
 import type { RetryPartData } from '@shared/data/types/uiParts'
 
 import type { RetryPolicy } from './retryPolicy'
+import { withStreamContinuation } from './streamContinuation'
 
 const logger = loggerService.withContext('ModelRetry')
 
@@ -281,7 +284,7 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
 
     if (!options.retryPolicy.enabled) return keyPoolModel
 
-    return createRetryableModel({
+    const retryableModel = createRetryableModel({
       model: keyPoolModel,
       retries,
       onRetry: (context) => {
@@ -322,6 +325,20 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
         })
         settleRetryStatus()
       }
+    })
+
+    // ai-retry cannot recover once content has streamed; resume interrupted text replies.
+    return withStreamContinuation(retryableModel, {
+      maxAttempts: retryCount,
+      baseDelayMs: RETRY_BASE_DELAY_MS,
+      backoffEnabled,
+      onRetry: ({ attempt, reason }) => {
+        const event = { state: 'retrying' as const, modelId: base.modelId, attempt: attempt + 1, reason }
+        logger.info('resuming interrupted stream', { ...options.diagnosticContext, ...event })
+        retryActive = true
+        options.onRetryEvent?.(event)
+      },
+      onSettled: settleRetryStatus
     })
   }
 }
