@@ -330,7 +330,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         // Default to a live interactive turn so the approval path is exercised; the out-of-turn and
         // headless gates are asserted by tests that override this.
         return {
-          getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'stream' }),
+          getToolGuardInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'stream' }),
           recordToolExecutionTiming: mocks.recordToolExecutionTiming
         }
       }
@@ -1371,7 +1371,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       }
       if (name === 'AgentSessionRuntimeService') {
         return {
-          getInteractionState: () => interactionState,
+          getToolGuardInteractionState: () => interactionState,
           recordToolExecutionTiming: mocks.recordToolExecutionTiming
         }
       }
@@ -1947,11 +1947,11 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it('denies interactive no-responder tools at tool fire time for the current headless turn', async () => {
-    const getInteractionState = vi.fn(() => ({ currentTurn: 'headless', userResponse: 'unavailable' }))
+    const getToolGuardInteractionState = vi.fn(() => ({ currentTurn: 'headless', userResponse: 'unavailable' }))
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
       if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
-      if (name === 'AgentSessionRuntimeService') return { getInteractionState }
+      if (name === 'AgentSessionRuntimeService') return { getToolGuardInteractionState }
       throw new Error(`Unexpected application.get(${name})`)
     })
     const session = {
@@ -1980,15 +1980,15 @@ describe('buildClaudeCodeSessionSettings', () => {
           'This channel or scheduled turn has no interactive responder, so proceed without asking the user and state your assumptions instead.'
       })
     }
-    expect(getInteractionState).toHaveBeenCalledWith('session-1')
+    expect(getToolGuardInteractionState).toHaveBeenCalledWith('session-1', undefined)
   })
 
   it('lifts the fire-time headless denial under bypassPermissions only for liftable approvals', async () => {
-    const getInteractionState = vi.fn(() => ({ currentTurn: 'headless', userResponse: 'unavailable' }))
+    const getToolGuardInteractionState = vi.fn(() => ({ currentTurn: 'headless', userResponse: 'unavailable' }))
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
       if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
-      if (name === 'AgentSessionRuntimeService') return { getInteractionState }
+      if (name === 'AgentSessionRuntimeService') return { getToolGuardInteractionState }
       throw new Error(`Unexpected application.get(${name})`)
     })
     mocks.createToolPolicySnapshot.mockResolvedValue({
@@ -2031,7 +2031,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
       if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
       if (name === 'AgentSessionRuntimeService') {
-        return { getInteractionState: () => ({ currentTurn: 'headless', userResponse: 'unavailable' }) }
+        return { getToolGuardInteractionState: () => ({ currentTurn: 'headless', userResponse: 'unavailable' }) }
       }
       throw new Error(`Unexpected application.get(${name})`)
     })
@@ -2097,11 +2097,11 @@ describe('buildClaudeCodeSessionSettings', () => {
     // The SDK skips `canUseTool` for auto-approved paths (bypassPermissions / acceptEdits), so the
     // per-turn denial must also run as a PreToolUse hook (which fires in every permission mode) or a
     // headless bypass run could reach AskUserQuestion / EnterPlanMode and stall on a prompt no one answers.
-    const getInteractionState = vi.fn(() => ({ currentTurn: 'headless', userResponse: 'unavailable' }))
+    const getToolGuardInteractionState = vi.fn(() => ({ currentTurn: 'headless', userResponse: 'unavailable' }))
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
       if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
-      if (name === 'AgentSessionRuntimeService') return { getInteractionState }
+      if (name === 'AgentSessionRuntimeService') return { getToolGuardInteractionState }
       throw new Error(`Unexpected application.get(${name})`)
     })
     const session = {
@@ -2142,7 +2142,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         expect.objectContaining({ hookSpecificOutput: expect.objectContaining({ permissionDecision: 'ask' }) })
       )
     }
-    expect(getInteractionState).toHaveBeenCalledWith('session-1')
+    expect(getToolGuardInteractionState).toHaveBeenCalledWith('session-1', undefined)
   })
 
   it('surfaces a headless ExitPlanMode plan from PreToolUse before bypassPermissions denies it', async () => {
@@ -2150,7 +2150,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
       if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
       if (name === 'AgentSessionRuntimeService') {
-        return { getInteractionState: () => ({ currentTurn: 'headless', userResponse: 'unavailable' }) }
+        return { getToolGuardInteractionState: () => ({ currentTurn: 'headless', userResponse: 'unavailable' }) }
       }
       throw new Error(`Unexpected application.get(${name})`)
     })
@@ -2235,11 +2235,11 @@ describe('buildClaudeCodeSessionSettings', () => {
   )
 
   it('forces AskUserQuestion through approval without denying other interactive tools', async () => {
-    const getInteractionState = vi.fn(() => ({ currentTurn: 'interactive', userResponse: 'stream' }))
+    const getToolGuardInteractionState = vi.fn(() => ({ currentTurn: 'interactive', userResponse: 'stream' }))
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
       if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
-      if (name === 'AgentSessionRuntimeService') return { getInteractionState }
+      if (name === 'AgentSessionRuntimeService') return { getToolGuardInteractionState }
       throw new Error(`Unexpected application.get(${name})`)
     })
     const session = {
@@ -2288,14 +2288,14 @@ describe('buildClaudeCodeSessionSettings', () => {
   ])(
     'applies SDK skill-install permission semantics ($permissionMode, headless=$headless)',
     async ({ permissionMode, headless, shouldDeny }) => {
-      const getInteractionState = vi.fn(() => ({
+      const getToolGuardInteractionState = vi.fn(() => ({
         currentTurn: headless ? 'headless' : 'interactive',
         userResponse: headless ? 'unavailable' : 'stream'
       }))
       mocks.applicationGet.mockImplementation((name: string) => {
         if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
         if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
-        if (name === 'AgentSessionRuntimeService') return { getInteractionState }
+        if (name === 'AgentSessionRuntimeService') return { getToolGuardInteractionState }
         throw new Error(`Unexpected application.get(${name})`)
       })
       mocks.createToolPolicySnapshot.mockResolvedValue({
@@ -2339,11 +2339,11 @@ describe('buildClaudeCodeSessionSettings', () => {
 
   it('uses the live permission mode when a warm session switches to bypassPermissions', async () => {
     let permissionMode = 'default'
-    const getInteractionState = vi.fn(() => ({ currentTurn: 'headless', userResponse: 'unavailable' }))
+    const getToolGuardInteractionState = vi.fn(() => ({ currentTurn: 'headless', userResponse: 'unavailable' }))
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
       if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
-      if (name === 'AgentSessionRuntimeService') return { getInteractionState }
+      if (name === 'AgentSessionRuntimeService') return { getToolGuardInteractionState }
       throw new Error(`Unexpected application.get(${name})`)
     })
     mocks.createToolPolicySnapshot.mockResolvedValue({
@@ -2381,11 +2381,11 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it('keeps AskUserQuestion pending when the current permission mode auto-approves tools', async () => {
-    const getInteractionState = vi.fn(() => ({ currentTurn: 'interactive', userResponse: 'stream' }))
+    const getToolGuardInteractionState = vi.fn(() => ({ currentTurn: 'interactive', userResponse: 'stream' }))
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
       if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
-      if (name === 'AgentSessionRuntimeService') return { getInteractionState }
+      if (name === 'AgentSessionRuntimeService') return { getToolGuardInteractionState }
       throw new Error(`Unexpected application.get(${name})`)
     })
     mocks.getAgent.mockReturnValue({
@@ -2428,7 +2428,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     } as never)
     void pending
 
-    expect(getInteractionState).toHaveBeenCalledWith('session-1')
+    expect(getToolGuardInteractionState).toHaveBeenCalledWith('session-1', undefined)
     expect(settings.permissionMode).toBe('bypassPermissions')
     expect(mocks.approvalRegister).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -2767,7 +2767,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       }
       if (name === 'AgentSessionRuntimeService') {
         return {
-          getInteractionState: () => ({ currentTurn: 'headless', userResponse: 'unavailable' }),
+          getToolGuardInteractionState: () => ({ currentTurn: 'headless', userResponse: 'unavailable' }),
           recordToolExecutionTiming: mocks.recordToolExecutionTiming
         }
       }
@@ -3111,12 +3111,12 @@ describe('buildClaudeCodeSessionSettings', () => {
     })
 
     it('still denies a main-agent approval requested after its turn ended', async () => {
-      const getInteractionState = vi.fn(() => ({ currentTurn: 'interactive', userResponse: 'message' }))
+      const getToolGuardInteractionState = vi.fn(() => ({ currentTurn: 'interactive', userResponse: 'message' }))
       mocks.applicationGet.mockImplementation((name: string) => {
         if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
         if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
         if (name === 'AgentSessionRuntimeService') {
-          return { getInteractionState }
+          return { getToolGuardInteractionState }
         }
         throw new Error(`Unexpected application.get(${name})`)
       })
@@ -3134,19 +3134,19 @@ describe('buildClaudeCodeSessionSettings', () => {
         message:
           'This tool call arrived after its turn had already ended, so no one can approve it. Request it again in your next turn if you still need it.'
       })
-      expect(getInteractionState).toHaveBeenCalledWith('warm-e')
+      expect(getToolGuardInteractionState).toHaveBeenCalledWith('warm-e', undefined)
       // Nothing was emitted or registered, so no promise is left for a responder that will never come.
       expect(emit).not.toHaveBeenCalled()
       expect(mocks.approvalRegister).not.toHaveBeenCalled()
     })
 
     it('auto-approves an ordinary background-agent request after the parent turn ended', async () => {
-      const getInteractionState = vi.fn(() => ({ currentTurn: 'interactive', userResponse: 'message' }))
+      const getToolGuardInteractionState = vi.fn(() => ({ currentTurn: 'interactive', userResponse: 'message' }))
       mocks.applicationGet.mockImplementation((name: string) => {
         if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
         if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
         if (name === 'AgentSessionRuntimeService') {
-          return { getInteractionState }
+          return { getToolGuardInteractionState }
         }
         throw new Error(`Unexpected application.get(${name})`)
       })
@@ -3159,7 +3159,9 @@ describe('buildClaudeCodeSessionSettings', () => {
           agentID: 'subagent-1'
         } as never)
       ).resolves.toEqual({ behavior: 'allow', updatedInput: { file_path: '/outside/file' } })
-      expect(getInteractionState).toHaveBeenCalledWith('warm-bg-auto')
+      // Resolution must name the calling subagent: a background child's own authority decides, not
+      // whichever turn is live on the shared root Session id.
+      expect(getToolGuardInteractionState).toHaveBeenCalledWith('warm-bg-auto', 'subagent-1')
       expect(mocks.approvalRegister).not.toHaveBeenCalled()
     })
 
@@ -3169,7 +3171,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
         if (name === 'AgentSessionRuntimeService') {
           return {
-            getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'stream' })
+            getToolGuardInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'stream' })
           }
         }
         throw new Error(`Unexpected application.get(${name})`)
@@ -3194,7 +3196,7 @@ describe('buildClaudeCodeSessionSettings', () => {
           if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
           if (name === 'AgentSessionRuntimeService') {
             return {
-              getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'stream' })
+              getToolGuardInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'stream' })
             }
           }
           throw new Error(`Unexpected application.get(${name})`)
@@ -3227,14 +3229,14 @@ describe('buildClaudeCodeSessionSettings', () => {
       ['headless', { behavior: 'allow', updatedInput: { command: 'pwd' } }, false],
       ['interactive', undefined, true]
     ] as const)('resolves an ordinary tool per turn kind: %s', async (currentTurn, expected, registers) => {
-      const getInteractionState = vi.fn(() => ({
+      const getToolGuardInteractionState = vi.fn(() => ({
         currentTurn,
         userResponse: currentTurn === 'headless' ? 'unavailable' : 'stream'
       }))
       mocks.applicationGet.mockImplementation((name: string) => {
         if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
         if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
-        if (name === 'AgentSessionRuntimeService') return { getInteractionState }
+        if (name === 'AgentSessionRuntimeService') return { getToolGuardInteractionState }
         throw new Error(`Unexpected application.get(${name})`)
       })
       const settings = await buildClaudeCodeSessionSettings(sessionWith(`warm-${currentTurn}`), {} as never)
@@ -3255,7 +3257,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
         if (name === 'AgentSessionRuntimeService') {
           return {
-            getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'message' })
+            getToolGuardInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'message' })
           }
         }
         throw new Error(`Unexpected application.get(${name})`)
@@ -3297,7 +3299,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
         if (name === 'AgentSessionRuntimeService') {
           return {
-            getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'message' })
+            getToolGuardInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'message' })
           }
         }
         throw new Error(`Unexpected application.get(${name})`)
@@ -3338,7 +3340,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
         if (name === 'AgentSessionRuntimeService') {
           return {
-            getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'stream' })
+            getToolGuardInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'stream' })
           }
         }
         throw new Error(`Unexpected application.get(${name})`)
@@ -3376,7 +3378,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
         if (name === 'AgentSessionRuntimeService') {
           return {
-            getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'message' })
+            getToolGuardInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'message' })
           }
         }
         throw new Error(`Unexpected application.get(${name})`)

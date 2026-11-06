@@ -17,13 +17,49 @@ const INCOMPLETE_CITATION_MARKER_PATTERN = /[ \t]?\[(?:c(?:i(?:t(?:e(?::[\w-]*)?
 // Sanitizing re-scans the whole reply, so coalesce deltas instead of paying that per chunk.
 const LIVE_UPDATE_INTERVAL_MS = 250
 
+/** Bucket for text whose chunks carried no attempt id (direct feeds outside the stream manager). */
+const UNTAGGED_ATTEMPT = -1
+
+/** One queued live-update slot per attempt; a newer delta supersedes it. */
+interface PendingUpdate {
+  superseded: boolean
+}
+
 /** IM-channel sink (Discord / Slack / Feishu / Telegram / etc). */
 export class ChannelAdapterListener implements StreamListener {
   readonly id: string
-  private accumulatedText = ''
+  /**
+   * Text still owed to the channel, keyed by producing attempt. Dispatch awaits recipients one at
+   * a time, so a wake can emit through this carried listener before an older terminal has even run.
+   */
+  private readonly pendingTextByAttempt = new Map<number, string>()
+  /**
+   * Whether this turn's terminal has been handed to the adapter. Scoped to the turn, not to the
+   * listener: a chain-hold gap (`isTopicDone: false`) keeps the topic alive so the next turn
+   * arrives on this same listener, and new output re-arms it.
+   */
+  private delivered = false
+  /** Attempt ids whose terminal was already handed to the adapter. */
+  private readonly deliveredAttempts = new Set<number>()
+  /**
+   * The execution this listener was created for, taken from its first terminal. Suppression covers
+   * only that execution's failure: a wake carried into this listener later must stay deliverable
+   * even while the run's terminal dispatch (and the deferred `enableErrorDelivery`) still runs.
+   */
+  private originatingAttemptId?: number
+  /** Live-update slot per attempt bucket; the newest delta for an attempt supersedes the rest. */
+  private readonly liveUpdates = new Map<number, PendingUpdate>()
+  /**
+   * Tail of this listener's channel-update chain. A chain-hold gap and a background wake can both
+   * carry one listener into a successor execution while its predecessor's finalize is still
+   * pending, and every adapter keeps ONE stream controller per chat — so an overlapping update
+   * lands on the predecessor's card (Feishu) or is deleted by the predecessor's cleanup (Discord).
+   */
+  private updateChain: Promise<unknown> = Promise.resolve()
+  /** Last text pushed as a live draft, so a coalesced tick that changed nothing stays silent. */
   private lastLiveText = ''
+  /** Coalesces deltas: sanitizing re-scans the whole reply, so do it per tick, not per chunk. */
   private liveUpdateTimer: ReturnType<typeof setTimeout> | undefined
-  private settled = false
 
   constructor(
     private readonly adapter: ChannelAdapter,
@@ -33,7 +69,7 @@ export class ChannelAdapterListener implements StreamListener {
      * deliver a richer `[Task failed] …` summary themselves (see `runAgentTask`), so
      * leaving this on would double-notify every subscribed channel.
      */
-    private readonly suppressErrorMessage = false,
+    private suppressErrorMessage = false,
     /** Response context for the inbound message, including thread placement where supported. */
     private readonly responseOptions?: SendMessageOptions
   ) {
@@ -41,20 +77,85 @@ export class ChannelAdapterListener implements StreamListener {
     this.id = `channel:${adapter.channelId}:${this.platformChatId}:${responseKey}`
   }
 
+  /**
+   * Hand error reporting back to the stream. A listener retained across a foreground settle outlives
+   * the handler that owned failure notices, so a later failure reaching it must be delivered
+   * normally instead of suppressed behind a reporter that can no longer run.
+   */
+  enableErrorDelivery(): void {
+    this.suppressErrorMessage = false
+  }
+
   /** Deliver a final message using the inbound message's response context. */
   private deliver(text: string): Promise<void> {
     return this.adapter.sendMessage(this.platformChatId, text, this.responseOptions)
   }
 
-  private completeStream(text: string, status: 'success' | 'paused'): Promise<boolean> {
-    return this.adapter.onStreamComplete(this.platformChatId, text, this.responseOptions, { status })
+  private updateStream(text: string): Promise<void> {
+    return this.adapter.onTextUpdate?.(this.platformChatId, text, this.responseOptions) ?? Promise.resolve()
+  }
+
+  /**
+   * Detach the text one execution owns from the buffer. Called at the terminal so a wake emitting
+   * through this carried listener while the predecessor's finalize is still awaited never reads — or
+   * ships — that wake's text as part of the predecessor's reply.
+   */
+  private takeOwnText(attemptId: number | undefined): string {
+    let text = ''
+    for (const [key, value] of this.pendingTextByAttempt) {
+      // Only this exact attempt's bucket: a newer terminal must not consume an older attempt's
+      // still-undelivered text. Untagged text has no other claimant, so any terminal may ship it.
+      if (key !== UNTAGGED_ATTEMPT && key !== attemptId) continue
+      text += value
+      this.pendingTextByAttempt.delete(key)
+      // The terminal consumes this attempt's buffer, so its queued draft is already obsolete.
+      const slot = this.liveUpdates.get(key)
+      if (slot) slot.superseded = true
+    }
+    return text
+  }
+
+  /** Text the given attempt owns: its own bucket plus untagged text — never a newer attempt's. */
+  private ownedText(attemptId: number | undefined): string {
+    let text = ''
+    for (const [key, value] of this.pendingTextByAttempt) {
+      if (key !== UNTAGGED_ATTEMPT && key !== attemptId) continue
+      text += value
+    }
+    return text
+  }
+
+  private completeStream(text: string, status: 'success' | 'paused'): Promise<void> {
+    // The fallback send is part of the same terminal: Telegram splits a long answer into parts, and
+    // a wake that reused this listener must queue behind all of them, not land between two.
+    const complete = this.updateChain.then(async () => {
+      const handled = await this.adapter.onStreamComplete(this.platformChatId, text, this.responseOptions, { status })
+      if (!handled && text) {
+        await this.deliver(status === 'paused' ? `${text}\n\n_(${t('common.channel_stopped')})_` : text)
+      }
+    })
+    this.updateChain = complete.catch(() => undefined)
+    return complete
   }
 
   // oxlint-disable-next-line no-unused-vars
-  onChunk(chunk: UIMessageChunk, _sourceModelId?: UniqueModelId): void {
-    if (this.settled) return
+  onChunk(chunk: UIMessageChunk, _sourceModelId?: UniqueModelId, _anchorMessageId?: string, attemptId?: number): void {
     if (chunk.type === 'text-delta' && chunk.delta) {
-      this.accumulatedText += chunk.delta
+      const key = attemptId ?? UNTAGGED_ATTEMPT
+      this.pendingTextByAttempt.set(key, (this.pendingTextByAttempt.get(key) ?? '') + chunk.delta)
+      // Fresh output owes the channel a delivery — a listener outlives one settle (a chain-hold gap
+      // keeps the topic alive so the next turn carries this same listener).
+      this.delivered = false
+      // One live slot per attempt: a newer delta supersedes the slot before it. The tick is
+      // coalesced (sanitizing re-scans the whole reply), and the slot only marks *which* attempt
+      // the draft belongs to — the text is read from the buffer when it runs, so generation faster
+      // than the network leaves one draft per tick, not one per delta. Different attempts keep
+      // their own buckets, so the chain never merges or reorders across attempts.
+      const previous = this.liveUpdates.get(key)
+      if (previous) previous.superseded = true
+      // Re-insert so Map iteration order keeps the freshest attempt last — the tick reads the tail.
+      this.liveUpdates.delete(key)
+      this.liveUpdates.set(key, { superseded: false })
       if (this.adapter.onTextUpdate && !this.liveUpdateTimer) {
         this.liveUpdateTimer = setTimeout(() => this.pushLiveUpdate(), LIVE_UPDATE_INTERVAL_MS)
       }
@@ -65,42 +166,96 @@ export class ChannelAdapterListener implements StreamListener {
     this.liveUpdateTimer = undefined
     // The stream manager prunes a retired adapter without a terminal callback, so this timer can outlive it.
     if (!this.isAlive()) return
-    // Best-effort streaming update; adapter chooses to throttle. Sanitize here — this is
-    // the live delivery path that reaches the IM platform, so secrets (keys/tokens) must
-    // be redacted before they leave.
-    const text = sanitizeChannelOutputSilently(this.accumulatedText).text.replace(
-      INCOMPLETE_CITATION_MARKER_PATTERN,
-      ''
-    )
-    if (text === this.lastLiveText) return
-    this.lastLiveText = text
-    void this.adapter.onTextUpdate?.(this.platformChatId, text, this.responseOptions)?.catch(() => {})
-  }
-
-  private settle(): void {
-    this.settled = true
-    clearTimeout(this.liveUpdateTimer)
+    // Every attempt with unshipped drafts gets one snapshot per tick, in insertion order: the slot
+    // was already superseded by any later delta of the same attempt, and the text is read here so
+    // the snapshot covers the whole tick. Different attempts keep their own buckets, so the chain
+    // never merges or reorders across attempts.
+    const drafts: string[] = []
+    for (const [key, slot] of this.liveUpdates) {
+      if (slot.superseded) continue
+      slot.superseded = true
+      // Best-effort streaming update; adapter chooses to throttle. Sanitize here — this is
+      // the live delivery path that reaches the IM platform, so secrets (keys/tokens) must
+      // be redacted before they leave.
+      const text = sanitizeChannelOutputSilently(
+        this.ownedText(key === UNTAGGED_ATTEMPT ? undefined : key)
+      ).text.replace(INCOMPLETE_CITATION_MARKER_PATTERN, '')
+      if (text === this.lastLiveText) continue
+      this.lastLiveText = text
+      drafts.push(text)
+    }
+    if (drafts.length === 0) return
+    // Queued behind `updateChain` like the terminal: the adapter keeps ONE live controller per
+    // chat, so an update emitted while a predecessor's finalize is still awaited would rewrite
+    // that predecessor's card content.
+    let update = this.updateChain
+    for (const text of drafts) {
+      update = update.then(() => (this.isAlive() ? this.updateStream(text) : undefined))
+    }
+    this.updateChain = update.catch(() => undefined)
   }
 
   async onDone(result: StreamDoneResult): Promise<void> {
-    await this.finish(result.status)
+    await this.finish(result.status, result.attemptId)
   }
 
   // oxlint-disable-next-line no-unused-vars
   async onPaused(_result: StreamPausedResult): Promise<void> {
-    await this.finish('paused')
+    await this.finish('paused', _result.attemptId)
   }
 
-  private async finish(status: 'success' | 'paused'): Promise<void> {
-    if (this.settled) return
-    this.settle()
-    const text = sanitizeChannelOutput(this.accumulatedText).text.trim()
+  /**
+   * Whether this terminal owes the channel a delivery. Fresh output re-arms delivery; beyond that,
+   * each attempt owes exactly one delivery of its own, so a late older terminal (a wake's terminal
+   * outran the foreground dispatch on a slower recipient) still ships, while a replay of a settled
+   * attempt (payload-free held-topic close) stays deduplicated.
+   */
+  private owesDelivery(attemptId: number | undefined): boolean {
+    if (!this.delivered) return true
+    if (attemptId === undefined) return false
+    return !this.deliveredAttempts.has(attemptId)
+  }
 
+  /** The stream manager binds the dispatching execution before any listener's async delivery. */
+  prepareTerminal(attemptId: number | undefined): void {
+    this.noteTerminalAttempt(attemptId)
+  }
+
+  /** Remember which execution this listener serves — the first terminal it dispatches. */
+  private noteTerminalAttempt(attemptId: number | undefined): void {
+    if (this.originatingAttemptId === undefined && attemptId !== undefined) this.originatingAttemptId = attemptId
+  }
+
+  /**
+   * Whether this error terminal is the one the handler reports itself. Untagged terminals (direct
+   * feeds) carry no identity, so they keep the listener-wide flag.
+   */
+  private suppressesErrorFor(attemptId: number | undefined): boolean {
+    if (!this.suppressErrorMessage) return false
+    if (attemptId === undefined || this.originatingAttemptId === undefined) return true
+    return attemptId === this.originatingAttemptId
+  }
+
+  private async finish(status: 'success' | 'paused', attemptId?: number): Promise<void> {
+    this.noteTerminalAttempt(attemptId)
+    // A draft tick queued behind this terminal would render text the terminal already shipped.
+    clearTimeout(this.liveUpdateTimer)
+    this.liveUpdateTimer = undefined
+    // Take this execution's text BEFORE yielding: a predecessor's finalize can still be in flight
+    // when a wake emits through this carried listener, and text arriving during the await below
+    // belongs to that wake, not to this execution.
+    const text = sanitizeChannelOutput(this.takeOwnText(attemptId)).text.trim()
+    // The delivery decision and the terminal's chain position are both taken synchronously: a wake
+    // chunk arriving while the outstanding draft settles must queue behind this terminal, not slip
+    // ahead of it (or flip this execution's dedup decision under it).
+    if (!this.owesDelivery(attemptId)) {
+      await this.updateChain
+      return
+    }
+    this.delivered = true
+    if (attemptId !== undefined) this.deliveredAttempts.add(attemptId)
     try {
-      const handled = await this.completeStream(text, status)
-      if (!handled && text) {
-        await this.deliver(status === 'paused' ? `${text}\n\n_(${t('common.channel_stopped')})_` : text)
-      }
+      await this.completeStream(text, status)
     } catch (err) {
       logger.error('Failed to deliver terminal message to channel', {
         channelId: this.adapter.channelId,
@@ -111,16 +266,38 @@ export class ChannelAdapterListener implements StreamListener {
   }
 
   async onError(result: StreamErrorResult): Promise<void> {
-    if (this.settled) return
-    this.settle()
-    try {
-      const error = sanitizeChannelOutput(result.error.message ?? t('common.channel_message_processing_error')).text
+    // The suppression decision is taken once, synchronously at entry: a retained run arms error
+    // delivery for FUTURE terminals (after the dispatch settles), and an arm landing mid-await must
+    // not flip the terminal that is already being dispatched.
+    this.noteTerminalAttempt(result.attemptId)
+    const suppress = this.suppressesErrorFor(result.attemptId)
+    // Same rule as `finish`: drop this execution's text before yielding, so a wake emitting through
+    // this carried listener during the await does not inherit or re-ship it.
+    this.takeOwnText(result.attemptId)
+    // A draft tick queued behind this terminal would render text the terminal already shipped.
+    clearTimeout(this.liveUpdateTimer)
+    this.liveUpdateTimer = undefined
+    // Same synchronous discipline as `finish`: decide delivery and reserve the terminal's chain
+    // position before yielding — a wake chunk queued while the outstanding draft settles must land
+    // behind this error terminal, not ahead of it on the chat's single controller.
+    if (!this.owesDelivery(result.attemptId)) {
+      await this.updateChain
+      return
+    }
+    this.delivered = true
+    if (result.attemptId !== undefined) this.deliveredAttempts.add(result.attemptId)
+    const error = sanitizeChannelOutput(result.error.message ?? t('common.channel_message_processing_error')).text
+    // Append the terminal to the chain like `completeStream` does: a wake reusing this listener
+    // while the error card is still being written must queue behind it, not overwrite it.
+    const terminal = this.updateChain.then(async () => {
       const handled = await this.adapter.onStreamError(this.platformChatId, error, this.responseOptions, {
-        suppressDelivery: this.suppressErrorMessage
+        suppressDelivery: suppress
       })
-      if (!handled && !this.suppressErrorMessage) {
-        await this.deliver(t('common.channel_error', { error }))
-      }
+      if (!handled && !suppress) await this.deliver(t('common.channel_error', { error }))
+    })
+    this.updateChain = terminal.catch(() => undefined)
+    try {
+      await terminal
     } catch (err) {
       logger.error('Failed to deliver error to channel', {
         channelId: this.adapter.channelId,

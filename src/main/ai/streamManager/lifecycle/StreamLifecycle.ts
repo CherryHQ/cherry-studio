@@ -22,6 +22,11 @@ export interface StreamLifecycle {
   onApprovalPendingChanged(stream: ActiveStream): void
   /** Called when a live turn replaces a terminal execution or appends a new model execution. */
   onActiveExecutionsChanged(stream: ActiveStream): void
+  /**
+   * Called when the foreground turn settles on a stream HELD open for detached background work
+   * (`heldForContinuation`): the topic still reports live, but a new user turn may start.
+   */
+  onTurnSettled(stream: ActiveStream): void
   /** Called once when `isTopicDone` flips; read `stream.status` for the final status. */
   onTerminal(stream: ActiveStream): void
   /** Returning false short-circuits `attach` to `'not-found'`. */

@@ -187,6 +187,8 @@ export type ClaudeCodeStreamAdapterOptions = {
   sink: StreamSink
   statusSink: StatusSink
   onSessionId?: (sessionId: string) => void
+  /** A background run ended; its launch authority (keyed by the owning call) must be retired. */
+  onBackgroundTaskSettled?: (toolUseId: string) => void
   mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
 }
 
@@ -476,8 +478,11 @@ function mapTaskStatus(status: SdkTaskStatus): AgentTaskEventPartData['status'] 
       return 'completed'
     case 'stopped':
       return 'stopped'
-    case 'failed':
     case 'killed':
+      // A kill has no successor delivery, unlike a failure — the SDK queues a parent failure
+      // notification for `failed` only, so the two must stay distinguishable downstream.
+      return 'killed'
+    case 'failed':
       return 'error'
     default:
       return undefined
@@ -492,6 +497,7 @@ export class ClaudeCodeStreamAdapter {
   private readonly statusSink: StatusSink
   private readonly streamOptions: ClaudeCodeStreamAdapterOptions['streamOptions']
   private readonly onSessionId?: (sessionId: string) => void
+  private readonly onBackgroundTaskSettled?: (toolUseId: string) => void
   private readonly mcpToolMetadata: Record<string, McpToolDisplayMetadata>
   /** Content belongs to a turn's message stream; outside one there is nowhere for it to land. */
   private turnActive = false
@@ -499,7 +505,6 @@ export class ClaudeCodeStreamAdapter {
   private autonomousTurn = false
   /** An empty task snapshot was seen; wait for the SDK's authoritative idle boundary to release it. */
   private backgroundWorkReleasePending = false
-  private awaitingBackgroundReply = false
   /** The latest authoritative level, enriched only by explicit async-launch receipts from this driver. */
   private backgroundTasks: AgentSessionBackgroundTask[] = []
   private readonly backgroundTaskToolCallIds = new Map<string, string>()
@@ -517,6 +522,7 @@ export class ClaudeCodeStreamAdapter {
     this.statusSink = options.statusSink
     this.streamOptions = options.streamOptions
     this.onSessionId = options.onSessionId
+    this.onBackgroundTaskSettled = options.onBackgroundTaskSettled
     this.mcpToolMetadata = options.mcpToolMetadata ?? {}
     this.ctx = this.createTurnContext()
   }
@@ -738,9 +744,15 @@ export class ClaudeCodeStreamAdapter {
     )
     if (existing) return existing
 
+    // Spawning-turn ownership, not turnActive alone: a follow-up reusing the session can be active
+    // while a PREVIOUS turn's child emits its first parented content, and that content belongs to
+    // the row owning the tool call. Only a parent tool call of the still-active current turn
+    // streams into the main sink; anything else takes the detached background-flow path.
     const flow: FlowContext = {
       rootToolCallId: parentToolCallId,
-      stream: this.createTurnContext(this.turnActive ? this.sink : this.createFlowSink(parentToolCallId))
+      stream: this.createTurnContext(
+        this.turnActive && this.ctx.toolStates.has(parentToolCallId) ? this.sink : this.createFlowSink(parentToolCallId)
+      )
     }
     this.flowContexts.push(flow)
     return flow
@@ -1343,14 +1355,9 @@ export class ClaudeCodeStreamAdapter {
           description: task.description
         }))
         this.publishBackgroundTasks()
-        if (this.hasBackgroundAgents()) this.awaitingBackgroundReply = true
         if (message.tasks.length > 0) {
           this.backgroundWorkReleasePending = false
-          this.statusSink.emit({
-            type: 'background-work-state',
-            active: true,
-            ...(!this.awaitingBackgroundReply ? { awaitingReply: false } : {})
-          })
+          this.statusSink.emit({ type: 'background-work-state', active: true })
         } else {
           this.backgroundWorkReleasePending = true
         }
@@ -1454,6 +1461,18 @@ export class ClaudeCodeStreamAdapter {
   private handleTaskSystemMessage(message: SdkTaskSystemMessage, ctx: StreamContext): void {
     const eventData = this.toTaskEventPartData(message)
 
+    // A settled run owes no launch authority; the bookend may omit the call, so fall back to the
+    // id its started edge reported.
+    const settledStatus =
+      eventData.status === 'completed' ||
+      eventData.status === 'stopped' ||
+      eventData.status === 'killed' ||
+      eventData.status === 'error'
+    if (settledStatus && (eventData.event === 'notification' || eventData.event === 'updated')) {
+      const ownerToolUseId = eventData.toolUseId ?? this.backgroundTaskToolCallIds.get(eventData.taskId)
+      if (ownerToolUseId) this.onBackgroundTaskSettled?.(ownerToolUseId)
+    }
+
     // Membership and liveness remain owned exclusively by `background_tasks_changed`. A native
     // subagent edge may enrich an already-authoritative row with its explicit root tool-use id for
     // navigation only; missing/reordered edges therefore delay the button but never add/hide a chip.
@@ -1536,22 +1555,12 @@ export class ClaudeCodeStreamAdapter {
     }
   }
 
-  private hasBackgroundAgents(): boolean {
-    return this.backgroundTasks.some((task) => task.type === 'subagent' || task.type === 'local_agent')
-  }
-
   private handleSessionStateChangedSystemMessage(message: SDKSessionStateChangedMessage): void {
     if (message.state !== 'idle') return
     // Idle means held-back results and the background-agent loop have drained, so no detached flow
     // can still stream. Drop the per-flow state instead of retaining it for the connection lifetime;
     // a late straggler simply gets a fresh context via `getOrCreateFlowContext`.
     if (!this.turnActive) this.flowContexts.length = 0
-    if (this.awaitingBackgroundReply && !this.hasBackgroundAgents()) {
-      this.awaitingBackgroundReply = false
-      if (this.backgroundTasks.length > 0) {
-        this.statusSink.emit({ type: 'background-work-state', active: true, awaitingReply: false })
-      }
-    }
     if (!this.backgroundWorkReleasePending) return
     this.backgroundWorkReleasePending = false
     this.statusSink.emit({ type: 'background-work-state', active: false })

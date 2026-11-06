@@ -97,6 +97,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private active = false
   private sending = false
   private manualCompactInFlight = false
+  /** Whether the submission currently being handled belongs to a headless execution. */
+  private turnHeadless = false
   private autonomous = false
   private nextOrigin: AutonomousTurnOrigin = { kind: 'background-work' }
   private readonly childOrigins = new Map<
@@ -349,6 +351,16 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
             parentThreadId: child.parent.id,
             parentToolCallId: child.toolCallId
           })
+          // Bind the child's spawning authority before its session can issue any MCP call. The
+          // service uses this provenance instead of whichever responder later reuses the root
+          // connection; a grandchild names its parent so lineage inheritance still applies.
+          const rootThreadId = this.handle?.thread.id
+          this.eventQueue.push({
+            type: 'background-child-provenance',
+            childSessionId: child.thread.id,
+            ...(child.parent.id !== rootThreadId ? { parentSessionId: child.parent.id } : {}),
+            headless: this.turnHeadless
+          })
           return configured
         }
       },
@@ -360,7 +372,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         createPiIdentityExtension(agentDataPath),
         pi.createCodemodeExtension({ models: false }),
         pi.createToolSearchExtension(),
-        createPiMcpExtension(pi, mcpServers, application.getPath('feature.agents.pi.root', 'mcp.log'))
+        createPiMcpExtension(pi, mcpServers, application.getPath('feature.agents.pi.root', 'mcp.log'), (sessionId) =>
+          sessionId === nativeId ? undefined : sessionId
+        )
       ],
       onEvent: (event: PiEvent) => this.handleNativeEvent(event)
     }
@@ -400,6 +414,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     if (!this.handle || !this.context || this.closing) throw new Error('Pi Runtime is unavailable')
     if (this.sending) throw new Error('Pi already has an active submission')
     this.sending = true
+    this.turnHeadless = input.headless === true
     this.failure = undefined
     this.usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
     this.reasoningTokens = undefined
@@ -414,7 +429,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       return
     }
     try {
-      await this.submit(input, input.systemReminder ? wrapSteerReminder(content) : content, 'reject')
+      await this.submit(
+        input,
+        input.systemReminder ? wrapSteerReminder(content, input.backgroundTasksNote) : content,
+        'reject'
+      )
     } catch (error) {
       this.sending = false
       this.failure = error
@@ -707,6 +726,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
   private finishTurn(): void {
     if (!this.sending || this.closing) return
+    this.turnHeadless = false
     this.cancelQueuedInputs()
     this.flushInputs()
     this.sending = false

@@ -14,7 +14,7 @@ vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
     ClaudeCodeSessionStateService: { getSteerHolder: () => holder },
-    AgentSessionRuntimeService: { recordToolExecutionTiming: vi.fn(), getInteractionState: vi.fn() }
+    AgentSessionRuntimeService: { recordToolExecutionTiming: vi.fn(), getToolGuardInteractionState: vi.fn() }
   } as never)
 })
 

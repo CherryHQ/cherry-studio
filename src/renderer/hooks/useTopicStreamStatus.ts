@@ -23,6 +23,12 @@ interface TopicStreamStatusView {
   isPending: boolean
   lastCompletedAt: number | null
   /**
+   * The foreground turn settled while detached background work keeps the stream live. `isPending`
+   * still reports the topic as working (the session deliberately does until the work drains), so a
+   * composer must consult this before treating the next message as a follow-up.
+   */
+  turnSettledAt: number | null
+  /**
    * `done` AND this window's `lastSeenCompletion` does not match the
    * authoritative `lastCompletedAt`. Read-receipt model: per-completion
    * identity rather than a sticky 1-bit "ever seen" gate.
@@ -43,6 +49,7 @@ export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
 
   const status = entry?.status
   const lastCompletedAt = entry?.lastCompletedAt ?? null
+  const turnSettledAt = entry?.turnSettledAt ?? null
   const activeExecutions = useMemo(() => entry?.activeExecutions ?? [], [entry])
   const awaitingApprovalAnchors = useMemo(() => entry?.awaitingApprovalAnchors ?? [], [entry])
 
@@ -56,7 +63,16 @@ export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
     }
   }, [lastCompletedAt, lastSeenCompletion, setLastSeenCompletion])
 
-  return { status, activeExecutions, awaitingApprovalAnchors, isPending, lastCompletedAt, isFulfilled, markSeen }
+  return {
+    status,
+    activeExecutions,
+    awaitingApprovalAnchors,
+    isPending,
+    lastCompletedAt,
+    turnSettledAt,
+    isFulfilled,
+    markSeen
+  }
 }
 
 export function useTopicAwaitingApproval(topicId: string): boolean {

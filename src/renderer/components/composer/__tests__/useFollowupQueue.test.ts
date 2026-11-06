@@ -80,6 +80,79 @@ describe('useFollowupQueue', () => {
     expect(result.current.items).toEqual([])
   })
 
+  // Detached background work keeps the topic stream live for its receive-only wake, so a turn's
+  // own settle never reaches `done`. The queue must still drain on that edge: the foreground turn
+  // is over, and the follow-up belongs to a new turn — not to the background task's completion.
+  it('drains the head when the foreground turn settles under live background work', async () => {
+    const onDrain = vi.fn().mockResolvedValue(true)
+    const head = item('h', 'head')
+    cacheService.setCasual('followup-queue.s1', [head])
+
+    const { result, rerender } = renderHook(
+      ({ turnSettledAt }) =>
+        useFollowupQueue({
+          scopeKey: 's1',
+          status: 'streaming',
+          lastCompletedAt: 100,
+          turnSettledAt,
+          onDrain
+        }),
+      { initialProps: { turnSettledAt: null as number | null } }
+    )
+
+    expect(onDrain).not.toHaveBeenCalled()
+
+    await act(async () => {
+      rerender({ turnSettledAt: 200 })
+    })
+
+    expect(onDrain).toHaveBeenCalledTimes(1)
+    expect(onDrain).toHaveBeenCalledWith(head.payload)
+    expect(result.current.items).toEqual([])
+  })
+
+  // `status: undefined` is how the composer says "sending is disabled right now" (agent/model still
+  // loading, or a message is being edited). A settled foreground turn must not override that: the
+  // send would fail, `sendItem` persists `paused`, and the draft then waits for a manual resume even
+  // after loading finishes.
+  it('does not drain while the composer has disabled sending, even with a settled turn', async () => {
+    const onDrain = vi.fn().mockResolvedValue(false)
+    const onDrainFailed = vi.fn()
+    const head = item('h', 'head')
+    cacheService.setCasual('followup-queue.s1', [head])
+
+    const { result, rerender } = renderHook(
+      ({ status }: { status: 'streaming' | undefined }) =>
+        useFollowupQueue({
+          scopeKey: 's1',
+          status,
+          lastCompletedAt: 100,
+          turnSettledAt: 200,
+          onDrain,
+          onDrainFailed
+        }),
+      { initialProps: { status: undefined as 'streaming' | undefined } }
+    )
+
+    await act(async () => {
+      rerender({ status: undefined })
+    })
+
+    expect(onDrain).not.toHaveBeenCalled()
+    expect(onDrainFailed).not.toHaveBeenCalled()
+    expect(result.current.paused).toBe(false)
+    expect(result.current.items).toEqual([head])
+
+    // Once sending is allowed again the same settled turn still admits the head: the timestamp is
+    // suppressed by the disabled status, not discarded.
+    await act(async () => {
+      rerender({ status: 'streaming' })
+    })
+
+    expect(onDrain).toHaveBeenCalledTimes(1)
+    expect(onDrain).toHaveBeenCalledWith(head.payload)
+  })
+
   it('keeps the head queued and reports failure when auto-drain fails', async () => {
     const onDrain = vi.fn().mockResolvedValue(false)
     const onDrainFailed = vi.fn()

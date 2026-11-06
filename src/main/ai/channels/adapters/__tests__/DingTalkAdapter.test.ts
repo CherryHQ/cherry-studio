@@ -346,6 +346,25 @@ describe('DingTalk channel contract', () => {
     expect(requests.at(-1)?.body.text.content).toBe(t('common.dingtalk_empty_response'))
   })
 
+  it('delivers a successor execution on a finalized reply as a fresh message, never rewriting its card', async () => {
+    const { instance, client } = await adapter({ card_template_id: 'template' })
+    client.callback(frame('1'))
+    await tick()
+    await instance.sendTypingIndicator('dm:alice', reply('1'))
+    await instance.onTextUpdate('dm:alice', 'original answer', reply('1'))
+    await instance.onStreamComplete('dm:alice', 'original answer', reply('1'))
+    const finalizedCardWrites = requests.filter((r) => r.url.endsWith('/streaming')).length
+    // A background wake streams and settles on the same inbound message (the chain-held listener
+    // keeps its reply context). Card streaming sends full replacement content, so reusing the
+    // finalized cardId would overwrite the original answer — the wake must go out as fresh text.
+    await instance.onTextUpdate('dm:alice', 'wake summary', reply('1'))
+    await instance.onStreamComplete('dm:alice', 'wake summary', reply('1'))
+    expect(requests.filter((r) => r.url.endsWith('/streaming')).length).toBe(finalizedCardWrites)
+    expect(requests.filter((r) => r.url.includes('sendBySession')).map((r) => r.body.text.content)).toEqual([
+      'wake summary'
+    ])
+  })
+
   it('keeps command acknowledgements in text mode without leaving a processing card behind', async () => {
     const { instance, client } = await adapter({ card_template_id: 'template' })
     client.callback(frame('compact', { text: { content: '/compact' } }))

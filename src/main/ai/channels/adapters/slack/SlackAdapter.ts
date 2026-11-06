@@ -594,7 +594,9 @@ class SlackAdapter extends ChannelAdapter {
       await this.removeReaction(chatId)
       return await controller.complete(finalText)
     } finally {
-      this.streamingControllers.delete(chatId)
+      // Identity-guarded: a successor turn can open its own controller for this chat while this
+      // finalize is still in flight, and an unconditional delete would drop the successor's.
+      if (this.streamingControllers.get(chatId) === controller) this.streamingControllers.delete(chatId)
     }
   }
 
@@ -612,7 +614,7 @@ class SlackAdapter extends ChannelAdapter {
       else await controller.error(error)
       return true
     } finally {
-      this.streamingControllers.delete(chatId)
+      if (this.streamingControllers.get(chatId) === controller) this.streamingControllers.delete(chatId)
     }
   }
 

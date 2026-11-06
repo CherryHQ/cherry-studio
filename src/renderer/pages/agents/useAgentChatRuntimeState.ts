@@ -136,6 +136,8 @@ export interface AgentChatRuntimeState {
   loadOlder?: () => void
   selectAllPagination?: MessageListSelectAllPagination
   isPending: boolean
+  /** `isPending` minus a foreground turn that already settled under detached background work. */
+  isForegroundPending: boolean
   stop: () => Promise<void>
   sendMessage: (message?: { text: string }, options?: AgentSendOptions) => Promise<boolean>
   deleteMessage: (messageId: string) => Promise<void>
@@ -427,7 +429,7 @@ export function useAgentChatRuntimeState({
     streamingLayers,
     onRespond: respondToolApproval
   })
-  const { isPending } = useTopicStreamStatus(sessionTopicId)
+  const { isPending, turnSettledAt } = useTopicStreamStatus(sessionTopicId)
   const sessionClosing = useSharedCacheValue(AGENT_SESSION_CLOSING_CACHE_KEY(sessionId)) === true
   const editBusy = isPending || sessionClosing || editPending || toolApprovalComposerOverrides.length > 0
   const cancelEditing = useCallback(() => {
@@ -512,6 +514,9 @@ export function useAgentChatRuntimeState({
     loadOlder,
     selectAllPagination,
     isPending,
+    // A turn that settled under detached background work still leaves the topic "working", but the
+    // composer must send the next message as a new turn instead of queueing it behind that work.
+    isForegroundPending: isPending && turnSettledAt == null,
     stop,
     sendMessage,
     deleteMessage,
