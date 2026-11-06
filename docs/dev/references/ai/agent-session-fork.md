@@ -18,6 +18,9 @@ sources:
 ## Behavior
 
 Pi and Claude Code support **Fork** on completed assistant messages.
+Local Agents currently do not implement native forks: **Edit and resend** is hidden,
+and **Fork** is disabled with an explanation. Backend requests report unsupported
+runtime capability separately from missing or incompatible checkpoints.
 Pi Durable does not yet expose desktop fork checkpoints or **Edit and resend**;
 these operations reject unsupported native history rather than rebuilding it from product messages.
 The operation creates an independent Agent session containing the visible

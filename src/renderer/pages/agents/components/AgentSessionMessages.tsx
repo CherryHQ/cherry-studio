@@ -159,6 +159,7 @@ const AgentSessionMessages = ({
     streamingLayers,
     assistantProfile,
     assistantId: agentId,
+    supportsNativeFork: !!activeAgent && activeAgent.type !== 'local',
     providerErrorSettingsPath:
       activeAgent?.type === 'local'
         ? `/settings/local-agents?id=${encodeURIComponent(activeAgent.configuration?.localRuntime?.presetId ?? activeAgent.id)}`

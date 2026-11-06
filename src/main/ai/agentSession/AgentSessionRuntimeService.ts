@@ -415,6 +415,9 @@ export class AgentSessionRuntimeService extends BaseService {
     const snapshot = application
       .get('DbService')
       .withWriteTx((tx) => agentSessionMessageService.readEditSnapshotTx(tx, sessionId, messageId))
+    const agent = snapshot.session.agentId ? agentService.getAgent(snapshot.session.agentId) : undefined
+    if (agent && !runtimeDriverRegistry.getAgentSessionDriver(agent.type)?.fork)
+      throw new AgentSessionEditError('runtime_unsupported')
     const parts = snapshot.user.data.parts ?? []
     await validateEditedInput(parts)
     return { messageId, version: snapshot.version, parts }

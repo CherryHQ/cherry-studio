@@ -483,7 +483,21 @@ describe('AgentSessionForkOperations recovery', () => {
   })
 
   it('rejects a missing checkpoint before creating fork artifacts or rebuilding history', async () => {
+    runtimeDriverRegistry.register({
+      type: 'checkpoint-test',
+      capabilities: ['agent-session'],
+      validateSession() {},
+      listAvailableTools: async () => [],
+      connect: async () => {
+        throw new Error('Must not connect')
+      },
+      fork: async () => {
+        throw new Error('Must not fork without a checkpoint')
+      }
+    })
+
     forkRecoveryMocks.read.mockReturnValue({
+      agent: { type: 'checkpoint-test' },
       messages: [{ role: 'assistant', status: 'success', data: {} }]
     })
 
@@ -568,8 +582,22 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   it('blocks edits only on the source session until its fork settles', async () => {
+    runtimeDriverRegistry.register({
+      type: 'checkpoint-test',
+      capabilities: ['agent-session'],
+      validateSession() {},
+      listAvailableTools: async () => [],
+      connect: async () => {
+        throw new Error('Must not connect')
+      },
+      fork: async () => {
+        throw new Error('Must not fork without a checkpoint')
+      }
+    })
+
     const service = new AgentSessionRuntimeService()
     forkRecoveryMocks.read.mockReturnValueOnce({
+      agent: { type: 'checkpoint-test' },
       messages: [{ role: 'assistant', status: 'success', data: {} }]
     })
     const fork = service.forkSession('session-1', 'assistant-1')

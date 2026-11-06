@@ -99,7 +99,8 @@ export class AgentSessionForkOperations {
     if (source.version !== target.version) throw new AgentSessionEditError('history_changed')
     const agent = source.session.agentId ? agentService.getAgent(source.session.agentId) : undefined
     const driver = agent && runtimeDriverRegistry.getAgentSessionDriver(agent.type)
-    if (!agent || !driver?.fork) throw new AgentSessionForkError('unsupported_checkpoint')
+    if (!agent) throw new AgentSessionForkSourceError('source_missing')
+    if (!driver?.fork) throw new AgentSessionEditError('runtime_unsupported')
     const prefix = structuredClone(source.prefix)
     let nativeSessionId: string = randomUUID()
     let resources: AgentSessionForkResources | undefined
@@ -209,6 +210,8 @@ export class AgentSessionForkOperations {
     signal.throwIfAborted()
     await ensureRetiredSessionHistory(sourceSessionId)
     const preliminary = agentSessionForkService.read(sourceSessionId, messageId)
+    if (!runtimeDriverRegistry.getAgentSessionDriver(preliminary.agent.type)?.fork)
+      throw new AgentSessionForkError('runtime_unsupported')
     const selected = preliminary.messages.at(-1)!
     const anchor = RuntimeForkAnchorSchema.safeParse(selected.data.runtimeAnchor)
     if (selected.role !== 'assistant' || selected.status !== 'success')

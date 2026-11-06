@@ -123,6 +123,7 @@ interface AgentMessageListParams {
   setActiveBranch?: MessageListActions['setActiveBranch']
   deleteMessage?: MessageListActions['deleteMessage']
   startEditing?: (messageId: string) => Promise<void>
+  supportsNativeFork?: boolean
   editBusy?: boolean
   respondToolApproval?: MessageListActions['respondToolApproval']
   navigateToForkSource?: NavigateToForkSource
@@ -194,6 +195,7 @@ export function useAgentMessageListProviderValue({
   setActiveBranch,
   startEditing,
   editBusy,
+  supportsNativeFork = true,
   respondToolApproval,
   navigateToForkSource,
   imageActionConsumer,
@@ -498,17 +500,23 @@ export function useAgentMessageListProviderValue({
       setActiveBranch: normalInteractionsEnabled ? setActiveBranch : undefined,
       editLabel: t('agent.edit_resend.label'),
       canEditMessage: (message) =>
-        normalInteractionsEnabled && !!startEditing && !editBusy && message.role === 'user' && !message.delivery,
-      startEditing: startEditing
-        ? (message) => {
-            void startEditing(message.id)
-          }
-        : undefined,
+        normalInteractionsEnabled &&
+        supportsNativeFork &&
+        !!startEditing &&
+        !editBusy &&
+        message.role === 'user' &&
+        !message.delivery,
+      startEditing:
+        normalInteractionsEnabled && supportsNativeFork && startEditing
+          ? (message) => {
+              void startEditing(message.id)
+            }
+          : undefined,
       openForkSourceSession: normalInteractionsEnabled && navigateToForkSource ? openForkSourceSession : undefined,
       forkSession: normalInteractionsEnabled
         ? {
             label: t('agent_session_fork.label'),
-            availability: (message) => agentSessionForkAvailability(t, message),
+            availability: (message) => agentSessionForkAvailability(t, message, supportsNativeFork),
             run: forkSession
           }
         : undefined,
@@ -550,6 +558,7 @@ export function useAgentMessageListProviderValue({
       setActiveBranch,
       startEditing,
       editBusy,
+      supportsNativeFork,
       navigateToForkSource,
       openForkSourceSession,
       t,

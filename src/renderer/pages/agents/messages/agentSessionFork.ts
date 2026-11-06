@@ -4,8 +4,14 @@ import type { ActionAvailabilityInput } from '@renderer/components/chat/actions/
 import type { MessageListItem } from '@renderer/components/chat/messages/types'
 import type { AgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
 
-export function agentSessionForkAvailability(t: TFunction, message: MessageListItem): ActionAvailabilityInput {
+export function agentSessionForkAvailability(
+  t: TFunction,
+  message: MessageListItem,
+  supportsNativeFork = true
+): ActionAvailabilityInput {
   if (message.role !== 'assistant') return false
+  if (!supportsNativeFork)
+    return { visible: true, enabled: false, reason: agentSessionForkReasonLabel(t, 'runtime_unsupported') }
   const enabled = message.status === 'success'
   return {
     visible: true,
@@ -19,6 +25,8 @@ export function agentSessionForkReasonLabel(t: TFunction, reason: AgentSessionFo
   switch (reason) {
     case 'cancelled':
       return t('message.tools.cancelled')
+    case 'runtime_unsupported':
+      return t('agent_session_fork.runtime_unsupported')
     case 'legacy_history':
       return t('agent_session_fork.legacy_history')
     case 'not_turn_boundary':

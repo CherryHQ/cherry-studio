@@ -1,4 +1,5 @@
 import { renderHook } from '@testing-library/react'
+import { t } from 'i18next'
 import { expect, it } from 'vitest'
 
 import type { Topic } from '@renderer/types/topic'
@@ -31,4 +32,34 @@ it('offers editing on earlier user messages and disables it while the session is
   expect(result.current.actions.canEditMessage!(assistant)).toBe(false)
   rerender({ editBusy: true })
   expect(result.current.actions.canEditMessage!(firstUser)).toBe(false)
+})
+
+it('blocks edit and fork actions for a runtime without native fork support', () => {
+  const { result } = renderHook(() =>
+    useAgentMessageListProviderValue({
+      topic: { id: 'agent-session:source', assistantId: 'agent-1', name: 'Source', messages: [] } as unknown as Topic,
+      messages: [
+        { id: 'user', role: 'user', parts: [{ type: 'text', text: 'Question' }] },
+        {
+          id: 'assistant',
+          role: 'assistant',
+          metadata: { status: 'success' },
+          parts: [{ type: 'text', text: 'Answer' }]
+        }
+      ],
+      partsByMessageId: {},
+      isLoading: false,
+      messageNavigation: 'anchor',
+      startEditing: async () => {},
+      supportsNativeFork: false
+    })
+  )
+  const [user, assistant] = result.current.state.messages
+  expect(result.current.actions.canEditMessage!(user)).toBe(false)
+  expect(result.current.actions.startEditing).toBeUndefined()
+  expect(result.current.actions.forkSession!.availability(assistant)).toEqual({
+    visible: true,
+    enabled: false,
+    reason: t('agent_session_fork.runtime_unsupported')
+  })
 })
