@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Alert, Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { importService } from '@renderer/services/import'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -96,11 +97,18 @@ const PopupContainer: React.FC<Props> = ({ open, resolve, source }) => {
         )
         resolve({})
       } else {
-        toast.error(result.error || t(translations.unknownError))
+        const detail = result.error?.trim()
+        toastAppError(t(translations.unknownError), detail ? new Error(detail) : result, {
+          source: 'settings.import',
+          operation: `import.${source}`
+        })
       }
     } catch (error) {
       logger.error(`${config.loggerName} import failed:`, error as Error)
-      toast.error(t(translations.unknownError))
+      toastAppError(t(translations.unknownError), error, {
+        source: 'settings.import',
+        operation: `import.${source}`
+      })
       resolve({})
     } finally {
       setSelecting(false)
