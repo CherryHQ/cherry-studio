@@ -178,7 +178,7 @@ function NotificationItem({
         </Button>
       </div>
       {expanded && (release || announcementUrl) && (
-        <div className="space-y-3 pb-4 pl-7">
+        <div className="space-y-3 pb-4 pl-9 pr-2">
           {release && (
             <Suspense fallback={<p className="text-sm text-muted-foreground">{t('common.loading')}</p>}>
               <ReleaseNotes content={release.releaseNotes} />
@@ -415,7 +415,7 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
               returnFocus.current = false
             }
           }}>
-          <div className="flex shrink-0 items-center gap-2 px-4 py-3">
+          <div className="flex shrink-0 items-center gap-2 px-6 py-3">
             <DrawerTitle className="mr-auto text-sm font-medium">{t('notification.center.title')}</DrawerTitle>
             <Button
               variant="ghost"
@@ -431,14 +431,14 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
               {t('notification.center.mark_all_read')}
             </Button>
           </div>
-          <ScrollArea className="min-h-0 flex-1 px-5">
+          <ScrollArea className="min-h-0 flex-1 px-4">
             <NotificationList
               requestedId={requestedId}
               onNavigate={() => changeOpen(false)}
               onDismissRequested={() => setRequestedId(null)}
             />
           </ScrollArea>
-          <DrawerDescription className="shrink-0 border-t border-border-subtle px-4 py-2 text-xs">
+          <DrawerDescription className="shrink-0 border-t border-border-subtle px-6 py-2 text-xs">
             {t('notification.center.retention')}
           </DrawerDescription>
         </DrawerContent>
