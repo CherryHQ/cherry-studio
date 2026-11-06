@@ -631,7 +631,8 @@
           "modelsApiUrls": {
             "default": "https://openrouter.ai/api/v1/models",
             "embedding": "https://openrouter.ai/api/v1/embeddings/models",
-            "image": "https://openrouter.ai/api/v1/images/models"
+            "image": "https://openrouter.ai/api/v1/images/models",
+            "reranker": "https://openrouter.ai/api/v1/models?output_modalities=rerank"
           },
           "reasoningFormat": {
             "type": "openai-chat",
@@ -1135,6 +1136,12 @@
       "defaultChatEndpoint": "openai-responses",
       "description": "OpenAI - AI model provider",
       "endpointConfigs": {
+        "openai-image-edit": {
+          "adapterFamily": "openai"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "openai"
+        },
         "openai-responses": {
           "adapterFamily": "openai",
           "baseUrl": "https://api.openai.com",
@@ -2930,5 +2937,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "26a014e34810030f"
+  "version": "bf5d34485566c802"
 }

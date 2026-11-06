@@ -23,12 +23,7 @@ import {
 import { MockLanguageModelV3 } from 'ai/test'
 import { onTestFinished } from 'vitest'
 
-import {
-  type AgentRuntimeSessionOptions,
-  type AgentRuntimeEvent,
-  type AgentRuntimeModel,
-  createAgentRuntimeSession
-} from '@cherrystudio/agent-runtime-pi'
+import { type AgentRuntimeSessionOptions, createAgentRuntimeSession } from '@cherrystudio/agent-runtime-pi'
 import { loadPiApiStreamSimple } from '@main/ai/runtime/pi/piSdk'
 import { type InputParamsMap, MessageConverterFactory, StreamAdapterFactory } from '@main/features/apiGateway/adapters'
 import { createUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -203,8 +198,6 @@ export function lastAssistant(session: AgentSession): AssistantMessage {
   return message
 }
 
-export const plain = <T>(value: T): T => JSON.parse(JSON.stringify(value))
-
 export const finish = (
   unified: 'stop' | 'tool-calls' | 'length' | 'other',
   input = 10,
@@ -235,23 +228,4 @@ export function scriptedModel(scripts: LanguageModelV3StreamPart[][], chunkDelay
     }
   })
   return { model, calls }
-}
-
-/** Records copied observations for assertions; native SessionManager owns persistence. */
-export function hostStore() {
-  const entries: SessionEntry[] = []
-  const events: AgentRuntimeEvent[] = []
-  const onEvent = (event: AgentRuntimeEvent) => {
-    events.push(event)
-    if (event.type === 'session-append') entries.push(...plain(event.entries))
-  }
-  return { entries, events, onEvent }
-}
-
-export const NATIVE_MODEL: AgentRuntimeModel = {
-  ...MODEL,
-  api: 'openai-completions',
-  baseUrl: 'http://gateway-fixture.invalid',
-  provider: 'cherry',
-  id: 'bridged-model'
 }

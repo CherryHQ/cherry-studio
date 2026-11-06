@@ -619,10 +619,10 @@ test(...caseDefinition('MP-61'), async ({ app, mainWindow: page }, testInfo) => 
     await page.reload()
     await selectSidebarApp(page, 'Knowledge Base')
     await page.locator('[data-ui~="knowledge.navigation"]').getByText(base.name, { exact: true }).click()
+    // Folder imports hand the directory to the main process, which only reports back the
+    // supported children; unsupported files inside a folder produce no toast (the warning
+    // is reserved for explicitly picked files). The children assertions below are the check.
     await importFolder(documents)
-    await expect
-      .soft(page.getByText(`Skipped ${skippedCount} unsupported file(s)`, { exact: true }))
-      .toBeVisible({ timeout: 5_000 })
     await expect.poll(async () => (await list(null)).length).toBe(1)
     const [directory] = await list(null)
     expect(directory.type).toBe('directory')

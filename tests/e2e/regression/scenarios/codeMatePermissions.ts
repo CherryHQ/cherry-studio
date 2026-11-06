@@ -269,6 +269,9 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
     const sanitized = JSON.parse((await readSettings()).content ?? '{}')
     expect(sanitized.permissions?.defaultMode, 'An unsupported approval mode must not persist').not.toBe('mp97-invalid')
     expect(sanitized.effortLevel, 'An unsupported reasoning effort must not persist').not.toBe('mp97-invalid')
+    expect(sanitized.permissions?.defaultMode).toBeUndefined()
+    expect(sanitized.effortLevel).toBeUndefined()
+    expect(sanitized.env).toMatchObject(JSON.parse(validText).env)
 
     // Malformed JSON is the rejection path the editor enforces.
     const malformed = await configure()

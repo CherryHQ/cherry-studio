@@ -23,7 +23,7 @@ import { startMockUpdateServer } from '../../../helpers/http/mockUpdateServer'
 import { expect, test } from '../fixture'
 import { sendChatMarker } from '../helpers/chat'
 import { selectVisibleModel } from '../helpers/models'
-import { selectSidebarApp, dismissOnboarding } from '../helpers/navigation'
+import { selectSidebarApp, dismissOnboarding, openHelpMenu } from '../helpers/navigation'
 import { closeSettings, openSettingsSection } from '../helpers/settings'
 import { inspectStartup } from '../helpers/startupInspection'
 import { revealVirtualized } from '../helpers/virtualList'
@@ -317,7 +317,7 @@ test(...caseDefinition('MP-104'), async ({ mainWindow: page }, testInfo) => {
       { name: '模型服务', marker: content.getByPlaceholder('搜索模型平台...', { exact: true }) },
       { name: '数据', marker: content.getByText('数据', { exact: true }).first() },
       { name: '快捷键', marker: content.getByRole('heading', { name: '快捷键', exact: true }) },
-      { name: '关于我们', marker: content.getByText('关于我们', { exact: true }) },
+      { name: '关于我们', marker: content.getByText('全能 AI 工作站', { exact: true }) },
       { name: '外观', marker: content.locator('#setting-appearance-theme-mode') }
     ]
     let previous = proxy
@@ -577,6 +577,9 @@ test(...caseDefinition('MP-107'), async ({ app, mainWindow }, testInfo) => {
     const send = page.locator('#setting-appearance-send-shortcuts').getByRole('combobox')
     const newline = page.locator('#setting-appearance-newline-shortcuts').getByRole('combobox')
     const steer = page.locator('#setting-appearance-steer-shortcuts').getByRole('combobox')
+    await expect(send).toHaveText(formatShortcutDisplay(['Enter'], process.platform === 'darwin'))
+    await expect(newline).toHaveText(formatShortcutDisplay(['Shift', 'Enter'], process.platform === 'darwin'))
+    await expect(steer).toHaveText(formatShortcutDisplay(['CommandOrControl', 'Enter'], process.platform === 'darwin'))
     await testInfo.attach('MP-107 original displayed bindings', {
       body: JSON.stringify({
         send: await send.innerText(),
@@ -879,13 +882,29 @@ test(...caseDefinition('MP-108'), async ({ app, mainWindow: page }, testInfo) =>
       { providerId, modelIds }
     )
     expect(models.status).toBe(201)
+    await page.reload()
+    await openSettingsSection(page, 'Default Model')
+    const rows = ['default-assistant', 'quick', 'translate', 'painting']
+    for (const [index, row] of rows.entries()) {
+      const setting = page.locator(`#setting-model-${row}-model`)
+      await setting.locator('[data-selector-shell-root="true"] > button').click()
+      await selectVisibleModel(page, modelIds[index], providerId)
+      await expect(setting).toContainText(modelIds[index])
+      await expect
+        .poll(() => page.evaluate((key) => window.api.preference.get(key), keys[index]))
+        .toBe(createUniqueModelId(providerId, modelIds[index]))
+    }
+    await screenshot('MP-108 four saved default assignments')
+
+    // Created after the default model is assigned and without an explicit modelId, so the create
+    // path adopts chat.default_model_id; a persisted null modelId is shown as "Select Model" by contract.
     const assistant = await page.evaluate(
       (name) =>
         window.api.dataApi.request({
           id: 'mp108-assistant',
           method: 'POST',
           path: '/assistants',
-          body: { name, modelId: null }
+          body: { name }
         }),
       assistantName
     )
@@ -903,18 +922,6 @@ test(...caseDefinition('MP-108'), async ({ app, mainWindow: page }, testInfo) =>
     )
     expect(topic.status).toBe(201)
     await page.reload()
-    await openSettingsSection(page, 'Default Model')
-    const rows = ['default-assistant', 'quick', 'translate', 'painting']
-    for (const [index, row] of rows.entries()) {
-      const setting = page.locator(`#setting-model-${row}-model`)
-      await setting.locator('[data-selector-shell-root="true"] > button').click()
-      await selectVisibleModel(page, modelIds[index], providerId)
-      await expect(setting).toContainText(modelIds[index])
-      await expect
-        .poll(() => page.evaluate((key) => window.api.preference.get(key), keys[index]))
-        .toBe(createUniqueModelId(providerId, modelIds[index]))
-    }
-    await screenshot('MP-108 four saved default assignments')
 
     let chat = await showTopics()
     await chat.getByTestId('topic-list-row').filter({ hasText: topicName }).click()
@@ -952,7 +959,10 @@ test(...caseDefinition('MP-108'), async ({ app, mainWindow: page }, testInfo) =>
 
     await selectSidebarApp(page, 'Translation')
     const translation = page.locator('[data-ui~="translate.view"]:visible')
-    await expect(translation.locator('[data-selector-shell-root="true"] > button')).toContainText(modelIds[2])
+    // The translate selector truncates its visible label in a narrow pane; the accessible name keeps the model Id.
+    await expect(
+      translation.locator(`[data-selector-shell-root="true"] > button[aria-label="${modelIds[2]}"]`)
+    ).toBeVisible()
     await page.locator('[data-ui~="translate.input"] textarea').fill('Default model assignment MP108')
     await translation.getByRole('button', { name: 'Translate', exact: true }).click()
     const translated = await server.nextRequest()
@@ -1403,7 +1413,7 @@ test(...caseDefinition('MP-113'), async ({ app, mainWindow }, testInfo) => {
     }
 
     await selectSidebarApp(page, 'Chat')
-    await page.getByRole('button', { name: 'Help', exact: true }).click()
+    await openHelpMenu(page)
     await page.getByText('System diagnostics', { exact: true }).click()
     await page
       .getByRole('dialog', { name: 'System diagnostics', exact: true })
@@ -1510,7 +1520,7 @@ test(...caseDefinition('MP-114'), async ({ app, mainWindow: page }, testInfo) =>
   })
   await test.step('System diagnostics exports the last 24 hours', async () => {
     await closeSettings(page)
-    await page.getByRole('button', { name: 'Help', exact: true }).click()
+    await openHelpMenu(page)
     await page.getByText('System diagnostics', { exact: true }).click()
     const doctor = page.getByRole('dialog', { name: 'System diagnostics', exact: true })
     await doctor.getByRole('button', { name: 'More', exact: true }).click()

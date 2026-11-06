@@ -8,6 +8,7 @@ import type { Currency } from '@shared/data/types/model'
 import type { AutoBackupEvent, AutoBackupType } from '@shared/types/backup'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import type { ManagedToolStatusState } from '@shared/types/managedTool'
+import type { SelectionAgentCapsule } from '@shared/types/selection'
 import type { StorageHealth } from '@shared/types/storageMonitor'
 
 import type { TopicStatusSnapshotEntry } from '../../ai/transport'
@@ -122,7 +123,7 @@ export type ProcessKey<K extends string> = IsTemplateKey<K> extends true ? Expan
 
 export type UseCacheSchema = {
   // App state
-  'app.dist.update_state': CacheValueTypes.CacheAppUpdateState
+  'app.dist.update_state': Pick<CacheValueTypes.CacheAppUpdateState, 'ignore' | 'manualCheck'>
 
   'app.path.resources': string
 
@@ -216,12 +217,6 @@ export type UseCacheSchema = {
 export const DefaultUseCache: UseCacheSchema = {
   // App state
   'app.dist.update_state': {
-    info: null,
-    checking: false,
-    downloading: false,
-    downloaded: false,
-    downloadProgress: 0,
-    available: false,
     ignore: false,
     manualCheck: false
   },
@@ -305,6 +300,7 @@ export const DefaultUseCache: UseCacheSchema = {
  * Use shared cache schema for renderer hook
  */
 export type SharedCacheSchema = {
+  'app.dist.update_status': Omit<CacheValueTypes.CacheAppUpdateState, 'ignore' | 'manualCheck'>
   'chat.web_search.active_searches': CacheValueTypes.CacheActiveSearches
   'mcp.tools.${serverId}': CacheValueTypes.CacheMcpTool[]
   'mcp.status.${serverId}': CacheValueTypes.McpRuntimeStatus
@@ -334,6 +330,8 @@ export type SharedCacheSchema = {
   'feature.api_gateway.lan_running': boolean
   // Main-owned, session-only local model status and download progress.
   'local_model.statuses': LocalModelStatusSnapshots
+  // Main-owned capsule stack of collapsed selection agent windows on one display, nearest the corner first.
+  'selection.agent_capsules.${displayId}': SelectionAgentCapsule[]
   'feature.binary.latest_versions': Record<string, string>
   // API key rotation state (cross-window, tracks last used key per provider)
   'web_search.provider.last_used_key.${providerId}': string
@@ -380,6 +378,15 @@ export type SharedCacheSchema = {
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {
+  'app.dist.update_status': {
+    lastErrorKey: null,
+    info: null,
+    checking: false,
+    downloading: false,
+    downloaded: false,
+    downloadProgress: 0,
+    available: false
+  },
   'chat.web_search.active_searches': {},
   'mcp.tools.${serverId}': [],
   'mcp.status.${serverId}': { state: 'disabled', lastCheckedAt: 0 },
@@ -406,6 +413,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'feature.remote_access.discovery_status': 'inactive',
   'feature.api_gateway.lan_running': false,
   'local_model.statuses': {},
+  'selection.agent_capsules.${displayId}': [],
   'feature.binary.latest_versions': {},
   'web_search.provider.last_used_key.${providerId}': '',
   'ocr.provider.last_used_key.${providerId}': '',

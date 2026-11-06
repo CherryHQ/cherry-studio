@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import { application } from '@application'
 import { runtimeId, type InputState } from '@cherrystudio/agent-runtime'
+import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
@@ -15,6 +16,7 @@ import {
   bindNativeInput,
   prepareNativeSubmission
 } from '@main/ai/agentSession/nativeSubmission'
+import { preparePiBranch, reservePiBranchTx } from '@main/ai/runtime/pi/piContext'
 
 describe('message-owned native input bindings', () => {
   const dbh = setupTestDatabase()
@@ -30,10 +32,7 @@ describe('message-owned native input bindings', () => {
       .values({ id: workspaceId, name: 'Work', path: '/test', type: 'user', orderKey: 'a0' })
       .run()
     dbh.db.insert(agentSessionTable).values({ id: sessionId, workspaceId, name: 'Session', orderKey: 'a0' }).run()
-    const backend = application
-      .get('DbService')
-      .withWriteTx((tx) => contexts.ensureBackendTx(tx, { version: 1, kind: 'pi' }, 'bound'))
-    const context = contexts.allocateContext(sessionId, backend.id, 'native-session')
+    const context = preparePiBranch(sessionId, undefined, 'native-session')
     contexts.bindContext(context.id, 'native-session')
     contextId = context.id
     messageId = uuid()
@@ -119,7 +118,14 @@ describe('message-owned native input bindings', () => {
 
   it('keeps a late event on the captured context and ignores another branch', () => {
     prepareNativeSubmission(sessionId, messageId, contextId, 'reject')
-    const other = contexts.allocateContext(sessionId, contexts.context(contextId).backendId, 'other-thread')
+    const edited = messages.saveMessage({
+      sessionId,
+      parentId: contexts.context(contextId).anchorMessageId!,
+      message: { role: 'user', data: { parts: [{ type: 'text', text: 'edited' }] } }
+    })
+    const other = application
+      .get('DbService')
+      .withWriteTx((tx) => reservePiBranchTx(tx, sessionId, edited.id, 'other-thread'))
     contexts.bindContext(other.id, 'other-thread')
     expect(bindNativeInput(sessionId, other.id, { inputId: runtimeId(messageId), facts: ['accepted'] })).toBeUndefined()
     bindNativeInput(sessionId, contextId, nativeInput())
@@ -140,10 +146,7 @@ describe('message-owned native input bindings', () => {
         message: { id, role: 'assistant', status: 'pending', data: { parts: [] } }
       })
     expect(messages.findCrashOrphanedAssistantMessages().map((row) => row.id)).toEqual([legacyAssistant])
-    messages.resolveCrashOrphanedMessages(
-      [nativeAssistant, legacyAssistant].map((id) => ({ id, data: { parts: [] } })),
-      [sessionId]
-    )
+    messages.resolveCrashOrphanedMessages(messages.findCrashOrphanedAssistantMessages(), [sessionId])
     expect(messages.getSessionMessage(sessionId, nativeAssistant)).toMatchObject({
       status: 'pending',
       runtimeResumeToken: 'native-session'
@@ -154,11 +157,84 @@ describe('message-owned native input bindings', () => {
     })
   })
 
+  it('leaves a native placeholder for its owner but cleans an unbound input on a sibling branch', () => {
+    prepareNativeSubmission(sessionId, messageId, contextId, 'reject')
+    const nativeAssistant = uuid()
+    messages.saveMessage({
+      sessionId,
+      parentId: messageId,
+      message: {
+        id: nativeAssistant,
+        role: 'assistant',
+        status: 'pending',
+        data: { parts: [] }
+      }
+    })
+    const legacyInput = uuid()
+    messages.saveMessage({
+      sessionId,
+      parentId: messageId,
+      message: {
+        id: legacyInput,
+        role: 'user',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'legacy' }] }
+      }
+    })
+    const legacyAssistant = uuid()
+    messages.saveMessage({
+      sessionId,
+      parentId: legacyInput,
+      message: {
+        id: legacyAssistant,
+        role: 'assistant',
+        status: 'pending',
+        data: { parts: [] }
+      }
+    })
+    expect(messages.findCrashOrphanedAssistantMessages().map((row) => row.id)).toEqual([legacyAssistant])
+    messages.resolveCrashOrphanedMessages(messages.findCrashOrphanedAssistantMessages(), [sessionId])
+    expect(messages.getSessionMessage(sessionId, nativeAssistant).status).toBe('pending')
+    expect(messages.getSessionMessage(sessionId, legacyAssistant).status).toBe('error')
+  })
+
   it('cascades the input binding with its owning session without preventing permanent deletion', () => {
     prepareNativeSubmission(sessionId, messageId, contextId, 'reject')
     bindNativeInput(sessionId, contextId, nativeInput())
     dbh.db.delete(agentSessionTable).where(eq(agentSessionTable.id, sessionId)).run()
     expect(dbh.db.select().from(agentSessionMessageTable).all()).toEqual([])
     expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
+  })
+
+  // Catches a crashed Pi placeholder blocking edits forever, or recovery erasing its native identity.
+  it('terminalizes placeholders for the selected native owner while preserving resume identities', () => {
+    const agentId = uuid()
+    dbh.db.insert(agentTable).values({ id: agentId, type: 'pi', name: 'Pi', instructions: '', orderKey: 'a0' }).run()
+    dbh.db.update(agentSessionTable).set({ agentId }).where(eq(agentSessionTable.id, sessionId)).run()
+    prepareNativeSubmission(sessionId, messageId, contextId, 'reject')
+    bindNativeInput(sessionId, contextId, nativeInput())
+    const previous = uuid()
+    messages.saveMessage({
+      sessionId,
+      parentId: messageId,
+      runtimeResumeToken: 'native-session',
+      message: { id: previous, role: 'assistant', status: 'success', data: { parts: [] } }
+    })
+    const pending = uuid()
+    messages.saveMessage({
+      sessionId,
+      parentId: previous,
+      message: { id: pending, role: 'assistant', status: 'pending', data: { parts: [] } }
+    })
+    expect(() => messages.readEditSnapshotTx(dbh.db, sessionId, messageId)).toThrow()
+    expect(messages.findCrashOrphanedAssistantMessages(['claude-code'])).toEqual([])
+    const stale = messages.findCrashOrphanedAssistantMessages(['pi'])
+    expect(stale.map((row) => row.id)).toEqual([pending])
+    messages.resolveCrashOrphanedMessages(stale, [sessionId])
+    expect(messages.getSessionMessage(sessionId, pending).status).toBe('error')
+    expect(messages.getLastRuntimeResumeToken(sessionId)).toBe('native-session')
+    expect(messages.inputBinding(sessionId, messageId)).toEqual({ contextId, nativeInputId: 'native-input' })
+    expect(contexts.context(contextId)).toMatchObject({ bindingState: 'bound', nativeThreadId: 'native-session' })
+    expect(() => messages.readEditSnapshotTx(dbh.db, sessionId, messageId)).not.toThrow()
   })
 })

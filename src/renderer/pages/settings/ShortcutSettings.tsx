@@ -16,7 +16,7 @@ import {
   DropdownMenuTrigger,
   Kbd,
   RowFlex,
-  Scrollbar,
+  ScrollArea,
   Switch,
   Tooltip
 } from '@cherrystudio/ui'
@@ -51,6 +51,7 @@ import {
   convertKeyToAccelerator,
   formatKeyDisplay,
   formatShortcutDisplay,
+  isShortcutCharacterToken,
   isValidShortcut,
   normalizeShortcutToken,
   type ShortcutBinding,
@@ -79,7 +80,15 @@ const keyCodeToAccelerator: Record<string, ShortcutToken> = {
 const passthrough =
   /^(Page(Up|Down)|Insert|Home|End|CapsLock|Arrow(Up|Down|Left|Right)|F([1-9]|1\d|2[0-4])|Slash|Semicolon|Bracket(Left|Right)|Backslash|Quote|Comma|Minus|Equal)$/
 
-const usableEndKeys = (code: string): ShortcutToken | null => {
+const usableEndKeys = (event: Pick<ReactKeyboardEvent, 'key' | 'code'>): ShortcutToken | null => {
+  const { code } = event
+  const fromKey = convertKeyToAccelerator(event.key)
+  const fromCode = convertKeyToAccelerator(code)
+
+  if (isShortcutCharacterToken(fromKey) && (fromCode === undefined || isShortcutCharacterToken(fromCode))) {
+    return fromKey
+  }
+
   if (/^Key[A-Z]$/.test(code) || /^(Digit|Numpad)\d$/.test(code)) return normalizeShortcutToken(code) ?? null
   if (keyCodeToAccelerator[code]) return keyCodeToAccelerator[code]
   if (passthrough.test(code)) return convertKeyToAccelerator(code) ?? null
@@ -317,7 +326,7 @@ const ShortcutSettings: FC = () => {
     if (event.metaKey) keys.push(isMac ? 'CommandOrControl' : 'Meta')
     if (event.shiftKey) keys.push('Shift')
 
-    const endKey = usableEndKeys(event.code)
+    const endKey = usableEndKeys(event)
     if (endKey) {
       keys.push(endKey)
     }
@@ -577,7 +586,7 @@ const ShortcutSettings: FC = () => {
   return (
     <div className="flex flex-1" data-theme-mode={theme}>
       <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] w-full flex-1 overflow-hidden">
-        <Scrollbar className={settingsContentScrollClassName}>
+        <ScrollArea className={settingsContentScrollClassName}>
           <SettingsContentBody className="pt-4">
             <div className={cn(settingsContentHeaderClassName, 'flex items-center justify-between gap-3')}>
               <h1 className={cn(settingsContentHeaderTitleClassName, 'shrink-0')}>{t('settings.shortcuts.title')}</h1>
@@ -653,7 +662,7 @@ const ShortcutSettings: FC = () => {
               )}
             </SettingGroup>
           </SettingsContentBody>
-        </Scrollbar>
+        </ScrollArea>
       </div>
     </div>
   )

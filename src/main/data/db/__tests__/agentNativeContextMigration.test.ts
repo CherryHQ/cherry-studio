@@ -5,6 +5,7 @@ import { v7 as uuid } from 'uuid'
 import { describe, expect, it } from 'vitest'
 
 import { applyMigrations } from '@data/db/applyMigrations'
+import { AgentSessionMessageTreeSeeder } from '@data/db/seeding/seeders/AgentSessionMessageTreeSeeder'
 
 function archive(dbh: ReturnType<typeof setupTestDatabase>) {
   const workspaceId = uuid()
@@ -68,7 +69,11 @@ describe('native context migrate-forward', () => {
     const attachment = dbh.sqlite.prepare('SELECT * FROM agent_session_message_file_ref').get()
     applyMigrations(dbh.db, resolve('migrations/sqlite-drizzle'))
     applyMigrations(dbh.db, resolve('migrations/sqlite-drizzle'))
+    new AgentSessionMessageTreeSeeder().run(dbh.db)
     assertArchive(dbh, messageId, before, attachment)
+    expect(dbh.sqlite.prepare('SELECT parent_id FROM agent_session_message WHERE id = ?').get(messageId)).toEqual({
+      parent_id: expect.any(String)
+    })
     expect(
       dbh.sqlite
         .prepare('SELECT input_context_id, native_input_id FROM agent_session_message WHERE id = ?')
