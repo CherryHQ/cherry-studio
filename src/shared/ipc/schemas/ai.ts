@@ -20,6 +20,7 @@ import {
   AgentEntitySchema,
   AgentSkillIdSetSchema,
   ScheduledTaskEntitySchema,
+  TaskDependencySchema,
   TimeoutMinutesAtomSchema
 } from '@shared/data/api/schemas/agents'
 import {
@@ -105,6 +106,8 @@ const agentTaskFormSchema = z.strictObject({
    * enable and save in a separate update.
    */
   reuseSession: z.boolean().optional(),
+  /** Run only after another task's latest run succeeded; `taskId` accepts a task id or name. `null` clears it. */
+  dependsOn: TaskDependencySchema.nullable().optional(),
   channelIds: z.array(z.string()).optional()
 })
 export type AgentTaskForm = z.infer<typeof agentTaskFormSchema>

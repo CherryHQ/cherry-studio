@@ -129,6 +129,19 @@ const CronInputSchema = z.object({
     .describe(
       'Continue each execution in the same session. Default is false on add; omit on update to keep the current setting.'
     ),
+  depends_on: z
+    .string()
+    .min(1)
+    .nullable()
+    .optional()
+    .describe(
+      "ID or name of another job this one depends on: it runs only if that job's latest run succeeded, otherwise it is skipped with a recorded reason. Cycles are rejected. On update, omit to keep it; use null to clear it."
+    ),
+  within_minutes: z
+    .number()
+    .positive()
+    .optional()
+    .describe('With depends_on: also require the dependency to have succeeded within this many minutes.'),
   id: z.string().min(1).optional().describe('Job ID (required for update and remove)')
 })
 type CronInput = z.output<typeof CronInputSchema>
@@ -606,6 +619,8 @@ function saveJob(ctx: AutonomyToolsContext, args: CronInput, action: 'add' | 'up
     at,
     timeout_minutes: timeoutMinutes,
     reuse_session: reuseSession,
+    depends_on: dependsOn,
+    within_minutes: withinMinutes,
     id
   } = args
   if (action === 'update' && !id) throw new Error("'id' is required for update")
@@ -651,7 +666,8 @@ function saveJob(ctx: AutonomyToolsContext, args: CronInput, action: 'add' | 'up
     trigger,
     timeoutMinutes,
     channelIds,
-    ...(reuseSession !== undefined ? { reuseSession } : {})
+    ...(reuseSession !== undefined ? { reuseSession } : {}),
+    ...(dependsOn !== undefined ? { dependsOn: dependsOn === null ? null : { taskId: dependsOn, withinMinutes } } : {})
   }
   const task =
     action === 'add'

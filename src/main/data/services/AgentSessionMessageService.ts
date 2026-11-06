@@ -886,6 +886,42 @@ export class AgentSessionMessageService {
     return this.findExistingMessageRow(application.get('DbService').getDb(), sessionId, messageId) !== null
   }
 
+  /**
+   * Execution evidence for legacy scheduled-task dependency rows: a
+   * runner-written skip only updates the job row, while a genuine run persists
+   * its assistant reply in the session transcript. A matching assistant
+   * message inside the job's [fromMs, toMs] window proves the stored text is
+   * real prose. Returns false when the session is gone (job rows can outlive
+   * their sessions via cascade delete and transcript pruning).
+   */
+  hasAssistantMessageWithTextInWindow(sessionId: string, text: string, fromMs: number, toMs: number): boolean {
+    const database = application.get('DbService').getDb()
+    const [session] = database
+      .select({ id: sessionTable.id })
+      .from(sessionTable)
+      .where(eq(sessionTable.id, sessionId))
+      .limit(1)
+      .all()
+    if (!session) return false
+    return (
+      database
+        .select({ id: sessionMessagesTable.id })
+        .from(sessionMessagesTable)
+        .where(
+          and(
+            eq(sessionMessagesTable.sessionId, sessionId),
+            eq(sessionMessagesTable.role, 'assistant'),
+            gte(sessionMessagesTable.createdAt, fromMs),
+            lte(sessionMessagesTable.createdAt, toMs),
+            // SQLite trim() strips only spaces by default; strip whitespace generally.
+            sql`trim(${sessionMessagesTable.searchableText}, char(9) || char(10) || char(13) || ' ') = ${text}`
+          )
+        )
+        .limit(1)
+        .all().length > 0
+    )
+  }
+
   listLiveCreatedInRangeMetadataPage({
     fromMs,
     toMs,

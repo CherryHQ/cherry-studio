@@ -8,7 +8,9 @@ import {
   HEARTBEAT_PROMPT_SENTINEL,
   isMissedTask,
   normalizeTaskSessionReuseRevision,
+  readTaskDependency,
   readTaskSessionReuse,
+  writeTaskDependency,
   writeTaskSessionReuse
 } from '@data/services/AgentTaskService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
@@ -17,7 +19,7 @@ import { loggerService } from '@logger'
 import { createInFlightWorkTracker } from '@main/core/concurrency/inFlightWork'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
-import type { ScheduledTaskEntity } from '@shared/data/api/schemas/agents'
+import type { ScheduledTaskEntity, TaskDependency } from '@shared/data/api/schemas/agents'
 import {
   AGENT_WORKSPACE_TYPE,
   type AgentSessionWorkspaceSource,
@@ -248,6 +250,7 @@ export class AgentJobsService extends BaseService {
     this.assertNameNotReserved(form.name)
     const channelIds = form.channelIds ?? []
     this.assertChannelsBelongToAgent(agentId, channelIds)
+    const dependency = this.resolveDependency(form.dependsOn)
 
     const jobManager = application.get('JobManager')
     const { id } = application.get('DbService').withWriteTx((tx) => {
@@ -265,10 +268,13 @@ export class AgentJobsService extends BaseService {
         },
         // Reuse configuration lives in metadata; the sticky session itself is
         // a constrained relation owned by AgentSessionService.
-        metadata: writeTaskSessionReuse(undefined, {
-          enabled: form.reuseSession === true,
-          revision: 0
-        }),
+        metadata: writeTaskDependency(
+          writeTaskSessionReuse(undefined, {
+            enabled: form.reuseSession === true,
+            revision: 0
+          }),
+          dependency
+        ),
         catchUpPolicy: { kind: 'skip-missed' }
       })
       if (channelIds.length > 0) {
@@ -285,6 +291,30 @@ export class AgentJobsService extends BaseService {
     return entity
   }
 
+  /**
+   * Resolve a dependency reference (task id or unique name) to a stored config.
+   * `selfId` enables cycle rejection on update; `undefined`/`null` pass through as "none".
+   */
+  private resolveDependency(
+    ref: { taskId: string; withinMinutes?: number } | null | undefined,
+    selfId?: string
+  ): TaskDependency | null {
+    if (!ref) return null
+    const schedules = jobScheduleService.listAll({ type: AGENT_TASK_TYPE })
+    const target = schedules.find((s) => s.id === ref.taskId) ?? schedules.find((s) => s.name === ref.taskId)
+    if (!target) throw new Error(`Dependency task "${ref.taskId}" not found`)
+    const byId = new Map(schedules.map((s) => [s.id, s]))
+    const seen = new Set<string>()
+    for (let current: string | undefined = target.id; current && !seen.has(current);) {
+      if (current === selfId) {
+        throw new Error(`Dependency cycle detected: "${ref.taskId}" already depends on this task`)
+      }
+      seen.add(current)
+      current = readTaskDependency(byId.get(current)?.metadata)?.taskId
+    }
+    return { taskId: target.id, ...(ref.withinMinutes !== undefined ? { withinMinutes: ref.withinMinutes } : {}) }
+  }
+
   updateTask(agentId: string, taskId: string, patch: AgentTaskPatch): ScheduledTaskEntity | null {
     const existing = this.getActiveTask(agentId, taskId)
     if (!existing) return null
@@ -294,6 +324,7 @@ export class AgentJobsService extends BaseService {
       this.assertChannelsBelongToAgent(agentId, patch.channelIds)
     }
 
+    const dependency = patch.dependsOn === undefined ? undefined : this.resolveDependency(patch.dependsOn, taskId)
     const schedulePatch: UpdateJobScheduleDto = {}
     if (patch.name !== undefined) schedulePatch.name = patch.name
     // Drop a value-identical trigger: the edit dialog submits full-field
@@ -330,6 +361,9 @@ export class AgentJobsService extends BaseService {
           revision: reuseRevision
         })
         agentSessionService.clearTaskScheduleTx(tx, taskId)
+      }
+      if (dependency !== undefined) {
+        schedulePatch.metadata = writeTaskDependency(schedulePatch.metadata ?? snapshot?.metadata, dependency)
       }
       if (
         snapshot &&
