@@ -67,7 +67,10 @@ async function aggregateStreamResult(streamed: StreamTextResult<ToolSet, never>)
   let terminalStreamError: unknown
   const watchTerminalStreamError = (async () => {
     for await (const part of streamed.fullStream) {
-      if (part.type === 'error') terminalStreamError = part.error
+      // First error wins: a later error part with an undefined payload must not erase it.
+      if (part.type === 'error' && terminalStreamError === undefined && part.error !== undefined) {
+        terminalStreamError = part.error
+      }
     }
   })()
   const [text, usage, finishReason, steps, rawFinishReason] = await Promise.all([
