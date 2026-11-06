@@ -563,6 +563,36 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(request?.settings.env).not.toHaveProperty('ENABLE_TOOL_SEARCH')
   })
 
+  it('fingerprints the same effort-map snapshot that materialized the thinking options', async () => {
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'claude-sonnet',
+      contextWindow: 128_000,
+      reasoning: { selectableEfforts: ['low', 'medium', 'high'] }
+    })
+    let effortMappings: Record<string, Record<string, string>> = { global: { high: 'medium' } }
+    mocks.preferenceGet.mockImplementation((key: string) =>
+      key === 'feature.reasoning.effort_mappings' ? effortMappings : undefined
+    )
+    mocks.buildSessionSettings.mockImplementationOnce(async (_session, _provider, options) => {
+      expect(options?.thinkingOptions?.effort).toBe('medium')
+      // Simulate a mapping edit while the async settings builder is still materializing.
+      effortMappings = { global: { high: 'low' } }
+      return { env: {}, skills: [] }
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'high')
+    const current = await deriveConnectionConfig('session-1', undefined, 'high')
+
+    // The spawned options carry the pre-edit mapping (medium); the connect-time baseline must
+    // fingerprint that same snapshot so the next pure reconcile sees the edit and rebuilds
+    // instead of matching the edited signature and keeping the stale connection
+    // (cherry-pr-review inv_e4f402f1b93ca636).
+    expect(current.ok).toBe(true)
+    if (!request || !current.ok) throw new Error('expected request and current config')
+    expect(request.connectionConfig.rebuildSignature).not.toBe(current.config.rebuildSignature)
+  })
+
   it('captures the baseline from the same agent snapshot that materializes the request', async () => {
     const materializedAgent = {
       id: 'agent-1',

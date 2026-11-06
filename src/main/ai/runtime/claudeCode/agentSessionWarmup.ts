@@ -152,6 +152,8 @@ interface ConnectionMaterializationFacts {
   maxOutputTokens: number | null
   proxyEnvironmentFingerprint: string
   effectiveLanguage?: string | null
+  /** The user effort-map snapshot that materialized this connection's thinking options. */
+  reasoningEffortMapping?: ReturnType<typeof getUserReasoningEffortMap>
 }
 
 /**
@@ -416,7 +418,8 @@ async function deriveConnectionConfigFromSnapshot(
     maxOutputTokens,
     reasoningEffort,
     reasoningEffortMapping: Object.entries(
-      getUserReasoningEffortMap({ id: model.providerId }, claudeCodeInvocationModel)
+      materialized?.reasoningEffortMapping ??
+        getUserReasoningEffortMap({ id: model.providerId }, claudeCodeInvocationModel)
     ).sort(([a], [b]) => a.localeCompare(b)),
     fastMode: effectiveFastMode,
     route: buildRebuildRouteFacts(routeFacts),
@@ -560,10 +563,20 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   // route targets a non-Anthropic endpoint, Anthropic serialization cannot
   // represent every canonical tier, so the mapped selection passes through
   // verbatim for the gateway to serialize against the target profile.
+  // Capture the effective effort map ONCE per connection build. The thinking options below and
+  // the connect-time rebuild baseline must describe the same mapping: if Settings edits the map
+  // while the async settings builder runs, a second read here would fingerprint the NEW mapping
+  // onto options materialized with the OLD one — later reconciles would then match the edited
+  // signature and keep the stale connection (cherry-pr-review inv_e4f402f1b93ca636).
+  const userEffortMapSnapshot = getUserReasoningEffortMap(
+    { id: model.providerId },
+    resolveClaudeCodeReasoningContext(model).invocationModel
+  )
   const thinkingOptions = resolveClaudeCodeThinkingOptions(model, reasoningEffort, {
     gatewayToNonAnthropicTarget:
       route.branch === 'gateway' &&
-      resolveEffectiveEndpoint(provider, model).endpointType !== ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+      resolveEffectiveEndpoint(provider, model).endpointType !== ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+    userEffortMap: userEffortMapSnapshot
   })
   // thinkingOptions.effort is the SDK transport tier, which may be the
   // Anthropic-serialized carrier of this canonical destination (minimal ->
@@ -618,7 +631,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       proxyEnvironmentFingerprint: createAgentProxyEnvironmentFingerprint(settings.env ?? {}, {
         additionalBypassRule: gatewayBypassRule(route)
       }),
-      effectiveLanguage
+      effectiveLanguage,
+      reasoningEffortMapping: userEffortMapSnapshot
     }
   )
   const sdkModelId = route.modelIds.primary
@@ -680,10 +694,10 @@ const SDK_TRANSPORT_EFFORT_TIERS: ReadonlySet<string> = new Set(['low', 'medium'
 function resolveClaudeCodeThinkingOptions(
   model: Model,
   reasoningEffort: ReasoningEffortOption,
-  target?: { gatewayToNonAnthropicTarget?: boolean }
+  target?: { gatewayToNonAnthropicTarget?: boolean; userEffortMap?: ReturnType<typeof getUserReasoningEffortMap> }
 ): { effort?: Options['effort']; thinking?: Options['thinking']; canonicalEffort?: string } {
   const { profile, invocationModel } = resolveClaudeCodeReasoningContext(model)
-  const userEffortMap = getUserReasoningEffortMap({ id: model.providerId }, invocationModel)
+  const userEffortMap = target?.userEffortMap ?? getUserReasoningEffortMap({ id: model.providerId }, invocationModel)
   const invocation = resolveReasoningInvocation({
     selection: reasoningEffort,
     model: invocationModel,
