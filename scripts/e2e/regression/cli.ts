@@ -212,11 +212,7 @@ async function cleanupCommand(): Promise<void> {
       errors.push(error)
     }
   }
-  if (errors.length)
-    throw new AggregateError(
-      errors,
-      `Regression cleanup failed: ${errors.map((error) => (error instanceof Error ? error.message : String(error))).join('; ')}`
-    )
+  if (errors.length) throw new AggregateError(errors, `Regression cleanup failed: ${errors.map(String).join('; ')}`)
 }
 
 async function mockStartCommand(): Promise<void> {
