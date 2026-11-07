@@ -49,7 +49,7 @@ import {
 import type { ComposerShortcut } from '@shared/data/preference/preferenceTypes'
 
 import { useComposerLayerActive } from './ComposerContext'
-import { createComposerDraftContent, serializeComposerDocument } from './composerDraft'
+import { createComposerDraftContent, resolveComposerRestoreTokens, serializeComposerDocument } from './composerDraft'
 import { ComposerFocusShortcut } from './ComposerFocusShortcut'
 import {
   appendComposerText,
@@ -1866,7 +1866,7 @@ export default function ComposerSurfaceRuntime({
   const editor = useRichTextEditorKernel({
     extensions: editorExtensions,
     content: createComposerDraftContent(
-      { text, tokens: draftTokens ?? [] },
+      { text, tokens: resolveComposerRestoreTokens(text, draftTokens, tokens) },
       { tokenizeVariables: !deferredIntent?.preservePlainText }
     ),
     editable,
@@ -1959,9 +1959,9 @@ export default function ComposerSurfaceRuntime({
     setComposerEditorContent(
       editor,
       lastSerializedDraftRef,
-      createComposerDraftContent({ text, tokens: draftTokens ?? [] })
+      createComposerDraftContent({ text, tokens: resolveComposerRestoreTokens(text, draftTokens, tokens) })
     )
-  }, [draftTokens, editor, text])
+  }, [draftTokens, editor, text, tokens])
 
   useEffect(() => {
     if (editingHighlightKey === undefined) return
