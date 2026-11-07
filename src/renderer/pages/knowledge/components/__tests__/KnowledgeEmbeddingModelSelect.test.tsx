@@ -7,24 +7,30 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as ModelSelectorModule from '@renderer/components/ModelSelector'
 import type { ModelSelectorSingleIdProps } from '@renderer/components/ModelSelector'
 import type { ApiPath, ResponseForPath } from '@shared/data/api/paths'
-import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
+import { HARRIER_EMBEDDING_UNIQUE_MODEL_ID, LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import { type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import { KnowledgeEmbeddingModelSelect } from '../KnowledgeEmbeddingModelSelect'
 
-const { localModel, mockModelSelectorProps, mockShowDownloadPopup, integration } = vi.hoisted(() => ({
+const { localModels, mockModelSelectorProps, mockShowDownloadPopup, integration } = vi.hoisted(() => ({
   integration: { enabled: false },
-  localModel: {
-    status: 'not_downloaded',
-    isStatusResolved: true
-  },
+  localModels: {
+    'qwen3-embedding-0.6b': {
+      status: 'not_downloaded',
+      isStatusResolved: true
+    },
+    'harrier-oss-v1-270m': {
+      status: 'not_downloaded',
+      isStatusResolved: true
+    }
+  } as Record<string, { status: string; isStatusResolved: boolean }>,
   mockModelSelectorProps: [] as Array<Record<string, any>>,
   mockShowDownloadPopup: vi.fn<(params: Record<string, unknown>) => Promise<boolean>>()
 }))
 
 vi.mock('@renderer/hooks/useLocalModel', () => ({
-  useLocalModel: () => localModel
+  useLocalModel: (id: string) => localModels[id] ?? { status: 'not_downloaded', isStatusResolved: true }
 }))
 
 vi.mock('@renderer/components/ModelSelector', async (importOriginal) => {
@@ -38,6 +44,9 @@ vi.mock('@renderer/components/ModelSelector', async (importOriginal) => {
           {props.trigger}
           <button type="button" onClick={() => props.onSelect(LOCAL_EMBEDDING_UNIQUE_MODEL_ID)}>
             select-local-model
+          </button>
+          <button type="button" onClick={() => props.onSelect(HARRIER_EMBEDDING_UNIQUE_MODEL_ID)}>
+            select-harrier-model
           </button>
         </div>
       )
@@ -68,7 +77,8 @@ vi.mock('react-i18next', () => ({
         'knowledge.rag.download_local_model': 'Download Local Model',
         'knowledge.rag.download_local_embedding_failed': 'Failed to download the local embedding model',
         'settings.dependencies.localModels.download': 'Download',
-        'settings.dependencies.localModels.embedding.subtitle': 'Qwen3 Embedding 0.6B · ~614 MB'
+        'settings.dependencies.localModels.embedding.subtitle': 'Qwen3 Embedding 0.6B · ~614 MB',
+        'settings.dependencies.localModels.harrier.subtitle': 'Harrier 270M · ~370 MB'
       })[key] ?? key
   })
 }))
@@ -87,15 +97,17 @@ describe('KnowledgeEmbeddingModelSelect', () => {
   beforeEach(() => {
     integration.enabled = false
     mockModelSelectorProps.length = 0
-    localModel.status = 'not_downloaded'
-    localModel.isStatusResolved = true
+    for (const model of Object.values(localModels)) {
+      model.status = 'not_downloaded'
+      model.isStatusResolved = true
+    }
     mockShowDownloadPopup.mockReset().mockResolvedValue(true)
   })
 
   it('offers Ollama and local embeddings, excludes chat models, and selects the Ollama id', async () => {
     const user = userEvent.setup()
     integration.enabled = true
-    localModel.status = 'ready'
+    localModels['qwen3-embedding-0.6b'].status = 'ready'
     const embeddingModel: Model = {
       ...makeEmbeddingModel('ollama::acme-retriever:latest', 'ollama', 'acme-retriever:latest'),
       apiModelId: 'acme-retriever:latest',
@@ -185,7 +197,7 @@ describe('KnowledgeEmbeddingModelSelect', () => {
       'local-embedding',
       'Qwen3 Embedding 0.6B'
     )
-    localModel.isStatusResolved = false
+    localModels['qwen3-embedding-0.6b'].isStatusResolved = false
     const onChange = vi.fn()
     render(<KnowledgeEmbeddingModelSelect value={null} placeholder="not-set" onChange={onChange} />)
 
@@ -199,7 +211,7 @@ describe('KnowledgeEmbeddingModelSelect', () => {
     'uses normal selection without another prompt when the model is %s',
     async (status) => {
       const user = userEvent.setup()
-      localModel.status = status
+      localModels['qwen3-embedding-0.6b'].status = status
       const onChange = vi.fn()
       render(<KnowledgeEmbeddingModelSelect value={null} placeholder="not-set" onChange={onChange} />)
 
@@ -217,11 +229,36 @@ describe('KnowledgeEmbeddingModelSelect', () => {
       'Qwen3 Embedding 0.6B'
     )
     const remoteModel = makeEmbeddingModel('openai::text-embedding-3-small', 'openai', 'text-embedding-3-small')
-    localModel.status = 'unsupported'
+    localModels['qwen3-embedding-0.6b'].status = 'unsupported'
     render(<KnowledgeEmbeddingModelSelect value={null} placeholder="not-set" onChange={vi.fn()} />)
 
     expect(mockModelSelectorProps.at(-1)?.filter(localEmbeddingModel)).toBe(false)
     expect(mockModelSelectorProps.at(-1)?.filter(remoteModel)).toBe(true)
     expect(mockModelSelectorProps.at(-1)?.prioritizedProviderIds).toEqual(['local-embedding'])
+  })
+
+  it('prompts for the Harrier bundle download with its own subtitle', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    render(<KnowledgeEmbeddingModelSelect value={null} placeholder="not-set" onChange={onChange} />)
+
+    await user.click(screen.getByRole('button', { name: 'select-harrier-model' }))
+
+    expect(mockShowDownloadPopup).toHaveBeenCalledWith({
+      id: 'harrier-oss-v1-270m',
+      description: 'Harrier 270M · ~370 MB'
+    })
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith(HARRIER_EMBEDDING_UNIQUE_MODEL_ID))
+  })
+
+  it('hides only the unsupported builtin while keeping the other selectable', () => {
+    const qwenModel = makeEmbeddingModel(LOCAL_EMBEDDING_UNIQUE_MODEL_ID, 'local-embedding', 'Qwen3 Embedding 0.6B')
+    const harrierModel = makeEmbeddingModel(HARRIER_EMBEDDING_UNIQUE_MODEL_ID, 'local-embedding', 'Harrier 270M')
+    localModels['qwen3-embedding-0.6b'].status = 'unsupported'
+    localModels['harrier-oss-v1-270m'].status = 'ready'
+    render(<KnowledgeEmbeddingModelSelect value={null} placeholder="not-set" onChange={vi.fn()} />)
+
+    expect(mockModelSelectorProps.at(-1)?.filter(qwenModel)).toBe(false)
+    expect(mockModelSelectorProps.at(-1)?.filter(harrierModel)).toBe(true)
   })
 })

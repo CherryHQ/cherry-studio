@@ -4417,6 +4417,8 @@
   "settings.dependencies.localModels.download": "İndir",
   "settings.dependencies.localModels.embedding.name": "Yerel Gömme",
   "settings.dependencies.localModels.embedding.subtitle": "Qwen3 Embedding 0.6B · ~614 MB",
+  "settings.dependencies.localModels.harrier.name": "Harrier 270M",
+  "settings.dependencies.localModels.harrier.subtitle": "Harrier 270M · ~370 MB",
   "settings.dependencies.localModels.notice.downloadFailed": "İndirme başarısız oldu. Bağlantıyı denetleyip yeniden deneyin.",
   "settings.dependencies.localModels.notice.inUse": "Hâlâ bir bilgi tabanı tarafından kullanılıyor; ağırlıklar korundu.",
   "settings.dependencies.localModels.notice.incompleteCache": "Model dosyaları eksik. Onarmak için indirmeyi yeniden deneyin.",
