@@ -3172,6 +3172,8 @@
   "paintings.number_images_tip": "Αριθμός εικόνων προς δημιουργία ({{min}}-{{max}})",
   "paintings.operation_failed": "Η λειτουργία απέτυχε, παρακαλώ δοκιμάστε ξανά αργότερα",
   "paintings.output_compression": "Συμπίεση Εξόδου",
+  "paintings.output_format_fixed": "Η μορφή εξόδου καθορίζεται από τον πάροχο (συνήθως PNG). Αυτό το μοντέλο δεν έχει επιλογή μορφής ούτε τοπική μετατροπή· το αρχείο διατηρεί τη μορφή του παρόχου.",
+  "paintings.output_format_selectable": "Υποστηριζόμενες μορφές εξόδου: {{formats}}. Η μορφή παράγεται από τον πάροχο χωρίς τοπική μετατροπή· η ποιότητα, η διαφάνεια και τα μεταδεδομένα ακολουθούν την έξοδο του παρόχου.",
   "paintings.person_generation": "Δημιουργία ανθρώπων",
   "paintings.person_generation_options.allow_adult": "Να επιτρέπεται ενήλικας",
   "paintings.person_generation_options.allow_all": "Να επιτρέπονται όλα",

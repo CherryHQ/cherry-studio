@@ -3172,6 +3172,8 @@
   "paintings.number_images_tip": "Oluşturulacak görsel sayısı ({{min}}-{{max}})",
   "paintings.operation_failed": "İşlem başarısız oldu, lütfen daha sonra tekrar deneyin",
   "paintings.output_compression": "Çıktı Sıkıştırması",
+  "paintings.output_format_fixed": "Çıktı biçimini sağlayıcı belirler (genellikle PNG). Bu modelde biçim seçilemez ve yerel dönüştürme yoktur; dosya sağlayıcının biçiminde kalır.",
+  "paintings.output_format_selectable": "Desteklenen çıktı biçimleri: {{formats}}. Biçim sağlayıcı tarafından üretilir, yerel dönüştürme yapılmaz; kalite, saydamlık ve meta veriler sağlayıcının çıktısına göre belirlenir.",
   "paintings.person_generation": "İnsan oluştur",
   "paintings.person_generation_options.allow_adult": "Yetişkinlere izin ver",
   "paintings.person_generation_options.allow_all": "Tümüne izin ver",

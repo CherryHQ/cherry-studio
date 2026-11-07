@@ -3172,6 +3172,8 @@
   "paintings.number_images_tip": "一次生成的图片数量 ({{min}}-{{max}})",
   "paintings.operation_failed": "操作失败，请稍后重试",
   "paintings.output_compression": "输出压缩率",
+  "paintings.output_format_fixed": "输出格式由服务商决定（通常为 PNG）。该模型不支持选择格式，也不会进行本地转换，保存的文件沿用服务商返回的格式。",
+  "paintings.output_format_selectable": "支持的输出格式：{{formats}}。格式由服务商直接生成，不会进行本地转换，画质、透明度和元数据以服务商输出为准。",
   "paintings.person_generation": "生成人物",
   "paintings.person_generation_options.allow_adult": "允许成人",
   "paintings.person_generation_options.allow_all": "允许所有",

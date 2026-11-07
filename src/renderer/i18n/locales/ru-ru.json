@@ -3172,6 +3172,8 @@
   "paintings.number_images_tip": "Количество создаваемых изображений ({{min}}–{{max}})",
   "paintings.operation_failed": "Операция не удалась, повторите попытку позже",
   "paintings.output_compression": "Сжатие вывода",
+  "paintings.output_format_fixed": "Формат вывода определяет провайдер (обычно PNG). Для этой модели нельзя выбрать формат, локальная конвертация не выполняется; файл сохраняется в формате провайдера.",
+  "paintings.output_format_selectable": "Поддерживаемые форматы вывода: {{formats}}. Формат создаёт провайдер, локальная конвертация не выполняется; качество, прозрачность и метаданные соответствуют выводу провайдера.",
   "paintings.person_generation": "Сгенерировать людей",
   "paintings.person_generation_options.allow_adult": "Разрешено взрослые",
   "paintings.person_generation_options.allow_all": "Разрешено все",

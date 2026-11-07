@@ -3172,6 +3172,8 @@
   "paintings.number_images_tip": "จำนวนรูปภาพที่จะสร้าง ({{min}}-{{max}})",
   "paintings.operation_failed": "ดำเนินการไม่สำเร็จ โปรดลองอีกครั้งภายหลัง",
   "paintings.output_compression": "บีบอัดเอาต์พุต",
+  "paintings.output_format_fixed": "รูปแบบเอาต์พุตถูกกำหนดโดยผู้ให้บริการ (ปกติคือ PNG) โมเดลนี้เลือกรูปแบบไม่ได้และไม่มีการแปลงในเครื่อง ไฟล์ที่บันทึกจะคงรูปแบบของผู้ให้บริการ",
+  "paintings.output_format_selectable": "รูปแบบเอาต์พุตที่รองรับ: {{formats}} รูปแบบถูกสร้างโดยผู้ให้บริการ ไม่มีการแปลงในเครื่อง คุณภาพ ความโปร่งใส และเมตาดาตาเป็นไปตามเอาต์พุตของผู้ให้บริการ",
   "paintings.person_generation": "สร้างบุคคล",
   "paintings.person_generation_options.allow_adult": "อนุญาตผู้ใหญ่",
   "paintings.person_generation_options.allow_all": "อนุญาตทั้งหมด",
