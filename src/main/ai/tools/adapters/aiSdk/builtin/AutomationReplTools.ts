@@ -1,6 +1,8 @@
+import type { ToolResultOutput } from '@ai-sdk/provider-utils'
 import type { CallToolResult } from '@modelcontextprotocol/server'
 import { tool } from 'ai'
 
+import { loggerService } from '@logger'
 import {
   automationReplDescription,
   automationReplInput,
@@ -11,8 +13,41 @@ import {
 import { getToolCallContext } from '../context'
 import type { ToolEntry } from '../types'
 
+const logger = loggerService.withContext('AutomationReplTools')
+const UNREADABLE_OUTPUT_NOTE =
+  'This automation tool result could not be read back from the conversation history. Ignore it and observe the current state again before acting.'
+
+function automationReplModelOutput(output: unknown): ToolResultOutput {
+  const unreadable = { type: 'text', value: UNREADABLE_OUTPUT_NOTE } as const
+  if (
+    typeof output !== 'object' ||
+    output === null ||
+    Array.isArray(output) ||
+    !('content' in output) ||
+    !Array.isArray(output.content)
+  ) {
+    return unreadable
+  }
+
+  const value: Extract<ToolResultOutput, { type: 'content' }>['value'] = []
+  for (const part of output.content) {
+    if (typeof part !== 'object' || part === null || Array.isArray(part) || typeof part.type !== 'string') {
+      return unreadable
+    }
+    if (part.type === 'text') {
+      if (typeof part.text !== 'string') return unreadable
+      value.push({ type: 'text', text: part.text })
+    } else if (part.type === 'image') {
+      if (typeof part.data !== 'string' || typeof part.mimeType !== 'string') return unreadable
+      value.push({ type: 'image-data', data: part.data, mediaType: part.mimeType })
+    }
+  }
+  return { type: 'content', value }
+}
+
 export function createAutomationReplToolEntries(): ToolEntry[] {
   return [false, true].map((reset) => {
+    const name = reset ? 'automation_repl_reset' : 'automation_repl'
     const fallbackTool = tool<Record<string, unknown>, CallToolResult>({
       description: reset
         ? 'Reset automation JS state and release control leases; user-stopped control remains stopped.'
@@ -25,19 +60,20 @@ export function createAutomationReplToolEntries(): ToolEntry[] {
         if (reset) return run.reset()
         return run.execute(automationReplInput.parse(args).code, options.abortSignal)
       },
-      toModelOutput: ({ output }) => ({
-        type: 'content',
-        value: output.content.flatMap<
-          { type: 'text'; text: string } | { type: 'image-data'; data: string; mediaType: string }
-        >((part) => {
-          if (part.type === 'text') return [{ type: 'text', text: part.text }]
-          if (part.type === 'image') return [{ type: 'image-data', data: part.data, mediaType: part.mimeType }]
-          return []
-        })
-      })
+      toModelOutput: ({ output, toolCallId }) => {
+        const result = automationReplModelOutput(output)
+        if (result.type === 'text') {
+          logger.warn('Unreadable automation tool output', {
+            toolName: name,
+            toolCallId,
+            reason: 'invalid-output-shape'
+          })
+        }
+        return result
+      }
     })
     return {
-      name: reset ? 'automation_repl_reset' : 'automation_repl',
+      name,
       namespace: 'automation',
       description: reset
         ? 'Reset automation JS state and release control leases; user-stopped control remains stopped.'

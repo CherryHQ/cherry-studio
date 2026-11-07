@@ -1,7 +1,8 @@
-import { type ModelMessage, tool, type UIMessage } from 'ai'
+import { type ModelMessage, tool, type ToolSet, type UIMessage } from 'ai'
 import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
+import { createAutomationReplToolEntries } from '@main/ai/tools/adapters/aiSdk/builtin/AutomationReplTools'
 import { mcpResultToModelOutput } from '@main/ai/tools/adapters/aiSdk/mcp/utils'
 
 import { createToolSearchTool } from '../../tools/adapters/aiSdk/meta/toolSearch'
@@ -812,5 +813,129 @@ describe('coalesceConsecutiveSameRole', () => {
       { role: 'system', content: 'b' }
     ] as ModelMessage[])
     expect(out).toEqual([{ role: 'system', content: 'a\n\nb' }])
+  })
+})
+
+describe('automation history output boundaries (#23303)', () => {
+  const NOTE =
+    'This automation tool result could not be read back from the conversation history. Ignore it and observe the current state again before acting.'
+  const automationTools: ToolSet = Object.fromEntries(
+    createAutomationReplToolEntries().map(({ name, tool }) => [name, tool])
+  )
+
+  describe.each(['automation_repl', 'automation_repl_reset'])('%s', (toolName) => {
+    it.each([
+      ['empty object', {}],
+      ['top-level marker', '<persisted-output>…</persisted-output>']
+    ])('keeps later turns usable after an unreadable %s', async (_label, output) => {
+      const input = toolName === 'automation_repl' ? { code: '1' } : {}
+      const history = [
+        ui('user', [{ type: 'text', text: 'observe' }], 'before'),
+        ui(
+          'assistant',
+          [{ type: 'dynamic-tool', toolName, toolCallId: 'automation-1', state: 'output-available', input, output }],
+          'result'
+        ),
+        ui('user', [{ type: 'text', text: 'continue' }], 'later')
+      ]
+      const original = structuredClone(history)
+      const model = await toModelMessages(history, undefined, automationTools)
+      expect(model).toEqual([
+        { role: 'user', content: [{ type: 'text', text: 'observe' }] },
+        {
+          role: 'assistant',
+          content: [{ type: 'tool-call', toolName, toolCallId: 'automation-1', input, providerExecuted: undefined }]
+        },
+        {
+          role: 'tool',
+          content: [
+            { type: 'tool-result', toolName, toolCallId: 'automation-1', output: { type: 'text', value: NOTE } }
+          ]
+        },
+        { role: 'user', content: [{ type: 'text', text: 'continue' }] }
+      ])
+      expect(history).toEqual(original)
+      expect(await toModelMessages(history, undefined, automationTools)).toEqual(model)
+      expect(history).toEqual(original)
+    })
+  })
+
+  it.each([false, true])(
+    'bypasses a throwing formatter for output-error (providerExecuted=%s)',
+    async (providerExecuted) => {
+      const sentinel = new Error('formatter must not run')
+      const throwingTools: ToolSet = {
+        automation_repl: tool({
+          inputSchema: z.object({}),
+          toModelOutput: () => {
+            throw sentinel
+          }
+        })
+      }
+      const errorText = 'original automation error'
+      const input = { code: '1' }
+      const model = await toModelMessages(
+        [
+          ui('assistant', [
+            {
+              type: 'dynamic-tool',
+              toolName: 'automation_repl',
+              toolCallId: 'failed-1',
+              state: 'output-error',
+              input,
+              errorText,
+              providerExecuted
+            }
+          ])
+        ],
+        undefined,
+        throwingTools
+      )
+      const call = { type: 'tool-call', toolName: 'automation_repl', toolCallId: 'failed-1', input, providerExecuted }
+      const result = {
+        type: 'tool-result',
+        toolName: 'automation_repl',
+        toolCallId: 'failed-1',
+        output: { type: providerExecuted ? 'error-json' : 'error-text', value: errorText }
+      }
+      expect(model).toEqual(
+        providerExecuted
+          ? [{ role: 'assistant', content: [call, result] }]
+          : [
+              { role: 'assistant', content: [call] },
+              { role: 'tool', content: [result] }
+            ]
+      )
+    }
+  )
+
+  it.each(['synchronous throw', 'async rejection'])('propagates an unrelated formatter %s', async (mode) => {
+    const sentinel = new Error('unrelated formatter failure')
+    const throwingTools: ToolSet = {
+      automation_repl: tool({
+        inputSchema: z.object({}),
+        toModelOutput:
+          mode === 'synchronous throw'
+            ? () => {
+                throw sentinel
+              }
+            : async () => {
+                throw sentinel
+              }
+      })
+    }
+    const history = [
+      ui('assistant', [
+        {
+          type: 'dynamic-tool',
+          toolName: 'automation_repl',
+          toolCallId: 'throwing-1',
+          state: 'output-available',
+          input: { code: '1' },
+          output: {}
+        }
+      ])
+    ]
+    await expect(toModelMessages(history, undefined, throwingTools)).rejects.toBe(sentinel)
   })
 })

@@ -2,6 +2,7 @@ import { jsonSchema, type Tool } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
+import { createAutomationReplToolEntries } from '../../builtin/AutomationReplTools'
 import { ToolRegistry } from '../../registry'
 import type { ToolEntry } from '../../types'
 import { createToolInvokeTool, TOOL_INVOKE_TOOL_NAME } from '../toolInvoke'
@@ -332,6 +333,49 @@ describe('tool_invoke meta-tool', () => {
       expect(await schema.validate!({ name: 'x', params: { a: 1 } })).toMatchObject({ success: true })
       expect(await schema.validate!({ params: {} })).toMatchObject({ success: false })
       expect(await schema.validate!({ name: 1 })).toMatchObject({ success: false })
+    })
+  })
+})
+
+describe('tool_invoke automation output projection (#23303)', () => {
+  const NOTE =
+    'This automation tool result could not be read back from the conversation history. Ignore it and observe the current state again before acting.'
+
+  describe.each(['automation_repl', 'automation_repl_reset'])('%s', (name) => {
+    function format(output: unknown) {
+      const registry = new ToolRegistry()
+      createAutomationReplToolEntries().forEach((entry) => registry.register(entry))
+      const invoke = createToolInvokeTool(registry, allowAll(name), inspected(name))
+      return invoke.toModelOutput!({
+        toolCallId: 'outer-automation',
+        input: { name, params: name === 'automation_repl' ? { code: '1' } : {} },
+        output
+      })
+    }
+
+    it.each([
+      ['empty object', {}],
+      ['top-level marker', '<persisted-output>…</persisted-output>'],
+      ['missing text', { content: [{ type: 'text' }] }]
+    ])('delegates unreadable %s to the automation note', async (_label, output) => {
+      expect(await format(output)).toEqual({ type: 'text', value: NOTE })
+    })
+
+    it('delegates valid text and image output without changing bytes or order', async () => {
+      expect(
+        await format({
+          content: [
+            { type: 'text', text: 'good' },
+            { type: 'image', data: 'aGVsbG8=', mimeType: 'image/png' }
+          ]
+        })
+      ).toEqual({
+        type: 'content',
+        value: [
+          { type: 'text', text: 'good' },
+          { type: 'image-data', data: 'aGVsbG8=', mediaType: 'image/png' }
+        ]
+      })
     })
   })
 })
