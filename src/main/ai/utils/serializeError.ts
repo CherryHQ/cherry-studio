@@ -44,7 +44,24 @@ export function serializeError(error: unknown): SerializedError {
   // the generic "Failed after retries". Appended after truncation so the
   // provider text stays intact.
   if (typeof serialized.message === 'string' && isThinkingBudgetRejection(error)) {
-    return { ...serialized, message: appendThinkingBudgetHint(serialized.message) }
+    // Chat renders `providerErrorText(error)`, which prefers the sanitized
+    // terminal error (`lastError` / `errors`) over the outer RetryError
+    // message — so the hint must also annotate the nested terminal text.
+    const annotateNested = (nested: unknown): unknown => {
+      if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+        const record = nested as Record<string, unknown>
+        if (typeof record.message === 'string' && /thinking_budget/i.test(record.message)) {
+          return { ...record, message: appendThinkingBudgetHint(record.message) }
+        }
+      }
+      return nested
+    }
+    return {
+      ...serialized,
+      message: appendThinkingBudgetHint(serialized.message),
+      ...(serialized.lastError !== undefined ? { lastError: annotateNested(serialized.lastError) } : {}),
+      ...(Array.isArray(serialized.errors) ? { errors: (serialized.errors as unknown[]).map(annotateNested) } : {})
+    }
   }
   return serialized
 }

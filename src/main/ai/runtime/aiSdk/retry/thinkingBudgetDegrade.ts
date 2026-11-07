@@ -64,7 +64,12 @@ export function thinkingBudgetDegradeRetryable(): Retryable<LanguageModel> {
       logger.info('retrying with thinking_budget clamped to the provider ceiling', { ceiling })
       return {
         model,
-        options: { providerOptions: clamped.providerOptions as SharedV3ProviderOptions },
+        // ai-retry merges this partial against the ORIGINAL primary call
+        // options, not the failed attempt's. Preserve the current attempt's
+        // sampling / limit / headers so a fallback's overrides survive the
+        // degrade (e.g. fallback maxOutputTokens 500 must not reset to the
+        // primary's 100).
+        options: { ...options, providerOptions: clamped.providerOptions as SharedV3ProviderOptions },
         maxAttempts
       }
     }
@@ -78,7 +83,8 @@ export function thinkingBudgetDegradeRetryable(): Retryable<LanguageModel> {
     logger.info('retrying without thinking_budget after provider rejection', { ceiling })
     return {
       model,
-      options: { providerOptions: stripped.providerOptions as SharedV3ProviderOptions },
+      // Same merge note as above: keep the failed attempt's call options.
+      options: { ...options, providerOptions: stripped.providerOptions as SharedV3ProviderOptions },
       maxAttempts
     }
   }

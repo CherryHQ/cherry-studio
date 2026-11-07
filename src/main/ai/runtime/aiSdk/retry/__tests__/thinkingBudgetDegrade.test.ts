@@ -95,6 +95,64 @@ describe('thinkingBudgetDegradeRetryable', () => {
     expect(degraded.options.providerOptions.dashscope).not.toHaveProperty('thinking_budget')
   })
 
+  it('preserves the failed attempt options when clamping (fallback overrides survive)', async () => {
+    const retryable = thinkingBudgetDegradeRetryable()
+    const context = {
+      current: {
+        type: 'error',
+        error: apiError(BAILIAN_81920),
+        model: fakeModel as never,
+        options: {
+          prompt: [],
+          maxOutputTokens: 500,
+          temperature: 0.8,
+          headers: { 'x-fallback': 'yes' },
+          providerOptions: { dashscope: { enable_thinking: true, thinking_budget: 100_000 } }
+        }
+      },
+      attempts: []
+    } as unknown as RetryContext<LanguageModel>
+    const result = await retryable(context)
+
+    expect(result).toMatchObject({
+      options: {
+        maxOutputTokens: 500,
+        temperature: 0.8,
+        headers: { 'x-fallback': 'yes' },
+        providerOptions: { dashscope: { enable_thinking: true, thinking_budget: 81920 } }
+      }
+    })
+  })
+
+  it('preserves the failed attempt options when omitting for a zero-ceiling SKU', async () => {
+    const retryable = thinkingBudgetDegradeRetryable()
+    const context = {
+      current: {
+        type: 'error',
+        error: apiError(BAILIAN_ZERO),
+        model: fakeModel as never,
+        options: {
+          prompt: [],
+          maxOutputTokens: 500,
+          temperature: 0.8,
+          headers: { 'x-fallback': 'yes' },
+          providerOptions: { dashscope: { enable_thinking: true, thinking_budget: 4096 } }
+        }
+      },
+      attempts: []
+    } as unknown as RetryContext<LanguageModel>
+    const result = await retryable(context)
+
+    expect(result).toMatchObject({
+      options: {
+        maxOutputTokens: 500,
+        temperature: 0.8,
+        headers: { 'x-fallback': 'yes' },
+        providerOptions: { dashscope: { enable_thinking: true } }
+      }
+    })
+  })
+
   it('does not strip on an unparseable ceiling — surfaces with the hint instead', () => {
     const retryable = thinkingBudgetDegradeRetryable()
     expect(

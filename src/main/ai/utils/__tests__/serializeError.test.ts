@@ -72,6 +72,33 @@ describe('serializeError', () => {
     expect(serialized.message).toContain('reasoning')
   })
 
+  // Chat renders providerErrorText(), which prefers the sanitized terminal
+  // error (lastError/errors) over the outer RetryError message — the hint
+  // must survive that selection (#21906).
+  it('carries the reasoning hint on the terminal error chat actually displays', () => {
+    const error = new RetryError({
+      message: 'Failed after retries',
+      reason: 'maxRetriesExceeded',
+      errors: [
+        new APICallError({
+          message:
+            'API Error: 400 <400> InternalError.Algo.InvalidParameter: The thinking_budget parameter must be a positive integer and not greater than 81920',
+          url: 'https://maas.qianwenaiapi.com/compatible-mode/v1/',
+          requestBodyValues: {},
+          statusCode: 400
+        })
+      ]
+    })
+    const serialized = serializeError(error)
+
+    const lastError = serialized.lastError as unknown as { message: string }
+    expect(lastError.message).toContain('thinking_budget')
+    expect(lastError.message).toContain('reasoning')
+
+    const errors = serialized.errors as unknown as { message: string }[]
+    expect(errors[0].message).toContain('reasoning')
+  })
+
   it('retains quota diagnosis in serialized retry errors without retaining the payload', () => {
     const error = new APICallError({
       message: 'Rate limit exceeded',
