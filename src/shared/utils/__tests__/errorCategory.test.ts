@@ -208,6 +208,8 @@ describe('classifyErrorCategory client refusals', () => {
 // Protocol failures need the existing parse diagnosis without swallowing request or transport failures.
 describe('classifyErrorCategory provider response protocol', () => {
   const phrases = [
+    'Failed to process successful response',
+    'Invalid JSON response',
     'Invalid input: expected object, received undefined',
     'Type validation failed:',
     "Expected 'function.name' to be a string.",
@@ -235,6 +237,10 @@ describe('classifyErrorCategory provider response protocol', () => {
   it('keeps a request-body parse failure out of the parse diagnosis', () => {
     expect(classifyErrorCategory({ text: 'Failed to parse request body' })).toBe('unknown')
     expect(classifyErrorCategory({ status: 400, text: 'Failed to parse request body' })).toBe('bad_request')
+  })
+
+  it('does not infer a protocol failure from a successful status alone', () => {
+    expect(classifyErrorCategory({ status: 200, text: 'Something happened' })).toBe('unknown')
   })
 
   it.each([
@@ -350,5 +356,18 @@ describe('classifyErrorCategory embedded runtime connection codes (#22210)', () 
     'Some totally unrelated failure'
   ])('leaves prose without a runtime code unclassified: %s', (text) => {
     expect(classifyErrorCategory({ text })).toBe('unknown')
+  })
+})
+
+describe('classifyErrorCategory invalid inline image', () => {
+  const text =
+    'Too many requests, please wait a moment (image/jpeg inlineData is not valid base64: string argument should contain only ASCII characters)'
+
+  it('reports a non-ASCII inline image payload as a request error, not rate limiting', () => {
+    expect(classifyErrorCategory({ text })).toBe('bad_request')
+  })
+
+  it('keeps rate_limit for a real HTTP 429', () => {
+    expect(classifyErrorCategory({ text, status: 429 })).toBe('rate_limit')
   })
 })

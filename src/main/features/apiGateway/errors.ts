@@ -1,5 +1,5 @@
 import { JSONRPC_VERSION, ProtocolErrorCode } from '@modelcontextprotocol/server'
-import { ElysiaCustomStatusResponse, type ErrorHandler } from 'elysia'
+import { ElysiaCustomStatusResponse, type ErrorHandler, ValidationError } from 'elysia'
 
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
@@ -272,7 +272,9 @@ export function buildStreamErrorFrame(outputFormat: OutputFormat, error: unknown
  */
 export function anthropicErrorHandler({ code, error, status }: GatewayErrorContext) {
   if (code === 'VALIDATION') {
-    return status(400, anthropicEnvelope('invalid_request_error', messageOf(error, 'Invalid request parameters')))
+    const issue = error instanceof ValidationError ? error.all[0] : undefined
+    const message = issue ? `${issue.path}: ${issue.message}` : 'Invalid request parameters'
+    return status(400, anthropicEnvelope('invalid_request_error', message))
   }
   if (code === 'NOT_FOUND') {
     return status(404, anthropicEnvelope('not_found_error', 'Not found'))

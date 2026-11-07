@@ -256,23 +256,23 @@ export default defineProvider({
   id: 'qwencloud',
   // Chat Completions stays the provider default: it is the fallback for every model that arrives without
   // `endpointTypes`, and no per-model Responses support list is published for QwenCloud yet.
-  name: 'QwenCloud',
+  name: 'Qwen Cloud',
   // International platform only — mainland users are served by dashscope.
   availableInEditions: ['global'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'anthropic-messages': {
       adapterFamily: 'anthropic',
-      baseUrl: 'https://ap-southeast-1.maas.qwencloudapi.com/apps/anthropic'
+      baseUrl: 'https://maas.qwencloudapi.com/apps/anthropic'
     },
     'openai-chat-completions': {
       adapterFamily: 'openai-compatible',
-      baseUrl: 'https://ap-southeast-1.maas.qwencloudapi.com/compatible-mode/v1/',
+      baseUrl: 'https://maas.qwencloudapi.com/compatible-mode/v1/',
       reasoningFormat: { type: 'openai-chat' }
     },
     'openai-responses': {
       adapterFamily: 'openai',
-      baseUrl: 'https://ap-southeast-1.maas.qwencloudapi.com/compatible-mode/v1/',
+      baseUrl: 'https://maas.qwencloudapi.com/compatible-mode/v1/',
       reasoningFormat: { type: 'openai-responses' }
     }
   },
@@ -301,9 +301,9 @@ export default defineProvider({
   ],
   metadata: {
     website: {
-      apiKey: 'https://home.qwencloud.com/api-keys',
+      apiKey: 'https://home.qwencloud.com/api-keys?utm_content=g_20000003254',
       docs: 'https://docs.qwencloud.com/developer-guides/getting-started/introduction',
-      models: 'https://www.qwencloud.com/models',
+      models: 'https://docs.qwencloud.com/developer-guides/getting-started/model-selection?utm_content=g_20000003255',
       official: 'https://www.qwencloud.com/'
     }
   },

@@ -1,4 +1,4 @@
-import { APICallError, RetryError } from 'ai'
+import { APICallError, JSONParseError, RetryError, TypeValidationError } from 'ai'
 
 import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
 import { appendThinkingBudgetHint, isThinkingBudgetRejection } from '@shared/ai/thinkingBudget'
@@ -67,7 +67,9 @@ export function serializeError(error: unknown): SerializedError {
 }
 
 function serializeErrorInner(error: unknown): SerializedError {
-  if (APICallError.isInstance(error)) return serializeNestedProviderError(error) as SerializedError
+  if (APICallError.isInstance(error) || JSONParseError.isInstance(error) || TypeValidationError.isInstance(error)) {
+    return serializeNestedProviderError(error) as SerializedError
+  }
   if (error instanceof Error) {
     const e = error as unknown as Record<string, unknown>
     const isRetryError = RetryError.isInstance(error)

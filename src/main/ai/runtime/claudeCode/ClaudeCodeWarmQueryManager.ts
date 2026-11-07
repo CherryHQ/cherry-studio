@@ -5,6 +5,7 @@ import type { Options, WarmQuery } from '@anthropic-ai/claude-agent-sdk'
 import { application } from '@application'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
+import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { deriveRootSpanId } from '@shared/data/types/trace'
 
@@ -17,6 +18,7 @@ import {
   spawnClaudeCodeProcess
 } from './ClaudeCodeProcessManager'
 import type { ClaudeCodeProcessDiagnostics } from './processExitDiagnostics'
+import { resolveClaudeConfigDirectory } from './queryOptions'
 
 const logger = loggerService.withContext('ClaudeCodeWarmQueryManager')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
@@ -67,10 +69,8 @@ export function stripWarmQueryOptions(options: Options): Options {
   const {
     // oxlint-disable-next-line no-unused-vars
     abortController: _abortController,
-    // oxlint-disable-next-line no-unused-vars
-    steerHolder: _steerHolder,
     ...rest
-  } = options as Options & { steerHolder?: unknown }
+  } = options
   return rest
 }
 
@@ -192,6 +192,17 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
       const { buildClaudeCodeWarmQueryRequestForAgentSession } = await import('./agentSessionWarmup')
       const warmRequest = await buildClaudeCodeWarmQueryRequestForAgentSession(sessionId)
       if (!warmRequest) return
+      const context = prepareClaudeBranch(
+        sessionId,
+        resolveClaudeConfigDirectory(warmRequest.options.env),
+        warmRequest.options.resume
+      )
+      warmRequest.options = {
+        ...warmRequest.options,
+        ...(warmRequest.options.resume || context.bindingState === 'bound'
+          ? { resume: warmRequest.options.resume ?? context.nativeThreadId! }
+          : { sessionId: context.nativeThreadId! })
+      }
       await this.prewarm(await this.withTraceEnv(sessionId, warmRequest))
     } catch (error) {
       logger.warn('Failed to prewarm agent session', { sessionId, error })

@@ -112,7 +112,7 @@ const responsesEffortWire = modeWire(
  * pinning a lower tier, so leaving reasoning unset doesn't silently weaken it. The chat contract keeps
  * qwen's native toggle + thinking_budget.
  *
- * `xhigh`/`max` are only served by 华北2（北京）and 新加坡; this provider's baseUrl is the Beijing host.
+ * `xhigh`/`max` are only served by 华北2（北京）and 新加坡; this provider's baseUrl is the mainland gateway.
  */
 const qwenResponsesSupport: ReasoningSupport = {
   controls: [
@@ -320,9 +320,9 @@ export default defineProvider({
   // Chat Completions stays the provider default: it is the fallback for every model that arrives without
   // `endpointTypes` (custom models, `/models` discoveries with no override), and Bailian serves it far
   // more widely than Responses. Responses is opted into per model via `endpointPin`.
-  // Keep the 'dashscope' identity so existing credentials and saved endpoint
-  // overrides stay attached to the rebranded mainland provider (ref #18432).
-  name: 'Qwen AI Platform',
+  // Rebranded to Qwen AI Platform (mainland China); the 'dashscope' id stays
+  // unchanged so existing users' keys and configs keep working (ref #18432).
+  name: 'Qianwen AI platform - CN',
   availableInEditions: ['global', 'cn'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
@@ -384,9 +384,10 @@ export default defineProvider({
   ],
   metadata: {
     website: {
-      apiKey: 'https://platform.qianwenai.com/home/api-keys',
+      apiKey: 'https://platform.qianwenai.com/home/api-keys?utm_content=g_20000003252',
       docs: 'https://platform.qianwenai.com/docs/developer-guides/getting-started/first-api-call',
-      models: 'https://www.qianwenai.com/models',
+      models:
+        'https://platform.qianwenai.com/docs/developer-guides/getting-started/model-selection?utm_content=g_20000003253',
       official: 'https://www.qianwenai.com/'
     }
   },

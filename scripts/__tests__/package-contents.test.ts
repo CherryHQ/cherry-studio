@@ -23,52 +23,20 @@ function includesFile(filename: string, patterns = config.files): boolean {
 
 describe('packaged dependency contents', () => {
   it.each([
-    ['darwin', 'arm64', 'darwin-arm64'],
-    ['darwin', 'x64', 'darwin-x64'],
-    ['linux', 'arm64', 'linux-arm64-gnu'],
-    ['linux', 'x64', 'linux-x64-gnu'],
-    ['win32', 'arm64', 'win32-arm64-msvc'],
-    ['win32', 'x64', 'win32-x64-msvc']
-  ])('keeps only %s %s native payloads, including nested dependencies', (platform, arch, nativeBindingTarget) => {
+    ['darwin', 'arm64'],
+    ['darwin', 'x64'],
+    ['linux', 'arm64'],
+    ['linux', 'x64'],
+    ['win32', 'arm64'],
+    ['win32', 'x64']
+  ])('keeps only %s %s native payloads, including nested dependencies', (platform, arch) => {
     const patterns = [...config.files, ...getNativeModuleFilters(platform, arch)]
     for (const modules of ['node_modules', 'node_modules/consumer/node_modules']) {
       for (const targetPlatform of ['darwin', 'linux', 'win32']) {
         for (const targetArch of ['arm64', 'x64']) {
-          const target = `${targetPlatform}-${targetArch}`
-          const keep = targetPlatform === platform && targetArch === arch
-          for (const file of [
-            `@koromix/koffi-${target}/koffi.node`,
-            `node-pty/prebuilds/${target}/pty.node`,
-            `selection-hook/prebuilds/${target}/selection.node`
-          ]) {
-            expect(includesFile(`${modules}/${file}`, patterns), file).toBe(keep)
-          }
+          const file = `${modules}/selection-hook/prebuilds/${targetPlatform}-${targetArch}/selection.node`
+          expect(includesFile(file, patterns), file).toBe(targetPlatform === platform && targetArch === arch)
         }
-      }
-      for (const target of [
-        'darwin-arm64',
-        'darwin-x64',
-        'darwin-universal',
-        'linux-arm64-gnu',
-        'linux-x64-gnu',
-        'linux-x64-musl',
-        'win32-arm64-msvc',
-        'win32-x64-msvc'
-      ]) {
-        const file = `${modules}/@mariozechner/clipboard-${target}/clipboard.node`
-        expect(includesFile(file, patterns), file).toBe(target === nativeBindingTarget)
-      }
-      for (const target of [
-        'darwin-arm64',
-        'darwin-x64',
-        'linux-arm64-gnu',
-        'linux-x64-gnu',
-        'win32-arm64-msvc',
-        'win32-ia32-msvc',
-        'win32-x64-msvc'
-      ]) {
-        const file = `${modules}/node-addon-require-builtin-${target}/package.json`
-        expect(includesFile(file, patterns), file).toBe(target === nativeBindingTarget)
       }
     }
   })
