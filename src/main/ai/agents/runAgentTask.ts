@@ -108,6 +108,7 @@ function loadReusableSession(taskScheduleId: string, agentId: string) {
  */
 function resolveTaskSession(params: {
   sessionType: AgentSessionType
+  scheduleId: string | null
   reuse: TaskSessionReuse
   reuseBinding: { scheduleId: string; reuseRevision: number } | null
   agentId: string
@@ -126,7 +127,7 @@ function resolveTaskSession(params: {
     })
   }
 
-  const session = agentSessionService.create({ agentId, name, workspace }, sessionType)
+  const session = agentSessionService.create({ agentId, name, workspace }, sessionType, params.scheduleId)
   if (reuse.enabled && reuseBinding) {
     application.get('AgentJobsService').bindTaskSessionReuse({
       ...reuseBinding,
@@ -237,6 +238,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   const sessionType = isHeartbeat ? 'background' : 'conversation'
   let session = resolveTaskSession({
     sessionType,
+    scheduleId,
     reuse: reuseIsCurrent ? currentReuse : { enabled: false, revision: expectedReuseRevision },
     reuseBinding,
     agentId,
@@ -363,7 +365,11 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       }
       if (rebound) throw new Error(`Agent session ${session.id} became invalid while starting task`)
       rebound = true
-      session = agentSessionService.create({ agentId, name: taskName ?? 'Scheduled task', workspace }, sessionType)
+      session = agentSessionService.create(
+        { agentId, name: taskName ?? 'Scheduled task', workspace },
+        sessionType,
+        scheduleId
+      )
       topicId = buildAgentSessionTopicId(session.id)
       if (reuseBinding) {
         application.get('AgentJobsService').bindTaskSessionReuse({
