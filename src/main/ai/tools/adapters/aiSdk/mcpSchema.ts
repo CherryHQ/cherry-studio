@@ -14,8 +14,22 @@ export function createMcpJsonSchemaValidator<T = unknown>(schema: JSONSchema7) {
   }
 }
 
+/**
+ * Strict OpenAI-compatible providers reject object schemas without `type` or `properties`,
+ * which MCP servers emit for tools that take no arguments.
+ */
+function normalizeMcpInputSchema(schema: JSONSchema7): JSONSchema7 {
+  const type = schema.type ?? 'object'
+  return {
+    ...schema,
+    type,
+    properties: type === 'object' ? (schema.properties ?? {}) : schema.properties
+  }
+}
+
 export function createMcpInputSchema(schema: JSONSchema7) {
-  return jsonSchema<Record<string, unknown>>(schema, {
-    validate: createMcpJsonSchemaValidator<Record<string, unknown>>(schema)
+  const normalized = normalizeMcpInputSchema(schema)
+  return jsonSchema<Record<string, unknown>>(normalized, {
+    validate: createMcpJsonSchemaValidator<Record<string, unknown>>(normalized)
   })
 }
