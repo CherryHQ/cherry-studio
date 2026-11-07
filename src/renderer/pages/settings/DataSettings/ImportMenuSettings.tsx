@@ -39,6 +39,15 @@ const ImportMenuOptions: FC = () => {
           </Button>
         </RowFlex>
       </SettingRow>
+      <SettingDivider />
+      <SettingRow id="setting-data-import-cherry" className="scroll-mt-6">
+        <SettingRowTitle>{t('settings.data.import_settings.cherry')}</SettingRowTitle>
+        <RowFlex className="justify-between gap-1.25">
+          <Button onClick={() => ImportPopup.show({ source: 'cherry' })} variant="outline">
+            {t('settings.data.import_settings.button')}
+          </Button>
+        </RowFlex>
+      </SettingRow>
     </SettingGroup>
   )
 }

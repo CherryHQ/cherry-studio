@@ -112,6 +112,10 @@ export function createTopicActionContext({
       const markdown = await topicToMarkdown(topic)
       void exportMarkdownToSiyuan(topic.name, markdown)
     },
+    onExportTopicFile: async (topic) => {
+      const { exportTopicAsFile } = await import('@renderer/services/topicFileExport')
+      return exportTopicAsFile(topic)
+    },
     onExportWord: async (topic) => {
       const { topicToMarkdown } = await import('@renderer/services/ExportService')
       const markdown = await topicToMarkdown(topic)

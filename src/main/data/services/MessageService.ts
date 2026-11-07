@@ -260,6 +260,11 @@ function extractChatMessageFileRefs(data: MessageData | null | undefined): ChatM
   for (const part of data?.parts ?? []) {
     if (part.type === 'file') {
       add(readCherryMeta(part)?.fileEntryId, 'attachment')
+    } else if (part.type === 'data-video') {
+      // A video part addresses its bytes by physical path; the owning entry id
+      // rides in cherry meta (set when a video is restored into internal
+      // storage, e.g. topic import) so automatic cleanup keeps it alive.
+      add(readCherryMeta(part)?.fileEntryId, 'attachment')
     } else if (isToolUIPart(part) && part.state === 'output-available' && isPersistedToolOutput(part.output)) {
       for (const blob of blobRefsOf(part.output.$persistedToolOutput)) add(blob.fileEntryId, 'tool_output')
     }

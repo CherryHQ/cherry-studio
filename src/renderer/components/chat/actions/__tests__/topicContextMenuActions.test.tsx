@@ -51,6 +51,7 @@ function createTopicActionFixture(overrides: Partial<TopicActionContext> = {}): 
     onExportNotion: vi.fn(),
     onExportObsidian: vi.fn(),
     onExportSiyuan: vi.fn(),
+    onExportTopicFile: vi.fn(),
     onExportWord: vi.fn(),
     onExportYuque: vi.fn(),
     onPinTopic: vi.fn(),
@@ -117,6 +118,33 @@ describe('topic context menu actions', () => {
 
     const exportAction = actions.find((action) => action.id === 'topic.export')
     expect(exportAction?.children.map((action) => action.id)).not.toContain('topic.export.image')
+  })
+
+  it('keeps the topic-file export available regardless of export preferences', async () => {
+    const onExportTopicFile = vi.fn()
+    const context = createTopicActionFixture({
+      exportMenuOptions: {
+        docx: false,
+        image: false,
+        joplin: false,
+        markdown: false,
+        markdown_reason: false,
+        notion: false,
+        obsidian: false,
+        plain_text: false,
+        siyuan: false,
+        yuque: false
+      },
+      onExportTopicFile
+    })
+
+    const actions = resolveTopicMenuActions(context)
+    expect(actions.find((action) => action.id === 'topic.export')).toBeUndefined()
+    const topicFileAction = actions.find((action) => action.id === 'topic.export.topic-file')
+    expect(topicFileAction?.label).toBe('chat.topics.export.topic_file')
+
+    await executeTopicMenuAction(topicFileAction!, context)
+    expect(onExportTopicFile).toHaveBeenCalledWith(topic)
   })
 
   it('keeps ordinary pinning separate from sidebar shortcuts', async () => {
