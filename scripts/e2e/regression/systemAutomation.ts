@@ -642,7 +642,9 @@ function chooseNativeSelection(
 ): string {
   const filePath = resolveAllowedPath(candidatePath, [paths.fixtures, paths.workspace, paths.evidence])
   if (!existsSync(filePath)) throw new Error(`Selected file does not exist: ${filePath}`)
-  const electronPid = readAppRecord(paths).electronPid
+  const record = readAppRecord(paths)
+  const electronPid = record.electronPid
+  assertOwnedProcess(record, electronPid, 'electron')
   if (platform === 'macos') {
     const legacyScript = [
       'on run argv',
@@ -809,14 +811,9 @@ using System;
 using System.Text;
 using System.Runtime.InteropServices;
 public static class NativeDialog {
-  [DllImport("user32.dll")] public static extern IntPtr GetDlgItem(IntPtr dialog, int id);
   [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
-  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
-  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr window);
-  [DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
   [DllImport("user32.dll", EntryPoint="SendMessageW", CharSet=CharSet.Unicode)] public static extern IntPtr SetText(IntPtr window, uint message, IntPtr wParam, string value);
-  [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr window, uint flags);
   [DllImport("user32.dll", EntryPoint="SendMessageW", CharSet=CharSet.Unicode)] public static extern IntPtr ReadText(IntPtr window, uint message, IntPtr wParam, StringBuilder value);
 }'`,
       '$root = [System.Windows.Automation.AutomationElement]::RootElement',
@@ -840,123 +837,59 @@ public static class NativeDialog {
       '  $seen = ($all | Select-Object -First 25 | ForEach-Object { "$($_.Current.ProcessId)|$($_.Current.ClassName)|$($_.Current.ControlType.ProgrammaticName)|offscreen=$($_.Current.IsOffscreen)|$($_.Current.Name)" }) -join " ; "',
       '  throw ("Native file dialog was not found for pid ' + electronPid + '. Top-level windows: " + $seen)',
       '}',
-      ...(isDirectory
-        ? [
-            '$deadline = [DateTime]::UtcNow.AddSeconds(5)',
-            '$dialogHandle = [IntPtr]$dialog.Current.NativeWindowHandle',
-            '$foregroundHandle = [NativeDialog]::GetAncestor($dialogHandle, 2)',
-            '$shell = New-Object -ComObject WScript.Shell',
-            `$null = $shell.AppActivate(${electronPid})`,
-            '$focused = $false',
-            'do {',
-            '  $null = [NativeDialog]::SetForegroundWindow($foregroundHandle)',
-            '  $focused = [NativeDialog]::GetForegroundWindow() -eq $foregroundHandle',
-            '  if (-not $focused) { Start-Sleep -Milliseconds 100 }',
-            '} while (-not $focused -and [DateTime]::UtcNow -lt $deadline)',
-            'if (-not $focused) { throw "Native folder dialog could not receive focus" }',
-            '[NativeDialog]::keybd_event(0x11, 0, 0, [UIntPtr]::Zero)',
-            '[NativeDialog]::keybd_event(0x4C, 0, 0, [UIntPtr]::Zero)',
-            '[NativeDialog]::keybd_event(0x4C, 0, 2, [UIntPtr]::Zero)',
-            '[NativeDialog]::keybd_event(0x11, 0, 2, [UIntPtr]::Zero)',
-            '$addressCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "41477"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::IsOffscreenProperty, $false))',
-            '$addressCondition = [System.Windows.Automation.AndCondition]::new($addressCondition, [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Edit"))',
-            '$deadline = [DateTime]::UtcNow.AddSeconds(5)',
-            'do {',
-            '  $address = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $addressCondition)',
-            '  if ($address -and -not [NativeDialog]::IsWindowVisible([IntPtr]$address.Current.NativeWindowHandle)) { $address = $null }',
-            '  if (-not $address) { Start-Sleep -Milliseconds 100 }',
-            '} while (-not $address -and [DateTime]::UtcNow -lt $deadline)',
-            'if (-not $address) { throw "Native folder address input was not found" }',
-            '$addressHandle = [IntPtr]$address.Current.NativeWindowHandle',
-            '$address.SetFocus()',
-            `$null = [NativeDialog]::SetText($addressHandle, 0x000C, [IntPtr]::Zero, '${escapePowerShell(filePath)}')`,
-            '$value = [System.Text.StringBuilder]::new(32768)',
-            '$null = [NativeDialog]::ReadText($addressHandle, 0x000D, [IntPtr]::new($value.Capacity), $value)',
-            `if ($value.ToString() -ne '${escapePowerShell(filePath)}') { throw "Native folder address readback mismatch" }`,
-            'if ([NativeDialog]::GetForegroundWindow() -ne $foregroundHandle) { throw "Native folder dialog lost foreground ownership" }',
-            '[NativeDialog]::keybd_event(0x0D, 0, 0, [UIntPtr]::Zero)',
-            '[NativeDialog]::keybd_event(0x0D, 0, 2, [UIntPtr]::Zero)',
-            '$deadline = [DateTime]::UtcNow.AddSeconds(5)',
-            'do {',
-            '  $windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
-            '  $dialogs = @($windows)',
-            '  foreach ($window in $windows) { $dialogs += @($window.FindAll([System.Windows.Automation.TreeScope]::Descendants, $dialogCondition)) }',
-            '  $dialog = $dialogs | Where-Object { [IntPtr]$_.Current.NativeWindowHandle -eq $dialogHandle } | Select-Object -First 1',
-            '  if (-not $dialog) { break }',
-            '  $editing = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $addressCondition)',
-            '  if ($editing -and -not [NativeDialog]::IsWindowVisible([IntPtr]$editing.Current.NativeWindowHandle)) { $editing = $null }',
-            '  if (-not $editing) { break }',
-            '  Start-Sleep -Milliseconds 100',
-            '} while ([DateTime]::UtcNow -lt $deadline)',
-            'if ($dialog) {',
-            '  if ($editing) { throw "Native folder navigation did not finish" }',
-            '  $accept = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Button")))',
-            '  if (-not $accept) { throw "Native folder accept button was not found" }',
-            '  $invoke = $null',
-            '  if ($accept.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern, [ref]$invoke)) { $invoke.Invoke() } else {',
-            '    $handle = [IntPtr]$accept.Current.NativeWindowHandle',
-            '    if ($handle -eq [IntPtr]::Zero) { throw "Native accept button has no window handle" }',
-            '    $null = [NativeDialog]::SendMessage($handle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)',
-            '  }',
-            '}'
-          ]
-        : [
-            // Use the native controls' automation patterns so the common dialog receives change/accept events.
-            '$dialogHandle = [IntPtr]$dialog.Current.NativeWindowHandle',
-            '$fileCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1001"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Edit"))',
-            '$fileCondition = [System.Windows.Automation.AndCondition]::new($fileCondition, [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::IsOffscreenProperty, $false))',
-            '$deadline = [DateTime]::UtcNow.AddSeconds(10)',
-            '$fileInput = $null',
-            'do {',
-            '  $fileInput = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $fileCondition)',
-            '  if (-not $fileInput) { Start-Sleep -Milliseconds 200 }',
-            '} while (-not $fileInput -and [DateTime]::UtcNow -lt $deadline)',
-            'if (-not $fileInput) {',
-            '  $editCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Edit)',
-            '  $fileInput = $dialog.FindAll([System.Windows.Automation.TreeScope]::Descendants, $editCondition) | Where-Object { -not $_.Current.IsOffscreen } | Select-Object -Last 1',
-            '}',
-            'if (-not $fileInput) {',
-            '  $all = $dialog.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)',
-            '  $seen = ($all | Select-Object -First 40 | ForEach-Object { "$($_.Current.AutomationId)|$($_.Current.ClassName)|$($_.Current.ControlType.ProgrammaticName)|offscreen=$($_.Current.IsOffscreen)|$($_.Current.Name)" }) -join " ; "',
-            '  throw ("Native file name input was not found. Dialog descendants: " + $seen)',
-            '}',
-            `$requested = '${escapePowerShell(selectionText ?? filePath)}'`,
-            'try { $fileInput.SetFocus() } catch { throw ("Native file input focus failed (enabled={0}, offscreen={1}, focusable={2}): {3}" -f $fileInput.Current.IsEnabled, $fileInput.Current.IsOffscreen, $fileInput.Current.IsKeyboardFocusable, $_.Exception.Message) }',
-            'if (-not $fileInput.Current.HasKeyboardFocus) { throw "Native file name input could not receive focus" }',
-            '$valuePattern = $null',
-            'try { $valuePattern = [System.Windows.Automation.ValuePattern]$fileInput.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern) } catch { $valuePattern = $null }',
-            'if ($valuePattern) {',
-            '  $valuePattern.SetValue($requested)',
-            '} else {',
-            '  $null = [NativeDialog]::SetText([IntPtr]$fileInput.Current.NativeWindowHandle, 0x000C, [IntPtr]::Zero, $requested)',
-            '}',
-            '$current = $null',
-            'if ($valuePattern) { $current = $valuePattern.Current.Value } else {',
-            '  $buffer = [System.Text.StringBuilder]::new(32768)',
-            '  $null = [NativeDialog]::ReadText([IntPtr]$fileInput.Current.NativeWindowHandle, 0x000D, [IntPtr]::new($buffer.Capacity), $buffer)',
-            '  $current = $buffer.ToString()',
-            '}',
-            'if ($current -ne $requested) { throw "Native file name readback mismatch" }',
-            '$null = [NativeDialog]::SetForegroundWindow($dialogHandle)',
-            '$accept = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Button")))',
-            'if (-not $accept) { throw "Native file dialog accept button was not found" }',
-            '$invoke = $null',
-            'if ($accept.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern, [ref]$invoke)) { $invoke.Invoke() } else {',
-            '  $handle = [IntPtr]$accept.Current.NativeWindowHandle',
-            '  if ($handle -eq [IntPtr]::Zero) { throw "Native accept button has no window handle" }',
-            '  $null = [NativeDialog]::SendMessage($handle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)',
-            '}',
-            '$deadline = [DateTime]::UtcNow.AddSeconds(10)',
-            '$closed = $false',
-            'do {',
-            '  $windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
-            '  $remaining = @($windows)',
-            '  foreach ($window in $windows) { $remaining += @($window.FindAll([System.Windows.Automation.TreeScope]::Descendants, $dialogCondition)) }',
-            '  $closed = -not ($remaining | Where-Object { [IntPtr]$_.Current.NativeWindowHandle -eq $dialogHandle })',
-            '  if (-not $closed) { Start-Sleep -Milliseconds 100 }',
-            '} while (-not $closed -and [DateTime]::UtcNow -lt $deadline)',
-            'if (-not $closed) { throw "Native file dialog did not close after accepting the file name" }'
-          ])
+      // Use the native controls' automation patterns so the common dialog receives change/accept events.
+      '$dialogHandle = [IntPtr]$dialog.Current.NativeWindowHandle',
+      `$fileCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "${isDirectory ? 1152 : 1148}"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Edit"))`,
+      '$fileCondition = [System.Windows.Automation.AndCondition]::new($fileCondition, [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::IsOffscreenProperty, $false))',
+      '$deadline = [DateTime]::UtcNow.AddSeconds(10)',
+      '$fileInput = $null',
+      'do {',
+      '  $fileInput = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $fileCondition)',
+      '  if (-not $fileInput) { Start-Sleep -Milliseconds 200 }',
+      '} while (-not $fileInput -and [DateTime]::UtcNow -lt $deadline)',
+      'if (-not $fileInput) {',
+      '  $all = $dialog.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)',
+      '  $seen = ($all | Select-Object -First 40 | ForEach-Object { "$($_.Current.AutomationId)|$($_.Current.ClassName)|$($_.Current.ControlType.ProgrammaticName)|offscreen=$($_.Current.IsOffscreen)|$($_.Current.Name)" }) -join " ; "',
+      '  throw ("Native file name input was not found. Dialog descendants: " + $seen)',
+      '}',
+      `$requested = '${escapePowerShell(selectionText ?? filePath)}'`,
+      'if ($fileInput.Current.IsKeyboardFocusable) {',
+      '  $fileInput.SetFocus()',
+      '  if (-not $fileInput.Current.HasKeyboardFocus) { throw "Native file name input could not receive focus" }',
+      '}',
+      '$valuePattern = $null',
+      'try { $valuePattern = [System.Windows.Automation.ValuePattern]$fileInput.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern) } catch { $valuePattern = $null }',
+      'if ($valuePattern) {',
+      '  $valuePattern.SetValue($requested)',
+      '} else {',
+      '  $null = [NativeDialog]::SetText([IntPtr]$fileInput.Current.NativeWindowHandle, 0x000C, [IntPtr]::Zero, $requested)',
+      '}',
+      '$current = $null',
+      'if ($valuePattern) { $current = $valuePattern.Current.Value } else {',
+      '  $buffer = [System.Text.StringBuilder]::new(32768)',
+      '  $null = [NativeDialog]::ReadText([IntPtr]$fileInput.Current.NativeWindowHandle, 0x000D, [IntPtr]::new($buffer.Capacity), $buffer)',
+      '  $current = $buffer.ToString()',
+      '}',
+      'if ($current -ne $requested) { throw "Native file name readback mismatch" }',
+      '$null = [NativeDialog]::SetForegroundWindow($dialogHandle)',
+      '$accept = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Button")))',
+      'if (-not $accept) { throw "Native file dialog accept button was not found" }',
+      '$invoke = $null',
+      'if ($accept.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern, [ref]$invoke)) { $invoke.Invoke() } else {',
+      '  $handle = [IntPtr]$accept.Current.NativeWindowHandle',
+      '  if ($handle -eq [IntPtr]::Zero) { throw "Native accept button has no window handle" }',
+      '  $null = [NativeDialog]::SendMessage($handle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)',
+      '}',
+      '$deadline = [DateTime]::UtcNow.AddSeconds(10)',
+      '$closed = $false',
+      'do {',
+      '  $windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
+      '  $remaining = @($windows)',
+      '  foreach ($window in $windows) { $remaining += @($window.FindAll([System.Windows.Automation.TreeScope]::Descendants, $dialogCondition)) }',
+      '  $closed = -not ($remaining | Where-Object { [IntPtr]$_.Current.NativeWindowHandle -eq $dialogHandle })',
+      '  if (-not $closed) { Start-Sleep -Milliseconds 100 }',
+      '} while (-not $closed -and [DateTime]::UtcNow -lt $deadline)',
+      'if (-not $closed) { throw "Native file dialog did not close after accepting the file name" }'
     ].join('\n')
     execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
       stdio: ['ignore', 'ignore', 'pipe'],
@@ -978,7 +911,9 @@ export async function cancelNativeFileDialogs(platform: Platform, paths: RunPath
     '$root = [System.Windows.Automation.AutomationElement]::RootElement',
     `$processCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ProcessIdProperty, ${record.electronPid})`,
     '$dialogCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "#32770")',
-    '$fileCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1001"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Edit"))',
+    '$fileCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1148"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Edit"))',
+    '$folderCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1152"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Edit"))',
+    '$fileCondition = [System.Windows.Automation.OrCondition]::new($fileCondition, $folderCondition)',
     '$cancelCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "2"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Button"))',
     '$windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
     '$dialogs = @($windows | Where-Object { $_.Current.ClassName -eq "#32770" })',
@@ -1054,7 +989,7 @@ export async function saveNativeFileKeepingName(
     func wait(_ label: String, _ condition: () -> Bool) {
       let deadline = Date().addingTimeInterval(10)
       while !condition() {
-        if Date() > deadline { fail("Native save timed out at " + label) }
+        if Date() > deadline { fail("Native save timed out at " + label + "; foreground=" + String(NSWorkspace.shared.frontmostApplication?.processIdentifier ?? 0)) }
         Thread.sleep(forTimeInterval: 0.1)
       }
     }
@@ -1085,7 +1020,12 @@ export async function saveNativeFileKeepingName(
     let owner = panel!
     NSRunningApplication(processIdentifier: pid)?.activate(options: [])
     AXUIElementPerformAction(owner, kAXRaiseAction as CFString)
-    wait("foreground ownership") { NSWorkspace.shared.frontmostApplication?.processIdentifier == pid }
+    wait("foreground ownership") {
+      if NSWorkspace.shared.frontmostApplication?.processIdentifier == pid { return true }
+      AXUIElementSetAttributeValue(application, "AXFrontmost" as CFString, kCFBooleanTrue)
+      AXUIElementPerformAction(owner, kAXRaiseAction as CFString)
+      return false
+    }
     var names: [AXUIElement] = []
     wait("filename field") {
       names = elements(owner, skipping: ["AXScrollArea", "AXBrowser", "AXSheet"]).filter { attribute($0, "AXRole") as? String == "AXTextField" &&
@@ -1117,6 +1057,16 @@ export async function saveNativeFileKeepingName(
     guard AXUIElementPerformAction(save, kAXPressAction as CFString) == .success else { fail("Native save button failed") }
     print(suggested)
   `
+  await runAsync(
+    'osascript',
+    [
+      '-e',
+      'on run argv\ntell application "System Events" to tell (first application process whose unix id is (item 1 of argv as integer)) to set frontmost to true\nend run',
+      '--',
+      String(electronPid)
+    ],
+    10_000
+  )
   const { stdout } = await promisify(execFile)(
     'swift',
     ['-module-cache-path', join(paths.private, 'swift-module-cache'), '-e', script],
@@ -1167,7 +1117,7 @@ async function saveNativeFileWindows(
     `Add-Type -TypeDefinition 'using System; using System.Text; using System.Runtime.InteropServices; public static class NativeSaveDialog { [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window); [DllImport("user32.dll", EntryPoint = "SendMessageW", CharSet = CharSet.Unicode)] public static extern IntPtr SetText(IntPtr window, uint message, IntPtr wParam, string text); [DllImport("user32.dll", EntryPoint = "SendMessageW", CharSet = CharSet.Unicode)] public static extern IntPtr ReadText(IntPtr window, uint message, IntPtr wParam, StringBuilder text); [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam); }'`,
     '$root = [System.Windows.Automation.AutomationElement]::RootElement',
     `$processCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ProcessIdProperty, ${electronPid})`,
-    '$fileCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1001"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Edit"))',
+    '$fileCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1148"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Edit"))',
     '$fileCondition = [System.Windows.Automation.AndCondition]::new($fileCondition, [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::IsOffscreenProperty, $false))',
     '$dialogCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "#32770")',
     '$deadline = [DateTime]::UtcNow.AddSeconds(60)',

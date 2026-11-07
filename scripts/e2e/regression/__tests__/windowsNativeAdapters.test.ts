@@ -111,10 +111,13 @@ it.skipIf(process.platform !== 'win32').each(['file', 'multiple', 'directory', '
         fs.writeFileSync(${JSON.stringify(readyPath)}, 'ready')
         const result = ${
           mode === 'save'
-            ? `await dialog.showSaveDialog(window, { defaultPath: 'suggested.txt', filters: [{name: 'Text', extensions: ['txt']}] })`
+            ? `await dialog.showSaveDialog(window, { defaultPath: ${JSON.stringify(join(paths.private, 'suggested.txt'))}, filters: [{name: 'Text', extensions: ['txt']}] })`
             : `await dialog.showOpenDialog(window, { properties: ${JSON.stringify(mode === 'directory' ? ['openDirectory'] : mode === 'multiple' ? ['openFile', 'multiSelections'] : ['openFile'])} })`
         }
-        if (result.filePath && !result.canceled) fs.writeFileSync(result.filePath, 'Verified native save')
+        if (result.filePath && !result.canceled) {
+          if (fs.realpathSync(require('node:path').dirname(result.filePath)) !== fs.realpathSync(${JSON.stringify(paths.private)})) throw new Error('Native fixture save escaped its private directory')
+          fs.writeFileSync(result.filePath, 'Verified native save', { flag: 'wx' })
+        }
         fs.writeFileSync(${JSON.stringify(resultPath)}, JSON.stringify(result))
       }).catch(error => { fs.writeFileSync(${JSON.stringify(resultPath)}, JSON.stringify({error: String(error)})); app.exit(1) })
     `
