@@ -4553,6 +4553,8 @@
   "settings.dependencies.localModels.download": "Tải xuống",
   "settings.dependencies.localModels.embedding.name": "Nhúng cục bộ",
   "settings.dependencies.localModels.embedding.subtitle": "Qwen3 Embedding 0.6B · ~614 MB",
+  "settings.dependencies.localModels.harrier.name": "Harrier 270M",
+  "settings.dependencies.localModels.harrier.subtitle": "Harrier 270M · ~370 MB",
   "settings.dependencies.localModels.notice.downloadFailed": "Tải xuống thất bại. Kiểm tra kết nối của bạn và thử lại.",
   "settings.dependencies.localModels.notice.inUse": "Vẫn được sử dụng bởi một cơ sở tri thức; các trọng số đã được giữ lại.",
   "settings.dependencies.localModels.notice.incompleteCache": "Các tệp mô hình không đầy đủ. Thử tải xuống lại để sửa chữa chúng.",

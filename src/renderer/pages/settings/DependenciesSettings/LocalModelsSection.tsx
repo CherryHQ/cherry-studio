@@ -51,6 +51,11 @@ const MODEL_CARDS = {
     nameKey: 'settings.dependencies.localModels.embedding.name',
     sources: ['onnx-community/Qwen3-Embedding-0.6B-ONNX']
   },
+  'harrier-oss-v1-270m': {
+    icon: <Boxes className="size-5" />,
+    nameKey: 'settings.dependencies.localModels.harrier.name',
+    sources: ['onnx-community/harrier-oss-v1-270m-ONNX']
+  },
   'pp-ocrv6-medium': {
     icon: <ScanText className="size-5" />,
     nameKey: 'settings.dependencies.localModels.ocr.name',

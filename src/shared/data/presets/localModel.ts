@@ -51,6 +51,7 @@ export type LocalModelCapability = (typeof LOCAL_MODEL_CAPABILITIES)[number]
  */
 export const LOCAL_MODEL_BUNDLE_IDS = [
   'qwen3-embedding-0.6b',
+  'harrier-oss-v1-270m',
   'pp-ocrv6-medium',
   'funasr-nano-int8',
   'qwen3-asr-1.7b-8bit',

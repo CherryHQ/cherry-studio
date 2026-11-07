@@ -6,7 +6,7 @@ import { loggerService } from '@logger'
 import type { JobContext, JobHandler } from '@main/core/job/types'
 import { t } from '@main/i18n'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
-import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
+import { isLocalEmbeddingModel } from '@shared/data/presets/localEmbedding'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { getKnowledgeItemDisplayTitle, isCompletedVectorKnowledgeBase } from '@shared/data/types/knowledge'
 import type { KeyedMutex } from '@shared/utils/async'
@@ -308,7 +308,7 @@ async function chunkItemDocuments(
   signal: AbortSignal
 ): Promise<ChunkedKnowledgeContent> {
   const chunked = chunkKnowledgeDocuments(base, documents)
-  if (base.embeddingModelId !== LOCAL_EMBEDDING_UNIQUE_MODEL_ID || chunked.chunks.length === 0) {
+  if (!isLocalEmbeddingModel(base.embeddingModelId ?? '') || chunked.chunks.length === 0) {
     return chunked
   }
 
