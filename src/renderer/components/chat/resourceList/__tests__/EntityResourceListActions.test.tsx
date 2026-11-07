@@ -76,7 +76,8 @@ const preferenceMocks = vi.hoisted(() => ({
 }))
 
 const resourceEntityRailMocks = vi.hoisted(() => ({
-  collapsedGroupId: 'resource-entity-rail:section:["group","group-work"]'
+  collapsedGroupId: 'resource-entity-rail:section:["group","group-work"]',
+  getContextMenuActions: undefined as ((item: ResourceEntityRailItem) => readonly ResolvedAction[]) | undefined
 }))
 
 const tabsContextMocks = vi.hoisted(() => ({
@@ -212,6 +213,8 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
   }) => {
     const flattenActions = (actions: readonly ResolvedAction[]): readonly ResolvedAction[] =>
       actions.flatMap((action) => [action, ...flattenActions(action.children)])
+
+    resourceEntityRailMocks.getContextMenuActions = getContextMenuActions
 
     return (
       <div
@@ -559,6 +562,7 @@ describe('classic layout entity resource list actions', () => {
     vi.mocked(toast.error).mockClear()
     vi.mocked(toast.info).mockClear()
     vi.mocked(toast.success).mockClear()
+    resourceEntityRailMocks.getContextMenuActions = undefined
     recycleBinFeedbackMocks.showRecycleBinBatchUndo.mockClear()
     recycleBinFeedbackMocks.showRecycleBinUndo.mockClear()
     conversationOwnerPopupMocks.show.mockClear()
@@ -575,7 +579,7 @@ describe('classic layout entity resource list actions', () => {
     )
   })
 
-  it('uses archive-assistant actions for the classic layout assistant context and more menus', async () => {
+  it('offers archive and delete actions in the classic layout assistant context and more menus', async () => {
     const onCreateTopic = vi.fn()
     const onActiveAssistantDeleted = vi.fn()
 
@@ -590,9 +594,9 @@ describe('classic layout entity resource list actions', () => {
     )
 
     expect(screen.getByTestId('assistant-1-context-menu')).toHaveTextContent('common.archive')
-    expect(screen.getByTestId('assistant-1-context-menu')).not.toHaveTextContent('common.delete_permanently')
+    expect(screen.getByTestId('assistant-1-context-menu')).toHaveTextContent('common.delete')
     expect(screen.getByTestId('assistant-1-more-menu')).toHaveTextContent('common.archive')
-    expect(screen.getByTestId('assistant-1-more-menu')).not.toHaveTextContent('common.delete_permanently')
+    expect(screen.getByTestId('assistant-1-more-menu')).toHaveTextContent('common.delete')
     expect(screen.getByTestId('assistant-1-context-menu')).toHaveTextContent('assistants.clear.menu_title')
     expect(screen.getByTestId('assistant-1-more-menu')).toHaveTextContent('assistants.clear.menu_title')
 
@@ -616,6 +620,52 @@ describe('classic layout entity resource list actions', () => {
     expect(assistantDataMocks.restoreAssistant).toHaveBeenCalledWith('assistant-1')
     expect(assistantDataMocks.refetchAssistants).toHaveBeenCalled()
     expect(assistantDataMocks.refreshTopics).toHaveBeenCalled()
+  })
+
+  it('configures a permanent-delete warning and removes the assistant and its topics', async () => {
+    const onActiveAssistantDeleted = vi.fn()
+    assistantDataMocks.deleteAssistant.mockResolvedValueOnce({
+      deleted: true,
+      deletedTopicIds: ['topic-1']
+    })
+
+    render(
+      <TestAssistantResourceList
+        activeAssistantId="assistant-1"
+        activeTopicId="topic-1"
+        onSelectTopic={vi.fn()}
+        onCreateTopic={vi.fn()}
+        onActiveAssistantDeleted={onActiveAssistantDeleted}
+      />
+    )
+
+    const deleteAction = resourceEntityRailMocks
+      .getContextMenuActions?.({ id: 'assistant-1', name: 'Assistant 1' })
+      .find((action) => action.id === 'assistant-entity.delete')
+    expect(deleteAction).toMatchObject({
+      label: 'common.delete',
+      confirm: {
+        title: 'assistants.delete.title',
+        description: 'assistants.delete.content',
+        confirmText: 'common.delete',
+        cancelText: 'common.cancel',
+        destructive: true
+      }
+    })
+
+    fireEvent.click(
+      within(screen.getByTestId('assistant-1-context-menu')).getByRole('button', { name: 'common.delete' })
+    )
+
+    await waitFor(() =>
+      expect(assistantDataMocks.deleteAssistant).toHaveBeenCalledWith('assistant-1', {
+        deleteTopics: true,
+        permanent: true
+      })
+    )
+    expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('assistants', ['topic-1'])
+    expect(onActiveAssistantDeleted).toHaveBeenCalledWith('assistant-1')
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
   })
 
   it('cascades an Assistant delete only to returned Topics and reconciles the returned active Topic', async () => {

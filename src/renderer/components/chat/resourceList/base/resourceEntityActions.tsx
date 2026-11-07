@@ -27,6 +27,7 @@ type ResolvedResourceEntityMenuActionParams<TContext = unknown> = {
   availability?: ActionAvailability
   children?: ResolvedAction<TContext>[]
   commandId?: string
+  confirm?: ResolvedAction<TContext>['confirm']
   danger?: boolean
   group?: string
   icon?: ResolvedAction<TContext>['icon']
