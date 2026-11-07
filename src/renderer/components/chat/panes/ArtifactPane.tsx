@@ -7,6 +7,7 @@ import {
   Folder,
   List,
   MessageSquareText,
+  RefreshCw,
   Sparkles,
   SquareDashedMousePointer,
   SquarePen
@@ -18,6 +19,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useEffectEvent,
   useMemo,
   useRef,
   useState
@@ -462,6 +464,25 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     if (pickerActive) return
     setSelectionReference(null)
   }, [pickerActive])
+
+  // The editor reconciles disk changes itself (a dirty draft raises the conflict dialog); the preview re-reads.
+  const refreshFileContent = useCallback(() => {
+    if (editMode === 'edit' && fileSession) {
+      fileSession.notifyExternalChange()
+      return
+    }
+    setKnownFileSizeBytes(undefined)
+    setContentRefreshToken((value) => value + 1)
+  }, [editMode, fileSession])
+
+  const refreshChangedFile = useEffectEvent((path: string) => {
+    if (overlaySelection && path === getArtifactPaneSelectionPath(overlaySelection)) refreshFileContent()
+  })
+  useEffect(() => {
+    if (model.selectedFileChange) refreshChangedFile(model.selectedFileChange.path)
+    // `refreshChangedFile` is an Effect Event; only a new disk change should run this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [model.selectedFileChange])
 
   // Successful writes return an exact byte size through the edit session.
   // Invalidate the separate metadata gate whenever that size changes so a
@@ -951,6 +972,17 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
             </Button>
           </Tooltip>
         ) : null}
+        <Tooltip content={t('common.refresh')} delay={800}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className={TOOLBAR_BUTTON_CLASS}
+            aria-label={t('common.refresh')}
+            onClick={refreshFileContent}>
+            <RefreshCw size={16} />
+          </Button>
+        </Tooltip>
         <OpenTargetButton targetPath={getArtifactPaneSelectionPath(overlaySelection)} pathKind="file" />
       </>
     )
