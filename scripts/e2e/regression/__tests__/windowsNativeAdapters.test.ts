@@ -1,5 +1,15 @@
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process'
-import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  closeSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  openSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync
+} from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -147,17 +157,20 @@ it.skipIf(process.platform !== 'win32').each(['file', 'multiple', 'directory', '
         })
       )
       if (mode === 'multiple') chooseWindowsNativeFiles(paths, inputs)
-      else if (mode === 'save') expect(await saveNativeFile('windows', paths, saved)).toBe(saved)
+      else if (mode === 'save')
+        expect(realpathSync(await saveNativeFile('windows', paths, saved))).toBe(realpathSync(saved))
       else chooseNativeFile('windows', paths, mode === 'directory' ? folder : inputs[0])
       await expect.poll(() => existsSync(resultPath), { timeout: 10_000 }).toBe(true)
       const result = JSON.parse(readFileSync(resultPath, 'utf8'))
       expect(result.canceled).toBe(false)
       if (mode === 'save') {
-        expect(result.filePath).toBe(saved)
+        expect(realpathSync(result.filePath)).toBe(realpathSync(saved))
         expect(readFileSync(saved, 'utf8')).toBe('Verified native save')
       } else {
-        expect(result.filePaths.sort()).toEqual(
-          (mode === 'multiple' ? inputs : [mode === 'directory' ? folder : inputs[0]]).sort()
+        expect(result.filePaths.map((file: string) => realpathSync(file)).sort()).toEqual(
+          (mode === 'multiple' ? inputs : [mode === 'directory' ? folder : inputs[0]])
+            .map((file) => realpathSync(file))
+            .sort()
         )
       }
     } catch (error) {
