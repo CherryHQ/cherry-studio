@@ -610,7 +610,7 @@ describe('ComposerSurface', () => {
     expect(manager.captureCurrent()).toMatchObject({ targetId: 'composer', sourceEntityId: 'composer-topic' })
   })
 
-  it('replays a deferred paste on the editor view only, not through the document paste handler', async () => {
+  it('delivers a deferred paste once after a render interrupts its pending replay', async () => {
     mocks.stabilizeEditor = true
     const viewDom = mocks.editorViewDom!
     document.body.appendChild(viewDom)
@@ -623,26 +623,36 @@ describe('ComposerSurface', () => {
     }
     const originalClipboardEvent = globalThis.ClipboardEvent
     vi.stubGlobal('ClipboardEvent', FakeClipboardEvent)
-    const onView = vi.fn()
-    const onDocument = vi.fn()
+    const pasted = 'Deferred clipboard text'
+    const documentPastes: string[] = []
+    const onView = (event: Event) => {
+      viewDom.textContent += (event as ClipboardEvent).clipboardData!.getData('text/plain')
+    }
+    const onDocument = (event: Event) => {
+      documentPastes.push((event as ClipboardEvent).clipboardData!.getData('text/plain'))
+    }
     viewDom.addEventListener('paste', onView)
     document.addEventListener('paste', onDocument)
-
-    render(
-      <ComposerSurface
-        {...baseProps}
-        deferredIntent={{ transfer: { kind: 'paste', data: { files: [] } as unknown as DataTransfer } }}
-      />
-    )
-
-    // The editor's own listener sits on the view element; the document-level handler in
-    // pasteHandling would hand the same payload to this composer a second time.
-    await waitFor(() => expect(onView).toHaveBeenCalledTimes(1))
-    expect(onDocument).not.toHaveBeenCalled()
-
-    document.removeEventListener('paste', onDocument)
-    viewDom.remove()
-    vi.stubGlobal('ClipboardEvent', originalClipboardEvent)
+    vi.useFakeTimers()
+    const deferredIntent = {
+      transfer: { kind: 'paste' as const, data: { files: [], getData: () => pasted } as unknown as DataTransfer }
+    }
+    const view = render(<ComposerSurface {...baseProps} deferredIntent={deferredIntent} getToolLaunchers={() => []} />)
+    try {
+      view.rerender(<ComposerSurface {...baseProps} deferredIntent={deferredIntent} getToolLaunchers={() => []} />)
+      await act(() => vi.advanceTimersByTimeAsync(0))
+      expect(viewDom).toHaveTextContent(pasted)
+      view.rerender(<ComposerSurface {...baseProps} deferredIntent={deferredIntent} getToolLaunchers={() => []} />)
+      await act(() => vi.advanceTimersByTimeAsync(0))
+      expect(viewDom.textContent).toBe(pasted)
+      expect(documentPastes).toEqual([])
+    } finally {
+      view.unmount()
+      vi.useRealTimers()
+      document.removeEventListener('paste', onDocument)
+      viewDom.remove()
+      vi.stubGlobal('ClipboardEvent', originalClipboardEvent)
+    }
   })
 
   it('restores the caret the fallback left behind instead of collapsing to the end', () => {
