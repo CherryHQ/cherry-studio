@@ -1,4 +1,4 @@
-import { Boxes, Download, RefreshCw, ScanText, Mic, Volume2, Trash2, X } from 'lucide-react'
+import { Boxes, Download, FolderOpen, RefreshCw, ScanText, Mic, Volume2, Trash2, X } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,6 +17,7 @@ const logger = loggerService.withContext('LocalModelsSection')
 const CARD_NOTICE_KEYS = {
   downloadFailed: 'settings.dependencies.localModels.notice.downloadFailed',
   incompleteCache: 'settings.dependencies.localModels.notice.incompleteCache',
+  importFailed: 'settings.dependencies.localModels.notice.importFailed',
   removeFailed: 'settings.dependencies.localModels.notice.removeFailed',
   inUse: 'settings.dependencies.localModels.notice.inUse'
 } as const
@@ -92,6 +93,17 @@ function useLocalModelCard(id: LocalModelBundleId) {
     }
   }
 
+  const importRuntime = async () => {
+    setNotice(null)
+    const sourcePath = await window.api.file.selectFolder()
+    if (!sourcePath) return
+    try {
+      await localModel.importRuntime(sourcePath)
+    } catch {
+      if (mountedRef.current) setNotice('importFailed')
+    }
+  }
+
   return {
     ...localModel,
     notice:
@@ -102,7 +114,8 @@ function useLocalModelCard(id: LocalModelBundleId) {
           : 'downloadFailed'
         : null),
     download,
-    remove
+    remove,
+    importRuntime
   }
 }
 
@@ -115,7 +128,7 @@ interface ModelCardProps {
 
 const ModelCard: FC<ModelCardProps> = ({ id, capability, onStatusChange }) => {
   const { t } = useTranslation()
-  const { status, percent, notice, download, cancel, remove } = useLocalModelCard(id)
+  const { status, percent, notice, download, cancel, remove, importRuntime } = useLocalModelCard(id)
   const { icon, nameKey, sources } = MODEL_CARDS[id]
 
   useEffect(() => {
@@ -213,10 +226,24 @@ const ModelCard: FC<ModelCardProps> = ({ id, capability, onStatusChange }) => {
                 {t('settings.dependencies.localModels.cancel')}
               </Button>
             ) : (
-              <Button variant="outline" size="sm" className="h-7 w-full gap-1 text-xs" onClick={() => void download()}>
-                {retrying ? <RefreshCw className="size-3.5" /> : <Download className="size-3.5" />}
-                {t(retrying ? 'common.retry' : 'settings.dependencies.localModels.download')}
-              </Button>
+              <div className="flex flex-col gap-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 w-full gap-1 text-xs"
+                  onClick={() => void download()}>
+                  {retrying ? <RefreshCw className="size-3.5" /> : <Download className="size-3.5" />}
+                  {t(retrying ? 'common.retry' : 'settings.dependencies.localModels.download')}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-full gap-1 text-xs"
+                  onClick={() => void importRuntime()}>
+                  <FolderOpen className="size-3.5" />
+                  {t('settings.dependencies.localModels.importRuntime')}
+                </Button>
+              </div>
             )}
           </div>
         </div>

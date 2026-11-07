@@ -21,6 +21,11 @@ export function useLocalModel(id: LocalModelBundleId) {
 
   const remove = useCallback(() => ipcApi.request('local_model.remove', { id }), [id])
 
+  const importRuntime = useCallback(
+    (sourcePath: string) => ipcApi.request('local_model.import_runtime', { id, sourcePath }),
+    [id]
+  )
+
   return {
     status: snapshot?.status ?? 'not_downloaded',
     errorCode: snapshot?.errorCode ?? null,
@@ -28,6 +33,7 @@ export function useLocalModel(id: LocalModelBundleId) {
     percent: snapshot?.percent ?? 0,
     download,
     cancel,
-    remove
+    remove,
+    importRuntime
   }
 }

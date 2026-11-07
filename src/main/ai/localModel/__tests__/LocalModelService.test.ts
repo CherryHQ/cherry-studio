@@ -12,12 +12,15 @@ const EMBEDDING = 'qwen3-embedding-0.6b'
 const OCR = 'pp-ocrv6-medium'
 const ASR = 'funasr-nano-int8'
 
-const { scanBundleFiles, isArtifactReady, removeArtifactIfUnused, sweepStaleDownloads } = vi.hoisted(() => ({
-  scanBundleFiles: vi.fn(),
-  isArtifactReady: vi.fn(),
-  removeArtifactIfUnused: vi.fn(),
-  sweepStaleDownloads: vi.fn()
-}))
+const { scanBundleFiles, isArtifactReady, removeArtifactIfUnused, sweepStaleDownloads, importArtifact } = vi.hoisted(
+  () => ({
+    scanBundleFiles: vi.fn(),
+    isArtifactReady: vi.fn(),
+    removeArtifactIfUnused: vi.fn(),
+    sweepStaleDownloads: vi.fn(),
+    importArtifact: vi.fn(async () => {})
+  })
+)
 
 const { terminateAsrRuntime, terminateOcrRuntime } = vi.hoisted(() => ({
   terminateAsrRuntime: vi.fn(async (after: () => Promise<unknown>) => after()),
@@ -50,6 +53,7 @@ vi.mock('../installation/LocalModelStorageService', () => ({
     isBundleSupported: () => true,
     removeArtifactIfUnused,
     sweepStaleDownloads,
+    importArtifact,
     bundleInstallDir: () => '/install',
     bundleRootDir: () => '/install',
     pendingBundleFiles: () => [],
@@ -188,6 +192,31 @@ describe('shared artifact cleanup', () => {
     removeArtifactIfUnused.mockRejectedValueOnce(new Error('EBUSY'))
 
     await expect(localModelService.remove(OCR)).resolves.toEqual({ removed: true })
+  })
+})
+
+describe('importing runtime', () => {
+  it('imports the shared runtime a bundle requires when it is not ready', async () => {
+    isArtifactReady.mockReturnValue(false)
+
+    await localModelService.importRuntime(OCR, '/offline')
+
+    expect(importArtifact).toHaveBeenCalledWith('onnxruntime-node', '/offline')
+  })
+
+  it('skips a runtime that is already ready', async () => {
+    isArtifactReady.mockReturnValue(true)
+
+    await localModelService.importRuntime(OCR, '/offline')
+
+    expect(importArtifact).not.toHaveBeenCalled()
+  })
+
+  it('surfaces the import failure to the caller', async () => {
+    isArtifactReady.mockReturnValue(false)
+    importArtifact.mockRejectedValueOnce(new Error('onnxruntime-node: missing files'))
+
+    await expect(localModelService.importRuntime(OCR, '/offline')).rejects.toThrow('missing files')
   })
 })
 

@@ -75,6 +75,18 @@ export class LocalModelService extends BaseService {
     return this.installerFor(id).remove()
   }
 
+  /** Imports the shared runtimes a bundle needs from a folder, for offline machines. */
+  async importRuntime(id: LocalModelBundleId, sourceDir: string): Promise<void> {
+    try {
+      for (const artifactId of new Set(getModelBundle(id).requires)) {
+        if (localModelStorageService.isArtifactReady(artifactId)) continue
+        await localModelStorageService.importArtifact(artifactId, sourceDir)
+      }
+    } finally {
+      this.refreshStatus(id)
+    }
+  }
+
   isDefaultModelReady(capability: LocalModelCapability): boolean {
     return this.isModelReady(defaultBundleForCapability(capability).id)
   }

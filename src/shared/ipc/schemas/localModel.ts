@@ -50,5 +50,11 @@ export const localModelRequestSchemas = {
   'local_model.cancel': defineRoute({ input: bundleInput, output: z.void() }),
   // `removed: false` means the model was kept because something still depends on it
   // (an embedding model still wired to a knowledge base); the weights are not deleted.
-  'local_model.remove': defineRoute({ input: bundleInput, output: z.object({ removed: z.boolean() }) })
+  'local_model.remove': defineRoute({ input: bundleInput, output: z.object({ removed: z.boolean() }) }),
+  // Offline path: copies the bundle's shared runtimes from a user-chosen folder (e.g. a copied
+  // `Toolchain/onnxruntime`) when the download sources are unreachable.
+  'local_model.import_runtime': defineRoute({
+    input: bundleInput.extend({ sourcePath: z.string().min(1) }),
+    output: z.void()
+  })
 }
