@@ -241,11 +241,23 @@ index 48ea06eecf6397b44f4176acea05664541cc4e1f..db73fa5fff904f31419a3173d2f165f4
                  modelId: value.response.model
                });
              } else if (isTextDeltaChunk(value)) {
-@@ -7411,6 +7444,17 @@ var OpenAIResponsesLanguageModel = class {
+@@ -7411,6 +7444,29 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
                });
 +            } else if (value.type === "response.reasoning_text.delta") {
++              if (activeReasoning[value.item_id] == null) {
++                activeReasoning[value.item_id] = { summaryParts: { 0: "active" } };
++                controller.enqueue({
++                  type: "reasoning-start",
++                  id: `${value.item_id}:0`,
++                  providerMetadata: {
++                    [providerOptionsName]: {
++                      itemId: value.item_id
++                    }
++                  }
++                });
++              }
 +              controller.enqueue({
 +                type: "reasoning-delta",
 +                id: `${value.item_id}:0`,
@@ -502,11 +514,23 @@ index 26483821603be3057bd67afc71143f97e8c33ac9..a12f01682502b4131d2c713e016b37a6
                  modelId: value.response.model
                });
              } else if (isTextDeltaChunk(value)) {
-@@ -7517,6 +7550,17 @@ var OpenAIResponsesLanguageModel = class {
+@@ -7517,6 +7550,29 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
                });
 +            } else if (value.type === "response.reasoning_text.delta") {
++              if (activeReasoning[value.item_id] == null) {
++                activeReasoning[value.item_id] = { summaryParts: { 0: "active" } };
++                controller.enqueue({
++                  type: "reasoning-start",
++                  id: `${value.item_id}:0`,
++                  providerMetadata: {
++                    [providerOptionsName]: {
++                      itemId: value.item_id
++                    }
++                  }
++                });
++              }
 +              controller.enqueue({
 +                type: "reasoning-delta",
 +                id: `${value.item_id}:0`,
@@ -763,11 +787,23 @@ index e5b1f96b49d488c7ef553b9dda77e3fbc3945681..874a4baabcf3a6eefae4707ce9df3716
                  modelId: value.response.model
                });
              } else if (isTextDeltaChunk(value)) {
-@@ -7679,6 +7712,17 @@ var OpenAIResponsesLanguageModel = class {
+@@ -7679,6 +7712,29 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
                });
 +            } else if (value.type === "response.reasoning_text.delta") {
++              if (activeReasoning[value.item_id] == null) {
++                activeReasoning[value.item_id] = { summaryParts: { 0: "active" } };
++                controller.enqueue({
++                  type: "reasoning-start",
++                  id: `${value.item_id}:0`,
++                  providerMetadata: {
++                    [providerOptionsName]: {
++                      itemId: value.item_id
++                    }
++                  }
++                });
++              }
 +              controller.enqueue({
 +                type: "reasoning-delta",
 +                id: `${value.item_id}:0`,
@@ -1024,11 +1060,23 @@ index 714e23772d3d042b4bd88e69c0dc37d6e11187c5..741ae6851845be782fa31f8d99151e9a
                  modelId: value.response.model
                });
              } else if (isTextDeltaChunk(value)) {
-@@ -7760,6 +7793,17 @@ var OpenAIResponsesLanguageModel = class {
+@@ -7760,6 +7793,29 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
                });
 +            } else if (value.type === "response.reasoning_text.delta") {
++              if (activeReasoning[value.item_id] == null) {
++                activeReasoning[value.item_id] = { summaryParts: { 0: "active" } };
++                controller.enqueue({
++                  type: "reasoning-start",
++                  id: `${value.item_id}:0`,
++                  providerMetadata: {
++                    [providerOptionsName]: {
++                      itemId: value.item_id
++                    }
++                  }
++                });
++              }
 +              controller.enqueue({
 +                type: "reasoning-delta",
 +                id: `${value.item_id}:0`,
@@ -1330,11 +1378,23 @@ index 485880b51bbb55f9bf2b563afe24330f5a309c37..a19917c4e42353bcb58de514aeac8462
                  modelId: value.response.model,
                });
              } else if (isTextDeltaChunk(value)) {
-@@ -2243,6 +2246,17 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
+@@ -2243,6 +2246,29 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
                    } satisfies ResponsesReasoningProviderMetadata,
                  },
                });
 +            } else if (value.type === 'response.reasoning_text.delta') {
++              if (activeReasoning[value.item_id] == null) {
++                activeReasoning[value.item_id] = { summaryParts: { 0: 'active' } };
++                controller.enqueue({
++                  type: 'reasoning-start',
++                  id: `${value.item_id}:0`,
++                  providerMetadata: {
++                    [providerOptionsName]: {
++                      itemId: value.item_id,
++                    },
++                  },
++                });
++              }
 +              controller.enqueue({
 +                type: 'reasoning-delta',
 +                id: `${value.item_id}:0`,
