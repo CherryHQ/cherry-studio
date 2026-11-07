@@ -213,43 +213,52 @@ it.skipIf(!['darwin', 'win32'].includes(process.platform)).each(dialogModes)(
       let controls = 'Fixture exited before native controls could be inspected'
       if (child?.pid && child.exitCode === null && isAlive(child.pid)) {
         try {
+          if (nativePlatform === 'macos' && process.env.RUN_DIR) {
+            const evidence = getRunPaths(process.env.RUN_DIR).evidence
+            mkdirSync(evidence, { recursive: true })
+            const bounds = execFileSync(
+              'osascript',
+              [
+                '-e',
+                `tell application "System Events"
+                  tell (first application process whose unix id is ${child.pid})
+                    if not frontmost then error "Owned dialog is not frontmost"
+                    return (position of window 1) & (size of window 1)
+                  end tell
+                end tell`
+              ],
+              { encoding: 'utf8', timeout: 5000 }
+            )
+              .trim()
+              .split(/,\s*/)
+              .map(Number)
+            if (
+              bounds.length !== 4 ||
+              bounds.some((value) => !Number.isFinite(value)) ||
+              bounds[2] <= 0 ||
+              bounds[3] <= 0
+            )
+              throw new Error('Owned native dialog bounds are invalid')
+            execFileSync(
+              '/usr/sbin/screencapture',
+              ['-x', '-R' + bounds.join(','), join(evidence, `native-dialog-${mode}.png`)],
+              {
+                timeout: 5000
+              }
+            )
+          }
           controls =
             nativePlatform === 'macos'
               ? execFileSync(
                   'osascript',
                   [
-                    '-l',
-                    'JavaScript',
                     '-e',
                     `
-              const process = Application('System Events').applicationProcesses.whose({ unixId: ${child.pid} })[0];
-              if (process.unixId() !== ${child.pid}) throw new Error('Native diagnostic PID mismatch');
-              const read = fn => { try { return fn(); } catch { return null; } };
-              const describe = element => ({
-                role: read(() => element.role()), name: read(() => element.name()),
-                value: read(() => element.value()), focused: read(() => element.focused()),
-                selected: read(() => element.selected()), enabled: read(() => element.enabled())
-              });
-              const focused = [];
-              let element = read(() => process.attributes.byName('AXFocusedUIElement').value());
-              for (let depth = 0; element && depth < 5; depth++) {
-                focused.push(describe(element));
-                element = read(() => element.attributes.byName('AXParent').value());
-              }
-              const queue = process.windows().slice(0, 4).map(element => ({ element, depth: 0 }));
-              const controls = [];
-              const deadline = Date.now() + 5000;
-              while (queue.length && controls.length < 100 && Date.now() < deadline) {
-                const { element, depth } = queue.shift();
-                const info = describe(element);
-                controls.push({ depth, ...info });
-                if (depth < 7 && info.role !== 'AXWebArea') {
-                  for (const child of (read(() => element.uiElements()) || []).slice(0, 16)) {
-                    queue.push({ element: child, depth: depth + 1 });
-                  }
-                }
-              }
-              JSON.stringify({ focused, controls });
+              tell application "System Events"
+                tell (first application process whose unix id is ${child.pid})
+                  return {unix id, name of every window, name of every button of splitter group 1 of window 1, value of every text field of splitter group 1 of window 1}
+                end tell
+              end tell
             `
                   ],
                   { encoding: 'utf8', timeout: 10_000 }

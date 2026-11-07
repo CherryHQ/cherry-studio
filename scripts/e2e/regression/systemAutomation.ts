@@ -767,8 +767,10 @@ function chooseNativeSelection(
       'if exists text field 1 of sheet 1 of window 1 then key code 36',
       'end repeat',
       'if exists sheet 1 of window 1 then error "Go to Folder did not finish"',
-      ...(selectAll ? ['keystroke "a" using command down'] : []),
       'repeat 100 times',
+      ...(selectAll
+        ? ['if not frontmost then error "Owned native file dialog lost focus"', 'keystroke "a" using command down']
+        : []),
       'if enabled of button "Open" of splitter group 1 of window 1 then exit repeat',
       'delay 0.1',
       'end repeat',
@@ -843,6 +845,12 @@ function chooseNativeSelection(
                 stage: 'accept-disabled',
                 cap: 5,
                 action: selectAll ? ['keystroke "a" using command down'] : [],
+                poll: selectAll
+                  ? [
+                      'if not frontmost then error "Owned native file dialog lost focus"',
+                      'keystroke "a" using command down'
+                    ]
+                  : [],
                 condition: 'enabled of last button of splitter group 1 of window 1',
                 detail: 'last direct button is not enabled'
               },
