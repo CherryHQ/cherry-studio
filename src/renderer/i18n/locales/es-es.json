@@ -4263,6 +4263,8 @@
   "settings.data.trash.file_refs.blocked_other_one": "Archivos con referencias: {{count}}; registros relacionados: {{records}}. Estos archivos se conservarán. Elimina las referencias antes de borrarlos permanentemente.",
   "settings.data.trash.file_refs.blocked_other_other": "Archivos con referencias: {{count}}; registros relacionados: {{records}}. Estos archivos se conservarán. Elimina las referencias antes de borrarlos permanentemente.",
   "settings.data.trash.file_refs.error": "No se pudieron comprobar las referencias de los archivos.",
+  "settings.data.trash.file_refs.force_delete": "Eliminar permanentemente y desvincular referencias",
+  "settings.data.trash.file_refs.force_delete_warning": "Esto elimina permanentemente el archivo y quita sus vínculos de archivo de los registros enumerados. Los mensajes y registros permanecen, pero el archivo dejará de estar adjunto. Esta acción no se puede deshacer.",
   "settings.data.trash.file_refs.holder_image_input": "Registro de trabajo de generación de imágenes {{id}} (imagen de entrada)",
   "settings.data.trash.file_refs.holder_image_mask": "Registro de trabajo de generación de imágenes {{id}} (imagen de máscara)",
   "settings.data.trash.file_refs.holder_job": "Registro de trabajo {{id}} (tipo: {{type}}, función: {{role}})",

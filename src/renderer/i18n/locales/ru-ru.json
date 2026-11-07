@@ -4263,6 +4263,8 @@
   "settings.data.trash.file_refs.blocked_other_one": "Файлов со ссылками: {{count}}; связанных записей: {{records}}. Эти файлы будут сохранены. Удалите ссылки перед окончательным удалением.",
   "settings.data.trash.file_refs.blocked_other_other": "Файлов со ссылками: {{count}}; связанных записей: {{records}}. Эти файлы будут сохранены. Удалите ссылки перед окончательным удалением.",
   "settings.data.trash.file_refs.error": "Не удалось проверить ссылки на файлы.",
+  "settings.data.trash.file_refs.force_delete": "Удалить навсегда и отсоединить ссылки",
+  "settings.data.trash.file_refs.force_delete_warning": "Файл будет удалён навсегда, а его связи с перечисленными записями — удалены. Сообщения и записи сохранятся, но файл больше не будет прикреплён. Это действие нельзя отменить.",
   "settings.data.trash.file_refs.holder_image_input": "Запись задания генерации изображений {{id}} (входное изображение)",
   "settings.data.trash.file_refs.holder_image_mask": "Запись задания генерации изображений {{id}} (изображение маски)",
   "settings.data.trash.file_refs.holder_job": "Запись задания {{id}} (тип: {{type}}, роль: {{role}})",

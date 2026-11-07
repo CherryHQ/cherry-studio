@@ -13,6 +13,7 @@ import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
 import { isAgentNotFoundError, isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
 
+import type { PermanentDeleteOptions } from './ArchiveSection'
 import type { ArchiveBatchOutcome, ArchiveItem } from './archive'
 import { runPerItem } from './archive'
 
@@ -77,11 +78,12 @@ function useArchiveActionRunner() {
 async function runSinglePermanentDelete(
   item: ArchiveItem,
   runAction: ReturnType<typeof useArchiveActionRunner>,
-  run: (items: ArchiveItem[]) => Promise<ArchiveBatchOutcome>
+  run: (items: ArchiveItem[], options?: PermanentDeleteOptions) => Promise<ArchiveBatchOutcome>,
+  options?: PermanentDeleteOptions
 ): Promise<ArchiveBatchOutcome> {
   let outcome: ArchiveBatchOutcome = { succeeded: [], failed: [] }
   await runAction('permanent_delete', async () => {
-    outcome = await run([item])
+    outcome = await run([item], options)
     const [failure] = outcome.failed
     if (failure?.reason === 'no-longer-in-recycle-bin') return NO_LONGER_IN_RECYCLE_BIN
     if (failure) throw new Error(failure.error)
@@ -377,10 +379,14 @@ export function useFileArchiveActions() {
     }
   }
 
-  const deleteItems = async (targets: ArchiveItem[]): Promise<ArchiveBatchOutcome> => {
+  const deleteItems = async (
+    targets: ArchiveItem[],
+    options?: PermanentDeleteOptions
+  ): Promise<ArchiveBatchOutcome> => {
     const result = await requestBatchedFileMutation(
       'file.batch_permanent_delete_from_trash',
-      targets.map((item) => item.id)
+      targets.map((item) => item.id),
+      options
     )
     const outcome: ArchiveBatchOutcome = { succeeded: result.succeeded, failed: result.failed }
     try {
@@ -416,7 +422,8 @@ export function useFileArchiveActions() {
     }
   }
 
-  const handleDelete = (item: ArchiveItem) => runSinglePermanentDelete(item, runAction, deleteItems)
+  const handleDelete = (item: ArchiveItem, options?: PermanentDeleteOptions) =>
+    runSinglePermanentDelete(item, runAction, deleteItems, options)
 
   return {
     pendingRestoreId,

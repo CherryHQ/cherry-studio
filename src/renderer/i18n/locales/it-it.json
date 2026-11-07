@@ -4263,6 +4263,8 @@
   "settings.data.trash.file_refs.blocked_other_one": "{{count}} file sono ancora utilizzati da {{records}} record e verranno conservati. Rimuovi il riferimento prima di eliminarli definitivamente.",
   "settings.data.trash.file_refs.blocked_other_other": "{{count}} file sono ancora utilizzati da {{records}} record e verranno conservati. Rimuovi i riferimenti prima di eliminarli definitivamente.",
   "settings.data.trash.file_refs.error": "Impossibile verificare i riferimenti ai file.",
+  "settings.data.trash.file_refs.force_delete": "Elimina definitivamente e scollega i riferimenti",
+  "settings.data.trash.file_refs.force_delete_warning": "Questa operazione elimina definitivamente il file e rimuove i relativi collegamenti dai record elencati. I messaggi e i record rimangono, ma il file non sarà più allegato. L’operazione non può essere annullata.",
   "settings.data.trash.file_refs.holder_image_input": "Record del processo di generazione di immagini {{id}} (immagine di input)",
   "settings.data.trash.file_refs.holder_image_mask": "Record del processo di generazione di immagini {{id}} (immagine maschera)",
   "settings.data.trash.file_refs.holder_job": "Record del processo {{id}} (tipo: {{type}}, ruolo: {{role}})",

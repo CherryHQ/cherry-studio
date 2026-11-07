@@ -4263,6 +4263,8 @@
   "settings.data.trash.file_refs.blocked_other_one": "Ficheiros referenciados: {{count}}; registos relacionados: {{records}}. Estes ficheiros serão mantidos. Remova as referências antes de eliminar permanentemente.",
   "settings.data.trash.file_refs.blocked_other_other": "Ficheiros referenciados: {{count}}; registos relacionados: {{records}}. Estes ficheiros serão mantidos. Remova as referências antes de eliminar permanentemente.",
   "settings.data.trash.file_refs.error": "Não foi possível verificar as referências dos ficheiros.",
+  "settings.data.trash.file_refs.force_delete": "Eliminar permanentemente e desligar referências",
+  "settings.data.trash.file_refs.force_delete_warning": "Esta ação elimina permanentemente o ficheiro e remove as respetivas ligações aos registos listados. As mensagens e os registos permanecem, mas o ficheiro deixa de estar anexado. Esta ação não pode ser anulada.",
   "settings.data.trash.file_refs.holder_image_input": "Registo de tarefa de geração de imagens {{id}} (imagem de entrada)",
   "settings.data.trash.file_refs.holder_image_mask": "Registo de tarefa de geração de imagens {{id}} (imagem de máscara)",
   "settings.data.trash.file_refs.holder_job": "Registo de tarefa {{id}} (tipo: {{type}}, função: {{role}})",

@@ -307,6 +307,22 @@ describe('internal/entry/lifecycle', () => {
       expect(await exists(physical as AbsoluteFilePath)).toBe(true)
     })
 
+    it('can permanently delete a referenced trashed entry and detach refs when its blob is already missing', async () => {
+      const id = await makeInternal()
+      const entry = fileEntryService.getById(id)
+      const physical = path.join(filesDir, `${id}.${entry.ext}`)
+      trash(deps, id)
+      await seedPersistentRef(id)
+      await rm(physical)
+
+      const result = await batchPermanentDeleteFromTrash(deps, [id], { detachReferences: true })
+
+      expect(result).toEqual({ succeeded: [id], failed: [] })
+      expect(fileEntryService.findById(id)).toBeNull()
+      expect(fileRefService.findByEntryId(id)).toEqual([])
+      expect(await exists(physical as AbsoluteFilePath)).toBe(false)
+    })
+
     it('removes an unreferenced external entry from the library without deleting the user file', async () => {
       const id = await makeExternal()
       const entry = fileEntryService.getById(id)

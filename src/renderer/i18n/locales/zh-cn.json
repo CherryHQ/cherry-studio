@@ -4263,6 +4263,8 @@
   "settings.data.trash.file_refs.blocked_other_one": "仍被引用的文件：{{count}} 个；相关记录：{{records}} 条。这些文件将被保留。请先移除引用，再永久删除。",
   "settings.data.trash.file_refs.blocked_other_other": "仍被引用的文件：{{count}} 个；相关记录：{{records}} 条。这些文件将被保留。请先移除引用，再永久删除。",
   "settings.data.trash.file_refs.error": "无法检查文件引用。",
+  "settings.data.trash.file_refs.force_delete": "永久删除并解除引用",
+  "settings.data.trash.file_refs.force_delete_warning": "这会永久删除文件，并从所列记录中移除文件引用。消息和记录仍会保留，但文件将不再作为附件。此操作无法撤销。",
   "settings.data.trash.file_refs.holder_image_input": "图像生成任务记录 {{id}}（输入图像）",
   "settings.data.trash.file_refs.holder_image_mask": "图像生成任务记录 {{id}}（蒙版图像）",
   "settings.data.trash.file_refs.holder_job": "任务记录 {{id}}（类型：{{type}}，角色：{{role}}）",

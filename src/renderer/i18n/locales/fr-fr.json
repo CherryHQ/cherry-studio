@@ -4263,6 +4263,8 @@
   "settings.data.trash.file_refs.blocked_other_one": "Fichiers référencés : {{count}} ; enregistrements associés : {{records}}. Ces fichiers seront conservés. Supprimez les références avant la suppression définitive.",
   "settings.data.trash.file_refs.blocked_other_other": "Fichiers référencés : {{count}} ; enregistrements associés : {{records}}. Ces fichiers seront conservés. Supprimez les références avant la suppression définitive.",
   "settings.data.trash.file_refs.error": "Impossible de vérifier les références des fichiers.",
+  "settings.data.trash.file_refs.force_delete": "Supprimer définitivement et détacher les références",
+  "settings.data.trash.file_refs.force_delete_warning": "Cette action supprime définitivement le fichier et retire ses liens des enregistrements répertoriés. Les messages et les enregistrements sont conservés, mais le fichier n’y sera plus joint. Cette action est irréversible.",
   "settings.data.trash.file_refs.holder_image_input": "Enregistrement de tâche de génération d’images {{id}} (image d’entrée)",
   "settings.data.trash.file_refs.holder_image_mask": "Enregistrement de tâche de génération d’images {{id}} (image de masque)",
   "settings.data.trash.file_refs.holder_job": "Enregistrement de tâche {{id}} (type : {{type}}, rôle : {{role}})",

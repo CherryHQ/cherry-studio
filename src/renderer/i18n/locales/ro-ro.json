@@ -4263,6 +4263,8 @@
   "settings.data.trash.file_refs.blocked_other_one": "Fișiere cu referințe: {{count}}; înregistrări asociate: {{records}}. Aceste fișiere vor fi păstrate. Eliminați referințele înainte de ștergerea definitivă.",
   "settings.data.trash.file_refs.blocked_other_other": "Fișiere cu referințe: {{count}}; înregistrări asociate: {{records}}. Aceste fișiere vor fi păstrate. Eliminați referințele înainte de ștergerea definitivă.",
   "settings.data.trash.file_refs.error": "Referințele fișierelor nu au putut fi verificate.",
+  "settings.data.trash.file_refs.force_delete": "Șterge definitiv și detașează referințele",
+  "settings.data.trash.file_refs.force_delete_warning": "Fișierul va fi șters definitiv, iar legăturile sale vor fi eliminate din înregistrările afișate. Mesajele și înregistrările rămân, dar fișierul nu va mai fi atașat. Acțiunea nu poate fi anulată.",
   "settings.data.trash.file_refs.holder_image_input": "Înregistrarea sarcinii de generare a imaginilor {{id}} (imagine de intrare)",
   "settings.data.trash.file_refs.holder_image_mask": "Înregistrarea sarcinii de generare a imaginilor {{id}} (imagine mască)",
   "settings.data.trash.file_refs.holder_job": "Înregistrarea sarcinii {{id}} (tip: {{type}}, rol: {{role}})",

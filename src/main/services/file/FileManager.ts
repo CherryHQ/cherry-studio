@@ -624,8 +624,11 @@ export interface IFileManager {
   batchTrash(ids: FileEntryId[]): Promise<BatchMutationResult>
   /** Batch internal-only — external ids fail like `restore`. */
   batchRestore(ids: FileEntryId[]): Promise<BatchMutationResult>
-  /** Permanently delete unreferenced internal entries that are currently in Trash. */
-  batchPermanentDeleteFromTrash(ids: FileEntryId[]): Promise<BatchMutationResult>
+  /** Permanently delete internal entries in Trash; detach refs only after explicit user confirmation. */
+  batchPermanentDeleteFromTrash(
+    ids: FileEntryId[],
+    options?: { detachReferences?: boolean }
+  ): Promise<BatchMutationResult>
   /** Remove unreferenced external entries from the library without modifying user files. */
   batchRemoveFromLibrary(ids: FileEntryId[]): Promise<BatchMutationResult>
 
@@ -1293,8 +1296,11 @@ export class FileManager extends BaseService implements IFileManager {
     return result
   }
 
-  async batchPermanentDeleteFromTrash(ids: FileEntryId[]): Promise<BatchMutationResult> {
-    const result = await internalBatchPermanentDeleteFromTrash(this.deps, ids)
+  async batchPermanentDeleteFromTrash(
+    ids: FileEntryId[],
+    options?: { detachReferences?: boolean }
+  ): Promise<BatchMutationResult> {
+    const result = await internalBatchPermanentDeleteFromTrash(this.deps, ids, options)
     this.notifyReadModelChange(result.succeeded)
     return result
   }

@@ -28,8 +28,13 @@ import {
 import { dataApiService } from '@renderer/data/DataApiService'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
+import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
-import { type FileEntryRefCount, REF_COUNTS_MAX_ENTRY_IDS } from '@shared/data/api/schemas/files'
+import {
+  type AgentSessionMessageRefDetail,
+  type FileEntryRefCount,
+  REF_COUNTS_MAX_ENTRY_IDS
+} from '@shared/data/api/schemas/files'
 import type { FileRef } from '@shared/data/types/file'
 
 import AllArchiveSection from './AllArchiveSection'
@@ -42,7 +47,7 @@ import {
   TopicArchiveSection,
   type ArchiveDomainSectionProps
 } from './ArchiveDomainSections'
-import type { PendingPermanentDelete } from './ArchiveSection'
+import type { PendingPermanentDelete, PermanentDeleteOptions } from './ArchiveSection'
 
 const logger = loggerService.withContext('ArchiveSettings')
 
@@ -92,6 +97,7 @@ type FileReferencePreview =
       referencedFiles: number
       totalReferences: number
       refsByEntryId: Map<string, FileRef[]>
+      agentSessionMessageDetailsByRefId: Map<string, AgentSessionMessageRefDetail>
       jobTypesById: Map<string, string | null>
     }
 
@@ -194,10 +200,35 @@ const ArchiveSettings: FC = () => {
           jobTypesById.set(wave[offset], result.status === 'fulfilled' ? result.value : null)
         }
       }
+      const agentSessionMessageEntryIds = [...refsByEntryId.entries()]
+        .filter(([, refs]) => refs.some((ref) => ref.sourceType === 'agent_session_message'))
+        .map(([entryId]) => entryId)
+      const agentSessionMessageDetailsByRefId = new Map<string, AgentSessionMessageRefDetail>()
+      for (let index = 0; index < agentSessionMessageEntryIds.length; index += 8) {
+        if (referenceRequestToken.current !== token) return
+        const wave = agentSessionMessageEntryIds.slice(index, index + 8)
+        const results = await Promise.allSettled(
+          wave.map(
+            (entryId) =>
+              dataApiService.get(
+                `/files/entries/${entryId}/agent-session-message-details`
+              ) as Promise<AgentSessionMessageRefDetail[]>
+          )
+        )
+        if (referenceRequestToken.current !== token) return
+        for (const [offset, result] of results.entries()) {
+          if (result.status === 'rejected') throw result.reason
+          const entryRefs = refsByEntryId.get(wave[offset]) ?? []
+          const expectedCount = entryRefs.filter((ref) => ref.sourceType === 'agent_session_message').length
+          if (result.value.length !== expectedCount) throw new Error('Agent-session reference details are incomplete')
+          for (const detail of result.value) agentSessionMessageDetailsByRefId.set(detail.refId, detail)
+        }
+      }
       if (referenceRequestToken.current !== token) return
       setFileReferencePreview({
         status: 'ready',
         refsByEntryId,
+        agentSessionMessageDetailsByRefId,
         jobTypesById,
         referencedFiles: counts.filter(({ refCount }) => refCount > 0).length,
         totalReferences: counts.reduce((total, { refCount }) => total + refCount, 0)
@@ -224,11 +255,11 @@ const ArchiveSettings: FC = () => {
     setPendingDelete(request)
   }
 
-  const handleConfirmDelete = async () => {
+  const handleConfirmDelete = async (options?: PermanentDeleteOptions) => {
     if (!pendingDelete) return
     setIsDeleting(true)
     try {
-      await pendingDelete.run(pendingDelete.items)
+      await pendingDelete.run(pendingDelete.items, options)
     } catch (error) {
       logger.error('permanent delete failed', error as Error)
       toast.error(t('settings.data.trash.permanent_delete.error'))
@@ -313,6 +344,28 @@ const ArchiveSettings: FC = () => {
                 <p className="font-medium">{item.name}</p>
                 <ul className="space-y-1 text-muted-foreground">
                   {refs.map((ref) => {
+                    if (ref.sourceType === 'agent_session_message') {
+                      const detail = fileReferencePreview.agentSessionMessageDetailsByRefId.get(ref.id)
+                      if (!detail) return null
+                      const sessionName = detail.sessionName || t('common.unknown')
+                      return (
+                        <li key={ref.id} className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-x-2">
+                            <button
+                              type="button"
+                              className="cursor-pointer text-link hover:underline"
+                              onClick={() => {
+                                closePendingDelete()
+                                openRoute('/app/agents', { sessionId: detail.sessionId })
+                              }}>
+                              {sessionName}
+                            </button>
+                            <time>{new Date(detail.messageCreatedAt).toLocaleString()}</time>
+                          </div>
+                          <p>{detail.messageSummary || t('common.unknown')}</p>
+                        </li>
+                      )
+                    }
                     const type = fileReferencePreview.jobTypesById.get(ref.sourceId)
                     const role = 'role' in ref ? ref.role : '—'
                     const key =
@@ -334,6 +387,16 @@ const ArchiveSettings: FC = () => {
           {[...fileReferencePreview.jobTypesById.values()].includes('image-generation.generate') && (
             <p className="text-muted-foreground">{t('settings.data.trash.file_refs.job_release')}</p>
           )}
+          <div className="space-y-2 border-border border-t pt-3">
+            <p className="text-error-subtle-foreground">{t('settings.data.trash.file_refs.force_delete_warning')}</p>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={isDeleting}
+              onClick={() => handleConfirmDelete({ detachReferences: true })}>
+              {t('settings.data.trash.file_refs.force_delete')}
+            </Button>
+          </div>
         </div>
       )}
     </div>

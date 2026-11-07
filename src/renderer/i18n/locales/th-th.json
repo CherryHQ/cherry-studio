@@ -4263,6 +4263,8 @@
   "settings.data.trash.file_refs.blocked_other_one": "{{count}} ไฟล์ยังถูกใช้โดย {{records}} รายการและจะถูกเก็บไว้ นำการอ้างอิงนั้นออกก่อนลบอย่างถาวร",
   "settings.data.trash.file_refs.blocked_other_other": "{{count}} ไฟล์ยังถูกใช้โดย {{records}} รายการและจะถูกเก็บไว้ นำการอ้างอิงเหล่านั้นออกก่อนลบอย่างถาวร",
   "settings.data.trash.file_refs.error": "ตรวจสอบการอ้างอิงไฟล์ไม่สำเร็จ",
+  "settings.data.trash.file_refs.force_delete": "ลบถาวรและยกเลิกการอ้างอิง",
+  "settings.data.trash.file_refs.force_delete_warning": "การดำเนินการนี้จะลบไฟล์ถาวรและนำลิงก์อ้างอิงไฟล์ออกจากระเบียนที่แสดง ข้อความและระเบียนจะยังคงอยู่ แต่ไฟล์จะไม่ถูกแนบอีกต่อไป และไม่สามารถยกเลิกการดำเนินการนี้ได้",
   "settings.data.trash.file_refs.holder_image_input": "ระเบียนงานสร้างภาพ {{id}} (ภาพนำเข้า)",
   "settings.data.trash.file_refs.holder_image_mask": "ระเบียนงานสร้างภาพ {{id}} (ภาพมาสก์)",
   "settings.data.trash.file_refs.holder_job": "ระเบียนงาน {{id}} (ประเภท: {{type}}, บทบาท: {{role}})",

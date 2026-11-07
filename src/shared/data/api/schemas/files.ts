@@ -20,6 +20,7 @@
  * - `GET /files/entries/stats`      — Pure-SQL aggregate counts for sidebar filters
  * - `GET /files/entries/ref-counts` — Ref-count aggregation for a batch of ids (persistent SQL refs)
  * - `GET /files/entries/:id/refs`   — File references for a specific entry
+ * - `GET /files/entries/:id/agent-session-message-details` — Session/message context for agent-session refs
  * - `GET /files/refs`               — File references filtered by business source
  *
  * ## Where former opt-in derived fields live now
@@ -72,6 +73,14 @@ import { FileTypeSchema } from '@shared/types/file'
 export interface FileEntryRefCount {
   entryId: FileEntryId
   refCount: number
+}
+
+export interface AgentSessionMessageRefDetail {
+  refId: string
+  sessionId: string
+  sessionName: string
+  messageCreatedAt: number
+  messageSummary: string
 }
 
 // ─── Pagination & batch caps ───
@@ -242,6 +251,14 @@ export type FileSchemas = {
     GET: {
       params: { id: FileEntryId }
       response: FileRef[]
+    }
+  }
+
+  /** Session and bounded message context for an entry's agent-session refs. */
+  '/files/entries/:id/agent-session-message-details': {
+    GET: {
+      params: { id: FileEntryId }
+      response: AgentSessionMessageRefDetail[]
     }
   }
 

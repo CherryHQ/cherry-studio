@@ -66,6 +66,13 @@ export const fileHandlers: HandlersFor<FileSchemas> = {
     }
   },
 
+  '/files/entries/:id/agent-session-message-details': {
+    GET: async ({ params }) => {
+      const id = FileEntryIdSchema.parse(params.id)
+      return fileRefService.findAgentSessionMessageDetailsByEntryId(id)
+    }
+  },
+
   '/files/refs': {
     GET: async ({ query }) => {
       const validated = RefsBySourceQuerySchema.parse(query)

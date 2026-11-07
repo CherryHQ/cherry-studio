@@ -4263,6 +4263,8 @@
   "settings.data.trash.file_refs.blocked_other_one": "参照されているファイル: {{count}} 件、関連レコード: {{records}} 件。これらのファイルは保持されます。完全に削除する前に参照を解除してください。",
   "settings.data.trash.file_refs.blocked_other_other": "参照されているファイル: {{count}} 件、関連レコード: {{records}} 件。これらのファイルは保持されます。完全に削除する前に参照を解除してください。",
   "settings.data.trash.file_refs.error": "ファイルの参照を確認できませんでした。",
+  "settings.data.trash.file_refs.force_delete": "完全に削除して参照を解除",
+  "settings.data.trash.file_refs.force_delete_warning": "ファイルを完全に削除し、一覧表示された記録からファイル参照を解除します。メッセージと記録は残りますが、ファイルは添付されなくなります。この操作は取り消せません。",
   "settings.data.trash.file_refs.holder_image_input": "画像生成ジョブのレコード {{id}}（入力画像）",
   "settings.data.trash.file_refs.holder_image_mask": "画像生成ジョブのレコード {{id}}（マスク画像）",
   "settings.data.trash.file_refs.holder_job": "ジョブのレコード {{id}}（種類: {{type}}、役割: {{role}}）",

@@ -4263,6 +4263,8 @@
   "settings.data.trash.file_refs.blocked_other_one": "Referenzierte Dateien: {{count}}; verknüpfte Datensätze: {{records}}. Diese Dateien bleiben erhalten. Entfernen Sie die Verknüpfungen vor dem endgültigen Löschen.",
   "settings.data.trash.file_refs.blocked_other_other": "Referenzierte Dateien: {{count}}; verknüpfte Datensätze: {{records}}. Diese Dateien bleiben erhalten. Entfernen Sie die Verknüpfungen vor dem endgültigen Löschen.",
   "settings.data.trash.file_refs.error": "Dateiverweise konnten nicht geprüft werden.",
+  "settings.data.trash.file_refs.force_delete": "Dauerhaft löschen und Verknüpfungen lösen",
+  "settings.data.trash.file_refs.force_delete_warning": "Die Datei wird dauerhaft gelöscht und ihre Dateiverknüpfungen werden aus den aufgeführten Datensätzen entfernt. Nachrichten und Datensätze bleiben erhalten, die Datei ist jedoch nicht mehr angehängt. Dieser Vorgang kann nicht rückgängig gemacht werden.",
   "settings.data.trash.file_refs.holder_image_input": "Datensatz des Bildgenerierungsauftrags {{id}} (Eingabebild)",
   "settings.data.trash.file_refs.holder_image_mask": "Datensatz des Bildgenerierungsauftrags {{id}} (Maskenbild)",
   "settings.data.trash.file_refs.holder_job": "Auftragsdatensatz {{id}} (Typ: {{type}}, Rolle: {{role}})",
