@@ -50,6 +50,28 @@ export async function inspectOwnedAppEnvironment(record: AppRecord): Promise<{
   )
 }
 
+export async function prepareOwnedMacNotifications(record: AppRecord): Promise<void> {
+  if (record.platform !== 'macos') throw new Error('Native macOS notification preparation requires macOS')
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  await evaluateCdpExpression(
+    await ownedMainInspectorUrl(record),
+    `(async () => { await process.mainModule.require('electron').Notification.getHistory(); return true })()`
+  )
+}
+
+export async function inspectOwnedNotificationHistory(record: AppRecord, text: string): Promise<string[]> {
+  if (record.platform !== 'macos') throw new Error('Notification history inspection requires macOS')
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  return evaluateCdpExpression(
+    await ownedMainInspectorUrl(record),
+    `(async () => {
+      const history = await process.mainModule.require('electron').Notification.getHistory()
+      return history.filter(notification => notification.body.includes(${JSON.stringify(text)}))
+        .map(notification => notification.id)
+    })()`
+  )
+}
+
 export async function requestOwnedAppQuit(record: AppRecord): Promise<void> {
   assertOwnedProcess(record, record.electronPid, 'electron')
   await evaluateCdpExpression(
@@ -103,11 +125,16 @@ export async function setOwnedMainWindowFocus(record: AppRecord, focused: boolea
   return evaluateCdpExpression(
     await ownedMainInspectorUrl(record),
     `(() => {
-      const { BrowserWindow } = process.mainModule.require('electron')
+      const { app, BrowserWindow } = process.mainModule.require('electron')
       const window = BrowserWindow.getAllWindows().find(candidate =>
         new URL(candidate.webContents.getURL()).pathname.endsWith(${JSON.stringify(MAIN_WINDOW_PATH)}))
       if (!window) throw new Error('Owned main window is unavailable')
       if (${JSON.stringify(focused)}) {
+        if (${JSON.stringify(record.platform)} === 'macos') {
+          app.show()
+          app.focus({ steal: true })
+        }
+        window.show()
         window.focus()
         window.webContents.focus()
       } else {

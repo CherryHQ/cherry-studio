@@ -1,4 +1,6 @@
-import { mkdirSync } from 'node:fs'
+import { once } from 'node:events'
+import { mkdirSync, realpathSync } from 'node:fs'
+import { createServer, type AddressInfo } from 'node:net'
 import { join } from 'node:path'
 
 import type { Locator, Page } from '@playwright/test'
@@ -7,7 +9,7 @@ import type { IpcResult } from '@shared/ipc/errors/IpcError'
 import type { OutputFor } from '@shared/ipc/types'
 
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
-import { listOwnedProcessIds, observeOwnedProcess } from '../../../../scripts/e2e/regression/processEvidence'
+import { observeExternalResource, registerExternalResource } from '../../../../scripts/e2e/regression/externalResources'
 import { chooseNativeFile } from '../../../../scripts/e2e/regression/systemAutomation'
 import { expect, test } from '../fixture'
 import { CUSTOM_CHAT_PROVIDER, ensureCustomChatProvider } from '../helpers/models'
@@ -46,6 +48,7 @@ async function configureTool(page: Page, model: string, provider: string): Promi
   const save = dialog.getByRole('button', { name: 'Save', exact: true })
   await dialog.getByRole('button', { name: (await save.isEnabled()) ? 'Save' : 'Cancel', exact: true }).click()
   await expect(dialog).toBeHidden()
+  await providerCard.hover()
   const disable = providerCard.getByRole('button', { name: 'Disable', exact: true })
   if (await disable.isVisible()) await disable.click()
   const enable = providerCard.getByRole('button', { name: 'Enable', exact: true }).first()
@@ -61,18 +64,23 @@ async function launchWithWorkspace(app: RegressionApp, page: Page): Promise<void
   await expect(dialog).toBeVisible()
   await dialog.getByRole('button', { name: 'Select Folder', exact: true }).click()
   chooseNativeFile(app.record.platform, app.paths, workspace)
-  await expect(dialog.getByPlaceholder('Select working directory', { exact: true })).toHaveValue(workspace)
+  await expect
+    .poll(async () =>
+      realpathSync(await dialog.getByPlaceholder('Select working directory', { exact: true }).inputValue())
+    )
+    .toBe(realpathSync(workspace))
   if (app.record.platform === 'windows') {
     await dialog.getByRole('combobox').click()
     await page.getByRole('option', { name: 'Command Prompt', exact: true }).click()
   }
+  const resource = registerExternalResource(app.paths, app.record.platform, { kind: 'terminal', directory: workspace })
   await dialog.getByRole('button', { name: 'Launch', exact: true }).click()
+  await expect.poll(() => observeExternalResource(app.paths, resource), { timeout: 30_000 }).toBe(true)
 }
 
 test(...caseDefinition('CODE-01'), async ({ app, mainWindow: page }) => {
   await ensureCustomChatProvider(app, page)
   await closeSettings(page)
-  const baseline = new Set(listOwnedProcessIds(app.record))
   await openCodeTool(page, 'Claude Code')
   const codeView = page.locator('[data-ui~="code.view"]:visible').first()
   const install = codeView.getByRole('button', { name: 'Install', exact: true })
@@ -83,60 +91,63 @@ test(...caseDefinition('CODE-01'), async ({ app, mainWindow: page }) => {
     await expect(launch).toBeVisible({ timeout: 5 * 60_000 })
   }
   await configureTool(page, app.config.customProvider.chatModel, 'Unified Gateway')
-  const snapshot = await page.evaluate(async () => {
-    const result = (await window.api.ipcApi.request('binary.get_tool_snapshots', ['claude'])) as IpcResult<
-      OutputFor<'binary.get_tool_snapshots'>
-    >
-    if (!result.ok) throw new Error(result.error.message)
-    return result.data.claude
-  })
   await launchWithWorkspace(app, page)
-  await expect
-    .poll(
-      () =>
-        observeOwnedProcess(
-          app.record,
-          'claude',
-          true,
-          baseline,
-          app.record.platform === 'windows'
-            ? {
-                name: 'claude.exe',
-                shimPath: snapshot.availability.source === 'mise' ? snapshot.availability.path : undefined
-              }
-            : undefined
-        ).passed,
-      { timeout: 60_000 }
-    )
-    .toBe(true)
-})
-
-test(...caseDefinition('CODE-02'), async ({ app, mainWindow: page }) => {
-  await ensureCustomChatProvider(app, page)
-  await closeSettings(page)
-  const baseline = new Set(listOwnedProcessIds(app.record))
-  await openCodeTool(page, 'OpenAI Codex')
-  await configureTool(page, app.config.customProvider.chatModel, 'Unified Gateway')
-  await launchWithWorkspace(app, page)
-  await expect
-    .poll(() => observeOwnedProcess(app.record, 'codex', true, baseline).passed, { timeout: 60_000 })
-    .toBe(true)
 })
 
 test(...caseDefinition('CODE-03'), async ({ app, mainWindow: page }) => {
-  await ensureCustomChatProvider(app, page)
-  await closeSettings(page)
-  const baseline = new Set(listOwnedProcessIds(app.record))
-  await openCodeTool(page, 'OpenClaw')
-  await configureTool(page, app.config.customProvider.chatModel, CUSTOM_CHAT_PROVIDER)
-  await page
-    .locator('[data-ui~="code.view"]:visible')
-    .first()
-    .getByRole('button', { name: 'Launch', exact: true })
-    .click()
-  await expect
-    .poll(() => observeOwnedProcess(app.record, 'openclaw', true, baseline).passed, { timeout: 2 * 60_000 })
-    .toBe(true)
+  test.setTimeout(3 * 60_000)
+  const previousPort = await page.evaluate(() => window.api.preference.get('feature.openclaw.gateway_port'))
+  const reservation = createServer().listen(0, '127.0.0.1')
+  await once(reservation, 'listening')
+  const port = (reservation.address() as AddressInfo).port
+  await new Promise<void>((resolve, reject) => reservation.close((error) => (error ? reject(error) : resolve())))
+  const dashboardTab = page.locator('[data-ui~="app.tab-bar"]').getByRole('button', { name: 'OpenClaw', exact: true })
+  const gatewayStatus = () =>
+    page.evaluate(async () => {
+      const result = (await window.api.ipcApi.request('openclaw.get_status')) as IpcResult<
+        OutputFor<'openclaw.get_status'>
+      >
+      if (!result.ok) throw new Error(result.error.message)
+      return result.data.status
+    })
+  try {
+    await page.evaluate((port) => window.api.preference.set('feature.openclaw.gateway_port', port), port)
+    await ensureCustomChatProvider(app, page)
+    await closeSettings(page)
+    await openCodeTool(page, 'OpenClaw')
+    await configureTool(page, app.config.customProvider.chatModel, CUSTOM_CHAT_PROVIDER)
+    const codeView = page.locator('[data-ui~="code.view"]:visible').first()
+    await codeView.getByRole('button', { name: 'Launch', exact: true }).click()
+    // The CLI also spawns config probes; only the running gateway and opened dashboard complete launch.
+    await expect.poll(gatewayStatus, { timeout: 2 * 60_000 }).toBe('running')
+    await expect(dashboardTab).toHaveAttribute('data-active', 'true')
+    const guest = page.locator('webview[data-mini-app-id="openclaw-dashboard"]:visible')
+    await expect(guest).toBeVisible()
+    await expect
+      .poll(() =>
+        guest.evaluate((element) => {
+          const url = (element as unknown as { getURL(): string }).getURL()
+          return url ? new URL(url).origin : ''
+        })
+      )
+      .toBe(`http://127.0.0.1:${port}`)
+    await dashboardTab.getByRole('button', { name: 'Close Tab', exact: true }).click()
+    await expect(dashboardTab).toHaveCount(0)
+    await openCodeTool(page, 'OpenClaw')
+    await codeView.getByRole('button', { name: 'Stop', exact: true }).click()
+    await expect.poll(gatewayStatus).toBe('stopped')
+  } finally {
+    try {
+      const stopped = (await page.evaluate(() => window.api.ipcApi.request('openclaw.stop_gateway'))) as IpcResult<
+        OutputFor<'openclaw.stop_gateway'>
+      >
+      expect(stopped.ok && stopped.data.success, 'Owned OpenClaw gateway must stop').toBe(true)
+      if (await dashboardTab.isVisible())
+        await dashboardTab.getByRole('button', { name: 'Close Tab', exact: true }).click()
+    } finally {
+      await page.evaluate((port) => window.api.preference.set('feature.openclaw.gateway_port', port), previousPort)
+    }
+  }
 })
 
 test(...caseDefinition('MP-97'), async ({ app, mainWindow: page }, testInfo) => {

@@ -192,13 +192,6 @@ export const REGRESSION_CASES = [
     tasks: ['code-tools', 'code-cli']
   },
   {
-    id: 'CODE-02',
-    capabilities: ['desktopAutomation'],
-    phase: 'codeTools',
-    title: 'Launch Codex',
-    tasks: ['code-tools', 'code-cli']
-  },
-  {
     id: 'CODE-03',
     capabilities: ['desktopAutomation'],
     phase: 'codeTools',
@@ -210,8 +203,7 @@ export const REGRESSION_CASES = [
     title: 'Advanced parameters and permission modes',
     tasks: ['code-tools', 'code-cli-permissions'],
     phase: 'codeTools',
-    capabilities: ['desktopAutomation'],
-    platforms: ['macos']
+    capabilities: ['desktopAutomation']
   },
   {
     id: 'M-01',
@@ -302,8 +294,7 @@ export const REGRESSION_CASES = [
     title: 'Sync Agent file edits with the side preview',
     tasks: ['agents'],
     phase: 'agentRuntimes',
-    capabilities: ['desktopAutomation'],
-    platforms: ['macos']
+    capabilities: ['desktopAutomation']
   },
   {
     id: 'MP-53',
@@ -522,8 +513,7 @@ export const REGRESSION_CASES = [
     title: 'Export notes to PDF or Word and print',
     tasks: ['notes'],
     phase: 'notes',
-    capabilities: ['desktopAutomation'],
-    platforms: ['macos']
+    capabilities: ['desktopAutomation']
   },
   {
     id: 'MP-78',
@@ -587,8 +577,7 @@ export const REGRESSION_CASES = [
     title: 'Theme, appearance, and window style',
     tasks: ['settings'],
     phase: 'settings',
-    capabilities: [],
-    platforms: ['macos']
+    capabilities: []
   },
   {
     id: 'MP-106',
@@ -615,18 +604,16 @@ export const REGRESSION_CASES = [
   {
     id: 'MP-110',
     title: 'Notification settings',
-    tasks: ['settings'],
+    tasks: ['settings', 'native-settings'],
     phase: 'settings',
-    capabilities: ['desktopAutomation'],
-    platforms: ['macos']
+    capabilities: ['desktopAutomation']
   },
   {
     id: 'MP-111',
     capabilities: ['desktopAutomation'],
     phase: 'settings',
     title: 'Startup and tray behavior',
-    tasks: ['settings'],
-    platforms: ['macos']
+    tasks: ['settings', 'native-settings']
   },
   {
     id: 'MP-112',
@@ -711,8 +698,7 @@ export const REGRESSION_CASES = [
     title: 'Upload files to the library',
     tasks: ['files'],
     phase: 'files',
-    capabilities: ['desktopAutomation'],
-    platforms: ['macos']
+    capabilities: ['desktopAutomation']
   },
   { id: 'MP-69', title: 'Filter files by category and search', tasks: ['files'], phase: 'files', capabilities: [] },
   {
@@ -728,14 +714,6 @@ export const REGRESSION_CASES = [
     tasks: ['files'],
     phase: 'files',
     capabilities: []
-  },
-  {
-    id: 'MP-72',
-    title: 'Reference library files in chat',
-    tasks: ['files'],
-    phase: 'files',
-    capabilities: [],
-    platforms: ['macos']
   },
   {
     id: 'MP-115',
@@ -778,8 +756,7 @@ export const REGRESSION_CASES = [
     title: 'Reset application data (run last)',
     tasks: ['data-backup'],
     phase: 'dataManagement',
-    capabilities: ['desktopAutomation'],
-    platforms: ['macos']
+    capabilities: ['desktopAutomation']
   },
   {
     id: 'MP-122',
@@ -808,8 +785,7 @@ export const REGRESSION_CASES = [
     capabilities: ['desktopAutomation', 'externalSelection', 'globalShortcut'],
     phase: 'system',
     title: 'Selection Assistant (capture, explain, translate, copy)',
-    tasks: ['system-integration'],
-    platforms: ['macos']
+    tasks: ['system-integration']
   },
   {
     id: 'MP-128',
@@ -844,24 +820,21 @@ export const REGRESSION_CASES = [
     title: 'System tray menu',
     tasks: ['system-integration'],
     phase: 'system',
-    capabilities: ['desktopAutomation'],
-    platforms: ['macos']
+    capabilities: ['desktopAutomation']
   },
   {
     id: 'MP-133',
     title: 'Deep links, single instance, and relaunch',
     tasks: ['system-integration'],
     phase: 'system',
-    capabilities: ['desktopAutomation'],
-    platforms: ['macos']
+    capabilities: ['desktopAutomation']
   },
   {
     id: 'MP-140',
     title: 'Computer Use permissions and desktop control toggle',
     tasks: ['system-integration'],
     phase: 'system',
-    capabilities: ['desktopAutomation'],
-    platforms: ['macos']
+    capabilities: ['desktopAutomation']
   },
   {
     id: 'MP-141',

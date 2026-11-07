@@ -1,35 +1,19 @@
-import { rm } from 'node:fs/promises'
-
-import { _electron as electron } from '@playwright/test'
 import type { Page, TestInfo } from '@playwright/test'
 
 import en from '../../../src/renderer/i18n/locales/en-us.json'
 import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
 import { expect, test as base } from './fixtures/electron.fixture'
+import { openSettings } from './utils/navigation'
 
 const test = base.extend({
-  electronApp: async ({}, use, testInfo) => {
-    const profile = testInfo.outputPath('profile')
-    const electronApp = await electron.launch({
-      args: ['.'],
-      env: { ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: profile },
-      timeout: 60000
-    })
+  electronApp: async ({ electronApp }, use, testInfo) => {
+    await electronApp.context().tracing.start({ screenshots: true, snapshots: true })
     try {
-      await electronApp.context().tracing.start({ screenshots: true, snapshots: true })
       await use(electronApp)
     } finally {
-      try {
-        const path = testInfo.outputPath('settings-search-trace.zip')
-        await electronApp.context().tracing.stop({ path })
-        await testInfo.attach('settings-search-trace', { path, contentType: 'application/zip' })
-      } finally {
-        try {
-          await electronApp.close()
-        } finally {
-          await rm(profile, { recursive: true, force: true })
-        }
-      }
+      const path = testInfo.outputPath('settings-search-trace.zip')
+      await electronApp.context().tracing.stop({ path })
+      await testInfo.attach('settings-search-trace', { path, contentType: 'application/zip' })
     }
   }
 })
@@ -57,14 +41,13 @@ async function openSearch(mainWindow: Page) {
     await window.api.preference.set('app.language', 'en-US')
   }, LATEST_PRIVACY_POLICY_VERSION)
   await mainWindow.reload()
-  await expect(mainWindow.locator('[data-ui~="app.shell"]').first()).toBeVisible({ timeout: 60000 })
+  await expect(mainWindow.locator('[data-ui~="app.content"]').first()).toBeVisible({ timeout: 60000 })
   await expect(
     mainWindow.getByRole('dialog', { name: en['privacy_policy_update.title'], exact: true }),
     'Setup failure: privacy policy modal reopened after setting the current policy version'
   ).toHaveCount(0)
 
-  const sidebar = mainWindow.locator('[data-ui~="app.sidebar"]').filter({ visible: true })
-  await sidebar.getByRole('button', { name: en['settings.title'], exact: true }).click()
+  await openSettings(mainWindow)
   const settings = mainWindow.locator('[data-ui~="settings.view"]').filter({ visible: true })
   await expect(settings).toHaveCount(1)
   const navigation = settings.locator('[data-ui~="settings.navigation"]')

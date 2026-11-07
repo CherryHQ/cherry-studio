@@ -9,6 +9,7 @@ import sharp from 'sharp'
 
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
+import { observeExternalResource, registerExternalResource } from '../../../../scripts/e2e/regression/externalResources'
 import { validateFileEvidence } from '../../../../scripts/e2e/regression/fileEvidence'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { inspectImageInExternalBrowser, saveNativeFile } from '../../../../scripts/e2e/regression/systemAutomation'
@@ -116,6 +117,11 @@ test(...caseDefinition('MP-90'), async ({ app, mainWindow: page }, testInfo) => 
   expect(await sharp(saved).raw().toBuffer()).toEqual(await sharp(original).raw().toBuffer())
   expect(Buffer.from(await readOriginal())).toEqual(original)
   if (app.record.platform === 'macos') {
+    const resource = registerExternalResource(app.paths, app.record.platform, {
+      kind: 'document',
+      application: 'Preview',
+      path: output
+    })
     execFileSync('open', ['-a', 'Preview', output], { timeout: 10_000 })
     await expect
       .poll(() =>
@@ -125,6 +131,7 @@ test(...caseDefinition('MP-90'), async ({ app, mainWindow: page }, testInfo) => 
         })
       )
       .toContain('MP-90-original.png')
+    observeExternalResource(app.paths, resource)
   } else {
     const external = await inspectImageInExternalBrowser(app.paths, output)
     expect(external.width).toBe(originalSize.width)
@@ -364,10 +371,7 @@ test(...caseDefinition('MP-92'), async ({ mainWindow: page }, testInfo) => {
   }
   const selectModel = async (providerId: string) => {
     await page.locator('[data-selector-shell-root="true"] > button').first().click()
-    const selector = page.getByTestId('model-selector-content').last()
-    await expect(selector).toBeVisible()
-    await selector.getByTestId('model-selector-search').fill(modelId)
-    await selector.getByTestId(`model-selector-item-${providerId}::${modelId}`).click()
+    await selectVisibleModel(page, modelId, providerId)
   }
   const generating = page.getByRole('status', {
     name: /Drawing in progress\. Please do not leave this page\.|Revealing generated image/

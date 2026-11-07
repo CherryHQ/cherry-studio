@@ -1,34 +1,14 @@
-import { rm, writeFile } from 'node:fs/promises'
+import { writeFile } from 'node:fs/promises'
 
-import { _electron as electron, type Locator, type Page, type TestInfo } from '@playwright/test'
+import type { Locator, Page, TestInfo } from '@playwright/test'
 
 import en from '../../../src/renderer/i18n/locales/en-us.json'
 import { uiSelector } from '../../../src/renderer/utils/uiContract'
 import type { Prompt } from '../../../src/shared/data/types/prompt'
 import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
 import { selectSidebarApp } from '../regression/navigation'
-import { expect, test as base } from './fixtures/electron.fixture'
+import { expect, test } from './fixtures/electron.fixture'
 import { uiLocator } from './utils/uiLocator'
-
-const test = base.extend({
-  electronApp: async ({}, provideApp, testInfo) => {
-    const profile = testInfo.outputPath('profile')
-    const app = await electron.launch({
-      args: ['.'],
-      env: { ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: profile },
-      timeout: 60000
-    })
-    try {
-      await provideApp(app)
-    } finally {
-      try {
-        await app.close()
-      } finally {
-        await rm(profile, { recursive: true, force: true })
-      }
-    }
-  }
-})
 
 const part = (scope: Page | Locator, value: string) => scope.locator(uiSelector({ parts: [value] }))
 const manager = (page: Page) => uiLocator(page, 'paintings.prompt-presets')
@@ -43,7 +23,10 @@ const form = (page: Page, edit = false) =>
 
 async function prepare(page: Page) {
   await expect(
-    uiLocator(page, 'app.shell').or(page.locator('[data-onboarding-language-select]')).filter({ visible: true }).first()
+    uiLocator(page, 'app.content')
+      .or(page.locator('[data-onboarding-language-select]'))
+      .filter({ visible: true })
+      .first()
   ).toBeVisible({ timeout: 60000 })
   await page.evaluate(async (privacyVersion) => {
     await window.api.preference.set('app.language', 'en-US')
@@ -76,7 +59,7 @@ async function prepare(page: Page) {
     return result
   })
   await page.reload()
-  await expect(uiLocator(page, 'app.shell').first()).toBeVisible({ timeout: 60000 })
+  await expect(uiLocator(page, 'app.content').first()).toBeVisible({ timeout: 60000 })
   await selectSidebarApp(page, 'Paintings')
   const view = uiLocator(page, 'paintings.view').filter({ visible: true })
   await expect(view).toBeVisible()
@@ -154,10 +137,12 @@ test('discovers the labelled entry and inserts a global preset without generatin
   const { view, seeded } = await prepare(page)
   const label = part(entry(view), 'prompt-presets-label')
   await expect(label).toBeVisible()
-  const labelBox = await label.boundingBox()
-  expect(labelBox).not.toBeNull()
-  expect(labelBox!.width).toBeGreaterThan(10)
-  expect(labelBox!.height).toBeGreaterThan(8)
+  await expect(async () => {
+    const labelBox = await label.boundingBox()
+    expect(labelBox).not.toBeNull()
+    expect(labelBox!.width).toBeGreaterThan(10)
+    expect(labelBox!.height).toBeGreaterThan(8)
+  }).toPass({ timeout: 10_000 })
   await expect(label).toHaveText(en['settings.prompts.title'])
   await expect(entry(view)).toHaveAttribute('aria-haspopup', 'dialog')
   await screenshot(page, testInfo, 'entry.png')

@@ -3,6 +3,7 @@ import { writeFile } from 'node:fs/promises'
 import { expect, type Locator, type Page, type TestInfo } from '@playwright/test'
 
 import { AssistantSchema } from '@shared/data/types/assistant'
+import type { BranchMessagesResponse } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { TopicSchema } from '@shared/data/types/topic'
 import type { IpcResult } from '@shared/ipc/errors/IpcError'
@@ -158,9 +159,12 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
       .getByRole('dialog')
       .filter({ has: page.getByRole('button', { name: 'Copy', exact: true }) })
       .filter({ has: page.getByRole('button', { name: 'Quote', exact: true }) })
+      .last()
     const selectedText = () => page.evaluate(() => window.getSelection()?.toString() ?? '')
     const textCoordinates = async (target: Locator, length: number) => {
-      await target.hover()
+      if (!(await target.evaluate((element) => !!element.closest('.in-popover')))) {
+        await page.keyboard.press('Escape')
+      }
       const measure = () =>
         target.evaluate((element, length) => {
           const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
@@ -188,15 +192,44 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
             element.contains(document.elementFromPoint(point.endX, point.endY)),
           point
         )
-      if (!(await hitsTarget())) {
-        const height = await page.evaluate(() => innerHeight)
-        await page.mouse.move(point.x, height / 2)
-        await page.mouse.wheel(0, point.y < height / 2 ? -height / 2 : height / 2)
-        await expect.poll(async () => (await measure()).y).not.toBe(point.y)
-        await target.hover()
-        point = await measure()
+      try {
+        await expect
+          .poll(async () => {
+            point = await measure()
+            if (await hitsTarget()) return true
+            const viewport = await target.evaluate((element) =>
+              element.closest('[data-message-virtual-list-scroller]')?.getBoundingClientRect().toJSON()
+            )
+            if (viewport && (point.y < viewport.top + 30 || point.endY > viewport.bottom - 30)) {
+              await page.mouse.move(viewport.x + viewport.width / 2, viewport.y + viewport.height / 2)
+              await page.mouse.wheel(0, point.y - (viewport.y + viewport.height / 2))
+            }
+            return false
+          })
+          .toBe(true)
+      } catch (error) {
+        const geometry = await target.evaluate((element, point) => {
+          const describe = (target: Element | null) =>
+            target && {
+              tag: target.tagName,
+              role: target.getAttribute('role'),
+              ui: target.getAttribute('data-ui'),
+              rect: target.getBoundingClientRect().toJSON()
+            }
+          return {
+            point,
+            target: describe(element),
+            startHit: describe(document.elementFromPoint(point.x, point.y)),
+            endHit: describe(document.elementFromPoint(point.endX, point.endY)),
+            viewport: describe(element.closest('[data-message-virtual-list-scroller]'))
+          }
+        }, point)
+        await testInfo.attach('MP-149 inaccessible selection geometry', {
+          body: JSON.stringify(geometry),
+          contentType: 'application/json'
+        })
+        throw error
       }
-      await expect.poll(hitsTarget).toBe(true)
       return point
     }
     let selectionAttempt = 0
@@ -232,6 +265,7 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
     const copyAndPaste = async (action: Locator, text: string) => {
       await action.click()
       await expect(page.getByText('Copied!', { exact: true }).last()).toBeVisible()
+      await page.keyboard.press('Escape')
       await editor.click()
       await page.keyboard.press(process.platform === 'darwin' ? 'Meta+V' : 'Control+V')
       await expect(editor).toHaveText(text)
@@ -318,16 +352,6 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
     for (let i = 1; i < excerpt.length; i++) await page.keyboard.press('ArrowRight')
     await page.keyboard.up('Shift')
     await expect.poll(selectedText).toBe(excerpt)
-    await testInfo.attach('MP-149 keyboard selection focus', {
-      body: JSON.stringify(
-        await page.evaluate(() => ({
-          documentFocused: document.hasFocus(),
-          activeTag: document.activeElement?.tagName,
-          selection: window.getSelection()?.toString()
-        }))
-      ),
-      contentType: 'application/json'
-    })
     await expect(toolbar).toBeVisible()
     await paragraph.click({ button: 'right', position: { x: 20, y: 8 } })
     await copyAndPaste(page.getByRole('menuitem', { name: 'Copy', exact: true }), excerpt)
@@ -370,9 +394,10 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
     await multiSelect.click()
     await expect(multiSelect).toHaveAttribute('aria-pressed', 'true')
     await selectVisibleModel(page, 'mock-grid', providerId)
+    await expect(
+      page.getByTestId(`model-selector-item-${createUniqueModelId(providerId, 'mock-grid')}`)
+    ).toHaveAttribute('aria-selected', 'true')
     await page.keyboard.press('Escape')
-    await expect(page.getByRole('button', { name: 'Selected models', exact: true })).toContainText('mock-grid')
-    const beforeGrid = (await readTopicMessages(page, topicId)).length
     await Promise.all([
       sendChatMarker(page, 'Describe a grid garden', 'Grid orchid petals shine.'),
       (async () => {
@@ -381,20 +406,60 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
         for (const request of requests) request.complete('Grid orchid petals shine.')
       })()
     ])
-    await expect.poll(async () => (await readTopicMessages(page, topicId)).length).toBe(beforeGrid + 3)
-    const gridText = messages
-      .filter({ has: page.locator('.message-assistant') })
-      .last()
-      .getByText('Grid orchid petals shine.', { exact: true })
+    await expect
+      .poll(async () => {
+        const response = await page.evaluate(
+          (topicId) =>
+            window.api.dataApi.request({
+              id: 'mp149-grid-replies',
+              method: 'GET',
+              path: `/topics/${topicId}/messages`,
+              params: { includeSiblings: true }
+            }),
+          topicId
+        )
+        expect(response.status).toBe(200)
+        const latest = (response.data as BranchMessagesResponse).items.at(-1)
+        return latest
+          ? [latest.message, ...(latest.siblingsGroup ?? [])]
+              .map((message) => ({
+                modelId: message.modelId,
+                status: message.status,
+                text: (message.data.parts ?? [])
+                  .filter((part) => part.type === 'text')
+                  .map((part) => part.text)
+                  .join('')
+              }))
+              .sort((a, b) => (a.modelId ?? '').localeCompare(b.modelId ?? ''))
+          : []
+      })
+      .toEqual(
+        ['mock-chat', 'mock-grid'].map((model) => ({
+          modelId: createUniqueModelId(providerId, model),
+          status: 'success',
+          text: 'Grid orchid petals shine.'
+        }))
+      )
+    const gridCard = messages.filter({ has: page.locator('.message-assistant') }).last()
+    const expanded = page.getByRole('dialog').filter({ has: page.locator('.in-popover') })
+    const gridText = expanded.getByText('Grid orchid petals shine.', { exact: true })
+    await gridCard.click()
+    await expect(gridText).toBeVisible()
     await selectReply(gridText, 'Grid orchid petals shine.')
     await expect(toolbar).toBeVisible()
     await copyAndPaste(toolbar.getByRole('button', { name: 'Copy', exact: true }), 'Grid orchid petals shine.')
+    await expect(expanded).toBeHidden()
+    await gridCard.click()
+    await expect(gridText).toBeVisible()
     await selectReply(gridText, 'Grid orchid petals shine.')
     await toolbar.getByRole('button', { name: 'Quote', exact: true }).click()
     await expect(composer.locator('[data-composer-token-kind="quote"]')).toBeVisible()
     await composer.locator('[data-composer-token-kind="quote"]').hover()
     await expect(page.getByRole('tooltip')).toContainText('Grid orchid petals shine.')
     await attachScreenshot('MP-149 grid reply selection quote')
+  } catch (error) {
+    await attachScreenshot('MP-149 failure before scenario cleanup')
+    throw error
   } finally {
     await server.close()
     await page.evaluate(

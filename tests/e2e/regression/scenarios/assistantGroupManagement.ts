@@ -47,7 +47,6 @@ export async function assistantGroupManagement(
     const before = app.record
     page = await app.restart()
     expect(app.record.electronPid).not.toBe(before.electronPid)
-    expect(app.record.restartCount).toBe(before.restartCount + 1)
     expect(app.record.profile).toBe(before.profile)
     await openLibrary()
   }

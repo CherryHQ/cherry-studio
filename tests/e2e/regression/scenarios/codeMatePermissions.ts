@@ -5,8 +5,21 @@ import { join } from 'node:path'
 
 import { expect, type Page, type TestInfo } from '@playwright/test'
 
+import { TerminalApp } from '@shared/types/codeCli'
+
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
+import {
+  cleanupExternalResources,
+  observeExternalResource,
+  registerExternalResource
+} from '../../../../scripts/e2e/regression/externalResources'
+import { createRedactor } from '../../../../scripts/e2e/regression/redaction'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
+import {
+  listWindowsCodeTerminals,
+  windowsTerminalText,
+  type WindowsTerminal
+} from '../../../../scripts/e2e/regression/windowsTerminal'
 import { ensureCustomChatProvider } from '../helpers/models'
 import { openLaunchpadApp } from '../helpers/navigation'
 import { closeSettings } from '../helpers/settings'
@@ -17,8 +30,7 @@ function appleScript(script: string, args: string[] = []): string {
 }
 
 export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, testInfo: TestInfo): Promise<void> {
-  testInfo.setTimeout(5 * 60_000)
-  if (process.platform !== 'darwin') throw new Error('UNCOVERED: Terminal interaction requires macOS automation')
+  testInfo.setTimeout(8 * 60_000)
   const originalPreferences = await page.evaluate(() => window.api.preference.get('feature.code_cli.configs'))
   const readSettings = () =>
     page.evaluate(async () => {
@@ -37,19 +49,24 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
   let terminalWindow: string | undefined
+  let windowsTerminal: WindowsTerminal | undefined
+  let terminalResource: string | undefined
   const windowContents = (id: string) =>
-    appleScript(
-      `on run argv
+    app.record.platform === 'windows'
+      ? windowsTerminalText(app.paths, windowsTerminal!)
+      : appleScript(
+          `on run argv
     tell application "Terminal" to return contents of selected tab of window id (item 1 of argv as integer)
   end run`,
-      [id]
-    )
+          [id]
+        )
   const terminalText = () => windowContents(terminalWindow!)
   // Ownership requires a new window and tty, plus workspace evidence from its buffer or a process cwd.
   const terminalWindows = () =>
     appleScript(
       `on run
     set rows to {}
+    if application "Terminal" is not running then return ""
     tell application "Terminal"
       repeat with w in windows
         if (count of tabs of w) > 0 then
@@ -118,13 +135,20 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
       return windowContents(id)
     } catch (error) {
       // A window that vanished mid-poll is somebody else's business; any other failure is real.
-      if (/\(-1728\)|Can.t get window/.test(String(error))) return null
+      if (/\(-1728\)|Can.t get window|owned CLI terminal is no longer running/.test(String(error))) return null
       throw error
     }
   }
-  const terminalInput = (text: string) =>
-    appleScript(
-      `on run argv
+  const terminalInput = (text: string, keyCode = 36) =>
+    app.record.platform === 'windows'
+      ? windowsTerminalText(
+          app.paths,
+          windowsTerminal!,
+          text,
+          ({ 36: 13, 53: 27, 125: 40 } as Record<number, number>)[keyCode]
+        )
+      : appleScript(
+          `on run argv
     tell application "Terminal"
       set index of window id (item 1 of argv as integer) to 1
       activate
@@ -132,12 +156,12 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
     tell application "System Events"
       tell process "Terminal"
         keystroke (item 2 of argv)
-        key code 36
+        key code (item 3 of argv as integer)
       end tell
     end tell
   end run`,
-      [terminalWindow!, text]
-    )
+          [terminalWindow!, text, String(keyCode)]
+        )
   const codeView = page.locator('[data-ui~="code.view"]:visible').first()
   const providerCard = codeView
     .locator('[data-ui~="code.provider-card"]')
@@ -160,67 +184,126 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
     await expect(dialog).toBeHidden()
   }
   const launch = async () => {
-    const baseline = terminalWindows()
+    const resource = registerExternalResource(app.paths, app.record.platform, {
+      kind: 'terminal',
+      directory: app.paths.workspace
+    })
+    terminalResource = resource
+    const baselineWindows = app.record.platform === 'windows' ? listWindowsCodeTerminals(app.paths) : []
+    const baseline = app.record.platform === 'macos' ? terminalWindows() : []
     const baselineIds = baseline.map((w) => w.id)
     const baselineTtys = baseline.map((w) => w.tty)
     await codeView.getByRole('button', { name: 'Launch', exact: true }).click()
     const dialog = page.getByRole('dialog', { name: 'Launch Claude Code', exact: true })
     await expect(dialog.getByRole('textbox')).toHaveValue(app.paths.workspace)
+    if (app.record.platform === 'windows') {
+      await dialog.getByRole('combobox').click()
+      await page.getByRole('option', { name: 'Command Prompt', exact: true }).click()
+    }
     await dialog.getByRole('button', { name: 'Launch', exact: true }).click()
     await expect(dialog).toBeHidden()
-    let observed = ''
-    const deadline = Date.now() + 45_000
-    while (!terminalWindow && Date.now() < deadline) {
-      const candidates = terminalWindows().filter(
-        (w) => w.tty && !baselineIds.includes(w.id) && !baselineTtys.includes(w.tty)
-      )
-      const evidence = candidates.map((w) => ({
-        ...w,
-        buffer: showsWorkspace(windowContentsIfAlive(w.id) ?? ''),
-        cwd: ttyRunsInWorkspace(w.tty)
-      }))
-      observed = evidence.map((w) => `${w.id}@${w.tty} (buffer: ${w.buffer}, cwd: ${w.cwd})`).join(', ')
-      const front = frontWindowId()
-      const owned = evidence
-        .filter((w) => w.buffer || w.cwd)
-        .sort((a, b) => Number(b.id === front) - Number(a.id === front))[0]
-      terminalWindow = owned?.id
-      if (!terminalWindow) await new Promise((resolve) => setTimeout(resolve, 500))
+    if (app.record.platform === 'windows') {
+      await expect
+        .poll(
+          () => {
+            const terminals = listWindowsCodeTerminals(app.paths).filter(
+              (candidate) =>
+                !baselineWindows.some(
+                  (previous) => previous.pid === candidate.pid && previous.startedAt === candidate.startedAt
+                )
+            )
+            if (terminals.length === 1) windowsTerminal = terminals[0]
+            return terminals.length
+          },
+          { timeout: 45_000 }
+        )
+        .toBe(1)
+      terminalWindow = String(windowsTerminal!.pid)
+    } else {
+      let observed = ''
+      const deadline = Date.now() + 45_000
+      while (!terminalWindow && Date.now() < deadline) {
+        const candidates = terminalWindows().filter(
+          (w) => w.tty && !baselineIds.includes(w.id) && !baselineTtys.includes(w.tty)
+        )
+        const evidence = candidates.map((w) => ({
+          ...w,
+          buffer: showsWorkspace(windowContentsIfAlive(w.id) ?? ''),
+          cwd: ttyRunsInWorkspace(w.tty)
+        }))
+        observed = evidence.map((w) => `${w.id}@${w.tty} (buffer: ${w.buffer}, cwd: ${w.cwd})`).join(', ')
+        const front = frontWindowId()
+        const owned = evidence
+          .filter((w) => w.buffer || w.cwd)
+          .sort((a, b) => Number(b.id === front) - Number(a.id === front))[0]
+        terminalWindow = owned?.id
+        if (!terminalWindow) await new Promise((resolve) => setTimeout(resolve, 500))
+      }
+      if (!terminalWindow) {
+        throw new Error(
+          `MP-97 could not verify which Terminal window this launch opened; new windows: ${observed || 'none'}`
+        )
+      }
     }
-    if (!terminalWindow) {
-      throw new Error(
-        `MP-97 could not verify which Terminal window this launch opened; new windows: ${observed || 'none'}`
-      )
+    observeExternalResource(app.paths, resource)
+    for (let screen = 0; screen < 6; screen++) {
+      await expect
+        .poll(terminalText, { timeout: 45_000 })
+        .toMatch(
+          /Choose the text style|terminal setup|Press Enter to continue|trust this folder|trust the files|Yes, I trust|Make auto mode your default|select login method|Please run \/login|Sign in to continue|for shortcuts|shift\+tab/i
+        )
+      const contents = terminalText()
+      if (/select login method|Please run \/login|Sign in to continue/i.test(contents)) {
+        throw new Error('UNCOVERED: Claude Code requires an authenticated account')
+      }
+      if (/Use Claude Code's terminal setup/i.test(contents)) {
+        terminalInput('', 53)
+      } else if (/Make auto mode your default permission mode/i.test(contents)) {
+        if (/❯\s*Yes, set auto mode/i.test(contents)) {
+          terminalInput('', 125)
+          await expect.poll(terminalText).toMatch(/❯\s*No, keep/i)
+        }
+        terminalInput('')
+      } else if (/Yes, I trust this folder/i.test(contents)) {
+        if (/❯\s*No, exit/i.test(contents)) {
+          terminalInput('', 125)
+          await expect.poll(terminalText).toMatch(/❯\s*Yes, I trust this folder/i)
+        }
+        terminalInput('')
+      } else if (
+        /Choose the text style|Press Enter to continue|trust this folder|trust the files|Yes, I trust/i.test(contents)
+      ) {
+        terminalInput('')
+      } else {
+        return
+      }
+      await expect.poll(terminalText, { timeout: 30_000 }).not.toBe(contents)
     }
-    await expect.poll(() => terminalText(), { timeout: 45_000 }).toMatch(/trust|Welcome|Claude Code|❯/i)
-    if (/trust this folder|trust the files|Yes, I trust/i.test(terminalText())) terminalInput('')
-    if (/select login method|Please run \/login|Sign in to continue/i.test(terminalText())) {
-      throw new Error('UNCOVERED: Claude Code requires an authenticated account')
-    }
+    throw new Error('Claude Code onboarding did not reach its input prompt')
   }
   const closeTerminal = () => {
-    if (!terminalWindow) return
-    appleScript(
-      `on run argv
-      tell application "Terminal" to close window id (item 1 of argv as integer) saving no
-    end run`,
-      [terminalWindow]
-    )
+    if (!terminalResource) return
+    cleanupExternalResources(app.paths, [terminalResource])
+    terminalResource = undefined
     terminalWindow = undefined
+    windowsTerminal = undefined
   }
   try {
     await ensureCustomChatProvider(app, page)
     await closeSettings(page)
     await page.evaluate(
-      async ({ directory }) => {
+      async ({ directory, terminal }) => {
         const configs = await window.api.preference.get('feature.code_cli.configs')
         const previous = configs['claude-code']
         await window.api.preference.set('feature.code_cli.configs', {
           ...configs,
-          'claude-code': { providers: {}, current: null, ...previous, directory, terminal: 'Terminal' }
+          'claude-code': { providers: {}, current: null, ...previous, directory, terminal }
         })
       },
-      { directory: app.paths.workspace }
+      {
+        directory: app.paths.workspace,
+        terminal: app.record.platform === 'macos' ? TerminalApp.SYSTEM_DEFAULT : TerminalApp.CMD
+      }
     )
     await openLaunchpadApp(page, 'Code Mate')
     await codeView
@@ -297,13 +380,12 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
     const file = join(app.paths.workspace, 'mp97-permissions.txt')
     await writeFile(file, 'original\n')
     await launch()
-    expect(terminalText()).toMatch(/trust|safety|security|permission/i)
     for (const marker of ['MP97-AUTO-FIRST', 'MP97-AUTO-SECOND']) {
       terminalInput(
         `Use the Edit tool to replace the entire content of mp97-permissions.txt with ${marker}. Do not use Bash.`
       )
       await expect.poll(() => readFile(file, 'utf8'), { timeout: 60_000 }).toContain(marker)
-      expect(terminalText()).not.toMatch(/Do you want to (?:make this edit|proceed)\?/i)
+      expect(terminalText()).not.toMatch(/Do you want to (?:make this edit(?: to [^\r\n?]+)?|proceed)\?/i)
     }
     await attachScreenshot('MP-97 automatic edits completed')
     closeTerminal()
@@ -318,12 +400,25 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
       terminalInput(
         `Use the Edit tool to replace the entire content of mp97-permissions.txt with ${marker}. Do not use Bash.`
       )
-      await expect.poll(terminalText, { timeout: 60_000 }).toMatch(/Do you want to (?:make this edit|proceed)\?/i)
+      await expect
+        .poll(terminalText, { timeout: 60_000 })
+        .toMatch(/Do you want to (?:make this edit(?: to [^\r\n?]+)?|proceed)\?/i)
       expect(await readFile(file, 'utf8')).toBe(previous)
       terminalInput('1')
       await expect.poll(() => readFile(file, 'utf8'), { timeout: 60_000 }).toContain(marker)
     }
     await attachScreenshot('MP-97 per-edit confirmation restored')
+  } catch (error) {
+    if (terminalWindow) {
+      const contents = windowContentsIfAlive(terminalWindow)
+      if (contents !== null) {
+        await testInfo.attach('MP-97 terminal failure state', {
+          body: createRedactor(getSensitiveConfigValues())(contents),
+          contentType: 'text/plain'
+        })
+      }
+    }
+    throw error
   } finally {
     try {
       try {

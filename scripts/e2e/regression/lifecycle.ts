@@ -12,6 +12,7 @@ import {
 import { dirname, join, resolve } from 'node:path'
 
 import type { InstallationRecord } from './installation'
+import { macRuntimeExecutable } from './macRuntime'
 import type { RunPaths } from './paths'
 import { isPathInside } from './paths'
 import {
@@ -31,6 +32,16 @@ import {
   waitForPortRelease
 } from './process'
 import type { Platform, RunMode, TestProfile } from './types'
+
+export class AppExitedBeforeReadyError extends Error {
+  constructor(
+    readonly exitCode: number,
+    cause: unknown
+  ) {
+    super(`Application exited with code ${exitCode} before CDP became ready: ${String(cause)}`, { cause })
+    this.name = 'AppExitedBeforeReadyError'
+  }
+}
 
 export interface AppRecord {
   schemaVersion: 1
@@ -89,7 +100,7 @@ async function waitForCdp(
     try {
       const targets = await readCdpTargets()
       const mainTarget = targets.find(
-        (target) => target.type === 'page' && new URL(target.url).pathname.endsWith('/windows/main/index.html')
+        (target) => target.type === 'page' && URL.parse(target.url)?.pathname.endsWith('/windows/main/index.html')
       )
       const electronPid = findCdpPid(platform)
       if (mainTarget && electronPid && isDescendant(electronPid, runnerPid, platform)) {
@@ -128,7 +139,8 @@ export function createProfileEnvironment(paths: RunPaths, profile: TestProfile):
   const cliDirectories = ['.claude', '.codex', '.config', '.hermes', join('AppData', 'Local')].map((name) =>
     join(homeDirectory, name)
   )
-  for (const directory of [...Object.values(windowsDirectories), ...cliDirectories])
+  const npmCache = join(paths.private, 'npm-cache')
+  for (const directory of [...Object.values(windowsDirectories), ...cliDirectories, npmCache])
     mkdirSync(directory, { recursive: true })
   if (process.platform === 'win32') {
     for (const directory of windowsShellDirectories(homeDirectory)) mkdirSync(directory, { recursive: true })
@@ -147,6 +159,8 @@ export function createProfileEnvironment(paths: RunPaths, profile: TestProfile):
     CODEX_HOME: join(homeDirectory, '.codex'),
     XDG_CONFIG_HOME: join(homeDirectory, '.config'),
     HERMES_HOME: join(homeDirectory, '.hermes'),
+    NPM_CONFIG_CACHE: npmCache,
+    npm_config_cache: npmCache,
     LOCALAPPDATA: join(homeDirectory, 'AppData', 'Local')
   }
 }
@@ -162,6 +176,8 @@ function getLaunchSpec(
   const logPath = join(paths.logs, `electron-${profile}.log`)
   const environment = createProfileEnvironment(paths, profile)
   if (mode === 'branch') {
+    const preparedRuntime = macRuntimeExecutable(paths)
+    const executablePath = process.platform === 'darwin' && existsSync(preparedRuntime) ? preparedRuntime : undefined
     const args = [
       join(targetRoot, 'node_modules', 'dotenv-cli', 'cli.js'),
       '--',
@@ -181,10 +197,12 @@ function getLaunchSpec(
       cwd: targetRoot,
       environment: {
         ...environment,
+        ...(executablePath ? { ELECTRON_EXEC_PATH: executablePath } : {}),
         CS_DEV_PROFILE_ROOT: join(paths.profiles, profile),
         CS_DEV_USER_DATA_SUFFIX: `Regression-${runKey}-${profile}`
       },
-      logPath
+      logPath,
+      ...(executablePath ? { executablePath } : {})
     }
   }
 
@@ -280,6 +298,18 @@ export async function launchApp(
     rmSync(paths.appLaunchFailure, { force: true })
     return record
   } catch (error) {
+    if (child.exitCode === null && !isAlive(child.pid)) {
+      await new Promise<void>((resolve) => {
+        const finish = () => {
+          clearTimeout(timer)
+          child.off('exit', finish)
+          resolve()
+        }
+        const timer = setTimeout(finish, 1_000)
+        child.once('exit', finish)
+      })
+    }
+    const exitCode = child.exitCode
     try {
       await stopOwnedRecord(launchRecord)
     } catch (cleanupError) {
@@ -288,6 +318,7 @@ export async function launchApp(
         `${String(error)}; owned-process cleanup failed: ${String(cleanupError)}`
       )
     }
+    if (typeof exitCode === 'number') throw new AppExitedBeforeReadyError(exitCode, error)
     throw error
   }
 }
@@ -315,6 +346,10 @@ export async function stopOwnedApp(paths: RunPaths): Promise<void> {
 
 async function stopOwnedRecord(record: LaunchRecord): Promise<void> {
   if (record.platform === 'macos') {
+    if (record.mode === 'branch' && record.electronPid && !isAlive(record.electronPid)) {
+      // Normal app exit can precede its runner's children. Wait without claiming unknown survivors.
+      await waitForMacProcessGroupExit(record.runnerPid)
+    }
     if (record.mode === 'tag' && record.electronPid && isAlive(record.electronPid)) {
       assertOwnedProcess(record, record.electronPid, 'electron')
       // A relocation renderer exiting before its main process can schedule another relaunch.
@@ -322,9 +357,9 @@ async function stopOwnedRecord(record: LaunchRecord): Promise<void> {
       await waitForExit(record.electronPid)
       await waitForMacProcessGroupExit(record.runnerPid)
     }
-    terminateOwnedMacProcessGroup(record)
+    const verifiedMembers = terminateOwnedMacProcessGroup(record)
     if (!(await waitForMacProcessGroupExit(record.runnerPid))) {
-      terminateOwnedMacProcessGroup(record, 'SIGKILL')
+      terminateOwnedMacProcessGroup(record, 'SIGKILL', verifiedMembers)
       if (!(await waitForMacProcessGroupExit(record.runnerPid))) {
         throw new Error(`Owned application process group ${record.runnerPid} did not exit after SIGKILL`)
       }

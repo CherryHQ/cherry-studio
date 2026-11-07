@@ -2,24 +2,29 @@ import { writeFile } from 'node:fs/promises'
 
 import { expect, type Page, type TestInfo } from '@playwright/test'
 
-import type { AgentEntity, ScheduledTaskEntity, TaskRunLogEntity } from '@shared/data/types/agent'
+import type { ScheduledTaskEntity, TaskRunLogEntity } from '@shared/data/types/agent'
 import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
-import { createAgent, startNewAgentTask } from '../helpers/agents'
-import { ensureCustomChatProvider } from '../helpers/models'
+import { builtinAssistantAgent } from '../helpers/agents'
+import { ensureCustomChatProvider, selectVisibleModel } from '../helpers/models'
 import { closeSettings, openSettingsSection } from '../helpers/settings'
 import type { RegressionApp } from '../RegressionApp'
 
 export async function scheduledTaskConversation(app: RegressionApp, page: Page, testInfo: TestInfo): Promise<void> {
+  testInfo.annotations.push({
+    type: 'coverage',
+    description:
+      'Recurring tasks remain enabled after a successful run; cards show its summary and Run History shows the persisted result.'
+  })
   const screenshot = async (name: string) => {
     const path = testInfo.outputPath(`${name}.png`)
     await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
   const name = app.resourceName(`MP-145 time ${Date.now()}`)
-  const agentName = `${name} Agent`
+  let agentName: string
   const prompt = '输出当前时间'
   let agentId: string | undefined
   let conversationTabId: string | undefined
@@ -49,34 +54,12 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
     // Use the configured real provider: canned model text cannot prove tool-driven task creation.
     const providerId = await ensureCustomChatProvider(app, page)
     await closeSettings(page)
-    await createAgent(page, {
-      name: agentName,
-      runtime: 'Pi',
-      permission: 'Full Access',
-      providerId,
-      model: app.config.customProvider.chatModel
-    })
-    const agents = await page.evaluate(() =>
-      window.api.dataApi.request({
-        id: 'MP-145-read',
-        method: 'GET',
-        path: '/agents',
-        params: { limit: 200 }
-      })
-    )
-    expect(agents.status).toBe(200)
-    agentId = (agents.data as { items: AgentEntity[] }).items.find(({ name }) => name === agentName)?.id
-    expect(agentId).toBeTruthy()
-    await startNewAgentTask(page, agentName)
+    const agent = await builtinAssistantAgent(page)
+    agentId = agent.id
+    agentName = agent.name
 
     await openSettingsSection(page, 'Scheduled Tasks')
     await screenshot('MP-145 scheduled tasks header')
-    await expect
-      .soft(
-        page.getByText('Set what the Agent should do and when it should run.', { exact: true }),
-        'Page header must explain task content and run frequency (设置 Agent 要执行的内容和运行频率。)'
-      )
-      .toBeVisible()
     await page.getByRole('button', { name: 'New', exact: true }).click()
     await expect(page.getByRole('menuitem', { name: 'Create manually', exact: true })).toBeEnabled()
     const createWithAgent = page.getByRole('menuitem', { name: 'Create with Agent', exact: true })
@@ -85,6 +68,12 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
     await createWithAgent.click()
     const view = page.locator('[data-ui~="agent.view"]:visible').first()
     await expect(view).toBeVisible({ timeout: 30_000 })
+    await view
+      .getByRole('button', { name: 'Select Model', exact: true })
+      .or(view.locator('button:has(span[title*=" | "])'))
+      .first()
+      .click()
+    await selectVisibleModel(page, app.config.customProvider.chatModel, providerId)
     await expect(page.getByText(/启动定时任务对话失败|Failed to start.*scheduled/i)).toHaveCount(0)
     const composer = view.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first()
     await expect(composer).toBeEditable()
@@ -102,15 +91,19 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
     await expect.poll(async () => (await activeTab())?.url).toContain('/app/agents')
     conversationTabId = (await activeTab())!.id
     const returnToConversation = async () => {
-      await page.getByTestId('app-shell-tab-strip').locator(`[data-tab-id="${conversationTabId}"]`).click()
+      await closeSettings(page)
+      await expect.poll(async () => (await activeTab())?.id).toBe(conversationTabId)
       await expect(view).toBeVisible()
     }
     const messages = view.locator('[data-ui~="chat.message"]:visible')
+    const assistantMessages = messages.filter({ has: page.locator('.message-assistant') })
+    const lastAssistantId = async () =>
+      (await assistantMessages.count()) ? assistantMessages.last().getAttribute('data-message-id') : null
     const questionInput = view.getByRole('textbox', { name: 'Enter your answer...', exact: true })
     const questionnaire = view
       .locator('[data-composer-viewport-inset-target]')
       .filter({ has: page.getByRole('textbox', { name: 'Enter your answer...', exact: true }) })
-    const waitForAnswer = async (previousCount: number, previousQuestion?: string) => {
+    const waitForAnswer = async (previousId: string | null, previousQuestion?: string) => {
       await expect
         .poll(
           async () => {
@@ -121,17 +114,18 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
               )
             }
             return (
-              ((await messages.count()) > previousCount || previousQuestion !== undefined) &&
-              (await messages.last().getByTestId('completed-process-trigger').isVisible())
+              ((await lastAssistantId()) !== previousId || previousQuestion !== undefined) &&
+              (await assistantMessages.last().locator('[data-ui~="part:message-actions"]').isVisible()) &&
+              !(await view.getByRole('button', { name: 'Pause', exact: true }).isVisible())
             )
           },
           { timeout: 90_000, message: 'Agent must finish its response or request a user answer' }
         )
         .toBe(true)
-      return (await questionInput.isVisible()) ? questionnaire : messages.last()
+      return (await questionInput.isVisible()) ? questionnaire : assistantMessages.last()
     }
     const reply = async (text: string) => {
-      const previousCount = await messages.count()
+      const previousId = await lastAssistantId()
       let previousQuestion: string | undefined
       if (await questionInput.isVisible()) {
         previousQuestion = await questionnaire.getByRole('heading', { level: 2 }).innerText()
@@ -141,12 +135,12 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
         await composer.fill(text)
         await view.getByRole('button', { name: 'Send', exact: true }).click()
       }
-      return waitForAnswer(previousCount, previousQuestion)
+      return waitForAnswer(previousId, previousQuestion)
     }
-    let previousCount = await messages.count()
+    let previousId = await lastAssistantId()
     // Send the entry's untouched draft, then answer the interview one question at a time.
     await view.getByRole('button', { name: 'Send', exact: true }).click()
-    let answer = await waitForAnswer(previousCount)
+    let answer = await waitForAnswer(previousId)
     const requirements = `任务名称必须是「${name}」，提示词必须完整且仅为「${prompt}」。每 5 分钟执行一次，使用 Agent「${agentName}」，启用任务，结果保存在任务卡片中，不发送到外部渠道。先不要创建，等我明确确认创建。`
     for (let question = 0; question < 8; question += 1) {
       const text = await (
@@ -171,11 +165,11 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
     }
     const beforeConfirmation = await readTasks()
     expect(beforeConfirmation.filter((task) => task.name === name)).toHaveLength(0)
-    previousCount = await messages.count()
+    previousId = await lastAssistantId()
     const confirm = answer.getByRole('button', { name: /^(确认|Confirm)$/i })
     if (await confirm.isVisible()) {
       await confirm.click()
-      await waitForAnswer(previousCount)
+      await waitForAnswer(previousId)
     } else await reply('确认创建。')
     await expect
       .poll(
@@ -196,18 +190,20 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
     await expect(card).toContainText(/每\s*5\s*分钟|Every 5 minutes/i)
     await expect(card).toContainText(/已启用|Enabled/i)
     await screenshot('MP-145 created task card')
+    const taskSettings = page.locator('[data-ui~="settings.content"]:visible')
     const openTask = async () => {
       await card.getByRole('button', { name: /查看任务|View task/i }).click()
       await expect.poll(async () => (await activeTab())?.url).toBe(`/settings/scheduled-tasks/${created.id}`)
-      await expect(page.getByText(name, { exact: true })).toBeVisible()
-      await expect(page.getByText(prompt, { exact: true })).toBeVisible()
-      await page.getByRole('tab', { name: 'General', exact: true }).click()
-      await expect(page.getByText(agentName, { exact: true })).toBeVisible()
-      await expect(page.getByText('Every 5 minutes', { exact: true })).toBeVisible()
+      await expect(taskSettings.getByText(name, { exact: true })).toBeVisible()
+      await taskSettings.getByRole('tab', { name: 'Prompt', exact: true }).click()
+      await expect(taskSettings.getByText(prompt, { exact: true })).toBeVisible()
+      await taskSettings.getByRole('tab', { name: 'General Settings', exact: true }).click()
+      await expect(taskSettings.getByText(agentName, { exact: true })).toBeVisible()
+      await expect(taskSettings.getByText('Every 5 minutes', { exact: true })).toBeVisible()
     }
     await openTask()
     await screenshot('MP-145 corresponding task settings')
-    await page.getByRole('button', { name: 'Run', exact: true }).click()
+    await taskSettings.getByRole('button', { name: 'Run', exact: true }).click()
     let result: string | null | undefined
     await expect
       .poll(
@@ -231,11 +227,14 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
       .toBe('completed')
     expect(result?.trim()).toBeTruthy()
     await returnToConversation()
-    await expect(card).toContainText(/已触发|Triggered/i)
-    await expect(card).toContainText(result!)
-    await screenshot('MP-145 triggered card and latest result')
+    await expect(card).toContainText('Enabled')
+    await expect(card).toContainText('Last run succeeded')
+    await screenshot('MP-145 recurring card and successful run summary')
     await openTask()
-    await page.getByRole('button', { name: 'More', exact: true }).click()
+    await taskSettings.getByRole('tab', { name: 'Run History', exact: true }).click()
+    await expect(taskSettings.getByText(result!, { exact: true })).toBeVisible()
+    await screenshot('MP-145 persisted run result')
+    await taskSettings.getByRole('button', { name: 'More', exact: true }).click()
     await page.getByRole('menuitem', { name: 'Delete', exact: true }).click()
     await page.getByRole('dialog').getByRole('button', { name: 'Delete', exact: true }).click()
     await expect.poll(async () => (await readTasks()).some((task) => task.id === created.id)).toBe(false)
@@ -245,7 +244,7 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
   } finally {
     await screenshot('MP-145 final application state')
     const cleanupErrors = await page.evaluate(
-      async ({ agentId, name, sessionsBefore }) => {
+      async ({ name, sessionsBefore }) => {
         const errors: string[] = []
         const tasks = await window.api.dataApi.request({
           id: 'MP-145-cleanup-tasks',
@@ -310,16 +309,9 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
         } else {
           errors.push('Could not list case sessions for cleanup')
         }
-        if (agentId) {
-          const deletedAgent = (await window.api.ipcApi.request('ai.agent.delete_permanently', {
-            agentId,
-            deleteSessions: true
-          })) as IpcResult<{ deleted: boolean }>
-          if (!deletedAgent.ok || !deletedAgent.data.deleted) errors.push('cleanup left the case agent active')
-        }
         return errors
       },
-      { agentId, name, sessionsBefore }
+      { name, sessionsBefore }
     )
     expect
       .soft(cleanupErrors, 'Scheduled-task cleanup must not leave running sessions or mask the case failure')

@@ -202,12 +202,19 @@ export class RegressionApp {
 
   async cleanupTransientUi(mainWindow: Page): Promise<void> {
     await cancelNativeFileDialogs(this.record.platform, this.paths)
-    await dismissTransientDialogs(mainWindow)
     const browser = await this.connect()
-    const transientPages = browser
-      .contexts()
-      .flatMap((context) => context.pages())
-      .filter((page) => /\/windows\/(quickassistant|selection)\//i.test(page.url()))
+    const pages = browser.contexts().flatMap((context) => context.pages())
+    for (const capture of pages.filter((page) => /\/windows\/screenshot\//i.test(page.url()))) {
+      try {
+        const result = (await capture.evaluate(() => window.api.ipcApi.request('screenshot.cancel'))) as IpcResult<void>
+        if (!result.ok) throw new Error(`Screenshot cleanup failed: ${result.error.code}`)
+        await capture.locator('canvas').first().waitFor({ state: 'hidden', timeout: 10_000 })
+      } catch (error) {
+        if (!capture.isClosed()) throw error
+      }
+    }
+    await dismissTransientDialogs(mainWindow)
+    const transientPages = pages.filter((page) => /\/windows\/(quickassistant|selection)\//i.test(page.url()))
     await Promise.all(transientPages.map((page) => page.keyboard.press('Escape').catch(() => undefined)))
   }
 

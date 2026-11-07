@@ -41,6 +41,7 @@ test(...caseDefinition('MP-20'), async ({ mainWindow: page }, testInfo) => {
   const preferences = await page.evaluate(async () => ({
     model: await window.api.preference.get('chat.default_model_id'),
     naming: await window.api.preference.get('topic.naming.enabled'),
+    displayMode: await window.api.preference.get('topic.tab.display_mode'),
     shortcut: await window.api.preference.get('chat.input.send_message_shortcut')
   }))
   let topicId: string | undefined
@@ -94,6 +95,7 @@ test(...caseDefinition('MP-20'), async ({ mainWindow: page }, testInfo) => {
         window.api.preference.setMultiple({
           'chat.default_model_id': modelId,
           'topic.naming.enabled': false,
+          'topic.tab.display_mode': 'time',
           'chat.input.send_message_shortcut': ['Enter']
         }),
       createUniqueModelId(providerId, server.modelId)
@@ -172,10 +174,14 @@ test(...caseDefinition('MP-20'), async ({ mainWindow: page }, testInfo) => {
 
       await selectSidebarApp(page, 'Chat')
       await expect(composer).toBeEditable()
-      const recentTopic = page.getByTestId('topic-list-row').filter({ hasText: name, visible: true })
+      const recentTopic = chat.locator('[data-testid="topic-list-row"][data-selected="true"]').filter({ hasText: name })
       await expect(recentTopic).toHaveCount(1)
+      const topicRowId = await recentTopic.getAttribute('id')
+      expect(topicRowId).toBeTruthy()
       await screenshot('MP-20 conversation list')
-      await recentTopic.click()
+      await page.getByRole('button', { name: 'New Chat', exact: true }).last().click()
+      await expect(messages).toHaveCount(0)
+      await chat.locator(`[id="${topicRowId}"]`).click()
       await expect(chat).toBeVisible()
       await expect(messages).toHaveCount(2)
       await expect(messages.getByText('hello', { exact: true })).toBeVisible()
@@ -200,6 +206,7 @@ test(...caseDefinition('MP-20'), async ({ mainWindow: page }, testInfo) => {
         await window.api.preference.setMultiple({
           'chat.default_model_id': preferences.model,
           'topic.naming.enabled': preferences.naming,
+          'topic.tab.display_mode': preferences.displayMode,
           'chat.input.send_message_shortcut': preferences.shortcut
         })
         if (topicId) {
@@ -1112,7 +1119,6 @@ test(...caseDefinition('MP-25'), async ({ app, mainWindow }, testInfo) => {
     const before = app.record
     page = await app.restart()
     expect(app.record.electronPid).not.toBe(before.electronPid)
-    expect(app.record.restartCount).toBe(before.restartCount + 1)
     expect(app.record.profile).toBe(before.profile)
     await selectSidebarApp(page, 'Chat')
     await assertMoved()

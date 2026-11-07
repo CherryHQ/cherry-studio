@@ -4,9 +4,11 @@ import { join, resolve } from 'node:path'
 import { probeCapabilities } from './capabilities'
 import { PHASE_IDS, TASK_SELECTIONS } from './cases'
 import { getSensitiveConfigValues, loadTestConfig, REQUIRED_CONFIG } from './config'
+import { cleanupExternalResources } from './externalResources'
 import { createFixtures } from './fixtureFiles'
 import { prepareRelease } from './installation'
 import { launchApp, stopOwnedApp } from './lifecycle'
+import { prepareMacRuntime } from './macRuntime'
 import { assertMockTask, startMockProvider, stopMockProvider, verifyMockProvider } from './mockProvider'
 import { ensureRunDirectories, getRunPaths } from './paths'
 import { runPhase } from './phases'
@@ -199,11 +201,19 @@ async function aggregateGateCommand(): Promise<void> {
 
 async function cleanupCommand(): Promise<void> {
   const paths = runDirectory()
-  try {
-    await stopOwnedApp(paths)
-  } finally {
-    await stopMockProvider(paths)
+  const errors: unknown[] = []
+  for (const cleanup of [
+    () => stopOwnedApp(paths),
+    () => stopMockProvider(paths),
+    () => cleanupExternalResources(paths)
+  ]) {
+    try {
+      await Promise.resolve(cleanup())
+    } catch (error) {
+      errors.push(error)
+    }
   }
+  if (errors.length) throw new AggregateError(errors, `Regression cleanup failed: ${errors.map(String).join('; ')}`)
 }
 
 async function mockStartCommand(): Promise<void> {
@@ -235,6 +245,9 @@ async function main(): Promise<void> {
       break
     case 'release':
       await releaseCommand()
+      break
+    case 'prepare-mac-runtime':
+      await prepareMacRuntime(runDirectory(), resolve(argument('target-root') ?? ''))
       break
     case 'launch':
       await launchCommand()

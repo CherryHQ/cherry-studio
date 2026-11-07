@@ -88,8 +88,8 @@ describe('owned application lifecycle', () => {
     execFileSyncMock.mockImplementation((file: string, args: string[]) => {
       if (file === 'lsof') return relaunched ? '43000' : alive.has(mainPid) ? String(mainPid) : ''
       if (file === 'ps' && args.includes('command=')) return command
-      if (file === 'ps' && args.includes('pid=,pgid=,command='))
-        return [...alive].map((pid) => `${pid} ${mainPid} ${pid === mainPid ? command : helperCommand}`).join('\n')
+      if (file === 'ps' && args.includes('pid=,pgid=,stat=,command='))
+        return [...alive].map((pid) => `${pid} ${mainPid} S ${pid === mainPid ? command : helperCommand}`).join('\n')
       if (file === 'ps' && args.includes('pgid=,stat=')) return [...alive].map(() => `${mainPid} S`).join('\n')
       throw new Error(`Unexpected command: ${file} ${args.join(' ')}`)
     })

@@ -14,11 +14,10 @@ import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { readOwnedRecord } from '../../../../scripts/e2e/regression/lifecycle'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
-import { dismissNativeMessageBox } from '../../../../scripts/e2e/regression/systemAutomation'
+import { chooseNativeFile, dismissNativeMessageBox } from '../../../../scripts/e2e/regression/systemAutomation'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { test, expect } from '../fixture'
 import { sendChatMarker } from '../helpers/chat'
-import { chooseImportFile } from '../helpers/chooseImportFile'
 import { selectSidebarApp } from '../helpers/navigation'
 import { openSettingsSection } from '../helpers/settings'
 import { revealVirtualized } from '../helpers/virtualList'
@@ -385,12 +384,12 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
       // The packaged build relaunches itself; take ownership of the replacement before asserting.
       page = await app.adoptRelaunch()
     }
-    await expect(page.locator('[data-ui~="app.shell"]').first()).toBeVisible()
+    await selectSidebarApp(page, 'Chat')
+    await expect(page.locator('#app-sidebar')).toBeVisible()
     const restored = await readTopic()
     expect(restored.status).toBe(200)
     expect(TopicSchema.parse(restored.data)).toMatchObject({ id: topicId, name: topicName, assistantId })
     expect(await page.evaluate(() => window.api.preference.get('topic.naming.enabled'))).toBe(false)
-    await selectSidebarApp(page, 'Chat')
     const header = page.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
     await header.hover()
     const expand = header.getByRole('button', { name: 'Expand', exact: true })
@@ -455,7 +454,14 @@ test(...caseDefinition('MP-117'), async ({ app, mainWindow: page }, testInfo) =>
   const lastBackup = page.getByText(/^Last Backup: \d{2}:\d{2}:\d{2}$/)
   const selectInterval = async (name: string) => {
     await interval.click()
-    await page.getByRole('option', { name, exact: true }).click()
+    try {
+      await page.getByRole('listbox').hover()
+      await page.mouse.wheel(0, -1000)
+      await page.getByRole('option', { name, exact: true }).click()
+    } catch (error) {
+      await attachScreenshot(`MP-117 ${name} interval selection failure`)
+      throw error
+    }
     await expect(interval).toHaveText(name)
   }
 
@@ -620,7 +626,7 @@ test(...caseDefinition('MP-120'), async ({ app, mainWindow: page }, testInfo) =>
         const dialog = page.getByRole('dialog', { name: `Import ${source} Conversations`, exact: true })
         await expect(dialog).toBeVisible()
         await dialog.getByRole('button', { name: 'Select File', exact: true }).click()
-        chooseImportFile(app, path)
+        chooseNativeFile(app.record.platform, app.paths, path)
         return dialog
       }
       const before = await readState()
@@ -680,6 +686,9 @@ test(...caseDefinition('MP-120'), async ({ app, mainWindow: page }, testInfo) =>
       await attachScreenshot(`MP-120 ${source} invalid file rejected without partial data`)
       await invalidDialog.getByRole('button', { name: 'Cancel', exact: true }).click()
     }
+  } catch (error) {
+    await attachScreenshot('MP-120 import failure before cleanup')
+    throw error
   } finally {
     const current = await readState()
     const ids = new Set([

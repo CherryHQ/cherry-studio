@@ -109,6 +109,10 @@ parallel and drops an entry if it disappears between listing and stat.
 Common generated or dependency directories such as `node_modules`, `.git`,
 `dist`, `build`, `.next`, `.nuxt`, `coverage`, and `.cache` are excluded.
 Hidden entries are excluded unless `includeHidden` is true.
+Exclusions apply inside the requested root, so a root below `build` or `.cache`
+still lists its own eligible entries. File results are resolved to absolute paths
+after scanning from that root. Fuzzy candidates also pass through the shared
+ignore predicate so a positive glob cannot reintroduce excluded children.
 
 Ripgrep exit codes `0` and `1` are normal. For exit codes `2` and above, usable
 stdout is kept as partial results and the traversal error is logged; the search

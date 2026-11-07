@@ -118,33 +118,14 @@ export async function knowledgeSourceOperations(app: RegressionApp, page: Page, 
     const preview = panel.getByRole('region', { name: basename(paths[0]), exact: true })
     await expect(preview).toContainText(firstMarker)
     await expect(preview).toContainText('Cherry Studio knowledge source operations preserve document provenance.')
-    // The preview renders in expanded mode, so the scroll root is an ancestor rather than the
-    // editor node, and lines are virtualized: one wheel event stops short of the last line of
-    // a 1500-paragraph document. Scroll the real scrolling element and report it on failure.
-    const readPreview = () =>
-      preview.evaluate((region, marker) => {
-        const candidates = [region, ...region.querySelectorAll<HTMLElement>('*')].filter(
-          (element) => element.scrollHeight - element.clientHeight > 40
-        )
-        const scroller = candidates.sort((left, right) => right.scrollHeight - left.scrollHeight)[0]
-        if (scroller) scroller.scrollTop = scroller.scrollHeight
-        const text = region.textContent ?? ''
-        return {
-          found: text.includes(marker),
-          scrollTop: scroller?.scrollTop ?? -1,
-          scrollHeight: scroller?.scrollHeight ?? -1,
-          clientHeight: scroller?.clientHeight ?? -1,
-          tail: text.slice(-160)
-        }
-      }, lastMarker)
-    await preview.hover()
-    let previewState = await readPreview()
-    const deadline = Date.now() + 120_000
-    while (!previewState.found && Date.now() < deadline) {
-      await page.waitForTimeout(500)
-      previewState = await readPreview()
-    }
-    expect(previewState.found, `Preview never rendered the document end: ${JSON.stringify(previewState)}`).toBe(true)
+    // The virtualized editor renders its lines in a shadow root; Playwright text locators pierce it.
+    const previewScroll = preview.locator('[data-radix-scroll-area-viewport]')
+    await expect(async () => {
+      await previewScroll.evaluate((element) => {
+        element.scrollTop = element.scrollHeight
+      })
+      await expect(preview.getByText(lastMarker, { exact: true })).toBeVisible({ timeout: 500 })
+    }).toPass({ timeout: 30_000 })
     await screenshot('MP-65 original document preview')
     await panel.getByRole('button', { name: 'Back', exact: true }).click()
 

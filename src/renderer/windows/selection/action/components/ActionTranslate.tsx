@@ -1,6 +1,6 @@
 import { ArrowRight, ChevronDown, CircleHelp, Globe2, Loader2, Settings2 } from 'lucide-react'
 import type { FC } from 'react'
-import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { Suspense, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
@@ -241,9 +241,12 @@ const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) 
     })
   }, [])
 
-  useEffect(() => {
+  const translateSelection = useEffectEvent(() => {
     void fetchResult()
-  }, [fetchResult])
+  })
+  useEffect(() => {
+    translateSelection()
+  }, [selectedText, initialized, targetLanguage.langCode, alterLanguage.langCode])
 
   const handleChangeLanguage = useCallback(
     (newTargetLanguage: TranslateLanguage, newAlterLanguage: TranslateLanguage) => {

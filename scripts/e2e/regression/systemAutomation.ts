@@ -1,52 +1,456 @@
 import { execFile, execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, statSync } from 'node:fs'
 import { basename, dirname, extname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { promisify } from 'node:util'
 
+import { cleanupExternalResources, observeExternalResource, registerExternalResource } from './externalResources'
 import { readAppRecord, readOwnedRecord } from './lifecycle'
+import { macRuntimeExecutable } from './macRuntime'
 import type { RunPaths } from './paths'
 import { resolveAllowedPath } from './paths'
 import { assertOwnedProcess, findCdpPid, isDescendant } from './process'
 import type { Platform } from './types'
 
 const ALLOWED_KEYS = new Set(['Alt', 'Control', 'Enter', 'Escape', 'Meta', 'Shift', 'Space', 'a', 'c', 'e', 'k', 's'])
+
+const WINDOWS_NOTIFICATION_CENTER_SCRIPT = String.raw`
+Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+Add-Type -TypeDefinition @'
+using System;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Text;
+public static class NativeNotificationCenter {
+  [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr window);
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr window, StringBuilder value, int size);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr window, StringBuilder value, int size);
+  public static IntPtr Find() {
+    var window = GetForegroundWindow();
+    if (window == IntPtr.Zero || !IsWindowVisible(window)) return IntPtr.Zero;
+    var name = new StringBuilder(512);
+    var kind = new StringBuilder(256);
+    GetWindowText(window, name, name.Capacity);
+    GetClassName(window, kind, kind.Capacity);
+    if (kind.ToString() != "Windows.UI.Core.CoreWindow" ||
+        !(name.ToString().Equals("Action center", StringComparison.OrdinalIgnoreCase) ||
+          name.ToString().Equals("Notification center", StringComparison.OrdinalIgnoreCase))) return IntPtr.Zero;
+    uint owner;
+    GetWindowThreadProcessId(window, out owner);
+    try {
+      using (var process = Process.GetProcessById((int)owner)) {
+        return process.ProcessName == "ShellExperienceHost" ? window : IntPtr.Zero;
+      }
+    } catch (ArgumentException) { return IntPtr.Zero; }
+      catch (InvalidOperationException) { return IntPtr.Zero; }
+  }
+}
+'@
+function Find-NotificationCenter {
+  $handle = [NativeNotificationCenter]::Find()
+  if ($handle -eq [IntPtr]::Zero) { return $null }
+  return [Windows.Automation.AutomationElement]::FromHandle($handle)
+}
+`
+let activeTextResource: { paths: RunPaths; id: string; platform: Platform } | undefined
 let activeWindowsTextFixturePid: number | undefined
 let activeMacTextFixturePath: string | undefined
 let macProductMajor: number | undefined
 
-export function findMacNotification(paths: RunPaths, text: string, click = false): boolean {
+export function controlMacPrintDialog(paths: RunPaths, action: 'inspect' | 'cancel'): string[] {
+  const record = readAppRecord(paths)
+  if (record.platform !== 'macos') throw new Error('Native print automation requires macOS')
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  const script = `
+    import ApplicationServices
+    import Foundation
+    func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
+      var value: CFTypeRef?
+      AXUIElementCopyAttributeValue(element, name as CFString, &value)
+      return value
+    }
+    func descendants(_ element: AXUIElement, _ depth: Int = 0) -> [AXUIElement] {
+      guard depth < 18 else { return [element] }
+      let children = attribute(element, "AXChildren") as? [AXUIElement] ?? []
+      return [element] + children.flatMap { descendants($0, depth + 1) }
+    }
+    let application = AXUIElementCreateApplication(${record.electronPid})
+    let windows = attribute(application, "AXWindows") as? [AXUIElement] ?? []
+    var labels: [String] = []
+    for window in windows {
+      let elements = descendants(window)
+      let text = elements.flatMap { element in
+        ["AXTitle", "AXDescription", "AXValue"].compactMap { attribute(element, $0) as? String }
+      }
+      guard text.contains("PDF"), let cancel = elements.first(where: {
+        attribute($0, "AXRole") as? String == "AXButton" &&
+          ["Cancel", "取消"].contains(attribute($0, "AXTitle") as? String ?? "")
+      }) else { continue }
+      labels = text
+      if ${JSON.stringify(action)} == "cancel" && AXUIElementPerformAction(cancel, kAXPressAction as CFString) != .success {
+        throw NSError(domain: "OwnedPrintDialog", code: 1, userInfo: [NSLocalizedDescriptionKey: "Cannot cancel owned print dialog"])
+      }
+      break
+    }
+    print(String(data: try JSONSerialization.data(withJSONObject: labels), encoding: .utf8)!)
+  `
+  return JSON.parse(
+    execFileSync('swift', ['-module-cache-path', join(paths.private, 'swift-module-cache'), '-e', script], {
+      encoding: 'utf8',
+      timeout: 30_000,
+      env: { ...process.env, TMPDIR: paths.private }
+    })
+  ) as string[]
+}
+
+export function openMacTrayMenu(paths: RunPaths): void {
+  const record = readAppRecord(paths)
+  if (record.platform !== 'macos') throw new Error('Native tray automation requires macOS')
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  execFileSync(
+    'osascript',
+    [
+      '-l',
+      'JavaScript',
+      '-e',
+      `
+    ObjC.import('CoreGraphics')
+    ObjC.import('Foundation')
+    const events = Application('System Events')
+    const processId = events.processes.whose({unixId: ${record.electronPid}})[0].id()
+    const process = events.processes.byId(processId)
+    if (process.unixId() !== ${record.electronPid}) throw new Error('The tray process no longer matches the owned application')
+    const item = process.menuBars[1].menuBarItems[0]
+    const position = item.position(), size = item.size()
+    const point = {x: position[0] + size[0] / 2, y: position[1] + size[1] / 2}
+    $.CGEventPost(0, $.CGEventCreateMouseEvent(null, 5, point, 0))
+    $.NSThread.sleepForTimeInterval(0.15)
+    $.CGEventPost(0, $.CGEventCreateMouseEvent(null, 3, point, 1))
+    $.NSThread.sleepForTimeInterval(0.15)
+    $.CGEventPost(0, $.CGEventCreateMouseEvent(null, 4, point, 1))
+  `
+    ],
+    { timeout: 10_000, stdio: 'ignore' }
+  )
+}
+
+export function dragMacPointer(paths: RunPaths, from: { x: number; y: number }, to: { x: number; y: number }): void {
+  const record = readAppRecord(paths)
+  if (record.platform !== 'macos') throw new Error('Native pointer dragging requires macOS')
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  if (![from.x, from.y, to.x, to.y].every(Number.isFinite)) throw new Error('Pointer coordinates must be finite')
+  execFileSync(
+    'osascript',
+    [
+      '-l',
+      'JavaScript',
+      '-e',
+      `
+    ObjC.import('CoreGraphics')
+    ObjC.import('Foundation')
+    const from = ${JSON.stringify(from)}, to = ${JSON.stringify(to)}
+    const post = (type, point) => $.CGEventPost(0, $.CGEventCreateMouseEvent(null, type, point, 0))
+    post(5, from)
+    $.NSThread.sleepForTimeInterval(0.1)
+    post(1, from)
+    try {
+      for (let step = 1; step <= 15; step++) {
+        post(6, {x: from.x + (to.x - from.x) * step / 15, y: from.y + (to.y - from.y) * step / 15})
+        $.NSThread.sleepForTimeInterval(0.016)
+      }
+    } finally {
+      post(2, to)
+    }
+  `
+    ],
+    { timeout: 10_000, stdio: 'ignore' }
+  )
+}
+
+export function closeMacComputerUsePermissionGuide(paths: RunPaths): boolean {
+  const record = readAppRecord(paths)
+  if (record.platform !== 'macos') throw new Error('Native permission automation requires macOS')
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  // LaunchServices reparents SDK agents; their final argument identifies the owned protocol process.
+  const agents = execFileSync('ps', ['-axo', 'pid=,command='], { encoding: 'utf8' })
+    .split('\n')
+    .map((line) =>
+      line.trim().match(/^(\d+) (.*Cherry Computer Use\.app\/Contents\/MacOS\/.*) __computer-use-sdk-agent .+ (\d+)$/)
+    )
+    .filter((match): match is RegExpMatchArray =>
+      Boolean(match && isDescendant(Number(match[3]), record.electronPid, 'macos'))
+    )
+  if (agents.length !== 1) return false
+  const pid = Number(agents[0][1])
+  const script = `
+    import ApplicationServices
+    import Foundation
+    func closeGuide(_ pid: Int32) -> Bool {
+      var value: CFTypeRef?
+      let application = AXUIElementCreateApplication(pid)
+      guard AXUIElementCopyAttributeValue(application, kAXWindowsAttribute as CFString, &value) == .success,
+            let windows = value as? [AXUIElement] else { return false }
+      for window in windows {
+        var title: CFTypeRef?
+        AXUIElementCopyAttributeValue(window, kAXTitleAttribute as CFString, &title)
+        guard title as? String == "Cherry Computer Use" else { continue }
+        var close: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(window, kAXCloseButtonAttribute as CFString, &close) == .success,
+              let close, CFGetTypeID(close) == AXUIElementGetTypeID() else { continue }
+        return AXUIElementPerformAction(unsafeBitCast(close, to: AXUIElement.self), kAXPressAction as CFString) == .success
+      }
+      return false
+    }
+    print(closeGuide(${pid}))
+  `
+  return (
+    execFileSync('swift', ['-module-cache-path', join(paths.private, 'swift-module-cache'), '-e', script], {
+      encoding: 'utf8',
+      timeout: 30_000,
+      env: { ...process.env, TMPDIR: paths.private }
+    }).trim() === 'true'
+  )
+}
+
+export async function allowMacNotificationPermission(paths: RunPaths): Promise<void> {
+  const record = readAppRecord(paths)
+  if (record.platform !== 'macos' || record.executablePath !== macRuntimeExecutable(paths))
+    throw new Error('Notification permission requires the isolated signed macOS runtime')
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  const name = execFileSync(
+    '/usr/bin/plutil',
+    ['-extract', 'CFBundleDisplayName', 'raw', '-o', '-', join(dirname(dirname(record.executablePath)), 'Info.plist')],
+    { encoding: 'utf8' }
+  ).trim()
+  if (!/^Cherry Studio E2E [a-f0-9]{12}$/.test(name)) throw new Error('Unexpected notification application identity')
+  const deadline = Date.now() + 15000
+  do {
+    const { stdout } = await promisify(execFile)(
+      'osascript',
+      [
+        '-l',
+        'JavaScript',
+        '-e',
+        `
+      const center = Application('System Events').processes.byName('NotificationCenter')
+      const read = query => {
+        try { return query() } catch (error) { if (error.errorNumber !== -1728) throw error }
+      }
+      const find = (element, depth) => {
+        if (read(() => element.role()) === 'AXStaticText' &&
+            String(read(() => element.name())).includes(${JSON.stringify(name)})) {
+          const parent = read(() => element.attributes.byName('AXParent').value())
+          const allow = (parent && read(() => parent.actions()) || []).find(action => /^Name:(Allow|允许)\\n/.test(action.name()))
+          if (allow) { allow.perform(); return true }
+        }
+        return depth < 8 && (read(() => element.uiElements()) ?? []).some(child => find(child, depth + 1))
+      }
+      (read(() => center.windows()) ?? []).some(window => find(window, 0)) ? 'allowed' : 'absent'
+    `
+      ],
+      { encoding: 'utf8', timeout: 15000 }
+    ).catch((error: NodeJS.ErrnoException & { signal?: string; killed?: boolean; stderr?: string }) => {
+      throw new Error(
+        `Native notification permission inspection failed: ${JSON.stringify({
+          code: error.code,
+          signal: error.signal,
+          killed: error.killed,
+          stderr: error.stderr
+        })}`,
+        { cause: error }
+      )
+    })
+    if (stdout.trim() === 'allowed') return
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  } while (Date.now() < deadline)
+}
+
+export function setMacNotificationCenterOpen(paths: RunPaths, open: boolean): boolean {
   const record = readAppRecord(paths)
   if (record.platform !== 'macos') throw new Error('Native notification automation requires macOS')
   assertOwnedProcess(record, record.electronPid, 'electron')
+  const previous = execFileSync(
+    'osascript',
+    [
+      '-l',
+      'JavaScript',
+      '-e',
+      `
+    const events = Application('System Events')
+    const center = events.processes.byName('NotificationCenter')
+    const read = query => {
+      try { return query() } catch (error) {
+        if (error.errorNumber !== -1728) throw error
+      }
+    }
+    const isOpen = () => {
+      let elements = read(() => center.windows()) ?? []
+      for (let depth = 0; depth <= 5; depth++) {
+        if (elements.some(element => read(() => element.attributes.byName('AXIdentifier').value()) === 'widget-editor-button')) return true
+        if (depth < 5) elements = elements.flatMap(element => read(() => element.uiElements()) ?? [])
+      }
+      return false
+    }
+    const previous = isOpen()
+    if (previous !== ${JSON.stringify(open)}) {
+      const findClock = (element, depth) => {
+        if (read(() => element.attributes.byName('AXIdentifier').value()) === 'com.apple.menuextra.clock') return element
+        if (depth >= 4 || !['AXMenuBar', 'AXGroup'].includes(read(() => element.role()))) return
+        for (const child of read(() => element.uiElements()) ?? []) {
+          const clock = findClock(child, depth + 1)
+          if (clock) return clock
+        }
+      }
+      let clock
+      const menuOwners = []
+      for (const name of ['MenuBarAgent', 'ControlCenter', 'SystemUIServer']) {
+        for (const process of events.processes.whose({ name })()) {
+          const bars = process.menuBars()
+          menuOwners.push({ name, bars: bars.length })
+          for (const bar of bars) {
+            clock = findClock(bar, 0)
+            if (clock) break
+          }
+          if (clock) break
+        }
+        if (clock) break
+      }
+      if (!clock) throw new Error('Notification Center clock menu item is unavailable: ' + JSON.stringify(menuOwners))
+      clock.click()
+      const deadline = Date.now() + 3000
+      while (isOpen() !== ${JSON.stringify(open)} && Date.now() < deadline) delay(0.1)
+      if (isOpen() !== ${JSON.stringify(open)}) throw new Error('Notification Center did not reach the requested state; windows=' + (read(() => center.windows()) ?? []).length)
+    }
+    previous ? 'open' : 'closed'
+  `
+    ],
+    { timeout: 30_000, encoding: 'utf8' }
+  ).trim()
+  return previous === 'open'
+}
+
+export function findMacNotification(paths: RunPaths, text: string, click = false): boolean {
+  const record = readAppRecord(paths)
+  if (record.platform !== 'macos') throw new Error('Native notification automation requires macOS')
   const script = `on run argv
     tell application "System Events" to tell process "NotificationCenter"
       try
-      repeat with windowIndex from 1 to count of windows
-        set windowElements to entire contents of window windowIndex
-        repeat with groupReference in windowElements
-          set notificationGroup to contents of groupReference
-          if role of notificationGroup is "AXGroup" and subrole of notificationGroup is "AXNotificationCenterAlert" then
-            set alertElements to entire contents of notificationGroup
-            repeat with elementReference in alertElements
-              set element to contents of elementReference
-              if role of element is "AXStaticText" then
-                if value of element as text is item 1 of argv then
-                  if item 2 of argv is "click" then perform action "AXPress" of notificationGroup
-                  return "found"
-                end if
+        repeat with windowIndex from 1 to count of windows
+          set windowElements to entire contents of window windowIndex
+          repeat with elementReference in windowElements
+            set element to contents of elementReference
+            if role of element is "AXStaticText" then
+              set elementText to ""
+              try
+                set elementText to value of element as text
+              on error errorMessage number errorNumber
+                if errorNumber is not -1700 and errorNumber is not -1728 then error errorMessage number errorNumber
+              end try
+              if elementText contains item 1 of argv then
+                if item 2 of argv is not "click" then return "found"
+                set notificationGroup to value of attribute "AXParent" of element
+                repeat 8 times
+                  if (name of every action of notificationGroup) contains "AXPress" then
+                    set notificationSubrole to value of attribute "AXSubrole" of notificationGroup
+                    perform action "AXPress" of notificationGroup
+                    if notificationSubrole is "AXNotificationCenterBannerStack" then return "expanded"
+                    return "found"
+                  end if
+                  set notificationGroup to value of attribute "AXParent" of notificationGroup
+                end repeat
               end if
-            end repeat
-          end if
+            end if
+          end repeat
         end repeat
-      end repeat
       on error errorMessage number errorNumber
         if errorNumber is not -1728 then error errorMessage number errorNumber
       end try
     end tell
     return "absent"
   end run`
+  const deadline = Date.now() + 10_000
+  let expanded = false
+  do {
+    assertOwnedProcess(record, record.electronPid, 'electron')
+    const result = execFileSync('osascript', ['-e', script, '--', text, click ? 'click' : 'read'], {
+      encoding: 'utf8',
+      timeout: Math.max(1, deadline - Date.now())
+    }).trim()
+    if (result === 'found') return true
+    if (result === 'expanded') expanded = true
+    if (!expanded) return false
+  } while (Date.now() < deadline)
+  return false
+}
+
+export function setWindowsNotificationCenterOpen(paths: RunPaths, open: boolean): boolean {
+  const record = readAppRecord(paths)
+  if (record.platform !== 'windows') throw new Error('Native Windows notifications require Windows')
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  const script = [
+    '$ErrorActionPreference = "Stop"',
+    WINDOWS_NOTIFICATION_CENTER_SCRIPT,
+    '$previous = $null -ne (Find-NotificationCenter)',
+    `$desired = $${open}`,
+    'if ($previous -ne $desired) {',
+    `  Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class CenterKeyboard { [DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra); }'`,
+    '  $key = if ([Environment]::OSVersion.Version.Build -ge 22000) { 0x4E } else { 0x41 }',
+    '  [CenterKeyboard]::keybd_event(0x5B, 0, 0, [UIntPtr]::Zero)',
+    '  try {',
+    '    [CenterKeyboard]::keybd_event($key, 0, 0, [UIntPtr]::Zero)',
+    '  } finally {',
+    '    [CenterKeyboard]::keybd_event($key, 0, 2, [UIntPtr]::Zero)',
+    '    [CenterKeyboard]::keybd_event(0x5B, 0, 2, [UIntPtr]::Zero)',
+    '  }',
+    '  $deadline = [DateTime]::UtcNow.AddSeconds(5)',
+    '  do {',
+    '    Start-Sleep -Milliseconds 100',
+    '    $current = $null -ne (Find-NotificationCenter)',
+    '    if ($current -eq $desired) { break }',
+    '  } while ([DateTime]::UtcNow -lt $deadline)',
+    '  if ($current -ne $desired) { throw "Windows notification center did not reach the requested visibility" }',
+    '}',
+    '$previous.ToString().ToLowerInvariant()'
+  ].join('\n')
   return (
-    execFileSync('osascript', ['-e', script, '--', text, click ? 'click' : 'read'], {
+    execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+      windowsHide: true,
+      encoding: 'utf8',
+      timeout: 15_000
+    }).trim() === 'true'
+  )
+}
+
+export function findWindowsNotification(paths: RunPaths, text: string, click = false): boolean {
+  const record = readAppRecord(paths)
+  if (record.platform !== 'windows') throw new Error('Native Windows notifications require Windows')
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  const script = [
+    '$ErrorActionPreference = "Stop"',
+    WINDOWS_NOTIFICATION_CENTER_SCRIPT,
+    `$text = '${escapePowerShell(text)}'`,
+    '$center = Find-NotificationCenter',
+    'if ($null -eq $center) { Write-Output "absent"; exit }',
+    '$textCondition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Text)',
+    '$match = @($center.FindAll([Windows.Automation.TreeScope]::Descendants, $textCondition) | Where-Object { $_.Current.Name.Contains($text) }) | Select-Object -First 1',
+    'if (-not $match) { Write-Output "absent"; exit }',
+    ...(click
+      ? [
+          `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class ToastMouse { [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y); [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint x, uint y, uint data, UIntPtr extra); }'`,
+          '$bounds = $match.Current.BoundingRectangle',
+          'if ($match.Current.IsOffscreen -or $bounds.Width -le 0 -or $bounds.Height -le 0) { throw "The matching notification is not visible" }',
+          'if (-not [ToastMouse]::SetCursorPos([int]($bounds.X + $bounds.Width / 2), [int]($bounds.Y + $bounds.Height / 2))) { throw "Could not reach the matching notification" }',
+          '[ToastMouse]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)',
+          '[ToastMouse]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)'
+        ]
+      : []),
+    'Write-Output "found"'
+  ].join('\n')
+  return (
+    execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+      windowsHide: true,
       encoding: 'utf8',
       timeout: 10_000
     }).trim() === 'found'
@@ -54,49 +458,15 @@ export function findMacNotification(paths: RunPaths, text: string, click = false
 }
 
 export function closeExternalText(platform: Platform): void {
-  if (platform === 'macos' && activeMacTextFixturePath) {
-    const script = [
-      'on run argv',
-      'tell application "System Events"',
-      'if not (exists process "TextEdit") then return',
-      'tell process "TextEdit"',
-      'repeat with docWindow in windows',
-      'if exists attribute "AXDocument" of docWindow then',
-      'if value of attribute "AXDocument" of docWindow is item 1 of argv then',
-      'click (first button of docWindow whose subrole is "AXCloseButton")',
-      'end if',
-      'end if',
-      'end repeat',
-      'end tell',
-      'end tell',
-      'end run'
-    ].join('\n')
-    execFileSync('osascript', ['-e', script, '--', pathToFileURL(activeMacTextFixturePath).href], {
-      stdio: 'ignore',
-      timeout: 10_000
-    })
-    activeMacTextFixturePath = undefined
-    return
-  }
-  if (platform !== 'windows' || !activeWindowsTextFixturePid) return
-  try {
-    execFileSync('taskkill.exe', ['/PID', String(activeWindowsTextFixturePid), '/T', '/F'], {
-      stdio: 'ignore',
-      timeout: 10_000
-    })
-  } catch {
-    // The browser may have already exited.
-  } finally {
-    activeWindowsTextFixturePid = undefined
-  }
+  if (!activeTextResource || activeTextResource.platform !== platform) return
+  cleanupExternalResources(activeTextResource.paths, [activeTextResource.id])
+  activeTextResource = undefined
+  activeWindowsTextFixturePid = undefined
+  activeMacTextFixturePath = undefined
 }
 
 function escapePowerShell(value: string): string {
   return value.replace(/'/g, "''")
-}
-
-function escapeHtml(value: string): string {
-  return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
 }
 
 function runMacHotkey(keys: string[]): void {
@@ -204,9 +574,14 @@ function runAsync(file: string, args: string[], timeout: number): Promise<void> 
 /**
  * Acknowledge a native message box raised by the main process itself. The process is
  * blocked inside the modal call, so nothing inside the page can dismiss it: click the
- * box's default button from the desktop instead. Resolves once the box is gone.
+ * requested button from the desktop instead. Resolves once the box is gone.
  */
-export async function dismissNativeMessageBox(platform: Platform, paths: RunPaths, title: string): Promise<void> {
+export async function dismissNativeMessageBox(
+  platform: Platform,
+  paths: RunPaths,
+  title: string,
+  buttonName = 'OK'
+): Promise<void> {
   const record = readOwnedRecord(paths)
   let electronPid = record.electronPid
   const deadline = Date.now() + 60_000
@@ -222,19 +597,21 @@ export async function dismissNativeMessageBox(platform: Platform, paths: RunPath
     const script = [
       'on run argv',
       'set targetPid to item 2 of argv as integer',
+      'set buttonName to item 3 of argv',
       'tell application "System Events"',
       'repeat 240 times',
+      'try',
       'if exists (first application process whose unix id is targetPid) then',
       'tell (first application process whose unix id is targetPid)',
       'repeat with w in windows',
-      'if exists button "OK" of w then',
-      'click button "OK" of w',
+      'if exists button buttonName of w then',
+      'click button buttonName of w',
       'return "window"',
       'end if',
       'if (count of sheets of w) > 0 then',
       'repeat with s in sheets of w',
-      'if exists button "OK" of s then',
-      'click button "OK" of s',
+      'if exists button buttonName of s then',
+      'click button buttonName of s',
       'return "sheet"',
       'end if',
       'end repeat',
@@ -242,34 +619,46 @@ export async function dismissNativeMessageBox(platform: Platform, paths: RunPath
       'end repeat',
       'end tell',
       'end if',
+      'on error errorMessage number errorNumber',
+      'if errorNumber is not -1719 and errorNumber is not -1728 then error errorMessage number errorNumber',
+      'end try',
       'delay 0.25',
       'end repeat',
       'error "Native message box was not found"',
       'end tell',
       'end run'
     ].join('\n')
-    return runAsync('osascript', ['-e', script, '--', title, String(electronPid)], 90_000)
+    return runAsync('osascript', ['-e', script, '--', title, String(electronPid), buttonName], 90_000)
   }
   const script = [
     'Set-StrictMode -Version Latest',
     '$ErrorActionPreference = "Stop"',
     'Add-Type -AssemblyName UIAutomationClient',
     'Add-Type -AssemblyName UIAutomationTypes',
-    `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class NativeMessageBox { [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam); }'`,
+    `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class OwnedMessageBox { [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam); }'`,
     '$root = [System.Windows.Automation.AutomationElement]::RootElement',
     `$processCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ProcessIdProperty, ${electronPid})`,
     '$deadline = [DateTime]::UtcNow.AddSeconds(60)',
-    '$dialog = $null',
+    `$dialogCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "#32770"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, '${escapePowerShell(title)}'))`,
+    // Legacy Win32 buttons can be exposed as UIA panes instead of buttons.
+    `$buttonCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Button"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, '${escapePowerShell(buttonName)}'))`,
+    '$button = $null',
     'do {',
     '  $windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
-    `  $dialog = $windows | Where-Object { $_.Current.ClassName -eq "#32770" -and $_.Current.Name -eq '${escapePowerShell(title)}' } | Select-Object -Last 1`,
-    '  if (-not $dialog) { Start-Sleep -Milliseconds 200 }',
-    '} while (-not $dialog -and [DateTime]::UtcNow -lt $deadline)',
-    'if (-not $dialog) { throw "Native message box was not found" }',
-    '$buttonCondition = [System.Windows.Automation.OrCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "CommandButton_1"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1"))',
-    '$button = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $buttonCondition)',
-    'if (-not $button -or -not $button.Current.NativeWindowHandle) { throw "Native message box confirmation button was not found" }',
-    '$null = [NativeMessageBox]::SendMessage([IntPtr]$button.Current.NativeWindowHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)',
+    `  $dialogs = @($windows | Where-Object { $_.Current.ClassName -eq "#32770" -and $_.Current.Name -eq '${escapePowerShell(title)}' })`,
+    '  foreach ($window in $windows) { $dialogs += @($window.FindAll([System.Windows.Automation.TreeScope]::Descendants, $dialogCondition)) }',
+    `  foreach ($dialog in @($dialogs | Where-Object { $_.Current.ProcessId -eq ${electronPid} })) {`,
+    '    $button = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $buttonCondition)',
+    '    if ($button -and $button.Current.IsEnabled) { break }',
+    '    $button = $null',
+    '  }',
+    '  if (-not $button) { Start-Sleep -Milliseconds 200 }',
+    '} while (-not $button -and [DateTime]::UtcNow -lt $deadline)',
+    'if (-not $button) { throw "Native message box confirmation button was not found" }',
+    '$invoke = $null',
+    'if ($button.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern, [ref]$invoke)) { $invoke.Invoke() }',
+    'elseif ($button.Current.NativeWindowHandle) { $null = [OwnedMessageBox]::SendMessage([IntPtr]$button.Current.NativeWindowHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero) }',
+    'else { throw "Owned native confirmation button cannot be invoked" }',
     'Start-Sleep -Milliseconds 500'
   ].join('\n')
   return runAsync(
@@ -282,8 +671,14 @@ export async function dismissNativeMessageBox(platform: Platform, paths: RunPath
 export function openExternalText(platform: Platform, paths: RunPaths, candidatePath: string): string {
   const filePath = resolveAllowedPath(candidatePath, [paths.fixtures, paths.evidence])
   if (!existsSync(filePath)) throw new Error(`External text fixture does not exist: ${filePath}`)
+  closeExternalText(platform)
+  const id = registerExternalResource(paths, platform, {
+    kind: 'document',
+    application: platform === 'macos' ? 'TextEdit' : 'Notepad',
+    path: filePath
+  })
+  activeTextResource = { paths, id, platform }
   if (platform === 'macos') {
-    closeExternalText(platform)
     activeMacTextFixturePath = filePath
     execFileSync('open', ['-a', 'TextEdit', filePath], { stdio: 'ignore', timeout: 10_000 })
     execFileSync(
@@ -299,46 +694,19 @@ export function openExternalText(platform: Platform, paths: RunPaths, candidateP
       { stdio: 'ignore', timeout: 10_000 }
     )
   } else {
-    closeExternalText(platform)
-    const fixtureHtmlPath = join(paths.fixtures, 'windows-selection-fixture.html')
-    const browserProfilePath = join(paths.fixtures, 'windows-selection-browser-profile')
-    mkdirSync(browserProfilePath, { recursive: true })
-    writeFileSync(
-      fixtureHtmlPath,
-      [
-        '<!doctype html>',
-        '<meta charset="utf-8">',
-        '<title>Cherry Regression Selection Fixture</title>',
-        '<style>html,body,textarea{box-sizing:border-box;width:100%;height:100%;margin:0}textarea{padding:24px;font:24px sans-serif}</style>',
-        `<textarea autofocus>${escapeHtml(readFileSync(filePath, 'utf8').trim())}</textarea>`,
-        '<script>addEventListener("load",()=>{const area=document.querySelector("textarea");area.focus();area.select()})</script>'
-      ].join('\n'),
-      'utf8'
-    )
-    const fixtureUrl = pathToFileURL(fixtureHtmlPath).href
     const script = [
-      '$browserCandidates = @(',
-      '  "${env:ProgramFiles}\\Google\\Chrome\\Application\\chrome.exe",',
-      '  "${env:ProgramFiles(x86)}\\Google\\Chrome\\Application\\chrome.exe",',
-      '  "${env:ProgramFiles}\\Microsoft\\Edge\\Application\\msedge.exe",',
-      '  "${env:ProgramFiles(x86)}\\Microsoft\\Edge\\Application\\msedge.exe"',
-      ')',
-      '$browserPath = $browserCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1',
-      'if (-not $browserPath) { throw "Chrome or Edge was not found" }',
-      `$fixtureArgs = @('--user-data-dir="${escapePowerShell(browserProfilePath)}"', '--no-first-run', '--disable-default-apps', '--disable-extensions', '--new-window', '--window-size=800,400', '--window-position=100,100', '"${escapePowerShell(fixtureUrl)}"')`,
-      'Start-Process -FilePath $browserPath -ArgumentList $fixtureArgs | Out-Null',
+      `$fixture = Start-Process -FilePath notepad.exe -ArgumentList '"${escapePowerShell(filePath)}"' -PassThru`,
       '$deadline = [DateTime]::UtcNow.AddSeconds(20)',
-      '$fixture = $null',
       'do {',
-      '  $fixture = Get-Process chrome,msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -like "Cherry Regression Selection Fixture*" } | Select-Object -First 1',
-      '  if (-not $fixture) { Start-Sleep -Milliseconds 200 }',
-      '} while (-not $fixture -and [DateTime]::UtcNow -lt $deadline)',
-      'if (-not $fixture) { throw "External text window was not found" }',
+      '  $fixture.Refresh()',
+      '  if ($fixture.HasExited) { throw "External editor exited before opening the file" }',
+      '  if ($fixture.MainWindowHandle -eq 0) { Start-Sleep -Milliseconds 200 }',
+      '} while ($fixture.MainWindowHandle -eq 0 -and [DateTime]::UtcNow -lt $deadline)',
+      'if ($fixture.MainWindowHandle -eq 0) { throw "External editor window was not found" }',
       '$shell = New-Object -ComObject WScript.Shell',
-      'if (-not $shell.AppActivate($fixture.Id)) { throw "External text window could not be activated" }',
-      'Start-Sleep -Milliseconds 1000',
-      '$shell.SendKeys("^a")',
+      'if (-not $shell.AppActivate($fixture.Id)) { throw "External editor could not be activated" }',
       'Start-Sleep -Milliseconds 500',
+      '$shell.SendKeys("^a")',
       '$fixture.Id'
     ].join('\n')
     const output = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
@@ -350,7 +718,38 @@ export function openExternalText(platform: Platform, paths: RunPaths, candidateP
     if (!Number.isInteger(processId) || processId <= 0) throw new Error('External text process ID was not returned')
     activeWindowsTextFixturePid = processId
   }
+  observeExternalResource(paths, id)
   return filePath
+}
+
+export function readWindowsExternalText(): {
+  text: string
+  selectedText: string
+  bounds: { x: number; y: number; width: number; height: number }
+} {
+  if (!activeWindowsTextFixturePid || activeTextResource?.platform !== 'windows') {
+    throw new Error('No owned Windows external text editor is open')
+  }
+  const script = [
+    '$ErrorActionPreference = "Stop"',
+    'Add-Type -AssemblyName UIAutomationClient',
+    'Add-Type -AssemblyName UIAutomationTypes',
+    `$condition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty, ${activeWindowsTextFixturePid})`,
+    '$window = [Windows.Automation.AutomationElement]::RootElement.FindFirst([Windows.Automation.TreeScope]::Children, $condition)',
+    'if (-not $window) { throw "Owned external text window is unavailable" }',
+    '$editorCondition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Edit)',
+    '$editor = $window.FindFirst([Windows.Automation.TreeScope]::Descendants, $editorCondition)',
+    'if (-not $editor) { throw "Owned external editor has no text control" }',
+    '$text = $editor.GetCurrentPattern([Windows.Automation.TextPattern]::Pattern)',
+    '$bounds = $window.Current.BoundingRectangle',
+    '@{ text = $text.DocumentRange.GetText(-1); selectedText = (($text.GetSelection() | ForEach-Object { $_.GetText(-1) }) -join ""); bounds = @{ x = $bounds.X; y = $bounds.Y; width = $bounds.Width; height = $bounds.Height } } | ConvertTo-Json -Compress'
+  ].join('; ')
+  return JSON.parse(
+    execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+      encoding: 'utf8',
+      timeout: 10_000
+    })
+  )
 }
 
 export async function inspectImageInExternalBrowser(
@@ -358,6 +757,7 @@ export async function inspectImageInExternalBrowser(
   candidatePath: string
 ): Promise<{ width: number; height: number; screenshot: string }> {
   const filePath = resolveAllowedPath(candidatePath, [paths.evidence])
+  const resource = registerExternalResource(paths, 'windows', { kind: 'browser', title: basename(filePath) })
   const { chromium } = await import('@playwright/test')
   const browser = await chromium.launchPersistentContext(join(paths.private, 'external-image-viewer'), {
     channel: 'msedge',
@@ -374,16 +774,82 @@ export async function inspectImageInExternalBrowser(
     }))
     const screenshot = join(paths.evidence, 'external-image-viewer.png')
     await page.screenshot({ path: screenshot })
+    observeExternalResource(paths, resource)
     return { ...dimensions, screenshot }
   } finally {
     await browser.close()
   }
 }
 
+export function readWindowsPrintDialog(paths: RunPaths): string[] {
+  const record = readAppRecord(paths)
+  if (record.platform !== 'windows') throw new Error('Native Windows print inspection requires Windows')
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  const script = [
+    '$ErrorActionPreference = "Stop"',
+    'Add-Type -AssemblyName UIAutomationClient',
+    'Add-Type -AssemblyName UIAutomationTypes',
+    `$condition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty, ${record.electronPid})`,
+    '$windows = [Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Children, $condition)',
+    '$dialogCondition = [Windows.Automation.AndCondition]::new([Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ClassNameProperty, "#32770"), [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty, "Print"))',
+    '$dialogs = @($windows | Where-Object { $_.Current.ClassName -eq "#32770" -and $_.Current.Name -eq "Print" })',
+    'foreach ($window in $windows) { $dialogs += @($window.FindAll([Windows.Automation.TreeScope]::Descendants, $dialogCondition)) }',
+    `$dialog = $dialogs | Where-Object { $_.Current.ProcessId -eq ${record.electronPid} } | Select-Object -First 1`,
+    'if (-not $dialog) { Write-Output "[]"; exit }',
+    '$names = @($dialog.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.Condition]::TrueCondition) | ForEach-Object { $_.Current.Name } | Where-Object { $_ })',
+    'ConvertTo-Json -InputObject $names -Compress'
+  ].join('; ')
+  return JSON.parse(
+    execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+      encoding: 'utf8',
+      timeout: 10_000
+    })
+  )
+}
+
 export function chooseNativeFile(platform: Platform, paths: RunPaths, candidatePath: string): string {
+  return chooseNativeSelection(platform, paths, candidatePath)
+}
+
+export function chooseWindowsNativeFiles(paths: RunPaths, candidates: string[]): void {
+  chooseNativeFiles('windows', paths, candidates)
+}
+
+export function chooseNativeFiles(platform: Platform, paths: RunPaths, candidates: string[]): void {
+  if (candidates.length === 0) throw new Error('Native multi-file selection requires at least one file')
+  const files = candidates.map((candidate) => {
+    const file = resolveAllowedPath(candidate, [paths.fixtures, paths.workspace, paths.evidence])
+    if (!statSync(file).isFile()) throw new Error(`Selected path is not a file: ${file}`)
+    return file
+  })
+  if (platform === 'windows') {
+    chooseNativeSelection(platform, paths, files[0], files.map((file) => `"${file}"`).join(' '))
+    return
+  }
+  const directory = dirname(files[0])
+  const entries = readdirSync(directory).map((name) => join(directory, name))
+  if (
+    files.some((file) => dirname(file) !== directory) ||
+    entries.length !== files.length ||
+    entries.some((file) => !files.includes(file))
+  ) {
+    throw new Error('macOS multi-file selection requires all files in one isolated directory')
+  }
+  chooseNativeSelection(platform, paths, directory, undefined, true)
+}
+
+function chooseNativeSelection(
+  platform: Platform,
+  paths: RunPaths,
+  candidatePath: string,
+  selectionText?: string,
+  selectAll = false
+): string {
   const filePath = resolveAllowedPath(candidatePath, [paths.fixtures, paths.workspace, paths.evidence])
   if (!existsSync(filePath)) throw new Error(`Selected file does not exist: ${filePath}`)
-  const electronPid = readAppRecord(paths).electronPid
+  const record = readAppRecord(paths)
+  const electronPid = record.electronPid
+  assertOwnedProcess(record, electronPid, 'electron')
   if (platform === 'macos') {
     const legacyScript = [
       'on run argv',
@@ -409,6 +875,7 @@ export function chooseNativeFile(platform: Platform, paths: RunPaths, candidateP
       'if exists text field 1 of sheet 1 of window 1 then key code 36',
       'end repeat',
       'if exists sheet 1 of window 1 then error "Go to Folder did not finish"',
+      ...(selectAll ? ['key code 124', 'keystroke "a" using command down'] : []),
       'repeat 100 times',
       'if enabled of button "Open" of splitter group 1 of window 1 then exit repeat',
       'delay 0.1',
@@ -483,7 +950,7 @@ export function chooseNativeFile(platform: Platform, paths: RunPaths, candidateP
               {
                 stage: 'accept-disabled',
                 cap: 5,
-                action: [],
+                action: selectAll ? ['keystroke "a" using command down'] : [],
                 condition: 'enabled of last button of splitter group 1 of window 1',
                 detail: 'last direct button is not enabled'
               },
@@ -527,7 +994,7 @@ export function chooseNativeFile(platform: Platform, paths: RunPaths, candidateP
           ].join('\n')
         : legacyScript
     try {
-      execFileSync('osascript', ['-e', script, '--', filePath, String(electronPid)], {
+      execFileSync('osascript', ['-e', script, '--', selectAll ? `${filePath}/` : filePath, String(electronPid)], {
         stdio: ['ignore', 'ignore', 'pipe'],
         timeout: 45_000
       })
@@ -550,131 +1017,85 @@ using System;
 using System.Text;
 using System.Runtime.InteropServices;
 public static class NativeDialog {
-  [DllImport("user32.dll")] public static extern IntPtr GetDlgItem(IntPtr dialog, int id);
   [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
-  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
-  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr window);
-  [DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
   [DllImport("user32.dll", EntryPoint="SendMessageW", CharSet=CharSet.Unicode)] public static extern IntPtr SetText(IntPtr window, uint message, IntPtr wParam, string value);
   [DllImport("user32.dll", EntryPoint="SendMessageW", CharSet=CharSet.Unicode)] public static extern IntPtr ReadText(IntPtr window, uint message, IntPtr wParam, StringBuilder value);
 }'`,
       '$root = [System.Windows.Automation.AutomationElement]::RootElement',
+      `$ownedPid = ${electronPid}`,
       `$processCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ProcessIdProperty, ${electronPid})`,
+      '$dialogCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "#32770")',
       '$deadline = [DateTime]::UtcNow.AddSeconds(10)',
       '$dialog = $null',
       'do {',
       '  $windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
-      '  $dialog = $windows | Where-Object { $_.Current.ClassName -eq "#32770" -and -not $_.Current.IsOffscreen -and $_.Current.IsEnabled } | Select-Object -Last 1',
+      '  $dialogs = @($windows | Where-Object { $_.Current.ClassName -eq "#32770" })',
+      '  foreach ($window in $windows) { $dialogs += @($window.FindAll([System.Windows.Automation.TreeScope]::Descendants, $dialogCondition)) }',
+      '  $dialog = $dialogs | Where-Object { $_.Current.ProcessId -eq $ownedPid -and $_.Current.ClassName -eq "#32770" -and -not $_.Current.IsOffscreen -and $_.Current.IsEnabled } | Select-Object -Last 1',
       '  if (-not $dialog) { Start-Sleep -Milliseconds 200 }',
       '} while (-not $dialog -and [DateTime]::UtcNow -lt $deadline)',
       'if (-not $dialog) {',
-      '  $dialog = $windows | Where-Object { $_.Current.ClassName -eq "#32770" -and -not $_.Current.IsOffscreen } | Select-Object -Last 1',
+      '  $dialog = $dialogs | Where-Object { $_.Current.ProcessId -eq $ownedPid -and $_.Current.ClassName -eq "#32770" -and -not $_.Current.IsOffscreen } | Select-Object -Last 1',
       '}',
       'if (-not $dialog) {',
       '  $all = $root.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)',
       '  $seen = ($all | Select-Object -First 25 | ForEach-Object { "$($_.Current.ProcessId)|$($_.Current.ClassName)|$($_.Current.ControlType.ProgrammaticName)|offscreen=$($_.Current.IsOffscreen)|$($_.Current.Name)" }) -join " ; "',
       '  throw ("Native file dialog was not found for pid ' + electronPid + '. Top-level windows: " + $seen)',
       '}',
-      ...(isDirectory
-        ? [
-            '$deadline = [DateTime]::UtcNow.AddSeconds(5)',
-            '$dialogHandle = [IntPtr]$dialog.Current.NativeWindowHandle',
-            '$shell = New-Object -ComObject WScript.Shell',
-            `$null = $shell.AppActivate(${electronPid})`,
-            '$focused = $false',
-            'do {',
-            '  $null = [NativeDialog]::SetForegroundWindow($dialogHandle)',
-            '  $focused = [NativeDialog]::GetForegroundWindow() -eq $dialogHandle',
-            '  if (-not $focused) { Start-Sleep -Milliseconds 100 }',
-            '} while (-not $focused -and [DateTime]::UtcNow -lt $deadline)',
-            'if (-not $focused) { throw "Native folder dialog could not receive focus" }',
-            '[NativeDialog]::keybd_event(0x11, 0, 0, [UIntPtr]::Zero)',
-            '[NativeDialog]::keybd_event(0x4C, 0, 0, [UIntPtr]::Zero)',
-            '[NativeDialog]::keybd_event(0x4C, 0, 2, [UIntPtr]::Zero)',
-            '[NativeDialog]::keybd_event(0x11, 0, 2, [UIntPtr]::Zero)',
-            '$addressCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "41477"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::IsOffscreenProperty, $false))',
-            '$addressCondition = [System.Windows.Automation.AndCondition]::new($addressCondition, [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Edit"))',
-            '$deadline = [DateTime]::UtcNow.AddSeconds(5)',
-            'do {',
-            '  $address = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $addressCondition)',
-            '  if ($address -and -not [NativeDialog]::IsWindowVisible([IntPtr]$address.Current.NativeWindowHandle)) { $address = $null }',
-            '  if (-not $address) { Start-Sleep -Milliseconds 100 }',
-            '} while (-not $address -and [DateTime]::UtcNow -lt $deadline)',
-            'if (-not $address) { throw "Native folder address input was not found" }',
-            '$addressHandle = [IntPtr]$address.Current.NativeWindowHandle',
-            `$null = [NativeDialog]::SetText($addressHandle, 0x000C, [IntPtr]::Zero, '${escapePowerShell(filePath)}')`,
-            '$value = [System.Text.StringBuilder]::new(32768)',
-            '$null = [NativeDialog]::ReadText($addressHandle, 0x000D, [IntPtr]::new($value.Capacity), $value)',
-            `if ($value.ToString() -ne '${escapePowerShell(filePath)}') { throw "Native folder address readback mismatch" }`,
-            'if ([NativeDialog]::GetForegroundWindow() -ne $dialogHandle) { throw "Native folder dialog lost foreground ownership" }',
-            '[NativeDialog]::keybd_event(0x0D, 0, 0, [UIntPtr]::Zero)',
-            '[NativeDialog]::keybd_event(0x0D, 0, 2, [UIntPtr]::Zero)',
-            '$deadline = [DateTime]::UtcNow.AddSeconds(5)',
-            'do {',
-            '  $windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
-            '  $dialog = $windows | Where-Object { [IntPtr]$_.Current.NativeWindowHandle -eq $dialogHandle } | Select-Object -First 1',
-            '  if (-not $dialog) { break }',
-            '  $editing = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $addressCondition)',
-            '  if ($editing -and -not [NativeDialog]::IsWindowVisible([IntPtr]$editing.Current.NativeWindowHandle)) { $editing = $null }',
-            '  if (-not $editing) { break }',
-            '  Start-Sleep -Milliseconds 100',
-            '} while ([DateTime]::UtcNow -lt $deadline)',
-            'if ($dialog) {',
-            '  if ($editing) { throw "Native folder navigation did not finish" }',
-            '  $acceptHandle = [NativeDialog]::GetDlgItem([IntPtr]$dialogHandle, 1)',
-            '  if ($acceptHandle -eq [IntPtr]::Zero) { throw "Native folder accept button was not found" }',
-            '  $null = [NativeDialog]::SendMessage($acceptHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)',
-            '}'
-          ]
-        : [
-            // Typing into the dialog depends on focus the runner cannot guarantee, so set the name
-            // field directly and accept through the dialog's own default button. The file name
-            // control is populated after the dialog is created, so wait for it before failing.
-            '$dialogHandle = [IntPtr]$dialog.Current.NativeWindowHandle',
-            '$fileCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1001"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Edit"))',
-            '$deadline = [DateTime]::UtcNow.AddSeconds(10)',
-            '$fileInput = $null',
-            'do {',
-            '  $fileInput = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $fileCondition)',
-            '  if (-not $fileInput) { Start-Sleep -Milliseconds 200 }',
-            '} while (-not $fileInput -and [DateTime]::UtcNow -lt $deadline)',
-            'if (-not $fileInput) {',
-            '  $editCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Edit)',
-            '  $fileInput = $dialog.FindAll([System.Windows.Automation.TreeScope]::Descendants, $editCondition) | Where-Object { -not $_.Current.IsOffscreen } | Select-Object -Last 1',
-            '}',
-            'if (-not $fileInput) {',
-            '  $all = $dialog.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)',
-            '  $seen = ($all | Select-Object -First 40 | ForEach-Object { "$($_.Current.AutomationId)|$($_.Current.ClassName)|$($_.Current.ControlType.ProgrammaticName)|offscreen=$($_.Current.IsOffscreen)|$($_.Current.Name)" }) -join " ; "',
-            '  throw ("Native file name input was not found. Dialog descendants: " + $seen)',
-            '}',
-            `$requested = '${escapePowerShell(filePath)}'`,
-            '$valuePattern = $null',
-            'try { $valuePattern = [System.Windows.Automation.ValuePattern]$fileInput.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern) } catch { $valuePattern = $null }',
-            'if ($valuePattern) {',
-            '  $valuePattern.SetValue($requested)',
-            '} else {',
-            '  $null = [NativeDialog]::SetText([IntPtr]$fileInput.Current.NativeWindowHandle, 0x000C, [IntPtr]::Zero, $requested)',
-            '}',
-            '$current = $null',
-            'if ($valuePattern) { $current = $valuePattern.Current.Value } else {',
-            '  $buffer = [System.Text.StringBuilder]::new(32768)',
-            '  $null = [NativeDialog]::ReadText([IntPtr]$fileInput.Current.NativeWindowHandle, 0x000D, [IntPtr]::new($buffer.Capacity), $buffer)',
-            '  $current = $buffer.ToString()',
-            '}',
-            'if ($current -ne $requested) { throw "Native file name readback mismatch" }',
-            '$acceptHandle = [NativeDialog]::GetDlgItem($dialogHandle, 1)',
-            'if ($acceptHandle -eq [IntPtr]::Zero) { throw "Native file dialog accept button was not found" }',
-            '$null = [NativeDialog]::SendMessage($acceptHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)',
-            '$deadline = [DateTime]::UtcNow.AddSeconds(10)',
-            '$closed = $false',
-            'do {',
-            '  $remaining = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
-            '  $closed = -not ($remaining | Where-Object { [IntPtr]$_.Current.NativeWindowHandle -eq $dialogHandle })',
-            '  if (-not $closed) { Start-Sleep -Milliseconds 100 }',
-            '} while (-not $closed -and [DateTime]::UtcNow -lt $deadline)',
-            'if (-not $closed) { throw "Native file dialog did not close after accepting the file name" }'
-          ])
+      // Use the native controls' automation patterns so the common dialog receives change/accept events.
+      '$dialogHandle = [IntPtr]$dialog.Current.NativeWindowHandle',
+      `$fileCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "${isDirectory ? 1152 : 1148}"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Edit"))`,
+      '$fileCondition = [System.Windows.Automation.AndCondition]::new($fileCondition, [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::IsOffscreenProperty, $false))',
+      '$deadline = [DateTime]::UtcNow.AddSeconds(10)',
+      '$fileInput = $null',
+      'do {',
+      '  $fileInput = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $fileCondition)',
+      '  if (-not $fileInput) { Start-Sleep -Milliseconds 200 }',
+      '} while (-not $fileInput -and [DateTime]::UtcNow -lt $deadline)',
+      'if (-not $fileInput) {',
+      '  $all = $dialog.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)',
+      '  $seen = ($all | Select-Object -First 40 | ForEach-Object { "$($_.Current.AutomationId)|$($_.Current.ClassName)|$($_.Current.ControlType.ProgrammaticName)|offscreen=$($_.Current.IsOffscreen)|$($_.Current.Name)" }) -join " ; "',
+      '  throw ("Native file name input was not found. Dialog descendants: " + $seen)',
+      '}',
+      `$requested = '${escapePowerShell(selectionText ?? filePath)}'`,
+      'if ($fileInput.Current.IsKeyboardFocusable) {',
+      '  $fileInput.SetFocus()',
+      '  if (-not $fileInput.Current.HasKeyboardFocus) { throw "Native file name input could not receive focus" }',
+      '}',
+      '$valuePattern = $null',
+      'try { $valuePattern = [System.Windows.Automation.ValuePattern]$fileInput.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern) } catch { $valuePattern = $null }',
+      'if ($valuePattern) {',
+      '  $valuePattern.SetValue($requested)',
+      '} else {',
+      '  $null = [NativeDialog]::SetText([IntPtr]$fileInput.Current.NativeWindowHandle, 0x000C, [IntPtr]::Zero, $requested)',
+      '}',
+      '$current = $null',
+      'if ($valuePattern) { $current = $valuePattern.Current.Value } else {',
+      '  $buffer = [System.Text.StringBuilder]::new(32768)',
+      '  $null = [NativeDialog]::ReadText([IntPtr]$fileInput.Current.NativeWindowHandle, 0x000D, [IntPtr]::new($buffer.Capacity), $buffer)',
+      '  $current = $buffer.ToString()',
+      '}',
+      'if ($current -ne $requested) { throw "Native file name readback mismatch" }',
+      '$null = [NativeDialog]::SetForegroundWindow($dialogHandle)',
+      '$accept = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Button")))',
+      'if (-not $accept) { throw "Native file dialog accept button was not found" }',
+      '$invoke = $null',
+      'if ($accept.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern, [ref]$invoke)) { $invoke.Invoke() } else {',
+      '  $handle = [IntPtr]$accept.Current.NativeWindowHandle',
+      '  if ($handle -eq [IntPtr]::Zero) { throw "Native accept button has no window handle" }',
+      '  $null = [NativeDialog]::SendMessage($handle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)',
+      '}',
+      '$deadline = [DateTime]::UtcNow.AddSeconds(10)',
+      '$closed = $false',
+      'do {',
+      '  $windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
+      '  $remaining = @($windows)',
+      '  foreach ($window in $windows) { $remaining += @($window.FindAll([System.Windows.Automation.TreeScope]::Descendants, $dialogCondition)) }',
+      '  $closed = -not ($remaining | Where-Object { [IntPtr]$_.Current.NativeWindowHandle -eq $dialogHandle })',
+      '  if (-not $closed) { Start-Sleep -Milliseconds 100 }',
+      '} while (-not $closed -and [DateTime]::UtcNow -lt $deadline)',
+      'if (-not $closed) { throw "Native file dialog did not close after accepting the file name" }'
     ].join('\n')
     execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
       stdio: ['ignore', 'ignore', 'pipe'],
@@ -696,7 +1117,11 @@ export async function cancelNativeFileDialogs(platform: Platform, paths: RunPath
     '$root = [System.Windows.Automation.AutomationElement]::RootElement',
     `$processCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ProcessIdProperty, ${record.electronPid})`,
     '$dialogCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "#32770")',
-    '$fileCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1001"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Edit"))',
+    '$fileCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1148"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Edit"))',
+    '$folderCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1152"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Edit"))',
+    '$fileCondition = [System.Windows.Automation.OrCondition]::new($fileCondition, $folderCondition)',
+    '$saveCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1001"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Edit"))',
+    '$fileCondition = [System.Windows.Automation.OrCondition]::new($fileCondition, $saveCondition)',
     '$cancelCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "2"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Button"))',
     '$windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
     '$dialogs = @($windows | Where-Object { $_.Current.ClassName -eq "#32770" })',
@@ -752,81 +1177,129 @@ export async function saveNativeFileKeepingName(
   const existingNames = new Set(readdirSync(directory))
   const extension = extname(filePath)
   const saveName = macProductMajor >= 27 || !extension ? basename(filePath) : basename(filePath, extension)
-  // macOS 27 is app-owned and refuses `entire contents` walks, so the panel is driven by keystrokes only:
-  // Go to Folder takes the destination, then either the suggested name is accepted or ours is typed.
-  const acceptScript = () =>
+  const script = `
+    import AppKit
+    import ApplicationServices
+    let pid: pid_t = ${electronPid}
+    let application = AXUIElementCreateApplication(pid)
+    func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
+      var value: CFTypeRef?
+      AXUIElementCopyAttributeValue(element, name as CFString, &value)
+      return value
+    }
+    func elements(_ element: AXUIElement, _ depth: Int = 0, skipping: Set<String> = ["AXScrollArea", "AXBrowser", "AXWebArea"]) -> [AXUIElement] {
+      guard depth < 18 else { return [element] }
+      let children = attribute(element, "AXChildren") as? [AXUIElement] ?? []
+      return [element] + children.filter { !skipping.contains(attribute($0, "AXRole") as? String ?? "") }
+        .flatMap { elements($0, depth + 1, skipping: skipping) }
+    }
+    func fail(_ message: String) -> Never { fputs(message + "\\n", stderr); exit(1) }
+    func wait(_ label: String, _ condition: () -> Bool) {
+      let deadline = Date().addingTimeInterval(10)
+      while !condition() {
+        if Date() > deadline { fail("Native save timed out at " + label + "; foreground=" + String(NSWorkspace.shared.frontmostApplication?.processIdentifier ?? 0)) }
+        Thread.sleep(forTimeInterval: 0.1)
+      }
+    }
+    func key(_ code: CGKeyCode, _ flags: CGEventFlags = []) {
+      guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else { fail("Native save lost foreground ownership") }
+      for down in [true, false] {
+        let event = CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: down)!
+        event.flags = flags
+        event.post(tap: .cghidEventTap)
+      }
+    }
+    func setValue(_ field: AXUIElement, _ value: String) {
+      guard AXUIElementSetAttributeValue(field, "AXValue" as CFString, value as CFString) == .success,
+        attribute(field, "AXValue") as? String == value else { fail("Native save input readback mismatch") }
+    }
+    var panel: AXUIElement?
+    wait("panel") {
+      let windows = attribute(application, "AXWindows") as? [AXUIElement] ?? []
+      panel = windows.flatMap { elements($0) }.first { element in
+        let role = attribute(element, "AXRole") as? String ?? ""
+        let title = attribute(element, "AXTitle") as? String ?? ""
+        guard role == "AXSheet" || (role == "AXWindow" && ["Save", "保存"].contains(title)) else { return false }
+        return elements(element).contains { attribute($0, "AXRole") as? String == "AXButton" &&
+          ["Save", "保存"].contains(attribute($0, "AXTitle") as? String ?? "") }
+      }
+      return panel != nil
+    }
+    let owner = panel!
+    NSRunningApplication(processIdentifier: pid)?.activate(options: [])
+    AXUIElementPerformAction(owner, kAXRaiseAction as CFString)
+    wait("foreground ownership") {
+      if NSWorkspace.shared.frontmostApplication?.processIdentifier == pid { return true }
+      AXUIElementSetAttributeValue(application, "AXFrontmost" as CFString, kCFBooleanTrue)
+      AXUIElementPerformAction(owner, kAXRaiseAction as CFString)
+      return false
+    }
+    var names: [AXUIElement] = []
+    wait("filename field") {
+      names = elements(owner, skipping: ["AXScrollArea", "AXBrowser", "AXSheet"]).filter { attribute($0, "AXRole") as? String == "AXTextField" &&
+        !(attribute($0, "AXValue") as? String ?? "").isEmpty }
+      return names.count == 1
+    }
+    let filename = names[0]
+    let suggested = attribute(filename, "AXValue") as? String ?? ""
+    key(5, [.maskCommand, .maskShift])
+    var pathField: AXUIElement?
+    func sheet() -> AXUIElement? {
+      elements(owner).dropFirst().first { attribute($0, "AXRole") as? String == "AXSheet" }
+    }
+    wait("Go to Folder") {
+      pathField = sheet().flatMap { elements($0).first { attribute($0, "AXRole") as? String == "AXTextField" } }
+      return pathField != nil
+    }
+    setValue(pathField!, ${JSON.stringify(directory)})
+    AXUIElementSetAttributeValue(pathField!, "AXFocused" as CFString, kCFBooleanTrue)
+    wait("directory navigation") {
+      guard sheet() != nil else { return true }
+      key(36)
+      Thread.sleep(forTimeInterval: 0.2)
+      return sheet() == nil
+    }
+    if ${keepSuggestedName ? 'false' : 'true'} { setValue(filename, ${JSON.stringify(saveName)}) }
+    guard let save = elements(owner).first(where: { attribute($0, "AXRole") as? String == "AXButton" &&
+      ["Save", "保存"].contains(attribute($0, "AXTitle") as? String ?? "") }) else { fail("Native save button disappeared") }
+    wait("Save enabled") { attribute(save, "AXEnabled") as? Bool == true }
+    AXUIElementSetAttributeValue(filename, "AXFocused" as CFString, kCFBooleanTrue)
+    key(36)
+    print(suggested)
+  `
+  await runAsync(
+    'osascript',
     [
-      'on run argv',
-      'set directoryPath to item 1 of argv',
-      'set keepName to item 2 of argv',
-      'set fileName to item 3 of argv',
-      'set pidArg to item 4 of argv as integer',
-      'tell application "System Events"',
-      'tell (first application process whose unix id is pidArg)',
-      'set frontmost to true',
-      'delay 2',
-      'keystroke "g" using {command down, shift down}',
-      'delay 2',
-      'keystroke directoryPath',
-      'delay 1',
-      'key code 36',
-      'delay 2',
-      'if keepName is "no" then',
-      'keystroke "a" using command down',
-      'delay 0.2',
-      'keystroke fileName',
-      'delay 0.3',
-      'key code 36',
-      'else',
-      'key code 36',
-      'end if',
-      'end tell',
-      'end tell',
-      'end run'
-    ].join('\n')
+      '-e',
+      'on run argv\ntell application "System Events" to tell (first application process whose unix id is (item 1 of argv as integer)) to set frontmost to true\nend run',
+      '--',
+      String(electronPid)
+    ],
+    10_000
+  )
+  const { stdout } = await promisify(execFile)(
+    'swift',
+    ['-module-cache-path', join(paths.private, 'swift-module-cache'), '-e', script],
+    { encoding: 'utf8', timeout: 45_000, env: { ...process.env, TMPDIR: paths.private } }
+  )
+  const suggestedName = stdout.trim()
 
   const createdSince = () => {
     if (!keepSuggestedName) return existsSync(filePath) ? [filePath] : []
     return readdirSync(directory)
-      .filter((name) => !existingNames.has(name) && !name.startsWith('.'))
+      .filter((name) => !existingNames.has(name) && (name === suggestedName || name === suggestedName + extension))
       .map((name) => join(directory, name))
   }
 
-  // The app owns the panel, so keystroke timing through the window server is not deterministic:
-  // retry the whole sequence once (dismissing any half-open sheet first) before calling it a failure.
-  const firstAttemptDeadline = Date.now() + 12_000
-  const overallDeadline = Date.now() + 40_000
-  let attempt = 0
-  await runAsync(
-    'osascript',
-    ['-e', acceptScript(), '--', directory, keepSuggestedName ? 'yes' : 'no', saveName, String(electronPid)],
-    45_000
-  ).catch(() => undefined)
+  const deadline = Date.now() + 15_000
   let created = createdSince()
-  while (created.length === 0 && Date.now() < overallDeadline) {
-    if (attempt === 0 && Date.now() > firstAttemptDeadline) {
-      attempt = 1
-      await runAsync(
-        'osascript',
-        [
-          '-e',
-          `tell application "System Events" to tell (first application process whose unix id is ${electronPid}) to key code 53`
-        ],
-        10_000
-      ).catch(() => undefined)
-      await new Promise((resolve) => setTimeout(resolve, 1_000))
-      await runAsync(
-        'osascript',
-        ['-e', acceptScript(), '--', directory, keepSuggestedName ? 'yes' : 'no', saveName, String(electronPid)],
-        45_000
-      ).catch(() => undefined)
-    }
-    await new Promise((resolve) => setTimeout(resolve, 500))
+  while (created.length === 0 && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 200))
     created = createdSince()
   }
   if (created.length > 0) {
     const savedPath = keepSuggestedName ? newestFile(created) : filePath
-    return { filePath: savedPath, suggestedName: keepSuggestedName ? basename(savedPath) : basename(filePath) }
+    return { filePath: savedPath, suggestedName }
   }
   throw new Error(
     keepSuggestedName
@@ -851,10 +1324,45 @@ async function saveNativeFileWindows(
     'try {',
     'Add-Type -AssemblyName UIAutomationClient',
     'Add-Type -AssemblyName UIAutomationTypes',
-    `Add-Type -TypeDefinition 'using System; using System.Text; using System.Runtime.InteropServices; public static class NativeSaveDialog { [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window); [DllImport("user32.dll", EntryPoint = "SendMessageW", CharSet = CharSet.Unicode)] public static extern IntPtr SetText(IntPtr window, uint message, IntPtr wParam, string text); [DllImport("user32.dll", EntryPoint = "SendMessageW", CharSet = CharSet.Unicode)] public static extern IntPtr ReadText(IntPtr window, uint message, IntPtr wParam, StringBuilder text); [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam); }'`,
+    `Add-Type -TypeDefinition @'
+using System;
+using System.Text;
+using System.Runtime.InteropServices;
+public static class NativeSaveDialog {
+  [StructLayout(LayoutKind.Sequential)] private struct Rect { public int left, top, right, bottom; }
+  [StructLayout(LayoutKind.Sequential)] private struct GuiThreadInfo {
+    public uint cbSize, flags;
+    public IntPtr active, focus, capture, menuOwner, moveSize, caret;
+    public Rect rect;
+  }
+  [DllImport("user32.dll")] private static extern bool GetGUIThreadInfo(uint thread, ref GuiThreadInfo info);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
+  [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassName(IntPtr window, StringBuilder value, int size);
+  [DllImport("user32.dll", EntryPoint = "SendMessageW", CharSet = CharSet.Unicode)] public static extern IntPtr SetText(IntPtr window, uint message, IntPtr wParam, string text);
+  [DllImport("user32.dll", EntryPoint = "SendMessageW", CharSet = CharSet.Unicode)] public static extern IntPtr ReadText(IntPtr window, uint message, IntPtr wParam, StringBuilder text);
+  [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
+  public static IntPtr GetFocusedWindow() {
+    var info = new GuiThreadInfo();
+    info.cbSize = (uint)Marshal.SizeOf(info);
+    return GetGUIThreadInfo(0, ref info) ? info.focus : IntPtr.Zero;
+  }
+  public static string DescribeForeground() {
+    var window = GetForegroundWindow();
+    uint owner;
+    GetWindowThreadProcessId(window, out owner);
+    var kind = new StringBuilder(256);
+    GetClassName(window, kind, kind.Capacity);
+    return "handle=" + window + ", owner=" + owner + ", class=" + kind;
+  }
+}
+'@`,
     '$root = [System.Windows.Automation.AutomationElement]::RootElement',
     `$processCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ProcessIdProperty, ${electronPid})`,
     '$fileCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1001"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Edit"))',
+    '$fileCondition = [System.Windows.Automation.AndCondition]::new($fileCondition, [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::IsOffscreenProperty, $false))',
     '$dialogCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "#32770")',
     '$deadline = [DateTime]::UtcNow.AddSeconds(60)',
     '$dialog = $null',
@@ -878,12 +1386,61 @@ async function saveNativeFileWindows(
     `$keepName = $${keepSuggestedName ? 'true' : 'false'}`,
     '$directory = Split-Path -Parent $filePath',
     '$target = if ($keepName) { Join-Path $directory ($initial.ToString()) } else { $filePath }',
-    'if ([NativeSaveDialog]::SetText([IntPtr]$filenameControl.Current.NativeWindowHandle, 0x000C, [IntPtr]::Zero, $target) -eq [IntPtr]::Zero) { throw "Native save filename could not be set" }',
+    // Rewriting the visible name can remove an extension hidden by the Windows dialog.
+    'if ($keepName) {',
+    '  if ([NativeSaveDialog]::GetForegroundWindow() -ne [IntPtr]$dialog.Current.NativeWindowHandle) {',
+    '    [NativeSaveDialog]::keybd_event(0x12, 0, 0, [UIntPtr]::Zero)',
+    '    [NativeSaveDialog]::keybd_event(0x12, 0, 2, [UIntPtr]::Zero)',
+    '    $null = [NativeSaveDialog]::SetForegroundWindow([IntPtr]$dialog.Current.NativeWindowHandle)',
+    '  }',
+    '  $focusDeadline = [DateTime]::UtcNow.AddSeconds(5)',
+    '  while ([NativeSaveDialog]::GetForegroundWindow() -ne [IntPtr]$dialog.Current.NativeWindowHandle -and [DateTime]::UtcNow -lt $focusDeadline) { Start-Sleep -Milliseconds 100 }',
+    '  if ([NativeSaveDialog]::GetForegroundWindow() -ne [IntPtr]$dialog.Current.NativeWindowHandle) { throw ("Owned save dialog is not in the foreground: expected=" + $dialog.Current.NativeWindowHandle + ", " + [NativeSaveDialog]::DescribeForeground() + ", focused=" + [NativeSaveDialog]::GetFocusedWindow()) }',
+    '  $shell = New-Object -ComObject WScript.Shell',
+    '  $shell.SendKeys("%d", $true)',
+    // This legacy edit control can omit UIA focus flags; verify its real Win32 focus handle.
+    '  $addressCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Edit"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "41477"))',
+    '  $addressDeadline = [DateTime]::UtcNow.AddSeconds(10)',
+    '  do {',
+    '    $address = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $addressCondition)',
+    '    if (-not $address -or [NativeSaveDialog]::GetFocusedWindow() -ne [IntPtr]$address.Current.NativeWindowHandle) { Start-Sleep -Milliseconds 100 }',
+    '  } while ((-not $address -or [NativeSaveDialog]::GetFocusedWindow() -ne [IntPtr]$address.Current.NativeWindowHandle) -and [DateTime]::UtcNow -lt $addressDeadline)',
+    `  if (-not $address -or $address.Current.ProcessId -ne ${electronPid} -or -not $address.Current.NativeWindowHandle -or [NativeSaveDialog]::GetFocusedWindow() -ne [IntPtr]$address.Current.NativeWindowHandle) { throw "Owned save address bar could not receive focus" }`,
+    '  $null = [NativeSaveDialog]::SetText([IntPtr]$address.Current.NativeWindowHandle, 0x000C, [IntPtr]::Zero, $directory)',
+    '  $addressText = [System.Text.StringBuilder]::new(32768)',
+    '  $null = [NativeSaveDialog]::ReadText([IntPtr]$address.Current.NativeWindowHandle, 0x000D, [IntPtr]$addressText.Capacity, $addressText)',
+    '  if ($addressText.ToString() -cne $directory) { throw "Owned save directory does not match the requested path" }',
+    '  if ([NativeSaveDialog]::GetForegroundWindow() -ne [IntPtr]$dialog.Current.NativeWindowHandle -or [NativeSaveDialog]::GetFocusedWindow() -ne [IntPtr]$address.Current.NativeWindowHandle) { throw "Owned save dialog lost foreground ownership" }',
+    '  $shell.SendKeys("{ENTER}", $true)',
+    '} else {',
+    'if ($filenameControl.Current.IsKeyboardFocusable) {',
+    '  $filenameControl.SetFocus()',
+    '  if (-not $filenameControl.Current.HasKeyboardFocus) { throw "Native save filename input could not receive focus" }',
+    '}',
+    '$valuePattern = $null',
+    'if ($filenameControl.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern, [ref]$valuePattern)) {',
+    '  $valuePattern.SetValue($target)',
+    '} else {',
+    '  $null = [NativeSaveDialog]::SendMessage([IntPtr]$filenameControl.Current.NativeWindowHandle, 0x00B1, [IntPtr]::Zero, [IntPtr](-1))',
+    '  $null = [NativeSaveDialog]::SetText([IntPtr]$filenameControl.Current.NativeWindowHandle, 0x00C2, [IntPtr]1, $target)',
+    '}',
     '$readback = [System.Text.StringBuilder]::new(32768)',
     '$null = [NativeSaveDialog]::ReadText([IntPtr]$filenameControl.Current.NativeWindowHandle, 0x000D, [IntPtr]$readback.Capacity, $readback)',
     'if ($readback.ToString() -cne $target) { throw "Native save filename does not match the requested path" }',
+    '}',
+    '$saveDeadline = [DateTime]::UtcNow.AddSeconds(10)',
+    'do {',
+    '  $button = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $buttonCondition)',
+    '  if (-not $button -or -not $button.Current.IsEnabled) { Start-Sleep -Milliseconds 100 }',
+    '} while ((-not $button -or -not $button.Current.IsEnabled) -and [DateTime]::UtcNow -lt $saveDeadline)',
+    'if (-not $button -or -not $button.Current.IsEnabled) { throw "Native save button is unavailable" }',
     '$dialogHandle = $dialog.Current.NativeWindowHandle',
-    '$null = [NativeSaveDialog]::SendMessage([IntPtr]$button.Current.NativeWindowHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)',
+    '$invoke = $null',
+    'if ($button.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern, [ref]$invoke)) {',
+    '  $invoke.Invoke()',
+    '} else {',
+    '  $null = [NativeSaveDialog]::SendMessage([IntPtr]$button.Current.NativeWindowHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)',
+    '}',
     // The dialog is asynchronous: wait for the file the dialog actually wrote. The window may append
     // the extension from the application's filter, so accept the proposed name with or without one.
     '$base = [IO.Path]::GetFileName($target)',
@@ -918,11 +1475,7 @@ async function saveNativeFileWindows(
     '  Write-Output ("ERROR: " + $_.Exception.Message)',
     '}'
   ].join('\n')
-  const output = await runAsyncCapture(
-    'powershell.exe',
-    ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')],
-    125_000
-  )
+  const output = await runPowerShellCapture(script, 125_000)
   // PowerShell writes thrown messages to the CLIXML error stream, which is unreadable in CI logs.
   // The script reports them on stdout instead so a failing run names the step that failed.
   const reported = output
@@ -935,13 +1488,24 @@ async function saveNativeFileWindows(
   return { filePath: resolved, suggestedName: basename(resolved) }
 }
 
-function runAsyncCapture(file: string, args: string[], timeout: number): Promise<string> {
+function runPowerShellCapture(script: string, timeout: number): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile(file, args, { timeout, windowsHide: true, encoding: 'utf8' }, (error, stdout, stderr) =>
-      error
-        ? reject(new Error(`${file} exited with ${error.code ?? 'error'}: ${decodePowerShellError(stderr)}`))
-        : resolve(stdout ?? '')
+    const child = execFile(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        '[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false); & ([scriptblock]::Create([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String([Console]::In.ReadToEnd()))))'
+      ],
+      { timeout, windowsHide: true, encoding: 'utf8' },
+      (error, stdout, stderr) =>
+        error
+          ? reject(new Error(`powershell.exe exited with ${error.code ?? 'error'}: ${decodePowerShellError(stderr)}`))
+          : resolve(stdout ?? '')
     )
+    child.stdin?.on('error', () => undefined)
+    child.stdin?.end(Buffer.from(script, 'utf16le').toString('base64'))
   })
 }
 

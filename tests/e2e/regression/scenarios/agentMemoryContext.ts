@@ -11,6 +11,7 @@ import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/con
 import { isPathInside } from '../../../../scripts/e2e/regression/paths'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { openAgentPane, startNewAgentTask } from '../helpers/agents'
+import { assertAgentContextUsage } from '../helpers/contextUsage'
 import { ensureCustomChatProvider } from '../helpers/models'
 import { closeSettings } from '../helpers/settings'
 import type { RegressionApp } from '../RegressionApp'
@@ -70,18 +71,24 @@ export async function agentMemoryContext(app: RegressionApp, page: Page, testInf
   const composer = view.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first()
   const pause = view.getByRole('button', { name: 'Pause', exact: true })
   const openMemorySettings = async () => {
+    await page.bringToFront()
     await view.getByRole('button', { name, exact: true }).click({ button: 'right' })
-    await page.getByRole('menuitem', { name: 'Edit Agent', exact: true }).click()
+    const edit = page.getByRole('menuitem', { name: 'Edit Agent', exact: true })
+    await expect(edit).toBeVisible()
+    await expect(edit).toBeEnabled()
+    await edit.press('Enter')
     const dialog = page.getByRole('dialog').last()
+    await expect(dialog).toBeVisible()
     await dialog.getByRole('tab', { name: 'Built-in tools', exact: true }).click()
     return dialog
   }
   const send = async (prompt: string) => {
-    const completed = view.getByTestId('completed-process-trigger')
-    const before = await completed.count()
+    const messages = view.locator('[data-ui~="chat.message"]')
+    const before = await messages.count()
     await composer.fill(prompt)
     await view.getByRole('button', { name: 'Send', exact: true }).click()
-    await expect(completed).toHaveCount(before + 1, { timeout: 90_000 })
+    await expect(messages).toHaveCount(before + 2, { timeout: 90_000 })
+    await expect(messages.last().locator('.markdown').last()).toBeVisible({ timeout: 90_000 })
     await expect(pause).toBeHidden({ timeout: 90_000 })
     const reply = view.locator('[data-ui~="chat.message"]').last().locator('.markdown').last()
     await expect(reply).toBeVisible()
@@ -100,7 +107,12 @@ export async function agentMemoryContext(app: RegressionApp, page: Page, testInf
       '请记住：我的项目叫 QA-DEMO。使用 Memory 工具将它保存到 FACT.md。成功后回复已保存 QA-DEMO，并在单独一行用反引号给出实际 FACT.md 的绝对路径。不要用其他文件或 shell 工具。'
     )
     await expect(saved).toContainText('QA-DEMO')
-    const filePath = saved.getByRole('link', { name: /[\\/]memory[\\/]FACT\.md$/ }).first()
+    const memoryPath = /[\\/]memory[\\/]FACT\.md$/
+    // Windows intentionally keeps inline code paths as code; persistence does not depend on link promotion.
+    const filePath =
+      app.record.platform === 'windows'
+        ? saved.locator('code').filter({ hasText: memoryPath }).first()
+        : saved.getByRole('link', { name: memoryPath }).first()
     await expect(filePath, 'The successful memory write must identify its persistent file').toBeVisible()
     const path = await filePath.innerText()
     expect(isPathInside(app.paths.profiles, path), 'Memory must stay inside the owned profile').toBe(true)
@@ -128,11 +140,7 @@ export async function agentMemoryContext(app: RegressionApp, page: Page, testInf
     )
     await expect(recall).toHaveText('QA-DEMO')
     await openAgentPane(page, 'Status')
-    const category = page.getByText('Memory files', { exact: true })
-    await expect.soft(category, 'Context panel must classify memory file token usage').toBeVisible({ timeout: 3_000 })
-    if (await category.isVisible()) {
-      await expect(category.locator('..')).toContainText(/[1-9][\d,]*\s*\(\d+%\)/)
-    }
+    await assertAgentContextUsage(page)
     await screenshot('MP-57 new session recall and context usage')
 
     const disabledSettings = await openMemorySettings()
@@ -165,12 +173,7 @@ export async function agentMemoryContext(app: RegressionApp, page: Page, testInf
       .soft(afterDisable, 'The retained FACT.md identity snapshot still reaches the agent')
       .toContainText('QA-DEMO')
     await openAgentPane(page, 'Status')
-    await expect
-      .soft(
-        page.getByText('Memory files', { exact: true }),
-        'Disabling the Memory tools must not drop the retained memory context'
-      )
-      .toBeVisible({ timeout: 3_000 })
+    await assertAgentContextUsage(page)
     expect(await readMemory(), 'Disabling memory must preserve the saved file').toBe(contents)
     await screenshot('MP-57 new session with memory disabled')
   } finally {

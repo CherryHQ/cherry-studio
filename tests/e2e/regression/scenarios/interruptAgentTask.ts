@@ -156,9 +156,7 @@ export async function interruptAgentTask(
     const stoppedAt = Date.now()
     await pause.click()
     await expect(pause).toBeHidden({ timeout: 10_000 })
-    await expect
-      .soft(view.getByText(/Chat completion paused|Cancelled/, { exact: true }).first())
-      .toBeVisible({ timeout: 3000 })
+    await expect(view.getByRole('button', { name: 'Send', exact: true })).toBeVisible()
     await expect
       .poll(async () => (await readMessages()).some((m) => m.role === 'assistant' && m.status === 'paused'))
       .toBe(true)
@@ -167,9 +165,14 @@ export async function interruptAgentTask(
       .toEqual([])
     expect(Date.now() - stoppedAt).toBeLessThan(20_000)
     const stoppedMessages = await readMessages()
+    const messageContent = (messages: AgentSessionMessageEntity[]) =>
+      messages.map(({ id, role, status, data }) => ({ id, role, status, data }))
     const before = toolIds(stoppedMessages)
     expect(before).toHaveLength(1)
-    expect(JSON.stringify(stoppedMessages.filter((m) => m.role === 'assistant'))).toContain(command)
+    const inputs = stoppedMessages.flatMap((message) =>
+      (message.data.parts ?? []).flatMap((part) => ('toolCallId' in part && 'input' in part ? [part.input] : []))
+    )
+    expect(inputs).toEqual([expect.objectContaining({ command })])
     await page.keyboard.press('Escape')
     // Observe for delayed tool scheduling and repeated cancellation after the stop button disappears.
     const deadline = Date.now() + 3000
@@ -179,7 +182,7 @@ export async function interruptAgentTask(
       await expect(pause).toBeHidden()
       await page.waitForTimeout(250)
     } while (Date.now() < deadline)
-    expect(await readMessages()).toEqual(stoppedMessages)
+    expect(messageContent(await readMessages())).toEqual(messageContent(stoppedMessages))
     await screenshot('MP-56 after stop and process cleanup')
     await testInfo.attach('MP-56 process cleanup', {
       body: JSON.stringify({

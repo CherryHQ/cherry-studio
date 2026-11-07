@@ -33,7 +33,7 @@ export function processCommand(pid: number, platform: Platform): string {
             '-Command',
             `(Get-CimInstance Win32_Process -Filter "ProcessId = ${pid}").CommandLine`
           ],
-          { encoding: 'utf8', timeout: 10_000 }
+          { encoding: 'utf8', timeout: 10_000, windowsHide: true }
         ).trim()
       : execFileSync('ps', ['-o', 'command=', '-p', String(pid)], { encoding: 'utf8', timeout: 10_000 }).trim()
   } catch {
@@ -51,7 +51,7 @@ export function windowsProcessExecutablePath(pid: number): string {
         '-Command',
         `(Get-CimInstance Win32_Process -Filter "ProcessId = ${pid}").ExecutablePath`
       ],
-      { encoding: 'utf8', timeout: 10_000 }
+      { encoding: 'utf8', timeout: 10_000, windowsHide: true }
     ).trim()
   } catch {
     return ''
@@ -66,7 +66,7 @@ export function assertOwnedProcess(record: ProcessOwner, pid: number, kind: 'ele
     record.mode === 'tag'
       ? record.executablePath
       : kind === 'electron'
-        ? record.targetRoot
+        ? (record.executablePath ?? record.targetRoot)
         : (record.platform === 'windows' ? win32 : posix).join(
             record.targetRoot,
             'node_modules',
@@ -81,28 +81,66 @@ export function assertOwnedProcess(record: ProcessOwner, pid: number, kind: 'ele
   }
 }
 
-export function terminateOwnedMacProcessGroup(record: ProcessOwner, signal: 'SIGTERM' | 'SIGKILL' = 'SIGTERM'): void {
-  const members = execFileSync('ps', ['-axo', 'pid=,pgid=,command='], { encoding: 'utf8', timeout: 10_000 })
-    .split(/\r?\n/)
-    .map((line) => line.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/))
-    .filter((match): match is RegExpMatchArray => Boolean(match && Number(match[2]) === record.runnerPid))
-  if (members.length === 0) {
-    if (isAlive(record.runnerPid)) throw new Error('Refusing cleanup: runner no longer owns its process group')
-    return
+interface MacProcessIdentity {
+  pid: number
+  command: string
+  startedAt: string
+}
+
+function macProcessStartedAt(pid: string): string {
+  try {
+    return execFileSync('ps', ['-o', 'lstart=', '-p', pid], {
+      encoding: 'utf8',
+      timeout: 10_000,
+      stdio: ['ignore', 'pipe', 'ignore']
+    }).trim()
+  } catch {
+    return ''
   }
-  if (isAlive(record.runnerPid)) {
+}
+
+export function terminateOwnedMacProcessGroup(
+  record: ProcessOwner,
+  signal: 'SIGTERM' | 'SIGKILL' = 'SIGTERM',
+  previouslyVerified: readonly MacProcessIdentity[] = []
+): MacProcessIdentity[] {
+  const group = execFileSync('ps', ['-axo', 'pid=,pgid=,stat=,command='], { encoding: 'utf8', timeout: 10_000 })
+    .split(/\r?\n/)
+    .map((line) => line.trim().match(/^(\d+)\s+(\d+)\s+(\S+)\s+(.*)$/))
+    .filter((match): match is RegExpMatchArray => Boolean(match && Number(match[2]) === record.runnerPid))
+  const members = group.filter((member) => !member[3].startsWith('Z'))
+  if (members.length === 0) {
+    if (group.length === 0 && isAlive(record.runnerPid)) {
+      throw new Error('Refusing cleanup: runner no longer owns its process group')
+    }
+    return []
+  }
+  const identities = members.map((member) => ({
+    pid: Number(member[1]),
+    command: member[4],
+    startedAt: macProcessStartedAt(member[1])
+  }))
+  const knownSurvivors = identities.every(
+    (member) =>
+      member.startedAt &&
+      previouslyVerified.some(
+        (previous) =>
+          previous.pid === member.pid && previous.command === member.command && previous.startedAt === member.startedAt
+      )
+  )
+  const runnerExited = group.some((member) => Number(member[1]) === record.runnerPid && member[3].startsWith('Z'))
+  if (!runnerExited && isAlive(record.runnerPid)) {
     assertOwnedProcess(record, record.runnerPid, 'runner')
     if (!members.some((member) => Number(member[1]) === record.runnerPid)) {
       throw new Error('Refusing cleanup: runner no longer owns its process group')
     }
-  } else {
-    const expected = record.mode === 'tag' ? record.executablePath : record.targetRoot
-    const appContents =
-      record.mode === 'tag' ? record.executablePath?.match(/^(.*\.app\/Contents)\/MacOS\/[^/]+$/)?.[1] : undefined
+  } else if (!knownSurvivors) {
+    const expected = record.executablePath ?? (record.mode === 'branch' ? record.targetRoot : undefined)
+    const appContents = record.executablePath?.match(/^(.*\.app\/Contents)\/MacOS\/[^/]+$/)?.[1]
     if (
       !expected ||
       !members.some(
-        (member) => member[3].includes(expected) || (appContents && member[3].startsWith(`${appContents}/Frameworks/`))
+        (member) => member[4].includes(expected) || (appContents && member[4].startsWith(`${appContents}/Frameworks/`))
       )
     ) {
       throw new Error('Refusing cleanup: orphaned process group does not match the owned application')
@@ -110,6 +148,7 @@ export function terminateOwnedMacProcessGroup(record: ProcessOwner, signal: 'SIG
   }
   // detached macOS launches own a process group, including children without CDP listeners.
   process.kill(-record.runnerPid, signal)
+  return identities
 }
 
 export function hasLiveMacProcessGroupMembers(groupId: number): boolean {
@@ -169,7 +208,7 @@ function getParentPid(pid: number, platform: Platform): number | undefined {
               '-Command',
               `(Get-CimInstance Win32_Process -Filter "ProcessId = ${pid}").ParentProcessId`
             ],
-            { encoding: 'utf8', timeout: 10_000 }
+            { encoding: 'utf8', timeout: 10_000, windowsHide: true }
           )
         : execFileSync('ps', ['-o', 'ppid=', '-p', String(pid)], { encoding: 'utf8', timeout: 10_000 })
     const parent = Number(output.trim())
@@ -200,7 +239,7 @@ export function findListeningPid(platform: Platform, port: number): number | und
               '-Command',
               `(Get-NetTCPConnection -LocalPort ${port} -State Listen | Select-Object -First 1 -ExpandProperty OwningProcess)`
             ],
-            { encoding: 'utf8', timeout: 10_000 }
+            { encoding: 'utf8', timeout: 10_000, windowsHide: true }
           )
         : execFileSync('lsof', ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN', '-t'], {
             encoding: 'utf8',

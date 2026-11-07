@@ -2,34 +2,62 @@ import { execFileSync } from 'node:child_process'
 
 import { evaluateCdpExpression } from '../../../../scripts/e2e/regression/cdpClient'
 import { assertOwnedProcess, findListeningPid, MAIN_INSPECTOR_PORT } from '../../../../scripts/e2e/regression/process'
+import { openMacTrayMenu } from '../../../../scripts/e2e/regression/systemAutomation'
 import type { RegressionApp } from '../RegressionApp'
 
-export function nativeComputerUse(script: string): string {
-  return execFileSync('osascript', ['-e', script], { encoding: 'utf8', timeout: 10_000 }).trim()
+export function nativeComputerUse(script: string, timeout = 10_000): string {
+  return execFileSync('osascript', ['-e', script], { encoding: 'utf8', timeout }).trim()
 }
 
-export function readNativePermission(panel: 'Privacy_Accessibility' | 'Privacy_ScreenCapture'): string {
+const permissionPanelTitles = {
+  Privacy_Accessibility: ['Accessibility', '辅助功能', '设备控制和数据访问'],
+  Privacy_ScreenCapture: ['Screen Recording', 'Screen & System Audio Recording', '录屏与系统录音', '屏幕录制']
+} as const
+
+export function isNativePermissionPanelOpen(panel: keyof typeof permissionPanelTitles): boolean {
+  return (
+    nativeComputerUse(`
+    tell application "System Events" to tell process "System Settings"
+      if not (exists window 1) then return false
+      return {${permissionPanelTitles[panel].map((title) => JSON.stringify(title)).join(', ')}} contains (name of window 1 as text)
+    end tell
+  `) === 'true'
+  )
+}
+
+export function readNativePermission(panel: keyof typeof permissionPanelTitles): string {
   execFileSync('open', ['x-apple.systempreferences:com.apple.preference.security?' + panel], {
     timeout: 10_000
   })
-  return nativeComputerUse(`
+  const titles = permissionPanelTitles[panel]
+  return nativeComputerUse(
+    `
     tell application "System Events"
       tell process "System Settings"
         set frontmost to true
-        repeat 20 times
-          repeat with element in entire contents of window 1
-            if role of element is "AXCheckBox" then
-              if (name of element as text) contains "Open Computer Use" then
-                return value of element as text
+        repeat 40 times
+          if exists window 1 then
+            if {${titles.map((title) => JSON.stringify(title)).join(', ')}} contains name of window 1 then
+            set elementsSnapshot to entire contents of window 1
+            repeat with elementReference in elementsSnapshot
+              set element to contents of elementReference
+              if role of element is "AXCheckBox" then
+                if (name of element as text) contains "Cherry Computer Use" then
+                  return value of element as text
+                end if
               end if
+            end repeat
+            return "not-listed"
             end if
-          end repeat
+          end if
           delay 0.2
         end repeat
       end tell
     end tell
-    error "UNCOVERED: Open Computer Use permission checkbox is not exposed by System Settings"
-  `)
+    error "UNCOVERED: Cherry Computer Use permission checkbox is not exposed by System Settings"
+  `,
+    30_000
+  )
 }
 
 export async function computerUseMain<T>(app: RegressionApp, body: string): Promise<T> {
@@ -54,11 +82,11 @@ export async function computerUseMain<T>(app: RegressionApp, body: string): Prom
   )
 }
 
-export function stopNativeDesktopControl(pid: number): string {
+export function stopNativeDesktopControl(app: RegressionApp): string {
+  openMacTrayMenu(app.paths)
   return nativeComputerUse(`
     tell application "System Events"
-      tell (first process whose unix id is ${pid})
-        click menu bar item 1 of menu bar 2
+      tell (first process whose unix id is ${app.record.electronPid})
         delay 0.3
         tell menu 1 of menu bar item 1 of menu bar 2
           click menu item "桌面控制"
