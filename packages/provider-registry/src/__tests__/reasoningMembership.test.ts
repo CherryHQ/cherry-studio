@@ -52,6 +52,7 @@ describe('inferReasoningMembership', () => {
     'llama-3-1-nemotron-ultra-253b-v1',
     // Gemini image SKUs ship thinking budgets (catalog: gemini-2-5-flash-image, 3-1-flash-image).
     'gemini-3-flash-image',
+    'mistralai/mistral-large-4-0',
     // Xunfei MaaS (讯飞星辰) ids omit hyphens/dots (iflytek creator): deepseek-v3.2,
     // deepseek-v4-pro, kimi-k2.6, qwen3.5-397b / qwen3.6-v35b, glm-4.7-flash,
     // glm-5.2, spark-x2 / spark-x2-flash.
