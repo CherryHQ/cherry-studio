@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import * as z from 'zod'
 
@@ -8,7 +10,11 @@ import {
   type AgentRuntimeLocator
 } from '@data/db/schemas/agentRuntimeBackend'
 import { agentSessionTable as sessions } from '@data/db/schemas/agentSession'
-import { agentSessionContextTable as contexts, type AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
+import {
+  agentSessionContextTable as contexts,
+  type AgentSessionCheckpoints,
+  type AgentSessionContextRow
+} from '@data/db/schemas/agentSessionContext'
 import { agentSessionMessageTable as messages } from '@data/db/schemas/agentSessionMessage'
 import type { DbOrTx } from '@data/db/types'
 
@@ -21,10 +27,53 @@ const locatorSchema = z.discriminatedUnion('kind', [
     version: z.literal(1),
     kind: z.literal('pi-durable'),
     fileName: z.string().regex(/^[a-zA-Z0-9_-]+\.sqlite$/)
-  })
+  }),
+  z.object({ version: z.literal(1), kind: z.literal('claude-code'), configDir: z.string().refine(path.isAbsolute) })
 ])
 
+export interface RootProjectionCheckpoint {
+  contextId: string
+  root: NonNullable<AgentSessionCheckpoints['root']>
+}
+
 class AgentSessionContextService {
+  saveRootProjectionTx(tx: DbOrTx, sessionId: string, checkpoint: RootProjectionCheckpoint): void {
+    const context = tx.select().from(contexts).where(eq(contexts.id, checkpoint.contextId)).get()
+    if (context?.sessionId !== sessionId) throw new Error('Projection belongs to another session')
+    const removed = new Set([...(context.checkpointMapping?.root?.removed ?? []), ...checkpoint.root.removed])
+    const root = {
+      ...checkpoint.root,
+      sources: Object.fromEntries(Object.entries(checkpoint.root.sources).filter(([id]) => !removed.has(id))),
+      removed: [...removed]
+    }
+    tx.update(contexts)
+      .set({ checkpointMapping: { ...context.checkpointMapping, root } })
+      .where(eq(contexts.id, context.id))
+      .run()
+  }
+
+  removeRootMessageTx(tx: DbOrTx, sessionId: string, messageId: string): void {
+    for (const context of tx.select().from(contexts).where(eq(contexts.sessionId, sessionId)).all()) {
+      const root = context.checkpointMapping?.root
+      if (!root) continue
+      const deleted = Object.keys(root.sources).filter((id) => root.sources[id].messageId === messageId)
+      if (!deleted.length) continue
+      this.saveRootProjectionTx(tx, sessionId, {
+        contextId: context.id,
+        root: { ...root, removed: [...root.removed, ...deleted] }
+      })
+    }
+  }
+  children(parentContextId: string): AgentSessionContextRow[] {
+    return application
+      .get('DbService')
+      .getDb()
+      .select()
+      .from(contexts)
+      .where(eq(contexts.parentContextId, parentContextId))
+      .all()
+  }
+
   child(parentContextId: string, nativeThreadId: string, toolCallId: string, name: string): AgentSessionContextRow {
     return application.get('DbService').withWriteTx((tx) => {
       const parent = tx.select().from(contexts).where(eq(contexts.id, parentContextId)).get()

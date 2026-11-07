@@ -48,6 +48,14 @@ Decided per file part in `prepareChatMessages`
   also normalizes the `mediaType` to the on-disk MIME. The provider gets the real
   file as a user-message part. (The function is named for the boundary: provider
   File-API upload for large files would slot in behind the same signature.)
+  Locally decoded PNG, JPEG, WebP, and GIF images with a short edge below the
+  15 px attachment compatibility target are padded with opaque white before
+  the request bytes leave the main process; stored FileEntry and persisted message
+  part bytes remain unchanged. Compliant images and inputs outside the strict
+  decoder, including remote URLs and AVIF/HEIC, pass through unchanged; images
+  that cannot be padded are also sent unchanged. This prevents providers such as
+  Volcengine Ark from rejecting the whole request and aborting the turn when an
+  image edge is below their minimum.
 - Unknown extensions undergo a conservative content sniff (binary detection +
   encoding confidence). Binary bytes or ambiguous legacy encodings get a short
   unsupported note instead of being decoded into mojibake.

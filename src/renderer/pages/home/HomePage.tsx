@@ -25,7 +25,7 @@ import { ConversationResourceView } from '@renderer/components/resourceCatalog/c
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
-import { useCurrentTabId } from '@renderer/hooks/tab'
+import { useCurrentTabId, useIsActiveTab } from '@renderer/hooks/tab'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { toCreateAssistantDtoFromCatalogPreset } from '@renderer/hooks/useAssistantCatalogPresets'
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
@@ -92,11 +92,6 @@ const HomePage: FC = () => {
   const navigate = useNavigate()
   const routeTopicId = routeSearch.topicId
   const routeAssistantId = routeSearch.assistantId
-  const handleManualPaneOpen = useCallback(() => {
-    requestAnimationFrame(() => {
-      void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
-    })
-  }, [])
   const {
     isWindowFrame,
     shellPaneOpen,
@@ -107,8 +102,7 @@ const HomePage: FC = () => {
     handlePaneAutoCollapseChange
   } = useConversationShellPaneState({
     persistedPaneOpen: showSidebar,
-    setPersistedPaneOpen: setShowSidebar,
-    onManualPaneOpen: handleManualPaneOpen
+    setPersistedPaneOpen: setShowSidebar
   })
   const topicListPosition: ChatPanePosition =
     !isWindowFrame && isClassicTopicLayout && panePosition === 'right' ? 'right' : 'left'
@@ -118,7 +112,7 @@ const HomePage: FC = () => {
   })
   // Shared full-topics list source plus exact latest/reusable lookups.
   const assistantTopicsSource = useAssistantTopicsSource()
-  const { topics: allTopics, loadLatestTopic, reuseOrCreateTopic } = assistantTopicsSource
+  const { topics: allTopics, rendererTopics, loadLatestTopic, reuseOrCreateTopic } = assistantTopicsSource
 
   const { createTopic, refreshTopics } = useTopicMutations()
   const {
@@ -292,7 +286,6 @@ const HomePage: FC = () => {
     })
 
     return unsubscribe
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest topic without resubscribing.
   }, [currentTabId])
 
   const visibleAssistantId = visibleTopic?.assistantId
@@ -308,13 +301,18 @@ const HomePage: FC = () => {
     }
   }, [allTopics, isClassicTopicLayout, topicListPosition, t, visibleAssistantId])
   const targetTopicId = activeTopicId ?? undefined
-  const { locateMessageId, requestLocate, clearLocate } = useConversationLocateRequest({
+  const { locateMessageId, locateToEnd, requestLocate, clearLocate } = useConversationLocateRequest({
+    navigationTabId: currentTabId ?? undefined,
     activeConversationId: targetTopicId,
     visibleConversationId: visibleTopic?.id
   })
   // Label this tab with its assistant emoji + topic name so multiple chat tabs are distinguishable.
   const preserveTabVisuals = !!targetTopicId && visibleTopic?.id !== targetTopicId
   const tabTitle = visibleTopic?.name?.trim() || visibleAssistant?.name?.trim() || getDefaultRouteTitle('/app/chat')
+
+  useEffect(() => {
+    if (locateMessageId || locateToEnd) closeSurface()
+  }, [closeSurface, locateMessageId, locateToEnd])
 
   useEffect(() => {
     if (activeTopic) lastVisibleTopicRef.current = activeTopic
@@ -441,6 +439,38 @@ const HomePage: FC = () => {
     [activateCreatedTopic, resolveEmptyTopic, t]
   )
 
+  const isActiveTab = useIsActiveTab()
+  const cycleTopic = useCallback(
+    (step: 1 | -1) => {
+      // Cycle the renderer topics the list actually shows: the visible assistant's topics, or
+      // only unlinked topics when no assistant is visible (matches `matchesAssistantFilter`).
+      const scopedTopics = visibleAssistantId
+        ? rendererTopics.filter((topic) => topic.assistantId === visibleAssistantId)
+        : rendererTopics.filter((topic) => !topic.assistantId)
+      if (scopedTopics.length === 0) return
+      const currentIndex = scopedTopics.findIndex((topic) => topic.id === activeTopicId)
+      const nextIndex = currentIndex === -1 ? 0 : (currentIndex + step + scopedTopics.length) % scopedTopics.length
+      const nextTopic = scopedTopics[nextIndex]
+      if (nextTopic.id !== activeTopicId) setActiveTopicAndCloseResourceView(nextTopic)
+    },
+    [activeTopicId, rendererTopics, setActiveTopicAndCloseResourceView, visibleAssistantId]
+  )
+  const cycleAssistant = useCallback(
+    (step: 1 | -1) => {
+      if (assistants.length === 0) return
+      const currentIndex = assistants.findIndex((assistant) => assistant.id === visibleAssistantId)
+      const nextIndex = currentIndex === -1 ? 0 : (currentIndex + step + assistants.length) % assistants.length
+      const nextAssistant = assistants[nextIndex]
+      if (nextAssistant.id === visibleAssistantId) return
+      void handleAssistantConversationSelect({ type: 'assistant', assistantId: nextAssistant.id })
+    },
+    [assistants, handleAssistantConversationSelect, visibleAssistantId]
+  )
+  useCommandHandler('topic.next', () => cycleTopic(1), { enabled: isActiveTab })
+  useCommandHandler('topic.prev', () => cycleTopic(-1), { enabled: isActiveTab })
+  useCommandHandler('assistant.next', () => cycleAssistant(1), { enabled: isActiveTab })
+  useCommandHandler('assistant.prev', () => cycleAssistant(-1), { enabled: isActiveTab })
+
   const handleCreateEmptyTopic = useCallback(
     async (payload?: AddNewTopicPayload) => {
       await createAndActivateEmptyTopic(payload)
@@ -555,7 +585,6 @@ const HomePage: FC = () => {
       unsubscribe()
       unsubscribeMessage()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads latest tab/topic state without resubscribing.
   }, [currentTabId])
 
   const handleLocateMessageHandled = clearLocate
@@ -750,6 +779,7 @@ const HomePage: FC = () => {
             sidebarOpen={shellPaneOpen}
             onSidebarToggle={toggleShellPane}
             locateMessageId={locateMessageId}
+            locateToEnd={locateToEnd}
             onLocateMessageHandled={handleLocateMessageHandled}
             resourcePaneCount={topicResourcePaneCount}
           />
