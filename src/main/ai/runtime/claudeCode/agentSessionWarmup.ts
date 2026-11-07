@@ -28,6 +28,7 @@ import {
   mergeAgentLoopbackProxyBypass
 } from '@main/services/proxy/agentProxyEnvironment'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
+import { normalizeAutoCompactTriggerPct } from '@shared/ai/agentAutoCompact'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -394,6 +395,14 @@ async function deriveConnectionConfigFromSnapshot(
     envVars: Object.entries(agent.configuration?.env_vars ?? {})
       .filter(([key]) => !isAgentProxyEnvironmentKey(key))
       .sort(([a], [b]) => a.localeCompare(b)),
+    // Rebuild fact: the settings builder bakes the auto-compact trigger percentage into the
+    // spawned subprocess env. An explicit `env_vars` entry wins there and `envVars` already
+    // covers it, so report null under an active override - a percentage edit that cannot take
+    // effect must not force a rebuild.
+    autoCompactPct:
+      typeof agent.configuration?.env_vars?.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE === 'string'
+        ? null
+        : normalizeAutoCompactTriggerPct(agent.configuration?.auto_compact_pct),
     proxyEnvironment: proxyEnvironmentFingerprint,
     disabledTools: [...(agent.disabledTools ?? [])].sort(),
     knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),

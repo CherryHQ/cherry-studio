@@ -721,6 +721,28 @@ describe('buildClaudeCodeSessionSettings', () => {
       {}
     )
     expect(overridden.env).toMatchObject({ CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: '60' })
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      instructions: 'Follow instructions.',
+      model: 'anthropic::claude-sonnet',
+      planModel: 'anthropic::claude-sonnet',
+      smallModel: 'anthropic::claude-haiku',
+      mcps: [],
+      allowedTools: [],
+      configuration: { auto_compact_pct: 50 }
+    })
+    const configured = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      {}
+    )
+    expect(configured.env).toMatchObject({ CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: '50' })
   })
 
   it('floors the budget at the Claude Code minimum instead of dropping the setting', async () => {

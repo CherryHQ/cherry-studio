@@ -2058,6 +2058,8 @@
   "library.assistant_catalog.preview_description": "Overview",
   "library.assistant_catalog.preview_prompt": "Prompt",
   "library.assistant_catalog.title": "Assistant Library",
+  "library.config.agent.field.auto_compact_pct.help": "Compact the conversation when context usage reaches this percentage of the window. Lower values compact earlier; the maximum is 80.",
+  "library.config.agent.field.auto_compact_pct.label": "Auto-compact trigger (%)",
   "library.config.agent.field.description.hint": "Helps identify what this agent is for",
   "library.config.agent.field.description.label": "Description",
   "library.config.agent.field.description.placeholder": "What this agent is for…",

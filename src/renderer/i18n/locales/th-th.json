@@ -2058,6 +2058,8 @@
   "library.assistant_catalog.preview_description": "ภาพรวม",
   "library.assistant_catalog.preview_prompt": "พรอมต์",
   "library.assistant_catalog.title": "คลังผู้ช่วย",
+  "library.config.agent.field.auto_compact_pct.help": "บีบอัดการสนทนาเมื่อการใช้บริบทถึงเปอร์เซ็นต์นี้ของหน้าต่าง ค่าที่ต่ำกว่าจะบีบอัดเร็วกว่า ค่าสูงสุดคือ 80",
+  "library.config.agent.field.auto_compact_pct.label": "เกณฑ์การบีบอัดอัตโนมัติ (%)",
   "library.config.agent.field.description.hint": "ช่วยระบุว่าเอเจนต์นี้ใช้ทำอะไร",
   "library.config.agent.field.description.label": "คำอธิบาย",
   "library.config.agent.field.description.placeholder": "เอเจนต์นี้ใช้ทำอะไร…",
