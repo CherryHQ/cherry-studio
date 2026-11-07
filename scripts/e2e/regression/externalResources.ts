@@ -69,15 +69,20 @@ function acquire(resource: ExternalResource, snapshot: ExternalSnapshot): void {
   }
 }
 
-export function observeExternalResource(paths: RunPaths, id: string): void {
+export function observeExternalResource(paths: RunPaths, id: string): boolean {
   const resources = readResources(paths)
   const resource = resources.find((resource) => resource.id === id)
   if (!resource) throw new Error(`External resource registration is missing: ${id}`)
-  acquire(
-    resource,
-    externalAppRequest(resource.platform, { action: 'inspect', target: resource.target, root: paths.root })
-  )
+  const snapshot = externalAppRequest(resource.platform, {
+    action: 'inspect',
+    target: resource.target,
+    root: paths.root
+  })
+  acquire(resource, snapshot)
   writeResources(paths, resources)
+  return snapshot.windows.some(
+    (window) => window.matches && resource.acquired.windows.some(({ id }) => id === window.id)
+  )
 }
 
 export function cleanupExternalResources(paths: RunPaths, ids?: string[]): void {

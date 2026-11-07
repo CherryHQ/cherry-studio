@@ -69,6 +69,18 @@ it('closes a registered test document, exits its new application and removes its
     expect(statSync(join(paths.private, 'external-resources.json')).mode & 0o777).toBe(0o600)
 })
 
+it('requires a new matching window before reporting that a launch was observed', () => {
+  const id = registerExternalResource(paths, 'macos', target())
+  desktop.processes.push(application)
+  expect(observeExternalResource(paths, id)).toBe(false)
+  desktop.windows.push({ id: 'unrelated', pid: application.pid, matches: false })
+  expect(observeExternalResource(paths, id)).toBe(false)
+  desktop.windows.push({ id: 'owned', pid: application.pid, matches: true })
+  expect(observeExternalResource(paths, id)).toBe(true)
+  desktop.windows = desktop.windows.filter(({ id }) => id !== 'owned')
+  expect(observeExternalResource(paths, id)).toBe(false)
+})
+
 it('preserves an already running application and all its unrelated documents', () => {
   desktop = { processes: [application], windows: [{ id: 'user', pid: application.pid, matches: false }] }
   const id = registerExternalResource(paths, 'macos', target())

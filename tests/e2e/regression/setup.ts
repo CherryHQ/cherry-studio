@@ -3,6 +3,7 @@ import { expect, type Page } from '@playwright/test'
 import { dismissTransientDialogs, selectSidebarApp } from './helpers/navigation'
 
 export async function prepareScenario(page: Page): Promise<void> {
+  await page.bringToFront()
   await dismissTransientDialogs(page)
   await page.evaluate(async () => {
     await window.api.preference.setMultiple({
