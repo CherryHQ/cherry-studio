@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { cacheService } from '@data/CacheService'
 import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import type {
@@ -21,6 +22,10 @@ import type { ExportMessages, MessageExportTarget } from '@renderer/types/messag
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
+import { MessageSelectionStore } from '../selection/MessageSelectionStore'
+
+const EMPTY_SELECTED_IDS: readonly string[] = []
+
 const logger = loggerService.withContext('useMessageSelectionController')
 
 interface UseMessageSelectionControllerParams {
@@ -39,6 +44,7 @@ interface UseMessageSelectionControllerParams {
 }
 
 interface MessageSelectionController {
+  selectionStore: MessageSelectionStore
   selection: MessageListSelectionState
   actions: Pick<
     MessageListActions,
@@ -71,6 +77,15 @@ export function useMessageSelectionController({
   const [selectedMessageIds, setSelectedMessageIds] = useCache('chat.selected_message_ids')
   const latestExportDataRef = useRef({ messages, partsByMessageId, copyRichContent })
   latestExportDataRef.current = { messages, partsByMessageId, copyRichContent }
+
+  const selectionStore = useMemo(
+    () =>
+      new MessageSelectionStore(
+        () => cacheService.get('chat.selected_message_ids') ?? EMPTY_SELECTED_IDS,
+        (listener) => cacheService.subscribe('chat.selected_message_ids', listener)
+      ),
+    []
+  )
 
   const selectedIds = useMemo(() => selectedMessageIds ?? [], [selectedMessageIds])
   const exportSelectionEpochRef = useRef(0)
@@ -215,9 +230,9 @@ export function useMessageSelectionController({
 
   const resolveMessageIds = useCallback(
     (messageIds?: readonly string[]) => {
-      return messageIds?.length ? [...messageIds] : selectedIds
+      return messageIds?.length ? [...messageIds] : selectionStore.getSnapshot()
     },
-    [selectedIds]
+    [selectionStore]
   )
 
   const ensureSelection = useCallback(
@@ -393,5 +408,5 @@ export function useMessageSelectionController({
     ]
   )
 
-  return useMemo(() => ({ selection, actions }), [actions, selection])
+  return useMemo(() => ({ selection, selectionStore, actions }), [actions, selection, selectionStore])
 }

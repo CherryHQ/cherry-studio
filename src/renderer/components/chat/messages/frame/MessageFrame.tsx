@@ -20,8 +20,9 @@ import SiblingNavigator from '../list/SiblingNavigator'
 import {
   useMessageListActions,
   useMessageListEditingId,
+  useIsMessageSelected,
+  useMessageSelectionMode,
   useMessageListItemActivityState,
-  useMessageListSelection,
   useMessageListUiSelectors,
   useMessageRenderConfig
 } from '../MessageListProvider'
@@ -72,10 +73,10 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const { t } = useTranslation()
   const actions = useMessageListActions()
   const renderConfig = useMessageRenderConfig() ?? defaultMessageRenderConfig
-  const selection = useMessageListSelection()
+  const selectionMode = useMessageSelectionMode()
   const messageUi = useMessageListUiSelectors()
-  const isMultiSelectMode = selection?.isMultiSelectMode ?? false
-  const isSelected = selection?.selectedMessageIds?.includes(message.id) ?? false
+  const isMultiSelectMode = selectionMode?.isMultiSelectMode ?? false
+  const isSelected = useIsMessageSelected(message.id)
   // Use the message-embedded snapshot rather than re-resolving the live model
   // config: the snapshot is what the message was actually generated with.
   const model = getMessageListItemModel(message)

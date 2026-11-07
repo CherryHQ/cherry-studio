@@ -15,7 +15,7 @@ import type { Model } from '@shared/data/types/model'
 import MessageItem from '../frame/MessageFrame'
 import {
   useMessageListActions,
-  useMessageListSelection,
+  useMessageSelectionMode,
   useMessageListUiSelectors,
   useMessageRenderConfig
 } from '../MessageListProvider'
@@ -79,7 +79,7 @@ const MessageGroup = ({
   // Hooks
   const actions = useMessageListActions()
   const renderConfig = useMessageRenderConfig() ?? defaultMessageRenderConfig
-  const selection = useMessageListSelection()
+  const selectionMode = useMessageSelectionMode()
   const messageUi = useMessageListUiSelectors()
   const multiModelMessageStyleSetting = renderConfig.multiModelMessageStyle
   const gridPopoverTrigger = renderConfig.multiModelGridPopoverTrigger
@@ -87,7 +87,7 @@ const MessageGroup = ({
   const currentTabId = useCurrentTabId()
   const navigateWithScrollRuntime = useScrollRuntimeNavigation()
   const { getScrollContainer, scrollByWheel } = useScrollRuntimeBoundary()
-  const isMultiSelectMode = selection?.isMultiSelectMode ?? false
+  const isMultiSelectMode = selectionMode?.isMultiSelectMode ?? false
   const getMessageUiState = useCallback(
     (messageId: string) => messageUi.getMessageUiState?.(messageId) ?? {},
     [messageUi]

@@ -65,7 +65,15 @@ vi.mock('../../MessageListProvider', () => ({
     assistantProfile: undefined,
     userProfile: undefined
   }),
-  useMessageListSelection: () => providerState.selection,
+  useMessageSelectionMode: () =>
+    providerState.selection
+      ? {
+          enabled: true,
+          isMultiSelectMode: providerState.selection.isMultiSelectMode
+        }
+      : undefined,
+  useIsMessageSelected: (id: string) => providerState.selection?.selectedMessageIds?.includes(id) ?? false,
+  useSelectedMessageIds: () => providerState.selection?.selectedMessageIds ?? [],
   useMessageRenderConfig: () => ({
     userName: 'User',
     messageStyle: 'plain'
