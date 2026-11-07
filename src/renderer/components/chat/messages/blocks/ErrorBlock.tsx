@@ -15,6 +15,7 @@ import {
   getClaudeCodeExitInfo,
   getLocalModelResolutionFailure
 } from '@renderer/utils/errorClassifier'
+import { isErrorStage } from '@shared/utils/errorCategory'
 
 import { useMessageListActions } from '../MessageListProvider'
 import type { MessageListItem } from '../types'
@@ -29,10 +30,12 @@ interface Props {
   partId: string
   error: SerializedError | undefined
   message: MessageListItem
+  /** Display-synthesized fallback part — not persisted, so "remove" has nothing to act on. */
+  synthetic?: boolean
 }
 
-const ErrorBlock: React.FC<Props> = ({ partId, error, message }) => {
-  return <MessageErrorInfo partId={partId} error={error} message={message} />
+const ErrorBlock: React.FC<Props> = ({ partId, error, message, synthetic }) => {
+  return <MessageErrorInfo partId={partId} error={error} message={message} synthetic={synthetic} />
 }
 
 const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
@@ -57,28 +60,34 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
       : undefined
 
   if (i18n.exists(i18nKey)) {
+    // A persisted failure snapshot outlives the localization key: stage decoration wraps the
+    // localized text instead of being skipped by it.
+    const stage = getFailureStageText(error, t)
     const providerId =
       error && 'providerId' in error ? ((error as Record<string, unknown>).providerId as string | undefined) : undefined
     if (providerId && typeof providerId === 'string') {
       return (
-        <Trans
-          i18nKey={i18nKey}
-          values={{ provider: t(getProviderLabelKey(providerId)) }}
-          components={{
-            provider: navigateToRoute ? (
-              <button
-                type="button"
-                className="cursor-pointer text-link hover:underline focus-visible:underline focus-visible:outline-none"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  void navigateToRoute({ path: '/settings/provider', query: { id: providerId } })
-                }}
-              />
-            ) : (
-              <span />
-            )
-          }}
-        />
+        <>
+          {stage ? `${stage} ` : ''}
+          <Trans
+            i18nKey={i18nKey}
+            values={{ provider: t(getProviderLabelKey(providerId)) }}
+            components={{
+              provider: navigateToRoute ? (
+                <button
+                  type="button"
+                  className="cursor-pointer text-link hover:underline focus-visible:underline focus-visible:outline-none"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    void navigateToRoute({ path: '/settings/provider', query: { id: providerId } })
+                  }}
+                />
+              ) : (
+                <span />
+              )
+            }}
+          />
+        </>
       )
     }
     // An app-owned detail key carries the localized "why" (e.g. which OCR path failed);
@@ -92,12 +101,13 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
           | undefined
         return (
           <span>
+            {stage ? `${stage} ` : ''}
             {t(i18nKey)} {t(detailFullKey, detailValues)}
           </span>
         )
       }
     }
-    return t(i18nKey)
+    return stage ? `${stage} ${t(i18nKey)}` : t(i18nKey)
   }
 
   if (i18n.exists(errorKey)) {
@@ -109,21 +119,36 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
   if (localModelFailure) return null
 
   if (typeof errorStatus === 'number' && HTTP_ERROR_CODES.includes(errorStatus)) {
-    return (
-      <span>
-        {t(getHttpMessageLabelKey(errorStatus.toString()))} {providerErrorText(error)}
-      </span>
-    )
+    const text = `${t(getHttpMessageLabelKey(errorStatus.toString()))} ${providerErrorText(error)}`.trim()
+    const stage = getFailureStageText(error, t)
+    return <span>{stage ? `${stage} ${text}` : text}</span>
   }
 
-  return providerErrorText(error)
+  const text = providerErrorText(error)
+  const stage = getFailureStageText(error, t)
+  // "No response" / "An unknown error occurred" name no stage, so nothing there tells the
+  // user whether to retry. Naming where it broke makes that call possible (#20941).
+  return stage ? `${stage} ${text}`.trim() : text
+}
+
+/** The failing pipeline stage, when the error carries one the UI can name. */
+function getFailureStageText(error: Props['error'], t: ReturnType<typeof useTranslation>['t']): string | undefined {
+  const bag = error as Record<string, unknown> | undefined
+  if (!bag) return undefined
+  for (const source of [bag.executionFailure, bag.failure]) {
+    const stage = (source as { failure?: { stage?: unknown } } | undefined)?.failure?.stage
+    if (isErrorStage(stage)) return t(`error.stage.${stage}`)
+  }
+  if (isErrorStage(bag.failureStage)) return t(`error.stage.${bag.failureStage}`)
+  return undefined
 }
 
 const MessageErrorInfo: React.FC<{
   partId: string
   error: Props['error']
   message: MessageListItem
-}> = ({ partId, error, message }) => {
+  synthetic?: boolean
+}> = ({ partId, error, message, synthetic }) => {
   const { diagnoseMessageError, removeMessageErrorPart, openErrorDetail, navigateErrorTarget, notifyError } =
     useMessageListActions()
   const { setTimeoutTimer } = useTimer()
@@ -232,7 +257,7 @@ const MessageErrorInfo: React.FC<{
   }
 
   const canOpenDetail = !!openErrorDetail
-  const canRemoveErrorPart = !!removeMessageErrorPart
+  const canRemoveErrorPart = !!removeMessageErrorPart && !synthetic
   const canNavigate = !!classification.navTarget && !!navigateErrorTarget
 
   return (

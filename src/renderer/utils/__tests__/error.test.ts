@@ -341,6 +341,19 @@ describe('error', () => {
   })
 
   describe('providerErrorText', () => {
+    // A live error part is the broadcast error verbatim, so its message can still be the raw SSE
+    // frame; rendering that puts protocol scaffolding in front of the user.
+    it('unwraps a raw SSE frame left in the message', () => {
+      expect(
+        providerErrorText({
+          name: 'AI_APICallError',
+          message:
+            'Request failed · event:error data:{"type":"error","error":{"type":"rate_limit_error","message":"Rate limit reached"}}',
+          stack: null
+        })
+      ).toBe('Rate limit reached')
+    })
+
     // AI SDK degrades `message` to the HTTP statusText when the body does not match the
     // provider's error schema; the real reason only survives in `responseBody`.
     it('prefers a non-OpenAI-shaped body over the degraded message', () => {

@@ -29,6 +29,7 @@ import { withIdleTimeout } from '@main/utils/withIdleTimeout'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import type { MessageProjectionUpdate, MessageProjectionView } from '@shared/ai/messageProjection'
 import { getSafeProviderErrorMessage } from '@shared/ai/providerError'
+import { extractSseErrorFrame } from '@shared/ai/sseErrorFrame'
 import type {
   ActiveExecution,
   AiStreamAttachRequest,
@@ -44,6 +45,7 @@ import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/mod
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
 import { KeyedMutex } from '@shared/utils/async'
+import { classifyErrorCategory } from '@shared/utils/errorCategory'
 
 import { extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
 import type { AsInProcess } from '../AiService'
@@ -256,13 +258,37 @@ function toActiveExecution(exec: StreamExecution): ActiveExecution {
   }
 }
 
+/**
+ * Rebuild an error from the AI SDK `error` chunk. The chunk carries only
+ * `errorText`, and some providers put the whole SSE frame there
+ * (`… · event:error data:{"type":"error",…}`) — persisting that verbatim renders
+ * protocol scaffolding in the message. Unwrap to the provider's own payload and
+ * keep the structured fields so classification still sees the status. The unwrapped
+ * message alone may name neither cause nor status ("Request rejected"), so retain the
+ * category derived from the whole frame before discarding it.
+ */
 function errorFromStreamChunk(errorText: string): SerializedError {
-  return {
+  const frame = extractSseErrorFrame(errorText)
+  const error: SerializedError = {
     name: 'StreamError',
-    message: getSafeProviderErrorMessage({ message: errorText }),
+    message: getSafeProviderErrorMessage({ message: frame?.message ?? errorText }),
     stack: null,
+    failureStage: 'stream',
     streamStage: 'response-stream'
   }
+  if (!frame) return error
+  if (frame.statusCode !== undefined) error.statusCode = frame.statusCode
+  if (frame.type !== undefined) error.providerErrorType = frame.type
+  if (frame.code !== undefined) error.providerErrorCode = frame.code
+  const category = classifyErrorCategory({
+    // The provider's own diagnosis can live in the wrapper text the frame was extracted from
+    // (`API Error: 403 unsupported_country_region_territory · …`), so classify against that too.
+    // The displayed message stays the unwrapped frame payload.
+    text: [frame.message, frame.type, frame.code, errorText].filter(Boolean).join('\n'),
+    status: frame.statusCode
+  })
+  if (category !== 'unknown') error.providerErrorCategory = category
+  return error
 }
 
 function findBufferedToolInput(exec: StreamExecution, toolCallId: string): UIMessageChunk | undefined {
@@ -2310,6 +2336,9 @@ export class AiStreamManager extends BaseService {
       await this.onExecutionError(topicId, modelId, errorFromStreamChunk(result.streamErrorText), exec)
     } else if (result.accumulationError !== undefined) {
       const error = serializeError(result.accumulationError.error)
+      // Host layer keeps the `internal` attribution while the stage names the phase that
+      // actually failed — the persist write is separate and may still succeed.
+      error.failureStage = result.accumulationError.stage
       error.executionFailure = toExecutionFailure(error, modelId, 'host')
       await this.onExecutionError(topicId, modelId, error, exec)
     } else {

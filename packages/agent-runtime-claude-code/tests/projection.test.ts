@@ -252,3 +252,30 @@ it.each([false, true])('keeps omitted tool output retracted after archive reconc
   expect(projection.feed.snapshot.messages[0].parts[0]).not.toHaveProperty('output')
   expect(projection.feed.snapshot.messages[0].parts[0]).not.toHaveProperty('errorText')
 })
+
+it('keeps the CLI failure report out of the assistant parts', () => {
+  const sessionId = randomUUID()
+  const projection = new ClaudeProjection(claudeThread(runtimeId('backend'), sessionId), (error) => {
+    throw error
+  })
+
+  // The CLI folds a provider failure into an assistant message whose text is the raw API error;
+  // that text belongs to the error channel, not to the assistant's own words.
+  const diagnostic = assistantMessage(
+    sessionId,
+    [{ type: 'text', text: 'API Error: 429 rate_limit', citations: null }],
+    {
+      error: 'rate_limit'
+    }
+  )
+  projection.publish(projection.message(diagnostic))
+  expect(projection.feed.snapshot.messages.map((message) => message.parts)).toEqual([[]])
+
+  // The typed `error` field is the marker, not the wording: an ordinary answer may start with the
+  // same words and must keep its text.
+  const answer = assistantMessage(sessionId, [{ type: 'text', text: 'API Error: 429 rate_limit', citations: null }])
+  projection.publish(projection.message(answer))
+  expect(projection.feed.snapshot.messages[1].parts).toMatchObject([
+    { type: 'text', text: 'API Error: 429 rate_limit' }
+  ])
+})

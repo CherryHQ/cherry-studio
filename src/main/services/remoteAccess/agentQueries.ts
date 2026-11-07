@@ -20,7 +20,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
-import { toExecutionFailure } from '@shared/ai/executionFailure'
+import { toExecutionFailure, toWireExecutionFailure } from '@shared/ai/executionFailure'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -161,7 +161,10 @@ export function projectMessageParts(
         })
       }
     } else if (part.type === 'data-error') {
-      const failure = toExecutionFailure(part.data as SerializedError, message.modelId ?? undefined)
+      // v1 wire snapshot: the persisted `stage` stays desktop-local.
+      const failure = toWireExecutionFailure(
+        toExecutionFailure(part.data as SerializedError, message.modelId ?? undefined)
+      )
       projected.push(
         dataPart(partId, revision, 'data-error', { data: { message: failure.message, executionFailure: failure } })
       )
@@ -229,9 +232,11 @@ function toMessageMetadata(message: AgentSessionMessageEntity) {
     status: message.status,
     ...(message.status === 'error'
       ? {
-          failure: toExecutionFailure(
-            (error?.data as SerializedError) ?? { name: null, message: null, stack: null },
-            message.modelId ?? undefined
+          failure: toWireExecutionFailure(
+            toExecutionFailure(
+              (error?.data as SerializedError) ?? { name: null, message: null, stack: null },
+              message.modelId ?? undefined
+            )
           )
         }
       : {})

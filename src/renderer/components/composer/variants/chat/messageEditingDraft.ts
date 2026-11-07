@@ -40,7 +40,8 @@ function getEditableTextSpan(parts: CherryMessagePart[]): { start: number; end: 
  * completed tool calls — but only for a message carrying *no* boundary at all, so a partial set is
  * worse than none.
  */
-const isDroppedOnEdit = (part: CherryMessagePart) => part.type === 'step-start'
+const isDroppedOnEdit = (part: CherryMessagePart) =>
+  part.type === 'step-start' || (part.type === 'data-error' && readCherryMeta(part)?.synthetic === true)
 
 /** `mcp__server__tool` is a wire name; the chip shows what the message's own tool card shows. */
 function getToolLabel(part: CherryMessagePart): string | undefined {
