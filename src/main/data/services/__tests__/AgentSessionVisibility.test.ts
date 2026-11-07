@@ -175,7 +175,7 @@ describe('background session isolation', () => {
     for (const session of [sticky, perRun, legacy]) {
       dbh.db
         .update(agentSessionTable)
-        .set({ lastActivityAt: Date.now() + 60_000 })
+        .set({ sourceTaskScheduleId: 'task', lastActivityAt: Date.now() + 60_000 })
         .where(eq(agentSessionTable.id, session.id))
         .run()
     }
