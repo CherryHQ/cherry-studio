@@ -75,7 +75,7 @@ test(...caseDefinition('MCP-01'), async ({ app, mainWindow: page }) => {
   const messageId = await sendChatMarker(
     page,
     'Call the everything MCP server get-sum tool with a=31415 and b=27182, then report its result.',
-    '58597',
+    /\b58,?597\b/,
     false
   )
   await expect
