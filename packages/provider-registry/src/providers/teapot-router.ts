@@ -18,8 +18,8 @@ export default defineProvider({
   },
   metadata: {
     website: {
-      apiKey: 'https://teapotrouter.com/dashboard/keys',
-      docs: 'https://teapotrouter.com/docs',
+      apiKey: 'https://teapotrouter.com/en/dashboard/keys',
+      docs: 'https://teapotrouter.com/en/docs',
       models: 'https://teapotrouter.com/pricing',
       official: 'https://teapotrouter.com'
     }

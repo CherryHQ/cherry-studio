@@ -75,6 +75,7 @@ const providerKeyMap = {
   'radeon-cloud': 'provider.radeon-cloud',
   silicon: 'provider.silicon',
   stepfun: 'provider.stepfun',
+  'teapot-router': 'provider.teapot-router',
   'tencent-cloud-ti': 'provider.tencent-cloud-ti',
   together: 'provider.together',
   tokendance: 'provider.tokendance',
