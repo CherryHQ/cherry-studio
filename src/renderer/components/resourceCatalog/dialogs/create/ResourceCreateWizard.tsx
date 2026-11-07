@@ -200,8 +200,19 @@ export function ResourceCreateWizard({
     setStepIndex(0)
   })
 
+  /** Last `(kind, open)` pair this wizard already initialised for. <Activity> destroys the
+   * effects of a hidden tab and re-creates them when the tab is shown again, so a re-show
+   * with an unchanged pair must not be treated as a fresh open — that would wipe the draft
+   * (name / description / prompt) and jump back to step 1. */
+  const lastHandledResetKeyRef = useRef<{ kind: ResourceCreateWizardKind; open: boolean } | null>(null)
+
   useEffect(() => {
+    const previous = lastHandledResetKeyRef.current
+    if (previous?.kind === kind && previous.open === open) return
+
+    lastHandledResetKeyRef.current = { kind, open }
     if (!open) return
+
     resetForOpen()
   }, [kind, open])
 

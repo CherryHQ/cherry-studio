@@ -117,6 +117,35 @@ describe('isSerializable', () => {
       arr.push(arr)
       expect(isSerializable(arr)).toBe(false)
     })
+
+    it('should reject an indirect cycle through an object and array', () => {
+      const obj: Record<string, unknown> = {}
+      obj.items = [obj]
+
+      expect(isSerializable(obj)).toBe(false)
+    })
+
+    it('should reject a cycle after visiting a shared subtree', () => {
+      const shared = { message: 'details' }
+      const value: Record<string, unknown> = { first: shared }
+      value.second = { shared, parent: value }
+
+      expect(isSerializable(value)).toBe(false)
+    })
+  })
+
+  describe('shared references without cycles', () => {
+    it('should accept an object reached through separate branches', () => {
+      const shared = { message: 'details' }
+
+      expect(isSerializable({ first: { shared }, second: { shared } })).toBe(true)
+    })
+
+    it('should accept an array referenced more than once', () => {
+      const shared = ['details']
+
+      expect(isSerializable([shared, shared])).toBe(true)
+    })
   })
 })
 
@@ -132,10 +161,28 @@ describe('SerializableSchema', () => {
     expect(SerializableSchema.safeParse(new Date()).success).toBe(false)
   })
 
-  it('should have consistent behavior with isSerializable', () => {
-    const cases = [null, 42, 'str', true, [1, 2], { a: 1 }, undefined, new Date(), new Map(), () => {}]
-    for (const value of cases) {
-      expect(SerializableSchema.safeParse(value).success).toBe(isSerializable(value))
+  it('should enforce the serializable contract for root values', () => {
+    const cases: [unknown, boolean][] = [
+      [null, true],
+      [42, true],
+      ['str', true],
+      [true, true],
+      [[1, 2], true],
+      [{ a: 1 }, true],
+      [undefined, false],
+      [new Date(), false],
+      [new Map(), false],
+      [() => {}, false]
+    ]
+
+    for (const [value, expected] of cases) {
+      expect(SerializableSchema.safeParse(value).success).toBe(expected)
     }
+  })
+
+  it('should accept shared values without treating them as circular', () => {
+    const shared = { message: 'details' }
+
+    expect(SerializableSchema.safeParse({ first: shared, second: shared }).success).toBe(true)
   })
 })

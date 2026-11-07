@@ -1,6 +1,6 @@
 import { Loader, type LucideIcon } from 'lucide-react'
 import type { FC } from 'react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
@@ -76,7 +76,6 @@ const ArchiveSection: FC<ArchiveSectionProps> = ({
   const { t } = useTranslation()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
   const [isBatchActionPending, setIsBatchActionPending] = useState(false)
-  const mountedRef = useRef(true)
   const itemIds = useMemo(() => new Set(items.map((item) => item.id)), [items])
   const selectedItems = useMemo(() => items.filter((item) => selectedIds.has(item.id)), [items, selectedIds])
   const isSectionBusy = pendingRestoreId !== null || isBatchActionPending || isPermanentDeleting
@@ -86,13 +85,6 @@ const ArchiveSection: FC<ArchiveSectionProps> = ({
   useEffect(() => {
     onBatchAvailabilityChange?.(canBatchManage)
   }, [canBatchManage, onBatchAvailabilityChange])
-
-  useEffect(
-    () => () => {
-      mountedRef.current = false
-    },
-    []
-  )
 
   useEffect(() => {
     setSelectedIds((current) => {
@@ -106,7 +98,7 @@ const ArchiveSection: FC<ArchiveSectionProps> = ({
   }, [isBatchMode])
 
   const applyOutcome = (outcome: ArchiveBatchOutcome) => {
-    if (!mountedRef.current || outcome.succeeded.length === 0) return
+    if (outcome.succeeded.length === 0) return
     setSelectedIds((current) => {
       const next = new Set(current)
       for (const id of outcome.succeeded) next.delete(id)
@@ -152,7 +144,7 @@ const ArchiveSection: FC<ArchiveSectionProps> = ({
       logger.error('batch restore failed', error as Error)
       toast.error(t('settings.data.trash.restore.error'))
     } finally {
-      if (mountedRef.current) setIsBatchActionPending(false)
+      setIsBatchActionPending(false)
     }
   }
 
@@ -162,7 +154,7 @@ const ArchiveSection: FC<ArchiveSectionProps> = ({
       items: targets,
       fileEntryIds: includeFileReferencePreview ? targets.map((item) => item.id) : undefined,
       run: async (confirmedItems) => {
-        if (mountedRef.current) setIsBatchActionPending(true)
+        setIsBatchActionPending(true)
         try {
           const outcome = isBatch
             ? await onPermanentDeleteMany(confirmedItems)
@@ -171,7 +163,7 @@ const ArchiveSection: FC<ArchiveSectionProps> = ({
           if (isBatch) showBatchOutcome('permanent_delete', outcome)
           return outcome
         } finally {
-          if (mountedRef.current) setIsBatchActionPending(false)
+          setIsBatchActionPending(false)
         }
       }
     })
@@ -223,11 +215,11 @@ const ArchiveSection: FC<ArchiveSectionProps> = ({
       {isBatchMode && (batchToolbarContainer ? createPortal(batchToolbar, batchToolbarContainer) : batchToolbar)}
       {isLoading ? (
         <div className="flex min-h-16 items-center justify-center">
-          <Loader size={16} className="animate-spin text-muted-foreground" />
+          <Loader size={16} className="text-muted-foreground animate-spin" />
         </div>
       ) : error ? (
         <div className="flex items-center gap-2">
-          <span className="text-destructive text-sm">{t('settings.data.trash.error.load')}</span>
+          <span className="text-sm text-destructive">{t('settings.data.trash.error.load')}</span>
           <Button variant="outline" size="sm" onClick={onRetry}>
             {t('common.retry')}
           </Button>
