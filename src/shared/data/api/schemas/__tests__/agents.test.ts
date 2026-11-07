@@ -38,12 +38,15 @@ describe('AgentEntitySchema', () => {
   })
 
   it('accepts null model tiers on update: null clears the override, invalid ids stay rejected', () => {
-    const parsed = UpdateAgentSchema.parse({ planModel: null, smallModel: null })
+    const parsed = UpdateAgentSchema.parse({ planModel: null, smallModel: null, expertModel: null })
     expect(parsed.planModel).toBeNull()
     expect(parsed.smallModel).toBeNull()
+    expect(parsed.expertModel).toBeNull()
 
     expect(UpdateAgentSchema.parse({ planModel: 'openai::gpt-4' }).planModel).toBe('openai::gpt-4')
+    expect(UpdateAgentSchema.parse({ expertModel: 'openai::gpt-4' }).expertModel).toBe('openai::gpt-4')
     expect(UpdateAgentSchema.safeParse({ planModel: 'no-separator' }).success).toBe(false)
+    expect(UpdateAgentSchema.safeParse({ expertModel: 'no-separator' }).success).toBe(false)
   })
 
   it('validates the persisted agent reasoning effort', () => {

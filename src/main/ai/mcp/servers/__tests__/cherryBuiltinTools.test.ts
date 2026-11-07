@@ -5,9 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { WebSearchConfigError, type WebSearchConfigErrorCode } from '@main/services/webSearch'
 import type { ImageGenerationSupport } from '@shared/data/types/model'
 
-const { getImageGenerationSupport, getModelByKey, loggerWarn } = vi.hoisted(() => ({
+const { getImageGenerationSupport, getModelByKey, generateText, getAgent, loggerWarn } = vi.hoisted(() => ({
   getImageGenerationSupport: vi.fn(),
   getModelByKey: vi.fn(),
+  generateText: vi.fn(),
+  getAgent: vi.fn(),
   loggerWarn: vi.fn()
 }))
 
@@ -26,6 +28,10 @@ const listRootItems = vi.fn()
 const getPreference = vi.fn()
 const generateImage = vi.fn()
 const fileRead = vi.fn()
+vi.mock('@data/services/AgentService', () => ({
+  agentService: { getAgent }
+}))
+
 vi.mock('@data/services/ModelService', () => ({
   modelService: { getByKey: getModelByKey }
 }))
@@ -59,7 +65,7 @@ vi.mock('@application', () => ({
         }
       }
       if (name === 'PreferenceService') return { get: getPreference }
-      if (name === 'AiService') return { generateImage }
+      if (name === 'AiService') return { generateImage, generateText }
       if (name === 'FileManager') return { read: fileRead }
       throw new Error(`unexpected service: ${name}`)
     }
@@ -795,9 +801,43 @@ describe('createCherryToolsServer tool registration', () => {
         'cli_search',
         'cli_install',
         'web_search',
-        'generate_image'
+        'generate_image',
+        'ask_expert'
       ])
     )
+  })
+
+  it('registers ask_expert, self-degrades without an expert model, and enforces the session budget', async () => {
+    const request = {
+      name: 'ask_expert',
+      arguments: {
+        objective: 'Find the root cause.',
+        context: 'TypeError at line 12.',
+        output_format: 'VERDICT / ADVICE / RISKS',
+        trigger: 'Two failed attempts.'
+      }
+    }
+
+    getAgent.mockReturnValueOnce({ id: 'agent_1' })
+    const unconfigured = (await (await connectCherryTools()).callTool(request)) as Result
+    expect(unconfigured.isError).toBe(true)
+    expect(textOf(unconfigured)).toContain('[ask_expert:not_configured]')
+    expect(generateText).not.toHaveBeenCalled()
+
+    getAgent.mockReturnValue({ id: 'agent_1', expertModel: 'openai::expert' })
+    generateText.mockResolvedValue({ text: 'VERDICT: proceed', finishReason: 'stop' })
+
+    const client = await connectCherryTools()
+    for (let i = 0; i < 8; i += 1) {
+      const result = (await client.callTool(request)) as Result
+      expect(result.isError).toBeUndefined()
+      expect(textOf(result)).toContain('Expert answer')
+    }
+
+    const exhausted = (await client.callTool(request)) as Result
+    expect(exhausted.isError).toBe(true)
+    expect(textOf(exhausted)).toContain('max_uses_exceeded')
+    expect(generateText).toHaveBeenCalledTimes(8)
   })
 
   it('exposes CLI management to the built-in Assistant', async () => {

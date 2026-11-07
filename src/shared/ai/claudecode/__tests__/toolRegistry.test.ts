@@ -53,6 +53,12 @@ describe('claudeUserFacingTools', () => {
     expect(tool?.label).toBe('Generate Image')
     expect(tool?.category).toBe('media')
   })
+
+  it('exposes ask_expert as a user-facing orchestration tool', () => {
+    const tool = byName.get('mcp__cherry-tools__ask_expert')
+    expect(tool?.label).toBe('Ask Expert')
+    expect(tool?.category).toBe('orchestration')
+  })
 })
 
 describe('CLAUDE_KNOWLEDGE_TOOL_NAMES', () => {

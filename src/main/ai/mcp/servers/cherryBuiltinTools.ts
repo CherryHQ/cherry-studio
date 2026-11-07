@@ -18,6 +18,7 @@
  * - {@link registerDocumentTools} (`…__to_markdown`) — converts workspace, agent-data, and
  *   session-attachment documents with Cherry's bundled converter and writes agent-private
  *   temporary Markdown.
+ * - {@link registerExpertTools} (`…__ask_expert`) — consults the Agent's configured expert model.
  *
  * The factory runs once per connection, so runtime-dependent tool surfaces (the painting
  * model's generate_image schema, kb_* visibility, notify recipients) are decided there.
@@ -58,6 +59,7 @@ import {
 
 import { type AutonomyToolsContext, registerAutonomyTools } from './cherryAutonomyTools'
 import { registerCliTools } from './cherryCliTools'
+import { registerExpertTools } from './cherryExpertTools'
 import { type KnowledgeToolsContext, registerKnowledgeTools } from './cherryKnowledgeTools'
 
 export type CherryToolsOptions = AutonomyToolsContext & KnowledgeToolsContext & CherryDocumentContext
@@ -127,5 +129,6 @@ export function createCherryToolsServer(options: CherryToolsOptions): McpServer 
   registerAutonomyTools(server, options)
   registerCliTools(server)
   registerDocumentTools(server, options)
+  registerExpertTools(server, options)
   return server
 }
