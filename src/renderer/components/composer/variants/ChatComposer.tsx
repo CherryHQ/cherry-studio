@@ -1,8 +1,8 @@
-import { Eraser, ScanLine } from 'lucide-react'
+import { BookmarkPlus, Eraser, ScanLine } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { NormalTooltip } from '@cherrystudio/ui'
+import { Button, NormalTooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ContextUsageMeter, ContextUsageSummary } from '@renderer/components/chat/contextUsage'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
@@ -75,9 +75,11 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
+import { SavedDraftsDock } from '../SavedDraftsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
 import { useInputHistory } from '../useInputHistory'
+import { useSavedDrafts } from '../useSavedDrafts'
 import {
   type ChatComposerControlsRenderer,
   type ComposerInputAdapter,
@@ -101,6 +103,7 @@ import {
   getComposerTokenIds,
   knowledgeBaseToComposerToken
 } from './chatComposerTokens'
+import { COMPOSER_SEND_ACCESSORY_BUTTON_CLASS } from './shared/ComposerControlScaffolding'
 import { ComposerDictationButton } from './shared/ComposerDictationButton'
 import { type AddNewTopicPayload, emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import {
@@ -194,10 +197,15 @@ interface SavedComposerDraft {
   mentionedModelSelectionWasPending: boolean
   selectedKnowledgeBases: KnowledgeBase[]
   knowledgeBaseIds: string[]
+  /** Knowledge restore retry pending when the content was parked; resumes with it. */
+  pendingKnowledgeBaseIds: readonly string[] | null
 }
 
 interface InputHistoryToolSnapshot extends Pick<SavedComposerDraft, 'files' | 'selectedKnowledgeBases'> {
   mentionedModels: Model[]
+  /** The owning draft's full persisted scope, including ids the catalog cannot offer yet. */
+  knowledgeBaseIds: string[]
+  pendingKnowledgeBaseIds: readonly string[] | null
 }
 
 type ComposerFilePart = Extract<CherryMessagePart, { type: 'file' }>
@@ -475,7 +483,11 @@ const ChatComposerInner = ({
   const knowledgeBasePanelVisible = Boolean(
     quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.KnowledgeBase
   )
+  // A tokenless saved draft can still carry a knowledge scope: an explicit restore or resume
+  // must pull the catalog in so the retry can resolve instead of sending without the scope.
+  const knowledgeRestoreNeedsCatalogRef = useRef(false)
   const knowledgeBasesDataEnabled =
+    knowledgeRestoreNeedsCatalogRef.current ||
     selectedKnowledgeBases.length > 0 ||
     getComposerTokenIds(draftTokens ?? [], 'knowledge').size > 0 ||
     Boolean(editingMessageForCurrentTopic) ||
@@ -490,6 +502,14 @@ const ChatComposerInner = ({
   const editingMessageForCurrentTopicRef = useLatest(editingMessageForCurrentTopic)
   const inputHistoryToolsRef = useRef<InputHistoryToolSnapshot | null>(null)
   const skipDraftCacheWriteForHistoryPreviewRef = useRef(false)
+  // applyHistoryDraft is declared above the knowledge-scope hook: reach its pending-retry API
+  // through a bridge ref that is re-synced after every render below the hook.
+  const knowledgeScopeBridgeRef = useRef<{
+    pendingIds: readonly string[] | null
+    persistedIds: readonly string[]
+    clearPending: () => void
+    resumePending: (ids: readonly string[] | null | undefined) => void
+  }>({ pendingIds: null, persistedIds: [], clearPending: () => {}, resumePending: () => {} })
   const applyHistoryDraft = useCallback(
     (historyDraft: ComposerSerializedDraft, options: { source: 'history' | 'draft' }) => {
       skipDraftCacheWriteForHistoryPreviewRef.current = options.source === 'history'
@@ -502,10 +522,15 @@ const ChatComposerInner = ({
         inputHistoryToolsRef.current ??= {
           files: filesRef.current,
           mentionedModels: mentionedModelsRef.current,
-          selectedKnowledgeBases: selectedKnowledgeBasesRef.current
+          selectedKnowledgeBases: selectedKnowledgeBasesRef.current,
+          knowledgeBaseIds: [...knowledgeScopeBridgeRef.current.persistedIds],
+          pendingKnowledgeBaseIds: knowledgeScopeBridgeRef.current.pendingIds
         }
         setFiles([])
         setSelectedKnowledgeBases([])
+        // The previewed entry is different content: suspend a retry still pending for the live
+        // draft so its ids cannot merge into the preview when the catalog later offers them.
+        knowledgeScopeBridgeRef.current.clearPending()
         return
       }
 
@@ -515,10 +540,14 @@ const ChatComposerInner = ({
       setFiles(savedTools.files)
       setMentionedModels(savedTools.mentionedModels)
       setSelectedKnowledgeBases(savedTools.selectedKnowledgeBases)
+      // The owning draft is back: a retry suspended for it may resolve again.
+      if (savedTools.pendingKnowledgeBaseIds?.length) knowledgeRestoreNeedsCatalogRef.current = true
+      knowledgeScopeBridgeRef.current.resumePending(savedTools.pendingKnowledgeBaseIds)
     },
     [
       actionsRef,
       filesRef,
+      knowledgeScopeBridgeRef,
       mentionedModelsRef,
       selectedKnowledgeBasesRef,
       setFiles,
@@ -698,6 +727,10 @@ const ChatComposerInner = ({
     resolveKnowledgeBaseMarker,
     restoreKnowledgeBaseSelection,
     isKnowledgeBaseDraftHydrated,
+    hasPendingKnowledgeBaseRestore,
+    clearPendingKnowledgeBaseRestore,
+    pendingKnowledgeBaseRestoreIds,
+    resumePendingKnowledgeBaseRestore,
     knowledgeBaseIdsRef,
     syncKnowledgeBaseIds
   } = useComposerKnowledgeBaseScope({
@@ -707,8 +740,18 @@ const ChatComposerInner = ({
     scopeKey: selectedKnowledgeBasesScopeKey,
     selectedKnowledgeBases,
     setSelectedKnowledgeBases,
-    initialKnowledgeBaseIds: initialDraft.knowledgeBaseIds
+    initialKnowledgeBaseIds: initialDraft.knowledgeBaseIds,
+    // A history preview shows a recalled entry, not the live draft: hydration waits for the
+    // owning draft instead of landing its cached scope in the preview.
+    suspendDraftHydration: isInputHistoryActive
   })
+
+  knowledgeScopeBridgeRef.current = {
+    pendingIds: pendingKnowledgeBaseRestoreIds,
+    persistedIds: knowledgeBaseIdsRef.current,
+    clearPending: clearPendingKnowledgeBaseRestore,
+    resumePending: resumePendingKnowledgeBaseRestore
+  }
 
   const exitInputHistoryPreview = useCallback(() => {
     const draft = takeDraftBeforeHistory()
@@ -1004,10 +1047,15 @@ const ChatComposerInner = ({
       savedDraft.mentionedModelMultiSelectMode
     )
     setSelectedKnowledgeBases(savedDraft.selectedKnowledgeBases)
+    // The parked content owns any knowledge retry pending when editing began
+    // (restoreEditableMessageDraft cleared it for the edited message): resume it with its draft.
+    if (savedDraft.pendingKnowledgeBaseIds?.length) knowledgeRestoreNeedsCatalogRef.current = true
+    resumePendingKnowledgeBaseRestore(savedDraft.pendingKnowledgeBaseIds)
   }, [
     actionsRef,
     exitInputHistoryPreview,
     restoreMentionedModelSelection,
+    resumePendingKnowledgeBaseRestore,
     runtimeModelRef,
     setFiles,
     setSelectedKnowledgeBases
@@ -1035,6 +1083,9 @@ const ChatComposerInner = ({
       if (file) originalFilePartsByTokenId.set(chatComposerTokenId.file(file), part)
     })
     editingOriginalFilePartsByTokenIdRef.current = originalFilePartsByTokenId
+    // The edited message replaces the composer content: a knowledge restore still pending for the
+    // previous content must not merge into it when the catalog later offers the ids.
+    clearPendingKnowledgeBaseRestore()
     actionsRef.current.replaceDraft({ text: editableDraft.text, tokens: editableDraft.draftTokens })
     setText(editableDraft.text)
     setDraftTokens(editableDraft.draftTokens)
@@ -1064,7 +1115,8 @@ const ChatComposerInner = ({
         mentionedModelMultiSelectMode: mentionedModelMultiSelectModeRef.current,
         mentionedModelSelectionWasPending: runtimeModelPending && mentionedModelSelectorValueRef.current.length === 0,
         selectedKnowledgeBases: currentTools?.selectedKnowledgeBases ?? selectedKnowledgeBasesRef.current,
-        knowledgeBaseIds: [...knowledgeBaseIdsRef.current]
+        knowledgeBaseIds: [...knowledgeBaseIdsRef.current],
+        pendingKnowledgeBaseIds: currentTools?.pendingKnowledgeBaseIds ?? knowledgeScopeBridgeRef.current.pendingIds
       }
     } else {
       exitInputHistoryPreview()
@@ -1422,7 +1474,9 @@ const ChatComposerInner = ({
     // from a stale index.
     resetHistoryIndex()
     inputHistoryToolsRef.current = null
-  }, [resetHistoryIndex, setFiles, setText])
+    // The composer's content is gone: a knowledge restore still pending for it must not land later.
+    clearPendingKnowledgeBaseRestore()
+  }, [clearPendingKnowledgeBaseRestore, resetHistoryIndex, setFiles, setText])
 
   // Queue mode: while a turn streams, follow-ups go here instead of sending; the head auto-drains
   // (normal send) when the topic goes idle, and the dock steers/edits/removes individual items.
@@ -1488,6 +1542,120 @@ const ChatComposerInner = ({
       restoreKnowledgeBaseSelection,
       restoreMentionedModelSelector,
       selectMentionedModels,
+      setFiles,
+      setText
+    ]
+  )
+
+  const {
+    items: savedDrafts,
+    save: saveDraft,
+    remove: removeSavedDraft
+  } = useSavedDrafts(selectedKnowledgeBasesScopeKey)
+
+  // Knowledge-base ids parked with a draft: the history snapshot's selection while previewing
+  // (the live selection is cleared then), otherwise the scope's persisted ids.
+  const knowledgeBaseIdsForSnapshot = useCallback(
+    (tools: InputHistoryToolSnapshot | null) =>
+      tools
+        ? // The parked draft owns its whole scope: the persisted ids (including ones the catalog
+          // cannot offer yet), the resolved selection and any pending retry.
+          [
+            ...new Set([
+              ...tools.knowledgeBaseIds,
+              ...tools.selectedKnowledgeBases.map((base) => base.id),
+              ...(tools.pendingKnowledgeBaseIds ?? [])
+            ])
+          ]
+        : [...knowledgeBaseIdsRef.current],
+    [knowledgeBaseIdsRef]
+  )
+
+  const handleSaveAsDraft = useCallback(() => {
+    // A pending conversation reference only fills its transcript into the live editor; a parked
+    // snapshot would keep the empty promptText forever, so block saving until it settles.
+    if (editingMessageForCurrentTopic || hasPendingReference || isAssistantLoading) return
+    // A history preview shows a recalled entry, not the live draft: the unfinished prompt and its
+    // attachments are parked in the history snapshots, so capture them before reading the draft.
+    const historyPreview = exitInputHistoryPreview()
+    const draft = historyPreview.draft ?? actionsRef.current.getDraft()
+    const draftFiles = historyPreview.tools?.files ?? files
+    if (draft.text.trim().length === 0 && draftFiles.length === 0) {
+      // Nothing to park; never drop a stashed knowledge-base selection with the snapshot.
+      if (historyPreview.tools) setSelectedKnowledgeBases(historyPreview.tools.selectedKnowledgeBases)
+      return
+    }
+    saveDraft(draft, draftFiles, knowledgeBaseIdsForSnapshot(historyPreview.tools))
+    clearCurrentDraft()
+    // A normal save keeps the conversation-scope knowledge selection; restore the selection the
+    // preview stashed so saving from a history preview behaves the same.
+    if (historyPreview.tools) setSelectedKnowledgeBases(historyPreview.tools.selectedKnowledgeBases)
+  }, [
+    actionsRef,
+    clearCurrentDraft,
+    editingMessageForCurrentTopic,
+    exitInputHistoryPreview,
+    files,
+    hasPendingReference,
+    isAssistantLoading,
+    knowledgeBaseIdsForSnapshot,
+    saveDraft,
+    setSelectedKnowledgeBases
+  ])
+
+  // Restoring swaps with the composer: any unsent content is parked as a new draft so nothing is lost.
+  const handleEditSavedDraft = useCallback(
+    (id: string) => {
+      const item = savedDrafts.find((candidate) => candidate.id === id)
+      // While the assigned assistant is still loading, parking the live content would land under
+      // the unresolved '<scope>:no-assistant' key and the restored knowledge selection would be
+      // wiped when the assistant resolves — hold the restore until loading settles.
+      if (
+        !item ||
+        editingMessageForCurrentTopic ||
+        directSendInFlightRef.current ||
+        hasPendingReference ||
+        isAssistantLoading
+      )
+        return
+      // Exit any history preview first: the visible draft is the recalled entry while the
+      // composer's own unsent draft and tool state live in the history snapshots — park those,
+      // not the preview, so the swap below loses nothing. This also resets the history nav state.
+      const historyPreview = exitInputHistoryPreview()
+      const current = historyPreview.draft ?? actionsRef.current.getDraft()
+      const currentFiles = historyPreview.tools?.files ?? files
+      if (current.text.trim().length > 0 || currentFiles.length > 0) {
+        saveDraft(current, currentFiles, knowledgeBaseIdsForSnapshot(historyPreview.tools))
+      }
+      removeSavedDraft(id)
+      releaseFollowupEditRef.current()
+      actionsRef.current.replaceDraft(item.draft)
+      setText(item.draft.text)
+      setDraftTokens(item.draft.tokens.length ? [...item.draft.tokens] : undefined)
+      setFiles(item.files)
+      // Restore the draft's knowledge scope with it, as queued-followup restoration does: the rich
+      // editor's replaceDraft suppresses the update events that would reselect matching bases.
+      if (item.knowledgeBaseIds) {
+        knowledgeRestoreNeedsCatalogRef.current = true
+        restoreKnowledgeBaseSelection(item.knowledgeBaseIds, { retryUnavailable: true })
+      } else {
+        // A legacy draft restores nothing: drop any retry still pending from the content it replaces.
+        clearPendingKnowledgeBaseRestore()
+      }
+    },
+    [
+      actionsRef,
+      clearPendingKnowledgeBaseRestore,
+      editingMessageForCurrentTopic,
+      exitInputHistoryPreview,
+      files,
+      hasPendingReference,
+      isAssistantLoading,
+      knowledgeBaseIdsForSnapshot,
+      removeSavedDraft,
+      restoreKnowledgeBaseSelection,
+      savedDrafts,
+      saveDraft,
       setFiles,
       setText
     ]
@@ -1792,10 +1960,60 @@ const ChatComposerInner = ({
           onFastModeChange={setFastMode}
         />
       ) : null}
+      <NormalTooltip content={t('chat.input.saved_drafts.save')}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className={`${COMPOSER_SEND_ACCESSORY_BUTTON_CLASS} [&>svg]:!size-4.5`}
+          aria-label={t('chat.input.saved_drafts.save')}
+          disabled={
+            (text.trim().length === 0 && files.length === 0) ||
+            Boolean(editingMessageForCurrentTopic) ||
+            hasPendingReference ||
+            isAssistantLoading
+          }
+          onClick={handleSaveAsDraft}>
+          <BookmarkPlus />
+        </Button>
+      </NormalTooltip>
       <ChatComposerContextUsage usage={contextUsage} />
       <ComposerDictationButton inputAdapter={inputAdapter} />
     </>
   )
+
+  const followupDock =
+    queuedFollowups.length > 0 ? (
+      <QueuedFollowupsDock
+        items={queuedFollowups}
+        paused={followupPaused}
+        onTogglePause={() => setFollowupPaused(!followupPaused)}
+        onSteer={sendFollowup}
+        onEdit={(id) => {
+          if (directSendInFlightRef.current) return
+          editFollowup(id, {
+            editingMessage: Boolean(editingMessageForCurrentTopic),
+            getDraft: () => actionsRef.current.getDraft(),
+            buildPayload: buildQueuedPayload,
+            hasFiles: files.length > 0,
+            restore: restoreFollowupDraft
+          })
+        }}
+        onRemove={removeFollowup}
+        onReorder={reorderFollowups}
+        isSteerDisabled={isQueuedFollowupSteerDisabled}
+      />
+    ) : undefined
+  // Keep the followup dock as the sole element when no drafts are saved.
+  const queueContent =
+    savedDrafts.length > 0 ? (
+      <>
+        {followupDock}
+        <SavedDraftsDock items={savedDrafts} onEdit={handleEditSavedDraft} onRemove={removeSavedDraft} />
+      </>
+    ) : (
+      followupDock
+    )
 
   return (
     <ComposerToolDerivedStateProvider
@@ -1829,12 +2047,13 @@ const ChatComposerInner = ({
             searching ||
             runtimeModelPending ||
             hasPendingReference ||
+            hasPendingKnowledgeBaseRestore ||
             !!missingAssistantMessage ||
             !!missingModelMessage ||
             !!missingSelectedModelMessage
           }
           sendBlockedReason={
-            isSavingEdit || isDirectSending || sendDisabled || hasPendingReference
+            isSavingEdit || isDirectSending || sendDisabled || hasPendingReference || hasPendingKnowledgeBaseRestore
               ? t('common.loading')
               : (missingAssistantMessage ?? missingModelMessage ?? missingSelectedModelMessage)
           }
@@ -1866,29 +2085,7 @@ const ChatComposerInner = ({
               : undefined
           }
           onPause={onPause}
-          queueContent={
-            queuedFollowups.length > 0 ? (
-              <QueuedFollowupsDock
-                items={queuedFollowups}
-                paused={followupPaused}
-                onTogglePause={() => setFollowupPaused(!followupPaused)}
-                onSteer={sendFollowup}
-                onEdit={(id) => {
-                  if (directSendInFlightRef.current) return
-                  editFollowup(id, {
-                    editingMessage: Boolean(editingMessageForCurrentTopic),
-                    getDraft: () => actionsRef.current.getDraft(),
-                    buildPayload: buildQueuedPayload,
-                    hasFiles: files.length > 0,
-                    restore: restoreFollowupDraft
-                  })
-                }}
-                onRemove={removeFollowup}
-                onReorder={reorderFollowups}
-                isSteerDisabled={isQueuedFollowupSteerDisabled}
-              />
-            ) : undefined
-          }
+          queueContent={queueContent}
           supportedExts={supportedExts}
           setFiles={setFiles}
           previewInputFile={previewInputFile}
