@@ -76,7 +76,10 @@ export function openMacTrayMenu(paths: RunPaths): void {
       `
     ObjC.import('CoreGraphics')
     ObjC.import('Foundation')
-    const process = Application('System Events').processes.whose({unixId: ${record.electronPid}})[0]
+    const events = Application('System Events')
+    const processId = events.processes.whose({unixId: ${record.electronPid}})[0].id()
+    const process = events.processes.byId(processId)
+    if (process.unixId() !== ${record.electronPid}) throw new Error('The tray process no longer matches the owned application')
     const item = process.menuBars[1].menuBarItems[0]
     const position = item.position(), size = item.size()
     const point = {x: position[0] + size[0] / 2, y: position[1] + size[1] / 2}

@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process'
-import { constants, cpSync, existsSync, mkdirSync, rmSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { constants, cpSync, existsSync, mkdirSync, realpathSync, rmSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 
@@ -78,6 +79,17 @@ export async function prepareMacRuntime(paths: RunPaths, targetRoot: string): Pr
     if (matches.length !== 1)
       throw new Error('Set CHERRY_E2E_MAC_SIGN_IDENTITY to one installed Developer ID Application identity')
     cpSync(source, app, { recursive: true, verbatimSymlinks: true, mode: constants.COPYFILE_FICLONE })
+    const workspaceId = createHash('sha256').update(realpathSync(targetRoot)).digest('hex').slice(0, 12)
+    const name = `Cherry Studio E2E ${workspaceId}`
+    for (const [key, value] of Object.entries({
+      CFBundleIdentifier: `com.cherrystudio.e2e.${workspaceId}`,
+      CFBundleName: name,
+      CFBundleDisplayName: name
+    })) {
+      execFileSync('/usr/bin/plutil', ['-replace', key, '-string', value, join(app, 'Contents', 'Info.plist')], {
+        stdio: 'ignore'
+      })
+    }
     await signAsync({
       app,
       identity: matches[0][1],

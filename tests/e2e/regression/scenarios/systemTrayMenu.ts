@@ -37,15 +37,18 @@ export async function systemTrayMenu(app: RegressionApp, page: Page, testInfo: T
     const record = app.record
     assertOwnedProcess(record, record.electronPid, 'electron')
     await expect.poll(readMenu, { timeout: 5_000 }).toEqual([])
-    if (record.platform === 'windows') await openWindowsTrayMenu(app)
-    else openMacTrayMenu(app.paths)
-    await expect.poll(readMenu, { timeout: 5_000 }).toContain('Quit')
+    await expect(async () => {
+      if ((await readMenu()).includes('Quit')) return
+      if (record.platform === 'windows') await openWindowsTrayMenu(app)
+      else openMacTrayMenu(app.paths)
+      await expect.poll(readMenu, { timeout: 2_000 }).toContain('Quit')
+    }).toPass({ timeout: 15_000 })
   }
   const readMenu = () =>
     app.record.platform === 'windows'
       ? windowsTrayMenu(app)
       : nativeComputerUse(`
-    tell application "System Events" to tell (first process whose unix id is ${app.record.electronPid})
+    tell application "System Events" to tell application process id (id of first application process whose unix id is ${app.record.electronPid})
       try
         set actualNames to name of every menu item of menu 1 of menu bar item 1 of menu bar 2
       on error number -1719
@@ -65,7 +68,7 @@ export async function systemTrayMenu(app: RegressionApp, page: Page, testInfo: T
     app.record.platform === 'windows'
       ? windowsTrayMenu(app, label)
       : nativeComputerUse(`
-    tell application "System Events" to tell (first process whose unix id is ${app.record.electronPid})
+    tell application "System Events" to tell application process id (id of first application process whose unix id is ${app.record.electronPid})
       click menu item ${JSON.stringify(label)} of menu 1 of menu bar item 1 of menu bar 2
     end tell
   `)
@@ -97,7 +100,7 @@ export async function systemTrayMenu(app: RegressionApp, page: Page, testInfo: T
       await expect
         .poll(() =>
           nativeComputerUse(`
-      tell application "System Events" to tell (first process whose unix id is ${app.record.electronPid})
+      tell application "System Events" to tell application process id (id of first application process whose unix id is ${app.record.electronPid})
         return count of menu bar items of menu bar 2
       end tell
     `)

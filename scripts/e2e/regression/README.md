@@ -191,7 +191,10 @@ CHERRY_E2E_MAC_SIGN_IDENTITY="Developer ID Application: Your Identity (TEAMID)" 
 ```
 
 This uses an already-installed local signing identity, preserves the checkout's
-Electron download, and reuses the signed copy across profile restarts. CI imports
+Electron download, and reuses the signed copy across profile restarts.
+The copy has a workspace-specific application identifier and name, so notification
+activation cannot select another development workspace with the default Electron identity.
+That identity stays stable across runs and profile restarts. CI imports
 `CSC_LINK`/`CSC_KEY_PASSWORD` into a temporary keychain for this step only, restores
 the original search list, and removes its certificate files and keychain before
 launch. The signed runtime stays under the isolated run directory, outside uploaded
