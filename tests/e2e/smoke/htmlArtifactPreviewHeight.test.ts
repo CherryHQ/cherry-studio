@@ -59,6 +59,13 @@ test('inline HTML iframe preview settles and stays stable across scrolling', asy
     topicId
   )
   const messageList = page.locator('[data-message-virtual-list-scroller]').filter({ visible: true }).first()
+  await expect
+    .poll(() =>
+      messageList.evaluate(
+        (element) => element.scrollTop > 0 && element.scrollHeight - element.clientHeight - element.scrollTop <= 2
+      )
+    )
+    .toBe(true)
   await messageList.hover()
   await page.mouse.wheel(0, -10000)
   const artifact = page.getByTestId('message-html-artifact').first()
@@ -67,11 +74,13 @@ test('inline HTML iframe preview settles and stays stable across scrolling', asy
     await artifact.scrollIntoViewIfNeeded()
     await expect(artifact).toBeVisible()
   }).toPass({ timeout: 10_000 })
-  const sampling = await page.waitForFunction(async () => {
+  await expect(artifact.getByTestId('html-artifact-surface').locator('iframe')).toBeAttached()
+  await expect(page.getByText('after-block-marker', { exact: true })).toBeAttached()
+  const sampling = await page.evaluateHandle(async () => {
     const surface = document.querySelector<HTMLElement>('[data-testid="html-artifact-surface"]')
     const marker = Array.from(document.querySelectorAll('p')).find((p) => p.textContent === 'after-block-marker')
     const frame = surface?.querySelector('iframe')
-    if (!surface || !marker || !frame) return null
+    if (!surface || !marker || !frame) throw new Error('HTML preview was detached before sampling')
     const scroller = surface.closest<HTMLElement>('[data-message-virtual-list-scroller]')
     if (!scroller) throw new Error('Expected message-list scroller')
     let styleMutations = 0
