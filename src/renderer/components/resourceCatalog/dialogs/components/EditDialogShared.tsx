@@ -23,6 +23,11 @@ import {
   PopoverContent,
   PopoverTrigger,
   ScrollArea,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Tabs,
   TabsList,
   TabsTrigger,
@@ -254,6 +259,8 @@ export function KnowledgeBaseAvatar({
   )
 }
 
+type KnowledgeBaseSortKey = 'linked' | 'name' | 'created'
+
 type KnowledgeBaseFieldValues = FieldValues & {
   knowledgeBaseIds: string[]
 }
@@ -279,9 +286,12 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
   const watchedValue = useWatch({ control: form.control, name: fieldName })
   const value = useMemo(() => (watchedValue ?? []) as string[], [watchedValue])
 
+  const [search, setSearch] = useState('')
+  const [sortKey, setSortKey] = useState<KnowledgeBaseSortKey>('linked')
+
   const { catalog, linkedItems } = useMemo(() => {
     const byId = new Map(bases.map((base) => [base.id, base]))
-    const linked = value.map(
+    const linked: { id: string; name: string; itemCount: number; createdAt?: string }[] = value.map(
       (id) =>
         byId.get(id) ?? {
           id,
@@ -297,6 +307,14 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
     }))
     return { catalog: items, linkedItems: linked }
   }, [bases, t, value])
+
+  const visibleItems = useMemo(() => {
+    const keyword = search.trim().toLowerCase()
+    const filtered = keyword ? linkedItems.filter((kb) => kb.name.toLowerCase().includes(keyword)) : linkedItems
+    if (sortKey === 'name') return [...filtered].sort((a, b) => a.name.localeCompare(b.name))
+    if (sortKey === 'created') return [...filtered].sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
+    return filtered
+  }, [linkedItems, search, sortKey])
 
   const setKnowledgeBaseIds = (nextValue: string[]) =>
     form.setValue(fieldName, nextValue as never, { shouldDirty: true })
@@ -350,7 +368,28 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
             </div>
           ) : (
             <div className="mt-2 space-y-1.5">
-              {linkedItems.map((kb) => (
+              {linkedItems.length > 1 || search.trim() !== '' ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder={t('library.config.knowledge.search')}
+                    aria-label={t('library.config.knowledge.search')}
+                    className="h-8 flex-1"
+                  />
+                  <Select value={sortKey} onValueChange={(next) => setSortKey(next as KnowledgeBaseSortKey)}>
+                    <SelectTrigger size="sm" className="w-[140px]" aria-label={t('library.config.knowledge.sort')}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent portalContainer={portalContainer}>
+                      <SelectItem value="linked">{t('library.config.knowledge.sort_linked')}</SelectItem>
+                      <SelectItem value="name">{t('library.config.knowledge.sort_name')}</SelectItem>
+                      <SelectItem value="created">{t('library.config.knowledge.sort_created')}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
+              {visibleItems.map((kb) => (
                 <div
                   key={kb.id}
                   className="group flex items-center gap-3 rounded-md border border-border-subtle bg-accent/15 px-3 py-2.5 transition-colors hover:border-border-subtle hover:bg-accent/20">
