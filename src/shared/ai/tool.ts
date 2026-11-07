@@ -17,3 +17,12 @@ export const ToolSchema = z.strictObject({
 export type Tool = z.infer<typeof ToolSchema>
 export type ToolApproval = z.infer<typeof ToolApprovalSchema>
 export type ToolOrigin = z.infer<typeof ToolOriginSchema>
+
+/**
+ * Whether a tool name ends a plan — Claude Code `ExitPlanMode`, dsh `exit_plan_mode`. Main's
+ * execution-model handoff gate and the renderer's approval picker must classify these identically.
+ */
+export function isPlanExitToolName(toolName: string): boolean {
+  const name = toolName.trim()
+  return name === 'ExitPlanMode' || name === 'exit_plan_mode'
+}

@@ -24,6 +24,13 @@ function isToolPart(part: CherryMessagePart): boolean {
   return t.startsWith('tool-') || t === 'dynamic-tool'
 }
 
+/** Whether a tool part already carries its terminal result (output, error, or denial). */
+export function isToolPartSettled(part: CherryMessagePart): boolean {
+  if (!isToolPart(part)) return false
+  const state = (part as CherryMessagePart & { state?: string }).state
+  return state !== undefined && TERMINAL_TOOL_STATES.has(state)
+}
+
 /**
  * Drop transient status parts that must never reach storage. `data-retry`
  * (model retry/fallback status) is emitted live for the renderer but is not
@@ -91,7 +98,7 @@ export function finalizeInterruptedParts(
 
     if (!isToolPart(part)) return part
     const toolPart = part as CherryMessagePart & { state?: string; errorText?: string }
-    if (toolPart.state && TERMINAL_TOOL_STATES.has(toolPart.state)) return part
+    if (isToolPartSettled(part)) return part
     return {
       ...toolPart,
       state: 'output-error',

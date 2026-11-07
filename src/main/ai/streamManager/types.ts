@@ -170,6 +170,8 @@ export interface StreamExecution {
   /** Tool-call ids still awaiting human approval, keyed so a sibling tool's output clears only its
    *  own. Non-empty ⇒ the topic surfaces `awaiting-approval`; drives the `topic.stream.statuses` cache. */
   pendingApprovalToolCallIds?: Set<string>
+  /** `awaitToolSettled` waiters by toolCallId, resolved when the accumulated message settles that tool. */
+  toolSettleWaiters?: Map<string, Set<(settled: boolean) => void>>
   resolvedToolApprovals?: Map<string, boolean>
   /** Approval ids already published during this execution. */
   publishedApprovalIds?: Set<string>

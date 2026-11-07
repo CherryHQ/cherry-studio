@@ -618,14 +618,15 @@ describe('useDefaultModel', () => {
     MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.model_id', 'openai::quick')
     MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', 'openai::translate')
     MockUsePreferenceUtils.setPreferenceValue('feature.paintings.default_model_id', 'openai::dall-e-3')
+    MockUsePreferenceUtils.setPreferenceValue('chat.plan_execution.model_id', 'openai::opus')
 
     renderHook(() => useDefaultModel({ enabled: false }))
 
-    expect(mockUseQuery).toHaveBeenCalledTimes(4)
-    expect(mockUseQuery).toHaveBeenCalledWith('/models/', {
-      enabled: false,
-      swrOptions: { keepPreviousData: false }
-    })
+    expect(mockUseQuery.mock.calls.length).toBeGreaterThan(0)
+    for (const [path, options] of mockUseQuery.mock.calls) {
+      expect(path).toBe('/models/')
+      expect(options).toEqual({ enabled: false, swrOptions: { keepPreviousData: false } })
+    }
   })
 
   it('persists the picked painting model id to feature.paintings.default_model_id', async () => {
@@ -661,6 +662,33 @@ describe('useDefaultModel', () => {
     expect(mockUseQuery).toHaveBeenCalledWith('/models/', { enabled: false, swrOptions: { keepPreviousData: false } })
     const defaultIdQueries = mockUseQuery.mock.calls.filter(([path]) => path === '/models/openai::gpt-4o')
     expect(defaultIdQueries).toHaveLength(1) // defaultModel only; painting did not borrow it
+  })
+
+  // Unset means "execute an approved plan on the turn's current model", so it must never borrow
+  // the chat default the way quick/translate do.
+  it('does not fall back to the chat default when the plan execution model is unset', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', 'openai::gpt-4o')
+    MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.model_id', 'openai::quick')
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', 'openai::translate')
+    MockUsePreferenceUtils.setPreferenceValue('chat.plan_execution.model_id', null)
+
+    renderHook(() => useDefaultModel())
+
+    // plan execution resolves the empty/disabled key, never the chat-default id
+    expect(mockUseQuery).toHaveBeenCalledWith('/models/', { enabled: false, swrOptions: { keepPreviousData: false } })
+    const defaultIdQueries = mockUseQuery.mock.calls.filter(([path]) => path === '/models/openai::gpt-4o')
+    expect(defaultIdQueries).toHaveLength(1) // defaultModel only; plan execution did not borrow it
+  })
+
+  it('clears the plan execution model back to unset', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.plan_execution.model_id', 'openai::opus')
+    const { result } = renderHook(() => useDefaultModel())
+
+    await act(async () => {
+      await result.current.setPlanExecutionModel(undefined)
+    })
+
+    expect(MockUsePreferenceUtils.getPreferenceValue('chat.plan_execution.model_id')).toBeNull()
   })
 
   it('cascades setDefaultModel to quick and translate but not painting', async () => {
