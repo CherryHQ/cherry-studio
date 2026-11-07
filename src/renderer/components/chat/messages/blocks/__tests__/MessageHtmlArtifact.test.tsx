@@ -42,7 +42,7 @@ describe('MessageHtmlArtifact', () => {
   it('loads the artifact view only after an artifact is rendered', async () => {
     render(<MessageHtmlArtifact artifactId="artifact" html="<title>Demo</title><h1>Hello</h1>" />)
 
-    expect(screen.getByTestId('message-html-artifact')).toHaveAttribute('data-html-artifact')
+    expect(screen.getByTestId('message-html-artifact')).not.toHaveAttribute('data-html-artifact')
     expect(screen.queryByTestId('html-artifact-view')).not.toBeInTheDocument()
 
     const artifactView = await screen.findByTestId('html-artifact-view')

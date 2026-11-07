@@ -12,11 +12,13 @@ import {
   captureScrollable,
   captureScrollableAsBlob,
   captureScrollableAsDataUrl,
+  captureScrollableIframe,
   checkEntityImageSize,
   convertToBase64,
   dataUrlToBlob,
   getImageBlobFromSource,
   IMAGE_CAPTURE_ATTRIBUTE,
+  ImageCaptureEvent,
   imageInputToPreviewUrl,
   isKatexGeneratedSvg,
   makeSvgSizeAdaptive,
@@ -246,6 +248,36 @@ describe('utils/image', () => {
         vi.doMock('html-to-image', () => ({
           toCanvas: htmlToImage.toCanvas
         }))
+      }
+    })
+  })
+
+  describe('font embedding', () => {
+    it('inlines bundled font files as complete url(data:...) tokens, never url(url(...))', async () => {
+      // Fresh module: buildFontEmbedCSS caches per module instance.
+      vi.resetModules()
+      const style = document.createElement('style')
+      style.textContent = '@font-face{font-family:EmbedTest;src:url(file:///fonts/embed-test.woff2)}'
+      document.head.appendChild(style)
+      try {
+        ipcMocks.request.mockResolvedValue({
+          content: new Uint8Array([1, 2, 3]),
+          mime: 'font/woff2',
+          version: { mtime: 1, size: 3 }
+        })
+        const { captureScrollable: captureWithFonts } = await import('../image')
+        // The re-imported image module sees a fresh html-to-image mock instance.
+        const freshHtmlToImage = await import('html-to-image')
+        const div = document.createElement('div')
+        Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+        Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+        const ref = { current: div } as React.RefObject<HTMLDivElement>
+        await captureWithFonts(ref)
+        const options = vi.mocked(freshHtmlToImage.toCanvas).mock.calls.at(-1)?.[1]
+        expect(options?.fontEmbedCSS).toContain('url(data:font/woff2;base64,')
+        expect(options?.fontEmbedCSS).not.toContain('url(url(')
+      } finally {
+        style.remove()
       }
     })
   })
@@ -513,6 +545,58 @@ describe('utils/image', () => {
       Object.defineProperty(div, 'scrollHeight', { value: 40000, configurable: true })
       const ref = { current: div } as React.RefObject<HTMLDivElement>
       await expect(captureScrollable(ref)).rejects.toThrow()
+    })
+  })
+
+  describe('captureScrollableIframe resource policy', () => {
+    const REMOTE_CSS = 'https://example.com/collect?secret=abc'
+
+    function createIframeRef() {
+      const iframe = document.createElement('iframe')
+      document.body.appendChild(iframe)
+      const doc = iframe.contentDocument!
+      doc.head.innerHTML = `<link rel="stylesheet" href="${REMOTE_CSS}"><style>@font-face{font-family:x;src:url(https://example.com/f.woff2)}</style>`
+      doc.body.innerHTML = '<img src="https://example.com/pixel.png"><img src="data:image/png;base64,AAAA">'
+      iframe.contentWindow!.requestAnimationFrame = (cb: FrameRequestCallback) => {
+        cb(0)
+        return 0
+      }
+      return { current: iframe }
+    }
+
+    afterEach(() => {
+      document.querySelectorAll('iframe').forEach((iframe) => iframe.remove())
+      vi.unstubAllGlobals()
+    })
+
+    it('never fetches stylesheets or fonts from the parent when restricted to local resources', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(new Response('', { status: 404 }))
+      vi.stubGlobal('fetch', fetchMock)
+
+      await captureScrollableIframe(createIframeRef(), { restrictToLocalResources: true })
+
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('drops non-local images from the rasterized tree but keeps data URLs', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 404 })))
+
+      const iframeRef = createIframeRef()
+      await captureScrollableIframe(iframeRef, { restrictToLocalResources: true })
+
+      const options = vi.mocked(htmlToImage.toCanvas).mock.calls.at(-1)?.[1]
+      const [remote, local] = Array.from(iframeRef.current.contentDocument!.querySelectorAll('img'))
+      expect(options?.filter?.(remote)).toBe(false)
+      expect(options?.filter?.(local)).toBe(true)
+    })
+
+    it('keeps embedding remote stylesheets by default', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(new Response('', { status: 404 }))
+      vi.stubGlobal('fetch', fetchMock)
+
+      await captureScrollableIframe(createIframeRef())
+
+      expect(fetchMock).toHaveBeenCalledWith(REMOTE_CSS, expect.anything())
     })
   })
 
@@ -1475,4 +1559,22 @@ describe('utils/image', () => {
       await expect(pending).rejects.toThrow('Failed to load SVG image')
     })
   })
+})
+
+describe('failed image export preparations', () => {
+  it.each([captureElement, captureScrollableAsDataUrl])(
+    'does not run the outer capture after a preparation rejects',
+    async (capture) => {
+      const root = document.createElement('div')
+      root.addEventListener(ImageCaptureEvent.type, (event) => {
+        ;(event as ImageCaptureEvent).preparations.push(Promise.reject(new Error('restricted failure')))
+      })
+      let rejected = false
+      await capture({ current: root }).catch(() => {
+        rejected = true
+      })
+      expect(rejected).toBe(true)
+      expect(htmlToImage.toCanvas).not.toHaveBeenCalled()
+    }
+  )
 })
