@@ -15,6 +15,14 @@ How Cherry Studio stacks up against other AI apps you might already be using.
 * [Cherry Studio vs Manus: local or cloud AI agent?](https://cherryai.com/resources/articles/manus)
 * [A ChatGPT desktop app alternative that runs every model](https://cherryai.com/resources/articles/chatgpt-desktop-app)
 * [LM Studio alternative: local and cloud models in one app](https://cherryai.com/resources/articles/lm-studio)
+* [Cherry Studio vs Chatbox: which AI desktop client fits you?](https://cherryai.com/resources/articles/chatbox)
+* [Claude desktop app vs Cherry Studio: Claude and every other model in one app](https://cherryai.com/resources/articles/claude-desktop-app)
+
+## Tutorials
+
+Step-by-step guides to getting things done with Cherry Studio.
+
+* [How to run DeepSeek locally with Ollama and Cherry Studio](https://cherryai.com/resources/articles/deepseek-local)
 
 ## Use Popular Models in One App
 

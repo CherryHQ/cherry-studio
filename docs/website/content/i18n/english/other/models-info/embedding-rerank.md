@@ -4,7 +4,7 @@ Data comes from the model catalog bundled with Cherry Studio ([provider-registry
 
 Context length and max output are abbreviated with K / M and rounded (1K is roughly 1,000–1,024 tokens, 1M roughly one million), e.g. 131,072 and 128,000 both read 128K. Hover a value to see the exact number; confirm limits with the model provider.
 
-> **Data updated**: 2026-11-03 16:01:16 UTC / 2026-11-04 00:01:16 CST (Beijing time)
+> **Data updated**: 2026-11-07 14:49:14 UTC / 2026-11-07 22:49:14 CST (Beijing time)
 
 <div data-models-table="num:2,3;sort:1;search:0,1;cap:4:Image recognition,Speech recognition,Video understanding,File input,Embedding,Rerank;in:5:Image input=Image,Audio input=Audio,Video input=Video;out:6:Text output=Text,Vector output=Vector">
 
