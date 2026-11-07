@@ -34,6 +34,13 @@ import type { ClaudeArchive, ClaudeNativeMessage } from './types'
 
 type Part = RuntimeMessage['parts'][number]
 type ToolPart = Extract<Part, { type: 'dynamic-tool' }>
+/** The CLI's failure report: its typed `error` (pinned SDK 0.3.284) or its own `isApiErrorMessage`
+ *  flag — not `<synthetic>` alone, which also labels successful `/context` and `/usage` replies. */
+function isApiErrorDiagnostic(message: SDKAssistantMessage): boolean {
+  const envelope = message as SDKAssistantMessage & { is_api_error_message?: unknown; isApiErrorMessage?: unknown }
+  return message.error !== undefined || envelope.is_api_error_message === true || envelope.isApiErrorMessage === true
+}
+
 export class ClaudeProjection {
   readonly feed: ClaudeFeed
   private readonly invocations = new ClaudeInvocations()
@@ -149,12 +156,16 @@ export class ClaudeProjection {
     if (options.aborted) this.aborted.add(message.uuid)
     const partial = this.aborted.has(message.uuid)
     const content = message.message.content
+    // A provider failure reaches the transcript as an assistant message whose text is the raw API
+    // error; that diagnostic belongs to the error channel, not to the assistant's own words.
+    const diagnostic = message.type === 'assistant' && isApiErrorDiagnostic(message)
+    const blocks = (typeof content === 'string' ? [{ type: 'text' as const, text: content }] : content)
+      .filter((block) => !diagnostic || block.type !== 'text')
+      .map((block) => projectBlock(block, partial))
     return this.upsertContent(
       message.uuid,
       message.type,
-      typeof content === 'string'
-        ? [projectBlock({ type: 'text', text: content }, partial)]
-        : content.map((block) => projectBlock(block, partial)),
+      blocks,
       message.type === 'assistant' ? message.message.id : undefined,
       options
     )
