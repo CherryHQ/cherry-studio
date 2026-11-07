@@ -11,15 +11,17 @@ interface MockStageProps {
   main: ReactNode
   composer: ReactNode
   composerElevated?: boolean
+  composerVisible?: boolean
   mainVisible?: boolean
 }
 
 vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
-  default: ({ placement, main, composer, composerElevated, mainVisible }: MockStageProps) => (
+  default: ({ placement, main, composer, composerElevated, composerVisible, mainVisible }: MockStageProps) => (
     <div
       data-testid="conversation-stage"
       data-placement={placement}
       data-composer-elevated={String(Boolean(composerElevated))}
+      data-composer-visible={String(composerVisible !== false)}
       data-main-visible={String(Boolean(mainVisible))}>
       <div data-testid="stage-main">{main}</div>
       <div data-testid="stage-composer">{composer}</div>
@@ -48,6 +50,18 @@ describe('ConversationStageCenter', () => {
     expect(screen.getByTestId('stage-main')).toHaveTextContent('messages')
     expect(screen.getByTestId('stage-composer')).toHaveTextContent('composer')
     expect(screen.getByTestId('conversation-stage')).toHaveAttribute('data-composer-elevated', 'true')
+    expect(screen.getByTestId('conversation-stage')).toHaveAttribute('data-composer-visible', 'true')
+    expect(screen.getByTestId('conversation-stage')).toHaveAttribute('data-main-visible', 'false')
+  })
+
+  it('yields the whole area to a maximized panel that does not keep the composer', () => {
+    rightPanelPresentationMock.maximized = true
+    rightPanelPresentationMock.elevated = false
+
+    render(<ConversationStageCenter placement="docked" main={<div>messages</div>} composer={<div>composer</div>} />)
+
+    expect(screen.getByTestId('conversation-stage')).toHaveAttribute('data-composer-visible', 'false')
+    expect(screen.getByTestId('conversation-stage')).toHaveAttribute('data-composer-elevated', 'false')
     expect(screen.getByTestId('conversation-stage')).toHaveAttribute('data-main-visible', 'false')
   })
 
@@ -67,6 +81,7 @@ describe('ConversationStageCenter', () => {
     render(<ConversationStageCenter placement="docked" main={<div>messages</div>} composer={<div />} />)
 
     expect(screen.getByTestId('conversation-stage')).toHaveAttribute('data-composer-elevated', 'false')
+    expect(screen.getByTestId('conversation-stage')).toHaveAttribute('data-composer-visible', 'true')
     expect(screen.getByTestId('conversation-stage')).toHaveAttribute('data-main-visible', 'true')
   })
 })
