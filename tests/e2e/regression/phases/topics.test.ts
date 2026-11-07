@@ -687,20 +687,28 @@ test(...caseDefinition('MP-44'), async ({ app, mainWindow }, testInfo) => {
     await expect(row(activeName)).toHaveAttribute('aria-selected', 'true')
     const source = rows().nth(1)
     const target = rows().nth(0)
-    const sourceBox = await source.boundingBox()
+    await page.bringToFront()
+    const sourceLabel = source.getByText(before[1].trim(), { exact: true })
+    await sourceLabel.hover()
+    const sourceBox = await sourceLabel.boundingBox()
     const targetBox = await target.boundingBox()
     if (!sourceBox || !targetBox) throw new Error('Topic drag rows have no visible bounds')
     const x = sourceBox.x + sourceBox.width / 2
-    await page.bringToFront()
     await page.mouse.move(x, sourceBox.y + sourceBox.height / 2)
     await page.mouse.down()
-    await page.mouse.move(x + 12, sourceBox.y + sourceBox.height / 2, { steps: 5 })
-    await expect(chat().locator('[data-dragging="true"]').first()).toBeVisible()
-    await expect(row(activeName)).toHaveAttribute('aria-selected', 'true')
-    await page.mouse.move(x, targetBox.y + targetBox.height * 0.2)
-    await expect(chat().locator('[data-drop-indicator="before"]')).toBeVisible()
-    await expect(row(activeName)).toHaveAttribute('aria-selected', 'true')
-    await page.mouse.up()
+    try {
+      await page.mouse.move(x + 12, sourceBox.y + sourceBox.height / 2, { steps: 5 })
+      await expect(chat().locator('[data-dragging="true"]').first()).toBeVisible()
+      await expect(row(activeName)).toHaveAttribute('aria-selected', 'true')
+      await page.mouse.move(x, targetBox.y + targetBox.height * 0.2)
+      await expect(chat().locator('[data-drop-indicator="before"]')).toBeVisible()
+      await expect(row(activeName)).toHaveAttribute('aria-selected', 'true')
+    } catch (error) {
+      await attachScreenshot('MP-44 drag failure before cleanup')
+      throw error
+    } finally {
+      await page.mouse.up()
+    }
     const reordered = [before[1], before[0], before[2], before[3]]
     await expect(rows()).toHaveText(reordered)
     await expect(row(activeName)).toHaveAttribute('aria-selected', 'true')
