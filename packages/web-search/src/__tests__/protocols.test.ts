@@ -14,9 +14,9 @@ import { getJinaHostCandidates, jina } from '../providers/jina'
 import { parallel } from '../providers/parallel'
 import { querit } from '../providers/querit'
 import { searchapi } from '../providers/searchapi'
-import { specstream } from '../providers/specstream'
 import { discoverSearxngEngines, searxng } from '../providers/searxng'
 import { serply } from '../providers/serply'
+import { specstream } from '../providers/specstream'
 import { tavily } from '../providers/tavily'
 import { yuanbao } from '../providers/yuanbao'
 import { zhipu } from '../providers/zhipu'
@@ -167,7 +167,10 @@ describe('portable provider contracts', () => {
     const result = await ok.client.execute(call)
     expect(ok.requests[0].url).toBe('https://service.example/proxy/v1/extract')
     expect(ok.requests[0].method).toBe('POST')
-    expect(JSON.parse(String(ok.requests[0].body))).toEqual({ urls: ['https://specstream.example/page'], format: 'markdown' })
+    expect(JSON.parse(String(ok.requests[0].body))).toEqual({
+      urls: ['https://specstream.example/page'],
+      format: 'markdown'
+    })
     expect(result.results[0]).toMatchObject({ title: 'Page Title', content: 'Page text' })
 
     const blocked = setup(

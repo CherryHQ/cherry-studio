@@ -76,7 +76,11 @@ export const specstream: WebSearchProviderModule = {
     if (!page) throw invalidResponse(context, 'empty_results', 'SpecStream Extract returned no result')
     const content = page.text?.trim()
     if (page.status !== 'ok' || !content) {
-      throw invalidResponse(context, `extract_${page.status}`, `SpecStream Extract could not read the page (${page.status})`)
+      throw invalidResponse(
+        context,
+        `extract_${page.status}`,
+        `SpecStream Extract could not read the page (${page.status})`
+      )
     }
     return [{ title: page.title?.trim() || call.input, content, url: call.input, sourceInput: call.input }]
   }
