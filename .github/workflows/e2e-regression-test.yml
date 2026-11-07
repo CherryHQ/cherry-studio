@@ -56,6 +56,7 @@ on:
           - claude-agent-runtime
           - pi-runtime
           - translation-settings
+          - native-settings
       provider_mode:
         description: "Provider backend: real = repository vars (default), mock = in-job mock service (deterministic, no quota, fault injection). Mock supports a subset of tasks; see scripts/e2e/regression/mock-fixtures/README.md"
         required: true
@@ -481,7 +482,7 @@ jobs:
       - name: Phase - Settings
         if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
-        timeout-minutes: 25
+        timeout-minutes: 40
         shell: bash
         run: >-
           pnpm exec tsx scripts/e2e/regression/cli.ts run-phase

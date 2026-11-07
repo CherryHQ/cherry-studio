@@ -86,16 +86,29 @@ it('refuses to read a native editor when no Windows fixture is owned', () => {
   expect(execFileSync).not.toHaveBeenCalled()
 })
 
-it('rejects a multi-file selection if any path escapes the allowed fixture directories', () => {
+it.each(['macos', 'windows'] as const)(
+  'rejects a %s multi-file selection outside the fixture directories',
+  (platform) => {
+    const paths = getRunPaths(directory)
+    ensureRunDirectories(paths)
+    const allowed = join(paths.fixtures, 'allowed.txt')
+    const outside = join(directory, 'outside.txt')
+    writeFileSync(allowed, 'Owned input')
+    writeFileSync(outside, 'Unrelated document')
+    expect(() => automation.chooseNativeFiles(platform, paths, [allowed, outside])).toThrow(
+      'outside the regression test directories'
+    )
+    expect(execFileSync).not.toHaveBeenCalled()
+  }
+)
+
+it('does not select unrequested files when macOS selects an isolated directory', () => {
   const paths = getRunPaths(directory)
   ensureRunDirectories(paths)
-  const allowed = join(paths.fixtures, 'allowed.txt')
-  const outside = join(directory, 'outside.txt')
-  writeFileSync(allowed, 'Owned input')
-  writeFileSync(outside, 'Unrelated document')
-  expect(() => automation.chooseWindowsNativeFiles(paths, [allowed, outside])).toThrow(
-    'outside the regression test directories'
-  )
+  const requested = join(paths.fixtures, 'requested.txt')
+  writeFileSync(requested, 'Requested input')
+  writeFileSync(join(paths.fixtures, 'unrequested.txt'), 'Must not be imported')
+  expect(() => automation.chooseNativeFiles('macos', paths, [requested])).toThrow('all files in one isolated directory')
   expect(execFileSync).not.toHaveBeenCalled()
 })
 

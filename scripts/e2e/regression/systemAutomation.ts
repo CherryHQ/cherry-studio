@@ -654,20 +654,38 @@ export function chooseNativeFile(platform: Platform, paths: RunPaths, candidateP
 }
 
 export function chooseWindowsNativeFiles(paths: RunPaths, candidates: string[]): void {
+  chooseNativeFiles('windows', paths, candidates)
+}
+
+export function chooseNativeFiles(platform: Platform, paths: RunPaths, candidates: string[]): void {
   if (candidates.length === 0) throw new Error('Native multi-file selection requires at least one file')
   const files = candidates.map((candidate) => {
     const file = resolveAllowedPath(candidate, [paths.fixtures, paths.workspace, paths.evidence])
     if (!statSync(file).isFile()) throw new Error(`Selected path is not a file: ${file}`)
     return file
   })
-  chooseNativeSelection('windows', paths, files[0], files.map((file) => `"${file}"`).join(' '))
+  if (platform === 'windows') {
+    chooseNativeSelection(platform, paths, files[0], files.map((file) => `"${file}"`).join(' '))
+    return
+  }
+  const directory = dirname(files[0])
+  const entries = readdirSync(directory).map((name) => join(directory, name))
+  if (
+    files.some((file) => dirname(file) !== directory) ||
+    entries.length !== files.length ||
+    entries.some((file) => !files.includes(file))
+  ) {
+    throw new Error('macOS multi-file selection requires all files in one isolated directory')
+  }
+  chooseNativeSelection(platform, paths, directory, undefined, true)
 }
 
 function chooseNativeSelection(
   platform: Platform,
   paths: RunPaths,
   candidatePath: string,
-  selectionText?: string
+  selectionText?: string,
+  selectAll = false
 ): string {
   const filePath = resolveAllowedPath(candidatePath, [paths.fixtures, paths.workspace, paths.evidence])
   if (!existsSync(filePath)) throw new Error(`Selected file does not exist: ${filePath}`)
@@ -699,6 +717,7 @@ function chooseNativeSelection(
       'if exists text field 1 of sheet 1 of window 1 then key code 36',
       'end repeat',
       'if exists sheet 1 of window 1 then error "Go to Folder did not finish"',
+      ...(selectAll ? ['keystroke "a" using command down'] : []),
       'repeat 100 times',
       'if enabled of button "Open" of splitter group 1 of window 1 then exit repeat',
       'delay 0.1',
@@ -773,7 +792,7 @@ function chooseNativeSelection(
               {
                 stage: 'accept-disabled',
                 cap: 5,
-                action: [],
+                action: selectAll ? ['keystroke "a" using command down'] : [],
                 condition: 'enabled of last button of splitter group 1 of window 1',
                 detail: 'last direct button is not enabled'
               },

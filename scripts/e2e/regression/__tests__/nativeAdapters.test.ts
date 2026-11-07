@@ -18,7 +18,7 @@ import { ensureRunDirectories, getRunPaths } from '../paths'
 import { CDP_PORT, isAlive, processCommand, waitForExit } from '../process'
 import {
   chooseNativeFile,
-  chooseWindowsNativeFiles,
+  chooseNativeFiles,
   dismissNativeMessageBox,
   readWindowsPrintDialog,
   saveNativeFile,
@@ -100,7 +100,7 @@ it.skipIf(process.platform !== 'win32').each([false, true])(
 const nativePlatform = process.platform === 'darwin' ? 'macos' : 'windows'
 const dialogModes =
   process.platform === 'darwin'
-    ? (['file', 'directory', 'save', 'save-suggested'] as const)
+    ? (['file', 'multiple', 'directory', 'save', 'save-suggested'] as const)
     : (['file', 'multiple', 'directory', 'save', 'save-suggested', 'print'] as const)
 
 // Verify Electron's returned paths after actual native selection and filename commit.
@@ -115,7 +115,9 @@ it.skipIf(!['darwin', 'win32'].includes(process.platform)).each(dialogModes)(
     try {
       ensureRunDirectories(paths)
       mkdirSync(join(paths.profiles, 'native-dialog'), { recursive: true })
-      const inputs = [join(paths.fixtures, 'first input.txt'), join(paths.fixtures, 'second 输入.txt')]
+      const inputDirectory = join(paths.fixtures, 'inputs')
+      mkdirSync(inputDirectory)
+      const inputs = [join(inputDirectory, 'first input.txt'), join(inputDirectory, 'second 输入.txt')]
       for (const input of inputs) writeFileSync(input, 'Owned native input')
       const folder = join(paths.fixtures, 'chosen folder')
       mkdirSync(folder)
@@ -179,7 +181,7 @@ it.skipIf(!['darwin', 'win32'].includes(process.platform)).each(dialogModes)(
           logPath: join(paths.logs, 'fixture.log')
         })
       )
-      if (mode === 'multiple') chooseWindowsNativeFiles(paths, inputs)
+      if (mode === 'multiple') chooseNativeFiles(nativePlatform, paths, inputs)
       else if (mode === 'save')
         expect(realpathSync.native(await saveNativeFile(nativePlatform, paths, saved))).toBe(realpathSync.native(saved))
       else if (mode === 'save-suggested') {

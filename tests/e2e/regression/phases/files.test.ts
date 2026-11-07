@@ -21,7 +21,7 @@ import { evaluateCdpExpression } from '../../../../scripts/e2e/regression/cdpCli
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { observeExternalResource, registerExternalResource } from '../../../../scripts/e2e/regression/externalResources'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
-import { chooseNativeFile, chooseWindowsNativeFiles } from '../../../../scripts/e2e/regression/systemAutomation'
+import { chooseNativeFile, chooseNativeFiles } from '../../../../scripts/e2e/regression/systemAutomation'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { expect, test } from '../fixture'
 import { createRtfPreviewFixtures } from '../fixtures/rtfPreviewFixtures'
@@ -457,49 +457,13 @@ test(...caseDefinition('MP-68'), async ({ app, mainWindow }, testInfo) => {
   try {
     const chooseFiles = async (path: string, multiple: boolean) => {
       await view().getByRole('button', { name: 'Upload files', exact: true }).click()
-      if (app.record.platform === 'windows') {
-        const files = multiple ? (await readdir(path)).map((name) => join(path, name)) : [path]
-        chooseWindowsNativeFiles(app.paths, files)
-        return
-      }
-      const script = [
-        'on run argv',
-        'tell application "System Events"',
-        'tell (first application process whose unix id is (item 2 of argv as integer))',
-        'set frontmost to true',
-        'log "MP-68 waiting for native Open dialog"',
-        'repeat 100 times',
-        'if exists (first button of splitter group 1 of window 1 whose name is "Open" or name is "打开") then exit repeat',
-        'delay 0.1',
-        'end repeat',
-        'if not (exists (first button of splitter group 1 of window 1 whose name is "Open" or name is "打开")) then error "Native file dialog was not found"',
-        'log "MP-68 native dialog found"',
-        'keystroke "g" using {command down, shift down}',
-        'repeat 100 times',
-        'if exists text field 1 of sheet 1 of window 1 then exit repeat',
-        'delay 0.1',
-        'end repeat',
-        'if not (exists text field 1 of sheet 1 of window 1) then error "Go to Folder input was not found"',
-        'keystroke "a" using command down',
-        'keystroke (item 1 of argv)',
-        'delay 0.5',
-        'key code 36',
-        'repeat 100 times',
-        'if not (exists sheet 1 of window 1) then exit repeat',
-        'delay 0.1',
-        'end repeat',
-        'delay 1',
-        ...(multiple ? ['key code 36', 'delay 0.5', 'keystroke "a" using command down'] : []),
-        'delay 0.3',
-        'click (first button of splitter group 1 of window 1 whose name is "Open" or name is "打开")',
-        'end tell',
-        'end tell',
-        'end run'
-      ].join('\n')
-      execFileSync('osascript', ['-e', script, '--', multiple ? `${path}/` : path, String(app.record.electronPid)], {
-        timeout: 45_000,
-        stdio: 'inherit'
-      })
+      if (multiple) {
+        chooseNativeFiles(
+          app.record.platform,
+          app.paths,
+          (await readdir(path)).map((name) => join(path, name))
+        )
+      } else chooseNativeFile(app.record.platform, app.paths, path)
     }
     await selectSidebarApp(page, 'Files')
     await expect(view()).toBeVisible()

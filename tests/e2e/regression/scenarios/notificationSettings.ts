@@ -273,29 +273,42 @@ export async function notificationSettings(app: RegressionApp, initialPage: Page
       }
     }
   } finally {
-    await server.close()
-    if (app.record.platform === 'macos') setMacNotificationCenterOpen(app.paths, false)
-    if (app.record.platform === 'windows') await inspectStartup(app, 'show')
+    const cleanupErrors: string[] = []
+    await server.close().catch((error) => cleanupErrors.push(String(error)))
+    if (app.record.platform === 'macos') {
+      try {
+        setMacNotificationCenterOpen(app.paths, false)
+      } catch (error) {
+        cleanupErrors.push(String(error))
+      }
+    }
+    if (app.record.platform === 'windows')
+      await inspectStartup(app, 'show').catch((error) => cleanupErrors.push(String(error)))
     else restoreAppVisibility(app.record.electronPid)
-    await page.evaluate(
-      async ({ keys, original, namingEnabled, assistantId, providerId }) => {
-        for (const [index, key] of keys.entries()) await window.api.preference.set(key, original[index])
-        await window.api.preference.set('topic.naming.enabled', namingEnabled)
-        if (assistantId) {
-          const permanentlyDeletedAssistant = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
-            assistantId,
-            deleteTopics: true
-          })) as IpcResult<{ deleted: boolean }>
-          if (!permanentlyDeletedAssistant.ok || !permanentlyDeletedAssistant.data.deleted)
-            throw new Error('cleanup left the case assistant in the trash')
-        }
-        await window.api.dataApi.request({
-          id: 'notification-cleanup',
-          method: 'DELETE',
-          path: `/providers/${providerId}`
-        })
-      },
-      { keys, original, namingEnabled, assistantId, providerId }
-    )
+    await page
+      .evaluate(
+        async ({ keys, original, namingEnabled, assistantId, providerId }) => {
+          for (const [index, key] of keys.entries()) await window.api.preference.set(key, original[index])
+          await window.api.preference.set('topic.naming.enabled', namingEnabled)
+          if (assistantId) {
+            const permanentlyDeletedAssistant = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
+              assistantId,
+              deleteTopics: true
+            })) as IpcResult<{ deleted: boolean }>
+            if (!permanentlyDeletedAssistant.ok || !permanentlyDeletedAssistant.data.deleted)
+              throw new Error('cleanup left the case assistant in the trash')
+          }
+          await window.api.dataApi.request({
+            id: 'notification-cleanup',
+            method: 'DELETE',
+            path: `/providers/${providerId}`
+          })
+        },
+        { keys, original, namingEnabled, assistantId, providerId }
+      )
+      .catch((error) => cleanupErrors.push(String(error)))
+    expect
+      .soft(cleanupErrors, 'Notification cleanup must restore the app without masking the original failure')
+      .toEqual([])
   }
 }

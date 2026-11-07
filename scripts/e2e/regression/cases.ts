@@ -604,7 +604,7 @@ export const REGRESSION_CASES = [
   {
     id: 'MP-110',
     title: 'Notification settings',
-    tasks: ['settings'],
+    tasks: ['settings', 'native-settings'],
     phase: 'settings',
     capabilities: ['desktopAutomation']
   },
@@ -613,7 +613,7 @@ export const REGRESSION_CASES = [
     capabilities: ['desktopAutomation'],
     phase: 'settings',
     title: 'Startup and tray behavior',
-    tasks: ['settings']
+    tasks: ['settings', 'native-settings']
   },
   {
     id: 'MP-112',

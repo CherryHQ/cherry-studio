@@ -46,6 +46,9 @@ native classes and control IDs inside owned windows, and verify address-bar focu
 with Win32 `GetGUIThreadInfo` before sending the directory-navigation key.
 Native dialog fixtures request normal Electron shutdown through their owned stdin
 pipe before falling back to verified process-tree termination.
+macOS multi-file selection uses the same version-aware panel driver as single-file
+selection. It accepts only the complete contents of one isolated fixture directory,
+so Select All cannot import an unrequested file. Native fixtures verify the returned paths.
 
 ## Execution contract
 
@@ -114,6 +117,8 @@ The workflow task dropdown lists `all`, module tasks, then focused tasks. When a
 task, update the workflow options too; the manifest tests enforce that the lists stay
 in sync. Reports retain the selected task ID. Existing reports keep their recorded
 task names and outcomes.
+`native-settings` selects the native notification and startup/tray cases for focused
+desktop verification. The complete Settings phase allows 40 minutes on hosted runners.
 
 `run.json` schema version 2 records both cases and phases. The parent marks a phase running before starting Playwright; the reporter records test results and executor errors; a nonzero child exit also fails the phase.
 A phase left pending/running becomes blocked during finalization. Passing cases cannot hide a failed or unfinished phase. Missing platform reports block the aggregate gate.

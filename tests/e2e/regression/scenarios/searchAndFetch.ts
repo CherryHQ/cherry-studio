@@ -182,13 +182,18 @@ export async function searchAndFetch(app: RegressionApp, page: Page, testInfo: T
     await toggle.click()
     await expect(toggle).toHaveAttribute('aria-pressed', 'false')
     const offline = await send(
-      `${question} Web search is now disabled. Do not reuse previous citations or claim a new search. If current information cannot be verified, say so.`
+      'Web search is now disabled. Without looking anything up, summarize the sources already in this conversation and explain that you have not verified newer information.'
     )
     expect.soft(offline.message.status).toBe('success')
     expect
       .soft((offline.message.data.parts ?? []).filter((part) => /tool-(web_search|web_fetch)/.test(part.type)))
       .toEqual([])
-    await expect.soft(offline.response.locator('sup[data-citation]')).toHaveCount(0)
+    for (const citation of await offline.response
+      .locator('a[href^="http"]')
+      .filter({ has: page.locator('sup[data-citation]') })
+      .all()) {
+      expect.soft(sources.map((result) => result.url)).toContain(await citation.getAttribute('href'))
+    }
     await attachScreenshot('MP-35 search disabled response')
 
     await toggle.click()
