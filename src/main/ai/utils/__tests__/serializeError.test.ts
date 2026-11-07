@@ -99,6 +99,26 @@ describe('serializeError', () => {
     expect(errors[0].message).toContain('reasoning')
   })
 
+  // Configured retries plus key failover can nest the rejection at
+  // `lastError.lastError`, which the renderer follows recursively — the hint
+  // must survive that depth as well (#21906).
+  it('carries the reasoning hint through deeper retry nesting chat follows', () => {
+    const terminal = new APICallError({
+      message:
+        'API Error: 400 <400> InternalError.Algo.InvalidParameter: The thinking_budget parameter must be a positive integer and not greater than 81920',
+      url: 'https://maas.qianwenaiapi.com/compatible-mode/v1/',
+      requestBodyValues: {},
+      statusCode: 400
+    })
+    const inner = new RetryError({ message: 'Failed after retries', reason: 'maxRetriesExceeded', errors: [terminal] })
+    const outer = new RetryError({ message: 'Failed after retries', reason: 'maxRetriesExceeded', errors: [inner] })
+    const serialized = serializeError(outer)
+
+    const lastError = serialized.lastError as unknown as { message: string; lastError: { message: string } }
+    expect(lastError.lastError.message).toContain('thinking_budget')
+    expect(lastError.lastError.message).toContain('reasoning')
+  })
+
   it('retains quota diagnosis in serialized retry errors without retaining the payload', () => {
     const error = new APICallError({
       message: 'Rate limit exceeded',

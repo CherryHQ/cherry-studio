@@ -47,12 +47,26 @@ export function serializeError(error: unknown): SerializedError {
     // Chat renders `providerErrorText(error)`, which prefers the sanitized
     // terminal error (`lastError` / `errors`) over the outer RetryError
     // message — so the hint must also annotate the nested terminal text.
-    const annotateNested = (nested: unknown): unknown => {
-      if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
-        const record = nested as Record<string, unknown>
+    // Configured retries plus key failover can nest the rejection deeper
+    // (`lastError.lastError`), which the renderer follows recursively, so
+    // annotate recursively rather than only the immediate children.
+    const annotateNested = (nested: Serializable): Serializable => {
+      if (Array.isArray(nested)) {
+        return nested.map((entry) => annotateNested(entry))
+      }
+      if (nested && typeof nested === 'object') {
+        const record = nested as Record<string, Serializable>
+        const annotated: Record<string, Serializable> = { ...record }
         if (typeof record.message === 'string' && /thinking_budget/i.test(record.message)) {
-          return { ...record, message: appendThinkingBudgetHint(record.message) }
+          annotated.message = appendThinkingBudgetHint(record.message)
         }
+        if (annotated.lastError !== undefined) {
+          annotated.lastError = annotateNested(annotated.lastError)
+        }
+        if (Array.isArray(annotated.errors)) {
+          annotated.errors = annotateNested(annotated.errors)
+        }
+        return annotated
       }
       return nested
     }
@@ -60,7 +74,7 @@ export function serializeError(error: unknown): SerializedError {
       ...serialized,
       message: appendThinkingBudgetHint(serialized.message),
       ...(serialized.lastError !== undefined ? { lastError: annotateNested(serialized.lastError) } : {}),
-      ...(Array.isArray(serialized.errors) ? { errors: (serialized.errors as unknown[]).map(annotateNested) } : {})
+      ...(Array.isArray(serialized.errors) ? { errors: annotateNested(serialized.errors) } : {})
     }
   }
   return serialized
