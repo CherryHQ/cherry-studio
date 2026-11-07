@@ -4,7 +4,7 @@ import type { IconMeta } from './types'
 
 export interface ProviderIconAssetMetrics {
   canvasScale: number
-  kind: 'mark' | 'tile'
+  kind: 'mark' | 'tile' | 'full-canvas'
 }
 
 const INSET_PROVIDER_CANVAS_SCALE = 120 / 65
@@ -18,6 +18,7 @@ export function getProviderIconAssetMetrics({
   iconId: string
 }): ProviderIconAssetMetrics {
   const catalog: Readonly<Record<string, IconMeta>> = kind === 'model' ? MODEL_ICON_META_CATALOG : PROVIDER_ICON_META_CATALOG
-  if (catalog[iconId.toLowerCase()]?.artworkKind === 'tile') return { canvasScale: 1, kind: 'tile' }
+  const artworkKind = catalog[iconId.toLowerCase()]?.artworkKind
+  if (artworkKind) return { canvasScale: 1, kind: artworkKind }
   return { canvasScale: kind === 'model' ? INSET_MODEL_CANVAS_SCALE : INSET_PROVIDER_CANVAS_SCALE, kind: 'mark' }
 }
