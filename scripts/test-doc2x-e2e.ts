@@ -88,7 +88,7 @@ function parseResponse<T extends z.ZodTypeAny>(schema: T, value: unknown): z.inf
   return schema.parse(parsed.data)
 }
 
-function blocksToMarkdown(page: Page): { markdown: string; blocks: Block[]; filtered: Block[] } {
+function blocksToMarkdown(page: Page): { markdown: string; blocks: Block[]; filtered: Block[]; ordered: Block[] } {
   const blocks = page.layout?.blocks ?? []
   const filtered = blocks.filter((block) => block.attributes?.is_boilerplate !== true)
   const ordered = [...filtered].sort((a, b) => a.reading_order - b.reading_order)
@@ -96,7 +96,7 @@ function blocksToMarkdown(page: Page): { markdown: string; blocks: Block[]; filt
     .map((block) => (block.type === 'Table' ? (block.table_data?.html ?? block.text) : block.text))
     .filter((text) => text.length > 0)
     .join('\n\n')
-  return { markdown: markdown || page.md || '', blocks, filtered }
+  return { markdown: markdown || page.md || '', blocks, filtered, ordered }
 }
 
 async function waitForParse(uid: string): Promise<Page[]> {
@@ -190,14 +190,18 @@ async function runModel(pdf: Uint8Array, model: Model): Promise<void> {
     }
   } else {
     if (rawBlocks.length === 0) throw new Error('v3-2026 returned no layout.blocks')
-    if (
-      rawBlocks.some((block) => block.attributes?.is_boilerplate === true) &&
-      filteredBlocks.some((block) => block.attributes?.is_boilerplate === true)
-    ) {
-      throw new Error('boilerplate block was not filtered')
+    const boilerplateBlocks = rawBlocks.filter((block) => block.attributes?.is_boilerplate === true)
+    if (boilerplateBlocks.length > 0) {
+      const filteredIds = new Set(filteredBlocks.map((block) => block.id))
+      if (
+        filteredBlocks.length !== rawBlocks.length - boilerplateBlocks.length ||
+        boilerplateBlocks.some((block) => filteredIds.has(block.id))
+      ) {
+        throw new Error('boilerplate block was not filtered')
+      }
     }
     for (const page of pages) {
-      const orders = blocksToMarkdown(page).filtered.map((block) => block.reading_order)
+      const orders = blocksToMarkdown(page).ordered.map((block) => block.reading_order)
       const sortedOrders = [...orders].sort((a, b) => a - b)
       if (orders.some((order, index) => order !== sortedOrders[index])) {
         throw new Error(`reading_order is not sorted on page ${page.page_idx}`)
