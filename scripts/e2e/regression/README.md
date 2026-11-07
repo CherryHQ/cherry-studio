@@ -127,6 +127,9 @@ Only one phase writes a platform's run state at a time; keep `workers: 1` and se
 The macOS and Windows jobs run in parallel; each platform keeps its own isolated run directory.
 The native-adapter gate runs after run-state initialization and stores its JSON
 results in the platform report, so an adapter failure still produces blocked-case evidence.
+Hosted macOS images disable the Notification Center launch agent. The workflow reads its actual
+plist label, records the GUI service's enabled/loaded state, enables it for native checks, and
+restores the recorded state afterward. This preparation never runs on a developer's Mac.
 On macOS, the workflow observes known runner and isolated-app requests for local-network access
 and Terminal/System Events automation. The observer requires a GitHub-hosted environment and an
 initialized directory below `RUNNER_TEMP`, records permission kinds and system process names,

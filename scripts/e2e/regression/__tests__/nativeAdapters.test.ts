@@ -23,6 +23,7 @@ import {
   readWindowsPrintDialog,
   saveNativeFile,
   saveNativeFileKeepingName,
+  setMacNotificationCenterOpen,
   setWindowsNotificationCenterOpen
 } from '../systemAutomation'
 import { readWindowsFileOwners } from '../windowsFileOwners'
@@ -216,6 +217,15 @@ it.skipIf(!['darwin', 'win32'].includes(process.platform)).each(dialogModes)(
           expect(setWindowsNotificationCenterOpen(paths, true)).toBe(true)
         } finally {
           setWindowsNotificationCenterOpen(paths, previous)
+        }
+      } else if (nativePlatform === 'macos' && mode === 'file') {
+        const previous = setMacNotificationCenterOpen(paths, true)
+        try {
+          expect(setMacNotificationCenterOpen(paths, true)).toBe(true)
+          expect(setMacNotificationCenterOpen(paths, false)).toBe(true)
+          expect(setMacNotificationCenterOpen(paths, false)).toBe(false)
+        } finally {
+          setMacNotificationCenterOpen(paths, previous)
         }
       }
     } catch (error) {

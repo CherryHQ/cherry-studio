@@ -54,9 +54,10 @@ it('preserves automation permission failures after a stack expands', () => {
   )
 })
 
-it('closes Notification Center when an earlier accessibility element disappears', () => {
+it('finds a grouped MenuBarAgent clock and closes despite a stale notification element', () => {
   const missing = Object.assign(new Error('Missing accessibility object'), { errorNumber: -1728 })
   const element = (identifier: string, children: unknown[] = []) => ({
+    role: () => 'AXGroup',
     attributes: { byName: () => ({ value: () => identifier }) },
     uiElements: () => children
   })
@@ -72,26 +73,62 @@ it('closes Notification Center when an earlier accessibility element disappears'
       throw missing
     }
   }
+  const content = element('notification-content', [
+    {
+      attributes: { byName: () => ({ value: () => '' }) },
+      uiElements: () => {
+        throw new Error('Panel visibility must not traverse content before its sibling toolbar')
+      }
+    }
+  ])
   let open = true
   command.mockImplementation((_command: string, args: string[]) => {
-    runInNewContext(args[3], {
+    return runInNewContext(args[3], {
       Application: () => ({
-        processes: { byName: () => ({ windows: () => [element('', [stale, element('widget-editor-button')])] }) }
+        processes: {
+          byName: () => ({
+            windows: () => (open ? [element('', [stale, content, element('widget-editor-button')])] : [])
+          }),
+          whose:
+            ({ name }: { name: string }) =>
+            () =>
+              name === 'MenuBarAgent'
+                ? [
+                    {
+                      menuBars: () => [
+                        {
+                          attributes: { byName: () => ({ value: () => 'menu-extras' }) },
+                          role: () => 'AXMenuBar',
+                          uiElements: () => [
+                            {
+                              attributes: { byName: () => ({ value: () => 'other-menu' }) },
+                              role: () => 'AXMenuBarItem',
+                              uiElements: () => {
+                                throw new Error('Must not open unrelated dropdowns')
+                              }
+                            },
+                            element('clock-group', [
+                              {
+                                attributes: { byName: () => ({ value: () => 'com.apple.menuextra.clock' }) },
+                                click: () => {
+                                  open = !open
+                                }
+                              }
+                            ])
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                : []
+        }
       }),
-      ObjC: { import: () => undefined },
-      $: {
-        CGEventCreateKeyboardEvent: (_source: unknown, _key: number, down: boolean) => ({ down }),
-        CGEventSetFlags: () => undefined,
-        CGEventPost: (_tap: number, event: { down: boolean }) => {
-          if (!event.down) open = !open
-        },
-        NSThread: { sleepForTimeInterval: () => undefined }
-      }
+      delay: () => undefined
     })
-    return ''
   })
 
-  setMacNotificationCenterOpen(getRunPaths('/owned-run'), false)
+  expect(setMacNotificationCenterOpen(getRunPaths('/owned-run'), false)).toBe(true)
+  expect(setMacNotificationCenterOpen(getRunPaths('/owned-run'), false)).toBe(false)
 
   expect(open).toBe(false)
 })
@@ -115,6 +152,42 @@ it('does not hide a denied Notification Center inspection as a closed panel', ()
   })
 
   expect(() => setMacNotificationCenterOpen(getRunPaths('/owned-run'), false)).toThrow('Automation permission denied')
+})
+
+it('fails when clicking the clock does not open Notification Center', () => {
+  let now = 0
+  command.mockImplementation((_command: string, args: string[]) => {
+    runInNewContext(args[3], {
+      Application: () => ({
+        processes: {
+          byName: () => ({ windows: () => [] }),
+          whose: () => () => [
+            {
+              menuBars: () => [
+                {
+                  attributes: { byName: () => ({ value: () => 'menu-extras' }) },
+                  role: () => 'AXMenuBar',
+                  uiElements: () => [
+                    {
+                      attributes: { byName: () => ({ value: () => 'com.apple.menuextra.clock' }) },
+                      click: () => undefined
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }),
+      Date: { now: () => (now += 1000) },
+      delay: () => undefined
+    })
+    return ''
+  })
+
+  expect(() => setMacNotificationCenterOpen(getRunPaths('/owned-run'), true)).toThrow(
+    'Notification Center did not reach the requested state'
+  )
 })
 
 it('grants only the permission card for the isolated signed application', async () => {

@@ -117,6 +117,7 @@ function run(argv) {
         const title = value(() => window.name(), '')
         const document = value(() => window.attributes.byName('AXDocument').value(), '')
         let candidates = []
+        let identityDiagnostic = {}
         for (let attempt = 0; attempt < 15; attempt++) {
           const position = window.position()
           const size = window.size()
@@ -127,12 +128,13 @@ function run(argv) {
             return Math.abs(bounds.X - position[0]) < 2 && Math.abs(bounds.Y - position[1]) < 2 &&
               Math.abs(bounds.Width - size[0]) < 2 && Math.abs(bounds.Height - size[1]) < 2
           })
+          identityDiagnostic = {axWindowCount:windows.length,position,size,cgWindows:applicationWindows.map(candidate=>({id:candidate.kCGWindowNumber,bounds:candidate.kCGWindowBounds}))}
           const named = applicationWindows.filter(candidate => title && candidate.kCGWindowName === title)
           if (candidates.length !== 1 && named.length === 1) candidates = named
           if (candidates.length === 1) break
           delay(0.1)
         }
-        if (candidates.length !== 1) throw new Error('External window identity is ambiguous for application ' + pid)
+        if (candidates.length !== 1) throw new Error('External window identity is ambiguous for application ' + pid + ': ' + JSON.stringify(identityDiagnostic))
         const number = candidates[0].kCGWindowNumber
         const id = prefix + 'window:' + number
         let matches = target.kind === 'settings'

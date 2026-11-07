@@ -88,7 +88,7 @@ export async function notificationSettings(app: RegressionApp, initialPage: Page
   const topicName = app.resourceName(`Notification ${Date.now()}`)
   const assistantName = app.resourceName('Notification assistant')
   let assistantId: string | undefined
-  let windowsCenterWasOpen: boolean | undefined
+  let nativeCenterWasOpen: boolean | undefined
   try {
     await page.evaluate(() => window.api.preference.set('topic.naming.enabled', false))
     await openSettingsSection(page, 'Notifications')
@@ -221,10 +221,12 @@ export async function notificationSettings(app: RegressionApp, initialPage: Page
         )
       }
       await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(false)
-      if (app.record.platform === 'macos') setMacNotificationCenterOpen(app.paths, true)
-      else {
+      if (app.record.platform === 'macos') {
+        const previous = setMacNotificationCenterOpen(app.paths, true)
+        nativeCenterWasOpen ??= previous
+      } else {
         const previous = setWindowsNotificationCenterOpen(app.paths, true)
-        windowsCenterWasOpen ??= previous
+        nativeCenterWasOpen ??= previous
       }
       expect(findNotification(answer)).toBe(false)
       await new Promise((resolve) => setTimeout(resolve, 1500))
@@ -303,13 +305,13 @@ export async function notificationSettings(app: RegressionApp, initialPage: Page
     await server.close().catch((error) => cleanupErrors.push(String(error)))
     if (app.record.platform === 'macos') {
       try {
-        setMacNotificationCenterOpen(app.paths, false)
+        setMacNotificationCenterOpen(app.paths, nativeCenterWasOpen ?? false)
       } catch (error) {
         cleanupErrors.push(String(error))
       }
-    } else if (windowsCenterWasOpen !== undefined) {
+    } else if (nativeCenterWasOpen !== undefined) {
       try {
-        setWindowsNotificationCenterOpen(app.paths, windowsCenterWasOpen)
+        setWindowsNotificationCenterOpen(app.paths, nativeCenterWasOpen)
       } catch (error) {
         cleanupErrors.push(String(error))
       }
