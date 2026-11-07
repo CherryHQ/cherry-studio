@@ -1,5 +1,6 @@
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
+import { providerChatBaseUrl } from '@main/utils/providerEndpoint'
 import { type DecisionsRequest, type DecisionsResponse, DecisionsResponseSchema } from '@shared/ipc/schemas/decisions'
 
 const logger = loggerService.withContext('decisionsService')
@@ -19,7 +20,10 @@ export class DecisionsError extends Error {
 
 function resolveOrigin(): string {
   const provider = providerService.getByProviderId(OPENROUTER_PROVIDER_ID)
-  const baseUrl = Object.values(provider.endpointConfigs ?? {}).find((config) => config?.baseUrl)?.baseUrl
+  // Resolve the provider's primary chat endpoint explicitly (its
+  // `defaultChatEndpoint`, the one provider settings edit) instead of relying
+  // on `endpointConfigs` key order, so a custom primary proxy URL is honored.
+  const baseUrl = providerChatBaseUrl(provider)
   if (!baseUrl) return DEFAULT_ORIGIN
   try {
     return new URL(baseUrl).origin
