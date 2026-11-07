@@ -12,6 +12,7 @@ import { CodeBlockWrapLinesContext } from '@renderer/components/CodeBlockView/wr
 import CopyButton from '@renderer/components/CopyButton'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import { detectLanguageOrUnknown, useDetectLang, useLanguages, useTranslate } from '@renderer/hooks/translate'
+import { useDefaultModel } from '@renderer/hooks/useModel'
 import { cn } from '@renderer/utils/style'
 import { pickBidirectionalTarget, UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
 import type { SelectionActionItem, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
@@ -47,6 +48,7 @@ const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) 
   const { languages, getLanguage } = useLanguages()
   const isLanguagesLoaded = languages !== undefined
   const detectLanguage = useDetectLang()
+  const { quickModel } = useDefaultModel()
   // Read once, not subscribed: the pair is session-local, so saves from other windows must not retarget it.
   const [savedLangCodes, setSavedLangCodes] = useState<{
     preferred: TranslateLangCode
@@ -246,7 +248,7 @@ const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) 
   })
   useEffect(() => {
     translateSelection()
-  }, [selectedText, initialized, targetLanguage.langCode, alterLanguage.langCode])
+  }, [selectedText, initialized, targetLanguage.langCode, alterLanguage.langCode, quickModel?.id])
 
   const handleChangeLanguage = useCallback(
     (newTargetLanguage: TranslateLanguage, newAlterLanguage: TranslateLanguage) => {

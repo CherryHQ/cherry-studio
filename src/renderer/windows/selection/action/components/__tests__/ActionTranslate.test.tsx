@@ -1,12 +1,18 @@
 import '@testing-library/jest-dom/vitest'
 import { mockPreferenceService } from '@test-mocks/renderer/PreferenceService'
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
-import type { SelectionActionItem, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import type * as RendererIpc from '@renderer/ipc'
+import {
+  parsePersistedLangCode,
+  type SelectionActionItem,
+  type TranslateLangCode
+} from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 
 const state = vi.hoisted(() => {
@@ -17,6 +23,8 @@ const state = vi.hoisted(() => {
   const languages = [chinese, traditionalChinese, english, japanese]
 
   return {
+    quickModel: undefined as { id: string; modelId: string } | undefined,
+    useRealDetection: false,
     english,
     chinese,
     traditionalChinese,
@@ -41,6 +49,15 @@ vi.mock('@renderer/utils/translate/translateText', () => ({
     onResponse?.(result, true)
     return result
   }
+}))
+
+vi.mock('@renderer/hooks/useModel', () => ({
+  useDefaultModel: () => ({ quickModel: state.quickModel })
+}))
+
+vi.mock('@renderer/ipc', async (importOriginal) => ({
+  ...(await importOriginal<typeof RendererIpc>()),
+  ipcApi: { request: vi.fn().mockResolvedValue({ text: 'zh-cn' }) }
 }))
 
 vi.mock('@renderer/services/voice', () => ({ readTextAloud: state.readAloud }))
@@ -80,6 +97,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
 
 vi.mock('@renderer/hooks/translate', async () => {
   const { useTranslate } = await import('@renderer/hooks/translate/useTranslate')
+  const { useDetectLang } = await import('@renderer/hooks/translate/useDetectLang')
   return {
     detectLanguageOrUnknown: async (
       text: string,
@@ -93,7 +111,10 @@ vi.mock('@renderer/hooks/translate', async () => {
         return 'unknown'
       }
     },
-    useDetectLang: () => state.detectLanguage,
+    useDetectLang: () => {
+      const detect = useDetectLang()
+      return state.useRealDetection ? detect : state.detectLanguage
+    },
     useTranslate,
     useLanguages: () => ({
       languages: state.languages as TranslateLanguage[],
@@ -163,6 +184,8 @@ describe('ActionTranslate', () => {
       'feature.translate.action.preferred_lang': 'zh-cn',
       'feature.translate.action.alter_lang': 'en-us'
     })
+    state.quickModel = undefined
+    state.useRealDetection = false
     state.detectLanguage.mockReset()
     state.getLanguage.mockClear()
     state.getLabel.mockClear()
@@ -181,6 +204,7 @@ describe('ActionTranslate', () => {
   })
 
   it('keeps the active result when detection callbacks refresh without changed inputs', async () => {
+    state.quickModel = { id: 'regression::quick', modelId: 'quick' }
     state.detectLanguage.mockResolvedValue('en-us')
     const pending: Array<(text: string) => void> = []
     state.translate.mockImplementation(() => new Promise<string>((resolve) => pending.push(resolve)))
@@ -191,6 +215,7 @@ describe('ActionTranslate', () => {
     await waitFor(() => expect(pending).toHaveLength(1))
 
     state.detectLanguage = vi.fn().mockResolvedValue('en-us')
+    state.quickModel = { ...state.quickModel }
     view.rerender(
       <ActionTranslate sourceEntityId="test-session" action={action} scrollToBottom={state.scrollToBottom} />
     )
@@ -208,6 +233,32 @@ describe('ActionTranslate', () => {
     await act(async () => pending[1]('新选区翻译完成'))
     expect(await screen.findByText('新选区翻译完成')).toBeVisible()
     expect(screen.queryByText('首次翻译完成')).not.toBeInTheDocument()
+  })
+
+  it('corrects the fallback target when the quick model finishes loading', async () => {
+    state.useRealDetection = true
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.auto_detection_method', 'llm')
+    MockUseDataApiUtils.mockQueryResult('/translate/languages', {
+      data: state.languages.map((language) => ({
+        ...language,
+        langCode: parsePersistedLangCode(language.langCode),
+        createdAt: '2026-11-08T00:00:00.000Z',
+        updatedAt: '2026-11-08T00:00:00.000Z'
+      }))
+    })
+    const action = createAction({ selectedText: '你好' })
+    const view = render(
+      <ActionTranslate sourceEntityId="test-session" action={action} scrollToBottom={state.scrollToBottom} />
+    )
+    expect(await screen.findByText('这里没有默认导出。')).toBeVisible()
+
+    state.quickModel = { id: 'regression::quick', modelId: 'quick' }
+    view.rerender(
+      <ActionTranslate sourceEntityId="test-session" action={action} scrollToBottom={state.scrollToBottom} />
+    )
+
+    expect(await screen.findByText('There is no default export.')).toBeVisible()
+    expect(screen.queryByText('这里没有默认导出。')).not.toBeInTheDocument()
   })
 
   it('uses Traditional Chinese when the app language is zh-TW and the target is still the default', async () => {
