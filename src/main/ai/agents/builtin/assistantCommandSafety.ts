@@ -169,38 +169,8 @@ const CONTAINER_RUN_VALUE_FLAGS = new Set([
   '--workdir'
 ])
 
-/** Last index at or before `from` that is neither whitespace nor part of a comment. */
-function skipBackwardsPastTrivia(code: string, from: number): number {
-  let index = from
-  while (index >= 0) {
-    if (/\s/.test(code[index])) {
-      index--
-      continue
-    }
-    // A comment ends on the character under test — `*/` for a block, a newline after `//` — so it
-    // has to be stepped over rather than read as the thing being divided.
-    const before = code.slice(0, index + 1)
-    const block = before.endsWith('*/') ? before.lastIndexOf('/*') : -1
-    const line = before.lastIndexOf('//')
-    const open = Math.max(block, line)
-    if (open === -1) return index
-    index = open - 1
-  }
-  return -1
-}
-
-/**
- * Whether the `/` at `index` divides rather than starting a regular expression.
- *
- * Decided by the last token, not the adjacent character: `8 / 2`, an object or block literal, and
- * an operand behind a comment all divide, and a value-ender such as an identifier, number, closing
- * bracket, quote, or dot can only be divided.
- */
-function endsExpression(code: string, index: number): boolean {
-  const last = skipBackwardsPastTrivia(code, index - 1)
-  if (last < 0) return false
-  return /[A-Za-z0-9_$)\]}'"`.\\]/.test(code[last])
-}
+/** Characters that can end a value, so a `/` after them divides instead of starting a pattern. */
+const VALUE_ENDER = /[A-Za-z0-9_$)\]}.]/
 
 /**
  * Index just past the regular expression starting at `start`, or `-1` when the `/` is division.
@@ -225,16 +195,24 @@ function findRegexLiteralEnd(code: string, start: number): number {
   return -1
 }
 
-/** Replace string literals and comments with spaces so patterns match code, not prose. */
+/**
+ * Replace string literals and comments with spaces so patterns match code, not prose.
+ *
+ * The token before the slash is carried forward by the scan rather than read back from it: whether
+ * a `/` divides depends on lexical context, and a `//` inside a string or on an earlier line is not
+ * trivia standing between the operands.
+ */
 function stripScriptLiterals(code: string, language: 'python' | 'javascript'): string {
   let output = ''
   let index = 0
+  let canDivide = false
   while (index < code.length) {
     const char = code[index]
     if (language === 'javascript' && char === '`') {
       const template = stripTemplateLiteral(code, index)
       output += template.output
       index = template.end
+      canDivide = true
       continue
     }
     if (char === "'" || char === '"') {
@@ -243,6 +221,7 @@ function stripScriptLiterals(code: string, language: 'python' | 'javascript'): s
       const close = findClosingQuote(code, index + quote.length, quote)
       output += ' '
       index = close === -1 ? code.length : close + quote.length
+      canDivide = true
       continue
     }
     if (language === 'python' && char === '#') {
@@ -251,11 +230,12 @@ function stripScriptLiterals(code: string, language: 'python' | 'javascript'): s
       index = newline === -1 ? code.length : newline
       continue
     }
-    if (language === 'javascript' && char === '/' && !endsExpression(code, index)) {
+    if (language === 'javascript' && char === '/' && !canDivide) {
       const end = findRegexLiteralEnd(code, index)
       if (end !== -1) {
         output += ' '
         index = end
+        canDivide = true
         continue
       }
     }
@@ -272,6 +252,7 @@ function stripScriptLiterals(code: string, language: 'python' | 'javascript'): s
       continue
     }
     output += char
+    if (!/\s/.test(char)) canDivide = VALUE_ENDER.test(char)
     index++
   }
   return output
@@ -317,6 +298,7 @@ function stripTemplateLiteral(code: string, start: number): { output: string; en
 function findTemplateExpressionEnd(code: string, braceStart: number): number {
   let depth = 0
   let index = braceStart
+  let canDivide = false
   while (index < code.length) {
     const char = code[index]
     if (char === '\\') {
@@ -326,17 +308,20 @@ function findTemplateExpressionEnd(code: string, braceStart: number): number {
     if (char === "'" || char === '"') {
       const close = findClosingQuote(code, index + 1, char)
       index = close === -1 ? code.length : close + 1
+      canDivide = true
       continue
     }
     if (char === '`') {
       index = stripTemplateLiteral(code, index).end
+      canDivide = true
       continue
     }
     // A brace inside a comment or a character class is not a brace: `${/[/*]/}` is a regex.
-    if (char === '/' && !endsExpression(code, index)) {
+    if (char === '/' && !canDivide) {
       const end = findRegexLiteralEnd(code, index)
       if (end !== -1) {
         index = end
+        canDivide = true
         continue
       }
     }
@@ -350,11 +335,20 @@ function findTemplateExpressionEnd(code: string, braceStart: number): number {
       index = close === -1 ? code.length : close + 2
       continue
     }
-    if (char === '{') depth++
+    if (char === '{') {
+      depth++
+      canDivide = false
+      index++
+      continue
+    }
     if (char === '}') {
       depth--
       if (depth === 0) return index
+      canDivide = true
+      index++
+      continue
     }
+    if (!/\s/.test(char)) canDivide = VALUE_ENDER.test(char)
     index++
   }
   return -1

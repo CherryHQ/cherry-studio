@@ -356,6 +356,18 @@ describe('detectDestructiveAssistantCommand scripts', () => {
         'node -e \'const fs=require("fs"); const a={} / 2; fs.unlinkSync("victim"); const b=6 / 3;\''
       )
     ).toBe('scripted permanent file deletion')
+    // A `//` in a URL string is not a comment, and a comment on an earlier line belongs to that
+    // line: only trivia touching the token before the slash may be stepped over.
+    expect(
+      detectDestructiveAssistantCommand(
+        'node -e \'const fs=require("fs"); const url="https://example.com"; const a=8 / 2; fs.unlinkSync("victim"); const b=6 / 3;\''
+      )
+    ).toBe('scripted permanent file deletion')
+    expect(
+      detectDestructiveAssistantCommand(
+        'node -e \'const fs=require("fs"); const a=8;\n// note\nconst b=a / 2; fs.unlinkSync("victim"); const c=b / 4;\''
+      )
+    ).toBe('scripted permanent file deletion')
   })
 
   it('does not treat a consumed regular expression as hiding what follows it', () => {
