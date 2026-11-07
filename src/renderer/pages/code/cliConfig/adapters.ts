@@ -78,7 +78,7 @@ import {
   type HermesApiMode,
   type MinimaxApi,
   modelSupportsReasoningEffort,
-  openCodeNpmInfoFromNpmPackage,
+  openCodeNpmInfoFromPackage,
   resolveClaudeBaseUrl,
   resolveCodexBaseUrl,
   resolveGeminiBaseUrl,
@@ -548,10 +548,12 @@ const openCodeAdapter: CliConfigAdapter = {
   },
   updateDraftConfig(files, connection, configBlob) {
     const existing = parseJsonOrThrow(getDraftFile(files, 'opencode-config')?.content ?? '')
-    const providers = asRecord(existing.provider)
+    // V1-written files keep the map under `provider`, request options under `options`, and the
+    // bare AI SDK package under `npm`; accept both shapes (the removal path already does).
+    const providers = asRecord(existing.providers ?? existing.provider)
     const providerKey = cherryProviderKeyFrom(providers)
     const provider = asRecord(providers[providerKey])
-    const providerOptions = asRecord(provider.options)
+    const providerOptions = asRecord(provider.settings ?? provider.options)
     const existingModel = asRecord(asRecord(provider.models)[connection.model ?? ''])
     const existingLimit = asRecord(existingModel.limit)
     const providerName = providerNameFromKey(providerKey, 'OpenCode provider')
@@ -560,7 +562,9 @@ const openCodeAdapter: CliConfigAdapter = {
     const nextConfig = buildOpenCodeConfig(
       existing,
       { id: providerName, name: providerName },
-      openCodeNpmInfoFromNpmPackage(requireDraftValue(stringValue(provider.npm), 'OpenCode provider npm package')),
+      openCodeNpmInfoFromPackage(
+        requireDraftValue(stringValue(provider.package) ?? stringValue(provider.npm), 'OpenCode provider package')
+      ),
       {
         apiKey: requireDraftValue(connection.apiKey, 'OpenCode API key'),
         baseUrl: requireDraftValue(connection.baseUrl, 'OpenCode base URL'),
@@ -597,14 +601,16 @@ const openCodeAdapter: CliConfigAdapter = {
     if (typeof next.model === 'string' && next.model.startsWith(CHERRY_PROVIDER_PREFIX)) {
       delete next.model
     }
-    if (next.provider && typeof next.provider === 'object') {
-      next.provider = omitKeysByPrefix(next.provider as Record<string, any>, CHERRY_PROVIDER_PREFIX)
+    for (const key of ['providers', 'provider']) {
+      if (next[key] && typeof next[key] === 'object') {
+        next[key] = omitKeysByPrefix(next[key] as Record<string, any>, CHERRY_PROVIDER_PREFIX)
+      }
     }
     return [{ target: 'opencode-config', content: renderJsonFile(next) }]
   },
   extractConnection(files) {
     const config = parseJsonOrThrow(getDraftFile(files, 'opencode-config')?.content ?? '')
-    const providers = asRecord(config.provider)
+    const providers = asRecord(config.providers ?? config.provider)
     const providerKey = findCherryProviderKey(providers)
     const provider = asRecord(providerKey ? providers[providerKey] : undefined)
     const models = asRecord(provider.models)
@@ -612,8 +618,8 @@ const openCodeAdapter: CliConfigAdapter = {
     // `name` is only the display label and may differ from it.
     const model = Object.keys(models)[0]
     return {
-      baseUrl: stringValue(asRecord(provider.options).baseURL),
-      apiKey: stringValue(asRecord(provider.options).apiKey),
+      baseUrl: stringValue(asRecord(provider.settings ?? provider.options).baseURL),
+      apiKey: stringValue(asRecord(provider.settings ?? provider.options).apiKey),
       model
     }
   },
@@ -622,11 +628,21 @@ const openCodeAdapter: CliConfigAdapter = {
     const out: Record<string, any> = {}
     if (asRecord(config.compaction).auto === true) out.autoCompact = true
     if (isOpenCodePermissionMode(config.permission)) out.permissionMode = config.permission
-    const providers = asRecord(config.provider)
+    const providers = asRecord(config.providers ?? config.provider)
     const providerKey = findCherryProviderKey(providers)
     const provider = asRecord(providerKey ? providers[providerKey] : undefined)
     const model = asRecord(Object.entries(asRecord(provider.models))[0]?.[1])
-    if (model.reasoning === true) out.env = { OPENCODE_REASONING: 'true' }
+    // V1 files carried a boolean `reasoning`; native V2 carries the reasoning controls
+    // as provider package options under `settings` instead.
+    const modelSettings = asRecord(model.settings)
+    if (
+      model.reasoning === true ||
+      modelSettings.thinking !== undefined ||
+      modelSettings.thinkingConfig !== undefined ||
+      modelSettings.reasoningEffort !== undefined
+    ) {
+      out.env = { OPENCODE_REASONING: 'true' }
+    }
     return out
   }
 }

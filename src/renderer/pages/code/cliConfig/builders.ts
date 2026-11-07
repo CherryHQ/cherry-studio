@@ -161,6 +161,11 @@ export function clearCodexApiKeyAuth(existingAuth: Record<string, any>): Record<
   return null
 }
 
+// Native V2 model shape: these are provider package options, so they go in `settings`
+// (the anthropic/google packages transform them into the wire format). Model `body` is
+// raw request JSON, only correct for raw-JSON providers (e.g. DeepSeek/Moonshot), which
+// Cherry does not special-case here. The V1 boolean `reasoning` model field is
+// accepted-but-unsupported in V2 (ignored with a warning), so it is no longer written.
 function buildOpenCodeModelOptions(
   modelConfig: Record<string, any>,
   npmInfo: OpenCodeNpmInfo,
@@ -168,16 +173,14 @@ function buildOpenCodeModelOptions(
 ): void {
   if (npmInfo.providerType === 'anthropic') {
     if (options.reasoning === true) {
-      modelConfig.reasoning = true
-      modelConfig.options = { thinking: { budgetTokens: 10000, type: 'enabled' } }
+      modelConfig.settings = { thinking: { budgetTokens: 10000, type: 'enabled' } }
     }
     return
   }
 
   if (npmInfo.providerType === 'google') {
     if (options.reasoning === true) {
-      modelConfig.reasoning = true
-      modelConfig.options = {
+      modelConfig.settings = {
         thinkingConfig: { includeThoughts: true, thinkingBudget: -1 }
       }
     }
@@ -185,8 +188,7 @@ function buildOpenCodeModelOptions(
   }
 
   if (options.reasoning === true && options.supportsReasoningEffort === true) {
-    modelConfig.reasoning = true
-    modelConfig.options = { reasoningEffort: 'medium' }
+    modelConfig.settings = { reasoningEffort: 'medium' }
   }
 }
 
@@ -208,15 +210,20 @@ export function buildOpenCodeConfig(
   const providerKey = `${CHERRY_PROVIDER_PREFIX}${providerName}`
   // The models map key is the addressing id sent to the API; `name` is only what
   // OpenCode's UI displays — in gateway mode the id is UUID-prefixed, so show the label.
-  const modelConfig: Record<string, any> = { name: resolved.modelLabel ?? resolved.model }
+  const modelConfig: Record<string, any> = { modelID: resolved.model, name: resolved.modelLabel ?? resolved.model }
   const limit = openCodeModelLimit(options)
   if (limit) modelConfig.limit = limit
   buildOpenCodeModelOptions(modelConfig, npmInfo, {
     reasoning: options.reasoning === true,
     supportsReasoningEffort: options.supportsReasoningEffort === true
   })
-  const preservedProviders = omitKeysByPrefix(asRecord(existing.provider), CHERRY_PROVIDER_PREFIX)
+  const preservedProviders = omitKeysByPrefix(asRecord(existing.providers), CHERRY_PROVIDER_PREFIX)
   const cleaned: Record<string, any> = { ...existing }
+  // Drop our stale entries from the deprecated V1 `provider` key; the user's own stay.
+  if (cleaned.provider && typeof cleaned.provider === 'object') {
+    cleaned.provider = omitKeysByPrefix(cleaned.provider, CHERRY_PROVIDER_PREFIX)
+    if (Object.keys(cleaned.provider).length === 0) delete cleaned.provider
+  }
   for (const key of OPEN_CODE_MANAGED_TOP_LEVEL_KEYS) delete cleaned[key]
   const compaction = { ...asRecord(existing.compaction) }
   delete cleaned.compaction
@@ -229,12 +236,12 @@ export function buildOpenCodeConfig(
     // itself contain "/" (gateway ids do) but providerKey must not — cliProviderKeyName
     // strips it. Without this field OpenCode falls back to its own last-used model.
     model: `${providerKey}/${resolved.model}`,
-    provider: {
+    providers: {
       ...preservedProviders,
       [providerKey]: {
-        npm: npmInfo.npm,
+        package: npmInfo.package,
         name: providerKey,
-        options: {
+        settings: {
           apiKey: resolved.apiKey,
           baseURL: resolved.baseUrl,
           ...openCodeProviderRequestOptions(options)

@@ -9,12 +9,30 @@ import {
 } from '../builders'
 
 describe('buildOpenCodeConfig', () => {
+  it('emits the V2 schema with modelID and drops stale V1 cherry providers', () => {
+    const result = buildOpenCodeConfig(
+      { provider: { 'cherry-old': { npm: 'x' }, mine: { npm: 'y' } } },
+      { id: 'deepseek', name: 'DeepSeek' },
+      {
+        package: '@opencode/ai/providers/openai-compatible',
+        providerType: 'openai-compatible',
+        endpointType: 'openai-chat-completions'
+      },
+      { apiKey: 'sk-test', baseUrl: 'https://api.example.com/v1', model: 'deepseek-chat' },
+      {}
+    )
+
+    expect(result.provider).toEqual({ mine: { npm: 'y' } })
+    expect(result.providers['cherry-DeepSeek'].package).toBe('@opencode/ai/providers/openai-compatible')
+    expect(result.providers['cherry-DeepSeek'].models['deepseek-chat'].modelID).toBe('deepseek-chat')
+  })
+
   it('adds string provider headers', () => {
     const result = buildOpenCodeConfig(
       {},
       { id: 'deepseek', name: 'DeepSeek' },
       {
-        npm: '@ai-sdk/openai-compatible',
+        package: '@opencode/ai/providers/openai-compatible',
         providerType: 'openai-compatible',
         endpointType: 'openai-chat-completions'
       },
@@ -24,7 +42,7 @@ describe('buildOpenCodeConfig', () => {
       }
     )
 
-    expect(result.provider['cherry-DeepSeek'].options).toEqual({
+    expect(result.providers['cherry-DeepSeek'].settings).toEqual({
       apiKey: 'sk-test',
       baseURL: 'https://api.example.com/v1',
       headers: { 'X-Title': 'Cherry Studio' }
@@ -36,7 +54,7 @@ describe('buildOpenCodeConfig', () => {
       {},
       { id: 'deepseek', name: 'DeepSeek' },
       {
-        npm: '@ai-sdk/openai-compatible',
+        package: '@opencode/ai/providers/openai-compatible',
         providerType: 'openai-compatible',
         endpointType: 'openai-chat-completions'
       },
@@ -44,7 +62,7 @@ describe('buildOpenCodeConfig', () => {
       { contextWindow: 65536, maxOutputTokens: 8192 }
     )
 
-    expect(result.provider['cherry-DeepSeek'].models['deepseek-chat'].limit).toEqual({
+    expect(result.providers['cherry-DeepSeek'].models['deepseek-chat'].limit).toEqual({
       context: 65536,
       output: 8192
     })

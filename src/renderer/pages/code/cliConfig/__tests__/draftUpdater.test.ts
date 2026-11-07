@@ -157,7 +157,7 @@ describe('updateCliConfigDraftConfig', () => {
     const updated = updateCliConfigDraftConfig(CodeCli.OPEN_CODE, files, { autoCompact: true })
 
     const config = JSON.parse(updated[0].content)
-    expect(config.provider['cherry-DeepSeek'].options).toEqual({
+    expect(config.providers['cherry-DeepSeek'].settings).toEqual({
       apiKey: 'sk-secret',
       baseURL: 'https://api.deepseek.com/v1',
       headers: { 'HTTP-Referer': 'https://cherry-ai.com' }
@@ -167,15 +167,86 @@ describe('updateCliConfigDraftConfig', () => {
   it('preserves OpenCode model limits during a config-only update', async () => {
     const files = await buildDraft(CodeCli.OPEN_CODE, chatProvider, 'deepseek-chat')
     const config = JSON.parse(files[0].content)
-    config.provider['cherry-DeepSeek'].models['deepseek-chat'].limit = { context: 65536, output: 8192 }
+    config.providers['cherry-DeepSeek'].models['deepseek-chat'].limit = { context: 65536, output: 8192 }
     files[0].content = JSON.stringify(config)
 
     const updated = updateCliConfigDraftConfig(CodeCli.OPEN_CODE, files, { autoCompact: true })
 
-    expect(JSON.parse(updated[0].content).provider['cherry-DeepSeek'].models['deepseek-chat'].limit).toEqual({
+    expect(JSON.parse(updated[0].content).providers['cherry-DeepSeek'].models['deepseek-chat'].limit).toEqual({
       context: 65536,
       output: 8192
     })
+  })
+
+  it('detects the reasoning toggle from native V2 settings and round-trips it through a config-only update', async () => {
+    // Anthropic: settings.thinking. Google: settings.thinkingConfig.
+    const cases = [
+      {
+        provider: anthropicProvider,
+        model: 'claude-sonnet-4-5',
+        providerKey: 'cherry-Anthropic',
+        expectedSettings: { thinking: { budgetTokens: 10000, type: 'enabled' } }
+      },
+      {
+        provider: geminiProvider,
+        model: 'gemini-2.5-pro',
+        providerKey: 'cherry-Gemini',
+        expectedSettings: { thinkingConfig: { includeThoughts: true, thinkingBudget: -1 } }
+      }
+    ]
+    for (const { provider, model, providerKey, expectedSettings } of cases) {
+      const files = await buildDraft(CodeCli.OPEN_CODE, provider, model, { env: { OPENCODE_REASONING: 'true' } })
+
+      // Detection: the toggle reads back out of the native V2 settings (no boolean reasoning).
+      const parsed = JSON.parse(files[0].content)
+      const written = parsed.providers[providerKey].models[model]
+      expect(written).not.toHaveProperty('reasoning')
+      expect(written.settings).toEqual(expectedSettings)
+      expect(extractConfigFromCliConfigDraft(CodeCli.OPEN_CODE, files)).toEqual({ env: { OPENCODE_REASONING: 'true' } })
+
+      // Round-trip: a config-only edit carrying the read-back blob keeps reasoning on.
+      const updated = updateCliConfigDraftConfig(CodeCli.OPEN_CODE, files, {
+        env: { OPENCODE_REASONING: 'true' },
+        autoCompact: true
+      })
+      const reparsed = JSON.parse(updated[0].content)
+      expect(reparsed.providers[providerKey].models[model].settings).toEqual(expectedSettings)
+      expect(reparsed.compaction.auto).toBe(true)
+    }
+  })
+
+  it('reads a V1-shaped OpenCode config on a config-only update and re-renders native V2', async () => {
+    const files = await buildDraft(CodeCli.OPEN_CODE, chatProvider, 'deepseek-chat')
+    const v2 = JSON.parse(files[0].content)
+    const cherry = v2.providers['cherry-DeepSeek']
+    // Re-shape the draft the way a V1-written opencode.json looks: singular `provider` map,
+    // bare AI SDK package under `npm`, request options under `options`.
+    const v1: Record<string, any> = { ...v2, provider: {} }
+    delete v1.providers
+    v1.provider['cherry-DeepSeek'] = {
+      npm: '@ai-sdk/openai-compatible',
+      name: cherry.name,
+      options: { apiKey: 'sk-secret', baseURL: 'https://api.deepseek.com/v1' },
+      models: cherry.models
+    }
+    files[0].content = JSON.stringify(v1)
+
+    // The V1 file also reads back through extractConnection (the dispatcher's first step).
+    expect(extractConnectionFromCliConfigDraft(CodeCli.OPEN_CODE, files)).toEqual({
+      baseUrl: 'https://api.deepseek.com/v1',
+      apiKey: 'sk-secret',
+      model: 'deepseek-chat'
+    })
+
+    const updated = updateCliConfigDraftConfig(CodeCli.OPEN_CODE, files, { autoCompact: true })
+
+    const config = JSON.parse(updated[0].content)
+    expect(config.providers['cherry-DeepSeek'].package).toBe('aisdk:@ai-sdk/openai-compatible')
+    expect(config.providers['cherry-DeepSeek'].settings).toEqual({
+      apiKey: 'sk-secret',
+      baseURL: 'https://api.deepseek.com/v1'
+    })
+    expect(config.compaction.auto).toBe(true)
   })
 
   it('preserves OpenCode compaction settings during a config-only update', async () => {
@@ -246,10 +317,10 @@ describe('updateCliConfigDraftConfig', () => {
         path: '',
         language: 'json',
         content: JSON.stringify({
-          provider: {
+          providers: {
             'cherry-gateway': {
-              npm: '@ai-sdk/anthropic',
-              options: { apiKey: 'cs-sk', baseURL: 'http://127.0.0.1:23333/v1' },
+              package: '@opencode/ai/providers/anthropic',
+              settings: { apiKey: 'cs-sk', baseURL: 'http://127.0.0.1:23333/v1' },
               models: { 'deepseek:deepseek-chat': { name: 'DeepSeek Chat' } }
             }
           }
@@ -261,7 +332,7 @@ describe('updateCliConfigDraftConfig', () => {
 
     const parsed = JSON.parse(updated.find((f) => f.target === 'opencode-config')!.content)
     expect(parsed.compaction.auto).toBe(true)
-    expect(parsed.provider['cherry-gateway'].models['deepseek:deepseek-chat'].name).toBe('DeepSeek Chat')
+    expect(parsed.providers['cherry-gateway'].models['deepseek:deepseek-chat'].name).toBe('DeepSeek Chat')
     expect(parsed.model).toBe('cherry-gateway/deepseek:deepseek-chat')
   })
 
