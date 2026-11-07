@@ -92,7 +92,10 @@ export async function agentStatusPanel(app: RegressionApp, page: Page, testInfo:
       .toPass({ timeout: 90_000, intervals: [200] })
     await screenshot('MP-55 status during multi-step task')
 
-    const response = view.locator('[data-ui~="chat.message"]:visible').filter({ hasText: 'MP55_SUMMARY' }).last()
+    const response = view
+      .locator('[data-ui~="chat.message"]:visible')
+      .filter({ has: page.locator('.message-assistant'), hasText: 'MP55_SUMMARY' })
+      .last()
     await expect(response).toBeVisible({ timeout: 180_000 })
     for (const file of files) await expect(response).toContainText(file.fact)
     await expect(view.getByRole('button', { name: 'Send', exact: true })).toBeVisible({ timeout: 90_000 })

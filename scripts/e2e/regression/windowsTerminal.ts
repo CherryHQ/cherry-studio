@@ -54,7 +54,10 @@ public static class OwnedConsole {
     try {
       FreeConsole();
       if (!AttachConsole(pid)) throw new Win32Exception(Marshal.GetLastWin32Error());
-      if (GetConsoleWindow() == IntPtr.Zero) throw new Exception("Owned terminal has no native console window");
+      if (GetConsoleWindow() == IntPtr.Zero) {
+        if (!writeInput) return "";
+        throw new Exception("Owned terminal has no native console window");
+      }
       handle = CreateFile(writeInput ? "CONIN$" : "CONOUT$", 0xC0000000, 3, IntPtr.Zero, 3, 0, IntPtr.Zero);
       if (handle == new IntPtr(-1)) throw new Win32Exception(Marshal.GetLastWin32Error());
       if (writeInput) {

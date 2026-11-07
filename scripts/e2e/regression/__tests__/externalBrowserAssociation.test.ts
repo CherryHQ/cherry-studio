@@ -17,41 +17,51 @@ const title = 'Unique owned HTML preview'
 let paths: RunPaths
 let htmlHandler: string
 let tabs: Record<string, { id: number; title: string }[]>
+let runningBundles: string[]
 
 beforeEach(() => {
   paths = getRunPaths(mkdtempSync(join(tmpdir(), 'cherry-browser-association-')))
   htmlHandler = safari
+  runningBundles = [chrome, safari]
   tabs = {
     [safari]: [{ id: 1, title: 'User Safari tab' }],
     [chrome]: [{ id: 1, title: 'User Chrome tab' }]
   }
   native.mockImplementation((_command, args: string[]) => {
-    const applications = [chrome, safari].map((bundleIdentifier, index) => ({
+    const applications = runningBundles.map((bundleIdentifier) => ({
       bundleIdentifier,
-      processIdentifier: 100 + index,
+      processIdentifier: bundleIdentifier === chrome ? 100 : 101,
       launchDate: { timeIntervalSince1970: 1 },
-      terminated: false
+      terminated: false,
+      get terminate() {
+        this.terminated = true
+        runningBundles = runningBundles.filter((bundle) => bundle !== bundleIdentifier)
+        return true
+      }
     }))
     const application = Object.assign(
       (bundle: string) =>
         bundle === 'System Events'
           ? { processes: { whose: () => () => [{ windows: () => [] }] } }
           : {
-              windows: () => [
-                {
-                  id: () => 1,
-                  tabs: () =>
-                    tabs[bundle].map((tab) => ({
-                      id: () => tab.id,
-                      name: () => tab.title,
-                      title: () => tab.title,
-                      url: () => 'about:blank',
-                      close: () => {
-                        tabs[bundle] = tabs[bundle].filter(({ id }) => id !== tab.id)
+              windows: () =>
+                tabs[bundle].length
+                  ? [
+                      {
+                        id: () => 1,
+                        tabs: () =>
+                          tabs[bundle].map((tab) => ({
+                            id: () => tab.id,
+                            name: () => tab.title,
+                            title: () => tab.title,
+                            url: () => 'about:blank',
+                            close: () => {
+                              tabs[bundle] = tabs[bundle].filter(({ id }) => id !== tab.id)
+                            }
+                          }))
                       }
-                    }))
-                }
-              ]
+                    ]
+                  : [null]
             },
       { currentApplication: () => ({}) }
     )
@@ -105,6 +115,24 @@ it('rejects an unsupported HTML handler before the external file is opened', () 
   expect(() => registerExternalResource(paths, 'macos', { kind: 'browser', title, path })).toThrow()
   expect(tabs[safari]).toEqual([{ id: 1, title: 'User Safari tab' }])
   expect(tabs[chrome]).toEqual([{ id: 1, title: 'User Chrome tab' }])
+})
+
+it('cleans up a newly opened browser when its final tab leaves a null window specifier', () => {
+  runningBundles = [chrome]
+  tabs[safari] = []
+  const path = join(paths.root, 'preview.html')
+  writeFileSync(path, '')
+  const id = registerExternalResource(paths, 'macos', { kind: 'browser', title, path })
+  runningBundles.push(safari)
+  tabs[safari].push({ id: 2, title })
+
+  expect(observeExternalResource(paths, id)).toBe(true)
+  cleanupExternalResources(paths)
+
+  expect(runningBundles).toEqual([chrome])
+  expect(tabs[chrome]).toEqual([{ id: 1, title: 'User Chrome tab' }])
+  expect(tabs[safari]).toEqual([])
+  expect(JSON.parse(readFileSync(join(paths.private, 'external-resources.json'), 'utf8'))).toEqual([])
 })
 
 it('keeps URL-only browser cleanup associated with the HTTPS handler', () => {

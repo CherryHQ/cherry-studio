@@ -83,6 +83,7 @@ function run(argv) {
       if (target.kind === 'browser') {
         const browser = Application(bundle)
         for (const window of browser.windows()) {
+          if (!window) continue
           for (const tab of window.tabs()) {
             const title = bundle === 'com.apple.Safari' ? tab.name() : tab.title()
             const tabId = value(() => tab.id(), tab.url())
