@@ -210,7 +210,17 @@ jobs:
       - name: Prepare Everything MCP package
         if: needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'mcp-skills' || needs.resolve.outputs.task == 'everything-mcp'
         shell: bash
+        env:
+          npm_config_cache: ${{ env.RUN_DIR }}/private/npm-cache
         run: npm exec --yes --package=@modelcontextprotocol/server-everything@1.0.0 -- node --version
+
+      - name: Suppress browser first-run UI on the disposable Windows runner
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $policy = 'HKCU:\Software\Policies\Microsoft\Edge'
+          New-Item -Path $policy -Force | Out-Null
+          New-ItemProperty -Path $policy -Name HideFirstRunExperience -Value 1 -PropertyType DWord -Force | Out-Null
 
       - name: Initialize isolated test directory
         shell: bash

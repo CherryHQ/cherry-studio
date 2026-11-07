@@ -51,7 +51,7 @@ test(...caseDefinition('MCP-01'), async ({ app, mainWindow: page }) => {
     await page.getByText('Quick Create', { exact: true }).click()
     await page.locator('input[name="name"]').fill('everything')
     await page.getByLabel('Command*').fill('npx')
-    await page.getByLabel('Arguments').last().fill('-y\n@modelcontextprotocol/server-everything')
+    await page.getByLabel('Arguments').last().fill('-y\n@modelcontextprotocol/server-everything@1.0.0')
     await page.getByRole('button', { name: 'Add', exact: true }).click()
     await expect(page.getByRole('dialog')).toHaveCount(0)
   }

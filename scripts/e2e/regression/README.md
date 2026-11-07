@@ -44,6 +44,15 @@ The explicit profile/restart operation prepares Windows connections by closing n
 
 ## Execution contract
 
+Everything MCP uses `@modelcontextprotocol/server-everything@1.0.0`. The workflow
+prepares it in the same run-owned npm cache used by the application. For a local
+`all`, `mcp-skills` or `everything-mcp` run, prepare that cache before launch:
+
+```sh
+npm_config_cache=/absolute/run-directory/private/npm-cache \
+  npm exec --yes --package=@modelcontextprotocol/server-everything@1.0.0 -- node --version
+```
+
 Manual runs accept any branch in the current repository or a `v*` release tag as
 the `ref` input. The resolver pins it to an exact commit before either platform
 checks out the application; fork references and raw commit SHAs are not inputs.

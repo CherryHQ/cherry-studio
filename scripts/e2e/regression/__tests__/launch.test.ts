@@ -27,6 +27,7 @@ it.each(['macos', 'windows'] as const)(
     const paths = getRunPaths(directory)
     ensureRunDirectories(paths)
     vi.stubEnv('CS_DEV_PROFILE_ROOT', '/unrelated/developer-profile')
+    vi.stubEnv('npm_config_cache', '/unrelated/npm-cache')
     for (const key of ['HOME', 'USERPROFILE', 'CLAUDE_CONFIG_DIR', 'CODEX_HOME', 'APPDATA', 'LOCALAPPDATA']) {
       vi.stubEnv(key, `/unrelated/developer-${key}`)
     }
@@ -39,7 +40,11 @@ it.each(['macos', 'windows'] as const)(
     vi.spyOn(process, 'kill').mockReturnValue(true)
     vi.stubGlobal('fetch', async () => ({
       ok: true,
-      json: async () => [{ type: 'page', title: 'Cherry Studio', url: 'http://localhost:5173/windows/main/index.html' }]
+      json: async () => [
+        { type: 'page', title: 'Starting pooled window', url: '' },
+        { type: 'page', title: 'Unready window', url: 'not a URL' },
+        { type: 'page', title: 'Cherry Studio', url: 'http://localhost:5173/windows/main/index.html' }
+      ]
     }))
     try {
       const record = await launchApp(paths, {
@@ -48,7 +53,8 @@ it.each(['macos', 'windows'] as const)(
         profile: 'authenticated',
         targetRoot: directory,
         runKey: 'prepared',
-        restartCount: 1
+        restartCount: 1,
+        readyTimeoutMs: 25
       })
       const [command, args, options] = spawn.mock.calls[0]
       expect(command).toBe(process.execPath)
@@ -74,6 +80,9 @@ it.each(['macos', 'windows'] as const)(
       expect(existsSync(options.env.TEMP)).toBe(true)
       expect(options.env.CLAUDE_CONFIG_DIR).toBe(join(isolatedHome, '.claude'))
       expect(options.env.CODEX_HOME).toBe(join(isolatedHome, '.codex'))
+      expect(options.env.NPM_CONFIG_CACHE).toBe(join(paths.private, 'npm-cache'))
+      expect(options.env.npm_config_cache).toBe(join(paths.private, 'npm-cache'))
+      expect(existsSync(options.env.npm_config_cache)).toBe(true)
       expect(existsSync(isolatedHome)).toBe(true)
       if (process.platform === 'win32') {
         expect(options.env.APPDATA).toBe(join(isolatedHome, 'AppData', 'Roaming'))
@@ -84,6 +93,7 @@ it.each(['macos', 'windows'] as const)(
       expect(options.cwd).toBe(directory)
       expect(process.env.CODEX_HOME).toBe('/unrelated/developer-CODEX_HOME')
       expect(process.env.USERPROFILE).toBe('/unrelated/developer-USERPROFILE')
+      expect(process.env.npm_config_cache).toBe('/unrelated/npm-cache')
       expect(options.env.CS_DEV_USER_DATA_SUFFIX).toBe('Regression-prepared-authenticated')
       // The app writes CLI provider config against `sys.home`; it must point into the run directory
       // so CLI provider configuration cannot rewrite the machine owner's real credentials.
@@ -99,7 +109,12 @@ it.each(['macos', 'windows'] as const)(
       ]) {
         expect(existsSync(directory)).toBe(true)
       }
-      expect(record).toMatchObject({ electronPid: 42001, restartCount: 1, profile: 'authenticated' })
+      expect(record).toMatchObject({
+        electronPid: 42001,
+        restartCount: 1,
+        profile: 'authenticated',
+        targetUrl: 'http://localhost:5173/windows/main/index.html'
+      })
     } finally {
       vi.restoreAllMocks()
       vi.unstubAllGlobals()

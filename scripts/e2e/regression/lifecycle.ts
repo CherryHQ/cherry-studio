@@ -100,7 +100,7 @@ async function waitForCdp(
     try {
       const targets = await readCdpTargets()
       const mainTarget = targets.find(
-        (target) => target.type === 'page' && new URL(target.url).pathname.endsWith('/windows/main/index.html')
+        (target) => target.type === 'page' && URL.parse(target.url)?.pathname.endsWith('/windows/main/index.html')
       )
       const electronPid = findCdpPid(platform)
       if (mainTarget && electronPid && isDescendant(electronPid, runnerPid, platform)) {
@@ -139,7 +139,8 @@ export function createProfileEnvironment(paths: RunPaths, profile: TestProfile):
   const cliDirectories = ['.claude', '.codex', '.config', '.hermes', join('AppData', 'Local')].map((name) =>
     join(homeDirectory, name)
   )
-  for (const directory of [...Object.values(windowsDirectories), ...cliDirectories])
+  const npmCache = join(paths.private, 'npm-cache')
+  for (const directory of [...Object.values(windowsDirectories), ...cliDirectories, npmCache])
     mkdirSync(directory, { recursive: true })
   if (process.platform === 'win32') {
     for (const directory of windowsShellDirectories(homeDirectory)) mkdirSync(directory, { recursive: true })
@@ -158,6 +159,8 @@ export function createProfileEnvironment(paths: RunPaths, profile: TestProfile):
     CODEX_HOME: join(homeDirectory, '.codex'),
     XDG_CONFIG_HOME: join(homeDirectory, '.config'),
     HERMES_HOME: join(homeDirectory, '.hermes'),
+    NPM_CONFIG_CACHE: npmCache,
+    npm_config_cache: npmCache,
     LOCALAPPDATA: join(homeDirectory, 'AppData', 'Local')
   }
 }
