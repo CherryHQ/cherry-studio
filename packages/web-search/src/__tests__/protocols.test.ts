@@ -167,7 +167,7 @@ describe('portable provider contracts', () => {
     const result = await ok.client.execute(call)
     expect(ok.requests[0].url).toBe('https://service.example/proxy/v1/extract')
     expect(ok.requests[0].method).toBe('POST')
-    expect(ok.requests[0].body).toEqual({ urls: ['https://specstream.example/page'], format: 'markdown' })
+    expect(JSON.parse(String(ok.requests[0].body))).toEqual({ urls: ['https://specstream.example/page'], format: 'markdown' })
     expect(result.results[0]).toMatchObject({ title: 'Page Title', content: 'Page text' })
 
     const blocked = setup(
