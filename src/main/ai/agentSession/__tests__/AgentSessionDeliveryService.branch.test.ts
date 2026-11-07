@@ -112,7 +112,7 @@ describe('durable delivery native branch admission', () => {
         providerId: 'branch-provider',
         modelId: 'branch-model',
         name: 'Branch',
-        capabilities: [],
+        capabilities: ['function-call'],
         supportsStreaming: true,
         orderKey: 'a0'
       })

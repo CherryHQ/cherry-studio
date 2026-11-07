@@ -12,6 +12,7 @@ import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { ChatSidePaddingProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import type * as ModelSpeedControlModule from '@renderer/components/ModelSpeedControl'
+import type * as AgentModelFilterModule from '@renderer/hooks/agent/useAgentModelFilter'
 import { handOffAgentDraft } from '@renderer/services/agentDraftHandoff'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
@@ -518,7 +519,8 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useUpdateAgent: () => ({ updateAgent: mocks.updateAgent, updateModel: mocks.updateModel })
 }))
 
-vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
+vi.mock('@renderer/hooks/agent/useAgentModelFilter', async (importOriginal) => ({
+  ...(await importOriginal<typeof AgentModelFilterModule>()),
   useAgentModelFilter: () => undefined
 }))
 
@@ -570,9 +572,13 @@ vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
 }))
 
 vi.mock('@renderer/components/ModelSelector', () => ({
-  ModelSelector: ({ onSelect, trigger, open, onOpenChange, shortcut }: any) => (
+  ModelSelector: ({ onSelect, trigger, open, onOpenChange, shortcut, isModelDisabled }: any) => (
     <div data-testid="agent-model-selector" data-open={String(Boolean(open))} data-shortcut={shortcut ?? ''}>
       {trigger}
+      <span data-testid="model-disabled-incapable">{String(isModelDisabled?.(model))}</span>
+      <span data-testid="model-disabled-capable">
+        {String(isModelDisabled?.({ ...model, capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] }))}
+      </span>
       {onOpenChange ? (
         <>
           <button type="button" onClick={() => onOpenChange(true)}>
@@ -948,6 +954,21 @@ describe('AgentComposer', () => {
     globalThis.ResizeObserver = originalResizeObserver
     restoreRequestAnimationFrame?.()
     restoreRequestAnimationFrame = undefined
+  })
+
+  it('disables models without tool calling in the Work selector', () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(screen.getByTestId('model-disabled-incapable')).toHaveTextContent('true')
+    expect(screen.getByTestId('model-disabled-capable')).toHaveTextContent('false')
   })
 
   it('receives a screenshot and optional text into the Agent draft without sending', async () => {

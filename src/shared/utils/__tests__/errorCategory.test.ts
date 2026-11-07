@@ -371,3 +371,25 @@ describe('classifyErrorCategory invalid inline image', () => {
     expect(classifyErrorCategory({ text, status: 429 })).toBe('rate_limit')
   })
 })
+
+describe('tool calling rejection', () => {
+  it.each([
+    '{"error":{"message":"the requested model does not support function calling"}}',
+    'The model does not support function calling.',
+    'MODEL_TOOL_CALLING_UNSUPPORTED'
+  ])('recognizes %s', (text) => {
+    expect(classifyErrorCategory({ text, status: 400 })).toBe('tool_unsupported')
+    expect(classifyErrorCategory({ text })).toBe('tool_unsupported')
+  })
+  it.each([
+    [401, 'auth'],
+    [402, 'quota'],
+    [429, 'rate_limit'],
+    [503, 'server']
+  ] as const)('preserves status %s precedence', (status, category) => {
+    expect(classifyErrorCategory({ text: 'The model does not support function calling.', status })).toBe(category)
+  })
+  it.each(['InvalidParameter', 'BadRequest', 'function calling', 'unsupported'])('does not guess from %s', (text) => {
+    expect(classifyErrorCategory({ text, status: 400 })).toBe('bad_request')
+  })
+})

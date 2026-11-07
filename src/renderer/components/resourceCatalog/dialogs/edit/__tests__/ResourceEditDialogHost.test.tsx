@@ -2,6 +2,8 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
+import type * as AgentModelFilterModule from '@renderer/hooks/agent/useAgentModelFilter'
+import { MODEL_CAPABILITY, type Model } from '@shared/data/types/model'
 
 import { ResourceEditDialogHost } from '../ResourceEditDialogHost'
 
@@ -34,7 +36,8 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgent: mocks.useAgent
 }))
 
-vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
+vi.mock('@renderer/hooks/agent/useAgentModelFilter', async (importOriginal) => ({
+  ...(await importOriginal<typeof AgentModelFilterModule>()),
   useAgentModelFilter: () => vi.fn(() => true)
 }))
 
@@ -61,14 +64,26 @@ vi.mock('../AgentEditDialog', () => ({
   AgentEditDialog: ({
     open,
     onOpenChange,
-    resource
+    resource,
+    modelFilter,
+    isModelDisabled
   }: {
     open: boolean
     onOpenChange: (open: boolean) => void
     resource: { id: string } | null
+    modelFilter: (model: Model) => boolean
+    isModelDisabled: (model: Model) => boolean
   }) =>
     resource ? (
       <div data-testid="agent-edit-dialog" data-open={open}>
+        {[[], [MODEL_CAPABILITY.FUNCTION_CALL]].map((capabilities, index) => {
+          const model = { capabilities } as Model
+          return modelFilter(model) ? (
+            <button key={index} disabled={isModelDisabled(model)}>
+              {index ? 'capable' : 'incapable'}
+            </button>
+          ) : null
+        })}
         <button type="button" onClick={() => onOpenChange(false)}>
           close
         </button>
@@ -109,6 +124,8 @@ describe('ResourceEditDialogHost', () => {
 
     expect(mocks.useAgent).toHaveBeenCalledWith('agent-1')
     expect(screen.getByTestId('agent-edit-dialog')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByRole('button', { name: 'incapable' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'capable' })).toBeEnabled()
   })
 
   it('keeps the target mounted until the shared unmount delay expires', async () => {

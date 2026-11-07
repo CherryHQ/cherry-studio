@@ -11,7 +11,8 @@ export const aiStreamAdmissionReasons = {
   MODEL_ALREADY_IN_LIVE_GROUP: 'MODEL_ALREADY_IN_LIVE_GROUP',
   EXECUTION_NOT_READY: 'EXECUTION_NOT_READY',
   EXECUTION_CHANGED: 'EXECUTION_CHANGED',
-  TOPIC_BUSY: 'TOPIC_BUSY'
+  TOPIC_BUSY: 'TOPIC_BUSY',
+  MODEL_TOOL_CALLING_UNSUPPORTED: 'MODEL_TOOL_CALLING_UNSUPPORTED'
 } as const
 
 export type AiStreamAdmissionReason = (typeof aiStreamAdmissionReasons)[keyof typeof aiStreamAdmissionReasons]

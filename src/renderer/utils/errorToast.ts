@@ -14,6 +14,7 @@ export interface ErrorToastPresentation {
 export const errorToastPresentations: Record<ErrorCategory, ErrorToastPresentation> = {
   auth: { type: 'warning', action: 'configure' },
   bad_request: { type: 'warning' },
+  tool_unsupported: { type: 'warning', action: 'switchModel' },
   permission: { type: 'warning' },
   region: { type: 'warning' },
   model: { type: 'warning', action: 'switchModel' },

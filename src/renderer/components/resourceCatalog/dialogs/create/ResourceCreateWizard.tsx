@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Dialog, DialogContent, DialogTitle, Form, MenuItem, ScrollArea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { type ModelSelectorFilter, useIsModelSelectable } from '@renderer/components/ModelSelector'
-import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { isModelToolCallingDisabled, useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useDefaultModel, useModels } from '@renderer/hooks/useModel'
 import { useProviderById } from '@renderer/hooks/useProvider'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
@@ -149,6 +149,7 @@ export function ResourceCreateWizard({
     availableModels.some((model) => model.id === defaultModel.id) &&
     defaultModelProvider?.isEnabled &&
     (!activeModelFilter || activeModelFilter(defaultModel, defaultModelProvider)) &&
+    (kind !== 'agent' || !isModelToolCallingDisabled(defaultModel)) &&
     isModelSelectable(defaultModel)
       ? defaultModel.id
       : null
@@ -356,6 +357,7 @@ export function ResourceCreateWizard({
                     portalContainer={dialogContentElement}
                     fallbackAvatar={getResourceCreateDefaultAvatar(kind)}
                     modelFilter={activeModelFilter}
+                    isModelDisabled={kind === 'agent' ? isModelToolCallingDisabled : undefined}
                     runtimeSelectable={kind === 'agent'}
                     onSettingsNavigate={closeBeforeAction}
                   />

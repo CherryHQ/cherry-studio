@@ -4,9 +4,9 @@ import { describe, expect, it } from 'vitest'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
-import { useAgentModelFilter } from '../useAgentModelFilter'
+import { isModelToolCallingDisabled, useAgentModelFilter } from '../useAgentModelFilter'
 
-function model(capabilities: Model['capabilities'] = []): Model {
+function model(capabilities: Model['capabilities'] = [MODEL_CAPABILITY.FUNCTION_CALL]): Model {
   return {
     id: 'openai::gpt-4o',
     providerId: 'openai',
@@ -32,6 +32,17 @@ const providers = {
 } as const satisfies Record<string, Partial<Provider>>
 
 describe('useAgentModelFilter', () => {
+  it.each(['pi', 'pi-durable', 'claude-code', undefined] as const)(
+    'lists models without tool calling but disables them for %s',
+    (runtime) => {
+      const { result } = renderHook(() => useAgentModelFilter(runtime))
+      expect(result.current(model(), providers.openai as Provider)).toBe(true)
+      expect(result.current(model([]), providers.openai as Provider)).toBe(true)
+      expect(isModelToolCallingDisabled(model([]))).toBe(true)
+      expect(isModelToolCallingDisabled(model())).toBe(false)
+    }
+  )
+
   it('allows Gemini provider models for Claude Code agents', () => {
     const { result } = renderHook(() => useAgentModelFilter('claude-code'))
 

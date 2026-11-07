@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { SerializedError } from '@renderer/types/error'
 
 import { classifyError, getLocalModelResolutionFailure } from '../errorClassifier'
-import { serializeToastError } from '../errorToast'
+import { errorToastPresentations, serializeToastError } from '../errorToast'
 
 function makeError(overrides: Partial<SerializedError> = {}): SerializedError {
   return { name: 'Error', message: 'test error', stack: null, ...overrides }
@@ -90,6 +90,15 @@ describe('classifyError', () => {
     const error = makeError({ i18nKey: 'missing_finish_reason', streamStage: 'response-stream' })
     expect(classifyError(error).category).toBe('unknown')
     expect(error.i18nKey).toBe('missing_finish_reason')
+  })
+
+  it('provides model switching guidance for unsupported tools', () => {
+    expect(classifyError(makeError({ message: 'MODEL_TOOL_CALLING_UNSUPPORTED' }), 'openai')).toMatchObject({
+      category: 'tool_unsupported',
+      i18nKey: 'error.diagnosis.tool_unsupported',
+      navTarget: '/settings/provider?id=openai'
+    })
+    expect(errorToastPresentations.tool_unsupported).toEqual({ type: 'warning', action: 'switchModel' })
   })
 
   const groqBody = `service_tier auto is not available for this org. You can check your plan at

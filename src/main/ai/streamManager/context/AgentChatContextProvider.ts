@@ -15,10 +15,14 @@ import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { getAgentSessionHead } from '@data/services/agentSessionMessageTree'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { getManualCompactionTurn } from '@main/ai/agentSession/manualCompactCommand'
+import { modelSupportsTools } from '@main/ai/agentSession/modelToolCapability'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
+import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { reserveClaudeBranchTx } from '@main/ai/runtime/claudeCode'
 import { reservePiBranchTx } from '@main/ai/runtime/pi/piContext'
 import { topicNamingService } from '@main/services/TopicNamingService'
+import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
@@ -29,6 +33,7 @@ import { validateEditedInput } from '../../agentSession/editInput'
 import { extractAgentSessionId, isAgentSessionTopic } from '../../agentSession/topic'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { runtimeDriverRegistry } from '../../runtime/registry'
+import { AiStreamAdmissionError } from '../admission'
 import type { StreamListener } from '../types'
 import type { ChatContextProvider, DispatchContext, PreparedDispatch } from './ChatContextProvider'
 import type { MainDispatchRequest } from './dispatch'
@@ -130,6 +135,12 @@ export class AgentChatContextProvider implements ChatContextProvider {
     const driver = runtimeDriverRegistry.getAgentSessionDriver(agent.type)
     if (!driver) {
       throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', `Unsupported agent runtime type: ${agent.type}`)
+    }
+    const inputMessage =
+      req.agentDeliveryMessage ?? ({ data: { parts: req.userMessageParts ?? [] } } as AgentSessionMessageEntity)
+    const isCompact = getManualCompactionTurn(agent.type, buildAgentUserContent(inputMessage), false)
+    if (!isCompact && !modelSupportsTools(agent.model)) {
+      throw new AiStreamAdmissionError(aiStreamAdmissionReasons.MODEL_TOOL_CALLING_UNSUPPORTED)
     }
     const parentMessageId = agentSessionMessageService.captureHead(sessionId)
     await driver.validateSession(session)

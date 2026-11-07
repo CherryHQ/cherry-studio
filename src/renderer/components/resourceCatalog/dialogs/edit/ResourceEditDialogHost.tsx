@@ -5,7 +5,7 @@ import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import { loggerService } from '@logger'
 import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
-import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { isModelToolCallingDisabled, useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAssistantApiById } from '@renderer/hooks/useAssistant'
 import { toast } from '@renderer/services/toast'
 import type { ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'
@@ -124,6 +124,7 @@ function AgentEditDialogHost({
       resource={agent ?? null}
       onOpenChange={onOpenChange}
       modelFilter={modelFilter}
+      isModelDisabled={isModelToolCallingDisabled}
       initialTab={target.initialTab}
     />
   )

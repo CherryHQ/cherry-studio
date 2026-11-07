@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
   ensureTraceIdTx: vi.fn(),
   getAgent: vi.fn(),
+  getModel: vi.fn(),
   captureHead: vi.fn(),
   branchTip: vi.fn(),
   saveMessage: vi.fn(),
@@ -23,6 +24,8 @@ const mocks = vi.hoisted(() => ({
   runtimeAssertWritable: vi.fn(),
   runtimeValidateSession: vi.fn()
 }))
+
+vi.mock('@data/services/ModelService', () => ({ modelService: { getByKey: mocks.getModel } }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: { getById: mocks.getSession, ensureTraceIdTx: mocks.ensureTraceIdTx }
@@ -97,6 +100,7 @@ describe('AgentChatContextProvider', () => {
       connect: vi.fn(),
       validateSession: mocks.runtimeValidateSession
     })
+    mocks.getModel.mockReturnValue({ capabilities: ['function-call'] })
     mocks.getSession.mockReturnValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/tmp' } })
     mocks.ensureTraceIdTx.mockReturnValue('a'.repeat(32))
     mocks.getAgent.mockReturnValue({
@@ -158,6 +162,56 @@ describe('AgentChatContextProvider', () => {
     })
     mocks.runtimeValidateSession.mockResolvedValue(undefined)
     mocks.runtimeIsSessionBusy.mockReturnValue(false)
+  })
+
+  it('refuses an incapable model before persisting rows', async () => {
+    mocks.getModel.mockReturnValue({ capabilities: [] })
+    await expect(provider.prepareDispatch(makeSubscriber(), openReq())).rejects.toMatchObject({
+      name: 'AiStreamAdmissionError',
+      reason: 'MODEL_TOOL_CALLING_UNSUPPORTED'
+    })
+    expect(mocks.saveMessagesTx).not.toHaveBeenCalled()
+    expect(mocks.saveMessage).not.toHaveBeenCalled()
+  })
+
+  it.each(['pi', 'pi-durable'])('admits %s manual compaction', async (agentType) => {
+    for (const text of ['/compact', '  /compact  ', '/compact instructions']) {
+      runtimeDriverRegistry.register({
+        type: agentType,
+        connect: vi.fn(),
+        validateSession: mocks.runtimeValidateSession
+      })
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        name: 'Agent',
+        type: agentType,
+        model: 'anthropic::claude-sonnet'
+      })
+      mocks.getModel.mockReturnValue({ capabilities: [] })
+      await expect(
+        provider.validateDispatch(openReq({ userMessageParts: [{ type: 'text', text }] }))
+      ).resolves.toBeDefined()
+    }
+  })
+
+  it.each(['pi', 'pi-durable'])('refuses ordinary and non-command text for %s', async (agentType) => {
+    for (const text of ['hello', '/compactness', 'please /compact']) {
+      runtimeDriverRegistry.register({
+        type: agentType,
+        connect: vi.fn(),
+        validateSession: mocks.runtimeValidateSession
+      })
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        name: 'Agent',
+        type: agentType,
+        model: 'anthropic::claude-sonnet'
+      })
+      mocks.getModel.mockReturnValue({ capabilities: [] })
+      await expect(
+        provider.validateDispatch(openReq({ userMessageParts: [{ type: 'text', text }] }))
+      ).rejects.toMatchObject({ reason: 'MODEL_TOOL_CALLING_UNSUPPORTED' })
+    }
   })
 
   it('keeps the captured branch when the user changes selection during validation', async () => {

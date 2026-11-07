@@ -47,7 +47,7 @@ async function fixture(opts: { headless?: boolean; redirect?: boolean } = {}) {
       providerId: 'test',
       modelId: 'model',
       name: 'Model',
-      capabilities: [],
+      capabilities: ['function-call'],
       supportsStreaming: true,
       orderKey: 'a0'
     })

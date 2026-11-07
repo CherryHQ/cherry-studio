@@ -5,6 +5,8 @@ import type * as ReactModule from 'react'
 import { type ReactNode, useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type * as AgentModelFilterModule from '@renderer/hooks/agent/useAgentModelFilter'
+
 // Capture the close-control props the wizard hands to the UI dialog so the test can
 // drive overlay / Esc / pointer-down-outside deterministically (radix's real Esc
 // wiring doesn't fire onOpenChange reliably under jsdom).
@@ -34,7 +36,8 @@ vi.mock('@renderer/components/ModelSelector', () => ({
   useIsModelSelectable: () => () => true
 }))
 
-vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
+vi.mock('@renderer/hooks/agent/useAgentModelFilter', async (importOriginal) => ({
+  ...(await importOriginal<typeof AgentModelFilterModule>()),
   useAgentModelFilter: () => () => true
 }))
 
