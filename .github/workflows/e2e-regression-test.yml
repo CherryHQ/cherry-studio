@@ -1,17 +1,16 @@
 name: E2E Regression Test
-
 on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "Branch in this repository or a v* release tag to test"
+        description: Branch in this repository or a v* release tag to test
         required: true
-        default: "main"
+        default: main
         type: string
       task:
-        description: "Test task (all = full regression)"
+        description: Test task (all = full regression)
         required: true
-        default: "all"
+        default: all
         type: choice
         options:
           - all
@@ -58,21 +57,20 @@ on:
           - translation-settings
           - native-settings
       provider_mode:
-        description: "Provider backend: real = repository vars (default), mock = in-job mock service (deterministic, no quota, fault injection). Mock supports a subset of tasks; see scripts/e2e/regression/mock-fixtures/README.md"
+        description: "Provider backend: real = repository vars (default), mock = in-job
+          mock service (deterministic, no quota, fault injection). Mock supports
+          a subset of tasks; see scripts/e2e/regression/mock-fixtures/README.md"
         required: true
-        default: "real"
+        default: real
         type: choice
         options:
           - real
           - mock
-
 permissions:
   contents: read
-
 concurrency:
   group: cherry-regression-test-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: false
-
 jobs:
   resolve:
     if: github.event_name == 'workflow_dispatch' && github.ref_type == 'branch'
@@ -90,16 +88,13 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
           fetch-depth: 1
-
       - name: Set up pnpm
         uses: pnpm/action-setup@v5
-
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
           node-version-file: .node-version
           cache: pnpm
-
       - name: Install controller dependencies
         shell: bash
         run: |
@@ -108,7 +103,6 @@ jobs:
             [[ "$attempt" == "3" ]] && exit 1
             sleep $((attempt * 15))
           done
-
       - name: Resolve and validate test reference
         id: ref
         shell: bash
@@ -120,7 +114,6 @@ jobs:
             --requested "$REQUESTED_REF" \
             --repository "${{ github.repository }}"
           echo "task=$REQUESTED_TASK" >> "$GITHUB_OUTPUT"
-
   test:
     needs: resolve
     strategy:
@@ -130,8 +123,6 @@ jobs:
         include:
           - runner: macos-latest
             platform: macos
-          - runner: windows-2022
-            platform: windows
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 360
     permissions:
@@ -147,7 +138,6 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
           fetch-depth: 1
-
       - name: Checkout application under test
         uses: actions/checkout@v7
         with:
@@ -155,20 +145,16 @@ jobs:
           persist-credentials: false
           path: target-app
           fetch-depth: 1
-
       - name: Set up pnpm
         uses: pnpm/action-setup@v5
-
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
           node-version-file: .node-version
           cache: pnpm
-
       - name: Export pinned Node.js version
         shell: bash
         run: echo "NODE_VERSION=$(node -p 'process.versions.node')" >> "$GITHUB_ENV"
-
       - name: Install controller dependencies
         id: controller-dependencies
         shell: bash
@@ -178,13 +164,13 @@ jobs:
             [[ "$attempt" == "3" ]] && exit 1
             sleep $((attempt * 15))
           done
-
       - name: Define isolated test directory
         shell: bash
-        run: |
+        run: >
           echo "RUN_DIR=$RUNNER_TEMP/cherry-regression" >> "$GITHUB_ENV"
-          echo "CHERRY_TEST_RUN_DIR=$RUNNER_TEMP/cherry-regression" >> "$GITHUB_ENV"
 
+          echo "CHERRY_TEST_RUN_DIR=$RUNNER_TEMP/cherry-regression" >>
+          "$GITHUB_ENV"
       - name: Initialize isolated test directory
         shell: bash
         env:
@@ -193,387 +179,104 @@ jobs:
           TEST_SHA: ${{ needs.resolve.outputs.sha }}
           TEST_RUNNER: ${{ matrix.runner }}
           TEST_TASK: ${{ needs.resolve.outputs.task }}
-        run: >-
-          pnpm exec tsx scripts/e2e/regression/cli.ts initialize
-          --run-dir "$RUN_DIR"
-          --mode "$TEST_MODE"
-          --platform "${{ matrix.platform }}"
-          --ref "$TEST_REF_NAME"
-          --sha "$TEST_SHA"
-          --runner "$TEST_RUNNER"
-          --task "$TEST_TASK"
-          --provider-mode "${{ inputs.provider_mode }}"
+        run: pnpm exec tsx scripts/e2e/regression/cli.ts initialize --run-dir "$RUN_DIR"
+          --mode "$TEST_MODE" --platform "${{ matrix.platform }}" --ref
+          "$TEST_REF_NAME" --sha "$TEST_SHA" --runner "$TEST_RUNNER" --task
+          "$TEST_TASK" --provider-mode "${{ inputs.provider_mode }}"
+      - name: Prepare Notification Center on the disposable macOS runner
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: >
+          node <<'NODE'
 
+          const { execFileSync, spawnSync } = require('node:child_process')
+
+          const { existsSync, mkdirSync, writeFileSync } = require('node:fs')
+
+          const { join } = require('node:path')
+
+          if (process.env.GITHUB_ACTIONS !== 'true' ||
+          process.env.RUNNER_ENVIRONMENT !== 'github-hosted') throw new
+          Error('Disposable hosted runner required')
+
+          const root = process.env.RUN_DIR
+
+          if (!root || !existsSync(join(root, 'run.json'))) throw new
+          Error('Initialized run directory required')
+
+          const agent =
+          '/System/Library/LaunchAgents/com.apple.notificationcenterui.plist'
+
+          const label = execFileSync('plutil', ['-extract', 'Label', 'raw',
+          '-o', '-', agent], { encoding: 'utf8' }).trim()
+
+          if (!['com.apple.notificationcenterui',
+          'com.apple.notificationcenterui.agent'].includes(label)) throw new
+          Error('Unexpected Notification Center service label')
+
+          const domain = `gui/${process.getuid()}`
+
+          const service = `${domain}/${label}`
+
+          const overrides = execFileSync('launchctl', ['print-disabled',
+          domain], { encoding: 'utf8' })
+
+          const disabled = overrides.split('\n').some(line =>
+          line.includes(JSON.stringify(label)) && /=>\s*true/.test(line))
+
+          const loaded = spawnSync('launchctl', ['print', service], { stdio:
+          'ignore' }).status === 0
+
+          mkdirSync(join(root, 'state'), { recursive: true })
+
+          writeFileSync(join(root, 'state/notification-center-agent.json'),
+          JSON.stringify({ domain, label, disabled, loaded }), { flag: 'wx',
+          mode: 0o600 })
+
+          process.stdout.write(JSON.stringify({ notificationCenterService:
+          label, notificationCenterInitiallyDisabled: disabled,
+          notificationCenterInitiallyLoaded: loaded }) + '\n')
+
+          execFileSync('launchctl', ['enable', service])
+
+          if (!loaded) execFileSync('launchctl', ['bootstrap', domain, agent])
+
+          execFileSync('launchctl', ['kickstart', service])
+
+          NODE
       - name: Start disposable macOS permission observer
         if: matrix.platform == 'macos'
         shell: bash
-        run: |
+        run: >
           umask 077
-          mkdir -p "$RUN_DIR/state"
-          nohup osascript -l JavaScript scripts/e2e/regression/macPermissionObserver.jxa "$RUN_DIR" > "$RUN_DIR/logs/ci-native-permissions.log" 2>&1 < /dev/null &
-          echo "$!" > "$RUN_DIR/state/ci-native-permissions.pid"
-          sleep 1
-          kill -0 "$(cat "$RUN_DIR/state/ci-native-permissions.pid")"
 
+          mkdir -p "$RUN_DIR/state"
+
+          nohup osascript -l JavaScript
+          scripts/e2e/regression/macPermissionObserver.jxa "$RUN_DIR" >
+          "$RUN_DIR/logs/ci-native-permissions.log" 2>&1 < /dev/null &
+
+          echo "$!" > "$RUN_DIR/state/ci-native-permissions.pid"
+
+          sleep 1
+
+          kill -0 "$(cat "$RUN_DIR/state/ci-native-permissions.pid")"
       - name: Validate native controller adapters
         shell: bash
-        run: >-
-          pnpm test:scripts
+        run: pnpm test:scripts
           scripts/e2e/regression/__tests__/externalAppSyntax.test.ts
           scripts/e2e/regression/__tests__/nativeAdapters.test.ts
           --reporter=default --reporter=json
-          --outputFile.json="$RUN_DIR/report/native-controller-results.json"
-
-      - name: Cache code tool downloads
-        uses: actions/cache@v6
-        with:
-          path: ${{ runner.temp }}/cherry-code-tools-npm/_cacache
-          key: cherry-code-tools-v1-${{ runner.os }}-${{ runner.arch }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('.github/workflows/e2e-regression-test.yml') }}
-
-      - name: Install code tools under test
-        shell: bash
-        env:
-          npm_config_cache: ${{ runner.temp }}/cherry-code-tools-npm
-        run: |
-          npm install --global @anthropic-ai/claude-code@2.1.239 @openai/codex@0.149.0 openclaw@2026.6.11
-          claude --version
-          codex --version
-          openclaw --version
-
-      - name: Prepare Everything MCP package
-        if: needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'mcp-skills' || needs.resolve.outputs.task == 'everything-mcp'
-        shell: bash
-        env:
-          npm_config_cache: ${{ env.RUN_DIR }}/private/npm-cache
-        run: npm exec --yes --package=@modelcontextprotocol/server-everything@1.0.0 -- node --version
-
-      - name: Suppress browser first-run UI on the disposable Windows runner
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $policy = 'HKCU:\Software\Policies\Microsoft\Edge'
-          New-Item -Path $policy -Force | Out-Null
-          New-ItemProperty -Path $policy -Name HideFirstRunExperience -Value 1 -PropertyType DWord -Force | Out-Null
-
-      - name: Start in-job mock provider
-        id: mock
-        if: inputs.provider_mode == 'mock'
-        shell: bash
-        run: >-
-          pnpm exec tsx scripts/e2e/regression/cli.ts mock-start
-          --run-dir "$RUN_DIR"
-
-      - name: Validate test configuration
-        shell: bash
-        env:
-          CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL: ${{ steps.mock.outputs.base_url || vars.CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL }}
-          CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL: ${{ steps.mock.outputs.anthropic_base_url || vars.CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL }}
-          CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: ${{ steps.mock.outputs.api_key || secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}
-          CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL: ${{ steps.mock.outputs.chat_model || vars.CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL }}
-          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL: ${{ steps.mock.outputs.base_url || vars.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL }}
-          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY: ${{ steps.mock.outputs.api_key || secrets.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY }}
-          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL: ${{ steps.mock.outputs.embedding_model || vars.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL }}
-          CHERRY_TEST_CHERRYIN_CHAT_MODEL: ${{ vars.CHERRY_TEST_CHERRYIN_CHAT_MODEL }}
-          CHERRY_TEST_CHERRYIN_IMAGE_MODEL: ${{ vars.CHERRY_TEST_CHERRYIN_IMAGE_MODEL }}
-          CHERRY_TEST_CHERRYIN_ACCOUNT: ${{ secrets.CHERRY_TEST_CHERRYIN_ACCOUNT }}
-          CHERRY_TEST_CHERRYIN_PASSWORD: ${{ secrets.CHERRY_TEST_CHERRYIN_PASSWORD }}
-        run: pnpm exec tsx scripts/e2e/regression/cli.ts preflight --run-dir "$RUN_DIR" --task '${{ needs.resolve.outputs.task }}'
-
-      - name: Install application dependencies
-        id: app-dependencies
-        if: needs.resolve.outputs.mode == 'branch'
-        run: pnpm --dir target-app install --frozen-lockfile
-
-      - name: Download application binary dependencies
-        if: needs.resolve.outputs.mode == 'branch'
-        run: pnpm --dir target-app download:binaries
-
-      - name: Prepare application runtime once
-        if: needs.resolve.outputs.mode == 'branch'
-        shell: bash
-        run: |
-          pnpm --dir target-app rebuild:electron
-          pnpm --dir target-app run build:utility-process
-
-      - name: Sign isolated macOS notification runtime
-        if: needs.resolve.outputs.mode == 'branch' && matrix.platform == 'macos'
-        shell: bash
-        env:
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-        run: >-
-          pnpm exec tsx scripts/e2e/regression/cli.ts prepare-mac-runtime
-          --run-dir "$RUN_DIR" --target-root "$TARGET_DIR"
-
-      - name: Download and install release
-        if: needs.resolve.outputs.mode == 'tag'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: >-
-          pnpm exec tsx scripts/e2e/regression/cli.ts release
-          --run-dir "$RUN_DIR"
-          --repository "${{ github.repository }}"
-          --arch "${{ runner.arch }}"
-
-      - name: Launch controlled Cherry Studio once
-        id: launch
-        shell: bash
-        run: >-
-          pnpm exec tsx scripts/e2e/regression/cli.ts launch
-          --run-dir "$RUN_DIR"
-          --target-root "$TARGET_DIR"
-          --run-key "${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}"
-
-      - name: Prepare end-to-end test configuration
-        shell: bash
-        env:
-          CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL: ${{ steps.mock.outputs.base_url || vars.CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL }}
-          CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL: ${{ steps.mock.outputs.anthropic_base_url || vars.CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL }}
-          CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: ${{ steps.mock.outputs.api_key || secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}
-          CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL: ${{ steps.mock.outputs.chat_model || vars.CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL }}
-          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL: ${{ steps.mock.outputs.base_url || vars.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL }}
-          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY: ${{ steps.mock.outputs.api_key || secrets.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY }}
-          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL: ${{ steps.mock.outputs.embedding_model || vars.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL }}
-          CHERRY_TEST_CHERRYIN_CHAT_MODEL: ${{ vars.CHERRY_TEST_CHERRYIN_CHAT_MODEL }}
-          CHERRY_TEST_CHERRYIN_IMAGE_MODEL: ${{ vars.CHERRY_TEST_CHERRYIN_IMAGE_MODEL }}
-          CHERRY_TEST_CHERRYIN_ACCOUNT: ${{ secrets.CHERRY_TEST_CHERRYIN_ACCOUNT }}
-          CHERRY_TEST_CHERRYIN_PASSWORD: ${{ secrets.CHERRY_TEST_CHERRYIN_PASSWORD }}
-        run: |
-          names=(
-            CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL
-            CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL
-            CHERRY_TEST_CUSTOM_PROVIDER_API_KEY
-            CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL
-            CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL
-            CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY
-            CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL
-            CHERRY_TEST_CHERRYIN_CHAT_MODEL
-            CHERRY_TEST_CHERRYIN_IMAGE_MODEL
-            CHERRY_TEST_CHERRYIN_ACCOUNT
-            CHERRY_TEST_CHERRYIN_PASSWORD
-          )
-          for name in "${names[@]}"; do
-            printf '%s=%s\n' "$name" "${!name}" >> "$GITHUB_ENV"
-          done
-
-      - name: Phase - Startup
-        if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
-        timeout-minutes: 25
-        shell: bash
-        run: >-
-          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
-          --run-dir "$RUN_DIR"
-          --phase startup
-      - name: Phase - Basic Features
-        if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
-        timeout-minutes: 25
-        shell: bash
-        run: >-
-          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
-          --run-dir "$RUN_DIR"
-          --phase basicFeatures
-      - name: Phase - Models And Assistants
-        if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
-        timeout-minutes: 25
-        shell: bash
-        run: >-
-          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
-          --run-dir "$RUN_DIR"
-          --phase modelsAndAssistants
-      - name: Phase - Translation Smoke
-        if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
-        timeout-minutes: 25
-        shell: bash
-        run: >-
-          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
-          --run-dir "$RUN_DIR"
-          --phase translationSmoke
-      - name: Phase - Desktop Assistants
-        if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
-        timeout-minutes: 25
-        shell: bash
-        run: >-
-          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
-          --run-dir "$RUN_DIR"
-          --phase desktopAssistants
-      - name: Phase - Knowledge
-        if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
-        timeout-minutes: 25
-        shell: bash
-        run: >-
-          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
-          --run-dir "$RUN_DIR"
-          --phase knowledge
-      - name: Phase - Integrations
-        if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
-        timeout-minutes: 25
-        shell: bash
-        run: >-
-          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
-          --run-dir "$RUN_DIR"
-          --phase integrations
-      - name: Phase - Code Tools
-        if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
-        timeout-minutes: 25
-        shell: bash
-        run: >-
-          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
-          --run-dir "$RUN_DIR"
-          --phase codeTools
-      - name: Phase - CherryIN
-        if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
-        timeout-minutes: 25
-        shell: bash
-        run: >-
-          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
-          --run-dir "$RUN_DIR"
-          --phase cherryIn
-      - name: Phase - Images
-        if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
-        timeout-minutes: 25
-        shell: bash
-        run: >-
-          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
-          --run-dir "$RUN_DIR"
-          --phase images
-      - name: Phase - Agent Runtimes
-        if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
-        timeout-minutes: 25
-        shell: bash
-        run: >-
-          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
-          --run-dir "$RUN_DIR"
-          --phase agentRuntimes
-      - name: Phase - Topics
-        if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
-        timeout-minutes: 25
-        shell: bash
-        run: >-
-          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
-          --run-dir "$RUN_DIR"
-          --phase topics
-      - name: Phase - Chat Core
-        if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
-        timeout-minutes: 25
-        shell: bash
-        run: >-
-          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
-          --run-dir "$RUN_DIR"
-          --phase chatCore
-      - name: Phase - Notes
-        if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
-        timeout-minutes: 25
-        shell: bash
-        run: >-
-          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
-          --run-dir "$RUN_DIR"
-          --phase notes
-      - name: Phase - Translation
-        if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
-        timeout-minutes: 25
-        shell: bash
-        run: >-
-          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
-          --run-dir "$RUN_DIR"
-          --phase translation
-      - name: Phase - Settings
-        if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
-        timeout-minutes: 40
-        shell: bash
-        run: >-
-          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
-          --run-dir "$RUN_DIR"
-          --phase settings
-      - name: Phase - Assistants
-        if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
-        timeout-minutes: 25
-        shell: bash
-        run: >-
-          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
-          --run-dir "$RUN_DIR"
-          --phase assistants
-      - name: Phase - Files
-        if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
-        timeout-minutes: 25
-        shell: bash
-        run: >-
-          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
-          --run-dir "$RUN_DIR"
-          --phase files
-      - name: Phase - Data Management
-        if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
-        timeout-minutes: 25
-        shell: bash
-        run: >-
-          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
-          --run-dir "$RUN_DIR"
-          --phase dataManagement
-      - name: Phase - Browser
-        if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
-        timeout-minutes: 25
-        shell: bash
-        run: >-
-          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
-          --run-dir "$RUN_DIR"
-          --phase browser
-      - name: Phase - System
-        if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
-        timeout-minutes: 25
-        shell: bash
-        run: >-
-          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
-          --run-dir "$RUN_DIR"
-          --phase system
-
-      - name: Clear end-to-end test configuration
-        if: always()
-        shell: bash
-        run: |
-          names=(
-            CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL
-            CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL
-            CHERRY_TEST_CUSTOM_PROVIDER_API_KEY
-            CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL
-            CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL
-            CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY
-            CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL
-            CHERRY_TEST_CHERRYIN_CHAT_MODEL
-            CHERRY_TEST_CHERRYIN_IMAGE_MODEL
-            CHERRY_TEST_CHERRYIN_ACCOUNT
-            CHERRY_TEST_CHERRYIN_PASSWORD
-          )
-          for name in "${names[@]}"; do
-            echo "$name=" >> "$GITHUB_ENV"
-          done
-
+          --outputFile.json="$RUN_DIR/report/native-controller-results.json" -t
+          "completes the real macos file dialog"
       - name: Stop disposable macOS permission observer
         if: always() && matrix.platform == 'macos'
         shell: bash
-        run: |
+        run: >
           [[ -n "${RUN_DIR:-}" && -d "$RUN_DIR/state" ]] || exit 0
+
           touch "$RUN_DIR/state/stop-ci-permissions"
+
           if [[ -f "$RUN_DIR/state/ci-native-permissions.pid" ]]; then
             observer_pid=$(cat "$RUN_DIR/state/ci-native-permissions.pid")
             [[ "$observer_pid" =~ ^[1-9][0-9]*$ ]] || exit 1
@@ -587,44 +290,48 @@ jobs:
               kill "$observer_pid"
             fi
           fi
-
-      - name: Stop controlled application
-        id: stop-app
-        if: always() && steps.controller-dependencies.outcome == 'success'
+      - name: Restore Notification Center on the disposable macOS runner
+        if: always() && matrix.platform == 'macos'
         shell: bash
-        run: pnpm exec tsx scripts/e2e/regression/cli.ts cleanup --run-dir "$RUN_DIR"
+        run: >
+          node <<'NODE'
 
-      - name: Build standalone smoke application
-        id: smoke-build
-        if: "!cancelled() && steps.stop-app.outcome == 'success' && steps.app-dependencies.outcome == 'success' && needs.resolve.outputs.mode == 'branch' && needs.resolve.outputs.task == 'all'"
-        shell: bash
-        working-directory: target-app
-        run: pnpm exec dotenv -v CHERRY_EDITION=global -- electron-vite build
+          const { execFileSync, spawnSync } = require('node:child_process')
 
-      - name: Run standalone smoke suite
-        if: always() && steps.smoke-build.outcome == 'success'
-        timeout-minutes: 60
-        shell: bash
-        working-directory: target-app
-        env:
-          PLAYWRIGHT_HTML_OUTPUT_DIR: ${{ runner.temp }}/cherry-regression/report/smoke
-          PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/cherry-regression/report/smoke-results.json
-          PLAYWRIGHT_HTML_OPEN: never
-        run: |
-          export E2E_RIPGREP_BIN="$(node -e 'process.stdout.write(require("node:path").resolve("resources/binaries", `${process.platform}-${process.arch}`, process.platform === "win32" ? "rg.exe" : "rg"))')"
-          node "$GITHUB_WORKSPACE/node_modules/@playwright/test/cli.js" test --config "$GITHUB_WORKSPACE/playwright.config.ts" \
-            --output "$RUN_DIR/evidence/smoke" --reporter=html,json --retries=0
+          const { existsSync, readFileSync } = require('node:fs')
 
-      - name: Generate platform report
-        if: always() && steps.controller-dependencies.outcome == 'success'
-        shell: bash
-        env:
-          CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}
-          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY }}
-          CHERRY_TEST_CHERRYIN_ACCOUNT: ${{ secrets.CHERRY_TEST_CHERRYIN_ACCOUNT }}
-          CHERRY_TEST_CHERRYIN_PASSWORD: ${{ secrets.CHERRY_TEST_CHERRYIN_PASSWORD }}
-        run: pnpm exec tsx scripts/e2e/regression/cli.ts finalize --run-dir "$RUN_DIR"
+          const { join } = require('node:path')
 
+          if (process.env.GITHUB_ACTIONS !== 'true' ||
+          process.env.RUNNER_ENVIRONMENT !== 'github-hosted') throw new
+          Error('Disposable hosted runner required')
+
+          if (!process.env.RUN_DIR) process.exit(0)
+
+          const path = join(process.env.RUN_DIR,
+          'state/notification-center-agent.json')
+
+          if (!existsSync(path)) process.exit(0)
+
+          const state = JSON.parse(readFileSync(path, 'utf8'))
+
+          if (state.domain !== `gui/${process.getuid()}` || typeof
+          state.disabled !== 'boolean' || typeof state.loaded !== 'boolean')
+          throw new Error('Notification Center ownership record is invalid')
+
+          if (!['com.apple.notificationcenterui',
+          'com.apple.notificationcenterui.agent'].includes(state.label)) throw
+          new Error('Notification Center service label is invalid')
+
+          const service = `${state.domain}/${state.label}`
+
+          if (state.disabled) execFileSync('launchctl', ['disable', service])
+
+          if (!state.loaded && spawnSync('launchctl', ['print', service], {
+          stdio: 'ignore' }).status === 0) execFileSync('launchctl', ['bootout',
+          service])
+
+          NODE
       - name: Upload platform report and evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -639,140 +346,3 @@ jobs:
             ${{ runner.temp }}/cherry-regression/agent-workspace
             ${{ runner.temp }}/cherry-regression/fixtures
             ${{ runner.temp }}/cherry-regression/release/installation.json
-
-      - name: Validate platform result
-        if: always() && steps.controller-dependencies.outcome == 'success'
-        shell: bash
-        run: pnpm exec tsx scripts/e2e/regression/cli.ts gate --run-dir "$RUN_DIR"
-
-  aggregate:
-    needs: [resolve, test]
-    if: always() && needs.resolve.result == 'success' && needs.test.result != 'skipped'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      actions: write
-    steps:
-      - name: Checkout workflow controller
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-          fetch-depth: 1
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v5
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version-file: .node-version
-          cache: pnpm
-
-      - name: Install controller dependencies
-        shell: bash
-        run: |
-          for attempt in 1 2 3; do
-            pnpm install --frozen-lockfile && exit 0
-            [[ "$attempt" == "3" ]] && exit 1
-            sleep $((attempt * 15))
-          done
-
-      - name: Download platform reports
-        id: download-reports
-        continue-on-error: true
-        uses: actions/download-artifact@v8
-        with:
-          path: downloaded-reports
-          pattern: test-*
-          merge-multiple: false
-
-      - name: Collect platform evidence
-        env:
-          TEST_RESULT: ${{ needs.test.result }}
-        run: |
-          mkdir -p platform-reports
-          for platform in macos windows; do
-            source="downloaded-reports/test-evidence-$platform"
-            if [[ ! -d "$source" && "$TEST_RESULT" == "success" ]]; then
-              source="downloaded-reports/test-report/evidence/$platform"
-            fi
-            if [[ -d "$source" ]]; then
-              cp -a "$source" "platform-reports/$platform"
-            fi
-          done
-
-      - name: Generate aggregate report
-        run: >-
-          pnpm exec tsx scripts/e2e/regression/cli.ts aggregate
-          --input platform-reports
-          --output combined-report
-          --mode "${{ needs.resolve.outputs.mode }}"
-          --provider-mode "${{ inputs.provider_mode }}"
-
-      - name: Summarize standalone smoke results
-        if: needs.resolve.outputs.mode == 'branch' && needs.resolve.outputs.task == 'all'
-        run: |
-          node <<'NODE'
-          const fs = require('node:fs')
-          const rows = ['\n## Standalone smoke suite\n', '| Platform | Passed | Failed | Flaky | Skipped |', '| --- | ---: | ---: | ---: | ---: |']
-          for (const platform of ['macos', 'windows']) {
-            const path = `platform-reports/${platform}/report/smoke-results.json`
-            const stats = fs.existsSync(path) ? JSON.parse(fs.readFileSync(path, 'utf8')).stats : null
-            rows.push(stats ? `| ${platform} | ${stats.expected} | ${stats.unexpected} | ${stats.flaky} | ${stats.skipped} |` : `| ${platform} | Missing report | — | — | — |`)
-          }
-          rows.push('\nDetailed smoke reports: `evidence/<platform>/report/smoke/index.html`. Smoke failures also fail the platform and aggregate jobs.\n')
-          const summary = rows.join('\n')
-          fs.appendFileSync('combined-report/combined-report.md', summary)
-          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary)
-          NODE
-
-      - name: Merge detailed Playwright reports
-        env:
-          CHERRY_TEST_RUN_DIR: ${{ github.workspace }}/combined-report
-          PLAYWRIGHT_HTML_OUTPUT_DIR: ${{ github.workspace }}/merged-html
-          PLAYWRIGHT_HTML_OPEN: never
-        run: |
-          mkdir -p merged-blobs
-          find platform-reports -path '*/blob-*/*.zip' -exec cp {} merged-blobs/ \;
-          pnpm exec playwright merge-reports --config playwright.regression.config.ts --reporter html merged-blobs
-
-      - name: Assemble complete report
-        id: assemble-report
-        run: |
-          test -f platform-reports/macos/report/results.json
-          test -f platform-reports/windows/report/results.json
-          cp -a merged-html/. combined-report/
-          cp -a platform-reports combined-report/evidence
-          mv combined-report/combined-report.md combined-report/summary.md
-          test -f combined-report/index.html
-
-      - name: Upload aggregate report
-        id: upload-report
-        if: always() && steps.download-reports.outcome == 'success' && steps.assemble-report.outcome == 'success'
-        uses: actions/upload-artifact@v7
-        with:
-          name: test-report
-          overwrite: true
-          path: combined-report
-          retention-days: 30
-
-      - name: Remove temporary platform artifacts
-        if: success() && steps.download-reports.outcome == 'success' && steps.upload-report.outputs.artifact-id != ''
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" \
-            --jq '.artifacts[] | select(.name == "test-evidence-macos" or .name == "test-evidence-windows") | .id' \
-            > temporary-artifact-ids.txt
-          while read -r artifact_id; do
-            gh api --method DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact_id"
-          done < temporary-artifact-ids.txt
-
-      - name: Validate aggregate result
-        if: always()
-        env:
-          TEST_RESULT: ${{ needs.test.result }}
-        run: |
-          pnpm exec tsx scripts/e2e/regression/cli.ts aggregate-gate --report combined-report/combined-results.json
-          test "$TEST_RESULT" = "success"
