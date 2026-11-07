@@ -1,34 +1,14 @@
 {
-  "generated_at": "2026-11-06T17:50:11.207491+00:00",
+  "generated_at": "2026-11-07T17:46:22.266030+00:00",
   "v2_branch_status": {
     "open_prs": 0,
-    "merged_prs_30d": 100,
+    "merged_prs_30d": 148,
     "note": "v2 branch merged into main; both v1 and v2 code coexist on main during refactor."
   },
   "merged_by_track": {
     "other": {
-      "count": 35,
+      "count": 57,
       "prs": [
-        {
-          "number": 15392,
-          "title": "fix: align bocha web search handling on v2",
-          "mergedAt": null
-        },
-        {
-          "number": 15364,
-          "title": "Fix: change Gemini Safety Settings to BLOCK_NONE - For V2",
-          "mergedAt": null
-        },
-        {
-          "number": 15306,
-          "title": "fix(proxy): bootstrap node proxy for child processes",
-          "mergedAt": null
-        },
-        {
-          "number": 15305,
-          "title": "fix(proxy): restore bootstrap entry",
-          "mergedAt": null
-        },
         {
           "number": 15265,
           "title": "feat(translate): refresh translate page and shared drawer composition",
@@ -40,24 +20,9 @@
           "mergedAt": "2026-05-27T08:53:22Z"
         },
         {
-          "number": 15255,
-          "title": "fix: keep dragged tabs within safe bounds",
-          "mergedAt": null
-        },
-        {
-          "number": 15247,
-          "title": "chore(deps): bump Vercel AI SDK packages to latest",
-          "mergedAt": null
-        },
-        {
           "number": 15238,
           "title": "fix(sidebar): align resize thresholds with layouts",
           "mergedAt": "2026-05-23T11:45:28Z"
-        },
-        {
-          "number": 15234,
-          "title": "fix: add missing key prop to SendMessageButton in InputbarCore (v2)",
-          "mergedAt": null
         },
         {
           "number": 15216,
@@ -70,34 +35,9 @@
           "mergedAt": "2026-05-21T03:35:05Z"
         },
         {
-          "number": 15125,
-          "title": "feat: Make generated Markdown and HTML artifact paths clickable in Ag…",
-          "mergedAt": null
-        },
-        {
-          "number": 15124,
-          "title": "feat: add display of cache hit token count in message tokens",
-          "mergedAt": null
-        },
-        {
-          "number": 15083,
-          "title": "feat: text diff highlighting for Refine action",
-          "mergedAt": null
-        },
-        {
-          "number": 15026,
-          "title": "refactor(selector): align model and resource selector styles",
-          "mergedAt": null
-        },
-        {
           "number": 15006,
           "title": "feat(code-tools): refresh launch experience",
           "mergedAt": "2026-05-13T07:42:59Z"
-        },
-        {
-          "number": 14973,
-          "title": "fix(miniapp): SG-1, SG-9, SG-11/12/14/15",
-          "mergedAt": null
         },
         {
           "number": 14862,
@@ -105,34 +45,9 @@
           "mergedAt": "2026-05-11T06:48:55Z"
         },
         {
-          "number": 14788,
-          "title": "feat: add Duplicate Topic feature",
-          "mergedAt": null
-        },
-        {
-          "number": 14735,
-          "title": "fix(image-generation): preserve aspect ratios for gpt-image-2",
-          "mergedAt": null
-        },
-        {
           "number": 14689,
           "title": "fix(assistant-api): align patch defaults with entity schema",
           "mergedAt": "2026-04-29T12:19:04Z"
-        },
-        {
-          "number": 14678,
-          "title": "fix(deepseek): display web search citations from DeepSeek annotations",
-          "mergedAt": null
-        },
-        {
-          "number": 14656,
-          "title": "feat: add enable/disable toggle for custom parameters",
-          "mergedAt": null
-        },
-        {
-          "number": 14647,
-          "title": "fix: prevent virtual draggable list setup warning",
-          "mergedAt": null
         },
         {
           "number": 14632,
@@ -145,49 +60,244 @@
           "mergedAt": "2026-04-30T13:18:26Z"
         },
         {
-          "number": 14595,
-          "title": "feat(topics): Add folder grouping for pinned topics",
-          "mergedAt": null
-        },
-        {
-          "number": 14562,
-          "title": "fix(code-tools): improve dark mode visibility",
-          "mergedAt": null
-        },
-        {
-          "number": 14555,
-          "title": "fix: respect trailing # in API host preview",
-          "mergedAt": null
-        },
-        {
-          "number": 14477,
-          "title": "feat(topics): Add sorting methods to topics page",
-          "mergedAt": null
-        },
-        {
-          "number": 14464,
-          "title": "fix: preserve referenced models during v2 migration",
-          "mergedAt": null
-        },
-        {
-          "number": 14456,
-          "title": "feat: add session-based prompt cache expiration reminder per conversation",
-          "mergedAt": null
-        },
-        {
           "number": 14442,
           "title": "feat(library): add v2 resource library page with assistant tag & search APIs",
           "mergedAt": "2026-05-10T12:14:46Z"
         },
         {
-          "number": 14410,
-          "title": "feat: show installed state for skill search results",
-          "mergedAt": null
+          "number": 14309,
+          "title": "refactor(settings): unify settings list item and action button patterns",
+          "mergedAt": "2026-04-20T06:58:28Z"
+        },
+        {
+          "number": 14251,
+          "title": "refactor: remove memory module from v2",
+          "mergedAt": "2026-04-16T05:22:31Z"
+        },
+        {
+          "number": 14229,
+          "title": "feat(migration): migrate llm model preferences to v2 with UniqueModelId format",
+          "mergedAt": "2026-04-17T10:07:15Z"
+        },
+        {
+          "number": 14180,
+          "title": "fix: remove libsql_vector_idx",
+          "mergedAt": "2026-04-11T09:55:57Z"
+        },
+        {
+          "number": 14174,
+          "title": "refactor(v2): remove local web search backend",
+          "mergedAt": "2026-04-20T06:52:10Z"
+        },
+        {
+          "number": 14163,
+          "title": "docs: add design system specifications (DESIGN.md)",
+          "mergedAt": "2026-04-10T09:46:34Z"
+        },
+        {
+          "number": 14138,
+          "title": "docs: consolidate bilingual docs, add link checker and architecture overview",
+          "mergedAt": "2026-04-09T08:01:40Z"
+        },
+        {
+          "number": 14086,
+          "title": "refactor: migrate shortcut system to Preference architecture",
+          "mergedAt": "2026-04-16T03:38:22Z"
+        },
+        {
+          "number": 14037,
+          "title": "feat: add PopoverConfirm component",
+          "mergedAt": "2026-04-05T08:22:44Z"
+        },
+        {
+          "number": 14017,
+          "title": "fix(i18n): update conversation title length constraint from 10 chars to 10 words",
+          "mergedAt": "2026-04-05T02:24:04Z"
+        },
+        {
+          "number": 13950,
+          "title": "fix: redux exporter",
+          "mergedAt": "2026-04-01T02:44:24Z"
+        },
+        {
+          "number": 13900,
+          "title": "fix: prevent concurrent v2 migration starts",
+          "mergedAt": "2026-03-31T02:12:34Z"
+        },
+        {
+          "number": 13898,
+          "title": "fix: reset migrator state before each migration retry",
+          "mergedAt": "2026-03-31T16:28:10Z"
+        },
+        {
+          "number": 13851,
+          "title": "feat(v2): decouple assistant from topic with dedicated table and migration",
+          "mergedAt": "2026-04-13T04:55:06Z"
+        },
+        {
+          "number": 13823,
+          "title": "fix(MemoryService): handle missing embedding model in memory configuration",
+          "mergedAt": "2026-03-31T06:40:03Z"
+        },
+        {
+          "number": 13793,
+          "title": "fix(migration): remove code_cli.overrides from simple mappings",
+          "mergedAt": "2026-03-25T16:12:41Z"
+        },
+        {
+          "number": 13790,
+          "title": "fix: add code_cli.overrides to target-key-definitions",
+          "mergedAt": "2026-03-25T13:31:31Z"
+        },
+        {
+          "number": 13761,
+          "title": "feat: migrate CodeToolsService and useCodeTools hook to v2 architecture",
+          "mergedAt": "2026-03-25T07:33:55Z"
+        },
+        {
+          "number": 13760,
+          "title": "fix: stabilize usePreference re-render and deduplicate API server status checks",
+          "mergedAt": "2026-03-25T02:00:24Z"
+        },
+        {
+          "number": 13704,
+          "title": "fix(V2): modify web search config",
+          "mergedAt": "2026-03-23T02:49:35Z"
+        },
+        {
+          "number": 13681,
+          "title": "refactor(V2): move web search service to main process",
+          "mergedAt": "2026-03-25T07:36:47Z"
+        },
+        {
+          "number": 13491,
+          "title": "fix: remove runtime web search preset validation",
+          "mergedAt": "2026-03-17T07:07:46Z"
+        },
+        {
+          "number": 13468,
+          "title": "rerefactor(miniapp): Miniapp V2",
+          "mergedAt": "2026-04-04T08:19:59Z"
+        },
+        {
+          "number": 13430,
+          "title": "refactor(prompt-management): simplify prompt management",
+          "mergedAt": "2026-05-07T11:43:48Z"
+        },
+        {
+          "number": 13415,
+          "title": "fix: websearch preference type",
+          "mergedAt": "2026-03-12T09:51:19Z"
+        },
+        {
+          "number": 13340,
+          "title": "feat(migration): migrate codeTools Redux slice to v2 preference with layered preset",
+          "mergedAt": "2026-03-24T08:05:30Z"
+        },
+        {
+          "number": 13257,
+          "title": "Web Search V2 Db schema",
+          "mergedAt": "2026-03-12T08:10:33Z"
+        },
+        {
+          "number": 12649,
+          "title": "merge main into v2",
+          "mergedAt": "2026-01-29T15:37:19Z"
+        },
+        {
+          "number": 12527,
+          "title": "refactor(settings): migrate SettingDivider and SettingHelpLink to Tailwind CSS",
+          "mergedAt": "2026-01-27T06:30:55Z"
+        },
+        {
+          "number": 12490,
+          "title": "feat: support accordion, circle progress and field",
+          "mergedAt": "2026-01-20T02:50:26Z"
+        },
+        {
+          "number": 12474,
+          "title": "feat(tabs): implement browser-like tab system with detach/attach support",
+          "mergedAt": "2026-04-10T04:26:23Z"
+        },
+        {
+          "number": 12060,
+          "title": "feat: context menu",
+          "mergedAt": "2026-05-11T05:21:48Z"
+        },
+        {
+          "number": 11460,
+          "title": "feat: implement core routing architecture with hybrid strategy",
+          "mergedAt": "2026-01-06T08:55:50Z"
+        },
+        {
+          "number": 11262,
+          "title": "Fix/merge-main",
+          "mergedAt": "2025-11-12T14:49:59Z"
+        },
+        {
+          "number": 11260,
+          "title": "feat(textarea): add Textarea component with variants and Storybook examples",
+          "mergedAt": "2025-12-02T10:33:06Z"
+        },
+        {
+          "number": 10913,
+          "title": "Merge branch 'main' into v2",
+          "mergedAt": "2025-10-23T10:14:20Z"
+        },
+        {
+          "number": 10856,
+          "title": "chores: remove config manager",
+          "mergedAt": "2025-10-21T05:46:05Z"
+        },
+        {
+          "number": 10698,
+          "title": "ci: allow v2 branch to run PR CI workflow",
+          "mergedAt": "2025-10-13T15:31:46Z"
+        },
+        {
+          "number": 10658,
+          "title": "fix: v2 merge error",
+          "mergedAt": "2025-10-13T01:24:32Z"
+        },
+        {
+          "number": 10517,
+          "title": "feat(CodeEditor): enable readOnly for CodeEditor (v2)",
+          "mergedAt": "2025-10-05T10:32:31Z"
+        },
+        {
+          "number": 10337,
+          "title": "refactor(SelectModelPopup): replace HStack with Flex component",
+          "mergedAt": "2025-09-24T12:10:13Z"
+        },
+        {
+          "number": 10233,
+          "title": "refactor: migrate to toast from antd message",
+          "mergedAt": "2025-09-20T08:58:41Z"
+        },
+        {
+          "number": 10204,
+          "title": "refactor: migrate sortable",
+          "mergedAt": "2025-09-17T09:26:41Z"
+        },
+        {
+          "number": 10190,
+          "title": "refactor: prefer import type",
+          "mergedAt": "2025-09-17T04:32:53Z"
+        },
+        {
+          "number": 10163,
+          "title": "refactor(CodeEditor): decouple CodeEditor and global settings",
+          "mergedAt": "2025-09-16T02:11:36Z"
+        },
+        {
+          "number": 10083,
+          "title": "refactor: migrate Flex from antd to custom Flex component",
+          "mergedAt": "2025-09-17T10:17:17Z"
         }
       ]
     },
     "data": {
-      "count": 13,
+      "count": 30,
       "prs": [
         {
           "number": 15186,
@@ -195,34 +305,14 @@
           "mergedAt": "2026-05-25T11:52:52Z"
         },
         {
-          "number": 15159,
-          "title": "fix: support mcpb imports and metadata resolution",
-          "mergedAt": null
-        },
-        {
-          "number": 15005,
-          "title": "fix: use app data directory instead of hardcoded mcp path",
-          "mergedAt": null
-        },
-        {
           "number": 14993,
           "title": "refactor(web-search-settings): migrate settings to v2 data path",
           "mergedAt": "2026-05-12T06:16:19Z"
         },
         {
-          "number": 14975,
-          "title": "refactor(tag-hooks): split legacy and DataApi tag hooks",
-          "mergedAt": null
-        },
-        {
           "number": 14941,
           "title": "Migrate OpenClaw page to v2 data storage",
           "mergedAt": "2026-05-08T14:48:45Z"
-        },
-        {
-          "number": 14935,
-          "title": "feat(v2-data-api): provider order_key, models bulk patch, hooks, cherry-in oauth",
-          "mergedAt": null
         },
         {
           "number": 14631,
@@ -250,85 +340,120 @@
           "mergedAt": "2026-04-24T10:23:18Z"
         },
         {
-          "number": 14412,
-          "title": "♻️ refactor(agents-data-api): migrate agents domain to DataApi — remove BaseService, database/ shims, SkillRepositories",
-          "mergedAt": null
-        }
-      ]
-    },
-    "provider": {
-      "count": 10,
-      "prs": [
-        {
-          "number": 15393,
-          "title": "feat(llm-provider): add Commonstack provider",
-          "mergedAt": null
+          "number": 14359,
+          "title": "refactor(data-api): use greedy :uniqueModelId* for model route",
+          "mergedAt": "2026-04-18T11:15:03Z"
         },
         {
-          "number": 15232,
-          "title": "feat: add provider filter to model selector",
-          "mergedAt": null
+          "number": 14269,
+          "title": "feat(data): add domain hooks for models/providers and batch model API",
+          "mergedAt": "2026-04-21T11:45:16Z"
         },
         {
-          "number": 15088,
-          "title": "feat(provider-settings): grouping + mode-based editor follow-up",
-          "mergedAt": "2026-05-18T12:57:26Z"
+          "number": 14257,
+          "title": "refactor(data): unify legacy model ID conversion and add FK references to user_model",
+          "mergedAt": "2026-04-16T13:50:49Z"
         },
         {
-          "number": 15087,
-          "title": "feat(icons): light/dark dual-source architecture for provider/model logos",
-          "mergedAt": "2026-05-18T05:44:22Z"
+          "number": 14234,
+          "title": "feat(data): add Tag entity DataApi with CRUD and entity-tag associations",
+          "mergedAt": "2026-04-17T10:11:35Z"
         },
         {
-          "number": 14856,
-          "title": "refactor(web-search): split provider capabilities and add Fetch/Jina",
-          "mergedAt": "2026-05-08T09:08:20Z"
+          "number": 14166,
+          "title": "fix(data): log non-NotFound errors in getEffectiveReasoningConfig",
+          "mergedAt": "2026-04-10T11:46:20Z"
         },
         {
-          "number": 14730,
-          "title": "feat(provider): add OpenCode Go provider with 14 preset models",
-          "mergedAt": null
+          "number": 14159,
+          "title": "feat: migrate agents storage to v2 main database",
+          "mergedAt": "2026-04-20T13:43:49Z"
         },
         {
-          "number": 14729,
-          "title": "feat(provider): add OpenCode Go provider with 14 preset models",
-          "mergedAt": null
+          "number": 14115,
+          "title": "feat(data): provider/model data migration and registry service (backend only)",
+          "mergedAt": "2026-04-10T11:12:34Z"
         },
         {
-          "number": 14728,
-          "title": "feat(provider): support Responses API endpoint for Volcengine provider",
-          "mergedAt": null
+          "number": 14049,
+          "title": "refactor(miniapp): migrate to v2 data layer",
+          "mergedAt": "2026-05-07T12:45:20Z"
         },
         {
-          "number": 14452,
-          "title": "refactor(provider-settings): migrate provider settings to v2 hooks and order-key ordering",
-          "mergedAt": null
+          "number": 13871,
+          "title": "refactor(translate): migrate renderer translate module from Redux/Dexie to v2 data APIs",
+          "mergedAt": "2026-05-10T10:19:28Z"
         },
         {
-          "number": 14443,
-          "title": "refactor(websearch-settings): remove local providers and use v2 preferences",
-          "mergedAt": "2026-05-06T05:53:41Z"
+          "number": 13764,
+          "title": "fix(migration): handle fresh installs with no legacy data gracefully",
+          "mergedAt": "2026-03-24T12:41:05Z"
+        },
+        {
+          "number": 13752,
+          "title": "fix(data): add missing Method type argument to QueryParamsForPath usages",
+          "mergedAt": "2026-03-24T06:29:38Z"
+        },
+        {
+          "number": 13751,
+          "title": "fix(data): resolve FK constraint failure in TranslateMigrator",
+          "mergedAt": "2026-03-24T05:29:05Z"
+        },
+        {
+          "number": 13748,
+          "title": "refactor(data): add type-safe return types to renderer DataApiService",
+          "mergedAt": "2026-03-24T05:57:19Z"
+        },
+        {
+          "number": 13739,
+          "title": "feat(data): add translate history and language backend API with langCode PK",
+          "mergedAt": "2026-03-23T12:29:15Z"
+        },
+        {
+          "number": 13734,
+          "title": "feat(v2): add MCP Server data API service and migrate renderer to v2 hooks",
+          "mergedAt": "2026-03-26T15:08:05Z"
+        },
+        {
+          "number": 13498,
+          "title": "feat(migration): add localStorage data source for v2 migration pipeline",
+          "mergedAt": "2026-03-17T07:43:14Z"
+        },
+        {
+          "number": 13412,
+          "title": "docs: add DeJeune as v2 data layer code owner",
+          "mergedAt": "2026-03-12T07:40:32Z"
+        },
+        {
+          "number": 13303,
+          "title": "feat(migration): add McpServerMigrator for v2 data migration",
+          "mergedAt": "2026-03-19T03:03:57Z"
+        },
+        {
+          "number": 13298,
+          "title": "feat(skills): add v2 data refactoring skills (migrator, data-api, renderer)",
+          "mergedAt": "2026-03-08T06:56:51Z"
+        },
+        {
+          "number": 13295,
+          "title": "fix(renderer): sync Redux store during streaming and migrate topic creation to Data API",
+          "mergedAt": "2026-03-08T06:54:55Z"
+        },
+        {
+          "number": 13269,
+          "title": "feat(migration): add Dexie settings unified data source and auto-generation",
+          "mergedAt": "2026-03-13T07:20:34Z"
+        },
+        {
+          "number": 13264,
+          "title": "refactor(data): migrate translate data to v2 cache/preference/dataapi architecture",
+          "mergedAt": "2026-03-23T04:24:29Z"
         }
       ]
     },
     "ui": {
-      "count": 10,
+      "count": 29,
       "prs": [
-        {
-          "number": 15365,
-          "title": "feat(agents): add Cherry Skill Creator builtin agent template",
-          "mergedAt": null
-        },
-        {
-          "number": 15339,
-          "title": "refactor(ui-controls): align switch and shared form components",
-          "mergedAt": null
-        },
-        {
-          "number": 15289,
-          "title": "fix(build): drop dead proxy/bootstrap build plugin",
-          "mergedAt": null
-        },
         {
           "number": 15091,
           "title": "refactor(ui): refresh shared dialog styling",
@@ -345,11 +470,6 @@
           "mergedAt": "2026-05-11T01:29:28Z"
         },
         {
-          "number": 14968,
-          "title": "refactor(miniapp): migrate from antd/styled-components to Tailwind + @cherrystudio/ui",
-          "mergedAt": null
-        },
-        {
           "number": 14940,
           "title": "refactor(renderer-components): replace legacy antd and styled UI usage",
           "mergedAt": "2026-05-09T15:10:23Z"
@@ -363,11 +483,126 @@
           "number": 14567,
           "title": "feat(settings): refactor settings UI and add settings window",
           "mergedAt": "2026-05-08T10:09:26Z"
+        },
+        {
+          "number": 14351,
+          "title": "refactor(translate): rebuild translate page on @cherrystudio/ui",
+          "mergedAt": "2026-05-11T05:57:26Z"
+        },
+        {
+          "number": 14328,
+          "title": "refactor: stabilize ui package boundaries and theme contracts",
+          "mergedAt": "2026-04-20T08:12:02Z"
+        },
+        {
+          "number": 14315,
+          "title": "refactor(code): redesign Code Tools page with tool grid and drawer UI",
+          "mergedAt": "2026-04-21T03:39:15Z"
+        },
+        {
+          "number": 14240,
+          "title": "feat(sidebar): implement tab bar UI with drag, pin, and context menu",
+          "mergedAt": "2026-04-14T14:50:42Z"
+        },
+        {
+          "number": 14143,
+          "title": "fix: restore agents UI routing, auth, and message sending",
+          "mergedAt": "2026-04-10T03:09:51Z"
+        },
+        {
+          "number": 14058,
+          "title": "feat(ui): add Skeleton component",
+          "mergedAt": "2026-04-07T06:10:30Z"
+        },
+        {
+          "number": 13954,
+          "title": "feat(sidebar): rewrite sidebar with Tailwind/shadcn UI and fix missing routes",
+          "mergedAt": "2026-04-10T09:28:07Z"
+        },
+        {
+          "number": 13943,
+          "title": "fix(migration): seed builtin languages before migrating translate history",
+          "mergedAt": "2026-04-02T12:12:50Z"
+        },
+        {
+          "number": 13942,
+          "title": "feat(ui): add Drawer component and Storybook stories",
+          "mergedAt": "2026-04-02T11:12:09Z"
+        },
+        {
+          "number": 13872,
+          "title": "chore(changeset): ignore @cherrystudio/ui in changeset checks",
+          "mergedAt": "2026-03-29T02:14:48Z"
+        },
+        {
+          "number": 13791,
+          "title": "refactor(ui): migrate provider icons to @cherrystudio/ui/icons",
+          "mergedAt": "2026-03-31T08:16:48Z"
+        },
+        {
+          "number": 13563,
+          "title": "refactor(ui): migrate Tooltip from HeroUI to shadcn/Radix UI",
+          "mergedAt": "2026-04-07T05:12:03Z"
+        },
+        {
+          "number": 13337,
+          "title": "docs(skills): add Layered Preset pattern and ReduxExporter guidance to v2 skills",
+          "mergedAt": "2026-03-12T07:02:35Z"
+        },
+        {
+          "number": 12858,
+          "title": "refactor(ui): overhaul icon system and migrate Avatar to shadcn/radix",
+          "mergedAt": "2026-03-16T09:13:26Z"
+        },
+        {
+          "number": 12655,
+          "title": "fix: hardcoded ui string",
+          "mergedAt": "2026-01-30T09:49:21Z"
+        },
+        {
+          "number": 12523,
+          "title": "refactor(ui): extract reusable IconTooltip base component",
+          "mergedAt": "2026-01-21T03:20:31Z"
+        },
+        {
+          "number": 11286,
+          "title": "feat(ui): new slider",
+          "mergedAt": "2026-01-13T03:33:32Z"
+        },
+        {
+          "number": 11110,
+          "title": "feat(ui): new Input",
+          "mergedAt": "2025-12-01T09:15:08Z"
+        },
+        {
+          "number": 11061,
+          "title": "feat(ui): new Switch",
+          "mergedAt": "2025-12-01T09:04:43Z"
+        },
+        {
+          "number": 10295,
+          "title": "refactor: migrate all antd Tooltip components to HeroUI Tooltip",
+          "mergedAt": "2025-10-05T10:33:22Z"
+        },
+        {
+          "number": 10292,
+          "title": "refactor(button): migrate button from antd to heroui",
+          "mergedAt": "2025-09-29T04:04:04Z"
+        },
+        {
+          "number": 10237,
+          "title": "refactor: migrate Switch from antd to heroui",
+          "mergedAt": "2025-09-18T11:16:53Z"
+        },
+        {
+          "number": 10191,
+          "title": "fix: ui package env",
+          "mergedAt": "2025-09-16T02:08:52Z"
         }
       ]
     },
     "knowledge": {
-      "count": 8,
+      "count": 10,
       "prs": [
         {
           "number": 15371,
@@ -385,11 +620,6 @@
           "mergedAt": "2026-05-27T03:54:26Z"
         },
         {
-          "number": 15252,
-          "title": "refactor(knowledge&file-processing): integrate file manager",
-          "mergedAt": null
-        },
-        {
           "number": 15213,
           "title": "refactor(knowledge): migrate to JobManager",
           "mergedAt": "2026-05-21T02:54:59Z"
@@ -405,54 +635,29 @@
           "mergedAt": "2026-05-01T11:24:48Z"
         },
         {
-          "number": 14612,
-          "title": "refactor(knowledge): migrate v1 to v2",
-          "mergedAt": null
-        }
-      ]
-    },
-    "chat": {
-      "count": 7,
-      "prs": [
-        {
-          "number": 15031,
-          "title": "feat(chat): add new left topic list for home chat",
-          "mergedAt": null
+          "number": 14280,
+          "title": "fix(v2): remove knowledge libsql vector indexes",
+          "mergedAt": "2026-04-15T13:42:57Z"
         },
         {
-          "number": 14943,
-          "title": "feat(app-shell): open chat by default",
-          "mergedAt": null
+          "number": 14090,
+          "title": "feat(v2):  knowledge service backend",
+          "mergedAt": "2026-04-10T13:24:07Z"
         },
         {
-          "number": 14864,
-          "title": "feat: pin chat session name to prevent auto-renames",
-          "mergedAt": null
+          "number": 13936,
+          "title": "fix: skip directory-based legacy knowledge stores in migration",
+          "mergedAt": "2026-03-31T16:10:48Z"
         },
         {
-          "number": 14863,
-          "title": "Feat/pin chat session name",
-          "mergedAt": null
-        },
-        {
-          "number": 14760,
-          "title": "fix(chat-layout): restore chat composer sizing and anchor messages to bottom",
-          "mergedAt": null
-        },
-        {
-          "number": 14748,
-          "title": "fix(models): route gpt-image-2 through chat completion instead of dedicated image API",
-          "mergedAt": null
-        },
-        {
-          "number": 14563,
-          "title": "Preserve edited chat messages as branchable versions",
-          "mergedAt": null
+          "number": 13640,
+          "title": "Refactor(v2): add knowledge db schema",
+          "mergedAt": "2026-03-30T08:47:39Z"
         }
       ]
     },
     "file": {
-      "count": 6,
+      "count": 7,
       "prs": [
         {
           "number": 15330,
@@ -475,25 +680,60 @@
           "mergedAt": "2026-05-11T15:15:36Z"
         },
         {
-          "number": 14964,
-          "title": "refactor(file-processing-settings): file-processing-settings",
-          "mergedAt": null
+          "number": 13968,
+          "title": "feat(v2): add main-side file processing backend",
+          "mergedAt": "2026-05-08T13:25:04Z"
         },
         {
-          "number": 14489,
-          "title": "feat(notify): support image and file attachments across channels",
-          "mergedAt": null
+          "number": 13451,
+          "title": "feat(file): Add schema and foundation for new file module",
+          "mergedAt": "2026-05-13T08:06:10Z"
+        },
+        {
+          "number": 13328,
+          "title": "feat: v2 file processing db schema",
+          "mergedAt": "2026-03-23T12:40:58Z"
+        }
+      ]
+    },
+    "provider": {
+      "count": 6,
+      "prs": [
+        {
+          "number": 15088,
+          "title": "feat(provider-settings): grouping + mode-based editor follow-up",
+          "mergedAt": "2026-05-18T12:57:26Z"
+        },
+        {
+          "number": 15087,
+          "title": "feat(icons): light/dark dual-source architecture for provider/model logos",
+          "mergedAt": "2026-05-18T05:44:22Z"
+        },
+        {
+          "number": 14856,
+          "title": "refactor(web-search): split provider capabilities and add Fetch/Jina",
+          "mergedAt": "2026-05-08T09:08:20Z"
+        },
+        {
+          "number": 14443,
+          "title": "refactor(websearch-settings): remove local providers and use v2 preferences",
+          "mergedAt": "2026-05-06T05:53:41Z"
+        },
+        {
+          "number": 14167,
+          "title": "docs: move provider-registry.md to provider-model directory",
+          "mergedAt": "2026-04-10T12:16:56Z"
+        },
+        {
+          "number": 13658,
+          "title": "fix(websearch): add querit to shared provider ids and presets",
+          "mergedAt": "2026-03-21T09:17:30Z"
         }
       ]
     },
     "agent": {
       "count": 6,
       "prs": [
-        {
-          "number": 15177,
-          "title": "feat(agents): add Claude OpenAI proxy for OpenAI-compatible providers",
-          "mergedAt": null
-        },
         {
           "number": 14929,
           "title": "feat(agents): add mock todo list panel preview",
@@ -505,34 +745,24 @@
           "mergedAt": "2026-05-01T00:33:14Z"
         },
         {
-          "number": 14658,
-          "title": "feat(agents): add common options for agent",
-          "mergedAt": null
-        },
-        {
           "number": 14556,
           "title": "feat(selector-v2): assistant & agent selectors on the EntitySelector composite",
           "mergedAt": "2026-04-30T04:11:14Z"
         },
         {
-          "number": 14429,
-          "title": "refactor(agents-db): FK-link agent/session model columns to user_model",
-          "mergedAt": null
-        }
-      ]
-    },
-    "window": {
-      "count": 2,
-      "prs": [
-        {
-          "number": 14970,
-          "title": "feat(agents): add optional PowerShell tool for Windows agent sessions",
-          "mergedAt": null
+          "number": 14220,
+          "title": "refactor: move rtk extraction into agent bootstrap service",
+          "mergedAt": "2026-04-13T03:39:20Z"
         },
         {
-          "number": 14742,
-          "title": "feat(trace): make call chain window adapt to text length and size",
-          "mergedAt": null
+          "number": 14147,
+          "title": "refactor: replace HTTP MCP proxy with in-memory SDK transport for Claude Agent SDK",
+          "mergedAt": "2026-04-10T05:16:25Z"
+        },
+        {
+          "number": 14032,
+          "title": "feat(aiCore): add createAgent factory for ToolLoopAgent with plugin pipeline",
+          "mergedAt": "2026-04-04T08:20:18Z"
         }
       ]
     },
@@ -556,13 +786,13 @@
         }
       ]
     },
-    "mcp": {
+    "chat": {
       "count": 1,
       "prs": [
         {
-          "number": 14886,
-          "title": "fix(mcp-service): sanitize MCP call arguments to avoid 'unhashable type: dict' from MCP servers",
-          "mergedAt": null
+          "number": 13940,
+          "title": "fix(migration): resolve dangling parentId in ChatMigrator for deleted user messages",
+          "mergedAt": "2026-03-31T16:33:52Z"
         }
       ]
     }
