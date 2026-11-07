@@ -95,10 +95,8 @@ describe('AgentChatContextProvider', () => {
     runtimeDriverRegistry.clearForTest()
     runtimeDriverRegistry.register({
       type: 'claude-code',
-      capabilities: ['agent-session'],
       connect: vi.fn(),
-      validateSession: mocks.runtimeValidateSession,
-      listAvailableTools: vi.fn().mockResolvedValue([])
+      validateSession: mocks.runtimeValidateSession
     })
     mocks.getSession.mockReturnValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/tmp' } })
     mocks.ensureTraceIdTx.mockReturnValue('a'.repeat(32))

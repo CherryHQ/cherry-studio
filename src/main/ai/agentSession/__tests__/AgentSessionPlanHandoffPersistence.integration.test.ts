@@ -5,7 +5,7 @@
  * result reaches the accumulator, so `finalizeInterruptedParts` saves the approved plan as
  * `output-error` "Interrupted by user" and reloaded application history displays an error.
  *
- * Real path under test: runtime turn stream → AiStreamManager's `readUIMessageStream` accumulator →
+ * Real path under test: runtime turn stream → AiStreamManager's projection accumulator →
  * PersistenceListener → AgentSessionMessageBackend → agentSessionMessageService (SQLite). Only the
  * runtime connection is faked.
  */
@@ -20,6 +20,7 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
+import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { AiStreamManager } from '@main/ai/streamManager'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
@@ -158,18 +159,19 @@ describe('Plan-approval model handoff persistence', () => {
 
   it('persists the approved plan tool result instead of an interruption when the turn stops for the handoff', async () => {
     const events = createAsyncQueue<Record<string, unknown>>()
+    // The projection the accumulator reads resolves its context row, so the session needs a real one.
+    const context = preparePiBranch(SESSION_ID)
     const connection = {
       events: events.iterable,
       send: vi.fn(),
       close: vi.fn(),
+      contextId: context.id,
       reconcile: vi.fn().mockResolvedValue('current')
     }
     runtimeDriverRegistry.register({
       type: 'test-runtime',
-      capabilities: ['agent-session'],
       connect: vi.fn().mockResolvedValue(connection),
-      validateSession: vi.fn(),
-      listAvailableTools: vi.fn().mockResolvedValue([])
+      validateSession: vi.fn()
     })
 
     const service = new AgentSessionRuntimeService()
@@ -280,10 +282,32 @@ describe('Plan-approval model handoff persistence', () => {
     expect(result).toEqual({ dispatched: true, handoff: 'started' })
 
     // The dispatch resolved the runtime's permission continuation, so the plan tool's successful
-    // result is on its way to the persistence accumulator as the teardown begins.
+    // result is on its way to the persistence accumulator as the teardown begins. Content reaches
+    // the accumulator through the thread projection (raw output chunks are broadcast only).
     events.push({
-      type: 'chunk',
-      chunk: { type: 'tool-output-available', toolCallId: TOOL_CALL_ID, output: 'Plan approved' }
+      type: 'message-projection',
+      projection: {
+        contextId: context.id,
+        messages: [
+          {
+            id: ASSISTANT_MESSAGE_ID,
+            role: 'assistant',
+            parts: [
+              {
+                type: 'dynamic-tool',
+                toolCallId: TOOL_CALL_ID,
+                toolName: 'exit_plan_mode',
+                input: { plan: '# Plan' },
+                state: 'output-available',
+                output: 'Plan approved'
+              }
+            ]
+          } as never
+        ],
+        live: [ASSISTANT_MESSAGE_ID],
+        replaces: {},
+        removed: []
+      }
     })
 
     await vi.waitFor(() => {
