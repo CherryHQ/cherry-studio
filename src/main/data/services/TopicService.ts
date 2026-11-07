@@ -324,6 +324,7 @@ export class TopicService {
       if (!sourceTopic) throw DataApiErrorFactory.notFound('Topic', sourceTopicId)
 
       const sourcePathRows = messageService.getPathRowsToNodeTx(tx, dto.nodeId, { topicId: sourceTopicId })
+      const sourceRows = dto.includeBranches ? messageService.getTopicMessageRowsTx(tx, sourceTopicId) : sourcePathRows
 
       const newTopicRow = insertWithOrderKey(
         tx,
@@ -342,16 +343,17 @@ export class TopicService {
         }
       ) as TopicRow
 
-      // New topic is a creation path → create its virtual root before copying the path
-      // (copyPathRowsTx reparents the copied head onto it).
+      // New topic is a creation path → create its virtual root before copying messages.
       messageService.createRootMessageTx(tx, newTopicRow.id)
 
-      const { copiedMessageIds, copiedActiveNodeId } = messageService.copyPathRowsTx(tx, sourcePathRows, {
-        topicId: newTopicRow.id
+      const { copiedMessageIds, copiedActiveNodeId } = messageService.copyMessageRowsTx(tx, sourceRows, {
+        topicId: newTopicRow.id,
+        preserveBranches: dto.includeBranches,
+        activeNodeId: dto.includeBranches ? dto.nodeId : undefined
       })
 
-      // Intentionally copies only topic metadata, root-to-node messages, and chat-message file refs.
-      // Pins, tags, trace links, and pruned siblings/descendants stay with their original rows.
+      // Intentionally copies only topic metadata, selected message rows, and chat-message file refs.
+      // Pins, tags, and trace links stay with their original rows.
       copyChatMessageFileRefsBySourceIdMapTx(tx, copiedMessageIds)
 
       const [updatedTopicRow] = tx
@@ -365,9 +367,10 @@ export class TopicService {
     })
     this.notifyReadModelChange([copiedTopic.id], 'membership')
 
-    logger.info('Duplicated topic path into new topic', {
+    logger.info('Duplicated topic into new topic', {
       sourceTopicId,
       nodeId: dto.nodeId,
+      includeBranches: dto.includeBranches ?? false,
       newTopicId: copiedTopic.id,
       activeNodeId: copiedTopic.activeNodeId
     })

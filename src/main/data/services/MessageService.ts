@@ -2190,6 +2190,39 @@ export class MessageService {
     return this.getRowsInOrderTx(tx, this.getPathIdsToNodeTx(tx, nodeId, options))
   }
 
+  /** All live content rows in a topic, ordered so each parent precedes its children. */
+  getTopicMessageRowsTx(tx: DbOrTx, topicId: string): MessageRow[] {
+    const rows = tx.all<{ id: string }>(sql`
+      WITH RECURSIVE topic_messages(id, depth) AS (
+        SELECT m.id, 0
+        FROM message m
+        WHERE m.topic_id = ${topicId}
+          AND m.deleted_at IS NULL
+          AND m.role <> 'root'
+          AND NOT EXISTS (
+            SELECT 1
+            FROM message parent
+            WHERE parent.id = m.parent_id
+              AND parent.topic_id = m.topic_id
+              AND parent.deleted_at IS NULL
+              AND parent.role <> 'root'
+          )
+        UNION ALL
+        SELECT child.id, topic_messages.depth + 1
+        FROM message child
+        INNER JOIN topic_messages ON child.parent_id = topic_messages.id
+        WHERE child.topic_id = ${topicId}
+          AND child.deleted_at IS NULL
+          AND child.role <> 'root'
+      )
+      SELECT id FROM topic_messages ORDER BY depth, id
+    `)
+    return this.getRowsInOrderTx(
+      tx,
+      rows.map((row) => row.id)
+    )
+  }
+
   /** Root -> node path ids, without loading message rows. Same scoping as `getPathRowsToNodeTx`. */
   private getPathIdsToNodeTx(tx: DbOrTx, nodeId: string, options: { topicId?: string } = {}): string[] {
     // Raw CTE rows keep snake_case `parent_id`; they only feed this id walk, never rowToMessage.
@@ -2249,23 +2282,19 @@ export class MessageService {
   }
 
   /**
-   * Copy one contiguous root -> node path into another topic.
+   * Copy ordered message rows into another topic.
    *
-   * `rows` must be the ordered chain returned by `getPathRowsToNodeTx`; callers
-   * should not pass arbitrary or forked message sets. The copy preserves the
-   * renderable message content and message-owned timings, but not usage/cost:
-   * those remain projected from records associated with the original message
-   * ids. It also intentionally does not copy `traceId`: trace links describe
-   * the original conversation run, while the duplicated topic starts without
-   * trace linkage.
+   * Rows must be ordered with each parent before its children. Branch groups
+   * are preserved only when requested. Usage/cost and trace links remain
+   * associated with the original message ids and are not copied.
    */
-  copyPathRowsTx(
+  copyMessageRowsTx(
     tx: DbOrTx,
     rows: MessageRow[],
-    options: { topicId: string }
+    options: { topicId: string; preserveBranches?: boolean; activeNodeId?: string }
   ): { copiedMessageIds: Map<string, string>; copiedActiveNodeId: string } {
     if (rows.length === 0) {
-      throw DataApiErrorFactory.invalidOperation('copy message path', 'Source path is empty')
+      throw DataApiErrorFactory.invalidOperation('copy topic messages', 'Source message set is empty')
     }
 
     // The destination topic's virtual root; the path head (first-turn message, whose
@@ -2292,8 +2321,7 @@ export class MessageService {
       if (sourceMessage.parentId && copiedMessageIds.has(sourceMessage.parentId)) {
         copiedParentId = copiedMessageIds.get(sourceMessage.parentId)!
       } else {
-        // Head of the path: its source parent is the (excluded) source virtual root,
-        // so attach to the destination topic's virtual root.
+        // Rows without a copied parent attach to the destination topic's virtual root.
         copiedParentId = destRootId
       }
       // A copied pending row has no stream owner; make it terminal.
@@ -2307,7 +2335,7 @@ export class MessageService {
           role: sourceMessage.role,
           data: sourceMessage.data,
           status,
-          siblingsGroupId: 0,
+          siblingsGroupId: options.preserveBranches ? sourceMessage.siblingsGroupId : 0,
           modelId: sourceMessage.modelId,
           messageSnapshot: sourceMessage.messageSnapshot,
           stats: Object.keys(copiedStats).length > 0 ? copiedStats : null,
@@ -2318,7 +2346,9 @@ export class MessageService {
         .all()
 
       copiedMessageIds.set(sourceMessage.id, copiedMessage.id)
-      copiedActiveNodeId = copiedMessage.id
+      if (!options.activeNodeId || sourceMessage.id === options.activeNodeId) {
+        copiedActiveNodeId = copiedMessage.id
+      }
     }
 
     // File refs are NOT re-derived here: the sole caller (TopicService.duplicate)

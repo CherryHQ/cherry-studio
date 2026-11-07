@@ -96,22 +96,25 @@ export const SetActiveNodeSchema = z.strictObject({
 export type SetActiveNodeDto = z.infer<typeof SetActiveNodeSchema>
 
 /**
- * DTO for duplicating a topic path into a new topic.
+ * DTO for duplicating a topic into a new topic.
  *
  * Current contract:
  * - `nodeId` copies only the root-to-node path into the new topic and drops
  *   siblings / descendants outside that path.
+ * - `includeBranches` copies the whole live message tree while keeping `nodeId`
+ *   active in the new topic.
  * - `name` lets the renderer pass a localized duplicate title; when omitted,
  *   the service falls back to the source topic name.
  *
  * Intended evolution:
- * - Omit `nodeId`: duplicate the whole topic with all branches.
  * - Add `sourceNodeId`: copy the subpath from `sourceNodeId` to `nodeId`.
  * - For in-place edit/resend branching, use `POST /messages/:id/siblings`.
  */
 export const DuplicateTopicSchema = z.strictObject({
   /** Message node to copy up to. Must belong to the source topic. */
   nodeId: z.string().min(1),
+  /** Copy every live branch in the topic instead of only the path to `nodeId`. */
+  includeBranches: z.boolean().optional(),
   /** Optional localized name for the duplicated topic. */
   name: z.string().trim().pipe(TopicNameSchema).optional()
 })
@@ -276,8 +279,9 @@ export type TopicSchemas = {
   /**
    * Duplicate action endpoint.
    *
-   * Creates a new topic by copying the source topic's root → `nodeId` message
-   * path. The copied topic's active node is the copied `nodeId`.
+   * Creates a new topic from the selected message path, or from the complete
+   * message tree when `includeBranches` is true. The copied topic's active
+   * node is the copied `nodeId`.
    *
    * @example POST /topics/abc123/duplicate { "nodeId": "msg456", "name": "Source (Copy)" }
    */

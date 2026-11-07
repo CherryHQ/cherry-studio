@@ -154,11 +154,11 @@ const TopicBranchPanel: FC<Props> = ({
   )
 
   const handleCopyBranchToNewTopic = useCallback(
-    async (messageId: string) => {
+    async (messageId: string, includeBranches = false) => {
       try {
         await copyBranchToNewTopic({
           params: { id: topicId },
-          body: { nodeId: messageId }
+          body: { nodeId: messageId, ...(includeBranches ? { includeBranches: true } : {}) }
         })
         toast.success(t('chat.message.flow.copy_topic.created'))
       } catch (err) {
@@ -236,6 +236,18 @@ const TopicBranchPanel: FC<Props> = ({
           children: []
         },
         {
+          id: 'topic-flow.copy-topic-with-branches',
+          label: t('chat.message.flow.copy_topic.all_branches.label'),
+          icon: <CopyPlus size={14} />,
+          group: 'copy',
+          danger: false,
+          availability: {
+            visible: true,
+            enabled: true
+          },
+          children: []
+        },
+        {
           id: 'topic-flow.delete-branch',
           label: t('chat.message.flow.delete_branch.label'),
           icon: <DeleteIcon size={14} />,
@@ -258,6 +270,10 @@ const TopicBranchPanel: FC<Props> = ({
         }
         if (action.id === 'topic-flow.copy-topic') {
           void handleCopyBranchToNewTopic(messageId)
+          return
+        }
+        if (action.id === 'topic-flow.copy-topic-with-branches') {
+          void handleCopyBranchToNewTopic(messageId, true)
           return
         }
         if (action.id === 'topic-flow.delete-branch') {

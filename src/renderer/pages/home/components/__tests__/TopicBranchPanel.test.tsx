@@ -779,6 +779,20 @@ describe('TopicBranchPanel', () => {
     })
     expect(toast.success).toHaveBeenCalledWith('chat.message.flow.copy_topic.created')
   })
+
+  it('copies the complete branch history when requested from the graph', async () => {
+    render(<TopicBranchPanel open={true} topicId="topic-1" />)
+
+    fireEvent.contextMenu(screen.getByTestId('topic-message-flow-node-message-1'))
+    fireEvent.click(await screen.findByRole('button', { name: 'chat.message.flow.copy_topic.all_branches.label' }))
+
+    await waitFor(() => {
+      expect(mocks.copyBranchToNewTopic).toHaveBeenCalledWith({
+        body: { includeBranches: true, nodeId: 'message-1' },
+        params: { id: 'topic-1' }
+      })
+    })
+  })
   it('cancels without deleting, confirms once, and renders only the refreshed surviving previews', async () => {
     const user = userEvent.setup()
     const tree = showDeletionTree()

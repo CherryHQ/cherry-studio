@@ -888,12 +888,20 @@ describe('messageMenuBarActions', () => {
 
     const menuActions = resolveMessageMenuBarMenuActions(context)
 
-    expect(menuActions.slice(0, 2).map((action) => action.id)).toEqual(['new-branch', 'copy-to-new-topic'])
+    expect(menuActions.slice(0, 3).map((action) => action.id)).toEqual([
+      'new-branch',
+      'copy-to-new-topic',
+      'copy-topic-with-branches'
+    ])
 
     await executeMessageMenuBarAction('copy-to-new-topic', context)
 
     expect(copyBranchToNewTopic).toHaveBeenCalledWith('message-1')
     expect(notifySuccess).toHaveBeenCalledWith('chat.message.flow.copy_topic.created')
+
+    await executeMessageMenuBarAction('copy-topic-with-branches', context)
+
+    expect(copyBranchToNewTopic).toHaveBeenCalledWith('message-1', { includeBranches: true })
   })
 
   it('hides branch actions from user message menus', () => {

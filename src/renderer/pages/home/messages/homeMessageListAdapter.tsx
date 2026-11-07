@@ -683,10 +683,10 @@ export function useHomeMessageListProviderValue({
   )
 
   const copyBranchToNewTopic = useCallback<NonNullable<MessageListActions['copyBranchToNewTopic']>>(
-    async (messageId) => {
+    async (messageId, options) => {
       await copyBranchToNewTopicTrigger({
         params: { id: topicId },
-        body: { nodeId: messageId }
+        body: { nodeId: messageId, ...(options?.includeBranches ? { includeBranches: true } : {}) }
       })
     },
     [copyBranchToNewTopicTrigger, topicId]

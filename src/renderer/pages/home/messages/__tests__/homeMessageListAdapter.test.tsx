@@ -751,6 +751,32 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     })
   })
 
+  it('requests complete branch history when copying a message into a new topic', async () => {
+    const copyBranchToNewTopicTrigger = vi.fn().mockResolvedValue(createTopic('copied-topic'))
+    let value: MessageListProviderValue | undefined
+
+    await mockUseMutation.withImplementation(
+      () => ({
+        trigger: copyBranchToNewTopicTrigger,
+        isLoading: false,
+        error: undefined
+      }),
+      async () => {
+        render(
+          <MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />
+        )
+
+        await waitFor(() => expect(value).toBeDefined())
+        await value?.actions.copyBranchToNewTopic?.('assistant-old', { includeBranches: true })
+      }
+    )
+
+    expect(copyBranchToNewTopicTrigger).toHaveBeenCalledWith({
+      params: { id: 'topic-a' },
+      body: { nodeId: 'assistant-old', includeBranches: true }
+    })
+  })
+
   it('keeps a message translation active until its final update is persisted', async () => {
     let finishPersistingTranslation: (() => void) | undefined
     let value: MessageListProviderValue | undefined
