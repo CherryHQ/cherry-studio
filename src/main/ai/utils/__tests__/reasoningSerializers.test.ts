@@ -72,6 +72,47 @@ describe('resolveReasoningInvocation budget constraints', () => {
     expect(result.budgetTokens).toBeLessThan(8192)
   })
 
+  // Bailian per-SKU ceilings (#21906): the wire `max` backstops descriptors
+  // that are missing or wider than the provider accepts.
+  it('clamps a wider descriptor to the wire max', () => {
+    const wireMaxProfile: ReasoningWireProfile = {
+      effort: {
+        operations: [{ target: 'thinking_budget', value: { source: 'budget' } }],
+        budget: { max: 81920, missing: { type: 'omit-value' } }
+      }
+    }
+    const wideModel = makeModel({
+      reasoning: {
+        controls: [{ kind: 'budget', min: 0, max: 262144 }],
+        selectableEfforts: ['high'],
+        thinkingTokenLimits: { min: 0, max: 262144 }
+      }
+    })
+    const invocation = resolveReasoningInvocation({ selection: 'max', model: wideModel, profile: wireMaxProfile })
+
+    expect(invocation.budgetTokens).toBe(81920)
+    expect(encodeReasoningInvocation(invocation)).toEqual({ thinking_budget: 81920 })
+  })
+
+  it('keeps the tighter descriptor max when it is below the wire max', () => {
+    const wireMaxProfile: ReasoningWireProfile = {
+      effort: {
+        operations: [{ target: 'thinking_budget', value: { source: 'budget' } }],
+        budget: { max: 131072, missing: { type: 'omit-value' } }
+      }
+    }
+    const narrowModel = makeModel({
+      reasoning: {
+        controls: [{ kind: 'budget', min: 0, max: 4096 }],
+        selectableEfforts: ['max'],
+        thinkingTokenLimits: { min: 0, max: 4096 }
+      }
+    })
+    const invocation = resolveReasoningInvocation({ selection: 'max', model: narrowModel, profile: wireMaxProfile })
+
+    expect(invocation.budgetTokens).toBe(4096)
+  })
+
   it('encodes an audited provider budget target without serializer model branches', () => {
     const profile: ReasoningWireProfile = {
       effort: {

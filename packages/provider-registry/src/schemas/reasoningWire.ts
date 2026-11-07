@@ -70,16 +70,21 @@ const NonBudgetReasoningWireOperationSchema = z.object({
   value: NonBudgetReasoningWireValueSchema
 })
 
-const ReasoningBudgetPolicySchema = z.object({
-  min: z.number().nonnegative().optional(),
-  autoValue: z.number().optional(),
-  clampToMaxTokens: z.boolean().optional(),
-  missing: z.discriminatedUnion('type', [
-    z.object({ type: z.literal('omit-value') }),
-    z.object({ type: z.literal('omit-mode') }),
-    z.object({ type: z.literal('fallback'), value: z.number() })
-  ])
-})
+const ReasoningBudgetPolicySchema = z
+  .object({
+    min: z.number().nonnegative().optional(),
+    max: z.number().positive().optional(),
+    autoValue: z.number().optional(),
+    clampToMaxTokens: z.boolean().optional(),
+    missing: z.discriminatedUnion('type', [
+      z.object({ type: z.literal('omit-value') }),
+      z.object({ type: z.literal('omit-mode') }),
+      z.object({ type: z.literal('fallback'), value: z.number() })
+    ])
+  })
+  .refine((policy) => policy.min === undefined || policy.max === undefined || policy.min <= policy.max, {
+    message: 'reasoning budget policy min must be <= max'
+  })
 
 const ReasoningEffortMapSchema = z.partialRecord(ReasoningEffortSchema, ReasoningEffortSchema).optional()
 

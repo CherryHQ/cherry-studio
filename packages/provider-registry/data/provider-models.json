@@ -4674,6 +4674,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -4696,6 +4697,7 @@
             },
             "effort": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -5052,6 +5054,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -5074,6 +5077,7 @@
             },
             "effort": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -5171,6 +5175,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -5193,6 +5198,7 @@
             },
             "effort": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -5285,6 +5291,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -5307,6 +5314,7 @@
             },
             "effort": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -5399,6 +5407,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -5421,6 +5430,7 @@
             },
             "effort": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -5513,6 +5523,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -5535,6 +5546,7 @@
             },
             "effort": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -5629,6 +5641,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -5651,6 +5664,7 @@
             },
             "effort": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -5745,6 +5759,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -5767,6 +5782,7 @@
             },
             "effort": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -5861,6 +5877,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -5883,6 +5900,7 @@
             },
             "effort": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -5977,6 +5995,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -5999,6 +6018,7 @@
             },
             "effort": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -6092,6 +6112,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -6114,6 +6135,7 @@
             },
             "effort": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -6208,6 +6230,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -6230,6 +6253,7 @@
             },
             "effort": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -6324,6 +6348,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -6346,6 +6371,7 @@
             },
             "effort": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -6439,6 +6465,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -6461,6 +6488,7 @@
             },
             "effort": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -6555,6 +6583,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -6577,6 +6606,7 @@
             },
             "effort": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -6671,6 +6701,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 131072,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -6693,6 +6724,7 @@
             },
             "effort": {
               "budget": {
+                "max": 131072,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -6786,6 +6818,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 131072,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -6808,6 +6841,7 @@
             },
             "effort": {
               "budget": {
+                "max": 131072,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -6902,6 +6936,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 131072,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -6924,6 +6959,7 @@
             },
             "effort": {
               "budget": {
+                "max": 131072,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -7018,6 +7054,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 262144,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -7040,6 +7077,7 @@
             },
             "effort": {
               "budget": {
+                "max": 262144,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -7134,6 +7172,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 262144,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -7156,6 +7195,7 @@
             },
             "effort": {
               "budget": {
+                "max": 262144,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -7521,6 +7561,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -7543,6 +7584,7 @@
             },
             "effort": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -7635,6 +7677,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -7657,6 +7700,7 @@
             },
             "effort": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -7749,6 +7793,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -7771,6 +7816,7 @@
             },
             "effort": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -7863,6 +7909,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -7885,6 +7932,7 @@
             },
             "effort": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -7977,6 +8025,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -7999,6 +8048,7 @@
             },
             "effort": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -8091,6 +8141,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -8113,6 +8164,7 @@
             },
             "effort": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -8205,6 +8257,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -8227,6 +8280,7 @@
             },
             "effort": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -38474,6 +38528,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -38496,6 +38551,7 @@
             },
             "effort": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -38945,6 +39001,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -38967,6 +39024,7 @@
             },
             "effort": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -39010,6 +39068,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -39032,6 +39091,7 @@
             },
             "effort": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -39104,6 +39164,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -39126,6 +39187,7 @@
             },
             "effort": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -39170,6 +39232,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -39192,6 +39255,7 @@
             },
             "effort": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -39246,6 +39310,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 131072,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -39268,6 +39333,7 @@
             },
             "effort": {
               "budget": {
+                "max": 131072,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -39312,6 +39378,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 131072,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -39334,6 +39401,7 @@
             },
             "effort": {
               "budget": {
+                "max": 131072,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -39378,6 +39446,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 131072,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -39400,6 +39469,7 @@
             },
             "effort": {
               "budget": {
+                "max": 131072,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -39444,6 +39514,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 262144,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -39466,6 +39537,7 @@
             },
             "effort": {
               "budget": {
+                "max": 262144,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -39510,6 +39582,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 262144,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -39532,6 +39605,7 @@
             },
             "effort": {
               "budget": {
+                "max": 262144,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -39576,6 +39650,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 262144,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -39598,6 +39673,7 @@
             },
             "effort": {
               "budget": {
+                "max": 262144,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -39786,6 +39862,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -39808,6 +39885,7 @@
             },
             "effort": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -39867,6 +39945,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -39889,6 +39968,7 @@
             },
             "effort": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -39932,6 +40012,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -39954,6 +40035,7 @@
             },
             "effort": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -39997,6 +40079,7 @@
           "wire": {
             "auto": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -40019,6 +40102,7 @@
             },
             "effort": {
               "budget": {
+                "max": 81920,
                 "missing": {
                   "type": "omit-value"
                 }
@@ -44648,5 +44732,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "a374db806c274eaa"
+  "version": "76130b297dd3da87"
 }

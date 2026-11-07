@@ -626,6 +626,30 @@ describe('gateway generation errors over real Elysia/node sockets', () => {
   }
 })
 
+describe('thinking_budget rejection surfacing (#21906)', () => {
+  const bailianMessage =
+    'API Error: 400 <400> InternalError.Algo.InvalidParameter: The thinking_budget parameter must be a positive integer and not greater than 81920'
+
+  it('names the reasoning setting on a direct 400 frame', () => {
+    const frame = buildStreamErrorFrame('openai', Object.assign(new Error(bailianMessage), { statusCode: 400 }))
+    expect(frame).toContain('thinking_budget')
+    expect(frame).toContain('reasoning')
+  })
+
+  // A RetryError-wrapped 400 (degrade exhausted) carries no top-level status;
+  // the gateway surfaces the nested provider 400 wording instead of a 500.
+  it('recovers the nested provider 400 from a RetryError-shaped failure', () => {
+    const frame = buildStreamErrorFrame('openai', {
+      name: 'RetryError',
+      message: 'Failed after retries',
+      lastError: { name: 'APICallError', message: bailianMessage, statusCode: 400 }
+    })
+    expect(frame).toContain('"code":"bad_request"')
+    expect(frame).toContain('thinking_budget')
+    expect(frame).toContain('reasoning')
+  })
+})
+
 it('preserves development-only messages separately from production non-disclosure', async () => {
   const previous = process.env.NODE_ENV
   vi.resetModules()

@@ -13,6 +13,7 @@ import type { Tab } from '@shared/data/cache/cacheValueTypes'
 let normalTabsValue: Tab[] = []
 
 vi.mock('@renderer/data/hooks/useCache', () => ({
+  usePersistCacheReader: () => () => [],
   usePersistCache: (key: string) => {
     if (key === 'ui.tab.normal_tabs') return [normalTabsValue, vi.fn()]
     if (key === 'ui.tab.active_tab_id') return ['home', vi.fn()]

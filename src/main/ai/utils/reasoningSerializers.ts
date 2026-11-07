@@ -168,6 +168,19 @@ function resolveModeBudget(
     budget = Math.max(policy.min, budget)
   }
 
+  // Provider-side backstop (#21906): the wire `max` caps SKUs whose descriptor
+  // limits are missing or wider than Bailian accepts (e.g. a 262144 descriptor
+  // resolved against an 81920 chat wire). The descriptor max still applies —
+  // the effective ceiling is the tighter of the two.
+  const descriptorMax = model.reasoning?.thinkingTokenLimits?.max
+  const ceiling =
+    policy.max !== undefined && descriptorMax !== undefined
+      ? Math.min(policy.max, descriptorMax)
+      : (policy.max ?? descriptorMax)
+  if (ceiling !== undefined) {
+    budget = Math.min(budget, ceiling)
+  }
+
   if (policy.clampToMaxTokens) {
     const minimum = policy.min ?? 1024
     const outputLimit = maxTokens ?? DEFAULT_MAX_TOKENS

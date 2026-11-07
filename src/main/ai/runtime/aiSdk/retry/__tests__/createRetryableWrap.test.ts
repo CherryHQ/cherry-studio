@@ -386,6 +386,82 @@ describe('createRetryableWrap', () => {
     }
   })
 
+  it('retries a thinking_budget rejection in place with the clamped budget', async () => {
+    const bailianMessage =
+      'API Error: 400 <400> InternalError.Algo.InvalidParameter: The thinking_budget parameter must be a positive integer and not greater than 81920'
+    const thinkingBudgetError = new APICallError({
+      message: bailianMessage,
+      url: 'https://maas.qianwenaiapi.com/compatible-mode/v1/',
+      requestBodyValues: {},
+      statusCode: 400
+    })
+    const primaryGenerate = vi.fn().mockRejectedValueOnce(thinkingBudgetError).mockResolvedValueOnce(okResult)
+    const wrap = createRetryableWrap({ fallbacks: [], retryPolicy: policy({ maxAttempts: 2 }) })
+    const wrapped = wrap!(makeFakeLanguageModel('qwen3.5-plus', primaryGenerate))
+
+    const result = await wrapped.doGenerate({
+      prompt: [],
+      providerOptions: { dashscope: { enable_thinking: true, thinking_budget: 100_000 } }
+    })
+
+    expect(primaryGenerate).toHaveBeenCalledTimes(2)
+    expect(primaryGenerate).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        providerOptions: { dashscope: { enable_thinking: true, thinking_budget: 81920 } }
+      })
+    )
+    expect(result.content).toEqual(okResult.content)
+  })
+
+  it('preserves a fallback overrides when degrading its thinking_budget rejection', async () => {
+    const bailianMessage =
+      'API Error: 400 <400> InternalError.Algo.InvalidParameter: The thinking_budget parameter must be a positive integer and not greater than 81920'
+    const thinkingBudgetError = new APICallError({
+      message: bailianMessage,
+      url: 'https://maas.qianwenaiapi.com/compatible-mode/v1/',
+      requestBodyValues: {},
+      statusCode: 400
+    })
+    const primaryGenerate = vi.fn().mockRejectedValue(makeApiError(401))
+    const fallbackGenerate = vi.fn().mockRejectedValueOnce(thinkingBudgetError).mockResolvedValueOnce(okResult)
+    const fallbackModel = makeFakeLanguageModel('fallback-1', fallbackGenerate)
+    const wrap = createRetryableWrap({
+      fallbacks: [
+        fallbackOf(fallbackModel, {
+          maxOutputTokens: 500,
+          temperature: 0.8,
+          headers: { 'x-source': 'fallback' }
+        })
+      ],
+      retryPolicy: policy({ maxAttempts: 2 })
+    })
+    const wrapped = wrap!(makeFakeLanguageModel('primary', primaryGenerate))
+
+    const result = await wrapped.doGenerate({
+      prompt: [],
+      maxOutputTokens: 100,
+      temperature: 0.2,
+      headers: { 'x-source': 'primary' },
+      providerOptions: { dashscope: { enable_thinking: true, thinking_budget: 100_000 } }
+    })
+
+    expect(primaryGenerate).toHaveBeenCalledTimes(1)
+    expect(fallbackGenerate).toHaveBeenCalledTimes(2)
+    // The degrade retry must keep the fallback's limits/sampling/headers and
+    // only clamp the budget — not reset to the primary's 100 / 0.2 / primary headers.
+    expect(fallbackGenerate).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        maxOutputTokens: 500,
+        temperature: 0.8,
+        headers: { 'x-source': 'fallback' },
+        providerOptions: { dashscope: { enable_thinking: true, thinking_budget: 81920 } }
+      })
+    )
+    expect(result.content).toEqual(okResult.content)
+  })
+
   it('does not retry a doStream error after content has already been emitted', async () => {
     const streamError = makeApiError(429)
     const doStream = vi.fn().mockResolvedValue(
