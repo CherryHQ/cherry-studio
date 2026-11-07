@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-08-windows-development-notification-identity.md
+2026-11-08-windows-development-notification-identity.md: 0e2c07658bfb627ba0664f4f8b2f4e31d4230376
+2026-11-08-windows-development-notification-identity.zh.md: 9dc0666013566b4094b7236672c438d488ae668b
