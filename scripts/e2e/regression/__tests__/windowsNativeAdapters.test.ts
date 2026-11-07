@@ -125,7 +125,7 @@ it.skipIf(process.platform !== 'win32').each(['file', 'multiple', 'directory', '
             : `await dialog.showOpenDialog(window, { properties: ${JSON.stringify(mode === 'directory' ? ['openDirectory'] : mode === 'multiple' ? ['openFile', 'multiSelections'] : ['openFile'])} })`
         }
         if (result.filePath && !result.canceled) {
-          if (fs.realpathSync(require('node:path').dirname(result.filePath)) !== fs.realpathSync(${JSON.stringify(paths.private)})) throw new Error('Native fixture save escaped its private directory')
+          if (fs.realpathSync.native(require('node:path').dirname(result.filePath)) !== fs.realpathSync.native(${JSON.stringify(paths.private)})) throw new Error('Native fixture save escaped its private directory: ' + result.filePath)
           fs.writeFileSync(result.filePath, 'Verified native save', { flag: 'wx' })
         }
         fs.writeFileSync(${JSON.stringify(resultPath)}, JSON.stringify(result))
@@ -158,18 +158,18 @@ it.skipIf(process.platform !== 'win32').each(['file', 'multiple', 'directory', '
       )
       if (mode === 'multiple') chooseWindowsNativeFiles(paths, inputs)
       else if (mode === 'save')
-        expect(realpathSync(await saveNativeFile('windows', paths, saved))).toBe(realpathSync(saved))
+        expect(realpathSync.native(await saveNativeFile('windows', paths, saved))).toBe(realpathSync.native(saved))
       else chooseNativeFile('windows', paths, mode === 'directory' ? folder : inputs[0])
       await expect.poll(() => existsSync(resultPath), { timeout: 10_000 }).toBe(true)
       const result = JSON.parse(readFileSync(resultPath, 'utf8'))
       expect(result.canceled).toBe(false)
       if (mode === 'save') {
-        expect(realpathSync(result.filePath)).toBe(realpathSync(saved))
+        expect(realpathSync.native(result.filePath)).toBe(realpathSync.native(saved))
         expect(readFileSync(saved, 'utf8')).toBe('Verified native save')
       } else {
-        expect(result.filePaths.map((file: string) => realpathSync(file)).sort()).toEqual(
+        expect(result.filePaths.map((file: string) => realpathSync.native(file)).sort()).toEqual(
           (mode === 'multiple' ? inputs : [mode === 'directory' ? folder : inputs[0]])
-            .map((file) => realpathSync(file))
+            .map((file) => realpathSync.native(file))
             .sort()
         )
       }
