@@ -1,5 +1,5 @@
 import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { toast } from '@renderer/services/toast'
@@ -145,7 +145,18 @@ vi.mock('@cherrystudio/ui', async () => {
       delete domProps.decorative
       delete domProps.orientation
       return <div data-slot="separator" {...domProps} />
-    }
+    },
+    Switch: ({ checked, onCheckedChange, disabled, size, ...props }: any) => (
+      <input
+        type="checkbox"
+        role="switch"
+        data-size={size}
+        checked={checked}
+        disabled={disabled}
+        onChange={(event) => onCheckedChange?.(event.target.checked)}
+        {...props}
+      />
+    )
   }
 })
 
@@ -462,6 +473,42 @@ describe('ProviderEditorDrawer', () => {
     )
     const callArg = onSubmit.mock.calls[0]?.[0] as { presetProviderId?: string } | undefined
     expect(callArg?.presetProviderId).toBeUndefined()
+  })
+
+  it('submits a complete-path flag when the Use URL as-is switch is toggled', () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{ kind: 'create-custom' }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
+
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.add.name.placeholder'), {
+      target: { value: 'Complete Path' }
+    })
+    fireEvent.change(screen.getByLabelText('settings.provider.more_endpoints.openai_chat'), {
+      target: { value: 'https://api.example.com/v1/chat/completions' }
+    })
+
+    const chatEndpointInput = screen.getByLabelText('settings.provider.more_endpoints.openai_chat')
+    const completePathSwitch = within(chatEndpointInput.parentElement?.parentElement as HTMLElement).getByRole('switch')
+    expect(completePathSwitch).not.toBeChecked()
+    fireEvent.click(completePathSwitch)
+    expect(completePathSwitch).toBeChecked()
+
+    fireEvent.click(screen.getByRole('button', { name: 'button.add' }))
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        endpointConfigs: {
+          'openai-chat-completions': { baseUrl: 'https://api.example.com/v1/chat/completions', completePath: true }
+        }
+      })
+    )
   })
 
   it('uses the first configured common text endpoint as the default', () => {
