@@ -15,7 +15,8 @@ import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/scre
 import {
   saveNativeFile,
   readWindowsPrintDialog,
-  dismissNativeMessageBox
+  dismissNativeMessageBox,
+  controlMacPrintDialog
 } from '../../../../scripts/e2e/regression/systemAutomation'
 import { expect, test } from '../fixture'
 import { openLaunchpadApp, selectSidebarApp } from '../helpers/navigation'
@@ -513,32 +514,7 @@ test(...caseDefinition('MP-77'), async ({ app, mainWindow: page }, testInfo) => 
         expect(labels.join(' ')).toMatch(/page/i)
         await testInfo.attach('Native Windows print dialog', { body: labels.join('\n'), contentType: 'text/plain' })
       } else {
-        const preview = () =>
-          appleScript(
-            [
-              'on run argv',
-              'tell application "System Events"',
-              'tell (first application process whose unix id is (item 1 of argv as integer))',
-              'set resultText to ""',
-              'repeat with windowIndex from 1 to count of windows',
-              'set windowElements to entire contents of window windowIndex',
-              'repeat with elementReference in windowElements',
-              'set element to contents of elementReference',
-              'try',
-              'set resultText to resultText & (description of element as text) & return',
-              'end try',
-              'try',
-              'set resultText to resultText & (value of element as text) & return',
-              'end try',
-              'end repeat',
-              'end repeat',
-              'return resultText',
-              'end tell',
-              'end tell',
-              'end run'
-            ].join('\n'),
-            String(app.record.electronPid)
-          )
+        const preview = () => controlMacPrintDialog(app.paths, 'inspect').join('\n')
         await expect.poll(preview).toMatch(/page|页/i)
         const previewText = preview()
         await testInfo.attach('Native print preview accessibility', { body: previewText, contentType: 'text/plain' })
@@ -550,10 +526,8 @@ test(...caseDefinition('MP-77'), async ({ app, mainWindow: page }, testInfo) => 
         if (readWindowsPrintDialog(app.paths).length)
           await dismissNativeMessageBox(app.record.platform, app.paths, 'Print', 'Cancel')
       } else {
-        appleScript(
-          'on run argv\ntell application "System Events" to tell (first application process whose unix id is (item 1 of argv as integer))\nset frontmost to true\nkey code 53\nend tell\nend run',
-          String(app.record.electronPid)
-        )
+        controlMacPrintDialog(app.paths, 'cancel')
+        await expect.poll(() => controlMacPrintDialog(app.paths, 'inspect')).toEqual([])
       }
     }
     await pdf.destroy()
