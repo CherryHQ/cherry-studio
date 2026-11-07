@@ -186,25 +186,28 @@ required service tier.`
     [400, '400 null', 'null', 'bad_request'],
     [403, '[object Object]', '<html>error</html>', 'permission'],
     [429, '429 null', 'null', 'rate_limit']
-  ])('shows HTTP %i guidance instead of an opaque provider message', (statusCode, errorMessage, responseBody, category) => {
-    const { container } = render(
-      <ErrorBlock
-        partId="message-1-part-0"
-        error={{
-          name: 'AI_APICallError',
-          message: errorMessage,
-          stack: null,
-          statusCode,
-          responseBody
-        }}
-        message={message}
-      />
-    )
+  ])(
+    'shows HTTP %i guidance instead of an opaque provider message',
+    (statusCode, errorMessage, responseBody, category) => {
+      const { container } = render(
+        <ErrorBlock
+          partId="message-1-part-0"
+          error={{
+            name: 'AI_APICallError',
+            message: errorMessage,
+            stack: null,
+            statusCode,
+            responseBody
+          }}
+          message={message}
+        />
+      )
 
-    expect(container.textContent).toContain(`error.diagnosis.${category}`)
-    expect(container.textContent).toContain(`HTTP ${statusCode}`)
-    expect(container.textContent).not.toContain(errorMessage)
-  })
+      expect(container.textContent).toContain(`error.diagnosis.${category}`)
+      expect(container.textContent).toContain(`HTTP ${statusCode}`)
+      expect(container.textContent).not.toContain(errorMessage)
+    }
+  )
 
   it('shows generic guidance when a provider error has no usable message or status', () => {
     const { container } = render(
