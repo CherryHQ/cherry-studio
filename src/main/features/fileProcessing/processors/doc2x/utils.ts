@@ -118,8 +118,12 @@ export async function triggerExportTask(
       uid: providerTaskId,
       to: 'md',
       formula_mode: 'normal',
-      formula_level: isV3Model ? (options.formulaLevel ?? 0) : 0,
-      ...(isV3Model ? { merge_cross_page_forms: options.mergeCrossPageForms ?? false } : {})
+      ...(isV3Model
+        ? {
+            formula_level: options.formulaLevel ?? 0,
+            merge_cross_page_forms: options.mergeCrossPageForms ?? false
+          }
+        : {})
     }),
     signal: context.signal
   })

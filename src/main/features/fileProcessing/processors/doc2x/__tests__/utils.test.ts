@@ -119,12 +119,12 @@ describe('doc2x utils', () => {
     expect(JSON.parse(fetchMock.mock.calls.at(-1)?.[1]?.body as string)).toEqual({})
   })
 
-  it('filters boilerplate, sorts layout blocks, and prefers table HTML', () => {
+  it('preserves page markdown, removes boilerplate comments, and replaces markdown tables with HTML', () => {
     expect(
       buildDoc2xMarkdown([
         {
           page_idx: 1,
-          md: 'fallback page',
+          md: '<!-- Meanless: header<br>1 -->\n\nbody\n\n| Name | Value |\n| --- | --- |\n| item | 42 |',
           layout: {
             blocks: [
               {
@@ -140,7 +140,7 @@ describe('doc2x utils', () => {
               {
                 id: 'table',
                 type: 'Table',
-                text: 'markdown table',
+                text: '',
                 bbox: [0, 0, 1, 1],
                 reading_order: 2,
                 parent_id: '',
@@ -161,6 +161,73 @@ describe('doc2x utils', () => {
         }
       ])
     ).toBe('body\n\n<table><tr><td>value</td></tr></table>')
+  })
+
+  it('uses structured figure URLs when a v3 page has no Markdown fallback', () => {
+    expect(
+      buildDoc2xMarkdown([
+        {
+          page_idx: 0,
+          layout: {
+            blocks: [
+              {
+                id: 'figure',
+                type: 'Figure',
+                text: '',
+                bbox: [0, 0, 1, 1],
+                reading_order: 1,
+                parent_id: '',
+                src: 'https://img.example.com/figure.png'
+              },
+              {
+                id: 'text',
+                type: 'Text',
+                text: 'caption',
+                bbox: [0, 0, 1, 1],
+                reading_order: 2,
+                parent_id: '',
+                src: ''
+              }
+            ]
+          }
+        }
+      ])
+    ).toBe('![](https://img.example.com/figure.png)\n\ncaption')
+  })
+
+  it('sends v3 export options and omits v3-only fields for v2', async () => {
+    const { triggerExportTask: triggerExportTaskImpl } = await vi.importActual<typeof Doc2xUtils>('../utils')
+    fetchMock.mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ code: 'success', data: { status: 'processing', url: '' } }), {
+          status: 200
+        })
+    )
+
+    const context = {
+      apiHost: 'https://doc2x.example.com',
+      apiKey: 'secret'
+    }
+
+    await triggerExportTaskImpl('uid-v2', context, { modelVersion: 'v2' })
+    expect(JSON.parse(fetchMock.mock.calls.at(-1)?.[1]?.body as string)).toEqual({
+      uid: 'uid-v2',
+      to: 'md',
+      formula_mode: 'normal'
+    })
+
+    await triggerExportTaskImpl('uid-v3', context, {
+      modelVersion: 'v3-2026',
+      formulaLevel: 1,
+      mergeCrossPageForms: true
+    })
+    expect(JSON.parse(fetchMock.mock.calls.at(-1)?.[1]?.body as string)).toEqual({
+      uid: 'uid-v3',
+      to: 'md',
+      formula_mode: 'normal',
+      formula_level: 1,
+      merge_cross_page_forms: true
+    })
   })
 
   it('keeps v2 responses on the ZIP fallback even if layout blocks are present', async () => {

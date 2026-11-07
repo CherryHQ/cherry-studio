@@ -5,6 +5,7 @@ import { getRequiredApiHost, getRequiredApiKey, getRequiredCapability } from '..
 import type { FileProcessingCapabilityHandler, FileProcessingRemotePollResult } from '../../types'
 import type {
   Doc2xFormulaLevel,
+  Doc2xLayoutBlock,
   Doc2xParsePage,
   Doc2xTaskStage,
   PreparedDoc2xQueryContext,
@@ -243,20 +244,86 @@ export async function handleExportStage(
 export function buildDoc2xMarkdown(pages: readonly Doc2xParsePage[]): string {
   return [...pages]
     .sort((a, b) => a.page_idx - b.page_idx)
-    .map((page) => {
-      if (!page.layout?.blocks.length) {
-        return page.md ?? ''
-      }
-
-      const content = page.layout.blocks
-        .filter((block) => block.attributes?.is_boilerplate !== true)
-        .sort((a, b) => a.reading_order - b.reading_order)
-        .map((block) => (block.type === 'Table' ? (block.table_data?.html ?? block.text) : block.text))
-        .filter((value) => value.trim().length > 0)
-        .join('\n\n')
-
-      return content
-    })
+    .map(buildDoc2xPageMarkdown)
     .filter((page) => page.trim().length > 0)
     .join('\n\n')
+}
+
+function buildDoc2xPageMarkdown(page: Doc2xParsePage): string {
+  const blocks = page.layout?.blocks ?? []
+  if (!blocks.length) {
+    return page.md ?? ''
+  }
+
+  const orderedBlocks = blocks
+    .filter((block) => block.attributes?.is_boilerplate !== true)
+    .sort((a, b) => a.reading_order - b.reading_order)
+  const markdown = stripDoc2xBoilerplate(page.md ?? '')
+  const tableHtml = orderedBlocks
+    .filter((block) => block.type === 'Table' && block.table_data?.html)
+    .map((block) => block.table_data?.html ?? '')
+
+  if (markdown.trim().length > 0) {
+    return tableHtml.reduce(replaceNextMarkdownTable, markdown)
+  }
+
+  return buildStructuredDoc2xMarkdown(orderedBlocks)
+}
+
+function buildStructuredDoc2xMarkdown(blocks: readonly Doc2xLayoutBlock[]): string {
+  return blocks
+    .map((block) => {
+      if (block.type === 'Table') {
+        return block.table_data?.html ?? block.text
+      }
+
+      if (block.type === 'Figure' && !block.text.trim() && block.src) {
+        return `![](${block.src})`
+      }
+
+      return block.text
+    })
+    .filter((value) => value.trim().length > 0)
+    .join('\n\n')
+}
+
+function stripDoc2xBoilerplate(markdown: string): string {
+  return markdown
+    .replace(/<!--\s*Meanless:[\s\S]*?-->/gi, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+function replaceNextMarkdownTable(markdown: string, tableHtml: string): string {
+  const lines = markdown.split('\n')
+  const separatorIndex = lines.findIndex(
+    (line, index) => index > 0 && isMarkdownTableRow(lines[index - 1]) && isMarkdownTableSeparator(line)
+  )
+
+  if (separatorIndex === -1) {
+    return `${markdown.trim()}\n\n${tableHtml}`
+  }
+
+  let start = separatorIndex - 1
+  while (start > 0 && isMarkdownTableRow(lines[start - 1])) {
+    start -= 1
+  }
+
+  let end = separatorIndex + 1
+  while (end < lines.length && isMarkdownTableRow(lines[end])) {
+    end += 1
+  }
+
+  lines.splice(start, end - start, tableHtml)
+  return lines.join('\n').trim()
+}
+
+function isMarkdownTableRow(line: string): boolean {
+  const value = line.trim()
+  return value.includes('|') && !value.startsWith('```')
+}
+
+function isMarkdownTableSeparator(line: string): boolean {
+  const cells = line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|')
+  return cells.length > 0 && cells.every((cell) => /^\s*:?-{3,}:?\s*$/.test(cell))
 }

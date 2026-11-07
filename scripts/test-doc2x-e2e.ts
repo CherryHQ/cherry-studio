@@ -90,10 +90,9 @@ function parseResponse<T extends z.ZodTypeAny>(schema: T, value: unknown): z.inf
 
 function blocksToMarkdown(page: Page): { markdown: string; blocks: Block[]; filtered: Block[] } {
   const blocks = page.layout?.blocks ?? []
-  const filtered = blocks
-    .filter((block) => block.attributes?.is_boilerplate !== true)
-    .sort((a, b) => a.reading_order - b.reading_order)
-  const markdown = filtered
+  const filtered = blocks.filter((block) => block.attributes?.is_boilerplate !== true)
+  const ordered = [...filtered].sort((a, b) => a.reading_order - b.reading_order)
+  const markdown = ordered
     .map((block) => (block.type === 'Table' ? (block.table_data?.html ?? block.text) : block.text))
     .filter((text) => text.length > 0)
     .join('\n\n')
@@ -113,19 +112,21 @@ async function waitForParse(uid: string): Promise<Page[]> {
   throw new Error(`parse polling timed out after ${MAX_WAIT_MS}ms`)
 }
 
-async function triggerExport(uid: string, formulaLevel: 0 | 1 | 2, mergeCrossPageForms: boolean): Promise<string> {
+async function triggerExport(uid: string, model: Model): Promise<string> {
+  const isV3Model = model === 'v3-2026'
+  const body = {
+    uid,
+    to: 'md',
+    formula_mode: 'normal',
+    ...(isV3Model ? { formula_level: 1, merge_cross_page_forms: true } : {})
+  }
+  console.log(`export body=${JSON.stringify(body)}`)
   const value = await request(`${API_HOST}/api/v2/convert/parse`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      uid,
-      to: 'md',
-      formula_mode: 'normal',
-      formula_level: formulaLevel,
-      merge_cross_page_forms: mergeCrossPageForms
-    })
+    body: JSON.stringify(body)
   })
-  console.log(`formula_level=${formulaLevel} merge_cross_page_forms=${mergeCrossPageForms}`)
+  console.log(`model=${model} formula_level=${isV3Model ? 1 : '-'} merge_cross_page_forms=${isV3Model}`)
   const data = parseResponse(exportDataSchema, value)
   if (data.status === 'failed') throw new Error('export trigger failed')
 
@@ -151,12 +152,14 @@ async function downloadZip(url: string, model: Model): Promise<void> {
 
 async function runModel(pdf: Uint8Array, model: Model): Promise<void> {
   console.log(`\n=== model ${model} ===`)
+  const preuploadBody = { model }
+  console.log(`preupload body=${JSON.stringify(preuploadBody)}`)
   const preupload = parseResponse(
     preuploadDataSchema,
     await request(`${API_HOST}/api/v2/parse/preupload`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model })
+      body: JSON.stringify(preuploadBody)
     })
   )
   console.log(`uid=${preupload.uid}`)
@@ -175,6 +178,7 @@ async function runModel(pdf: Uint8Array, model: Model): Promise<void> {
     .join('\n\n')
   console.log(`blocks before filter=${rawBlocks.length}`)
   console.log(`blocks after filter=${filteredBlocks.length}`)
+  console.log(`raw block ids=${rawBlocks.map((block) => block.id).join(',') || '-'}`)
   console.log(`filtered block ids=${filteredBlocks.map((block) => block.id).join(',') || '-'}`)
   console.log(`structured markdown bytes=${Buffer.byteLength(structuredMarkdown)}`)
 
@@ -186,12 +190,16 @@ async function runModel(pdf: Uint8Array, model: Model): Promise<void> {
     }
   } else {
     if (rawBlocks.length === 0) throw new Error('v3-2026 returned no layout.blocks')
-    if (filteredBlocks.some((block) => block.attributes?.is_boilerplate === true)) {
+    if (
+      rawBlocks.some((block) => block.attributes?.is_boilerplate === true) &&
+      filteredBlocks.some((block) => block.attributes?.is_boilerplate === true)
+    ) {
       throw new Error('boilerplate block was not filtered')
     }
     for (const page of pages) {
       const orders = blocksToMarkdown(page).filtered.map((block) => block.reading_order)
-      if (orders.some((order, index) => index > 0 && order < orders[index - 1])) {
+      const sortedOrders = [...orders].sort((a, b) => a - b)
+      if (orders.some((order, index) => order !== sortedOrders[index])) {
         throw new Error(`reading_order is not sorted on page ${page.page_idx}`)
       }
     }
@@ -205,7 +213,7 @@ async function runModel(pdf: Uint8Array, model: Model): Promise<void> {
     console.log(`table html block=${tableBlock?.id ?? '-'}`)
   }
 
-  const exportUrl = await triggerExport(preupload.uid, model === 'v3-2026' ? 1 : 0, model === 'v3-2026')
+  const exportUrl = await triggerExport(preupload.uid, model)
   await downloadZip(exportUrl, model)
 }
 

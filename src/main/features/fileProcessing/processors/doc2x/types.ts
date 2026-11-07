@@ -64,7 +64,9 @@ export const Doc2xParsePageSchema = z.object({
 })
 
 export const Doc2xParseResultSchema = z.object({
-  pages: z.array(Doc2xParsePageSchema).default([])
+  version: z.string().optional(),
+  pages: z.array(Doc2xParsePageSchema).default([]),
+  inplace_pages: z.unknown().nullable().optional()
 })
 
 export const Doc2xParseStatusDataSchema = z.object({

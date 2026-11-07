@@ -92,6 +92,8 @@ describe('doc2x response schemas', () => {
       data: {
         status: 'success',
         result: {
+          version: '',
+          inplace_pages: null,
           pages: [
             {
               page_idx: 0,
@@ -106,6 +108,17 @@ describe('doc2x response schemas', () => {
                     parent_id: '',
                     src: '',
                     table_data: { html: '<table />' }
+                  },
+                  {
+                    id: 'figure-1',
+                    type: 'Figure',
+                    text: '',
+                    bbox: [0, 1, 2, 3],
+                    reading_order: 2,
+                    parent_id: 'group-1',
+                    src: 'https://img.example.com/figure.png',
+                    linking: { next_block_id: 'text-2' },
+                    attributes: { rotation: 0 }
                   }
                 ]
               }
@@ -116,6 +129,9 @@ describe('doc2x response schemas', () => {
     })
 
     expect(result.data?.result?.pages[0].layout?.blocks[0].table_data?.html).toBe('<table />')
+    expect(result.data?.result?.version).toBe('')
+    expect(result.data?.result?.inplace_pages).toBeNull()
+    expect(result.data?.result?.pages[0].layout?.blocks[1].src).toBe('https://img.example.com/figure.png')
     expect(() => Doc2xLayoutBlockSchema.parse({ id: 'bad', type: 'Text', bbox: [0, 1, 2] })).toThrow()
   })
 })
