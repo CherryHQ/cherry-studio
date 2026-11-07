@@ -1,6 +1,7 @@
 import type * as NodeFsModule from 'node:fs'
 import {
   copyFileSync,
+  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -14,6 +15,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
 import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -448,6 +450,37 @@ describe('runRestorePromotion', () => {
 
     expect(journalState()).toBe('expired')
     expect(readMarker(livePath())).toBe('old')
+  })
+
+  it('expires an ahead staged chain without replacing the live database', async () => {
+    makeDb(livePath(), 'old')
+    makeDb(workPath(), 'new')
+    const folder = join(userData, 'newer-migrations')
+    cpSync(resolveMigrationsPath(), folder, { recursive: true })
+    const journalPath = join(folder, 'meta', '_journal.json')
+    const journal = JSON.parse(readFileSync(journalPath, 'utf8'))
+    journal.entries.push({
+      idx: journal.entries.length,
+      version: '6',
+      when: 2000000000034,
+      tag: '9999_ahead',
+      breakpoints: true
+    })
+    writeFileSync(journalPath, JSON.stringify(journal))
+    writeFileSync(join(folder, '9999_ahead.sql'), 'SELECT 1;')
+    const sqlite = new Database(workPath())
+    applyMigrations(drizzle({ client: sqlite, casing: 'snake_case' }), folder)
+    sqlite.close()
+    writeRestoreJournal(await buildJournal({ chain: chainOf(workPath()) }))
+
+    await runRestorePromotion()
+
+    expect(journalState()).toBe('expired')
+    expect(readMarker(livePath())).toBe('old')
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Restore refused at admission gate — old DB stays live', {
+      restoreId: RID,
+      reason: 'journal chain is not a prefix of the bundled migration chain (fork or ahead-of-code DB)'
+    })
   })
 
   it('promotes when the journal chain is a strict prefix (app ahead by a patch migration)', async () => {
