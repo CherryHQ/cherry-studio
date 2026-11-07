@@ -134,6 +134,8 @@ export interface PrepareChatContext {
    * has the file reference.
    */
   keepUnroutableFileParts?: boolean
+  /** Called when an inlined attachment was capped, i.e. `read_file` is needed for the rest. */
+  onTruncated?: (handle: string) => void
   signal?: AbortSignal
 }
 
@@ -364,6 +366,7 @@ function applyInlineCaps(pending: PendingInline[], ctx: PrepareChatContext): voi
 
   pending.forEach((entry, index) => {
     const capped = capInlineText(entry.handle, entry.body, ctx.isToolCapable, caps[index])
+    if (entry.body.length > caps[index]) ctx.onTruncated?.(entry.handle)
     entry.parts[entry.index] = { type: 'text', text: `Attached file "${entry.handle}":\n${capped}` }
   })
 }

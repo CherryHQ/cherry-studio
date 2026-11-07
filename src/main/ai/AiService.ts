@@ -38,6 +38,7 @@ import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
+import { READ_FILE_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { CompactionSink } from '@shared/ai/compaction'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
@@ -61,7 +62,7 @@ import { isAgentSessionTopic } from './agentSession/topic'
 import { createAnalyticsHook } from './hooks/analyticsHook'
 import { createAiUsagePlugin } from './hooks/billingHook'
 import { resolveAttachmentBudget } from './messages/attachmentBudget'
-import { prepareChatMessages } from './messages/attachmentRouting'
+import { collectFileAttachments, prepareChatMessages } from './messages/attachmentRouting'
 import { resolveMediaCapabilities, resolveToolResultMediaCapabilities } from './messages/messageCapabilities'
 import { applyHttpTrace } from './observability'
 import { resolveProviderAiSdkConfig } from './provider/config'
@@ -625,7 +626,8 @@ export class AiService extends BaseService {
       assistant,
       hookParts,
       nativeFileSupport,
-      fileAttachments
+      fileAttachments,
+      inLoopCompactionActive
     } = await this.buildAgentParamsFor(request, signal, extraFeatures, () => repairUsagePlugins.current ?? [])
     const usageContext = createCaptureContext({
       provider,
@@ -653,8 +655,12 @@ export class AiService extends BaseService {
     // Route attachments: native files stay inline, non-native become capped text
     // (always visible — never gated on the model calling read_file). The cap is
     // one shared pool, priced against what the rest of the request already spends.
+    let attachmentTruncated = false
     const preparedMessages = await prepareChatMessages(request.messages ?? [], {
       attachments: fileAttachments,
+      onTruncated: () => {
+        attachmentTruncated = true
+      },
       nativeSupport: nativeFileSupport,
       isToolCapable: isFunctionCallingModel(model),
       // A caller that owns its context (the gateway) manages its own window;
@@ -673,6 +679,22 @@ export class AiService extends BaseService {
           : undefined,
       signal
     })
+
+    // `read_file` only pages overflow: when every attachment is fully inline and none were
+    // folded out of the served history, drop it so the model is not nudged into needless calls.
+    // Keep it while in-loop compaction is active — a later fold can still summarize an inline
+    // attachment away mid-request, and the reader is the only path back to the exact contents.
+    const readFileNeeded =
+      attachmentTruncated ||
+      collectFileAttachments(request.messages).length < fileAttachments.length ||
+      inLoopCompactionActive
+    // A caller-owned `read_file` (gateway `callOverrides.tools`) is not the builtin attachment
+    // reader — client overrides win in `resolveTools`, so never filter that entry out.
+    const callerOwnsReadFile = request.callOverrides?.tools ? READ_FILE_TOOL_NAME in request.callOverrides.tools : false
+    const agentTools =
+      tools && READ_FILE_TOOL_NAME in tools && !readFileNeeded && !callerOwnsReadFile
+        ? Object.fromEntries(Object.entries(tools).filter(([name]) => name !== READ_FILE_TOOL_NAME))
+        : tools
 
     // An explicit per-request `maxRetries: 0` means "no retries for this request"
     // — honor it (like embedding/rerank), overriding the global retry preference.
@@ -755,7 +777,7 @@ export class AiService extends BaseService {
       messageId: request.messageId,
       plugins: [...plugins, usagePlugin],
       wrapModel,
-      tools,
+      tools: agentTools,
       system,
       options: wrapModel ? { ...options, maxRetries: 0, repairToolCall } : options,
       hookParts: [
