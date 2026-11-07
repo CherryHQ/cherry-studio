@@ -15,6 +15,7 @@ import type * as ImageTransportRegistryModule from '../provider/custom/imageTran
 import type * as ListModelsModule from '../provider/listModels'
 import type { AiStreamRequest } from '../types/requests'
 import type * as CustomFetchModule from '../utils/customFetch'
+import { makeModel } from './fixtures/model'
 import { makeProvider } from './fixtures/provider'
 
 type AiServicePrivate = {
@@ -583,27 +584,28 @@ describe('AiService', () => {
     }
   })
 
-  it('routes agent-session runtime requests directly to the runtime service', async () => {
+  it('forwards the runtime message source without converting it into chunks', async () => {
     const service = createService()
-    const stream = new ReadableStream()
-    const openTurnStream = vi.fn(() => stream)
-    mockApplicationGet.mockReturnValue({ openTurnStream })
-
-    await expect(
-      service.streamText({
-        conversation: { id: 'session-1', topicId: 'agent-session:session-1' },
-        trigger: 'submit-message',
-        runtime: { kind: 'agent-session', sessionId: 'session-1', turnId: 'turn-1' },
-        requestOptions: { signal: new AbortController().signal }
+    const source = {
+      kind: 'messages' as const,
+      stream: new ReadableStream({
+        start(controller) {
+          controller.enqueue({ type: 'message', parts: [{ type: 'text', text: 'Native answer' }] })
+          controller.close()
+        }
       })
-    ).resolves.toBe(stream)
-
-    expect(mockApplicationGet).toHaveBeenCalledWith('AgentSessionRuntimeService')
-    expect(openTurnStream).toHaveBeenCalledWith({
-      sessionId: 'session-1',
-      turnId: 'turn-1',
-      signal: expect.any(AbortSignal)
+    }
+    mockApplicationGet.mockReturnValue({ openTurnStream: () => source })
+    const result = await service.streamText({
+      conversation: { id: 'session-1', topicId: 'agent-session:session-1' },
+      trigger: 'submit-message',
+      runtime: { kind: 'agent-session', sessionId: 'session-1', turnId: 'turn-1' },
+      requestOptions: { signal: new AbortController().signal }
     })
+    expect(result.kind).toBe('messages')
+    const reader = result.stream.getReader()
+    expect((await reader.read()).value).toEqual({ type: 'message', parts: [{ type: 'text', text: 'Native answer' }] })
+    expect((await reader.read()).done).toBe(true)
   })
 
   it('rejects agent-session streams that do not carry a runtime request', async () => {
@@ -1252,7 +1254,7 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn()
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream: () => false }
       return undefined
     })
     const getById = vi.spyOn(messageService, 'getById')
@@ -1301,7 +1303,7 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream: () => false }
       return undefined
     })
 
@@ -1332,7 +1334,6 @@ describe('AiService tool approval', () => {
     // Nothing left pending → resume via continue-conversation.
     expect(dispatch).toHaveBeenCalledTimes(1)
     expect(dispatch).toHaveBeenCalledWith(
-      expect.anything(),
       expect.objectContaining({
         trigger: 'continue-conversation',
         topicId: 'topic-1',
@@ -1347,7 +1348,7 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream: () => false }
       return undefined
     })
     const committed = [{ ...pendingToolPart('mcp-approval-1'), state: 'approval-responded' }]
@@ -1378,7 +1379,7 @@ describe('AiService tool approval', () => {
     const hasLiveStream = vi.fn(() => true)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream }
       return undefined
     })
     const apply = vi.spyOn(messageService, 'applyToolApprovalDecisions')
@@ -1403,7 +1404,7 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream: () => false }
       return undefined
     })
 
@@ -1425,7 +1426,6 @@ describe('AiService tool approval', () => {
     // The decision still rides the continue dispatch idempotently.
     expect(dispatch).toHaveBeenCalledTimes(1)
     expect(dispatch).toHaveBeenCalledWith(
-      expect.anything(),
       expect.objectContaining({
         trigger: 'continue-conversation',
         approvalDecisions: [{ approvalId: 'mcp-approval-missing', approved: false }]
@@ -1438,7 +1438,7 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream: () => false }
       return undefined
     })
 
@@ -1471,7 +1471,7 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream: () => false }
       return undefined
     })
 
@@ -1503,7 +1503,7 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream: () => false }
       return undefined
     })
 
@@ -2533,6 +2533,98 @@ describe('AiService tool approval', () => {
     })
 
     await expect(service.checkModel({ uniqueModelId: 'ollama::nope' })).rejects.toThrow('model "nope" not found')
+  })
+
+  describe('checkModel — OpenRouter rerank', () => {
+    let service: InstanceType<typeof AiService>
+    let fetchMock: ReturnType<typeof vi.mocked<typeof CustomFetchModule.customFetch>>
+    const uniqueModelId = 'openrouter::cohere/rerank-4-pro'
+    const apiKey = 'openrouter-health-check-key'
+
+    beforeEach(async () => {
+      // Keep the existing service/HTTP harness, but load AiService against real ai-core.
+      vi.doUnmock('@cherrystudio/ai-core')
+      vi.resetModules()
+      const { AiService: RealAiService } = await import('../AiService')
+      const { BaseService: RealBaseService } = await import('@main/core/lifecycle/BaseService')
+      RealBaseService.resetInstances()
+      service = new (RealAiService as any)()
+      const { customFetch } = await import('../utils/customFetch')
+      fetchMock = vi.mocked(customFetch)
+      fetchMock.mockReset()
+      fetchMock.mockResolvedValue(Response.json({ results: [{ index: 0, relevance_score: 0.91 }] }))
+      mockApplicationGet.mockImplementation(
+        (name: keyof typeof defaultServiceInstances) => defaultServiceInstances[name]
+      )
+      mockProviderGetByProviderId.mockReturnValue(
+        makeProvider({
+          id: 'openrouter',
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+              adapterFamily: 'openrouter',
+              baseUrl: 'https://openrouter.ai/api/v1/'
+            }
+          }
+        })
+      )
+      mockModelGetByKey.mockReturnValue(
+        makeModel({
+          id: uniqueModelId,
+          providerId: 'openrouter',
+          apiModelId: 'cohere/rerank-4-pro',
+          name: 'Cohere Rerank 4 Pro',
+          capabilities: [MODEL_CAPABILITY.RERANK]
+        })
+      )
+      mockProviderResolveApiKey.mockReturnValue({ value: apiKey, apiKeySelection: { attribution: 'unknown' } })
+    })
+
+    afterEach(() => fetchMock.mockReset())
+
+    it('reranks through the OpenRouter provider factory', async () => {
+      const result = await service.checkModel({ uniqueModelId })
+
+      expect(result.latency).toEqual(expect.any(Number))
+      expect(result.latency).toBeGreaterThanOrEqual(0)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      const [url, init] = fetchMock.mock.calls[0]
+      expect(String(url)).toBe('https://openrouter.ai/api/v1/rerank')
+      expect(init?.method).toBe('POST')
+      expect(JSON.parse(String(init?.body))).toEqual({
+        model: 'cohere/rerank-4-pro',
+        query: 'test',
+        documents: ['test'],
+        top_n: 1
+      })
+      expect(new Headers(init?.headers).get('Authorization') === `Bearer ${apiKey}`).toBe(true)
+    })
+
+    it('surfaces an empty ranking from the real path', async () => {
+      fetchMock.mockResolvedValue(Response.json({ results: [] }))
+
+      await expect(service.checkModel({ uniqueModelId })).rejects.toThrow('Rerank health check returned empty ranking')
+    })
+
+    it('normalizes a proxy base URL with a trailing slash', async () => {
+      mockProviderGetByProviderId.mockReturnValue(
+        makeProvider({
+          id: 'openrouter',
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+              adapterFamily: 'openrouter',
+              baseUrl: 'http://127.0.0.1:11435/openrouter/api/v1/'
+            }
+          }
+        })
+      )
+
+      await expect(service.checkModel({ uniqueModelId })).resolves.toEqual({ latency: expect.any(Number) })
+
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(String(fetchMock.mock.calls[0][0])).toBe('http://127.0.0.1:11435/openrouter/api/v1/rerank')
+    })
   })
 })
 

@@ -9,12 +9,32 @@ export default defineProvider({
   availableInEditions: ['global'],
   defaultChatEndpoint: 'openai-responses',
   endpointConfigs: {
+    'openai-image-generation': { adapterFamily: 'openai' },
+    'openai-image-edit': { adapterFamily: 'openai' },
     'openai-responses': {
       adapterFamily: 'openai',
       baseUrl: 'https://api.openai.com',
       reasoningFormat: { type: 'openai-responses', wire: openaiResponsesSummaryWire }
     }
   },
+  overrides: [
+    {
+      apiModelId: 'gpt-image-2.6-flare',
+      endpointTypes: ['openai-image-generation', 'openai-image-edit'],
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 5 },
+        output: { currency: 'USD', perMillionTokens: 30 }
+      }
+    },
+    {
+      apiModelId: 'gpt-image-2.6-sunburst',
+      endpointTypes: ['openai-image-generation', 'openai-image-edit'],
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 5 },
+        output: { currency: 'USD', perMillionTokens: 30 }
+      }
+    }
+  ],
   serverTools: [
     {
       id: 'web-search',

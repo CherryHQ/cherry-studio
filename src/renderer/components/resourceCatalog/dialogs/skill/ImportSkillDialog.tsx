@@ -13,7 +13,7 @@ import {
   DialogTitle,
   Dropzone,
   DropzoneEmptyState,
-  Scrollbar
+  ScrollArea
 } from '@cherrystudio/ui'
 import { useSkillInstall } from '@renderer/hooks/useSkills'
 import { ipcApi } from '@renderer/ipc'
@@ -411,9 +411,9 @@ function ImportResultList({ items, onRemove }: { items: ImportItem[]; onRemove?:
   if (items.length === 0) return null
 
   return (
-    <Scrollbar
-      data-testid="skill-import-results"
-      className="mt-4 max-h-44 w-full max-w-full min-w-0 overflow-x-hidden rounded-md border border-border-subtle bg-background-subtle/50">
+    <ScrollArea
+      viewportProps={{ 'data-testid': 'skill-import-results', className: 'overflow-x-hidden' }}
+      className="mt-4 max-h-44 w-full max-w-full min-w-0 rounded-md border border-border-subtle bg-background-subtle/50">
       <div className="min-w-0 divide-y divide-border-subtle">
         {items.map((item) => {
           const displayName = item.status === 'success' ? (item.skillName ?? item.name) : item.name
@@ -448,7 +448,7 @@ function ImportResultList({ items, onRemove }: { items: ImportItem[]; onRemove?:
           )
         })}
       </div>
-    </Scrollbar>
+    </ScrollArea>
   )
 }
 

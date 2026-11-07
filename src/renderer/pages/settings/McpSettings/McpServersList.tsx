@@ -6,25 +6,34 @@ import { useTranslation } from 'react-i18next'
 
 import {
   Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   EmptyState,
   MenuItem,
   MenuList,
   Popover,
   PopoverContent,
   PopoverTrigger,
-  Scrollbar,
+  ScrollArea,
   Sortable,
   useDndReorder
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
-import { SettingTitle } from '@renderer/components/SettingsPrimitives'
+import { SettingsContentBody, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { ipcApi } from '@renderer/ipc'
 import EnvironmentDependencies from '@renderer/pages/settings/DependenciesSettings/EnvironmentDependencies'
 import { toast } from '@renderer/services/toast'
 import type { AppRouter } from '@renderer/types/router'
 import { matchKeywordsInString } from '@renderer/utils/match'
+import {
+  DuplicateMcpServerNameError,
+  isExportableMcpServer,
+  serializeMcpServersForExport
+} from '@renderer/utils/mcpTransfer'
 import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { ProtocolMcpInstallRequest } from '@shared/data/types/mcpProtocolInstall'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -57,6 +66,7 @@ const McpServersList: FC = () => {
   const search = mcpServersRouteApi.useSearch<AppRouter>()
   const [isAddModalVisible, setIsAddModalVisible] = useState(false)
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false)
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false)
   const [modalType, setModalType] = useState<ImportMethod>('json')
@@ -235,81 +245,111 @@ const McpServersList: FC = () => {
     setIsAddModalVisible(true)
   }, [])
 
+  const handleExport = useCallback(async () => {
+    setIsAddMenuOpen(false)
+    if (exporting) return
+    setExporting(true)
+    try {
+      const content = serializeMcpServersForExport(mcpServers)
+      await window.api.file.save('mcp-servers.json', new TextEncoder().encode(content), {
+        filters: [{ name: t('assistants.presets.import.file_filter'), extensions: ['json'] }]
+      })
+    } catch (error) {
+      toast.error(
+        error instanceof DuplicateMcpServerNameError
+          ? t('settings.mcp.exportDuplicateName', { name: error.serverName })
+          : t('settings.mcp.exportFailed')
+      )
+    } finally {
+      setExporting(false)
+    }
+  }, [exporting, mcpServers, t])
+
   return (
-    <div className="flex h-[calc(100vh-var(--navbar-height))] w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden px-6 pt-3 pb-6">
-      <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
-        <div className="mb-3 flex w-full flex-wrap items-center justify-between gap-3">
-          <div className="flex min-w-0 flex-wrap items-center gap-3">
+    <>
+      <SettingsContentBody
+        className="min-h-0 flex-1 overflow-hidden pt-4"
+        innerClassName="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-w-0 shrink-0 items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-1.5">
             <SettingTitle className="m-0">{t('settings.mcp.allServers')}</SettingTitle>
             <div className="flex shrink-0 items-center gap-1">
-              <Popover open={isFilterMenuOpen} onOpenChange={setIsFilterMenuOpen}>
-                <PopoverTrigger asChild>
-                  <button
-                    type="button"
-                    aria-label={t('settings.mcp.filter.label')}
-                    className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-accent">
-                    <Filter
-                      size={14}
-                      color={filter === 'all' ? 'var(--muted-foreground)' : undefined}
-                      className={filter === 'all' ? undefined : 'text-primary'}
-                    />
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent align="start" side="bottom" className="w-auto min-w-36 p-1">
-                  <MenuList className="gap-1">
-                    {FILTER_OPTIONS.map((option) => (
-                      <MenuItem
-                        key={option.value}
-                        label={option.label ?? t(option.labelKey!)}
-                        className="h-8 rounded-lg px-2.5 text-sm"
-                        icon={
-                          <Check className={filter === option.value ? 'size-3.5 opacity-100' : 'size-3.5 opacity-0'} />
-                        }
-                        onClick={() => {
-                          setFilter(option.value)
-                          setIsFilterMenuOpen(false)
-                        }}
-                      />
-                    ))}
-                  </MenuList>
-                </PopoverContent>
-              </Popover>
               <CollapsibleSearchBar
                 onSearch={setSearchText}
                 placeholder={t('settings.mcp.search.placeholder')}
                 tooltip={t('settings.mcp.search.tooltip')}
-                maxWidth={200}
-                collapsedSize={28}
-                animated={false}
-                style={{ borderRadius: 14 }}
+                maxWidth={220}
+                collapsedSize={30}
+                style={{ borderRadius: 8 }}
               />
             </div>
           </div>
-          <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
-            <EnvironmentDependencies mini />
-            <Popover open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
-              <PopoverTrigger asChild>
-                <Button type="button" size="sm">
-                  <Plus className="size-3" />
-                  {t('common.add')}
-                  <ChevronDown className="size-3" />
+          <div className="shrink-0">
+            <DropdownMenu open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button variant="default" size="sm" className="shrink-0">
+                  <Plus size={12} className="lucide-custom" />
+                  <span>{t('common.add')}</span>
+                  <ChevronDown size={12} className="text-primary-foreground" />
                 </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" side="bottom" className="w-auto p-1">
-                <MenuList className="gap-1">
-                  <MenuItem label={t('settings.mcp.addServer.create')} onClick={handleManualAdd} />
-                  <MenuItem label={t('settings.mcp.addServer.importFrom.json')} onClick={() => handleImport('json')} />
-                  <MenuItem label={t('settings.mcp.addServer.importFrom.dxt')} onClick={() => handleImport('dxt')} />
-                  <MenuItem label={t('settings.mcp.addServer.importFrom.mcpb')} onClick={() => handleImport('mcpb')} />
-                </MenuList>
-              </PopoverContent>
-            </Popover>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-40">
+                <DropdownMenuItem onSelect={handleManualAdd}>{t('settings.mcp.addServer.create')}</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => handleImport('json')}>
+                  {t('settings.mcp.addServer.importFrom.json')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => handleImport('dxt')}>
+                  {t('settings.mcp.addServer.importFrom.dxt')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => handleImport('mcpb')}>
+                  {t('settings.mcp.addServer.importFrom.mcpb')}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => void handleExport()}
+                  disabled={exporting || !mcpServers.some(isExportableMcpServer)}>
+                  {t('settings.mcp.exportAsJson')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
+        </div>
+        <div className="mt-3 flex min-h-9 shrink-0 items-center justify-end gap-3 border-b border-border-subtle">
+          <EnvironmentDependencies mini />
+          <Popover open={isFilterMenuOpen} onOpenChange={setIsFilterMenuOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                aria-label={t('settings.mcp.filter.label')}
+                className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-accent">
+                <Filter
+                  size={14}
+                  color={filter === 'all' ? 'var(--muted-foreground)' : undefined}
+                  className={filter === 'all' ? undefined : 'text-primary'}
+                />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="start" side="bottom" className="w-auto min-w-36 p-1">
+              <MenuList className="gap-1">
+                {FILTER_OPTIONS.map((option) => (
+                  <MenuItem
+                    key={option.value}
+                    label={option.label ?? t(option.labelKey!)}
+                    className="h-8 rounded-lg px-2.5 text-sm"
+                    icon={<Check className={filter === option.value ? 'size-3.5 opacity-100' : 'size-3.5 opacity-0'} />}
+                    onClick={() => {
+                      setFilter(option.value)
+                      setIsFilterMenuOpen(false)
+                    }}
+                  />
+                ))}
+              </MenuList>
+            </PopoverContent>
+          </Popover>
         </div>
         <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
-              <Scrollbar ref={scrollRef} className="min-h-0 flex-1">
+              <ScrollArea viewportProps={{ ref: scrollRef }} className="min-h-0 flex-1">
                 {filteredMcpServers.length > 0 ? (
                   <Sortable
                     className="[&>div:last-child_[data-slot=mcp-server-row]]:border-b-0"
@@ -339,11 +379,11 @@ const McpServersList: FC = () => {
                     className="py-12"
                   />
                 )}
-              </Scrollbar>
+              </ScrollArea>
             </div>
           </div>
         </div>
-      </div>
+      </SettingsContentBody>
 
       <QuickCreateMcpServerDialog
         open={isQuickCreateOpen}
@@ -368,7 +408,7 @@ const McpServersList: FC = () => {
           onInstall={handleProtocolInstall}
         />
       )}
-    </div>
+    </>
   )
 }
 

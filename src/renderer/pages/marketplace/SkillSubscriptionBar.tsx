@@ -11,7 +11,8 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
-  Label
+  Label,
+  ScrollArea
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { ipcApi } from '@renderer/ipc'
@@ -20,7 +21,7 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 import { skillErrorCodes } from '@shared/ipc/errors/skill'
 import { normalizeSubscriptionUrl } from '@shared/utils/skillSubscription'
 
-import { SKILLS_SH_SOURCE_ID } from './SkillsShCatalog'
+import { SKILL_REGISTRY_SOURCES } from './RegistrySkillsCatalog'
 
 export function SkillSubscriptionBar({
   sourceId,
@@ -50,8 +51,11 @@ export function SkillSubscriptionBar({
   )
   return (
     <div className="flex shrink-0 items-center gap-2 py-3">
-      <div
-        className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto"
+      <ScrollArea
+        type="hover"
+        orientation="horizontal"
+        className="min-w-0 flex-1"
+        contentProps={{ className: 'flex! items-center gap-2' }}
         aria-label={t('marketplace.subscription.sources')}>
         <Button
           size="sm"
@@ -62,14 +66,17 @@ export function SkillSubscriptionBar({
           onClick={() => onSelect(null)}>
           {t('marketplace.curated')}
         </Button>
-        <Button
-          size="sm"
-          variant={sourceId === SKILLS_SH_SOURCE_ID ? 'default' : 'ghost'}
-          className="shrink-0 rounded-full"
-          aria-pressed={sourceId === SKILLS_SH_SOURCE_ID}
-          onClick={() => onSelect(SKILLS_SH_SOURCE_ID)}>
-          skills.sh
-        </Button>
+        {SKILL_REGISTRY_SOURCES.map((source) => (
+          <Button
+            key={source}
+            size="sm"
+            variant={sourceId === source ? 'default' : 'ghost'}
+            className="shrink-0 rounded-full"
+            aria-pressed={sourceId === source}
+            onClick={() => onSelect(source)}>
+            {source === 'claude-plugins.dev' ? 'claude-plugins' : source}
+          </Button>
+        ))}
         <Button
           ref={addRef}
           size="icon-sm"
@@ -92,8 +99,8 @@ export function SkillSubscriptionBar({
             <span className="truncate">{source.name}</span>
           </Button>
         ))}
-      </div>
-      {sourceId && sourceId !== SKILLS_SH_SOURCE_ID ? (
+      </ScrollArea>
+      {!SKILL_REGISTRY_SOURCES.some((source) => source === sourceId) && sourceId ? (
         <>
           <Button
             variant="ghost"

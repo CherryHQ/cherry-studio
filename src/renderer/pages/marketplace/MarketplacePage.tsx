@@ -3,7 +3,7 @@ import { Bot, Layers, Network, Settings2, Sparkles } from 'lucide-react'
 import { Activity, lazy, Suspense, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Spinner } from '@cherrystudio/ui'
+import { Button, ScrollArea, Spinner } from '@cherrystudio/ui'
 import { ResourceCatalogSearchInput } from '@renderer/components/resourceCatalog/ResourceCatalogSearchInput'
 import { useAgentCatalogPresets } from '@renderer/hooks/useAgentCatalogPresets'
 import { buildAssistantCatalogTabs, useAssistantCatalogPresets } from '@renderer/hooks/useAssistantCatalogPresets'
@@ -15,7 +15,7 @@ import { MarketplaceMcp } from './MarketplaceMcp'
 import { MarketplaceSkills } from './MarketplaceSkills'
 import { buildMarketplaceTemplates } from './marketplaceTemplateCatalog'
 import { MarketplaceTemplates } from './MarketplaceTemplates'
-import { SkillsShCatalog, SKILLS_SH_SOURCE_ID } from './SkillsShCatalog'
+import { RegistrySkillsCatalog } from './RegistrySkillsCatalog'
 import { SkillSubscriptionBar } from './SkillSubscriptionBar'
 import { useMarketplace } from './useMarketplace'
 
@@ -61,10 +61,10 @@ function MarketplaceCatalog({ active }: { active: boolean }) {
   const [moreMcpSources, setMoreMcpSources] = useState(false)
   const query = queries[resourceType]
   const skillSourceId = resourceType === 'skill' ? sourceId : null
-  const isSkillsSh = skillSourceId === SKILLS_SH_SOURCE_ID
+  const registrySource = skillSourceId === 'skills.sh' || skillSourceId === 'claude-plugins.dev' ? skillSourceId : null
   const skills = useMarketplace(
-    isSkillsSh ? null : skillSourceId,
-    active && !isSkillsSh && (resourceType === 'all' || resourceType === 'skill')
+    registrySource ? null : skillSourceId,
+    active && !registrySource && (resourceType === 'all' || resourceType === 'skill')
   )
   const agents = useAgentCatalogPresets({ enabled: active && (resourceType === 'all' || resourceType === 'agent') })
   const assistants = useAssistantCatalogPresets({
@@ -87,7 +87,7 @@ function MarketplaceCatalog({ active }: { active: boolean }) {
     [templates]
   )
   const counts: Record<MarketplaceView, number | null> = {
-    skill: isSkillsSh ? null : skillSourceId ? (skills.catalog.data?.length ?? null) : skills.curatedCount,
+    skill: registrySource ? null : skillSourceId ? (skills.catalog.data?.length ?? null) : skills.curatedCount,
     agent: agents.isLoading || agents.error || assistants.isLoading || assistants.error ? null : templates.length,
     mcp: mcp.presets.length,
     all: null
@@ -103,7 +103,8 @@ function MarketplaceCatalog({ active }: { active: boolean }) {
     setResourceType(type)
   }
   const renderCatalog = (type: MarketplaceResourceType, preview = false) => {
-    if (type === 'skill' && !preview && isSkillsSh) return <SkillsShCatalog query={query} active={active} />
+    if (type === 'skill' && !preview && registrySource)
+      return <RegistrySkillsCatalog source={registrySource} query={query} active={active} />
     if (type === 'skill') return <MarketplaceSkills market={skills} query={query} preview={preview} active={active} />
     if (type === 'mcp')
       return (
@@ -206,7 +207,7 @@ function MarketplaceCatalog({ active }: { active: boolean }) {
             </div>
           ) : null}
           {resourceType === 'all' ? (
-            <div className="min-h-0 flex-1 space-y-7 overflow-y-auto pr-1">
+            <ScrollArea type="hover" className="min-h-0 flex-1" contentProps={{ className: 'space-y-7 pr-1' }}>
               {OVERVIEW_TYPES.map((type) => (
                 <section key={type} data-testid={'marketplace-section-' + type}>
                   <div className="mb-3 flex items-center justify-between gap-3">
@@ -218,15 +219,18 @@ function MarketplaceCatalog({ active }: { active: boolean }) {
                   {renderCatalog(type, true)}
                 </section>
               ))}
-            </div>
+            </ScrollArea>
           ) : (
             <div
               key={resourceType + ':' + (skillSourceId ?? '') + ':' + moreMcpSources}
-              className={
-                'min-h-0 flex-1 ' +
-                (resourceType === 'agent' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto pr-1')
-              }>
-              {renderCatalog(resourceType)}
+              className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              {resourceType === 'agent' ? (
+                renderCatalog(resourceType)
+              ) : (
+                <ScrollArea type="hover" className="min-h-0 flex-1" contentProps={{ className: 'pr-1' }}>
+                  {renderCatalog(resourceType)}
+                </ScrollArea>
+              )}
             </div>
           )}
         </main>

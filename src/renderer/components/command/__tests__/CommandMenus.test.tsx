@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { type MouseEvent as ReactMouseEvent, useEffect } from 'react'
 import type ReactType from 'react'
@@ -193,11 +194,7 @@ vi.mock('@cherrystudio/ui', () => {
         {children}
       </span>
     ),
-    Scrollbar: ({ children, className }: React.HTMLAttributes<HTMLDivElement>) => (
-      <div data-testid="mock-scrollbar" className={className}>
-        {children}
-      </div>
-    )
+    ScrollArea: MockCherrystudioUI.ScrollArea
   }
 })
 
