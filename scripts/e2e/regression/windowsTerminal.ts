@@ -1,4 +1,6 @@
 import { execFileSync } from 'node:child_process'
+import { writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 import type { RunPaths } from './paths'
 
@@ -7,20 +9,46 @@ export interface WindowsTerminal {
   startedAt: string
 }
 
-export function listWindowsCodeTerminals(paths: RunPaths): WindowsTerminal[] {
-  const script = [
+function terminalCandidates(paths: RunPaths): string {
+  return [
     `$root = '${paths.root.replaceAll("'", "''")}'`,
     `$candidates = @(Get-CimInstance Win32_Process -Filter "Name = 'cmd.exe'" | Where-Object { $_.CommandLine -and $_.CommandLine.IndexOf($root, [StringComparison]::OrdinalIgnoreCase) -ge 0 -and $_.CommandLine.Contains('launch_claude-code_') })`,
-    '$candidateIds = @($candidates | ForEach-Object { $_.ProcessId })',
-    '$rows = @($candidates | Where-Object { $_.ParentProcessId -notin $candidateIds } | ForEach-Object { @{ pid = [int]$_.ProcessId; startedAt = $_.CreationDate.ToUniversalTime().Ticks.ToString() } })',
-    'ConvertTo-Json -InputObject $rows -Compress'
+    '$rows = @($candidates | ForEach-Object { @{ pid = [int]$_.ProcessId; startedAt = $_.CreationDate.ToUniversalTime().Ticks.ToString() } })'
   ].join('; ')
-  return JSON.parse(
+}
+
+export function listWindowsCodeTerminals(paths: RunPaths): WindowsTerminal[] {
+  const script = [
+    '$ErrorActionPreference = "Stop"',
+    '$output = [Console]::OpenStandardOutput()',
+    `Add-Type -TypeDefinition ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${Buffer.from(CONSOLE_DRIVER).toString('base64')}')))`,
+    terminalCandidates(paths),
+    '$terminals = @()',
+    '$seen = @{}',
+    'foreach ($row in $rows) {',
+    '  $current = Get-CimInstance Win32_Process -Filter "ProcessId = $($row.pid)"',
+    '  if (-not $current -or $current.CreationDate.ToUniversalTime().Ticks.ToString() -ne $row.startedAt) { continue }',
+    '  $window = [OwnedConsole]::Window($row.pid).ToString()',
+    '  $row.consoleWindow = $window',
+    '  if ($window -ne "0" -and -not $seen.ContainsKey($window)) {',
+    '    $seen[$window] = $true',
+    '    $terminals += @{ pid = $row.pid; startedAt = $row.startedAt }',
+    '  }',
+    '}',
+    '$json = ConvertTo-Json -InputObject @{ terminals = @($terminals); candidates = @($rows) } -Compress',
+    '$bytes = [Text.Encoding]::UTF8.GetBytes($json)',
+    '$output.Write($bytes, 0, $bytes.Length)',
+    '$output.Flush()'
+  ].join('\n')
+  const result = JSON.parse(
     execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
       encoding: 'utf8',
-      timeout: 10_000
+      timeout: 10_000,
+      windowsHide: true
     })
-  )
+  ) as { terminals: WindowsTerminal[]; candidates: (WindowsTerminal & { consoleWindow?: string })[] }
+  writeFileSync(join(paths.logs, 'windows-terminal-candidates.json'), JSON.stringify(result.candidates))
+  return result.terminals
 }
 
 const CONSOLE_DRIVER = String.raw`
@@ -49,17 +77,35 @@ public static class OwnedConsole {
   [DllImport("kernel32.dll", SetLastError = true)] private static extern bool GetConsoleScreenBufferInfo(IntPtr handle, out BufferInfo info);
   [DllImport("kernel32.dll", EntryPoint = "ReadConsoleOutputCharacterW", CharSet = CharSet.Unicode, SetLastError = true)] private static extern bool Read(IntPtr handle, StringBuilder text, uint count, Point position, out uint read);
   [DllImport("kernel32.dll", EntryPoint = "WriteConsoleInputW", SetLastError = true)] private static extern bool Write(IntPtr handle, Input[] events, uint count, out uint written);
+  private static IntPtr Open(uint pid, bool writeInput, bool probe = false) {
+    FreeConsole();
+    if (!AttachConsole(pid)) {
+      int error = Marshal.GetLastWin32Error();
+      if (probe && error == 87) return new IntPtr(-1);
+      throw new Win32Exception(error);
+    }
+    if (GetConsoleWindow() == IntPtr.Zero) throw new Win32Exception(6);
+    IntPtr handle = CreateFile(writeInput ? "CONIN$" : "CONOUT$", 0xC0000000, 3, IntPtr.Zero, 3, 0, IntPtr.Zero);
+    if (handle == new IntPtr(-1)) throw new Win32Exception(Marshal.GetLastWin32Error());
+    return handle;
+  }
+  public static long Window(uint pid) {
+    IntPtr handle = new IntPtr(-1);
+    try {
+      handle = Open(pid, false, true);
+      if (handle == new IntPtr(-1)) return 0;
+      BufferInfo info;
+      if (!GetConsoleScreenBufferInfo(handle, out info)) throw new Win32Exception(Marshal.GetLastWin32Error());
+      return GetConsoleWindow().ToInt64();
+    } catch (Win32Exception error) {
+      if (error.NativeErrorCode == 6) return 0;
+      throw;
+    } finally { if (handle != new IntPtr(-1)) CloseHandle(handle); FreeConsole(); }
+  }
   public static string Run(uint pid, bool writeInput, string text, ushort key) {
     IntPtr handle = new IntPtr(-1);
     try {
-      FreeConsole();
-      if (!AttachConsole(pid)) throw new Win32Exception(Marshal.GetLastWin32Error());
-      if (GetConsoleWindow() == IntPtr.Zero) {
-        if (!writeInput) return "";
-        throw new Exception("Owned terminal has no native console window");
-      }
-      handle = CreateFile(writeInput ? "CONIN$" : "CONOUT$", 0xC0000000, 3, IntPtr.Zero, 3, 0, IntPtr.Zero);
-      if (handle == new IntPtr(-1)) throw new Win32Exception(Marshal.GetLastWin32Error());
+      handle = Open(pid, writeInput);
       if (writeInput) {
         Input[] events = new Input[(text.Length + 1) * 2];
         for (int i = 0; i <= text.Length; i++) {
@@ -90,10 +136,8 @@ public static class OwnedConsole {
 `
 
 export function windowsTerminalText(paths: RunPaths, terminal: WindowsTerminal, input?: string, key = 13): string {
-  const current = listWindowsCodeTerminals(paths).find(
-    ({ pid, startedAt }) => pid === terminal.pid && startedAt === terminal.startedAt
-  )
-  if (!current) throw new Error('The owned CLI terminal is no longer running')
+  if (!Number.isSafeInteger(terminal.pid) || terminal.pid <= 0 || !/^\d+$/.test(terminal.startedAt))
+    throw new Error('Invalid owned CLI terminal identity')
   const script = [
     '$ErrorActionPreference = "Stop"',
     '$output = [Console]::OpenStandardOutput()',
@@ -101,6 +145,8 @@ export function windowsTerminalText(paths: RunPaths, terminal: WindowsTerminal, 
     input === undefined
       ? '$text = $null'
       : `$text = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${Buffer.from(input).toString('base64')}'))`,
+    terminalCandidates(paths),
+    `if (-not ($rows | Where-Object { $_.pid -eq ${terminal.pid} -and $_.startedAt -eq '${terminal.startedAt}' })) { throw 'The owned CLI terminal is no longer running' }`,
     `$result = [OwnedConsole]::Run(${terminal.pid}, $${input !== undefined}, $text, ${key})`,
     '$bytes = [Text.Encoding]::UTF8.GetBytes($result)',
     '$output.Write($bytes, 0, $bytes.Length)',
@@ -109,6 +155,7 @@ export function windowsTerminalText(paths: RunPaths, terminal: WindowsTerminal, 
   return execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
     encoding: 'utf8',
     timeout: 10_000,
+    windowsHide: true,
     maxBuffer: 4 * 1024 * 1024
   })
 }

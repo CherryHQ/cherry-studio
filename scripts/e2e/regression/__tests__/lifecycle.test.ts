@@ -1,5 +1,5 @@
 import type * as ChildProcess from 'node:child_process'
-import { mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, posix, win32 } from 'node:path'
 
@@ -50,6 +50,75 @@ describe('isolated profile environment', () => {
 })
 
 describe('owned application lifecycle', () => {
+  it.each(['ESRCH', 'EPERM', 'UNKNOWN', 'alive'])(
+    'handles a Windows identity lookup race without terminating an unverified PID: %s',
+    async (liveness) => {
+      const directory = mkdtempSync(join(tmpdir(), 'cherry-exiting-runner-'))
+      const paths = getRunPaths(directory)
+      ensureRunDirectories(paths)
+      const pid = 42_000
+      writeFileSync(
+        paths.appRecord,
+        JSON.stringify({
+          schemaVersion: 1,
+          ownership: 'regression-driver',
+          policy: 'ephemeral',
+          mode: 'branch',
+          platform: 'windows',
+          targetRoot: 'D:\\target-app',
+          runnerPid: pid,
+          cdpPort: 9222,
+          logPath: join(paths.logs, 'electron.log')
+        })
+      )
+      let queried = false
+      let disappearanceObserved = false
+      let terminated = false
+      vi.spyOn(process, 'kill').mockImplementation((_pid, signal) => {
+        if (signal !== 0) {
+          terminated = true
+          return true
+        }
+        if (queried && !disappearanceObserved && liveness !== 'alive') {
+          disappearanceObserved = true
+          throw Object.assign(new Error('Liveness unavailable'), { code: liveness })
+        }
+        // A reused PID becomes live immediately after the confirmed exit.
+        return true
+      })
+      execFileSyncMock.mockImplementation((file: string, args: string[]) => {
+        if (file === 'taskkill.exe') {
+          terminated = true
+          return ''
+        }
+        const script = String(args.at(-1))
+        if (script.includes('Get-NetTCPConnection')) return ''
+        if (script.includes('CreationDate'))
+          return JSON.stringify({ present: false, hasCommand: false, startedAt: null })
+        if (script.includes('CommandLine')) {
+          queried = true
+          return ''
+        }
+        throw new Error('Unexpected query')
+      })
+      try {
+        if (liveness === 'ESRCH') {
+          await expect(stopOwnedApp(paths)).resolves.toBeUndefined()
+          expect(readFileSync(join(paths.logs, 'electron.log'), 'utf8')).toContain(`PID ${pid}; exited=true`)
+          expect(readFileSync(join(paths.logs, 'electron.log'), 'utf8')).toContain('"hasCommand":false')
+        } else {
+          await expect(stopOwnedApp(paths)).rejects.toThrow(
+            liveness === 'alive' ? 'command no longer matches' : `liveness: ${liveness}`
+          )
+        }
+        expect(queried).toBe(true)
+        expect(terminated).toBe(false)
+      } finally {
+        rmSync(directory, { recursive: true, force: true })
+      }
+    }
+  )
+
   it('stops a packaged macOS relocation without triggering a renderer-driven relaunch', async () => {
     vi.useFakeTimers()
     const directory = mkdtempSync(join(tmpdir(), 'cherry-regression-lifecycle-'))
@@ -197,7 +266,7 @@ describe('owned application lifecycle', () => {
     writeFileSync(paths.appRecord, JSON.stringify(record))
 
     vi.spyOn(process, 'kill').mockImplementation((pid) => {
-      if (!alive.has(Number(pid))) throw new Error('Process not found')
+      if (!alive.has(Number(pid))) throw Object.assign(new Error('Process not found'), { code: 'ESRCH' })
       return true
     })
     execFileSyncMock.mockImplementation((file: string, args: string[]) => {
@@ -272,7 +341,7 @@ describe('owned application lifecycle', () => {
     writeFileSync(paths.appRecord, JSON.stringify(record))
 
     vi.spyOn(process, 'kill').mockImplementation((pid) => {
-      if (!alive.has(Number(pid))) throw new Error('Process not found')
+      if (!alive.has(Number(pid))) throw Object.assign(new Error('Process not found'), { code: 'ESRCH' })
       return true
     })
     execFileSyncMock.mockImplementation((file: string, args: string[]) => {
@@ -339,7 +408,7 @@ it.each(['macos', 'windows'] as const)(
       })
     )
     vi.spyOn(process, 'kill').mockImplementation(() => {
-      throw new Error('Process not found')
+      throw Object.assign(new Error('Process not found'), { code: 'ESRCH' })
     })
     execFileSyncMock.mockImplementation((_file: string, args: string[]) =>
       args.some((arg) => arg.includes('9229')) ? '43000' : ''

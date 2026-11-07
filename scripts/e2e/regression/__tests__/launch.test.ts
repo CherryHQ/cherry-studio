@@ -347,7 +347,7 @@ it.each([
     })
     vi.spyOn(process, 'kill').mockImplementation((pid) => {
       if (pid === 42001) return true
-      throw new Error('Process not found')
+      throw Object.assign(new Error('Process not found'), { code: 'ESRCH' })
     })
     vi.stubGlobal('fetch', async () => ({
       ok: true,

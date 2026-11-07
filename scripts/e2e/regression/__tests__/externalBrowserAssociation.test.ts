@@ -18,11 +18,15 @@ let paths: RunPaths
 let htmlHandler: string
 let tabs: Record<string, { id: number; title: string }[]>
 let runningBundles: string[]
+let staleWindow: boolean
+let windowInspectionError: 'exists' | 'tabs' | undefined
 
 beforeEach(() => {
   paths = getRunPaths(mkdtempSync(join(tmpdir(), 'cherry-browser-association-')))
   htmlHandler = safari
   runningBundles = [chrome, safari]
+  staleWindow = false
+  windowInspectionError = undefined
   tabs = {
     [safari]: [{ id: 1, title: 'User Safari tab' }],
     [chrome]: [{ id: 1, title: 'User Chrome tab' }]
@@ -48,9 +52,14 @@ beforeEach(() => {
                 tabs[bundle].length
                   ? [
                       {
+                        exists: () => {
+                          if (windowInspectionError === 'exists') throw new Error('Automation permission denied')
+                          return true
+                        },
                         id: () => 1,
-                        tabs: () =>
-                          tabs[bundle].map((tab) => ({
+                        tabs: () => {
+                          if (windowInspectionError === 'tabs') throw new Error('Automation permission denied')
+                          return tabs[bundle].map((tab) => ({
                             id: () => tab.id,
                             name: () => tab.title,
                             title: () => tab.title,
@@ -59,9 +68,22 @@ beforeEach(() => {
                               tabs[bundle] = tabs[bundle].filter(({ id }) => id !== tab.id)
                             }
                           }))
+                        }
                       }
                     ]
-                  : [null]
+                  : [
+                      staleWindow
+                        ? new Proxy(
+                            {},
+                            {
+                              get: (_target, property) => {
+                                if (property === 'exists') return () => false
+                                throw new TypeError(`Invalid window specifier: ${String(property)}`)
+                              }
+                            }
+                          )
+                        : null
+                    ]
             },
       { currentApplication: () => ({}) }
     )
@@ -117,7 +139,8 @@ it('rejects an unsupported HTML handler before the external file is opened', () 
   expect(tabs[chrome]).toEqual([{ id: 1, title: 'User Chrome tab' }])
 })
 
-it('cleans up a newly opened browser when its final tab leaves a null window specifier', () => {
+it.each([false, true])('cleans up the final browser tab with a stale window proxy: %s', (stale) => {
+  staleWindow = stale
   runningBundles = [chrome]
   tabs[safari] = []
   const path = join(paths.root, 'preview.html')
@@ -133,6 +156,23 @@ it('cleans up a newly opened browser when its final tab leaves a null window spe
   expect(tabs[chrome]).toEqual([{ id: 1, title: 'User Chrome tab' }])
   expect(tabs[safari]).toEqual([])
   expect(JSON.parse(readFileSync(join(paths.private, 'external-resources.json'), 'utf8'))).toEqual([])
+})
+
+it.each(['exists', 'tabs'] as const)('preserves the browser and cleanup ledger when %s inspection fails', (method) => {
+  const id = registerExternalResource(paths, 'macos', { kind: 'browser', title })
+  tabs[chrome].push({ id: 2, title })
+  expect(observeExternalResource(paths, id)).toBe(true)
+  windowInspectionError = method
+
+  expect(() => cleanupExternalResources(paths)).toThrow('External application cleanup failed')
+
+  expect(tabs[chrome]).toEqual([
+    { id: 1, title: 'User Chrome tab' },
+    { id: 2, title }
+  ])
+  expect(JSON.parse(readFileSync(join(paths.private, 'external-resources.json'), 'utf8'))).toEqual([
+    expect.objectContaining({ id })
+  ])
 })
 
 it('keeps URL-only browser cleanup associated with the HTTPS handler', () => {

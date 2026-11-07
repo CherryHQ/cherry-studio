@@ -14,8 +14,8 @@ import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { ensureRunDirectories, getRunPaths } from '../paths'
-import { CDP_PORT, isAlive, processCommand } from '../process'
+import { ensureRunDirectories, getRunPaths, type RunPaths } from '../paths'
+import { CDP_PORT, isAlive, processCommand, waitForExit } from '../process'
 import {
   chooseNativeFile,
   chooseNativeFiles,
@@ -27,7 +27,66 @@ import {
   setWindowsNotificationCenterOpen
 } from '../systemAutomation'
 import { readWindowsFileOwners } from '../windowsFileOwners'
-import { listWindowsCodeTerminals, windowsTerminalText } from '../windowsTerminal'
+import { listWindowsCodeTerminals, type WindowsTerminal, windowsTerminalText } from '../windowsTerminal'
+
+function saveConsoleFixtureIdentity(identityPath: string): string {
+  return [
+    '$ErrorActionPreference = "Stop"',
+    '$current = Get-CimInstance Win32_Process -Filter "ProcessId = $($child.Id)"',
+    '$identity = ConvertTo-Json -InputObject @{ pid = $child.Id; startedAt = $current.CreationDate.ToUniversalTime().Ticks.ToString() } -Compress',
+    `[IO.File]::WriteAllText('${identityPath.replaceAll("'", "''")}', $identity)`
+  ].join('; ')
+}
+
+async function cleanupConsoleFixture(
+  paths: RunPaths,
+  identityPath: string,
+  errors: unknown[],
+  startedPid?: number
+): Promise<void> {
+  const testFailed = errors.length > 0
+  try {
+    const candidatesPath = join(paths.logs, 'windows-terminal-candidates.json')
+    if (testFailed && existsSync(candidatesPath)) {
+      const candidates = JSON.parse(readFileSync(candidatesPath, 'utf8')) as (WindowsTerminal & {
+        consoleWindow?: string
+      })[]
+      errors.push(
+        new Error(
+          `Console candidates: ${JSON.stringify(candidates.map(({ pid, startedAt, consoleWindow }) => ({ pid, startedAt, consoleWindow })))}`
+        )
+      )
+    }
+    if ((startedPid || testFailed) && !existsSync(identityPath)) {
+      throw new Error(`Console fixture PID ${startedPid ?? 'unknown'} has no verified identity; retained ${paths.root}`)
+    }
+    if (existsSync(identityPath)) {
+      const terminal = JSON.parse(readFileSync(identityPath, 'utf8')) as WindowsTerminal
+      execFileSync(
+        'powershell.exe',
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-Command',
+          [
+            '$ErrorActionPreference = "Stop"',
+            `$current = Get-CimInstance Win32_Process -Filter "ProcessId = ${terminal.pid}"`,
+            'if (-not $current) { exit 0 }',
+            `if ($current.CreationDate.ToUniversalTime().Ticks.ToString() -ne '${terminal.startedAt}' -or -not $current.CommandLine -or $current.CommandLine.IndexOf('${paths.root.replaceAll("'", "''")}', [StringComparison]::OrdinalIgnoreCase) -lt 0) { throw 'Refusing to stop an unowned console fixture' }`,
+            `& taskkill.exe /PID ${terminal.pid} /T /F`,
+            'if ($LASTEXITCODE -ne 0) { throw "Console fixture cleanup failed" }'
+          ].join('; ')
+        ],
+        { stdio: 'ignore', timeout: 10_000 }
+      )
+      expect(await waitForExit(terminal.pid)).toBe(true)
+    }
+    rmSync(paths.root, { recursive: true, force: true })
+  } catch (error) {
+    errors.push(error)
+  }
+  if (errors.length) throw new AggregateError(errors, errors.map(String).join('\n'))
+}
 
 it('rejects file-owner inspection outside the isolated profile', () => {
   const directory = mkdtempSync(join(tmpdir(), 'cherry-native-owners-'))
@@ -58,9 +117,9 @@ it.skipIf(process.platform !== 'win32')('reports the real owner only while its f
   }
 })
 
-it.skipIf(process.platform !== 'win32').each([false, true])(
-  'reads and types through the owned native console (nested shell: %s)',
-  async (nested) => {
+it.skipIf(process.platform !== 'win32').each(['direct', 'shared', 'detached'] as const)(
+  'reads and types through the owned native console (%s shell)',
+  async (mode) => {
     const directory = mkdtempSync(join(tmpdir(), 'cherry-native-console-'))
     const paths = getRunPaths(directory)
     ensureRunDirectories(paths)
@@ -69,31 +128,56 @@ it.skipIf(process.platform !== 'win32').each([false, true])(
       batch,
       '@echo off\r\necho NATIVE_CONSOLE_READY\r\nset /p typed=Input:\r\necho INPUT=%typed%\r\npause\r\n'
     )
+    const identityPath = join(paths.private, 'console-identity.json')
+    const errors: unknown[] = []
+    let startedPid: number | undefined
     try {
-      execFileSync(
-        'powershell.exe',
-        [
-          '-NoProfile',
-          '-NonInteractive',
-          '-Command',
-          `Start-Process -FilePath cmd.exe -ArgumentList '${nested ? '/c cmd.exe /c' : '/c'} ""${batch.replaceAll("'", "''")}""' -WindowStyle Normal`
-        ],
-        { timeout: 10_000 }
-      )
+      if (mode === 'detached') {
+        const child = spawn('cmd', ['/c', batch], { detached: true, shell: true, stdio: 'ignore' })
+        startedPid = child.pid
+        await new Promise<void>((resolve, reject) => {
+          child.once('spawn', resolve)
+          child.once('error', reject)
+        })
+        writeFileSync(
+          join(paths.private, 'console-pending-owner.json'),
+          JSON.stringify({ pid: startedPid, identityVerified: false })
+        )
+        execFileSync(
+          'powershell.exe',
+          [
+            '-NoProfile',
+            '-NonInteractive',
+            '-Command',
+            `$child = Get-Process -Id ${child.pid}; ${saveConsoleFixtureIdentity(identityPath)}`
+          ],
+          { stdio: 'ignore', timeout: 10_000 }
+        )
+      } else
+        execFileSync(
+          'powershell.exe',
+          [
+            '-NoProfile',
+            '-NonInteractive',
+            '-Command',
+            `$child = Start-Process -FilePath cmd.exe -ArgumentList '${mode === 'shared' ? '/c cmd.exe /c' : '/c'} ""${batch.replaceAll("'", "''")}""' -WindowStyle Normal -PassThru; ${saveConsoleFixtureIdentity(identityPath)}`
+          ],
+          { stdio: 'ignore', timeout: 10_000 }
+        )
       await expect.poll(() => listWindowsCodeTerminals(paths).length, { timeout: 15_000 }).toBe(1)
       const terminal = listWindowsCodeTerminals(paths)[0]
       await expect
         .poll(() => windowsTerminalText(paths, terminal), { timeout: 15_000 })
         .toContain('NATIVE_CONSOLE_READY')
+      expect(() => windowsTerminalText(paths, { ...terminal, startedAt: '0' }, 'unowned input')).toThrow()
       windowsTerminalText(paths, terminal, 'verified native input')
       await expect
         .poll(() => windowsTerminalText(paths, terminal), { timeout: 15_000 })
         .toContain('INPUT=verified native input')
+    } catch (error) {
+      errors.push(error)
     } finally {
-      for (const { pid } of listWindowsCodeTerminals(paths)) {
-        execFileSync('taskkill.exe', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore', timeout: 10_000 })
-      }
-      rmSync(directory, { recursive: true, force: true })
+      await cleanupConsoleFixture(paths, identityPath, errors, startedPid)
     }
   },
   60_000
@@ -107,6 +191,8 @@ it.skipIf(process.platform !== 'win32')(
     ensureRunDirectories(paths)
     const batch = join(paths.profiles, 'launch_claude-code_pending.bat')
     writeFileSync(batch, '@echo off\r\nping -n 60 127.0.0.1 >nul\r\n')
+    const identityPath = join(paths.private, 'console-identity.json')
+    const errors: unknown[] = []
     try {
       execFileSync(
         'powershell.exe',
@@ -122,20 +208,24 @@ it.skipIf(process.platform !== 'win32')(
             '$info.CreateNoWindow = $true',
             '$info.RedirectStandardOutput = $true',
             '$info.RedirectStandardError = $true',
-            '$null = [Diagnostics.Process]::Start($info)'
+            '$child = [Diagnostics.Process]::Start($info)',
+            saveConsoleFixtureIdentity(identityPath)
           ].join('; ')
         ],
         { windowsHide: true, stdio: 'ignore', timeout: 10_000 }
       )
-      await expect.poll(() => listWindowsCodeTerminals(paths).length, { timeout: 15_000 }).toBe(1)
-      const terminal = listWindowsCodeTerminals(paths)[0]
+      const terminal = JSON.parse(readFileSync(identityPath, 'utf8')) as WindowsTerminal
+      expect(listWindowsCodeTerminals(paths)).toEqual([])
+      expect(JSON.parse(readFileSync(join(paths.logs, 'windows-terminal-candidates.json'), 'utf8'))).toContainEqual({
+        ...terminal,
+        consoleWindow: '0'
+      })
       expect(windowsTerminalText(paths, terminal)).toBe('')
       expect(() => windowsTerminalText(paths, terminal, 'must not silently drop this input')).toThrow()
+    } catch (error) {
+      errors.push(error)
     } finally {
-      for (const { pid } of listWindowsCodeTerminals(paths)) {
-        execFileSync('taskkill.exe', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore', timeout: 10_000 })
-      }
-      rmSync(directory, { recursive: true, force: true })
+      await cleanupConsoleFixture(paths, identityPath, errors)
     }
   },
   60_000
