@@ -63,8 +63,10 @@ test('inline HTML iframe preview settles and stays stable across scrolling', asy
   await page.mouse.wheel(0, -10000)
   const artifact = page.getByTestId('message-html-artifact').first()
   await artifact.waitFor({ state: 'attached' })
-  await artifact.scrollIntoViewIfNeeded()
-  await expect(artifact).toBeVisible()
+  await expect(async () => {
+    await artifact.scrollIntoViewIfNeeded()
+    await expect(artifact).toBeVisible()
+  }).toPass({ timeout: 10_000 })
   const sampling = await page.waitForFunction(async () => {
     const surface = document.querySelector<HTMLElement>('[data-testid="html-artifact-surface"]')
     const marker = Array.from(document.querySelectorAll('p')).find((p) => p.textContent === 'after-block-marker')

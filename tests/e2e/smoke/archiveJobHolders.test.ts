@@ -1,38 +1,14 @@
 import { randomUUID } from 'node:crypto'
-import { access, mkdir, realpath, rm } from 'node:fs/promises'
+import { access, realpath } from 'node:fs/promises'
 import { isAbsolute, join, relative } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 
-import { _electron as electron } from '@playwright/test'
 import { v7 as uuidv7 } from 'uuid'
 
 import type { IpcResult } from '../../../src/shared/ipc/errors/IpcError'
 import type { OutputFor } from '../../../src/shared/ipc/types'
 import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
-import { expect, test as base } from './fixtures/electron.fixture'
-
-const test = base.extend({
-  electronApp: async ({}, provideApp, testInfo) => {
-    const profile = testInfo.outputPath('profile')
-    await mkdir(profile, { recursive: true })
-    const env: NodeJS.ProcessEnv = { ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: profile }
-    delete env.ELECTRON_RENDERER_URL
-    const app = await electron.launch({
-      args: ['.'],
-      env: Object.fromEntries(Object.entries(env).filter((pair): pair is [string, string] => pair[1] !== undefined)),
-      timeout: 60_000
-    })
-    try {
-      await provideApp(app)
-    } finally {
-      try {
-        await app.close()
-      } finally {
-        await rm(profile, { recursive: true, force: true, maxRetries: 3 })
-      }
-    }
-  }
-})
+import { expect, test } from './fixtures/electron.fixture'
 
 const RELEASE =
   'Image-generation job references are released automatically when the job record is cleaned up, normally about 7 days after the job finishes; older records can be removed sooner and cleanup may be delayed. This file becomes eligible for background cleanup only after every reference is released, and other references can still block deletion.'
@@ -64,7 +40,7 @@ test('Archive names the image-generation job blocking permanent deletion', async
     if (!result.ok) throw new Error('app.get_info failed')
     const dbPath = join(result.data.appDataPath, 'Data', 'cherrystudio.sqlite')
     await access(dbPath)
-    const relativePath = relative(await realpath(testInfo.outputPath('profile')), await realpath(dbPath))
+    const relativePath = relative(await realpath(process.env.CS_DEV_PROFILE_ROOT!), await realpath(dbPath))
     expect(relativePath).not.toBe('')
     expect(relativePath.startsWith('..')).toBe(false)
     expect(isAbsolute(relativePath)).toBe(false)

@@ -167,7 +167,10 @@ export async function interruptAgentTask(
     const stoppedMessages = await readMessages()
     const before = toolIds(stoppedMessages)
     expect(before).toHaveLength(1)
-    expect(JSON.stringify(stoppedMessages.filter((m) => m.role === 'assistant'))).toContain(command)
+    const inputs = stoppedMessages.flatMap((message) =>
+      (message.data.parts ?? []).flatMap((part) => ('toolCallId' in part && 'input' in part ? [part.input] : []))
+    )
+    expect(inputs).toEqual([expect.objectContaining({ command })])
     await page.keyboard.press('Escape')
     // Observe for delayed tool scheduling and repeated cancellation after the stop button disappears.
     const deadline = Date.now() + 3000

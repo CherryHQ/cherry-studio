@@ -86,6 +86,8 @@ test(...caseDefinition('MP-74'), async ({ app, mainWindow: page }, testInfo) => 
     await screenshot('MP-74 existing note precondition')
     await notes.getByText(name, { exact: true }).click()
     await expect(source).toContainText('Existing content.')
+    await source.press('ControlOrMeta+A')
+    await source.press('Backspace')
     await source.fill(markdown)
     await expect(notes.getByText(`Characters: ${markdown.length}`, { exact: true })).toBeVisible()
     await expect.poll(() => readFile(notePath, 'utf8')).toBe(markdown)

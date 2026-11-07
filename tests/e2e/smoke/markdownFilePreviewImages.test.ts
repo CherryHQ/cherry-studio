@@ -1,6 +1,6 @@
 import { copyFile, mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
 
 import type { OutputFor } from '../../../src/shared/ipc/types'
 import { expect, test } from './fixtures/electron.fixture'
@@ -65,14 +65,19 @@ test('file manager paints document-relative Markdown images', async ({ mainWindo
   await expect(preview.getByRole('heading', { name: 'Issue 21981 local images' })).toBeVisible()
   const images = preview.locator('img')
   await expect(images).toHaveCount(3)
-  const expectedSources = [
-    pathToFileURL(join(physicalDirectory, 'images/diagram.png')).href,
-    pathToFileURL(join(physicalDirectory, 'icon.svg')).href,
-    pathToFileURL(join(physicalDirectory, 'images/diagram.png')).href
+  const expectedPaths = [
+    join(physicalDirectory, 'images/diagram.png'),
+    join(physicalDirectory, 'icon.svg'),
+    join(physicalDirectory, 'images/diagram.png')
   ]
-  for (const [index, src] of expectedSources.entries()) {
+  for (const [index, path] of expectedPaths.entries()) {
     const image = images.nth(index)
-    await expect(image).toHaveAttribute('src', src)
+    await expect
+      .poll(async () => {
+        const src = await image.getAttribute('src')
+        return src ? fileURLToPath(src) : null
+      })
+      .toBe(path)
     await expect
       .poll(() => image.evaluate((node) => node instanceof HTMLImageElement && node.naturalWidth > 0))
       .toBe(true)

@@ -371,10 +371,7 @@ test(...caseDefinition('MP-92'), async ({ mainWindow: page }, testInfo) => {
   }
   const selectModel = async (providerId: string) => {
     await page.locator('[data-selector-shell-root="true"] > button').first().click()
-    const selector = page.getByTestId('model-selector-content').last()
-    await expect(selector).toBeVisible()
-    await selector.getByTestId('model-selector-search').fill(providerId)
-    await selector.getByTestId(`model-selector-item-${providerId}::${modelId}`).click()
+    await selectVisibleModel(page, modelId, providerId)
   }
   const generating = page.getByRole('status', {
     name: /Drawing in progress\. Please do not leave this page\.|Revealing generated image/
