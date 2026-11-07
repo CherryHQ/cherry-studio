@@ -12,15 +12,21 @@ const EMBEDDING = 'qwen3-embedding-0.6b'
 const OCR = 'pp-ocrv6-medium'
 const ASR = 'funasr-nano-int8'
 
-const { scanBundleFiles, isArtifactReady, removeArtifactIfUnused, sweepStaleDownloads, importArtifact } = vi.hoisted(
-  () => ({
-    scanBundleFiles: vi.fn(),
-    isArtifactReady: vi.fn(),
-    removeArtifactIfUnused: vi.fn(),
-    sweepStaleDownloads: vi.fn(),
-    importArtifact: vi.fn(async () => {})
-  })
-)
+const {
+  scanBundleFiles,
+  isArtifactReady,
+  removeArtifactIfUnused,
+  sweepStaleDownloads,
+  importArtifact,
+  ensureArtifact
+} = vi.hoisted(() => ({
+  scanBundleFiles: vi.fn(),
+  isArtifactReady: vi.fn(),
+  removeArtifactIfUnused: vi.fn(),
+  sweepStaleDownloads: vi.fn(),
+  importArtifact: vi.fn(async () => {}),
+  ensureArtifact: vi.fn(async () => {})
+}))
 
 const { terminateAsrRuntime, terminateOcrRuntime } = vi.hoisted(() => ({
   terminateAsrRuntime: vi.fn(async (after: () => Promise<unknown>) => after()),
@@ -54,6 +60,7 @@ vi.mock('../installation/LocalModelStorageService', () => ({
     removeArtifactIfUnused,
     sweepStaleDownloads,
     importArtifact,
+    ensureArtifact,
     bundleInstallDir: () => '/install',
     bundleRootDir: () => '/install',
     pendingBundleFiles: () => [],
@@ -76,6 +83,7 @@ beforeEach(() => {
   MockMainCacheServiceUtils.resetMocks()
   MockMainPreferenceServiceUtils.resetMocks()
   isArtifactReady.mockReturnValue(true)
+  ensureArtifact.mockResolvedValue(undefined)
   removeArtifactIfUnused.mockResolvedValue(true)
   sweepStaleDownloads.mockResolvedValue(undefined)
   onDisk({})
@@ -210,6 +218,21 @@ describe('importing runtime', () => {
     await localModelService.importRuntime(OCR, '/offline')
 
     expect(importArtifact).not.toHaveBeenCalled()
+  })
+
+  it('clears a prior download failure once an import makes the bundle ready', async () => {
+    onDisk({ [OCR]: INSTALLED })
+    isArtifactReady.mockReturnValue(false)
+    ensureArtifact.mockRejectedValueOnce(new Error('offline'))
+
+    await expect(localModelService.download(OCR, async () => 'global-first')).rejects.toThrow('offline')
+    expect(localModelService.refreshStatus(OCR)).toEqual({ status: 'error', errorCode: 'download_failed' })
+
+    isArtifactReady.mockReturnValue(true)
+    await localModelService.importRuntime(OCR, '/offline')
+
+    expect(localModelService.refreshStatus(OCR)).toEqual({ status: 'ready' })
+    expect(localModelService.isModelReady(OCR)).toBe(true)
   })
 
   it('surfaces the import failure to the caller', async () => {

@@ -83,6 +83,7 @@ export class LocalModelService extends BaseService {
         await localModelStorageService.importArtifact(artifactId, sourceDir)
       }
     } finally {
+      this.installerFor(id).reconcileExternalInstall()
       this.refreshStatus(id)
     }
   }
