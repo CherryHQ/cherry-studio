@@ -218,36 +218,38 @@ it.skipIf(!['darwin', 'win32'].includes(process.platform)).each(dialogModes)(
               ? execFileSync(
                   'osascript',
                   [
+                    '-l',
+                    'JavaScript',
                     '-e',
                     `
-              tell application "System Events"
-                set ownedProcess to a reference to (first application process whose unix id is ${child.pid})
-                if unix id of ownedProcess is not ${child.pid} then error "Native diagnostic PID mismatch"
-                set snapshot to {unix id of ownedProcess, name of every window of ownedProcess}
-                repeat with windowIndex from 1 to count of windows of ownedProcess
-                  set ownedWindow to a reference to window windowIndex of ownedProcess
-                  try
-                    set end of snapshot to {name of every button of splitter group 1 of ownedWindow, value of every text field of splitter group 1 of ownedWindow, name of every sheet of ownedWindow}
-                  end try
-                  set inspected to 0
-                  repeat with elementReference in entire contents of ownedWindow
-                    if inspected ≥ 120 then exit repeat
-                    try
-                      set element to contents of elementReference
-                      set elementRole to role of element
-                      if elementRole is in {"AXRow", "AXCell", "AXStaticText", "AXTextField", "AXOutline", "AXBrowser"} then
-                        set elementValue to ""
-                        try
-                          set elementValue to value of element as text
-                        end try
-                        set end of snapshot to {elementRole, name of element, elementValue}
-                        set inspected to inspected + 1
-                      end if
-                    end try
-                  end repeat
-                end repeat
-                return snapshot
-              end tell
+              const process = Application('System Events').applicationProcesses.whose({ unixId: ${child.pid} })[0];
+              if (process.unixId() !== ${child.pid}) throw new Error('Native diagnostic PID mismatch');
+              const read = fn => { try { return fn(); } catch { return null; } };
+              const describe = element => ({
+                role: read(() => element.role()), name: read(() => element.name()),
+                value: read(() => element.value()), focused: read(() => element.focused()),
+                selected: read(() => element.selected()), enabled: read(() => element.enabled())
+              });
+              const focused = [];
+              let element = read(() => process.attributes.byName('AXFocusedUIElement').value());
+              for (let depth = 0; element && depth < 5; depth++) {
+                focused.push(describe(element));
+                element = read(() => element.attributes.byName('AXParent').value());
+              }
+              const queue = process.windows().slice(0, 4).map(element => ({ element, depth: 0 }));
+              const controls = [];
+              const deadline = Date.now() + 5000;
+              while (queue.length && controls.length < 100 && Date.now() < deadline) {
+                const { element, depth } = queue.shift();
+                const info = describe(element);
+                controls.push({ depth, ...info });
+                if (depth < 7 && info.role !== 'AXWebArea') {
+                  for (const child of (read(() => element.uiElements()) || []).slice(0, 16)) {
+                    queue.push({ element: child, depth: depth + 1 });
+                  }
+                }
+              }
+              JSON.stringify({ focused, controls });
             `
                   ],
                   { encoding: 'utf8', timeout: 10_000 }
@@ -280,7 +282,7 @@ it.skipIf(!['darwin', 'win32'].includes(process.platform)).each(dialogModes)(
       const log = join(paths.logs, 'fixture.log')
       const logTail = existsSync(log) ? readFileSync(log, 'utf8').slice(-5000) : ''
       throw new Error(
-        `${nativePlatform} ${mode} dialog failed. Result: ${existsSync(result) ? readFileSync(result, 'utf8') : 'pending'}. Owned controls:\n${controls}\nFixture log:\n${logTail}`,
+        `${nativePlatform} ${mode} dialog failed: ${String(error)}. Result: ${existsSync(result) ? readFileSync(result, 'utf8') : 'pending'}. Owned controls:\n${controls}\nFixture log:\n${logTail}`,
         { cause: error }
       )
     } finally {
