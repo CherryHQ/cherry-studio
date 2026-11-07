@@ -185,7 +185,7 @@ export function generateMeta(opts: {
   dirName: string
   colorPrimary: string
   colorScheme: 'mono' | 'color'
-  artworkKind?: 'tile'
+  artworkKind?: 'tile' | 'full-canvas'
 }): void {
   const { outPath, dirName, colorPrimary, colorScheme, artworkKind } = opts
 

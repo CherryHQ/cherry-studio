@@ -4,13 +4,15 @@
  *
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
- * Generated at: 2026-11-04T07:38:09.129Z
- * Total icons: 173
+ * Generated at: 2026-11-07T12:19:25.763Z
+ * Total icons: 174
  */
 import { type CompoundIcon } from '../types'
-import { MinTop3Icon } from './3min-top'
+import { type ProviderIconKey } from './meta-catalog'
 import { Ai302Icon } from './302ai'
+import { MinTop3Icon } from './3min-top'
 import { AbacusIcon } from './abacus'
+import { AcedatacloudIcon } from './acedatacloud/acedatacloud'
 import { AiOnlyIcon } from './ai-only'
 import { AiStudioIcon } from './ai-studio'
 import { Ai21Icon } from './ai21'
@@ -102,7 +104,6 @@ import { MacosIcon } from './macos'
 import { McpIcon } from './mcp'
 import { McpsoIcon } from './mcpso'
 import { MetaIcon } from './meta'
-import { type ProviderIconKey } from './meta-catalog'
 import { MetasoIcon } from './metaso'
 import { MiaodaIcon } from './miaoda/miaoda'
 import { MineruIcon } from './mineru'
@@ -187,6 +188,7 @@ export const PROVIDER_ICON_CATALOG = {
   '302ai': Ai302Icon,
   '3min-top': MinTop3Icon,
   abacus: AbacusIcon,
+  acedatacloud: AcedatacloudIcon,
   'ai-only': AiOnlyIcon,
   'ai-studio': AiStudioIcon,
   ai21: Ai21Icon,

@@ -32,9 +32,9 @@ export function getIconDisplayConfig(
 ): IconDisplayConfig | undefined {
   if (!iconId) return undefined
   if (context === 'provider-list') {
-    return getProviderIconAssetMetrics({ kind: 'provider', iconId }).kind === 'tile'
-      ? providerListContainedIcon
-      : defaultIcon
+    const { kind } = getProviderIconAssetMetrics({ kind: 'provider', iconId })
+    if (kind === 'full-canvas') return { scale: 1 }
+    return kind === 'tile' ? providerListContainedIcon : defaultIcon
   }
   return MINI_APP_ICON_DISPLAY_CONFIG[iconId.toLowerCase()] ?? defaultIcon
 }
