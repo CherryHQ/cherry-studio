@@ -52,6 +52,23 @@ describe('scan rule fixtures', () => {
     }
   })
 
+  it('avoids duplicate or misattributed findings for numeric input-length rejection', () => {
+    const fixture = fixtures.find(
+      (entry) => entry.ruleId === 'chat-context-window-exceeded' && entry.polarity === 'positive'
+    )!
+    const line = fixture.lines.find((entry) => entry.includes('Input length 2000000'))!
+    const parsed = parseErrorLogLine(line)
+    expect(parsed).toBeDefined()
+    const findings = diagnose([parsed!], { rules: SCAN_RULES })
+    expect(findings).toHaveLength(1)
+    expect(findings[0]).toMatchObject({
+      ruleId: 'chat-context-window-exceeded',
+      domain: 'chat',
+      attribution: 'user-fixable',
+      count: 1
+    })
+  })
+
   it('has no fixtures for rules that no longer exist', () => {
     const knownIds = new Set(SCAN_RULES.map((rule) => rule.id))
     for (const fixture of fixtures) {
