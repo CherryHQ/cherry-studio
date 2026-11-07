@@ -164,6 +164,31 @@ async function installExtractedFiles(
   }
 }
 
+/**
+ * Copies a user-supplied copy of the artifact into place, for machines that cannot reach the
+ * download sources. `sourceDir` may be the artifact folder itself or its parent (for example
+ * `Toolchain/onnxruntime`, which holds the platform subdirectory).
+ */
+export async function importArtifactFromDir(artifact: SharedArtifact, sourceDir: string): Promise<void> {
+  const platform = artifactPlatformFiles(artifact)
+  if (!platform) throw new Error(`${artifact.id} ships no files for ${currentPlatformKey()}`)
+
+  const files = [...platform.supportFiles, platform.entryFile]
+  const sourceRoots = [sourceDir, path.join(sourceDir, platform.installSubdir)]
+  const sourceRoot = sourceRoots.find((root) => files.every((file) => fs.existsSync(path.join(root, file))))
+  if (!sourceRoot) {
+    const missing = files.filter((file) => !fs.existsSync(path.join(sourceDir, file)))
+    throw new Error(`${artifact.id}: missing ${missing.join(', ')} in ${sourceDir}`)
+  }
+
+  const installDir = artifactInstallDir(artifact, platform)
+  await fs.promises.mkdir(installDir, { recursive: true })
+  for (const file of files) {
+    await fs.promises.copyFile(path.join(sourceRoot, file), path.join(installDir, file))
+  }
+  logger.info('shared artifact imported', { artifact: artifact.id, platform: currentPlatformKey() })
+}
+
 /** Where {@link installArtifact} stages the tarball and its extracted files. */
 export function artifactStagingDir(artifact: SharedArtifact): string {
   return application.getPath(artifact.installDirKey, '.tmp')

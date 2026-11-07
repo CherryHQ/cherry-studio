@@ -57,8 +57,15 @@ vi.mock('../../catalog/catalog', async (importOriginal) => {
 })
 
 const { localModelStorageService } = await import('../../installation/LocalModelStorageService')
-const { artifactEntryPath, artifactRegistryOrder, installArtifact, isArtifactSupported, removeArtifact } =
-  await import('../tarballArtifact')
+const {
+  artifactEntryPath,
+  artifactRegistryOrder,
+  importArtifactFromDir,
+  installArtifact,
+  isArtifactInstalled,
+  isArtifactSupported,
+  removeArtifact
+} = await import('../tarballArtifact')
 
 /** A `net.fetch` Response shell streaming `content`. */
 function tarballResponse(content: Buffer) {
@@ -341,6 +348,38 @@ describe('shared artifact acquisition', () => {
 
       await expect(removeArtifact(FIXTURE_ARTIFACT)).resolves.toBeUndefined()
       expect(removeMock).toHaveBeenCalledOnce()
+    })
+  })
+
+  describe('offline import', () => {
+    const sourceDir = () => path.join(toolchainDir, 'offline-source')
+    const writeFiles = (dir: string, files: string[]) => {
+      fs.mkdirSync(dir, { recursive: true })
+      for (const file of files) fs.writeFileSync(path.join(dir, file), file)
+    }
+
+    it('copies the entry and support files from the artifact folder', async () => {
+      writeFiles(sourceDir(), ['onnxruntime_binding.node', 'libonnxruntime.so.1'])
+
+      await importArtifactFromDir(FIXTURE_ARTIFACT, sourceDir())
+
+      expect(isArtifactInstalled(FIXTURE_ARTIFACT)).toBe(true)
+      expect(fs.readFileSync(artifactEntryPath(FIXTURE_ARTIFACT), 'utf8')).toBe('onnxruntime_binding.node')
+    })
+
+    it('accepts the parent folder that holds the platform subdirectory', async () => {
+      writeFiles(path.join(sourceDir(), 'napi-v6', 'linux', 'x64'), ['onnxruntime_binding.node', 'libonnxruntime.so.1'])
+
+      await importArtifactFromDir(FIXTURE_ARTIFACT, sourceDir())
+
+      expect(isArtifactInstalled(FIXTURE_ARTIFACT)).toBe(true)
+    })
+
+    it('names the missing files and installs nothing', async () => {
+      writeFiles(sourceDir(), ['libonnxruntime.so.1'])
+
+      await expect(importArtifactFromDir(FIXTURE_ARTIFACT, sourceDir())).rejects.toThrow(/onnxruntime_binding\.node/)
+      expect(isArtifactInstalled(FIXTURE_ARTIFACT)).toBe(false)
     })
   })
 })

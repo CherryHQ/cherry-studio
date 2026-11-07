@@ -117,6 +117,15 @@ export class BundleInstaller {
     return localModelStorageService.scanBundleFiles(this.bundle).status === 'installed' && this.artifactsReady()
   }
 
+  /**
+   * Files that appear outside a download (an offline import) make a remembered download
+   * failure stale: the disk is the whole truth, so once the bundle scans as ready the
+   * failure must stop masking it.
+   */
+  reconcileExternalInstall(): void {
+    if (this.lastDownloadFailed && this.isDurablyReady()) this.lastDownloadFailed = false
+  }
+
   async download(resolvePreference: ResolveDownloadSourcePreference): Promise<LocalModelDownloadResult> {
     if (this.removalInFlight) throw new Error(`Local model bundle ${this.bundle.id} is being removed.`)
     if (!localModelStorageService.isBundleSupported(this.bundle)) {
