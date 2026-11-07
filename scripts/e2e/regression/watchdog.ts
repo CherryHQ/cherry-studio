@@ -49,16 +49,22 @@ async function probeCdp(target: WatchdogTarget): Promise<void> {
  */
 function killFrozenApp(target: WatchdogTarget): void {
   if (target.platform === 'windows') {
-    // Each pid is validated right before it is terminated: a first attempt may already
-    // have taken one of them down, and that must not block the other.
-    if (isAlive(target.electronPid)) {
-      assertOwnedProcess(target, target.electronPid, 'electron')
-      terminateExactProcess(target.electronPid, 'windows')
+    // Each pid is validated and terminated on its own: a first attempt that already took
+    // one of them down must not block the other, and both failures are reported together.
+    const failures: string[] = []
+    for (const [pid, kind] of [
+      [target.electronPid, 'electron'],
+      [target.runnerPid, 'runner']
+    ] as const) {
+      if (!isAlive(pid)) continue
+      try {
+        assertOwnedProcess(target, pid, kind)
+        terminateExactProcess(pid, 'windows')
+      } catch (error) {
+        failures.push(`${kind} ${pid}: ${error instanceof Error ? error.message : String(error)}`)
+      }
     }
-    if (isAlive(target.runnerPid)) {
-      assertOwnedProcess(target, target.runnerPid, 'runner')
-      terminateExactProcess(target.runnerPid, 'windows')
-    }
+    if (failures.length > 0) throw new Error(failures.join('; '))
     return
   }
   // A frozen main process cannot be identified by its own command line, so ownership is
@@ -175,6 +181,10 @@ export class ApplicationWatchdog {
       }
       if (generation !== this.generation) return
       this.stalledSince = undefined
+      // A recovered identity gets a fresh kill budget; otherwise one bad patch would
+      // disable kills for that pid pair for the rest of the run.
+      this.exhaustedIdentities.delete(identity)
+      this.killAttempts = 0
     } catch {
       // An unreadable record cannot be attributed to a process, so it never accrues stall time.
       this.stalledSince = undefined

@@ -127,22 +127,56 @@ it('does not carry the stall window across a restart that replaces the recorded 
 
 it('ignores a probe failure that lands after the recorded pids changed', async () => {
   let current = target
+  let mode: 'fail' | 'pending' = 'fail'
   let settle: ((error: Error) => void) | undefined
   const { watchdog, kills, advance } = harness({
     readTarget: () => current,
-    probe: () =>
-      new Promise<void>((_resolve, reject) => {
+    probe: () => {
+      if (mode === 'fail') return Promise.reject(new Error('timeout'))
+      return new Promise<void>((_resolve, reject) => {
         settle = reject
       })
+    }
   })
 
+  await watchdog.check()
+  advance(4_999)
+  mode = 'pending'
   const checking = watchdog.check()
   current = { ...target, runnerPid: 43_000, electronPid: 43_001 }
-  advance(60_000)
+  advance(1_000)
   settle?.(new Error('timeout'))
   await checking
   expect(kills).toHaveLength(0)
   expect(watchdog.reason).toBeUndefined()
+})
+
+it('gives a recovered identity a fresh kill budget after its attempts were exhausted', async () => {
+  let healthy = false
+  let attempts = 0
+  const { watchdog, advance, revive } = harness({
+    probe: () => (healthy ? Promise.resolve(undefined) : Promise.reject(new Error('timeout'))),
+    kill: () => {
+      attempts += 1
+    }
+  })
+
+  for (let round = 0; round < 6; round += 1) {
+    advance(5_000)
+    await watchdog.check()
+  }
+  expect(attempts).toBe(5)
+  expect(watchdog.reason).toContain('stopped retrying')
+
+  healthy = true
+  await watchdog.check()
+  healthy = false
+  revive()
+  advance(5_000)
+  await watchdog.check()
+  advance(5_000)
+  await watchdog.check()
+  expect(attempts).toBe(6)
 })
 
 it('keeps watching when the Electron process is alive after its process-group leader exited', async () => {
