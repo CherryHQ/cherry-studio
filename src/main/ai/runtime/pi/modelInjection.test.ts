@@ -267,6 +267,60 @@ describe('buildPiGatewayInjection', () => {
     }
   )
 
+  it('maps endpoint streamOptions:false to pi supportsUsageInStreaming:false for chat-completions', () => {
+    const provider = makeProvider({
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: { 'openai-chat-completions': { dialect: { streamOptions: false } } }
+    })
+    const injection = buildPiGatewayInjection(provider, makeModel({}), GATEWAY)
+    expect(injection.api).toBe('openai-completions')
+    expect(injection.providerConfig.models?.[0]?.compat).toMatchObject({ supportsUsageInStreaming: false })
+  })
+
+  it('keeps pi stream usage enabled when endpoint streamOptions is true or absent', () => {
+    for (const dialect of [{ streamOptions: true } as const, {} as const, undefined]) {
+      const provider = makeProvider({
+        defaultChatEndpoint: 'openai-chat-completions',
+        ...(dialect === undefined
+          ? { endpointConfigs: { 'openai-chat-completions': {} } }
+          : { endpointConfigs: { 'openai-chat-completions': { dialect } } })
+      })
+      const injection = buildPiGatewayInjection(provider, makeModel({}), GATEWAY)
+      expect(injection.providerConfig.models?.[0]?.compat).toMatchObject({ supportsUsageInStreaming: true })
+    }
+  })
+
+  it('omits stream_options in the serialized pi request when the dialect disables it', async () => {
+    const provider = makeProvider({
+      id: 'custom-no-usage',
+      presetProviderId: undefined,
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { adapterFamily: 'openai-compatible', dialect: { streamOptions: false } }
+      }
+    })
+    const model = makeModel({
+      id: 'custom-no-usage::m',
+      providerId: 'custom-no-usage',
+      apiModelId: 'm',
+      endpointTypes: ['openai-chat-completions']
+    })
+    const injection = buildPiGatewayInjection(provider, model, GATEWAY)
+    const { captures } = await captureRequest(injection)
+    expect(captures).toHaveLength(1)
+    expect(captures[0].body).not.toHaveProperty('stream_options')
+  })
+
+  it('does not set supportsUsageInStreaming for non-completions protocols', () => {
+    const provider = makeProvider({
+      defaultChatEndpoint: 'openai-responses',
+      endpointConfigs: { 'openai-responses': { dialect: { streamOptions: false } } }
+    })
+    const injection = buildPiGatewayInjection(provider, makeModel({}), GATEWAY)
+    expect(injection.api).toBe('openai-responses')
+    expect(injection.providerConfig.models?.[0]?.compat ?? {}).not.toHaveProperty('supportsUsageInStreaming')
+  })
+
   it.each([
     { capabilities: ['image-recognition'] as Model['capabilities'] },
     { inputModalities: ['image'] as Model['inputModalities'] }
@@ -533,7 +587,11 @@ describe('Anthropic adaptive thinking projection', () => {
     fallback.endpointConfigs!['anthropic-messages']!.adapterFamily = 'bedrock'
     const injection = buildPiGatewayInjection(fallback, model(), GATEWAY)
     expect(injection.api).toBe('openai-completions')
-    expect(injection.providerConfig.models?.[0]?.compat).toEqual({ supportsStore: false, supportsDeveloperRole: false })
+    expect(injection.providerConfig.models?.[0]?.compat).toEqual({
+      supportsStore: false,
+      supportsDeveloperRole: false,
+      supportsUsageInStreaming: true
+    })
   })
 
   // Fixture wires catch dialect-only predicates and first-write-wins regressions without mocking resolution.

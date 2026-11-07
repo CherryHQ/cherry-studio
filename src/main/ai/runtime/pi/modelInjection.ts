@@ -153,6 +153,12 @@ function buildPiModelConfig(
     ...(api === 'openai-completions' || api === 'openai-responses'
       ? { supportsDeveloperRole: resolveEndpointDialect(provider, endpointType).developerRole }
       : {}),
+    // Cherry's endpoint capability overrides pi's always-true stream usage inference
+    // (pi-ai `supportsUsageInStreaming !== false` sends `stream_options.include_usage`).
+    // `stream_options` is chat-completions-only; Responses never carries it.
+    ...(api === 'openai-completions'
+      ? { supportsUsageInStreaming: resolveEndpointDialect(provider, endpointType).streamOptions }
+      : {}),
     // CherryIN can omit the signature delta on thinking blocks that must be replayed.
     ...(provider.id === 'cherryin' && api === 'anthropic-messages' ? { allowEmptySignature: true } : {}),
     ...reasoningCompat

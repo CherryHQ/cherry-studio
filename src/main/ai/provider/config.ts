@@ -60,6 +60,7 @@ import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiImageRouting'
 import { resolveAiSdkProviderId, type ResolvedEndpoint, resolveEffectiveEndpoint } from './endpoint'
 import { buildGrokCliRequestHeaders, rewriteGrokCliResponsesBody } from './grokCli'
 import { transformLmStudioRequestBody } from './lmstudio'
+import { withStreamOptionsFallback, withStreamOptionsOmitted } from './streamOptionsFallback'
 import { isVertexMaasModelId, normalizeVertexCredentials } from './vertex'
 import { transformZhipuRequestBody } from './zhipuWebSearch'
 
@@ -420,6 +421,23 @@ export async function resolveProviderAiSdkConfig(
   // that install their own fetch wrapper (e.g. CherryAI request signing) compose
   // on top of customFetch; `??=` preserves them rather than clobbering them.
   config.providerSettings.fetch ??= customFetch
+
+  // Custom OpenAI-compatible hosts may 400 on `stream_options.include_usage`
+  // (#11652, #23368). Keep `includeUsage:true` on the first attempt for usage
+  // telemetry, then retry once stripped. Outermost so provider transforms re-run.
+  // The `openai`-family SDK sends `stream_options` unconditionally in doStream,
+  // while `openai-compatible` gates it on `includeUsage` — so wrap chat-completions
+  // regardless of `includeUsage` (no-op when the request carries no such field).
+  // When the dialect explicitly disables it, omit upfront to avoid paying one
+  // 400 + retry per stream.
+  const settings = config.providerSettings as { includeUsage?: unknown; fetch?: typeof customFetch }
+  if (typeof settings.fetch === 'function' && ctx.endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS) {
+    const dialect = resolveEndpointDialect(ctx.actualProvider, ctx.endpointType)
+    settings.fetch =
+      dialect.streamOptions === false
+        ? withStreamOptionsOmitted(settings.fetch)
+        : withStreamOptionsFallback(settings.fetch)
+  }
 
   return {
     config,
