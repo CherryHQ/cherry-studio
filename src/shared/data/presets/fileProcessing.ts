@@ -251,6 +251,7 @@ export const FILE_PROCESSOR_PRESET_MAP = {
         inputs: ['document'],
         output: 'markdown',
         apiHost: 'https://v2.doc2x.noedgeai.com',
+        modelId: 'v3-2026',
         formulaLevel: 0,
         mergeCrossPageForms: false,
         maxInputBytes: GB,
