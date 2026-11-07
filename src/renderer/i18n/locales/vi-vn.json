@@ -877,6 +877,7 @@
   "chat.input.upload.attachment": "Tải lên tập tin đính kèm",
   "chat.input.upload.document_only": "Chỉ tài liệu",
   "chat.input.upload.image_not_supported": "Mô hình này không hỗ trợ tải lên hình ảnh. Chỉ hỗ trợ tài liệu.",
+  "chat.input.use_as_reference": "Dùng làm ảnh tham chiếu",
   "chat.input.web_search.builtin.disabled_content": "Mô hình hiện tại không hỗ trợ tìm kiếm web",
   "chat.input.web_search.label": "Tìm kiếm trên web",
   "chat.input.web_search.route.builtin": "Tìm kiếm bằng công cụ tích hợp sẵn của mô hình",

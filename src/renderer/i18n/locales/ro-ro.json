@@ -877,6 +877,7 @@
   "chat.input.upload.attachment": "Încarcă atașament",
   "chat.input.upload.document_only": "Doar documente",
   "chat.input.upload.image_not_supported": "Acest model nu acceptă încărcări de imagini. Numai documente.",
+  "chat.input.use_as_reference": "Folosește ca referință",
   "chat.input.web_search.builtin.disabled_content": "Modelul curent nu acceptă căutarea web",
   "chat.input.web_search.label": "Căutare web",
   "chat.input.web_search.route.builtin": "Căutări cu instrumentul încorporat al modelului",

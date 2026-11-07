@@ -877,6 +877,7 @@
   "chat.input.upload.attachment": "上傳附件",
   "chat.input.upload.document_only": "僅限文件",
   "chat.input.upload.image_not_supported": "此模型不支援圖片上傳，僅限文件。",
+  "chat.input.use_as_reference": "設為參考圖",
   "chat.input.web_search.builtin.disabled_content": "目前模型不支援網路搜尋功能",
   "chat.input.web_search.label": "網路搜尋",
   "chat.input.web_search.route.builtin": "使用模型內建工具進行搜尋",
