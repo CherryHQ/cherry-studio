@@ -1011,6 +1011,7 @@ export class AgentSessionService {
       id: string
       agentId: string | null
       ownerSessionId?: string
+      sourceTaskScheduleId?: string | null
       name: string
       description?: string
       workspaceId: string
