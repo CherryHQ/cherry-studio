@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process'
+import { type ChildProcess, execFileSync } from 'node:child_process'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import { Socket } from 'node:net'
@@ -13,7 +13,7 @@ import { isWin } from '@main/core/platform'
 import type { Model, Provider, ProviderType, VertexProvider } from '@main/data/migration/legacyTypes'
 import { t } from '@main/i18n'
 import { atomicWriteFile, remove } from '@main/utils/file'
-import { crossPlatformSpawn, removeEnvProxy } from '@main/utils/processRunner'
+import { crossPlatformSpawn, removeEnvProxy, terminateProcessTree } from '@main/utils/processRunner'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { EndpointType, Model as DataModel, UniqueModelId } from '@shared/data/types/model'
 import {
@@ -410,6 +410,7 @@ export class OpenClawService extends BaseService {
   private gatewayStatus: GatewayStatus = 'stopped'
   private gatewayPort: number = DEFAULT_GATEWAY_PORT
   private gatewayAuthToken: string = ''
+  private gatewayProcess?: { child: ChildProcess; port: number }
   // Bumped by every setGatewayStatus; probes discard results from an older generation.
   private gatewayTransitionId = 0
 
@@ -945,6 +946,7 @@ export class OpenClawService extends BaseService {
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true
     })
+    this.gatewayProcess = { child: proc, port: this.gatewayPort }
     proc.unref()
 
     // Collect early exit errors (e.g. binary crash on startup)
@@ -961,6 +963,7 @@ export class OpenClawService extends BaseService {
       earlyExitError = err.message
     })
     proc.on('exit', (code) => {
+      if (this.gatewayProcess?.child === proc) this.gatewayProcess = undefined
       // Capture output from both streams for diagnostics
       const combinedOutput = [stderrOutput.trim(), stdoutOutput.trim()].filter(Boolean).join('\n')
       const detail = combinedOutput.split('\n').filter(Boolean).slice(0, 5).join('\n')
@@ -1018,7 +1021,12 @@ export class OpenClawService extends BaseService {
   public async stopGateway(): Promise<OperationResult> {
     const transitionBefore = this.gatewayTransitionId
     try {
-      this.killGatewayProcesses()
+      const owned = this.gatewayProcess
+      if (owned?.port === this.gatewayPort && owned.child.exitCode === null && owned.child.signalCode === null) {
+        await terminateProcessTree(owned.child, true, 'OpenClaw gateway')
+      } else {
+        this.killGatewayProcesses()
+      }
 
       const stillRunning = await this.waitForGatewayStop()
       if (stillRunning) {

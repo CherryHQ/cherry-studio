@@ -6,11 +6,13 @@ Status: implemented
 
 ## 问题
 
-POSIX 上的 OpenClaw 停止操作使用 `pkill -9 openclaw`，会终止其他网关。Windows 按端口子串筛选 netstat，停止 1879 时也可能终止 18790 的监听者。只按端口匹配还会选中配置端口上的无关应用，即使从未启动网关，退出应用时也可能将它终止。
+POSIX 上的 OpenClaw 停止操作使用 `pkill -9 openclaw`，会终止其他网关。Windows 按端口子串筛选 netstat，停止 1879 时也可能终止 18790 的监听者。只按端口匹配还会选中配置端口上的无关应用，即使从未启动网关，退出应用时也可能将它终止。CI 还发现，本次启动的网关可能无法通过命令行后备识别，导致点击停止后仍保留监听进程。
 
 ## 决策
 
-仅查找配置端口上的 TCP 监听者。Windows 解析本地端点和 LISTENING 状态；POSIX 使用 lsof 的 TCP 监听过滤。对正数 PID 去重并排除当前进程。终止每个候选进程前，通过 POSIX `ps` 或 Windows CIM 读取命令行。仅接受精确匹配的 POSIX `openclaw-gateway` 进程标题、运行 `gateway` 的 OpenClaw 可执行文件，或通过 Node/Bun 运行 OpenClaw 包入口及该命令的进程。身份缺失、无法读取或无关的进程均予以保留，并继续使用原有端口停止验证。
+保留本次启动的网关进程句柄及其端口，并在子进程退出时清除。停止同一端口时，通过已有的进程运行工具终止仍存活的自有进程树。已退出的子进程或其他端口的句柄不能授权终止操作。
+
+对于其他网关，仅查找配置端口上的 TCP 监听者。Windows 解析本地端点和 LISTENING 状态；POSIX 使用 lsof 的 TCP 监听过滤。对正数 PID 去重并排除当前进程。终止每个候选进程前，通过 POSIX `ps` 或 Windows CIM 读取命令行。仅接受精确匹配的 POSIX `openclaw-gateway` 进程标题、运行 `gateway` 的 OpenClaw 可执行文件，或通过 Node/Bun 运行 OpenClaw 包入口及该命令的进程。身份缺失、无法读取或无关的进程均予以保留，并继续使用原有端口停止验证。
 
 ## 考虑过的替代方案
 
@@ -25,6 +27,6 @@ POSIX 上的 OpenClaw 停止操作使用 `pkill -9 openclaw`，会终止其他�
 
 ## 验证
 
-- Regression — `pnpm test:main src/main/services/__tests__/OpenClawService.test.ts`：159/159 通过，覆盖精确端口隔离、合法身份、无关及身份不可读的监听者、误导性参数，以及从未启动网关时退出应用。所有进程终止均为模拟。
-- Review — 新一轮独立验证确认三项审阅发现均已解决，未确认新的缺陷。
-- Electron — 此前的端口隔离版本通过了包含 CODE-03 的 13 项定向测试。当前身份检查的真实 CODE-03/MP-97 及完整 E2E 验证仍待完成。
+- 回归 — `pnpm test:main src/main/services/__tests__/OpenClawService.test.ts`：165/165 通过，覆盖命令行变化后仍存活的自有网关、已退出或 PID 被复用的子进程、切换到其他配置端口、精确端口隔离、合法身份、无关及身份不可读的监听者、误导性参数，以及从未启动网关时退出应用。新增的两项归属检查在进程句柄修复前失败，修复后通过。所有进程终止均为模拟。
+- 审阅 — 此前端口隔离版本的独立验证确认三项审阅发现均已解决，未确认新的缺陷。
+- Electron — 此前的端口隔离版本通过了包含 CODE-03 的 13 项定向测试。子进程句柄修复后的真实 CODE-03 已通过；定向 `openclaw` 报告及清理门禁通过，已删除自有运行目录。托管环境及完整 E2E 确认仍待完成。
