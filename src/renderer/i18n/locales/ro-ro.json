@@ -5502,6 +5502,8 @@
   "settings.provider.copilot.step_get_code_desc": "Generează codul de autorizare al dispozitivului",
   "settings.provider.copilot.toggle_headers_editor_json": "Comută la editorul JSON",
   "settings.provider.copilot.toggle_headers_editor_list": "Comută la lista de antete",
+  "settings.provider.create_custom.endpoint_fields.complete_path.help": "Trimite cererile către acest URL exact, fără a adăuga calea endpoint-ului",
+  "settings.provider.create_custom.endpoint_fields.complete_path.label": "Folosește URL-ul ca atare",
   "settings.provider.create_custom.endpoint_fields.default_chat": "Implicit",
   "settings.provider.create_custom.endpoint_fields.label": "Setări endpoint",
   "settings.provider.create_custom.endpoint_fields.more": "Mai multe opțiuni",

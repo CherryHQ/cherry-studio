@@ -25,7 +25,8 @@ import {
   PopoverContent,
   PopoverTrigger,
   ScrollArea,
-  Separator
+  Separator,
+  Switch
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
@@ -46,6 +47,7 @@ import {
   buildCustomProviderEndpointPreview,
   CUSTOM_PROVIDER_ENDPOINTS,
   CUSTOM_PROVIDER_TEXT_ENDPOINTS,
+  type CustomProviderCompletePathFlags,
   type CustomProviderCreationInvalidUrl,
   type CustomProviderEndpoint,
   type CustomProviderEndpointUrls,
@@ -157,6 +159,7 @@ export default function ProviderEditorDrawer({
   const [secondaryUrls, setSecondaryUrls] = useState<Record<string, string>>({})
   const [moreEndpointsOpen, setMoreEndpointsOpen] = useState(false)
   const [endpointUrls, setEndpointUrls] = useState<CustomProviderEndpointUrls>({})
+  const [completePathEndpoints, setCompletePathEndpoints] = useState<CustomProviderCompletePathFlags>({})
   const [preferredChatEndpoint, setPreferredChatEndpoint] = useState<CustomProviderTextEndpoint>(
     ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
   )
@@ -261,6 +264,7 @@ export default function ProviderEditorDrawer({
     setSecondaryUrls({})
     setMoreEndpointsOpen(false)
     setEndpointUrls({})
+    setCompletePathEndpoints({})
     const initialDefaultEndpoint =
       duplicateSource?.defaultChatEndpoint && isCustomProviderTextEndpoint(duplicateSource.defaultChatEndpoint)
         ? duplicateSource.defaultChatEndpoint
@@ -346,6 +350,7 @@ export default function ProviderEditorDrawer({
     )
     setSecondaryUrls({})
     setEndpointUrls({})
+    setCompletePathEndpoints({})
     setInvalidCreationUrl(null)
     onSelectPreset?.(source)
   }
@@ -382,7 +387,8 @@ export default function ProviderEditorDrawer({
     if (mode.kind === 'create-custom') {
       const creationPayload = buildCustomProviderCreationPayload({
         endpointUrls,
-        preferredChatEndpoint
+        preferredChatEndpoint,
+        completePathEndpoints
       })
       return {
         mode: 'create',
@@ -585,6 +591,10 @@ export default function ProviderEditorDrawer({
             firstTextEndpointRef={firstTextEndpointRef}
             onMoreOpenChange={setMoreEndpointsOpen}
             onEndpointUrlChange={handleEndpointUrlChange}
+            completePathEndpoints={completePathEndpoints}
+            onCompletePathChange={(endpointType, value) =>
+              setCompletePathEndpoints((prev) => ({ ...prev, [endpointType]: value }))
+            }
             onPreferredChatEndpointChange={setPreferredChatEndpoint}
           />
         </>
@@ -710,6 +720,8 @@ interface CustomProviderEndpointFieldsProps {
   firstTextEndpointRef?: Ref<HTMLInputElement>
   onMoreOpenChange: (open: boolean) => void
   onEndpointUrlChange: (endpointType: CustomProviderEndpoint, value: string) => void
+  completePathEndpoints?: CustomProviderCompletePathFlags
+  onCompletePathChange?: (endpointType: CustomProviderEndpoint, value: boolean) => void
   onPreferredChatEndpointChange?: (endpointType: CustomProviderTextEndpoint) => void
 }
 
@@ -726,6 +738,8 @@ function CustomProviderEndpointFields({
   firstTextEndpointRef,
   onMoreOpenChange,
   onEndpointUrlChange,
+  completePathEndpoints = {},
+  onCompletePathChange,
   onPreferredChatEndpointChange
 }: CustomProviderEndpointFieldsProps) {
   const { t } = useTranslation()
@@ -735,7 +749,8 @@ function CustomProviderEndpointFields({
     const endpointValue = endpointUrls[endpointType] ?? ''
     const invalidEndpoint = invalidUrl?.field === 'endpointUrl' && invalidUrl.endpointType === endpointType
     const missingTextEndpoint = textEndpointRequired && endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
-    const requestPreview = buildCustomProviderEndpointPreview(endpointValue, endpointType)
+    const isCompletePath = Boolean(completePathEndpoints[endpointType])
+    const requestPreview = buildCustomProviderEndpointPreview(endpointValue, endpointType, isCompletePath)
     const emptyValueHelp = CUSTOM_PROVIDER_TEXT_ENDPOINTS.some((type) => type === endpointType)
       ? t('settings.provider.create_custom.endpoint_fields.url_help')
       : t(
@@ -744,7 +759,9 @@ function CustomProviderEndpointFields({
             : 'settings.provider.image_endpoints.image_edit_base_url.help'
         )
 
-    return (
+    const isTextEndpoint = CUSTOM_PROVIDER_TEXT_ENDPOINTS.some((type) => type === endpointType)
+
+    const field = (
       <BaseUrlField
         label={t(CUSTOM_PROVIDER_ENDPOINT_LABEL_KEYS[endpointType])}
         placeholder={t('settings.provider.base_url.placeholder')}
@@ -765,6 +782,31 @@ function CustomProviderEndpointFields({
         inputRef={endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS ? firstTextEndpointRef : undefined}
         onChange={(nextValue) => onEndpointUrlChange(endpointType, nextValue)}
       />
+    )
+
+    if (!isTextEndpoint || !onCompletePathChange) {
+      return field
+    }
+
+    return (
+      <div className="flex flex-col gap-2">
+        {field}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col">
+            <span className="text-sm text-foreground">
+              {t('settings.provider.create_custom.endpoint_fields.complete_path.label')}
+            </span>
+            <span className="text-xs text-foreground-tertiary">
+              {t('settings.provider.create_custom.endpoint_fields.complete_path.help')}
+            </span>
+          </div>
+          <Switch
+            size="xs"
+            checked={isCompletePath}
+            onCheckedChange={(checked) => onCompletePathChange(endpointType, checked)}
+          />
+        </div>
+      </div>
     )
   }
 

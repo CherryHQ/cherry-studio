@@ -9,6 +9,7 @@ import { isEmpty } from 'es-toolkit/compat'
 import { application } from '@application'
 import { formatPrivateKey, hasProviderConfig, type StringKeys } from '@cherrystudio/ai-core/provider'
 import type { CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
+import { loggerService } from '@logger'
 import { providerService, type ResolvedProviderApiKey } from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
 import { mergeHeaders } from '@main/utils/http'
@@ -25,6 +26,7 @@ import {
   isBareVertexApiHost,
   isWithTrailingSharp,
   withoutTrailingApiVersion,
+  withoutTrailingSharp,
   withoutTrailingSlash
 } from '@shared/utils/api'
 import { isGenerateImageModel } from '@shared/utils/model'
@@ -199,6 +201,36 @@ function withoutCredential(build: ProviderConfigBuilder): ConfigBuilderEntry['bu
     config: await build(ctx),
     credentialReceipt: { attribution: 'unknown' }
   })
+}
+
+const logger = loggerService.withContext('ProviderConfig')
+
+/** Returns the endpoint URL to call verbatim when `completePath` is enabled for this endpoint. */
+function resolveCompletePathUrl(
+  provider: Provider,
+  endpointType: EndpointType | undefined,
+  baseUrl: string
+): string | undefined {
+  if (!endpointType || provider.endpointConfigs?.[endpointType]?.completePath !== true) return undefined
+  return withoutTrailingSharp(baseUrl.trim()) || undefined
+}
+
+/** Redirects every request to `url`, logging only origin and path so keys in query strings never leak. */
+function sendToCompletePath(inner: typeof globalThis.fetch, url: string): typeof globalThis.fetch {
+  const loggedUrl = redactUrlForLog(url)
+  return (_input, init) => {
+    logger.debug('Sending request to complete-path endpoint', { url: loggedUrl })
+    return inner(url, init)
+  }
+}
+
+function redactUrlForLog(url: string): string {
+  try {
+    const parsed = new URL(url)
+    return `${parsed.origin}${parsed.pathname}`
+  } catch {
+    return '[invalid url]'
+  }
 }
 
 /** Endpoint priority: `model.endpointTypes[0]` > `provider.defaultChatEndpoint` > fallback. */
@@ -420,6 +452,11 @@ export async function resolveProviderAiSdkConfig(
   // that install their own fetch wrapper (e.g. CherryAI request signing) compose
   // on top of customFetch; `??=` preserves them rather than clobbering them.
   config.providerSettings.fetch ??= customFetch
+
+  const completePathUrl = resolveCompletePathUrl(provider, endpointType, baseUrl)
+  if (completePathUrl) {
+    config.providerSettings.fetch = sendToCompletePath(config.providerSettings.fetch, completePathUrl)
+  }
 
   return {
     config,

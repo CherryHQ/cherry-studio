@@ -5502,6 +5502,8 @@
   "settings.provider.copilot.step_get_code_desc": "Cihaz yetkilendirme kodu oluşturun",
   "settings.provider.copilot.toggle_headers_editor_json": "JSON düzenleyicisine geç",
   "settings.provider.copilot.toggle_headers_editor_list": "Üst bilgi listesine geç",
+  "settings.provider.create_custom.endpoint_fields.complete_path.help": "İstekleri, uç nokta yolu eklenmeden bu tam URL'ye gönder",
+  "settings.provider.create_custom.endpoint_fields.complete_path.label": "URL'yi olduğu gibi kullan",
   "settings.provider.create_custom.endpoint_fields.default_chat": "Varsayılan",
   "settings.provider.create_custom.endpoint_fields.label": "Uç nokta ayarları",
   "settings.provider.create_custom.endpoint_fields.more": "Diğer seçenekler",

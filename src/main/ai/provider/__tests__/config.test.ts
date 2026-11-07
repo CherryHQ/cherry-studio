@@ -871,6 +871,45 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     })
   })
 
+  describe('completePath endpoints', () => {
+    const buildCustomProvider = (baseUrl: string, completePath?: boolean) =>
+      makeProvider({
+        id: 'my-gateway',
+        name: 'My Gateway',
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl, ...(completePath !== undefined && { completePath }) }
+        },
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      })
+    const model = makeModel({ id: 'my-gateway::gpt-4o', apiModelId: 'gpt-4o' })
+    const sendThroughConfig = async (provider: ReturnType<typeof makeProvider>) => {
+      vi.mocked(net.fetch).mockResolvedValue(new Response('{}'))
+      const config = await providerToAiSdkConfig(provider, model)
+      await (config.providerSettings as { fetch: typeof fetch }).fetch('https://ignored.example.com/chat/completions', {
+        method: 'POST',
+        body: '{}'
+      })
+    }
+
+    it('sends the configured URL verbatim, without appending the endpoint path', async () => {
+      await sendThroughConfig(buildCustomProvider('https://gateway.example.com/custom/route', true))
+
+      expect(net.fetch).toHaveBeenCalledWith('https://gateway.example.com/custom/route', expect.anything())
+    })
+
+    it('keeps the query string and drops a trailing # marker', async () => {
+      await sendThroughConfig(buildCustomProvider('https://gateway.example.com/v9/run?lane=blue#', true))
+
+      expect(net.fetch).toHaveBeenCalledWith('https://gateway.example.com/v9/run?lane=blue', expect.anything())
+    })
+
+    it('does not rewrite the request URL when completePath is not enabled', async () => {
+      await sendThroughConfig(buildCustomProvider('https://gateway.example.com/custom/route'))
+
+      expect(net.fetch).toHaveBeenCalledWith('https://ignored.example.com/chat/completions', expect.anything())
+    })
+  })
+
   describe('CherryIn routing (default chat endpoint upgrades to cherryin-chat variant)', () => {
     it('routes the default cherryin chat endpoint to buildCherryinConfig, not the generic builder (REGRESSION)', async () => {
       // The resolver upgrades the default OpenAI chat endpoint to the `cherryin-chat` variant,

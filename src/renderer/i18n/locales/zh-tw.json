@@ -5502,6 +5502,8 @@
   "settings.provider.copilot.step_get_code_desc": "產生裝置授權碼",
   "settings.provider.copilot.toggle_headers_editor_json": "切換到 JSON 編輯器",
   "settings.provider.copilot.toggle_headers_editor_list": "切換到標頭清單",
+  "settings.provider.create_custom.endpoint_fields.complete_path.help": "直接請求此完整網址，不再附加介面路徑",
+  "settings.provider.create_custom.endpoint_fields.complete_path.label": "按原樣使用 URL",
   "settings.provider.create_custom.endpoint_fields.default_chat": "預設",
   "settings.provider.create_custom.endpoint_fields.label": "端點設定",
   "settings.provider.create_custom.endpoint_fields.more": "更多選項",
