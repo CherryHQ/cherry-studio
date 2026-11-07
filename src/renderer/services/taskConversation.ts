@@ -13,7 +13,7 @@ export interface TaskConversationResult {
   total: number
 }
 
-export async function readTaskRunSession(task: ScheduledTaskEntity, runId: string) {
+async function readTaskRunSession(task: ScheduledTaskEntity, runId: string) {
   const job = await dataApiService.get(`/jobs/${runId}`)
   if (job.type !== 'agent.task' || job.scheduleId !== task.id) {
     throw DataApiErrorFactory.notFound('Task run', runId)
