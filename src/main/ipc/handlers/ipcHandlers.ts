@@ -14,6 +14,7 @@ import { cherryinHandlers } from './cherryin'
 import { citationHandlers } from './citation'
 import { codeCliHandlers } from './codeCli'
 import { computerUseHandlers } from './computerUse'
+import { decisionsHandlers } from './decisions'
 import { deepSeekHarnessHandlers } from './deepSeekHarness'
 import { diagnosticsHandlers } from './diagnostics'
 import { doctorHandlers } from './doctor'
@@ -106,6 +107,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...skillHandlers,
   ...systemHandlers,
   ...tabHandlers,
+  ...decisionsHandlers,
   ...translateHandlers,
   ...toolResultHandlers,
   ...trashHandlers,
