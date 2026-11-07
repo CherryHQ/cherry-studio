@@ -29,6 +29,25 @@ const stripLineNumbers = (text: string): string => {
   return text.replace(/^ *\d+→/gm, '')
 }
 
+const READ_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+const getReadImages = (output: unknown): Array<{ data: string; mimeType: string }> => {
+  const items = Array.isArray(output) ? output : [output]
+  return items.flatMap((item) => {
+    if (!isRecord(item) || item.type !== 'image') return []
+    const source = isRecord(item.source) && item.source.type === 'base64' ? item.source : undefined
+    const file = isRecord(item.file) ? item.file : undefined
+    const data = source?.data ?? file?.base64
+    const mimeType = source?.media_type ?? file?.type
+    if (typeof data !== 'string' || !data || typeof mimeType !== 'string' || !READ_IMAGE_MIME_TYPES.has(mimeType))
+      return []
+    return [{ data, mimeType }]
+  })
+}
+
 const normalizeOutputString = (output?: ReadToolOutputType): string | null => {
   if (!output) return null
 
@@ -74,6 +93,7 @@ export function ReadTool({
   const { t } = useTranslation()
   const errorText = hasError ? extractToolErrorText(output) : undefined
   const outputString = errorText ?? normalizeOutputString(output)
+  const images = hasError ? [] : getReadImages(output)
   const stats = errorText ? null : getOutputStats(outputString)
   const filename = input?.file_path?.split('/').pop()
   const language = getLanguageByFilePath(input?.file_path ?? '')
@@ -101,20 +121,33 @@ export function ReadTool({
         showStatus={false}
       />
     ),
-    children: strippedOutput ? (
-      <div>
-        <CodeViewer
-          value={strippedOutput}
-          language={errorText ? 'text' : language}
-          expanded={false}
-          wrapped={false}
-          maxHeight={240}
-          options={{ lineNumbers: true }}
-        />
-        {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
-      </div>
-    ) : (
-      <SkeletonValue value={null} width="100%" fallback={null} />
-    )
+    children:
+      strippedOutput || images.length > 0 ? (
+        <div className="space-y-2">
+          {strippedOutput && (
+            <div>
+              <CodeViewer
+                value={strippedOutput}
+                language={errorText ? 'text' : language}
+                expanded={false}
+                wrapped={false}
+                maxHeight={240}
+                options={{ lineNumbers: true }}
+              />
+              {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
+            </div>
+          )}
+          {images.map((image, index) => (
+            <img
+              key={index}
+              src={`data:${image.mimeType};base64,${image.data}`}
+              alt={t('message.tools.sections.output')}
+              className="max-w-[300px] rounded"
+            />
+          ))}
+        </div>
+      ) : (
+        <SkeletonValue value={null} width="100%" fallback={null} />
+      )
   }
 }
