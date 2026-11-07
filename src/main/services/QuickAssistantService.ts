@@ -28,7 +28,7 @@ import { app, BrowserWindow, screen } from 'electron'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { isMac, isWin } from '@main/core/platform'
+import { isLinux, isMac, isWin } from '@main/core/platform'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { WindowType } from '@main/core/window/types'
 
@@ -305,6 +305,14 @@ export class QuickAssistantService extends BaseService implements Activatable {
    * subscription registered in onInit.
    */
   private setupQuickAssistant(window: BrowserWindow) {
+    const preferenceService = application.get('PreferenceService')
+    const reapplyZoom = () => {
+      if (!window.isDestroyed()) {
+        window.webContents.setZoomFactor(preferenceService.get('app.zoom_factor'))
+      }
+    }
+    reapplyZoom()
+
     this.setupQuickAssistantWebContents(window)
 
     // Declarative window infra (initial alwaysOnTop level, cross-workspace visibility,
@@ -344,11 +352,21 @@ export class QuickAssistantService extends BaseService implements Activatable {
     window.on('blur', onBlur)
     window.on('show', onShow)
     window.on('hide', onHide)
+    window.on('will-resize', reapplyZoom)
+    window.on('restore', reapplyZoom)
+    if (isLinux) {
+      window.on('resize', reapplyZoom)
+    }
     this.registerDisposable(() => {
       if (window.isDestroyed()) return
       window.removeListener('blur', onBlur)
       window.removeListener('show', onShow)
       window.removeListener('hide', onHide)
+      window.removeListener('will-resize', reapplyZoom)
+      window.removeListener('restore', reapplyZoom)
+      if (isLinux) {
+        window.removeListener('resize', reapplyZoom)
+      }
     })
   }
 
