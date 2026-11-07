@@ -712,6 +712,12 @@ The settings builder explicitly passes `permissionMode: 'default'` when the Agen
 has no configured mode, preserving manual approval independently of SDK defaults.
 An explicitly configured mode, including `auto`, takes precedence.
 
+The Claude Code SDK retries retryable API errors such as 524 and 529. Its
+`CLAUDE_CODE_MAX_RETRIES` defaults to 3 retries (up to 4 requests per failed
+API call) to limit request and billing amplification in long sessions. An
+Agent can override this default through `env_vars`. This is a per-call SDK
+limit, not a session-wide retry budget.
+
 Starting a query (warm or cold) registers the agent's MCP servers and lists
 their tools. That listing is **cache-only** — it never connects to an upstream
 MCP server — so a dead or slow server cannot block startup. See
