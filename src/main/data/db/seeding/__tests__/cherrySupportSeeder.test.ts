@@ -1,3 +1,4 @@
+import '@data/services/AgentSessionMessageService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq, sql } from 'drizzle-orm'
 import { app } from 'electron'
@@ -9,6 +10,7 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { CherryAiDefaultModelSeeder } from '@data/db/seeding/seeders/cherryaiDefaultModelSeeder'
 import { CherryAssistantSeeder } from '@data/db/seeding/seeders/cherryAssistantSeeder'
 import { CherrySupportSeeder } from '@data/db/seeding/seeders/cherrySupportSeeder'
+import { agentService } from '@data/services/AgentService'
 import { BUILTIN_AGENT_ROLE, CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
@@ -63,6 +65,48 @@ describe('CherrySupportSeeder', () => {
       .all()
     expect(session).toMatchObject({ name: '' })
     expect(workspace).toMatchObject({ type: AGENT_WORKSPACE_TYPE.SYSTEM })
+  })
+
+  it('does not let deleting a legacy forged Support marker suppress the real built-in', () => {
+    dbh.db
+      .insert(agentTable)
+      .values({
+        id: 'ordinary',
+        type: 'claude-code',
+        name: 'Ordinary',
+        description: '',
+        instructions: '',
+        orderKey: 'a0',
+        configuration: { builtin_role: BUILTIN_AGENT_ROLE.SUPPORT }
+      })
+      .run()
+    dbh.db.transaction((tx) => agentService.deleteAgentTx(tx, 'ordinary'))
+    new CherrySupportSeeder().run(dbh.db)
+    expect(builtinAgents(dbh.db, BUILTIN_AGENT_ROLE.SUPPORT)).toHaveLength(1)
+    expect(builtinAgents(dbh.db, BUILTIN_AGENT_ROLE.SUPPORT)[0].id).toBe(CHERRY_SUPPORT_AGENT_ID)
+  })
+
+  it('keeps a permanently deleted Support absent until an explicit ensure recreates it', () => {
+    new CherrySupportSeeder().run(dbh.db)
+    dbh.db.transaction((tx) =>
+      agentService.deleteAgentStateTx(tx, CHERRY_SUPPORT_AGENT_ID, {
+        permanent: true,
+        targetState: 'active',
+        deleteSessions: true
+      })
+    )
+    new CherrySupportSeeder().run(dbh.db)
+    expect(builtinAgents(dbh.db, BUILTIN_AGENT_ROLE.SUPPORT)).toHaveLength(0)
+    dbh.db.transaction((tx) =>
+      agentService.ensureBuiltinAgentTx(tx, {
+        builtinRole: BUILTIN_AGENT_ROLE.SUPPORT,
+        type: 'claude-code',
+        name: 'Support',
+        configuration: {}
+      })
+    )
+    expect(builtinAgents(dbh.db, BUILTIN_AGENT_ROLE.SUPPORT)).toHaveLength(1)
+    expect(dbh.db.transaction((tx) => agentService.isBuiltinAgentPurgedTx(tx, BUILTIN_AGENT_ROLE.SUPPORT))).toBe(false)
   })
 
   it('uses the Chinese name and remains idempotent', () => {

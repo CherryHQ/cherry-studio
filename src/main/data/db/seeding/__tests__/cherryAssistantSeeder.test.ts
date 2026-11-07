@@ -1,3 +1,4 @@
+import '@data/services/AgentSessionMessageService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq, isNull, sql } from 'drizzle-orm'
 import { app } from 'electron'
@@ -222,6 +223,20 @@ describe('CherryAssistantSeeder', () => {
     expect(builtinAgents(dbh.db)).toHaveLength(1)
     const [journal] = dbh.db.select().from(appStateTable).where(eq(appStateTable.key, 'seed:cherryAssistant')).all()
     expect(journal?.value).toMatchObject({ version: '2' })
+  })
+
+  it('does not recreate a permanently deleted Cherry Assistant on a later rollout', () => {
+    new CherryAssistantSeeder().run(dbh.db)
+    const [agent] = builtinAgents(dbh.db)
+
+    dbh.db.transaction((tx) => {
+      agentService.deleteAgentStateTx(tx, agent.id, { permanent: true, targetState: 'active', deleteSessions: true })
+    })
+    expect(builtinAgents(dbh.db)).toHaveLength(0)
+
+    new CherryAssistantSeeder().run(dbh.db)
+
+    expect(builtinAgents(dbh.db)).toHaveLength(0)
   })
 
   it('falls back to a null model when the CherryAI default model is absent', () => {
