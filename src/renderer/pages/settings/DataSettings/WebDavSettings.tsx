@@ -15,6 +15,7 @@ import {
   SettingRowTitle,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
+import { TimeOfDayInput } from '@renderer/components/TimeOfDayInput'
 import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
 import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/WebdavModals'
 import { useBackupSyncState } from '@renderer/hooks/useBackupSyncState'
@@ -34,6 +35,7 @@ const WebDavSettings: FC = () => {
   const [webdavPath, setWebdavPath] = usePreference('data.backup.webdav.path')
   const [webdavSkipBackupFile, setWebdavSkipBackupFile] = usePreference('data.backup.webdav.skip_backup_file')
   const [webdavSyncInterval, setWebdavSyncInterval] = usePreference('data.backup.webdav.sync_interval')
+  const [webdavSyncStart, setWebdavSyncStart] = usePreference('data.backup.webdav.sync_start')
   const [webdavUser, setWebdavUser] = usePreference('data.backup.webdav.user')
 
   const [backupManagerVisible, setBackupManagerVisible] = useState(false)
@@ -181,6 +183,19 @@ const WebDavSettings: FC = () => {
             { label: t('settings.data.webdav.hour_interval', { count: 24 }), value: 1440 }
           ]}
         />
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.backup.syncStart.label')}</SettingRowTitle>
+        <TimeOfDayInput
+          value={webdavSyncStart}
+          onChange={(minutes) => void setWebdavSyncStart(minutes)}
+          disabled={!webdavHost || webdavSyncInterval === 0}
+          aria-label={t('settings.data.backup.syncStart.label')}
+        />
+      </SettingRow>
+      <SettingRow>
+        <SettingHelpText>{t('settings.data.backup.syncStart.help')}</SettingHelpText>
       </SettingRow>
       <SettingDivider />
       <SettingRow>
