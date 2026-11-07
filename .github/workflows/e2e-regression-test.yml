@@ -50,6 +50,7 @@ on:
           - code-cli
           - openclaw
           - code-cli-permissions
+          - native-recovery
           - cherryin-chat
           - image-generation
           - agent-basic-task

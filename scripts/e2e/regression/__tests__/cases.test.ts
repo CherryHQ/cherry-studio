@@ -102,6 +102,7 @@ describe('regression execution plan', () => {
     ['mini-app-pinning', ['MP-103']],
     ['chat-error-recovery', ['MP-17']],
     ['code-cli-permissions', ['MP-97']],
+    ['native-recovery', ['MP-97', 'MP-41', 'MP-116']],
     ['scheduled-task-conversation', ['MP-145']],
     ['html-artifact-preview', ['MP-41']],
     ['native-notifications', ['MP-110']]

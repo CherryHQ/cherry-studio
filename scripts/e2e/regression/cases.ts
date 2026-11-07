@@ -201,7 +201,7 @@ export const REGRESSION_CASES = [
   {
     id: 'MP-97',
     title: 'Advanced parameters and permission modes',
-    tasks: ['code-tools', 'code-cli-permissions'],
+    tasks: ['code-tools', 'code-cli-permissions', 'native-recovery'],
     phase: 'codeTools',
     capabilities: ['desktopAutomation']
   },
@@ -481,7 +481,7 @@ export const REGRESSION_CASES = [
   {
     id: 'MP-41',
     title: 'Preview HTML Artifacts',
-    tasks: ['chat-core', 'html-artifact-preview'],
+    tasks: ['chat-core', 'html-artifact-preview', 'native-recovery'],
     phase: 'chatCore',
     capabilities: []
   },
@@ -725,7 +725,7 @@ export const REGRESSION_CASES = [
   {
     id: 'MP-116',
     title: 'Restore from a local backup',
-    tasks: ['data-backup'],
+    tasks: ['data-backup', 'native-recovery'],
     phase: 'dataManagement',
     capabilities: ['desktopAutomation']
   },

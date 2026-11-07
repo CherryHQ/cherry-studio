@@ -106,7 +106,7 @@ it.skipIf(process.platform !== 'win32')(
     const paths = getRunPaths(directory)
     ensureRunDirectories(paths)
     const batch = join(paths.profiles, 'launch_claude-code_pending.bat')
-    writeFileSync(batch, '@echo off\r\nping -n 30 127.0.0.1 >nul\r\n')
+    writeFileSync(batch, '@echo off\r\nping -n 60 127.0.0.1 >nul\r\n')
     try {
       execFileSync(
         'powershell.exe',
@@ -125,7 +125,7 @@ it.skipIf(process.platform !== 'win32')(
             '$null = [Diagnostics.Process]::Start($info)'
           ].join('; ')
         ],
-        { windowsHide: true, timeout: 10_000 }
+        { windowsHide: true, stdio: 'ignore', timeout: 10_000 }
       )
       await expect.poll(() => listWindowsCodeTerminals(paths).length, { timeout: 15_000 }).toBe(1)
       const terminal = listWindowsCodeTerminals(paths)[0]
