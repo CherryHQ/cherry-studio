@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-07-custom-provider-complete-path.md
+2026-11-07-custom-provider-complete-path.md: 5c6d4a89952989c35b376502f2b244cc7637e2cb
+2026-11-07-custom-provider-complete-path.zh.md: 88f1c1c64958a7e3bdc28f7b2484509a689cfe64
