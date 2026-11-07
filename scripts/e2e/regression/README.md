@@ -26,6 +26,8 @@ The separate [on-demand QA controller](../ondemand/README.md) reuses the ref, in
 Dependencies flow from CLI and E2E fixtures into these modules. The controller does not import E2E scenarios or production services.
 The debug bridge may inspect the owned main process; it must never manufacture a successful product result.
 Native save helpers are asynchronous so fixture HTTP servers keep serving while the application prepares an export.
+The macOS save driver scopes accessibility controls to the owned PID, waits for folder navigation and filename
+readback, then presses Save. Keyboard input requires that same application to own the foreground.
 macOS notification lookups treat disappearing accessibility objects as absent; other automation errors still fail the case.
 Scenario cleanup cancels only owned Windows file dialogs, preventing a failed export from intercepting the next case's save.
 External-resource cleanup rechecks target ownership before closing windows or terminating processes. A recorded

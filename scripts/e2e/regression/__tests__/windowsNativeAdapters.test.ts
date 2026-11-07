@@ -173,15 +173,19 @@ it.skipIf(process.platform !== 'win32').each(['file', 'multiple', 'directory', '
           $condition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty, ${child.pid})
           $windows = $root.FindAll([Windows.Automation.TreeScope]::Children, $condition)
           foreach ($window in $windows) {
-            @($window) + @($window.FindAll([Windows.Automation.TreeScope]::Descendants, $condition)) |
-              ForEach-Object { $c = $_.Current; "{0}|{1}|{2}|{3}|enabled={4}|offscreen={5}|focusable={6}|handle={7}" -f $c.Name, $c.ClassName, $c.AutomationId, $c.ControlType.ProgrammaticName, $c.IsEnabled, $c.IsOffscreen, $c.IsKeyboardFocusable, $c.NativeWindowHandle }
+            @($window) + @($window.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.Condition]::TrueCondition)) |
+              ForEach-Object { $c = $_.Current; "{0}|{1}|{2}|{3}|enabled={4}|offscreen={5}|focusable={6}|handle={7}|pid={8}" -f $c.Name, $c.ClassName, $c.AutomationId, $c.ControlType.ProgrammaticName, $c.IsEnabled, $c.IsOffscreen, $c.IsKeyboardFocusable, $c.NativeWindowHandle, $c.ProcessId }
           }
         `
           ],
           { encoding: 'utf8', timeout: 10_000 }
         )
       }
-      throw new Error(`Windows ${mode} dialog failed. Owned controls:\n${controls}`, { cause: error })
+      const result = join(paths.private, 'result.json')
+      throw new Error(
+        `Windows ${mode} dialog failed. Result: ${existsSync(result) ? readFileSync(result, 'utf8') : 'pending'}. Owned controls:\n${controls}`,
+        { cause: error }
+      )
     } finally {
       if (child?.pid && child.exitCode === null && isAlive(child.pid)) {
         expect(processCommand(child.pid, 'windows'), 'Native dialog fixture ownership changed').toContain(script)

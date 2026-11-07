@@ -2,6 +2,7 @@ import { execFile, execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readdirSync, statSync } from 'node:fs'
 import { basename, dirname, extname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { promisify } from 'node:util'
 
 import { cleanupExternalResources, observeExternalResource, registerExternalResource } from './externalResources'
 import { readAppRecord, readOwnedRecord } from './lifecycle'
@@ -1033,81 +1034,112 @@ export async function saveNativeFileKeepingName(
   const existingNames = new Set(readdirSync(directory))
   const extension = extname(filePath)
   const saveName = macProductMajor >= 27 || !extension ? basename(filePath) : basename(filePath, extension)
-  // macOS 27 is app-owned and refuses `entire contents` walks, so the panel is driven by keystrokes only:
-  // Go to Folder takes the destination, then either the suggested name is accepted or ours is typed.
-  const acceptScript = () =>
-    [
-      'on run argv',
-      'set directoryPath to item 1 of argv',
-      'set keepName to item 2 of argv',
-      'set fileName to item 3 of argv',
-      'set pidArg to item 4 of argv as integer',
-      'tell application "System Events"',
-      'tell (first application process whose unix id is pidArg)',
-      'set frontmost to true',
-      'delay 2',
-      'keystroke "g" using {command down, shift down}',
-      'delay 2',
-      'keystroke directoryPath',
-      'delay 1',
-      'key code 36',
-      'delay 2',
-      'if keepName is "no" then',
-      'keystroke "a" using command down',
-      'delay 0.2',
-      'keystroke fileName',
-      'delay 0.3',
-      'key code 36',
-      'else',
-      'key code 36',
-      'end if',
-      'end tell',
-      'end tell',
-      'end run'
-    ].join('\n')
+  const script = `
+    import AppKit
+    import ApplicationServices
+    let pid: pid_t = ${electronPid}
+    let application = AXUIElementCreateApplication(pid)
+    func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
+      var value: CFTypeRef?
+      AXUIElementCopyAttributeValue(element, name as CFString, &value)
+      return value
+    }
+    func elements(_ element: AXUIElement, _ depth: Int = 0, skipping: Set<String> = []) -> [AXUIElement] {
+      guard depth < 18 else { return [element] }
+      let children = attribute(element, "AXChildren") as? [AXUIElement] ?? []
+      return [element] + children.filter { !skipping.contains(attribute($0, "AXRole") as? String ?? "") }
+        .flatMap { elements($0, depth + 1, skipping: skipping) }
+    }
+    func fail(_ message: String) -> Never { fputs(message + "\\n", stderr); exit(1) }
+    func wait(_ label: String, _ condition: () -> Bool) {
+      let deadline = Date().addingTimeInterval(10)
+      while !condition() {
+        if Date() > deadline { fail("Native save timed out at " + label) }
+        Thread.sleep(forTimeInterval: 0.1)
+      }
+    }
+    func key(_ code: CGKeyCode, _ flags: CGEventFlags = []) {
+      guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else { fail("Native save lost foreground ownership") }
+      for down in [true, false] {
+        let event = CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: down)!
+        event.flags = flags
+        event.post(tap: .cghidEventTap)
+      }
+    }
+    func setValue(_ field: AXUIElement, _ value: String) {
+      guard AXUIElementSetAttributeValue(field, "AXValue" as CFString, value as CFString) == .success,
+        attribute(field, "AXValue") as? String == value else { fail("Native save input readback mismatch") }
+    }
+    var panel: AXUIElement?
+    wait("panel") {
+      let windows = attribute(application, "AXWindows") as? [AXUIElement] ?? []
+      panel = windows.flatMap { elements($0) }.first { element in
+        let role = attribute(element, "AXRole") as? String ?? ""
+        let title = attribute(element, "AXTitle") as? String ?? ""
+        guard role == "AXSheet" || (role == "AXWindow" && ["Save", "保存"].contains(title)) else { return false }
+        return elements(element).contains { attribute($0, "AXRole") as? String == "AXButton" &&
+          ["Save", "保存"].contains(attribute($0, "AXTitle") as? String ?? "") }
+      }
+      return panel != nil
+    }
+    let owner = panel!
+    NSRunningApplication(processIdentifier: pid)?.activate(options: [])
+    AXUIElementPerformAction(owner, kAXRaiseAction as CFString)
+    wait("foreground ownership") { NSWorkspace.shared.frontmostApplication?.processIdentifier == pid }
+    var names: [AXUIElement] = []
+    wait("filename field") {
+      names = elements(owner, skipping: ["AXScrollArea", "AXBrowser", "AXSheet"]).filter { attribute($0, "AXRole") as? String == "AXTextField" &&
+        !(attribute($0, "AXValue") as? String ?? "").isEmpty }
+      return names.count == 1
+    }
+    let filename = names[0]
+    let suggested = attribute(filename, "AXValue") as? String ?? ""
+    key(5, [.maskCommand, .maskShift])
+    var pathField: AXUIElement?
+    func sheet() -> AXUIElement? {
+      elements(owner).dropFirst().first { attribute($0, "AXRole") as? String == "AXSheet" }
+    }
+    wait("Go to Folder") {
+      pathField = sheet().flatMap { elements($0).first { attribute($0, "AXRole") as? String == "AXTextField" } }
+      return pathField != nil
+    }
+    setValue(pathField!, ${JSON.stringify(directory)})
+    AXUIElementSetAttributeValue(pathField!, "AXFocused" as CFString, kCFBooleanTrue)
+    wait("directory navigation") {
+      guard sheet() != nil else { return true }
+      key(36)
+      Thread.sleep(forTimeInterval: 0.2)
+      return sheet() == nil
+    }
+    if ${keepSuggestedName ? 'false' : 'true'} { setValue(filename, ${JSON.stringify(saveName)}) }
+    guard let save = elements(owner).first(where: { attribute($0, "AXRole") as? String == "AXButton" &&
+      ["Save", "保存"].contains(attribute($0, "AXTitle") as? String ?? "") }) else { fail("Native save button disappeared") }
+    guard AXUIElementPerformAction(save, kAXPressAction as CFString) == .success else { fail("Native save button failed") }
+    print(suggested)
+  `
+  const { stdout } = await promisify(execFile)(
+    'swift',
+    ['-module-cache-path', join(paths.private, 'swift-module-cache'), '-e', script],
+    { encoding: 'utf8', timeout: 45_000 }
+  )
+  const suggestedName = stdout.trim()
 
   const createdSince = () => {
     if (!keepSuggestedName) return existsSync(filePath) ? [filePath] : []
     return readdirSync(directory)
-      .filter((name) => !existingNames.has(name) && !name.startsWith('.'))
+      .filter((name) => !existingNames.has(name) && (name === suggestedName || name === suggestedName + extension))
       .map((name) => join(directory, name))
   }
 
-  // The app owns the panel, so keystroke timing through the window server is not deterministic:
-  // retry the whole sequence once (dismissing any half-open sheet first) before calling it a failure.
-  const firstAttemptDeadline = Date.now() + 12_000
-  const overallDeadline = Date.now() + 40_000
-  let attempt = 0
-  await runAsync(
-    'osascript',
-    ['-e', acceptScript(), '--', directory, keepSuggestedName ? 'yes' : 'no', saveName, String(electronPid)],
-    45_000
-  ).catch(() => undefined)
+  const deadline = Date.now() + 15_000
   let created = createdSince()
-  while (created.length === 0 && Date.now() < overallDeadline) {
-    if (attempt === 0 && Date.now() > firstAttemptDeadline) {
-      attempt = 1
-      await runAsync(
-        'osascript',
-        [
-          '-e',
-          `tell application "System Events" to tell (first application process whose unix id is ${electronPid}) to key code 53`
-        ],
-        10_000
-      ).catch(() => undefined)
-      await new Promise((resolve) => setTimeout(resolve, 1_000))
-      await runAsync(
-        'osascript',
-        ['-e', acceptScript(), '--', directory, keepSuggestedName ? 'yes' : 'no', saveName, String(electronPid)],
-        45_000
-      ).catch(() => undefined)
-    }
-    await new Promise((resolve) => setTimeout(resolve, 500))
+  while (created.length === 0 && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 200))
     created = createdSince()
   }
   if (created.length > 0) {
     const savedPath = keepSuggestedName ? newestFile(created) : filePath
-    return { filePath: savedPath, suggestedName: keepSuggestedName ? basename(savedPath) : basename(filePath) }
+    return { filePath: savedPath, suggestedName }
   }
   throw new Error(
     keepSuggestedName
