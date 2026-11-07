@@ -13,6 +13,7 @@ import { BaseService } from '@main/core/lifecycle'
 import { RemoteAccessService } from '@main/services/remoteAccess/RemoteAccessService'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 
+const keyStore = vi.hoisted(() => ({ syncAvailable: true }))
 const storage = vi.hoisted(() => ({
   isAsyncEncryptionAvailable: vi.fn<() => Promise<boolean>>(),
   encryptStringAsync: vi.fn(async (value: string) => Buffer.from(`sealed:${value}`)),
@@ -20,9 +21,7 @@ const storage = vi.hoisted(() => ({
     result: value.toString('utf8').replace(/^sealed:/, ''),
     shouldReEncrypt: false
   })),
-  isEncryptionAvailable: vi.fn(() => {
-    throw new Error('Forbidden synchronous availability')
-  }),
+  isEncryptionAvailable: vi.fn(() => keyStore.syncAvailable),
   encryptString: vi.fn(() => {
     throw new Error('Forbidden synchronous encryption')
   }),
@@ -117,6 +116,8 @@ function expectNoSynchronousStorage() {
 }
 
 beforeEach(async () => {
+  vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
+  keyStore.syncAvailable = true
   BaseService.resetInstances()
   MockApplicationUtils.resetServices()
   MockMainPreferenceServiceUtils.resetMocks()
@@ -163,6 +164,7 @@ afterEach(async () => {
   } finally {
     MockApplicationUtils.resetServices()
     await rm(directory, { recursive: true, force: true })
+    vi.restoreAllMocks()
   }
 })
 

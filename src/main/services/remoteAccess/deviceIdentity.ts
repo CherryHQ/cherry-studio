@@ -23,9 +23,16 @@ function decodeIdentity(base64: string): Uint8Array {
   return bytes
 }
 
+async function hasOsProtectedKeyStore(platform: NodeJS.Platform): Promise<boolean> {
+  // Async availability only confirms encryptor initialization, which on Linux may use
+  // Chromium's hardcoded POSIX fallback key rather than an OS-protected key store.
+  if (platform === 'linux') return safeStorage.isEncryptionAvailable()
+  return safeStorage.isAsyncEncryptionAvailable()
+}
+
 export async function loadDesktopIdentity(): Promise<Uint8Array> {
   const secure =
-    (await safeStorage.isAsyncEncryptionAvailable()) &&
+    (await hasOsProtectedKeyStore(process.platform)) &&
     !(process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text')
   const encryptedFile = application.getPath('feature.remote_access.identity_file')
   const plainFile = application.getPath('feature.remote_access.plain_identity_file')

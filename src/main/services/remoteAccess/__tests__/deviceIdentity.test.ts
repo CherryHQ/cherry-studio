@@ -4,15 +4,18 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const keyStore = vi.hoisted(() => ({ available: true, backend: 'gnome_libsecret', shouldReEncrypt: false }))
+const keyStore = vi.hoisted(() => ({
+  available: true,
+  syncAvailable: true,
+  backend: 'gnome_libsecret',
+  shouldReEncrypt: false
+}))
 const storage = vi.hoisted(() => ({
   isAsyncEncryptionAvailable: vi.fn<() => Promise<boolean>>(),
   encryptStringAsync: vi.fn<(value: string) => Promise<Buffer>>(),
   decryptStringAsync: vi.fn<(value: Buffer) => Promise<{ result: string; shouldReEncrypt: boolean }>>(),
   getSelectedStorageBackend: () => keyStore.backend,
-  isEncryptionAvailable: vi.fn(() => {
-    throw new Error('Forbidden synchronous availability')
-  }),
+  isEncryptionAvailable: vi.fn(() => keyStore.syncAvailable),
   encryptString: vi.fn(() => {
     throw new Error('Forbidden synchronous encryption')
   }),
@@ -32,12 +35,16 @@ import { createDeviceIdentity, deviceIdentityId } from '@cherrystudio/remote-tra
 import { loadDesktopIdentity } from '../deviceIdentity'
 
 let dir: string
+let expectedSyncProbeCalls: number
 beforeEach(async () => {
+  vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
+  expectedSyncProbeCalls = 0
   dir = await mkdtemp(path.join(tmpdir(), 'remote-identity-'))
   vi.mocked(application.getPath).mockImplementation((key: string) =>
     path.join(dir, key === 'feature.remote_access.identity_file' ? 'remote-identity.enc' : 'remote-identity.key')
   )
   keyStore.available = true
+  keyStore.syncAvailable = true
   keyStore.backend = 'gnome_libsecret'
   keyStore.shouldReEncrypt = false
   vi.clearAllMocks()
@@ -51,7 +58,7 @@ beforeEach(async () => {
 afterEach(async () => {
   await rm(dir, { recursive: true, force: true })
   vi.restoreAllMocks()
-  expect(storage.isEncryptionAvailable).toHaveBeenCalledTimes(0)
+  expect(storage.isEncryptionAvailable).toHaveBeenCalledTimes(expectedSyncProbeCalls)
   expect(storage.encryptString).toHaveBeenCalledTimes(0)
   expect(storage.decryptString).toHaveBeenCalledTimes(0)
 })
@@ -65,6 +72,39 @@ async function files() {
 }
 
 describe('loadDesktopIdentity', () => {
+  it('reuses plaintext identity on Linux when the key store fails despite async POSIX availability', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
+    keyStore.syncAvailable = false
+    expectedSyncProbeCalls = 2
+
+    const created = deviceIdentityId(await loadDesktopIdentity())
+
+    expect(deviceIdentityId(await loadDesktopIdentity())).toBe(created)
+    expect(await files()).toEqual({ 'remote-identity.key': expect.any(String) })
+    await expect(stat(path.join(dir, 'remote-identity.enc'))).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(storage.encryptStringAsync).toHaveBeenCalledTimes(0)
+  })
+
+  it('seals identity on Linux when the OS key store is available', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
+    keyStore.syncAvailable = true
+    expectedSyncProbeCalls = 1
+
+    await loadDesktopIdentity()
+
+    expect((await readFile(path.join(dir, 'remote-identity.enc'), 'utf8')).startsWith('sealed:')).toBe(true)
+    await expect(stat(path.join(dir, 'remote-identity.key'))).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('uses async key-store availability on darwin without a synchronous probe', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
+
+    await loadDesktopIdentity()
+
+    expect(storage.isAsyncEncryptionAvailable).toHaveBeenCalledTimes(1)
+    expect(storage.isEncryptionAvailable).toHaveBeenCalledTimes(0)
+  })
+
   it('creates and reloads an identity when no OS key store exists', async () => {
     keyStore.available = false
 
@@ -126,8 +166,10 @@ describe('loadDesktopIdentity', () => {
     expect(await files()).toEqual(before)
   })
 
-  it('treats Linux basic_text as insecure even when async availability is true', async () => {
+  it('treats Linux basic_text as insecure regardless of availability', async () => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
+    keyStore.syncAvailable = true
+    expectedSyncProbeCalls = 2
     keyStore.backend = 'basic_text'
     const created = deviceIdentityId(await loadDesktopIdentity())
 
@@ -137,10 +179,12 @@ describe('loadDesktopIdentity', () => {
     expect(storage.encryptStringAsync).toHaveBeenCalledTimes(0)
   })
 
-  it('preserves sealed identity on Linux basic_text with async availability true', async () => {
+  it('preserves sealed identity on Linux basic_text', async () => {
     await loadDesktopIdentity()
     const before = await files()
     vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
+    keyStore.syncAvailable = true
+    expectedSyncProbeCalls = 1
     keyStore.backend = 'basic_text'
 
     await expect(loadDesktopIdentity()).rejects.toThrow('OS-protected key storage is unavailable')
