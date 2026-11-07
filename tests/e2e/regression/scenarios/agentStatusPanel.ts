@@ -104,7 +104,7 @@ export async function agentStatusPanel(app: RegressionApp, page: Page, testInfo:
 
     const completed = view.getByTestId('completed-process-trigger')
     for (const trigger of await completed.all()) {
-      if ((await trigger.getAttribute('data-state')) !== 'open') await trigger.click()
+      if ((await trigger.getAttribute('aria-expanded')) !== 'true') await trigger.click()
     }
     const messageCards = view.locator('[data-ui~="chat.message"]:visible')
     for (const file of files) {
