@@ -56,7 +56,7 @@ import AgentSidePanel from './AgentSidePanel'
 import { AgentCreateDialog } from './components/AgentCreateDialog'
 import type { AgentFileNavigationRequest } from './components/AgentRightPane'
 import { AgentTabRuntime } from './components/AgentTabRuntime'
-import Sessions from './components/Sessions'
+import { Sessions } from './components/sessions'
 import {
   createFeedbackComposerLaunch,
   FEEDBACK_INTENT_GUARD_TTL_MS,
@@ -388,10 +388,10 @@ const AgentPage = () => {
     })
 
     return unsubscribe
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest session without resubscribing.
   }, [currentTabId])
   const targetSessionId = activeSessionId ?? undefined
-  const { locateMessageId, requestLocate, clearLocate } = useConversationLocateRequest({
+  const { locateMessageId, locateToEnd, requestLocate, clearLocate } = useConversationLocateRequest({
+    navigationTabId: currentTabId ?? undefined,
     activeConversationId: targetSessionId,
     visibleConversationId: visibleSession?.id
   })
@@ -401,6 +401,10 @@ const AgentPage = () => {
   const agentAvatarIsEmoji = !!agentAvatar && isEmoji(agentAvatar)
   // Label this tab with its agent emoji + session name so multiple Work tabs are distinguishable.
   const preserveTabVisuals = !!targetSessionId && visibleSession?.id !== targetSessionId
+
+  useEffect(() => {
+    if (locateMessageId || locateToEnd) closeSurface()
+  }, [closeSurface, locateMessageId, locateToEnd])
 
   const [sessionPaneUserOpenIntentSeq, setSessionPaneUserOpenIntentSeq] = useState(0)
 
@@ -748,7 +752,6 @@ const AgentPage = () => {
       unsubscribeSession()
       unsubscribeMessage()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads latest tab/session state without resubscribing.
   }, [currentTabId])
 
   const runFeedbackIntent = useEffectEvent(async (intentGuardCacheKey: string) => {
@@ -791,7 +794,6 @@ const AgentPage = () => {
     if (cacheService.hasCasual(intentGuardCacheKey)) return
     cacheService.setCasual(intentGuardCacheKey, true, FEEDBACK_INTENT_GUARD_TTL_MS)
     void runFeedbackIntent(intentGuardCacheKey)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest feedback orchestration without resubscribing.
   }, [currentTabId, isFeedbackIntent, routeSessionId])
 
   const runSkillIntent = useEffectEvent(async (intentGuardCacheKey: string) => {
@@ -839,7 +841,6 @@ const AgentPage = () => {
     if (cacheService.hasCasual(intentGuardCacheKey)) return
     cacheService.setCasual(intentGuardCacheKey, true, SKILL_INTENT_GUARD_TTL_MS)
     void runSkillIntent(intentGuardCacheKey)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest Skill orchestration without resubscribing.
   }, [currentTabId, isSkillIntent, routeSessionId, routeSkillId])
 
   const runTaskIntent = useEffectEvent(async (intentGuardCacheKey: string) => {
@@ -871,7 +872,6 @@ const AgentPage = () => {
     if (cacheService.hasCasual(intentGuardCacheKey)) return
     cacheService.setCasual(intentGuardCacheKey, true, TASK_INTENT_GUARD_TTL_MS)
     void runTaskIntent(intentGuardCacheKey)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest task orchestration without resubscribing.
   }, [currentTabId, isTaskIntent, routeSessionId])
 
   const visibleSessionId = visibleSession?.id
@@ -1165,6 +1165,7 @@ const AgentPage = () => {
             onVisibleAgentChange={setLastUsedAgentId}
             onVisibleWorkspaceChange={setLastUsedWorkspaceId}
             locateMessageId={locateMessageId}
+            locateToEnd={locateToEnd}
             onLocateMessageHandled={handleLocateMessageHandled}
             selectingMissingAgent={selectingMissingAgent}
             replacingSessionWorkspace={replacingSessionWorkspace}
