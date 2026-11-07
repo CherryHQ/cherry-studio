@@ -1378,6 +1378,7 @@
   "common.search": "Pesquisar",
   "common.select": "Selecionar",
   "common.select_all": "Selecionar Tudo",
+  "common.select_all_filtered": "Selecionar todos os resultados filtrados",
   "common.selected": "Selecionado",
   "common.selectedItems": "{{count}} itens selecionados",
   "common.selectedMessages": "{{count}} mensagens selecionadas",

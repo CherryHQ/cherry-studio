@@ -1378,6 +1378,7 @@
   "common.search": "Caută",
   "common.select": "Selectează",
   "common.select_all": "Selectează tot",
+  "common.select_all_filtered": "Selectează toate rezultatele filtrate",
   "common.selected": "Selectat",
   "common.selectedItems": "{{count}} elemente selectate",
   "common.selectedMessages": "{{count}} mesaje selectate",

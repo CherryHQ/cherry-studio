@@ -1378,6 +1378,7 @@
   "common.search": "検索",
   "common.select": "選択",
   "common.select_all": "すべて選択",
+  "common.select_all_filtered": "フィルター済みの結果をすべて選択",
   "common.selected": "選択済み",
   "common.selectedItems": "{{count}}件の項目を選択しました",
   "common.selectedMessages": "{{count}}件のメッセージを選択しました",

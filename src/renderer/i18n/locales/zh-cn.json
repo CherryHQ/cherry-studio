@@ -1378,6 +1378,7 @@
   "common.search": "搜索",
   "common.select": "选择",
   "common.select_all": "全选",
+  "common.select_all_filtered": "全选筛选结果",
   "common.selected": "已选择",
   "common.selectedItems": "已选择 {{count}} 项",
   "common.selectedMessages": "选中 {{count}} 条消息",

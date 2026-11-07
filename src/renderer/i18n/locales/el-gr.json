@@ -1378,6 +1378,7 @@
   "common.search": "Αναζήτηση",
   "common.select": "Επιλογή",
   "common.select_all": "Επιλογή Όλων",
+  "common.select_all_filtered": "Επιλογή όλων των φιλτραρισμένων αποτελεσμάτων",
   "common.selected": "Επιλεγμένο",
   "common.selectedItems": "Επιλέχθηκαν {{count}} αντικείμενα",
   "common.selectedMessages": "Επιλέχθηκαν {{count}} μηνύματα",

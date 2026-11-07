@@ -1378,6 +1378,7 @@
   "common.search": "Tìm kiếm",
   "common.select": "Chọn",
   "common.select_all": "Chọn Tất Cả",
+  "common.select_all_filtered": "Chọn tất cả kết quả đã lọc",
   "common.selected": "Đã chọn",
   "common.selectedItems": "Đã chọn {{count}} mục",
   "common.selectedMessages": "Đã chọn {{count}} tin nhắn",

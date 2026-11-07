@@ -1378,6 +1378,7 @@
   "common.search": "Ara",
   "common.select": "Seç",
   "common.select_all": "Tümünü Seç",
+  "common.select_all_filtered": "Filtrelenen sonuçların tümünü seç",
   "common.selected": "Seçildi",
   "common.selectedItems": "{{count}} öğe seçildi",
   "common.selectedMessages": "{{count}} mesaj seçildi",

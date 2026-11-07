@@ -691,6 +691,7 @@ vi.mock('react-i18next', () => ({
         'agent.session.pin.title': 'Pin task',
         'agent.session.reorder.error.failed': 'Failed to reorder tasks',
         'agent.session.search.placeholder': 'Search tasks',
+        'agent.session.search.title': 'Search tasks',
         'agent.session.update.error.failed': 'Failed to update task',
         'agent.session.unpin.title': 'Unpin task',
         'agent.session.workdir.delete.content':
@@ -708,6 +709,9 @@ vi.mock('react-i18next', () => ({
         'chat.topics.copy.plain_text': 'Copy as Plain Text',
         'chat.topics.copy.title': 'Copy',
         'common.cancel': 'Cancel',
+        'common.select': 'Select',
+        'common.select_all_filtered': 'Select all filtered results',
+        'common.selectedItems': `Selected ${options?.count ?? 0} items`,
         'common.delete': 'Delete',
         'common.archive': 'Archive',
         'common.delete_success': 'Deleted successfully',
@@ -1064,6 +1068,24 @@ describe('Sessions', () => {
         expect.objectContaining({ id: 'session-a' }),
         expect.any(Object)
       )
+    })
+  })
+
+  it('selects and archives only filtered agent sessions in one batch', async () => {
+    const user = userEvent.setup()
+    sessionDataMocks.deleteSessions.mockResolvedValue({ deletedIds: ['session-a'] })
+
+    render(<SessionsForTest agentIdFilter="agent-a" presentation="right-panel" />)
+
+    await user.type(screen.getByRole('textbox', { name: 'Search tasks' }), 'Alpha')
+    await user.click(screen.getByRole('button', { name: 'Select' }))
+    await user.click(screen.getByRole('button', { name: 'Select all filtered results' }))
+    await user.click(screen.getByRole('button', { name: 'Archive (1)' }))
+
+    await vi.waitFor(() => expect(sessionDataMocks.deleteSessions).toHaveBeenCalledWith(['session-a']))
+    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledWith({
+      itemCount: 1,
+      onUndo: expect.any(Function)
     })
   })
 

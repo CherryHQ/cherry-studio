@@ -1378,6 +1378,7 @@
   "common.search": "Поиск",
   "common.select": "Выбрать",
   "common.select_all": "Выбрать все",
+  "common.select_all_filtered": "Выбрать все отфильтрованные результаты",
   "common.selected": "Выбрано",
   "common.selectedItems": "Выбрано {{count}} элементов",
   "common.selectedMessages": "Выбрано {{count}} сообщений",
