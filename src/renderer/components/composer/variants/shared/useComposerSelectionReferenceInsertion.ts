@@ -38,5 +38,5 @@ export function useComposerSelectionReferenceInsertion<T extends SelectionRefere
       if (!request?.reference || request.topicId !== topicId) return
       insertReference(request.reference)
     })
-  }, [insertReference, layerActive, topicId])
+  }, [layerActive, topicId])
 }
