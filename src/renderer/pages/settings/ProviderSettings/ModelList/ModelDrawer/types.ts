@@ -29,7 +29,8 @@ export interface ModelBasicFormState {
 
 export const MODEL_CAPABILITY_TOGGLE_VALUES = [
   MODEL_CAPABILITY.REASONING,
-  MODEL_CAPABILITY.FUNCTION_CALL
+  MODEL_CAPABILITY.FUNCTION_CALL,
+  MODEL_CAPABILITY.WEB_SEARCH
 ] as const satisfies readonly ModelCapability[]
 
 export type ModelCapabilityToggle = (typeof MODEL_CAPABILITY_TOGGLE_VALUES)[number]
