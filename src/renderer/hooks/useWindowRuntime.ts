@@ -1,16 +1,18 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useAgentSessionAutoRenameSync } from '@renderer/hooks/agent/useSession'
+import { useCommandHandler } from '@renderer/hooks/command'
 import { useConversationTabTitleChangeSync } from '@renderer/hooks/tab'
 import { useCustomCss } from '@renderer/hooks/useCustomCss'
 import { useLanguageSync } from '@renderer/hooks/useLanguageSync'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useMiniAppListSync } from '@renderer/hooks/useMiniApps'
 import { useTopicAutoRenameSync } from '@renderer/hooks/useTopic'
+import { useWebSearchFallbackNotice } from '@renderer/hooks/useWebSearchFallbackNotice'
 import { setDayjsLocale } from '@renderer/i18n/resolver'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -27,10 +29,10 @@ const DEFAULT_NAV_BACKGROUND = 'var(--sidebar)'
 
 /**
  * The window runtime shared by every full-chrome window (main + subWindow): the
- * window-level side effects both need, identically. It calls the two hooks the light
- * windows also reuse (`useLanguageSync` / `useCustomCss`) and inlines the concerns
- * only main + subWindow have (dayjs locale, root background, app-path snapshot,
- * fullscreen, topic/agent auto-rename).
+ * window-level side effects both need, identically. It calls the hooks lighter windows
+ * also reuse (`useLanguageSync` / `useCustomCss` / `useDayjsLocaleSync` / `useAppPathSnapshot`)
+ * and inlines the concerns only main + subWindow have (root background, fullscreen,
+ * topic/agent auto-rename).
  *
  * Mount it from a leaf inside the providers but OUTSIDE every `TabRouter`/`<Activity>`
  * — a hidden `<Activity>` subtree destroys effects, so a window-scoped subscription
@@ -42,30 +44,16 @@ const DEFAULT_NAV_BACKGROUND = 'var(--sidebar)'
  * holds no main-only behavior, so it cannot hide a per-window difference — that is the
  * line between this composition and the retired `useAppInit` grab-bag.
  */
-export function useWindowRuntime(): void {
-  const { t } = useTranslation()
+/** dayjs locale — only the windows that render localized dates need it. */
+export function useDayjsLocaleSync(): void {
   const [language] = usePreference('app.language')
-  const [exitFullscreenPref] = usePreference('shortcut.app.fullscreen.exit')
-  const enableQuitFullScreen = exitFullscreenPref?.enabled !== false
-  const isMacTransparentWindow = useMacTransparentWindow()
-  const navBackground = isMacTransparentWindow ? MAC_TRANSPARENT_NAV_BACKGROUND : DEFAULT_NAV_BACKGROUND
-
-  // Also used by the light windows, so these stay as their own reusable hooks.
-  useLanguageSync()
-  useCustomCss()
-
-  // dayjs locale — only the windows that render localized dates need it.
   useEffect(() => {
     setDayjsLocale(language || navigator.language || defaultLanguage)
   }, [language])
+}
 
-  // Root background (macOS vibrancy / transparent-window aware).
-  useEffect(() => {
-    window.root.style.background = navBackground
-  }, [navBackground])
-
-  // Snapshot app paths into the inline file-path base + resources cache. Mount-time,
-  // non-blocking; failure logs rather than throwing.
+/** Snapshot app paths into the inline file-path base + resources cache. Mount-time, non-blocking; failure logs. */
+export function useAppPathSnapshot(): void {
   useEffect(() => {
     void ipcApi
       .request('app.get_info')
@@ -75,9 +63,31 @@ export function useWindowRuntime(): void {
       })
       .catch((error) => logger.error('Failed to snapshot app paths', error as Error))
   }, [])
+}
+
+export function useWindowRuntime(): void {
+  const { t } = useTranslation()
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const fullscreenRevision = useRef(0)
+  const isMacTransparentWindow = useMacTransparentWindow()
+  const navBackground = isMacTransparentWindow ? MAC_TRANSPARENT_NAV_BACKGROUND : DEFAULT_NAV_BACKGROUND
+
+  // Also used by the light windows, so these stay as their own reusable hooks.
+  useLanguageSync()
+  useWebSearchFallbackNotice()
+  useCustomCss()
+  useDayjsLocaleSync()
+  useAppPathSnapshot()
+
+  // Root background (macOS vibrancy / transparent-window aware).
+  useEffect(() => {
+    window.root.style.background = navBackground
+  }, [navBackground])
 
   // [Windows] hint toast on entering fullscreen (useIpcOn self-cleans on unmount).
   useIpcOn('window.fullscreen_changed', (isFullscreen) => {
+    fullscreenRevision.current++
+    setIsFullscreen(isFullscreen)
     if (isWin && isFullscreen) {
       toast.info({
         title: t('common.fullscreen'),
@@ -86,20 +96,24 @@ export function useWindowRuntime(): void {
     }
   })
 
-  // ESC exits fullscreen (all platforms), gated by the shortcut preference.
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!enableQuitFullScreen) return
-
-      if (e.key === 'Escape' && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
-        void ipcApi.request('window.set_full_screen', false)
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
+    let active = true
+    const revision = fullscreenRevision.current
+    void ipcApi
+      .request('window.is_full_screen')
+      .then((value) => {
+        if (active && fullscreenRevision.current === revision) setIsFullscreen(value)
+      })
+      .catch((error) => logger.error('Failed to query fullscreen state', error as Error))
     return () => {
-      window.removeEventListener('keydown', handleKeyDown)
+      active = false
     }
-  }, [enableQuitFullScreen])
+  }, [])
+
+  useCommandHandler('app.fullscreen.exit', () => ipcApi.request('window.set_full_screen', false), {
+    enabled: isFullscreen,
+    shouldHandleKeyEvent: (event) => !event.defaultPrevented
+  })
 
   // Each BrowserWindow has its own SWR cache, so both keep their own invalidation.
   useTopicAutoRenameSync()
