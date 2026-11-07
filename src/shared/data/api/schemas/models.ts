@@ -15,6 +15,7 @@ import {
   MODEL_CAPABILITY,
   objectValues,
   ParameterSupportDbSchema,
+  ReasoningConfigSchema,
   RuntimeModelPricingSchema,
   type UniqueModelId,
   UniqueModelIdSchema
@@ -63,6 +64,8 @@ export const CreateModelSchema = z.strictObject({
   maxOutputTokens: PositiveModelTokenLimitSchema.optional(),
   /** Streaming support */
   supportsStreaming: z.boolean().optional(),
+  /** Provider-declared reasoning descriptor (used when the registry has no match). */
+  reasoning: ReasoningConfigSchema.optional(),
   /** Parameter support (DB form) */
   parameterSupport: ParameterSupportDbSchema.optional(),
   /** Pricing configuration */
@@ -89,7 +92,9 @@ export type CreateModelsDto = z.infer<typeof CreateModelsSchema>
 export const UpdateModelSchema = CreateModelSchema.omit({
   providerId: true,
   modelId: true,
-  presetModelId: true
+  presetModelId: true,
+  // Create-time provider metadata; a PATCH must not silently accept and drop it.
+  reasoning: true
 })
   .partial()
   .extend({

@@ -7,11 +7,18 @@ import { Button } from '@cherrystudio/ui'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { getDefaultGroupName } from '@renderer/utils/naming'
-import { createUniqueModelId, ENDPOINT_TYPE, type EndpointType, type UniqueModelId } from '@shared/data/types/model'
+import {
+  createUniqueModelId,
+  ENDPOINT_TYPE,
+  type EndpointType,
+  type RuntimeReasoning,
+  type UniqueModelId
+} from '@shared/data/types/model'
 
 import ProviderActions from '../../primitives/ProviderActions'
 import ProviderSection from '../../primitives/ProviderSection'
 import { drawerClasses } from '../../primitives/ProviderSettingsPrimitives'
+import { resolveProviderReasoningForManualAdd } from '../../utils/modelSync'
 import {
   buildModelCapabilities,
   buildModelInputModalities,
@@ -138,7 +145,7 @@ export default function AddModelFormPanel({
   )
 
   const addSingleModel = useCallback(
-    async (values: ModelBasicFormState) => {
+    async (values: ModelBasicFormState, providerReasoning?: RuntimeReasoning) => {
       if (!provider) {
         return null
       }
@@ -189,7 +196,9 @@ export default function AddModelFormPanel({
         outputModalities: submittedPurposeFields?.outputModalities,
         ...(values.contextWindow !== null ? { contextWindow: values.contextWindow } : {}),
         ...(values.maxInputTokens !== null ? { maxInputTokens: values.maxInputTokens } : {}),
-        ...(values.maxOutputTokens !== null ? { maxOutputTokens: values.maxOutputTokens } : {})
+        ...(values.maxOutputTokens !== null ? { maxOutputTokens: values.maxOutputTokens } : {}),
+        // A model the registry does not know has only the provider's own declaration as a descriptor.
+        ...(providerReasoning ? { reasoning: providerReasoning } : {})
       })
 
       return createUniqueModelId(providerId, modelId)
@@ -232,18 +241,26 @@ export default function AddModelFormPanel({
     setSubmitError(null)
 
     try {
+      const submittedIds = normalizedId.includes(',') ? splitModelIds(normalizedId) : [normalizedId]
+      // Remote lookups stay out of the DataApi create request: this is the orchestration
+      // step that turns a provider catalog entry into a descriptor the write can carry.
+      const providerReasoning = await resolveProviderReasoningForManualAdd(providerId, submittedIds)
+
       if (normalizedId.includes(',')) {
         const addedModelIds: UniqueModelId[] = []
-        for (const singleId of splitModelIds(normalizedId)) {
-          const addedModelId = await addSingleModel({
-            modelId: singleId,
-            name: singleId,
-            group: '',
-            contextWindow: null,
-            maxInputTokens: null,
-            maxOutputTokens: null,
-            endpointTypes: formState.endpointTypes
-          })
+        for (const singleId of submittedIds) {
+          const addedModelId = await addSingleModel(
+            {
+              modelId: singleId,
+              name: singleId,
+              group: '',
+              contextWindow: null,
+              maxInputTokens: null,
+              maxOutputTokens: null,
+              endpointTypes: formState.endpointTypes
+            },
+            providerReasoning.get(singleId)
+          )
 
           if (addedModelId) {
             addedModelIds.push(addedModelId)
@@ -256,10 +273,13 @@ export default function AddModelFormPanel({
         return
       }
 
-      const addedModelId = await addSingleModel({
-        ...formState,
-        modelId: normalizedId
-      })
+      const addedModelId = await addSingleModel(
+        {
+          ...formState,
+          modelId: normalizedId
+        },
+        providerReasoning.get(normalizedId)
+      )
       if (addedModelId) {
         onSuccess([addedModelId])
       }
@@ -269,7 +289,7 @@ export default function AddModelFormPanel({
       submitInFlightRef.current = false
       setIsSubmitting(false)
     }
-  }, [addSingleModel, formState, mode, onSuccess, t])
+  }, [addSingleModel, formState, mode, onSuccess, providerId, t])
 
   const handlePrimaryTypeChange = useCallback((primaryType: ModelPrimaryType) => {
     setClassification((current) => ({ ...current, primaryType }))

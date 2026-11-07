@@ -55,6 +55,7 @@ vi.mock('@main/data/services/ProviderService', () => ({
 vi.mock('@main/data/services/ProviderRegistryService', async (importOriginal) => {
   const actual = await importOriginal<typeof ProviderRegistryModule>()
   return {
+    projectRuntimeReasoning: actual.projectRuntimeReasoning,
     providerRegistryService: {
       resolveModel: actual.providerRegistryService.resolveModel.bind(actual.providerRegistryService),
       isRegistryProvider: isRegistryProviderMock,
@@ -1051,6 +1052,58 @@ describe('listModels — openRouterFetcher image models', () => {
       endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
       name: 'Sourceful: Riverflow V2.5 Fast'
     })
+  })
+
+  it('keeps the declared effort vocabulary of an unregistered model', async () => {
+    const provider = makeOpenRouterProvider()
+    aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) => {
+      if (url.endsWith('/rerank/models') || url.endsWith('/embeddings/models') || url.endsWith('/images/models')) {
+        return Promise.resolve({ value: { data: [] } })
+      }
+      return Promise.resolve({
+        value: {
+          data: [
+            {
+              id: 'stealth/crouton-alpha',
+              supported_parameters: ['reasoning', 'reasoning_effort'],
+              reasoning: {
+                mandatory: true,
+                supported_efforts: ['max', 'xhigh', 'high', 'medium', 'low', 'minimal'],
+                default_effort: 'max'
+              }
+            }
+          ]
+        }
+      })
+    })
+
+    const { models } = await listModels(provider)
+    const model = models.find((candidate) => candidate.apiModelId === 'stealth/crouton-alpha')
+
+    expect(model?.reasoning).toMatchObject({
+      controls: [{ kind: 'effort', values: ['max', 'xhigh', 'high', 'medium', 'low', 'minimal'], default: 'max' }],
+      selectableEfforts: ['max', 'xhigh', 'high', 'medium', 'low', 'minimal'],
+      defaultEffort: 'max'
+    })
+  })
+
+  it('falls back to the reasoning_effort parameter when the vocabulary is omitted', async () => {
+    const provider = makeOpenRouterProvider()
+    aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) => {
+      if (url.endsWith('/rerank/models') || url.endsWith('/embeddings/models') || url.endsWith('/images/models')) {
+        return Promise.resolve({ value: { data: [] } })
+      }
+      return Promise.resolve({
+        value: {
+          data: [{ id: 'acme/thinker', supported_parameters: ['reasoning', 'reasoning_effort'] }]
+        }
+      })
+    })
+
+    const { models } = await listModels(provider)
+    const model = models.find((candidate) => candidate.apiModelId === 'acme/thinker')
+
+    expect(model?.reasoning?.selectableEfforts).toEqual(['low', 'medium', 'high'])
   })
 
   it('keeps the primary and embedding catalogs when the image catalog fails in strict sync mode', async () => {

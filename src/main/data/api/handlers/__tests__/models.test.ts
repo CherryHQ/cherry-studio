@@ -10,7 +10,9 @@ import {
   MODELS_DELETE_MAX_IDS,
   UpdateModelSchema
 } from '@shared/data/api/schemas/models'
+import type { RuntimeReasoning } from '@shared/data/types/model'
 
+import { MockApplicationUtils } from '../../../../../../tests/__mocks__/main/application'
 import { mockMainLoggerService } from '../../../../../../tests/__mocks__/MainLoggerService'
 
 const {
@@ -66,6 +68,7 @@ const DISABLED_REASONING_PROFILE = { format: 'none', wire: { disabled: true } } 
 
 beforeEach(() => {
   vi.clearAllMocks()
+  MockApplicationUtils.resetServices()
 })
 
 describe('Model handler validation', () => {
@@ -83,6 +86,25 @@ describe('Model handler validation', () => {
     }))
 
     expect(() => CreateModelsSchema.parse(items)).not.toThrow()
+  })
+
+  it('accepts a provider-declared reasoning descriptor', () => {
+    const [parsed] = CreateModelsSchema.parse([
+      {
+        providerId: 'openrouter',
+        modelId: 'stealth/crouton-alpha',
+        reasoning: {
+          controls: [{ kind: 'effort', values: ['max', 'xhigh', 'high', 'medium', 'low', 'minimal'], default: 'max' }],
+          selectableEfforts: ['max', 'xhigh', 'high', 'medium', 'low', 'minimal'],
+          defaultEffort: 'max'
+        }
+      }
+    ])
+
+    expect(parsed.reasoning?.controls).toEqual([
+      { kind: 'effort', values: ['max', 'xhigh', 'high', 'medium', 'low', 'minimal'], default: 'max' }
+    ])
+    expect(parsed.reasoning?.defaultEffort).toBe('max')
   })
 
   it('rejects single-object payloads for /models', () => {
@@ -193,6 +215,80 @@ describe('/models', () => {
       'Registry lookup missed during create, falling back to custom',
       expect.objectContaining({ providerId: 'openai', modelId: 'custom-model' })
     )
+  })
+
+  it('persists a manual single-model add without calling the provider catalog', async () => {
+    // DataApi writes only: a create must not fan out to a remote catalog, whatever
+    // the registry answered. Provider discovery belongs to the caller (AiService/IPC).
+    const listModels = vi.fn(() => {
+      throw new Error('DataApi must not reach the provider catalog')
+    })
+    MockApplicationUtils.setService('AiService', { listModels })
+    const registryData = {
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: DISABLED_REASONING_PROFILE
+    }
+    lookupModelMock.mockReturnValue(registryData)
+    createMock.mockReturnValue([{ id: 'openrouter::stealth/crouton-alpha' }])
+
+    await modelHandlers['/models'].POST({
+      body: [{ providerId: 'openrouter', modelId: 'stealth/crouton-alpha' }]
+    })
+
+    expect(listModels).not.toHaveBeenCalled()
+    expect(createMock).toHaveBeenCalledWith([
+      {
+        dto: { providerId: 'openrouter', modelId: 'stealth/crouton-alpha' },
+        registryData
+      }
+    ] satisfies CreateModelInput[])
+  })
+
+  it('keeps the reconcile create path SQLite-only for a single-item toAdd', async () => {
+    const listModels = vi.fn(() => {
+      throw new Error('DataApi must not reach the provider catalog')
+    })
+    MockApplicationUtils.setService('AiService', { listModels })
+    lookupModelMock.mockReturnValue({
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: DISABLED_REASONING_PROFILE
+    })
+    reconcileForProviderMock.mockReturnValue({ models: [], deletedIds: [] })
+
+    await modelHandlers['/providers/:providerId/models:reconcile'].POST({
+      params: { providerId: 'openrouter' },
+      body: { toAdd: [{ providerId: 'openrouter', modelId: 'stealth/crouton-alpha' }], toRemove: [] }
+    })
+
+    expect(listModels).not.toHaveBeenCalled()
+  })
+
+  it('forwards the reasoning the orchestration layer resolved into the create', async () => {
+    const reasoning: RuntimeReasoning = {
+      controls: [{ kind: 'effort', values: ['max', 'high'] }],
+      selectableEfforts: ['max', 'high'],
+      defaultEffort: 'max'
+    }
+    const registryData = {
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: DISABLED_REASONING_PROFILE
+    }
+    lookupModelMock.mockReturnValue(registryData)
+    createMock.mockReturnValue([{ id: 'openrouter::stealth/crouton-alpha' }])
+
+    await modelHandlers['/models'].POST({
+      body: [{ providerId: 'openrouter', modelId: 'stealth/crouton-alpha', reasoning }]
+    })
+
+    expect(createMock).toHaveBeenCalledWith([
+      {
+        dto: { providerId: 'openrouter', modelId: 'stealth/crouton-alpha', reasoning },
+        registryData
+      }
+    ] satisfies CreateModelInput[])
   })
 
   it('rethrows non-NOT_FOUND registry lookup errors instead of creating custom models', async () => {
