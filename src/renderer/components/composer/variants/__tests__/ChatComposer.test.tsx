@@ -57,6 +57,7 @@ const mocks = vi.hoisted(() => ({
   model: undefined as Model | undefined,
   assistantLoading: false,
   modelPending: false,
+  lastModelAudio: false,
   modelMissing: undefined as boolean | undefined,
   selectedModel: undefined as Model | undefined,
   modelSelectorProps: [] as any[],
@@ -64,6 +65,7 @@ const mocks = vi.hoisted(() => ({
   awaitingApproval: false,
   surfaceProps: undefined as ComposerSurfaceProps | undefined,
   realSurface: undefined as ComponentType<ComposerSurfaceProps> | undefined,
+  toolRuntimeModel: undefined as Model | undefined,
   derivedToolState: undefined as { couldAddImageFile: boolean; extensions: string[] } | undefined,
   toolLaunchers: [] as any[],
   toolLaunchersVersion: 0,
@@ -280,7 +282,10 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
     mocks.derivedToolState = { couldAddImageFile, extensions }
     return <>{children}</>
   },
-  ComposerToolRuntimeHost: () => null,
+  ComposerToolRuntimeHost: ({ model }: { model?: Model }) => {
+    mocks.toolRuntimeModel = model
+    return null
+  },
   ComposerToolMenu: () => <button type="button">tool menu</button>,
   ComposerActiveToolControls: () => null,
   ComposerToolFooterActionsSync: () => null,
@@ -480,8 +485,9 @@ vi.mock('@renderer/utils/model', () => ({
     if (supported.length === 1) return undefined
     return currentEffort && supported.includes(currentEffort) ? currentEffort : supported[0]
   },
-  isAudioModel: () => false,
-  isAudioModels: () => false,
+  isAudioModel: (model: Model) => model.capabilities.includes(MODEL_CAPABILITY.AUDIO_RECOGNITION),
+  isAudioModels: (models: Model[]) =>
+    models.every((model) => model.capabilities.includes(MODEL_CAPABILITY.AUDIO_RECOGNITION)),
   isEmbeddingModel: () => false,
   isFunctionCallingModel: (currentModel?: Model) =>
     currentModel?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false,
@@ -550,7 +556,16 @@ vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
 
 vi.mock('@renderer/hooks/useModel', () => ({
   useDefaultModel: () => ({ setDefaultModel: mocks.setDefaultModel }),
-  useModelById: (modelId?: string) => ({ model: modelId ? { ...model, id: modelId, contextWindow: 100 } : undefined }),
+  useModelById: (modelId?: string) => ({
+    model: modelId
+      ? {
+          ...(modelId === modelB.id ? modelB : model),
+          ...(mocks.lastModelAudio ? { capabilities: [MODEL_CAPABILITY.AUDIO_RECOGNITION] } : {}),
+          id: modelId,
+          contextWindow: 100
+        }
+      : undefined
+  }),
   useModels: (...args: unknown[]) => {
     mocks.modelHookArgs.push(args)
     return { models: [mocks.model ?? model, modelB] }
@@ -3793,6 +3808,146 @@ describe('ChatComposer', () => {
       expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '1')
       expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model B')
     })
+  })
+
+  it('submits the restored last-used model for an assistant-less topic', async () => {
+    mocks.assistant = undefined
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    render(
+      <ChatHomeComposer topic={{ ...topic, assistantId: undefined }} onSend={onSend} lastUsedModelId={modelB.id} />
+    )
+    await waitFor(() => expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model B'))
+    await mocks.surfaceProps?.onSendDraft({ text: 'restored model', tokens: [] })
+    expect(onSend).toHaveBeenCalledWith('restored model', expect.objectContaining({ mentionedModels: [modelB.id] }))
+  })
+
+  it('uses the restored model for assistant-bound attachment capabilities', async () => {
+    mocks.lastModelAudio = true
+    try {
+      render(<ChatHomeComposer topic={topic} onSend={vi.fn()} lastUsedModelId={modelB.id} />)
+      await waitFor(() => expect(mocks.derivedToolState?.extensions).toContain('.mp3'))
+    } finally {
+      mocks.lastModelAudio = false
+    }
+  })
+
+  it('preserves a user model choice while last-used history is pending', async () => {
+    const view = render(<ChatHomeComposer topic={topic} onSend={vi.fn()} lastUsedModelPending />)
+    fireEvent.click(screen.getByText('select model 2'))
+    view.rerender(<ChatHomeComposer topic={topic} onSend={vi.fn()} lastUsedModelId={model.id} />)
+    await waitFor(() => expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model B'))
+  })
+
+  it('preserves explicit multi-select mode through pending history', async () => {
+    const view = render(<ChatHomeComposer topic={topic} onSend={vi.fn()} lastUsedModelPending />)
+    fireEvent.click(screen.getByText('toggle model multi select'))
+    fireEvent.click(screen.getByText('select models 1 and 2'))
+    view.rerender(<ChatHomeComposer topic={topic} onSend={vi.fn()} lastUsedModelId={model.id} />)
+    await waitFor(() => expect(screen.getByTestId('model-selector')).toHaveAttribute('data-multi-select-mode', 'true'))
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '2')
+  })
+
+  it('preserves explicit empty selection through pending history', async () => {
+    const view = render(<ChatHomeComposer topic={topic} onSend={vi.fn()} lastUsedModelPending />)
+    fireEvent.click(screen.getByText('clear model selection'))
+    view.rerender(<ChatHomeComposer topic={topic} onSend={vi.fn()} lastUsedModelId={model.id} />)
+    await waitFor(() => expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '0'))
+    expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+  })
+
+  it('preserves hydrated single-model draft through pending history', async () => {
+    vi.mocked(cacheService.get).mockImplementation((key: string) =>
+      key === 'chat.composer_draft.topic-1'
+        ? {
+            text: 'saved',
+            tokens: [],
+            files: [],
+            knowledgeBaseIds: [],
+            mentionedModelIds: [modelB.id],
+            modelMultiSelectMode: false
+          }
+        : undefined
+    )
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    const view = render(<ChatHomeComposer topic={topic} onSend={onSend} lastUsedModelPending />)
+    await waitFor(() => expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model B'))
+    view.rerender(<ChatHomeComposer topic={topic} onSend={onSend} lastUsedModelId={model.id} />)
+    await waitFor(() => expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model B'))
+    await mocks.surfaceProps?.onSendDraft({ text: 'saved', tokens: [] })
+    expect(onSend).toHaveBeenCalledWith('saved', expect.objectContaining({ mentionedModels: [modelB.id] }))
+  })
+
+  it('sends with the restored history model when the retained assistant model is unavailable', async () => {
+    mocks.model = undefined
+    mocks.modelMissing = true
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    render(<ChatHomeComposer topic={topic} onSend={onSend} lastUsedModelId={modelB.id} />)
+    await waitFor(() => expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model B'))
+    act(() => mocks.surfaceProps?.onTextChange('restored model message'))
+    expect(mocks.surfaceProps?.sendDisabled).toBe(false)
+    expect(mocks.surfaceProps?.sendBlockedReason).toBeUndefined()
+    await mocks.surfaceProps?.onSendDraft({ text: 'restored model message', tokens: [] })
+    expect(onSend).toHaveBeenCalledWith(
+      'restored model message',
+      expect.objectContaining({ mentionedModels: [modelB.id] })
+    )
+    expect(mocks.setModel).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalledWith('code.model_required')
+  })
+
+  it('keeps sending blocked when neither the assistant nor history resolves a model', async () => {
+    mocks.model = undefined
+    mocks.modelMissing = true
+    const onSend = vi.fn()
+    render(<ChatHomeComposer topic={topic} onSend={onSend} />)
+    act(() => mocks.surfaceProps?.onTextChange('no model message'))
+    expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+    await mocks.surfaceProps?.onSendDraft({ text: 'no model message', tokens: [] })
+    expect(onSend).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('code.model_required')
+  })
+
+  it('restores an explicitly empty multi-select draft without history seeding', async () => {
+    vi.mocked(cacheService.get).mockImplementation((key: string) =>
+      key === 'chat.composer_draft.topic-1'
+        ? {
+            text: 'saved',
+            tokens: [],
+            files: [],
+            knowledgeBaseIds: [],
+            mentionedModelIds: [],
+            modelMultiSelectMode: true
+          }
+        : undefined
+    )
+    render(<ChatHomeComposer topic={topic} onSend={vi.fn()} lastUsedModelId={modelB.id} />)
+    await waitFor(() => expect(screen.getByTestId('model-selector')).toHaveAttribute('data-multi-select-mode', 'true'))
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '0')
+    expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+  })
+
+  it('passes the restored effective submitted model to the tool runtime', async () => {
+    render(<ChatHomeComposer topic={topic} onSend={vi.fn()} lastUsedModelId={modelB.id} />)
+    await waitFor(() => expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model B'))
+    expect(mocks.toolRuntimeModel?.id).toBe(modelB.id)
+  })
+
+  it('keeps an ordinary empty draft available for history seeding', async () => {
+    vi.mocked(cacheService.get).mockImplementation((key: string) =>
+      key === 'chat.composer_draft.topic-1'
+        ? {
+            text: 'saved',
+            tokens: [],
+            files: [],
+            knowledgeBaseIds: [],
+            mentionedModelIds: [],
+            modelMultiSelectMode: false
+          }
+        : undefined
+    )
+    render(<ChatHomeComposer topic={topic} onSend={vi.fn()} lastUsedModelId={modelB.id} />)
+    await waitFor(() => expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model B'))
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-multi-select-mode', 'false')
   })
 
   it('keeps the selected model in the next send after the assistant model refresh completes', async () => {

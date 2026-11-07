@@ -148,6 +148,7 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
     sendDisabled,
     onDraftAssistantChange,
     contextUsage,
+    lastUsedModelId,
     chatTarget
   }: {
     placement: 'home' | 'docked'
@@ -158,6 +159,7 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
     sendDisabled?: boolean
     onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
     contextUsage?: { contextTokens: number; modelId: string } | null
+    lastUsedModelId?: string | null
     chatTarget?: ComposerChatTarget
   }) => {
     capturedOnSend = onSend
@@ -179,6 +181,8 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
       <>
         <button
           type="button"
+          data-last-used-model={lastUsedModelId ?? ''}
+          data-testid="seed-composer"
           data-use-mentioned-model-selector="true"
           disabled={sendDisabled}
           onClick={() =>
@@ -338,6 +342,34 @@ describe('ChatContent', () => {
     mockChatWriteValue.current = null
     mockEventEmit.mockReset()
     mockUseExecutionOverlay.mockReset()
+  })
+
+  it.each(['pending', 'paused'] as const)('does not seed from an empty %s assistant reservation', (status) => {
+    const reply = createUiMessage('actual-reply', 'assistant')
+    reply.metadata = {
+      ...reply.metadata,
+      modelId: 'provider::actual',
+      status: 'success'
+    }
+    const reservation = createUiMessage('reservation', 'assistant')
+    reservation.parts = []
+    reservation.metadata = {
+      ...reservation.metadata,
+      modelId: 'provider::reserved',
+      status
+    }
+    mockUseTopicMessages.mockReturnValue({
+      uiMessages: [reply, reservation],
+      siblingsMap: {},
+      isLoading: false,
+      refresh: vi.fn(),
+      activeNodeId: reservation.id,
+      loadOlder: vi.fn(),
+      hasOlder: false,
+      mutate: vi.fn()
+    })
+    render(<ChatContent topic={topic} />)
+    expect(screen.getByTestId('seed-composer')).toHaveAttribute('data-last-used-model', 'provider::actual')
   })
 
   it('opens a stream against the active branch node', async () => {

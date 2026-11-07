@@ -157,6 +157,9 @@ export interface ChatContextUsageSource {
 export interface ChatComposerProps {
   topic?: Topic
   contextUsage?: ChatContextUsageSource | null
+  /** Model of the topic's latest assistant reply; restored when the topic is opened. */
+  lastUsedModelId?: UniqueModelId | null
+  lastUsedModelPending?: boolean
   scopeKey?: string
   topicId?: string
   assistantId?: string
@@ -258,6 +261,8 @@ type ChatPlacementComposerProps =
 const ChatComposerRoot = ({
   topic,
   contextUsage,
+  lastUsedModelId,
+  lastUsedModelPending,
   scopeKey,
   topicId,
   assistantId,
@@ -317,6 +322,8 @@ const ChatComposerRoot = ({
             scopeKey={resolvedScopeKey}
             topicId={resolvedTopicId}
             contextUsage={contextUsage}
+            lastUsedModelId={lastUsedModelId}
+            lastUsedModelPending={lastUsedModelPending}
             assistantId={resolvedAssistantId}
             resolvedContext={resolvedContext}
             resolvedProviders={resolvedProviders}
@@ -358,6 +365,8 @@ const ChatComposerInner = ({
   scopeKey,
   topicId,
   contextUsage,
+  lastUsedModelId,
+  lastUsedModelPending = false,
   assistantId,
   resolvedContext,
   resolvedProviders,
@@ -402,6 +411,7 @@ const ChatComposerInner = ({
     updateAssistantSettings
   } = resolvedContext ?? loadedContext
   const { updateTopic } = useTopicMutations()
+  const { model: lastUsedModel, isLoading: isLastUsedModelLoading } = useModelById(lastUsedModelId)
   const [storedSendShortcut] = usePreference('chat.input.send_message_shortcut')
   const sendMessageShortcut = resolveSendShortcut(storedSendShortcut)
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
@@ -645,6 +655,8 @@ const ChatComposerInner = ({
     enabled: useMentionedModelSelector,
     runtimeModel,
     runtimeModelPending,
+    topicLastModel: lastUsedModel,
+    topicLastModelPending: lastUsedModelPending || (!!lastUsedModelId && isLastUsedModelLoading),
     selectedAssistantId,
     topicId: scopeKey,
     mentionedModels,
@@ -667,7 +679,7 @@ const ChatComposerInner = ({
     })
     if (initialDraft.mentionedModelIds.length > 0 && restoredModels.length === 0) {
       restoreMentionedModelSelector()
-    } else {
+    } else if (initialDraft.mentionedModelIds.length > 0 || initialDraft.modelMultiSelectMode) {
       restoreMentionedModelDraft(restoredModels, initialDraft.modelMultiSelectMode)
     }
     setIsMentionedModelDraftHydrated(true)
@@ -750,8 +762,6 @@ const ChatComposerInner = ({
 
   const selectedModelForMissingAssistantDefault =
     assistant && !assistant.modelId ? mentionedModelSelectorValue[0] : undefined
-  const selectedModelForUnlinkedHome =
-    !assistant && !assistantId && useMentionedModelSelector ? mentionedModelSelectorValue[0] : undefined
   const lockedMentionedModels =
     editingMessageForCurrentTopic?.lockedMentionedModels &&
     editingMessageForCurrentTopic.lockedMentionedModels.length > 1
@@ -781,7 +791,7 @@ const ChatComposerInner = ({
   // Persisted assistant refreshes may clear transient mentions; submit the visible selector
   // snapshot so the next turn cannot fall back to stale assistant state.
   const submittedMentionedModels =
-    assistant && useMentionedModelSelector ? mentionedModelSelectorValue : mentionedModels
+    (assistant || lastUsedModelId) && useMentionedModelSelector ? mentionedModelSelectorValue : mentionedModels
   // Without an assistant, persistent request controls have no owner. Keep per-turn Fast available.
   const speedControlModel = useMemo(
     () =>
@@ -880,22 +890,18 @@ const ChatComposerInner = ({
     if (!onConversationControlsChange) return
     return () => onConversationControlsChange(null)
   }, [onConversationControlsChange])
+  const hasEffectiveSubmittedModels = effectiveSubmittedModels.length > 0
   const isMentionedModelSelectorLocked = lockedMentionedModels.length > 1
   const missingAssistantMessage = hasMissingPersistedAssistant ? selectAssistantMessage : undefined
   const missingModelMessage =
-    assistant && isModelMissing && !selectedModelForMissingAssistantDefault && !isMentionedModelSelectorLocked
+    assistant && isModelMissing && !hasEffectiveSubmittedModels && !isMentionedModelSelectorLocked
       ? t('code.model_required')
       : undefined
   const missingSelectedModelMessage =
     useMentionedModelSelector && !isMentionedModelSelectorLocked && mentionedModelSelectorValue.length === 0
       ? t('code.model_required')
       : undefined
-  const isModelUnavailable =
-    !missingAssistantMessage &&
-    !runtimeModelPending &&
-    !runtimeModel &&
-    !selectedModelForMissingAssistantDefault &&
-    !selectedModelForUnlinkedHome
+  const isModelUnavailable = !missingAssistantMessage && !runtimeModelPending && !hasEffectiveSubmittedModels
 
   useEffect(() => {
     if (isPending) setIsSending(false)
@@ -917,7 +923,7 @@ const ChatComposerInner = ({
   const canSteer = isPending && !awaitingApproval
   const assistantName = displayAssistant?.name ?? (isAssistantLoading ? t('common.loading') : selectAssistantMessage)
   const { canAddImageFile, supportedExts } = useComposerFileCapabilities({
-    models: mentionedModels,
+    models: effectiveSubmittedModels,
     fallbackModel: runtimeModel
   })
 
@@ -1653,7 +1659,7 @@ const ChatComposerInner = ({
         return
       }
 
-      if (!runtimeModel && !selectedModelForMissingAssistantDefault && !selectedModelForUnlinkedHome) {
+      if (!hasEffectiveSubmittedModels) {
         toast.error(t('code.model_required'))
         return
       }
@@ -1704,10 +1710,9 @@ const ChatComposerInner = ({
       loading,
       missingAssistantMessage,
       missingSelectedModelMessage,
-      runtimeModel,
+      hasEffectiveSubmittedModels,
       runtimeModelPending,
       selectedModelForMissingAssistantDefault,
-      selectedModelForUnlinkedHome,
       sendDisabled,
       selectAssistantMessage,
       sendQueuedPayload,
@@ -1802,7 +1807,11 @@ const ChatComposerInner = ({
       couldAddImageFile={canAddImageFile}
       extensions={supportedExts}
       selectableKnowledgeBases={selectableKnowledgeBases}>
-      <ComposerToolRuntimeHost scope={scope} assistant={displayAssistant} model={runtimeModel} />
+      <ComposerToolRuntimeHost
+        scope={scope}
+        assistant={displayAssistant}
+        model={effectiveSubmittedModel ?? runtimeModel}
+      />
       <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedToolIds}>
         <ComposerSurface
