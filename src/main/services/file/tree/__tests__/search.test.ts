@@ -154,6 +154,21 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (list mode, no searchPattern)'
     expect(results.length).toBe(75)
   })
 
+  it.each(['.cache', 'build'])(
+    'lists files below an excluded ancestor %s while excluding matching children',
+    async (ancestor) => {
+      const root = path.join(tmp, ancestor, 'notes')
+      await mkdir(path.join(root, 'build'), { recursive: true })
+      await writeFile(path.join(root, 'visible-note.md'), 'saved note')
+      await writeFile(path.join(root, '.hidden.md'), 'hidden')
+      await writeFile(path.join(root, 'build', 'generated.md'), 'generated')
+
+      expect(await listDirectory(root, { includeDirectories: false })).toEqual([
+        path.join(root, 'visible-note.md').replace(/\\/g, '/')
+      ])
+    }
+  )
+
   it('uses the BinaryManager-resolved ripgrep path', async () => {
     await writeFile(path.join(tmp, 'root.md'), 'root')
 
@@ -206,6 +221,21 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (search mode, fuzzy + maxEntri
   afterEach(async () => {
     await rm(tmp, { recursive: true, force: true })
   })
+
+  it.each([false, true])(
+    'finds files below an excluded ancestor during fuzzy search (fallback=%s)',
+    async (fallback) => {
+      const root = path.join(tmp, '.cache', 'notes')
+      await mkdir(path.join(root, 'build'), { recursive: true })
+      await writeFile(path.join(root, 'target-note.md'), 'saved note')
+      await writeFile(path.join(root, 'build', 'target-generated.md'), 'generated')
+      if (fallback) mockRipgrepResultOnce({ exitCode: 1 })
+
+      expect(await listDirectory(root, { includeDirectories: false, searchPattern: 'trgtn' })).toEqual([
+        path.join(root, 'target-note.md').replace(/\\/g, '/')
+      ])
+    }
+  )
 
   it('caps results at the caller-supplied maxEntries', async () => {
     // 12 files share the "update" stem; caller asks for 5.
