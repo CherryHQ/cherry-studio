@@ -1,3 +1,4 @@
+import type * as NodeChildProcess from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import type * as NodeFsPromises from 'node:fs/promises'
 
@@ -9,6 +10,7 @@ import type * as ProcessRunner from '@main/utils/processRunner'
 const mocks = vi.hoisted(() => ({
   appGet: vi.fn(),
   cacheSetShared: vi.fn(),
+  execFile: vi.fn(),
   getHermesHome: vi.fn(),
   getRawShellEnv: vi.fn(),
   isWin: false,
@@ -20,6 +22,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock('node:fs/promises', async (importOriginal) => ({
   ...(await importOriginal<typeof NodeFsPromises>()),
   realpath: mocks.realpath
+}))
+vi.mock('node:child_process', async (importOriginal) => ({
+  ...(await importOriginal<typeof NodeChildProcess>()),
+  execFile: mocks.execFile
 }))
 
 vi.mock('@application', () => ({ application: { get: mocks.appGet } }))
@@ -81,6 +87,14 @@ describe('HermesDashboardService', () => {
     mocks.realpath.mockRejectedValue(new Error('ENOENT'))
     mocks.refreshShellEnv.mockResolvedValue({ PATH: '/managed/bin' })
     mocks.spawn.mockReturnValue(child)
+    mocks.execFile.mockImplementation(
+      (
+        _file: string,
+        _args: string[],
+        _options: object,
+        callback: (error: Error | null, stdout: string, stderr: string) => void
+      ) => callback(null, '', '')
+    )
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => ({
@@ -222,6 +236,52 @@ describe('HermesDashboardService', () => {
     } as unknown as Response)
 
     await expect(new HermesDashboardService().start()).resolves.toMatchObject({ success: true })
+  })
+
+  it('forces the Windows process tree after graceful cleanup fails', async () => {
+    mocks.isWin = true
+    mocks.execFile
+      .mockImplementationOnce(
+        (
+          _file: string,
+          _args: string[],
+          _options: object,
+          callback: (error: Error | null, stdout: string, stderr: string) => void
+        ) => {
+          child.close('SIGTERM')
+          callback(new Error('taskkill exited with code 128'), '', '')
+        }
+      )
+      .mockImplementationOnce(
+        (
+          _file: string,
+          _args: string[],
+          _options: object,
+          callback: (error: Error | null, stdout: string, stderr: string) => void
+        ) => {
+          callback(null, '', '')
+        }
+      )
+    const service = new HermesDashboardService()
+    await expect(service.start()).resolves.toMatchObject({ success: true })
+
+    await service.stop()
+
+    expect(mocks.execFile).toHaveBeenNthCalledWith(
+      1,
+      'taskkill',
+      ['/PID', String(child.pid), '/T'],
+      { windowsHide: true },
+      expect.any(Function)
+    )
+    expect(mocks.execFile).toHaveBeenNthCalledWith(
+      2,
+      'taskkill',
+      ['/PID', String(child.pid), '/T', '/F'],
+      { windowsHide: true },
+      expect.any(Function)
+    )
+    expect(service.getStatus()).toEqual({ status: 'stopped' })
   })
 
   it('reports a missing Hermes binary without spawning a process', async () => {
