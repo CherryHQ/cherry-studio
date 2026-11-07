@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  configureOpenAIResponsesSummary,
+  openaiResponsesSummaryWire,
   type ProtoReasoningSupport,
   REASONING_FORMAT_PROFILES,
   type ReasoningWireProfile
@@ -26,6 +28,8 @@ vi.mock('@data/services/ProviderRegistryService', async (importOriginal) => {
     providerRegistryService: { resolveReasoningProfile: mocks.resolveReasoningProfile }
   }
 })
+
+const supportedResponsesWire = configureOpenAIResponsesSummary(openaiResponsesSummaryWire, false)
 
 const anthropicBudgetWire: ReasoningWireProfile = {
   off: {
@@ -216,7 +220,7 @@ describe('cross-dialect descriptor translation', () => {
       mocks.resolveReasoningProfile.mockReturnValueOnce({
         format: 'openai-responses',
         support,
-        wire: REASONING_FORMAT_PROFILES['openai-responses'].wire
+        wire: supportedResponsesWire
       })
 
       expect(mapReasoningEffortToProviderOptions(target, modelWithoutRuntimeReasoning, effort)).toEqual({
@@ -266,6 +270,7 @@ describe('cross-dialect descriptor translation', () => {
     expect(
       mapAnthropicThinkingToProviderOptions(target, openAIModel, { type: 'enabled', budget_tokens: 6000 })
     ).toEqual({ openai: { reasoningEffort: 'medium', forceReasoning: true } })
+    mocks.resolveReasoningProfile.mockReturnValueOnce({ format: 'openai-responses', wire: supportedResponsesWire })
     expect(mapAnthropicThinkingToProviderOptions(target, openAIModel, { type: 'disabled' })).toEqual({
       openai: { reasoningEffort: 'none', forceReasoning: true }
     })
@@ -277,7 +282,7 @@ describe('cross-dialect descriptor translation', () => {
     mocks.resolveReasoningProfile.mockReturnValueOnce({
       format: 'openai-responses',
       support: registryReasoningSupportWithBudget,
-      wire: REASONING_FORMAT_PROFILES['openai-responses'].wire
+      wire: supportedResponsesWire
     })
 
     expect(
@@ -309,6 +314,7 @@ describe('cross-dialect descriptor translation', () => {
     expect(mapGeminiThinkingToProviderOptions(target, openAIModel, { thinkingBudget: -1 })).toEqual({
       openai: { reasoningEffort: 'medium', forceReasoning: true }
     })
+    mocks.resolveReasoningProfile.mockReturnValueOnce({ format: 'openai-responses', wire: supportedResponsesWire })
     expect(mapGeminiThinkingToProviderOptions(target, openAIModel, { thinkingBudget: 0 })).toEqual({
       openai: { reasoningEffort: 'none', forceReasoning: true }
     })
@@ -326,7 +332,7 @@ describe('cross-dialect descriptor translation', () => {
     mocks.resolveReasoningProfile.mockReturnValueOnce({
       format: 'openai-responses',
       support: registryReasoningSupportWithBudget,
-      wire: REASONING_FORMAT_PROFILES['openai-responses'].wire
+      wire: supportedResponsesWire
     })
 
     expect(mapGeminiThinkingToProviderOptions(target, modelWithoutRuntimeReasoning, { thinkingBudget: 1500 })).toEqual({
@@ -345,6 +351,8 @@ describe('cross-dialect descriptor translation', () => {
     expect(mapReasoningEffortToProviderOptions(target, genericModel, 'medium')).toEqual({
       'target-openai-compatible': { reasoningEffort: 'medium' }
     })
+    expect(mapReasoningEffortToProviderOptions(target, genericModel, 'none')).toEqual({})
+    mocks.resolveReasoningProfile.mockReturnValueOnce({ format: 'openai-chat', wire: supportedResponsesWire })
     expect(mapReasoningEffortToProviderOptions(target, genericModel, 'none')).toEqual({
       'target-openai-compatible': { reasoningEffort: 'none' }
     })

@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-06-compatible-reasoning-off.md
+2026-11-06-compatible-reasoning-off.md: 71936c079ebffdbff837d2e1e73424a7850872cc
+2026-11-06-compatible-reasoning-off.zh.md: 1cbc1d65371b5542d4ef4999a1781a53bd6a9c50

@@ -169,3 +169,22 @@ describe('OpenAI Responses summary compatibility', () => {
     expect(disabled.effort).toEqual(base.effort)
   })
 })
+
+describe('OpenAI fallback reasoning wires', () => {
+  it.each(['openai-chat', 'openai-responses'] as const)('%s omits Off but retains effort modes', (format) => {
+    const wire = REASONING_FORMAT_PROFILES[format].wire
+    expect(wire.off).toBeUndefined()
+    expect(wire.auto?.effortMap).toEqual({ auto: 'medium' })
+    expect(wire.effort?.operations).toContainEqual({ target: 'reasoningEffort', value: { source: 'effort' } })
+  })
+
+  it.each(['openai', 'openai-codex', 'azure-openai', 'opencode', 'longcat'])(
+    '%s explicitly retains Responses Off',
+    (id) => {
+      const provider = PROVIDERS.find((item) => item.id === id)
+      expect(provider?.endpointConfigs?.['openai-responses']?.reasoningFormat?.wire?.off?.operations).toEqual([
+        { target: 'reasoningEffort', value: { source: 'literal', value: 'none' } }
+      ])
+    }
+  )
+})

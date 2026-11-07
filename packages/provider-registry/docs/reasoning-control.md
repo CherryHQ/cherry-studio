@@ -198,6 +198,12 @@ Unknown/custom models may still receive intrinsic controls from model-ID enrichm
 endpoint's standard protocol. Non-standard fields require a registry contract or explicit custom parameters; the
 standard Responses summary field remains off unless its endpoint explicitly opts in.
 
+The global OpenAI Chat and Responses profiles do not declare an Off mode. A model's intrinsic ability to
+disable reasoning does not establish that every compatible endpoint accepts `reasoning_effort: 'none'`.
+An endpoint or provider-model wire must declare Off explicitly. Without that mode, `none` is excluded
+from `selectableEfforts`, and a request for `none` omits the reasoning choice. Explicit custom parameters
+retain their existing merge priority.
+
 ## Registry generation contract
 
 Reasoning changes follow the normal registry source/artifact boundary:
