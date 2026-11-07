@@ -157,6 +157,7 @@
   "file_processing.errors.open_mineru_task_failed": "Open MinerU не завершил обработку документа (статус: {{status}}). Проверьте сервер и повторите попытку.",
   "file_processing.errors.open_mineru_unreachable": "Не удалось подключиться к Open MinerU. Убедитесь, что сервер работает и адрес указан верно.",
   "file_processing.errors.pdf_page_limit_exceeded": "Этот PDF превышает ограничение в {{maxPages}} страниц для текущей службы разбора документов. Разделите PDF вручную, затем добавьте его снова.",
+  "models.check.incomplete_stream": "Проверка модели завершилась до получения полного ответа. Повторите попытку.",
   "notification.action_required.agent": "Агент ожидает вашего ответа",
   "notification.action_required.assistant": "Ассистент ожидает вашего ответа",
   "notification.center.backup_failed": "Ошибка резервного копирования",
