@@ -15,6 +15,7 @@
  */
 
 import { isEqual } from 'es-toolkit/compat'
+import * as z from 'zod'
 
 import type {
   ProtoModelConfig,
@@ -49,7 +50,7 @@ import {
   stripDateSnapshot,
   stripVariantQuantDateSuffixes
 } from '@cherrystudio/provider-registry'
-import { type RegistryFileName, RegistryLoader } from '@cherrystudio/provider-registry/node'
+import { type RegistryFileName, RegistryLoader, type RegistryPaths } from '@cherrystudio/provider-registry/node'
 import type { StoredEndpointConfigOverride } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
@@ -71,6 +72,41 @@ import { getDataService, registerDataService } from './dataServiceRegistry'
 import { resolveRegistryPaths } from './utils/registryDataPaths'
 
 const logger = loggerService.withContext('DataApi:ProviderRegistryService')
+
+class RegistryResourceError extends Error {
+  constructor(
+    readonly resource: keyof RegistryPaths,
+    readonly path: string,
+    error: Error
+  ) {
+    super(error.message, { cause: error })
+  }
+}
+
+// Process-lifetime warning deduplication by resolved path; never skips reads
+// and is never cleared by clearCache().
+const warnedRegistryPaths = new Set<string>()
+
+export function reportRegistryResourceFailure(error: unknown): boolean {
+  if (!(error instanceof RegistryResourceError)) return false
+  if (warnedRegistryPaths.has(error.path)) return true
+  warnedRegistryPaths.add(error.path)
+  const override = error.path.split(/[\\/]/).includes('provider-registry-override')
+  const cause = (error.cause as Error).cause as NodeJS.ErrnoException
+  logger.warn('Registry enrichment unavailable; using persisted provider/model configuration and endpoint defaults', {
+    resource: error.resource,
+    file: { models: 'models.json', providers: 'providers.json', providerModels: 'provider-models.json' }[
+      error.resource
+    ],
+    path: error.path,
+    namespace: override ? 'feature.provider_registry.override' : 'feature.provider_registry.data',
+    cause: cause.code ?? cause.name,
+    repair: override
+      ? 'Restore the validated model snapshot for this override'
+      : 'Check or restore the packaged registry resource'
+  })
+  return true
+}
 
 export interface ProviderDisplayMetadata {
   description?: string
@@ -712,17 +748,59 @@ export function projectRuntimeReasoning(
  */
 class ProviderRegistryService {
   private loader: RegistryLoader | null = null
+  private registryPaths: RegistryPaths | null = null
 
   /** Lazily create the shared RegistryLoader instance. */
   private getLoader(): RegistryLoader {
     if (!this.loader) {
-      this.loader = new RegistryLoader(resolveRegistryPaths())
+      this.registryPaths = resolveRegistryPaths()
+      this.loader = new RegistryLoader(this.registryPaths)
     }
     return this.loader
   }
 
   clearCache(): void {
     this.loader = null
+    this.registryPaths = null
+  }
+
+  private readRegistryResource<T>(resource: keyof RegistryPaths, read: (loader: RegistryLoader) => T): T {
+    const loader = this.getLoader()
+    const path = this.registryPaths![resource]
+    try {
+      return read(loader)
+    } catch (error) {
+      if (error instanceof Error && error.message === `Failed to load registry file: ${path}`) {
+        const cause = error.cause
+        const fsError = cause as NodeJS.ErrnoException | undefined
+        const isFileError =
+          cause instanceof Error &&
+          !(cause instanceof TypeError) &&
+          typeof fsError?.code === 'string' &&
+          /^E[A-Z0-9]+$/.test(fsError.code) &&
+          typeof fsError.syscall === 'string' &&
+          (fsError.path === path || ('dest' in cause && cause.dest === path))
+        if (
+          isFileError ||
+          cause instanceof SyntaxError ||
+          cause instanceof z.ZodError ||
+          (cause instanceof Error && cause.name === 'ZodError')
+        ) {
+          throw new RegistryResourceError(resource, path, error)
+        }
+      }
+      throw error
+    }
+  }
+
+  private optionalRegistryRead<T>(read: () => T): T | undefined {
+    try {
+      return read()
+    } catch (error) {
+      if (!(error instanceof RegistryResourceError)) throw error
+      reportRegistryResourceFailure(error)
+      return undefined
+    }
   }
 
   /**
@@ -747,9 +825,9 @@ class ProviderRegistryService {
   }
 
   private findRegistryProvider(providerId: string): ProtoProviderConfig | undefined {
-    return this.getLoader()
-      .loadProviders()
-      .find((provider) => provider.id === providerId)
+    return this.readRegistryResource('providers', (loader) => loader.loadProviders()).find(
+      (provider) => provider.id === providerId
+    )
   }
 
   /**
@@ -779,6 +857,7 @@ class ProviderRegistryService {
     try {
       return this.findRegistryProvider(providerId) !== undefined
     } catch (error) {
+      if (reportRegistryResourceFailure(error)) return false
       // Registry unavailable — fall back to the caller's primary guard
       // rather than throwing inside a delete transaction.
       logger.warn('Failed to check registry provider', { providerId, error })
@@ -805,6 +884,7 @@ class ProviderRegistryService {
         defaultChatEndpoint: provider?.defaultChatEndpoint ?? undefined
       }
     } catch (error) {
+      if (reportRegistryResourceFailure(error)) return {}
       logger.warn('Failed to load provider display metadata', { providerId, presetProviderId, error })
       return {}
     }
@@ -863,6 +943,7 @@ class ProviderRegistryService {
       }
       return Object.keys(merged).length > 0 ? merged : null
     } catch (error) {
+      if (reportRegistryResourceFailure(error)) return rowConfigs ?? null
       logger.warn('Failed to merge registry endpoint configs', { providerId, presetProviderId, error })
       return rowConfigs ?? null
     }
@@ -981,7 +1062,7 @@ class ProviderRegistryService {
     model: Model,
     endpointType?: EndpointType
   ): ResolvedReasoningProfile {
-    const profileProvider = this.findProfileProvider(provider)
+    const profileProvider = this.optionalRegistryRead(() => this.findProfileProvider(provider))
     if (profileProvider?.modelResolution?.source === 'provider')
       return resolveReasoningProfileFromRegistry({ endpointType: undefined, format: { type: 'none' } })
     const effectiveEndpoint = endpointType ?? resolveChatEndpointType(model.endpointTypes, provider.defaultChatEndpoint)
@@ -995,15 +1076,21 @@ class ProviderRegistryService {
     let matchedOverride: ProtoProviderModelOverride | null = null
     for (const providerId of providerIds) {
       for (const modelId of modelIds) {
-        const candidate = this.getLoader().findOverride(providerId, modelId)
+        const candidate = this.optionalRegistryRead(() =>
+          this.readRegistryResource('providerModels', (loader) => loader.findOverride(providerId, modelId))
+        )
         contract = effectiveEndpoint ? candidate?.reasoningContracts?.[effectiveEndpoint] : undefined
-        if (contract) matchedOverride = candidate
+        if (contract) matchedOverride = candidate ?? null
         if (contract) break
       }
       if (contract) break
     }
 
-    const presetReasoning = this.getLoader().findModel(matchedOverride?.modelId ?? model.presetModelId ?? '')?.reasoning
+    const presetReasoning = this.optionalRegistryRead(() =>
+      this.readRegistryResource('models', (loader) =>
+        loader.findModel(matchedOverride?.modelId ?? model.presetModelId ?? '')
+      )
+    )?.reasoning
     const support = mergeReasoningSupport(presetReasoning ?? model.reasoning, contract?.support)
 
     // The dialect is a CATALOG fact that is deliberately not persisted on the
@@ -1013,7 +1100,10 @@ class ProviderRegistryService {
     // Gemini 2.x emit a dialect their API rejects. Support resolution above is
     // untouched: controls still come from the row, only the dialect is looked up.
     const wireDialect =
-      support?.wireDialect ?? this.getLoader().findModel(model.apiModelId ?? '')?.reasoning?.wireDialect
+      support?.wireDialect ??
+      this.optionalRegistryRead(() =>
+        this.readRegistryResource('models', (loader) => loader.findModel(model.apiModelId ?? ''))
+      )?.reasoning?.wireDialect
 
     const resolved = resolveReasoningProfileFromRegistry({
       endpointType: effectiveEndpoint,
@@ -1033,9 +1123,9 @@ class ProviderRegistryService {
     model: Model,
     endpointType?: EndpointType
   ): ResolvedServiceTierControl | undefined {
-    const profileProvider = this.findProfileProvider(provider)
     const effectiveEndpoint = endpointType ?? resolveChatEndpointType(model.endpointTypes, provider.defaultChatEndpoint)
     if (!effectiveEndpoint) return undefined
+    const profileProvider = this.optionalRegistryRead(() => this.findProfileProvider(provider))
 
     const endpointControl = profileProvider?.endpointConfigs?.[effectiveEndpoint]?.requestControls?.serviceTier
     if (!endpointControl) return undefined
@@ -1049,7 +1139,9 @@ class ProviderRegistryService {
     let override: ProtoProviderModelOverride | null = null
     for (const providerId of providerIds) {
       for (const modelId of modelIds) {
-        const candidate = this.getLoader().findOverride(providerId, modelId)
+        const candidate = this.optionalRegistryRead(() =>
+          this.readRegistryResource('providerModels', (loader) => loader.findOverride(providerId, modelId))
+        )
         if (candidate?.requestControls?.serviceTier) {
           override = candidate
           break
@@ -1120,9 +1212,11 @@ class ProviderRegistryService {
         reasoningProfile: resolveReasoningProfileFromRegistry({ endpointType: undefined, format: { type: 'none' } })
       }
     }
-    const registryOverride = presetProvider ? loader.findOverride(presetProvider.id, modelId) : null
+    const registryOverride = presetProvider
+      ? this.readRegistryResource('providerModels', () => loader.findOverride(presetProvider.id, modelId))
+      : null
     const presetModel =
-      loader.findModel(registryOverride?.modelId ?? modelId) ??
+      this.readRegistryResource('models', () => loader.findModel(registryOverride?.modelId ?? modelId)) ??
       (registryOverride ? synthesizePresetFromOverride(registryOverride) : null)
 
     return {
@@ -1206,7 +1300,9 @@ class ProviderRegistryService {
     includeDisabled = false
   ): Model[] {
     const loader = this.getLoader()
-    const overrides = loader.getOverridesForProvider(presetProvider.id)
+    const overrides = this.readRegistryResource('providerModels', () =>
+      loader.getOverridesForProvider(presetProvider.id)
+    )
     const providerContext: ReasoningProviderContext = {
       id: providerId,
       presetProviderId: presetProvider.id,
@@ -1217,7 +1313,9 @@ class ProviderRegistryService {
     for (const override of overrides) {
       if ((override.disabled ?? false) !== includeDisabled) continue
 
-      const presetModel = loader.findModel(override.modelId) ?? synthesizePresetFromOverride(override)
+      const presetModel =
+        this.readRegistryResource('models', () => loader.findModel(override.modelId)) ??
+        synthesizePresetFromOverride(override)
       const reasoningProfile = this.resolveProfileForModelData(
         providerContext,
         presetModel,
@@ -1259,7 +1357,7 @@ class ProviderRegistryService {
       return presetProvider ? this.listProviderPresetModels(options.providerId, presetProvider, includeDisabled) : []
     }
 
-    const overrides = loader.loadProviderModels()
+    const overrides = this.readRegistryResource('providerModels', () => loader.loadProviderModels())
     const providerContextByProvider = new Map<string, ReasoningProviderContext>()
     const results: Model[] = []
 
@@ -1271,7 +1369,9 @@ class ProviderRegistryService {
       // entirely inside provider-models.json with their imageGeneration
       // block declared inline. Reduces models.json clutter from
       // single-provider entries.
-      const presetModel = loader.findModel(override.modelId) ?? synthesizePresetFromOverride(override)
+      const presetModel =
+        this.readRegistryResource('models', () => loader.findModel(override.modelId)) ??
+        synthesizePresetFromOverride(override)
 
       let providerContext = providerContextByProvider.get(override.providerId)
       if (!providerContext) {
