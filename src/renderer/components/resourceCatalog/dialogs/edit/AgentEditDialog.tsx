@@ -423,7 +423,10 @@ function AgentEditDialogContent({
     setSyncedGroupId(external)
     if (form.formState.dirtyFields.groupId) return
     form.setValue('groupId', external, { shouldDirty: false })
-  }, [resource.groupId, open, syncedGroupId, form])
+    // What the picker now shows is the authoritative membership, so the baseline advances with it:
+    // otherwise clearing the refreshed picker diffs to nothing and storage keeps the group.
+    replaceFormBaseline({ ...formBaselineRef.current, groupId: external })
+  }, [resource.groupId, open, syncedGroupId, form, replaceFormBaseline])
 
   // Cached skill rows may render during revalidation, but the editable skill
   // baseline must come from the authoritative projection so later toggles diff

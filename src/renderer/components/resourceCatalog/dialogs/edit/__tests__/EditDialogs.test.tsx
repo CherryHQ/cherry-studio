@@ -1392,6 +1392,25 @@ describe('edit dialogs', () => {
     )
   })
 
+  it('persists a clear after an external reassignment refreshed an untouched picker', async () => {
+    const { rerender } = render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+
+    // Another window assigns this agent while the editor sits untouched.
+    rerender(<AgentEditDialog open resource={{ ...AGENT, groupId: 'group-personal' }} onOpenChange={vi.fn()} />)
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Group' })).toHaveTextContent('personal'))
+
+    // The refreshed membership is the baseline now, so clearing it has to reach storage.
+    updateAgentMock.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'Group Clear' }))
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({
+          groupId: null
+        })
+      })
+    )
+  })
+
   it('creates and selects an assistant group from the group field', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
