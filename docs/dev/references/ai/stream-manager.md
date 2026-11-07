@@ -591,8 +591,10 @@ topic is saved. Cancellation and explicit retry use `ai.illustration.cancel`
 and `ai.illustration.retry`. Stopping a reply also cancels image retries started
 while that reply is streaming. Generated files use automatic cleanup; runtime
 references protect illustration inputs and outputs until the temporary topic is
-deleted or successfully saved with persistent message-file references. A failed
-save preserves those runtime references. Interrupted jobs after restart become failures;
+deleted or successfully saved with persistent message-file references. Deleting a
+temporary topic cancels and removes its illustration jobs, releasing job-held
+files even before terminal reply persistence. A failed terminal append or save
+preserves those runtime references for retry. Interrupted jobs after restart become failures;
 they do not automatically submit another image request.
 
 An illustration may begin with `references: ["image_2", "image_1"]` on its own

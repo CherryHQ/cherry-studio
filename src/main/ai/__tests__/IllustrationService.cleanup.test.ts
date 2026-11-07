@@ -19,6 +19,7 @@ import { FileManager } from '@main/services/file'
 import type { CleanupPolicy } from '@shared/data/types/file'
 
 import { IllustrationService } from '../IllustrationService'
+import type { IllustrationInput } from '../messages/illustrationInputs'
 import { TemporaryChatBackend } from '../streamManager/persistence/backends/TemporaryChatBackend'
 import { resolveConfiguredPaintingModel } from '../tools/painting'
 
@@ -35,6 +36,8 @@ describe('temporary illustration file ownership', () => {
   let service: IllustrationService
   let topicId: string
   let finishImage: () => void
+  let imageSignal: AbortSignal | undefined
+  let generatedFileId: string | undefined
 
   beforeEach(async () => {
     BaseService.resetInstances()
@@ -44,25 +47,33 @@ describe('temporary illustration file ownership', () => {
     service = new IllustrationService()
     MockApplicationUtils.setService('FileManager', files)
     MockApplicationUtils.setService('IllustrationService', service)
+    imageSignal = undefined
+    generatedFileId = undefined
     MockApplicationUtils.setService('AiService', {
-      async generateImage({ cleanupPolicy }: { cleanupPolicy: CleanupPolicy }) {
+      async generateImage({
+        cleanupPolicy,
+        requestOptions
+      }: {
+        cleanupPolicy: CleanupPolicy
+        requestOptions: { signal: AbortSignal }
+      }) {
+        imageSignal = requestOptions.signal
         await new Promise<void>((resolve) => {
           finishImage = resolve
         })
-        return {
-          files: [
-            await files.createInternalEntry({
-              source: 'bytes',
-              data: new Uint8Array([1, 2, 3]),
-              name: 'bird',
-              ext: 'png',
-              cleanupPolicy
-            })
-          ]
-        }
+        const entry = await files.createInternalEntry({
+          source: 'bytes',
+          data: new Uint8Array([1, 2, 3]),
+          name: 'bird',
+          ext: 'png',
+          cleanupPolicy
+        })
+        generatedFileId = entry.id
+        return { files: [entry] }
       }
     })
     vi.mocked(resolveConfiguredPaintingModel).mockReturnValue({ uniqueModelId: 'provider::image', support: null })
+    await service._doInit()
     topicId = temporaryChatService.createTopic({ name: 'temporary' }).id
   })
 
@@ -73,10 +84,10 @@ describe('temporary illustration file ownership', () => {
     await rm(root, { recursive: true, force: true })
   })
 
-  function startReply() {
+  function startReply(prompt = 'a bird', inputs: readonly IllustrationInput[] = []) {
     const target = { topicId, messageId: '019606a0-0000-7000-8000-00000000fd01', id: 'temporary-image' }
     service.start(target, new AbortController().signal)
-    const data = service.complete(target, 'a bird', true)
+    const data = service.complete(target, prompt, true, inputs)
     const persistReply = () =>
       new TemporaryChatBackend({ topicId, messageId: target.messageId }).persistAssistant({
         finalMessage: {
@@ -91,7 +102,10 @@ describe('temporary illustration file ownership', () => {
 
   async function completedFile(target: ReturnType<typeof startReply>['target']) {
     await vi.waitFor(() => expect(service.get(target)?.status).toBe('ready'))
-    const id = service.get(target)!.files![0].id
+    return cleanupCandidate(service.get(target)!.files![0].id)
+  }
+
+  function cleanupCandidate(id: string) {
     dbh.db
       .update(fileEntryTable)
       .set({ createdAt: Date.now() - 7_200_000 })
@@ -123,6 +137,83 @@ describe('temporary illustration file ownership', () => {
       await expect(access(entry.physicalPath)).rejects.toMatchObject({ code: 'ENOENT' })
     }
   )
+
+  it('reclaims an image discarded before the reply reaches terminal persistence', async () => {
+    const { target, persistReply } = startReply()
+    finishImage()
+    const entry = await completedFile(target)
+
+    temporaryChatService.deleteTopic(topicId)
+    await expect(persistReply()).rejects.toThrow(/not found/i)
+    await files.runEntryCleanup()
+
+    expect(fileEntryService.findById(entry.id)).toBeNull()
+    await expect(access(entry.physicalPath)).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(service.get(target)).toBeNull()
+    expect(service.retry(target)).toBeNull()
+  })
+
+  it('aborts discarded work, releases its inputs, and reclaims output returned despite cancellation', async () => {
+    const input = await files.createInternalEntry({
+      source: 'bytes',
+      data: new Uint8Array([4, 5, 6]),
+      name: 'input',
+      ext: 'png',
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
+    const original = cleanupCandidate(input.id)
+    vi.mocked(resolveConfiguredPaintingModel).mockReturnValue({
+      uniqueModelId: 'provider::image',
+      support: null,
+      acceptsImageInput: true
+    })
+    const { target, persistReply } = startReply('references: ["image_1"]\na bird', [
+      { reference: 'image_1', id: input.id, name: input.name }
+    ])
+    await vi.waitFor(() => expect(imageSignal).toBeDefined())
+    await files.runEntryCleanup()
+    expect(fileEntryService.findById(input.id)).not.toBeNull()
+
+    temporaryChatService.deleteTopic(topicId)
+    expect(imageSignal?.aborted).toBe(true)
+    await files.runEntryCleanup()
+    expect(fileEntryService.findById(input.id)).toBeNull()
+    await expect(access(original.physicalPath)).rejects.toMatchObject({ code: 'ENOENT' })
+
+    finishImage()
+    await vi.waitFor(() => expect(generatedFileId).toBeDefined())
+    const output = cleanupCandidate(generatedFileId!)
+    await expect(persistReply()).rejects.toThrow(/not found/i)
+    await files.runEntryCleanup()
+    expect(fileEntryService.findById(output.id)).toBeNull()
+    await expect(access(output.physicalPath)).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(service.get(target)).toBeNull()
+    expect(service.retry(target)).toBeNull()
+  })
+
+  it('keeps completed output after a retryable terminal write failure until append succeeds', async () => {
+    const { target, persistReply } = startReply()
+    finishImage()
+    const entry = await completedFile(target)
+    vi.spyOn(temporaryChatService, 'appendAssistantMessage').mockImplementationOnce(() => {
+      throw new Error('retryable save failure')
+    })
+
+    await expect(persistReply()).rejects.toThrow('retryable save failure')
+    await files.runEntryCleanup()
+    expect(fileEntryService.findById(entry.id)).not.toBeNull()
+    await expect(access(entry.physicalPath)).resolves.toBeUndefined()
+    expect(service.get(target)?.status).toBe('ready')
+
+    await persistReply()
+    await files.runEntryCleanup()
+    expect(fileEntryService.findById(entry.id)).not.toBeNull()
+
+    temporaryChatService.deleteTopic(topicId)
+    await files.runEntryCleanup()
+    expect(fileEntryService.findById(entry.id)).toBeNull()
+    await expect(access(entry.physicalPath)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
 
   it('retains images after a failed save and hands ownership to saved message references after retry', async () => {
     const { target, persistReply } = startReply()

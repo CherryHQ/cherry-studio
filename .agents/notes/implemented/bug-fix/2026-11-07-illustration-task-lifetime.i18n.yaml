@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-07-illustration-task-lifetime.md
-2026-11-07-illustration-task-lifetime.md: 810f2f50087ac35ea661f30d40e45c2cd835d3d7
-2026-11-07-illustration-task-lifetime.zh.md: 06195bb3b292400da14f00b47cbbe762067f5b4d
+2026-11-07-illustration-task-lifetime.md: 8bce2c645a53f70e3c9573bfbb5988f1e71cea37
+2026-11-07-illustration-task-lifetime.zh.md: b6e000ddd40bf180fc66b5e00193bdeee783c4a4

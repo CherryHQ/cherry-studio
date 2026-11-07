@@ -33,6 +33,16 @@ export class IllustrationService extends BaseService {
   private readonly jobs = new Map<string, IllustrationJob>()
   private readonly queue = new PQueue({ concurrency: 2 })
 
+  protected onInit(): void {
+    this.registerDisposable(
+      temporaryChatService.onTopicDeleted((topicId) => {
+        for (const job of this.jobs.values()) {
+          if (job.target.topicId === topicId) this.disposeJob(job)
+        }
+      })
+    )
+  }
+
   start(target: IllustrationTarget, signal: AbortSignal): IllustrationData {
     const data: IllustrationData = { id: target.id, revision: 0, status: 'prompting', prompt: '' }
     const job: IllustrationJob = { target, data, persisted: false }
@@ -137,12 +147,7 @@ export class IllustrationService extends BaseService {
   }
 
   protected onStop(): void {
-    for (const job of this.jobs.values()) {
-      this.cancel(job.target)
-      job.detach?.()
-      job.fileHolds?.forEach((hold) => hold.dispose())
-    }
-    this.jobs.clear()
+    for (const job of this.jobs.values()) this.disposeJob(job)
   }
 
   protected onDestroy(): void {
@@ -152,6 +157,14 @@ export class IllustrationService extends BaseService {
   private findJob(target: IllustrationTarget): IllustrationJob | undefined {
     const job = this.jobs.get(target.id)
     return job?.target.topicId === target.topicId && job.target.messageId === target.messageId ? job : undefined
+  }
+
+  private disposeJob(job: IllustrationJob): void {
+    this.cancel(job.target)
+    job.controller = undefined
+    job.detach?.()
+    job.fileHolds?.forEach((hold) => hold.dispose())
+    this.jobs.delete(job.target.id)
   }
 
   private retainFiles(job: IllustrationJob, files: readonly { id: string }[]): void {

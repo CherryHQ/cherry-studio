@@ -17,7 +17,7 @@ import { application } from '@application'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { loggerService } from '@logger'
-import type { Disposable } from '@main/core/lifecycle'
+import { type Disposable, Emitter } from '@main/core/lifecycle'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
 import type { CreateTopicDto } from '@shared/data/api/schemas/topics'
@@ -79,6 +79,8 @@ export class TemporaryChatService {
   private topics = new Map<string, TemporaryTopicRow>()
   private messages = new Map<string, TemporaryMessageRow[]>()
   private illustrationFiles = new Map<string, Map<string, Disposable>>()
+  private readonly topicDeleted = new Emitter<string>()
+  readonly onTopicDeleted = this.topicDeleted.event
 
   createTopic(dto: CreateTopicDto): Topic {
     const now = Date.now()
@@ -108,6 +110,7 @@ export class TemporaryChatService {
     this.topics.delete(id)
     this.messages.delete(id)
     this.releaseIllustrationFiles(id)
+    this.topicDeleted.fire(id)
     logger.info('Deleted temporary topic', { id })
   }
 

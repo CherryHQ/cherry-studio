@@ -10,16 +10,21 @@ Status: implemented
 
 临时聊天插图采用 `manual` 文件清理策略，因此丢弃聊天后，生成的图片仍永久排除在自动清理之外。仅修改策略则会让清理任务删除仍由打开的临时聊天展示的图片。
 
+运行时保留也可能超过被丢弃临时话题的寿命：图片在回复终态追加前完成，删除话题仅释放聊天存储自身持有的引用，后续追加在 `didPersist()` 前失败，任务便会一直保留输出，直到服务停止。
+
 ## Decision
 
 尚未完成消息持久化交接的插图任务在失败和取消后保留回复的取消订阅。消息终态写入时，已结束的任务解绑订阅；仍在生成的任务在结束时解绑；服务停止时解绑其余订阅。原回复停止后，显式重试仍可启动新的图片请求。
 
 生成结果使用 `delete_when_unreferenced`。IllustrationService 在消息终态交接前保留自动清理的输入与输出文件。TemporaryChatService 在话题存于内存时保留插图输入与输出，在删除话题时释放，并在成功转存历史、提交消息文件引用后释放。转存失败时，运行时引用随恢复的临时话题继续保留。这些引用复用 [FileManager 运行时保留机制](../../../../docs/dev/references/file/file-entry-cleanup.md#44-temporary-runtime-retention)。
 
+显式删除临时话题时，同步通知 IllustrationService 取消并移除该话题的任务、解绑回复监听、释放任务持有的文件，并使生成尝试失效，避免提供商的迟到结果重新保留输出。回复终态追加失败或转存失败时保留所有权供重试；仅显式删除触发丢弃清理。
+
 ## Alternatives considered
 
 - 每次图片尝试结束后解绑，仅在重试时重新订阅：重复管理取消关系，并可能遗漏终态到重试的交接。
 - 保留 `manual` 或立即释放自动清理文件：前者泄漏已丢弃的图片，后者允许清理任务删除仍打开的聊天内容。
+- 消息终态写入一旦抛错就释放任务引用：会丢失可重试保存失败后的输出。显式删除话题才是最终销毁的边界。
 
 ## Consequences
 
@@ -28,5 +33,5 @@ Status: implemented
 ## Verification
 
 - Regression — `src/main/ai/__tests__/IllustrationService.test.ts`：提供商失败或单独取消后的显式重试，均会随原回复停止而中止；迟到结果不能覆盖取消状态。
-- Regression — `src/main/ai/__tests__/IllustrationService.cleanup.test.ts`：真实 SQLite 与 FileManager 清理覆盖文字结束前后的图片保护、丢弃后的条目及实体文件回收、转存失败后的保留，以及先完成或后完成的图片向持久化消息引用交接。
-- Regression — 六个指定的主进程测试文件覆盖插图、临时聊天、消息持久化、运行时文件保留和流标记处理，256 项测试全部通过。
+- Regression — `src/main/ai/__tests__/IllustrationService.cleanup.test.ts`：真实 SQLite 与 FileManager 清理覆盖文字结束前后的图片保护、终态追加前丢弃话题后的条目及实体文件回收、活动任务取消与迟到输出回收、可重试终态写入失败及转存失败后的保留，以及先完成或后完成的图片向持久化消息引用交接。
+- Regression — 七个指定的主进程测试文件覆盖插图、临时聊天服务及 API、消息持久化、运行时文件保留和流标记处理，260 项测试全部通过。
