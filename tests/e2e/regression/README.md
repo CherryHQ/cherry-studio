@@ -27,6 +27,12 @@ The built-in assistant's tests start new tasks and clear skill tokens where requ
 
 A failed scenario must not supply the expected result for another scenario. Assert a new assistant response, a newly written file, or a real native event; do not inject success markers through IPC.
 
+`MCP-01` uses a scripted loopback model with declared function-call support and a
+128k context window. It still creates the real Everything server through the UI,
+executes `get-sum` in that process, verifies the actual tool response and persisted
+input/output, and reconnects after a restart. External model behavior is outside
+this case; provider-backed chat cases retain their separate coverage.
+
 Development update checks in `MP-114` start the [loopback update feed](../../helpers/http/README.md#mock-development-update-feed)
 from `dev-app-update.yml`, serving the running version without an installer.
 The real updater performs the HTTP request and version comparison; installer
