@@ -6,6 +6,7 @@ import { promisify } from 'node:util'
 
 import { cleanupExternalResources, observeExternalResource, registerExternalResource } from './externalResources'
 import { readAppRecord, readOwnedRecord } from './lifecycle'
+import { macRuntimeExecutable } from './macRuntime'
 import type { RunPaths } from './paths'
 import { resolveAllowedPath } from './paths'
 import { assertOwnedProcess, findCdpPid, isDescendant } from './process'
@@ -172,6 +173,49 @@ export function closeMacComputerUsePermissionGuide(paths: RunPaths): boolean {
   )
 }
 
+export async function allowMacNotificationPermission(paths: RunPaths): Promise<void> {
+  const record = readAppRecord(paths)
+  if (record.platform !== 'macos' || record.executablePath !== macRuntimeExecutable(paths))
+    throw new Error('Notification permission requires the isolated signed macOS runtime')
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  const name = execFileSync(
+    '/usr/bin/plutil',
+    ['-extract', 'CFBundleDisplayName', 'raw', '-o', '-', join(dirname(dirname(record.executablePath)), 'Info.plist')],
+    { encoding: 'utf8' }
+  ).trim()
+  if (!/^Cherry Studio E2E [a-f0-9]{12}$/.test(name)) throw new Error('Unexpected notification application identity')
+  const deadline = Date.now() + 5000
+  do {
+    const { stdout } = await promisify(execFile)(
+      'osascript',
+      [
+        '-l',
+        'JavaScript',
+        '-e',
+        `
+      const center = Application('System Events').processes.byName('NotificationCenter')
+      const read = query => {
+        try { return query() } catch (error) { if (error.errorNumber !== -1728) throw error }
+      }
+      const find = (element, depth) => {
+        if (read(() => element.role()) === 'AXStaticText' &&
+            String(read(() => element.name())).includes(${JSON.stringify(name)})) {
+          const parent = read(() => element.attributes.byName('AXParent').value())
+          const allow = (parent && read(() => parent.actions()) || []).find(action => /^Name:(Allow|允许)\\n/.test(action.name()))
+          if (allow) { allow.perform(); return true }
+        }
+        return depth < 8 && (read(() => element.uiElements()) ?? []).some(child => find(child, depth + 1))
+      }
+      (read(() => center.windows()) ?? []).some(window => find(window, 0)) ? 'allowed' : 'absent'
+    `
+      ],
+      { encoding: 'utf8', timeout: 5000 }
+    )
+    if (stdout.trim() === 'allowed') return
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  } while (Date.now() < deadline)
+}
+
 export function setMacNotificationCenterOpen(paths: RunPaths, open: boolean): void {
   const record = readAppRecord(paths)
   if (record.platform !== 'macos') throw new Error('Native notification automation requires macOS')
@@ -186,13 +230,16 @@ export function setMacNotificationCenterOpen(paths: RunPaths, open: boolean): vo
     ObjC.import('CoreGraphics')
     ObjC.import('Foundation')
     const center = Application('System Events').processes.byName('NotificationCenter')
-    const containsEditor = (element, depth) => {
-      try {
-        if (element.attributes.byName('AXIdentifier').value() === 'widget-editor-button') return true
-      } catch {}
-      return depth < 5 && element.uiElements().some(child => containsEditor(child, depth + 1))
+    const read = query => {
+      try { return query() } catch (error) {
+        if (error.errorNumber !== -1728) throw error
+      }
     }
-    const open = center.windows().some(window => containsEditor(window, 0))
+    const containsEditor = (element, depth) => {
+      if (read(() => element.attributes.byName('AXIdentifier').value()) === 'widget-editor-button') return true
+      return depth < 5 && (read(() => element.uiElements()) ?? []).some(child => containsEditor(child, depth + 1))
+    }
+    const open = (read(() => center.windows()) ?? []).some(window => containsEditor(window, 0))
     if (open !== ${JSON.stringify(open)}) {
       for (const down of [true, false]) {
         const event = $.CGEventCreateKeyboardEvent(null, 45, down)

@@ -201,6 +201,12 @@ launch. The signed runtime stays under the isolated run directory, outside uploa
 reports and evidence. Remove the run directory after stopping the owned application
 and archiving its redacted report.
 
+For local notification runs, use a short run directory in a user-owned cache
+directory. macOS can exclude applications under `/tmp` from application lookup,
+preventing notification authorization. The scenario initializes the notification
+backend and accepts only an Allow action whose permission card names the isolated
+signed application; it never changes another application's notification settings.
+
 Notification assertions open Notification Center and inspect only the unique case
 text, so system banner preferences do not determine whether delivery is detected.
 They still click the real system notification and verify conversation activation.

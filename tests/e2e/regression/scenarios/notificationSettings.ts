@@ -10,8 +10,10 @@ import { TopicSchema } from '@shared/data/types/topic'
 import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
+import { prepareOwnedMacNotifications } from '../../../../scripts/e2e/regression/debugBridge'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import {
+  allowMacNotificationPermission,
   findMacNotification,
   findWindowsNotification,
   setMacNotificationCenterOpen
@@ -94,6 +96,10 @@ export async function notificationSettings(app: RegressionApp, initialPage: Page
     await expect.poll(readPreferences).toEqual(changed)
     await screenshot('MP-110 notification switches enabled and changed')
     page = await app.restart()
+    if (app.record.platform === 'macos' && app.record.mode === 'branch') {
+      await prepareOwnedMacNotifications(app.record)
+      await allowMacNotificationPermission(app.paths)
+    }
     await openSettingsSection(page, 'Notifications')
     for (const [index, row] of rows.entries()) {
       await expect(page.locator(`#setting-notifications-${row}`).getByRole('switch')).toBeChecked({

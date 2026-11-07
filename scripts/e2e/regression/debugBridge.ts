@@ -50,6 +50,15 @@ export async function inspectOwnedAppEnvironment(record: AppRecord): Promise<{
   )
 }
 
+export async function prepareOwnedMacNotifications(record: AppRecord): Promise<void> {
+  if (record.platform !== 'macos') throw new Error('Native macOS notification preparation requires macOS')
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  await evaluateCdpExpression(
+    await ownedMainInspectorUrl(record),
+    `(async () => { await process.mainModule.require('electron').Notification.getHistory(); return true })()`
+  )
+}
+
 export async function requestOwnedAppQuit(record: AppRecord): Promise<void> {
   assertOwnedProcess(record, record.electronPid, 'electron')
   await evaluateCdpExpression(
