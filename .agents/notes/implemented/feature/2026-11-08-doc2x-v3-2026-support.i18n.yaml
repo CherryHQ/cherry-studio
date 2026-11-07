@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-11-08-doc2x-v3-2026-support.md
+2026-11-08-doc2x-v3-2026-support.md: 79fa7f43c3cf4b934d32a38552b532caac247a2a
+2026-11-08-doc2x-v3-2026-support.zh.md: 7c443d6683cf02f428b749c63d8555824a0c5d94

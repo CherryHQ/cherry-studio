@@ -81,22 +81,26 @@ export const doc2xDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
         return {
           providerTaskId,
           stage: remoteContext.stage,
-          apiHost: remoteContext.apiHost
+          apiHost: remoteContext.apiHost,
+          modelVersion: remoteContext.modelVersion,
+          formulaLevel: remoteContext.formulaLevel,
+          mergeCrossPageForms: remoteContext.mergeCrossPageForms
         }
       },
       rehydrate(persisted, restoredConfig) {
         if (!persisted.apiHost) {
           throw new Error('doc2x rehydrate: missing apiHost in persisted remote state')
         }
+        const capability = getDoc2xCapability(restoredConfig)
         return {
           providerTaskId: persisted.providerTaskId,
           remoteContext: {
             apiHost: persisted.apiHost,
             apiKey: getRequiredApiKey(restoredConfig, 'doc2x'),
             stage: (persisted.stage ?? 'parsing') as Doc2xTaskStage,
-            modelVersion: getDoc2xCapability(restoredConfig).modelId,
-            formulaLevel: getDoc2xCapability(restoredConfig).formulaLevel,
-            mergeCrossPageForms: getDoc2xCapability(restoredConfig).mergeCrossPageForms
+            modelVersion: persisted.modelVersion ?? capability.modelId,
+            formulaLevel: persisted.formulaLevel ?? capability.formulaLevel,
+            mergeCrossPageForms: persisted.mergeCrossPageForms ?? capability.mergeCrossPageForms
           }
         }
       }
