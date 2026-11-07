@@ -5507,6 +5507,8 @@
   "settings.provider.copilot.step_get_code_desc": "Generar el código de autorización del dispositivo",
   "settings.provider.copilot.toggle_headers_editor_json": "Cambiar al editor JSON",
   "settings.provider.copilot.toggle_headers_editor_list": "Cambiar a lista de encabezados",
+  "settings.provider.create_custom.endpoint_fields.complete_path.help": "Envía las solicitudes a esta URL exacta sin añadir la ruta del endpoint",
+  "settings.provider.create_custom.endpoint_fields.complete_path.label": "Usar la URL tal cual",
   "settings.provider.create_custom.endpoint_fields.default_chat": "Predeterminado",
   "settings.provider.create_custom.endpoint_fields.label": "Configuración de puntos de conexión",
   "settings.provider.create_custom.endpoint_fields.more": "Más opciones",

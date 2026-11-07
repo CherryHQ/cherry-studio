@@ -5507,6 +5507,8 @@
   "settings.provider.copilot.step_get_code_desc": "Сгенерировать код авторизации устройства",
   "settings.provider.copilot.toggle_headers_editor_json": "Переключиться на редактор JSON",
   "settings.provider.copilot.toggle_headers_editor_list": "Переключиться на список заголовков",
+  "settings.provider.create_custom.endpoint_fields.complete_path.help": "Отправлять запросы на этот точный URL без добавления пути эндпоинта",
+  "settings.provider.create_custom.endpoint_fields.complete_path.label": "Использовать URL как есть",
   "settings.provider.create_custom.endpoint_fields.default_chat": "По умолчанию",
   "settings.provider.create_custom.endpoint_fields.label": "Настройки конечной точки",
   "settings.provider.create_custom.endpoint_fields.more": "Дополнительные параметры",

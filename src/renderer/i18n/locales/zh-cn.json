@@ -5507,6 +5507,8 @@
   "settings.provider.copilot.step_get_code_desc": "生成设备授权码",
   "settings.provider.copilot.toggle_headers_editor_json": "切换为 JSON 编辑",
   "settings.provider.copilot.toggle_headers_editor_list": "切换为键值列表",
+  "settings.provider.create_custom.endpoint_fields.complete_path.help": "直接请求此完整地址，不再追加接口路径",
+  "settings.provider.create_custom.endpoint_fields.complete_path.label": "按原样使用 URL",
   "settings.provider.create_custom.endpoint_fields.default_chat": "默认",
   "settings.provider.create_custom.endpoint_fields.label": "端点设置",
   "settings.provider.create_custom.endpoint_fields.more": "更多设置",

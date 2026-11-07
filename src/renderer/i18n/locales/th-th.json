@@ -5507,6 +5507,8 @@
   "settings.provider.copilot.step_get_code_desc": "สร้างรหัสยืนยันตัวตนอุปกรณ์",
   "settings.provider.copilot.toggle_headers_editor_json": "สลับไปยังตัวแก้ไข JSON",
   "settings.provider.copilot.toggle_headers_editor_list": "สลับไปยังรายการส่วนหัว",
+  "settings.provider.create_custom.endpoint_fields.complete_path.help": "ส่งคำขอไปยัง URL นี้โดยตรง โดยไม่ต่อท้ายพาธของ endpoint",
+  "settings.provider.create_custom.endpoint_fields.complete_path.label": "ใช้ URL ตามที่กำหนด",
   "settings.provider.create_custom.endpoint_fields.default_chat": "ค่าเริ่มต้น",
   "settings.provider.create_custom.endpoint_fields.label": "การตั้งค่าเอนด์พอยต์",
   "settings.provider.create_custom.endpoint_fields.more": "ตัวเลือกเพิ่มเติม",

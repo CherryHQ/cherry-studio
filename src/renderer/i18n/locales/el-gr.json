@@ -5507,6 +5507,8 @@
   "settings.provider.copilot.step_get_code_desc": "Δημιουργία κωδικού εξουσιοδότησης συσκευής",
   "settings.provider.copilot.toggle_headers_editor_json": "Μετάβαση στον επεξεργαστή JSON",
   "settings.provider.copilot.toggle_headers_editor_list": "Μετάβαση στη λίστα κεφαλίδων",
+  "settings.provider.create_custom.endpoint_fields.complete_path.help": "Αποστολή αιτημάτων σε αυτό το ακριβές URL χωρίς προσθήκη της διαδρομής του endpoint",
+  "settings.provider.create_custom.endpoint_fields.complete_path.label": "Χρήση του URL όπως είναι",
   "settings.provider.create_custom.endpoint_fields.default_chat": "Προεπιλογή",
   "settings.provider.create_custom.endpoint_fields.label": "Ρυθμίσεις endpoint",
   "settings.provider.create_custom.endpoint_fields.more": "Περισσότερες επιλογές",

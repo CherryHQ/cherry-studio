@@ -5507,6 +5507,8 @@
   "settings.provider.copilot.step_get_code_desc": "Tạo mã ủy quyền thiết bị",
   "settings.provider.copilot.toggle_headers_editor_json": "Chuyển sang trình chỉnh sửa JSON",
   "settings.provider.copilot.toggle_headers_editor_list": "Chuyển sang danh sách tiêu đề",
+  "settings.provider.create_custom.endpoint_fields.complete_path.help": "Gửi yêu cầu tới đúng URL này, không nối thêm đường dẫn endpoint",
+  "settings.provider.create_custom.endpoint_fields.complete_path.label": "Dùng URL nguyên bản",
   "settings.provider.create_custom.endpoint_fields.default_chat": "Mặc định",
   "settings.provider.create_custom.endpoint_fields.label": "Cài đặt endpoint",
   "settings.provider.create_custom.endpoint_fields.more": "Thêm tùy chọn",

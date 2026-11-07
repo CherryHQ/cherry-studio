@@ -5507,6 +5507,8 @@
   "settings.provider.copilot.step_get_code_desc": "デバイス認証コードを生成",
   "settings.provider.copilot.toggle_headers_editor_json": "JSONエディターに切り替える",
   "settings.provider.copilot.toggle_headers_editor_list": "ヘッダーリストに切り替える",
+  "settings.provider.create_custom.endpoint_fields.complete_path.help": "このURLに直接リクエストを送信し、エンドポイントのパスは追加しません",
+  "settings.provider.create_custom.endpoint_fields.complete_path.label": "URLをそのまま使用",
   "settings.provider.create_custom.endpoint_fields.default_chat": "デフォルト",
   "settings.provider.create_custom.endpoint_fields.label": "エンドポイント設定",
   "settings.provider.create_custom.endpoint_fields.more": "その他のオプション",
