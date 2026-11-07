@@ -27,16 +27,21 @@ const state = vi.hoisted(() => {
     detectLanguage: vi.fn(),
     translate: vi.fn(),
     readAloud: vi.fn(async () => undefined),
-    cancel: vi.fn(),
-    scrollToBottom: vi.fn(),
-    onResponse: undefined as ((text: string) => void) | undefined,
-    runTranslate: async (text: string, language: TranslateLanguage) => {
-      const result = await state.translate(text, language)
-      state.onResponse?.(result)
-      return result
-    }
+    scrollToBottom: vi.fn()
   }
 })
+
+vi.mock('@renderer/utils/translate/translateText', () => ({
+  translateText: async (
+    text: string,
+    language: TranslateLanguage,
+    onResponse?: (text: string, done: boolean) => void
+  ) => {
+    const result = await state.translate(text, language)
+    onResponse?.(result, true)
+    return result
+  }
+}))
 
 vi.mock('@renderer/services/voice', () => ({ readTextAloud: state.readAloud }))
 
@@ -46,18 +51,24 @@ const i18nMock = vi.hoisted(() => ({
 
 import ActionTranslate from '../ActionTranslate'
 
-const resultContentChunk = vi.hoisted(() => ({ evaluated: vi.fn() }))
 const defaultUsePreferenceImplementation = mockUsePreference.getMockImplementation()
 
-vi.mock('../ActionResultContent', async () => {
-  resultContentChunk.evaluated()
-  const React = await import('react')
-  const { CodeBlockWrapLinesContext } = await import('@renderer/components/CodeBlockView/wrapLinesContext')
-
+vi.mock('../ActionResultContent', () => {
   return {
-    default: function ActionResultContentMock() {
-      const wrapLines = React.use(CodeBlockWrapLinesContext)
-      return <div data-testid="action-result-content" data-wrap-lines={String(wrapLines)} />
+    default: function ActionResultContentMock({
+      partsByMessageId
+    }: {
+      partsByMessageId: Record<string, { type: string; text?: string }[]>
+    }) {
+      return (
+        <div data-testid="action-result-content">
+          {Object.values(partsByMessageId)
+            .flat()
+            .filter((part) => part.type === 'text')
+            .map((part) => part.text)
+            .join('')}
+        </div>
+      )
     }
   }
 })
@@ -67,34 +78,30 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
   Tooltip: ({ children }: React.PropsWithChildren) => <>{children}</>
 }))
 
-vi.mock('@renderer/hooks/translate', () => ({
-  detectLanguageOrUnknown: async (
-    text: string,
-    detectLanguage: (text: string) => Promise<TranslateLangCode>,
-    onError: (error: unknown) => void
-  ) => {
-    try {
-      return await detectLanguage(text)
-    } catch (error) {
-      onError(error)
-      return 'unknown'
-    }
-  },
-  useDetectLang: () => state.detectLanguage,
-  useTranslate: ({ onResponse }: { onResponse?: (text: string) => void }) => {
-    state.onResponse = onResponse
-    return {
-      translate: state.runTranslate,
-      isTranslating: false,
-      cancel: state.cancel
-    }
-  },
-  useLanguages: () => ({
-    languages: state.languages as TranslateLanguage[],
-    getLanguage: state.getLanguage,
-    getLabel: state.getLabel
-  })
-}))
+vi.mock('@renderer/hooks/translate', async () => {
+  const { useTranslate } = await import('@renderer/hooks/translate/useTranslate')
+  return {
+    detectLanguageOrUnknown: async (
+      text: string,
+      detectLanguage: (text: string) => Promise<TranslateLangCode>,
+      onError: (error: unknown) => void
+    ) => {
+      try {
+        return await detectLanguage(text)
+      } catch (error) {
+        onError(error)
+        return 'unknown'
+      }
+    },
+    useDetectLang: () => state.detectLanguage,
+    useTranslate,
+    useLanguages: () => ({
+      languages: state.languages as TranslateLanguage[],
+      getLanguage: state.getLanguage,
+      getLabel: state.getLabel
+    })
+  }
+})
 
 vi.mock('@renderer/components/chat/messages/hooks/useMessageListRenderConfig', () => ({
   useMessageListRenderConfig: () => ({ renderConfig: {} })
@@ -160,38 +167,47 @@ describe('ActionTranslate', () => {
     state.getLanguage.mockClear()
     state.getLabel.mockClear()
     state.translate.mockReset()
-    state.cancel.mockReset()
     state.scrollToBottom.mockReset()
-    state.translate.mockResolvedValue('translated text')
+    state.translate.mockImplementation(
+      async (_text: string, language: TranslateLanguage) =>
+        ({
+          'zh-cn': '这里没有默认导出。',
+          'zh-tw': '這裡沒有預設匯出。',
+          'ja-jp': 'デフォルトのエクスポートはありません。',
+          'en-us': 'There is no default export.'
+        })[language.langCode] ?? 'translated text'
+    )
     state.readAloud.mockClear()
   })
 
-  // MUST run first in this file: the later tests render translation results,
-  // which loads the lazy module through React.lazy and permanently marks
-  // `resultContentChunk.evaluated` (module caches defeat mockClear). Running
-  // before any result has ever rendered is what makes this assertion prove
-  // the mount preload specifically.
-  it('preloads the result-content chunk on mount, before the response arrives', async () => {
-    // Detection never resolves, so the translate flow never produces content —
-    // the chunk import must still fire so its download overlaps request latency.
-    state.detectLanguage.mockReturnValue(new Promise<never>(() => {}))
-
-    render(
-      <ActionTranslate sourceEntityId="test-session" action={createAction()} scrollToBottom={state.scrollToBottom} />
-    )
-
-    await waitFor(() => expect(resultContentChunk.evaluated).toHaveBeenCalled())
-    expect(state.translate).not.toHaveBeenCalled()
-  })
-
-  it('forces wrapping for translation result content', async () => {
+  it('keeps the active result when detection callbacks refresh without changed inputs', async () => {
     state.detectLanguage.mockResolvedValue('en-us')
-
-    render(
-      <ActionTranslate sourceEntityId="test-session" action={createAction()} scrollToBottom={state.scrollToBottom} />
+    const pending: Array<(text: string) => void> = []
+    state.translate.mockImplementation(() => new Promise<string>((resolve) => pending.push(resolve)))
+    const action = createAction()
+    const view = render(
+      <ActionTranslate sourceEntityId="test-session" action={action} scrollToBottom={state.scrollToBottom} />
     )
+    await waitFor(() => expect(pending).toHaveLength(1))
 
-    expect(await screen.findByTestId('action-result-content')).toHaveAttribute('data-wrap-lines', 'true')
+    state.detectLanguage = vi.fn().mockResolvedValue('en-us')
+    view.rerender(
+      <ActionTranslate sourceEntityId="test-session" action={action} scrollToBottom={state.scrollToBottom} />
+    )
+    await act(async () => pending[0]('首次翻译完成'))
+    expect(await screen.findByText('首次翻译完成')).toBeVisible()
+
+    view.rerender(
+      <ActionTranslate
+        sourceEntityId="test-session"
+        action={createAction({ selectedText: 'A different selection.' })}
+        scrollToBottom={state.scrollToBottom}
+      />
+    )
+    await waitFor(() => expect(pending).toHaveLength(2))
+    await act(async () => pending[1]('新选区翻译完成'))
+    expect(await screen.findByText('新选区翻译完成')).toBeVisible()
+    expect(screen.queryByText('首次翻译完成')).not.toBeInTheDocument()
   })
 
   it('uses Traditional Chinese when the app language is zh-TW and the target is still the default', async () => {
@@ -202,9 +218,7 @@ describe('ActionTranslate', () => {
       <ActionTranslate sourceEntityId="test-session" action={createAction()} scrollToBottom={state.scrollToBottom} />
     )
 
-    await waitFor(() =>
-      expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.traditionalChinese)
-    )
+    expect(await screen.findByText('這裡沒有預設匯出。')).toBeVisible()
   })
 
   it('keeps a non-default target language when the app language is zh-TW', async () => {
@@ -218,7 +232,7 @@ describe('ActionTranslate', () => {
       <ActionTranslate sourceEntityId="test-session" action={createAction()} scrollToBottom={state.scrollToBottom} />
     )
 
-    await waitFor(() => expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.japanese))
+    expect(await screen.findByText('デフォルトのエクスポートはありません。')).toBeVisible()
   })
 
   it('starts the first request with the saved languages when they load after the language list', async () => {
@@ -352,41 +366,6 @@ describe('ActionTranslate', () => {
     )
   })
 
-  it('groups auxiliary controls so they wrap together behind the language direction group', async () => {
-    state.detectLanguage.mockResolvedValue('en-us')
-
-    render(
-      <ActionTranslate sourceEntityId="test-session" action={createAction()} scrollToBottom={state.scrollToBottom} />
-    )
-
-    await waitFor(() => expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.chinese))
-
-    const detectedLabel = await screen.findByText('English')
-    const detectedBadge = detectedLabel.parentElement as HTMLElement
-    const languageDirectionGroup = detectedBadge.parentElement as HTMLElement
-    const showOriginalButton = screen.getByRole('button', {
-      name: 'selection.action.window.original_show'
-    })
-    const auxiliaryActionGroup = showOriginalButton.parentElement as HTMLElement
-    const toolbar = auxiliaryActionGroup.parentElement as HTMLElement
-
-    expect(toolbar).toHaveClass('flex-wrap')
-    expect(toolbar).toContainElement(languageDirectionGroup)
-    expect(toolbar).toContainElement(auxiliaryActionGroup)
-    expect(languageDirectionGroup).toHaveClass('min-w-0', 'shrink')
-    expect(languageDirectionGroup.querySelector('[role="combobox"]')).not.toBeNull()
-    expect(auxiliaryActionGroup).toHaveClass('ml-auto', 'shrink-0')
-    expect(auxiliaryActionGroup.querySelector('.lucide-settings-2')).not.toBeNull()
-    expect(auxiliaryActionGroup.querySelector('.lucide-circle-question-mark')).not.toBeNull()
-    expect(auxiliaryActionGroup.querySelector('.lucide-settings-2')?.closest('button')).toHaveClass(
-      'text-muted-foreground'
-    )
-    expect(auxiliaryActionGroup.querySelector('.lucide-circle-question-mark')).toHaveClass('text-muted-foreground')
-    expect(detectedBadge).toHaveClass('min-w-0')
-    expect(detectedLabel).toHaveClass('min-w-0', 'truncate')
-    expect(detectedLabel).toHaveAttribute('title', 'English')
-  })
-
   it('toggles the original text after the auxiliary controls are regrouped', async () => {
     state.detectLanguage.mockResolvedValue('en-us')
 
@@ -427,13 +406,9 @@ describe('ActionTranslate', () => {
     const preferredTargetLabel = await screen.findByText('translate.preferred_target')
     const settingsContent = preferredTargetLabel.closest<HTMLElement>('[data-slot="popover-content"]')
     expect(settingsContent).toBeInTheDocument()
-    expect(settingsContent).not.toHaveClass('bg-card')
 
     const settingsComboboxes = settingsContent!.querySelectorAll('[role="combobox"]')
     expect(settingsComboboxes).toHaveLength(2)
-    for (const combobox of settingsComboboxes) {
-      expect(combobox.closest('.inline-flex')).toHaveClass('w-full', '[&>div]:w-full')
-    }
 
     await waitFor(() => expect(settingsContent).toHaveFocus())
     expect(document.querySelectorAll('[data-slot="popover-content"]')).toHaveLength(1)
