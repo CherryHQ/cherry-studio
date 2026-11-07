@@ -19,6 +19,8 @@ export function createMcpJsonSchemaValidator<T = unknown>(schema: JSONSchema7) {
  * which MCP servers emit for tools that take no arguments.
  */
 function normalizeMcpInputSchema(schema: JSONSchema7): JSONSchema7 {
+  if (schema.$ref !== undefined) return schema
+
   const type = schema.type ?? 'object'
   return {
     ...schema,
