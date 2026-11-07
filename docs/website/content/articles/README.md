@@ -15,6 +15,14 @@ icon: compass
 * [Cherry Studio VS. Manus：本地 AI Agent 还是云端 AI Agent？](https://cherryai.com.cn/resources/articles/manus)
 * [ChatGPT 桌面版替代：一个应用里用上所有模型](https://cherryai.com.cn/resources/articles/chatgpt-desktop-app)
 * [LM Studio 替代：在一个桌面应用里同时用本地和云端模型](https://cherryai.com.cn/resources/articles/lm-studio)
+* [Cherry Studio vs Chatbox：两款 AI 桌面客户端怎么选？](https://cherryai.com.cn/resources/articles/chatbox)
+* [Claude Code 替代：Claude 和其他模型放在一个应用里用](https://cherryai.com.cn/resources/articles/claude-code)
+
+## 教程
+
+一步步带你在 Cherry Studio 里把事情做成。
+
+* [DeepSeek 本地部署教程：Ollama + Cherry Studio，三步在自己电脑上跑起来](https://cherryai.com.cn/resources/articles/deepseek-local)
 
 ## 一个应用用上主流模型
 

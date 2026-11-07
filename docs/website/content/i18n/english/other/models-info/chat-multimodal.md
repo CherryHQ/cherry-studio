@@ -4,7 +4,7 @@ Data comes from the model catalog bundled with Cherry Studio ([provider-registry
 
 Context length and max output are abbreviated with K / M and rounded (1K is roughly 1,000–1,024 tokens, 1M roughly one million), e.g. 131,072 and 128,000 both read 128K. Hover a value to see the exact number; confirm limits with the model provider.
 
-> **Data updated**: 2026-11-03 16:01:16 UTC / 2026-11-04 00:01:16 CST (Beijing time)
+> **Data updated**: 2026-11-07 14:49:14 UTC / 2026-11-07 22:49:14 CST (Beijing time)
 
 <div data-models-table="num:2,3;sort:1;search:0,1;cap:4:Function calling,Reasoning,Image recognition,Speech recognition,Video understanding,Structured output,File input,Computer use,File search;in:5:Text input=Text,Image input=Image,Audio input=Audio,Video input=Video">
 
@@ -270,6 +270,7 @@ Context length and max output are abbreviated with K / M and rounded (1K is roug
 | Step 3.7 Flash<br><code>step-3-7-flash</code> | stepfun | <span title="262,144">256K</span> | <span title="256,000">256K</span> | Function calling, Reasoning, Image recognition, Video understanding, Structured output, File input | Text, Image, Video | Text |
 | Kat Coder Air V2.5<br><code>kat-coder-air-v2-5</code> | streamlake | <span title="256,000">256K</span> | <span title="80,000">80K</span> | Function calling, Reasoning, Image recognition | Text, Image | Text |
 | Kat Coder Pro V2.5<br><code>kat-coder-pro-v2-5</code> | streamlake | <span title="262,144">256K</span> | <span title="80,000">80K</span> | Function calling, Reasoning, Image recognition, Structured output | Text, Image | Text |
+| Hunyuan 4<br><code>hy4</code> | tencent | <span title="1,048,576">1.05M</span> | <span title="65,536">64K</span> | Reasoning, Function calling, Structured output, Image recognition | Text, Image | - |
 | Fugu Ultra<br><code>fugu-ultra</code> | vercel | <span title="1,000,000">1M</span> | <span title="1,000,000">1M</span> | Function calling, Reasoning, Image recognition, Structured output, File input | Text, Image | Text |
 | Interfaze Beta<br><code>interfaze-beta</code> | vercel | <span title="1,000,000">1M</span> | <span title="32,000">32K</span> | Reasoning, Image recognition | Text, Image | Text |
 | Muse Spark 1.1<br><code>muse-spark-1-1</code> | vercel | <span title="1,048,576">1.05M</span> | <span title="1,048,576">1.05M</span> | Function calling, Reasoning, Image recognition, Speech recognition, Video understanding, Structured output, File input | Text, Image, Audio, Video | Text |

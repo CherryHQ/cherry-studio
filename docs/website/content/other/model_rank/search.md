@@ -4,7 +4,7 @@
 
 本榜单评测模型在联网搜索 / 信息检索类任务上的表现。
 
-> **数据更新时间**: 2026-11-03 16:00:38 UTC / 2026-11-04 00:00:38 CST (北京时间)
+> **数据更新时间**: 2026-11-07 14:47:55 UTC / 2026-11-07 22:47:55 CST (北京时间)
 
 {% hint style="info" %}
 排行榜反映特定评测和用户投票偏好，不等同于模型在你的任务中一定更好。选择模型时还要考虑价格、速度、上下文、工具调用、隐私和地区可用性。
@@ -12,38 +12,38 @@
 
 ## 前 30 名
 
-|   排名 | 排名区间   | 模型                                                                                                                    | 分数         |      票数 | 价格 $/百万Token   | 上下文   |
-|-----:|:-------|:----------------------------------------------------------------------------------------------------------------------|:-----------|--------:|:---------------|:------|
-|    1 | 1-3    | GPT-5.6 Sol (xHigh) [<sup>1</sup>](https://openai.com/index/gpt-5-6/)                                                 | 1261 (±6)  |  60,437 | $4 / $20       | 1.1M  |
-|    2 | 1-6    | Qwen3.8-Max [<sup>1</sup>](https://www.qwencloud.com/models/qwen3.8-max)                                              | 1261 (±13) |   1,870 | $2 / $6        | 1M    |
-|    3 | 1-6    | Claude Opus 4.6 (Search) [<sup>1</sup>](https://www.anthropic.com/news/claude-opus-4-6)                               | 1251 (±5)  | 173,191 | $5 / $25       | 1M    |
-|    4 | 2-7    | GPT-5.5 (Search) [<sup>1</sup>](https://openai.com/index/introducing-gpt-5-5/)                                        | 1247 (±5)  | 125,957 | $5 / $30       | 1.1M  |
-|    5 | 2-8    | Claude Fable 5.1 (High) [<sup>1</sup>](https://www.anthropic.com/claude-fable-and-mythos-5-1)                         | 1246 (±7)  |  12,782 | $5 / $25       | 1M    |
-|    6 | 2-11   | Claude Opus 5 (High) [<sup>1</sup>](https://www.anthropic.com/news/claude-opus-5)                                     | 1242 (±7)  |  13,285 | $5 / $25       | 1M    |
-|    7 | 5-11   | GPT-6 Astra (Max) [<sup>1</sup>](https://openai.com/index/gpt-6-astra/)                                               | 1234 (±8)  |  18,483 | $10 / $50      | 1.1M  |
-|    8 | 4-12   | GPT-6.1 Sol (Max) [<sup>1</sup>](https://openai.com/index/introducing-gpt-6-1-sol/)                                   | 1233 (±9)  |   5,555 | $2 / $10       | 1.1M  |
-|    9 | 6-11   | Claude Opus 4.7 [<sup>1</sup>](https://www.anthropic.com/news/claude-opus-4-7)                                        | 1230 (±5)  | 127,506 | $5 / $25       | 1M    |
-|   10 | 6-12   | Claude Fable 5 (High) [<sup>1</sup>](https://www.anthropic.com/news/claude-fable-5-mythos-5)                          | 1229 (±7)  |  73,596 | $10 / $50      | 1M    |
-|   11 | 6-14   | ERNIE 5.1 [<sup>1</sup>](https://ernie.baidu.com/blog/posts/ernie-5.1-0508-release/)                                  | 1227 (±9)  |   4,024 | $0.56 / $2.54  | 119K  |
-|   12 | 9-14   | Claude Sonnet 4.6 (Search) [<sup>1</sup>](https://www.anthropic.com/news/claude-sonnet-4-6)                           | 1221 (±4)  | 173,986 | $1.50 / $7.50  | 1M    |
-|   13 | 11-18  | Grok 4.5 [<sup>1</sup>](https://docs.x.ai/developers/models/grok-4.5)                                                 | 1216 (±6)  |  76,458 | $2 / $6        | 500K  |
-|   14 | 11-19  | Claude Opus 5.5 (Medium) [<sup>1</sup>](https://www.anthropic.com/claude-opus-5-5)                                    | 1213 (±7)  |  10,842 | $4 / $20       | 1M    |
-|   15 | 13-21  | Gemini 3.1 Pro (Grounding) [<sup>1</sup>](https://ai.google.dev/gemini-api/docs/google-search)                        | 1209 (±5)  | 151,436 | $2.70 / $16.20 | 1M    |
-|   16 | 13-21  | GPT-5.2 (Search) [<sup>1</sup>](https://openai.com/index/introducing-gpt-5-2/)                                        | 1207 (±6)  |  55,634 | $0.88 / $7     | 400K  |
-|   17 | 13-21  | Gemini 3 Pro (Grounding) [<sup>1</sup>](https://ai.google.dev/gemini-api/docs/google-search)                          | 1206 (±5)  |  38,857 | $2 / $12       | N/A   |
-|   18 | 13-22  | Grok 4.20 Multi-Agent Beta (0309) [<sup>1</sup>](https://docs.x.ai/developers/models/grok-4.20-multi-agent-beta-0309) | 1205 (±5)  | 126,238 | $1.25 / $2.50  | 1M    |
-|   19 | 14-22  | Claude Opus 4.8 [<sup>1</sup>](https://www.anthropic.com/news/claude-opus-4-8)                                        | 1204 (±6)  | 106,304 | $5 / $25       | 1M    |
-|   20 | 15-24  | GPT-5.1 (Search) [<sup>1</sup>](https://openai.com/index/gpt-5-1/)                                                    | 1200 (±5)  |  63,042 | $0.63 / $5     | 400K  |
-|   21 | 15-24  | GPT-5.4 (Search) [<sup>1</sup>](https://platform.openai.com/docs/models/gpt-5.4)                                      | 1199 (±5)  | 126,730 | $2.50 / $15    | 1.1M  |
-|   22 | 18-24  | Gemini 3 Flash (Grounding) [<sup>1</sup>](https://ai.google.dev/gemini-api/docs/google-search)                        | 1196 (±4)  | 196,399 | $0.68 / $4.05  | 1M    |
-|   23 | 20-25  | Claude Sonnet 5 (Search) [<sup>1</sup>](https://www.anthropic.com/news/claude-sonnet-5)                               | 1191 (±6)  |  72,978 | $2 / $10       | 1M    |
-|   24 | 20-25  | Grok 4.20 Beta 1 [<sup>1</sup>](https://grok.com/)                                                                    | 1190 (±6)  |  57,049 | N/A            | N/A   |
-|   25 | 23-29  | Claude Opus 4.5 (Search) [<sup>1</sup>](https://www.anthropic.com/news/claude-opus-4-5)                               | 1180 (±6)  |  65,047 | $5 / $25       | 200K  |
-|   26 | 25-30  | GPT-6 Sol (Max) [<sup>1</sup>](https://openai.com/index/introducing-gpt-6-sol-and-luna/)                              | 1175 (±7)  |  11,313 | $1 / $5        | 1.1M  |
-|   27 | 25-31  | GPT-5.2 (Search, Non-Reasoning) [<sup>1</sup>](https://openai.com/index/introducing-gpt-5-2/)                         | 1171 (±6)  |  79,796 | $0.88 / $7     | 400K  |
-|   28 | 25-31  | Grok 4.1 Fast (Search) [<sup>1</sup>](https://x.ai/news/grok-4-1-fast)                                                | 1171 (±5)  |  85,919 | $1.25 / $2.50  | 2M    |
-|   29 | 25-31  | Grok 4 Fast (Search) [<sup>1</sup>](https://x.ai/news/grok-4-fast)                                                    | 1170 (±5)  |  43,083 | $0.20 / $0.50  | 2M    |
-|   30 | 26-32  | Grok 4.3 [<sup>1</sup>](https://docs.x.ai/developers/models/grok-4.3)                                                 | 1166 (±5)  | 128,393 | $1.25 / $2.50  | 1M    |
+|   排名 | 排名区间   | 模型                                                                                                                    | 分数         |      票数 | 价格 $/百万Token   | 上下文    |
+|-----:|:-------|:----------------------------------------------------------------------------------------------------------------------|:-----------|--------:|:---------------|:-------|
+|    1 | 1-5    | Qwen3.8-Max [<sup>1</sup>](https://www.qwencloud.com/models/qwen3.8-max)                                              | 1260 (±14) |   1,922 | $2 / $6        | 983.6K |
+|    2 | 1-3    | GPT-5.6 Sol (xHigh) [<sup>1</sup>](https://openai.com/index/gpt-5-6/)                                                 | 1259 (±6)  |  65,771 | $4 / $20       | 1.1M   |
+|    3 | 1-4    | Claude Opus 4.6 (Search) [<sup>1</sup>](https://www.anthropic.com/news/claude-opus-4-6)                               | 1252 (±5)  | 172,545 | $5 / $25       | 1M     |
+|    4 | 2-6    | GPT-5.5 (Search) [<sup>1</sup>](https://openai.com/index/introducing-gpt-5-5/)                                        | 1247 (±5)  | 125,866 | $5 / $30       | 1.1M   |
+|    5 | 3-11   | Claude Opus 5 (High) [<sup>1</sup>](https://www.anthropic.com/news/claude-opus-5)                                     | 1240 (±6)  |  36,480 | $5 / $25       | 1M     |
+|    6 | 4-11   | Claude Fable 5.1 (High) [<sup>1</sup>](https://www.anthropic.com/claude-fable-and-mythos-5-1)                         | 1239 (±7)  |  36,045 | $5 / $25       | 1M     |
+|    7 | 5-12   | GPT-6 Astra (Max) [<sup>1</sup>](https://openai.com/index/gpt-6-astra/)                                               | 1232 (±8)  |  19,011 | $10 / $50      | 1.1M   |
+|    8 | 5-11   | Claude Opus 4.7 [<sup>1</sup>](https://www.anthropic.com/news/claude-opus-4-7)                                        | 1231 (±5)  | 126,869 | $5 / $25       | 1M     |
+|    9 | 5-12   | GPT-6.1 Sol (Max) [<sup>1</sup>](https://openai.com/index/introducing-gpt-6-1-sol/)                                   | 1229 (±8)  |  28,386 | $2 / $10       | 1.1M   |
+|   10 | 5-12   | Claude Fable 5 (High) [<sup>1</sup>](https://www.anthropic.com/news/claude-fable-5-mythos-5)                          | 1229 (±6)  |  73,418 | $10 / $50      | 1M     |
+|   11 | 5-14   | ERNIE 5.1 [<sup>1</sup>](https://ernie.baidu.com/blog/posts/ernie-5.1-0508-release/)                                  | 1227 (±10) |   4,000 | $0.56 / $2.54  | 119K   |
+|   12 | 8-14   | Claude Sonnet 4.6 (Search) [<sup>1</sup>](https://www.anthropic.com/news/claude-sonnet-4-6)                           | 1220 (±5)  | 173,339 | $1.50 / $7.50  | 1M     |
+|   13 | 11-18  | Grok 4.5 [<sup>1</sup>](https://docs.x.ai/developers/models/grok-4.5)                                                 | 1215 (±6)  | 111,628 | $2 / $6        | 500K   |
+|   14 | 11-19  | Claude Opus 5.5 (Medium) [<sup>1</sup>](https://www.anthropic.com/claude-opus-5-5)                                    | 1214 (±7)  |  33,971 | $4 / $20       | 1M     |
+|   15 | 13-19  | Gemini 3.1 Pro (Grounding) [<sup>1</sup>](https://ai.google.dev/gemini-api/docs/google-search)                        | 1209 (±5)  | 177,691 | $2.70 / $16.20 | 1M     |
+|   16 | 13-21  | GPT-5.2 (Search) [<sup>1</sup>](https://openai.com/index/introducing-gpt-5-2/)                                        | 1208 (±6)  |  55,522 | $0.88 / $7     | 400K   |
+|   17 | 13-21  | Gemini 3 Pro (Grounding) [<sup>1</sup>](https://ai.google.dev/gemini-api/docs/google-search)                          | 1206 (±6)  |  38,827 | $2 / $12       | N/A    |
+|   18 | 13-22  | Grok 4.20 Multi-Agent Beta (0309) [<sup>1</sup>](https://docs.x.ai/developers/models/grok-4.20-multi-agent-beta-0309) | 1204 (±5)  | 124,909 | $1.25 / $2.50  | 1M     |
+|   19 | 14-22  | Claude Opus 4.8 [<sup>1</sup>](https://www.anthropic.com/news/claude-opus-4-8)                                        | 1204 (±6)  | 105,915 | $5 / $25       | 1M     |
+|   20 | 16-24  | GPT-5.1 (Search) [<sup>1</sup>](https://openai.com/index/gpt-5-1/)                                                    | 1199 (±5)  |  62,908 | $0.63 / $5     | 400K   |
+|   21 | 16-24  | GPT-5.4 (Search) [<sup>1</sup>](https://platform.openai.com/docs/models/gpt-5.4)                                      | 1199 (±6)  | 125,354 | $2.50 / $15    | 1.1M   |
+|   22 | 18-24  | Gemini 3 Flash (Grounding) [<sup>1</sup>](https://ai.google.dev/gemini-api/docs/google-search)                        | 1195 (±4)  | 195,985 | $0.68 / $4.05  | 1M     |
+|   23 | 20-25  | Grok 4.20 Beta 1 [<sup>1</sup>](https://grok.com/)                                                                    | 1190 (±6)  |  56,865 | N/A            | N/A    |
+|   24 | 20-26  | Claude Sonnet 5 (Search) [<sup>1</sup>](https://www.anthropic.com/news/claude-sonnet-5)                               | 1188 (±6)  |  75,456 | $2 / $10       | 1M     |
+|   25 | 23-29  | Claude Opus 4.5 (Search) [<sup>1</sup>](https://www.anthropic.com/news/claude-opus-4-5)                               | 1179 (±6)  |  64,890 | $5 / $25       | 200K   |
+|   26 | 24-30  | GPT-6 Sol (Max) [<sup>1</sup>](https://openai.com/index/introducing-gpt-6-sol-and-luna/)                              | 1176 (±7)  |  14,833 | $1 / $5        | 1.1M   |
+|   27 | 25-31  | GPT-5.2 (Search, Non-Reasoning) [<sup>1</sup>](https://openai.com/index/introducing-gpt-5-2/)                         | 1171 (±6)  |  79,591 | $0.88 / $7     | 400K   |
+|   28 | 25-31  | Grok 4.1 Fast (Search) [<sup>1</sup>](https://x.ai/news/grok-4-1-fast)                                                | 1171 (±5)  |  85,731 | $1.25 / $2.50  | 2M     |
+|   29 | 25-31  | Grok 4 Fast (Search) [<sup>1</sup>](https://x.ai/news/grok-4-fast)                                                    | 1170 (±5)  |  43,050 | $0.20 / $0.50  | 2M     |
+|   30 | 26-32  | Grok 4.3 [<sup>1</sup>](https://docs.x.ai/developers/models/grok-4.3)                                                 | 1166 (±5)  | 127,879 | $1.25 / $2.50  | 1M     |
 
 ## 怎么看这张表
 
@@ -55,7 +55,7 @@
 
 ## 选模型时再确认三件事
 
-1. 服务商是否实际提供这个模型，以及你的地区和账户是否可用；
+1. Provider 是否实际提供这个模型，以及你的地区和账户是否可用；
 2. API 价格、速率限制和上下文是否适合你的任务；
 3. 用 3～5 个真实任务做小规模测试，不要只看总榜名次。
 

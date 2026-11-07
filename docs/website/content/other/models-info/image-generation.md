@@ -4,7 +4,7 @@
 
 上下文长度与最大输出以 K / M 缩写并四舍五入（1K 约为 1,000～1,024 tokens，1M 约为 100 万 tokens），例如 131,072 与 128,000 均写作 128K。悬停可查看完整数值，精确限制请以模型服务商为准。
 
-> **数据更新时间**: 2026-11-03 16:01:16 UTC / 2026-11-04 00:01:16 CST (北京时间)
+> **数据更新时间**: 2026-11-07 14:49:14 UTC / 2026-11-07 22:49:14 CST (北京时间)
 
 <div data-models-table="num:2,3;sort:1;search:0,1;cap:4:函数调用,推理,识图,语音识别,视频理解,结构化输出,文件输入;in:5:图片输入=图片,音频输入=音频,视频输入=视频;out:6:文本输出=文本">
 
@@ -101,6 +101,8 @@
 | GPT Image 1.5<br><code>gpt-image-1-5</code> | openai | - | - | 识图、图片生成、文件输入 | 文本、图片 | 文本、图片 |
 | GPT Image 2.5 Flare<br><code>gpt-image-2-5-flare</code> | openai | - | - | 识图、图片生成 | 文本、图片 | 图片 |
 | GPT Image 2.5 Sunburst<br><code>gpt-image-2-5-sunburst</code> | openai | - | - | 识图、图片生成 | 文本、图片 | 图片 |
+| GPT Image 2.6 Flare<br><code>gpt-image-2-6-flare</code> | openai | - | - | 识图、图片生成 | 文本、图片 | 图片 |
+| GPT Image 2.6 Sunburst<br><code>gpt-image-2-6-sunburst</code> | openai | - | - | 识图、图片生成 | 文本、图片 | 图片 |
 | GPT-Image-1<br><code>gpt-image-1</code> | openai | - | - | 识图、图片生成、文件输入 | 文本、图片 | 图片 |
 | GPT-Image-1-Mini<br><code>gpt-image-1-mini</code> | openai | - | - | 识图、图片生成、文件输入 | 文本、图片 | 文本、图片 |
 | GPT-Image-2<br><code>gpt-image-2</code> | openai | - | - | 识图、图片生成、文件输入 | 文本、图片 | 图片 |
