@@ -630,6 +630,120 @@ describe('buildAgentParams provider resolution', () => {
   })
 })
 
+describe('buildAgentParams custom thinking endpoint wiring', () => {
+  it('preserves raw passthrough when neither the model nor provider declares an endpoint', async () => {
+    const bodies: string[] = []
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: {
+        providerId: 'openai-compatible',
+        providerSettings: {
+          fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+            bodies.push(String(init?.body))
+            return new Response(null, { status: 204 })
+          }
+        }
+      },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const result = await buildAgentParams({
+      request: { conversation: CONVERSATION },
+      signal: undefined,
+      provider: makeProvider({ id: 'no-declared-endpoint', defaultChatEndpoint: undefined, endpointConfigs: {} }),
+      model: makeModel({ providerId: 'no-declared-endpoint', endpointTypes: [] }),
+      assistant: makeAssistant({
+        settings: {
+          customParameters: [{ name: 'thinking', type: 'json', value: '{"type":"adaptive","budget_tokens":2048}' }]
+        }
+      })
+    })
+    await (result.sdkConfig.providerSettings.fetch as typeof globalThis.fetch)('https://provider.test', {
+      method: 'POST',
+      body: '{"messages":[]}'
+    })
+    expect(bodies).toEqual(['{"thinking":{"type":"adaptive","budget_tokens":2048},"messages":[]}'])
+  })
+
+  it.each([
+    ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+    ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+    ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+  ])('uses the resolved %s endpoint for raw custom-body validation', async (endpointType) => {
+    const bodies: string[] = []
+    const innerFetch: typeof globalThis.fetch = async (_input, init) => {
+      bodies.push(String(init?.body))
+      return Response.json({
+        id: 'msg_test',
+        type: 'message',
+        role: 'assistant',
+        model: 'claude-opus-4-6',
+        content: [{ type: 'text', text: 'ok' }],
+        stop_reason: 'end_turn',
+        stop_sequence: null,
+        usage: { input_tokens: 1, output_tokens: 1 }
+      })
+    }
+    const anthropic = endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+    const adapterFamily = anthropic
+      ? 'anthropic'
+      : endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+        ? 'google'
+        : 'openai'
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: {
+        providerId: anthropic ? 'anthropic' : adapterFamily === 'google' ? 'google' : 'openai-chat',
+        providerSettings: { fetch: innerFetch }
+      },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const setup = {
+      signal: undefined,
+      provider: makeProvider({
+        id: 'dmxapi',
+        defaultChatEndpoint: endpointType,
+        endpointConfigs: { [endpointType]: { adapterFamily } }
+      }),
+      model: makeModel({ providerId: 'dmxapi', apiModelId: 'claude-opus-4-6', endpointTypes: [endpointType] }),
+      assistant: makeAssistant({
+        settings: {
+          customParameters: [
+            { name: 'thinking', type: 'json' as const, value: '{"type":"adaptive","budget_tokens":2048}' }
+          ]
+        }
+      })
+    }
+    const ordinary = await buildAgentParams({ ...setup, request: { conversation: CONVERSATION } })
+    const wrapped = ordinary.sdkConfig.providerSettings.fetch as typeof globalThis.fetch
+    if (!anthropic) {
+      await wrapped('https://provider.test', { method: 'POST', body: '{"messages":[]}' })
+      expect(bodies).toEqual(['{"thinking":{"type":"adaptive","budget_tokens":2048},"messages":[]}'])
+      return
+    }
+    const sdk = createAnthropic({ apiKey: 'dummy-key', baseURL: 'https://provider.test', fetch: wrapped })(
+      'claude-opus-4-6'
+    )
+    const prompt: LanguageModelV3CallOptions['prompt'] = [{ role: 'user', content: [{ type: 'text', text: 'probe' }] }]
+    await sdk.doGenerate({ prompt, providerOptions: ordinary.options.providerOptions })
+    expect(JSON.parse(bodies[0]).thinking).toEqual({ type: 'adaptive' })
+    const fallback = await buildAgentParams({
+      ...setup,
+      request: {
+        conversation: CONVERSATION,
+        // A synthetic caller override exposes the demonstrated raw-body fallback.
+        callOverrides: { providerOptions: { anthropic: { thinking: undefined } } }
+      }
+    })
+    const fallbackSdk = createAnthropic({
+      apiKey: 'dummy-key',
+      baseURL: 'https://provider.test',
+      fetch: fallback.sdkConfig.providerSettings.fetch
+    })('claude-opus-4-6')
+    await expect(
+      fallbackSdk.doGenerate({ prompt, providerOptions: fallback.options.providerOptions })
+    ).rejects.toMatchObject({ name: 'InvalidAdaptiveThinkingBudgetError' })
+    expect(bodies).toHaveLength(1)
+  })
+})
+
 describe('buildAgentParams standard model parameters', () => {
   function makeSetup(endpointType: EndpointType, maxOutputTokens?: number) {
     const providerId = endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES ? 'anthropic' : 'openai-compatible'

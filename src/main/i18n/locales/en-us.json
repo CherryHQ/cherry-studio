@@ -150,6 +150,7 @@
   "dialog.screenshot_failed.title": "Screenshot Failed",
   "dialog.select_folder": "Select Folder",
   "dialog.word_document": "Word Document",
+  "error.adaptive_thinking_budget": "Adaptive thinking does not accept budget_tokens. Remove thinking.budget_tokens, or use enabled thinking if the model supports it.",
   "file_processing.errors.document_size_limit_exceeded": "The current document parsing service requires files smaller than {{maxSize}}. Compress or split this file, then add it again.",
   "file_processing.errors.open_mineru_endpoint_changed": "The Open MinerU server address changed. Retry the document to use the new server.",
   "file_processing.errors.open_mineru_invalid_response": "Open MinerU returned an invalid or unsupported response.",

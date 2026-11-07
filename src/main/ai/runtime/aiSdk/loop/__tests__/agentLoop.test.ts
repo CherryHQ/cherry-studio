@@ -4,7 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
 import type * as AiCore from '@cherrystudio/ai-core'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
+import { createCustomParamsFetch } from '../../params/customParamsFetch'
 import { markTrustedLocalToolTerminalFailure } from '../localToolTerminalOutcome'
 import { createToolCallLimitStopCondition } from '../toolLoopTermination'
 import type { AgentLoopParams } from '../types'
@@ -55,6 +57,62 @@ function mockStream(
 describe('Agent', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('fails streaming with the original adaptive-budget diagnostic and no completion when fallback is disabled', async () => {
+    const actual = await vi.importActual<typeof AiCore>('@cherrystudio/ai-core')
+    mockCreateAgent.mockImplementationOnce(actual.createAgent)
+    const innerFetch = vi.fn<typeof globalThis.fetch>(async () => Response.json({}))
+    const wrapped = createCustomParamsFetch(
+      innerFetch,
+      { thinking: { type: 'adaptive', budget_tokens: 2048 } },
+      ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+    )
+    let original: unknown
+    const fetch: typeof globalThis.fetch = async (input, init) => {
+      try {
+        return await wrapped(input, init)
+      } catch (error) {
+        original = error
+        throw error
+      }
+    }
+    const onFinish = vi.fn()
+    const errors: Error[] = []
+    const agent = await makeAgent({
+      providerId: 'anthropic',
+      modelId: 'claude-opus-4-6',
+      providerSettings: { apiKey: 'dummy-key', fetch },
+      options: { maxRetries: 0 },
+      hookParts: [
+        {
+          onFinish,
+          onError: ({ error }) => {
+            errors.push(error)
+            return 'abort'
+          }
+        }
+      ]
+    })
+    const chunks: UIMessageChunk[] = []
+    const consume = async () => {
+      for await (const chunk of agent.stream(
+        [{ id: 'u1', role: 'user', parts: [{ type: 'text', text: 'probe' }] }],
+        new AbortController().signal
+      ))
+        chunks.push(chunk)
+    }
+    const failure = await consume().catch((error: unknown) => error)
+    expect(failure).toBe(original)
+    expect(failure).toMatchObject({
+      name: 'InvalidAdaptiveThinkingBudgetError',
+      message:
+        'Adaptive thinking does not accept budget_tokens. Remove thinking.budget_tokens, or use enabled thinking if the model supports it.'
+    })
+    expect(errors).toEqual([original])
+    expect(chunks.some((chunk) => chunk.type === 'finish')).toBe(false)
+    expect(onFinish).not.toHaveBeenCalled()
+    expect(innerFetch).not.toHaveBeenCalled()
   })
 
   it('forwards provider-native URL sources to the UI stream', async () => {

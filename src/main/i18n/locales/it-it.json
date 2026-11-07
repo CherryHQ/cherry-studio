@@ -150,6 +150,7 @@
   "dialog.screenshot_failed.title": "Acquisizione della schermata non riuscita",
   "dialog.select_folder": "Seleziona cartella",
   "dialog.word_document": "Documento Word",
+  "error.adaptive_thinking_budget": "Il ragionamento adattivo non accetta budget_tokens. Rimuovi thinking.budget_tokens oppure usa il ragionamento in modalità enabled se il modello lo supporta.",
   "file_processing.errors.document_size_limit_exceeded": "Il servizio attuale di analisi dei documenti richiede file di dimensioni inferiori a {{maxSize}}. Comprimi o dividi questo file, quindi aggiungilo di nuovo.",
   "file_processing.errors.open_mineru_endpoint_changed": "L'indirizzo del server Open MinerU è cambiato. Riprova a elaborare il documento per usare il nuovo server.",
   "file_processing.errors.open_mineru_invalid_response": "Open MinerU ha restituito una risposta non valida o non supportata.",

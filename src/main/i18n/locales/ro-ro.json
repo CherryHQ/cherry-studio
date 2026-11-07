@@ -150,6 +150,7 @@
   "dialog.screenshot_failed.title": "Captura de ecran a eșuat",
   "dialog.select_folder": "Selectează directorul",
   "dialog.word_document": "Document Word",
+  "error.adaptive_thinking_budget": "Raționamentul adaptiv nu acceptă budget_tokens. Eliminați thinking.budget_tokens sau utilizați raționamentul în modul enabled dacă modelul îl acceptă.",
   "file_processing.errors.document_size_limit_exceeded": "Serviciul curent de analiză a documentelor necesită fișiere mai mici de {{maxSize}}. Comprimă sau împarte acest fișier, apoi adaugă-l din nou.",
   "file_processing.errors.open_mineru_endpoint_changed": "Adresa serverului Open MinerU s-a schimbat. Reîncercați procesarea documentului pentru a utiliza noul server.",
   "file_processing.errors.open_mineru_invalid_response": "Open MinerU a returnat un răspuns nevalid sau neacceptat.",

@@ -6,6 +6,8 @@ import type { ToolChoice, ToolSet } from 'ai'
 import { generateText, jsonSchema, streamText, tool } from 'ai'
 import { describe, expect, it } from 'vitest'
 
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
+
 import { createCustomParamsFetch } from '../../runtime/aiSdk/params/customParamsFetch'
 
 async function send({
@@ -42,7 +44,7 @@ async function send({
     apiKey: 'test-key',
     name: 'test-provider',
     baseURL: 'https://provider.example/v1',
-    fetch: createCustomParamsFetch(fetch, customParams)
+    fetch: createCustomParamsFetch(fetch, customParams, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
   }
   const model =
     adapter === 'openai'

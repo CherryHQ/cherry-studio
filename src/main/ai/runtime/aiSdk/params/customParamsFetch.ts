@@ -1,3 +1,6 @@
+import { t } from '@main/i18n'
+import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
+
 import { isCustomProviderNamespace } from '../../../utils/options'
 
 const CUSTOM_PARAMS_FETCH_CACHE_SIZE = 10
@@ -27,21 +30,23 @@ export function selectCustomBodyParameters(
  */
 export function createCustomParamsFetch(
   innerFetch: typeof globalThis.fetch,
-  customParams: Record<string, unknown>
+  customParams: Record<string, unknown>,
+  endpointType: EndpointType
 ): typeof globalThis.fetch {
   if (Object.keys(customParams).length === 0) return innerFetch
 
   const serializedCustomParams = JSON.stringify(customParams) ?? '{}'
+  const cacheKey = JSON.stringify([endpointType, serializedCustomParams])
   let cachedByParams = customParamsFetchCache.get(innerFetch)
   if (!cachedByParams) {
     cachedByParams = new Map()
     customParamsFetchCache.set(innerFetch, cachedByParams)
   }
 
-  const cachedFetch = cachedByParams.get(serializedCustomParams)
+  const cachedFetch = cachedByParams.get(cacheKey)
   if (cachedFetch) {
-    cachedByParams.delete(serializedCustomParams)
-    cachedByParams.set(serializedCustomParams, cachedFetch)
+    cachedByParams.delete(cacheKey)
+    cachedByParams.set(cacheKey, cachedFetch)
     return cachedFetch
   }
 
@@ -56,9 +61,22 @@ export function createCustomParamsFetch(
       }
 
       if (isRecord(body)) {
+        const mergedBody = { ...customParamsSnapshot, ...body }
+        const thinking = mergedBody.thinking
+        if (
+          endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES &&
+          Object.hasOwn(mergedBody, 'thinking') &&
+          isRecord(thinking) &&
+          thinking.type === 'adaptive' &&
+          Object.hasOwn(thinking, 'budget_tokens')
+        ) {
+          const error = new Error(t('error.adaptive_thinking_budget'))
+          error.name = 'InvalidAdaptiveThinkingBudgetError'
+          throw error
+        }
         return innerFetch(input, {
           ...init,
-          body: JSON.stringify({ ...customParamsSnapshot, ...body })
+          body: JSON.stringify(mergedBody)
         })
       }
     }
@@ -70,6 +88,6 @@ export function createCustomParamsFetch(
     const oldestKey = cachedByParams.keys().next().value
     if (oldestKey !== undefined) cachedByParams.delete(oldestKey)
   }
-  cachedByParams.set(serializedCustomParams, wrappedFetch)
+  cachedByParams.set(cacheKey, wrappedFetch)
   return wrappedFetch
 }
