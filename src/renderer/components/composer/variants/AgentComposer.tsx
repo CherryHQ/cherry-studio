@@ -117,9 +117,9 @@ import {
   type RestoredAgentComposerDraftCache,
   writeAgentDraftCache
 } from './agent/agentDraftCache'
+import { buildAgentFilePartsForAttachments, toAccessiblePaths } from './agent/agentFileParts'
 import { PlanModeHint } from './agent/PlanModeHint'
 import { usePlanModeHint } from './agent/planModeHint'
-import { buildAgentFilePartsForAttachments, toAccessiblePaths } from './agent/agentFileParts'
 import { createAttachmentFromPath, useAgentResourceMentionSource } from './agent/useAgentResourceMentionSource'
 import {
   AGENT_MANAGED_TOKEN_KINDS,
@@ -625,7 +625,8 @@ const AgentComposerInner = ({
   const [text, setTextState] = useState(() => initialDraft.text)
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[]>(() => initialDraft.tokens)
   const enablePlanMode = useCallback(() => {
-    if (agent) void updateAgent({ id: agent.id, configuration: { permission_mode: 'plan' } }, { showSuccessToast: false })
+    if (agent)
+      void updateAgent({ id: agent.id, configuration: { permission_mode: 'plan' } }, { showSuccessToast: false })
   }, [agent, updateAgent])
   const planHint = usePlanModeHint({ agent, text, enablePlanMode })
   const [isDirectSending, setIsDirectSending] = useState(false)

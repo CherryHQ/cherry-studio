@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 
-import type { AgentEntity } from '@renderer/types/agent'
 import { getPermissionModeCards } from '@renderer/utils/agent'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
+import type { AgentEntity } from '@shared/data/types/agent'
 
 /** English triggers match as whole words ("make a plan" is covered by "plan"); CJK has no word boundaries. */
 const PLAN_INTENT_PATTERN = /\b(?:plan|planning|make a plan)\b|计划|规划|做个计划|先规划/i

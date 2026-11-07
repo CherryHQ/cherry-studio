@@ -3,10 +3,14 @@ import { describe, expect, it } from 'vitest'
 import { canOfferPlanMode, hasPlanIntent } from '../planModeHint'
 
 describe('hasPlanIntent', () => {
-  it.each(['make a plan for refactoring', 'Plan this refactor', 'PLANNING the week', '计划一下未来一周的工作', '帮我规划一下', '先做个计划'])(
-    'detects %s',
-    (text) => expect(hasPlanIntent(text)).toBe(true)
-  )
+  it.each([
+    'make a plan for refactoring',
+    'Plan this refactor',
+    'PLANNING the week',
+    '计划一下未来一周的工作',
+    '帮我规划一下',
+    '先做个计划'
+  ])('detects %s', (text) => expect(hasPlanIntent(text)).toBe(true))
 
   it.each(['explain the airplane', 'planet', 'plans', 'hello'])('ignores %s', (text) =>
     expect(hasPlanIntent(text)).toBe(false)
