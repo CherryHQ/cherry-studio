@@ -6085,6 +6085,7 @@
   "settings.tool.websearch.provider_description.searchapi": "SearchApi 实时搜索 API，以结构化 JSON 返回 Google 搜索结果。",
   "settings.tool.websearch.provider_description.searxng": "可自托管的免费互联网元搜索引擎，聚合多个搜索源。",
   "settings.tool.websearch.provider_description.serply": "Serply 搜索 API，以结构化 JSON 返回 Google 搜索结果，适用于 AI 应用。",
+  "settings.tool.websearch.provider_description.specstream": "SpecStream 实时网页搜索与页面提取 API，返回带来源的片段和干净的页面文本。",
   "settings.tool.websearch.provider_description.tavily": "专为 LLM 优化的搜索引擎。",
   "settings.tool.websearch.provider_description.yuanbao": "腾讯元宝搜索 API，需配置服务 API Key。结果数量为上限，服务实际返回可能更少。",
   "settings.tool.websearch.provider_description.zhipu": "智谱 GLM Web Search，提供联网搜索与实时信息检索。",

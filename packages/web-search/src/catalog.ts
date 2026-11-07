@@ -54,6 +54,10 @@ export const WEB_SEARCH_PROVIDER_CATALOG: Readonly<Record<RemoteProviderId, WebS
     desearch: provider('desearch', 'Desearch', [capability('searchKeywords', 'required', 'https://api.desearch.ai')]),
     searchapi: provider('searchapi', 'SearchApi', [
       capability('searchKeywords', 'required', 'https://www.searchapi.io')
+    ]),
+    specstream: provider('specstream', 'SpecStream', [
+      capability('searchKeywords', 'required', 'https://api.specstream.ai'),
+      capability('fetchUrls', 'required', 'https://api.specstream.ai')
     ])
   }
 )

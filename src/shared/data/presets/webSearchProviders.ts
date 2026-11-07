@@ -122,7 +122,8 @@ const DESKTOP_REMOTE_CAPABILITIES: Record<RemoteProviderId, readonly WebSearchCa
   yuanbao: ['searchKeywords'],
   deepseek: ['searchKeywords', 'fetchUrls'],
   desearch: ['searchKeywords'],
-  searchapi: ['searchKeywords']
+  searchapi: ['searchKeywords'],
+  specstream: ['searchKeywords', 'fetchUrls']
 }
 
 const remotePresets = Object.fromEntries(

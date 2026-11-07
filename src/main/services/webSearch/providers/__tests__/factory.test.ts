@@ -89,6 +89,7 @@ describe('createWebSearchProvider', () => {
       'searchapi',
       'searxng',
       'serply',
+      'specstream',
       'tavily',
       'yuanbao',
       'zhipu'

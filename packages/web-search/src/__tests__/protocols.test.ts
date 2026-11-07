@@ -14,6 +14,7 @@ import { getJinaHostCandidates, jina } from '../providers/jina'
 import { parallel } from '../providers/parallel'
 import { querit } from '../providers/querit'
 import { searchapi } from '../providers/searchapi'
+import { specstream } from '../providers/specstream'
 import { discoverSearxngEngines, searxng } from '../providers/searxng'
 import { serply } from '../providers/serply'
 import { tavily } from '../providers/tavily'
@@ -126,6 +127,54 @@ describe('portable provider contracts', () => {
         sourceInput: 'a&b'
       }
     ])
+  })
+
+  it('sends SpecStream searches as a bearer GET, prefers passages and keeps the requested sources', async () => {
+    const { client, requests } = setup(specstream, fixture('specstream-response.json'))
+    const result = await client.execute({
+      ...search('specstream'),
+      input: 'a&b',
+      config: { apiHost: 'https://service.example/proxy', maxResults: 2 }
+    })
+    expect(requests[0].url).toBe('https://service.example/proxy/v1/web-search?q=a%26b&passages=true')
+    expect(requests[0].method).toBe('GET')
+    expect(new Headers(requests[0].headers).get('authorization')).toBe('Bearer test-key')
+    expect(result.results).toEqual([
+      {
+        title: 'SpecStream Title',
+        content: 'Passage from the first page',
+        url: 'https://specstream.example/result',
+        sourceInput: 'a&b'
+      },
+      {
+        title: 'Second Title',
+        content: 'Second Snippet',
+        url: 'https://specstream.example/second',
+        sourceInput: 'a&b'
+      }
+    ])
+  })
+
+  it('posts SpecStream extract calls and rejects pages that were not read', async () => {
+    const call = {
+      providerId: 'specstream',
+      capability: 'fetchUrls',
+      input: 'https://specstream.example/page',
+      config: { apiHost: 'https://service.example/proxy' },
+      credentials: { apiKey: 'test-key' }
+    } as const
+    const ok = setup(specstream, fixture('specstream-extract-response.json'))
+    const result = await ok.client.execute(call)
+    expect(ok.requests[0].url).toBe('https://service.example/proxy/v1/extract')
+    expect(ok.requests[0].method).toBe('POST')
+    expect(ok.requests[0].body).toEqual({ urls: ['https://specstream.example/page'], format: 'markdown' })
+    expect(result.results[0]).toMatchObject({ title: 'Page Title', content: 'Page text' })
+
+    const blocked = setup(
+      specstream,
+      JSON.stringify({ results: [{ url: call.input, status: 'blocked' }], request_id: 'req_2' })
+    )
+    await expect(blocked.client.execute(call)).rejects.toMatchObject({ code: 'extract_blocked' })
   })
 
   it('posts DeepSeek search calls and prefers the model-facing summary', async () => {

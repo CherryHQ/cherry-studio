@@ -15,6 +15,7 @@ import { QueritProvider } from './api/QueritProvider'
 import { SearchApiProvider } from './api/SearchApiProvider'
 import { SearxngProvider } from './api/SearxngProvider'
 import { SerplyProvider } from './api/SerplyProvider'
+import { SpecStreamProvider } from './api/SpecStreamProvider'
 import { TavilyProvider } from './api/TavilyProvider'
 import { YuanbaoProvider } from './api/YuanbaoProvider'
 import { ZhipuProvider } from './api/ZhipuProvider'
@@ -44,5 +45,6 @@ export const WEB_SEARCH_PROVIDER_REGISTRY = {
   deepseek: DeepSeekProvider,
   desearch: DesearchProvider,
   searchapi: SearchApiProvider,
+  specstream: SpecStreamProvider,
   duckduckgo: DuckduckgoProvider
 } as const satisfies Record<WebSearchProvider['id'], WebSearchProviderConstructor>

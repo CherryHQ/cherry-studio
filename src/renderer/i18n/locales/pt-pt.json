@@ -6085,6 +6085,7 @@
   "settings.tool.websearch.provider_description.searchapi": "API de pesquisa em tempo real SearchApi que devolve resultados do Google em JSON estruturado.",
   "settings.tool.websearch.provider_description.searxng": "Motor de metapesquisa de internet gratuito e auto-hospedável em várias fontes.",
   "settings.tool.websearch.provider_description.serply": "API de pesquisa Serply que devolve resultados do Google em JSON estruturado para aplicações de IA.",
+  "settings.tool.websearch.provider_description.specstream": "APIs SpecStream de pesquisa web em tempo real e de extração de páginas, com excertos citados e texto limpo da página.",
   "settings.tool.websearch.provider_description.tavily": "Otimizado para LLMs de mecanismos de busca.",
   "settings.tool.websearch.provider_description.yuanbao": "API de pesquisa Tencent Yuanbao. Requer uma chave API do serviço. O número de resultados é um limite máximo; o serviço pode devolver menos.",
   "settings.tool.websearch.provider_description.zhipu": "Zhipu GLM Web Search para recuperação da web em tempo real e informações atuais.",

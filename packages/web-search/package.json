@@ -274,6 +274,21 @@
       },
       "default": "./dist/providers/searchapi.mjs"
     },
+    "./providers/specstream": {
+      "react-native": {
+        "types": "./dist/providers/specstream.d.mts",
+        "default": "./dist/providers/specstream.mjs"
+      },
+      "import": {
+        "types": "./dist/providers/specstream.d.mts",
+        "default": "./dist/providers/specstream.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/specstream.d.cts",
+        "default": "./dist/providers/specstream.cjs"
+      },
+      "default": "./dist/providers/specstream.mjs"
+    },
     "./providers/desearch": {
       "react-native": {
         "types": "./dist/providers/desearch.d.mts",
