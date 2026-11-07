@@ -201,16 +201,19 @@ describe('SessionList helpers', () => {
     expect(allPinned(pinned)).toEqual({ id: SESSION_PINNED_GROUP_ID, label: 'Pinned' })
   })
 
-  it('keeps pinned sessions in their dedicated section in agent mode', () => {
+  it('keeps pinned sessions inside their agent group', () => {
     const groupSession = createSessionDisplayGroupResolver({
       agentById: new Map([['agent-1', { id: 'agent-1', name: 'Alpha agent' }]]),
       labels: SESSION_GROUP_LABELS,
       mode: 'agent'
     })
 
+    expect(groupSession(createSession({ agentId: 'agent-1', pinned: true }))).toEqual(
+      groupSession(createSession({ agentId: 'agent-1' }))
+    )
     expect(groupSession(createSession({ agentId: 'agent-1', pinned: true }))).toEqual({
-      id: SESSION_PINNED_GROUP_ID,
-      label: 'Pinned'
+      id: 'session:agent:agent-1',
+      label: 'Alpha agent'
     })
   })
 

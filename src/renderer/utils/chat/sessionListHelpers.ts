@@ -298,7 +298,7 @@ export function createSessionDisplayGroupResolver<T extends SessionListItem>({
 
   if (mode === 'agent') {
     return withSessionGroupIdPrefix(
-      composeResourceListGroupResolvers(pinnedResolver, (session) => {
+      (session) => {
         const agentId = session.agentId
         if (!agentId) {
           return { id: 'agent:unknown', label: labels.agent.unknown }
@@ -308,7 +308,7 @@ export function createSessionDisplayGroupResolver<T extends SessionListItem>({
         return agent
           ? { id: `agent:${agent.id}`, label: agent.name }
           : { id: 'agent:unknown', label: labels.agent.unknown }
-      })
+      }
     )
   }
 
