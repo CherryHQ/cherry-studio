@@ -124,9 +124,12 @@ it.skipIf(process.platform !== 'win32').each(['direct', 'shared', 'detached'] as
     const paths = getRunPaths(directory)
     ensureRunDirectories(paths)
     const batch = join(paths.profiles, 'launch_claude-code_fixture.bat')
+    const cursorReady = join(paths.private, 'console-cursor-ready')
     writeFileSync(
       batch,
-      '@echo off\r\necho NATIVE_CONSOLE_READY\r\nset /p typed=Input:\r\necho INPUT=%typed%\r\npause\r\n'
+      '@echo off\r\necho NATIVE_CONSOLE_READY\r\n' +
+        `powershell -NoProfile -NonInteractive -Command "$ErrorActionPreference='Stop'; $row=[Console]::CursorTop; [Console]::WriteLine(); [Console]::WriteLine('NATIVE_FOOTER_BELOW_CURSOR'); [Console]::SetCursorPosition(0,$row); [IO.File]::WriteAllText('${cursorReady.replaceAll("'", "''")}', 'ready')"\r\n` +
+        'set /p typed=Input:\r\necho INPUT=%typed%\r\npause\r\n'
     )
     const identityPath = join(paths.private, 'console-identity.json')
     const errors: unknown[] = []
@@ -166,9 +169,13 @@ it.skipIf(process.platform !== 'win32').each(['direct', 'shared', 'detached'] as
         )
       await expect.poll(() => listWindowsCodeTerminals(paths).length, { timeout: 15_000 }).toBe(1)
       const terminal = listWindowsCodeTerminals(paths)[0]
+      await expect.poll(() => existsSync(cursorReady), { timeout: 15_000 }).toBe(true)
       await expect
         .poll(() => windowsTerminalText(paths, terminal), { timeout: 15_000 })
         .toContain('NATIVE_CONSOLE_READY')
+      await expect
+        .poll(() => windowsTerminalText(paths, terminal), { timeout: 15_000 })
+        .toContain('NATIVE_FOOTER_BELOW_CURSOR')
       expect(() => windowsTerminalText(paths, { ...terminal, startedAt: '0' }, 'unowned input')).toThrow()
       windowsTerminalText(paths, terminal, 'verified native input')
       await expect

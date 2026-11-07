@@ -134,8 +134,9 @@ task names and outcomes.
 `native-settings` selects the native notification and startup/tray cases for focused
 desktop verification. The complete Settings phase allows 40 minutes on hosted runners.
 `html-artifact-preview` selects the HTML preview and external-browser cleanup case.
-`native-recovery` groups console permissions, external HTML preview cleanup and backup-restore relaunch
-in one prepared runner per platform, preserving their normal manifest order.
+`native-recovery` groups console permissions, external HTML preview cleanup, notifications,
+startup/tray behavior and backup-restore relaunch in one prepared runner per platform,
+preserving their normal manifest and phase order.
 
 `run.json` schema version 2 records both cases and phases. The parent marks a phase running before starting Playwright; the reporter records test results and executor errors; a nonzero child exit also fails the phase.
 A phase left pending/running becomes blocked during finalization. Passing cases cannot hide a failed or unfinished phase. Missing platform reports block the aggregate gate.

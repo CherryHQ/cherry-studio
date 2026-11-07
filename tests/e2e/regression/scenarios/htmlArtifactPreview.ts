@@ -11,7 +11,10 @@ import { createUniqueModelId } from '@shared/data/types/model'
 import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
+import { setOwnedMainWindowFocus } from '../../../../scripts/e2e/regression/debugBridge'
+import { externalAppRequest } from '../../../../scripts/e2e/regression/externalAppDriver'
 import { observeExternalResource, registerExternalResource } from '../../../../scripts/e2e/regression/externalResources'
+import { createRedactor } from '../../../../scripts/e2e/regression/redaction'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { sendChatMarker } from '../helpers/chat'
@@ -206,28 +209,62 @@ window.addEventListener('pageshow', () => navigator.sendBeacon('http://127.0.0.1
     await artifact.hover()
     const browserProbePath = join(app.paths.root, 'browser-handler.html')
     await writeFile(browserProbePath, '')
-    const browserResource = registerExternalResource(app.paths, app.record.platform, {
-      kind: 'browser',
+    const browserTarget = {
+      kind: 'browser' as const,
       path: browserProbePath,
       title: externalTitle
-    })
+    }
+    const browserResource = registerExternalResource(app.paths, app.record.platform, browserTarget)
     await artifact.getByRole('button', { name: 'Open in external browser', exact: true }).click()
-    await expect
-      .poll(() => externalLoads.filter(({ userAgent }) => !userAgent.includes('Electron/')), {
-        timeout: 30_000,
-        message: 'System browser must load the same HTML as a visible page'
+    try {
+      await expect
+        .poll(() => externalLoads.filter(({ userAgent }) => !userAgent.includes('Electron/')), {
+          timeout: 30_000,
+          message: 'System browser must load the same HTML as a visible page'
+        })
+        .toContainEqual(expect.objectContaining({ content: main, visibility: 'visible' }))
+    } catch (error) {
+      let browserSnapshot: ReturnType<typeof externalAppRequest> | { unavailable: true }
+      try {
+        browserSnapshot = externalAppRequest(app.record.platform, {
+          action: 'inspect',
+          target: browserTarget,
+          root: app.paths.root
+        })
+      } catch {
+        browserSnapshot = { unavailable: true }
+      }
+      await testInfo.attach('MP-41 external browser failure state', {
+        body: JSON.stringify(
+          createRedactor(getSensitiveConfigValues())({
+            browserSnapshot,
+            loads: externalLoads.map(({ userAgent, content, visibility }) => ({
+              userAgent,
+              contentMatchesFixture: content === main,
+              visibility
+            }))
+          })
+        ),
+        contentType: 'application/json'
       })
-      .toContainEqual(expect.objectContaining({ content: main, visibility: 'visible' }))
+      throw error
+    }
     observeExternalResource(app.paths, browserResource)
     await testInfo.attach('MP-41 real external browser load', {
       body: Buffer.from(JSON.stringify(externalLoads.filter(({ userAgent }) => !userAgent.includes('Electron/')))),
       contentType: 'application/json'
     })
-    await page.bringToFront()
-    await artifact.hover()
-    await artifact.getByRole('button', { name: 'Code', exact: true }).click()
     const sourceLines = artifact.locator('.line-content')
     try {
+      await page.bringToFront()
+      await setOwnedMainWindowFocus(app.record, true)
+      await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(true)
+      await artifact.hover()
+      await artifact.getByRole('button', { name: 'Code', exact: true }).click()
+      await expect(artifact.getByRole('button', { name: 'Preview', exact: true })).toHaveAttribute(
+        'aria-pressed',
+        'true'
+      )
       await expect(sourceLines).toHaveCount(html.split('\n').length)
       expect((await sourceLines.allTextContents()).join('\n')).toBe(html)
     } catch (error) {

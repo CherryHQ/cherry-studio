@@ -1,15 +1,17 @@
 import { execFile, execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { basename, dirname, extname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 
+import { getSensitiveConfigValues } from './config'
 import { cleanupExternalResources, observeExternalResource, registerExternalResource } from './externalResources'
 import { readAppRecord, readOwnedRecord } from './lifecycle'
 import { macRuntimeExecutable } from './macRuntime'
 import type { RunPaths } from './paths'
 import { resolveAllowedPath } from './paths'
 import { assertOwnedProcess, findCdpPid, findListeningPid, isDescendant, MAIN_INSPECTOR_PORT } from './process'
+import { createRedactor } from './redaction'
 import type { Platform } from './types'
 
 const ALLOWED_KEYS = new Set(['Alt', 'Control', 'Enter', 'Escape', 'Meta', 'Shift', 'Space', 'a', 'c', 'e', 'k', 's'])
@@ -649,8 +651,39 @@ export async function dismissNativeMessageBox(
     // Legacy Win32 buttons can be exposed as UIA panes instead of buttons.
     `$buttonCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Button"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, '${escapePowerShell(buttonName)}'))`,
     '$button = $null',
+    '$previousState = ""; $stateCount = 0',
+    'function Write-NativeState($state, $force = $false) {',
+    '  $json = $state | ConvertTo-Json -Depth 8 -Compress',
+    '  if (($json -ne $script:previousState -and $script:stateCount -lt 12) -or $force) {',
+    '    $script:previousState = $json; $script:stateCount++',
+    '    $state.at = [DateTime]::UtcNow.ToString("o")',
+    '    [Console]::Out.WriteLine(($state | ConvertTo-Json -Depth 8 -Compress))',
+    '  }',
+    '}',
+    'function Read-NativeMetadata($element) {',
+    '  $current = $element.Current',
+    '  $name = [string]$current.Name; $class = [string]$current.ClassName',
+    `  if ($class -ne "#32770" -and $class -ne "Button" -and $name -ne '${escapePowerShell(title)}' -and $name -notin @('Cherry Studio', 'CherryStudio')) { $name = '[other window title]' }`,
+    `  return @{ class = $class; name = $name; controlId = [string]$current.AutomationId; enabled = $current.IsEnabled; titleMatches = $current.Name -eq '${escapePowerShell(title)}'; buttonMatches = $current.ClassName -eq 'Button' -and $current.Name -eq '${escapePowerShell(buttonName)}' }`,
+    '}',
     'do {',
     '  $windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
+    '  $windowStates = @(); $dialogStates = @()',
+    '  try {',
+    '  foreach ($window in @($windows | Select-Object -First 6)) {',
+    '    $windowStates += Read-NativeMetadata $window',
+    '    $nativeDialogs = @($window.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "#32770")))',
+    '    if ($window.Current.ClassName -eq "#32770") { $nativeDialogs += $window }',
+    `    foreach ($dialog in @($nativeDialogs | Where-Object { $_.Current.ProcessId -eq ${electronPid} } | Select-Object -First 6)) {`,
+    '      if ($dialogStates.Count -ge 6) { break }',
+    '      $details = Read-NativeMetadata $dialog',
+    '      $buttons = $dialog.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Button"))',
+    `      $details.buttons = @($buttons | Where-Object { $_.Current.ProcessId -eq ${electronPid} } | Select-Object -First 12 | ForEach-Object { Read-NativeMetadata $_ })`,
+    '      $dialogStates += $details',
+    '    }',
+    '  }',
+    '  Write-NativeState @{ stage = "searching"; windows = $windowStates; dialogs = $dialogStates }',
+    '  } catch { Write-NativeState @{ stage = "snapshot-error"; errorType = $_.Exception.GetType().FullName; hresult = $_.Exception.HResult } }',
     `  $dialogs = @($windows | Where-Object { $_.Current.ClassName -eq "#32770" -and $_.Current.Name -eq '${escapePowerShell(title)}' })`,
     '  foreach ($window in $windows) { $dialogs += @($window.FindAll([System.Windows.Automation.TreeScope]::Descendants, $dialogCondition)) }',
     `  foreach ($dialog in @($dialogs | Where-Object { $_.Current.ProcessId -eq ${electronPid} })) {`,
@@ -660,18 +693,63 @@ export async function dismissNativeMessageBox(
     '  }',
     '  if (-not $button) { Start-Sleep -Milliseconds 200 }',
     '} while (-not $button -and [DateTime]::UtcNow -lt $deadline)',
-    'if (-not $button) { throw "Native message box confirmation button was not found" }',
+    'Write-NativeState @{ stage = "search-final"; windows = $windowStates; dialogs = $dialogStates } $true',
+    'if (-not $button) { Write-NativeState @{ stage = "not-found" } $true; throw "Native message box confirmation button was not found" }',
+    'try { Write-NativeState @{ stage = "matched"; button = (Read-NativeMetadata $button) } $true } catch { Write-NativeState @{ stage = "matched"; snapshotErrorType = $_.Exception.GetType().FullName; hresult = $_.Exception.HResult } $true }',
     '$invoke = $null',
+    'try {',
+    'Write-NativeState @{ stage = "invoking" } $true',
     'if ($button.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern, [ref]$invoke)) { $invoke.Invoke() }',
     'elseif ($button.Current.NativeWindowHandle) { $null = [OwnedMessageBox]::SendMessage([IntPtr]$button.Current.NativeWindowHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero) }',
     'else { throw "Owned native confirmation button cannot be invoked" }',
+    'Write-NativeState @{ stage = "invoked" } $true',
+    '} catch { Write-NativeState @{ stage = "invoke-error"; errorType = $_.Exception.GetType().FullName; hresult = $_.Exception.HResult } $true; throw }',
     'Start-Sleep -Milliseconds 500'
   ].join('\n')
-  return runAsync(
-    'powershell.exe',
-    ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')],
-    90_000
-  )
+  const startedAt = new Date().toISOString()
+  return new Promise((resolve, reject) => {
+    execFile(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')],
+      { timeout: 90_000, windowsHide: true, maxBuffer: 512 * 1024 },
+      (error, stdout, stderr) => {
+        try {
+          const events = (stdout ?? '')
+            .toString()
+            .split(/\r?\n/)
+            .filter(Boolean)
+            .map((line) => JSON.parse(line))
+          const state = createRedactor(getSensitiveConfigValues())({
+            startedAt,
+            electronPid,
+            events,
+            execution: {
+              failed: Boolean(error),
+              code: error?.code ?? null,
+              killed: error?.killed ?? false,
+              stderr: (stderr ?? '').toString().replace(/^.*(?:-EncodedCommand|CommandLine).*$/gim, '[command omitted]')
+            }
+          })
+          writeFileSync(
+            join(paths.logs, 'native-message-box.json'),
+            JSON.stringify(state, (key, value) =>
+              typeof value === 'string' ? value.slice(0, key === 'stderr' ? 2_048 : 160) : value
+            ),
+            { mode: 0o600 }
+          )
+        } catch (diagnosticError) {
+          reject(
+            error
+              ? new AggregateError([error, diagnosticError], 'Native dialog and diagnostic capture failed')
+              : diagnosticError
+          )
+          return
+        }
+        if (error) reject(error)
+        else resolve()
+      }
+    )
+  })
 }
 
 export function openExternalText(platform: Platform, paths: RunPaths, candidatePath: string): string {

@@ -31,6 +31,7 @@ import {
   waitForMacProcessGroupExit,
   waitForPortRelease
 } from './process'
+import { createRedactor } from './redaction'
 import type { Platform, RunMode, TestProfile } from './types'
 
 export class AppExitedBeforeReadyError extends Error {
@@ -350,7 +351,24 @@ export function readAppRecord(paths: RunPaths): AppRecord {
 
 export async function stopOwnedApp(paths: RunPaths): Promise<void> {
   if (!existsSync(paths.appRecord)) return
-  await stopOwnedRecord(readOwnedRecord(paths))
+  const record = readOwnedRecord(paths)
+  try {
+    await stopOwnedRecord(record)
+  } catch (error) {
+    const diagnostic = createRedactor([])({
+      code: (error as NodeJS.ErrnoException)?.code ?? null,
+      message: error instanceof Error ? error.message : String(error)
+    })
+    try {
+      appendFileSync(
+        record.logPath,
+        `[${new Date().toISOString()}] lifecycle=stop-failed runner=${record.runnerPid} error=${JSON.stringify(diagnostic)}\n`
+      )
+    } catch {
+      // Diagnostic I/O must not replace the original stop failure.
+    }
+    throw error
+  }
 }
 
 function logLifecycleStage(record: LaunchRecord, stage: string): void {
@@ -360,14 +378,14 @@ function logLifecycleStage(record: LaunchRecord, stage: string): void {
   )
 }
 
-function windowsProcessExited(pid: number): boolean {
+function processExited(pid: number): boolean {
   try {
     process.kill(pid, 0)
     return false
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code
     if (code === 'ESRCH') return true
-    throw new Error(`Cannot establish Windows process ${pid} liveness: ${code ?? 'unknown error'}`)
+    throw new Error(`Cannot establish process ${pid} liveness: ${code ?? 'unknown error'}`)
   }
 }
 
@@ -407,7 +425,20 @@ async function stopOwnedRecord(record: LaunchRecord): Promise<void> {
       await waitForMacProcessGroupExit(record.runnerPid)
     }
     logLifecycleStage(record, 'group-termination-start')
-    const verifiedMembers = terminateOwnedMacProcessGroup(record)
+    let verifiedMembers: ReturnType<typeof terminateOwnedMacProcessGroup>
+    try {
+      verifiedMembers = terminateOwnedMacProcessGroup(record)
+    } catch (error) {
+      try {
+        if (!processExited(record.runnerPid)) throw error
+      } catch {
+        throw error
+      }
+      logLifecycleStage(record, 'unverified-group-drain-start')
+      if (!(await waitForMacProcessGroupExit(record.runnerPid))) throw error
+      logLifecycleStage(record, 'unverified-group-drain-finished')
+      verifiedMembers = terminateOwnedMacProcessGroup(record)
+    }
     if (!(await waitForMacProcessGroupExit(record.runnerPid))) {
       terminateOwnedMacProcessGroup(record, 'SIGKILL', verifiedMembers)
       if (!(await waitForMacProcessGroupExit(record.runnerPid))) {
@@ -438,7 +469,7 @@ async function stopOwnedRecord(record: LaunchRecord): Promise<void> {
   ]
   const verifiedPids = new Set<number>()
   for (const pid of ownedPids) {
-    if (windowsProcessExited(pid)) continue
+    if (processExited(pid)) continue
     try {
       if (pid === currentCdpPid) {
         assertOwnedProcess(record, pid, 'electron')
@@ -449,7 +480,7 @@ async function stopOwnedRecord(record: LaunchRecord): Promise<void> {
       }
     } catch (error) {
       const metadata = windowsIdentityDiagnostic(pid)
-      const exited = windowsProcessExited(pid)
+      const exited = processExited(pid)
       appendFileSync(
         record.logPath,
         `[cleanup] Identity check failed for PID ${pid}; exited=${exited}; metadata=${metadata}\n`
@@ -461,7 +492,7 @@ async function stopOwnedRecord(record: LaunchRecord): Promise<void> {
   }
   const terminationPids = [record.runnerPid, ...verifiedPids].filter((pid) => verifiedPids.has(pid))
   for (const pid of new Set(terminationPids)) {
-    if (windowsProcessExited(pid)) {
+    if (processExited(pid)) {
       verifiedPids.delete(pid)
       continue
     }
@@ -472,7 +503,7 @@ async function stopOwnedRecord(record: LaunchRecord): Promise<void> {
     }
     await waitForExit(pid)
   }
-  const remaining = [...verifiedPids].filter((pid) => !windowsProcessExited(pid))
+  const remaining = [...verifiedPids].filter((pid) => !processExited(pid))
   if (remaining.length > 0) {
     throw new Error(`Owned Cherry Studio processes did not exit after SIGTERM: ${remaining.join(', ')}`)
   }

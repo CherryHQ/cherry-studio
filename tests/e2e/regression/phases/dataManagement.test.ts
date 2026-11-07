@@ -292,6 +292,7 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
       topicId
     )
 
+  let primaryFailure: unknown
   try {
     await openSettingsSection(page, 'Data')
     await page
@@ -359,6 +360,7 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
 
     const confirmation = await confirmRestore('MP-116-valid.zip')
     await attachScreenshot('MP-116 overwrite confirmation')
+    const nativeStartedAt = Date.now()
     const closed = page.waitForEvent('close', { timeout: 30_000 })
     // A development build ends the restore with a blocking native dialog before it exits,
     // so the box has to be acknowledged from the desktop while the click is still in flight.
@@ -366,8 +368,48 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
       app.record.mode === 'branch'
         ? dismissNativeMessageBox(app.record.platform, app.paths, 'Manual Restart Required')
         : undefined
-    await confirmation.getByRole('button', { name: 'Confirm', exact: true }).click()
-    await Promise.all([closed, acknowledged])
+    if (app.record.platform === 'windows') {
+      const pending = Promise.allSettled([closed, acknowledged])
+      const failures: unknown[] = []
+      await confirmation
+        .getByRole('button', { name: 'Confirm', exact: true })
+        .click()
+        .catch((error) => failures.push(error))
+      const outcomes = await pending
+      for (const outcome of outcomes) {
+        if (outcome.status === 'rejected') failures.push(outcome.reason)
+      }
+      await testInfo
+        .attach('MP-116 restore close and native acknowledgement', {
+          body: JSON.stringify(
+            outcomes.map((outcome, index) => ({
+              operation: index === 0 ? 'page-close' : 'native-acknowledgement',
+              status: outcome.status,
+              errorName: outcome.status === 'rejected' && outcome.reason instanceof Error ? outcome.reason.name : null
+            }))
+          ),
+          contentType: 'application/json'
+        })
+        .catch((error) => failures.push(error))
+      if (app.record.mode === 'branch') {
+        const diagnostic = await readFile(join(app.paths.logs, 'native-message-box.json'), 'utf8')
+          .then((contents) => JSON.parse(contents))
+          .catch(() => null)
+        await testInfo
+          .attach('MP-116 native dialog state', {
+            body: JSON.stringify(
+              diagnostic && Date.parse(diagnostic.startedAt) >= nativeStartedAt ? diagnostic : { unavailable: true }
+            ),
+            contentType: 'application/json'
+          })
+          .catch((error) => failures.push(error))
+      }
+      if (failures.length)
+        throw new AggregateError(failures, 'Restore confirmation failed; click, close and native errors retained')
+    } else {
+      await confirmation.getByRole('button', { name: 'Confirm', exact: true }).click()
+      await Promise.all([closed, acknowledged])
+    }
     if (app.record.mode === 'branch') {
       const { runnerPid: runner, platform } = app.record
       const promotion = app.restart().then(
@@ -410,25 +452,54 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
     await expect(restoredManager.getByRole('row').filter({ hasText: 'MP-116-valid.zip' })).toBeVisible()
     await attachScreenshot('MP-116 manager lists the restored archive')
     await page.keyboard.press('Escape')
+  } catch (error) {
+    primaryFailure = error
+    throw error
   } finally {
     if (!page.isClosed()) {
-      await page.evaluate(
-        async ({ assistantId, originalPreferences }) => {
-          await window.api.preference.setMultiple({
-            'data.backup.local.dir': originalPreferences.dir,
-            'data.backup.local.auto_sync': originalPreferences.autoSync,
-            'data.backup.local.skip_backup_file': originalPreferences.slim,
-            'topic.naming.enabled': originalPreferences.naming
+      let cleanupTimer: ReturnType<typeof setTimeout> | undefined
+      try {
+        const cleanup = page.evaluate(
+          async ({ assistantId, originalPreferences }) => {
+            await window.api.preference.setMultiple({
+              'data.backup.local.dir': originalPreferences.dir,
+              'data.backup.local.auto_sync': originalPreferences.autoSync,
+              'data.backup.local.skip_backup_file': originalPreferences.slim,
+              'topic.naming.enabled': originalPreferences.naming
+            })
+            const permanentlyDeletedAssistant2 = (await window.api.ipcApi.request(
+              'trash.assistant.delete_permanently',
+              {
+                assistantId,
+                deleteTopics: true
+              }
+            )) as IpcResult<{ deleted: boolean }>
+            if (!permanentlyDeletedAssistant2.ok || !permanentlyDeletedAssistant2.data.deleted)
+              throw new Error('cleanup left the case assistant in the trash')
+          },
+          { assistantId, originalPreferences }
+        )
+        if (app.record.platform === 'windows') {
+          await Promise.race([
+            cleanup,
+            new Promise<never>((_resolve, reject) => {
+              cleanupTimer = setTimeout(
+                () => reject(new Error('MP-116 cleanup did not complete within 10 seconds')),
+                10_000
+              )
+            })
+          ])
+        } else await cleanup
+      } catch (cleanupError) {
+        if (primaryFailure !== undefined) {
+          throw new AggregateError([primaryFailure, cleanupError], 'MP-116 failed and cleanup also failed', {
+            cause: primaryFailure
           })
-          const permanentlyDeletedAssistant2 = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
-            assistantId,
-            deleteTopics: true
-          })) as IpcResult<{ deleted: boolean }>
-          if (!permanentlyDeletedAssistant2.ok || !permanentlyDeletedAssistant2.data.deleted)
-            throw new Error('cleanup left the case assistant in the trash')
-        },
-        { assistantId, originalPreferences }
-      )
+        }
+        throw cleanupError
+      } finally {
+        clearTimeout(cleanupTimer)
+      }
     }
   }
 })

@@ -1,5 +1,5 @@
 import { once } from 'node:events'
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -326,6 +326,44 @@ it.each([
   const [command, args] = execFile.mock.calls.at(-1)!
   expect(command).toBe(platform === 'macos' ? 'osascript' : 'powershell.exe')
   if (platform === 'macos') expect(args.slice(-3)).toEqual(['Manual Restart Required', '42001', 'OK'])
+  if (platform === 'windows') {
+    const nativeError = Object.assign(new Error('Native invoke failed'), { code: 1, cmd: 'private command' })
+    execFile.mockImplementation((_file, _args, _options, callback) =>
+      callback(
+        nativeError,
+        JSON.stringify({ stage: 'matched', button: { name: 'Bearer diagnostic-secret', controlId: '1' } }) +
+          '\n' +
+          JSON.stringify({ stage: 'invoke-error', errorType: 'InvalidOperationException' }) +
+          '\n',
+        'PowerShell parse error: Bearer stderr-secret\n-EncodedCommand private-encoded-command'
+      )
+    )
+    await expect(automation.dismissNativeMessageBox(platform, paths, 'Manual Restart Required')).rejects.toBe(
+      nativeError
+    )
+    const diagnostic = readFileSync(join(paths.logs, 'native-message-box.json'), 'utf8')
+    expect(JSON.parse(diagnostic)).toMatchObject({
+      electronPid: 42001,
+      events: [
+        { stage: 'matched', button: { name: 'Bearer [REDACTED]', controlId: '1' } },
+        { stage: 'invoke-error', errorType: 'InvalidOperationException' }
+      ],
+      execution: { failed: true, code: 1, stderr: 'PowerShell parse error: Bearer [REDACTED]\n[command omitted]' }
+    })
+    expect(diagnostic).not.toContain('diagnostic-secret')
+    expect(diagnostic).not.toContain('private command')
+    expect(diagnostic).not.toContain('stderr-secret')
+    expect(diagnostic).not.toContain('private-encoded-command')
+
+    rmSync(join(paths.logs, 'native-message-box.json'))
+    mkdirSync(join(paths.logs, 'native-message-box.json'))
+    const failedCapture = await automation
+      .dismissNativeMessageBox(platform, paths, 'Manual Restart Required')
+      .catch((error) => error)
+    expect(failedCapture).toBeInstanceOf(AggregateError)
+    expect(failedCapture.errors[0]).toBe(nativeError)
+    expect(failedCapture.errors[1]).toMatchObject({ code: 'EISDIR' })
+  }
   execFile.mockClear()
   execFileSync.mockImplementation((file, args) => {
     if (file === 'lsof') return beforeReady && args.includes('-iTCP:9222') ? '' : '42001'

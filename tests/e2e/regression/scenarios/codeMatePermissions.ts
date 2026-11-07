@@ -139,6 +139,22 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
       throw error
     }
   }
+  const macTerminalInput = (text: string, keyCode?: number) =>
+    appleScript(
+      `on run argv
+    tell application "Terminal"
+      set index of window id (item 1 of argv as integer) to 1
+      activate
+    end tell
+    tell application "System Events"
+      tell process "Terminal"
+        keystroke (item 2 of argv)
+        if (item 3 of argv) is not "" then key code (item 3 of argv as integer)
+      end tell
+    end tell
+  end run`,
+      [terminalWindow!, text, keyCode === undefined ? '' : String(keyCode)]
+    )
   const terminalInput = (text: string, keyCode = 36) =>
     app.record.platform === 'windows'
       ? windowsTerminalText(
@@ -147,21 +163,15 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
           text,
           ({ 36: 13, 53: 27, 125: 40 } as Record<number, number>)[keyCode]
         )
-      : appleScript(
-          `on run argv
-    tell application "Terminal"
-      set index of window id (item 1 of argv as integer) to 1
-      activate
-    end tell
-    tell application "System Events"
-      tell process "Terminal"
-        keystroke (item 2 of argv)
-        key code (item 3 of argv as integer)
-      end tell
-    end tell
-  end run`,
-          [terminalWindow!, text, String(keyCode)]
-        )
+      : macTerminalInput(text, keyCode)
+  const submitPrompt = async (text: string) => {
+    if (app.record.platform === 'windows') terminalInput(text)
+    else {
+      macTerminalInput(text)
+      await expect.poll(() => terminalText().replace(/\s+/g, ' ')).toContain(text.replace(/\s+/g, ' '))
+      terminalInput('')
+    }
+  }
   const codeView = page.locator('[data-ui~="code.view"]:visible').first()
   const providerCard = codeView
     .locator('[data-ui~="code.provider-card"]')
@@ -381,7 +391,7 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
     await writeFile(file, 'original\n')
     await launch()
     for (const marker of ['MP97-AUTO-FIRST', 'MP97-AUTO-SECOND']) {
-      terminalInput(
+      await submitPrompt(
         `Use the Edit tool to replace the entire content of mp97-permissions.txt with ${marker}. Do not use Bash.`
       )
       await expect.poll(() => readFile(file, 'utf8'), { timeout: 60_000 }).toContain(marker)
@@ -397,7 +407,7 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
     await launch()
     for (const marker of ['MP97-ASK-FIRST', 'MP97-ASK-SECOND']) {
       const previous = await readFile(file, 'utf8')
-      terminalInput(
+      await submitPrompt(
         `Use the Edit tool to replace the entire content of mp97-permissions.txt with ${marker}. Do not use Bash.`
       )
       await expect

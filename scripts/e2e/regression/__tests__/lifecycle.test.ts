@@ -50,6 +50,71 @@ describe('isolated profile environment', () => {
 })
 
 describe('owned application lifecycle', () => {
+  it.each(['drained', 'stuck', 'alive', 'EPERM', 'UNKNOWN'])(
+    'only waits for an unverified macOS group after the runner has exited: %s',
+    async (outcome) => {
+      vi.useFakeTimers()
+      const directory = mkdtempSync(join(tmpdir(), 'cherry-draining-runner-'))
+      const paths = getRunPaths(directory)
+      ensureRunDirectories(paths)
+      const runnerPid = 42_000
+      writeFileSync(
+        paths.appRecord,
+        JSON.stringify({
+          schemaVersion: 1,
+          ownership: 'regression-driver',
+          policy: 'ephemeral',
+          mode: 'branch',
+          platform: 'macos',
+          targetRoot: '/owned/app',
+          runnerPid,
+          cdpPort: 9222,
+          logPath: join(paths.logs, 'electron.log')
+        })
+      )
+      let workerAlive = true
+      let probes = 0
+      const signals: number[] = []
+      const releasedPorts = new Set<string>()
+      vi.spyOn(process, 'kill').mockImplementation((pid, signal) => {
+        if (signal !== 0) {
+          signals.push(pid)
+          return true
+        }
+        const code = probes++ === 0 || outcome === 'drained' || outcome === 'stuck' ? 'ESRCH' : outcome
+        if (code === 'alive') return true
+        throw Object.assign(new Error('Runner liveness'), { code })
+      })
+      execFileSyncMock.mockImplementation((file: string, args: string[]) => {
+        if (file === 'lsof') {
+          releasedPorts.add(args[1])
+          return ''
+        }
+        if (file === 'ps' && args.includes('lstart=')) return 'Sun Nov 8 23:29:04 2026'
+        if (file === 'ps' && args.includes('pid=,pgid=,stat=,command='))
+          return workerAlive ? `42001 ${runnerPid} S /usr/bin/transient-worker` : ''
+        if (file === 'ps' && args.includes('pgid=,stat=')) return workerAlive ? `${runnerPid} S` : ''
+        throw new Error('Unexpected process query')
+      })
+      if (outcome === 'drained') setTimeout(() => (workerAlive = false), 250)
+      try {
+        const stopped = stopOwnedApp(paths)
+        const assertion =
+          outcome === 'drained'
+            ? expect(stopped).resolves.toBeUndefined()
+            : expect(stopped).rejects.toThrow('orphaned process group does not match the owned application')
+        await Promise.all([assertion, vi.runAllTimersAsync()])
+        expect(signals).toEqual([])
+        if (outcome === 'drained') {
+          expect(workerAlive).toBe(false)
+          expect(releasedPorts).toEqual(new Set(['-iTCP:9222', `-iTCP:${processUtils.MAIN_INSPECTOR_PORT}`]))
+        } else expect(workerAlive).toBe(true)
+      } finally {
+        rmSync(directory, { recursive: true, force: true })
+      }
+    }
+  )
+
   it.each(['ESRCH', 'EPERM', 'UNKNOWN', 'alive'])(
     'handles a Windows identity lookup race without terminating an unverified PID: %s',
     async (liveness) => {

@@ -119,7 +119,8 @@ public static class OwnedConsole {
       }
       BufferInfo info;
       if (!GetConsoleScreenBufferInfo(handle, out info)) throw new Win32Exception(Marshal.GetLastWin32Error());
-      int length = info.Size.X * (info.Cursor.Y + 1);
+      int rows = Math.Min(info.Size.Y, Math.Max(info.Cursor.Y, info.Window.Bottom) + 1);
+      int length = info.Size.X * rows;
       StringBuilder buffer = new StringBuilder(length);
       uint read;
       if (!Read(handle, buffer, (uint)length, new Point(), out read)) throw new Win32Exception(Marshal.GetLastWin32Error());
