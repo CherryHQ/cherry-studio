@@ -880,6 +880,7 @@
   "chat.input.web_search.route.client_fallback_active": "{{provider}} is unavailable, so the query is sent to {{fallbackProvider}}.",
   "chat.input.web_search.route.client_with_fallback": "Searches with {{provider}}. If unavailable, the query is automatically sent to {{fallbackProvider}}.",
   "chat.mcp.warning.gemini_web_search": "Gemini does not support using native web search tools and function calling simultaneously",
+  "chat.message.branches": "Switch branch",
   "chat.message.editing_current": "This message is being edited in the composer",
   "chat.message.flow.branches": "branches",
   "chat.message.flow.copy_topic.created": "Copied to a new conversation",
