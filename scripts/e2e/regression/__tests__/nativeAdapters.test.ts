@@ -134,6 +134,9 @@ it.skipIf(!['darwin', 'win32'].includes(process.platform)).each(dialogModes)(
         `
       const { app, BrowserWindow, dialog } = require('electron')
       const fs = require('node:fs')
+      require('node:readline').createInterface({ input: process.stdin }).on('line', line => {
+        if (line === 'quit') app.quit()
+      })
       app.setPath('userData', ${JSON.stringify(join(paths.profiles, 'native-dialog'))})
       app.commandLine.appendSwitch('remote-debugging-port', ${JSON.stringify(String(CDP_PORT))})
       app.whenReady().then(async () => {
@@ -156,7 +159,7 @@ it.skipIf(!['darwin', 'win32'].includes(process.platform)).each(dialogModes)(
       logHandle = openSync(join(paths.logs, 'fixture.log'), 'w')
       child = spawn(createRequire(import.meta.url)('electron') as string, [script], {
         env: environment,
-        stdio: ['ignore', logHandle, logHandle],
+        stdio: ['pipe', logHandle, logHandle],
         windowsHide: false
       })
       await expect.poll(() => existsSync(readyPath), { timeout: 30_000 }).toBe(true)
@@ -265,10 +268,15 @@ it.skipIf(!['darwin', 'win32'].includes(process.platform)).each(dialogModes)(
     } finally {
       if (child?.pid && child.exitCode === null && isAlive(child.pid)) {
         expect(processCommand(child.pid, nativePlatform), 'Native dialog fixture ownership changed').toContain(script)
-        if (nativePlatform === 'windows')
-          execFileSync('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore', timeout: 10_000 })
-        else child.kill('SIGTERM')
-        expect(await waitForExit(child.pid), 'Owned native dialog fixture did not exit').toBe(true)
+        child.stdin?.once('error', () => undefined)
+        child.stdin?.end('quit\n')
+        if (!(await waitForExit(child.pid, 5_000))) {
+          expect(processCommand(child.pid, nativePlatform), 'Native dialog fixture ownership changed').toContain(script)
+          if (nativePlatform === 'windows')
+            execFileSync('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore', timeout: 10_000 })
+          else child.kill('SIGTERM')
+          expect(await waitForExit(child.pid), 'Owned native dialog fixture did not exit').toBe(true)
+        }
       }
       if (logHandle !== undefined) closeSync(logHandle)
       rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 })

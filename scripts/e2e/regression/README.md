@@ -44,6 +44,8 @@ The explicit profile/restart operation prepares Windows connections by closing n
 Windows native dialogs can expose their controls as UIA panes. The adapters match
 native classes and control IDs inside owned windows, and verify address-bar focus
 with Win32 `GetGUIThreadInfo` before sending the directory-navigation key.
+Native dialog fixtures request normal Electron shutdown through their owned stdin
+pipe before falling back to verified process-tree termination.
 
 ## Execution contract
 
