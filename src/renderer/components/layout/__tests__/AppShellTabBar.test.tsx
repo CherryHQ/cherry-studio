@@ -6,9 +6,9 @@ import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type * as UI from '@cherrystudio/ui'
 import { useTabsContext } from '@renderer/hooks/tab'
 
-import type * as ShellTabBarActionsModule from '../ShellTabBarActions'
 import { TabsProvider } from '../TabsProvider'
 
 const mocks = vi.hoisted(() => ({
@@ -37,7 +37,8 @@ vi.mock('@renderer/services/resourceListRevealEvents', () => ({
   emitResourceListReveal: mocks.emitResourceListReveal
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
+vi.mock('@cherrystudio/ui', async (importOriginal) => ({
+  Kbd: (await importOriginal<typeof UI>()).Kbd,
   Button: ({ children, variant, ...props }: React.ComponentProps<'button'> & { variant?: string }) => {
     void variant
     return (
@@ -97,13 +98,9 @@ vi.mock('@renderer/utils/error', () => ({
   formatErrorMessage: (error: unknown) => (error instanceof Error ? error.message : String(error))
 }))
 
-vi.mock('../ShellTabBarActions', async () => {
-  const actual = await vi.importActual<typeof ShellTabBarActionsModule>('../ShellTabBarActions')
-  return {
-    ...actual,
-    ShellTabBarActions: () => <div data-testid="shell-tab-actions" />
-  }
-})
+vi.mock('../ShellTabBarActions', () => ({
+  ShellTabBarActions: () => <div data-testid="shell-tab-actions" />
+}))
 
 vi.mock('../../WindowControls', () => ({
   WindowControls: () => <div data-testid="window-controls" />
@@ -202,6 +199,14 @@ afterEach(() => {
 })
 
 describe('AppShellTabBar', () => {
+  it('does not mount a separate notification entry in the focused settings tab bar', () => {
+    renderTabBar({
+      tabs: [createTab('settings', { url: '/settings/notifications' })],
+      activeTabId: 'settings',
+      isFocusedTab: true
+    })
+    expect(screen.queryByRole('button', { name: 'Notification center' })).not.toBeInTheDocument()
+  })
   it('keeps the Windows title bar at least as tall as the native overlay when zoomed out', () => {
     mocks.platformState.isWin = true
     renderTabBar({ tabs: [createTab('home')], activeTabId: 'home' })
@@ -236,6 +241,26 @@ describe('AppShellTabBar', () => {
 
     return closeTab
   }
+
+  it('shows supplied hints on pinned and normal tabs without changing their accessible names', () => {
+    renderTabBar({
+      tabs: [createTab('p', { isPinned: true }), createTab('a')],
+      shortcutHints: new Map([
+        ['p', '⌃1'],
+        ['a', '⌃2']
+      ])
+    })
+    expect(within(screen.getByRole('button', { name: 'P' })).getByText('⌃1')).toBeVisible()
+    expect(within(screen.getByRole('button', { name: 'A' })).getByText('⌃2')).toBeVisible()
+  })
+
+  it('keeps the account avatar out of the tab bar when the sidebar is hidden', () => {
+    MockUseCacheUtils.setPersistCacheValue('ui.sidebar.width', 0)
+    renderTabBar({ tabs: [createTab('home')] })
+
+    expect(screen.queryByRole('button', { name: 'sidebar.account_menu' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('app-shell-tab-strip').querySelector('[data-tab-id="home"]')).toBeVisible()
+  })
 
   it('names an icon-only pinned tab after its title, not its emoji', () => {
     const emojiTab = createTab('emoji', { icon: 'emoji:🎉', isPinned: true, title: 'Emoji' })

@@ -5,6 +5,7 @@
  */
 
 import type { JobPayloadOf } from '@main/core/job/jobRegistry'
+import type { FileProcessingTaskId } from '@main/features/fileProcessing'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import type { PosixRelativeFilePath } from '@shared/utils/file'
 
@@ -32,7 +33,7 @@ declare module '@main/core/job/jobRegistry' {
     'knowledge.check-file-processing-result': {
       baseId: string
       itemId: string
-      fileProcessingJobId: string
+      fileProcessingTaskId: FileProcessingTaskId
       processedRelativePath: string
     }
     'knowledge.delete-subtree': {

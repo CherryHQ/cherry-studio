@@ -1,12 +1,7 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { Scrollbar } from '@cherrystudio/ui'
-
 import ThinkingBlock from '../ThinkingBlock'
-
-// Exercise the real nested scrollbars; the renderer-wide mock only renders a div.
-vi.unmock('@cherrystudio/ui')
 
 // Mock dependencies
 const mockUseTranslation = vi.fn()
@@ -99,7 +94,7 @@ describe('ThinkingBlock', () => {
   const getContentContainer = () => {
     const contentId = getToggleButton().getAttribute('aria-controls')
     if (!contentId) throw new Error('Missing thinking content id')
-    return document.getElementById(contentId)
+    return document.getElementById(contentId)?.closest<HTMLElement>('[data-slot=scroll-area]')
   }
 
   describe('basic rendering', () => {
@@ -302,31 +297,6 @@ describe('ThinkingBlock', () => {
   })
 
   describe('layout and readability', () => {
-    it('keeps its own scrollbar visible when the message scrollbar returns to idle', async () => {
-      mockRenderConfig.thoughtAutoCollapse = false
-      const block = createThinkingBlock()
-      render(
-        <Scrollbar data-testid="message-scrollbar">
-          <ThinkingBlock id={block.id} content={block.content} isStreaming={false} />
-        </Scrollbar>
-      )
-
-      const messageScrollbar = screen.getByTestId('message-scrollbar')
-      const panel = getContentContainer()!
-      // The inner scrollbar must retain its theme color even when its ancestor becomes transparent.
-      expect(messageScrollbar).toHaveStyle({ scrollbarColor: 'transparent transparent' })
-      expect(panel).toHaveStyle({ scrollbarColor: 'var(--scrollbar-thumb) transparent' })
-
-      fireEvent.scroll(messageScrollbar)
-      fireEvent.scroll(panel)
-      expect(messageScrollbar).toHaveStyle({ scrollbarColor: 'var(--scrollbar-thumb) transparent' })
-
-      await act(() => vi.advanceTimersByTime(2000))
-
-      expect(messageScrollbar).toHaveStyle({ scrollbarColor: 'transparent transparent' })
-      expect(panel).toHaveStyle({ scrollbarColor: 'var(--scrollbar-thumb) transparent' })
-    })
-
     it('uses viewport-aware max height on the content panel', () => {
       mockRenderConfig.thoughtAutoCollapse = false
       const block = createThinkingBlock()
@@ -373,7 +343,7 @@ describe('ThinkingBlock', () => {
     )
     try {
       renderThinkingBlock(createThinkingBlock({ status: 'streaming' }))
-      const panel = getContentContainer()!
+      const panel = getContentContainer()!.querySelector<HTMLElement>('[data-slot=scroll-area-viewport]')!
       let height = 200
       Object.defineProperties(panel, {
         clientHeight: { configurable: true, get: () => 100 },

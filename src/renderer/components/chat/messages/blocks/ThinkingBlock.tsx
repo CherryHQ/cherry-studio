@@ -2,7 +2,7 @@ import { type CSSProperties, memo, useEffect, useId, useMemo, useRef, useState }
 import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
 
-import { type MarkdownSource, Scrollbar } from '@cherrystudio/ui'
+import { type MarkdownSource, ScrollArea } from '@cherrystudio/ui'
 
 import { getDistanceToBottom, getRealBottom } from '../list/scrollGeometry'
 import { VERTICAL_SCROLL_OVERFLOW_TOLERANCE_PX } from '../list/ScrollOwnershipContext'
@@ -171,19 +171,22 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
           }
         />
       </div>
-      <Scrollbar
-        ref={contentRef}
-        id={contentId}
+      <ScrollArea
+        viewportProps={{
+          ref: contentRef,
+          id: contentId,
+          onScroll: () => {
+            const panel = contentRef.current
+            if (!panel || !isExpanded || !isStreaming) return
+            followingRef.current = getDistanceToBottom(panel) <= VERTICAL_SCROLL_OVERFLOW_TOLERANCE_PX
+          }
+        }}
+
         hidden={!isExpanded}
-        autoHideScrollbar={false}
-        className={THINKING_CONTENT_PANEL_CLASSNAME}
-        onScroll={() => {
-          const panel = contentRef.current
-          if (!panel || !isExpanded || !isStreaming) return
-          followingRef.current = getDistanceToBottom(panel) <= VERTICAL_SCROLL_OVERFLOW_TOLERANCE_PX
-        }}>
+        type="auto"
+        className={THINKING_CONTENT_PANEL_CLASSNAME}>
         <ThinkingBlockContent id={id} content={content} isStreaming={isStreaming} />
-      </Scrollbar>
+      </ScrollArea>
     </div>
   )
 }

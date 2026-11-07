@@ -1,5 +1,5 @@
 import { ArrowRight, ChevronLeft, ChevronRight, Pencil, X } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Checkbox, Textarea } from '@cherrystudio/ui'
@@ -52,6 +52,33 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
   const [selectedAnswers, setSelectedAnswers] = useState<AnswersByIndex>(restoredDraft.selectedAnswers)
   const [customAnswers, setCustomAnswers] = useState<Record<number, string>>(restoredDraft.customAnswers)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const [panelMaxHeight, setPanelMaxHeight] = useState<number | null>(null)
+
+  useLayoutEffect(() => {
+    const stage = rootRef.current?.closest<HTMLElement>('[data-composer-stage]')
+    if (!stage) return
+
+    const update = () => {
+      const height = stage.clientHeight
+      const styles = rootRef.current ? getComputedStyle(rootRef.current) : null
+      const chrome = styles
+        ? (Number.parseFloat(styles.paddingTop) || 0) + (Number.parseFloat(styles.paddingBottom) || 0)
+        : 0
+      const available = height - chrome
+      setPanelMaxHeight(available > 0 ? available : null)
+    }
+    update()
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', update)
+      return () => window.removeEventListener('resize', update)
+    }
+
+    const observer = new ResizeObserver(update)
+    observer.observe(stage)
+    return () => observer.disconnect()
+  }, [])
 
   useEffect(() => {
     writeAskUserQuestionDraftCache(request.approvalId, { selectedAnswers, customAnswers, currentIndex })
@@ -213,14 +240,18 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
 
   return (
     <div
+      ref={rootRef}
       data-composer-viewport-inset-target=""
       // pointer-events-auto: the composer dock stack is click-through; override
       // composers re-enable interaction on their own root.
       className={cn('pointer-events-auto relative z-2 flex flex-col px-4.5 pt-0 pb-4.5', className)}>
       <div
-        className="rounded-[17px] border-[0.5px] border-border p-2.5 backdrop-blur"
-        style={{ backgroundColor: 'color-mix(in srgb, var(--background) 88%, transparent)' }}>
-        <div className="flex items-center justify-between gap-3 px-1">
+        className="flex min-h-0 flex-col overflow-y-auto overscroll-contain rounded-[17px] border-[0.5px] border-border p-2.5 backdrop-blur"
+        style={{
+          backgroundColor: 'color-mix(in srgb, var(--background) 88%, transparent)',
+          maxHeight: panelMaxHeight ?? undefined
+        }}>
+        <div className="flex shrink-0 items-center justify-between gap-3 px-1">
           <h2 className="max-h-36 min-w-0 flex-1 overflow-y-auto whitespace-pre-wrap break-words font-semibold text-foreground text-sm leading-5">
             {currentQuestion.question}
           </h2>
@@ -266,7 +297,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
           </div>
         </div>
 
-        <div className="mt-2 flex flex-col gap-1.5">
+        <div className="mt-2 flex min-h-24 flex-auto flex-col gap-1.5 overflow-y-auto">
           {currentQuestion.options.map((option, optionIndex) => {
             const isSelected = selectedForCurrent.includes(option.label)
 
@@ -296,7 +327,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-semibold text-foreground text-sm leading-5">{option.label}</span>
                   {option.description && (
-                    <span className="block truncate font-medium text-muted-foreground text-xs leading-4">
+                    <span className="block whitespace-pre-wrap break-words font-medium text-muted-foreground text-xs leading-4">
                       {option.description}
                     </span>
                   )}
@@ -323,7 +354,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
           })}
         </div>
 
-        <div className="mt-2 flex items-end gap-2 border-border-subtle border-t pt-2">
+        <div className="mt-2 flex shrink-0 items-end gap-2 border-border-subtle border-t pt-2">
           <div className="flex min-w-0 flex-1 items-start gap-2 rounded-[12px] bg-muted/70 px-3 py-2">
             <Pencil className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
             <Textarea.Input

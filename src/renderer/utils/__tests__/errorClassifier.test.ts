@@ -53,6 +53,45 @@ function makeCopiedRetry(
 }
 
 describe('classifyError', () => {
+  it.each(['', 'Provider unavailable', '   ', null, 'undefined'])(
+    'uses response-stream guidance only for a marked unknown failure (%j)',
+    (message) => {
+      const error = makeError({ name: 'StreamError', message, streamStage: 'response-stream' })
+      expect(classifyError(error)).toEqual({
+        category: 'stream',
+        i18nKey: 'error.diagnosis.stream',
+        navTarget: null
+      })
+      expect(error.message).toBe(message)
+      expect(classifyError(makeError({ name: 'StreamError', message })).category).toBe('unknown')
+    }
+  )
+
+  it.each([
+    [401, 'auth'],
+    [429, 'rate_limit'],
+    [503, 'server']
+  ] as const)('keeps HTTP %i recovery ahead of the stream fallback', (statusCode, category) => {
+    expect(classifyError(makeError({ message: '', statusCode, streamStage: 'response-stream' })).category).toBe(
+      category
+    )
+    expect(
+      classifyError(
+        makeRetryError({
+          lastError: { name: 'AI_APICallError', statusCode },
+          errors: [{ name: 'AI_APICallError', statusCode }],
+          streamStage: 'response-stream'
+        })
+      ).category
+    ).toBe(category)
+  })
+
+  it('leaves app-owned guidance in control of a marked unknown error', () => {
+    const error = makeError({ i18nKey: 'missing_finish_reason', streamStage: 'response-stream' })
+    expect(classifyError(error).category).toBe('unknown')
+    expect(error.i18nKey).toBe('missing_finish_reason')
+  })
+
   const groqBody = `service_tier auto is not available for this org. You can check your plan at
 [Billing - Plans](https://console.groq.com/settings/billing/plans), and upgrade to access the
 required service tier.`
@@ -656,6 +695,19 @@ required service tier.`
   it('classifies an overloaded provider as server', () => {
     const result = classifyError(makeError({ statusCode: 529, message: 'Overloaded' }))
     expect(result.category).toBe('server')
+  })
+
+  it('classifies a provider content-filter rejection without a settings target', () => {
+    expect(
+      classifyError(
+        makeError({
+          statusCode: 400,
+          providerId: 'openai',
+          message: 'This request was blocked by our content filtering policy. Please revise your message.'
+        }),
+        'openai'
+      )
+    ).toEqual({ category: 'content', i18nKey: 'error.diagnosis.content', navTarget: null })
   })
 
   // Content filter

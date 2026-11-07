@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-06-channel-conversation-target.md
+2026-11-06-channel-conversation-target.md: 8d2064d1f2f7fede1a7a38a165d5158d57413090
+2026-11-06-channel-conversation-target.zh.md: 32836d0c6f2f02dc8a247bd34c1b898cc7ce4bee

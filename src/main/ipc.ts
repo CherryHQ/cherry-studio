@@ -4,11 +4,13 @@ import { dialog } from 'electron'
 
 import { loggerService } from '@logger'
 import { handleGuarded } from '@main/core/security/guardedIpc'
+import { runManualBackup } from '@main/services/backupNotifications'
 import {
   listDirectory as searchListDirectory,
   listDirectoryEntries as searchListDirectoryEntries
 } from '@main/services/file'
-import { hasWritePermission, isPathInside, untildify } from '@main/utils/legacyFile'
+import { isSameOrInside } from '@main/utils/file'
+import { hasWritePermission, untildify } from '@main/utils/legacyFile'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import { copilotService } from './services/CopilotService'
@@ -67,7 +69,7 @@ export async function registerIpc() {
 
   // Check if a path is inside another path (proper parent-child relationship)
   handleGuarded(IpcChannel.App_IsPathInside, async (_, childPath: string, parentPath: string) => {
-    return isPathInside(childPath, parentPath)
+    return isSameOrInside(childPath, parentPath)
   })
 
   // zip
@@ -79,10 +81,12 @@ export async function registerIpc() {
   // autoDiscoverGitBash() (ai/runtime/claudeCode/settingsBuilder.ts).
 
   // backup
-  handleGuarded(IpcChannel.Backup_Backup, backupManager.backup.bind(backupManager))
+  handleGuarded(IpcChannel.Backup_Backup, (event, fileName, destinationPath, slimBackup) =>
+    runManualBackup(() => backupManager.backup(event, fileName, destinationPath, slimBackup))
+  )
   handleGuarded(IpcChannel.Backup_Restore, backupManager.restore.bind(backupManager))
   handleGuarded(IpcChannel.Backup_BackupToWebdav, async (event, config) => {
-    const { result, cleanupError } = await backupManager.backupToWebdav(event, config)
+    const { result, cleanupError } = await runManualBackup(() => backupManager.backupToWebdav(event, config))
     return { result, cleanupFailed: cleanupError !== null }
   })
   handleGuarded(IpcChannel.Backup_RestoreFromWebdav, backupManager.restoreFromWebdav.bind(backupManager))
@@ -91,14 +95,16 @@ export async function registerIpc() {
   handleGuarded(IpcChannel.Backup_CreateDirectory, backupManager.createDirectory.bind(backupManager))
   handleGuarded(IpcChannel.Backup_DeleteWebdavFile, backupManager.deleteWebdavFile.bind(backupManager))
   handleGuarded(IpcChannel.Backup_BackupToLocalDir, async (event, fileName, config) => {
-    const { result, cleanupError } = await backupManager.backupToLocalDir(event, fileName, config)
+    const { result, cleanupError } = await runManualBackup(() =>
+      backupManager.backupToLocalDir(event, fileName, config)
+    )
     return { result, cleanupFailed: cleanupError !== null }
   })
   handleGuarded(IpcChannel.Backup_RestoreFromLocalBackup, backupManager.restoreFromLocalBackup.bind(backupManager))
   handleGuarded(IpcChannel.Backup_ListLocalBackupFiles, backupManager.listLocalBackupFiles.bind(backupManager))
   handleGuarded(IpcChannel.Backup_DeleteLocalBackupFile, backupManager.deleteLocalBackupFile.bind(backupManager))
   handleGuarded(IpcChannel.Backup_BackupToS3, async (event, config) => {
-    const { result, cleanupError } = await backupManager.backupToS3(event, config)
+    const { result, cleanupError } = await runManualBackup(() => backupManager.backupToS3(event, config))
     return { result, cleanupFailed: cleanupError !== null }
   })
   handleGuarded(IpcChannel.Backup_RestoreFromS3, backupManager.restoreFromS3.bind(backupManager))

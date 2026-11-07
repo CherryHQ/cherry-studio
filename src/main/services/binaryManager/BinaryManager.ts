@@ -18,11 +18,11 @@ import {
   dedupePathSegments,
   getBinaryIsolatedHomeEnv,
   getBinaryShimsDir,
-  isPathWithin,
   mergeBinaryExecutionEnv
 } from '@main/utils/binaryEnv'
 import { getBinaryName } from '@main/utils/binaryResolver'
 import { findCommandInShellEnv, findExecutable, findMiseExecutable } from '@main/utils/commandResolver'
+import { isOutsidePath } from '@main/utils/file'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { CustomToolDefinition } from '@shared/data/preference/preferenceTypes'
 import {
@@ -47,6 +47,7 @@ import type {
 } from '@shared/types/binary'
 import { Semaphore } from '@shared/utils/async'
 
+import { claudeNpmRegistries, resolveClaudeNpmPackage } from './claudeNpm'
 import { sanitizedCommandError } from './commandError'
 import { installToolDependencies } from './pipDependencies'
 import { provideManagedPython } from './pythonRuntime'
@@ -425,7 +426,7 @@ export class BinaryManager extends BaseService {
    *
    * Bundled tools (bun, uv, rg) ship inside the app and are extracted at boot.
    * The UI uses this to distinguish "available (bundled)" from "managed"
-   * vs "not installed" — see docs/references/binary-manager/README.md.
+   * vs "not installed" — see docs/dev/references/binary-manager/README.md.
    *
    * Returns a map of tool name → version string (from .{name}-version marker)
    * or null when the marker is missing. Absent keys mean the binary is not
@@ -459,7 +460,7 @@ export class BinaryManager extends BaseService {
         const resolved = isWin
           ? findExecutable(name, { extensions: ['.exe', '.cmd', '.bat'], env: shellEnv })
           : await findCommandInShellEnv(name, shellEnv)
-        if (!resolved || cherryDirs.some((dir) => isPathWithin(dir, resolved))) return null
+        if (!resolved || cherryDirs.some((dir) => !isOutsidePath(path.relative(dir, resolved)))) return null
         return [name, resolved]
       })
     )
@@ -742,7 +743,9 @@ export class BinaryManager extends BaseService {
             if (!this.isInstallationRoot(canonicalData, canonicalRoot)) throw new Error('unproven_root')
             const runnable = await this.resolveRunnableShim(name, definition!.tool)
             if (!isCurrent()) return [name, null]
-            if (!runnable || !isPathWithin(canonicalRoot, runnable.canonical)) throw new Error('unproven_runnable')
+            if (!runnable || isOutsidePath(path.relative(canonicalRoot, runnable.canonical))) {
+              throw new Error('unproven_runnable')
+            }
             root = canonicalRoot
           }
         } catch {
@@ -1328,7 +1331,7 @@ export class BinaryManager extends BaseService {
     // runnable proof stands on its own.
     if (typeof entry.install_path !== 'string') return true
     try {
-      return isPathWithin(await fsp.realpath(entry.install_path), canonical)
+      return !isOutsidePath(path.relative(await fsp.realpath(entry.install_path), canonical))
     } catch {
       return false
     }
@@ -1547,6 +1550,23 @@ export class BinaryManager extends BaseService {
       const runtimeTool = pinnedRuntime.tool.replace(/@[^@]+$/, '')
       const runtimeVersion = pinnedRuntime.requestedVersion ?? (await this.getInstalledVersion(runtimeTool))
       runtime = `${runtimeTool}@${runtimeVersion}`
+    }
+    if (definition.tool === 'claude' && isWin && process.arch === 'arm64') {
+      const registries = claudeNpmRegistries((await this.getIsolatedEnv()).env.NPM_CONFIG_REGISTRY)
+      for (const [index, source] of registries.entries()) {
+        try {
+          const pkg = await resolveClaudeNpmPackage(source, requested)
+          await this.runMise(['use', '-g', pkg.toolSpec], { timeoutMs: MISE_INSTALL_TIMEOUT_MS })
+          await this.runMise(['reshim'])
+          return await this.getInstalledVersion(definition.tool, pkg.version)
+        } catch (error) {
+          if (index === registries.length - 1) throw error
+          logger.warn('Claude npm source failed; trying fallback', {
+            registry: source,
+            error: this.errorMessage(error)
+          })
+        }
+      }
     }
     const toolSpec = `${addNpmAllowBuildsOption(definition.tool, definition.npmAllowBuilds)}@${requested}`
     const includePrerelease = MISE_PRERELEASE_TOOLS.has(definition.tool)
@@ -2172,6 +2192,18 @@ export class BinaryManager extends BaseService {
         const name = applied[cursor++]
         const { tool } = candidates.get(name)!
         try {
+          if (tool === 'claude' && isWin && process.arch === 'arm64') {
+            const registries = claudeNpmRegistries((await this.getIsolatedEnv()).env.NPM_CONFIG_REGISTRY)
+            for (const [index, source] of registries.entries()) {
+              try {
+                result[name] = (await resolveClaudeNpmPackage(source, 'latest')).version
+                break
+              } catch (error) {
+                if (index === registries.length - 1) throw error
+              }
+            }
+            continue
+          }
           const includePrerelease = MISE_PRERELEASE_TOOLS.has(tool)
           const releaseAgeArgs = includePrerelease ? ['--minimum-release-age', '0s'] : []
           const { stdout } = await this.runMise(['latest', ...releaseAgeArgs, tool], { includePrerelease })

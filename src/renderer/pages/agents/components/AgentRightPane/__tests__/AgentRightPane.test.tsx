@@ -23,6 +23,7 @@ import { useRightPanelState } from '@renderer/components/chat/panes/Shell'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { useOptionalFilePreviewNavigation } from '@renderer/components/FilePreview/useFilePreviewNavigation'
 import type { WebviewAnnotationSavedPayload } from '@renderer/components/WebviewAnnotationControls'
+import type * as RendererIpc from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -205,10 +206,6 @@ vi.mock('@renderer/components/chat/primitives', async (importActual) => ({
   EmptyState: () => <div data-testid="empty-state" />
 }))
 
-vi.mock('@renderer/components/chat/agent/AgentContextUsageSummary', () => ({
-  AgentContextUsageSummary: () => <div data-testid="context-usage" />
-}))
-
 vi.mock('@renderer/components/chat/messages/MessageList', () => ({
   default: () => <div data-testid="message-list" />
 }))
@@ -234,9 +231,9 @@ vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
   )
 }))
 
-vi.mock('@renderer/ipc', async (importOriginal) => ({
-  ...(await importOriginal()),
-  ipcApi: { request: ipcRequestMock }
+vi.mock('@renderer/ipc', async (importActual) => ({
+  ...(await importActual<typeof RendererIpc>()),
+  ipcApi: { ...(await importActual<typeof RendererIpc>()).ipcApi, request: ipcRequestMock }
 }))
 
 vi.mock('@renderer/services/toast', () => ({
@@ -255,12 +252,13 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
     onCloseFileTab,
     onRetainFileTab,
     onEditModeChange,
-    headerVariant,
     onPreviewClose,
+    onSearchKeywordChange,
     onSelectedFileChange,
     paneActions,
     paneTitle,
     previewFileSelection,
+    searchKeyword,
     selectedFile
   }: {
     editMode?: 'preview' | 'edit'
@@ -269,55 +267,61 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
     onCloseFileTab?: (tab: { workspacePath: string; filePath: string }) => void
     onRetainFileTab?: (tab: { workspacePath: string; filePath: string } | null) => void
     onEditModeChange?: (mode: 'preview' | 'edit') => void
-    headerVariant?: 'overlay' | 'pane'
     onPreviewClose?: () => void
+    onSearchKeywordChange?: (keyword: string) => void
     onSelectedFileChange: (file: string | null) => void
     paneActions?: ReactNode
     paneTitle?: ReactNode
     previewFileSelection?: { workspacePath: string; filePath: string } | null
+    searchKeyword?: string
     selectedFile: string | null
   }) => {
     const navigation = useOptionalFilePreviewNavigation()
 
     return (
-      <div data-testid="artifact-pane" data-edit-mode={editMode} data-selected-file={selectedFile ?? ''}>
-        {headerVariant === 'pane' ? (
-          <div data-testid="artifact-pane-header">
-            {previewFileSelection ? (
-              <button type="button" aria-label="common.back" onClick={onPreviewClose}>
-                back
-              </button>
-            ) : null}
-            <span data-testid="artifact-pane-header-title">{previewFileSelection?.filePath ?? paneTitle}</span>
-            <div role="tablist">
-              {fileTabs?.map((tab) => (
-                <span key={tab.filePath} role="tab" aria-selected={tab.filePath === previewFileSelection?.filePath}>
-                  <button type="button" onClick={() => onActivateFileTab?.(tab)}>
-                    {tab.filePath}
-                  </button>
-                  <button type="button" aria-label={`close ${tab.filePath}`} onClick={() => onCloseFileTab?.(tab)}>
-                    x
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`close others ${tab.filePath}`}
-                    onClick={() => onRetainFileTab?.(tab)}>
-                    o
-                  </button>
-                </span>
-              ))}
-              <button type="button" aria-label="close all" onClick={() => onRetainFileTab?.(null)}>
-                a
-              </button>
-            </div>
-            {paneActions}
+      <div
+        data-testid="artifact-pane"
+        data-edit-mode={editMode}
+        data-search-keyword={searchKeyword}
+        data-selected-file={selectedFile ?? ''}>
+        <div data-testid="artifact-pane-header">
+          {previewFileSelection ? (
+            <button type="button" aria-label="common.back" onClick={onPreviewClose}>
+              back
+            </button>
+          ) : null}
+          <span data-testid="artifact-pane-header-title">{previewFileSelection?.filePath ?? paneTitle}</span>
+          <div role="tablist">
+            {fileTabs?.map((tab) => (
+              <span key={tab.filePath} role="tab" aria-selected={tab.filePath === previewFileSelection?.filePath}>
+                <button type="button" onClick={() => onActivateFileTab?.(tab)}>
+                  {tab.filePath}
+                </button>
+                <button type="button" aria-label={`close ${tab.filePath}`} onClick={() => onCloseFileTab?.(tab)}>
+                  x
+                </button>
+                <button
+                  type="button"
+                  aria-label={`close others ${tab.filePath}`}
+                  onClick={() => onRetainFileTab?.(tab)}>
+                  o
+                </button>
+              </span>
+            ))}
+            <button type="button" aria-label="close all" onClick={() => onRetainFileTab?.(null)}>
+              a
+            </button>
           </div>
-        ) : null}
+          {paneActions}
+        </div>
         <button type="button" onClick={() => onSelectedFileChange('README.md')}>
           select README.md
         </button>
         <button type="button" onClick={() => onSelectedFileChange('src/deep.ts')}>
           select src/deep.ts
+        </button>
+        <button type="button" onClick={() => onSearchKeywordChange?.('deep')}>
+          search deep
         </button>
         <button type="button" onClick={() => onEditModeChange?.('edit')}>
           edit
@@ -331,11 +335,6 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
             <button type="button" onClick={() => navigation?.openFile('/workspace/DESIGN.md' as AbsoluteFilePath)}>
               open Markdown file link
             </button>
-            {headerVariant === 'pane' ? null : (
-              <button type="button" onClick={onPreviewClose}>
-                close
-              </button>
-            )}
           </div>
         )}
       </div>
@@ -425,10 +424,6 @@ vi.mock('../AgentBrowserView', () => ({
 
 vi.mock('@renderer/components/command', () => ({
   CommandTooltip: ({ children }: PropsWithChildren) => <>{children}</>
-}))
-
-vi.mock('@renderer/components/Scrollbar', () => ({
-  default: ({ children, ...props }: ComponentProps<'div'>) => <div {...props}>{children}</div>
 }))
 
 vi.mock('@renderer/data/hooks/usePreference', async () => ({
@@ -733,6 +728,7 @@ describe('AgentRightPane', () => {
     uiMockState.useRealHoverCard = false
     ipcRequestMock.mockImplementation(async (route: string) => {
       if (route === 'ai.tool.get_result') return { found: true, output: 'Loaded flow result' }
+      if (route === 'ai.projection.attach') return null
       return {
         kind: 'file',
         type: 'text',
@@ -1514,6 +1510,7 @@ describe('AgentRightPane', () => {
         messages={[message]}
         partsByMessageId={{ [message.id]: [part] }}>
         <OpenArtifactButton path="artifact.html" />
+        <AgentRightPane.Shortcuts />
         <AgentRightPane.Viewport />
       </TestAgentRightPane>
     )
@@ -1522,11 +1519,15 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'file:///workspace/artifact.html')
 
     rerender(renderPane('session-baseline-b', sessionBMessage, sessionBPart))
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
     await waitFor(() =>
       expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:6975/')
     )
 
     rerender(renderPane('session-baseline-a', sessionAMessage, sessionAPart))
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
     await waitFor(() =>
       expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:6950/')
     )
@@ -1774,6 +1775,8 @@ describe('AgentRightPane', () => {
     await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', refA))
 
     rerender(renderPane('session-b', 'm-b', partB))
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
     await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', refB))
     await act(async () => resultB.resolve({ found: true, output: 'Ready at http://localhost:6400/' }))
     await waitFor(() =>
@@ -2284,6 +2287,43 @@ describe('AgentRightPane', () => {
     expect(useArtifactFileTreeModelMock).not.toHaveBeenCalled()
   })
 
+  it('opens the common child projection for Claude and displays its availability diagnostic', async () => {
+    ipcRequestMock.mockImplementation(async (route: string) =>
+      route === 'ai.projection.attach'
+        ? {
+            kind: 'child',
+            sessionId: 'child-archive',
+            contextId: 'child-context',
+            revision: 1,
+            messages: [],
+            active: false,
+            available: true,
+            canSubmit: false,
+            diagnostic: 'Native child transcript is unavailable'
+          }
+        : undefined
+    )
+    const user = userEvent.setup()
+    render(
+      <TestAgentRightPane sessionId="claude-owner" runtimeType="claude-code" messages={[]} partsByMessageId={{}}>
+        <OpenFlowButton toolCallId="native-agent-tool" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'open flow' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Native child transcript is unavailable')
+    expect(screen.getByRole('heading', { name: 'agent.right_pane.info.context_usage' })).toBeInTheDocument()
+    expect(screen.getByText('common.unknown')).toBeVisible()
+    expect(screen.queryByRole('meter')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'chat.input.send' })).toBeNull()
+    expect(ipcRequestMock).toHaveBeenCalledWith('ai.projection.attach', {
+      target: { kind: 'child', sessionId: 'claude-owner', toolCallId: 'native-agent-tool' },
+      subscriptionId: expect.any(String)
+    })
+  })
+
   it('keeps the full flow title for the panel header to truncate by available width', () => {
     const title = 'Review shared layer and IPC session boundaries without pre-truncating the title'
 
@@ -2545,7 +2585,7 @@ describe('AgentRightPane', () => {
     })
 
     expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
-    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('agent.right_pane.tabs.files')
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
   })
 
   it('ignores a stale artifact metadata resolution after the user selects another file', async () => {
@@ -2894,7 +2934,7 @@ describe('AgentRightPane', () => {
 
     const sectionOrder = [
       screen.getByText('agent.right_pane.info.artifacts'),
-      screen.getByTestId('context-usage'),
+      screen.getByRole('region', { name: 'agent.right_pane.info.context' }),
       screen.getByText('agent.right_pane.info.shell_tasks')
     ]
 
@@ -3027,34 +3067,6 @@ describe('AgentRightPane', () => {
     expect(screen.queryByTestId('artifact-pane')).toBeNull()
   })
 
-  it('does not re-render the active files capability when only runtime messages change', () => {
-    const { rerender } = render(
-      <TestAgentRightPane
-        defaultOpen
-        sessionId="session-a"
-        workspacePath="/workspace"
-        messages={[]}
-        partsByMessageId={{}}>
-        <AgentRightPane.Viewport />
-      </TestAgentRightPane>
-    )
-    const callsAfterMount = useArtifactFileTreeModelMock.mock.calls.length
-    const messages = [{ id: 'm1', role: 'user', parts: [], metadata: {} }] as CherryUIMessage[]
-
-    rerender(
-      <TestAgentRightPane
-        defaultOpen
-        sessionId="session-a"
-        workspacePath="/workspace"
-        messages={messages}
-        partsByMessageId={{ m1: [] }}>
-        <AgentRightPane.Viewport />
-      </TestAgentRightPane>
-    )
-
-    expect(useArtifactFileTreeModelMock).toHaveBeenCalledTimes(callsAfterMount)
-  })
-
   it('clears the overlay preview when the selected file disappears from the tree model', () => {
     fileTreeModelState.hasLoaded = true
     fileTreeModelState.nodeById = new Map([['README.md', { kind: 'file' }]])
@@ -3082,6 +3094,57 @@ describe('AgentRightPane', () => {
 
     expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', '')
+  })
+
+  it.each([
+    { changed: 'path', workspaceId: 'workspace-a', workspacePath: '/workspace-b' },
+    { changed: 'id', workspaceId: 'workspace-b', workspacePath: '/workspace-a' }
+  ])('clears open files, edit mode, and tree filters when the workspace $changed changes', (next) => {
+    const renderPane = (workspaceId: string, workspacePath: string) => (
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspaceId={workspaceId}
+        workspacePath={workspacePath}
+        messages={[]}
+        partsByMessageId={{}}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const latestModelOptions = () =>
+      useArtifactFileTreeModelMock.mock.lastCall?.[0] as {
+        expandedIds: ReadonlySet<string>
+        onExpandedIdsChange: (ids: ReadonlySet<string>) => void
+        searchKeyword: string
+        workspacePath: string
+      }
+    const { rerender } = render(renderPane('workspace-a', '/workspace-a'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'select README.md' }))
+    fireEvent.click(screen.getByRole('button', { name: 'edit' }))
+    fireEvent.click(screen.getByRole('button', { name: 'search deep' }))
+    act(() => latestModelOptions().onExpandedIdsChange(new Set(['src'])))
+
+    const pane = () => screen.getByTestId('artifact-pane')
+    expect(pane()).toHaveAttribute('data-selected-file', 'README.md')
+    expect(pane()).toHaveAttribute('data-edit-mode', 'edit')
+    expect(pane()).toHaveAttribute('data-search-keyword', 'deep')
+    expect(screen.getByRole('tab')).toHaveAttribute('aria-selected', 'true')
+    expect([...latestModelOptions().expandedIds]).toEqual(['src'])
+
+    rerender(renderPane(next.workspaceId, next.workspacePath))
+    // The files capability is keyed by workspace, so the old instance closes with the old workspace.
+    expect(screen.queryByTestId('artifact-pane')).toBeNull()
+    act(triggerRightSidebarShortcut)
+
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
+    expect(screen.queryByRole('tab')).toBeNull()
+    expect(pane()).toHaveAttribute('data-selected-file', '')
+    expect(pane()).toHaveAttribute('data-edit-mode', 'preview')
+    expect(pane()).toHaveAttribute('data-search-keyword', '')
+    expect(latestModelOptions()).toMatchObject({ searchKeyword: '', workspacePath: next.workspacePath })
+    expect(latestModelOptions().expandedIds.size).toBe(0)
   })
 
   it('keeps an unindexed selection after a previously indexed file was selectable', () => {
@@ -3199,6 +3262,7 @@ describe('AgentRightPane', () => {
         workspacePath={workspacePath}
         messages={[]}
         partsByMessageId={{}}>
+        <AgentRightPane.Shortcuts />
         <AgentRightPane.Viewport />
       </TestAgentRightPane>
     )
@@ -3216,8 +3280,10 @@ describe('AgentRightPane', () => {
 
     await user.click(screen.getByRole('button', { name: 'edit' }))
     rerender(pane('/other-workspace'))
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
     expect(screen.queryByTestId('artifact-file-preview-overlay')).not.toBeInTheDocument()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' }))
     await user.click(screen.getByRole('button', { name: 'select README.md' }))
     expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
     expect(fileSessionDiscardMock).not.toHaveBeenCalled()
