@@ -72,7 +72,12 @@ export async function agentMemoryContext(app: RegressionApp, page: Page, testInf
   const pause = view.getByRole('button', { name: 'Pause', exact: true })
   const openMemorySettings = async () => {
     await page.bringToFront()
-    await view.getByRole('button', { name, exact: true }).click({ button: 'right' })
+    const agentRow = view
+      .getByRole('listbox')
+      .getByRole('button')
+      .filter({ has: page.getByRole('button', { name, exact: true }) })
+    await agentRow.hover()
+    await agentRow.getByRole('button', { name: 'More', exact: true }).click()
     const edit = page.getByRole('menuitem', { name: 'Edit Agent', exact: true })
     await expect(edit).toBeVisible()
     await expect(edit).toBeEnabled()

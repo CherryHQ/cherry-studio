@@ -7,6 +7,7 @@ export interface StartupState {
   openAtLogin: boolean
   visible: boolean
   dockVisible: boolean
+  windows: { id: number; visible: boolean; minimized: boolean; route: string | null }[]
   trays: {
     destroyed: boolean
     bounds: { x: number; y: number; width: number; height: number }
@@ -71,8 +72,16 @@ export async function inspectStartup(app: RegressionApp, action?: 'show' | 'quit
         const { app, BrowserWindow } = process.mainModule.require('electron')
         const main = BrowserWindow.getAllWindows().find(w => w.webContents.getURL().includes('/windows/main/index.html'))
         if (${JSON.stringify(action)} === 'show') app.emit('activate')
+        const windowsBase = main ? new URL('../', main.webContents.getURL()) : null
+        const windows = BrowserWindow.getAllWindows().map(window => {
+          const url = new URL(window.webContents.getURL() || 'about:blank')
+          const relativePath = windowsBase && url.href.startsWith(windowsBase.href)
+            ? url.pathname.slice(windowsBase.pathname.length) : ''
+          const route = /^(?:[A-Za-z]+[/])+index[.]html$/.test(relativePath) ? '/windows/' + relativePath : null
+          return { id: window.id, visible: window.isVisible(), minimized: window.isMinimized(), route }
+        })
         const state = { openAtLogin: app.getLoginItemSettings().openAtLogin,
-          visible: main?.isVisible() ?? false, dockVisible: app.dock?.isVisible() ?? false }
+          visible: main?.isVisible() ?? false, dockVisible: app.dock?.isVisible() ?? false, windows }
         if (${JSON.stringify(action)} === 'quit') setTimeout(() => app.quit(), 100)
         return state
       })()`,

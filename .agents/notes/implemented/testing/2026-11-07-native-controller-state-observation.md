@@ -14,7 +14,7 @@ The hosted macOS image build unloads the Notification Center launch agent; the o
 
 Windows shell registration also resolves through the application's isolated `APPDATA`. The SDK could not create its shortcut until the Programs directory existed, and that private shortcut was not visible to the real shell.
 
-macOS can use different applications for HTTPS and local HTML files. Pinning the HTTPS browser for an HTML preview could leave the actual file-handler tab untracked. After Safari closes its final tab, its window enumeration can contain a null specifier; dereferencing it blocked otherwise complete cleanup.
+macOS can use different applications for HTTPS and local HTML files. Pinning the HTTPS browser for an HTML preview could leave the actual file-handler tab untracked. After Safari closes its final tab, its window enumeration can retain a truthy object specifier whose remote value no longer exists; a JavaScript null check does not establish native existence.
 
 Cold Vite dependency optimization reloaded hosted renderers during cases. Phase steps masked failures with `continue-on-error`, so their successful conclusions did not establish passing cases. A Windows restore dialog appeared before CDP, and a new console process could precede its native handle. macOS accessibility snapshots could also briefly lose the correspondence between AX and CG windows.
 
@@ -29,7 +29,7 @@ Cold Vite dependency optimization reloaded hosted renderers during cases. Phase 
 - Read the Notification Center service label from its plist, record the hosted GUI service's prior state, enable it for native checks, and restore that state in an always-run step.
 - Prepare the isolated Windows Programs directory. Register an unchanged SDK-generated shortcut in the real Start Menu with an exclusive run-specific name and a checksum lease written before publication. Both case and controller cleanup remove only the unchanged owned copy.
 
-- Ignore absent browser window specifiers when enumerating tabs after the final tab closes; actual permission and ownership errors still fail cleanup.
+- Check native browser-window existence before enumerating tabs after the final tab closes; actual permission and ownership errors still fail cleanup.
 - Resolve the handler of an owned HTML probe before the preview action, and pin that application for tab ownership and cleanup. URL-only registrations continue to resolve HTTPS. Unsupported handlers fail before opening the external file.
 
 - Seed Cache Storage with an absolute HTTPS request so the fixture works under both development HTTP and built file URLs. Match the Agent summary only in assistant messages; its marker also occurs in the user prompt.
@@ -38,7 +38,9 @@ Cold Vite dependency optimization reloaded hosted renderers during cases. Phase 
 - Permit known hosted test requesters to control the supported document, browser and file-manager applications; retain the disposable-runner guards and reject other requesters or targets.
 - Dismiss pre-main dialogs through a freshly verified CDP or main-inspector owner, with command and runner-ancestry checks. Keep CDP ownership mandatory for Electron termination.
 - Retry ambiguous macOS window inspection at most twice; persistent ambiguity still blocks cleanup.
-- Treat a missing Windows console window or invalid-console-handle error 6 as pending only when reading; input failures still throw.
+- Treat a missing Windows console window or invalid-console-handle error 6 as pending only when reading; input failures still throw. Probe the run-owned cmd candidates and deduplicate actual readable console windows instead of assuming the outer shell owns the console. Read/write requests recheck PID and creation time.
+- During Windows cleanup, only `ESRCH` proves that a process exited during its identity query; remove that identity from the termination set. Permission and unknown liveness failures remain blocking. Record lifecycle stages and safe identity metadata without foreign command lines.
+- Save HTML code-mode geometry and startup window state before failed-case cleanup removes the UI. Diagnostics include only owned windows and internal routes, without titles or external URLs.
 
 ## Alternatives considered
 
@@ -66,4 +68,4 @@ Adapters remain platform specific and fail when native state cannot be confirmed
 
 - Regression — 105 controller tests passed; 50 affected launch, task-selection, workflow and native-syntax checks passed with one Windows-only skip. Node, renderer and E2E type checks passed. The Windows no-console fixture and new hosted execution path still require native CI acceptance. The baseline full run failed 12 macOS and 25 Windows cases; both separate 53-case smoke suites passed. Neither completed phases nor that partial evidence establishes full acceptance.
 
-- Regression — the fresh-browser final-tab case failed before the null-window repair and passed afterward. All 32 affected browser-association, external-resource, driver and native-syntax checks passed, with one Windows-only skip; the contract preserves the existing browser and terminates only the newly owned browser. Hosted confirmation is pending.
+- Regression — invalid truthy browser specifiers and native permission errors failed before the existence check and passed afterward. All 77 affected lifecycle, launch, process, browser-association, external-resource, driver and native-syntax checks passed, with one Windows-only skip. The exit-race contract also preserves a PID reused immediately after a confirmed exit and rejects unknown/permission-denied liveness. The production-style detached-console fixture still requires Windows execution; the hosted full suite remains unaccepted.

@@ -227,8 +227,59 @@ window.addEventListener('pageshow', () => navigator.sendBeacon('http://127.0.0.1
     await artifact.hover()
     await artifact.getByRole('button', { name: 'Code', exact: true }).click()
     const sourceLines = artifact.locator('.line-content')
-    await expect(sourceLines).toHaveCount(html.split('\n').length)
-    expect((await sourceLines.allTextContents()).join('\n')).toBe(html)
+    try {
+      await expect(sourceLines).toHaveCount(html.split('\n').length)
+      expect((await sourceLines.allTextContents()).join('\n')).toBe(html)
+    } catch (error) {
+      const diagnostics = await artifact
+        .evaluate((root) => {
+          const geometry = (element: Element | null) => {
+            if (!(element instanceof HTMLElement)) return null
+            const rect = element.getBoundingClientRect()
+            const style = getComputedStyle(element)
+            return {
+              x: rect.x,
+              y: rect.y,
+              width: rect.width,
+              height: rect.height,
+              offsetHeight: element.offsetHeight,
+              clientHeight: element.clientHeight,
+              scrollTop: element.scrollTop,
+              scrollHeight: element.scrollHeight,
+              display: style.display,
+              visibility: style.visibility,
+              cssHeight: style.height
+            }
+          }
+          return {
+            focused: document.hasFocus(),
+            visibility: document.visibilityState,
+            viewport: { width: innerWidth, height: innerHeight },
+            artifact: geometry(root),
+            surface: geometry(root.querySelector('[data-testid="html-artifact-surface"]')),
+            viewer: geometry(root.querySelector('.code-viewer')),
+            scroller: geometry(root.querySelector('.shiki-scroller')),
+            list: geometry(root.querySelector('.shiki-list')),
+            mode: [...root.querySelectorAll('button[aria-pressed]')].map((button) => ({
+              label: button.getAttribute('aria-label'),
+              pressed: button.getAttribute('aria-pressed')
+            })),
+            lineCount: root.querySelectorAll('.line-content').length,
+            rowIndexes: [...root.querySelectorAll('.shiki-list [data-index]')].map((row) =>
+              row.getAttribute('data-index')
+            )
+          }
+        })
+        .catch(() => ({ artifactUnavailable: true }))
+      await Promise.allSettled([
+        testInfo.attach('MP-41 code view geometry before cleanup', {
+          body: JSON.stringify(diagnostics),
+          contentType: 'application/json'
+        }),
+        attachScreenshot('MP-41 code view failure before cleanup')
+      ])
+      throw error
+    }
     await attachScreenshot('MP-41 code view preserves generated HTML')
     await artifact.hover()
     await artifact.getByRole('button', { name: 'Preview', exact: true }).click()

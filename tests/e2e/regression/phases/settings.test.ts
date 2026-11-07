@@ -1356,6 +1356,13 @@ test(...caseDefinition('MP-111'), async ({ app, mainWindow }, testInfo) => {
       body: error instanceof Error ? (error.stack ?? error.message) : String(error),
       contentType: 'text/plain'
     })
+    const startupState = await inspectStartup(app).catch(() => ({ unavailable: true }))
+    await testInfo
+      .attach('MP-111 startup state after failure', {
+        body: JSON.stringify(startupState),
+        contentType: 'application/json'
+      })
+      .catch(() => undefined)
     throw error
   } finally {
     app.windowHiddenExpected = false
