@@ -114,6 +114,7 @@ vi.mock('@renderer/components/chat/messages/hooks/useMessageListRenderConfig', (
       renderInputMessageAsMarkdown: false,
       codeFancyBlock: true,
       thoughtAutoCollapse: true,
+      keepIntermediateAssistantText: false,
       mathEnableSingleDollar: false,
       showMessageOutline: false,
       multiModelMessageStyle: 'horizontal',
@@ -693,6 +694,34 @@ describe('useAgentMessageListProviderValue', () => {
 
     expect(interactiveValue?.actions.openDiagnosticReport).toBe(openDiagnosticReport)
     expect(captureValue?.actions.openDiagnosticReport).toBeUndefined()
+  })
+
+  it('keeps intermediate assistant text visible in Agent sessions', () => {
+    const topic = {
+      id: 'agent-session:session-1',
+      assistantId: 'agent-1',
+      name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as Topic
+    let value: MessageListProviderValue | undefined
+
+    const Probe = () => {
+      value = useAgentMessageListProviderValue({
+        topic,
+        messages: [],
+        partsByMessageId: {},
+        isLoading: false,
+        messageNavigation: 'none'
+      })
+      return null
+    }
+
+    render(<Probe />)
+
+    expect(value?.state.renderConfig.keepIntermediateAssistantText).toBe(true)
   })
 
   it('renders terminal fallbacks in both current and sealed history layers', () => {
