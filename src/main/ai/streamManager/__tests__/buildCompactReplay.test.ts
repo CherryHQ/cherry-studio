@@ -189,7 +189,10 @@ describe('buildCompactReplay', () => {
 
     // B1 must not merge into A's run. Tool chunks otherwise preserve the
     // pre-existing pass-through behavior; A1/A2 stay split because B1
-    // interrupted the run.
+    // interrupted the run. B1 is orphaned for execution B (its start was
+    // evicted / never buffered), so a synthesized start precedes it — same
+    // repair as text/reasoning, preventing `tool-input-delta for missing
+    // tool call` on re-attach (#23421).
     expect(result).toEqual([
       {
         topicId: 'topic-1',
@@ -200,6 +203,11 @@ describe('buildCompactReplay', () => {
         topicId: 'topic-1',
         executionId: 'provider-a::model-a',
         chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'A1' }
+      },
+      {
+        topicId: 'topic-1',
+        executionId: 'provider-b::model-b',
+        chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'unknown-tool' }
       },
       {
         topicId: 'topic-1',
@@ -242,6 +250,52 @@ describe('buildCompactReplay', () => {
       ])
 
       expect(result).toEqual([{ topicId: 'topic-1', chunk: { type: 'text-start', id: 'p2' } }])
+    })
+
+    it('synthesizes the evicted tool-input-start for surviving tool deltas (#23421)', () => {
+      const result = buildCompactReplay([
+        // tool-input-start for tc1 was evicted; its deltas + available survived.
+        { topicId: 'topic-1', chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: '{"q":"' } },
+        { topicId: 'topic-1', chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'hello"}' } },
+        {
+          topicId: 'topic-1',
+          chunk: { type: 'tool-input-available', toolCallId: 'tc1', toolName: 'search', input: { q: 'hello' } }
+        },
+        { topicId: 'topic-1', chunk: { type: 'tool-output-available', toolCallId: 'tc1', output: { ok: true } } }
+      ])
+
+      // Deltas arrive before available, so the placeholder is patched with the
+      // real name once available lands — static parts are never `unknown-tool`.
+      expect(result[0].chunk).toMatchObject({ type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' })
+      expect(result.map(({ chunk }) => chunk.type)).toEqual([
+        'tool-input-start',
+        'tool-input-delta',
+        'tool-input-available',
+        'tool-output-available'
+      ])
+    })
+
+    it('preserves dynamic identity on synthesized tool start (#23519)', () => {
+      const result = buildCompactReplay([
+        {
+          topicId: 'topic-1',
+          chunk: {
+            type: 'tool-input-available',
+            toolCallId: 'tc1',
+            toolName: 'search',
+            input: { q: 'hello' },
+            dynamic: true
+          }
+        },
+        { topicId: 'topic-1', chunk: { type: 'tool-output-available', toolCallId: 'tc1', output: { ok: true } } }
+      ])
+
+      expect(result[0].chunk).toMatchObject({
+        type: 'tool-input-start',
+        toolCallId: 'tc1',
+        toolName: 'search',
+        dynamic: true
+      })
     })
   })
 

@@ -332,6 +332,7 @@ function publicMessageData(data: SessionMessageRow['data']): AgentSessionMessage
   delete result.runtimeAnchor
   delete result.nativeSessionId
   delete result.deliveryReplyAnchor
+  delete (result as { staleResumeReset?: boolean }).staleResumeReset
   return result
 }
 
@@ -619,12 +620,19 @@ export class AgentSessionMessageService {
         id: sessionMessagesTable.id,
         parentId: sessionMessagesTable.parentId,
         runtimeResumeToken: sessionMessagesTable.runtimeResumeToken,
-        nativeSessionId: sql<string | null>`json_extract(${sessionMessagesTable.data}, '$.nativeSessionId')`
+        nativeSessionId: sql<string | null>`json_extract(${sessionMessagesTable.data}, '$.nativeSessionId')`,
+        staleReset: sql<number | null>`json_extract(${sessionMessagesTable.data}, '$.staleResumeReset')`
       })
       .from(sessionMessagesTable)
       .where(inArray(sessionMessagesTable.id, agentSessionPathIds(sessionId, head)))
       .all()
-    return orderAgentSessionPath(rows, head)
+    const ordered = orderAgentSessionPath(rows, head)
+    // A stale-resume reset on this branch blocks ancestor fallback: only the
+    // suffix from the last reset boundary participates in identity reads, so
+    // the failed branch goes fresh while healthy siblings (whose paths never
+    // include the boundary row) keep their identities (#23519 review).
+    const lastReset = ordered.map((row) => (row.staleReset ? 1 : 0)).lastIndexOf(1)
+    return lastReset >= 0 ? ordered.slice(lastReset) : ordered
   }
 
   getNativeSessionId(sessionId: string, messageId?: string): string | undefined {
@@ -634,6 +642,45 @@ export class AgentSessionMessageService {
       rows.find((row) => row.runtimeResumeToken)?.runtimeResumeToken ??
       undefined
     )
+  }
+
+  /**
+   * Native-only read for stale scoping: returns the persisted
+   * `data.nativeSessionId` on the selected branch without falling back to
+   * `runtimeResumeToken`. Using {@link getNativeSessionId} here would conflate
+   * a resume token into the native-id list (#23519 follow-up).
+   */
+  getPersistedNativeSessionId(sessionId: string, messageId?: string): string | undefined {
+    const rows = this.nativePath(sessionId, messageId).toReversed()
+    return rows.find((row) => row.nativeSessionId)?.nativeSessionId ?? undefined
+  }
+
+  /**
+   * Persist a branch-specific stale-resume reset boundary on the failed branch
+   * head (`No conversation found with session ID`, #23421). Identity readers
+   * (`getLastRuntimeResumeToken`, `getNativeSessionId`,
+   * `getPersistedNativeSessionId`, plus `branchTx`) stop at the last boundary,
+   * so the failed branch reconnects fresh instead of falling back to a healthy
+   * ancestor, while sibling branches (whose paths exclude this row) are
+   * untouched (#23519 review).
+   *
+   * Also clears this row's own token/native binding so a value-scoping miss
+   * (unknown id, unreadable persisted token) still goes fresh on retry.
+   */
+  markStaleResumeResetBoundary(sessionId: string, messageId: string): void {
+    if (!messageId) {
+      logger.warn('markStaleResumeResetBoundary called with no message id — no-op', { sessionId })
+      return
+    }
+    application.get('DbService').withWriteTx((tx) => {
+      tx.update(sessionMessagesTable)
+        .set({
+          runtimeResumeToken: null,
+          data: sql`json_remove(json_set(${sessionMessagesTable.data}, '$.staleResumeReset', 1), '$.nativeSessionId')`
+        })
+        .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, messageId)))
+        .run()
+    })
   }
 
   /** Main-only native fork read. API callers must never receive these raw rows. */
@@ -1110,6 +1157,11 @@ export class AgentSessionMessageService {
       // omitted keys like main-authoritative turnOptions survive the update.
       const mergedData: SessionMessageRow['data'] = publicMessageData({ ...existing.data, ...dto.data })
       if (existing.data.deliveryReplyAnchor) mergedData.deliveryReplyAnchor = existing.data.deliveryReplyAnchor
+      // Main-owned stale-reset boundary: `publicMessageData` strips it from
+      // caller input, so re-apply the stored marker. Otherwise a valid parts
+      // PATCH would drop the boundary and re-expose ancestor fallback
+      // (#23519 review). Never accept caller-authored markers.
+      if (existing.data.staleResumeReset) mergedData.staleResumeReset = existing.data.staleResumeReset
       this.invalidateForkPrefixTx(tx, sessionId, messageId)
       const [updated] = tx
         .update(sessionMessagesTable)
@@ -1237,6 +1289,72 @@ export class AgentSessionMessageService {
           .where(and(inArray(sessionMessagesTable.sessionId, sessionIds), isLegacyMessage()))
           .run()
       }
+    })
+  }
+
+  /**
+   * Drop persisted resume tokens for the failed CLI-side conversation only
+   * (`No conversation found with session ID`, #23421). Scoped to the stale
+   * token value so healthy sibling branches keep their resume identities
+   * (#23519 review).
+   *
+   * The token list is required: passing an empty list is a silent no-op
+   * (never "clear all for session") so a future caller cannot accidentally
+   * wipe healthy siblings. Pass the failed conversation id — see
+   * `extractStaleConversationId` + `entry.lastResumeToken`.
+   */
+  clearRuntimeResumeTokens(sessionId: string, staleToken: string | readonly string[]): void {
+    const tokens = [
+      ...new Set((Array.isArray(staleToken) ? staleToken : staleToken ? [staleToken] : []).filter(Boolean))
+    ]
+    if (tokens.length === 0) {
+      logger.warn('clearRuntimeResumeTokens called with no ids — no-op', { sessionId })
+      return
+    }
+    application.get('DbService').withWriteTx((tx) => {
+      tx.update(sessionMessagesTable)
+        .set({ runtimeResumeToken: null })
+        .where(
+          and(
+            eq(sessionMessagesTable.sessionId, sessionId),
+            tokens.length === 1
+              ? eq(sessionMessagesTable.runtimeResumeToken, tokens[0])
+              : inArray(sessionMessagesTable.runtimeResumeToken, tokens)
+          )
+        )
+        .run()
+    })
+  }
+
+  /**
+   * Drop persisted native session bindings for the failed CLI-side
+   * conversation only. `ClaudeCodeRuntimeDriver.start()` falls back to
+   * `nativeSessionId` when no resume token exists, so leaving it would fail
+   * the next turn identically after a stale reset (#23421). Scoped to the
+   * stale native id so healthy siblings keep theirs (#23519 review).
+   *
+   * The id list is required: passing an empty list is a silent no-op (never
+   * "clear all for session"). Pass the native-only id — see `getPersistedNativeSessionId`.
+   */
+  clearNativeSessionIds(sessionId: string, staleNativeId: string | readonly string[]): void {
+    const ids = [
+      ...new Set((Array.isArray(staleNativeId) ? staleNativeId : staleNativeId ? [staleNativeId] : []).filter(Boolean))
+    ]
+    if (ids.length === 0) {
+      logger.warn('clearNativeSessionIds called with no ids — no-op', { sessionId })
+      return
+    }
+    const nativeExpr = sql<string | null>`json_extract(${sessionMessagesTable.data}, '$.nativeSessionId')`
+    application.get('DbService').withWriteTx((tx) => {
+      tx.update(sessionMessagesTable)
+        .set({ data: sql`json_remove(json(${sessionMessagesTable.data}), '$.nativeSessionId')` })
+        .where(
+          and(
+            eq(sessionMessagesTable.sessionId, sessionId),
+            ids.length === 1 ? eq(nativeExpr, ids[0]) : inArray(nativeExpr, ids)
+          )
+        )
+        .run()
     })
   }
 
@@ -1426,6 +1544,7 @@ export class AgentSessionMessageService {
       }
       if (existingRow.data.deliveryReplyAnchor) data.deliveryReplyAnchor = existingRow.data.deliveryReplyAnchor
       if (existingRow.data.nativeSessionId) data.nativeSessionId = existingRow.data.nativeSessionId
+      if (existingRow.data.staleResumeReset) data.staleResumeReset = existingRow.data.staleResumeReset
       const runtimeResumeTokenToPersist = runtimeResumeToken ?? existingRow.runtimeResumeToken ?? null
       const updatedAtMs = timestampMs
       const modelId = message.modelId === undefined ? existingRow.modelId : message.modelId

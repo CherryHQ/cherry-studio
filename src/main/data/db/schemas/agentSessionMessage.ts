@@ -21,7 +21,14 @@ export const agentSessionMessageTable = sqliteTable(
     // `data` stores MessageData (`{ parts }`); Drizzle handles
     // JSON.stringify/parse automatically via `{ mode: 'json' }`.
     data: text({ mode: 'json' })
-      .$type<MessageData & { runtimeAnchor?: unknown; nativeSessionId?: string; deliveryReplyAnchor?: string }>()
+      .$type<
+        MessageData & {
+          runtimeAnchor?: unknown
+          nativeSessionId?: string
+          deliveryReplyAnchor?: string
+          staleResumeReset?: boolean
+        }
+      >()
       .notNull(),
     searchableText: text().notNull().default(''),
     status: text().notNull(),

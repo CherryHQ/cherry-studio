@@ -1,4 +1,6 @@
-import { and, eq } from 'drizzle-orm'
+import path from 'node:path'
+
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import * as z from 'zod'
 
 import { application } from '@application'
@@ -10,9 +12,10 @@ import {
 import { agentSessionTable as sessions } from '@data/db/schemas/agentSession'
 import {
   agentSessionContextTable as contexts,
-  type AgentSessionContextRow,
-  type AgentSessionCheckpoints
+  type AgentSessionCheckpoints,
+  type AgentSessionContextRow
 } from '@data/db/schemas/agentSessionContext'
+import { agentSessionMessageTable as messages } from '@data/db/schemas/agentSessionMessage'
 import type { DbOrTx } from '@data/db/types'
 
 import { ensureAgentSessionRootTx, readAgentSessionAncestry } from './agentSessionMessageTree'
@@ -174,17 +177,149 @@ class AgentSessionContextService {
   branchTx(tx: DbOrTx, sessionId: string, messageId: string) {
     const path = readAgentSessionAncestry(tx, sessionId, messageId)
     const bindings = tx.select().from(contexts).where(eq(contexts.sessionId, sessionId)).all()
-    return path
+    // Respect a stale-resume reset boundary: a failed branch reconnects fresh
+    // instead of falling back to a healthy ancestor's native binding, while
+    // sibling branches (whose paths exclude the boundary row) are untouched
+    // (#23519 review).
+    const effectivePath = this.effectivePathTx(tx, sessionId, path)
+    return effectivePath
       .toReversed()
       .map((row) => bindings.find((binding) => binding.anchorMessageId === row.id))
       .find((binding) => binding !== undefined)
   }
 
+  /**
+   * Whether the ancestry for `messageId` contains a stale-resume reset boundary.
+   * Allocation uses this to anchor a fresh branch at the failed head instead of
+   * reusing the hidden root anchor (which would violate
+   * `agent_session_context_anchor_uniq`). Sibling paths exclude the boundary row,
+   * so they keep resolving to the retained root binding (#23519 review).
+   */
+  hasStaleResetBoundaryTx(tx: DbOrTx, sessionId: string, messageId: string): boolean {
+    return this.lastStaleResetBoundaryTx(tx, sessionId, messageId) !== undefined
+  }
+
+  /**
+   * Last stale-resume reset boundary in the ancestry for `messageId`, if any.
+   * Rotation uses the id to limit in-place rewrites to the invalidated binding:
+   * once a context records this boundary in
+   * `checkpointMapping.staleResetHandled`, later native changes (e.g. `/clear`
+   * on a descendant) fork a separate context instead of rewriting the healthy
+   * recovered one (#23519 review).
+   */
+  lastStaleResetBoundaryTx(tx: DbOrTx, sessionId: string, messageId: string): string | undefined {
+    const path = readAgentSessionAncestry(tx, sessionId, messageId)
+    if (path.length === 0) return undefined
+    try {
+      const flags = tx
+        .select({
+          id: messages.id,
+          reset: sql<number | null>`json_extract(${messages.data}, '$.staleResumeReset')`
+        })
+        .from(messages)
+        .where(
+          and(
+            eq(messages.sessionId, sessionId),
+            inArray(
+              messages.id,
+              path.map((row) => row.id)
+            )
+          )
+        )
+        .all()
+      const resetIds = new Set(flags.filter((flag) => flag.reset).map((flag) => flag.id))
+      if (resetIds.size === 0) return undefined
+      const lastReset = path.map((row) => (resetIds.has(row.id) ? 1 : 0)).lastIndexOf(1)
+      return lastReset >= 0 ? path[lastReset].id : undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  private effectivePathTx(tx: DbOrTx, sessionId: string, path: { id: string; parentId: string | null }[]) {
+    let effectivePath = path
+    if (path.length > 0) {
+      try {
+        const flags = tx
+          .select({
+            id: messages.id,
+            reset: sql<number | null>`json_extract(${messages.data}, '$.staleResumeReset')`
+          })
+          .from(messages)
+          .where(
+            and(
+              eq(messages.sessionId, sessionId),
+              inArray(
+                messages.id,
+                path.map((row) => row.id)
+              )
+            )
+          )
+          .all()
+        const resetIds = new Set(flags.filter((flag) => flag.reset).map((flag) => flag.id))
+        if (resetIds.size > 0) {
+          const lastReset = path.map((row) => (resetIds.has(row.id) ? 1 : 0)).lastIndexOf(1)
+          if (lastReset >= 0) effectivePath = path.slice(lastReset)
+        }
+      } catch {
+        // Best-effort: on read failure fall back to the full path so a stale
+        // reset degrades to the previous ancestor-fallback behavior.
+      }
+    }
+    return effectivePath
+  }
+
+  /**
+   * Rotate a reset-bound branch to a fresh native identity without moving its
+   * anchor. Used when `branchTx` still finds a binding at/below the
+   * stale-resume reset boundary (e.g. an edit-fork row anchored at the failed
+   * head): reusing its dead `nativeThreadId` would fail identically, and
+   * inserting a second row at the same anchor would violate
+   * `agent_session_context_anchor_uniq`. The row id and anchor are preserved so
+   * sibling branches (different anchors) are untouched. Records the handled
+   * boundary so later native changes (e.g. `/clear` on a descendant) fork a
+   * separate context instead of rewriting the healthy recovered one (#23519
+   * review).
+   */
+  refreshResetBranchTx(
+    tx: DbOrTx,
+    contextId: string,
+    nativeThreadId: string,
+    boundaryId?: string
+  ): AgentSessionContextRow {
+    const current = this.contextTx(tx, contextId)
+    const checkpointMapping =
+      boundaryId !== undefined
+        ? { ...current.checkpointMapping, staleResetHandled: boundaryId }
+        : current.checkpointMapping
+    return tx
+      .update(contexts)
+      .set({ nativeThreadId, bindingState: 'pending', updatedAt: Date.now(), checkpointMapping })
+      .where(eq(contexts.id, contextId))
+      .returning()
+      .get()
+  }
+
   publishBranchTx(tx: DbOrTx, sessionId: string, nativeId: string, checkpointMapping: Record<string, unknown>): void {
-    tx.update(contexts)
-      .set({ nativeThreadId: nativeId, bindingState: 'bound', checkpointMapping: { fork: checkpointMapping } })
+    const existing = tx
+      .select()
+      .from(contexts)
       .where(and(eq(contexts.sessionId, sessionId), eq(contexts.nativeThreadId, nativeId)))
-      .run()
+      .all()
+    for (const row of existing) {
+      const staleResetHandled = row.checkpointMapping?.staleResetHandled
+      tx.update(contexts)
+        .set({
+          nativeThreadId: nativeId,
+          bindingState: 'bound',
+          checkpointMapping: {
+            fork: checkpointMapping,
+            ...(staleResetHandled !== undefined ? { staleResetHandled } : {})
+          }
+        })
+        .where(eq(contexts.id, row.id))
+        .run()
+    }
   }
 
   confirmBranchTx(tx: DbOrTx, contextId: string, sessionId: string, messageId: string, nativeId: string): void {
@@ -250,4 +385,3 @@ class AgentSessionContextService {
 }
 
 export const agentSessionContextService = new AgentSessionContextService()
-import path from 'node:path'
