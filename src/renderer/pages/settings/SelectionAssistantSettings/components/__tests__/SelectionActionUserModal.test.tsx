@@ -111,6 +111,13 @@ describe('SelectionActionUserModal', () => {
     expect(onOk).toHaveBeenCalledWith(editingAction)
   })
 
+  it('gives the ask-for-input switch an accessible name', () => {
+    render(<SelectionActionUserModal isModalOpen editingAction={null} onOk={vi.fn()} onCancel={vi.fn()} />)
+
+    // The visible label is a sibling div, so the switch needs its own name.
+    expect(screen.getByRole('switch', { name: 'selection.settings.user_modal.ask_input.label' })).toBeInTheDocument()
+  })
+
   it('requires an agent before saving an agent-backed action', () => {
     const onOk = vi.fn()
     render(<SelectionActionUserModal isModalOpen editingAction={null} onOk={onOk} onCancel={vi.fn()} />)

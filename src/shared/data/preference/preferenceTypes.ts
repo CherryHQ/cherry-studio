@@ -84,6 +84,8 @@ export type SelectionActionItem = {
   /** What runs a custom action. `assistantId` and `agentId` keep each runner's last choice. */
   runner?: SelectionActionRunner
   assistantId?: string
+  /** Custom actions only: ask for an extra instruction in the action window before running. */
+  askInput?: boolean
   /** `ask-agent` without one uses Cherry Assistant (the agent whose `builtin_role` is `assistant`). */
   agentId?: string
   /** Missing means the system workspace. */
