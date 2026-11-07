@@ -71,9 +71,14 @@ export async function agentMemoryContext(app: RegressionApp, page: Page, testInf
   const composer = view.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first()
   const pause = view.getByRole('button', { name: 'Pause', exact: true })
   const openMemorySettings = async () => {
+    await page.bringToFront()
     await view.getByRole('button', { name, exact: true }).click({ button: 'right' })
-    await page.getByRole('menuitem', { name: 'Edit Agent', exact: true }).click()
+    const edit = page.getByRole('menuitem', { name: 'Edit Agent', exact: true })
+    await expect(edit).toBeVisible()
+    await expect(edit).toBeEnabled()
+    await edit.press('Enter')
     const dialog = page.getByRole('dialog').last()
+    await expect(dialog).toBeVisible()
     await dialog.getByRole('tab', { name: 'Built-in tools', exact: true }).click()
     return dialog
   }
