@@ -4,7 +4,7 @@ import { isAbsolute, parse, relative, sep } from 'node:path'
 import { _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
 
 import { startMockChatServer } from '../../helpers/http/mockChatServer'
-import { selectVisibleModel } from '../regression/models'
+import { selectVisibleModel } from '../regression/helpers/models'
 import { selectSidebarApp } from '../regression/navigation'
 import { expect, test as base } from './fixtures/electron.fixture'
 import { uiLocator } from './utils/uiLocator'
