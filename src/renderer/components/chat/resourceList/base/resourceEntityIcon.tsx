@@ -81,7 +81,9 @@ export function renderAssistantEntityIcon(
  */
 export function renderAgentEntityIcon(
   iconType: AssistantIconType,
-  agent: { configuration?: AgentConfiguration; model?: string | null; modelName?: string | null } | undefined,
+  agent:
+    | { avatarSrc?: string; configuration?: AgentConfiguration; model?: string | null; modelName?: string | null }
+    | undefined,
   fallbackModelId?: string | null,
   size: number = RESOURCE_ICON_SIZE
 ) {
@@ -91,7 +93,18 @@ export function renderAgentEntityIcon(
   if (iconType === 'model' && modelAvatarModel) return <ModelAvatar model={modelAvatarModel} size={size} />
 
   return (
-    <EmojiIcon emoji={getAgentAvatarFromConfiguration(agent?.configuration) || DEFAULT_ASSISTANT_EMOJI} size={size} />
+    <AssistantAvatarImage
+      src={agent?.avatarSrc}
+      alt=""
+      size={size}
+      className="rounded-full object-cover"
+      fallback={
+        <EmojiIcon
+          emoji={getAgentAvatarFromConfiguration(agent?.configuration) || DEFAULT_ASSISTANT_EMOJI}
+          size={size}
+        />
+      }
+    />
   )
 }
 
