@@ -66,6 +66,15 @@ export function buildPathRegistry() {
     'cherry.home': CHERRY_HOME,
     'cherry.bin': path.join(CHERRY_HOME, 'bin'),
     'cherry.config': path.join(CHERRY_HOME, 'config'),
+    // Command Code managed credential (raw key, 0600). Launch commands and the
+    // headless Code Mate skill reference this file by path — the secret never
+    // rides clipboard-bound command text or process arguments.
+    'cherry.code_cli.command_code.credentials_file': path.join(CHERRY_HOME, 'code-cli', 'command-code.credentials'),
+    // Command Code credential export script (no secret — one `export` line
+    // pointing at the credentials file under the config-bound variable name,
+    // 0600 all the same). The headless skill evals this file so the variable
+    // name always matches the on-disk config generation.
+    'cherry.code_cli.command_code.env_file': path.join(CHERRY_HOME, 'code-cli', 'command-code.env'),
 
     // -- B. sys.* — OS directories (prefer app.* or cherry.* for Cherry-owned paths) --
     'sys.home': sysHome,

@@ -21,6 +21,8 @@ const resolvedSpecPath = (target: CliConfigTarget) => `/resolved${CLI_CONFIG_FIL
 const hermesConfigPath = resolvedSpecPath('hermes-config')
 const hermesEnvPath = resolvedSpecPath('hermes-env')
 const minimaxConfigPath = resolvedSpecPath('minimax-config')
+const commandcodeProvidersPath = resolvedSpecPath('commandcode-providers')
+const commandcodeConfigPath = resolvedSpecPath('commandcode-config')
 
 beforeEach(() => {
   existing = {}
@@ -400,6 +402,39 @@ describe('clearCliConfig', () => {
   it('minimax: missing config is already clear and sends no rewrite', async () => {
     await clearCliConfig({ cliTool: CodeCli.MINIMAX_CODE })
     expect(writes[minimaxConfigPath]).toBeUndefined()
+  })
+
+  it('command-code: strips the Cherry provider and cherry-addressed model, keeps user entries', async () => {
+    existing[commandcodeProvidersPath] = JSON.stringify({
+      version: 1,
+      provider: {
+        'cherry-deepseek': { baseURL: 'https://api.deepseek.com/v1', models: { 'deepseek-chat': {} } },
+        'user-relay': { baseURL: 'https://relay.example', models: { relay: {} } }
+      }
+    })
+    existing[commandcodeConfigPath] = JSON.stringify({
+      theme: 'dark',
+      model: 'cherry-deepseek/deepseek-chat'
+    })
+
+    await clearCliConfig({ cliTool: CodeCli.COMMAND_CODE })
+
+    expect(JSON.parse(writes[commandcodeProvidersPath])).toEqual({
+      version: 1,
+      provider: { 'user-relay': { baseURL: 'https://relay.example', models: { relay: {} } } }
+    })
+    expect(JSON.parse(writes[commandcodeConfigPath])).toEqual({ theme: 'dark' })
+  })
+
+  it('command-code: keeps a user-owned default model and skips clean files', async () => {
+    existing[commandcodeProvidersPath] = JSON.stringify({
+      provider: { 'user-relay': { baseURL: 'https://relay.example', models: { relay: {} } } }
+    })
+    existing[commandcodeConfigPath] = JSON.stringify({ model: 'user-relay/relay' })
+
+    await clearCliConfig({ cliTool: CodeCli.COMMAND_CODE })
+    expect(writes[commandcodeProvidersPath]).toBeUndefined()
+    expect(writes[commandcodeConfigPath]).toBeUndefined()
   })
 
   it('is a no-op for tools without a managed config file (openclaw)', async () => {

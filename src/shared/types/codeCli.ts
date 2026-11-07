@@ -12,7 +12,8 @@ export enum CodeCli {
   GITHUB_COPILOT_CLI = 'github-copilot-cli',
   PI = 'pi',
   HERMES = 'hermes',
-  MINIMAX_CODE = 'minimax-code'
+  MINIMAX_CODE = 'minimax-code',
+  COMMAND_CODE = 'command-code'
 }
 
 export const DEEPSEEK_HARNESS_AGENT_PRESETS = ['inherit', 'standard', 'code', 'minimal'] as const
@@ -77,7 +78,8 @@ export const LOGIN_CAPABLE_CLI_TOOLS: ReadonlySet<CodeCli> = new Set([
   CodeCli.QWEN_CODE,
   CodeCli.KIMI_CODE,
   CodeCli.PI,
-  CodeCli.MINIMAX_CODE
+  CodeCli.MINIMAX_CODE,
+  CodeCli.COMMAND_CODE
 ])
 
 /**
@@ -119,7 +121,8 @@ export const GATEWAY_CAPABLE_CLI_TOOLS: ReadonlySet<CodeCli> = new Set([
   CodeCli.PI,
   CodeCli.HERMES,
   CodeCli.DEEPSEEK_HARNESS,
-  CodeCli.MINIMAX_CODE
+  CodeCli.MINIMAX_CODE,
+  CodeCli.COMMAND_CODE
 ])
 
 export enum TerminalApp {
