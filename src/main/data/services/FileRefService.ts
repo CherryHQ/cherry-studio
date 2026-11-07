@@ -9,9 +9,11 @@
  * DataApi and the file sweep need one.
  */
 
-import { asc, count, eq, inArray } from 'drizzle-orm'
+import { asc, count, eq, inArray, sql } from 'drizzle-orm'
 
 import { application } from '@application'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import {
   agentSessionMessageFileRefTable,
   chatMessageFileRefTable,
@@ -28,6 +30,7 @@ import {
   translateHistoryFileRefTable
 } from '@data/db/schemas/fileRelations'
 import type { DbOrTx } from '@data/db/types'
+import type { AgentSessionMessageRefDetail } from '@shared/data/api/schemas/files'
 import type { FileEntryId, FileRef, FileRefSourceType } from '@shared/data/types/file'
 import {
   agentSessionMessageSourceType,
@@ -49,6 +52,9 @@ export interface FileRefSourceKey {
 export interface FileRefService {
   /** All refs pointing at a given file_entry. */
   findByEntryId(fileEntryId: FileEntryId): FileRef[]
+
+  /** Session and bounded message context for agent-session message refs. */
+  findAgentSessionMessageDetailsByEntryId(fileEntryId: FileEntryId): AgentSessionMessageRefDetail[]
 
   /** All refs owned by a business source (chat message, painting, job, translate history, logo). */
   findBySource(source: FileRefSourceKey): FileRef[]
@@ -194,6 +200,27 @@ class FileRefServiceImpl implements FileRefService {
     return Object.values(persistentRefReaders)
       .flatMap((readRefs) => readRefs())
       .sort(compareRefs)
+  }
+
+  findAgentSessionMessageDetailsByEntryId(fileEntryId: FileEntryId): AgentSessionMessageRefDetail[] {
+    return this.getDb()
+      .select({
+        refId: agentSessionMessageFileRefTable.id,
+        sessionId: agentSessionMessageTable.sessionId,
+        sessionName: agentSessionTable.name,
+        messageCreatedAt: agentSessionMessageTable.createdAt,
+        messageSummary: sql<string>`CASE
+          WHEN length(${agentSessionMessageTable.searchableText}) > 160
+          THEN substr(${agentSessionMessageTable.searchableText}, 1, 160) || '…'
+          ELSE ${agentSessionMessageTable.searchableText}
+        END`
+      })
+      .from(agentSessionMessageFileRefTable)
+      .innerJoin(agentSessionMessageTable, eq(agentSessionMessageFileRefTable.sourceId, agentSessionMessageTable.id))
+      .innerJoin(agentSessionTable, eq(agentSessionMessageTable.sessionId, agentSessionTable.id))
+      .where(eq(agentSessionMessageFileRefTable.fileEntryId, fileEntryId))
+      .orderBy(asc(agentSessionMessageTable.createdAt), asc(agentSessionMessageFileRefTable.id))
+      .all()
   }
 
   findBySource(source: FileRefSourceKey): FileRef[] {

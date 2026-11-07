@@ -141,7 +141,9 @@ call.
 - paginated entries and individual entries;
 - exact content-hash candidates and entry statistics;
 - batched reference counts;
-- references by entry or business source.
+- references by entry or business source;
+- `GET /files/entries/:id/agent-session-message-details` returns session names, message timestamps, and
+  bounded message summaries for agent-session references.
 
 These handlers do not touch the filesystem, resolve physical paths, or query `DanglingCache`.
 Renderer views compose those SQL results with File IPC only when they need live state.
@@ -152,6 +154,10 @@ Renderer views compose those SQL results with File IPC only when they need live 
 currently cover binary reads, optimistic writes, metadata, path and dangling-state batches,
 internal-entry batch creation, trash operations, rename, open/reveal, and the directory-tree
 protocol.
+
+`file.batch_permanent_delete_from_trash` keeps its reference guard by default. The Archive UI's
+explicit detach action opts in to deleting the entry and cascading its association rows; internal
+blob cleanup remains best-effort, including when the blob is already missing.
 
 `file.validate_notes_directory` is a transport adapter for the existing Notes-directory selection
 policy in `src/main/services/notesDirectory.ts`, shared with legacy `FileStorage`. This stateless

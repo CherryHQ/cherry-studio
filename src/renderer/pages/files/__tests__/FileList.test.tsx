@@ -113,10 +113,10 @@ describe('FileList', () => {
     const actions = { ...menuActions, onDelete }
     render(<FileList {...fileListProps(null)} onDelete={onDelete} menuActions={actions} deleteDisabled />)
 
-    const rowDelete = screen.getByRole('button', { name: 'files.delete.label' })
+    const rowDelete = screen.getByRole('button', { name: 'recycle_bin.move.confirm_action' })
     expect(rowDelete).toBeDisabled()
     fireEvent.contextMenu(screen.getByText('report.md'))
-    const contextDelete = await screen.findByRole('menuitem', { name: 'files.delete.label' })
+    const contextDelete = await screen.findByRole('menuitem', { name: 'recycle_bin.move.confirm_action' })
     expect(contextDelete).toHaveAttribute('data-disabled')
 
     fireEvent.click(rowDelete)
@@ -246,12 +246,12 @@ describe('FileList', () => {
 
     const { rerender } = render(<FileList {...fileListProps(null)} files={[file]} />)
 
-    expect(screen.getByRole('button', { name: 'files.delete.label' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'recycle_bin.move.confirm_action' })).toBeInTheDocument()
 
     rerender(<FileList {...fileListProps(null)} files={[externalFile]} />)
 
     expect(screen.getByRole('button', { name: 'files.remove_from_library' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'files.delete.label' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'recycle_bin.move.confirm_action' })).not.toBeInTheDocument()
   })
 
   it('hides invalid row actions for missing files', () => {

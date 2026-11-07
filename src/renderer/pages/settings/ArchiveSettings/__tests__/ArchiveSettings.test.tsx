@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   allItems: [] as ArchiveItem[],
   hideItems: false,
   isLoading: false,
+  openRoute: vi.fn(),
   ipcRequest: vi.fn(),
   deleteItem: vi.fn(),
   deleteItems: vi.fn(),
@@ -120,6 +121,7 @@ vi.mock('../AllArchiveSection', async () => {
   }
 })
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.ipcRequest } }))
+vi.mock('@renderer/services/mainWindowNavigation', () => ({ openRoute: mocks.openRoute }))
 
 const { default: ArchiveSettings } = await import('../ArchiveSettings')
 
@@ -149,17 +151,44 @@ function jobRef(role: 'input' | 'mask' = 'input', fileEntryId = FILE_ID): FileRe
   }
 }
 
+function agentSessionMessageRef(fileEntryId = FILE_ID): FileRef {
+  return {
+    id: 'd0000000-0000-4000-8000-000000000001',
+    fileEntryId,
+    sourceType: 'agent_session_message',
+    sourceId: 'message-1',
+    role: 'attachment',
+    createdAt: 1_750_000_000_000,
+    updatedAt: 1_750_000_000_000
+  }
+}
+
 function mockReferenceReads({
   counts = [{ entryId: FILE_ID, refCount: 1 }],
   refs = { [FILE_ID]: [jobRef()] },
-  jobs = { [JOB_ID]: 'image-generation.generate' }
+  jobs = { [JOB_ID]: 'image-generation.generate' },
+  agentSessionDetails = {}
 }: {
   counts?: Array<{ entryId: string; refCount: number }> | (() => Promise<Array<{ entryId: string; refCount: number }>>)
   refs?: Record<string, FileRef[] | Error | Promise<FileRef[]> | (() => FileRef[] | Promise<FileRef[]>)>
   jobs?: Record<string, string | Error | Promise<string> | (() => string | Promise<string>)>
+  agentSessionDetails?: Record<
+    string,
+    Array<{
+      refId: string
+      sessionId: string
+      sessionName: string
+      messageCreatedAt: number
+      messageSummary: string
+    }>
+  >
 } = {}) {
   vi.mocked(dataApiService.get).mockImplementation(async (path) => {
     if (path === '/files/entries/ref-counts') return (typeof counts === 'function' ? await counts() : counts) as never
+    const detailsEntryId = Object.keys(agentSessionDetails).find(
+      (id) => path === `/files/entries/${id}/agent-session-message-details`
+    )
+    if (detailsEntryId) return agentSessionDetails[detailsEntryId] as never
     const entryId = Object.keys(refs).find((id) => path === `/files/entries/${id}/refs`)
     if (entryId) {
       const response = refs[entryId]
@@ -310,7 +339,9 @@ describe('ArchiveSettings', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Empty Archive' }))
 
     expect(mocks.ipcRequest).toHaveBeenCalledExactlyOnceWith('trash.purge_now')
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Deleted: 3. Referenced files kept: 2.'))
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith('Deleted: 3. Files with active references were kept: 2.')
+    )
   })
 })
 
@@ -580,7 +611,7 @@ describe('ArchiveSettings holder disclosure', () => {
     const dialog = screen.getByRole('dialog')
     expect(await within(dialog).findByText(`Image-generation job record ${JOB_ID} (${role} image)`)).toBeVisible()
     expect(dialog).toHaveTextContent(
-      '1 file is still used by 1 record and will be kept. Remove that reference before deleting permanently.'
+      '1 file is still used by 1 record. Review the reference below; remove it or delete the file and detach the reference.'
     )
     expect(within(dialog).getByText('File 1')).toBeVisible()
     expect(within(dialog).getByText(RELEASE)).toBeVisible()
@@ -608,6 +639,42 @@ describe('ArchiveSettings holder disclosure', () => {
     expect(screen.getByText(`Holding record ${PAINTING_ID} (source: painting, role: output)`)).toBeVisible()
     expect(screen.getAllByText(RELEASE)).toHaveLength(1)
     expect(screen.getByRole('button', { name: 'Delete Permanently' })).toBeDisabled()
+  })
+
+  it('shows agent session and message context and offers explicit reference detachment', async () => {
+    const user = userEvent.setup()
+    const ref = agentSessionMessageRef()
+    mockReferenceReads({
+      refs: { [FILE_ID]: [ref] },
+      agentSessionDetails: {
+        [FILE_ID]: [
+          {
+            refId: ref.id,
+            sessionId: 'session-1',
+            sessionName: 'Research session',
+            messageCreatedAt: 1_750_000_000_000,
+            messageSummary: 'Please attach the generated report.'
+          }
+        ]
+      }
+    })
+    render(<ArchiveSettings />)
+    await openFileDelete(user)
+
+    const dialog = screen.getByRole('dialog')
+    const sessionButton = await within(dialog).findByRole('button', { name: 'Research session' })
+    expect(sessionButton).toBeVisible()
+    expect(within(dialog).getByText('Please attach the generated report.')).toBeVisible()
+    expect(within(dialog).getByText(new Date(1_750_000_000_000).toLocaleString())).toBeVisible()
+    expect(within(dialog).getByText(/permanently deletes the file and removes its file-reference links/)).toBeVisible()
+    expect(within(dialog).getByRole('button', { name: 'Delete Permanently' })).toBeDisabled()
+
+    await user.click(within(dialog).getByRole('button', { name: 'Delete permanently and detach references' }))
+
+    expect(mocks.runDelete).toHaveBeenCalledWith(mocks.fileItems, { detachReferences: true })
+    await user.click(screen.getByRole('button', { name: 'Open file permanent delete' }))
+    await user.click(await screen.findByRole('button', { name: 'Research session' }))
+    expect(mocks.openRoute).toHaveBeenCalledWith('/app/agents', { sessionId: 'session-1' })
   })
 
   it.each([

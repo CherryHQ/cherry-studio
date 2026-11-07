@@ -1318,6 +1318,27 @@ describe('FilesPage file operations', () => {
     expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
   })
 
+  it('confirms moving internal files to Archive and does not mutate on cancellation', async () => {
+    vi.mocked(popup.confirm).mockResolvedValueOnce(false)
+    renderFilesPage()
+
+    selectFileAt(0)
+    fireEvent.keyDown(document, { key: 'Delete' })
+
+    await waitFor(() => {
+      expect(popup.confirm).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cancelText: 'common.cancel',
+          okText: 'recycle_bin.move.confirm_action',
+          title: 'recycle_bin.move.confirm_title',
+          content: 'Move 1 internal files to Recycle Bin'
+        })
+      )
+    })
+    expect(ipcMocks.request).not.toHaveBeenCalledWith('file.batch_trash', expect.anything())
+    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
+  })
+
   it('disables every visible delete entry while an internal trash mutation is pending, then allows another delete', async () => {
     const secondEntry = { ...entry, id: 'file-2', name: 'notes' }
     const firstTrash = deferred<{ succeeded: string[]; failed: [] }>()
@@ -1337,27 +1358,27 @@ describe('FilesPage file operations', () => {
     fireEvent.keyDown(document, { key: 'Delete' })
 
     await waitFor(() => {
-      expect(popup.confirm).not.toHaveBeenCalled()
+      expect(popup.confirm).toHaveBeenCalledTimes(1)
       expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_trash', { ids: [entry.id] })
       expect(screen.getByRole('button', { name: 'files.actions' })).toBeDisabled()
-      for (const button of screen.getAllByRole('button', { name: 'files.delete.label' })) {
+      for (const button of screen.getAllByRole('button', { name: 'recycle_bin.move.confirm_action' })) {
         expect(button).toBeDisabled()
       }
     })
     fireEvent.keyDown(document, { key: 'Delete' })
     expect(ipcMocks.request.mock.calls.filter(([route]) => route === 'file.batch_trash')).toHaveLength(1)
     expect(screen.getByRole('button', { name: 'files.actions' })).toBeDisabled()
-    fireEvent.click(screen.getAllByRole('button', { name: 'files.delete.label' })[1])
+    fireEvent.click(screen.getAllByRole('button', { name: 'recycle_bin.move.confirm_action' })[1])
     expect(ipcMocks.request.mock.calls.filter(([route]) => route === 'file.batch_trash')).toHaveLength(1)
 
     firstTrash.resolve({ succeeded: [entry.id], failed: [] })
     await waitFor(() => {
-      expect(screen.getAllByRole('button', { name: 'files.delete.label' })[1]).toBeEnabled()
+      expect(screen.getAllByRole('button', { name: 'recycle_bin.move.confirm_action' })[1]).toBeEnabled()
     })
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'files.delete.label' })[1])
+    fireEvent.click(screen.getAllByRole('button', { name: 'recycle_bin.move.confirm_action' })[1])
     await waitFor(() => {
-      expect(popup.confirm).not.toHaveBeenCalled()
+      expect(popup.confirm).toHaveBeenCalledTimes(2)
       expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_trash', { ids: [secondEntry.id] })
     })
   })
@@ -1417,12 +1438,17 @@ describe('FilesPage file operations', () => {
     renderFilesPage([entry, secondEntry])
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'files.select_all' }))
-    fireEvent.click(screen.getByText(/files.delete.label/))
+    fireEvent.click(screen.getByText(/recycle_bin.move.confirm_action/))
 
     await waitFor(() => {
       expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_trash', { ids: [entry.id, secondEntry.id] })
     })
-    expect(popup.confirm).not.toHaveBeenCalled()
+    expect(popup.confirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        okText: 'recycle_bin.move.confirm_action',
+        title: 'recycle_bin.move.confirm_title'
+      })
+    )
     expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledWith({
       itemCount: 2,
       onUndo: expect.any(Function)
@@ -1484,7 +1510,7 @@ describe('FilesPage file operations', () => {
     const actionsButton = screen.getByRole('button', { name: 'files.actions' })
 
     expect(actionsButton).toBeInTheDocument()
-    expect(screen.getByText(/files.delete.label/)).toBeInTheDocument()
+    expect(screen.getByText(/recycle_bin.move.confirm_action/)).toBeInTheDocument()
   })
 
   it('starts rename from the visible row action button', () => {

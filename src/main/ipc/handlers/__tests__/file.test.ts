@@ -463,12 +463,16 @@ describe('fileHandlers', () => {
     await expect(fileHandlers['file.batch_trash']({ ids }, ctx)).resolves.toBe(batchResult)
     await expect(fileHandlers['file.batch_restore']({ ids }, ctx)).resolves.toBe(batchResult)
     await expect(fileHandlers['file.batch_permanent_delete_from_trash']({ ids }, ctx)).resolves.toBe(batchResult)
+    await expect(
+      fileHandlers['file.batch_permanent_delete_from_trash']({ ids, detachReferences: true }, ctx)
+    ).resolves.toBe(batchResult)
     await expect(fileHandlers['file.batch_remove_from_library']({ ids }, ctx)).resolves.toBe(batchResult)
 
     expect(fileManager.batchGetDanglingStates).toHaveBeenCalledWith({ ids })
     expect(fileManager.batchTrash).toHaveBeenCalledWith(ids)
     expect(fileManager.batchRestore).toHaveBeenCalledWith(ids)
-    expect(fileManager.batchPermanentDeleteFromTrash).toHaveBeenCalledWith(ids)
+    expect(fileManager.batchPermanentDeleteFromTrash).toHaveBeenNthCalledWith(1, ids)
+    expect(fileManager.batchPermanentDeleteFromTrash).toHaveBeenNthCalledWith(2, ids, { detachReferences: true })
     expect(fileManager.batchRemoveFromLibrary).toHaveBeenCalledWith(ids)
   })
 

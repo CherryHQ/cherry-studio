@@ -82,7 +82,7 @@ describe('FileGrid layout', () => {
     const onDelete = vi.fn()
     render(<FileGrid {...fileGridProps([imageFile])} onDelete={onDelete} deleteDisabled />)
 
-    const deleteButton = screen.getByRole('button', { name: 'files.delete.label' })
+    const deleteButton = screen.getByRole('button', { name: 'recycle_bin.move.confirm_action' })
     expect(deleteButton).toBeDisabled()
     fireEvent.click(deleteButton)
     expect(onDelete).not.toHaveBeenCalled()
@@ -156,11 +156,11 @@ describe('FileGrid delete actions', () => {
     const externalFile: FileItem = { ...imageFile, id: 'external-1', origin: 'external' }
     const { rerender } = render(<FileGrid {...fileGridProps([imageFile])} />)
 
-    expect(screen.getByRole('button', { name: 'files.delete.label' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'recycle_bin.move.confirm_action' })).toBeInTheDocument()
 
     rerender(<FileGrid {...fileGridProps([externalFile])} />)
 
     expect(screen.getByRole('button', { name: 'files.remove_from_library' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'files.delete.label' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'recycle_bin.move.confirm_action' })).not.toBeInTheDocument()
   })
 })

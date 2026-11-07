@@ -570,7 +570,7 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
       return t('files.remove_from_library')
     }
     if (selectedFiles.some((file) => file.origin === 'external')) return t('files.delete_or_remove')
-    return t('files.delete.label')
+    return t('recycle_bin.move.confirm_action')
   }, [selectedFiles, t])
 
   const handleSelect = useCallback(
@@ -705,32 +705,35 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
         try {
           const internalCount = targets.filter((file) => file.origin === 'internal').length
           const externalCount = targets.length - internalCount
-          if (externalCount === 0) {
-            await performDelete(new Set(targets.map((file) => file.id)))
-            return
-          }
-
           const confirmed = await popup.confirm(
-            internalCount > 0
+            externalCount === 0
               ? {
-                  title: t('files.delete_or_remove_confirm.title'),
-                  content: (
-                    <div className="space-y-1">
-                      <p>{t('files.delete_or_remove_confirm.internal_count', { count: internalCount })}</p>
-                      <p>{t('files.delete_or_remove_confirm.external_count', { count: externalCount })}</p>
-                    </div>
-                  ),
-                  okText: t('files.delete_or_remove'),
+                  title: t('recycle_bin.move.confirm_title'),
+                  content: t('files.delete_or_remove_confirm.internal_count', { count: internalCount }),
+                  okText: t('recycle_bin.move.confirm_action'),
                   cancelText: t('common.cancel'),
                   okButtonProps: { danger: true }
                 }
-              : {
-                  title: t('files.remove_from_library_confirm.title'),
-                  content: t('files.remove_from_library_confirm.description'),
-                  okText: t('files.remove_from_library'),
-                  cancelText: t('common.cancel'),
-                  okButtonProps: { danger: true }
-                }
+              : internalCount > 0
+                ? {
+                    title: t('files.delete_or_remove_confirm.title'),
+                    content: (
+                      <div className="space-y-1">
+                        <p>{t('files.delete_or_remove_confirm.internal_count', { count: internalCount })}</p>
+                        <p>{t('files.delete_or_remove_confirm.external_count', { count: externalCount })}</p>
+                      </div>
+                    ),
+                    okText: t('files.delete_or_remove'),
+                    cancelText: t('common.cancel'),
+                    okButtonProps: { danger: true }
+                  }
+                : {
+                    title: t('files.remove_from_library_confirm.title'),
+                    content: t('files.remove_from_library_confirm.description'),
+                    okText: t('files.remove_from_library'),
+                    cancelText: t('common.cancel'),
+                    okButtonProps: { danger: true }
+                  }
           )
           if (confirmed) await performDelete(new Set(targets.map((file) => file.id)))
         } catch (error) {

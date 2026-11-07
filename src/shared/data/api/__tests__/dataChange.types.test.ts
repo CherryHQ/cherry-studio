@@ -34,6 +34,7 @@ describe('endpoint classification', () => {
       | '/diagnostic-reports'
       | '/files/entries'
       | '/files/entries/by-content-hash'
+      | '/files/entries/:id/agent-session-message-details'
       | '/files/entries/:id/refs'
       | '/files/entries/ref-counts'
       | '/files/refs'

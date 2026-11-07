@@ -10,7 +10,7 @@ import type { ArchiveDomain } from '@shared/data/api/schemas/archives'
 
 import type { ArchiveBatchOutcome, ArchiveItem } from './archive'
 import type { ArchiveDomainSectionProps } from './ArchiveDomainSections'
-import ArchiveSection from './ArchiveSection'
+import ArchiveSection, { type PermanentDeleteOptions } from './ArchiveSection'
 import {
   useAgentArchiveActions,
   useAssistantArchiveActions,
@@ -94,7 +94,8 @@ export default function AllArchiveSection(props: ArchiveDomainSectionProps) {
 
   const runBatch = async (
     targets: ArchiveItem[],
-    action: 'onRestoreMany' | 'onPermanentDeleteMany'
+    action: 'onRestoreMany' | 'onPermanentDeleteMany',
+    options?: PermanentDeleteOptions
   ): Promise<ArchiveBatchOutcome> =>
     withArchiveRefresh(async () => {
       const outcome: ArchiveBatchOutcome = { succeeded: [], failed: [] }
@@ -102,9 +103,11 @@ export default function AllArchiveSection(props: ArchiveDomainSectionProps) {
         const domainItems = targets.filter((item) => entriesById.get(item.id)?.domain === domain)
         if (domainItems.length === 0) continue
         try {
-          const result = await actions[domain][action](
-            domainItems.map((item) => ({ ...item, id: entriesById.get(item.id)!.entityId }))
-          )
+          const targets = domainItems.map((item) => ({ ...item, id: entriesById.get(item.id)!.entityId }))
+          const result =
+            action === 'onPermanentDeleteMany' && options
+              ? await actions[domain].onPermanentDeleteMany(targets, options)
+              : await actions[domain][action](targets)
           outcome.succeeded.push(...result.succeeded.map((id) => `${domain}:${id}`))
           outcome.failed.push(...result.failed.map((failure) => ({ ...failure, id: `${domain}:${failure.id}` })))
         } catch (error) {
@@ -130,17 +133,20 @@ export default function AllArchiveSection(props: ArchiveDomainSectionProps) {
         })
       }
       onRestoreMany={(items) => runBatch(items, 'onRestoreMany')}
-      onPermanentDelete={(item) =>
+      onPermanentDelete={(item, options) =>
         withArchiveRefresh(async () => {
           const entry = entriesById.get(item.id)!
-          const result = await actions[entry.domain].onPermanentDelete({ ...item, id: entry.entityId })
+          const target = { ...item, id: entry.entityId }
+          const result = options
+            ? await actions[entry.domain].onPermanentDelete(target, options)
+            : await actions[entry.domain].onPermanentDelete(target)
           return {
             succeeded: result.succeeded.map((id) => `${entry.domain}:${id}`),
             failed: result.failed.map((failure) => ({ ...failure, id: `${entry.domain}:${failure.id}` }))
           }
         })
       }
-      onPermanentDeleteMany={(items) => runBatch(items, 'onPermanentDeleteMany')}
+      onPermanentDeleteMany={(items, options) => runBatch(items, 'onPermanentDeleteMany', options)}
       onRequestDelete={(request) => {
         const fileEntryIds = request.items.flatMap((item) => {
           const entry = entriesById.get(item.id)!

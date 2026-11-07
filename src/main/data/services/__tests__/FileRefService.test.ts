@@ -187,6 +187,46 @@ describe('FileRefService', () => {
       ])
     })
 
+    it('returns session and message context for an agent-session reference', async () => {
+      const entryId = '019606a0-0000-7000-8000-00000000aa05' as FileEntryId
+      const messageId = uuidv4()
+      const sessionId = `session-${messageId}`
+      const workspaceId = `workspace-${messageId}`
+      await dbh.db.insert(agentWorkspaceTable).values({
+        id: workspaceId,
+        name: workspaceId,
+        path: `/tmp/${workspaceId}`,
+        type: 'user',
+        orderKey: workspaceId
+      })
+      await dbh.db.insert(agentSessionTable).values({
+        id: sessionId,
+        name: 'Research session',
+        workspaceId,
+        orderKey: sessionId
+      })
+      await dbh.db.insert(agentSessionMessageTable).values({
+        id: messageId,
+        sessionId,
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'Please attach the generated report.' }] },
+        status: 'success',
+        createdAt: 1_750_000_000_000
+      })
+      await seedEntry(entryId)
+      await seedAgentSessionMessageRef(entryId, messageId)
+
+      expect(fileRefService.findAgentSessionMessageDetailsByEntryId(entryId)).toEqual([
+        {
+          refId: expect.any(String),
+          sessionId,
+          sessionName: 'Research session',
+          messageCreatedAt: 1_750_000_000_000,
+          messageSummary: 'Please attach the generated report.'
+        }
+      ])
+    })
+
     it('aggregates job refs (findByEntryId / findBySource) so job-held inputs are visible', async () => {
       const entryId = '019606a0-0000-7000-8000-00000000aa03' as FileEntryId
       const jobId = await seedJob()
