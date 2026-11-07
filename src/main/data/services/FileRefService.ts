@@ -12,6 +12,8 @@
 import { asc, count, eq, inArray, sql } from 'drizzle-orm'
 
 import { application } from '@application'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import {
   agentSessionMessageFileRefTable,
   chatMessageFileRefTable,
@@ -27,8 +29,6 @@ import {
   providerLogoFileRefTable,
   translateHistoryFileRefTable
 } from '@data/db/schemas/fileRelations'
-import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
-import { agentSessionTable } from '@data/db/schemas/agentSession'
 import type { DbOrTx } from '@data/db/types'
 import type { AgentSessionMessageRefDetail } from '@shared/data/api/schemas/files'
 import type { FileEntryId, FileRef, FileRefSourceType } from '@shared/data/types/file'

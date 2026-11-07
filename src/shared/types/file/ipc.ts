@@ -479,7 +479,10 @@ export interface FileIpcApi {
    */
   batchRestore(params: { ids: FileEntryId[] }): Promise<BatchMutationResult>
   /** Permanently delete internal entries in Trash; detach refs only after explicit user confirmation. */
-  batchPermanentDeleteFromTrash(params: { ids: FileEntryId[]; detachReferences?: boolean }): Promise<BatchMutationResult>
+  batchPermanentDeleteFromTrash(params: {
+    ids: FileEntryId[]
+    detachReferences?: boolean
+  }): Promise<BatchMutationResult>
   /** Remove unreferenced external entries from the library without modifying user files. */
   batchRemoveFromLibrary(params: { ids: FileEntryId[] }): Promise<BatchMutationResult>
 

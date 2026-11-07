@@ -13,9 +13,9 @@ import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
 import { isAgentNotFoundError, isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
 
-import type { PermanentDeleteOptions } from './ArchiveSection'
 import type { ArchiveBatchOutcome, ArchiveItem } from './archive'
 import { runPerItem } from './archive'
+import type { PermanentDeleteOptions } from './ArchiveSection'
 
 const logger = loggerService.withContext('ArchiveActions')
 
@@ -83,7 +83,7 @@ async function runSinglePermanentDelete(
 ): Promise<ArchiveBatchOutcome> {
   let outcome: ArchiveBatchOutcome = { succeeded: [], failed: [] }
   await runAction('permanent_delete', async () => {
-    outcome = await run([item], options)
+    outcome = options ? await run([item], options) : await run([item])
     const [failure] = outcome.failed
     if (failure?.reason === 'no-longer-in-recycle-bin') return NO_LONGER_IN_RECYCLE_BIN
     if (failure) throw new Error(failure.error)

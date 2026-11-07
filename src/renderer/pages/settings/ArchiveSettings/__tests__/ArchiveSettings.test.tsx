@@ -611,7 +611,7 @@ describe('ArchiveSettings holder disclosure', () => {
     const dialog = screen.getByRole('dialog')
     expect(await within(dialog).findByText(`Image-generation job record ${JOB_ID} (${role} image)`)).toBeVisible()
     expect(dialog).toHaveTextContent(
-      '1 file is still used by 1 record and will be kept. Remove that reference before deleting permanently.'
+      '1 file is still used by 1 record. Review the reference below; remove it or delete the file and detach the reference.'
     )
     expect(within(dialog).getByText('File 1')).toBeVisible()
     expect(within(dialog).getByText(RELEASE)).toBeVisible()

@@ -13,7 +13,7 @@
  * - For external origin, the user's file is **never** modified.
  *
  * Renderer-backed delete actions use narrower contracts:
- * - `permanentDeleteFromTrash` accepts only unreferenced trashed internal rows.
+ * - `permanentDeleteFromTrash` protects referenced rows unless detachment is explicitly requested.
  * - `removeExternalFromLibrary` accepts only unreferenced external rows and
  *   never removes their user-owned paths.
  */

@@ -210,9 +210,9 @@ const ArchiveSettings: FC = () => {
         const results = await Promise.allSettled(
           wave.map(
             (entryId) =>
-              dataApiService.get(
-                `/files/entries/${entryId}/agent-session-message-details`
-              ) as Promise<AgentSessionMessageRefDetail[]>
+              dataApiService.get(`/files/entries/${entryId}/agent-session-message-details`) as Promise<
+                AgentSessionMessageRefDetail[]
+              >
           )
         )
         if (referenceRequestToken.current !== token) return
@@ -259,7 +259,8 @@ const ArchiveSettings: FC = () => {
     if (!pendingDelete) return
     setIsDeleting(true)
     try {
-      await pendingDelete.run(pendingDelete.items, options)
+      if (options) await pendingDelete.run(pendingDelete.items, options)
+      else await pendingDelete.run(pendingDelete.items)
     } catch (error) {
       logger.error('permanent delete failed', error as Error)
       toast.error(t('settings.data.trash.permanent_delete.error'))

@@ -160,9 +160,14 @@ const ArchiveSection: FC<ArchiveSectionProps> = ({
       run: async (confirmedItems, options) => {
         setIsBatchActionPending(true)
         try {
-          const outcome = isBatch
-            ? await onPermanentDeleteMany(confirmedItems, options)
-            : await onPermanentDelete(confirmedItems[0], options)
+          const outcome =
+            isBatch && options
+              ? await onPermanentDeleteMany(confirmedItems, options)
+              : isBatch
+                ? await onPermanentDeleteMany(confirmedItems)
+                : options
+                  ? await onPermanentDelete(confirmedItems[0], options)
+                  : await onPermanentDelete(confirmedItems[0])
           applyOutcome(outcome)
           if (isBatch) showBatchOutcome('permanent_delete', outcome)
           return outcome
