@@ -88,7 +88,7 @@
   },
   "peerDependencies": {
     "@ai-sdk/google": "^3.0.132",
-    "@ai-sdk/openai": "^3.0.109",
+    "@ai-sdk/openai": "^3.0.137",
     "ai": "^6.0.116"
   },
   "engines": {
