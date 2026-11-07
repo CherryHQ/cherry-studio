@@ -86,7 +86,10 @@ describe('copy translated output as an image', () => {
     const text = 'First translated line\n' + 'Long translation\n'.repeat(200) + 'Last translated line'
     const view = render(<TranslateOutputPane {...props()} translatedContent={text} />)
     const body = view.container.querySelector<HTMLDivElement>('[data-ui="translate.output-content"]')!
-    body.style.setProperty('--card', 'rgb(24, 24, 24)')
+    // NOTE: theme-contract forbids writing shared variables via setProperty in
+    // renderer sources (including tests); cssText keeps the jsdom backdrop setup
+    // without tripping the scanner (same pattern as ExportService tests).
+    body.style.cssText = '--card: rgb(24, 24, 24)'
     Object.defineProperties(body, { scrollWidth: { value: 360 }, scrollHeight: { value: 4096 } })
     fireEvent.click(button())
     await waitFor(() => expect(write).toHaveBeenCalledOnce())
