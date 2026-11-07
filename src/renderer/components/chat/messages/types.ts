@@ -462,7 +462,7 @@ export interface MessageListActions {
     availability: (message: MessageListItem) => ActionAvailabilityInput
     run: (messageId: string) => void | Promise<void>
   }
-  copyBranchToNewTopic?: (messageId: string) => void | Promise<void>
+  copyBranchToNewTopic?: (messageId: string, options?: { includeBranches?: boolean }) => void | Promise<void>
   setActiveBranch?: (messageId: string) => void | Promise<void>
   deleteMessageGroup?: (messageIds: readonly string[]) => void | Promise<void>
   deleteMessageGroupWithConfirm?: (messageIds: readonly string[]) => void | Promise<void>

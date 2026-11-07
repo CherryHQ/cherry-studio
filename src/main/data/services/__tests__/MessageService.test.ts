@@ -2509,7 +2509,7 @@ describe('MessageService', () => {
     })
   })
 
-  describe('copyPathRowsTx', () => {
+  describe('copyMessageRowsTx', () => {
     it('reparents the path head onto the destination topic virtual root', async () => {
       await dbh.db.insert(topicTable).values([
         { id: 'source-topic', orderKey: 'a0' },
@@ -2555,7 +2555,7 @@ describe('MessageService', () => {
       expect(pathRows.map((r) => r.id)).toEqual(['source-root', 'source-child'])
 
       const { copiedActiveNodeId } = dbh.db.transaction((tx) =>
-        messageService.copyPathRowsTx(tx, pathRows, { topicId: 'target-topic' })
+        messageService.copyMessageRowsTx(tx, pathRows, { topicId: 'target-topic' })
       )
 
       // The destination keeps a single virtual root; the copied head hangs off it,

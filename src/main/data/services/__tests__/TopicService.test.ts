@@ -1670,6 +1670,93 @@ describe('TopicService', () => {
       ])
     })
 
+    it('copies every branch while preserving relationships and the selected active node', async () => {
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 'src-t', name: 'Source', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
+      await dbh.db.insert(messageTable).values(
+        withRoot('src-t', [
+          {
+            id: 'root-prompt',
+            topicId: 'src-t',
+            parentId: 'vroot-src-t',
+            role: 'user',
+            data: { parts: [{ type: 'text', text: 'root prompt' }] },
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 1,
+            updatedAt: 1
+          },
+          {
+            id: 'selected',
+            topicId: 'src-t',
+            parentId: 'root-prompt',
+            role: 'assistant',
+            data: { parts: [{ type: 'text', text: 'selected answer' }] },
+            status: 'success',
+            siblingsGroupId: 77,
+            createdAt: 2,
+            updatedAt: 2
+          },
+          {
+            id: 'sibling',
+            topicId: 'src-t',
+            parentId: 'root-prompt',
+            role: 'assistant',
+            data: { parts: [{ type: 'text', text: 'alternative answer' }] },
+            status: 'success',
+            siblingsGroupId: 77,
+            createdAt: 3,
+            updatedAt: 3
+          },
+          {
+            id: 'selected-descendant',
+            topicId: 'src-t',
+            parentId: 'selected',
+            role: 'user',
+            data: { parts: [{ type: 'text', text: 'selected follow-up' }] },
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 4,
+            updatedAt: 4
+          },
+          {
+            id: 'sibling-descendant',
+            topicId: 'src-t',
+            parentId: 'sibling',
+            role: 'user',
+            data: { parts: [{ type: 'text', text: 'alternative follow-up' }] },
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 5,
+            updatedAt: 5
+          }
+        ])
+      )
+
+      const result = topicService.duplicate('src-t', { nodeId: 'selected', includeBranches: true })
+      const copiedRows = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, result.id))
+      const copiedByText = (text: string) =>
+        copiedRows.find(
+          (row) => row.role !== 'root' && row.data.parts?.some((part) => part.type === 'text' && part.text === text)
+        )
+      const copiedRootPrompt = copiedByText('root prompt')
+      const copiedSelected = copiedByText('selected answer')
+      const copiedSibling = copiedByText('alternative answer')
+
+      expect(copiedRows).toHaveLength(6)
+      expect(copiedByText('selected follow-up')?.parentId).toBe(copiedSelected?.id)
+      expect(copiedByText('alternative follow-up')?.parentId).toBe(copiedSibling?.id)
+      expect(copiedSelected?.parentId).toBe(copiedRootPrompt?.id)
+      expect(copiedSibling?.parentId).toBe(copiedRootPrompt?.id)
+      expect(copiedSelected?.siblingsGroupId).toBe(77)
+      expect(copiedSibling?.siblingsGroupId).toBe(77)
+      expect(result.activeNodeId).toBe(copiedSelected?.id)
+      expect(copiedRows.map((row) => row.id)).not.toEqual(
+        expect.arrayContaining(['root-prompt', 'selected', 'sibling', 'selected-descendant', 'sibling-descendant'])
+      )
+    })
+
     it('uses an explicit duplicate name when provided', async () => {
       await dbh.db
         .insert(topicTable)
@@ -1854,7 +1941,7 @@ describe('TopicService', () => {
 
     it('duplicates from a node whose live path is shorter than root, reparenting the head onto the new virtual root', async () => {
       // The old "Source path does not start at the live root" reject is gone: getPathRowsToNodeTx
-      // now starts at the first live first-turn message and copyPathRowsTx reparents the head onto
+      // now starts at the first live first-turn message and copyMessageRowsTx reparents the head onto
       // the destination virtual root. Here `deleted-parent` is soft-deleted, so the live path is
       // just `[orphan]` — duplicate succeeds and copies that single row.
       await dbh.db

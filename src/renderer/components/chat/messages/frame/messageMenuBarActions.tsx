@@ -261,6 +261,11 @@ registerCommand('message.copyToNewTopic', async ({ actions, message, t }) => {
   actions.notifySuccess?.(t('chat.message.flow.copy_topic.created'))
 })
 
+registerCommand('message.copyTopicWithBranches', async ({ actions, message, t }) => {
+  await actions.copyBranchToNewTopic?.(message.id, { includeBranches: true })
+  actions.notifySuccess?.(t('chat.message.flow.copy_topic.created'))
+})
+
 registerCommand('message.multiSelect', ({ actions }) => {
   actions.toggleMultiSelectMode?.(true)
 })
@@ -543,6 +548,17 @@ registerAction({
   icon: <CopyPlus size={15} />,
   group: 'write',
   order: 25,
+  surface: 'menu',
+  availability: ({ actions, isAssistantMessage }) => !!actions.copyBranchToNewTopic && isAssistantMessage
+})
+
+registerAction({
+  id: 'copy-topic-with-branches',
+  commandId: 'message.copyTopicWithBranches',
+  label: ({ t }) => t('chat.message.flow.copy_topic.all_branches.label'),
+  icon: <CopyPlus size={15} />,
+  group: 'write',
+  order: 26,
   surface: 'menu',
   availability: ({ actions, isAssistantMessage }) => !!actions.copyBranchToNewTopic && isAssistantMessage
 })

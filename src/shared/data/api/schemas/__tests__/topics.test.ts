@@ -68,6 +68,13 @@ describe('DuplicateTopicSchema', () => {
     })
   })
 
+  it('accepts complete branch history mode', () => {
+    expect(DuplicateTopicSchema.parse({ nodeId: 'n1', includeBranches: true })).toEqual({
+      nodeId: 'n1',
+      includeBranches: true
+    })
+  })
+
   it('accepts an optional trimmed name', () => {
     expect(DuplicateTopicSchema.parse({ nodeId: 'n1', name: '  Source (Copy)  ' })).toEqual({
       nodeId: 'n1',
