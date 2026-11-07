@@ -7,6 +7,7 @@ import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { getRawModelId } from '@shared/utils/model'
+import { resolveSupportedDefaultEndpointType } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { type AppProviderId, appProviderIds } from '../types'
@@ -38,10 +39,11 @@ export function resolveWireModelId(model: Model, endpointType: EndpointType | un
 }
 
 /**
- * Priority: `preferredEndpointType` → `model.endpointTypes[0]` → gateway per-model route →
- * `provider.defaultChatEndpoint` → `undefined`. The gateway step resolves the wire endpoint from the
- * model id for multi-backend gateways (AiHubMix, …) whose models carry no explicit `endpointTypes`
- * (see `gatewayRouting`). `getBaseUrl` applies its own fallback among `endpointConfigs`.
+ * Priority: `preferredEndpointType` → supported `provider.defaultChatEndpoint` →
+ * `model.endpointTypes[0]` → gateway per-model route → `provider.defaultChatEndpoint` → `undefined`.
+ * The gateway step resolves the wire endpoint from the model id for multi-backend gateways (AiHubMix,
+ * …) whose models carry no explicit `endpointTypes` (see `gatewayRouting`). `getBaseUrl` applies its
+ * own fallback among `endpointConfigs`.
  *
  * `preferredEndpointType` serves callers that speak exactly one dialect — the Claude Agent SDK speaks
  * Anthropic Messages and nothing else, so it asks for that rather than the in-app-chat default
@@ -63,8 +65,13 @@ export function resolveEffectiveEndpoint(
     provider.endpointConfigs?.[preferredEndpointType]?.baseUrl
       ? preferredEndpointType
       : undefined
+  const supportedDefault = resolveSupportedDefaultEndpointType(model, provider)
   const endpointType =
-    preferred ?? model.endpointTypes?.[0] ?? gatewayRoute?.endpointType ?? provider.defaultChatEndpoint
+    preferred ??
+    supportedDefault ??
+    model.endpointTypes?.[0] ??
+    gatewayRoute?.endpointType ??
+    provider.defaultChatEndpoint
   const providerOptionsKey =
     gatewayRoute && endpointType === gatewayRoute.endpointType ? gatewayRoute.providerOptionsKey : undefined
   return { endpointType, baseUrl: getBaseUrl(provider, endpointType), providerOptionsKey }

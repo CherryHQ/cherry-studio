@@ -1086,12 +1086,8 @@ const omlxFetcher: ModelFetcher = {
         // The server hides models on purpose (operator-managed); keep them out.
         .filter((m) => m.is_hidden !== true)
         .map((m) => {
-          // `resolveEffectiveEndpoint` reads `endpointTypes[0]` before
-          // `provider.defaultChatEndpoint`, so listing chat-completions first
-          // silently overrode the registry's declared default (Responses, oMLX's
-          // native chat surface) and routed every discovered model to the legacy
-          // dialect. Derive the first entry from the provider's declaration so
-          // discovery inherits it — including a user who changes the default.
+          // Keep the provider's default in each discovered model's supported set
+          // so endpoint resolution can honor it, including when a user changes it.
           //
           // The Anthropic endpoint stays declared for the Claude Agent SDK, which
           // speaks only Messages and asks for it explicitly.

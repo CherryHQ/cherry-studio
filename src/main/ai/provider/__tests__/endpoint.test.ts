@@ -343,7 +343,7 @@ describe('resolveProviderVariant', () => {
 })
 
 describe('resolveEffectiveEndpoint', () => {
-  it('prefers model.endpointTypes[0] over provider.defaultChatEndpoint', () => {
+  it('keeps the first model endpoint when the provider default is unsupported', () => {
     const provider = makeProvider({
       id: 'minimax',
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
@@ -356,6 +356,43 @@ describe('resolveEffectiveEndpoint', () => {
     const { endpointType, baseUrl } = resolveEffectiveEndpoint(provider, model)
     expect(endpointType).toBe(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
     expect(baseUrl).toBe('https://api.minimax.io/anthropic')
+  })
+
+  it('prefers a configured provider default when the model supports it', () => {
+    const provider = makeProvider({
+      id: 'deepseek',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://api.deepseek.com' },
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.deepseek.com' }
+      }
+    })
+    const model = {
+      id: 'deepseek-v4-flash',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    } as never
+    expect(resolveEffectiveEndpoint(provider, model)).toMatchObject({
+      endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      baseUrl: 'https://api.deepseek.com'
+    })
+  })
+
+  it('keeps the first model endpoint when the provider default has no configured URL', () => {
+    const provider = makeProvider({
+      id: 'minimax',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.minimax.io/anthropic' }
+      }
+    })
+    const model = {
+      id: 'm',
+      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    } as never
+    expect(resolveEffectiveEndpoint(provider, model)).toMatchObject({
+      endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      baseUrl: 'https://api.minimax.io/anthropic'
+    })
   })
 
   it('falls back to provider.defaultChatEndpoint when model has no endpointTypes hint', () => {
@@ -405,7 +442,7 @@ describe('resolveEffectiveEndpoint', () => {
         endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
         baseUrl: 'https://api.deepseek.com/anthropic'
       })
-      expect(resolveEffectiveEndpoint(deepseek, flash).endpointType).toBe(ENDPOINT_TYPE.OPENAI_RESPONSES)
+      expect(resolveEffectiveEndpoint(deepseek, flash).endpointType).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
     })
 
     it('is declined when the model does not declare it', () => {

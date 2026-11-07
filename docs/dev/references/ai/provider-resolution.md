@@ -16,7 +16,7 @@ settings, hitting which URL. Three pieces of state determine that:
 | Field | Lives on | Example |
 |---|---|---|
 | `provider.id` | `Provider` row | `minimax`, `silicon`, `my-relay` |
-| `endpointType` | `model.endpointTypes[0]` or `provider.defaultChatEndpoint` | `openai-chat-completions`, `anthropic-messages` |
+| `endpointType` | `resolveEffectiveEndpoint`: validated runtime preference, supported/configured provider default, first model endpoint, gateway route, provider fallback | `openai-chat-completions`, `anthropic-messages` |
 | `adapterFamily` | `provider.endpointConfigs[endpointType].adapterFamily` | `openai-compatible`, `anthropic`, `azure-responses` |
 
 `adapterFamily` is the actual SDK selector. `provider.id` is the user-facing
