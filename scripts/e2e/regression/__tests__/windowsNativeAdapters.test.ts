@@ -1,4 +1,4 @@
-import { execFileSync, spawn } from 'node:child_process'
+import { type ChildProcess, execFileSync, spawn } from 'node:child_process'
 import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
@@ -86,19 +86,21 @@ it.skipIf(process.platform !== 'win32').each(['file', 'multiple', 'directory', '
   async (mode) => {
     const directory = mkdtempSync(join(tmpdir(), 'cherry-native-dialog-'))
     const paths = getRunPaths(directory)
-    ensureRunDirectories(paths)
-    mkdirSync(join(paths.profiles, 'native-dialog'), { recursive: true })
-    const inputs = [join(paths.fixtures, 'first input.txt'), join(paths.fixtures, 'second 输入.txt')]
-    for (const input of inputs) writeFileSync(input, 'Owned native input')
-    const folder = join(paths.fixtures, 'chosen folder')
-    mkdirSync(folder)
-    const saved = join(paths.exports, 'requested output.txt')
-    const resultPath = join(paths.private, 'result.json')
-    const readyPath = join(paths.private, 'ready')
     const script = join(paths.private, 'dialog.cjs')
-    writeFileSync(
-      script,
-      `
+    let child: ChildProcess | undefined
+    try {
+      ensureRunDirectories(paths)
+      mkdirSync(join(paths.profiles, 'native-dialog'), { recursive: true })
+      const inputs = [join(paths.fixtures, 'first input.txt'), join(paths.fixtures, 'second 输入.txt')]
+      for (const input of inputs) writeFileSync(input, 'Owned native input')
+      const folder = join(paths.fixtures, 'chosen folder')
+      mkdirSync(folder)
+      const saved = join(paths.private, 'requested output.txt')
+      const resultPath = join(paths.private, 'result.json')
+      const readyPath = join(paths.private, 'ready')
+      writeFileSync(
+        script,
+        `
       const { app, BrowserWindow, dialog } = require('electron')
       const fs = require('node:fs')
       app.setPath('userData', ${JSON.stringify(join(paths.profiles, 'native-dialog'))})
@@ -116,15 +118,14 @@ it.skipIf(process.platform !== 'win32').each(['file', 'multiple', 'directory', '
         fs.writeFileSync(${JSON.stringify(resultPath)}, JSON.stringify(result))
       }).catch(error => { fs.writeFileSync(${JSON.stringify(resultPath)}, JSON.stringify({error: String(error)})); app.exit(1) })
     `
-    )
-    const environment = { ...process.env }
-    delete environment.ELECTRON_RUN_AS_NODE
-    const child = spawn(createRequire(import.meta.url)('electron') as string, [script], {
-      env: environment,
-      stdio: 'ignore',
-      windowsHide: false
-    })
-    try {
+      )
+      const environment = { ...process.env }
+      delete environment.ELECTRON_RUN_AS_NODE
+      child = spawn(createRequire(import.meta.url)('electron') as string, [script], {
+        env: environment,
+        stdio: 'ignore',
+        windowsHide: false
+      })
       await expect.poll(() => existsSync(readyPath), { timeout: 30_000 }).toBe(true)
       writeFileSync(
         paths.appRecord,
@@ -157,7 +158,7 @@ it.skipIf(process.platform !== 'win32').each(['file', 'multiple', 'directory', '
         )
       }
     } finally {
-      if (child.pid && child.exitCode === null && isAlive(child.pid)) {
+      if (child?.pid && child.exitCode === null && isAlive(child.pid)) {
         expect(processCommand(child.pid, 'windows'), 'Native dialog fixture ownership changed').toContain(script)
         execFileSync('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore', timeout: 10_000 })
         expect(await waitForExit(child.pid), 'Owned native dialog fixture did not exit').toBe(true)
