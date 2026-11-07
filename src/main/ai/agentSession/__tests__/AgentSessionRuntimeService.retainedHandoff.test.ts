@@ -124,6 +124,19 @@ function userMessage(id: string) {
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
 
+function openChunkStream(service: Service, input: Parameters<Service['openTurnStream']>[0]) {
+  const source = service.openTurnStream(input)
+  if (source.kind !== 'messages') throw new Error('Expected message source')
+  return source.stream.pipeThrough(
+    new TransformStream({
+      transform(event, controller) {
+        if (event.type === 'control') controller.enqueue(event.chunk)
+        else if (event.type === 'error') controller.error(event.error)
+      }
+    })
+  )
+}
+
 function entryOf(service: Service) {
   const entry = (service as any).entries.get('session-1')
   if (!entry) throw new Error('runtime entry missing')
@@ -174,14 +187,12 @@ async function streamAutonomousReplyUnderDeferredSwitch(service: Service) {
   )
   await flush()
 
-  const autonomousTurn = entry.runtimeState.execution.turn
-  const reader = service
-    .openTurnStream({
-      sessionId: 'session-1',
-      turnId: autonomousTurn.turnId,
-      signal: autonomousTurn.abortController.signal
-    })
-    .getReader()
+  const autonomousTurn = entry.runtimeState.execution.reply.turn
+  const reader = openChunkStream(service, {
+    sessionId: 'session-1',
+    turnId: autonomousTurn.turnId,
+    signal: autonomousTurn.abortController.signal
+  }).getReader()
   await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' } })
   await flush()
   // The placeholder row's id is whatever the backend assigned — the turn carries it.
@@ -231,12 +242,15 @@ describe('retained-reply interruption hands B back only after A persists', () =>
     // abort signal, the way a provider stream does.
     mocks.streamText.mockImplementation((request: { requestOptions?: { signal?: AbortSignal } }) => {
       const signal = request.requestOptions?.signal
-      return new ReadableStream({
-        start(controller) {
-          if (signal?.aborted) controller.close()
-          else signal?.addEventListener('abort', () => controller.close(), { once: true })
-        }
-      })
+      return {
+        kind: 'chunks' as const,
+        stream: new ReadableStream({
+          start(controller) {
+            if (signal?.aborted) controller.close()
+            else signal?.addEventListener('abort', () => controller.close(), { once: true })
+          }
+        })
+      }
     })
 
     manager = new (AiStreamManager as unknown as new () => Manager)()
@@ -298,7 +312,9 @@ describe('retained-reply interruption hands B back only after A persists', () =>
     // B's deferred input is now the session's live turn, and it resumed after A's row landed.
     expect(entry.runtimeState.execution).toMatchObject({
       kind: 'turn',
-      turn: expect.objectContaining({ assistantMessageId: 'assistant-2' })
+      reply: expect.objectContaining({
+        turn: expect.objectContaining({ assistantMessageId: 'assistant-2' })
+      })
     })
     await flush()
     expect(persistedRows().get(savedId)).toBe('paused')
@@ -334,7 +350,9 @@ describe('retained-reply interruption hands B back only after A persists', () =>
     await vi.waitFor(() => {
       expect(entry.runtimeState.execution).toMatchObject({
         kind: 'turn',
-        turn: expect.objectContaining({ assistantMessageId: 'assistant-2' })
+        reply: expect.objectContaining({
+          turn: expect.objectContaining({ assistantMessageId: 'assistant-2' })
+        })
       })
     })
     const managerInternals = manager as unknown as {
@@ -399,7 +417,7 @@ describe('retained-reply interruption hands B back only after A persists', () =>
     await flush()
 
     // The launch is suspended mid-flight: placeholder persisted, turn created, stream unregistered.
-    const interruptedTurn = entry.runtimeState.execution.turn
+    const interruptedTurn = entry.runtimeState.execution.reply.turn
     expect(interruptedTurn).toBeDefined()
     const savedId = interruptedTurn.assistantMessageId as string
     expect(persistedRows().get(savedId)).toBe('pending')
@@ -427,7 +445,9 @@ describe('retained-reply interruption hands B back only after A persists', () =>
     await vi.waitFor(() =>
       expect(entry.runtimeState.execution).toMatchObject({
         kind: 'turn',
-        turn: expect.objectContaining({ assistantMessageId: 'assistant-2' })
+        reply: expect.objectContaining({
+          turn: expect.objectContaining({ assistantMessageId: 'assistant-2' })
+        })
       })
     )
     expect(persistedRows().get(savedId)).toBe('paused')
@@ -476,10 +496,10 @@ describe('retained-reply interruption hands B back only after A persists', () =>
         { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } },
         retained
       )
-      // B's input suspension has started, but the receive-only launch has not minted its turn —
-      // the exact window the verdict can land in.
+      // B's input suspension has started while the receive-only launch has not persisted its
+      // placeholder yet — the exact window the verdict can land in.
       expect(entry.runtimeState.execution).toMatchObject({ kind: 'autonomous-turn', ownership: 'active' })
-      expect(entry.runtimeState.execution.turn).toBeUndefined()
+      expect(mocks.saveMessage).not.toHaveBeenCalled()
       return { service, entry, retained }
     }
 
@@ -492,13 +512,17 @@ describe('retained-reply interruption hands B back only after A persists', () =>
         await flush()
 
         expect(retained.close).toHaveBeenCalled()
-        // The dead connection must not mint a receive-only turn: no placeholder row, and the
-        // autonomous execution is gone.
-        expect(mocks.saveMessage).not.toHaveBeenCalled()
+        // The dead connection must not mint a zombie receive-only turn: the only reply row written
+        // is A's already-minted turn, and the interruption settles it.
+        const rows = mocks.saveMessage.mock.calls.map((call: any) => [call[0].message.id, call[0].message.status])
+        expect(rows.map(([, status]) => status)).toEqual(['pending', 'paused'])
+        expect(new Set(rows.map(([id]) => id)).size).toBe(1)
         await vi.waitFor(() => {
           expect(entry.runtimeState.execution).toMatchObject({
             kind: 'turn',
-            turn: expect.objectContaining({ assistantMessageId: 'assistant-2' })
+            reply: expect.objectContaining({
+              turn: expect.objectContaining({ assistantMessageId: 'assistant-2' })
+            })
           })
         })
         // The resume is real: B's runtime execution is registered on the topic stream.
@@ -520,7 +544,7 @@ describe('retained-reply interruption hands B back only after A persists', () =>
       await flush()
 
       expect(retained.close).not.toHaveBeenCalled()
-      const receiveOnlyTurn = entry.runtimeState.execution.turn
+      const receiveOnlyTurn = entry.runtimeState.execution.reply.turn
       expect(receiveOnlyTurn).toBeDefined()
       expect(mocks.saveMessage).toHaveBeenCalledTimes(1)
 
@@ -530,7 +554,9 @@ describe('retained-reply interruption hands B back only after A persists', () =>
       await vi.waitFor(() => {
         expect(entry.runtimeState.execution).toMatchObject({
           kind: 'turn',
-          turn: expect.objectContaining({ assistantMessageId: 'assistant-2' })
+          reply: expect.objectContaining({
+            turn: expect.objectContaining({ assistantMessageId: 'assistant-2' })
+          })
         })
       })
 
@@ -587,14 +613,16 @@ describe('retained-reply interruption hands B back only after A persists', () =>
     })
 
     // The release must not strand the handoff: A's reply settles, then B's deferred input resumes.
-    const receiveOnlyTurn = entry.runtimeState.execution.turn
+    const receiveOnlyTurn = entry.runtimeState.execution.reply.turn
     expect(receiveOnlyTurn).toBeDefined()
     ;(service as any).handleRuntimeEvent(entry, { type: 'autonomous-turn-state', state: 'finished' }, retained)
     service.markTurnTerminal('session-1', 'paused', receiveOnlyTurn!.turnId)
     await vi.waitFor(() => {
       expect(entry.runtimeState.execution).toMatchObject({
         kind: 'turn',
-        turn: expect.objectContaining({ assistantMessageId: 'assistant-2' })
+        reply: expect.objectContaining({
+          turn: expect.objectContaining({ assistantMessageId: 'assistant-2' })
+        })
       })
     })
 
@@ -625,7 +653,9 @@ describe('retained-reply interruption hands B back only after A persists', () =>
     await vi.waitFor(() => {
       expect(entry.runtimeState.execution).toMatchObject({
         kind: 'turn',
-        turn: expect.objectContaining({ assistantMessageId: 'assistant-2' })
+        reply: expect.objectContaining({
+          turn: expect.objectContaining({ assistantMessageId: 'assistant-2' })
+        })
       })
     })
 

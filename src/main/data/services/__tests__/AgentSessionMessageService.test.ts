@@ -129,9 +129,7 @@ describe('AgentSessionMessageService', () => {
         for (const type of ['claude-code', 'pi']) {
           runtimeDriverRegistry.register({
             type,
-            capabilities: ['agent-session'],
             validateSession: vi.fn(),
-            listAvailableTools: vi.fn().mockResolvedValue([]),
             connect,
             fork
           })

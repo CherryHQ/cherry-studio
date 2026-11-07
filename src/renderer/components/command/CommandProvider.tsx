@@ -22,6 +22,7 @@ interface CommandHandlerEntry {
   id: number
   handler: CommandHandler
   enabled: boolean
+  shouldHandleKeyEvent?: (event: KeyboardEvent) => boolean
 }
 
 interface CommandDispatcherState {
@@ -78,7 +79,8 @@ export function CommandProvider({ children }: { children: React.ReactNode }) {
       const entry: CommandHandlerEntry = {
         id: nextHandlerIdRef.current++,
         handler,
-        enabled: options?.enabled !== false
+        enabled: options?.enabled !== false,
+        shouldHandleKeyEvent: options?.shouldHandleKeyEvent
       }
       const handlers = handlersRef.current.get(command) ?? []
       handlers.push(entry)
@@ -133,7 +135,7 @@ export function CommandProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.isComposing) {
+      if (event.isComposing || event.keyCode === 229) {
         return
       }
 
@@ -160,6 +162,10 @@ export function CommandProvider({ children }: { children: React.ReactNode }) {
         return
       }
 
+      if (getActiveHandler(command)?.shouldHandleKeyEvent?.(event) === false) {
+        return
+      }
+
       event.preventDefault()
       state.execute(command)
     }
@@ -168,7 +174,7 @@ export function CommandProvider({ children }: { children: React.ReactNode }) {
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [])
+  }, [getActiveHandler])
 
   const value = useMemo(
     () => ({

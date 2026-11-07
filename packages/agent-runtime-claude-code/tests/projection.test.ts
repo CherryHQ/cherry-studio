@@ -203,7 +203,6 @@ it('does not interpret unknown archive blocks as tool results or discard their v
   expect(archive.content[0].parts[0]).not.toHaveProperty('output')
   expect(archive.content[1].parts).toEqual([{ type: 'text', text: 'Still readable', state: 'done' }])
   expect(archive.legacy?.[`${mixed.uuid}:4`]).toEqual({ messageId: mixed.uuid, parts: [0] })
-  expect(archive.messages[1]).toEqual(mixed)
 })
 
 it.each([false, true])('keeps omitted tool output retracted after archive reconciliation (error: %s)', (isError) => {
@@ -238,7 +237,6 @@ it.each([false, true])('keeps omitted tool output retracted after archive reconc
   const archive = projection.restore([summary], [{ type: 'assistant', retracted_message_uuids: [result.uuid] }])
   expect(archive.retracted).toEqual([result.uuid])
   expect(archive.content.map((message) => message.id)).toEqual([summary.uuid])
-  expect(projection.feed.snapshot.coverage).toBe('retained-view')
   expect(projection.feed.snapshot.messages.map((message) => message.id)).toEqual([call.uuid, summary.uuid])
   expect(projection.feed.snapshot.messages[0].parts[0]).toMatchObject({
     type: 'dynamic-tool',

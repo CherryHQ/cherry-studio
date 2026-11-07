@@ -65,7 +65,14 @@ it('keeps parent and child publishers independent over the same delivery protoco
     executions: [],
     messages: []
   })
-  const childState = { kind: 'child' as const, contextId: 'c', sessionId: 'child', active: true, available: true }
+  const childState = {
+    kind: 'child' as const,
+    contextId: 'c',
+    sessionId: 'child',
+    active: true,
+    available: true,
+    canSubmit: true
+  }
   const child = new MessageProjection<ChildProjectionState>({ ...childState, messages: [] })
   const window = sender()
   const rootUpdates: MessageProjectionUpdate[] = []
