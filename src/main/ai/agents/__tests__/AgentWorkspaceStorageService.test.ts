@@ -337,6 +337,68 @@ describe(`workspace storage protocol (${process.platform})`, () => {
     expect(service.workspaceStoragePaths(workspace.path).some(existsSync)).toBe(false)
   })
 
+  // A detached task outlives the session that started it and keeps its workspace as its cwd.
+  // Archival retains that directory, but a permanent session deletion — and the retention purge
+  // that follows it — reach the same removal through `purgeWorkspace`, and the orphan sweep
+  // reaches it again through `reclaimOrphanWorkspace`. None of those may pull the directory out
+  // from under a task that is still writing into it.
+  describe('a workspace a live detached task still works in', () => {
+    let dataRoot: string
+    let liveTask: (status: 'running' | 'completed') => Promise<void>
+
+    beforeEach(async () => {
+      dataRoot = await mkdtemp(path.join(os.tmpdir(), 'workspace-tasks-'))
+      vi.spyOn(application, 'getPath').mockImplementation((key) => (key === 'feature.agents.data' ? dataRoot : root))
+      const taskDir = path.join(dataRoot, 'agent', 'background-tasks')
+      await mkdir(taskDir, { recursive: true })
+      const recordFile = path.join(taskDir, 'bt-live.json')
+      liveTask = async (status) =>
+        writeFile(
+          recordFile,
+          JSON.stringify({
+            id: 'bt-live',
+            name: 'live',
+            command: 'true',
+            pid: process.pid,
+            cwd: workspace.path,
+            startedAt: new Date().toISOString(),
+            logFile: path.join(taskDir, 'bt-live.log'),
+            status,
+            exitCode: status === 'completed' ? 0 : null,
+            signal: null
+          })
+        )
+    })
+
+    afterEach(async () => {
+      await rm(dataRoot, { recursive: true, force: true })
+    })
+
+    it('defers a permanent purge while the task runs and completes it once the task is done', async () => {
+      await liveTask('running')
+      await expect(service.purgeWorkspace(workspace)).rejects.toThrow('detached background task')
+      // The directory the task is writing into survives, exactly as archival would leave it.
+      expect(existsSync(workspace.path)).toBe(true)
+      expect(existsSync(`${workspace.path}.storage.json`)).toBe(false)
+
+      await liveTask('completed')
+      await service.purgeWorkspace(workspace)
+      expect(existsSync(workspace.path)).toBe(false)
+    })
+
+    it('defers orphan reclamation while the task runs and reclaims once it is done', async () => {
+      await liveTask('running')
+      expect(
+        await service.reclaimOrphanWorkspace(workspace.path, { now: Date.now() + 60_000, freshnessGateMs: 0 })
+      ).toEqual([])
+      expect(existsSync(workspace.path)).toBe(true)
+
+      await liveTask('completed')
+      await service.reclaimOrphanWorkspace(workspace.path, { now: Date.now() + 60_000, freshnessGateMs: 0 })
+      expect(existsSync(workspace.path)).toBe(false)
+    })
+  })
+
   it('refuses root and outside paths', async () => {
     await expect(service.archiveWorkspace({ id: 'root', path: root })).rejects.toThrow()
     await expect(service.archiveWorkspace({ id: 'outside', path: path.dirname(root) })).rejects.toThrow()

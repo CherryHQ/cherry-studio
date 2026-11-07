@@ -13,7 +13,7 @@ import {
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
-import { normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
+import { isPiToolDisabledByDependency, normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
 import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 
 import { buildAgentMcpServers, warmAgentMcpToolCatalogs } from '../agentMcpServers'
@@ -114,7 +114,8 @@ export async function prepareDurableDesktop(input: AgentRuntimeConnectInput, emi
           tool &&
           (disabled.has(buildFunctionCallToolName(tool.serverName, tool.name)) ||
             disabled.has(`mcp__${tool.serverId}__${tool.name}`))
-        )
+        ) ||
+        isPiToolDisabledByDependency(name, disabled, (runtimeName) => mcp.metadata.get(runtimeName))
       )
     }
     const skills = pi.loadSkills({

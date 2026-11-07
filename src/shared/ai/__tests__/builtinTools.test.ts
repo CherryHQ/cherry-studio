@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
+import { isPiToolDisabledByDependency } from '@shared/ai/piBuiltinTools'
 import { isHttpUrl } from '@shared/utils/url'
 
 import {
@@ -197,5 +198,20 @@ describe('builtin tool contracts', () => {
     expect(reportArtifactsInputSchema.safeParse({ artifacts: [] }).success).toBe(false)
     expect(reportArtifactsInputSchema.safeParse({ artifacts: [{ path: '   ' }] }).success).toBe(false)
     expect(REPORT_ARTIFACTS_DESCRIPTION).toContain('final deliverable')
+  })
+})
+
+describe('Pi tool dependency policy', () => {
+  it('blocks a dependent tool when Pi disabled its shell dependency', () => {
+    // Pi stores builtin ids lowercase; the registry declares dependencies in Claude casing.
+    expect(isPiToolDisabledByDependency('mcp__cherry-tools__background_task', new Set(['bash']))).toBe(true)
+    expect(isPiToolDisabledByDependency('mcp__cherry-tools__background_task', new Set())).toBe(false)
+  })
+
+  it('resolves an MCP runtime name through the session metadata', () => {
+    const resolveMcpTool = () => ({ name: 'background_task', serverName: 'cherry-tools', serverId: 'server-uuid' })
+    expect(isPiToolDisabledByDependency('mcp__server-uuid__background_task', new Set(['bash']), resolveMcpTool)).toBe(
+      true
+    )
   })
 })

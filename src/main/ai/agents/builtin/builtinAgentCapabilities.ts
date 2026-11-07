@@ -31,6 +31,13 @@ export interface AgentCapabilities {
    * workspace supply plugins but not skills would just be an unreviewed hole in the same boundary.
    */
   environment: 'open' | 'sealed'
+  /**
+   * Whether the Agent may start detached shell work (`background_task`). A detached command escapes
+   * every runtime's tool plane — it outlives the turn and, under bypassPermissions, any per-call
+   * approval — so an Agent whose reach is otherwise bounded must say here whether it has any.
+   * Omit for the default: only Agents it excludes are named.
+   */
+  detachedShell?: false
   /** Read every knowledge base, not just those bound to the Agent or picked in the composer. */
   allKnowledgeBases: boolean
   /** Tools that act on Cherry Studio itself. Absent for an Agent with no host access. */
@@ -80,7 +87,10 @@ const CAPABILITIES_BY_ROLE: Record<BuiltinAgentRole, AgentCapabilities> = {
       runtimes: ['claude-code'],
       files: false,
       doctor: true
-    }
+    },
+    // Doctor writes only through bounded proposals the user applies, so an unattended shell write
+    // would land outside that workflow entirely — and its bundle disables native Bash/Edit/Write.
+    detachedShell: false
   }
 }
 
