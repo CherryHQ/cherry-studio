@@ -61,6 +61,10 @@ export function configureChromiumFlags(): void {
     app.commandLine.appendSwitch('password-store', 'gnome-libsecret')
   }
 
+  // Stealth / Anti-detection: disable AutomationControlled flag to prevent
+  // bot detection engines (e.g. Google BotGuard, Cloudflare) from flagging navigator.webdriver.
+  app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled')
+
   // Unconditional Chromium feature flags:
   // - DocumentPolicyIncludeJSCallStacksInCrashReports: capture JS call stacks
   //   when the renderer is unresponsive (paired with the web-contents-created
