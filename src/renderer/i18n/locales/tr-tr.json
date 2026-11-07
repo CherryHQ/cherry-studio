@@ -2285,7 +2285,7 @@
   "library.import_dialog.url.button": "Getir ve içe aktar",
   "library.import_dialog.url.hint": "Bir GitHub Gist'ten, GitHub deposundan veya herkese açık herhangi bir URL'den içe aktarın",
   "library.import_dialog.url.supports": "Ham dosya URL'leri desteklenir",
-  "library.import_skill_dialog.local.drop_hint": "Bir ZIP dosyasını veya dizini buraya bırakın ya da ZIP seçmek için tıklayın",
+  "library.import_skill_dialog.local.drop_hint": "Buraya SKILL.md içeren bir skill ZIP dosyası veya klasörü bırakın ya da göz atmak için tıklayın",
   "library.import_skill_dialog.local.formats": ".zip dosyaları ve SKILL.md içeren dizinler desteklenir",
   "library.import_skill_dialog.subtitle": "Bir ZIP dosyasından veya dizinden beceri yükleyin",
   "library.import_skill_dialog.title": "Beceriyi içe aktar",
