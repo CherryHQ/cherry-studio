@@ -535,6 +535,32 @@ describe('illustration persistence and task ownership', () => {
     expect(generate).toHaveBeenCalledTimes(1)
   })
 
+  it.each(['error', 'cancelled'] as const)('cancels a retry after %s when the original reply stops', async (status) => {
+    const message = createReply()
+    const target = { topicId: 'topic', messageId: message.id, id: 'retried-image' }
+    const reply = new AbortController()
+    service.start(target, reply.signal)
+    service.complete(target, 'a bird', true)
+    await vi.waitFor(() => expect(generate).toHaveBeenCalledTimes(1))
+    if (status === 'error') fail(new Error('provider unavailable'))
+    else {
+      service.cancel(target)
+      finish({ files: [] })
+    }
+    await vi.waitFor(() => expect(service.get(target)?.status).toBe(status))
+
+    service.retry(target)
+    await vi.waitFor(() => expect(generate).toHaveBeenCalledTimes(2))
+    const signal: AbortSignal = generate.mock.calls[1][0].requestOptions.signal
+    reply.abort()
+
+    expect(signal.aborted).toBe(true)
+    expect(service.get(target)?.status).toBe('cancelled')
+    finish({ files: [{ id: fileId, name: 'late result' }] })
+    await Promise.resolve()
+    expect(service.get(target)).toMatchObject({ status: 'cancelled', files: undefined })
+  })
+
   it('updates temporary replies and follows their original identity into saved history', async () => {
     const topic = temporaryChatService.createTopic({ name: 'temporary' })
     const target = { topicId: topic.id, messageId: 'temp-answer', id: 'temp-image' }

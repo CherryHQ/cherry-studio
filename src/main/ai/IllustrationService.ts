@@ -23,7 +23,7 @@ interface IllustrationJob {
   persisted: boolean
   controller?: AbortController
   detach?: () => void
-  inputHolds?: Disposable[]
+  fileHolds?: Disposable[]
 }
 
 @Injectable('IllustrationService')
@@ -63,12 +63,7 @@ export class IllustrationService extends BaseService {
         const { id, name } = inputs.find((input) => input.reference === reference)!
         return { id, name }
       })
-      job.inputHolds = job.data.inputFiles.flatMap(({ id }) => {
-        const entry = fileEntryService.findById(id)
-        return entry?.origin === 'internal' && entry.cleanupPolicy === 'delete_when_unreferenced'
-          ? [application.get('FileManager').retainTemporaryEntry(id)]
-          : []
-      })
+      this.retainFiles(job, job.data.inputFiles)
       this.generate(job)
     }
     return job.data
@@ -132,16 +127,20 @@ export class IllustrationService extends BaseService {
     for (const job of this.jobs.values()) {
       if (job.target.messageId !== messageId) continue
       job.persisted = true
-      job.inputHolds?.forEach((hold) => hold.dispose())
-      job.inputHolds = undefined
-      if (!['prompting', 'generating'].includes(job.data.status)) this.jobs.delete(job.target.id)
+      job.fileHolds?.forEach((hold) => hold.dispose())
+      job.fileHolds = undefined
+      if (!['prompting', 'generating'].includes(job.data.status)) {
+        job.detach?.()
+        this.jobs.delete(job.target.id)
+      }
     }
   }
 
   protected onStop(): void {
     for (const job of this.jobs.values()) {
       this.cancel(job.target)
-      job.inputHolds?.forEach((hold) => hold.dispose())
+      job.detach?.()
+      job.fileHolds?.forEach((hold) => hold.dispose())
     }
     this.jobs.clear()
   }
@@ -153,6 +152,16 @@ export class IllustrationService extends BaseService {
   private findJob(target: IllustrationTarget): IllustrationJob | undefined {
     const job = this.jobs.get(target.id)
     return job?.target.topicId === target.topicId && job.target.messageId === target.messageId ? job : undefined
+  }
+
+  private retainFiles(job: IllustrationJob, files: readonly { id: string }[]): void {
+    job.fileHolds ??= []
+    for (const { id } of files) {
+      const entry = fileEntryService.findById(id)
+      if (entry?.origin === 'internal' && entry.cleanupPolicy === 'delete_when_unreferenced') {
+        job.fileHolds.push(application.get('FileManager').retainTemporaryEntry(id))
+      }
+    }
   }
 
   private generate(job: IllustrationJob): void {
@@ -218,12 +227,13 @@ export class IllustrationService extends BaseService {
               mode,
               ...(inputImages && { inputImages }),
               paramValues: extractParamValues({ prompt: job.data.prompt }, configured.support, mode),
-              cleanupPolicy: temporaryChatService.hasTopic(job.target.topicId) ? 'manual' : 'delete_when_unreferenced',
+              cleanupPolicy: 'delete_when_unreferenced',
               requestOptions: { signal: controller.signal }
             })
             // A cancelled attempt may resolve after a retry; only the current attempt can publish files.
             if (job.controller !== controller || job.data.status !== 'generating') return
             if (!files.length) throw new Error('Image generation returned no files')
+            if (!job.persisted) this.retainFiles(job, files)
             this.update(job, { status: 'ready', files: files.map(({ id, name }) => ({ id, name })) })
           } catch (error) {
             if (job.controller !== controller || job.data.status !== 'generating') return
@@ -241,10 +251,12 @@ export class IllustrationService extends BaseService {
 
   private update(job: IllustrationJob, change: Partial<IllustrationData>): void {
     job.data = { ...job.data, ...change, revision: job.data.revision + 1 }
-    if (!['prompting', 'generating'].includes(job.data.status)) job.detach?.()
     if (job.persisted) {
       this.patch(job.target, job.data)
-      if (!['prompting', 'generating'].includes(job.data.status)) this.jobs.delete(job.target.id)
+      if (!['prompting', 'generating'].includes(job.data.status)) {
+        job.detach?.()
+        this.jobs.delete(job.target.id)
+      }
     }
     application.get('IpcApiService').broadcast('ai.illustration.changed', { ...job.target, data: job.data })
   }

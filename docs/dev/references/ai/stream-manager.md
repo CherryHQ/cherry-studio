@@ -588,7 +588,11 @@ persistence backends merge the latest image state synchronously with terminal
 message persistence, then hand subsequent image updates to the saved message.
 Managed image files are referenced by the message, including when a temporary
 topic is saved. Cancellation and explicit retry use `ai.illustration.cancel`
-and `ai.illustration.retry`. Interrupted jobs after restart become failures;
+and `ai.illustration.retry`. Stopping a reply also cancels image retries started
+while that reply is streaming. Generated files use automatic cleanup; runtime
+references protect illustration inputs and outputs until the temporary topic is
+deleted or successfully saved with persistent message-file references. A failed
+save preserves those runtime references. Interrupted jobs after restart become failures;
 they do not automatically submit another image request.
 
 An illustration may begin with `references: ["image_2", "image_1"]` on its own
