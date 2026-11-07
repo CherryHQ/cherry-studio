@@ -12,6 +12,7 @@ import type { IpcResult } from '@shared/ipc/errors/IpcError'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import {
   inspectOwnedNotificationHistory,
+  observeOwnedWindowsNotification,
   prepareOwnedMacNotifications
 } from '../../../../scripts/e2e/regression/debugBridge'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
@@ -88,7 +89,7 @@ export async function notificationSettings(app: RegressionApp, initialPage: Page
   const topicName = app.resourceName(`Notification ${Date.now()}`)
   const assistantName = app.resourceName('Notification assistant')
   let assistantId: string | undefined
-  let windowsCenterWasOpen: boolean | undefined
+  let nativeCenterWasOpen: boolean | undefined
   try {
     await page.evaluate(() => window.api.preference.set('topic.naming.enabled', false))
     await openSettingsSection(page, 'Notifications')
@@ -221,13 +222,20 @@ export async function notificationSettings(app: RegressionApp, initialPage: Page
         )
       }
       await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(false)
-      if (app.record.platform === 'macos') setMacNotificationCenterOpen(app.paths, true)
-      else {
+      if (app.record.platform === 'macos') {
+        const previous = setMacNotificationCenterOpen(app.paths, true)
+        nativeCenterWasOpen ??= previous
+      } else {
         const previous = setWindowsNotificationCenterOpen(app.paths, true)
-        windowsCenterWasOpen ??= previous
+        nativeCenterWasOpen ??= previous
       }
       expect(findNotification(answer)).toBe(false)
+      if (app.record.platform === 'windows') {
+        setWindowsNotificationCenterOpen(app.paths, false)
+        await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(false)
+      }
       await new Promise((resolve) => setTimeout(resolve, 1500))
+      if (app.record.platform === 'windows') await observeOwnedWindowsNotification(app.record, answer)
       request.complete(answer)
       await expect
         .poll(async () =>
@@ -251,13 +259,20 @@ export async function notificationSettings(app: RegressionApp, initialPage: Page
           )
         )
         .toBe(true)
+      if (app.record.platform === 'windows') setWindowsNotificationCenterOpen(app.paths, true)
       if (enabled) {
         try {
           await expect.poll(() => findNotification(answer), { timeout: 15_000 }).toBe(true)
         } catch (error) {
-          const history = await inspectOwnedNotificationHistory(app.record, answer).catch((failure) => ({
+          const history = await (app.record.platform === 'windows' ? observeOwnedWindowsNotification(app.record, answer, true) : inspectOwnedNotificationHistory(app.record, answer)).catch((failure) => ({
             error: String(failure)
           }))
+          if (app.record.platform === 'windows') {
+            try {
+              const native = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-File', 'scripts/e2e/regression/nativeNotificationProbe.ps1', answer], { encoding: 'utf8', timeout: 20000, windowsHide: true })
+              await testInfo.attach('Windows notification center and toast history', { body: native, contentType: 'application/json' })
+            } catch (failure) { await testInfo.attach('Windows notification inspection failure', { body: String(failure), contentType: 'text/plain' }) }
+          }
           await testInfo.attach('Owned native notification delivery diagnostic', {
             body: JSON.stringify(history),
             contentType: 'application/json'
@@ -303,13 +318,13 @@ export async function notificationSettings(app: RegressionApp, initialPage: Page
     await server.close().catch((error) => cleanupErrors.push(String(error)))
     if (app.record.platform === 'macos') {
       try {
-        setMacNotificationCenterOpen(app.paths, false)
+        setMacNotificationCenterOpen(app.paths, nativeCenterWasOpen ?? false)
       } catch (error) {
         cleanupErrors.push(String(error))
       }
-    } else if (windowsCenterWasOpen !== undefined) {
+    } else if (nativeCenterWasOpen !== undefined) {
       try {
-        setWindowsNotificationCenterOpen(app.paths, windowsCenterWasOpen)
+        setWindowsNotificationCenterOpen(app.paths, nativeCenterWasOpen)
       } catch (error) {
         cleanupErrors.push(String(error))
       }

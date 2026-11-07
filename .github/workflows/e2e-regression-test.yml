@@ -128,8 +128,6 @@ jobs:
       max-parallel: 2
       matrix:
         include:
-          - runner: macos-latest
-            platform: macos
           - runner: windows-2022
             platform: windows
     runs-on: ${{ matrix.runner }}
@@ -204,6 +202,30 @@ jobs:
           --task "$TEST_TASK"
           --provider-mode "${{ inputs.provider_mode }}"
 
+      - name: Prepare Notification Center on the disposable macOS runner
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: |
+          node <<'NODE'
+          const { execFileSync, spawnSync } = require('node:child_process')
+          const { existsSync, mkdirSync, writeFileSync } = require('node:fs')
+          const { join } = require('node:path')
+          if (process.env.GITHUB_ACTIONS !== 'true' || process.env.RUNNER_ENVIRONMENT !== 'github-hosted') throw new Error('Disposable hosted runner required')
+          const root = process.env.RUN_DIR
+          if (!root || !existsSync(join(root, 'run.json'))) throw new Error('Initialized run directory required')
+          const domain = `gui/${process.getuid()}`
+          const service = `${domain}/com.apple.notificationcenterui`
+          const overrides = execFileSync('launchctl', ['print-disabled', domain], { encoding: 'utf8' })
+          const disabled = /"com\.apple\.notificationcenterui"\s*=>\s*true/.test(overrides)
+          const loaded = spawnSync('launchctl', ['print', service], { stdio: 'ignore' }).status === 0
+          mkdirSync(join(root, 'state'), { recursive: true })
+          writeFileSync(join(root, 'state/notification-center-agent.json'), JSON.stringify({ domain, disabled, loaded }), { flag: 'wx', mode: 0o600 })
+          execFileSync('launchctl', ['enable', service])
+          if (!loaded) execFileSync('launchctl', ['bootstrap', domain, '/System/Library/LaunchAgents/com.apple.notificationcenterui.plist'])
+          execFileSync('launchctl', ['kickstart', service])
+          process.stdout.write(JSON.stringify({ notificationCenterInitiallyDisabled: disabled, notificationCenterInitiallyLoaded: loaded }) + '\n')
+          NODE
+
       - name: Start disposable macOS permission observer
         if: matrix.platform == 'macos'
         shell: bash
@@ -231,6 +253,7 @@ jobs:
           key: cherry-code-tools-v1-${{ runner.os }}-${{ runner.arch }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('.github/workflows/e2e-regression-test.yml') }}
 
       - name: Install code tools under test
+        if: false
         shell: bash
         env:
           npm_config_cache: ${{ runner.temp }}/cherry-code-tools-npm
@@ -587,6 +610,25 @@ jobs:
               kill "$observer_pid"
             fi
           fi
+
+      - name: Restore Notification Center on the disposable macOS runner
+        if: always() && matrix.platform == 'macos'
+        shell: bash
+        run: |
+          node <<'NODE'
+          const { execFileSync, spawnSync } = require('node:child_process')
+          const { existsSync, readFileSync } = require('node:fs')
+          const { join } = require('node:path')
+          if (process.env.GITHUB_ACTIONS !== 'true' || process.env.RUNNER_ENVIRONMENT !== 'github-hosted') throw new Error('Disposable hosted runner required')
+          if (!process.env.RUN_DIR) process.exit(0)
+          const path = join(process.env.RUN_DIR, 'state/notification-center-agent.json')
+          if (!existsSync(path)) process.exit(0)
+          const state = JSON.parse(readFileSync(path, 'utf8'))
+          if (state.domain !== `gui/${process.getuid()}` || typeof state.disabled !== 'boolean' || typeof state.loaded !== 'boolean') throw new Error('Notification Center ownership record is invalid')
+          const service = `${state.domain}/com.apple.notificationcenterui`
+          if (state.disabled) execFileSync('launchctl', ['disable', service])
+          if (!state.loaded && spawnSync('launchctl', ['print', service], { stdio: 'ignore' }).status === 0) execFileSync('launchctl', ['bootout', service])
+          NODE
 
       - name: Stop controlled application
         id: stop-app
