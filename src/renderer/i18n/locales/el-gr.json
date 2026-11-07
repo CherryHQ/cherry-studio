@@ -4428,6 +4428,8 @@
   "settings.dependencies.localModels.download": "Λήψη",
   "settings.dependencies.localModels.embedding.name": "Τοπική Ενσωμάτωση",
   "settings.dependencies.localModels.embedding.subtitle": "Qwen3 Embedding 0.6B · περίπου 614 MB",
+  "settings.dependencies.localModels.harrier.name": "Harrier 270M",
+  "settings.dependencies.localModels.harrier.subtitle": "Harrier 270M · περίπου 370 MB",
   "settings.dependencies.localModels.notice.downloadFailed": "Η λήψη απέτυχε. Ελέγξτε τη σύνδεσή σας και προσπαθήστε ξανά.",
   "settings.dependencies.localModels.notice.inUse": "Ακόμα χρησιμοποιείται από μια βάση γνώσης· τα βάρη διατηρήθηκαν.",
   "settings.dependencies.localModels.notice.incompleteCache": "Τα αρχεία μοντέλου είναι ελλιπή. Επαναλάβετε τη λήψη για να τα επιδιορθώσετε.",

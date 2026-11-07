@@ -330,4 +330,22 @@ describe('LocalModelsSection', () => {
     await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(1))
     expect(screen.getByText('settings.voice.model.funasr')).toBeInTheDocument()
   })
+
+  it('renders the Harrier card alongside Qwen when the registry lists both embedding bundles', async () => {
+    mockRequest.mockImplementation(async (route) => {
+      if (route === 'local_model.list')
+        return {
+          models: [...LISTED_MODELS.models, { id: 'harrier-oss-v1-270m', capability: 'embedding' }]
+        }
+      return undefined
+    })
+    render(<LocalModelsSection />)
+
+    expect(await screen.findByRole('link', { name: 'onnx-community/harrier-oss-v1-270m-ONNX' })).toHaveAttribute(
+      'href',
+      'https://huggingface.co/onnx-community/harrier-oss-v1-270m-ONNX'
+    )
+    expect(screen.getByText('settings.dependencies.localModels.harrier.name')).toBeInTheDocument()
+    expect(screen.getAllByRole('listitem')).toHaveLength(3)
+  })
 })

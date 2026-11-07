@@ -6,6 +6,9 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { LocalModelSeeder } from '@data/db/seeding/seeders/LocalModelSeeder'
 import {
+  HARRIER_EMBEDDING_MODEL_ID,
+  HARRIER_EMBEDDING_MODEL_NAME,
+  HARRIER_EMBEDDING_UNIQUE_MODEL_ID,
   LOCAL_EMBEDDING_MODEL_ID,
   LOCAL_EMBEDDING_MODEL_NAME,
   LOCAL_EMBEDDING_PROVIDER_ID,
@@ -26,16 +29,16 @@ describe('LocalModelSeeder', () => {
       .then((rows) => rows[0])
   }
 
-  function readModel() {
+  function readModel(id: string = LOCAL_EMBEDDING_UNIQUE_MODEL_ID) {
     return dbh.db
       .select()
       .from(userModelTable)
-      .where(eq(userModelTable.id, LOCAL_EMBEDDING_UNIQUE_MODEL_ID))
+      .where(eq(userModelTable.id, id))
       .limit(1)
       .then((rows) => rows[0])
   }
 
-  it('seeds the enabled local embedding provider and visible Qwen model', async () => {
+  it('seeds the enabled local embedding provider and both visible builtin models', async () => {
     new LocalModelSeeder().run(dbh.db)
 
     expect(await readProvider()).toMatchObject({
@@ -56,6 +59,18 @@ describe('LocalModelSeeder', () => {
       supportsStreaming: false
     })
     expect(model?.capabilities).toContain(MODEL_CAPABILITY.EMBEDDING)
+
+    const harrier = await readModel(HARRIER_EMBEDDING_UNIQUE_MODEL_ID)
+    expect(harrier).toMatchObject({
+      id: HARRIER_EMBEDDING_UNIQUE_MODEL_ID,
+      providerId: LOCAL_EMBEDDING_PROVIDER_ID,
+      modelId: HARRIER_EMBEDDING_MODEL_ID,
+      name: HARRIER_EMBEDDING_MODEL_NAME,
+      isEnabled: true,
+      isHidden: false,
+      supportsStreaming: false
+    })
+    expect(harrier?.capabilities).toContain(MODEL_CAPABILITY.EMBEDDING)
   })
 
   it('is idempotent, preserves provider values, and refreshes the built-in model name', async () => {
@@ -74,10 +89,28 @@ describe('LocalModelSeeder', () => {
 
     expect((await readProvider())?.name).toBe('Existing Local Provider')
     expect((await readModel())?.name).toBe(LOCAL_EMBEDDING_MODEL_NAME)
+    expect((await readModel(HARRIER_EMBEDDING_UNIQUE_MODEL_ID))?.name).toBe(HARRIER_EMBEDDING_MODEL_NAME)
     const models = await dbh.db
       .select()
       .from(userModelTable)
       .where(eq(userModelTable.providerId, LOCAL_EMBEDDING_PROVIDER_ID))
-    expect(models).toHaveLength(1)
+    expect(models).toHaveLength(2)
+  })
+
+  it('backfills the Harrier model into installs seeded before it existed', async () => {
+    const seeder = new LocalModelSeeder()
+    seeder.run(dbh.db)
+    // Simulate a pre-Harrier install: only the Qwen row survives an upgrade.
+    await dbh.db.delete(userModelTable).where(eq(userModelTable.id, HARRIER_EMBEDDING_UNIQUE_MODEL_ID))
+
+    seeder.run(dbh.db)
+
+    const harrier = await readModel(HARRIER_EMBEDDING_UNIQUE_MODEL_ID)
+    expect(harrier).toMatchObject({
+      modelId: HARRIER_EMBEDDING_MODEL_ID,
+      name: HARRIER_EMBEDDING_MODEL_NAME,
+      isEnabled: true,
+      isHidden: false
+    })
   })
 })

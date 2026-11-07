@@ -38,11 +38,16 @@ async function pipeline(_task, model, options = {}) {
   }
 
   const extractor = async () => {
+    throw new Error('single-forward embedding path must not call the feature-extraction pipeline')
+  }
+  extractor.tokenizer = Object.assign((text, opts) => ({ input_ids: [1], attention_mask: [1] }), {
+    encode: (text) => Array.from(String(text))
+  })
+  extractor.model = async (inputs) => {
     if (String(model).includes('hardware-fail') && device !== 'cpu') throw new Error('embedding hardware failed')
     if (String(model).includes('both-fail')) throw new Error('embedding failed on ' + device)
-    return { dims: [1, 1, 2], tolist: () => [[[3, 4]]] }
+    return { last_hidden_state: { dims: [1, 1, 2], tolist: () => [[[3, 4]]] } }
   }
-  extractor.tokenizer = { encode: (text) => Array.from(String(text)) }
   extractor.dispose = async () => {
     if (String(model).includes('dispose-fail')) throw new Error('embedding dispose failed')
   }

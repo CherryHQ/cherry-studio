@@ -142,6 +142,10 @@ export function buildPathRegistry() {
     // Local embedding model cache (transformers.js HF cache root, downloaded on first use)
     'feature.embedding.models': path.join(appUserDataRuntime, 'models', 'qwen3-embedding'),
 
+    // Lighter local embedding alternative (Harrier 270M); its own root because bundle
+    // removal deletes the bundle root — sharing qwen3-embedding's would wipe both.
+    'feature.embedding.harrier': path.join(appUserDataRuntime, 'models', 'harrier-oss-v1-270m'),
+
     'feature.claude_code.binary': path.join(appUserDataToolchain, 'claude-agent-sdk'),
 
     // onnxruntime-node native binary (napi addon + shared lib), downloaded on first

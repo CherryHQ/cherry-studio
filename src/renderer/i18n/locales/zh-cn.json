@@ -4428,6 +4428,8 @@
   "settings.dependencies.localModels.download": "下载",
   "settings.dependencies.localModels.embedding.name": "本地嵌入模型",
   "settings.dependencies.localModels.embedding.subtitle": "Qwen3 Embedding 0.6B · 约 614 MB",
+  "settings.dependencies.localModels.harrier.name": "Harrier 270M",
+  "settings.dependencies.localModels.harrier.subtitle": "Harrier 270M · 约 370 MB",
   "settings.dependencies.localModels.notice.downloadFailed": "下载失败，请检查网络后重试。",
   "settings.dependencies.localModels.notice.inUse": "该模型仍被知识库使用，已保留权重。",
   "settings.dependencies.localModels.notice.incompleteCache": "模型文件不完整，请重新下载修复。",
