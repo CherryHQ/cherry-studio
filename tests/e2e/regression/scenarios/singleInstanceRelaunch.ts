@@ -95,23 +95,23 @@ export async function singleInstanceRelaunch(app: RegressionApp, page: Page, tes
       )
       return JSON.parse(stdout) as { minimized: boolean; frontmost: boolean }
     }
+    // Preserve PID selectors when other development processes share Electron's name.
     const { stdout } = await exec('/usr/bin/osascript', [
       '-e',
       `on run argv
+      set expectedTitle to (item 2 of argv) as text
       tell application "System Events"
-        set targetProcess to first application process whose unix id is (item 1 of argv as integer)
-        set targetWindow to first window of targetProcess whose name is (item 2 of argv)
+        set targetProcess to a reference to (first application process whose unix id is (item 1 of argv as integer))
+        set targetWindow to a reference to (first window of targetProcess whose name is expectedTitle)
+        if not (exists targetWindow) then return {"missing", frontmost of targetProcess}
         return {(value of attribute "AXMinimized" of targetWindow), frontmost of targetProcess}
       end tell
     end run`,
       String(record.electronPid),
       title
     ])
-    const [minimized, frontmost] = stdout
-      .trim()
-      .split(', ')
-      .map((value) => value === 'true')
-    return { minimized, frontmost }
+    const [minimized, frontmost] = stdout.trim().split(', ')
+    return { minimized: minimized === 'missing' ? null : minimized === 'true', frontmost: frontmost === 'true' }
   }
   const screenshot = async (name: string) => {
     const path = testInfo.outputPath(`${name}.png`)

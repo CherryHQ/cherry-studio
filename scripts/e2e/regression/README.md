@@ -181,3 +181,5 @@ and archiving its redacted report.
 Notification assertions open Notification Center and inspect only the unique case
 text, so system banner preferences do not determine whether delivery is detected.
 They still click the real system notification and verify conversation activation.
+Collapsed notification stacks are expanded before locating and opening the matching notification;
+expanding a stack alone is never reported as a successful notification click.

@@ -205,7 +205,6 @@ export function setMacNotificationCenterOpen(paths: RunPaths, open: boolean): vo
 export function findMacNotification(paths: RunPaths, text: string, click = false): boolean {
   const record = readAppRecord(paths)
   if (record.platform !== 'macos') throw new Error('Native notification automation requires macOS')
-  assertOwnedProcess(record, record.electronPid, 'electron')
   const script = `on run argv
     tell application "System Events" to tell process "NotificationCenter"
       try
@@ -225,7 +224,9 @@ export function findMacNotification(paths: RunPaths, text: string, click = false
                 set notificationGroup to value of attribute "AXParent" of element
                 repeat 8 times
                   if (name of every action of notificationGroup) contains "AXPress" then
+                    set notificationSubrole to value of attribute "AXSubrole" of notificationGroup
                     perform action "AXPress" of notificationGroup
+                    if notificationSubrole is "AXNotificationCenterBannerStack" then return "expanded"
                     return "found"
                   end if
                   set notificationGroup to value of attribute "AXParent" of notificationGroup
@@ -240,12 +241,19 @@ export function findMacNotification(paths: RunPaths, text: string, click = false
     end tell
     return "absent"
   end run`
-  return (
-    execFileSync('osascript', ['-e', script, '--', text, click ? 'click' : 'read'], {
+  const deadline = Date.now() + 10_000
+  let expanded = false
+  do {
+    assertOwnedProcess(record, record.electronPid, 'electron')
+    const result = execFileSync('osascript', ['-e', script, '--', text, click ? 'click' : 'read'], {
       encoding: 'utf8',
-      timeout: 10_000
-    }).trim() === 'found'
-  )
+      timeout: Math.max(1, deadline - Date.now())
+    }).trim()
+    if (result === 'found') return true
+    if (result === 'expanded') expanded = true
+    if (!expanded) return false
+  } while (Date.now() < deadline)
+  return false
 }
 
 export function findWindowsNotification(paths: RunPaths, text: string, click = false): boolean {
