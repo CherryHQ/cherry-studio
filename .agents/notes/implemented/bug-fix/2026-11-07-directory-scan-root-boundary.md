@@ -10,7 +10,7 @@ N-01 saved its note successfully but showed an empty Notes list after restart wh
 
 ## Decision
 
-Run ripgrep with the requested directory as its working directory and `.` as its search operand. Resolve returned paths against that root so callers still receive normalized absolute paths. Apply the existing gitignore predicate to fuzzy candidates, since a positive case-insensitive glob can override ripgrep's default exclusions.
+Run ripgrep with the requested directory as its working directory and `.` as its search operand. Resolve returned paths against that root so callers still receive normalized absolute paths. Apply the existing gitignore predicate to fuzzy candidates, since a positive case-insensitive glob can override ripgrep's default exclusions. Hidden path segments are also checked relative to the selected root unless hidden entries were requested.
 
 ## Alternatives considered
 
@@ -22,6 +22,6 @@ An excluded ancestor no longer empties a selected directory. Hidden files and ex
 
 ## Verification
 
-- Regression — `search.test.ts`: real ripgrep lists roots below `.cache` and `build`, preserves hidden/generated child exclusions, and supports both fuzzy candidate and fallback paths. Three new cases fail before the repair; all four pass afterward.
-- Regression — `pnpm exec vitest run --project main src/main/services/file/tree/__tests__/search.test.ts src/main/services/file/tree/__tests__/builder.test.ts src/main/services/file/tree/__tests__/builder.events.test.ts src/main/services/file/tree/__tests__/builder.init.test.ts`: 65 passed.
-- Electron — the preceding N-01 run reproduced an empty post-restart tree while its note file and Markdown content remained on disk. Native E2E verification of the repair is recorded separately in the PR.
+- Regression — `search.test.ts`: real ripgrep lists roots below `.cache` and `build`, preserves hidden/generated child exclusions, and supports both fuzzy candidate and fallback paths. Ancestor exclusion and hidden-candidate cases reproduce failures before their corresponding repairs; fuzzy primary/fallback, hidden opt-in, and child-exclusion checks pass afterward.
+- Regression — `pnpm exec vitest run --project main src/main/services/file/tree/__tests__/search.test.ts src/main/services/file/tree/__tests__/builder.test.ts src/main/services/file/tree/__tests__/builder.events.test.ts src/main/services/file/tree/__tests__/builder.init.test.ts`: 66 passed.
+- Electron — the preceding N-01 run reproduced an empty post-restart tree while its note file and Markdown content remained on disk. At `2fd3f18efc`, N-01 passed creation, autosave and post-restart rendering without a diagnostic observer; cleanup, report and selected-task gates passed and the owned runtime was removed. Full-suite acceptance remains separate.

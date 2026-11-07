@@ -228,6 +228,7 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (search mode, fuzzy + maxEntri
       const root = path.join(tmp, '.cache', 'notes')
       await mkdir(path.join(root, 'build'), { recursive: true })
       await writeFile(path.join(root, 'target-note.md'), 'saved note')
+      await writeFile(path.join(root, '.hidden-target-note.md'), 'hidden note')
       await writeFile(path.join(root, 'build', 'target-generated.md'), 'generated')
       if (fallback) mockRipgrepResultOnce({ exitCode: 1 })
 
@@ -236,6 +237,16 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (search mode, fuzzy + maxEntri
       ])
     }
   )
+
+  it('allows hidden fuzzy candidates only when explicitly requested', async () => {
+    const root = path.join(tmp, '.cache', 'notes')
+    await mkdir(root, { recursive: true })
+    await writeFile(path.join(root, '.hidden-target.md'), 'hidden note')
+
+    expect(
+      await listDirectory(root, { includeDirectories: false, includeHidden: true, searchPattern: 'trgt' })
+    ).toEqual([path.join(root, '.hidden-target.md').replace(/\\/g, '/')])
+  })
 
   it('caps results at the caller-supplied maxEntries', async () => {
     // 12 files share the "update" stem; caller asks for 5.

@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-07-directory-scan-root-boundary.md
-2026-11-07-directory-scan-root-boundary.md: f1ffab4e0c4eb5c8f5d8c8c9769afad5dc0616e0
-2026-11-07-directory-scan-root-boundary.zh.md: 44f446f9828d66b3735f8934f10874b334c9d401
+2026-11-07-directory-scan-root-boundary.md: 174d8c27e55c22a592bfb513d80d1ffebe6e77d2
+2026-11-07-directory-scan-root-boundary.zh.md: c8f86cf65addeb3089e17e13b974e7cc44558b6e

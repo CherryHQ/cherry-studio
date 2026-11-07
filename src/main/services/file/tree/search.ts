@@ -389,9 +389,16 @@ async function searchFuzzyFiles(resolvedPath: string, options: ResolvedOptions):
   const globPattern = queryToGlobPattern(options.searchPattern)
   args.splice(args.length - 1, 0, '--iglob', globPattern)
   const ignorePath = await loadGitignorePredicate(resolvedPath)
+  const eligiblePath = (entryPath: string) =>
+    !ignorePath?.(entryPath) &&
+    (options.includeHidden ||
+      !path
+        .relative(resolvedPath, entryPath)
+        .split(path.sep)
+        .some((segment) => segment.startsWith('.')))
   const firstOutput = getUsableRipgrepOutput(await executeRipgrep(args, resolvedPath))
   const firstCandidates = scoreFuzzyPaths(
-    parseRipgrepPaths(firstOutput, resolvedPath).filter((entryPath) => !ignorePath?.(entryPath)),
+    parseRipgrepPaths(firstOutput, resolvedPath).filter(eligiblePath),
     resolvedPath,
     options.searchPattern,
     false
@@ -400,7 +407,7 @@ async function searchFuzzyFiles(resolvedPath: string, options: ResolvedOptions):
   logger.debug('Fuzzy glob returned no results, scanning all files before JS fuzzy matching')
   const fallbackOutput = getUsableRipgrepOutput(await executeRipgrep(buildRipgrepBaseArgs(options), resolvedPath))
   return scoreFuzzyPaths(
-    parseRipgrepPaths(fallbackOutput, resolvedPath).filter((entryPath) => !ignorePath?.(entryPath)),
+    parseRipgrepPaths(fallbackOutput, resolvedPath).filter(eligiblePath),
     resolvedPath,
     options.searchPattern,
     false
