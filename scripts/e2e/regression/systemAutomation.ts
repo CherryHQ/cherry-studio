@@ -267,42 +267,68 @@ export async function allowMacNotificationPermission(paths: RunPaths): Promise<v
   } while (Date.now() < deadline)
 }
 
-export function setMacNotificationCenterOpen(paths: RunPaths, open: boolean): void {
+export function setMacNotificationCenterOpen(paths: RunPaths, open: boolean): boolean {
   const record = readAppRecord(paths)
   if (record.platform !== 'macos') throw new Error('Native notification automation requires macOS')
   assertOwnedProcess(record, record.electronPid, 'electron')
-  execFileSync(
+  const previous = execFileSync(
     'osascript',
     [
       '-l',
       'JavaScript',
       '-e',
       `
-    ObjC.import('CoreGraphics')
-    ObjC.import('Foundation')
-    const center = Application('System Events').processes.byName('NotificationCenter')
+    const events = Application('System Events')
+    const center = events.processes.byName('NotificationCenter')
     const read = query => {
       try { return query() } catch (error) {
         if (error.errorNumber !== -1728) throw error
       }
     }
-    const containsEditor = (element, depth) => {
-      if (read(() => element.attributes.byName('AXIdentifier').value()) === 'widget-editor-button') return true
-      return depth < 5 && (read(() => element.uiElements()) ?? []).some(child => containsEditor(child, depth + 1))
-    }
-    const open = (read(() => center.windows()) ?? []).some(window => containsEditor(window, 0))
-    if (open !== ${JSON.stringify(open)}) {
-      for (const down of [true, false]) {
-        const event = $.CGEventCreateKeyboardEvent(null, 45, down)
-        $.CGEventSetFlags(event, 8388608)
-        $.CGEventPost(0, event)
-        $.NSThread.sleepForTimeInterval(0.1)
+    const isOpen = () => {
+      let elements = read(() => center.windows()) ?? []
+      for (let depth = 0; depth <= 5; depth++) {
+        if (elements.some(element => read(() => element.attributes.byName('AXIdentifier').value()) === 'widget-editor-button')) return true
+        if (depth < 5) elements = elements.flatMap(element => read(() => element.uiElements()) ?? [])
       }
+      return false
     }
+    const previous = isOpen()
+    if (previous !== ${JSON.stringify(open)}) {
+      const findClock = (element, depth) => {
+        if (read(() => element.attributes.byName('AXIdentifier').value()) === 'com.apple.menuextra.clock') return element
+        if (depth >= 4 || !['AXMenuBar', 'AXGroup'].includes(read(() => element.role()))) return
+        for (const child of read(() => element.uiElements()) ?? []) {
+          const clock = findClock(child, depth + 1)
+          if (clock) return clock
+        }
+      }
+      let clock
+      const menuOwners = []
+      for (const name of ['MenuBarAgent', 'ControlCenter', 'SystemUIServer']) {
+        for (const process of events.processes.whose({ name })()) {
+          const bars = process.menuBars()
+          menuOwners.push({ name, bars: bars.length })
+          for (const bar of bars) {
+            clock = findClock(bar, 0)
+            if (clock) break
+          }
+          if (clock) break
+        }
+        if (clock) break
+      }
+      if (!clock) throw new Error('Notification Center clock menu item is unavailable: ' + JSON.stringify(menuOwners))
+      clock.click()
+      const deadline = Date.now() + 3000
+      while (isOpen() !== ${JSON.stringify(open)} && Date.now() < deadline) delay(0.1)
+      if (isOpen() !== ${JSON.stringify(open)}) throw new Error('Notification Center did not reach the requested state; windows=' + (read(() => center.windows()) ?? []).length)
+    }
+    previous ? 'open' : 'closed'
   `
     ],
-    { timeout: 10_000, stdio: 'ignore' }
-  )
+    { timeout: 10_000, encoding: 'utf8' }
+  ).trim()
+  return previous === 'open'
 }
 
 export function findMacNotification(paths: RunPaths, text: string, click = false): boolean {
