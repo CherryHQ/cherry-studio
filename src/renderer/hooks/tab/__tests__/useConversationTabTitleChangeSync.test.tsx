@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -11,14 +12,6 @@ import { useConversationTabTitleChangeSync, useTabsContext } from '@renderer/hoo
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
 let normalTabsValue: Tab[] = []
-
-vi.mock('@renderer/data/hooks/useCache', () => ({
-  usePersistCache: (key: string) => {
-    if (key === 'ui.tab.normal_tabs') return [normalTabsValue, vi.fn()]
-    if (key === 'ui.tab.active_tab_id') return ['home', vi.fn()]
-    return [[], vi.fn()]
-  }
-}))
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: vi.fn() },
@@ -101,6 +94,8 @@ function UnmountableRenameSync() {
 }
 
 function renderShell(extra: React.ReactNode) {
+  MockUseCacheUtils.setPersistCacheValue('ui.tab.normal_tabs', normalTabsValue)
+  MockUseCacheUtils.setPersistCacheValue('ui.tab.active_tab_id', 'home')
   return render(
     <TabsProvider initialDefaultTab={HOME_TAB}>
       <TabLabels />
@@ -110,6 +105,7 @@ function renderShell(extra: React.ReactNode) {
 }
 
 beforeEach(() => {
+  MockUseCacheUtils.resetMocks()
   normalTabsValue = []
   changeListeners.clear()
 })

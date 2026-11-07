@@ -20,7 +20,7 @@ import { IllustrationService } from '../IllustrationService'
 import { AiStreamManager } from '../streamManager/AiStreamManager'
 import { MessageServiceBackend } from '../streamManager/persistence/backends/MessageServiceBackend'
 import { TemporaryChatBackend } from '../streamManager/persistence/backends/TemporaryChatBackend'
-import type { StreamDoneResult, StreamListener } from '../streamManager/types'
+import type { AiStreamSource, StreamDoneResult, StreamListener } from '../streamManager/types'
 import { resolveConfiguredPaintingModel } from '../tools/painting'
 import type { AiStreamRequest } from '../types/requests'
 
@@ -223,12 +223,14 @@ describe('illustration persistence and task ownership', () => {
     const backend = new MessageServiceBackend({ assistantMessageId: message.id })
     let upstream!: ReadableStreamDefaultController<UIMessageChunk>
     const streamText = vi.fn(
-      async () =>
-        new ReadableStream<UIMessageChunk>({
+      async (): Promise<AiStreamSource> => ({
+        kind: 'chunks',
+        stream: new ReadableStream<UIMessageChunk>({
           start(controller) {
             upstream = controller
           }
         })
+      })
     )
     MockApplicationUtils.setService('AiService', { streamText, generateImage: generate })
     const chunks: UIMessageChunk[] = []
@@ -300,13 +302,13 @@ describe('illustration persistence and task ownership', () => {
       })
       const message = createReply()
       generate.mockResolvedValue({ files: [{ id: fileId, name: 'bird' }] })
-      const streamText = vi.fn(async (request: AiStreamRequest) => {
+      const streamText = vi.fn(async (request: AiStreamRequest): Promise<AiStreamSource> => {
         await application.get('PreferenceService').setMultiple({
           'chat.illustration.mode': 'off',
           'chat.illustration.max_count': 9,
           'chat.illustration.target_count': 9
         })
-        return new ReadableStream<UIMessageChunk>({
+        const stream = new ReadableStream<UIMessageChunk>({
           start(controller) {
             const chunks: UIMessageChunk[] = [
               { type: 'start', messageId: request.messageId },
@@ -323,6 +325,7 @@ describe('illustration persistence and task ownership', () => {
             controller.close()
           }
         })
+        return { kind: 'chunks', stream }
       })
       MockApplicationUtils.setService('AiService', { streamText, generateImage: generate })
       let result: StreamDoneResult | undefined
@@ -398,8 +401,9 @@ describe('illustration persistence and task ownership', () => {
     const replies = [message, ...(modelCount === 2 ? [makeSibling('other')] : [])]
     const text = 'Before\n[[IMAGE]]bird[[/IMAGE]]\nAfter'
     const streamText = vi.fn(
-      async (request: AiStreamRequest) =>
-        new ReadableStream<UIMessageChunk>({
+      async (request: AiStreamRequest): Promise<AiStreamSource> => ({
+        kind: 'chunks',
+        stream: new ReadableStream<UIMessageChunk>({
           start(controller) {
             const chunks: UIMessageChunk[] = [
               { type: 'start', messageId: request.messageId },
@@ -412,6 +416,7 @@ describe('illustration persistence and task ownership', () => {
             controller.close()
           }
         })
+      })
     )
     MockApplicationUtils.setService('AiService', { streamText, generateImage: generate })
     const results: StreamDoneResult[] = []
