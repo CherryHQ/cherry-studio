@@ -3,8 +3,8 @@
  * Each icon supports: <Icon /> (auto light/dark), <Icon variant="light" />, <Icon variant="dark" />, <Icon.Avatar />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-11-04T07:38:07.847Z
- * Total icons: 173
+ * Generated at: 2026-11-07T01:55:23.000Z
+ * Total icons: 174
  */
 export { Ai302Icon as Ai302 } from './302ai'
 export { MinTop3Icon as MinTop3 } from './3min-top'
@@ -168,6 +168,7 @@ export { VertexaiIcon as Vertexai } from './vertexai'
 export { ViduIcon as Vidu } from './vidu'
 export { VolcengineIcon as Volcengine } from './volcengine'
 export { VoyageIcon as Voyage } from './voyage'
+export { WallyIcon as Wally } from './wally/wally'
 export { WenxinIcon as Wenxin } from './wenxin'
 export { WorkersAiIcon as WorkersAi } from './workers-ai'
 export { XiaoyiIcon as Xiaoyi } from './xiaoyi'

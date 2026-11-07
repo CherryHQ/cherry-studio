@@ -1,6 +1,10 @@
+import path from 'node:path'
+
 import type * as AiSdkProviderUtils from '@ai-sdk/provider-utils'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { readProviderRegistry } from '@cherrystudio/provider-registry/node'
 
 // Use bundled registry data rather than the application mock's /mock paths.
 vi.mock('@main/data/services/utils/registryDataPaths', () => ({
@@ -20,7 +24,7 @@ import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
 import { resolveEffectiveEndpoint } from '../endpoint'
 import { DEFAULT_VERTEX_MODEL_PUBLISHERS } from '../listModels/vertex'
-import { AIHubMixModelsResponseSchema } from '../listModelsSchemas'
+import { AIHubMixModelsResponseSchema, OpenAIModelsResponseSchema } from '../listModelsSchemas'
 
 // The fetchers resolve the rotated API key (and, for Vertex, the iam-gcp auth
 // config + signed auth headers) off main-process singletons, then perform the
@@ -183,6 +187,52 @@ describe('AIHubMix model list response', () => {
 
     expect(response.data).toHaveLength(1)
     expect(response.data[0]).toMatchObject({ model_id: 'media-model', pricing: null })
+  })
+})
+
+describe('listModels — Wally', () => {
+  // A row as served by GET https://inference.runanywhere.ai/v1/models, trimmed to its field shapes.
+  const wallyRow = {
+    id: 'deepseek-v4.1-flash',
+    object: 'model',
+    created: 1790035200,
+    owned_by: 'runanywhere',
+    name: 'DeepSeek V4.1 Flash',
+    context_length: 1048576,
+    input_modalities: ['text', 'image'],
+    pricing: { prompt: '0.000000275', completion: '0.0000012', input_cache_read: '0.000000006' },
+    supported_features: ['tools', 'json_mode', 'structured_outputs', 'reasoning'],
+    datacenters: [{ country_code: 'US' }],
+    reasoning: { levels: ['low', 'medium', 'high', 'max'], default_level: 'high', thinking_off: true }
+  }
+
+  it('keeps rows that carry string prices and nested reasoning metadata', () => {
+    const response = OpenAIModelsResponseSchema.parse({ object: 'list', data: [wallyRow] })
+
+    expect(response.skippedModelCount).toBe(0)
+    expect(response.data[0]).toMatchObject({ id: 'deepseek-v4.1-flash', name: 'DeepSeek V4.1 Flash' })
+  })
+
+  it('lists the bundled preset from its /v1/models endpoint with a Bearer key', async () => {
+    const { providers } = readProviderRegistry(
+      path.join(process.cwd(), 'packages/provider-registry/data/providers.json')
+    )
+    const baseUrl = providers.find(({ id }) => id === 'wally')?.endpointConfigs?.['openai-chat-completions']?.baseUrl
+    const provider = makeProvider({
+      id: 'wally',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl } }
+    })
+    getRotatedApiKeyMock.mockReturnValue('wally-key')
+    aiSdkGetFromApiMock.mockResolvedValue({ value: { data: [wallyRow] } })
+
+    const { models } = await listModels(provider)
+
+    const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string; headers: Record<string, string> }
+    expect(call.url).toBe('https://inference.runanywhere.ai/v1/models')
+    expect(new Headers(call.headers).get('authorization')).toBe('Bearer wally-key')
+    expect(models).toHaveLength(1)
+    expect(models[0]).toMatchObject({ apiModelId: 'deepseek-v4.1-flash', name: 'DeepSeek V4.1 Flash' })
   })
 })
 
