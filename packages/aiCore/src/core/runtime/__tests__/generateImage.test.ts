@@ -244,7 +244,7 @@ describe('RuntimeExecutor.generateImage', () => {
         expect.objectContaining({ prompt: 'A test image' }),
         expect.objectContaining({
           providerId: 'openai',
-          model: 'dall-e-3'
+          model: expect.objectContaining({ modelId: 'dall-e-3' })
         })
       )
 
@@ -287,7 +287,7 @@ describe('RuntimeExecutor.generateImage', () => {
         'dall-e-3',
         expect.objectContaining({
           providerId: 'openai',
-          model: 'dall-e-3'
+          model: expect.objectContaining({ modelId: 'custom-model' })
         })
       )
 
@@ -422,7 +422,7 @@ describe('RuntimeExecutor.generateImage', () => {
         error,
         expect.objectContaining({
           providerId: 'openai',
-          model: 'dall-e-3'
+          model: expect.objectContaining({ modelId: 'dall-e-3' })
         })
       )
     })

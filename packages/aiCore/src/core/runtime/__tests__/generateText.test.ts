@@ -435,7 +435,7 @@ describe('RuntimeExecutor.generateText', () => {
         error,
         expect.objectContaining({
           providerId: 'openai',
-          model: 'gpt-4'
+          model: expect.objectContaining({ modelId: 'gpt-4' })
         })
       )
     })
