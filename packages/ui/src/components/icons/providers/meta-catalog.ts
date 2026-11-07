@@ -160,6 +160,7 @@ import { meta as thinkAnyMeta } from './think-any/meta'
 import { meta as tingwuMeta } from './tingwu/meta'
 import { meta as tngMeta } from './tng/meta'
 import { meta as togetherMeta } from './together/meta'
+import { meta as topxaiMeta } from './topxai/meta'
 import { meta as tokendanceMeta } from './tokendance/meta'
 import { meta as twitterMeta } from './twitter/meta'
 import { meta as upstageMeta } from './upstage/meta'
@@ -335,6 +336,7 @@ export const PROVIDER_ICON_META_CATALOG = {
   tingwu: tingwuMeta,
   tng: tngMeta,
   together: togetherMeta,
+  topxai: topxaiMeta,
   tokendance: tokendanceMeta,
   twitter: twitterMeta,
   upstage: upstageMeta,

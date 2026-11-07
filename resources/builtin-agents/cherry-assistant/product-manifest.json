@@ -841,8 +841,8 @@
     }
   ],
   "providers": {
-    "version": "4c51709815c4b53a",
-    "count": 67,
+    "version": "318298f2e9d492a4",
+    "count": 68,
     "entries": [
       {
         "id": "cherryin",
@@ -1023,6 +1023,10 @@
       {
         "id": "together",
         "name": "Together"
+      },
+      {
+        "id": "topxai",
+        "name": "TopxAI"
       },
       {
         "id": "fireworks",

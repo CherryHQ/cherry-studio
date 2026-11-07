@@ -163,6 +163,7 @@ import { ThinkAnyIcon } from './think-any'
 import { TingwuIcon } from './tingwu/tingwu'
 import { TngIcon } from './tng'
 import { TogetherIcon } from './together'
+import { TopxaiIcon } from './topxai/topxai'
 import { TokendanceIcon } from './tokendance'
 import { TwitterIcon } from './twitter'
 import { UpstageIcon } from './upstage'
@@ -338,6 +339,7 @@ export const PROVIDER_ICON_CATALOG = {
   tingwu: TingwuIcon,
   tng: TngIcon,
   together: TogetherIcon,
+  topxai: TopxaiIcon,
   tokendance: TokendanceIcon,
   twitter: TwitterIcon,
   upstage: UpstageIcon,

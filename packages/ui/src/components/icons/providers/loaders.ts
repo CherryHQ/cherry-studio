@@ -163,6 +163,7 @@ export const PROVIDER_ICON_LOADERS = {
   tingwu: () => import('./tingwu/tingwu').then(({ TingwuIcon }) => TingwuIcon),
   tng: () => import('./tng').then(({ TngIcon }) => TngIcon),
   together: () => import('./together').then(({ TogetherIcon }) => TogetherIcon),
+  topxai: () => import('./topxai/topxai').then(({ TopxaiIcon }) => TopxaiIcon),
   tokendance: () => import('./tokendance').then(({ TokendanceIcon }) => TokendanceIcon),
   twitter: () => import('./twitter').then(({ TwitterIcon }) => TwitterIcon),
   upstage: () => import('./upstage').then(({ UpstageIcon }) => UpstageIcon),
