@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { DecisionsRequestSchema, DecisionsResponseSchema } from '@shared/ipc/schemas/decisions'
+import { type DecisionsRequest, DecisionsRequestSchema, DecisionsResponseSchema } from '@shared/ipc/schemas/decisions'
 
 const getByProviderId = vi.fn()
 const getRotatedApiKey = vi.fn()
@@ -10,7 +10,7 @@ vi.mock('@data/services/ProviderService', () => ({ providerService: { getByProvi
 const { decisionsService, DecisionsError } = await import('../decisionsService')
 
 /** Official request example from https://openrouter.ai/openapi.json (`POST /api/alpha/decisions`). */
-const OFFICIAL_REQUEST = {
+const OFFICIAL_REQUEST: DecisionsRequest = {
   model: 'typesafe/jev-1.13',
   questions: {
     is_bug: {
@@ -85,7 +85,7 @@ const OFFICIAL_RESPONSE = {
   }
 }
 
-const request = {
+const request: DecisionsRequest = {
   model: 'typesafe/jev-1.13',
   state: { ticket: 'Checkout fails' },
   questions: { is_bug: { type: 'noul', instructions: 'Is this a defect?' } }
