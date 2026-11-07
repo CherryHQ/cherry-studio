@@ -12,7 +12,8 @@ export enum CodeCli {
   GITHUB_COPILOT_CLI = 'github-copilot-cli',
   PI = 'pi',
   HERMES = 'hermes',
-  MINIMAX_CODE = 'minimax-code'
+  MINIMAX_CODE = 'minimax-code',
+  LETTA = 'letta'
 }
 
 export const DEEPSEEK_HARNESS_AGENT_PRESETS = ['inherit', 'standard', 'code', 'minimal'] as const
@@ -66,7 +67,7 @@ export const CLI_OWN_LOGIN_PROVIDER_ID = 'cherry:cli-own-login'
  * CLI tools that can run through their own account login (OAuth) instead of a
  * Cherry provider + API key. These surface the virtual "own login" option and,
  * when it is selected, launch provider-less (no credential injection). Distinct
- * from the provider-less tools (Qoder / Copilot), which never accept a Cherry
+ * from the provider-less tools (Qoder / Copilot / Letta), which never accept a Cherry
  * provider at all.
  */
 export const LOGIN_CAPABLE_CLI_TOOLS: ReadonlySet<CodeCli> = new Set([

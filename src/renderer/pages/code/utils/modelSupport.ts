@@ -44,6 +44,7 @@ export function modelSupportsCliTool(cliTool: CodeCli, model: Model): boolean {
       ])
     case CodeCli.QODER_CLI:
     case CodeCli.GITHUB_COPILOT_CLI:
+    case CodeCli.LETTA:
       return false
     default:
       return false

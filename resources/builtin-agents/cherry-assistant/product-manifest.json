@@ -1223,7 +1223,8 @@
         "github-copilot-cli",
         "pi",
         "hermes",
-        "minimax-code"
+        "minimax-code",
+        "letta"
       ]
     }
   },
