@@ -34,7 +34,7 @@ function controlledSource() {
       controller = value
     }
   })
-  return { stream, enqueue: (chunk: UIMessageChunk) => controller.enqueue(chunk) }
+  return { stream, enqueue: (chunk: UIMessageChunk) => controller.enqueue(chunk), close: () => controller.close() }
 }
 
 async function createFixture() {
@@ -113,6 +113,7 @@ async function createFixture() {
 
   return {
     gateway,
+    preparationSink: streamText.mock.calls[0][0].preparationSink!,
     abortController,
     chunks,
     doneResults,
@@ -138,6 +139,40 @@ describe('processMessage → Agent startup deadline', () => {
   afterEach(() => {
     vi.useRealTimers()
     MockApplicationUtils.resetServices()
+  })
+
+  it('expires a silent reply on the remaining budget after gateway summary completion during preparation', async () => {
+    const fixture = await createFixture()
+    try {
+      await vi.advanceTimersByTimeAsync(40_000)
+      fixture.preparationSink('compaction', true)
+      fixture.gateway.enqueue({ type: 'text-start', id: 'summary' })
+      for (let i = 0; i < 100; i++) {
+        fixture.gateway.enqueue({ type: 'text-delta', id: 'summary', delta: 'summary progress' })
+        await vi.advanceTimersByTimeAsync(1_000)
+      }
+      fixture.gateway.enqueue({ type: 'text-end', id: 'summary' })
+      fixture.gateway.enqueue({ type: 'finish' })
+      fixture.gateway.close()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(fixture.isCommitted()).toBe(true)
+      expect(fixture.errorResults).toHaveLength(0)
+      expect(fixture.abortController.signal.aborted).toBe(false)
+      fixture.preparationSink('compaction', false)
+      await vi.advanceTimersByTimeAsync(49_999)
+      expect(fixture.errorResults).toHaveLength(0)
+      expect(fixture.abortController.signal.aborted).toBe(false)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(fixture.errorResults).toHaveLength(1)
+      expect(fixture.errorResults[0].error).toMatchObject({ name: 'TimeoutError', i18nKey: 'request_timeout' })
+      expect(fixture.abortController.signal.aborted).toBe(true)
+      expect(fixture.abortController.signal.reason).toMatchObject({ name: 'TimeoutError' })
+      expect(fixture.chunks).toHaveLength(0)
+      expect(fixture.doneResults).toHaveLength(0)
+      expect(fixture.pausedResults).toHaveLength(0)
+    } finally {
+      await fixture.dispose()
+    }
   })
 
   it.each([true, false])(

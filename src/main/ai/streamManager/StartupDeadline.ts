@@ -30,6 +30,11 @@ export class StartupDeadline {
     return this.didExpire
   }
 
+  /** Preparation suspends the budget; its own output must not disarm it. */
+  get suspended(): boolean {
+    return this.phases.length > 0
+  }
+
   notifyOutput(): void {
     this.dispose()
   }

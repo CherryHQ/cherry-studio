@@ -638,6 +638,8 @@ that the wire protocol cannot represent (partial tool arguments) is reported
 in-process to the execution holding the startup deadline. The gateway and
 execution share the same chunk predicate, so an actively producing model does
 not time out while its output is buffered for protocol conversion.
+Upstream progress arriving during preparation (compaction or connection setup)
+does not disarm the deadline; ending preparation resumes the remaining budget.
 
 Declared connection/compaction preparation and pending approvals suspend the
 remaining budget, with an aggregate 120-minute suspension cap per execution.

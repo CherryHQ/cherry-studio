@@ -4030,6 +4030,28 @@ describe('AiStreamManager', () => {
       expectTimeout(listener)
     })
 
+    it('expires a silent reply on the remaining budget after summary output during preparation', async () => {
+      const input = feed('messages')
+      const controller = new AbortController()
+      const listener = launch(input.source, agentRequest(), controller)
+      const sink = mockStreamText.mock.calls[0][0].preparationSink!
+      await vi.advanceTimersByTimeAsync(40_000)
+      sink('compaction', true)
+      mgr.notifyUpstreamOutput({ agentSessionId: 'session' })
+      await vi.advanceTimersByTimeAsync(100_000)
+      expect(listener.errorResults).toHaveLength(0)
+      expect(controller.signal.aborted).toBe(false)
+      sink('compaction', false)
+      await vi.advanceTimersByTimeAsync(49_999)
+      expect(listener.errorResults).toHaveLength(0)
+      expect(controller.signal.aborted).toBe(false)
+      await vi.advanceTimersByTimeAsync(1)
+      expectTimeout(listener)
+      expect(controller.signal.aborted).toBe(true)
+      expect(controller.signal.reason).toMatchObject({ name: 'TimeoutError' })
+      expect(listener.chunks).toHaveLength(0)
+    })
+
     it('bounds aggregate preparation even when acquisition never settles', async () => {
       mockStreamText.mockImplementationOnce(async (request) => {
         request.preparationSink!('connection', true)

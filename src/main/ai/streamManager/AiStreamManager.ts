@@ -1123,7 +1123,12 @@ export class AiStreamManager extends BaseService {
     const candidates: StreamExecution[] = []
     for (const stream of this.activeStreams.values()) {
       for (const exec of stream.executions.values()) {
-        if (exec.startupDeadline?.agentSessionId === context.agentSessionId) candidates.push(exec)
+        if (
+          exec.startupDeadline?.agentSessionId === context.agentSessionId &&
+          !exec.startupDeadline.deadline.suspended
+        ) {
+          candidates.push(exec)
+        }
       }
     }
     const matches = context.assistantMessageId
