@@ -38,6 +38,15 @@ describe('PRESET_MCP_SERVERS', () => {
     )
   })
 
+  it('signs in to EmpirioLabs AI with OAuth at its hosted endpoint', () => {
+    const server = preset(BuiltinMcpServerNames.empiriolabs)
+    expect(server).toEqual(
+      expect.objectContaining({ type: 'streamableHttp', baseUrl: 'https://mcp.empiriolabs.ai/mcp', isActive: false })
+    )
+    // A preset Authorization header would replace the OAuth sign-in this endpoint expects.
+    expect(Object.keys(server?.headers ?? {}).map((name) => name.toLowerCase())).not.toContain('authorization')
+  })
+
   it('gives every non in-memory preset what it needs to connect', () => {
     // The seeder copies these fields onto installed rows, so a preset missing them
     // would migrate a working server into an unconnectable one.
