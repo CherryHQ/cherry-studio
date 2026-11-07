@@ -19,6 +19,7 @@ import { contextBuildFeature } from './contextBuild'
 import { deepseekDsmlParserFeature } from './deepseekDsmlParserPlugin'
 import { deepseekResponsesReasoningReplayFeature } from './deepseekResponsesReasoningReplay'
 import { devtoolsFeature } from './devtools'
+import { flattenTextContentFeature } from './flattenTextContent'
 import { gatewayAnthropicCacheFeature, gatewayUsageNormalizeFeature } from './gatewayUsageNormalize'
 import { grokReasoningReplayFeature } from './grokReasoningReplay'
 import { inLoopCompactionFeature } from './inLoopCompaction'
@@ -58,6 +59,8 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   // Vercel AI Gateway drops the `anthropic` markers above and caches on its own option instead.
   gatewayAnthropicCacheFeature,
   anthropicHeadersFeature,
+  // Chat Completions gateways reject content-part arrays where a string is expected.
+  flattenTextContentFeature,
   // Provider compatibility: strip unsupported schema keywords, then apply Gemini-specific tool filtering.
   toolSchemaCompatibilityFeature,
   openrouterReasoningFeature,
