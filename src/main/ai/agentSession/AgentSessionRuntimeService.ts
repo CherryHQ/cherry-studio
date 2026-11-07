@@ -3006,7 +3006,11 @@ export class AgentSessionRuntimeService extends BaseService {
       })
       return
     }
-    const isCompact = getManualCompactionTurn(entry.agentType, buildAgentUserContent(turn.userMessage), turn.systemReminder === true)
+    const isCompact = getManualCompactionTurn(
+      entry.agentType,
+      buildAgentUserContent(turn.userMessage),
+      turn.systemReminder === true
+    )
     if (!isCompact && !modelSupportsTools(turn.modelId)) {
       this.applyRuntimeStateEvent(entry, { type: 'clear-queue' })
       this.applyRuntimeStateEvent(entry, {

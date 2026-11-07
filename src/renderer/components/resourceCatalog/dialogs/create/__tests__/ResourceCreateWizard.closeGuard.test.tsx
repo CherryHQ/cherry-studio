@@ -1,10 +1,11 @@
-import type * as AgentModelFilterModule from '@renderer/hooks/agent/useAgentModelFilter'
 import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactModule from 'react'
 import { type ReactNode, useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type * as AgentModelFilterModule from '@renderer/hooks/agent/useAgentModelFilter'
 
 // Capture the close-control props the wizard hands to the UI dialog so the test can
 // drive overlay / Esc / pointer-down-outside deterministically (radix's real Esc
