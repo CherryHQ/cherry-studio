@@ -214,7 +214,13 @@ export function findMacNotification(paths: RunPaths, text: string, click = false
           repeat with elementReference in windowElements
             set element to contents of elementReference
             if role of element is "AXStaticText" then
-              if (value of element as text) contains item 1 of argv then
+              set elementText to ""
+              try
+                set elementText to value of element as text
+              on error errorMessage number errorNumber
+                if errorNumber is not -1700 and errorNumber is not -1728 then error errorMessage number errorNumber
+              end try
+              if elementText contains item 1 of argv then
                 if item 2 of argv is not "click" then return "found"
                 set notificationGroup to value of attribute "AXParent" of element
                 repeat 8 times

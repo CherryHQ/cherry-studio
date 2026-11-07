@@ -37,6 +37,8 @@ Once verified, that process identity remains eligible for cleanup after its wind
 macOS inspection retries disappearing accessibility objects only; permission and ownership failures still surface.
 Process-group shutdown retains each verified member's PID, command and start time for bounded escalation after
 the runner exits. A reused PID or an unknown orphan cannot inherit that proof.
+After a normal development-app exit, cleanup allows its process group to finish naturally before
+rechecking ownership. A surviving unknown process still blocks termination.
 The explicit profile/restart operation prepares Windows connections by closing non-main windows before CDP attaches; simply locating a window does not perform this preparation. Both branch and installer launches enable the main-process inspector for this explicit compatibility step.
 
 ## Execution contract
