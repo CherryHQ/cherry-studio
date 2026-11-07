@@ -447,7 +447,10 @@ export class OpenClawService extends BaseService {
   }
 
   protected async onStop(): Promise<void> {
-    await this.stopGateway()
+    const owned = this.gatewayProcess
+    if (owned && owned.child.exitCode === null && owned.child.signalCode === null) {
+      await terminateProcessTree(owned.child, true, 'OpenClaw gateway')
+    }
   }
 
   /** Single gateway-status-transition point for the main-owned shared snapshot. */

@@ -1683,16 +1683,75 @@ describe('OpenClawService gateway status state machine', () => {
       }
     )
 
-    it.each([false, true])('stops an identified gateway during application shutdown (Windows: %s)', async (windows) => {
-      const listeners = mockGatewayListeners(
-        windows,
-        windows ? 'C:\\tools\\node.exe C:\\tools\\node_modules\\openclaw\\openclaw.mjs gateway run' : 'openclaw-gateway'
-      )
+    it.each([false, true])(
+      'preserves an externally started gateway during application shutdown (Windows: %s)',
+      async (windows) => {
+        const listeners = mockGatewayListeners(
+          windows,
+          windows
+            ? 'C:\\tools\\node.exe C:\\tools\\node_modules\\openclaw\\openclaw.mjs gateway run'
+            : 'openclaw-gateway'
+        )
 
-      await (service as any).onStop()
+        await (service as any).onStop()
 
-      expect([...listeners]).toEqual([[12342, 18790]])
-    })
+        expect([...listeners]).toEqual([
+          [12341, 1879],
+          [12342, 18790]
+        ])
+      }
+    )
+
+    it.each([
+      [false, false],
+      [true, false],
+      [false, true],
+      [true, true]
+    ] as const)(
+      'shutdown stops only a live spawned gateway after a port change (Windows: %s, exited: %s)',
+      async (windows, exited) => {
+        vi.useFakeTimers()
+        const listeners = mockGatewayListeners(
+          windows,
+          windows ? 'C:\\tools\\openclaw.exe gateway run' : 'openclaw-gateway'
+        )
+        listeners.delete(12341)
+        const child = Object.assign(createSpawnChild(), {
+          pid: 12341,
+          exitCode: null as number | null,
+          signalCode: null as NodeJS.Signals | null
+        })
+        startAndWaitSpy.mockRestore()
+        vi.spyOn(service as any, 'checkGatewayHealthWithError').mockResolvedValue({ status: 'healthy' })
+        crossPlatformSpawnMock.mockImplementationOnce(() => {
+          listeners.set(child.pid, 1879)
+          return child
+        })
+        terminateProcessTreeMock.mockImplementation(async (owned) => {
+          if (owned !== child) throw new Error('An unrelated process handle was selected')
+          listeners.delete(owned.pid)
+        })
+        const started = service.startGateway()
+        await vi.advanceTimersByTimeAsync(1000)
+        await expect(started).resolves.toEqual({ success: true })
+        ;(service as any).gatewayPort = 18790
+        if (exited) {
+          child.exitCode = 0
+          child.emit('exit', 0, null)
+        }
+
+        await (service as any).onStop()
+
+        expect([...listeners]).toEqual(
+          exited
+            ? [
+                [12342, 18790],
+                [12341, 1879]
+              ]
+            : [[12342, 18790]]
+        )
+      }
+    )
 
     it('transitions to stopped on successful stop', async () => {
       ;(service as any).gatewayStatus = 'running'
