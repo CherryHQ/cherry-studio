@@ -6,6 +6,7 @@ import {
   mkdtempSync,
   openSync,
   readFileSync,
+  readdirSync,
   realpathSync,
   rmSync,
   writeFileSync
@@ -23,6 +24,7 @@ import {
   readWindowsPrintDialog,
   saveNativeFile,
   saveNativeFileKeepingName,
+  setMacNotificationCenterOpen,
   setWindowsNotificationCenterOpen
 } from '../systemAutomation'
 import { readWindowsFileOwners } from '../windowsFileOwners'
@@ -217,6 +219,15 @@ it.skipIf(!['darwin', 'win32'].includes(process.platform)).each(dialogModes)(
         } finally {
           setWindowsNotificationCenterOpen(paths, previous)
         }
+      } else if (nativePlatform === 'macos' && mode === 'file') {
+        const previous = setMacNotificationCenterOpen(paths, true)
+        try {
+          expect(setMacNotificationCenterOpen(paths, true)).toBe(true)
+          expect(setMacNotificationCenterOpen(paths, false)).toBe(true)
+          expect(setMacNotificationCenterOpen(paths, false)).toBe(false)
+        } finally {
+          setMacNotificationCenterOpen(paths, previous)
+        }
       }
     } catch (error) {
       let controls = 'Fixture exited before native controls could be inspected'
@@ -327,7 +338,12 @@ it.skipIf(!['darwin', 'win32'].includes(process.platform)).each(dialogModes)(
         }
       }
       if (logHandle !== undefined) closeSync(logHandle)
-      rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 })
+      try {
+        rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 })
+      } catch (error) {
+        const remaining = existsSync(directory) ? readdirSync(directory, { recursive: true }) : []
+        throw new Error(`Owned native fixture cleanup failed; childPid=${child?.pid}, childExit=${child?.exitCode}, signal=${child?.signalCode}, remaining=${JSON.stringify(remaining)}`, { cause: error })
+      }
     }
   },
   120_000
