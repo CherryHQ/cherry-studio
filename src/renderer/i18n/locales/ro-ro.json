@@ -4431,6 +4431,7 @@
   "settings.dependencies.localModels.notice.downloadFailed": "Descărcarea a eșuat. Verifică conexiunea și încearcă din nou.",
   "settings.dependencies.localModels.notice.inUse": "Încă utilizat de o bază de cunoștințe; greutățile au fost păstrate.",
   "settings.dependencies.localModels.notice.incompleteCache": "Fișierele modelului sunt incomplete. Reîncercați descărcarea pentru a le repara.",
+  "settings.dependencies.localModels.notice.missingRuntime": "Fișierele modelului sunt prezente, dar lipsește mediul de execuție partajat necesar pentru a le folosi. Descărcați-l pentru a-l instala.",
   "settings.dependencies.localModels.notice.removeFailed": "Eliminarea a eșuat. Verifică jurnalele pentru detalii.",
   "settings.dependencies.localModels.ocr.name": "OCR local",
   "settings.dependencies.localModels.ocr.subtitle": "PaddleOCR PP-OCRv6 · ~140 MB",

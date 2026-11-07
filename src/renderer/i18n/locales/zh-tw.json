@@ -4431,6 +4431,7 @@
   "settings.dependencies.localModels.notice.downloadFailed": "下載失敗，請檢查網路後重試。",
   "settings.dependencies.localModels.notice.inUse": "該模型仍被知識庫使用，已保留權重。",
   "settings.dependencies.localModels.notice.incompleteCache": "模型檔案不完整。請重新下載以修復。",
+  "settings.dependencies.localModels.notice.missingRuntime": "模型檔案已存在，但缺少使用它們所需的共用執行階段。下載即可安裝。",
   "settings.dependencies.localModels.notice.removeFailed": "刪除失敗，請檢視記錄。",
   "settings.dependencies.localModels.ocr.name": "本機 OCR 模型",
   "settings.dependencies.localModels.ocr.subtitle": "PaddleOCR PP-OCRv6 · 約 140 MB",

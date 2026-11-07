@@ -4431,6 +4431,7 @@
   "settings.dependencies.localModels.notice.downloadFailed": "İndirme başarısız oldu. Bağlantıyı denetleyip yeniden deneyin.",
   "settings.dependencies.localModels.notice.inUse": "Hâlâ bir bilgi tabanı tarafından kullanılıyor; ağırlıklar korundu.",
   "settings.dependencies.localModels.notice.incompleteCache": "Model dosyaları eksik. Onarmak için indirmeyi yeniden deneyin.",
+  "settings.dependencies.localModels.notice.missingRuntime": "Model dosyaları mevcut ancak bunları kullanmak için gereken ortak çalışma zamanı eksik. Yüklemek için indirin.",
   "settings.dependencies.localModels.notice.removeFailed": "Kaldırma başarısız oldu. Ayrıntılar için günlükleri denetleyin.",
   "settings.dependencies.localModels.ocr.name": "Yerel OCR",
   "settings.dependencies.localModels.ocr.subtitle": "PaddleOCR PP-OCRv6 · ~140 MB",

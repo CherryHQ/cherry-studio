@@ -4431,6 +4431,7 @@
   "settings.dependencies.localModels.notice.downloadFailed": "Échec du téléchargement. Vérifiez votre connexion et réessayez.",
   "settings.dependencies.localModels.notice.inUse": "Toujours utilisé par une base de connaissances ; les poids ont été conservés.",
   "settings.dependencies.localModels.notice.incompleteCache": "Les fichiers du modèle sont incomplets. Réessayez le téléchargement pour les réparer.",
+  "settings.dependencies.localModels.notice.missingRuntime": "Les fichiers du modèle sont présents, mais l’environnement d’exécution partagé nécessaire à leur utilisation est manquant. Téléchargez-le pour l’installer.",
   "settings.dependencies.localModels.notice.removeFailed": "La suppression a échoué. Consultez les journaux pour plus de détails.",
   "settings.dependencies.localModels.ocr.name": "OCR local",
   "settings.dependencies.localModels.ocr.subtitle": "PaddleOCR PP-OCRv6 · ~140 Mo",

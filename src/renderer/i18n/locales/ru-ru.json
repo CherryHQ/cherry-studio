@@ -4431,6 +4431,7 @@
   "settings.dependencies.localModels.notice.downloadFailed": "Не удалось загрузить. Проверьте подключение и попробуйте снова.",
   "settings.dependencies.localModels.notice.inUse": "Всё ещё используется базой знаний; веса были сохранены.",
   "settings.dependencies.localModels.notice.incompleteCache": "Файлы модели неполные. Повторите загрузку, чтобы исправить их.",
+  "settings.dependencies.localModels.notice.missingRuntime": "Файлы модели есть, но отсутствует общая среда выполнения, необходимая для их использования. Скачайте её, чтобы установить.",
   "settings.dependencies.localModels.notice.removeFailed": "Не удалось удалить. Проверьте журналы для получения подробностей.",
   "settings.dependencies.localModels.ocr.name": "Локальное распознавание текста",
   "settings.dependencies.localModels.ocr.subtitle": "PaddleOCR PP-OCRv6 · ~140 МБ",

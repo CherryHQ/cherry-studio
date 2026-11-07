@@ -4431,6 +4431,7 @@
   "settings.dependencies.localModels.notice.downloadFailed": "ดาวน์โหลดไม่สำเร็จ ตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง",
   "settings.dependencies.localModels.notice.inUse": "ยังถูกใช้โดยฐานความรู้ น้ำหนักถูกเก็บไว้",
   "settings.dependencies.localModels.notice.incompleteCache": "ไฟล์โมเดลไม่สมบูรณ์ ดาวน์โหลดซ้ำเพื่อซ่อมแซม",
+  "settings.dependencies.localModels.notice.missingRuntime": "มีไฟล์โมเดลอยู่แล้ว แต่ไม่มีรันไทม์ส่วนกลางที่จำเป็นต่อการใช้งาน ดาวน์โหลดเพื่อติดตั้งได้เลย",
   "settings.dependencies.localModels.notice.removeFailed": "ลบไม่สำเร็จ ตรวจสอบล็อกสำหรับรายละเอียด",
   "settings.dependencies.localModels.ocr.name": "OCR ในเครื่อง",
   "settings.dependencies.localModels.ocr.subtitle": "PaddleOCR PP-OCRv6 · ~140 MB",
