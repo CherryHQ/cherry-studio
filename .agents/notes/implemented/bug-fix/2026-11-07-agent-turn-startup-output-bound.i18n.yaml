@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-07-agent-turn-startup-output-bound.md
+2026-11-07-agent-turn-startup-output-bound.md: 5b9981b210e78abdae05049581480a21e174d3f8
+2026-11-07-agent-turn-startup-output-bound.zh.md: 199bff07481d5d136db3aaf3eed1938a37510be7

@@ -6,7 +6,11 @@ import { isToolUIPart, type UIMessageChunk } from 'ai'
 import { application } from '@application'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
-import { CHAT_STREAM_IDLE_TIMEOUT_MS } from '@main/ai/constants'
+import {
+  CHAT_STREAM_IDLE_TIMEOUT_MS,
+  CHAT_STREAM_PREPARATION_BUDGET_MS,
+  CHAT_STREAM_STARTUP_TIMEOUT_MS
+} from '@main/ai/constants'
 import { ProjectionSubscriptions } from '@main/ai/messages/ProjectionSubscriptions'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { serializeError } from '@main/ai/utils/serializeError'
@@ -67,6 +71,8 @@ import { MessageRuntimeTimingCollector } from './MessageRuntimeTimingCollector'
 import { pipeMessageStream } from './pipeMessageStream'
 import { pipeStreamLoop } from './pipeStreamLoop'
 import { projectStreamChunkPayloadForRenderer, projectStreamMessageForRenderer } from './rendererPayload'
+import { StartupDeadline } from './StartupDeadline'
+import { isStartupOutputChunk } from './startupOutput'
 import { TopicMessageProjection } from './TopicMessageProjection'
 import type { AiStreamSource } from './types'
 import type {
@@ -84,6 +90,54 @@ import type {
   TransportTimings
 } from './types'
 import { withReasoningTimingMetadata } from './withReasoningTimingMetadata'
+
+function isMeaningfulPart(part: CherryMessagePart): boolean {
+  if (isToolUIPart(part))
+    return part.state !== 'approval-requested' && (part.state !== 'input-streaming' || part.input !== undefined)
+  switch (part.type) {
+    case 'text':
+    case 'reasoning':
+      return part.text.length > 0
+    case 'file':
+    case 'source-url':
+      return part.url.length > 0
+    case 'source-document':
+      return part.title.length > 0
+    default:
+      return false
+  }
+}
+
+async function awaitWithAbort<T>(pending: Promise<T>, signal: AbortSignal, onLate?: (value: T) => void): Promise<T> {
+  let aborted = false
+  let onAbort = () => {}
+  try {
+    return await new Promise<T>((resolve, reject) => {
+      onAbort = () => {
+        aborted = true
+        reject(signal.reason)
+      }
+      if (signal.aborted) onAbort()
+      else signal.addEventListener('abort', onAbort, { once: true })
+      void pending
+        .then((value) => {
+          if (aborted) onLate?.(value)
+          else resolve(value)
+        }, reject)
+        .catch(() => {})
+    })
+  } finally {
+    signal.removeEventListener('abort', onAbort)
+  }
+}
+
+function ownedStartupTimeout(exec: StreamExecution): SerializedError | undefined {
+  const startup = exec.startupDeadline
+  if (!startup?.expired || exec.abortController.signal.reason !== startup.reason) return undefined
+  return serializeError(
+    Object.assign(new Error(startup.reason.message), { name: 'TimeoutError', i18nKey: 'request_timeout' })
+  )
+}
 
 function withResolvedApprovals(message: CherryUIMessage, exec: StreamExecution): CherryUIMessage {
   if (!exec.resolvedToolApprovals?.size) return message
@@ -1060,6 +1114,29 @@ export class AiStreamManager extends BaseService {
     })
   }
 
+  /**
+   * Retire the startup bound of the Agent execution that owns this gateway request:
+   * the inference crosses the in-process gateway, which may not be able to represent
+   * some upstream progress (partial tool arguments) on the wire.
+   */
+  notifyUpstreamOutput(context: { agentSessionId: string; assistantMessageId?: string }): void {
+    const candidates: StreamExecution[] = []
+    for (const stream of this.activeStreams.values()) {
+      for (const exec of stream.executions.values()) {
+        if (
+          exec.startupDeadline?.agentSessionId === context.agentSessionId &&
+          !exec.startupDeadline.deadline.suspended
+        ) {
+          candidates.push(exec)
+        }
+      }
+    }
+    const matches = context.assistantMessageId
+      ? candidates.filter((exec) => exec.anchorMessageId === context.assistantMessageId)
+      : []
+    for (const exec of matches.length > 0 ? matches : candidates) exec.startupDeadline!.deadline.notifyOutput()
+  }
+
   startRuntimeTurn(input: StartRuntimeTurnInput): SendResult {
     const existing = this.activeStreams.get(input.topicId)
     const carriedListeners = existing
@@ -1418,7 +1495,7 @@ export class AiStreamManager extends BaseService {
     if (!stream || !isLiveStatus(stream.status)) return
 
     const exec = stream.executions.get(modelId)
-    if (!exec || (expectedExecution && exec !== expectedExecution)) return
+    if (!exec || (expectedExecution && exec !== expectedExecution) || exec.terminalClaimed) return
 
     const sourceModelId = modelId
     const anchorMessageId = exec.anchorMessageId
@@ -1538,8 +1615,16 @@ export class AiStreamManager extends BaseService {
     if (!stream) return
 
     const exec = stream.executions.get(modelId)
-    if (!exec || (expectedExecution && exec !== expectedExecution) || exec.status !== 'streaming') return
+    if (
+      !exec ||
+      (expectedExecution && exec !== expectedExecution) ||
+      exec.status !== 'streaming' ||
+      exec.terminalClaimed
+    )
+      return
 
+    exec.terminalClaimed = true
+    exec.startupDeadline?.deadline.dispose()
     exec.status = 'done'
     exec.runtimeTiming.closeOpenToolSpans()
     if ((exec.pendingApprovalToolCallIds?.size ?? 0) === 0) {
@@ -1607,7 +1692,11 @@ export class AiStreamManager extends BaseService {
     if (!stream) return
 
     const exec = stream.executions.get(modelId)
-    if (!exec || (expectedExecution && exec !== expectedExecution) || exec.status !== 'aborted') return
+    if (!exec || (expectedExecution && exec !== expectedExecution) || exec.status !== 'aborted' || exec.terminalClaimed)
+      return
+
+    exec.terminalClaimed = true
+    exec.startupDeadline?.deadline.dispose()
 
     // Mixed done/aborted topics resolve to done, but cancelled work cannot complete a notification batch.
     this.markCompletionFailed(topicId, exec.attemptId)
@@ -1662,8 +1751,10 @@ export class AiStreamManager extends BaseService {
     if (!stream) return
 
     const exec = stream.executions.get(modelId)
-    if (!exec || (expectedExecution && exec !== expectedExecution)) return
+    if (!exec || (expectedExecution && exec !== expectedExecution) || exec.terminalClaimed) return
 
+    exec.terminalClaimed = true
+    exec.startupDeadline?.deadline.dispose()
     exec.status = 'error'
     exec.error = error
     endRootSpan(exec, 'error', error)
@@ -2136,9 +2227,19 @@ export class AiStreamManager extends BaseService {
     exec.loopPromise = launchLoop()
       .catch((err) => {
         // Defensive funnel for sync throws (e.g. `streamText` rejects before returning a stream).
+        const signal = exec.abortController.signal
+        if (exec.startupDeadline && signal.aborted && (err === signal.reason || isAbortError(err))) {
+          const timeout = ownedStartupTimeout(exec)
+          if (timeout) return this.onExecutionError(topicId, modelId, timeout, exec)
+          if (exec.status === 'streaming') exec.status = 'aborted'
+          return this.onExecutionPaused(topicId, modelId, exec)
+        }
         return this.onExecutionError(topicId, modelId, serializeError(err), exec)
       })
-      .finally(() => activity.dispose())
+      .finally(() => {
+        exec.startupDeadline?.deadline.dispose()
+        activity.dispose()
+      })
 
     return exec
   }
@@ -2151,13 +2252,61 @@ export class AiStreamManager extends BaseService {
   ): Promise<void> {
     const aiService = application.get('AiService')
     const signal = exec.abortController.signal
+    const runtime = request.runtime
+    const gated = runtime?.kind === 'agent-session' && request.requestOptions?.timeout === undefined
+    if (gated) {
+      const reason = new DOMException('Agent turn produced no model output within 90 seconds', 'TimeoutError')
+      const deadline = new StartupDeadline({
+        startupMs: Math.max(0, CHAT_STREAM_STARTUP_TIMEOUT_MS - (performance.now() - exec.timings.startedAt)),
+        preparationBudgetMs: CHAT_STREAM_PREPARATION_BUDGET_MS,
+        now: () => performance.now(),
+        onExpire: () => {
+          exec.startupDeadline!.expired = true
+          if (!signal.aborted) exec.abortController.abort(reason)
+        }
+      })
+      exec.startupDeadline = { deadline, reason, expired: false, agentSessionId: runtime.sessionId }
+    }
+    const deadline = exec.startupDeadline?.deadline
+    const snapshotApprovalToolCallIds = new Set<string>()
+    let approvalPreparation = false
+    const syncApprovalPreparation = () => {
+      const pending = !!exec.pendingApprovalToolCallIds?.size || snapshotApprovalToolCallIds.size > 0
+      if (pending === approvalPreparation) return
+      approvalPreparation = pending
+      if (pending) deadline?.beginPreparation('preparation')
+      else deadline?.endPreparation('preparation')
+    }
+    let observedError: { error: unknown } | undefined
+    let observedStreamError: string | undefined
+    const observeError = (error: unknown) => {
+      if (signal.aborted && (error === signal.reason || isAbortError(error))) return
+      observedError ??= { error }
+      deadline?.dispose()
+    }
+    const observeChunk = (chunk: UIMessageChunk) => {
+      if (chunk.type === 'error') {
+        observedStreamError ??= chunk.errorText
+        deadline?.dispose()
+      } else if (isStartupOutputChunk(chunk)) deadline?.notifyOutput()
+    }
     const publishMessage = (message: CherryUIMessage) => {
+      if (exec.terminalClaimed) return
+      if (gated && exec.sourceKind === 'messages') {
+        snapshotApprovalToolCallIds.clear()
+        for (const part of message.parts) {
+          if (isToolUIPart(part) && part.state === 'approval-requested') {
+            snapshotApprovalToolCallIds.add(part.toolCallId)
+          }
+        }
+      }
+      if (exec.sourceKind === 'messages' && message.parts.some(isMeaningfulPart)) deadline?.notifyOutput()
       exec.finalMessage = withResolvedApprovals(withCompactionAnchors(message, exec), exec)
       this.projections.get(topicId)?.accumulate(modelId, exec.attemptId, exec.finalMessage)
       const active = this.activeStreams.get(topicId)
       if (!active || active.executions.get(modelId) !== exec) return
       const hadPending = !!exec.pendingApprovalToolCallIds?.size
-      for (const part of message.parts) {
+      for (const part of exec.finalMessage.parts) {
         if (
           isToolUIPart(part) &&
           (part.state === 'output-available' || part.state === 'output-error' || part.state === 'output-denied')
@@ -2166,6 +2315,7 @@ export class AiStreamManager extends BaseService {
           exec.runtimeTiming.finishApproval({ toolCallId: part.toolCallId })
         }
       }
+      syncApprovalPreparation()
       if (hadPending && !exec.pendingApprovalToolCallIds?.size) active.lifecycle.onApprovalPendingChanged(active)
       for (const [id, listener] of active.listeners) {
         if (!listener.isAlive()) {
@@ -2185,14 +2335,28 @@ export class AiStreamManager extends BaseService {
       // Pre-stream rejection (model resolution, param build) routes through
       // the error path with no half-open stream to tear down.
       // `signal` is injected here because it's not IPC-serialisable.
-      source = await aiService.streamText({
+      const acquisition = aiService.streamText({
         ...request,
         requestOptions: { ...request.requestOptions, signal },
         runtimeTimingSink: exec.runtimeTiming.sink,
+        preparationSink: (() => {
+          const phases = new Set<string>()
+          return (phase, active) => {
+            if (exec.terminalClaimed || phases.has(phase) === active) return
+            if (active) {
+              phases.add(phase)
+              deadline?.beginPreparation('preparation')
+            } else {
+              phases.delete(phase)
+              deadline?.endPreparation('preparation')
+            }
+          }
+        })(),
         // Compaction runs deep inside param-build / the tool loop, where the
         // turn's chunk sink isn't reachable; hand it down as a closure (same
         // shape as runtimeTimingSink) so the UI can show "compacting".
         compactionSink: (anchorId, data) => {
+          if (exec.terminalClaimed) return
           // Broadcast for the live indicator…
           this.onChunk(topicId, modelId, { type: 'data-compaction-anchor', id: anchorId, data }, exec)
           // …and record it, because the broadcast branch is NOT the accumulator
@@ -2206,7 +2370,17 @@ export class AiStreamManager extends BaseService {
           this.projections.get(topicId)?.accumulate(modelId, exec.attemptId, exec.finalMessage)
         }
       })
+      source = gated
+        ? await awaitWithAbort(acquisition, signal, (late) => {
+            void late.stream.cancel(signal.reason).catch(() => {})
+          })
+        : await acquisition
     } catch (err) {
+      const timeout = ownedStartupTimeout(exec)
+      if (timeout && (err === signal.reason || isAbortError(err))) {
+        await this.onExecutionError(topicId, modelId, timeout, exec)
+        return
+      }
       if (signal.aborted && (err === signal.reason || isAbortError(err))) {
         if (exec.status === 'streaming') exec.status = 'aborted'
         await this.onExecutionPaused(topicId, modelId, exec)
@@ -2225,10 +2399,10 @@ export class AiStreamManager extends BaseService {
     // upstream AI SDK request is already wired to. Caller override via
     // `requestOptions.timeout`; otherwise `CHAT_STREAM_IDLE_TIMEOUT_MS`.
     const timeoutMs = request.requestOptions?.timeout ?? CHAT_STREAM_IDLE_TIMEOUT_MS
-    let result: Awaited<ReturnType<typeof pipeStreamLoop>>
+    let consumption: ReturnType<typeof pipeStreamLoop>
     if (source.kind === 'messages') {
       const { stream, idle } = withIdleTimeout(source.stream, exec.abortController, timeoutMs)
-      result = await pipeMessageStream(
+      consumption = pipeMessageStream(
         stream,
         signal,
         ensureTerminalFinalMessage(exec),
@@ -2237,23 +2411,44 @@ export class AiStreamManager extends BaseService {
           if (exec.pendingApprovalToolCallIds?.size) idle.reset(this.config.approvalIdleTimeoutMs)
         },
         (chunk) => {
+          if (exec.terminalClaimed) return
+          observeChunk(chunk)
           this.onChunk(topicId, modelId, chunk, exec)
+          syncApprovalPreparation()
           if (exec.pendingApprovalToolCallIds?.size) idle.reset(this.config.approvalIdleTimeoutMs)
-        }
+        },
+        observeError
       )
     } else {
       const { stream: idleStream, idle } = withIdleTimeout(source.stream, exec.abortController, timeoutMs)
       const lastIncoming = request.messages?.at(-1)
-      result = await pipeStreamLoop(withReasoningTimingMetadata(idleStream), signal, {
+      consumption = pipeStreamLoop(withReasoningTimingMetadata(idleStream), signal, {
         onChunk: (chunk) => {
+          if (exec.terminalClaimed) return
+          observeChunk(chunk)
           this.onChunk(topicId, modelId, chunk, exec)
+          syncApprovalPreparation()
           if (exec.pendingApprovalToolCallIds?.size) idle.reset(this.config.approvalIdleTimeoutMs)
         },
         accumulatorSeed: lastIncoming?.role === 'assistant' ? (lastIncoming as CherryUIMessage) : undefined,
-        onAccumulatedSnapshot: publishMessage
+        onAccumulatedSnapshot: publishMessage,
+        onError: observeError
       })
     }
 
+    let result: Awaited<typeof consumption>
+    try {
+      result = gated ? await awaitWithAbort(consumption, signal) : await consumption
+    } catch (error) {
+      result = {
+        threw: observedError ?? { error },
+        streamErrorText: observedStreamError,
+        broadcastCompletedAt: performance.now()
+      }
+    } finally {
+      snapshotApprovalToolCallIds.clear()
+    }
+    if (exec.terminalClaimed) return
     exec.timings.completedAt = result.broadcastCompletedAt
 
     if (result.accumulationError !== undefined) {
@@ -2266,6 +2461,22 @@ export class AiStreamManager extends BaseService {
 
     if (result.threw !== undefined) {
       const abortShaped = signal.aborted && (result.threw.error === signal.reason || isAbortError(result.threw.error))
+      const timeout = ownedStartupTimeout(exec)
+      if (abortShaped && !observedError && result.streamErrorText === undefined) {
+        if (timeout) {
+          await this.onExecutionError(topicId, modelId, timeout, exec)
+          return
+        }
+        if (gated) {
+          if (exec.status === 'streaming') exec.status = 'aborted'
+          await this.onExecutionPaused(topicId, modelId, exec)
+          return
+        }
+      }
+      if (gated && abortShaped && !observedError && result.streamErrorText !== undefined) {
+        await this.onExecutionError(topicId, modelId, errorFromStreamChunk(result.streamErrorText), exec)
+        return
+      }
       const fromThrow = serializeError(result.threw.error)
       if (abortShaped) {
         logger.debug('Execution aborted', { topicId, modelId, reason: signal.reason })
@@ -2291,7 +2502,11 @@ export class AiStreamManager extends BaseService {
       return
     }
 
-    if (signal.aborted) {
+    if (result.streamErrorText !== undefined && gated) {
+      await this.onExecutionError(topicId, modelId, errorFromStreamChunk(result.streamErrorText), exec)
+    } else if (ownedStartupTimeout(exec)) {
+      await this.onExecutionError(topicId, modelId, ownedStartupTimeout(exec)!, exec)
+    } else if (signal.aborted) {
       // The idle-timeout path aborts `exec.abortController` directly (via `withIdleTimeout`)
       // without going through `abort()`, so `exec.status` is still 'streaming' on this clean
       // exit. Promote it so the truncated reply is persisted as `paused`, not `success`

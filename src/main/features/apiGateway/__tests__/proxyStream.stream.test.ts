@@ -21,6 +21,7 @@ import { createUniqueModelId, ENDPOINT_TYPE, type EndpointType } from '@shared/d
 const {
   mockStreamPrompt,
   mockAbort,
+  mockNotifyUpstreamOutput,
   mockGetProvider,
   mockListModels,
   mockResolveAgentSessionUsage,
@@ -34,6 +35,7 @@ const {
 } = vi.hoisted(() => ({
   mockStreamPrompt: vi.fn(),
   mockAbort: vi.fn(),
+  mockNotifyUpstreamOutput: vi.fn(),
   mockGetProvider: vi.fn(),
   mockListModels: vi.fn(),
   mockResolveAgentSessionUsage: vi.fn(),
@@ -54,7 +56,7 @@ vi.mock('@application', () => ({
   application: {
     get: vi.fn((name: string) =>
       name === 'AiStreamManager'
-        ? { streamPrompt: mockStreamPrompt, abort: mockAbort }
+        ? { streamPrompt: mockStreamPrompt, abort: mockAbort, notifyUpstreamOutput: mockNotifyUpstreamOutput }
         : name === 'ApiGatewayService'
           ? {
               resolveAgentSessionUsage: mockResolveAgentSessionUsage,
@@ -697,6 +699,77 @@ describe('processMessage (internal Agent continuation normalization)', () => {
 })
 
 describe('processMessage (streaming)', () => {
+  it.each(['answer-1', undefined])(
+    'reports buffered tool argument progress to its Agent execution (assistant=%s)',
+    async (assistantMessageId) => {
+      mockIsInternalAgentRequest.mockReturnValue(true)
+      mockResolveAgentSessionUsage.mockReturnValue({ agentSessionId: 'session-1', assistantMessageId })
+      let committed = false
+      const response = processMessage({
+        params: { model: 'openai:gpt-4', stream: true, messages: [] },
+        inputFormat: 'openai',
+        outputFormat: 'openai',
+        requestHeaders: new Headers({ 'x-cherry-agent-session-id': 'session-1' })
+      }).then((value) => {
+        committed = true
+        return value
+      })
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      vi.useFakeTimers()
+      try {
+        for (let i = 0; i < 91; i++) {
+          captured.listener!.onChunk({ type: 'tool-input-delta', toolCallId: 'call', inputTextDelta: 'x' })
+          await vi.advanceTimersByTimeAsync(1_000)
+        }
+        expect(committed).toBe(false)
+        expect(mockNotifyUpstreamOutput.mock.calls).toEqual(
+          Array.from({ length: 91 }, () => [
+            { agentSessionId: 'session-1', ...(assistantMessageId ? { assistantMessageId } : {}) }
+          ])
+        )
+        await captured.listener!.onDone({} as any)
+        const result = await response
+        expect(result.status).toBe(200)
+        await readAll(result.body)
+      } finally {
+        vi.useRealTimers()
+      }
+    }
+  )
+
+  it('does not report administrative chunks or empty output as Agent progress', async () => {
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    mockResolveAgentSessionUsage.mockReturnValue({ agentSessionId: 'session-1', assistantMessageId: 'answer-1' })
+    const response = processMessage({
+      params: { model: 'openai:gpt-4', stream: true, messages: [] },
+      inputFormat: 'openai',
+      outputFormat: 'openai',
+      requestHeaders: new Headers({ 'x-cherry-agent-session-id': 'session-1' })
+    })
+    await vi.waitFor(() => expect(captured.listener).toBeDefined())
+    const chunks: UIMessageChunk[] = [
+      { type: 'start' },
+      { type: 'text-start', id: 't' },
+      { type: 'text-delta', id: 't', delta: '' },
+      { type: 'reasoning-delta', id: 'r', delta: '' },
+      { type: 'tool-input-delta', toolCallId: 'call', inputTextDelta: '' },
+      { type: 'message-metadata', messageMetadata: {} },
+      { type: 'data-status', data: { status: 'retrying' } }
+    ]
+    for (const chunk of chunks) captured.listener!.onChunk(chunk)
+    await captured.listener!.onDone({} as any)
+    await readAll((await response).body)
+    expect(mockNotifyUpstreamOutput).not.toHaveBeenCalled()
+  })
+
+  it('does not report Home or prompt tool argument progress to Agent executions', async () => {
+    const { response, listener } = await startStreaming()
+    listener.onChunk({ type: 'tool-input-delta', toolCallId: 'call', inputTextDelta: 'x' })
+    await listener.onDone({} as any)
+    await readAll((await response).body)
+    expect(mockNotifyUpstreamOutput).not.toHaveBeenCalled()
+  })
+
   it('passes validated internal agent-session correlation to provider-call usage capture', async () => {
     const usageContext = {
       agentSessionId: 'session-1',

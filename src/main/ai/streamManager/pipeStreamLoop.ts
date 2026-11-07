@@ -9,6 +9,7 @@ import { type CherryUIMessage } from '@shared/data/types/message'
 
 export interface PipeStreamLoopOptions {
   onChunk: (chunk: UIMessageChunk) => void
+  onError?: (error: unknown) => void
   /** Seed for `readUIMessageStream`; required by `continue-conversation` so accumulator resumes the existing message. */
   accumulatorSeed?: CherryUIMessage
   /** Per-snapshot callback for live mid-stream finalMessage visibility. */
@@ -38,6 +39,7 @@ export async function pipeStreamLoop(
   let accumulationError: { error: unknown } | undefined
   const onAccumulationError = (error: unknown) => {
     accumulationError ??= { error }
+    options.onError?.(error)
   }
   const boundary = new TransformStream<UIMessageChunk, UIMessageChunk>()
   const [forBroadcast, forAccum] = boundary.readable.tee()
@@ -61,7 +63,10 @@ export async function pipeStreamLoop(
       signal: forwardingSignal
     })
     .catch((error: unknown) => {
-      if (!forwardingSignal.aborted) threw ??= { error }
+      if (!forwardingSignal.aborted) {
+        threw ??= { error }
+        options.onError?.(error)
+      }
     })
     .finally(async () => {
       // Both consumers may already have cancelled; that close failure must not replace the original error.
@@ -86,6 +91,7 @@ export async function pipeStreamLoop(
     broadcastCompletedAt = performance.now()
   } catch (error) {
     threw ??= { error }
+    options.onError?.(error)
     broadcastCompletedAt = performance.now()
     stop.abort(error)
     void broadcastReader.cancel(error).catch(() => {})
