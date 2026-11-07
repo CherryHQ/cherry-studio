@@ -203,6 +203,7 @@ vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
 const topicDataMocks = vi.hoisted(() => ({
   clearTopicMessagesTrigger: vi.fn().mockResolvedValue({ deletedIds: ['message-c'] }),
   deleteTopicsByAssistantId: vi.fn().mockResolvedValue({ deletedIds: [] as string[], deletedCount: 0 }),
+  deleteTopics: vi.fn().mockResolvedValue({ deletedIds: [] as string[], deletedCount: 0 }),
   deleteTopic: vi.fn().mockResolvedValue(undefined),
   moveTopic: vi.fn().mockResolvedValue(undefined),
   refreshTopics: vi.fn().mockResolvedValue(undefined),
@@ -310,6 +311,7 @@ vi.mock('@renderer/hooks/useTopic', async () => {
     useTopicMutations: () => ({
       updateTopic: topicDataMocks.updateTopic,
       deleteTopic: topicDataMocks.deleteTopic,
+      deleteTopics: topicDataMocks.deleteTopics,
       deleteTopicsByAssistantId: topicDataMocks.deleteTopicsByAssistantId,
       moveTopic: topicDataMocks.moveTopic,
       refreshTopics: topicDataMocks.refreshTopics,
@@ -485,6 +487,9 @@ vi.mock('react-i18next', () => ({
         if (key === 'common.save_failed') return 'Save failed'
         if (key === 'common.saved') return 'Saved'
         if (key === 'common.select_all') return 'Select All'
+        if (key === 'common.select') return 'Select'
+        if (key === 'common.select_all_filtered') return 'Select all filtered results'
+        if (key === 'common.selectedItems') return `Selected ${options?.count ?? 0} items`
         if (key === 'message.tools.status.done') return 'Done'
         if (key === 'message.tools.status.error') return 'Error'
         if (key === 'message.tools.status.running') return 'Running'
@@ -950,6 +955,7 @@ describe('Topics', () => {
     assistantQueryMocks.refetchAssistants.mockResolvedValue(undefined)
     topicDataMocks.clearTopicMessagesTrigger.mockResolvedValue({ deletedIds: ['message-c'] })
     topicDataMocks.deleteTopicsByAssistantId.mockResolvedValue({ deletedIds: [], deletedCount: 0 })
+    topicDataMocks.deleteTopics.mockResolvedValue({ deletedIds: [], deletedCount: 0 })
     ipcMocks.request.mockImplementation((route: string, input: unknown) => {
       if (route === 'trash.assistant.archive') return assistantMutationMocks.deleteAssistant(input)
       return Promise.resolve(undefined)
@@ -1122,6 +1128,28 @@ describe('Topics', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('selects and archives only filtered topics in one batch', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const source = createAssistantTopicsSource([
+      createApiTopic({ id: 'topic-a', name: 'Alpha topic' }),
+      createApiTopic({ id: 'topic-c', name: 'Gamma topic', orderKey: 'c' })
+    ])
+    topicDataMocks.deleteTopics.mockResolvedValue({ deletedIds: ['topic-a'], deletedCount: 1 })
+
+    renderTopicList({ assistantTopicsSource: source, assistantIdFilter: 'assistant-1', presentation: 'right-panel' })
+
+    await user.type(screen.getByRole('textbox', { name: 'Search conversations' }), 'Alpha')
+    await user.click(screen.getByRole('button', { name: 'Select' }))
+    await user.click(screen.getByRole('button', { name: 'Select all filtered results' }))
+    await user.click(screen.getByRole('button', { name: 'Archive (1)' }))
+
+    await waitFor(() => expect(topicDataMocks.deleteTopics).toHaveBeenCalledWith(['topic-a']))
+    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledWith({
+      itemCount: 1,
+      onUndo: expect.any(Function)
+    })
   })
 
   it('renders pinned and time groups and protects pinned rows from inline delete', () => {

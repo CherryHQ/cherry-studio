@@ -1378,6 +1378,7 @@
   "common.search": "搜尋",
   "common.select": "選擇",
   "common.select_all": "全選",
+  "common.select_all_filtered": "全選篩選結果",
   "common.selected": "已選擇",
   "common.selectedItems": "已選擇 {{count}} 項",
   "common.selectedMessages": "已選取 {{count}} 則訊息",

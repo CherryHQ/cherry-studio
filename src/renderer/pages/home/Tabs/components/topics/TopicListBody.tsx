@@ -4,7 +4,7 @@ import type { RefObject } from 'react'
 import { memo, useCallback, useMemo, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Kbd, Tooltip } from '@cherrystudio/ui'
+import { Checkbox, Kbd, Tooltip } from '@cherrystudio/ui'
 import { useSharedCacheSelector } from '@data/hooks/useCache'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import type {
@@ -20,6 +20,7 @@ import {
   useResourceListActions,
   useResourceListRowState
 } from '@renderer/components/chat/resourceList/base'
+import { ConversationListSelectionToolbar } from '@renderer/components/chat/resourceList/ConversationListSelection'
 import { SessionHoverPreview } from '@renderer/components/chat/resourceList/SessionHoverPreview'
 import { useConversationListShortcuts } from '@renderer/components/chat/resourceList/useConversationListShortcuts'
 import {
@@ -87,8 +88,11 @@ const useTopicListStreamStatus = (topicId: string): TopicStreamState =>
 interface TopicListBodyProps {
   activeTopic?: Topic
   assistantMoveTargets: readonly TopicMoveAssistantTarget[]
+  canSelectAll: boolean
   displayMode: TopicDisplayMode
   exportMenuOptions: TopicExportMenuOptions
+  isBulkArchiving: boolean
+  isSelectionMode: boolean
   listRef: RefObject<HTMLDivElement | null>
   notesPath: string
   onAutoRename: (topic: Topic) => Promise<void>
@@ -98,25 +102,45 @@ interface TopicListBodyProps {
   onOpenInNewTab?: (topic: Topic) => void
   onOpenInNewWindow?: (topic: Topic) => void
   onPinTopic: (topic: Topic) => Promise<void>
+  onArchiveSelected: () => void
+  onCancelSelection: () => void
+  onSelectAllFiltered: (topics: readonly Topic[]) => void
+  onToggleSelection: (topicId: string, selected: boolean) => void
   onToggleSidebar: (topic: Topic) => void
   onRequestTopicImageAction: (type: TopicImageActionType, topic: Topic) => void
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   onSwitchTopic: (topic: Topic) => void
   panePosition?: TopicTabPosition
   sidebarTopicFavoriteIdSet: ReadonlySet<string>
+  selectedIds: ReadonlySet<string>
   topicsLength: number
   variant: TopicListBodyVariant
 }
 
-type TopicRowSharedProps = Omit<TopicListBodyProps, 'activeTopic' | 'listRef' | 'variant'>
+type TopicRowSharedProps = Omit<
+  TopicListBodyProps,
+  | 'activeTopic'
+  | 'canSelectAll'
+  | 'isBulkArchiving'
+  | 'isSelectionMode'
+  | 'listRef'
+  | 'onArchiveSelected'
+  | 'onCancelSelection'
+  | 'onSelectAllFiltered'
+  | 'selectedIds'
+  | 'variant'
+>
 
 export function TopicListBody(props: TopicListBodyProps) {
   const { t } = useTranslation()
   const {
     activeTopic,
     assistantMoveTargets,
+    canSelectAll,
     displayMode,
     exportMenuOptions,
+    isBulkArchiving,
+    isSelectionMode,
     listRef,
     notesPath,
     onAutoRename,
@@ -126,12 +150,17 @@ export function TopicListBody(props: TopicListBodyProps) {
     onOpenInNewTab,
     onOpenInNewWindow,
     onPinTopic,
+    onArchiveSelected,
+    onCancelSelection,
+    onSelectAllFiltered,
+    onToggleSelection,
     onToggleSidebar,
     onRequestTopicImageAction,
     onSetPanePosition,
     onSwitchTopic,
     panePosition,
     sidebarTopicFavoriteIdSet,
+    selectedIds,
     topicsLength,
     variant
   } = props
@@ -149,6 +178,7 @@ export function TopicListBody(props: TopicListBodyProps) {
       onOpenInNewTab,
       onOpenInNewWindow,
       onPinTopic,
+      onToggleSelection,
       onToggleSidebar,
       onRequestTopicImageAction,
       onSetPanePosition,
@@ -169,6 +199,7 @@ export function TopicListBody(props: TopicListBodyProps) {
       onOpenInNewTab,
       onOpenInNewWindow,
       onPinTopic,
+      onToggleSelection,
       onToggleSidebar,
       onRequestTopicImageAction,
       onSetPanePosition,
@@ -188,28 +219,45 @@ export function TopicListBody(props: TopicListBodyProps) {
         shortcutHint={shortcutHints.get(topic.id)}
         topic={topic}
         isActive={topic.id === activeTopicId}
+        isSelectionMode={isSelectionMode}
+        isSelected={selectedIds.has(topic.id)}
         {...rowProps}
       />
     ),
-    [activeTopicId, rowProps, shortcutHints]
+    [activeTopicId, isSelectionMode, rowProps, selectedIds, shortcutHints]
   )
 
   return (
-    <ResourceList.Body<Topic>
-      listRef={listRef}
-      draggable={variant === 'draggable'}
-      errorFallback={<ResourceList.ErrorState message={t('error.boundary.default.message')} />}
-      emptyFallback={
-        <div className="text-muted-foreground mx-auto flex h-full w-full max-w-sm items-center justify-center px-5 py-10 text-center text-xs break-words">
-          {t('chat.topics.empty.title')}
-        </div>
-      }
-      renderItem={renderItem}
-    />
+    <>
+      {isSelectionMode && (
+        <ConversationListSelectionToolbar<Topic>
+          archiveDisabled={isBulkArchiving}
+          canSelectAll={canSelectAll}
+          canSelectItem={(topic) => !topic.pinned}
+          onArchive={onArchiveSelected}
+          onCancel={onCancelSelection}
+          onSelectAll={onSelectAllFiltered}
+          selectedCount={selectedIds.size}
+        />
+      )}
+      <ResourceList.Body<Topic>
+        listRef={listRef}
+        draggable={variant === 'draggable'}
+        errorFallback={<ResourceList.ErrorState message={t('error.boundary.default.message')} />}
+        emptyFallback={
+          <div className="text-muted-foreground mx-auto flex h-full w-full max-w-sm items-center justify-center px-5 py-10 text-center text-xs break-words">
+            {t('chat.topics.empty.title')}
+          </div>
+        }
+        renderItem={renderItem}
+      />
+    </>
   )
 }
 
 interface TopicRowWithStatusProps extends TopicRowSharedProps {
+  isSelected: boolean
+  isSelectionMode: boolean
   shortcutHint?: string
   isActive: boolean
   topic: Topic
@@ -222,6 +270,8 @@ const TopicRow = memo(function TopicRow({
   displayMode,
   exportMenuOptions,
   isActive,
+  isSelected,
+  isSelectionMode,
   notesPath,
   onAutoRename,
   onClearMessages,
@@ -230,6 +280,7 @@ const TopicRow = memo(function TopicRow({
   onOpenInNewTab,
   onOpenInNewWindow,
   onPinTopic,
+  onToggleSelection,
   onToggleSidebar,
   onRequestTopicImageAction,
   onSetPanePosition,
@@ -322,10 +373,27 @@ const TopicRow = memo(function TopicRow({
       className="relative"
       style={{ cursor: 'pointer' }}
       onClick={() => {
+        if (isSelectionMode && !topic.pinned) {
+          onToggleSelection(topic.id, !isSelected)
+          return
+        }
         if (rightPanelState?.maximized) rightPanelActions?.minimize()
         onSwitchTopic(topic)
       }}>
-      {showLeadingSlot && <ResourceList.ItemLeadingSlot className="relative" />}
+      {(showLeadingSlot || isSelectionMode) && (
+        <ResourceList.ItemLeadingSlot className="relative">
+          {isSelectionMode ? (
+            <Checkbox
+              size="sm"
+              aria-label={`${t('common.select')}: ${topicName}`}
+              checked={isSelected}
+              disabled={topic.pinned}
+              onClick={(event) => event.stopPropagation()}
+              onCheckedChange={(checked) => onToggleSelection(topic.id, checked === true)}
+            />
+          ) : null}
+        </ResourceList.ItemLeadingSlot>
+      )}
       <ResourceList.RenameField
         item={topic}
         aria-label={t('chat.topics.edit.title')}
@@ -346,7 +414,7 @@ const TopicRow = memo(function TopicRow({
             )}
             onDoubleClick={(event) => {
               event.stopPropagation()
-              startInlineRename()
+              if (!isSelectionMode) startInlineRename()
             }}>
             {topicName}
           </ResourceList.ItemTitle>

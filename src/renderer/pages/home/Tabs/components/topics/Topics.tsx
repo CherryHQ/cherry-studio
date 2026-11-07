@@ -23,6 +23,7 @@ import {
   TopicListOptionsMenu,
   useResourceListPinnedState
 } from '@renderer/components/chat/resourceList/base'
+import { ConversationListSelectionToggle } from '@renderer/components/chat/resourceList/ConversationListSelection'
 import { ResourceRefreshErrorBanner } from '@renderer/components/chat/resourceList/ResourceRefreshErrorBanner'
 import { SessionHoverPreviewGroup } from '@renderer/components/chat/resourceList/SessionHoverPreview'
 import { TopicResourceList } from '@renderer/components/chat/resourceList/TopicResourceList'
@@ -196,6 +197,7 @@ export function Topics({
   const {
     updateTopic: patchTopic,
     deleteTopic: deleteTopicById,
+    deleteTopics: deleteTopicsByIds,
     deleteTopicsByAssistantId,
     moveTopic,
     refreshTopics,
@@ -314,6 +316,10 @@ export function Topics({
   const listRef = useRef<HTMLDivElement>(null)
   const [deletingAssistantGroupId, setDeletingAssistantGroupId] = useState<string | null>(null)
   const [deletingAssistantId, setDeletingAssistantId] = useState<string | null>(null)
+  const [isTopicSelectionMode, setIsTopicSelectionMode] = useState(false)
+  const [selectedTopicIds, setSelectedTopicIds] = useState<Set<string>>(new Set())
+  const [isBulkArchivingTopics, setIsBulkArchivingTopics] = useState(false)
+  const bulkArchivingTopicsRef = useRef(false)
   const deletingAssistantGroupIdRef = useRef<string | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
 
@@ -554,6 +560,98 @@ export function Topics({
     },
     [clearActiveTopic, deleteTopicById, refreshTopics, restoreTopic, setActiveTopic, t]
   )
+
+  const handleToggleTopicSelection = useCallback((topicId: string, selected: boolean) => {
+    setSelectedTopicIds((current) => {
+      const next = new Set(current)
+      if (selected) next.add(topicId)
+      else next.delete(topicId)
+      return next
+    })
+  }, [])
+
+  const handleSelectAllFilteredTopics = useCallback((filteredItems: readonly Topic[]) => {
+    setSelectedTopicIds((current) => {
+      const next = new Set(current)
+      for (const topic of filteredItems) {
+        if (!topic.pinned) next.add(topic.id)
+      }
+      return next
+    })
+  }, [])
+
+  const handleCancelTopicSelection = useCallback(() => {
+    setSelectedTopicIds(new Set())
+    setIsTopicSelectionMode(false)
+  }, [])
+
+  const handleArchiveSelectedTopics = useCallback(async () => {
+    if (bulkArchivingTopicsRef.current) return
+
+    const topicsToArchive = topicsRef.current.filter((topic) => selectedTopicIds.has(topic.id) && !topic.pinned)
+    if (topicsToArchive.length === 0) return
+
+    bulkArchivingTopicsRef.current = true
+    setIsBulkArchivingTopics(true)
+    const topicIds = topicsToArchive.map((topic) => topic.id)
+    const topicIdSet = new Set(topicIds)
+    const activeTopicId = activeTopicIdRef.current
+    const replacement = topicIdSet.has(activeTopicId)
+      ? findLatestActive(topicsRef.current.filter((topic) => !topicIdSet.has(topic.id)))
+      : undefined
+
+    try {
+      const result = await deleteTopicsByIds(topicIds)
+      const deletedIds = [...result.deletedIds]
+      if (deletedIds.length === 0) {
+        await refreshTopics().catch((err) => {
+          logger.warn('Failed to refresh after stale topic batch archive', { err })
+        })
+        toast.info(t('recycle_bin.already_moved'))
+        return
+      }
+
+      showRecycleBinBatchUndo({
+        itemCount: deletedIds.length,
+        onUndo: () =>
+          restoreRecycleBinItems({
+            ids: deletedIds,
+            restore: restoreTopic,
+            getActive: (id) => dataApiService.get(`/topics/${id}`),
+            refresh: refreshTopics
+          })
+      })
+
+      await refreshTopics().catch((err) => {
+        logger.warn('Failed to refresh topics after batch archive', { err })
+      })
+
+      const deletedIdSet = new Set(deletedIds)
+      const currentActiveTopicId = activeTopicIdRef.current
+      if (deletedIdSet.has(activeTopicId) && (!currentActiveTopicId || deletedIdSet.has(currentActiveTopicId))) {
+        if (replacement) setActiveTopic(replacement)
+        else clearActiveTopic()
+      }
+      handleCancelTopicSelection()
+    } catch (err) {
+      logger.error('Failed to batch archive topics', { topicIds, err })
+      if (isTrashTargetNotFoundError(err)) toast.info(t('recycle_bin.already_moved'))
+      else if (isTrashTopicBusyError(err)) toast.info(t('recycle_bin.move.blocked_generation'))
+      else toast.error(t('recycle_bin.move_failed'))
+    } finally {
+      bulkArchivingTopicsRef.current = false
+      setIsBulkArchivingTopics(false)
+    }
+  }, [
+    clearActiveTopic,
+    deleteTopicsByIds,
+    handleCancelTopicSelection,
+    refreshTopics,
+    restoreTopic,
+    selectedTopicIds,
+    setActiveTopic,
+    t
+  ])
 
   const handleClearMessages = useCallback((topic: Topic) => clearTopicMessages(topic.id), [clearTopicMessages])
 
@@ -1403,12 +1501,18 @@ export function Topics({
         onGroupHeaderSelectItem={handleGroupHeaderSelectTopic}
         onReorder={handleTopicReorder}
         onCollapsedStateChange={handleTopicCollapsedStateChange}>
-        <ResourceList.Header>
+        <ResourceList.Header className={isRightPanel ? 'flex-row items-center gap-1' : undefined}>
           {isRightPanel ? (
-            <ResourceList.Search
-              aria-label={t('chat.topics.search.title')}
-              placeholder={t('chat.topics.search.placeholder')}
-            />
+            <>
+              <ResourceList.Search
+                aria-label={t('chat.topics.search.title')}
+                placeholder={t('chat.topics.search.placeholder')}
+                wrapperClassName="min-w-0 flex-1"
+              />
+              {!isTopicSelectionMode && (
+                <ConversationListSelectionToggle onSelect={() => setIsTopicSelectionMode(true)} />
+              )}
+            </>
           ) : showHeaderCreateItem && isAssistantDisplayMode ? (
             <ResourceList.HeaderItem
               type="button"
@@ -1418,15 +1522,20 @@ export function Topics({
               label={headerCreateLabel}
               onClick={handleHeaderCreate}
               actions={
-                <TopicListOptionsMenu
-                  historyRecordsActive={historyRecordsActive}
-                  manageAssistantsActive={manageAssistantsActive}
-                  mode={displayMode}
-                  onChange={handleTopicDisplayModeChange}
-                  onManageAssistants={onManageAssistants}
-                  onOpenHistoryRecords={onOpenHistoryRecords}
-                  sectionIds={topicAssistantSectionIds}
-                />
+                <div className="flex items-center gap-1">
+                  {!isTopicSelectionMode && (
+                    <ConversationListSelectionToggle onSelect={() => setIsTopicSelectionMode(true)} />
+                  )}
+                  <TopicListOptionsMenu
+                    historyRecordsActive={historyRecordsActive}
+                    manageAssistantsActive={manageAssistantsActive}
+                    mode={displayMode}
+                    onChange={handleTopicDisplayModeChange}
+                    onManageAssistants={onManageAssistants}
+                    onOpenHistoryRecords={onOpenHistoryRecords}
+                    sectionIds={topicAssistantSectionIds}
+                  />
+                </div>
               }
             />
           ) : showHeaderCreateItem ? (
@@ -1439,26 +1548,36 @@ export function Topics({
               label={headerCreateLabel}
               onClick={handleHeaderCreate}
               actions={
-                <TopicListOptionsMenu
-                  historyRecordsActive={historyRecordsActive}
-                  manageAssistantsActive={manageAssistantsActive}
-                  mode={displayMode}
-                  onChange={handleTopicDisplayModeChange}
-                  onManageAssistants={onManageAssistants}
-                  onOpenHistoryRecords={onOpenHistoryRecords}
-                />
+                <div className="flex items-center gap-1">
+                  {!isTopicSelectionMode && (
+                    <ConversationListSelectionToggle onSelect={() => setIsTopicSelectionMode(true)} />
+                  )}
+                  <TopicListOptionsMenu
+                    historyRecordsActive={historyRecordsActive}
+                    manageAssistantsActive={manageAssistantsActive}
+                    mode={displayMode}
+                    onChange={handleTopicDisplayModeChange}
+                    onManageAssistants={onManageAssistants}
+                    onOpenHistoryRecords={onOpenHistoryRecords}
+                  />
+                </div>
               }
             />
           ) : (
-            <TopicListOptionsMenu
-              historyRecordsActive={historyRecordsActive}
-              manageAssistantsActive={manageAssistantsActive}
-              mode={displayMode}
-              onChange={handleTopicDisplayModeChange}
-              onManageAssistants={onManageAssistants}
-              onOpenHistoryRecords={onOpenHistoryRecords}
-              sectionIds={isAssistantDisplayMode ? topicAssistantSectionIds : undefined}
-            />
+            <div className="flex items-center gap-1">
+              {!isTopicSelectionMode && (
+                <ConversationListSelectionToggle onSelect={() => setIsTopicSelectionMode(true)} />
+              )}
+              <TopicListOptionsMenu
+                historyRecordsActive={historyRecordsActive}
+                manageAssistantsActive={manageAssistantsActive}
+                mode={displayMode}
+                onChange={handleTopicDisplayModeChange}
+                onManageAssistants={onManageAssistants}
+                onOpenHistoryRecords={onOpenHistoryRecords}
+                sectionIds={isAssistantDisplayMode ? topicAssistantSectionIds : undefined}
+              />
+            </div>
           )}
         </ResourceList.Header>
 
@@ -1480,6 +1599,14 @@ export function Topics({
             onPinTopic={handlePinTopic}
             onToggleSidebar={handleToggleTopicSidebar}
             onRequestTopicImageAction={handleTopicImageAction}
+            isSelectionMode={isTopicSelectionMode}
+            isBulkArchiving={isBulkArchivingTopics}
+            selectedIds={selectedTopicIds}
+            canSelectAll={isFullyLoaded}
+            onToggleSelection={handleToggleTopicSelection}
+            onSelectAllFiltered={handleSelectAllFilteredTopics}
+            onArchiveSelected={() => void handleArchiveSelectedTopics()}
+            onCancelSelection={handleCancelTopicSelection}
             onSetPanePosition={canSetPanePosition ? setResolvedPanePosition : undefined}
             onSwitchTopic={setActiveTopic}
             panePosition={canSetPanePosition ? resolvedPanePosition : undefined}

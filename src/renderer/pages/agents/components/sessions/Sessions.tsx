@@ -19,6 +19,7 @@ import {
   type ResourceListSection,
   SessionListOptionsMenu
 } from '@renderer/components/chat/resourceList/base'
+import { ConversationListSelectionToggle } from '@renderer/components/chat/resourceList/ConversationListSelection'
 import { ResourceRefreshErrorBanner } from '@renderer/components/chat/resourceList/ResourceRefreshErrorBanner'
 import { SessionHoverPreviewGroup } from '@renderer/components/chat/resourceList/SessionHoverPreview'
 import { SessionResourceList } from '@renderer/components/chat/resourceList/SessionResourceList'
@@ -189,6 +190,7 @@ const Sessions = ({
     error,
     refreshError,
     deleteSession,
+    deleteSessions,
     readSessionListItems,
     hasMore,
     isLoadingMore,
@@ -203,6 +205,10 @@ const Sessions = ({
   const [optimisticMove, setOptimisticMove] = useState<ResourceListItemReorderPayload | null>(null)
   const [optimisticAgentOrderIds, setOptimisticAgentOrderIds] = useState<string[] | null>(null)
   const [optimisticWorkspaceOrderIds, setOptimisticWorkspaceOrderIds] = useState<string[] | null>(null)
+  const [isSessionSelectionMode, setIsSessionSelectionMode] = useState(false)
+  const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(new Set())
+  const [isBulkArchivingSessions, setIsBulkArchivingSessions] = useState(false)
+  const bulkArchivingSessionsRef = useRef(false)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
   const { queueTarget: queueImageCaptureTarget, targets: imageCaptureTargets } =
     useImageCaptureTargets<AgentSessionEntity>({
@@ -545,6 +551,130 @@ const Sessions = ({
       withOptimisticNames
     ]
   )
+
+  const handleToggleSessionSelection = useCallback((sessionId: string, selected: boolean) => {
+    setSelectedSessionIds((current) => {
+      const next = new Set(current)
+      if (selected) next.add(sessionId)
+      else next.delete(sessionId)
+      return next
+    })
+  }, [])
+
+  const handleSelectAllFilteredSessions = useCallback((filteredItems: readonly SessionListItem[]) => {
+    setSelectedSessionIds((current) => {
+      const next = new Set(current)
+      for (const session of filteredItems) {
+        if (!session.pinned) next.add(session.id)
+      }
+      return next
+    })
+  }, [])
+
+  const handleCancelSessionSelection = useCallback(() => {
+    setSelectedSessionIds(new Set())
+    setIsSessionSelectionMode(false)
+  }, [])
+
+  const handleArchiveSelectedSessions = useCallback(async () => {
+    if (bulkArchivingSessionsRef.current) return
+
+    const allSessions = withOptimisticNames(readSessionListItems())
+    const sessionsToArchive = allSessions.filter((session) => selectedSessionIds.has(session.id) && !session.pinned)
+    if (sessionsToArchive.length === 0) return
+
+    const sessionIds = sessionsToArchive.map((session) => session.id)
+    const sessionIdSet = new Set(sessionIds)
+    const activeSessionIdAtStart = activeSessionIdRef.current
+    const wasActive = sessionIdSet.has(activeSessionIdAtStart ?? '')
+    const replacement = wasActive
+      ? findLatestActive(allSessions.filter((session) => !sessionIdSet.has(session.id)))
+      : null
+
+    const performArchive = async () => {
+      if (bulkArchivingSessionsRef.current) return
+      bulkArchivingSessionsRef.current = true
+      setIsBulkArchivingSessions(true)
+      try {
+        const result = await deleteSessions(sessionIds)
+        if (!result) {
+          if (replacement && wasActive && activeSessionIdRef.current === replacement.id) {
+            setActiveSessionId(activeSessionIdAtStart)
+          }
+          return
+        }
+
+        const deletedIds = [...result.deletedIds]
+        if (deletedIds.length === 0) {
+          toast.info(t('recycle_bin.already_moved'))
+          return
+        }
+
+        showRecycleBinBatchUndo({
+          itemCount: deletedIds.length,
+          onUndo: () =>
+            restoreRecycleBinItems({
+              ids: deletedIds,
+              restore: restoreSession,
+              getActive: (id) => dataApiService.get(`/agent-sessions/${id}`),
+              isNotFound: isAgentSessionNotFoundError,
+              refresh: reload
+            })
+        })
+
+        const deletedIdSet = new Set(deletedIds)
+        const currentActiveSessionId = activeSessionIdRef.current
+        if (wasActive && deletedIdSet.has(activeSessionIdAtStart ?? '') && !replacement) {
+          setTrackedActiveSessionId(null, null)
+        } else if (
+          deletedIdSet.has(activeSessionIdAtStart ?? '') &&
+          (!currentActiveSessionId || deletedIdSet.has(currentActiveSessionId))
+        ) {
+          setActiveSessionId(replacement?.id ?? null)
+        }
+
+        handleCancelSessionSelection()
+      } catch (err) {
+        logger.error('Failed to batch archive sessions', { sessionIds, err })
+        if (replacement && wasActive && activeSessionIdRef.current === replacement.id) {
+          setActiveSessionId(activeSessionIdAtStart)
+        }
+        toast.error(t('recycle_bin.move_failed'))
+      } finally {
+        bulkArchivingSessionsRef.current = false
+        setIsBulkArchivingSessions(false)
+      }
+    }
+
+    if (replacement && wasActive) {
+      const transition = () => {
+        if (bulkArchivingSessionsRef.current) return
+        setTrackedActiveSessionId(replacement.id, replacement)
+        void performArchive()
+      }
+      const activeSession = allSessions.find((session) => session.id === activeSessionIdAtStart)
+      const preservesFileWorkspace =
+        activeSession &&
+        buildAgentFileWorkspaceKey(activeSession.workspaceId, activeSession.workspace?.path) ===
+          buildAgentFileWorkspaceKey(replacement.workspaceId, replacement.workspace?.path)
+      if (!preservesFileWorkspace && requestFileNavigation) requestFileNavigation(transition)
+      else transition()
+    } else {
+      await performArchive()
+    }
+  }, [
+    deleteSessions,
+    handleCancelSessionSelection,
+    readSessionListItems,
+    reload,
+    requestFileNavigation,
+    restoreSession,
+    selectedSessionIds,
+    setActiveSessionId,
+    setTrackedActiveSessionId,
+    t,
+    withOptimisticNames
+  ])
 
   const {
     handleOpenRenameSessionDialog,
@@ -1390,23 +1520,32 @@ const Sessions = ({
       onGroupHeaderSelectItem={handleSelectSession}
       onReorder={handleSessionReorder}
       onCollapsedStateChange={handleSessionCollapsedStateChange}>
-      <ResourceList.Header>
+      <ResourceList.Header className={isRightPanel ? 'flex-row items-center gap-1' : undefined}>
         {isRightPanel ? (
-          <ResourceList.Search
-            aria-label={t('agent.session.search.title')}
-            placeholder={t('agent.session.search.placeholder')}
-          />
-        ) : (
           <>
-            <ResourceList.HeaderItem
-              type="button"
-              command={displayMode === 'agent' ? undefined : 'topic.create'}
-              aria-label={headerCreateLabel}
-              disabled={headerCreateDisabled}
-              icon={displayMode === 'agent' ? <Plus /> : <NewConversationIcon />}
-              label={headerCreateLabel}
-              onClick={handleHeaderCreate}
-              actions={
+            <ResourceList.Search
+              aria-label={t('agent.session.search.title')}
+              placeholder={t('agent.session.search.placeholder')}
+              wrapperClassName="min-w-0 flex-1"
+            />
+            {!isSessionSelectionMode && (
+              <ConversationListSelectionToggle onSelect={() => setIsSessionSelectionMode(true)} />
+            )}
+          </>
+        ) : (
+          <ResourceList.HeaderItem
+            type="button"
+            command={displayMode === 'agent' ? undefined : 'topic.create'}
+            aria-label={headerCreateLabel}
+            disabled={headerCreateDisabled}
+            icon={displayMode === 'agent' ? <Plus /> : <NewConversationIcon />}
+            label={headerCreateLabel}
+            onClick={handleHeaderCreate}
+            actions={
+              <div className="flex items-center gap-1">
+                {!isSessionSelectionMode && (
+                  <ConversationListSelectionToggle onSelect={() => setIsSessionSelectionMode(true)} />
+                )}
                 <SessionListOptionsMenu
                   historyRecordsActive={historyRecordsActive}
                   manageAgentsActive={manageAgentsActive}
@@ -1422,22 +1561,29 @@ const Sessions = ({
                         : undefined
                   }
                 />
-              }
-            />
-          </>
+              </div>
+            }
+          />
         )}
       </ResourceList.Header>
       {refreshError && <ResourceRefreshErrorBanner onRetry={handleRetry} retrying={listValidating} />}
       <SessionHoverPreviewGroup enabled={dataEnabled}>
         <SessionListBody
           activeSessionId={activeSessionId}
+          canSelectAll={isFullyLoaded}
           channelTypeMap={channelTypeMap}
           displayMode={displayMode}
           error={listError}
+          isBulkArchiving={isBulkArchivingSessions}
           isDraggable={isDraggableMode && !isRightPanel}
           isValidating={listValidating}
+          isSelectionMode={isSessionSelectionMode}
           listRef={listRef}
           onDeleteSession={handleDeleteSession}
+          onArchiveSelected={() => void handleArchiveSelectedSessions()}
+          onCancelSelection={handleCancelSessionSelection}
+          onSelectAllFiltered={handleSelectAllFilteredSessions}
+          onToggleSelection={handleToggleSessionSelection}
           onOpenInNewTab={isWindowFrame ? undefined : openSessionInNewTab}
           onOpenInNewWindow={openSessionInNewWindow}
           onOpenRenameDialog={handleOpenRenameSessionDialog}
@@ -1447,6 +1593,7 @@ const Sessions = ({
           onToggleSidebar={handleToggleSessionSidebar}
           panePosition={canSetPanePosition ? resolvedPanePosition : undefined}
           sidebarSessionFavoriteIdSet={sidebarSessionFavoriteIdSet}
+          selectedIds={selectedSessionIds}
           sessionMenuActions={sessionMenuActions}
           setActiveSessionId={handleSelectSession}
         />
