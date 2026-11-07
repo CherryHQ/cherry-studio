@@ -58,6 +58,7 @@ on:
           - scheduled-task-conversation
           - translation-settings
           - native-settings
+          - native-notifications
       provider_mode:
         description: "Provider backend: real = repository vars (default), mock = in-job mock service (deterministic, no quota, fault injection). Mock supports a subset of tasks; see scripts/e2e/regression/mock-fixtures/README.md"
         required: true

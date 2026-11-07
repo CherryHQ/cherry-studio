@@ -58,6 +58,9 @@ pnpm exec tsx scripts/e2e/regression/cli.ts run-phase \
   --run-dir /absolute/run-directory --phase basicFeatures
 ```
 
+`native-notifications` selects MP-110 for notification settings, actual system delivery,
+native activation and disabled-category suppression. `native-settings` also runs startup/tray checks.
+
 `scheduled-task-conversation` selects MP-145, including the real-provider interview,
 confirmation, recurring schedule, task execution, history and deletion. Five-minute
 intervals and equivalent unrestricted cron schedules both satisfy its recurrence contract.
