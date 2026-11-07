@@ -19,7 +19,8 @@ import {
   allowMacNotificationPermission,
   findMacNotification,
   findWindowsNotification,
-  setMacNotificationCenterOpen
+  setMacNotificationCenterOpen,
+  setWindowsNotificationCenterOpen
 } from '../../../../scripts/e2e/regression/systemAutomation'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { selectSidebarApp } from '../helpers/navigation'
@@ -87,6 +88,7 @@ export async function notificationSettings(app: RegressionApp, initialPage: Page
   const topicName = app.resourceName(`Notification ${Date.now()}`)
   const assistantName = app.resourceName('Notification assistant')
   let assistantId: string | undefined
+  let windowsCenterWasOpen: boolean | undefined
   try {
     await page.evaluate(() => window.api.preference.set('topic.naming.enabled', false))
     await openSettingsSection(page, 'Notifications')
@@ -220,6 +222,10 @@ export async function notificationSettings(app: RegressionApp, initialPage: Page
       }
       await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(false)
       if (app.record.platform === 'macos') setMacNotificationCenterOpen(app.paths, true)
+      else {
+        const previous = setWindowsNotificationCenterOpen(app.paths, true)
+        windowsCenterWasOpen ??= previous
+      }
       expect(findNotification(answer)).toBe(false)
       await new Promise((resolve) => setTimeout(resolve, 1500))
       request.complete(answer)
@@ -298,6 +304,12 @@ export async function notificationSettings(app: RegressionApp, initialPage: Page
     if (app.record.platform === 'macos') {
       try {
         setMacNotificationCenterOpen(app.paths, false)
+      } catch (error) {
+        cleanupErrors.push(String(error))
+      }
+    } else if (windowsCenterWasOpen !== undefined) {
+      try {
+        setWindowsNotificationCenterOpen(app.paths, windowsCenterWasOpen)
       } catch (error) {
         cleanupErrors.push(String(error))
       }

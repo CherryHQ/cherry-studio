@@ -22,7 +22,8 @@ import {
   dismissNativeMessageBox,
   readWindowsPrintDialog,
   saveNativeFile,
-  saveNativeFileKeepingName
+  saveNativeFileKeepingName,
+  setWindowsNotificationCenterOpen
 } from '../systemAutomation'
 import { readWindowsFileOwners } from '../windowsFileOwners'
 import { listWindowsCodeTerminals, windowsTerminalText } from '../windowsTerminal'
@@ -208,6 +209,14 @@ it.skipIf(!['darwin', 'win32'].includes(process.platform)).each(dialogModes)(
             .map((file) => realpathSync.native(file))
             .sort()
         )
+      }
+      if (nativePlatform === 'windows' && mode === 'file') {
+        const previous = setWindowsNotificationCenterOpen(paths, true)
+        try {
+          expect(setWindowsNotificationCenterOpen(paths, true)).toBe(true)
+        } finally {
+          setWindowsNotificationCenterOpen(paths, previous)
+        }
       }
     } catch (error) {
       let controls = 'Fixture exited before native controls could be inspected'

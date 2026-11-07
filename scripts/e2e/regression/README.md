@@ -212,5 +212,7 @@ signed application; it never changes another application's notification settings
 Notification assertions open Notification Center and inspect only the unique case
 text, so system banner preferences do not determine whether delivery is detected.
 They still click the real system notification and verify conversation activation.
+Windows checks use Action Center on Windows 10 and Notification Center on Windows 11,
+verify the native panel's visibility, and restore its previous state during cleanup.
 Collapsed notification stacks are expanded before locating and opening the matching notification;
 expanding a stack alone is never reported as a successful notification click.

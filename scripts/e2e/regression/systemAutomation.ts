@@ -308,6 +308,54 @@ export function findMacNotification(paths: RunPaths, text: string, click = false
   return false
 }
 
+export function setWindowsNotificationCenterOpen(paths: RunPaths, open: boolean): boolean {
+  const record = readAppRecord(paths)
+  if (record.platform !== 'windows') throw new Error('Native Windows notifications require Windows')
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  const script = [
+    '$ErrorActionPreference = "Stop"',
+    'Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes',
+    '$root = [Windows.Automation.AutomationElement]::RootElement',
+    'function Find-NotificationCenter {',
+    '  foreach ($hostProcess in @(Get-Process -Name ShellExperienceHost -ErrorAction SilentlyContinue)) {',
+    '    $condition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty, $hostProcess.Id)',
+    '    foreach ($window in $root.FindAll([Windows.Automation.TreeScope]::Children, $condition)) {',
+    '      $current = $window.Current',
+    '      if (-not $current.IsOffscreen -and ($current.Name -match "^(Action center|Notification center)$" -or $current.AutomationId -match "^(ActionCenter|NotificationCenter)$")) { return $window }',
+    '    }',
+    '  }',
+    '  return $null',
+    '}',
+    '$previous = $null -ne (Find-NotificationCenter)',
+    `$desired = $${open}`,
+    'if ($previous -ne $desired) {',
+    `  Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class CenterKeyboard { [DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra); }'`,
+    '  $key = if ([Environment]::OSVersion.Version.Build -ge 22000) { 0x4E } else { 0x41 }',
+    '  [CenterKeyboard]::keybd_event(0x5B, 0, 0, [UIntPtr]::Zero)',
+    '  try {',
+    '    [CenterKeyboard]::keybd_event($key, 0, 0, [UIntPtr]::Zero)',
+    '  } finally {',
+    '    [CenterKeyboard]::keybd_event($key, 0, 2, [UIntPtr]::Zero)',
+    '    [CenterKeyboard]::keybd_event(0x5B, 0, 2, [UIntPtr]::Zero)',
+    '  }',
+    '  $deadline = [DateTime]::UtcNow.AddSeconds(5)',
+    '  do {',
+    '    Start-Sleep -Milliseconds 100',
+    '    $current = $null -ne (Find-NotificationCenter)',
+    '    if ($current -eq $desired) { break }',
+    '  } while ([DateTime]::UtcNow -lt $deadline)',
+    '  if ($current -ne $desired) { throw "Windows notification center did not reach the requested visibility" }',
+    '}',
+    '$previous.ToString().ToLowerInvariant()'
+  ].join('\n')
+  return (
+    execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+      encoding: 'utf8',
+      timeout: 15_000
+    }).trim() === 'true'
+  )
+}
+
 export function findWindowsNotification(paths: RunPaths, text: string, click = false): boolean {
   const record = readAppRecord(paths)
   if (record.platform !== 'windows') throw new Error('Native Windows notifications require Windows')
