@@ -7,8 +7,11 @@ import { getRunPaths } from '../../../scripts/e2e/regression/paths'
 import { captureMaskedScreenshot } from '../../../scripts/e2e/regression/screenshotEvidence'
 import { readRun } from '../../../scripts/e2e/regression/state'
 import type { TestProfile } from '../../../scripts/e2e/regression/types'
+import { createApplicationWatchdog } from '../../../scripts/e2e/regression/watchdog'
 import { RegressionApp } from './RegressionApp'
 import { prepareScenario } from './setup'
+
+const TEARDOWN_TIMEOUT_MS = 20_000
 
 interface RegressionFixtures {
   app: RegressionApp
@@ -17,6 +20,36 @@ interface RegressionFixtures {
 
 interface RegressionOptions {
   profile: TestProfile
+}
+
+/**
+ * A frozen main process never answers the CDP call a fixture awaits, so every teardown
+ * step gets a deadline that starts before the work does. The case still reports its own
+ * result instead of hanging until the phase timeout discards the report.
+ */
+async function bounded<T>(
+  work: () => Promise<T>,
+  label: string,
+  timeoutMs = TEARDOWN_TIMEOUT_MS
+): Promise<T | undefined> {
+  let timer: NodeJS.Timeout | undefined
+  const timeout = new Promise<undefined>((resolve) => {
+    timer = setTimeout(() => {
+      process.stderr.write(`[regression-fixture] ${label} exceeded ${timeoutMs}ms; continuing teardown\n`)
+      resolve(undefined)
+    }, timeoutMs)
+    timer.unref()
+  })
+  const outcome = await Promise.race([
+    work().then(
+      (value) => ({ value }),
+      (error) => ({ error })
+    ),
+    timeout
+  ])
+  if (timer) clearTimeout(timer)
+  if (outcome && 'error' in outcome) throw outcome.error
+  return outcome?.value
 }
 
 export const test = base.extend<RegressionFixtures & RegressionOptions>({
@@ -32,10 +65,16 @@ export const test = base.extend<RegressionFixtures & RegressionOptions>({
     const missing = missingCapabilities(testCase.id, run.capabilities)
     base.skip(missing.length > 0, `Missing capabilities: ${missing.join(', ')}`)
     const app = new RegressionApp(runDirectory, testCase.id)
+    const watchdog = createApplicationWatchdog(() => app.record)
+    watchdog.start()
     try {
       await use(app)
     } finally {
-      await app.disconnect()
+      watchdog.stop()
+      // A killed application has nothing left to disconnect from, and any CDP call
+      // would only wait for a socket that is already gone.
+      if (watchdog.reason) throw new Error(watchdog.reason)
+      await bounded(() => app.disconnect(), 'disconnect')
     }
   },
 
@@ -45,13 +84,16 @@ export const test = base.extend<RegressionFixtures & RegressionOptions>({
       if (app.caseId !== 'S-01') await prepareScenario(page)
       await use(page)
     } finally {
-      const currentPage = await app.mainWindow().catch(() => page)
+      const currentPage = (await bounded(() => app.mainWindow().catch(() => page), 'locate main window')) ?? page
       if (testInfo.status !== testInfo.expectedStatus) {
-        const screenshot = await captureMaskedScreenshot(currentPage, getSensitiveConfigValues()).catch(() => undefined)
+        const screenshot = await bounded(
+          () => captureMaskedScreenshot(currentPage, getSensitiveConfigValues()).catch(() => undefined),
+          'capture failure screenshot'
+        )
         if (screenshot) await testInfo.attach('Failure screenshot', { body: screenshot, contentType: 'image/png' })
       }
 
-      await app.cleanupTransientUi(currentPage)
+      await bounded(() => app.cleanupTransientUi(currentPage), 'clean up transient UI')
     }
   }
 })
