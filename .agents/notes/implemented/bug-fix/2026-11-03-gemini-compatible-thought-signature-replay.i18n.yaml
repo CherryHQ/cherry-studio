@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-03-gemini-compatible-thought-signature-replay.md
+2026-11-03-gemini-compatible-thought-signature-replay.md: b49532f24be34b52c3c83b689c4de5eacc901f0c
+2026-11-03-gemini-compatible-thought-signature-replay.zh.md: e72d60b817b9368c3e1d6591228838e4c5de1919
