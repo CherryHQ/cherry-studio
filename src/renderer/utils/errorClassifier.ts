@@ -206,5 +206,9 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   }
   if (nestedRecovery) return nestedRecovery
 
+  if (category === 'unknown' && error.streamStage === 'response-stream' && !error.i18nKey) {
+    return classify('stream')
+  }
+
   return classify(category)
 }

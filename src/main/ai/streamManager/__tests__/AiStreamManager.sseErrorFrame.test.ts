@@ -11,6 +11,7 @@
 import type { UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { AiService } from '@main/ai/AiService'
 import type { StreamErrorResult, StreamListener } from '@main/ai/streamManager/types'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
@@ -29,7 +30,13 @@ const mockStreamText = vi.fn()
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
-    AiService: { streamText: mockStreamText }
+    AiService: {
+      // `AiService.streamText` now answers with a source descriptor, not a bare stream.
+      streamText: async (request: Parameters<AiService['streamText']>[0]) => ({
+        kind: 'chunks' as const,
+        stream: await mockStreamText(request)
+      })
+    }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
 

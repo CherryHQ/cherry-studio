@@ -42,6 +42,13 @@ enabled handler runs. When it unmounts, the previous enabled handler becomes
 active again. A renderer command without an enabled handler does not resolve, so
 its keyboard event falls through unchanged.
 
+The optional `shouldHandleKeyEvent` is a synchronous predicate for deciding whether
+a renderer handler accepts a keyboard event. After a trigger resolves to a command,
+keyboard dispatch consults the active registration's predicate before calling
+`preventDefault()` or executing the handler. Returning `false` skips both, without
+falling back to an older registration or another command. Registrations without a
+predicate keep the same behavior; programmatic `execute()` never consults it.
+
 Keep the handler with the business surface that owns the behavior. Do not move
 business state into the command runtime merely to make the action triggerable.
 
