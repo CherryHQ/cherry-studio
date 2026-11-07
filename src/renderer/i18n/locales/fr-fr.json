@@ -1486,6 +1486,7 @@
   "error.claude_code_exit.code": "Claude Code s'est arrêté de manière inattendue (code {{code}}). Référence de diagnostic : {{reference}}",
   "error.claude_code_exit.signal": "Claude Code a été interrompu de manière inattendue (signal {{signal}}). Référence de diagnostic : {{reference}}",
   "error.claude_code_exit.start": "Claude Code n'a pas pu démarrer. Référence de diagnostic : {{reference}}",
+  "error.claude_code_out_of_turn_approval": "Cherry Studio a bloqué une demande d’outil car son approbation n’a pas pu être présentée dans le tour actif. Arrêtez toute exécution encore en cours, puis envoyez un nouveau message dans cette session pour demander à l’agent de réessayer. La demande bloquée n’a pas été exécutée.",
   "error.content": "suivre l'instruction du système",
   "error.data": "données",
   "error.detail": "Détails de l'erreur",

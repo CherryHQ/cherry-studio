@@ -1486,6 +1486,7 @@
   "error.claude_code_exit.code": "Claude Code si è chiuso in modo imprevisto (codice {{code}}). Riferimento diagnostico: {{reference}}",
   "error.claude_code_exit.signal": "Claude Code si è arrestato in modo imprevisto (segnale {{signal}}). Riferimento diagnostico: {{reference}}",
   "error.claude_code_exit.start": "Impossibile avviare Claude Code. Riferimento diagnostico: {{reference}}",
+  "error.claude_code_out_of_turn_approval": "Cherry Studio ha bloccato una richiesta di utilizzo di uno strumento perché non è stato possibile mostrarne l'approvazione nel turno attivo. Interrompi qualsiasi esecuzione ancora in corso, quindi invia un nuovo messaggio in questa sessione chiedendo all'agente di riprovare. La richiesta bloccata non è stata eseguita.",
   "error.content": "Contenuto",
   "error.data": "Dati",
   "error.detail": "Dettagli dell'errore",

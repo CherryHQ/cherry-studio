@@ -1486,6 +1486,7 @@
   "error.claude_code_exit.code": "Claude Code exited unexpectedly (code {{code}}). Diagnostic reference: {{reference}}",
   "error.claude_code_exit.signal": "Claude Code stopped unexpectedly (signal {{signal}}). Diagnostic reference: {{reference}}",
   "error.claude_code_exit.start": "Claude Code could not start. Diagnostic reference: {{reference}}",
+  "error.claude_code_out_of_turn_approval": "Cherry Studio blocked a tool request because its approval could not be presented in the active turn. Stop any remaining run, then send a new message in this session asking the agent to retry. The blocked request was not executed.",
   "error.content": "Content",
   "error.data": "Data",
   "error.detail": "Error Details",
