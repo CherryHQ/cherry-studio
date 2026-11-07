@@ -3,6 +3,7 @@ import type * as fs from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import * as regressionCases from '../cases'
 import { completeE2eCase, createRun, finalizeRun, getRunVerdict, readRun, updatePhase, writeRun } from '../state'
 import type { RegressionRun } from '../types'
 
@@ -10,6 +11,8 @@ vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof fs>()
   return { ...actual, renameSync: vi.fn(actual.renameSync) }
 })
+
+afterEach(() => vi.restoreAllMocks())
 
 describe('Playwright run state', () => {
   it('initializes every phase selected by a module task without selecting unrelated cases', () => {
@@ -106,6 +109,9 @@ describe('Playwright run state', () => {
   })
 
   it('marks platform-scoped cases as not applicable instead of failing a Windows run', () => {
+    vi.spyOn(regressionCases, 'supportsPlatform').mockImplementation(
+      (id, platform) => id !== 'MP-133' || platform !== 'windows'
+    )
     const run = createRun({
       appVersion: 'development',
       commitSha: 'sha',
@@ -124,6 +130,7 @@ describe('Playwright run state', () => {
   })
 
   it('reports a task with no applicable case on this platform as not applicable instead of blocked', () => {
+    vi.spyOn(regressionCases, 'supportsPlatform').mockImplementation((_id, platform) => platform !== 'windows')
     const run = finalizeRun(
       createRun({
         appVersion: 'development',
