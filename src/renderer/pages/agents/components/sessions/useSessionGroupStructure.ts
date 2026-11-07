@@ -11,6 +11,7 @@ import {
   getSessionAgentGroupId,
   isSystemWorkspaceSession,
   SESSION_AGENT_SECTION_ID,
+  SESSION_GROUP_SECTION_ID,
   SESSION_NO_PROJECT_GROUP_ID,
   SESSION_NO_PROJECT_SECTION_ID,
   SESSION_PINNED_SECTION_ID,
@@ -49,15 +50,23 @@ export function useSessionGroupStructure({
       }
 
       return {
-        id: displayMode === 'agent' ? SESSION_AGENT_SECTION_ID : SESSION_WORKDIR_SECTION_ID,
+        id:
+          displayMode === 'agent'
+            ? SESSION_AGENT_SECTION_ID
+            : displayMode === 'group'
+              ? SESSION_GROUP_SECTION_ID
+              : SESSION_WORKDIR_SECTION_ID,
         label: t(SESSION_DISPLAY_LABEL_KEYS[displayMode])
       }
     }
   }, [displayMode, t])
 
   const sessionGroupSeeds = useMemo<ResourceListGroupSeed[]>(() => {
-    if (displayMode === 'agent') {
-      const section = { id: SESSION_AGENT_SECTION_ID, label: t(SESSION_DISPLAY_LABEL_KEYS.agent) }
+    if (displayMode === 'agent' || displayMode === 'group') {
+      const section =
+        displayMode === 'group'
+          ? { id: SESSION_GROUP_SECTION_ID, label: t(SESSION_DISPLAY_LABEL_KEYS.group) }
+          : { id: SESSION_AGENT_SECTION_ID, label: t(SESSION_DISPLAY_LABEL_KEYS.agent) }
       return agentsForDisplay.map((agent) => ({ id: getSessionAgentGroupId(agent.id), label: agent.name, section }))
     }
 

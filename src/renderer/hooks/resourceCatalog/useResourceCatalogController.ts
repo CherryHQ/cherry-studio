@@ -54,7 +54,7 @@ function buildGroups(resources: ResourceItem[], groups: Group[], filterType?: Re
   const counts = new Map<string, number>()
   const list = filterType ? resources.filter((r) => r.type === filterType) : resources
   for (const resource of list) {
-    if (resource.type === 'assistant' && resource.groupId) {
+    if ((resource.type === 'assistant' || resource.type === 'agent') && resource.groupId) {
       counts.set(resource.groupId, (counts.get(resource.groupId) ?? 0) + 1)
     }
   }
@@ -72,7 +72,12 @@ export function useResourceCatalogController(
   const { t } = useTranslation()
   const { onConfirmArchiveAgentSessions, onLaunchSkill, onOpenSkill } = options
   const [search, setSearch] = useState('')
-  const [activeGroupId, setActiveGroupId] = useState<string | null>(null)
+  // The library travels with the group id: a switch must not read it as a group of the other
+  // library (derived null) nor keep it afterwards (render-phase reset — an effect is a render late).
+  const [groupFilter, setGroupFilter] = useState<{ library: string; groupId: string | null }>({
+    library: resourceType,
+    groupId: null
+  })
   const [deleteConfirm, setDeleteConfirm] = useState<ResourceItem | null>(null)
   const [createDialogKind, setCreateDialogKind] = useState<ResourceCreateWizardKind | null>(null)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
@@ -95,16 +100,28 @@ export function useResourceCatalogController(
   const isAssistantLibrary = resourceType === 'assistant'
   const invalidate = useInvalidateCache()
   const closeConversationTabs = useCloseConversationTabs()
+  // Agents share the group-management surface; groups are per-entityType rows.
+  const groupEntityType: 'assistant' | 'agent' = resourceType === 'agent' ? 'agent' : 'assistant'
+  const isGroupedLibrary = isAssistantLibrary || resourceType === 'agent'
+  const activeGroupId = groupFilter.library === resourceType ? groupFilter.groupId : null
+  if (groupFilter.library !== resourceType) {
+    setGroupFilter({ library: resourceType, groupId: null })
+  }
+  const setActiveGroupId = useCallback(
+    (groupId: string | null) => setGroupFilter({ library: resourceType, groupId }),
+    [resourceType]
+  )
 
   const {
     resources,
     allResources,
+    groups,
     isLoading,
     error: resourceError,
     refetch
   } = useResourceLibrary({
     resourceType,
-    activeGroupId: isAssistantLibrary ? activeGroupId : null,
+    activeGroupId: isGroupedLibrary ? activeGroupId : null,
     search,
     sort: 'name'
   })
@@ -116,14 +133,31 @@ export function useResourceCatalogController(
   const { createAssistant } = useAssistantMutations()
   const { duplicateAssistant } = useDuplicateAssistantMutation()
   const { createAgent } = useAgentMutations()
-  const { groups, isLoading: groupsLoading, error: groupsError } = useGroups('assistant')
-  const { createGroup } = useGroupMutations('assistant')
+  const { createGroup } = useGroupMutations(groupEntityType)
+  // Assistant export stays assistant-typed even when the visible library is the agent one.
+  const {
+    groups: assistantGroups,
+    isLoading: assistantGroupsLoading,
+    error: assistantGroupsError
+  } = useGroups('assistant')
   const groupById = useMemo(() => new Map(groups.map((group) => [group.id, group] as const)), [groups])
+  const assistantGroupById = useMemo(
+    () => new Map(assistantGroups.map((group) => [group.id, group] as const)),
+    [assistantGroups]
+  )
+
+  // A group deleted in another window must not leave the filter pointed at a
+  // ghost; converge once the refreshed group list says it is gone.
+  useEffect(() => {
+    if (activeGroupId && !groups.some((group) => group.id === activeGroupId)) {
+      setActiveGroupId(null)
+    }
+  }, [activeGroupId, groups])
 
   const scopedGroups = useMemo(() => {
-    if (!isAssistantLibrary) return []
-    return buildGroups(allResources, groups, 'assistant')
-  }, [allResources, groups, isAssistantLibrary])
+    if (!isGroupedLibrary) return []
+    return buildGroups(allResources, groups, groupEntityType)
+  }, [allResources, groupEntityType, groups, isGroupedLibrary])
 
   useEffect(() => {
     if (createDialogOpen || !createDialogKind) return
@@ -256,9 +290,9 @@ export function useResourceCatalogController(
       assistantExportBusy.current = true
       setAssistantExporting(true)
       try {
-        if (groupsLoading || groupsError) throw new Error('assistant_groups_unavailable')
+        if (assistantGroupsLoading || assistantGroupsError) throw new Error('assistant_groups_unavailable')
         const grouped = selected.map((assistant) => {
-          const group = assistant.groupId === null ? undefined : groupById.get(assistant.groupId)
+          const group = assistant.groupId === null ? undefined : assistantGroupById.get(assistant.groupId)
           if (assistant.groupId !== null && !group) throw new Error('assistant_group_unresolved')
           return { assistant, groupName: group?.name }
         })
@@ -298,9 +332,9 @@ export function useResourceCatalogController(
       assistantExportLoading,
       assistantExportOpen,
       exportAssistants,
-      groupById,
-      groupsError,
-      groupsLoading,
+      assistantGroupById,
+      assistantGroupsError,
+      assistantGroupsLoading,
       handleAssistantExportOpenChange,
       t
     ]
@@ -451,7 +485,7 @@ export function useResourceCatalogController(
       assistantImportOpen,
       assistantExportOpen,
       exportAssistants,
-      assistantExportLoading: assistantExportLoading || groupsLoading,
+      assistantExportLoading: assistantExportLoading || assistantGroupsLoading,
       assistantExporting,
       handleAssistantExportOpenChange,
       handleExportAssistants,

@@ -593,6 +593,7 @@ const AGENT: AgentDetail = {
     heartbeat_interval: 30
   },
   orderKey: 'a0',
+  groupId: null,
   modelName: 'Old Model',
   createdAt: '2024-01-01T00:00:00.000Z',
   updatedAt: '2024-01-01T00:00:00.000Z'
@@ -1372,6 +1373,39 @@ describe('edit dialogs', () => {
       expect(updateAssistantMock).toHaveBeenCalledWith({
         body: expect.objectContaining({
           groupId: 'group-personal'
+        })
+      })
+    )
+  })
+
+  it('submits agent group changes directly', async () => {
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+
+    openGroupSelect()
+    fireEvent.click(await screen.findByRole('option', { name: 'personal' }))
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({
+          groupId: 'group-personal'
+        })
+      })
+    )
+  })
+
+  it('persists a clear after an external reassignment refreshed an untouched picker', async () => {
+    const { rerender } = render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+
+    // Another window assigns this agent while the editor sits untouched.
+    rerender(<AgentEditDialog open resource={{ ...AGENT, groupId: 'group-personal' }} onOpenChange={vi.fn()} />)
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Group' })).toHaveTextContent('personal'))
+
+    // The refreshed membership is the baseline now, so clearing it has to reach storage.
+    updateAgentMock.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'Group Clear' }))
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({
+          groupId: null
         })
       })
     )

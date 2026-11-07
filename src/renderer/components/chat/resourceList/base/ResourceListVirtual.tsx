@@ -1,6 +1,6 @@
 import type { Virtualizer } from '@tanstack/react-virtual'
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, ReactNode, Ref, RefObject } from 'react'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import {
   buildGroupedVirtualRows,
@@ -29,12 +29,15 @@ import {
 import {
   GroupEmpty,
   GroupHeader,
+  GroupLabelRow,
   GroupShowMore,
   ResourceListGroupHeaderContextMenuOwner,
   SectionHeader
 } from './ResourceListGroups'
 import { estimateResourceListDefaultRowSize, RESOURCE_LIST_DEFAULT_ROW_LAYOUT } from './resourceListLayout'
 
+const SCROLLBAR_AUTO_HIDE_DELAY = 1200
+const SCROLLBAR_FADE_STEP = 140
 const ITEM_ROW_CLASS = `flex w-full items-center py-[2px] ${RESOURCE_LIST_DEFAULT_ROW_LAYOUT.className}`
 const FIXED_ROW_CONTAINER_STYLE: CSSProperties = { height: RESOURCE_LIST_DEFAULT_ROW_LAYOUT.size }
 
@@ -45,6 +48,28 @@ function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
     return
   }
   ref.current = value
+}
+
+type ScrollbarStage = 'active' | 'fade-1' | 'fade-2' | 'fade-3' | 'idle'
+
+const SCROLLBAR_THUMB_CLASS_BY_STAGE: Record<ScrollbarStage, string> = {
+  active:
+    '[&::-webkit-scrollbar-thumb]:bg-[linear-gradient(180deg,var(--scrollbar-thumb)_0%,var(--scrollbar-thumb)_45%,color-mix(in_srgb,var(--scrollbar-thumb)_55%,transparent)_72%,transparent_100%)]',
+  'fade-1':
+    '[&::-webkit-scrollbar-thumb]:bg-[linear-gradient(180deg,color-mix(in_srgb,var(--scrollbar-thumb)_70%,transparent)_0%,color-mix(in_srgb,var(--scrollbar-thumb)_70%,transparent)_45%,color-mix(in_srgb,var(--scrollbar-thumb)_35%,transparent)_72%,transparent_100%)]',
+  'fade-2':
+    '[&::-webkit-scrollbar-thumb]:bg-[linear-gradient(180deg,color-mix(in_srgb,var(--scrollbar-thumb)_40%,transparent)_0%,color-mix(in_srgb,var(--scrollbar-thumb)_40%,transparent)_45%,color-mix(in_srgb,var(--scrollbar-thumb)_20%,transparent)_72%,transparent_100%)]',
+  'fade-3':
+    '[&::-webkit-scrollbar-thumb]:bg-[linear-gradient(180deg,color-mix(in_srgb,var(--scrollbar-thumb)_16%,transparent)_0%,color-mix(in_srgb,var(--scrollbar-thumb)_16%,transparent)_45%,color-mix(in_srgb,var(--scrollbar-thumb)_8%,transparent)_72%,transparent_100%)]',
+  idle: '[&::-webkit-scrollbar-thumb]:bg-[linear-gradient(180deg,transparent_0%,transparent_50%,transparent_100%)]'
+}
+
+const SCROLLBAR_COLOR_BY_STAGE: Record<ScrollbarStage, string> = {
+  active: 'var(--scrollbar-thumb) transparent',
+  'fade-1': 'color-mix(in srgb, var(--scrollbar-thumb) 70%, transparent) transparent',
+  'fade-2': 'color-mix(in srgb, var(--scrollbar-thumb) 40%, transparent) transparent',
+  'fade-3': 'color-mix(in srgb, var(--scrollbar-thumb) 16%, transparent) transparent',
+  idle: 'transparent transparent'
 }
 
 export type VirtualItemsProps<T extends ResourceListItemBase> = {
@@ -71,7 +96,7 @@ type ResourceListVirtualFooter = {
 
 type ResourceListVirtualGroupData = ResourceListGroup & {
   __resourceListBoundaryId?: string
-  __resourceListKind?: 'section'
+  __resourceListKind?: 'section' | 'group-label'
 }
 
 type ResourceListVirtualHeader =
@@ -82,6 +107,10 @@ type ResourceListVirtualHeader =
   | {
       type: 'section'
       section: ResourceListSection
+    }
+  | {
+      type: 'group-label'
+      label: string
     }
 
 type ResourceListVirtualGroup<T extends ResourceListItemBase> = GroupedVirtualListGroup<
@@ -101,6 +130,7 @@ type ResourceListVirtualRow<T extends ResourceListItemBase> = GroupedVirtualList
 const estimateResourceListChromeSize = () => RESOURCE_LIST_DEFAULT_ROW_LAYOUT.size
 
 function renderResourceListGroupHeader(header: ResourceListVirtualHeader) {
+  if (header.type === 'group-label') return <GroupLabelRow label={header.label} />
   return header.type === 'section' ? <SectionHeader section={header.section} /> : <GroupHeader group={header.group} />
 }
 
@@ -112,13 +142,81 @@ function isSectionVirtualGroup(group: ResourceListVirtualGroupData) {
   return group.__resourceListKind === 'section'
 }
 
-function getListViewportClassName(className?: string) {
+/**
+ * The synthetic header-only group that carries a {@link GroupLabelRow}. Its id is derived from the
+ * group it labels (unique, so dnd ids never collide) and it opts out of drag and drop entirely.
+ */
+function toGroupLabelVirtualGroup(group: ResourceListGroup): ResourceListVirtualGroupData {
+  return { ...group, id: `${group.id}:label`, __resourceListKind: 'group-label' }
+}
+
+function isGroupLabelVirtualGroup(group: ResourceListVirtualGroupData) {
+  return group.__resourceListKind === 'group-label'
+}
+
+function useAutoHideScrollbar(delay = SCROLLBAR_AUTO_HIDE_DELAY) {
+  const [stage, setStage] = useState<ScrollbarStage>('idle')
+  const stageRef = useRef<ScrollbarStage>('idle')
+  const fadeStartAtRef = useRef(0)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const clearScrollingTimeout = useCallback(() => {
+    if (timeoutRef.current === null) return
+
+    clearTimeout(timeoutRef.current)
+    timeoutRef.current = null
+  }, [])
+
+  const updateStage = useCallback((nextStage: ScrollbarStage) => {
+    if (stageRef.current === nextStage) return
+
+    stageRef.current = nextStage
+    setStage(nextStage)
+  }, [])
+
+  const scheduleNextStage = useCallback(
+    function scheduleNextStage(timeout: number) {
+      timeoutRef.current = setTimeout(() => {
+        timeoutRef.current = null
+        const remainingDelay = fadeStartAtRef.current - performance.now()
+        if (remainingDelay > 0) {
+          scheduleNextStage(remainingDelay)
+          return
+        }
+
+        if (stageRef.current === 'active') updateStage('fade-1')
+        else if (stageRef.current === 'fade-1') updateStage('fade-2')
+        else if (stageRef.current === 'fade-2') updateStage('fade-3')
+        else if (stageRef.current === 'fade-3') updateStage('idle')
+
+        if (stageRef.current !== 'idle') scheduleNextStage(SCROLLBAR_FADE_STEP)
+      }, timeout)
+    },
+    [updateStage]
+  )
+
+  const handleScroll = useCallback(() => {
+    fadeStartAtRef.current = performance.now() + delay
+    updateStage('active')
+    // Keep one deadline-driven timer alive so a scroll burst only updates the deadline.
+    if (timeoutRef.current === null) scheduleNextStage(delay)
+  }, [delay, scheduleNextStage, updateStage])
+
+  useEffect(() => clearScrollingTimeout, [clearScrollingTimeout])
+
+  return { stage, handleScroll }
+}
+
+function getListViewportClassName(stage: ScrollbarStage, className?: string) {
   return cn(
-    'py-1.5 pt-0.5! pr-2 [contain:layout_paint]',
-    '[&>div>div>[data-index]]:transition-transform [&>div>div>[data-index]]:duration-200 [&>div>div>[data-index]]:ease-out',
-    'motion-reduce:[&>div>div>[data-index]]:transition-none [&[data-virtual-scrolling=true]>div>div>[data-index]]:transition-none',
-    '[&:has([data-dragging=true])>div>div>[data-index]]:transition-none',
+    '-mr-2 min-h-0 flex-1 overflow-auto py-1.5 pt-0.5! pr-2 [contain:layout_paint] [scrollbar-gutter:stable]',
+    '[&>div>[data-index]]:transition-transform [&>div>[data-index]]:duration-200 [&>div>[data-index]]:ease-out',
+    'motion-reduce:[&>div>[data-index]]:transition-none [&[data-virtual-scrolling=true]>div>[data-index]]:transition-none',
+    '[&:has([data-dragging=true])>div>[data-index]]:transition-none',
     '[&[data-virtual-scrolling=true]_[data-index]]:pointer-events-none!',
+    '[&::-webkit-scrollbar-thumb:hover]:bg-[var(--scrollbar-thumb-hover)]',
+    '[&::-webkit-scrollbar-thumb]:transition-[background] [&::-webkit-scrollbar-thumb]:duration-150 [&::-webkit-scrollbar-thumb]:ease-out',
+    SCROLLBAR_THUMB_CLASS_BY_STAGE[stage],
     className
   )
 }
@@ -151,7 +249,8 @@ function VirtualItemRow({
 
 function buildVirtualGroups<T extends ResourceListItemBase>(
   view: ResourceListContextValue<T>['view'],
-  showEmptyGroups: boolean
+  showEmptyGroups: boolean,
+  meta: ResourceListContextValue<T>['meta']
 ) {
   const groups: ResourceListVirtualGroup<T>[] = []
   let itemIndex = 0
@@ -162,6 +261,16 @@ function buildVirtualGroups<T extends ResourceListItemBase>(
     for (const item of group.items) {
       items.push({ group: group.group, groupCollapsed: group.collapsed, item, itemIndex })
       itemIndex += 1
+    }
+
+    // A label row only ever names a group whose own header renders; a label above nothing is noise.
+    const labelAbove = group.group.label ? meta.getGroupLabelAbove?.(group.group) : undefined
+    if (labelAbove) {
+      groups.push({
+        group: toGroupLabelVirtualGroup(group.group),
+        header: { type: 'group-label', label: labelAbove },
+        items: []
+      })
     }
 
     groups.push({
@@ -209,7 +318,9 @@ function getResourceListVirtualRowKey<T extends ResourceListItemBase>(
   row: ResourceListVirtualRow<T>,
   getItemId: (item: T) => string
 ) {
-  if (row.type === 'group-header') return `group-header:${row.group.id}`
+  if (row.type === 'group-header') {
+    return row.header.type === 'group-label' ? `group-label:${row.group.id}` : `group-header:${row.group.id}`
+  }
   if (row.type === 'group-footer') return `group-footer:${row.group.id}`
   return `item:${getItemId(row.item.item)}`
 }
@@ -461,10 +572,11 @@ export function VirtualItems<T extends ResourceListItemBase>({
   const { estimateItemSize, getItemId, revealRequest } = meta
   const view = useResourceListView<T>()
   const renderContext = useResourceListRenderContext<T>()
-  const groups = useMemo(() => buildVirtualGroups(view, Boolean(meta.groupEmptyLabel)), [meta.groupEmptyLabel, view])
+  const groups = useMemo(() => buildVirtualGroups(view, Boolean(meta.groupEmptyLabel), meta), [meta, view])
   const virtualRows = useMemo(() => buildGroupedVirtualRows(groups, true, true), [groups])
   const virtualListRef = useRef<DynamicVirtualListRef>(null)
   const listboxRef = useRef<HTMLDivElement>(null)
+  const { stage, handleScroll } = useAutoHideScrollbar()
   const { handleListboxKeyDown } = useResourceListListboxNavigation({
     getItemId,
     groups,
@@ -472,6 +584,7 @@ export function VirtualItems<T extends ResourceListItemBase>({
     virtualListRef,
     virtualRows
   })
+  const isScrolling = stage !== 'idle'
   const itemContainerStyle =
     estimateItemSize === estimateResourceListDefaultRowSize ? FIXED_ROW_CONTAINER_STYLE : undefined
   const estimateVirtualItemSize = useCallback(
@@ -525,18 +638,18 @@ export function VirtualItems<T extends ResourceListItemBase>({
         scrollElementRef={setScrollElementRef}
         role="listbox"
         groups={groups}
-        className={getListViewportClassName(className)}
+        className={getListViewportClassName(stage, className)}
         scrollerProps={{
+          'data-scrolling': isScrolling ? 'true' : 'false',
           'aria-label': ariaLabel,
           onKeyDown: handleListboxKeyDown,
           tabIndex: 0
         }}
-        scrollAreaClassName="-mr-2 min-h-0 flex-1"
-        autoHideScrollbar
-        scrollHideDelay={1200}
+        scrollerStyle={{ scrollbarColor: SCROLLBAR_COLOR_BY_STAGE[stage] }}
         getItemKey={getVirtualRowKey}
         itemContainerStyle={itemContainerStyle}
         onChange={handleVirtualizerChange}
+        onScroll={handleScroll}
         overscan={6}
         estimateGroupHeaderSize={estimateResourceListChromeSize}
         estimateItemSize={estimateVirtualItemSize}
@@ -577,10 +690,11 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
   } = meta
   const view = useResourceListView<T>()
   const renderContext = useResourceListRenderContext<T>()
-  const groups = useMemo(() => buildVirtualGroups(view, Boolean(meta.groupEmptyLabel)), [meta.groupEmptyLabel, view])
+  const groups = useMemo(() => buildVirtualGroups(view, Boolean(meta.groupEmptyLabel), meta), [meta, view])
   const virtualRows = useMemo(() => buildGroupedVirtualRows(groups, true, true), [groups])
   const virtualListRef = useRef<DynamicVirtualListRef>(null)
   const listboxRef = useRef<HTMLDivElement>(null)
+  const { stage, handleScroll } = useAutoHideScrollbar()
   const { handleListboxKeyDown } = useResourceListListboxNavigation({
     getItemId,
     groups,
@@ -588,6 +702,7 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
     virtualListRef,
     virtualRows
   })
+  const isScrolling = stage !== 'idle'
   const itemContainerStyle =
     estimateItemSize === estimateResourceListDefaultRowSize ? FIXED_ROW_CONTAINER_STYLE : undefined
   const getGroupId = useCallback((group: ResourceListVirtualGroupData) => group.id, [])
@@ -634,6 +749,8 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
   )
   const canDragGroup = useCallback(
     (group: ResourceListVirtualGroupData, groupIndex: number) => {
+      if (isGroupLabelVirtualGroup(group)) return false
+
       if (isSectionVirtualGroup(group)) {
         return canDragGroupMeta?.(group, groupIndex) ?? false
       }
@@ -671,6 +788,7 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
     }) => {
       const activeIsSection = isSectionVirtualGroup(payload.activeGroup)
       const overIsSection = isSectionVirtualGroup(payload.overGroup)
+      if (isGroupLabelVirtualGroup(payload.activeGroup) || isGroupLabelVirtualGroup(payload.overGroup)) return false
       if (activeIsSection !== overIsSection) return false
 
       return (
@@ -699,7 +817,14 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
       sourceIndex: number
       targetIndex: number
     }) => {
-      if (isSectionVirtualGroup(payload.sourceGroup) || isSectionVirtualGroup(payload.overGroup)) return false
+      if (
+        isSectionVirtualGroup(payload.sourceGroup) ||
+        isSectionVirtualGroup(payload.overGroup) ||
+        isGroupLabelVirtualGroup(payload.sourceGroup) ||
+        isGroupLabelVirtualGroup(payload.overGroup)
+      ) {
+        return false
+      }
 
       return (
         canDropItemMeta?.({
@@ -766,18 +891,18 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
         scrollElementRef={setScrollElementRef}
         role="listbox"
         groups={groups}
-        className={getListViewportClassName(className)}
+        className={getListViewportClassName(stage, className)}
         scrollerProps={{
+          'data-scrolling': isScrolling ? 'true' : 'false',
           'aria-label': ariaLabel,
           onKeyDown: handleListboxKeyDown,
           tabIndex: 0
         }}
-        scrollAreaClassName="-mr-2 min-h-0 flex-1"
-        autoHideScrollbar
-        scrollHideDelay={1200}
+        scrollerStyle={{ scrollbarColor: SCROLLBAR_COLOR_BY_STAGE[stage] }}
         getItemKey={getVirtualRowKey}
         itemContainerStyle={itemContainerStyle}
         onChange={handleVirtualizerChange}
+        onScroll={handleScroll}
         overscan={6}
         getGroupId={getGroupId}
         getGroupBoundaryId={getGroupBoundaryId}

@@ -73,7 +73,7 @@ export function SessionListBody({
         channelType={channelTypeMap[session.id]}
         pinned={session.pinned}
         reserveLeadingIconSlot={
-          (displayMode === 'agent' && !session.pinned) ||
+          ((displayMode === 'agent' || displayMode === 'group') && !session.pinned) ||
           (displayMode === 'workdir' && !session.pinned && !isSystemWorkspaceSession(session))
         }
         onTogglePin={onTogglePin}

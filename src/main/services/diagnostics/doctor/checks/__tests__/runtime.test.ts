@@ -42,6 +42,7 @@ const agent = (model: AgentEntity['model'] = 'claude-code::sonnet'): AgentEntity
   id: 'agent-1',
   type: 'claude-code',
   name: 'Agent',
+  groupId: null,
   model,
   modelName: 'Claude',
   orderKey: 'a',
