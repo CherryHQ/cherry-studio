@@ -95,7 +95,6 @@ const anthropicAlwaysOnWire = {
 const genericEffort = (summaryTarget?: ReasoningWireTarget): ReasoningWireProfile => {
   const suffix = summaryTarget ? [summary(summaryTarget)] : []
   return {
-    off: mode([literal('reasoningEffort', 'none'), ...suffix]),
     auto: mode([effort('reasoningEffort'), ...suffix], { effortMap: { auto: 'medium' } }),
     effort: mode([effort('reasoningEffort'), ...suffix])
   }
@@ -138,7 +137,13 @@ export function configureOpenAIResponsesSummary(profile: ReasoningWireProfile, e
  * OpenAI's own Responses reasoning wire. Third-party hosts opt in through an
  * endpoint dialect override because some reject `reasoning.summary`.
  */
-export const openaiResponsesSummaryWire = configureOpenAIResponsesSummary(genericEffort(), true)
+export const openaiResponsesSummaryWire = configureOpenAIResponsesSummary(
+  {
+    off: mode([literal('reasoningEffort', 'none')]),
+    ...genericEffort()
+  },
+  true
+)
 
 const formatProfiles = {
   'openai-chat': {
