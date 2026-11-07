@@ -20,11 +20,13 @@ import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import type {
-  ScheduledTaskEntity,
-  ScheduledTaskListItem,
-  TaskRunLogEntity,
-  TaskRunSummary
+import {
+  type ScheduledTaskEntity,
+  type ScheduledTaskListItem,
+  type TaskRetry,
+  TaskRetrySchema,
+  type TaskRunLogEntity,
+  type TaskRunSummary
 } from '@shared/data/api/schemas/agents'
 import {
   AGENT_WORKSPACE_TYPE,
@@ -52,6 +54,7 @@ type AgentTaskJobInputTemplate = {
   agentId: string
   prompt: string
   timeoutMinutes: number
+  retry?: TaskRetry
   workspace: AgentSessionWorkspaceSource
 }
 
@@ -67,12 +70,14 @@ function normalizeAgentTaskTemplate(value: unknown): AgentTaskJobInputTemplate |
   if (typeof template.agentId !== 'string' || typeof template.prompt !== 'string') return null
 
   const parsedWorkspace = AgentSessionWorkspaceSourceSchema.safeParse(template.workspace)
+  const parsedRetry = TaskRetrySchema.safeParse(template.retry)
   return {
     agentId: template.agentId,
     prompt: template.prompt,
     timeoutMinutes:
       typeof template.timeoutMinutes === 'number' ? template.timeoutMinutes : DEFAULT_AGENT_TASK_TIMEOUT_MINUTES,
-    workspace: parsedWorkspace.success ? parsedWorkspace.data : { type: 'system' }
+    workspace: parsedWorkspace.success ? parsedWorkspace.data : { type: 'system' },
+    ...(parsedRetry.success ? { retry: parsedRetry.data } : {})
   }
 }
 
@@ -521,6 +526,7 @@ export class AgentTaskService {
       prompt: tmpl.prompt,
       trigger: snapshot.trigger,
       timeoutMinutes: tmpl.timeoutMinutes,
+      ...(tmpl.retry ? { retry: tmpl.retry } : {}),
       workspace: tmpl.workspace,
       reuseSession: reuse.enabled,
       reuseSessionId: reuse.enabled ? reuseSessionId : null,

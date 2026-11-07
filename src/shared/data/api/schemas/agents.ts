@@ -165,6 +165,13 @@ export const AgentEntitySchema = AgentBaseSchema.extend({
 
 export type AgentEntity = z.infer<typeof AgentEntitySchema>
 
+/** Automatic retry of a failed run: up to `max` extra attempts, `backoffSeconds` apart. */
+export const TaskRetrySchema = z.strictObject({
+  max: z.number().int().min(1).max(10),
+  backoffSeconds: z.number().int().min(0).max(3600)
+})
+export type TaskRetry = z.infer<typeof TaskRetrySchema>
+
 export const ScheduledTaskEntitySchema = z.strictObject({
   id: z.string(),
   agentId: z.string(),
@@ -173,6 +180,8 @@ export const ScheduledTaskEntitySchema = z.strictObject({
   /** Discriminated union — see TriggerSchema for {cron|interval|once} shape. */
   trigger: TriggerSchema,
   timeoutMinutes: z.number(),
+  /** Absent when the task never retries a failed run. */
+  retry: TaskRetrySchema.optional(),
   workspace: AgentSessionWorkspaceSourceSchema,
   /**
    * When true, every fire continues the same agent session instead of creating

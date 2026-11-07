@@ -926,7 +926,11 @@ export class JobManager extends BaseService {
     const now = Date.now()
     const scheduledAt = opts.scheduledAt ?? now
     const status = scheduledAt > now ? 'delayed' : 'pending'
-    const maxAttempts = opts.maxAttempts ?? handler.defaultRetryPolicy?.maxAttempts ?? DEFAULT_RETRY_POLICY.maxAttempts
+    const maxAttempts =
+      opts.maxAttempts ??
+      handler.resolveRetryPolicy?.(input)?.maxAttempts ??
+      handler.defaultRetryPolicy?.maxAttempts ??
+      DEFAULT_RETRY_POLICY.maxAttempts
 
     const insertRow: InsertJobRow = {
       type,
@@ -1850,7 +1854,8 @@ export class JobManager extends BaseService {
                 retryable: true
               }
 
-        const retryPolicy = handler.defaultRetryPolicy ?? DEFAULT_RETRY_POLICY
+        const retryPolicy =
+          handler.resolveRetryPolicy?.(row.input) ?? handler.defaultRetryPolicy ?? DEFAULT_RETRY_POLICY
         const userCancel = isAbort && !isTimeout
         const canRetry = !userCancel && error.retryable && row.attempt + 1 < row.maxAttempts
 
