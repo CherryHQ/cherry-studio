@@ -36,6 +36,7 @@ const LANGUAGES: Record<string, string> = {
   'fr-FR': 'french',
   'ru-RU': 'russian',
   'pt-PT': 'portuguese',
+  'pt-BR': 'portuguese',
   'es-ES': 'spanish',
   'it-IT': 'italian'
 }

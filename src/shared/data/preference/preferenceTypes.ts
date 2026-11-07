@@ -114,6 +114,7 @@ export type LanguageVarious =
   | 'fr-FR'
   | 'it-IT'
   | 'ja-JP'
+  | 'pt-BR'
   | 'pt-PT'
   | 'ro-RO'
   | 'ru-RU'
