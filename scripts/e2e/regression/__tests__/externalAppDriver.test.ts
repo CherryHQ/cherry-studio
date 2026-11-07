@@ -79,14 +79,17 @@ it('reports native failure details without echoing the subprocess command or its
   }
 })
 
-it('re-reads disappearing macOS objects and retains the fresh ownership result', () => {
-  execute.mockImplementationOnce(() => {
-    desktop.windows = [{ id: 'replacement', pid: process.pid, matches: false }]
-    throw Object.assign(new Error('Object disappeared'), { stderr: 'Cannot get object. (-1728)' })
-  })
-  const snapshot = externalAppRequest('macos', { action: 'inspect', target, root })
-  expect(snapshot.windows).toEqual([{ id: expect.any(String), pid: process.pid, matches: false }])
-})
+it.each(['Cannot get object. (-1728)', 'External window identity is ambiguous'])(
+  're-reads transient macOS inspection errors: %s',
+  (message) => {
+    execute.mockImplementationOnce(() => {
+      desktop.windows = [{ id: 'replacement', pid: process.pid, matches: false }]
+      throw Object.assign(new Error('Object disappeared'), { stderr: message })
+    })
+    const snapshot = externalAppRequest('macos', { action: 'inspect', target, root })
+    expect(snapshot.windows).toEqual([{ id: expect.any(String), pid: process.pid, matches: false }])
+  }
+)
 
 it('does not retry permission failures as if the desktop were empty', () => {
   execute.mockImplementationOnce(() => {
@@ -95,9 +98,12 @@ it('does not retry permission failures as if the desktop were empty', () => {
   expect(() => externalAppRequest('macos', { action: 'inspect', target, root })).toThrow('Not authorized')
 })
 
-it('surfaces persistent disappearing-object errors instead of reporting successful cleanup', () => {
-  execute.mockImplementation(() => {
-    throw Object.assign(new Error('Object disappeared'), { stderr: 'Cannot get object. (-1728)' })
-  })
-  expect(() => externalAppRequest('macos', { action: 'inspect', target, root })).toThrow('Cannot get object')
-})
+it.each(['Cannot get object. (-1728)', 'External window identity is ambiguous'])(
+  'surfaces persistent macOS inspection errors: %s',
+  (message) => {
+    execute.mockImplementation(() => {
+      throw Object.assign(new Error('Object disappeared'), { stderr: message })
+    })
+    expect(() => externalAppRequest('macos', { action: 'inspect', target, root })).toThrow(message)
+  }
+)

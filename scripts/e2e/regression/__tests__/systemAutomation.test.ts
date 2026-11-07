@@ -32,6 +32,7 @@ beforeEach(async () => {
 })
 
 afterEach(() => {
+  vi.useRealTimers()
   execFileSync.mockReset()
   execFile.mockReset()
   automation.closeExternalText('macos')
@@ -279,7 +280,13 @@ it('surfaces macOS stage diagnostics and subprocess stderr', () => {
   )
 })
 
-it.each(['macos', 'windows'] as const)('acknowledges only an owned %s pre-main native dialog', async (platform) => {
+it.each([
+  ['macos', false],
+  ['windows', false],
+  ['macos', true],
+  ['windows', true]
+] as const)('acknowledges an owned %s native dialog before CDP readiness=%s', async (platform, beforeReady) => {
+  vi.useFakeTimers()
   const paths = getRunPaths(directory)
   ensureRunDirectories(paths)
   writeFileSync(
@@ -297,30 +304,37 @@ it.each(['macos', 'windows'] as const)('acknowledges only an owned %s pre-main n
     })
   )
   execFileSync.mockImplementation((file, args) => {
-    if (file === 'lsof') return '42001'
+    if (file === 'lsof') return beforeReady && args.includes('-iTCP:9222') ? '' : '42001'
     if (file === 'ps' && args.includes('command=')) return `electron ${directory}`
     if (file === 'ps' && args.includes('ppid=')) return '42000'
     if (file === 'powershell.exe') {
       const script = args.at(-1)!
-      if (script.includes('Get-NetTCPConnection')) return '42001'
+      if (script.includes('Get-NetTCPConnection'))
+        return beforeReady && script.includes('-LocalPort 9222 ') ? '' : '42001'
       if (script.includes('CommandLine')) return `electron ${directory}`
       if (script.includes('ParentProcessId')) return '42000'
     }
     throw new Error('Unexpected process query')
   })
   execFile.mockImplementation((_file, _args, _options, callback) => callback(null))
-  await automation.dismissNativeMessageBox(platform, paths, 'Manual Restart Required')
+  const completion = automation.dismissNativeMessageBox(platform, paths, 'Manual Restart Required').then(
+    () => undefined,
+    (error: unknown) => error
+  )
+  await vi.advanceTimersByTimeAsync(60_000)
+  expect(await completion).toBeUndefined()
   const [command, args] = execFile.mock.calls.at(-1)!
   expect(command).toBe(platform === 'macos' ? 'osascript' : 'powershell.exe')
   if (platform === 'macos') expect(args.slice(-3)).toEqual(['Manual Restart Required', '42001', 'OK'])
   execFile.mockClear()
   execFileSync.mockImplementation((file, args) => {
-    if (file === 'lsof') return '42001'
+    if (file === 'lsof') return beforeReady && args.includes('-iTCP:9222') ? '' : '42001'
     if (file === 'ps' && args.includes('command=')) return `electron ${directory}`
     if (file === 'ps' && args.includes('ppid=')) return '0'
     if (file === 'powershell.exe') {
       const script = args.at(-1)!
-      if (script.includes('Get-NetTCPConnection')) return '42001'
+      if (script.includes('Get-NetTCPConnection'))
+        return beforeReady && script.includes('-LocalPort 9222 ') ? '' : '42001'
       if (script.includes('CommandLine')) return `electron ${directory}`
       if (script.includes('ParentProcessId')) return '0'
     }

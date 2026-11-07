@@ -99,6 +99,48 @@ it.skipIf(process.platform !== 'win32').each([false, true])(
   60_000
 )
 
+it.skipIf(process.platform !== 'win32')(
+  'waits for an owned console handle without dropping input failures',
+  async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'cherry-pending-console-'))
+    const paths = getRunPaths(directory)
+    ensureRunDirectories(paths)
+    const batch = join(paths.profiles, 'launch_claude-code_pending.bat')
+    writeFileSync(batch, '@echo off\r\nping -n 30 127.0.0.1 >nul\r\n')
+    try {
+      execFileSync(
+        'powershell.exe',
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-Command',
+          [
+            '$info = [Diagnostics.ProcessStartInfo]::new()',
+            "$info.FileName = 'cmd.exe'",
+            `$info.Arguments = '/d /c ""${batch.replaceAll("'", "''")}""'`,
+            '$info.UseShellExecute = $false',
+            '$info.CreateNoWindow = $true',
+            '$info.RedirectStandardOutput = $true',
+            '$info.RedirectStandardError = $true',
+            '$null = [Diagnostics.Process]::Start($info)'
+          ].join('; ')
+        ],
+        { windowsHide: true, timeout: 10_000 }
+      )
+      await expect.poll(() => listWindowsCodeTerminals(paths).length, { timeout: 15_000 }).toBe(1)
+      const terminal = listWindowsCodeTerminals(paths)[0]
+      expect(windowsTerminalText(paths, terminal)).toBe('')
+      expect(() => windowsTerminalText(paths, terminal, 'must not silently drop this input')).toThrow()
+    } finally {
+      for (const { pid } of listWindowsCodeTerminals(paths)) {
+        execFileSync('taskkill.exe', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore', timeout: 10_000 })
+      }
+      rmSync(directory, { recursive: true, force: true })
+    }
+  },
+  60_000
+)
+
 const nativePlatform = process.platform === 'darwin' ? 'macos' : 'windows'
 const dialogModes =
   process.platform === 'darwin'

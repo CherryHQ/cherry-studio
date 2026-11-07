@@ -179,6 +179,7 @@ function getLaunchSpec(
   const logPath = join(paths.logs, `electron-${profile}.log`)
   const environment = createProfileEnvironment(paths, profile)
   if (mode === 'branch') {
+    Reflect.deleteProperty(environment, 'ELECTRON_RENDERER_URL')
     const preparedRuntime = macRuntimeExecutable(paths)
     const executablePath = process.platform === 'darwin' && existsSync(preparedRuntime) ? preparedRuntime : undefined
     const args = [
@@ -186,6 +187,8 @@ function getLaunchSpec(
       '--',
       process.execPath,
       join(targetRoot, 'node_modules', 'electron-vite', 'bin', 'electron-vite.js'),
+      'preview',
+      '--skipBuild',
       '--',
       // Honours CHERRY_INSPECTOR_PORT so parallel checkouts do not share a port.
       `--inspect=${MAIN_INSPECTOR_PORT}`,

@@ -87,7 +87,12 @@ function runNativeRequest(platform: Platform, request: ExternalAppRequest, attem
     return JSON.parse(output) as ExternalSnapshot
   } catch (error) {
     const failure = error as { stderr?: string; code?: string }
-    if (platform === 'macos' && request.action === 'inspect' && attempt < 2 && /\(-1728\)/.test(failure.stderr ?? ''))
+    if (
+      platform === 'macos' &&
+      request.action === 'inspect' &&
+      attempt < 2 &&
+      /\(-1728\)|External window identity is ambiguous/.test(failure.stderr ?? '')
+    )
       return runNativeRequest(platform, request, attempt + 1)
     throw new Error(
       `External application ${request.action} failed: ${String(failure.stderr || failure.code || 'native automation error').trim()}`

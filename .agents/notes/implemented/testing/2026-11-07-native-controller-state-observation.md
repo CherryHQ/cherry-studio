@@ -16,6 +16,8 @@ Windows shell registration also resolves through the application's isolated `APP
 
 macOS can use different applications for HTTPS and local HTML files. Pinning the HTTPS browser for an HTML preview could leave the actual file-handler tab untracked.
 
+Cold Vite dependency optimization reloaded hosted renderers during cases. Phase steps masked failures with `continue-on-error`, so their successful conclusions did not establish passing cases. A Windows restore dialog appeared before CDP, and a new console process could precede its native handle. macOS accessibility snapshots could also briefly lose the correspondence between AX and CG windows.
+
 ## Decision
 
 - Send Unicode PowerShell save scripts through standard input and verify the owned dialog and address-bar focus before typing.
@@ -28,6 +30,13 @@ macOS can use different applications for HTTPS and local HTML files. Pinning the
 - Prepare the isolated Windows Programs directory. Register an unchanged SDK-generated shortcut in the real Start Menu with an exclusive run-specific name and a checksum lease written before publication. Both case and controller cleanup remove only the unchanged owned copy.
 
 - Resolve the handler of an owned HTML probe before the preview action, and pin that application for tab ownership and cleanup. URL-only registrations continue to resolve HTTPS. Unsupported handlers fail before opening the external file.
+
+- Build branch applications once and use `electron-vite preview --skipBuild` for every launch, restart and standalone smoke check. Clear inherited development renderer URLs.
+- Preserve failed phase conclusions while continuing later phases through explicit cancellation guards. Run GitHub annotations after credential redaction.
+- Permit known hosted test requesters to control the supported document, browser and file-manager applications; retain the disposable-runner guards and reject other requesters or targets.
+- Dismiss pre-main dialogs through a freshly verified CDP or main-inspector owner, with command and runner-ancestry checks. Keep CDP ownership mandatory for Electron termination.
+- Retry ambiguous macOS window inspection at most twice; persistent ambiguity still blocks cleanup.
+- Treat Windows invalid-console-handle error 6 as pending only when reading; input failures still throw.
 
 ## Alternatives considered
 
@@ -52,3 +61,5 @@ Adapters remain platform specific and fail when native state cannot be confirmed
 - Regression — 33 lifecycle, debug-bridge and shortcut tests passed, including existing-file preservation, changed-file preservation and actual controller fallback cleanup. Windows MP-110 passed real delivery, click routing and suppression; its independent Start Menu audit found zero owned shortcuts after cleanup.
 
 - Regression — 29 external-resource, driver, browser-association and syntax tests passed, with one existing Windows-only skip. The actual macOS script runs against simulated native objects: different HTTPS/HTML defaults preserve existing tabs in both browsers and close the new HTML tab. File-handler tracking and unsupported-handler rejection both failed before the repair.
+
+- Regression — 105 controller tests passed; 50 affected launch, task-selection, workflow and native-syntax checks passed with one Windows-only skip. Node, renderer and E2E type checks passed. The Windows no-console fixture and new hosted execution path still require native CI acceptance. The baseline full run failed 12 macOS and 25 Windows cases; both separate 53-case smoke suites passed. Neither completed phases nor that partial evidence establishes full acceptance.

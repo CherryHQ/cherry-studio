@@ -1,4 +1,15 @@
 ObjC.import('Foundation')
+function classifyPermissionDialog(message) {
+  const requester = /[“"](?:hosted-compute-[^”"\n]*|osascript|Cherry Studio E2E [a-f0-9]+)[”"]/i.test(message)
+  const localNetwork = /find (?:devices|and communicate with devices) on (?:your )?local networks/i.test(
+    message
+  )
+  const terminalAutomation = /(?:access to )?control [“"](?:Terminal|System Events)[”"]/i.test(message)
+  const desktopAutomation = /(?:access to )?control [“"](?:Preview|Pages|TextEdit|Finder|Safari|Google Chrome|Microsoft Edge|Brave Browser)[”"]/i.test(message)
+  if (!requester || (!localNetwork && !terminalAutomation && !desktopAutomation)) return null
+  return localNetwork ? 'local-network' : terminalAutomation ? 'terminal-automation' : 'desktop-automation'
+}
+
 function run(argv) {
   const environment = $.NSProcessInfo.processInfo.environment
   const read = (key) => ObjC.unwrap(environment.objectForKey(key))
@@ -45,19 +56,15 @@ function run(argv) {
           }
           collect(window, 0)
           const message = text.join(' ').replace(/\s+/g, ' ')
-          const requester = /[“"](?:hosted-compute-[^”"\n]*|osascript|Cherry Studio E2E [a-f0-9]+)[”"]/i.test(message)
-          const localNetwork = /find (?:devices|and communicate with devices) on (?:your )?local networks/i.test(
-            message
-          )
-          const terminalAutomation = /(?:access to )?control [“"](?:Terminal|System Events)[”"]/i.test(message)
-          if (!requester || (!localNetwork && !terminalAutomation)) continue
+          const permission = classifyPermissionDialog(message)
+          if (!permission) continue
           const button = buttons.find((button) => ['Allow', 'OK'].includes(value(() => button.name(), '')))
           if (button) {
             button.click()
             $(
               JSON.stringify({
                 at: Date.now(),
-                permission: localNetwork ? 'local-network' : 'terminal-automation',
+                permission,
                 process: name
               })
             ).writeToFileAtomicallyEncodingError(

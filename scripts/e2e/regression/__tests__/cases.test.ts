@@ -63,7 +63,12 @@ describe('regression execution plan', () => {
     expect(prepare).toBeGreaterThan(steps.findIndex((step) => step.name === 'Install application dependencies'))
     expect(prepare).toBeLessThan(steps.findIndex((step) => step.name === 'Launch controlled Cherry Studio once'))
     expect(steps[prepare].if).toBe("needs.resolve.outputs.mode == 'branch'")
+    const build = steps.findIndex((step) => step.name === 'Build application once')
+    expect(build).toBeGreaterThan(prepare)
+    expect(build).toBeLessThan(steps.findIndex((step) => step.name === 'Launch controlled Cherry Studio once'))
+    expect(steps[build].if).toBe("needs.resolve.outputs.mode == 'branch'")
     const commands = steps.flatMap((step) => step.run?.split('\n') ?? [])
+    expect(commands.filter((command) => command.includes('electron-vite build'))).toHaveLength(1)
     expect(commands.filter((command) => command.includes('rebuild:electron'))).toEqual([
       'pnpm --dir target-app rebuild:electron'
     ])
@@ -98,6 +103,7 @@ describe('regression execution plan', () => {
     ['chat-error-recovery', ['MP-17']],
     ['code-cli-permissions', ['MP-97']],
     ['scheduled-task-conversation', ['MP-145']],
+    ['html-artifact-preview', ['MP-41']],
     ['native-notifications', ['MP-110']]
   ] as const)('keeps the focused task %s limited to its intended scenarios', (task, ids) => {
     expect(selectCases(task).map(({ id }) => id)).toEqual(ids)
@@ -190,3 +196,18 @@ it.each(['all', 'notes', 'notes-smoke', 'knowledge', 'code-tools', 'code-cli-per
     }
   }
 )
+
+it('keeps failed phase steps visible while allowing later phases to run', () => {
+  const workflow = parse(readFileSync(resolve('.github/workflows/e2e-regression-test.yml'), 'utf8'))
+  const phases = workflow.jobs.test.steps.filter((step: { name: string }) => step.name.startsWith('Phase -'))
+  expect(phases.length).toBeGreaterThan(0)
+  for (const phase of phases) {
+    expect(Boolean(phase['continue-on-error'])).toBe(false)
+    expect(
+      runInNewContext(phase.if, {
+        cancelled: () => false,
+        steps: { launch: { outcome: 'success' } }
+      })
+    ).toBe(true)
+  }
+})

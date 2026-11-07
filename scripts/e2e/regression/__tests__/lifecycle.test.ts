@@ -5,21 +5,26 @@ import { join, posix, win32 } from 'node:path'
 
 import { afterEach, vi } from 'vitest'
 
-const { execFileSyncMock } = vi.hoisted(() => ({
+const { execFileSyncMock, spawnMock } = vi.hoisted(() => ({
+  spawnMock: vi.fn(),
   execFileSyncMock: vi.fn()
 }))
 
 vi.mock('node:child_process', async (importOriginal) => ({
   ...(await importOriginal<typeof ChildProcess>()),
-  execFileSync: execFileSyncMock
+  execFileSync: execFileSyncMock,
+  spawn: spawnMock
 }))
 
-import { type AppRecord, createProfileEnvironment, ensureProfile, stopOwnedApp } from '../lifecycle'
+import { type AppRecord, createProfileEnvironment, ensureProfile, launchApp, stopOwnedApp } from '../lifecycle'
 import { ensureRunDirectories, getRunPaths } from '../paths'
+import * as processUtils from '../process'
 
 afterEach(() => {
   vi.useRealTimers()
   vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
+  spawnMock.mockReset()
   execFileSyncMock.mockReset()
   vi.restoreAllMocks()
 })
@@ -351,3 +356,39 @@ it.each(['macos', 'windows'] as const)(
     }
   }
 )
+
+it('launches a prebuilt branch without rebuilding or inheriting another renderer server', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'cherry-prebuilt-launch-'))
+  const paths = getRunPaths(directory)
+  ensureRunDirectories(paths)
+  vi.stubEnv('ELECTRON_RENDERER_URL', 'http://unrelated.invalid')
+  vi.spyOn(processUtils, 'findCdpPid').mockReturnValueOnce(undefined).mockReturnValue(42_001)
+  vi.spyOn(processUtils, 'findListeningPid').mockReturnValue(undefined)
+  vi.spyOn(processUtils, 'isAlive').mockReturnValue(true)
+  vi.spyOn(processUtils, 'isDescendant').mockReturnValue(true)
+  vi.stubGlobal(
+    'fetch',
+    vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify([{ type: 'page', url: 'file:///test/out/renderer/windows/main/index.html' }]))
+      )
+  )
+  spawnMock.mockReturnValue({ pid: 42_000, unref: vi.fn(), exitCode: null })
+  try {
+    await launchApp(paths, {
+      mode: 'branch',
+      platform: 'macos',
+      profile: 'authenticated',
+      targetRoot: directory,
+      runKey: 'prebuilt',
+      readyTimeoutMs: 100
+    })
+    const [, args, options] = spawnMock.mock.calls[0]
+    const viteArguments = args.slice(args.findIndex((value: string) => value.endsWith('electron-vite.js')) + 1)
+    expect(viteArguments.slice(0, 3)).toEqual(['preview', '--skipBuild', '--'])
+    expect(options.env.ELECTRON_RENDERER_URL).toBeUndefined()
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+})

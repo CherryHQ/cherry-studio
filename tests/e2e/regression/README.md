@@ -88,6 +88,7 @@ pnpm install
 pnpm download:binaries
 pnpm rebuild:electron
 pnpm run build:utility-process
+pnpm exec dotenv -v CHERRY_EDITION=global -- electron-vite build
 TEST_RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/cherry-stream-failure.XXXXXX")"
 pnpm exec tsx scripts/e2e/regression/cli.ts preflight --task chat-stream-failure
 pnpm exec tsx scripts/e2e/regression/cli.ts initialize \

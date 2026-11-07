@@ -50,10 +50,10 @@ public static class OwnedConsole {
   [DllImport("kernel32.dll", EntryPoint = "ReadConsoleOutputCharacterW", CharSet = CharSet.Unicode, SetLastError = true)] private static extern bool Read(IntPtr handle, StringBuilder text, uint count, Point position, out uint read);
   [DllImport("kernel32.dll", EntryPoint = "WriteConsoleInputW", SetLastError = true)] private static extern bool Write(IntPtr handle, Input[] events, uint count, out uint written);
   public static string Run(uint pid, bool writeInput, string text, ushort key) {
-    FreeConsole();
-    if (!AttachConsole(pid)) throw new Win32Exception(Marshal.GetLastWin32Error());
     IntPtr handle = new IntPtr(-1);
     try {
+      FreeConsole();
+      if (!AttachConsole(pid)) throw new Win32Exception(Marshal.GetLastWin32Error());
       if (GetConsoleWindow() == IntPtr.Zero) throw new Exception("Owned terminal has no native console window");
       handle = CreateFile(writeInput ? "CONIN$" : "CONOUT$", 0xC0000000, 3, IntPtr.Zero, 3, 0, IntPtr.Zero);
       if (handle == new IntPtr(-1)) throw new Win32Exception(Marshal.GetLastWin32Error());
@@ -78,6 +78,9 @@ public static class OwnedConsole {
       StringBuilder lines = new StringBuilder();
       for (int offset = 0; offset < value.Length; offset += info.Size.X) lines.AppendLine(value.Substring(offset, Math.Min(info.Size.X, value.Length - offset)).TrimEnd());
       return lines.ToString();
+    } catch (Win32Exception error) {
+      if (!writeInput && error.NativeErrorCode == 6) return "";
+      throw;
     } finally { if (handle != new IntPtr(-1)) CloseHandle(handle); FreeConsole(); }
   }
 }

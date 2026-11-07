@@ -37,12 +37,14 @@ External-resource cleanup rechecks target ownership before closing windows or te
 window that gains unrelated content is preserved, and its ledger entry remains available for a later cleanup retry.
 Process ownership requires a newly observed matching window; a new windowless process alone is not evidence.
 Once verified, that process identity remains eligible for cleanup after its windows close.
-macOS inspection retries disappearing accessibility objects only; permission and ownership failures still surface.
+macOS inspection retries disappearing accessibility objects and transient ambiguous window identities at most twice; persistent ambiguity, permission and ownership failures still surface.
 Process-group shutdown retains each verified member's PID, command and start time for bounded escalation after
 the runner exits. A reused PID or an unknown orphan cannot inherit that proof.
 After a normal development-app exit, cleanup allows its process group to finish naturally before
 rechecking ownership. A surviving unknown process still blocks termination.
 The explicit profile/restart operation prepares Windows connections by closing non-main windows before CDP attaches; simply locating a window does not perform this preparation. Both branch and installer launches enable the main-process inspector for this explicit compatibility step.
+Pre-main restart dialogs can use that verified inspector owner before CDP is ready; command and
+runner ancestry checks still apply. Electron termination continues to require CDP ownership.
 Windows native dialogs can expose their controls as UIA panes. The adapters match
 native classes and control IDs inside owned windows, and verify address-bar focus
 with Win32 `GetGUIThreadInfo` before sending the directory-navigation key.
@@ -83,9 +85,11 @@ gh workflow run e2e-regression-test.yml --repo CherryHQ/cherry-studio \
 ```
 
 Branch runs prepare `download:binaries`, `rebuild:electron`, and `build:utility-process` once after installing
-application dependencies. The controller then launches the development server directly,
-including on profile switches and persistence-test restarts. Local controller runs must
-perform the same preparation in the target checkout before `launch`; release installers
+application dependencies, then build the application once with
+`pnpm exec dotenv -v CHERRY_EDITION=global -- electron-vite build`. The controller uses
+`electron-vite preview --skipBuild` for every launch and restart, so dependency optimization
+cannot reload a renderer during a case. Local controller runs must perform the same
+preparation in the target checkout before `launch`; release installers
 do not need it. Restarting preserves the owned application's profile. On Windows,
 restart of a live instance requests `app.quit()` through its verified main-process inspector and waits
 for normal shutdown so persistence tests do not simulate a forced crash. A shutdown
@@ -105,12 +109,15 @@ and settings rather than the developer's CLI configuration. Before each UI conne
 the controller verifies the owned process's home, temporary and CLI configuration paths
 and Windows AppData path. It rejects an older running instance whose paths escape the profile.
 
-For branch runs selecting `all`, the workflow closes the regression instance, builds the application,
-then runs the standalone smoke suite with isolated per-test profiles and no retries. Each platform's
+For branch runs selecting `all`, the workflow closes the regression instance and reuses the same build
+for the standalone smoke suite with isolated per-test profiles and no retries. Each platform's
 smoke HTML/JSON report is bundled separately and its counts appear in the aggregate summary.
 A failed smoke run fails both platform and aggregate jobs; release-installer runs use the regression suite.
 
-The workflow keeps one separately timed step per phase (21 today). Each calls `run-phase`; the controller intersects its phase with the run's selected task and returns immediately for unselected phases.
+The workflow keeps one separately timed step per phase (21 today). Failed steps remain failed;
+explicit `!cancelled()` guards allow later phases to collect results. The GitHub reporter runs after
+credential redaction and annotates failed cases before the final report is available. Each phase calls
+`run-phase`; the controller intersects it with the selected task and returns immediately for unselected phases.
 `cases.ts` is the execution manifest. Each case declares `tasks`: the first entry is
 its module task, followed by any focused tasks. Module names follow the case library's
 modules, using English kebab-case without execution-order prefixes. For example,
@@ -126,6 +133,7 @@ in sync. Reports retain the selected task ID. Existing reports keep their record
 task names and outcomes.
 `native-settings` selects the native notification and startup/tray cases for focused
 desktop verification. The complete Settings phase allows 40 minutes on hosted runners.
+`html-artifact-preview` selects the HTML preview and external-browser cleanup case.
 
 `run.json` schema version 2 records both cases and phases. The parent marks a phase running before starting Playwright; the reporter records test results and executor errors; a nonzero child exit also fails the phase.
 A phase left pending/running becomes blocked during finalization. Passing cases cannot hide a failed or unfinished phase. Missing platform reports block the aggregate gate.

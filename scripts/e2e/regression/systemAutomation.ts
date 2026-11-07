@@ -9,7 +9,7 @@ import { readAppRecord, readOwnedRecord } from './lifecycle'
 import { macRuntimeExecutable } from './macRuntime'
 import type { RunPaths } from './paths'
 import { resolveAllowedPath } from './paths'
-import { assertOwnedProcess, findCdpPid, isDescendant } from './process'
+import { assertOwnedProcess, findCdpPid, findListeningPid, isDescendant, MAIN_INSPECTOR_PORT } from './process'
 import type { Platform } from './types'
 
 const ALLOWED_KEYS = new Set(['Alt', 'Control', 'Enter', 'Escape', 'Meta', 'Shift', 'Space', 'a', 'c', 'e', 'k', 's'])
@@ -583,14 +583,20 @@ export async function dismissNativeMessageBox(
   buttonName = 'OK'
 ): Promise<void> {
   const record = readOwnedRecord(paths)
-  let electronPid = record.electronPid
+  let electronPid: number | undefined
+  let endpoint: 'electron' | 'inspector' = 'electron'
   const deadline = Date.now() + 60_000
   while (!electronPid && Date.now() < deadline) {
+    endpoint = 'electron'
     electronPid = findCdpPid(platform)
+    if (!electronPid) {
+      electronPid = findListeningPid(platform, MAIN_INSPECTOR_PORT)
+      endpoint = 'inspector'
+    }
     if (!electronPid) await new Promise((resolve) => setTimeout(resolve, 250))
   }
-  if (!electronPid) throw new Error('Owned application did not open its CDP port before the native dialog')
-  assertOwnedProcess(record, electronPid, 'electron')
+  if (!electronPid) throw new Error('Owned application did not expose its main process before the native dialog')
+  assertOwnedProcess(record, electronPid, endpoint)
   if (!isDescendant(electronPid, record.runnerPid, platform))
     throw new Error('Native dialog process is outside the owned run')
   if (platform === 'macos') {

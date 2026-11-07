@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { runInNewContext } from 'node:vm'
 
 const script = fileURLToPath(new URL('../macPermissionObserver.jxa', import.meta.url))
 
@@ -48,4 +49,21 @@ it.skipIf(process.platform !== 'darwin')('rejects a run outside the disposable r
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }
+})
+
+it.each([
+  ['“osascript” wants access to control “Preview”.', 'desktop-automation'],
+  ['“hosted-compute-agent” wants access to control “Safari”.', 'desktop-automation'],
+  ['“Cherry Studio E2E abc123” wants access to control “Google Chrome”.', 'desktop-automation'],
+  ['“osascript” wants access to control “Terminal”.', 'terminal-automation'],
+  ['“osascript” wants access to control “System Events”.', 'terminal-automation'],
+  ['“Unknown app” wants access to control “Preview”.', null],
+  ['“osascript” wants access to control “Keychain Access”.', null],
+  ['“osascript” wants access to the camera.', null]
+])('only accepts expected disposable-runner automation: %s', (message, expected) => {
+  const source = readFileSync(script, 'utf8')
+  const result = runInNewContext(source + '\nclassifyPermissionDialog(' + JSON.stringify(message) + ')', {
+    ObjC: { import: () => {} }
+  })
+  expect(result).toBe(expected)
 })

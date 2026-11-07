@@ -481,7 +481,7 @@ export const REGRESSION_CASES = [
   {
     id: 'MP-41',
     title: 'Preview HTML Artifacts',
-    tasks: ['chat-core'],
+    tasks: ['chat-core', 'html-artifact-preview'],
     phase: 'chatCore',
     capabilities: []
   },

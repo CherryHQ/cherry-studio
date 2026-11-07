@@ -56,6 +56,7 @@ on:
           - claude-agent-runtime
           - pi-runtime
           - scheduled-task-conversation
+          - html-artifact-preview
           - translation-settings
           - native-settings
           - native-notifications
@@ -139,6 +140,7 @@ jobs:
     permissions:
       contents: read
     env:
+      CHERRY_TEST_GITHUB_REPORTER: "true"
       TARGET_DIR: ${{ github.workspace }}/target-app
       MCP_TIMEOUT: "30000"
       MCP_TOOL_TIMEOUT: "240000"
@@ -324,6 +326,13 @@ jobs:
           pnpm --dir target-app rebuild:electron
           pnpm --dir target-app run build:utility-process
 
+      - name: Build application once
+        id: app-build
+        if: needs.resolve.outputs.mode == 'branch'
+        shell: bash
+        working-directory: target-app
+        run: pnpm exec dotenv -v CHERRY_EDITION=global -- electron-vite build
+
       - name: Sign isolated macOS notification runtime
         if: needs.resolve.outputs.mode == 'branch' && matrix.platform == 'macos'
         shell: bash
@@ -388,7 +397,6 @@ jobs:
 
       - name: Phase - Startup
         if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
         timeout-minutes: 25
         shell: bash
         run: >-
@@ -397,7 +405,6 @@ jobs:
           --phase startup
       - name: Phase - Basic Features
         if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
         timeout-minutes: 25
         shell: bash
         run: >-
@@ -406,7 +413,6 @@ jobs:
           --phase basicFeatures
       - name: Phase - Models And Assistants
         if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
         timeout-minutes: 25
         shell: bash
         run: >-
@@ -415,7 +421,6 @@ jobs:
           --phase modelsAndAssistants
       - name: Phase - Translation Smoke
         if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
         timeout-minutes: 25
         shell: bash
         run: >-
@@ -424,7 +429,6 @@ jobs:
           --phase translationSmoke
       - name: Phase - Desktop Assistants
         if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
         timeout-minutes: 25
         shell: bash
         run: >-
@@ -433,7 +437,6 @@ jobs:
           --phase desktopAssistants
       - name: Phase - Knowledge
         if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
         timeout-minutes: 25
         shell: bash
         run: >-
@@ -442,7 +445,6 @@ jobs:
           --phase knowledge
       - name: Phase - Integrations
         if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
         timeout-minutes: 25
         shell: bash
         run: >-
@@ -451,7 +453,6 @@ jobs:
           --phase integrations
       - name: Phase - Code Tools
         if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
         timeout-minutes: 25
         shell: bash
         run: >-
@@ -460,7 +461,6 @@ jobs:
           --phase codeTools
       - name: Phase - CherryIN
         if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
         timeout-minutes: 25
         shell: bash
         run: >-
@@ -469,7 +469,6 @@ jobs:
           --phase cherryIn
       - name: Phase - Images
         if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
         timeout-minutes: 25
         shell: bash
         run: >-
@@ -478,7 +477,6 @@ jobs:
           --phase images
       - name: Phase - Agent Runtimes
         if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
         timeout-minutes: 25
         shell: bash
         run: >-
@@ -487,7 +485,6 @@ jobs:
           --phase agentRuntimes
       - name: Phase - Topics
         if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
         timeout-minutes: 25
         shell: bash
         run: >-
@@ -496,7 +493,6 @@ jobs:
           --phase topics
       - name: Phase - Chat Core
         if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
         timeout-minutes: 25
         shell: bash
         run: >-
@@ -505,7 +501,6 @@ jobs:
           --phase chatCore
       - name: Phase - Notes
         if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
         timeout-minutes: 25
         shell: bash
         run: >-
@@ -514,7 +509,6 @@ jobs:
           --phase notes
       - name: Phase - Translation
         if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
         timeout-minutes: 25
         shell: bash
         run: >-
@@ -523,7 +517,6 @@ jobs:
           --phase translation
       - name: Phase - Settings
         if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
         timeout-minutes: 40
         shell: bash
         run: >-
@@ -532,7 +525,6 @@ jobs:
           --phase settings
       - name: Phase - Assistants
         if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
         timeout-minutes: 25
         shell: bash
         run: >-
@@ -541,7 +533,6 @@ jobs:
           --phase assistants
       - name: Phase - Files
         if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
         timeout-minutes: 25
         shell: bash
         run: >-
@@ -550,7 +541,6 @@ jobs:
           --phase files
       - name: Phase - Data Management
         if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
         timeout-minutes: 25
         shell: bash
         run: >-
@@ -559,7 +549,6 @@ jobs:
           --phase dataManagement
       - name: Phase - Browser
         if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
         timeout-minutes: 25
         shell: bash
         run: >-
@@ -568,7 +557,6 @@ jobs:
           --phase browser
       - name: Phase - System
         if: "!cancelled() && steps.launch.outcome == 'success'"
-        continue-on-error: true
         timeout-minutes: 25
         shell: bash
         run: >-
@@ -653,12 +641,12 @@ jobs:
           if ($remaining.Count) { throw 'Run-owned notification shortcuts remain after cleanup' }
           Write-Output 'Owned notification shortcuts remaining: 0'
 
-      - name: Build standalone smoke application
+      - name: Verify standalone smoke application
         id: smoke-build
-        if: "!cancelled() && steps.stop-app.outcome == 'success' && steps.app-dependencies.outcome == 'success' && needs.resolve.outputs.mode == 'branch' && needs.resolve.outputs.task == 'all'"
+        if: "!cancelled() && steps.stop-app.outcome == 'success' && steps.app-build.outcome == 'success' && needs.resolve.outputs.mode == 'branch' && needs.resolve.outputs.task == 'all'"
         shell: bash
         working-directory: target-app
-        run: pnpm exec dotenv -v CHERRY_EDITION=global -- electron-vite build
+        run: node -e "require('node:fs').accessSync('out/main/main.js'); require('node:fs').accessSync('out/renderer/windows/main/index.html')"
 
       - name: Run standalone smoke suite
         if: always() && steps.smoke-build.outcome == 'success'

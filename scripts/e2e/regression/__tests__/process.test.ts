@@ -3,7 +3,12 @@ import { vi } from 'vitest'
 const { execFileSync } = vi.hoisted(() => ({ execFileSync: vi.fn() }))
 vi.mock('node:child_process', () => ({ execFileSync }))
 
-import { assertOwnedProcess, terminateOwnedMacProcessGroup, waitForMacProcessGroupExit } from '../process'
+import {
+  assertOwnedProcess,
+  MAIN_INSPECTOR_PORT,
+  terminateOwnedMacProcessGroup,
+  waitForMacProcessGroupExit
+} from '../process'
 
 const owner = {
   mode: 'branch' as const,
@@ -194,4 +199,15 @@ it('falls back to the default ports when the environment value is not a usable p
     delete process.env.CHERRY_INSPECTOR_PORT
     vi.resetModules()
   }
+})
+
+it('requires the owned inspector port when CDP is not ready yet', () => {
+  let listener = '42001'
+  execFileSync.mockImplementation((file, args) => {
+    if (file === 'ps') return 'electron /tmp/regression-target'
+    return args.includes('-iTCP:' + MAIN_INSPECTOR_PORT) ? listener : ''
+  })
+  expect(() => assertOwnedProcess(owner, 42001, 'inspector')).not.toThrow()
+  listener = '99000'
+  expect(() => assertOwnedProcess(owner, 42001, 'inspector')).toThrow('no longer owns the main inspector')
 })

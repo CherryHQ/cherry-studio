@@ -60,12 +60,12 @@ export function windowsProcessExecutablePath(pid: number): string {
 
 type ProcessOwner = Pick<AppRecord, 'mode' | 'platform' | 'executablePath' | 'targetRoot' | 'cdpPort' | 'runnerPid'>
 
-export function assertOwnedProcess(record: ProcessOwner, pid: number, kind: 'electron' | 'runner'): void {
+export function assertOwnedProcess(record: ProcessOwner, pid: number, kind: 'electron' | 'runner' | 'inspector'): void {
   const command = processCommand(pid, record.platform)
   const expected =
     record.mode === 'tag'
       ? record.executablePath
-      : kind === 'electron'
+      : kind !== 'runner'
         ? (record.executablePath ?? record.targetRoot)
         : (record.platform === 'windows' ? win32 : posix).join(
             record.targetRoot,
@@ -78,6 +78,9 @@ export function assertOwnedProcess(record: ProcessOwner, pid: number, kind: 'ele
   }
   if (kind === 'electron' && findCdpPid(record.platform) !== pid) {
     throw new Error(`Refusing to terminate PID ${pid}; it no longer owns CDP port ${record.cdpPort}`)
+  }
+  if (kind === 'inspector' && findListeningPid(record.platform, MAIN_INSPECTOR_PORT) !== pid) {
+    throw new Error(`Refusing native dialog control of PID ${pid}; it no longer owns the main inspector`)
   }
 }
 
@@ -237,7 +240,7 @@ export function findListeningPid(platform: Platform, port: number): number | und
               '-NoProfile',
               '-NonInteractive',
               '-Command',
-              `(Get-NetTCPConnection -LocalPort ${port} -State Listen | Select-Object -First 1 -ExpandProperty OwningProcess)`
+              `(Get-NetTCPConnection -LocalPort ${port} -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess)`
             ],
             { encoding: 'utf8', timeout: 10_000, windowsHide: true }
           )

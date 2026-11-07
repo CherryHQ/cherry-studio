@@ -63,6 +63,8 @@ it.each(['macos', 'windows'] as const)(
         '--',
         process.execPath,
         join(directory, 'node_modules', 'electron-vite', 'bin', 'electron-vite.js'),
+        'preview',
+        '--skipBuild',
         '--',
         '--inspect=9229',
         '--sourcemap',
