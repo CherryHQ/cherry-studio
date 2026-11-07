@@ -2,6 +2,7 @@ import type { Page, TestInfo } from '@playwright/test'
 
 import en from '../../../src/renderer/i18n/locales/en-us.json'
 import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
+import { openSettingsSection } from '../regression/helpers/settings'
 import { expect, test as base } from './fixtures/electron.fixture'
 
 const test = base.extend({
@@ -38,15 +39,13 @@ test('confirms provider API host reset and keeps edits on cancel', async ({ main
     'Setup: the current privacy policy gate must not block provider settings'
   ).toHaveCount(0)
 
-  const sidebar = mainWindow.locator('[data-ui~="app.sidebar"]').filter({ visible: true })
-  await sidebar.getByRole('button', { name: en['settings.title'], exact: true }).click()
+  await openSettingsSection(mainWindow, en['settings.provider.title'])
   const settings = mainWindow.locator('[data-ui~="settings.view"]').filter({ visible: true })
   await expect(settings, 'Setup: Settings must open in exactly one visible view').toHaveCount(1)
-  const navigation = settings.locator('[data-ui~="settings.navigation"]')
   const detail = settings.getByTestId('provider-detail-shell')
 
   const openDeepseek = async () => {
-    await navigation.getByRole('button', { name: en['settings.provider.title'], exact: true }).click()
+    await openSettingsSection(mainWindow, en['settings.provider.title'])
     const search = settings.getByPlaceholder(en['settings.provider.search'], { exact: true })
     await expect(search, 'Setup: the provider list must load before selecting deepseek').toBeVisible()
     const row = settings.getByTestId('provider-list-item-deepseek')
@@ -69,7 +68,7 @@ test('confirms provider API host reset and keeps edits on cancel', async ({ main
   }
 
   const reopenDeepseek = async () => {
-    await navigation.getByRole('button', { name: en['settings.appearance.title'], exact: true }).click()
+    await openSettingsSection(mainWindow, en['settings.appearance.title'])
     await expect(detail, 'Persistence check must leave the provider detail before reopening it').toHaveCount(0)
     return openDeepseek()
   }

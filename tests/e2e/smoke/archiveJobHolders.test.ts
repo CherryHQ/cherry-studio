@@ -8,6 +8,7 @@ import { v7 as uuidv7 } from 'uuid'
 import type { IpcResult } from '../../../src/shared/ipc/errors/IpcError'
 import type { OutputFor } from '../../../src/shared/ipc/types'
 import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
+import { openSettingsSection } from '../regression/helpers/settings'
 import { expect, test } from './fixtures/electron.fixture'
 
 const RELEASE =
@@ -92,8 +93,7 @@ test('Archive names the image-generation job blocking permanent deletion', async
       throw error
     }
 
-    await page.getByRole('button', { name: 'Settings', exact: true }).click()
-    await page.locator('[data-ui~="settings.navigation"]').getByRole('button', { name: 'Archive', exact: true }).click()
+    await openSettingsSection(page, 'Archive')
     await page.getByRole('tab', { name: 'Files', exact: true }).click()
     const row = page.locator('[data-slot="item"]').filter({ has: page.getByText(`${name}.png`, { exact: true }) })
     await expect(row).toBeVisible()

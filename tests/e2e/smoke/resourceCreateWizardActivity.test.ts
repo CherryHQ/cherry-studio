@@ -169,10 +169,9 @@ test('agent wizard preserves its draft and Knowledge step across Activity re-sho
 
     await addAgent.click()
     await expect(basicStep, 'Agent creation must start at Basic info').toHaveAttribute('aria-current', 'step')
-    await expect(
-      dialog.getByRole('radio', { name: /^Pi\b/ }),
-      'Pi must expose the Skills and Knowledge path'
-    ).toBeChecked()
+    const pi = dialog.getByRole('radio').and(dialog.locator('[value="pi"]'))
+    await dialog.getByLabel('Runtime mode').getByText('Pi', { exact: true }).click()
+    await expect(pi, 'Pi must expose the Skills and Knowledge path').toBeChecked()
     await nameInput.fill(name)
     await descriptionInput.fill(description)
     await selectModel()
