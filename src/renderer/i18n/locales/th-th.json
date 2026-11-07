@@ -1565,6 +1565,8 @@
   "error.originalError": "ข้อผิดพลาดต้นฉบับ",
   "error.originalMessage": "ข้อความต้นฉบับ",
   "error.parameter": "พารามิเตอร์",
+  "error.pi_shell_configuration_invalid": "การตั้งค่าเชลล์ของ Pi ไม่ถูกต้อง",
+  "error.pi_shell_configuration_invalid_detail": "shellPath \"{{shellPath}}\" ที่กำหนดไว้ใน \"{{settingsPath}}\" ไม่พร้อมใช้งานหรือไม่ใช่ bash.exe ต้องใช้ bash.exe ของ Git Bash เท่านั้น แก้ไข shellPath ให้ชี้ไปยัง bash.exe ของ Git Bash ที่มีอยู่ หรือลบฟิลด์ shellPath เพื่อใช้การค้นหาอัตโนมัติ แล้วลองอีกครั้ง หากยังไม่ได้ติดตั้ง Git Bash ให้ติดตั้ง Git for Windows ก่อน",
   "error.prompt": "พรอมต์",
   "error.provider": "ผู้ให้บริการ",
   "error.providerId": "ID ผู้ให้บริการ",

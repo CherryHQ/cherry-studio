@@ -1565,6 +1565,8 @@
   "error.originalError": "Eroare originală",
   "error.originalMessage": "Mesaj original",
   "error.parameter": "Parametru",
+  "error.pi_shell_configuration_invalid": "Configurația shell-ului Pi nu este validă",
+  "error.pi_shell_configuration_invalid_detail": "Valoarea shellPath \"{{shellPath}}\" configurată în \"{{settingsPath}}\" nu este disponibilă sau nu indică un fișier bash.exe. Este acceptat doar un bash.exe din Git Bash. Modificați shellPath pentru a indica un bash.exe din Git Bash existent sau eliminați câmpul shellPath pentru a utiliza detectarea automată, apoi încercați din nou. Dacă Git Bash nu este instalat, instalați mai întâi Git for Windows.",
   "error.prompt": "Prompt",
   "error.provider": "Furnizor",
   "error.providerId": "ID furnizor",
