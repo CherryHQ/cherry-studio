@@ -271,7 +271,7 @@ it.skipIf(!['darwin', 'win32'].includes(process.platform)).each(dialogModes)(
         expect(await waitForExit(child.pid), 'Owned native dialog fixture did not exit').toBe(true)
       }
       if (logHandle !== undefined) closeSync(logHandle)
-      rmSync(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
+      rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 })
     }
   },
   120_000

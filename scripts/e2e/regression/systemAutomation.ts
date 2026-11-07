@@ -477,14 +477,19 @@ export async function dismissNativeMessageBox(
     '$ErrorActionPreference = "Stop"',
     'Add-Type -AssemblyName UIAutomationClient',
     'Add-Type -AssemblyName UIAutomationTypes',
+    `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class OwnedMessageBox { [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam); }'`,
     '$root = [System.Windows.Automation.AutomationElement]::RootElement',
     `$processCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ProcessIdProperty, ${electronPid})`,
     '$deadline = [DateTime]::UtcNow.AddSeconds(60)',
-    `$buttonCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, '${escapePowerShell(buttonName)}'))`,
+    `$dialogCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "#32770"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, '${escapePowerShell(title)}'))`,
+    // Legacy Win32 buttons can be exposed as UIA panes instead of buttons.
+    `$buttonCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Button"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, '${escapePowerShell(buttonName)}'))`,
     '$button = $null',
     'do {',
     '  $windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',
-    `  foreach ($dialog in @($windows | Where-Object { $_.Current.ClassName -eq "#32770" -and $_.Current.Name -eq '${escapePowerShell(title)}' })) {`,
+    `  $dialogs = @($windows | Where-Object { $_.Current.ClassName -eq "#32770" -and $_.Current.Name -eq '${escapePowerShell(title)}' })`,
+    '  foreach ($window in $windows) { $dialogs += @($window.FindAll([System.Windows.Automation.TreeScope]::Descendants, $dialogCondition)) }',
+    `  foreach ($dialog in @($dialogs | Where-Object { $_.Current.ProcessId -eq ${electronPid} })) {`,
     '    $button = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $buttonCondition)',
     '    if ($button -and $button.Current.IsEnabled) { break }',
     '    $button = $null',
@@ -492,7 +497,10 @@ export async function dismissNativeMessageBox(
     '  if (-not $button) { Start-Sleep -Milliseconds 200 }',
     '} while (-not $button -and [DateTime]::UtcNow -lt $deadline)',
     'if (-not $button) { throw "Native message box confirmation button was not found" }',
-    '([System.Windows.Automation.InvokePattern]$button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)).Invoke()',
+    '$invoke = $null',
+    'if ($button.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern, [ref]$invoke)) { $invoke.Invoke() }',
+    'elseif ($button.Current.NativeWindowHandle) { $null = [OwnedMessageBox]::SendMessage([IntPtr]$button.Current.NativeWindowHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero) }',
+    'else { throw "Owned native confirmation button cannot be invoked" }',
     'Start-Sleep -Milliseconds 500'
   ].join('\n')
   return runAsync(
@@ -625,7 +633,10 @@ export function readWindowsPrintDialog(paths: RunPaths): string[] {
     'Add-Type -AssemblyName UIAutomationTypes',
     `$condition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty, ${record.electronPid})`,
     '$windows = [Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Children, $condition)',
-    '$dialog = $windows | Where-Object { $_.Current.ClassName -eq "#32770" -and $_.Current.Name -eq "Print" } | Select-Object -First 1',
+    '$dialogCondition = [Windows.Automation.AndCondition]::new([Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ClassNameProperty, "#32770"), [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty, "Print"))',
+    '$dialogs = @($windows | Where-Object { $_.Current.ClassName -eq "#32770" -and $_.Current.Name -eq "Print" })',
+    'foreach ($window in $windows) { $dialogs += @($window.FindAll([Windows.Automation.TreeScope]::Descendants, $dialogCondition)) }',
+    `$dialog = $dialogs | Where-Object { $_.Current.ProcessId -eq ${record.electronPid} } | Select-Object -First 1`,
     'if (-not $dialog) { Write-Output "[]"; exit }',
     '$names = @($dialog.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.Condition]::TrueCondition) | ForEach-Object { $_.Current.Name } | Where-Object { $_ })',
     'ConvertTo-Json -InputObject $names -Compress'
@@ -1136,7 +1147,30 @@ async function saveNativeFileWindows(
     'try {',
     'Add-Type -AssemblyName UIAutomationClient',
     'Add-Type -AssemblyName UIAutomationTypes',
-    `Add-Type -TypeDefinition 'using System; using System.Text; using System.Runtime.InteropServices; public static class NativeSaveDialog { [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window); [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow(); [DllImport("user32.dll", EntryPoint = "SendMessageW", CharSet = CharSet.Unicode)] public static extern IntPtr SetText(IntPtr window, uint message, IntPtr wParam, string text); [DllImport("user32.dll", EntryPoint = "SendMessageW", CharSet = CharSet.Unicode)] public static extern IntPtr ReadText(IntPtr window, uint message, IntPtr wParam, StringBuilder text); [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam); }'`,
+    `Add-Type -TypeDefinition @'
+using System;
+using System.Text;
+using System.Runtime.InteropServices;
+public static class NativeSaveDialog {
+  [StructLayout(LayoutKind.Sequential)] private struct Rect { public int left, top, right, bottom; }
+  [StructLayout(LayoutKind.Sequential)] private struct GuiThreadInfo {
+    public uint cbSize, flags;
+    public IntPtr active, focus, capture, menuOwner, moveSize, caret;
+    public Rect rect;
+  }
+  [DllImport("user32.dll")] private static extern bool GetGUIThreadInfo(uint thread, ref GuiThreadInfo info);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll", EntryPoint = "SendMessageW", CharSet = CharSet.Unicode)] public static extern IntPtr SetText(IntPtr window, uint message, IntPtr wParam, string text);
+  [DllImport("user32.dll", EntryPoint = "SendMessageW", CharSet = CharSet.Unicode)] public static extern IntPtr ReadText(IntPtr window, uint message, IntPtr wParam, StringBuilder text);
+  [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
+  public static IntPtr GetFocusedWindow() {
+    var info = new GuiThreadInfo();
+    info.cbSize = (uint)Marshal.SizeOf(info);
+    return GetGUIThreadInfo(0, ref info) ? info.focus : IntPtr.Zero;
+  }
+}
+'@`,
     '$root = [System.Windows.Automation.AutomationElement]::RootElement',
     `$processCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ProcessIdProperty, ${electronPid})`,
     '$fileCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1001"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Edit"))',
@@ -1169,15 +1203,19 @@ async function saveNativeFileWindows(
     '  if ([NativeSaveDialog]::GetForegroundWindow() -ne [IntPtr]$dialog.Current.NativeWindowHandle) { throw "Owned save dialog is not in the foreground" }',
     '  $shell = New-Object -ComObject WScript.Shell',
     '  $shell.SendKeys("%d", $true)',
-    '  $focusedEdit = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Edit), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::HasKeyboardFocusProperty, $true))',
+    // This legacy edit control can omit UIA focus flags; verify its real Win32 focus handle.
+    '  $addressCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Edit"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "41477"))',
     '  $addressDeadline = [DateTime]::UtcNow.AddSeconds(10)',
     '  do {',
-    '    $address = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $focusedEdit)',
-    '    if (-not $address) { Start-Sleep -Milliseconds 100 }',
-    '  } while (-not $address -and [DateTime]::UtcNow -lt $addressDeadline)',
-    `  if (-not $address -or $address.Current.ProcessId -ne ${electronPid} -or $address.Current.NativeWindowHandle -eq $filenameControl.Current.NativeWindowHandle) { throw "Owned save address bar could not receive focus" }`,
-    '  ([System.Windows.Automation.ValuePattern]$address.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)).SetValue($directory)',
-    '  if ([NativeSaveDialog]::GetForegroundWindow() -ne [IntPtr]$dialog.Current.NativeWindowHandle) { throw "Owned save dialog lost foreground ownership" }',
+    '    $address = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $addressCondition)',
+    '    if (-not $address -or [NativeSaveDialog]::GetFocusedWindow() -ne [IntPtr]$address.Current.NativeWindowHandle) { Start-Sleep -Milliseconds 100 }',
+    '  } while ((-not $address -or [NativeSaveDialog]::GetFocusedWindow() -ne [IntPtr]$address.Current.NativeWindowHandle) -and [DateTime]::UtcNow -lt $addressDeadline)',
+    `  if (-not $address -or $address.Current.ProcessId -ne ${electronPid} -or -not $address.Current.NativeWindowHandle -or [NativeSaveDialog]::GetFocusedWindow() -ne [IntPtr]$address.Current.NativeWindowHandle) { throw "Owned save address bar could not receive focus" }`,
+    '  $null = [NativeSaveDialog]::SetText([IntPtr]$address.Current.NativeWindowHandle, 0x000C, [IntPtr]::Zero, $directory)',
+    '  $addressText = [System.Text.StringBuilder]::new(32768)',
+    '  $null = [NativeSaveDialog]::ReadText([IntPtr]$address.Current.NativeWindowHandle, 0x000D, [IntPtr]$addressText.Capacity, $addressText)',
+    '  if ($addressText.ToString() -cne $directory) { throw "Owned save directory does not match the requested path" }',
+    '  if ([NativeSaveDialog]::GetForegroundWindow() -ne [IntPtr]$dialog.Current.NativeWindowHandle -or [NativeSaveDialog]::GetFocusedWindow() -ne [IntPtr]$address.Current.NativeWindowHandle) { throw "Owned save dialog lost foreground ownership" }',
     '  $shell.SendKeys("{ENTER}", $true)',
     '} else {',
     'if ($filenameControl.Current.IsKeyboardFocusable) {',

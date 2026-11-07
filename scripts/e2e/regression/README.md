@@ -41,6 +41,9 @@ the runner exits. A reused PID or an unknown orphan cannot inherit that proof.
 After a normal development-app exit, cleanup allows its process group to finish naturally before
 rechecking ownership. A surviving unknown process still blocks termination.
 The explicit profile/restart operation prepares Windows connections by closing non-main windows before CDP attaches; simply locating a window does not perform this preparation. Both branch and installer launches enable the main-process inspector for this explicit compatibility step.
+Windows native dialogs can expose their controls as UIA panes. The adapters match
+native classes and control IDs inside owned windows, and verify address-bar focus
+with Win32 `GetGUIThreadInfo` before sending the directory-navigation key.
 
 ## Execution contract
 
