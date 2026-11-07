@@ -101,6 +101,7 @@ test(...caseDefinition('MP-127'), async ({ app, mainWindow: page }, testInfo) =>
     return Object.fromEntries(entries)
   }, preferenceKeys)
   let assistantId: string | undefined
+  const actionWindows = new Set<Page>()
   try {
     const assistant = await page.evaluate(
       async ({ providerId, baseUrl, modelId }) => {
@@ -250,6 +251,7 @@ test(...caseDefinition('MP-127'), async ({ app, mainWindow: page }, testInfo) =>
         .toBe(true)
       if (!resultWindow) throw new Error(`${action} result window was not shown`)
       const result = resultWindow
+      actionWindows.add(result)
       const request = await server.nextRequest(30_000)
       expect(request.body.model).toBe(server.modelId)
       expect(JSON.stringify(request.body.messages)).toContain(original)
@@ -258,7 +260,16 @@ test(...caseDefinition('MP-127'), async ({ app, mainWindow: page }, testInfo) =>
           ? 'The proverb means that people who prepare and act early have a better chance of success.'
           : '早起的鸟儿有虫吃。充分准备并及时行动会增加成功的机会。'
       request.complete(Array.from({ length: 45 }, (_, index) => `Paragraph ${index + 1}: ${answer}`).join('\n\n'))
-      await expect(result.getByText(`Paragraph 45: ${answer}`, { exact: true })).toBeAttached({ timeout: 30_000 })
+      try {
+        await expect(result.getByText(`Paragraph 45: ${answer}`, { exact: true })).toBeAttached({ timeout: 30_000 })
+      } catch (error) {
+        const unexpected = await server.nextRequest(1_000).catch(() => undefined)
+        await testInfo.attach('Selection action mock requests', {
+          body: JSON.stringify({ action, answered: request.body, unexpected: unexpected?.body }),
+          contentType: 'application/json'
+        })
+        throw error
+      }
       await result.getByRole('button', { name: 'Show Original', exact: true }).click()
       await expect(result.getByText(original, { exact: true })).toBeVisible()
       await screenshot(result, `MP-127 ${action} result and original`)
@@ -337,6 +348,13 @@ test(...caseDefinition('MP-127'), async ({ app, mainWindow: page }, testInfo) =>
       }
     }
   } finally {
+    for (const actionWindow of actionWindows) {
+      if (actionWindow.isClosed()) continue
+      await actionWindow.evaluate(() => {
+        void window.api.ipcApi.request('window.close')
+      })
+      await expect.poll(() => actionWindow.isClosed() || actionWindow.evaluate(() => document.hidden)).toBe(true)
+    }
     closeExternalText(app.record.platform)
     await server.close()
     await page.evaluate(

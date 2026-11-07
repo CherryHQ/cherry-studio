@@ -157,6 +157,31 @@ it.skipIf(process.platform !== 'win32').each(['file', 'multiple', 'directory', '
           (mode === 'multiple' ? inputs : [mode === 'directory' ? folder : inputs[0]]).sort()
         )
       }
+    } catch (error) {
+      let controls = 'Fixture exited before native controls could be inspected'
+      if (child?.pid && child.exitCode === null && isAlive(child.pid)) {
+        controls = execFileSync(
+          'powershell.exe',
+          [
+            '-NoProfile',
+            '-NonInteractive',
+            '-Command',
+            `
+          Add-Type -AssemblyName UIAutomationClient
+          Add-Type -AssemblyName UIAutomationTypes
+          $root = [Windows.Automation.AutomationElement]::RootElement
+          $condition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty, ${child.pid})
+          $windows = $root.FindAll([Windows.Automation.TreeScope]::Children, $condition)
+          foreach ($window in $windows) {
+            @($window) + @($window.FindAll([Windows.Automation.TreeScope]::Descendants, $condition)) |
+              ForEach-Object { $c = $_.Current; "{0}|{1}|{2}|{3}|enabled={4}|offscreen={5}|focusable={6}|handle={7}" -f $c.Name, $c.ClassName, $c.AutomationId, $c.ControlType.ProgrammaticName, $c.IsEnabled, $c.IsOffscreen, $c.IsKeyboardFocusable, $c.NativeWindowHandle }
+          }
+        `
+          ],
+          { encoding: 'utf8', timeout: 10_000 }
+        )
+      }
+      throw new Error(`Windows ${mode} dialog failed. Owned controls:\n${controls}`, { cause: error })
     } finally {
       if (child?.pid && child.exitCode === null && isAlive(child.pid)) {
         expect(processCommand(child.pid, 'windows'), 'Native dialog fixture ownership changed').toContain(script)

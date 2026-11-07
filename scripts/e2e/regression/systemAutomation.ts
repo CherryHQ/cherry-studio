@@ -815,6 +815,7 @@ public static class NativeDialog {
   [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr window);
   [DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
   [DllImport("user32.dll", EntryPoint="SendMessageW", CharSet=CharSet.Unicode)] public static extern IntPtr SetText(IntPtr window, uint message, IntPtr wParam, string value);
+  [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr window, uint flags);
   [DllImport("user32.dll", EntryPoint="SendMessageW", CharSet=CharSet.Unicode)] public static extern IntPtr ReadText(IntPtr window, uint message, IntPtr wParam, StringBuilder value);
 }'`,
       '$root = [System.Windows.Automation.AutomationElement]::RootElement',
@@ -842,13 +843,13 @@ public static class NativeDialog {
         ? [
             '$deadline = [DateTime]::UtcNow.AddSeconds(5)',
             '$dialogHandle = [IntPtr]$dialog.Current.NativeWindowHandle',
+            '$foregroundHandle = [NativeDialog]::GetAncestor($dialogHandle, 2)',
             '$shell = New-Object -ComObject WScript.Shell',
             `$null = $shell.AppActivate(${electronPid})`,
             '$focused = $false',
             'do {',
-            '  $null = [NativeDialog]::SetForegroundWindow($dialogHandle)',
-            '  $dialog.SetFocus()',
-            '  $focused = [NativeDialog]::GetForegroundWindow() -eq $dialogHandle',
+            '  $null = [NativeDialog]::SetForegroundWindow($foregroundHandle)',
+            '  $focused = [NativeDialog]::GetForegroundWindow() -eq $foregroundHandle',
             '  if (-not $focused) { Start-Sleep -Milliseconds 100 }',
             '} while (-not $focused -and [DateTime]::UtcNow -lt $deadline)',
             'if (-not $focused) { throw "Native folder dialog could not receive focus" }',
@@ -871,7 +872,7 @@ public static class NativeDialog {
             '$value = [System.Text.StringBuilder]::new(32768)',
             '$null = [NativeDialog]::ReadText($addressHandle, 0x000D, [IntPtr]::new($value.Capacity), $value)',
             `if ($value.ToString() -ne '${escapePowerShell(filePath)}') { throw "Native folder address readback mismatch" }`,
-            'if ([NativeDialog]::GetForegroundWindow() -ne $dialogHandle) { throw "Native folder dialog lost foreground ownership" }',
+            'if ([NativeDialog]::GetForegroundWindow() -ne $foregroundHandle) { throw "Native folder dialog lost foreground ownership" }',
             '[NativeDialog]::keybd_event(0x0D, 0, 0, [UIntPtr]::Zero)',
             '[NativeDialog]::keybd_event(0x0D, 0, 2, [UIntPtr]::Zero)',
             '$deadline = [DateTime]::UtcNow.AddSeconds(5)',
@@ -938,7 +939,6 @@ public static class NativeDialog {
             '$null = [NativeDialog]::SetForegroundWindow($dialogHandle)',
             '$accept = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Button")))',
             'if (-not $accept) { throw "Native file dialog accept button was not found" }',
-            'try { $accept.SetFocus() } catch { throw ("Native file accept focus failed: " + $_.Exception.Message) }',
             '$invoke = $null',
             'if ($accept.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern, [ref]$invoke)) { $invoke.Invoke() } else {',
             '  $handle = [IntPtr]$accept.Current.NativeWindowHandle',
@@ -1160,8 +1160,10 @@ async function saveNativeFileWindows(
     `$keepName = $${keepSuggestedName ? 'true' : 'false'}`,
     '$directory = Split-Path -Parent $filePath',
     '$target = if ($keepName) { Join-Path $directory ($initial.ToString()) } else { $filePath }',
-    'try { $filenameControl.SetFocus() } catch { throw ("Native save input focus failed (enabled={0}, offscreen={1}, focusable={2}): {3}" -f $filenameControl.Current.IsEnabled, $filenameControl.Current.IsOffscreen, $filenameControl.Current.IsKeyboardFocusable, $_.Exception.Message) }',
-    'if (-not $filenameControl.Current.HasKeyboardFocus) { throw "Native save filename input could not receive focus" }',
+    'if ($filenameControl.Current.IsKeyboardFocusable) {',
+    '  $filenameControl.SetFocus()',
+    '  if (-not $filenameControl.Current.HasKeyboardFocus) { throw "Native save filename input could not receive focus" }',
+    '}',
     '$valuePattern = $null',
     'if ($filenameControl.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern, [ref]$valuePattern)) {',
     '  $valuePattern.SetValue($target)',
@@ -1172,7 +1174,6 @@ async function saveNativeFileWindows(
     '$null = [NativeSaveDialog]::ReadText([IntPtr]$filenameControl.Current.NativeWindowHandle, 0x000D, [IntPtr]$readback.Capacity, $readback)',
     'if ($readback.ToString() -cne $target) { throw "Native save filename does not match the requested path" }',
     '$dialogHandle = $dialog.Current.NativeWindowHandle',
-    'try { $button.SetFocus() } catch { throw ("Native save accept focus failed: " + $_.Exception.Message) }',
     '$invoke = $null',
     'if ($button.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern, [ref]$invoke)) {',
     '  $invoke.Invoke()',
