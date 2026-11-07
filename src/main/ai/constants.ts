@@ -6,6 +6,12 @@ export const DEFAULT_TIMEOUT = 30 * 1000 * 60
  */
 export const CHAT_STREAM_IDLE_TIMEOUT_MS = 120 * 1000 * 60
 
+/** ~8× subscription median (11.28 s), ~3.2× P90 (28.31 s); silent reasoning can still hit this responsiveness bound. */
+export const CHAT_STREAM_STARTUP_TIMEOUT_MS = 90_000
+
+/** Preserve generous preparation time without allowing repeated phases to suspend startup indefinitely. */
+export const CHAT_STREAM_PREPARATION_BUDGET_MS = 120 * 1000 * 60
+
 export const DEFAULT_MAX_TOKENS = 8192
 
 /**

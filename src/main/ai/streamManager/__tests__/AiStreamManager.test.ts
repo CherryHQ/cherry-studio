@@ -26,6 +26,7 @@ import type {
   ConversationUnsuccessfulEvent,
   StreamDoneResult,
   StreamErrorResult,
+  StreamExecution,
   StreamListener,
   StreamPausedResult
 } from '../types'
@@ -183,6 +184,7 @@ vi.mock('@application', async () => {
 
 const { AiStreamManager } = await import('../AiStreamManager')
 const pipeStreamLoopModule = await import('../pipeStreamLoop')
+const { StartupDeadline } = await import('../startupDeadline')
 const { PersistenceListener, TerminalPersistenceError } = await import('../listeners/PersistenceListener')
 const { TraceFlushListener } = await import('../listeners/TraceFlushListener')
 const { WebContentsListener } = await import('../listeners/WebContentsListener')
@@ -3433,6 +3435,590 @@ describe('AiStreamManager', () => {
   // `exec.status` is still 'streaming'. The loop must promote it to 'aborted'
   // and settle as `paused` — NOT a success `done`. Locks the recently-fixed
   // mis-classification bug.
+
+  describe('Agent startup deadline', () => {
+    beforeEach(() => {
+      vi.useRealTimers()
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
+    })
+
+    const agentRequest = (topicId = 'startup'): AiStreamRequest => ({
+      ...req(topicId),
+      runtime: { kind: 'agent-session', sessionId: 'session', turnId: 'turn' }
+    })
+    function feed(kind: AiStreamSource['kind'], stalledCancel = false) {
+      let chunks!: ReadableStreamDefaultController<UIMessageChunk>
+      let messages!: ReadableStreamDefaultController<MessageStreamEvent>
+      const cancel = vi.fn<(reason?: unknown) => Promise<void>>(() =>
+        stalledCancel ? new Promise<void>(() => {}) : Promise.resolve()
+      )
+      const source: AiStreamSource =
+        kind === 'chunks'
+          ? {
+              kind,
+              stream: new ReadableStream({
+                start: (c) => {
+                  chunks = c
+                },
+                cancel
+              })
+            }
+          : {
+              kind,
+              stream: new ReadableStream({
+                start: (c) => {
+                  messages = c
+                },
+                cancel
+              })
+            }
+      return {
+        source,
+        cancel,
+        chunk: (chunk: UIMessageChunk) =>
+          kind === 'chunks' ? chunks.enqueue(chunk) : messages.enqueue({ type: 'control', chunk }),
+        parts: (parts: CherryUIMessage['parts']) => messages.enqueue({ type: 'message', parts }),
+        close: () => (kind === 'chunks' ? chunks.close() : messages.close()),
+        error: (error: unknown) =>
+          kind === 'chunks' ? chunks.error(error) : messages.enqueue({ type: 'error', error })
+      }
+    }
+    function launch(source: AiStreamSource, request = agentRequest(), controller?: AbortController) {
+      mockStreamText.mockResolvedValueOnce(source)
+      const listener = new FakeListener('startup')
+      startSingle(mgr, {
+        topicId: request.conversation.topicId,
+        modelId: 'p::m',
+        request,
+        listeners: [listener],
+        abortController: controller,
+        isPersistentConversation: true
+      })
+      return listener
+    }
+    function expectTimeout(listener: FakeListener) {
+      expect(listener.errorResults).toHaveLength(1)
+      expect(listener.errorResults[0].error).toMatchObject({ name: 'TimeoutError', i18nKey: 'request_timeout' })
+      expect(listener.errorResults[0].error.message).toContain('90 seconds')
+      expect(listener.pausedResults).toHaveLength(0)
+      expect(listener.doneResults).toHaveLength(0)
+    }
+
+    it.each(['chunks', 'messages'] as const)(
+      'bounds zero-event %s sources even when cancellation stalls',
+      async (kind) => {
+        const input = feed(kind, true)
+        const disposed = vi.spyOn(StartupDeadline.prototype, 'dispose')
+        const listener = launch(input.source)
+        await vi.advanceTimersByTimeAsync(90_000)
+        await flushUntil(() => listener.errorResults.length === 1)
+        expectTimeout(listener)
+        expect(mockStreamText).toHaveBeenCalledTimes(1)
+        expect(input.cancel).toHaveBeenCalledTimes(1)
+        expect(disposed).toHaveBeenCalled()
+        await mgr.onExecutionDone('startup', 'p::m')
+        await mgr.onExecutionError('startup', 'p::m', error('late'))
+        await mgr.onExecutionPaused('startup', 'p::m')
+        expectTimeout(listener)
+      }
+    )
+
+    it.each(['chunks', 'messages'] as const)('ignores administrative controls and empty %s output', async (kind) => {
+      const input = feed(kind)
+      const request = agentRequest()
+      request.messages = [{ id: 'earlier', role: 'assistant', parts: [{ type: 'text', text: 'earlier output' }] }]
+      const listener = launch(input.source, request)
+      const controls: UIMessageChunk[] = [
+        { type: 'start' },
+        { type: 'start-step' },
+        { type: 'message-metadata', messageMetadata: {} },
+        { type: 'text-start', id: 't' },
+        { type: 'text-delta', id: 't', delta: '' },
+        { type: 'text-end', id: 't' },
+        { type: 'reasoning-start', id: 'r' },
+        { type: 'reasoning-delta', id: 'r', delta: '' },
+        { type: 'reasoning-end', id: 'r' },
+        { type: 'tool-input-start', toolCallId: 'call', toolName: 'Read' },
+        { type: 'tool-input-delta', toolCallId: 'call', inputTextDelta: '' },
+        { type: 'data-status', data: { status: 'retrying' } },
+        { type: 'file', mediaType: 'text/plain', url: '' },
+        { type: 'source-url', sourceId: 's', url: '' },
+        { type: 'source-document', sourceId: 'd', mediaType: 'text/plain', title: '' }
+      ]
+      for (const chunk of controls) input.chunk(chunk)
+      if (kind === 'messages') {
+        input.parts([])
+        input.parts([
+          { type: 'text', text: '' },
+          { type: 'reasoning', text: '' },
+          { type: 'dynamic-tool', toolName: 'Read', toolCallId: 'call', state: 'input-streaming' },
+          { type: 'data-status', data: { status: 'retrying' } }
+        ] as CherryUIMessage['parts'])
+        input.parts([])
+      }
+      await flushUntil(() => listener.chunks.length >= controls.length)
+      await vi.advanceTimersByTimeAsync(90_000)
+      await flushUntil(() => listener.errorResults.length === 1)
+      expectTimeout(listener)
+    })
+
+    it.each(['chunks', 'messages'] as const)(
+      'keeps the 120-minute inter-item allowance after %s output at 89 seconds',
+      async (kind) => {
+        const input = feed(kind)
+        const listener = launch(input.source)
+        input.chunk({ type: 'start' })
+        input.chunk({ type: 'text-start', id: 't' })
+        await flushUntil(() => listener.chunks.length === 2)
+        await vi.advanceTimersByTimeAsync(89_000)
+        if (kind === 'chunks') input.chunk({ type: 'text-delta', id: 't', delta: ' ' })
+        else input.parts([{ type: 'reasoning', text: 'thinking' }])
+        await vi.advanceTimersByTimeAsync(1)
+        await vi.advanceTimersByTimeAsync(30 * 60_000)
+        expect(listener.errorResults).toHaveLength(0)
+        expect(listener.pausedResults).toHaveLength(0)
+        for (let i = 0; i < 3; i++) {
+          input.chunk({ type: 'message-metadata', messageMetadata: {} })
+          await vi.advanceTimersByTimeAsync(60 * 60_000)
+        }
+        expect(listener.errorResults).toHaveLength(0)
+        expect(listener.pausedResults).toHaveLength(0)
+        await vi.advanceTimersByTimeAsync(60 * 60_000)
+        await flushUntil(() => listener.pausedResults.length === 1)
+        expect(listener.errorResults).toHaveLength(0)
+        expect(listener.doneResults).toHaveLength(0)
+      }
+    )
+
+    it.each(['chunks', 'messages'] as const)(
+      'counts tool-only %s progress and preserves approval idle handling',
+      async (kind) => {
+        const input = feed(kind)
+        const listener = launch(input.source)
+        if (kind === 'chunks') {
+          input.chunk({ type: 'tool-input-available', toolCallId: 'call', toolName: 'Read', input: {} })
+          input.chunk({ type: 'tool-approval-request', toolCallId: 'call', approvalId: 'approval' })
+        } else {
+          input.chunk({ type: 'tool-approval-request', toolCallId: 'call', approvalId: 'approval' })
+          input.parts([
+            {
+              type: 'dynamic-tool',
+              toolName: 'Read',
+              toolCallId: 'call',
+              state: 'approval-requested',
+              input: {},
+              approval: { id: 'approval' }
+            }
+          ])
+        }
+        await flushUntil(() => listener.chunks.some((chunk) => chunk.type === 'tool-approval-request'))
+        await vi.advanceTimersByTimeAsync(91_000)
+        expect(listener.errorResults).toHaveLength(0)
+        expect(listener.pausedResults).toHaveLength(0)
+        if (kind === 'chunks') input.chunk({ type: 'tool-output-available', toolCallId: 'call', output: '' })
+        else
+          input.parts([
+            {
+              type: 'dynamic-tool',
+              toolName: 'Read',
+              toolCallId: 'call',
+              state: 'output-available',
+              input: {},
+              output: ''
+            }
+          ])
+        await vi.advanceTimersByTimeAsync(1)
+        await vi.advanceTimersByTimeAsync(120 * 60_000)
+        await flushUntil(() => listener.pausedResults.length === 1)
+        expect(listener.errorResults).toHaveLength(0)
+      }
+    )
+
+    const approvalParts: CherryUIMessage['parts'] = [
+      {
+        type: 'dynamic-tool',
+        toolName: 'Read',
+        toolCallId: 'call',
+        state: 'approval-requested',
+        input: {},
+        approval: { id: 'approval' }
+      }
+    ]
+    const startupExecution = () =>
+      (mgr as unknown as { activeStreams: Map<string, { executions: Map<string, StreamExecution> }> }).activeStreams
+        .get('startup')!
+        .executions.get('p::m')!
+
+    it.each(['removed', 'state-changed'] as const)(
+      'suspends for snapshot approvals and resumes the remaining budget when %s',
+      async (settlement) => {
+        const input = feed('messages')
+        const listener = launch(input.source)
+        await vi.advanceTimersByTimeAsync(30_000)
+        input.parts(approvalParts)
+        await vi.advanceTimersByTimeAsync(1)
+        const exec = startupExecution()
+        const timing = exec.runtimeTiming.snapshot()
+        await vi.advanceTimersByTimeAsync(120_000)
+        expect(listener.errorResults).toHaveLength(0)
+        expect(listener.pausedResults).toHaveLength(0)
+        expect(approvalRequestedEvents).toEqual([])
+        expect(listener.chunks.filter((chunk) => chunk.type === 'tool-approval-request')).toEqual([])
+        expect(exec.pendingApprovalToolCallIds?.size ?? 0).toBe(0)
+        expect(exec.publishedApprovalIds?.size ?? 0).toBe(0)
+        expect(exec.runtimeTiming.snapshot()).toEqual(timing)
+        expect(mgr.inspect('startup')?.status).toBe('pending')
+        input.parts(
+          settlement === 'removed'
+            ? []
+            : [
+                {
+                  type: 'dynamic-tool',
+                  toolName: 'Read',
+                  toolCallId: 'call',
+                  state: 'input-streaming',
+                  input: undefined
+                }
+              ]
+        )
+        await vi.advanceTimersByTimeAsync(60_000 - 1)
+        expect(listener.errorResults).toHaveLength(0)
+        await vi.advanceTimersByTimeAsync(1)
+        await flushUntil(() => listener.errorResults.length === 1)
+        expectTimeout(listener)
+      }
+    )
+
+    it('ends a snapshot-only approval turn without leaving an awaiting-approval anchor or timer', async () => {
+      const input = feed('messages')
+      const listener = launch(input.source)
+      input.parts(approvalParts)
+      await vi.advanceTimersByTimeAsync(100_000)
+      const exec = startupExecution()
+      expect(exec.pendingApprovalToolCallIds?.size ?? 0).toBe(0)
+      input.close()
+      await flushUntil(() => listener.doneResults.length === 1)
+      expect(mgr.inspect('startup')?.status).toBe('done')
+      expect(approvalRequestedEvents).toEqual([])
+      await vi.advanceTimersByTimeAsync(120 * 60_000)
+      expect(listener.doneResults).toHaveLength(1)
+      expect(listener.errorResults).toHaveLength(0)
+      expect(listener.pausedResults).toHaveLength(0)
+    })
+
+    it('publishes a real approval control once and never republishes it from snapshots', async () => {
+      const input = feed('messages')
+      const listener = launch(input.source)
+      input.chunk({ type: 'tool-approval-request', toolCallId: 'call', approvalId: 'approval' })
+      await flushUntil(() => approvalRequestedEvents.length === 1)
+      const exec = startupExecution()
+      input.parts(approvalParts)
+      input.parts(approvalParts)
+      await vi.advanceTimersByTimeAsync(100_000)
+      expect(approvalRequestedEvents).toEqual([expect.objectContaining({ topicId: 'startup', approvalId: 'approval' })])
+      expect(listener.chunks.filter((chunk) => chunk.type === 'tool-approval-request')).toHaveLength(1)
+      expect(exec.pendingApprovalToolCallIds).toEqual(new Set(['call']))
+      expect(exec.publishedApprovalIds).toEqual(new Set(['approval']))
+      input.close()
+      await flushUntil(() => listener.doneResults.length === 1)
+      expect(mgr.inspect('startup')?.status).toBe('awaiting-approval')
+    })
+
+    it.each(['chunks', 'messages'] as const)(
+      'allows successful empty %s completion and disposes startup',
+      async (kind) => {
+        const input = feed(kind)
+        const listener = launch(input.source)
+        input.close()
+        await flushUntil(() => listener.doneResults.length === 1)
+        await vi.advanceTimersByTimeAsync(100_000)
+        expect(listener.errorResults).toHaveLength(0)
+        expect(listener.pausedResults).toHaveLength(0)
+        expect(listener.doneResults[0].status).toBe('success')
+      }
+    )
+
+    it.each(['chunks', 'messages'] as const)('preserves user Stop before %s startup expiry', async (kind) => {
+      const input = feed(kind)
+      const controller = new AbortController()
+      const listener = launch(input.source, agentRequest(), controller)
+      await vi.advanceTimersByTimeAsync(20_000)
+      mgr.abort('startup', 'user-requested')
+      await flushUntil(() => listener.pausedResults.length === 1)
+      await vi.advanceTimersByTimeAsync(100_000)
+      expect(controller.signal.reason).toBe('user-requested')
+      expect(listener.errorResults).toHaveLength(0)
+      expect(listener.doneResults).toHaveLength(0)
+    })
+
+    it.each<UIMessageChunk>([
+      { type: 'reasoning-delta', id: 'r', delta: 'thought' },
+      { type: 'tool-input-delta', toolCallId: 'call', inputTextDelta: '{' },
+      { type: 'tool-input-available', toolCallId: 'call', toolName: 'Read', input: {} },
+      { type: 'tool-input-error', toolCallId: 'call', toolName: 'Read', input: {}, errorText: 'invalid input' },
+      { type: 'tool-output-available', toolCallId: 'call', output: '' },
+      { type: 'tool-output-error', toolCallId: 'call', errorText: 'failed' },
+      { type: 'tool-output-denied', toolCallId: 'call' },
+      { type: 'file', mediaType: 'text/plain', url: 'data:text/plain,hello' },
+      { type: 'source-url', sourceId: 's', url: 'https://example.com' },
+      { type: 'source-document', sourceId: 'd', mediaType: 'text/plain', title: 'Document' }
+    ])('disarms startup on meaningful control $type', async (chunk) => {
+      const input = feed('messages')
+      const listener = launch(input.source)
+      await vi.advanceTimersByTimeAsync(89_000)
+      input.chunk(chunk)
+      await flushUntil(() => listener.chunks.length === 1)
+      await vi.advanceTimersByTimeAsync(90_000)
+      expect(listener.errorResults).toHaveLength(0)
+      expect(listener.pausedResults).toHaveLength(0)
+      input.close()
+      await flushUntil(() => listener.doneResults.length === 1)
+    })
+
+    it.each<[CherryUIMessage['parts']]>(
+      [
+        [{ type: 'text', text: ' ' }],
+        [{ type: 'dynamic-tool', toolName: 'Read', toolCallId: 'call', state: 'input-streaming', input: null }],
+        [{ type: 'dynamic-tool', toolName: 'Read', toolCallId: 'call', state: 'input-available', input: {} }],
+        [{ type: 'file', mediaType: 'text/plain', url: 'data:text/plain,hello' }],
+        [{ type: 'source-url', sourceId: 's', url: 'https://example.com' }],
+        [{ type: 'source-document', sourceId: 'd', mediaType: 'text/plain', title: 'Document' }]
+      ].map((parts) => [parts] as [CherryUIMessage['parts']])
+    )('disarms startup on authoritative output %j', async (parts) => {
+      const input = feed('messages')
+      const listener = launch(input.source)
+      input.parts(parts)
+      await vi.advanceTimersByTimeAsync(90_000)
+      expect(listener.errorResults).toHaveLength(0)
+      input.close()
+      await flushUntil(() => listener.doneResults.length === 1)
+    })
+
+    it.each(['owned reason', 'AbortError'] as const)(
+      'normalizes acquisition rejection with %s after expiry',
+      async (shape) => {
+        mockStreamText.mockImplementationOnce(
+          (request) =>
+            new Promise((_, reject) => {
+              const signal = request.requestOptions!.signal!
+              signal.addEventListener(
+                'abort',
+                () => reject(shape === 'owned reason' ? signal.reason : new DOMException('aborted', 'AbortError')),
+                { once: true }
+              )
+            })
+        )
+        const listener = new FakeListener('rejected-acquisition')
+        startSingle(mgr, { topicId: 'startup', modelId: 'p::m', request: agentRequest(), listeners: [listener] })
+        await vi.advanceTimersByTimeAsync(90_000)
+        await flushUntil(() => listener.errorResults.length === 1)
+        expectTimeout(listener)
+      }
+    )
+
+    it('preserves an unrelated setup TimeoutError without claiming startup provenance', async () => {
+      mockStreamText.mockRejectedValueOnce(
+        Object.assign(new Error('provider setup timed out'), { name: 'TimeoutError' })
+      )
+      const listener = new FakeListener('setup-error')
+      startSingle(mgr, { topicId: 'startup', modelId: 'p::m', request: agentRequest(), listeners: [listener] })
+      await flushUntil(() => listener.errorResults.length === 1)
+      expect(listener.errorResults[0].error).toMatchObject({
+        name: 'TimeoutError',
+        message: 'provider setup timed out'
+      })
+      expect(listener.errorResults[0].error.i18nKey).toBeUndefined()
+      await vi.advanceTimersByTimeAsync(90_000)
+      expect(listener.errorResults).toHaveLength(1)
+    })
+
+    it('claims timeout before delayed persistence and publishes one terminal error projection', async () => {
+      const input = feed('messages')
+      mockStreamText.mockResolvedValueOnce(input.source)
+      const persistence = Promise.withResolvers<void>()
+      const listener = new FakeListener('terminal')
+      const writer = new FakeListener('writer', 'persistence')
+      writer.onErrorImpl = () => persistence.promise
+      const sender = Object.assign(new EventEmitter(), { isDestroyed: () => false }) as unknown as Electron.WebContents
+      let view = await mgr.attachProjection(sender, 'startup', 'timeout-sub', (update) => {
+        if (view) view = applyMessageProjectionUpdate(view, update)!
+      })
+      startSingle(mgr, {
+        topicId: 'startup',
+        modelId: 'p::m',
+        request: { ...agentRequest(), messageId: 'reply' },
+        listeners: [writer, listener]
+      })
+      await vi.advanceTimersByTimeAsync(90_000)
+      await flushUntil(() => writer.errorResults.length === 1)
+      expect(listener.errorResults).toHaveLength(0)
+      await mgr.onExecutionError('startup', 'p::m', error('late error'))
+      await mgr.onExecutionDone('startup', 'p::m')
+      await vi.advanceTimersByTimeAsync(0)
+      persistence.resolve()
+      await flushUntil(() => listener.errorResults.length === 1)
+      expectTimeout(listener)
+      expect(writer.errorResults).toHaveLength(1)
+      expect(view).toMatchObject({ kind: 'topic', executions: [{ status: 'error' }] })
+      expect(view?.messages[0].parts).toContainEqual(
+        expect.objectContaining({
+          type: 'data-error',
+          data: expect.objectContaining({ name: 'TimeoutError', i18nKey: 'request_timeout' })
+        })
+      )
+      mgr.detachProjection(sender, 'timeout-sub')
+      sender.emit('destroyed')
+    })
+
+    it('leaves explicit Agent idle overrides unchanged', async () => {
+      const input = feed('messages')
+      const listener = launch(input.source, { ...agentRequest(), requestOptions: { timeout: 100_000 } })
+      input.parts([
+        {
+          type: 'dynamic-tool',
+          toolName: 'Read',
+          toolCallId: 'call',
+          state: 'approval-requested',
+          input: {},
+          approval: { id: 'approval' }
+        }
+      ])
+      await vi.advanceTimersByTimeAsync(90_001)
+      expect(listener.errorResults).toHaveLength(0)
+      expect(listener.pausedResults).toHaveLength(0)
+      await vi.advanceTimersByTimeAsync(10_000)
+      await flushUntil(() => listener.pausedResults.length === 1)
+      expect(listener.errorResults).toHaveLength(0)
+    })
+
+    it.each(['chunks', 'messages', 'reject', 'never'] as const)(
+      'bounds cancellation-ignoring acquisition and discards late %s settlement',
+      async (settlement) => {
+        const pending = Promise.withResolvers<AiStreamSource>()
+        mockStreamText.mockImplementationOnce(() => pending.promise)
+        const listener = new FakeListener('late')
+        startSingle(mgr, { topicId: 'startup', modelId: 'p::m', request: agentRequest(), listeners: [listener] })
+        await vi.advanceTimersByTimeAsync(90_000)
+        await flushUntil(() => listener.errorResults.length === 1)
+        expectTimeout(listener)
+        if (settlement === 'chunks' || settlement === 'messages') {
+          const late = feed(settlement)
+          late.chunk({ type: 'text-delta', id: 'late', delta: 'must not publish' })
+          pending.resolve(late.source)
+          await flushUntil(() => late.cancel.mock.calls.length === 1)
+          expect(late.cancel.mock.calls[0][0]).toMatchObject({ name: 'TimeoutError' })
+        } else if (settlement === 'reject') pending.reject(new Error('late rejection'))
+        await vi.advanceTimersByTimeAsync(0)
+        expectTimeout(listener)
+        expect(listener.chunks).toHaveLength(0)
+        expect(mockStreamText).toHaveBeenCalledTimes(1)
+      }
+    )
+
+    it('suspends for declared preparation, deduplicates phases, and resumes the remainder', async () => {
+      const pending = Promise.withResolvers<AiStreamSource>()
+      mockStreamText.mockImplementationOnce(() => pending.promise)
+      const listener = new FakeListener('preparation')
+      startSingle(mgr, { topicId: 'startup', modelId: 'p::m', request: agentRequest(), listeners: [listener] })
+      const sink = mockStreamText.mock.calls[0][0].preparationSink!
+      await vi.advanceTimersByTimeAsync(40_000)
+      sink('connection', true)
+      sink('connection', true)
+      sink('compaction', true)
+      await vi.advanceTimersByTimeAsync(150_000)
+      sink('connection', false)
+      sink('connection', false)
+      await vi.advanceTimersByTimeAsync(100_000)
+      expect(listener.errorResults).toHaveLength(0)
+      sink('compaction', false)
+      await vi.advanceTimersByTimeAsync(49_999)
+      expect(listener.errorResults).toHaveLength(0)
+      await vi.advanceTimersByTimeAsync(1)
+      await flushUntil(() => listener.errorResults.length === 1)
+      expectTimeout(listener)
+      sink('connection', true)
+      await vi.advanceTimersByTimeAsync(90_000)
+      expectTimeout(listener)
+    })
+
+    it('bounds aggregate preparation even when acquisition never settles', async () => {
+      mockStreamText.mockImplementationOnce(async (request) => {
+        request.preparationSink!('connection', true)
+        return new Promise<AiStreamSource>(() => {})
+      })
+      const listener = new FakeListener('preparation-cap')
+      startSingle(mgr, { topicId: 'startup', modelId: 'p::m', request: agentRequest(), listeners: [listener] })
+      await vi.advanceTimersByTimeAsync(120 * 60_000 + 89_999)
+      expect(listener.errorResults).toHaveLength(0)
+      await vi.advanceTimersByTimeAsync(1)
+      await flushUntil(() => listener.errorResults.length === 1)
+      expectTimeout(listener)
+    })
+
+    it('isolates a stalled execution from its progressing sibling', async () => {
+      const stalled = feed('messages')
+      const progressing = feed('chunks')
+      mockStreamText.mockResolvedValueOnce(stalled.source).mockResolvedValueOnce(progressing.source)
+      const listener = new FakeListener('siblings')
+      mgr.send({
+        topicId: 'startup',
+        models: [
+          { modelId: 'p::stalled', request: agentRequest() },
+          { modelId: 'p::progressing', request: agentRequest() }
+        ],
+        listeners: [listener]
+      })
+      progressing.chunk({ type: 'start' })
+      progressing.chunk({ type: 'text-start', id: 't' })
+      progressing.chunk({ type: 'text-delta', id: 't', delta: 'alive' })
+      await flushUntil(() => listener.chunks.length === 3)
+      await vi.advanceTimersByTimeAsync(90_000)
+      await flushUntil(() => listener.errorResults.length === 1)
+      expect(listener.errorResults[0]).toMatchObject({ modelId: 'p::stalled', isTopicDone: false })
+      expect(mgr.inspect('startup')?.executions.find((e) => e.modelId === 'p::progressing')?.status).toBe('streaming')
+      progressing.close()
+      await flushUntil(() => listener.doneResults.length === 1)
+      expect(listener.doneResults[0].modelId).toBe('p::progressing')
+      expect(listener.pausedResults).toHaveLength(0)
+    })
+
+    it.each(['chunks', 'messages'] as const)(
+      'retains a provider error chunk when cancellation follows before drain (%s)',
+      async (kind) => {
+        const input = feed(kind)
+        const controller = new AbortController()
+        const listener = launch(input.source, agentRequest(), controller)
+        input.chunk({ type: 'error', errorText: 'provider refused the request' })
+        await flushUntil(() => listener.chunks.length === 1)
+        await vi.advanceTimersByTimeAsync(90_000)
+        expect(controller.signal.aborted).toBe(false)
+        controller.abort('native-cancel')
+        await flushUntil(() => listener.errorResults.length === 1)
+        expect(listener.errorResults[0].error.message).toBe('provider refused the request')
+        expect(listener.pausedResults).toHaveLength(0)
+        expect(listener.doneResults).toHaveLength(0)
+      }
+    )
+
+    it.each(['chunks', 'messages'] as const)(
+      'preserves a real %s error observed before a delayed drain and cancellation',
+      async (kind) => {
+        const input = feed(kind, true)
+        const controller = new AbortController()
+        const listener = launch(input.source, agentRequest(), controller)
+        await vi.advanceTimersByTimeAsync(89_000)
+        input.error(new Error('provider failure'))
+        await vi.advanceTimersByTimeAsync(0)
+        await vi.advanceTimersByTimeAsync(2000)
+        expect(controller.signal.aborted).toBe(false)
+        controller.abort(new DOMException('cancelled', 'AbortError'))
+        await flushUntil(() => listener.errorResults.length === 1)
+        expect(listener.errorResults[0].error.message).toBe('provider failure')
+        expect(listener.errorResults[0].error.name).toBe('Error')
+        expect(listener.pausedResults).toHaveLength(0)
+      }
+    )
+  })
 
   describe('idle timeout', () => {
     it('keeps a default chat turn live past 30 minutes and pauses at 120 minutes without a parsed chunk', async () => {
