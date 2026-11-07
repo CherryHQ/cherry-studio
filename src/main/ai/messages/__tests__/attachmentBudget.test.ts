@@ -1,6 +1,9 @@
 import type { UIMessage } from 'ai'
+import { countTokens } from 'gpt-tokenizer/encoding/o200k_base'
 import { describe, expect, it } from 'vitest'
 
+import { loadGptO200kTokenizer } from '@main/ai/tokens/textTokenizer'
+import { surrogateSafeEnd } from '@main/ai/utils/textPaging'
 import { READ_FILE_PAGE_SIZE } from '@shared/ai/builtinTools'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -41,6 +44,51 @@ describe('allocateAttachmentBudget', () => {
 })
 
 describe('allocateInlineCaps', () => {
+  it.each([
+    ['surrogate pair', '\uFFFD'.repeat(7) + '\uD83D\uDE00' + 'x'.repeat(7)],
+    ['consecutive unpaired high surrogates', '\uD800'.repeat(8) + 'x'.repeat(8)]
+  ])('verifies the retained prefix after normalizing %s', async (_name, body) => {
+    const tokenizer = await loadGptO200kTokenizer()
+    const [cap] = allocateInlineCaps([body], { tokens: 1, tokenizer })
+    const routedEnd = surrogateSafeEnd(body, cap)
+
+    expect(cap).toBe(routedEnd)
+    expect(ordinaryCount(body.slice(0, cap))).toBeLessThanOrEqual(1)
+    expect(ordinaryCount(body.slice(0, routedEnd))).toBeLessThanOrEqual(1)
+  })
+
+  it.each([
+    { name: 'multiple bodies', bodies: ['中'.repeat(80), 'a '.repeat(100), '😀'.repeat(60)], pool: 30 },
+    { name: 'zero pool', bodies: ['中'.repeat(20), 'hello'], pool: 0 },
+    { name: 'negative pool', bodies: ['中'.repeat(20), 'hello'], pool: -5 },
+    { name: 'small-file redistribution', bodies: ['hi', '中'.repeat(80)], pool: 20 },
+    { name: 'mixed-density head', bodies: ['中'.repeat(100) + 'a'.repeat(400)], pool: 30 },
+    { name: 'emoji at a cut', bodies: ['a😀'.repeat(40)], pool: 11 },
+    { name: 'byte-priced prefix beyond cutoff', bodies: ['A'.repeat(40_000)], pool: 20_000 }
+  ])('keeps real-adapter heads within each allocation and the $name', async ({ name, bodies, pool }) => {
+    const tokenizer = await loadGptO200kTokenizer()
+    const allocated = allocateAttachmentBudget(bodies.map(policyCount), pool)
+    const caps = allocateInlineCaps(bodies, { tokens: pool, tokenizer })
+    const costs = bodies.map((body, i) => {
+      const cap = caps[i]
+      expect(Number.isInteger(cap)).toBe(true)
+      expect(cap).toBeGreaterThanOrEqual(0)
+      expect(cap).toBeLessThanOrEqual(body.length)
+      const end = surrogateSafeEnd(body, cap)
+      expect(end).toBe(cap)
+      const cost = policyCount(body.slice(0, end))
+      expect(cost).toBeLessThanOrEqual(allocated[i])
+      return cost
+    })
+
+    expect(sum(costs)).toBeLessThanOrEqual(Math.max(0, pool))
+    if (name === 'small-file redistribution') {
+      expect(caps[0]).toBe(bodies[0].length)
+      expect(costs[1]).toBeGreaterThan(pool / 2)
+    }
+    if (name === 'byte-priced prefix beyond cutoff') expect(caps[0]).toBeGreaterThan(16_384)
+  })
+
   it('caps each body within the shared pool', () => {
     const caps = allocateInlineCaps(['a'.repeat(50), 'b'.repeat(50)], budgetOf(60))
 
@@ -96,6 +144,15 @@ describe('allocateInlineCaps', () => {
     expect(allocateInlineCaps([''], budgetOf(0))).toEqual([0])
   })
 })
+
+function ordinaryCount(text: string): number {
+  expect(text.length).toBeLessThanOrEqual(16_384)
+  return countTokens(text, { disallowedSpecial: new Set() })
+}
+
+function policyCount(text: string): number {
+  return text.length > 16_384 ? new TextEncoder().encode(text).length : ordinaryCount(text)
+}
 
 function sum(values: readonly number[]): number {
   return values.reduce((total, value) => total + value, 0)

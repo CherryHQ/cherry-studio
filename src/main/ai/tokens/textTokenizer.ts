@@ -17,6 +17,8 @@ export const tokenxTokenizer: TextTokenizer = {
 }
 
 let o200k: TextTokenizer | undefined
+// Work-policy cutoff in UTF-16 units, not a measured stack boundary.
+const MAX_EXACT_TEXT_LENGTH = 16_384
 
 /**
  * Real BPE tokenizer for the openai dialect — `o200k_base`, the encoding GPT-5 / gpt-4o /
@@ -32,7 +34,16 @@ export async function loadGptO200kTokenizer(): Promise<TextTokenizer> {
       id: 'gpt-tokenizer/o200k',
       // This counter estimates arbitrary user and persisted text. Special-token spellings are
       // content here, not encoder control instructions, so count them instead of rejecting them.
-      count: (text) => (text ? countTokens(text, ordinaryTextOptions) : 0)
+      count: (text) => {
+        if (!text) return 0
+        // Each ordinary byte-BPE token covers at least one UTF-8 byte, so bytes bound the count above.
+        if (text.length > MAX_EXACT_TEXT_LENGTH) return Buffer.byteLength(text, 'utf8')
+        try {
+          return countTokens(text, ordinaryTextOptions)
+        } catch {
+          return Buffer.byteLength(text, 'utf8')
+        }
+      }
     }
   }
   return o200k

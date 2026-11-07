@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-29-attachment-token-count-bounds.md
+2026-10-29-attachment-token-count-bounds.md: d26fee006dfa99d82d9e35f16e4a48d03f6215ee
+2026-10-29-attachment-token-count-bounds.zh.md: 045e9015f8dddce91a6eede28a3ed2bebc86a08e
