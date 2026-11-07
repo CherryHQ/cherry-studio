@@ -38,6 +38,16 @@ export const CreatePromptSchema = PromptSchema.pick({
   })
 export type CreatePromptDto = z.infer<typeof CreatePromptSchema>
 
+const OrderedPromptIdsSchema = z.array(PromptIdSchema).refine((ids) => new Set(ids).size === ids.length, {
+  message: 'Prompt IDs must be unique'
+})
+
+export const UpdatePromptBindingsSchema = z.strictObject({
+  ids: OrderedPromptIdsSchema,
+  expectedIds: OrderedPromptIdsSchema
+})
+export type UpdatePromptBindingsDto = z.infer<typeof UpdatePromptBindingsSchema>
+
 export const UpdatePromptSchema = PromptSchema.pick({ title: true, content: true, visibility: true })
   .partial()
   .extend({ expectedBindings: z.array(PromptBindingTargetSchema).optional() })

@@ -22,26 +22,17 @@ import {
 import { useDataChange, useQuery } from '@data/hooks/useDataApi'
 import { useReorder } from '@data/hooks/useReorder'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
-import { PromptEditDialog } from '@renderer/components/resourceCatalog/dialogs/edit'
+import { PromptEditDialogHost } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { SettingsContentBody, SettingTitle } from '@renderer/components/SettingsPrimitives'
-import {
-  agentAdapter,
-  assistantAdapter,
-  usePromptMutations,
-  usePromptMutationsById
-} from '@renderer/hooks/resourceCatalog'
+import { agentAdapter, assistantAdapter, usePromptMutationsById } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { DataApiError, ErrorCode } from '@shared/data/api/errors'
-import type { Prompt, PromptBindingRelation, PromptBindingTarget, PromptVisibility } from '@shared/data/types/prompt'
+import type { Prompt, PromptBindingRelation } from '@shared/data/types/prompt'
 
 import { type PromptTargetOption, PromptTargetPopover } from './PromptTargetPopover'
 
 type PromptDialogState = { prompt: Prompt | null } | null
-type PromptFormValue = { title: string; content: string; visibility: PromptVisibility }
-type PendingVisibilityChange = { payload: PromptFormValue; bindings: PromptBindingTarget[] }
-
 const PROMPT_BINDINGS_SWR_OPTIONS = { keepPreviousData: false } as const
 
 function getPromptSummary(prompt: Prompt) {
@@ -53,8 +44,6 @@ export function PromptSettings() {
   const [search, setSearch] = useState('')
   const [promptDialog, setPromptDialog] = useState<PromptDialogState>(null)
   const [deleteTarget, setDeleteTarget] = useState<Prompt | null>(null)
-  const [pendingVisibilityChange, setPendingVisibilityChange] = useState<PendingVisibilityChange | null>(null)
-  const [savingPrompt, setSavingPrompt] = useState(false)
   const [deletingPrompt, setDeletingPrompt] = useState(false)
   const { data, error, isLoading, refetch } = useQuery('/prompts', {})
   const prompts = useMemo(() => data ?? [], [data])
@@ -115,22 +104,17 @@ export function PromptSettings() {
     )
   }, [normalizedSearch, prompts])
 
-  const promptDialogPrompt = promptDialog?.prompt ?? null
-  const activePrompt = promptDialogPrompt ?? deleteTarget
-  const bindingQueryTarget =
-    deleteTarget ?? (promptDialogPrompt?.visibility === 'restricted' ? promptDialogPrompt : null)
   const {
     data: activeBindings,
     isLoading: isLoadingBindings,
     refetch: refetchActiveBindings
   } = useQuery('/prompts/:id/bindings', {
-    enabled: Boolean(bindingQueryTarget),
-    params: { id: bindingQueryTarget?.id ?? '' },
+    enabled: Boolean(deleteTarget),
+    params: { id: deleteTarget?.id ?? '' },
     swrOptions: PROMPT_BINDINGS_SWR_OPTIONS
   })
   const activeBindingCount = activeBindings?.length
-  const { createPrompt } = usePromptMutations()
-  const { updatePrompt, deletePrompt } = usePromptMutationsById(activePrompt?.id ?? '')
+  const { deletePrompt } = usePromptMutationsById(deleteTarget?.id ?? '')
   const { applyReorderedList, isPending: isReordering } = useReorder('/prompts')
   useDataChange('/prompts', () => void refetch())
   useDataChange('/prompt-bindings', () => void refetchAllBindings())
@@ -141,78 +125,6 @@ export function PromptSettings() {
   useDataChange('/prompts/:id/bindings', () => {
     if (deleteTarget) void refetchActiveBindings()
   })
-
-  const handleSavePrompt = useCallback(
-    async (payload: PromptFormValue) => {
-      setSavingPrompt(true)
-      try {
-        if (promptDialogPrompt) {
-          if (promptDialogPrompt.visibility === 'restricted' && payload.visibility === 'global') {
-            const refreshedBindings = await refetchActiveBindings()
-            if (!Array.isArray(refreshedBindings)) throw new Error('Unable to load prompt bindings')
-            if (refreshedBindings.length > 0) {
-              setPendingVisibilityChange({ payload, bindings: refreshedBindings })
-              return
-            }
-            await updatePrompt({ ...payload, expectedBindings: refreshedBindings })
-          } else {
-            await updatePrompt(payload)
-          }
-        } else {
-          await createPrompt(payload)
-        }
-        setPromptDialog(null)
-      } catch (err) {
-        if (
-          err instanceof DataApiError &&
-          err.code === ErrorCode.CONCURRENT_MODIFICATION &&
-          promptDialogPrompt?.visibility === 'restricted' &&
-          payload.visibility === 'global'
-        ) {
-          const refreshedBindings = await refetchActiveBindings()
-          if (Array.isArray(refreshedBindings)) {
-            setPendingVisibilityChange({ payload, bindings: refreshedBindings })
-            return
-          }
-        }
-        toast.error(
-          formatErrorMessageWithPrefix(
-            err,
-            t(promptDialogPrompt ? 'settings.prompts.errors.updateFailed' : 'settings.prompts.errors.createFailed')
-          )
-        )
-        throw err
-      } finally {
-        setSavingPrompt(false)
-      }
-    },
-    [createPrompt, promptDialogPrompt, refetchActiveBindings, t, updatePrompt]
-  )
-
-  const handleConfirmVisibilityChange = useCallback(async () => {
-    if (!pendingVisibilityChange) return
-
-    setSavingPrompt(true)
-    try {
-      await updatePrompt({
-        ...pendingVisibilityChange.payload,
-        expectedBindings: pendingVisibilityChange.bindings
-      })
-      setPendingVisibilityChange(null)
-      setPromptDialog(null)
-    } catch (err) {
-      if (err instanceof DataApiError && err.code === ErrorCode.CONCURRENT_MODIFICATION) {
-        const refreshedBindings = await refetchActiveBindings()
-        if (Array.isArray(refreshedBindings)) {
-          setPendingVisibilityChange((current) => (current ? { ...current, bindings: refreshedBindings } : current))
-        }
-      }
-      toast.error(formatErrorMessageWithPrefix(err, t('settings.prompts.errors.updateFailed')))
-      throw err
-    } finally {
-      setSavingPrompt(false)
-    }
-  }, [pendingVisibilityChange, refetchActiveBindings, t, updatePrompt])
 
   const handleConfirmDelete = useCallback(async () => {
     if (!deleteTarget) return
@@ -296,7 +208,7 @@ export function PromptSettings() {
               getId={(prompt) => prompt.id}
               onReorder={applyReorderedList}
               onReorderError={handleReorderError}
-              disabled={savingPrompt || deletingPrompt || isReordering}
+              disabled={promptDialog !== null || deletingPrompt || isReordering}
               dragHandle
               gap={8}
               restrictions={{ scrollableAncestor: true }}
@@ -320,30 +232,10 @@ export function PromptSettings() {
         )}
       </div>
 
-      <PromptEditDialog
+      <PromptEditDialogHost
         open={promptDialog !== null}
-        prompt={promptDialogPrompt}
-        saving={savingPrompt}
-        onSave={handleSavePrompt}
-        onCancel={() => {
-          if (!savingPrompt) setPromptDialog(null)
-        }}
-      />
-
-      <ConfirmDialog
-        open={pendingVisibilityChange !== null}
-        onOpenChange={(open) => {
-          if (!open && !savingPrompt) setPendingVisibilityChange(null)
-        }}
-        title={t('settings.prompts.visibility.makeGlobalConfirmTitle')}
-        description={t('settings.prompts.visibility.makeGlobalConfirmDescription', {
-          count: pendingVisibilityChange?.bindings.length ?? 0
-        })}
-        confirmText={t('common.confirm')}
-        cancelText={t('common.cancel')}
-        destructive
-        confirmLoading={savingPrompt}
-        onConfirm={handleConfirmVisibilityChange}
+        prompt={promptDialog?.prompt ?? null}
+        onClose={() => setPromptDialog(null)}
       />
 
       <ConfirmDialog

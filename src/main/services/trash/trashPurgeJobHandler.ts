@@ -5,6 +5,7 @@ import { fileEntryService } from '@data/services/FileEntryService'
 import { paintingService } from '@data/services/PaintingService'
 import { promptService } from '@data/services/PromptService'
 import { topicService } from '@data/services/TopicService'
+import { removeLibraryTagAssignments } from '@data/services/utils/libraryTags'
 import { loggerService } from '@logger'
 import type { JobHandlerFor } from '@main/core/job/types'
 
@@ -69,10 +70,11 @@ const PURGE_DOMAINS: ReadonlyArray<{
   },
   {
     name: 'assistant',
-    purgeExpired: (cutoffMs, limit) => {
+    purgeExpired: async (cutoffMs, limit) => {
       const purgedIds = application
         .get('DbService')
         .withWriteTx((tx) => assistantDataService.purgeExpiredTx(tx, cutoffMs, limit))
+      await removeLibraryTagAssignments(purgedIds.map((id) => `assistant:${id}`))
       return completedPurgeBatch(purgedIds, purgedIds.length === limit, () => {
         assistantDataService.notifyReadModelChange(purgedIds, 'membership')
         promptService.notifyTargetBindingsChanged()
