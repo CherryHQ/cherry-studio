@@ -88,7 +88,7 @@ const callback = 'http://127.0.0.1:29873/oauth/callback?code=test-code&state=tes
 
 describe('owned application debug bridge', () => {
   it('returns only notification identifiers matching the case without exposing other notification content', async () => {
-    const record = ownedApp('windows')
+    const record = ownedApp('macos')
     const { context } = mainInspector()
     context.process.mainModule.require = () => ({
       Notification: {
@@ -100,6 +100,12 @@ describe('owned application debug bridge', () => {
     })
 
     expect(await inspectOwnedNotificationHistory(record, 'Unique completed answer')).toEqual(['owned-match'])
+  })
+
+  it('rejects unsupported notification history instead of reporting an empty Windows history', async () => {
+    await expect(inspectOwnedNotificationHistory(ownedApp('windows'), 'Unique completed answer')).rejects.toThrow(
+      'Notification history inspection requires macOS'
+    )
   })
 
   it.each([

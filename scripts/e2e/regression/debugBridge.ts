@@ -60,6 +60,7 @@ export async function prepareOwnedMacNotifications(record: AppRecord): Promise<v
 }
 
 export async function inspectOwnedNotificationHistory(record: AppRecord, text: string): Promise<string[]> {
+  if (record.platform !== 'macos') throw new Error('Notification history inspection requires macOS')
   assertOwnedProcess(record, record.electronPid, 'electron')
   return evaluateCdpExpression(
     await ownedMainInspectorUrl(record),
