@@ -32,7 +32,7 @@ import {
   type InputState,
   type BusyPolicy
 } from '@cherrystudio/agent-runtime'
-import { createPiRuntime, type AgentRuntimeSessionOptions, type PiRuntime } from '@cherrystudio/agent-runtime-pi'
+import { createPiRuntime, type PiSessionOptions, type PiRuntime } from '@cherrystudio/agent-runtime-pi'
 import {
   createPiDurableRuntime,
   type PiDurableRuntime,
@@ -51,6 +51,7 @@ import { agentSessionMessageService as messages } from '@data/services/AgentSess
 import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
 import { allocateDurableBackendTx, prepareDurableBranch } from '@main/ai/runtime/piDurable/durableContext'
 
+import { createTestBehavior } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
 import {
   reconcileDurableBackend,
   createDurableBackend as initializeDurableBackend,
@@ -95,7 +96,7 @@ function allocatePiBackend() {
     .withWriteTx((tx) => contexts.ensureBackendTx(tx, { version: 1, kind: 'pi' }, 'bound'))
 }
 
-function openPiBackend(backendId: string, loadOptions: (thread: Thread) => Promise<AgentRuntimeSessionOptions>) {
+function openPiBackend(backendId: string, loadOptions: (thread: Thread) => Promise<PiSessionOptions>) {
   if (contexts.backend(backendId).locator.kind !== 'pi') throw new Error('Backend is not Pi')
   return createPiRuntime({
     backendId: runtimeId(backendId),
@@ -106,12 +107,7 @@ function openPiBackend(backendId: string, loadOptions: (thread: Thread) => Promi
   })
 }
 
-async function createPiContext(
-  sessionId: string,
-  backendId: string,
-  runtime: PiRuntime,
-  options: AgentRuntimeSessionOptions
-) {
+async function createPiContext(sessionId: string, backendId: string, runtime: PiRuntime, options: PiSessionOptions) {
   if (contexts.backend(backendId).locator.kind !== 'pi') throw new Error('Backend is not Pi')
   const intent = preparePiBranch(sessionId)
   const sessionManager = SessionManager.create(options.cwd, application.getPath('feature.agents.pi.sessions'), {
@@ -190,8 +186,7 @@ describe('native context storage and reconciliation', () => {
   }
   async function submitInput(handle: ThreadHandle, id: string, contextId: string, whenBusy: BusyPolicy = 'reject') {
     const draft = prepareNativeSubmission(sessionId, id, contextId, whenBusy)
-    const input = { ...draft, deduplicationKey: id }
-    const result = await handle.input!.submit(input)
+    const result = await handle.input!.submit(draft)
     applyNativeSubmissionResult(sessionId, contextId, result)
     return result
   }
@@ -208,7 +203,8 @@ describe('native context storage and reconciliation', () => {
       cwd: directory,
       agentDir: directory,
       modelRuntime,
-      model: modelRuntime.getModel('faux', 'faux-1')!
+      model: modelRuntime.getModel('faux', 'faux-1')!,
+      behavior: createTestBehavior({ provider: 'faux', id: 'faux-1' })
     }
     const runtime = confirmed(await openPiBackend(backend.id, async () => options))
     cleanup.push(() => runtime.shutdown())
@@ -521,17 +517,10 @@ describe('native context storage and reconciliation', () => {
     const reopened = confirmed(await openDurableBackend(backend.id, options))
     cleanup.push(() => reopened.shutdown())
     const restored = confirmed(await reopened.open(handle.thread))
-    const result = confirmed(await restored.lookupInput({ by: 'deduplication-key', key: id }))
-    expect(result).toMatchObject({ found: true, input: { outcome: 'completed' } })
-    const repeated = await restored.input.submit({
-      inputId: runtimeId(id),
-      text: 'question',
-      whenBusy: 'reject',
-      deduplicationKey: id
-    })
-    expect(repeated.status).toBe('acknowledged')
-    expect(confirmed(await restored.lookupInput({ by: 'deduplication-key', key: id }))).toMatchObject(result)
-    expect(confirmed(await restored.lookupInput({ by: 'deduplication-key', key: 'missing' }))).toEqual({ found: false })
+    const restoredInputs = await observeInputs(restored, created.context.id)
+    cleanup.push(() => restoredInputs.stop())
+    await expect.poll(() => restoredInputs.inputs.get(id)).toMatchObject({ outcome: 'completed' })
+    expect(restoredInputs.inputs.has('missing')).toBe(false)
     expect(faux.state.callCount).toBe(1)
   })
 
@@ -563,20 +552,14 @@ describe('native context storage and reconciliation', () => {
     const reopened = confirmed(await openDurableBackend(backend.id, options))
     cleanup.push(() => reopened.shutdown())
     const access = confirmed(await reopened.open(handle.thread))
-    expect(confirmed(await access.lookupInput({ by: 'deduplication-key', key: id }))).toMatchObject({
-      found: true,
-      input: { facts: ['accepted', 'placed'] }
-    })
-    expect(observer.inputs.get(id)?.outcome).toBeUndefined()
+    const restoredInputs = await observeInputs(access, created.context.id)
+    cleanup.push(() => restoredInputs.stop())
+    await expect.poll(() => restoredInputs.inputs.get(id)).toMatchObject({ facts: ['accepted', 'placed'] })
+    expect(restoredInputs.inputs.get(id)?.outcome).toBeUndefined()
     await new Promise((resolve) => setTimeout(resolve, 40))
     expect(faux.state.callCount).toBe(before)
     confirmed(await reopened.resume())
-    await expect
-      .poll(async () => {
-        const found = confirmed(await access.lookupInput({ by: 'deduplication-key', key: id }))
-        return found.found ? found.input.outcome : undefined
-      })
-      .toBe('completed')
+    await expect.poll(() => restoredInputs.inputs.get(id)?.outcome).toBe('completed')
     expect(faux.state.callCount).toBe(before + 1)
   })
 
@@ -608,11 +591,17 @@ describe('native context storage and reconciliation', () => {
     const reopened = confirmed(await openDurableBackend(backend.id, options))
     cleanup.push(() => reopened.shutdown())
     const restored = confirmed(await reopened.open(handle.thread))
-    const found = confirmed(await restored.lookupInput({ by: 'native-ref', ref: receipt.nativeInput }))
-    if (!found.found) throw new Error('Queued native input was lost')
-    expect(found.input.inputId).toBeUndefined()
-    expect(found.input.facts).toEqual(['accepted', 'queued'])
-    expect(bindNativeInput(sessionId, created.context.id, found.input)).toBe(queuedId)
+    const restoredInputs = await observeInputs(restored, created.context.id)
+    cleanup.push(() => restoredInputs.stop())
+    await expect
+      .poll(() => restoredInputs.inputs.get(queuedId))
+      .toMatchObject({
+        nativeInput: receipt.nativeInput,
+        facts: ['accepted', 'queued']
+      })
+    const found = restoredInputs.inputs.get(queuedId)!
+    expect(found.inputId).toBeUndefined()
+    expect(bindNativeInput(sessionId, created.context.id, found)).toBe(queuedId)
     expect(messages.inputBinding(sessionId, queuedId)).toEqual({
       contextId: created.context.id,
       nativeInputId: receipt.nativeInput.id

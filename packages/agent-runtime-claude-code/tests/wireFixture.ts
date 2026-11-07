@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
 
-import type { SDKAssistantMessage, SDKMessage, SpawnedProcess } from '@anthropic-ai/claude-agent-sdk'
+import type { SDKAssistantMessage, SDKMessage, SDKUserMessage, SpawnedProcess } from '@anthropic-ai/claude-agent-sdk'
 
 import { runtimeId } from '@cherrystudio/agent-runtime'
 
@@ -50,9 +50,8 @@ export function assistantMessage(
   }
 }
 
-/** Replays native wire races through the real SDK transport and the public adapter. */
-export async function wireFixture() {
-  const directory = await mkdtemp(join(tmpdir(), 'cherry-claude-wire-'))
+/** Controlled subprocess transport consumed by the real native SDK. */
+export function wireProcess() {
   const stdin = new PassThrough()
   const stdout = new PassThrough()
   const process = new EventEmitter() as EventEmitter & SpawnedProcess
@@ -74,6 +73,7 @@ export async function wireFixture() {
     process.emit('exit', 0, null)
   }
   stdin.on('finish', exit)
+  const inputs: SDKUserMessage[] = []
   let buffer = ''
   stdin.on('data', (chunk) => {
     buffer += chunk.toString()
@@ -81,6 +81,7 @@ export async function wireFixture() {
       const index = buffer.indexOf('\n')
       const frame = JSON.parse(buffer.slice(0, index))
       buffer = buffer.slice(index + 1)
+      if (frame.type === 'user') inputs.push(frame)
       if (frame.type === 'control_request') {
         stdout.write(
           JSON.stringify({
@@ -95,6 +96,19 @@ export async function wireFixture() {
       }
     }
   })
+  return {
+    process,
+    inputs,
+    exit,
+    send: (message: SDKMessage) => stdout.write(JSON.stringify(message) + '\n'),
+    fail: (error: Error) => stdout.destroy(error)
+  }
+}
+
+/** Replays native wire races through the real SDK transport and the public adapter. */
+export async function wireFixture() {
+  const directory = await mkdtemp(join(tmpdir(), 'cherry-claude-wire-'))
+  const { process, send, exit } = wireProcess()
   const failures: unknown[] = []
   const runtime = createClaudeCodeRuntime({
     backendId: runtimeId<'backend'>('wire'),
@@ -105,7 +119,6 @@ export async function wireFixture() {
   const view = await observe(root)
   await root.input!.submit({ inputId: inputId(), text: 'Start wire replay', whenBusy: 'steer' })
   const sessionId = root.claude.sessionId
-  const send = (message: SDKMessage) => stdout.write(JSON.stringify(message) + '\n')
   return {
     root,
     runtime,

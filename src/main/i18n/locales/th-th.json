@@ -79,6 +79,7 @@
   "common.channel_message_processing_error": "⚠️ เกิดข้อผิดพลาดในการประมวลผลข้อความของคุณ โปรดลองอีกครั้งภายหลัง",
   "common.channel_new_session_created": "สร้างเซสชันใหม่แล้ว",
   "common.channel_no_active_session": "ไม่มีเซสชันที่ใช้งานอยู่",
+  "common.channel_processing": "กำลังดำเนินการ…",
   "common.channel_session_compacted": "บีบอัดเซสชันแล้ว",
   "common.channel_session_resolution_error": "⚠️ ไม่สามารถแก้ไขเซสชันสำหรับเอเจนต์นี้ได้ โปรดลองอีกครั้งภายหลัง",
   "common.channel_stopped": "หยุดแล้ว",

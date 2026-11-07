@@ -223,7 +223,6 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
       unsubscribe()
       void ipcApi.request('mcp.request.cancel', { requestId }).catch(() => undefined)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Effect events read current values without resubscribing.
   }, [serverId, server.isActive])
 
   useEffect(() => {
@@ -418,7 +417,6 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     })
 
     autoEnableProtocolServer()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest server and toggle handler without resubscribing.
   }, [navigate, search.autoEnable, server])
 
   // Handle toggling a tool on/off
