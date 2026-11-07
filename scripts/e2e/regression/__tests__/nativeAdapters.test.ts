@@ -16,7 +16,14 @@ import { join } from 'node:path'
 
 import { ensureRunDirectories, getRunPaths } from '../paths'
 import { CDP_PORT, isAlive, processCommand, waitForExit } from '../process'
-import { chooseNativeFile, chooseWindowsNativeFiles, saveNativeFile } from '../systemAutomation'
+import {
+  chooseNativeFile,
+  chooseWindowsNativeFiles,
+  dismissNativeMessageBox,
+  readWindowsPrintDialog,
+  saveNativeFile,
+  saveNativeFileKeepingName
+} from '../systemAutomation'
 import { readWindowsFileOwners } from '../windowsFileOwners'
 import { listWindowsCodeTerminals, windowsTerminalText } from '../windowsTerminal'
 
@@ -49,9 +56,9 @@ it.skipIf(process.platform !== 'win32')('reports the real owner only while its f
   }
 })
 
-it.skipIf(process.platform !== 'win32')(
-  'reads and types through the owned native console',
-  async () => {
+it.skipIf(process.platform !== 'win32').each([false, true])(
+  'reads and types through the owned native console (nested shell: %s)',
+  async (nested) => {
     const directory = mkdtempSync(join(tmpdir(), 'cherry-native-console-'))
     const paths = getRunPaths(directory)
     ensureRunDirectories(paths)
@@ -67,7 +74,7 @@ it.skipIf(process.platform !== 'win32')(
           '-NoProfile',
           '-NonInteractive',
           '-Command',
-          `Start-Process -FilePath cmd.exe -ArgumentList '/c ""${batch.replaceAll("'", "''")}""' -WindowStyle Normal`
+          `Start-Process -FilePath cmd.exe -ArgumentList '${nested ? '/c cmd.exe /c' : '/c'} ""${batch.replaceAll("'", "''")}""' -WindowStyle Normal`
         ],
         { timeout: 10_000 }
       )
@@ -93,12 +100,12 @@ it.skipIf(process.platform !== 'win32')(
 const nativePlatform = process.platform === 'darwin' ? 'macos' : 'windows'
 const dialogModes =
   process.platform === 'darwin'
-    ? (['file', 'directory', 'save'] as const)
-    : (['file', 'multiple', 'directory', 'save'] as const)
+    ? (['file', 'directory', 'save', 'save-suggested'] as const)
+    : (['file', 'multiple', 'directory', 'save', 'save-suggested', 'print'] as const)
 
 // Verify Electron's returned paths after actual native selection and filename commit.
 it.skipIf(!['darwin', 'win32'].includes(process.platform)).each(dialogModes)(
-  `selects the requested path through the real ${nativePlatform} %s dialog`,
+  `completes the real ${nativePlatform} %s dialog`,
   async (mode) => {
     const directory = mkdtempSync(join(tmpdir(), 'cherry-native-dialog-'))
     const paths = getRunPaths(directory)
@@ -113,6 +120,13 @@ it.skipIf(!['darwin', 'win32'].includes(process.platform)).each(dialogModes)(
       const folder = join(paths.fixtures, 'chosen folder')
       mkdirSync(folder)
       const saved = join(paths.private, 'requested output.txt')
+      const isSave = mode === 'save' || mode === 'save-suggested'
+      const dialogCall =
+        mode === 'print'
+          ? 'await new Promise(resolve => window.webContents.print({}, (success, failureReason) => resolve({ success, failureReason })))'
+          : isSave
+            ? `await dialog.showSaveDialog(${nativePlatform === 'windows' ? 'window, ' : ''}${JSON.stringify({ defaultPath: join(paths.profiles, 'suggested.txt'), ...(mode === 'save' ? { filters: [{ name: 'Text', extensions: ['txt'] }] } : {}) })})`
+            : `await dialog.showOpenDialog(${nativePlatform === 'windows' ? 'window, ' : ''}{ properties: ${JSON.stringify(mode === 'directory' ? ['openDirectory'] : mode === 'multiple' ? ['openFile', 'multiSelections'] : ['openFile'])} })`
       const resultPath = join(paths.private, 'result.json')
       const readyPath = join(paths.private, 'ready')
       writeFileSync(
@@ -128,11 +142,7 @@ it.skipIf(!['darwin', 'win32'].includes(process.platform)).each(dialogModes)(
         window.show()
         app.focus({ steal: true })
         fs.writeFileSync(${JSON.stringify(readyPath)}, 'ready')
-        const result = ${
-          mode === 'save'
-            ? `await dialog.showSaveDialog(${nativePlatform === 'windows' ? 'window, ' : ''}{ defaultPath: ${JSON.stringify(join(paths.private, 'suggested.txt'))}, filters: [{name: 'Text', extensions: ['txt']}] })`
-            : `await dialog.showOpenDialog(${nativePlatform === 'windows' ? 'window, ' : ''}{ properties: ${JSON.stringify(mode === 'directory' ? ['openDirectory'] : mode === 'multiple' ? ['openFile', 'multiSelections'] : ['openFile'])} })`
-        }
+        const result = ${dialogCall}
         if (result.filePath && !result.canceled) {
           if (fs.realpathSync.native(require('node:path').dirname(result.filePath)) !== fs.realpathSync.native(${JSON.stringify(paths.private)})) throw new Error('Native fixture save escaped its private directory: ' + result.filePath)
           fs.writeFileSync(result.filePath, 'Verified native save', { flag: 'wx' })
@@ -169,14 +179,25 @@ it.skipIf(!['darwin', 'win32'].includes(process.platform)).each(dialogModes)(
       if (mode === 'multiple') chooseWindowsNativeFiles(paths, inputs)
       else if (mode === 'save')
         expect(realpathSync.native(await saveNativeFile(nativePlatform, paths, saved))).toBe(realpathSync.native(saved))
-      else chooseNativeFile(nativePlatform, paths, mode === 'directory' ? folder : inputs[0])
+      else if (mode === 'save-suggested') {
+        const outcome = await saveNativeFileKeepingName(nativePlatform, paths, saved, true)
+        expect(realpathSync.native(outcome.filePath)).toBe(realpathSync.native(join(paths.private, 'suggested.txt')))
+      } else if (mode === 'print') {
+        await expect.poll(() => readWindowsPrintDialog(paths)).toContain('Cancel')
+        await dismissNativeMessageBox(nativePlatform, paths, 'Print', 'Cancel')
+      } else chooseNativeFile(nativePlatform, paths, mode === 'directory' ? folder : inputs[0])
       await expect.poll(() => existsSync(resultPath), { timeout: 10_000 }).toBe(true)
       const result = JSON.parse(readFileSync(resultPath, 'utf8'))
-      expect(result.canceled).toBe(false)
-      if (mode === 'save') {
-        expect(realpathSync.native(result.filePath)).toBe(realpathSync.native(saved))
-        expect(readFileSync(saved, 'utf8')).toBe('Verified native save')
+      if (mode === 'print') {
+        expect(result.success).toBe(false)
+        expect(result.failureReason).toMatch(/cancel/i)
+      } else if (isSave) {
+        expect(result.canceled).toBe(false)
+        const expected = mode === 'save-suggested' ? join(paths.private, 'suggested.txt') : saved
+        expect(realpathSync.native(result.filePath)).toBe(realpathSync.native(expected))
+        expect(readFileSync(expected, 'utf8')).toBe('Verified native save')
       } else {
+        expect(result.canceled).toBe(false)
         expect(result.filePaths.map((file: string) => realpathSync.native(file)).sort()).toEqual(
           (mode === 'multiple' ? inputs : [mode === 'directory' ? folder : inputs[0]])
             .map((file) => realpathSync.native(file))

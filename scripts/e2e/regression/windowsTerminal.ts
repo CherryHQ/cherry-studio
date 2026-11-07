@@ -10,7 +10,9 @@ export interface WindowsTerminal {
 export function listWindowsCodeTerminals(paths: RunPaths): WindowsTerminal[] {
   const script = [
     `$root = '${paths.root.replaceAll("'", "''")}'`,
-    `$rows = @(Get-CimInstance Win32_Process -Filter "Name = 'cmd.exe'" | Where-Object { $_.CommandLine -and $_.CommandLine.IndexOf($root, [StringComparison]::OrdinalIgnoreCase) -ge 0 -and $_.CommandLine.Contains('launch_claude-code_') } | ForEach-Object { @{ pid = [int]$_.ProcessId; startedAt = $_.CreationDate.ToUniversalTime().Ticks.ToString() } })`,
+    `$candidates = @(Get-CimInstance Win32_Process -Filter "Name = 'cmd.exe'" | Where-Object { $_.CommandLine -and $_.CommandLine.IndexOf($root, [StringComparison]::OrdinalIgnoreCase) -ge 0 -and $_.CommandLine.Contains('launch_claude-code_') })`,
+    '$candidateIds = @($candidates | ForEach-Object { $_.ProcessId })',
+    '$rows = @($candidates | Where-Object { $_.ParentProcessId -notin $candidateIds } | ForEach-Object { @{ pid = [int]$_.ProcessId; startedAt = $_.CreationDate.ToUniversalTime().Ticks.ToString() } })',
     'ConvertTo-Json -InputObject $rows -Compress'
   ].join('; ')
   return JSON.parse(
