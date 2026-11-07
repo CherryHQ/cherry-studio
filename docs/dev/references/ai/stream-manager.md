@@ -3,8 +3,6 @@ description: AiStreamManager active-stream registry — listener fan-out, reconn
 sources:
   - src/main/ai/streamManager/AiStreamManager.ts
   - src/main/ai/streamManager/pipeStreamLoop.ts
-  - src/main/ai/streamManager/pipeMessageStream.ts
-  - src/main/ai/streamManager/startupDeadline.ts
   - src/main/ai/streamManager/context
 ---
 

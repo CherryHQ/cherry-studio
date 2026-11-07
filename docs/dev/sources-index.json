@@ -123,7 +123,7 @@
     },
     {
       "path": "docs/dev/references/ai/stream-manager.md",
-      "sources": ["src/main/ai/streamManager/AiStreamManager.ts","src/main/ai/streamManager/context","src/main/ai/streamManager/pipeMessageStream.ts","src/main/ai/streamManager/pipeStreamLoop.ts","src/main/ai/streamManager/startupDeadline.ts"]
+      "sources": ["src/main/ai/streamManager/AiStreamManager.ts","src/main/ai/streamManager/context","src/main/ai/streamManager/pipeStreamLoop.ts"]
     },
     {
       "path": "docs/dev/references/ai/tool-approval.md",
