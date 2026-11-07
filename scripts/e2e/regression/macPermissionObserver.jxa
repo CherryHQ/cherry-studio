@@ -1,0 +1,76 @@
+ObjC.import('Foundation')
+function run(argv) {
+  const environment = $.NSProcessInfo.processInfo.environment
+  const read = (key) => ObjC.unwrap(environment.objectForKey(key))
+  if (read('GITHUB_ACTIONS') !== 'true' || read('RUNNER_ENVIRONMENT') !== 'github-hosted')
+    throw new Error('Disposable hosted runner required')
+  if (argv.length !== 1 || !read('RUNNER_TEMP')) throw new Error('Initialized run directory required')
+  const root = ObjC.unwrap($(argv[0]).stringByResolvingSymlinksInPath)
+  const temporary = ObjC.unwrap($(read('RUNNER_TEMP')).stringByResolvingSymlinksInPath)
+  if (!root.startsWith(temporary + '/')) throw new Error('Run directory must be below RUNNER_TEMP')
+  if (!$.NSFileManager.defaultManager.fileExistsAtPath(root + '/run.json'))
+    throw new Error('Initialized run directory required')
+  const events = Application('System Events')
+  const processes = [
+    'UserNotificationCenter',
+    'CoreServicesUIAgent',
+    'Terminal',
+    'SystemUIServer',
+    'SecurityAgent',
+    'hosted-compute-agent'
+  ]
+  const stop = root + '/state/stop-ci-permissions'
+  const deadline = Date.now() + 6 * 60 * 60 * 1000
+  const value = (read, fallback) => {
+    try {
+      return read()
+    } catch (_) {
+      return fallback
+    }
+  }
+  while (Date.now() < deadline && !$.NSFileManager.defaultManager.fileExistsAtPath(stop)) {
+    for (const name of processes) {
+      for (const process of value(() => events.processes.whose({ name })(), [])) {
+        for (const window of value(() => process.windows(), [])) {
+          const text = [value(() => window.name(), '')]
+          const buttons = []
+          let visited = 0
+          const collect = (element, depth) => {
+            if (++visited > 300 || depth > 10) return
+            const role = value(() => element.role(), '')
+            if (role === 'AXStaticText') text.push(value(() => String(element.value()), ''))
+            if (role === 'AXButton') buttons.push(element)
+            if (role !== 'AXTextArea' && role !== 'AXWebArea')
+              for (const child of value(() => element.uiElements(), [])) collect(child, depth + 1)
+          }
+          collect(window, 0)
+          const message = text.join(' ').replace(/\s+/g, ' ')
+          const requester = /[“"](?:hosted-compute-[^”"\n]*|osascript|Cherry Studio E2E [a-f0-9]+)[”"]/i.test(message)
+          const localNetwork = /find (?:devices|and communicate with devices) on (?:your )?local networks/i.test(
+            message
+          )
+          const terminalAutomation = /(?:access to )?control [“"](?:Terminal|System Events)[”"]/i.test(message)
+          if (!requester || (!localNetwork && !terminalAutomation)) continue
+          const button = buttons.find((button) => ['Allow', 'OK'].includes(value(() => button.name(), '')))
+          if (button) {
+            button.click()
+            $(
+              JSON.stringify({
+                at: Date.now(),
+                permission: localNetwork ? 'local-network' : 'terminal-automation',
+                process: name
+              })
+            ).writeToFileAtomicallyEncodingError(
+              root + '/logs/ci-permission-' + Date.now() + '.json',
+              true,
+              $.NSUTF8StringEncoding,
+              null
+            )
+            delay(0.3)
+          }
+        }
+      }
+    }
+    delay(0.5)
+  }
+}

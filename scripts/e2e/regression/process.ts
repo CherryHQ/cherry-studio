@@ -33,7 +33,7 @@ export function processCommand(pid: number, platform: Platform): string {
             '-Command',
             `(Get-CimInstance Win32_Process -Filter "ProcessId = ${pid}").CommandLine`
           ],
-          { encoding: 'utf8', timeout: 10_000 }
+          { encoding: 'utf8', timeout: 10_000, windowsHide: true }
         ).trim()
       : execFileSync('ps', ['-o', 'command=', '-p', String(pid)], { encoding: 'utf8', timeout: 10_000 }).trim()
   } catch {
@@ -51,7 +51,7 @@ export function windowsProcessExecutablePath(pid: number): string {
         '-Command',
         `(Get-CimInstance Win32_Process -Filter "ProcessId = ${pid}").ExecutablePath`
       ],
-      { encoding: 'utf8', timeout: 10_000 }
+      { encoding: 'utf8', timeout: 10_000, windowsHide: true }
     ).trim()
   } catch {
     return ''
@@ -208,7 +208,7 @@ function getParentPid(pid: number, platform: Platform): number | undefined {
               '-Command',
               `(Get-CimInstance Win32_Process -Filter "ProcessId = ${pid}").ParentProcessId`
             ],
-            { encoding: 'utf8', timeout: 10_000 }
+            { encoding: 'utf8', timeout: 10_000, windowsHide: true }
           )
         : execFileSync('ps', ['-o', 'ppid=', '-p', String(pid)], { encoding: 'utf8', timeout: 10_000 })
     const parent = Number(output.trim())
@@ -239,7 +239,7 @@ export function findListeningPid(platform: Platform, port: number): number | und
               '-Command',
               `(Get-NetTCPConnection -LocalPort ${port} -State Listen | Select-Object -First 1 -ExpandProperty OwningProcess)`
             ],
-            { encoding: 'utf8', timeout: 10_000 }
+            { encoding: 'utf8', timeout: 10_000, windowsHide: true }
           )
         : execFileSync('lsof', ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN', '-t'], {
             encoding: 'utf8',

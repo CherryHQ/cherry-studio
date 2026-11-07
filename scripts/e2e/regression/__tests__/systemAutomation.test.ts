@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { PassThrough } from 'node:stream'
 
 import { vi } from 'vitest'
 
@@ -181,7 +182,7 @@ it('allows native saves under the private root so unredacted artifacts stay out 
   expect(existsSync(join(paths.private, 'downloads'))).toBe(true)
 })
 
-it('serves fixture images while waiting for the native save dialog', async () => {
+it('serves fixture images during a native save without exceeding the Windows command limit', async () => {
   const { paths } = nativeFixture()
   execFileSync.mockImplementation((_file, args) => {
     const script = args.at(-1)!
@@ -197,16 +198,29 @@ it('serves fixture images while waiting for the native save dialog', async () =>
   server.listen(0, '127.0.0.1')
   await once(server, 'listening')
   const address = server.address() as { port: number }
-  execFile.mockImplementation((_file, _args, _options, callback) => {
-    void fetch(`http://127.0.0.1:${address.port}`)
-      .then(async (response) => {
-        expect(await response.text()).toBe('fixture image')
-        callback(null)
-      })
-      .catch(callback)
+  const output = join(paths.evidence, '导出 report.png')
+  execFile.mockImplementation((_file, args, _options, callback) => {
+    const stdin = new PassThrough()
+    if (args.join(' ').length > 32767) {
+      queueMicrotask(() =>
+        callback(Object.assign(new Error('Windows command line too long'), { code: 'ENAMETOOLONG' }))
+      )
+      return { stdin }
+    }
+    let input = ''
+    stdin.on('data', (chunk) => (input += chunk.toString()))
+    stdin.once('finish', () => {
+      void fetch(`http://127.0.0.1:${address.port}`)
+        .then(async (response) => {
+          expect(Buffer.from(input, 'base64').toString('utf16le')).toContain(output)
+          expect(await response.text()).toBe('fixture image')
+          callback(null, output)
+        })
+        .catch(callback)
+    })
+    return { stdin }
   })
   try {
-    const output = join(paths.evidence, 'export.png')
     await expect(automation.saveNativeFile('windows', paths, output)).resolves.toBe(output)
     expect(served).toBe(true)
   } finally {

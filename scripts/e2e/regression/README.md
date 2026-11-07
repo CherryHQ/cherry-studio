@@ -18,6 +18,7 @@ The separate [on-demand QA controller](../ondemand/README.md) reuses the ref, in
 | `process.ts` | OS process identity, ancestry, ports, and termination |
 | `debugBridge.ts`, `cdpClient.ts` | Explicit main-process debug operations and HTTP callback delivery |
 | `systemAutomation.ts` | Native dialogs and notifications, external text selection, and keyboard input |
+| `macPermissionObserver.jxa` | Scoped OS permission prerequisites on disposable hosted macOS runners |
 | `RegressionReporter.ts` | Playwright result adapter and run-state updates |
 | `RedactionReporter.ts` | Redact configured credentials before other Playwright reporters serialize steps and errors |
 | `state.ts`, `report.ts` | Run state, platform/aggregate verdicts, and human-readable reports |
@@ -126,6 +127,15 @@ Only one phase writes a platform's run state at a time; keep `workers: 1` and se
 The macOS and Windows jobs run in parallel; each platform keeps its own isolated run directory.
 The native-adapter gate runs after run-state initialization and stores its JSON
 results in the platform report, so an adapter failure still produces blocked-case evidence.
+On macOS, the workflow observes known runner and isolated-app requests for local-network access
+and Terminal/System Events automation. The observer requires a GitHub-hosted environment and an
+initialized directory below `RUNNER_TEMP`, records permission kinds and system process names,
+and stops before app cleanup within the job's six-hour limit.
+Windows notification checks open the real notification center and identify its foreground window by
+native class, caption and shell process before obtaining its UIA tree from the window handle.
+Notification clicks still use the actual visible notification and must return to the completed topic.
+Windows process-identity queries hide their consoles so ownership checks do not steal native-dialog focus.
+The save adapter sends its Unicode script through standard input, avoiding the Windows command-line limit.
 Test names and generated report text use English. External errors and captured application content retain their original language. Keep `RedactionReporter.ts` first when selecting custom reporters so configured credentials are removed from steps and errors before JSON, HTML and blob serialization.
 
 Capability requirements belong to cases. Missing required capabilities skip execution with an explicit reason and are recorded as blocked, never passed.

@@ -204,6 +204,17 @@ jobs:
           --task "$TEST_TASK"
           --provider-mode "${{ inputs.provider_mode }}"
 
+      - name: Start disposable macOS permission observer
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: |
+          umask 077
+          mkdir -p "$RUN_DIR/state"
+          nohup osascript -l JavaScript scripts/e2e/regression/macPermissionObserver.jxa "$RUN_DIR" > "$RUN_DIR/logs/ci-native-permissions.log" 2>&1 < /dev/null &
+          echo "$!" > "$RUN_DIR/state/ci-native-permissions.pid"
+          sleep 1
+          kill -0 "$(cat "$RUN_DIR/state/ci-native-permissions.pid")"
+
       - name: Validate native controller adapters
         shell: bash
         run: >-
@@ -556,6 +567,26 @@ jobs:
           for name in "${names[@]}"; do
             echo "$name=" >> "$GITHUB_ENV"
           done
+
+      - name: Stop disposable macOS permission observer
+        if: always() && matrix.platform == 'macos'
+        shell: bash
+        run: |
+          [[ -n "${RUN_DIR:-}" && -d "$RUN_DIR/state" ]] || exit 0
+          touch "$RUN_DIR/state/stop-ci-permissions"
+          if [[ -f "$RUN_DIR/state/ci-native-permissions.pid" ]]; then
+            observer_pid=$(cat "$RUN_DIR/state/ci-native-permissions.pid")
+            [[ "$observer_pid" =~ ^[1-9][0-9]*$ ]] || exit 1
+            for attempt in {1..15}; do
+              kill -0 "$observer_pid" 2>/dev/null || break
+              sleep 1
+            done
+            if kill -0 "$observer_pid" 2>/dev/null; then
+              observer_command=$(ps -p "$observer_pid" -o command=)
+              [[ "$observer_command" == *"scripts/e2e/regression/macPermissionObserver.jxa $RUN_DIR"* ]] || exit 1
+              kill "$observer_pid"
+            fi
+          fi
 
       - name: Stop controlled application
         id: stop-app

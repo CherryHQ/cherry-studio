@@ -15,7 +15,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { ensureRunDirectories, getRunPaths } from '../paths'
-import { CDP_PORT, isAlive, processCommand, waitForExit } from '../process'
+import { CDP_PORT, isAlive, processCommand } from '../process'
 import {
   chooseNativeFile,
   chooseNativeFiles,
@@ -122,7 +122,7 @@ it.skipIf(!['darwin', 'win32'].includes(process.platform)).each(dialogModes)(
       for (const input of inputs) writeFileSync(input, 'Owned native input')
       const folder = join(paths.fixtures, 'chosen folder')
       mkdirSync(folder)
-      const saved = join(paths.private, 'requested output.txt')
+      const saved = join(paths.private, 'requested output 输入.txt')
       const isSave = mode === 'save' || mode === 'save-suggested'
       const dialogCall =
         mode === 'print'
@@ -304,16 +304,26 @@ it.skipIf(!['darwin', 'win32'].includes(process.platform)).each(dialogModes)(
         { cause: error }
       )
     } finally {
-      if (child?.pid && child.exitCode === null && isAlive(child.pid)) {
-        expect(processCommand(child.pid, nativePlatform), 'Native dialog fixture ownership changed').toContain(script)
-        child.stdin?.once('error', () => undefined)
-        child.stdin?.end('quit\n')
-        if (!(await waitForExit(child.pid, 5_000))) {
-          expect(processCommand(child.pid, nativePlatform), 'Native dialog fixture ownership changed').toContain(script)
+      const fixture = child
+      if (fixture?.pid && fixture.exitCode === null && fixture.signalCode === null) {
+        const exited = () => fixture.exitCode !== null || fixture.signalCode !== null
+        fixture.stdin?.once('error', () => undefined)
+        fixture.stdin?.end('quit\n')
+        const stopped = await expect
+          .poll(exited, { timeout: 5000 })
+          .toBe(true)
+          .then(
+            () => true,
+            () => false
+          )
+        if (!stopped) {
+          expect(processCommand(fixture.pid, nativePlatform), 'Native dialog fixture ownership changed').toContain(
+            script
+          )
           if (nativePlatform === 'windows')
-            execFileSync('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore', timeout: 10_000 })
-          else child.kill('SIGTERM')
-          expect(await waitForExit(child.pid), 'Owned native dialog fixture did not exit').toBe(true)
+            execFileSync('taskkill.exe', ['/PID', String(fixture.pid), '/T', '/F'], { stdio: 'ignore', timeout: 10000 })
+          else fixture.kill('SIGTERM')
+          await expect.poll(exited, { timeout: 10000 }).toBe(true)
         }
       }
       if (logHandle !== undefined) closeSync(logHandle)
