@@ -12,9 +12,11 @@ import { tagService } from '@data/services/TagService'
 import type { TagSchemas } from '@shared/data/api/schemas/tags'
 import {
   CreateTagSchema,
+  ListEntityTagsQuerySchema,
   SetTagEntitiesSchema,
   SyncEntityTagsSchema,
   TagIdSchema,
+  UpdateEntityTagsDeltaSchema,
   UpdateTagSchema
 } from '@shared/data/api/schemas/tags'
 import type { HandlersFor } from '@shared/data/api/types'
@@ -29,6 +31,13 @@ export const tagHandlers: HandlersFor<TagSchemas> = {
     POST: async ({ body }) => {
       const parsed = CreateTagSchema.parse(body)
       return tagService.create(parsed)
+    }
+  },
+
+  '/entity-tags': {
+    GET: async ({ query }) => {
+      const parsed = ListEntityTagsQuerySchema.parse(query)
+      return tagService.listBindingsByEntityType(parsed.entityType)
     }
   },
 
@@ -72,6 +81,14 @@ export const tagHandlers: HandlersFor<TagSchemas> = {
       const entityId = EntityIdSchema.parse(params.entityId)
       const parsed = SyncEntityTagsSchema.parse(body)
       tagService.syncEntityTags(entityType, entityId, parsed)
+      return undefined
+    },
+
+    PATCH: async ({ params, body }) => {
+      const entityType = EntityTypeSchema.parse(params.entityType)
+      const entityId = EntityIdSchema.parse(params.entityId)
+      const parsed = UpdateEntityTagsDeltaSchema.parse(body)
+      tagService.applyEntityTagDelta(entityType, entityId, parsed)
       return undefined
     }
   }

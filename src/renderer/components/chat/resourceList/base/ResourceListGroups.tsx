@@ -122,9 +122,20 @@ export function SectionHeader({ section, className, ref, style, ...props }: Sect
           aria-expanded={!collapsed}
           className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit outline-none"
           onClick={() => actions.toggleGroup(section.id)}>
+          {section.color && (
+            <span
+              aria-hidden="true"
+              data-testid="resource-list-section-color"
+              className="size-2 shrink-0 rounded-full"
+              style={{ backgroundColor: section.color }}
+            />
+          )}
           <span className={cn('min-w-0 truncate text-left text-inherit', RESOURCE_LIST_LABEL_CLASS)}>
             {section.label}
           </span>
+          {section.showCount && section.count !== undefined && (
+            <span className="shrink-0 text-muted-foreground text-xs tabular-nums">({section.count})</span>
+          )}
           <ChevronRight
             aria-hidden="true"
             size={14}

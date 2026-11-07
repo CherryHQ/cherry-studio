@@ -178,7 +178,7 @@ function buildVirtualGroups<T extends ResourceListItemBase>(
   }
 
   if (view.sections.length > 0) {
-    const showSectionHeaders = view.sections.length > 1
+    const showSectionHeaders = view.sections.length > 1 || view.sections.some(({ section }) => section.alwaysShowHeader)
 
     for (const section of view.sections) {
       if (showSectionHeaders) {

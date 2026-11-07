@@ -54,7 +54,19 @@ const agentDataMocks = vi.hoisted(() => ({
   refetchAgents: vi.fn(),
   restoreAgent: vi.fn(),
   restoreSession: vi.fn(),
-  toggleAgentPin: vi.fn()
+  toggleAgentPin: vi.fn(),
+  syncAgentTags: vi.fn(),
+  updateAgentTagsDelta: vi.fn(),
+  refetchBindings: vi.fn(),
+  prompt: vi.fn(),
+  createTag: vi.fn(),
+  tagsLoading: false,
+  tagsError: undefined as Error | undefined,
+  tags: [
+    { id: 'tag-coding', name: 'Coding', color: '#ff0000' },
+    { id: 'tag-research', name: 'Research', color: null }
+  ],
+  tagsByEntityId: new Map<string, { id: string; name: string; color: string | null }[]>()
 }))
 
 const recycleBinFeedbackMocks = vi.hoisted(() => ({
@@ -331,6 +343,21 @@ vi.mock('@renderer/hooks/usePins', () => ({
   })
 }))
 
+vi.mock('@renderer/components/popups/PromptPopup', () => ({ default: { show: agentDataMocks.prompt } }))
+
+vi.mock('@renderer/hooks/useTags', () => ({
+  useEntityTags: () => ({
+    isLoading: agentDataMocks.tagsLoading,
+    error: agentDataMocks.tagsError,
+    tags: agentDataMocks.tags,
+    tagsByEntityId: agentDataMocks.tagsByEntityId,
+    createTag: agentDataMocks.createTag,
+    syncEntityTags: agentDataMocks.syncAgentTags,
+    updateEntityTagsDelta: agentDataMocks.updateAgentTagsDelta,
+    refetchBindings: agentDataMocks.refetchBindings
+  })
+}))
+
 vi.mock('@renderer/hooks/tab', () => ({
   useCloseConversationTabs: () => tabsContextMocks.closeConversationTabs
 }))
@@ -552,6 +579,21 @@ describe('classic layout entity resource list actions', () => {
     agentDataMocks.getActiveResource.mockClear()
     agentDataMocks.toggleAgentPin.mockResolvedValue(undefined)
     agentDataMocks.toggleAgentPin.mockClear()
+    agentDataMocks.syncAgentTags.mockResolvedValue(undefined)
+    agentDataMocks.syncAgentTags.mockClear()
+    agentDataMocks.updateAgentTagsDelta.mockReset()
+    agentDataMocks.updateAgentTagsDelta.mockResolvedValue(undefined)
+    agentDataMocks.refetchBindings.mockReset()
+    agentDataMocks.refetchBindings.mockImplementation(async () =>
+      [...agentDataMocks.tagsByEntityId.entries()].flatMap(([entityId, tags]) =>
+        tags.map((tag) => ({ entityId, tagId: tag.id }))
+      )
+    )
+    agentDataMocks.prompt.mockReset()
+    agentDataMocks.createTag.mockReset()
+    agentDataMocks.tagsLoading = false
+    agentDataMocks.tagsError = undefined
+    agentDataMocks.tagsByEntityId = new Map()
     tabsContextMocks.closeConversationTabs.mockClear()
     loggerMocks.error.mockClear()
     loggerMocks.info.mockClear()
@@ -1246,6 +1288,249 @@ describe('classic layout entity resource list actions', () => {
     expect(screen.getByRole('region', { name: 'agent.session.group.unknown_agent' })).toBeInTheDocument()
   })
 
+  it.each(['loading', 'error'])('disables tag changes while association data is %s', async (state) => {
+    agentDataMocks.tagsLoading = state === 'loading'
+    agentDataMocks.tagsError = state === 'error' ? new Error('bindings failed') : undefined
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        agentSessionsSource={createAgentSessionsSource()}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+      />
+    )
+    const menu = within(screen.getByTestId('agent-1-context-menu'))
+    expect(menu.getByRole('button', { name: 'Research' })).toBeDisabled()
+    expect(menu.getByRole('button', { name: 'agent.tags.new' })).toBeDisabled()
+    expect(agentDataMocks.syncAgentTags).not.toHaveBeenCalled()
+  })
+
+  it('does not create or replace tags when bindings fail while the prompt is open', async () => {
+    let resolvePrompt!: (name: string) => void
+    agentDataMocks.prompt.mockReturnValue(
+      new Promise<string>((resolve) => {
+        resolvePrompt = resolve
+      })
+    )
+    const props = {
+      activeAgentId: 'agent-1',
+      agentSessionsSource: createAgentSessionsSource(),
+      onSelectSession: vi.fn(),
+      onCreateSession: vi.fn(),
+      onShowMissingAgentSelection: vi.fn()
+    }
+    const { rerender } = render(<AgentResourceList {...props} />)
+    await userEvent.click(
+      within(screen.getByTestId('agent-1-context-menu')).getByRole('button', { name: 'agent.tags.new' })
+    )
+    agentDataMocks.tagsError = new Error('bindings failed')
+    rerender(<AgentResourceList {...props} />)
+    resolvePrompt('New tag')
+    await waitFor(() => expect(agentDataMocks.prompt).toHaveBeenCalled())
+    expect(agentDataMocks.createTag).not.toHaveBeenCalled()
+    expect(agentDataMocks.syncAgentTags).not.toHaveBeenCalled()
+    expect(agentDataMocks.updateAgentTagsDelta).not.toHaveBeenCalled()
+  })
+
+  it('uses the latest bindings after creating an inline tag', async () => {
+    agentDataMocks.prompt.mockResolvedValue('New tag')
+    let resolveTag!: (tag: { id: string }) => void
+    agentDataMocks.createTag.mockReturnValue(
+      new Promise((resolve) => {
+        resolveTag = resolve
+      })
+    )
+    const props = {
+      activeAgentId: 'agent-1',
+      agentSessionsSource: createAgentSessionsSource(),
+      onSelectSession: vi.fn(),
+      onCreateSession: vi.fn(),
+      onShowMissingAgentSelection: vi.fn()
+    }
+    const { rerender } = render(<AgentResourceList {...props} />)
+    await userEvent.click(
+      within(screen.getByTestId('agent-1-context-menu')).getByRole('button', { name: 'agent.tags.new' })
+    )
+    await waitFor(() => expect(agentDataMocks.createTag).toHaveBeenCalled())
+    agentDataMocks.tagsByEntityId = new Map([['agent-1', [agentDataMocks.tags[1]]]])
+    rerender(<AgentResourceList {...props} />)
+    resolveTag({ id: 'new-tag' })
+    await waitFor(() =>
+      expect(agentDataMocks.updateAgentTagsDelta).toHaveBeenCalledWith('agent-1', { add: ['new-tag'], remove: [] })
+    )
+    expect(agentDataMocks.syncAgentTags).not.toHaveBeenCalled()
+  })
+
+  it('adds and removes an agent tag inline through the tags submenu', async () => {
+    const user = userEvent.setup()
+    agentDataMocks.tagsByEntityId = new Map([['agent-1', [agentDataMocks.tags[0]]]])
+
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        agentSessionsSource={createAgentSessionsSource()}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+      />
+    )
+
+    const menu = within(screen.getByTestId('agent-1-context-menu'))
+    await user.click(menu.getByRole('button', { name: 'Research' }))
+    await waitFor(() =>
+      expect(agentDataMocks.updateAgentTagsDelta).toHaveBeenCalledWith('agent-1', {
+        add: ['tag-research'],
+        remove: []
+      })
+    )
+    await waitFor(() => expect(menu.getByRole('button', { name: 'Coding' })).toBeEnabled())
+
+    await user.click(menu.getByRole('button', { name: 'Coding' }))
+    await waitFor(() =>
+      expect(agentDataMocks.updateAgentTagsDelta).toHaveBeenLastCalledWith('agent-1', {
+        add: [],
+        remove: ['tag-coding']
+      })
+    )
+    expect(agentDataMocks.syncAgentTags).not.toHaveBeenCalled()
+  })
+
+  it('keeps agent tag actions disabled until the sync settles and applies the next toggle to refreshed bindings', async () => {
+    const user = userEvent.setup()
+    agentDataMocks.tagsByEntityId = new Map([['agent-1', [agentDataMocks.tags[0]]]])
+
+    let resolveSync!: () => void
+    agentDataMocks.updateAgentTagsDelta.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSync = resolve
+        })
+    )
+
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        agentSessionsSource={createAgentSessionsSource()}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+      />
+    )
+
+    const menu = () => within(screen.getByTestId('agent-1-context-menu'))
+    await user.click(menu().getByRole('button', { name: 'Research' }))
+    await waitFor(() =>
+      expect(agentDataMocks.updateAgentTagsDelta).toHaveBeenCalledWith('agent-1', {
+        add: ['tag-research'],
+        remove: []
+      })
+    )
+
+    // While the sync and its bindings refresh are in flight, this agent's tag actions are disabled.
+    await waitFor(() => expect(menu().getByRole('button', { name: 'Coding' })).toBeDisabled())
+    expect(menu().getByRole('button', { name: 'Research' })).toBeDisabled()
+    expect(menu().getByRole('button', { name: 'agent.tags.new' })).toBeDisabled()
+
+    // The sync lands and the refreshed bindings now include Research.
+    agentDataMocks.tagsByEntityId = new Map([['agent-1', [agentDataMocks.tags[0], agentDataMocks.tags[1]]]])
+    resolveSync()
+    await waitFor(() => expect(menu().getByRole('button', { name: 'Coding' })).toBeEnabled())
+
+    // Removing Coding submits only that removal, so Research survives.
+    await user.click(menu().getByRole('button', { name: 'Coding' }))
+    await waitFor(() =>
+      expect(agentDataMocks.updateAgentTagsDelta).toHaveBeenLastCalledWith('agent-1', {
+        add: [],
+        remove: ['tag-coding']
+      })
+    )
+    expect(agentDataMocks.syncAgentTags).not.toHaveBeenCalled()
+  })
+
+  it('submits a tag removal as a delta instead of replacing from stale cached bindings', async () => {
+    const user = userEvent.setup()
+    // The cached bindings show only Coding; another writer has since added Research. A
+    // replace-all sync built from this stale set would submit [] and delete Research too.
+    agentDataMocks.tagsByEntityId = new Map([['agent-1', [agentDataMocks.tags[0]]]])
+    // A failed SWR refresh resolves with the cached bindings rather than rejecting, so the
+    // old freshness read returned this stale set and passed its array check.
+    agentDataMocks.refetchBindings.mockResolvedValue([{ entityId: 'agent-1', tagId: 'tag-coding' }])
+
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        agentSessionsSource={createAgentSessionsSource()}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+      />
+    )
+
+    const menu = within(screen.getByTestId('agent-1-context-menu'))
+    await user.click(menu.getByRole('button', { name: 'Coding' }))
+
+    await waitFor(() =>
+      expect(agentDataMocks.updateAgentTagsDelta).toHaveBeenCalledWith('agent-1', {
+        add: [],
+        remove: ['tag-coding']
+      })
+    )
+    expect(agentDataMocks.syncAgentTags).not.toHaveBeenCalled()
+  })
+
+  it('preserves overlapping tag edits from two mounted list instances', async () => {
+    const user = userEvent.setup()
+    agentDataMocks.tagsByEntityId = new Map([['agent-1', [agentDataMocks.tags[0]]]])
+
+    let resolveFirst!: () => void
+    agentDataMocks.updateAgentTagsDelta.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveFirst = resolve
+        })
+    )
+
+    const props = {
+      activeAgentId: 'agent-1',
+      agentSessionsSource: createAgentSessionsSource(),
+      onSelectSession: vi.fn(),
+      onCreateSession: vi.fn(),
+      onShowMissingAgentSelection: vi.fn()
+    }
+    render(
+      <>
+        <AgentResourceList {...props} />
+        <AgentResourceList {...props} />
+      </>
+    )
+
+    const menus = () => screen.getAllByTestId('agent-1-context-menu')
+    // The first instance adds Research while its sync is still in flight...
+    await user.click(within(menus()[0]).getByRole('button', { name: 'Research' }))
+    await waitFor(() =>
+      expect(agentDataMocks.updateAgentTagsDelta).toHaveBeenCalledWith('agent-1', {
+        add: ['tag-research'],
+        remove: []
+      })
+    )
+
+    // ...and a second mounted list removes Coding from the same agent. A component-local
+    // queue cannot serialize across instances; replace-all from either side would drop the
+    // other's edit, so both edits must land as independent deltas.
+    await user.click(within(menus()[1]).getByRole('button', { name: 'Coding' }))
+    await waitFor(() =>
+      expect(agentDataMocks.updateAgentTagsDelta).toHaveBeenCalledWith('agent-1', {
+        add: [],
+        remove: ['tag-coding']
+      })
+    )
+
+    await act(async () => {
+      resolveFirst()
+    })
+    expect(agentDataMocks.syncAgentTags).not.toHaveBeenCalled()
+  })
   it('does not report a pin failure when the post-success agent refresh fails', async () => {
     const user = userEvent.setup()
     const refreshError = new Error('transient refresh failure')

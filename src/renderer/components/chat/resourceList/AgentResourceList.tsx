@@ -1,8 +1,9 @@
-import { Archive, Pin, PinOff, Plus, Smile, SquarePen } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
+import { Archive, Check, Pin, PinOff, Plus, Smile, SquarePen, Tag as TagIcon } from 'lucide-react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Tooltip } from '@cherrystudio/ui'
+import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
@@ -10,6 +11,7 @@ import { archiveAgentSessionsPopup } from '@renderer/components/chat/archiveAgen
 import { deleteConversationOwnerPopup } from '@renderer/components/chat/DeleteConversationOwnerConfirmDialog'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
+import PromptPopup from '@renderer/components/popups/PromptPopup'
 import {
   ResourceEditDialogHost,
   type ResourceEditDialogTarget
@@ -21,6 +23,7 @@ import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { usePins } from '@renderer/hooks/usePins'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
+import { useEntityTags } from '@renderer/hooks/useTags'
 import { ipcApi } from '@renderer/ipc'
 import {
   restoreRecycleBinItems,
@@ -59,6 +62,9 @@ const AGENT_ENTITY_ICON_TYPE_ACTION_ID = 'agent-entity.icon-type'
 const AGENT_ENTITY_ARCHIVE_SESSIONS_ACTION_ID = 'agent-group.archive-sessions'
 const AGENT_ENTITY_ARCHIVE_ACTION_ID = 'agent-entity.archive'
 const AGENT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID = 'agent-entity.toggle-sidebar'
+const AGENT_ENTITY_TAGS_ACTION_ID = 'agent-entity.tags'
+const AGENT_ENTITY_TAG_TOGGLE_ACTION_PREFIX = `${AGENT_ENTITY_TAGS_ACTION_ID}.toggle.`
+const AGENT_ENTITY_TAG_NEW_ACTION_ID = `${AGENT_ENTITY_TAGS_ACTION_ID}.new`
 
 type AgentResourceListProps = {
   activeAgentId?: string | null
@@ -122,6 +128,18 @@ export function AgentResourceList({
     pinnedIds: agentPinnedIds,
     togglePin: toggleAgentPin
   } = usePins('agent', { enabled: dataEnabled })
+  const {
+    tags: allTags,
+    tagsByEntityId: agentTagsById,
+    isLoading: isAgentTagsLoading,
+    error: agentTagsError,
+    createTag,
+    updateEntityTagsDelta: updateAgentTagsDelta
+  } = useEntityTags('agent', { enabled: dataEnabled })
+  const canEditAgentTags = !isAgentTagsLoading && !agentTagsError
+  const agentTagsStateRef = useRef({ canEditAgentTags, agentTagsById })
+  agentTagsStateRef.current = { canEditAgentTags, agentTagsById }
+  const [collapsedTagSectionIds, setCollapsedTagSectionIds] = usePersistCache('ui.agent.entity_rail.expansion')
   const closeConversationTabs = useCloseConversationTabs()
   const invalidate = useInvalidateCache()
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
@@ -202,6 +220,7 @@ export function AgentResourceList({
           name: agent.name,
           orderKey: agent.orderKey,
           pinned: agentPinnedIdSet.has(agent.id),
+          tags: agentTagsById.get(agent.id),
           icon,
           trailingAction: (
             <Tooltip title={t('agent.session.new')} delay={500}>
@@ -219,7 +238,16 @@ export function AgentResourceList({
       }),
       ...unlinkedAgentEntity
     ]
-  }, [agentPinnedIdSet, agents, assistantIconType, defaultModelId, handleCreateSession, hasUnlinkedAgentSessions, t])
+  }, [
+    agentPinnedIdSet,
+    agentTagsById,
+    agents,
+    assistantIconType,
+    defaultModelId,
+    handleCreateSession,
+    hasUnlinkedAgentSessions,
+    t
+  ])
 
   const handlePickSession = useCallback(
     (session: AgentSessionEntity) => onSelectSession(session.id, session),
@@ -262,6 +290,95 @@ export function AgentResourceList({
   const openAgentEditor = useCallback((agentId: string) => {
     setEditDialogTarget({ kind: 'agent', id: agentId })
   }, [])
+
+  const groupByTags = useMemo(
+    () => agents.some((agent) => agentTagsById.get(agent.id)?.length),
+    [agentTagsById, agents]
+  )
+
+  // Tag bindings sync through an atomic main-process delta instead of replace-all: each edit
+  // submits only its own add/remove, applied in one transaction. A replacement set built from
+  // stale bindings (a failed SWR refresh resolves with the cached set, so a refetch cannot
+  // prove freshness) could silently drop tags another writer just added, and the per-instance
+  // queue cannot serialize writers in other windows; deltas make overlapping edits commute.
+  // The per-agent chain only orders this instance's own edits, and each step decides its
+  // direction from the latest bindings when it runs.
+  const agentTagSyncChainsRef = useRef(new Map<string, Promise<void>>())
+  const [pendingAgentTagSyncIds, setPendingAgentTagSyncIds] = useState<ReadonlySet<string>>(() => new Set<string>())
+  const runAgentTagSync = useCallback(
+    (agentId: string, applyDelta: (currentIds: string[]) => { add?: string[]; remove?: string[] }) => {
+      if (!agentTagsStateRef.current.canEditAgentTags) return Promise.resolve()
+
+      setPendingAgentTagSyncIds((prev) => {
+        if (prev.has(agentId)) return prev
+        const next = new Set(prev)
+        next.add(agentId)
+        return next
+      })
+
+      const previous = agentTagSyncChainsRef.current.get(agentId) ?? Promise.resolve()
+      const step: Promise<void> = previous.then(async () => {
+        try {
+          if (!agentTagsStateRef.current.canEditAgentTags) return
+          const currentIds = (agentTagsStateRef.current.agentTagsById.get(agentId) ?? []).map((tag) => tag.id)
+          const { add = [], remove = [] } = applyDelta(currentIds)
+          if (add.length === 0 && remove.length === 0) return
+          await updateAgentTagsDelta(agentId, { add, remove })
+        } catch (err) {
+          logger.error('Failed to update agent tags from classic-layout rail', { agentId, err })
+          toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
+        } finally {
+          // Keep the agent's tag actions disabled until the whole queued chain settles; only the
+          // chain's tail step clears the pending marker.
+          if (agentTagSyncChainsRef.current.get(agentId) === step) {
+            agentTagSyncChainsRef.current.delete(agentId)
+            setPendingAgentTagSyncIds((prev) => {
+              if (!prev.has(agentId)) return prev
+              const next = new Set(prev)
+              next.delete(agentId)
+              return next
+            })
+          }
+        }
+      })
+      agentTagSyncChainsRef.current.set(agentId, step)
+      return step
+    },
+    [updateAgentTagsDelta, t]
+  )
+
+  const handleToggleAgentTag = useCallback(
+    (agentId: string, tagId: string) => {
+      if (!canEditAgentTags) return
+      return runAgentTagSync(agentId, (currentIds) =>
+        currentIds.includes(tagId) ? { remove: [tagId] } : { add: [tagId] }
+      )
+    },
+    [canEditAgentTags, runAgentTagSync]
+  )
+
+  const handleCreateAgentTag = useCallback(
+    async (agentId: string) => {
+      if (!canEditAgentTags) return
+      const name = (
+        await PromptPopup.show({
+          title: t('agent.tags.new'),
+          message: t('agent.tags.new_message'),
+          inputPlaceholder: t('agent.tags.new_placeholder')
+        })
+      )?.trim()
+      if (!name || !agentTagsStateRef.current.canEditAgentTags) return
+
+      try {
+        const tag = await createTag(name)
+        await runAgentTagSync(agentId, (currentIds) => (currentIds.includes(tag.id) ? {} : { add: [tag.id] }))
+      } catch (err) {
+        logger.error('Failed to create agent tag from classic-layout rail', { agentId, err })
+        toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
+      }
+    },
+    [canEditAgentTags, createTag, runAgentTagSync, t]
+  )
 
   const handleToggleAgentPin = useCallback(
     async (agentId: string) => {
@@ -430,6 +547,7 @@ export function AgentResourceList({
       if (item.id === SESSION_UNKNOWN_AGENT_GROUP_ID) return []
 
       const pinned = agentPinnedIdSet.has(item.id)
+      const itemTagIds = new Set((agentTagsById.get(item.id) ?? []).map((tag) => tag.id))
       const sidebarPinned = sidebarAgentFavoriteIdSet.has(item.id)
       const deleteSessionsOnly = isProtectedBuiltinAgentRole(
         agents.find((agent) => agent.id === item.id)?.configuration?.builtin_role
@@ -448,6 +566,29 @@ export function AgentResourceList({
           icon: pinned ? <PinOff size={14} /> : <Pin size={14} />,
           order: 20,
           availability: { visible: true, enabled: !isAgentPinActionDisabled }
+        }),
+        buildResolvedResourceEntityMenuAction({
+          id: AGENT_ENTITY_TAGS_ACTION_ID,
+          label: t('agent.tags.title'),
+          icon: <TagIcon size={14} />,
+          order: 21,
+          availability: { visible: true, enabled: canEditAgentTags && !pendingAgentTagSyncIds.has(item.id) },
+          children: [
+            ...allTags.map((tag) =>
+              buildResolvedResourceEntityMenuAction({
+                id: `${AGENT_ENTITY_TAG_TOGGLE_ACTION_PREFIX}${tag.id}`,
+                label: tag.name,
+                availability: { visible: true, enabled: canEditAgentTags && !pendingAgentTagSyncIds.has(item.id) },
+                icon: itemTagIds.has(tag.id) ? <Check size={14} /> : <span className="block size-4" />
+              })
+            ),
+            buildResolvedResourceEntityMenuAction({
+              id: AGENT_ENTITY_TAG_NEW_ACTION_ID,
+              label: t('agent.tags.new'),
+              availability: { visible: true, enabled: canEditAgentTags && !pendingAgentTagSyncIds.has(item.id) },
+              icon: <Plus size={14} />
+            })
+          ]
         }),
         buildResolvedResourceEntityMenuAction({
           id: AGENT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID,
@@ -488,7 +629,11 @@ export function AgentResourceList({
     },
     [
       agentPinnedIdSet,
+      agentTagsById,
       agents,
+      allTags,
+      canEditAgentTags,
+      pendingAgentTagSyncIds,
       assistantIconType,
       deletingAgentId,
       isAgentPinActionDisabled,
@@ -505,6 +650,14 @@ export function AgentResourceList({
       }
       if (action.id === AGENT_ENTITY_TOGGLE_PIN_ACTION_ID) {
         void handleToggleAgentPin(item.id)
+        return
+      }
+      if (action.id.startsWith(AGENT_ENTITY_TAG_TOGGLE_ACTION_PREFIX)) {
+        void handleToggleAgentTag(item.id, action.id.slice(AGENT_ENTITY_TAG_TOGGLE_ACTION_PREFIX.length))
+        return
+      }
+      if (action.id === AGENT_ENTITY_TAG_NEW_ACTION_ID) {
+        void handleCreateAgentTag(item.id)
         return
       }
       if (action.id === AGENT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID) {
@@ -527,8 +680,10 @@ export function AgentResourceList({
     },
     [
       handleArchiveSessions,
+      handleCreateAgentTag,
       handleDeleteAgent,
       handleToggleAgentPin,
+      handleToggleAgentTag,
       openAgentEditor,
       removeSidebarShortcut,
       setAssistantIconType,
@@ -556,6 +711,10 @@ export function AgentResourceList({
         status={listStatus}
         ariaLabel={t('agent.sidebar_title')}
         defaultGroupLabel={t('agent.sidebar_title')}
+        groupByTags={groupByTags}
+        untaggedLabel={t('agent.tags.untagged')}
+        collapsedState={collapsedTagSectionIds}
+        onCollapsedStateChange={setCollapsedTagSectionIds}
         addIcon={<Plus />}
         addLabel={t('agent.add.title')}
         onAdd={onAddAgent ?? (() => onShowMissingAgentSelection?.())}

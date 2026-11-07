@@ -1,6 +1,9 @@
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
 import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { TagService, tagService } from '@data/services/TagService'
@@ -183,6 +186,63 @@ describe('TagService', () => {
     })
   })
 
+  describe('catalog change notifications', () => {
+    it('should publish a /tags membership change after a create commits', () => {
+      notifyDataApiDataChangeMock.mockClear()
+
+      tagService.create({ name: 'work' })
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([{ endpoint: '/tags', kind: 'membership' }])
+    })
+
+    it('should publish nothing when a create rolls back', async () => {
+      notifyDataApiDataChangeMock.mockClear()
+      await seedTags()
+
+      expect(() => tagService.create({ name: 'work' })).toThrow()
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+    })
+
+    it('should publish a /tags projection change after an update commits', async () => {
+      notifyDataApiDataChangeMock.mockClear()
+      await seedTags()
+
+      tagService.update(TAG_1, { color: '#0000ff' })
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/tags', kind: 'projection', entityIds: [TAG_1] }
+      ])
+    })
+
+    it('should publish nothing for a provably empty update', async () => {
+      notifyDataApiDataChangeMock.mockClear()
+      await seedTags()
+
+      tagService.update(TAG_1, {})
+
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+    })
+
+    it('should publish /tags and /entity-tags membership changes after a delete commits', async () => {
+      notifyDataApiDataChangeMock.mockClear()
+      await seedTags()
+      await dbh.db.insert(entityTagTable).values({
+        entityType: 'assistant',
+        entityId: ASSISTANT_1,
+        tagId: TAG_1,
+        createdAt: 10,
+        updatedAt: 10
+      })
+
+      tagService.delete(TAG_1)
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/tags', kind: 'membership' },
+        { endpoint: '/entity-tags', kind: 'membership' }
+      ])
+    })
+  })
+
   describe('getTagsByEntity', () => {
     it('should return mapped tags for an entity ordered by tag name', async () => {
       await seedTags()
@@ -268,6 +328,27 @@ describe('TagService', () => {
     })
   })
 
+  describe('listBindingsByEntityType', () => {
+    it('should return only bindings of the requested entity type', async () => {
+      await seedTags()
+      await dbh.db.insert(entityTagTable).values([
+        { entityType: 'agent', entityId: ASSISTANT_1, tagId: TAG_1, createdAt: 1, updatedAt: 1 },
+        { entityType: 'agent', entityId: ASSISTANT_1, tagId: TAG_2, createdAt: 2, updatedAt: 2 },
+        { entityType: 'assistant', entityId: ASSISTANT_2, tagId: TAG_2, createdAt: 3, updatedAt: 3 }
+      ])
+
+      const result = tagService.listBindingsByEntityType('agent')
+
+      expect(result).toHaveLength(2)
+      expect(result).toEqual(
+        expect.arrayContaining([
+          { entityId: ASSISTANT_1, tagId: TAG_1 },
+          { entityId: ASSISTANT_1, tagId: TAG_2 }
+        ])
+      )
+    })
+  })
+
   describe('syncEntityTags', () => {
     it('should diff associations and preserve createdAt for unchanged tags', async () => {
       await seedTags()
@@ -317,6 +398,121 @@ describe('TagService', () => {
         message: "Tag with id '44444444-4444-4444-8444-444444444444' not found"
       })
 
+      const rows = (await dbh.db.select().from(entityTagTable)).filter(
+        (row) => row.entityType === 'assistant' && row.entityId === ASSISTANT_1
+      )
+      expect(rows).toEqual([expect.objectContaining({ tagId: TAG_1, createdAt: 1000 })])
+    })
+  })
+
+  describe('applyEntityTagDelta', () => {
+    it('should remove and add bindings atomically while preserving untouched rows', async () => {
+      await seedTags()
+      await dbh.db.insert(entityTagTable).values([
+        { entityType: 'assistant', entityId: ASSISTANT_1, tagId: TAG_1, createdAt: 1000, updatedAt: 1000 },
+        { entityType: 'assistant', entityId: ASSISTANT_2, tagId: TAG_2, createdAt: 2000, updatedAt: 2000 }
+      ])
+
+      tagService.applyEntityTagDelta('assistant', ASSISTANT_1, { add: [TAG_2], remove: [TAG_1] })
+
+      const rows = (await dbh.db.select().from(entityTagTable)).filter((row) => row.entityType === 'assistant')
+      expect(rows.filter((row) => row.entityId === ASSISTANT_1)).toEqual([expect.objectContaining({ tagId: TAG_2 })])
+      // Another entity's bindings are untouched.
+      expect(rows.filter((row) => row.entityId === ASSISTANT_2)).toEqual([
+        expect.objectContaining({ tagId: TAG_2, createdAt: 2000 })
+      ])
+    })
+
+    it("should let overlapping writers keep each other's additions", async () => {
+      await seedTags()
+      await dbh.db.insert(entityTagTable).values({
+        entityType: 'assistant',
+        entityId: ASSISTANT_1,
+        tagId: TAG_1,
+        createdAt: 1000,
+        updatedAt: 1000
+      })
+
+      // Two writers read the same base ([TAG_1]) and each submit only their own change;
+      // a replace-all sequence ([TAG_1, TAG_2] then [TAG_1, TAG_3]) would drop TAG_2.
+      tagService.applyEntityTagDelta('assistant', ASSISTANT_1, { add: [TAG_2], remove: [] })
+      tagService.applyEntityTagDelta('assistant', ASSISTANT_1, { add: [TAG_3], remove: [] })
+
+      const rows = (await dbh.db.select().from(entityTagTable)).filter(
+        (row) => row.entityType === 'assistant' && row.entityId === ASSISTANT_1
+      )
+      expect(rows.map((row) => row.tagId).sort()).toEqual([TAG_1, TAG_2, TAG_3].sort())
+      // The original binding survives with its createdAt intact.
+      expect(rows.find((row) => row.tagId === TAG_1)).toMatchObject({ createdAt: 1000 })
+    })
+
+    it('should treat adding an existing binding and removing an absent one as no-ops', async () => {
+      await seedTags()
+      await dbh.db.insert(entityTagTable).values({
+        entityType: 'assistant',
+        entityId: ASSISTANT_1,
+        tagId: TAG_1,
+        createdAt: 1000,
+        updatedAt: 1000
+      })
+
+      tagService.applyEntityTagDelta('assistant', ASSISTANT_1, { add: [TAG_1], remove: [TAG_2] })
+
+      const rows = (await dbh.db.select().from(entityTagTable)).filter(
+        (row) => row.entityType === 'assistant' && row.entityId === ASSISTANT_1
+      )
+      expect(rows).toEqual([expect.objectContaining({ tagId: TAG_1, createdAt: 1000 })])
+    })
+
+    it('should publish an /entity-tags membership change after the delta commits', async () => {
+      notifyDataApiDataChangeMock.mockClear()
+      await seedTags()
+
+      tagService.applyEntityTagDelta('assistant', ASSISTANT_1, { add: [TAG_1], remove: [] })
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/entity-tags', kind: 'membership' }
+      ])
+    })
+
+    it('should publish nothing when the delta rolls back', async () => {
+      notifyDataApiDataChangeMock.mockClear()
+      await seedTags()
+
+      expect(() =>
+        tagService.applyEntityTagDelta('assistant', ASSISTANT_1, {
+          add: ['44444444-4444-4444-8444-444444444444'],
+          remove: []
+        })
+      ).toThrow()
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+    })
+
+    it('should fail with NOT_FOUND for a missing added tag and roll the whole delta back', async () => {
+      await seedTags()
+      await dbh.db.insert(entityTagTable).values({
+        entityType: 'assistant',
+        entityId: ASSISTANT_1,
+        tagId: TAG_1,
+        createdAt: 1000,
+        updatedAt: 1000
+      })
+
+      let err: unknown
+      try {
+        tagService.applyEntityTagDelta('assistant', ASSISTANT_1, {
+          add: ['44444444-4444-4444-8444-444444444444'],
+          remove: [TAG_1]
+        })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        message: "Tag with id '44444444-4444-4444-8444-444444444444' not found"
+      })
+
+      // The removal in the same delta is rolled back too.
       const rows = (await dbh.db.select().from(entityTagTable)).filter(
         (row) => row.entityType === 'assistant' && row.entityId === ASSISTANT_1
       )
