@@ -110,6 +110,7 @@ afterEach(async () => {
 })
 beforeEach(() => {
   MockUsePreferenceUtils.resetMocks()
+  MockUsePreferenceUtils.setPreferenceValue('app.browser.auto_open_panel', true)
   MockUsePreferenceUtils.setPreferenceValue('app.browser.agent_control.enabled', false)
   MockUsePreferenceUtils.setPreferenceValue('app.browser.open_links_in_browser', false)
   openTab.mockReset()
@@ -515,6 +516,34 @@ describe('Browser preferences', () => {
       await waitFor(() => expect(toggle).toBeChecked())
       await waitForBrowserSwitchSave(en[key])
     }
+  })
+
+  it('saves auto-opening independently of control and link routing, including after remount', async () => {
+    const user = userEvent.setup()
+    const view = renderSettings()
+    const label = en['settings.browser.autoOpenPanel']
+    const toggle = screen.getByRole('switch', { name: label })
+    expect(toggle).toHaveAccessibleDescription(en['settings.browser.autoOpenPanelHelp'])
+    expect(toggle).toBeChecked()
+    expect(screen.getByRole('switch', { name: en['settings.browser.control'] })).not.toBeChecked()
+    expect(toggle).toBeEnabled()
+    await user.click(screen.getByText(label, { exact: true }))
+    expect(toggle).toBeChecked()
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.browser.auto_open_panel')).toBe(true)
+    await user.click(toggle)
+    await waitFor(() => expect(toggle).not.toBeChecked())
+    await waitForBrowserSwitchSave(label)
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.browser.auto_open_panel')).toBe(false)
+    view.unmount()
+    renderSettings()
+    const savedToggle = screen.getByRole('switch', { name: label })
+    expect(savedToggle).not.toBeChecked()
+    await user.click(savedToggle)
+    await waitFor(() => expect(savedToggle).toBeChecked())
+    await waitForBrowserSwitchSave(label)
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.browser.auto_open_panel')).toBe(true)
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.browser.agent_control.enabled')).toBe(false)
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.browser.open_links_in_browser')).toBe(false)
   })
 
   it('persists website routing independently of Agent control', async () => {

@@ -3,6 +3,7 @@ import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
+import type { FileProcessingTaskId } from '@main/features/fileProcessing'
 import { getFileExt } from '@main/utils/legacyFile'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { ACTIVE_JOB_STATUSES } from '@shared/data/api/schemas/jobs'
@@ -37,7 +38,7 @@ import {
 } from '../pathStorage'
 import { type KnowledgeSourcePlanOptions, planKnowledgeItemSource } from '../pipeline/sources/sourcePlanning'
 import type { KnowledgeSourceCopy } from '../tasks/jobTypes'
-import { cancelActiveKnowledgeJobs, cancelJobOrThrow } from '../tasks/utils/cancel'
+import { cancelActiveKnowledgeJobs } from '../tasks/utils/cancel'
 import {
   type KnowledgeBaseId,
   knowledgeCopySourcesIdempotencyKey,
@@ -53,20 +54,19 @@ import {
   toKnowledgeItemIds
 } from '../types'
 import { resolveKnowledgeAddConflicts } from './addConflicts'
+import type { FileProcessingWaitManager } from './FileProcessingWaitManager'
 import { markUnscheduledKnowledgeItemsFailed } from './statusCleanup'
 import { purgeKnowledgeSubtreeWithinLock } from './subtreePurge'
 
 const logger = loggerService.withContext('Knowledge:IngestionService')
-// Keep poll jobs delayed enough to avoid hot-looping while remote processors are still working.
-const FILE_PROCESSING_CHECK_DELAY_MS = 5_000
 const KNOWLEDGE_SUPPORTED_FILE_EXT_SET = new Set<string>(knowledgeSupportedFileExts)
 const REINDEX_ALLOWED_STATUSES = new Set<KnowledgeItemStatus>(['completed', 'failed'])
 const DELETE_RECOVERY_ROOT_CHUNK_SIZE = 500
 
 /**
  * The workflow re-entry seam job handlers call back into (workflow-architecture.md): expand a
- * container, index a leaf, or poll a file-processing job. Handlers depend on exactly this surface,
- * not the full `KnowledgeIngestionService`.
+ * container or index a leaf. Handlers depend on exactly this surface, not the full
+ * `KnowledgeIngestionService`.
  */
 export interface KnowledgeItemScheduler {
   scheduleItem(
@@ -76,17 +76,14 @@ export interface KnowledgeItemScheduler {
     options?: KnowledgeSourcePlanOptions
   ): Promise<void>
   scheduleIndexing(baseId: KnowledgeBaseId, itemId: KnowledgeItemId, parentJobId?: string | null): Promise<void>
-  scheduleFileProcessingCheck(
-    baseId: KnowledgeBaseId,
-    itemId: KnowledgeItemId,
-    fileProcessingJobId: string,
-    options: { pollRound: number; firstScheduledAt: number; parentJobId: string | null; processedRelativePath: string }
-  ): Promise<void>
 }
 
 /** Write-side orchestration: admission checks, item creation, conflict handling, and job enqueueing for the add/delete/reindex flows. */
 export class KnowledgeIngestionService implements KnowledgeItemScheduler {
-  constructor(private readonly knowledgeLockManager: KeyedMutex) {}
+  constructor(
+    private readonly knowledgeLockManager: KeyedMutex,
+    private readonly fileProcessingWaits: FileProcessingWaitManager
+  ) {}
 
   /**
    * Accept a batch: resolve conflicts, reserve `raw/` names, and create the rows under the base
@@ -131,7 +128,8 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
         if (resolution.conflictingExistingRootIds.length > 0) {
           await cancelActiveKnowledgeJobs(base.id, 'knowledge-add-replace', {
             rootItemIds: resolution.conflictingExistingRootIds,
-            onCancelTimeout: 'throw'
+            onCancelTimeout: 'throw',
+            fileProcessingWaits: this.fileProcessingWaits
           })
         }
       }
@@ -445,67 +443,47 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
         await assertKnowledgeFileTargetAvailable(baseId, processedRelativePath)
       }
       const processedPath = getKnowledgeBaseFilePath(baseId, processedRelativePath)
-      const fileProcessingJob = await fileProcessing.startJob(
-        {
-          feature: 'document_to_markdown',
-          file: { kind: 'path', path: sourcePath },
-          output: { kind: 'path', path: processedPath },
-          context: { dataId: item.id },
-          processorId
-        },
-        {
-          parentId: parentJobId ?? undefined
-        }
-      )
-      try {
-        await this.scheduleFileProcessingCheck(baseId, itemId, fileProcessingJob.id, {
-          pollRound: 0,
-          firstScheduledAt: Date.now(),
-          // Use the file-processing job as workflow parent when this is a direct add flow,
-          // so retries keep a stable index idempotency key across poll rounds.
-          parentJobId: parentJobId ?? fileProcessingJob.id,
-          processedRelativePath
+      const { task, done } = await fileProcessing.startTask({
+        feature: 'document_to_markdown',
+        file: { kind: 'path', path: sourcePath },
+        output: { kind: 'path', path: processedPath },
+        context: { dataId: item.id },
+        processorId
+      })
+      this.fileProcessingWaits.add(baseId, itemId, task.id)
+      done
+        .then(() => {
+          this.fileProcessingWaits.delete(itemId)
+          this.scheduleFileProcessingCheck(baseId, itemId, task.id, { parentJobId, processedRelativePath })
         })
-      } catch (error) {
-        try {
-          await cancelJobOrThrow(fileProcessingJob.id, 'knowledge-file-processing-check-enqueue-failed')
-        } catch (cancelError) {
-          logger.warn('Failed to cancel file-processing job after check enqueue failure', {
-            fileProcessingJobId: fileProcessingJob.id,
-            cancelError: cancelError instanceof Error ? cancelError.message : String(cancelError)
+        .catch((error: unknown) => {
+          logger.error('Failed to schedule the file-processing result check', error as Error, {
+            baseId,
+            itemId,
+            fileProcessingTaskId: task.id
           })
-        }
-        throw error
-      }
+        })
       return
     }
 
     await this.scheduleIndexing(baseId, itemId, parentJobId)
   }
 
-  async scheduleFileProcessingCheck(
+  /** Enqueue the job that reads a settled file-processing task's result and hands the item on. */
+  private scheduleFileProcessingCheck(
     baseId: KnowledgeBaseId,
     itemId: KnowledgeItemId,
-    fileProcessingJobId: string,
-    options: { pollRound: number; firstScheduledAt: number; parentJobId: string | null; processedRelativePath: string }
-  ): Promise<void> {
-    const { pollRound, firstScheduledAt, parentJobId, processedRelativePath } = options
-    const jobManager = application.get('JobManager')
-    jobManager.enqueue(
+    fileProcessingTaskId: FileProcessingTaskId,
+    options: { parentJobId: string | null; processedRelativePath: string }
+  ): void {
+    const { parentJobId, processedRelativePath } = options
+    application.get('JobManager').enqueue(
       'knowledge.check-file-processing-result',
+      { baseId, itemId, fileProcessingTaskId, processedRelativePath },
       {
-        baseId,
-        itemId,
-        fileProcessingJobId,
-        pollRound,
-        firstScheduledAt,
-        processedRelativePath
-      },
-      {
-        idempotencyKey: knowledgeFileProcessingCheckIdempotencyKey(baseId, itemId, fileProcessingJobId, pollRound),
+        idempotencyKey: knowledgeFileProcessingCheckIdempotencyKey(baseId, itemId, fileProcessingTaskId),
         queue: knowledgeQueueName(baseId),
-        parentId: parentJobId ?? undefined,
-        scheduledAt: Date.now() + FILE_PROCESSING_CHECK_DELAY_MS
+        parentId: parentJobId ?? undefined
       }
     )
   }

@@ -6,7 +6,12 @@ export {
   resolveCodeTheme,
   supportsCodeLanguage
 } from './lib/code-highlight/catalog'
-export { loadCodeTheme, getReactStyleFromToken as getTokenStyle } from './lib/code-highlight/theme'
+export {
+  CHERRY_CODE_THEME,
+  cherryCodeTheme,
+  loadCodeTheme,
+  getReactStyleFromToken as getTokenStyle
+} from './lib/code-highlight/theme'
 export { createSnapshotExecutor, escapeCode, loadCodeHighlightRuntime, plainTokens } from './lib/code-highlight/runtime'
 export type {
   DocumentChange,

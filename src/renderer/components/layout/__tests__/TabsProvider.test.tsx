@@ -68,6 +68,7 @@ const HOME_TAB: Tab = {
 // i18n.language dependency in the tabs useMemo.
 let pinnedTabsValue: Tab[] = [PINNED_FILES_TAB]
 const setPinnedTabsMock = vi.fn()
+const readPinnedTabsMock = () => pinnedTabsValue
 
 // Restore-session keys (normal tabs + active id). Default to empty (fresh launch); individual
 // restore tests set them before render. Kept separate from the pinned tuple so the mock returns the
@@ -88,6 +89,7 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/useCache', () => ({
+  usePersistCacheReader: () => readPinnedTabsMock,
   usePersistCache: (key: string) => {
     if (key === 'ui.tab.normal_tabs') return [normalTabsValue, setNormalTabsMock]
     if (key === 'ui.tab.active_tab_id') return [activeTabIdValue, setActiveTabIdMock]
@@ -113,7 +115,7 @@ vi.mock('@renderer/utils/routeTitle', async () => {
   }
   return {
     ...actual,
-    getDefaultRouteTitle: (url: string) => titles[url.split('?')[0]]?.[currentLanguage] ?? url
+    getDefaultRouteTitle: (url: string) => titles[url]?.[currentLanguage] ?? url
   }
 })
 
@@ -141,12 +143,7 @@ function TabTitleWriter() {
     updateTab('home', { title: 'Session title', icon: 'icon:spark' })
   }, [updateTab])
 
-  return (
-    <>
-      <div data-testid="home-title">{tabs.find((tab) => tab.id === 'home')?.title}</div>
-      <div data-testid="home-icon">{tabs.find((tab) => tab.id === 'home')?.icon ?? 'Default application icon'}</div>
-    </>
-  )
+  return <div data-testid="home-title">{tabs.find((tab) => tab.id === 'home')?.title}</div>
 }
 
 function PinnedRouteTitle() {
@@ -537,7 +534,7 @@ describe('TabsProvider', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Seed tabs' }))
     await waitFor(() => expect(screen.getByTestId('conversation-tab-active')).toHaveTextContent('unrelated-tab'))
-    expect(screen.getByTestId('conversation-tab-snapshot')).toHaveTextContent('topic-a-tab:Chat')
+    expect(screen.getByTestId('conversation-tab-snapshot')).toHaveTextContent('topic-a-tab:Topic A')
     expect(conversationTabActionRender).toHaveBeenCalledTimes(initialActionRenders)
 
     fireEvent.click(screen.getByRole('button', { name: 'Activate home' }))
@@ -545,7 +542,7 @@ describe('TabsProvider', () => {
     expect(conversationTabActionRender).toHaveBeenCalledTimes(initialActionRenders)
 
     fireEvent.click(screen.getByRole('button', { name: 'Rename background topic' }))
-    await waitFor(() => expect(screen.getByTestId('conversation-tab-snapshot')).toHaveTextContent('topic-a-tab:Chat'))
+    await waitFor(() => expect(screen.getByTestId('conversation-tab-snapshot')).toHaveTextContent('Renamed Topic'))
     expect(conversationTabActionRender).toHaveBeenCalledTimes(initialActionRenders)
 
     fireEvent.click(screen.getByRole('button', { name: 'Close unrelated tab' }))
@@ -557,19 +554,14 @@ describe('TabsProvider', () => {
     expect(conversationTabActionRender).toHaveBeenCalledTimes(initialActionRenders)
   })
 
-  it.each([
-    ['/app/agents', 'Agent'],
-    ['/app/agents?sessionId=saved', 'Agent'],
-    ['/app/chat?topicId=saved', 'Chat']
-  ])('restores the application title for %s', async (url, title) => {
+  it('preserves page-owned titles for the fixed home conversation tab', async () => {
     render(
       <TabsProvider
         initialDefaultTab={{
           id: 'home',
           type: 'route',
-          url,
-          title: 'Saved conversation title',
-          icon: 'emoji:🍒',
+          url: '/app/agents',
+          title: '',
           lastAccessTime: Date.now(),
           isDormant: false
         }}
@@ -578,8 +570,7 @@ describe('TabsProvider', () => {
       </TabsProvider>
     )
 
-    await waitFor(() => expect(screen.getByTestId('home-title')).toHaveTextContent(title))
-    expect(screen.getByTestId('home-icon')).toHaveTextContent('Default application icon')
+    await waitFor(() => expect(screen.getByTestId('home-title')).toHaveTextContent('Session title'))
   })
 
   it('refreshes localized route tab titles when the app language changes', async () => {
@@ -668,7 +659,11 @@ describe('TabsProvider', () => {
     )
 
     expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,home')
-    await waitFor(() => expect(setPinnedTabsMock).toHaveBeenCalledWith([{ ...PINNED_FILES_TAB, isDormant: true }]))
+    const persisted = setPinnedTabsMock.mock.calls.reduce<Tab[]>(
+      (current, [action]) => (typeof action === 'function' ? action(current) : action),
+      pinnedTabsValue
+    )
+    expect(persisted).toEqual([{ ...PINNED_FILES_TAB, isDormant: true }])
   })
 
   // Reviewer B7: OpenClaw's sidebar entry + /app/openclaw route were removed (folded into Code), so a
@@ -684,12 +679,14 @@ describe('TabsProvider', () => {
     )
 
     expect(screen.getByTestId('tab-urls')).toHaveTextContent('/app/code,/app/files,/app/chat')
-    await waitFor(() =>
-      expect(setPinnedTabsMock).toHaveBeenCalledWith([
-        { ...PINNED_OPENCLAW_TAB, url: '/app/code', title: '/app/code', isDormant: true },
-        { ...PINNED_FILES_TAB, isDormant: true }
-      ])
+    const persisted = setPinnedTabsMock.mock.calls.reduce<Tab[]>(
+      (current, [action]) => (typeof action === 'function' ? action(current) : action),
+      pinnedTabsValue
     )
+    expect(persisted).toEqual([
+      { ...PINNED_OPENCLAW_TAB, url: '/app/code', title: '/app/code', isDormant: true },
+      { ...PINNED_FILES_TAB, isDormant: true }
+    ])
   })
 
   it('closes active and adjacent tabs atomically when closing a batch', async () => {

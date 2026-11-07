@@ -49,8 +49,8 @@ export const moonshotServerTools: ProviderServerToolConfig[] = [
 ]
 
 export const moonshotOverrides = [
-  ...['kimi-k3.1-pro', 'kimi-k3.1-pro-highspeed'].map<NonNullable<Provider['overrides']>[number]>((modelId) => ({
-    modelId,
+  ...['kimi-k3.1-pro', 'kimi-k3.1-pro-highspeed'].map<NonNullable<Provider['overrides']>[number]>((apiModelId) => ({
+    apiModelId,
     endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
     reasoningContracts: {
       'openai-chat-completions': { wire: K31_EFFORT_WIRE },
@@ -61,22 +61,22 @@ export const moonshotOverrides = [
   })),
   // Moonshot fixes temperature and top_p (0.95) for these models and rejects other
   // values with HTTP 400; omitting the non-configurable parameters uses the server defaults.
-  { modelId: 'kimi-k2.5', parameterSupport: fixedSamplingParameterSupport },
+  { apiModelId: 'kimi-k2.5', parameterSupport: fixedSamplingParameterSupport },
   // Moonshot's provider wire only carries `thinking.type`, so these SKUs need their own contract
   // for a chosen tier to reach the request at all.
-  ...['kimi-k2.6', 'kimi-k3', 'kimi-k3-fast'].map((modelId) => ({
-    modelId,
+  ...['kimi-k2.6', 'kimi-k3', 'kimi-k3-fast'].map((apiModelId) => ({
+    apiModelId,
     parameterSupport: fixedSamplingParameterSupport,
     reasoningContracts: {
       'openai-chat-completions': { wire: effortWire }
     }
   })),
-  ...['kimi-k2.7-code', 'kimi-k2.7-code-highspeed'].map((modelId) => ({
-    modelId,
+  ...['kimi-k2.7-code', 'kimi-k2.7-code-highspeed'].map((apiModelId) => ({
+    apiModelId,
     parameterSupport: fixedSamplingParameterSupport
   })),
   // Rolling alias for the newest Kimi — same backend, same fixed sampling.
-  { modelId: 'kimi-latest', parameterSupport: fixedSamplingParameterSupport }
+  { apiModelId: 'kimi-latest', parameterSupport: fixedSamplingParameterSupport }
 ] satisfies NonNullable<Provider['overrides']>
 
 export default openaiCompatible({
@@ -94,7 +94,7 @@ export default openaiCompatible({
     official: 'https://www.moonshot.cn/'
   },
   overrides: moonshotOverrides.map((override) => {
-    const pricing = override.modelId ? K31_CN_PRICING[override.modelId] : undefined
+    const pricing = K31_CN_PRICING[override.apiModelId]
     return pricing ? { ...override, pricing } : override
   })
 })

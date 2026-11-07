@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
@@ -152,7 +153,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
         </span>
       )
     },
-    Scrollbar: ({ children }: { children: ReactNode }) => <div>{children}</div>
+    ScrollArea: MockCherrystudioUI.ScrollArea
   }
 })
 

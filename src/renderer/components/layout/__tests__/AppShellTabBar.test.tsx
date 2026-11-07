@@ -6,9 +6,9 @@ import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type * as UI from '@cherrystudio/ui'
 import { useTabsContext } from '@renderer/hooks/tab'
 
-import type * as ShellTabBarActionsModule from '../ShellTabBarActions'
 import { TabsProvider } from '../TabsProvider'
 
 const mocks = vi.hoisted(() => ({
@@ -37,7 +37,8 @@ vi.mock('@renderer/services/resourceListRevealEvents', () => ({
   emitResourceListReveal: mocks.emitResourceListReveal
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
+vi.mock('@cherrystudio/ui', async (importOriginal) => ({
+  Kbd: (await importOriginal<typeof UI>()).Kbd,
   Button: ({ children, variant, ...props }: React.ComponentProps<'button'> & { variant?: string }) => {
     void variant
     return (
@@ -97,13 +98,9 @@ vi.mock('@renderer/utils/error', () => ({
   formatErrorMessage: (error: unknown) => (error instanceof Error ? error.message : String(error))
 }))
 
-vi.mock('../ShellTabBarActions', async () => {
-  const actual = await vi.importActual<typeof ShellTabBarActionsModule>('../ShellTabBarActions')
-  return {
-    ...actual,
-    ShellTabBarActions: () => <div data-testid="shell-tab-actions" />
-  }
-})
+vi.mock('../ShellTabBarActions', () => ({
+  ShellTabBarActions: () => <div data-testid="shell-tab-actions" />
+}))
 
 vi.mock('../../WindowControls', () => ({
   WindowControls: () => <div data-testid="window-controls" />
@@ -202,6 +199,14 @@ afterEach(() => {
 })
 
 describe('AppShellTabBar', () => {
+  it('does not mount a separate notification entry in the focused settings tab bar', () => {
+    renderTabBar({
+      tabs: [createTab('settings', { url: '/settings/notifications' })],
+      activeTabId: 'settings',
+      isFocusedTab: true
+    })
+    expect(screen.queryByRole('button', { name: 'Notification center' })).not.toBeInTheDocument()
+  })
   it('keeps the Windows title bar at least as tall as the native overlay when zoomed out', () => {
     mocks.platformState.isWin = true
     renderTabBar({ tabs: [createTab('home')], activeTabId: 'home' })
@@ -237,6 +242,26 @@ describe('AppShellTabBar', () => {
     return closeTab
   }
 
+  it('shows supplied hints on pinned and normal tabs without changing their accessible names', () => {
+    renderTabBar({
+      tabs: [createTab('p', { isPinned: true }), createTab('a')],
+      shortcutHints: new Map([
+        ['p', '⌃1'],
+        ['a', '⌃2']
+      ])
+    })
+    expect(within(screen.getByRole('button', { name: 'P' })).getByText('⌃1')).toBeVisible()
+    expect(within(screen.getByRole('button', { name: 'A' })).getByText('⌃2')).toBeVisible()
+  })
+
+  it('keeps the account avatar out of the tab bar when the sidebar is hidden', () => {
+    MockUseCacheUtils.setPersistCacheValue('ui.sidebar.width', 0)
+    renderTabBar({ tabs: [createTab('home')] })
+
+    expect(screen.queryByRole('button', { name: 'sidebar.account_menu' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('app-shell-tab-strip').querySelector('[data-tab-id="home"]')).toBeVisible()
+  })
+
   it('names an icon-only pinned tab after its title, not its emoji', () => {
     const emojiTab = createTab('emoji', { icon: 'emoji:🎉', isPinned: true, title: 'Emoji' })
 
@@ -270,6 +295,105 @@ describe('AppShellTabBar', () => {
       expect(result.current.tabs.at(-1)?.url).toBe('/app/launchpad')
       expect(result.current.activeTabId).toBe(result.current.tabs.at(-1)?.id)
     }
+  })
+
+  // Protect the persistent selected-tab indicator across selection and pointer closing.
+  describe.each([false, true])('selected indicator (transparent macOS: %s)', (transparent) => {
+    const normalTabs = [
+      createTab('alpha', { title: 'Conversation Alpha', url: '/app/chat?topicId=alpha' }),
+      createTab('beta', { title: 'Conversation Beta', url: '/app/chat?topicId=beta' })
+    ]
+    const pinnedTab = createTab('pinned', {
+      title: 'Pinned conversation',
+      url: '/app/chat?topicId=pinned',
+      isPinned: true
+    })
+
+    const renderProvider = (includePinned = false) => {
+      mocks.macTransparentState.value = transparent
+      MockUseCacheUtils.setPersistCacheValue('ui.tab.normal_tabs', normalTabs)
+      MockUseCacheUtils.setPersistCacheValue('ui.tab.pinned_tabs', includePinned ? [pinnedTab] : [])
+      MockUseCacheUtils.setPersistCacheValue('ui.tab.active_tab_id', 'alpha')
+      function TabBar() {
+        return <AppShellTabBar {...useTabsContext()} />
+      }
+      return renderHook(useTabsContext, {
+        wrapper: ({ children }) => (
+          <TabsProvider>
+            {children}
+            <TabBar />
+          </TabsProvider>
+        )
+      })
+    }
+    const button = (tab: Tab) => screen.getByRole('button', { name: tab.title })
+    const expectIndicator = (tab: Tab, selected: boolean) => {
+      const outer = button(tab)
+      expect(outer).toHaveAttribute('data-tab-id', tab.id)
+      // Pending closes retain their visual selection while navigation moves to the survivor.
+      if (selected) expect(outer).toHaveAttribute('data-active', 'true')
+      else expect(outer).not.toHaveAttribute('data-active')
+    }
+
+    it('transfers selection ownership between normal and pinned conversation tabs', () => {
+      const { result } = renderProvider(true)
+      for (const selected of [normalTabs[0], normalTabs[1], pinnedTab, normalTabs[0]]) {
+        fireEvent.click(button(selected))
+        expect(result.current.activeTabId).toBe(selected.id)
+        for (const tab of [...normalTabs, pinnedTab]) expectIndicator(tab, tab.id === selected.id)
+      }
+    })
+
+    it('keeps an active pointer-closing tab selected through handover and removal', () => {
+      const restoreAnimation = mockCloseAnimation()
+      try {
+        const { result } = renderProvider()
+        const [departing, survivor] = normalTabs
+        fireEvent.click(within(button(departing)).getByRole('button', { name: 'tab.close' }), { detail: 1 })
+        expectIndicator(departing, true)
+        expectIndicator(survivor, false)
+        act(() => {
+          vi.advanceTimersByTime(32)
+        })
+        expect(result.current.activeTabId).toBe(survivor.id)
+        expectIndicator(departing, true)
+        expectIndicator(survivor, true)
+        act(() => {
+          vi.advanceTimersByTime(200)
+        })
+        expect(screen.queryByRole('button', { name: departing.title })).not.toBeInTheDocument()
+        expectIndicator(survivor, true)
+      } finally {
+        cleanup()
+        restoreAnimation()
+      }
+    })
+
+    it('never upgrades an inactive pointer-closing tab to the selected indicator', () => {
+      const restoreAnimation = mockCloseAnimation()
+      try {
+        renderProvider()
+        const [active, departing] = normalTabs
+        fireEvent.mouseEnter(button(departing))
+        fireEvent.click(within(button(departing)).getByRole('button', { name: 'tab.close' }), { detail: 1 })
+        expectIndicator(departing, false)
+        expectIndicator(active, true)
+        act(() => {
+          vi.advanceTimersByTime(32)
+        })
+        expectIndicator(departing, false)
+        expectIndicator(active, true)
+        expect(button(departing)).toHaveAttribute('data-hovered', 'true')
+        act(() => {
+          vi.advanceTimersByTime(200)
+        })
+        expect(screen.queryByRole('button', { name: departing.title })).not.toBeInTheDocument()
+        expectIndicator(active, true)
+      } finally {
+        cleanup()
+        restoreAnimation()
+      }
+    })
   })
 
   it('renders preset and installed mini app icons at the same circular size', () => {

@@ -14,7 +14,6 @@ import type { EventPayload, WindowId } from '@shared/ipc/types'
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import { BrowserSessionService } from '../BrowserSessionService'
-import { SessionBrowserController } from '../mcp/SessionBrowserController'
 import { BrowserSessionError } from '../session/BrowserSessionError'
 import { createGuest } from './guestFixture'
 
@@ -67,6 +66,14 @@ describe('topic browser ownership and cancellation', () => {
     vi.mocked(webContents.fromId).mockReturnValue(fixture.guest)
     const { tabId } = service.topicBrowser.attach(topicId, guestId, windowId)
     return { fixture, tabId }
+  }
+
+  function topicControl(ownerId = assistantId, sessionId = topicId) {
+    return service.createControl({ kind: 'topic', sessionId, ownerId })
+  }
+
+  function listTabs(control: ReturnType<typeof topicControl>, signal = new AbortController().signal) {
+    return control.run((controller) => controller.listTabs(), signal)
   }
 
   it.each(['focused', 'background'] as const)(
@@ -260,26 +267,25 @@ describe('topic browser ownership and cancellation', () => {
     expect(service.topicBrowser.get({ sessionId: secondTopic, ownerId: assistantId })).toBeUndefined()
     expect(() => service.topicBrowser.attach(secondTopic, 71, windowId)).toThrow()
     expect(() => service.topicBrowser.getCursor(topicId, tabId, 'other')).toThrow()
-    const result = await service.callTopicTool(topicId, assistantId, 'list_tabs', {}, new AbortController().signal)
-    expect(JSON.stringify(result)).toContain(tabId)
+    const control = topicControl()
+    expect(await listTabs(control)).toEqual([expect.objectContaining({ tabId })])
     dbh.db
       .update(assistantTable)
       .set({ settings: { ...DEFAULT_ASSISTANT_SETTINGS, enableBrowser: false } })
       .where(eq(assistantTable.id, assistantId))
       .run()
-    await expect(
-      service.callTopicTool(topicId, assistantId, 'list_tabs', {}, new AbortController().signal)
-    ).rejects.toThrow()
+    await expect(listTabs(control)).rejects.toThrow(new BrowserSessionError('not_allowed'))
     const newOwner = '44444444-4444-4444-8444-444444444444'
     dbh.db
       .insert(assistantTable)
       .values({ id: newOwner, name: 'New owner', emoji: '', orderKey: 'a1', settings: DEFAULT_ASSISTANT_SETTINGS })
       .run()
     dbh.db.update(topicTable).set({ assistantId: newOwner }).where(eq(topicTable.id, topicId)).run()
-    const moved = await Promise.all(
-      [1, 2].map(() => service.callTopicTool(topicId, newOwner, 'list_tabs', {}, new AbortController().signal))
-    )
-    expect(moved.every((result) => !result.isError && JSON.stringify(result).includes(tabId))).toBe(true)
+    const moved = topicControl(newOwner)
+    expect(await Promise.all([1, 2].map(() => listTabs(moved)))).toEqual([
+      [expect.objectContaining({ tabId })],
+      [expect.objectContaining({ tabId })]
+    ])
     expect(() => service.topicBrowser.get({ sessionId: topicId, ownerId: assistantId })).toThrow()
     expect(fixture.guest.isDestroyed()).toBe(false)
   })
@@ -289,9 +295,7 @@ describe('topic browser ownership and cancellation', () => {
     if (entity === 'topic') dbh.db.delete(topicTable).where(eq(topicTable.id, topicId)).run()
     else dbh.db.delete(assistantTable).where(eq(assistantTable.id, assistantId)).run()
 
-    await expect(
-      service.callTopicTool(topicId, assistantId, 'list_tabs', {}, new AbortController().signal)
-    ).rejects.toThrow(new BrowserSessionError('not_allowed'))
+    await expect(listTabs(topicControl())).rejects.toThrow(new BrowserSessionError('not_allowed'))
   })
 
   it('rejects deleted topic bindings without requesting a replacement guest', async () => {
@@ -310,9 +314,19 @@ describe('topic browser ownership and cancellation', () => {
 
   it.each(['topic', 'assistant'] as const)('rechecks deleted %s before queued dispatch', async (entity) => {
     attachTopicGuest()
-    const pending = service.callTopicTool(topicId, assistantId, 'list_tabs', {}, new AbortController().signal)
+    const control = topicControl()
+    const started = new Signal<void>()
+    const gate = new Signal<void>()
+    const busy = control.run(async () => {
+      started.resolve()
+      await gate
+    }, new AbortController().signal)
+    await started
+    const pending = listTabs(control)
     if (entity === 'topic') dbh.db.delete(topicTable).where(eq(topicTable.id, topicId)).run()
     else dbh.db.delete(assistantTable).where(eq(assistantTable.id, assistantId)).run()
+    gate.resolve()
+    await busy
 
     await expect(pending).rejects.toThrow(new BrowserSessionError('not_allowed'))
   })
@@ -324,9 +338,7 @@ describe('topic browser ownership and cancellation', () => {
       throw failure
     })
 
-    await expect(
-      service.callTopicTool(topicId, assistantId, 'list_tabs', {}, new AbortController().signal)
-    ).rejects.toBe(failure)
+    await expect(listTabs(topicControl())).rejects.toBe(failure)
     if (entity === 'topic') {
       expect(() => service.topicBrowser.get({ sessionId: topicId, ownerId: assistantId })).toThrow(failure)
       await expect(
@@ -335,55 +347,21 @@ describe('topic browser ownership and cancellation', () => {
     }
   })
 
-  it('waits for idle server cleanup before handling concurrent new calls', async () => {
-    const { fixture, tabId } = attachTopicGuest()
-    const call = () => service.callTopicTool(topicId, assistantId, 'list_tabs', {}, new AbortController().signal)
-    await call()
-    const started = new Signal<void>()
-    const resume = new Signal<void>()
-    const dispose = SessionBrowserController.prototype.dispose
-    vi.spyOn(SessionBrowserController.prototype, 'dispose').mockImplementationOnce(
-      async function (this: SessionBrowserController) {
-        started.resolve()
-        await resume
-        await dispose.call(this)
-      }
-    )
-
-    vi.advanceTimersByTime(5 * 60_000)
-    await started
-    const calls = Promise.allSettled([call(), call()])
-    resume.resolve()
-    const results = await calls
-
-    for (const result of results) {
-      expect(result.status).toBe('fulfilled')
-      if (result.status === 'fulfilled') {
-        expect(result.value.isError).toBe(false)
-        expect(JSON.stringify(result.value)).toContain(tabId)
-      }
-    }
-    expect(fixture.guest.isDestroyed()).toBe(false)
-    await expect(call()).resolves.toMatchObject({ isError: false })
-  })
-
   it('aborts a tool waiting for its guest without waiting for the ensure timeout', async () => {
+    const control = topicControl()
     const abort = new AbortController()
-    const pending = service.callTopicTool(topicId, assistantId, 'snapshot', {}, abort.signal)
+    const cancelled = new Error('cancelled by user')
+    const pending = control.run((controller) => controller.getSession(), abort.signal)
     await vi.waitFor(() =>
       expect(application.get('IpcApiService').broadcast).toHaveBeenCalledWith(
         'browser.guest.ensure_requested',
         expect.objectContaining({ scope: 'topic', sessionId: topicId })
       )
     )
-    abort.abort(new Error('cancelled by user'))
-    const next = service.callTopicTool(topicId, assistantId, 'list_tabs', {}, new AbortController().signal)
-    const result = await pending
-    expect(result.isError).toBe(true)
-    expect(JSON.stringify(result)).toContain('cancelled by user')
-    await expect(next).resolves.toMatchObject({ isError: false })
-    await expect(
-      service.callTopicTool(secondTopic, assistantId, 'list_tabs', {}, new AbortController().signal)
-    ).resolves.toMatchObject({ isError: false })
+    abort.abort(cancelled)
+    const next = listTabs(control)
+    await expect(pending).rejects.toBe(cancelled)
+    await expect(next).resolves.toEqual([])
+    await expect(listTabs(topicControl(assistantId, secondTopic))).resolves.toEqual([])
   })
 })

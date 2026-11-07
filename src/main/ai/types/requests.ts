@@ -1,7 +1,7 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { ChatTransport, ToolChoice, ToolSet, UIMessage } from 'ai'
 
-import type { SourceSnapshot } from '@data/services/AiUsageRecordService'
+import type { RecordAiInvocationInput, SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { RetainedContext } from '@main/ai/messages/retainedContext'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { WindowId } from '@shared/ipc/types'
@@ -15,7 +15,7 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 export interface AiTransportOptions {
   /** Layered on top of provider-aware app attribution + `provider.settings.extraHeaders`; caller wins on conflict. */
   headers?: Record<string, string | undefined>
-  /** Idle-chunk timeout (ms) for streaming flows; resets per chunk. Falls back to `DEFAULT_TIMEOUT` (30 min). */
+  /** Idle-chunk timeout (ms); resets per chunk. Chat execution defaults to `CHAT_STREAM_IDLE_TIMEOUT_MS` (120 min). */
   timeout?: number
   /** AI SDK transparent-retry override. Defaults to 0 — retries can duplicate stream state in tool loops. */
   maxRetries?: number
@@ -25,9 +25,11 @@ export interface AiTransportOptions {
 export interface InProcessUsageContext {
   agentSessionId: string
   /** Assistant message that owns this request: a reserved steer continuation or the active turn. */
-  assistantMessageId: string
+  assistantMessageId?: string
   /** Immutable source captured by the owning Agent turn. `null` means intentionally unavailable. */
   source: SourceSnapshot | null
+  /** Native correlation can arrive after the provider finishes. Captured prices and credentials stay immutable. */
+  recordInvocation?: (input: RecordAiInvocationInput) => void
 }
 
 /** Identifies which layer owns history shaping for an in-process AI request. */

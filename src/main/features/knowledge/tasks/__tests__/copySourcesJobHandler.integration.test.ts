@@ -84,7 +84,7 @@ describe('copy-sources job handler on a real filesystem', () => {
     fs.writeFileSync(sourcePath, 'source bytes')
     getByIdMock.mockReset().mockReturnValue(fileItem())
     updateStatusMock.mockReset()
-    scheduler = { scheduleItem: vi.fn(), scheduleIndexing: vi.fn(), scheduleFileProcessingCheck: vi.fn() }
+    scheduler = { scheduleItem: vi.fn(), scheduleIndexing: vi.fn() }
   })
 
   afterEach(() => {

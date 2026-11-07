@@ -330,11 +330,7 @@ function RightPaneContents({
       {/* Mouse events over an iframe (e.g. the HTML preview tab) never reach this
           document's mousemove/mouseup listeners. Disable pointer events on pane
           content while dragging so the document-level resize listeners keep working. */}
-      <div
-        className={cn(
-          'h-full min-h-0 group-data-[resizing=true]/right-pane:pointer-events-none',
-          resizeHandleVisible && 'pl-2'
-        )}>
+      <div className="h-full min-h-0 group-data-[resizing=true]/right-pane:pointer-events-none">
         <ErrorBoundary>{children}</ErrorBoundary>
       </div>
       {resizeHandleVisible && (
@@ -483,9 +479,6 @@ export function PersistentRightPaneHost({
     }
 
     return invalidateActiveTransition
-    // `reconcileAfterEffectsReconnect` is an Effect Event that reads the latest
-    // target and visual state without turning normal renders into reconnects.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invalidateActiveTransition])
 
   useLayoutEffect(() => {
