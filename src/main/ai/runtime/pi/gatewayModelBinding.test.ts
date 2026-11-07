@@ -2,6 +2,7 @@ import { createServer } from 'node:http'
 import { resolve } from 'node:path'
 
 import { normalizeContext } from '@earendil-works/pi-ai'
+import type { Message } from '@earendil-works/pi-ai'
 import { afterEach, beforeEach, expect, it, onTestFinished, vi } from 'vitest'
 
 import { application } from '@application'
@@ -38,6 +39,114 @@ afterEach(() => {
   vi.restoreAllMocks()
   providerRegistryService.clearCache()
 })
+
+it.each(['same', 'provider', 'model', 'api'])(
+  'replays Google signatures with %s history ownership after reconnect',
+  async (ownership) => {
+    type Part = { functionCall?: { name: string; args: unknown }; text?: string; thoughtSignature?: string }
+    const requests: Array<{ contents: Array<{ role: string; parts: Part[] }> }> = []
+    const signature = Buffer.from('fixture-tool-signature').toString('base64')
+    const nextSignature = Buffer.from('fixture-next-tool-signature').toString('base64')
+    const textSignature = Buffer.from('fixture-text-signature').toString('base64')
+    const call = (id: string, thoughtSignature?: string): Part => ({
+      functionCall: { name: 'read', args: { path: `${id}.txt` } },
+      ...(thoughtSignature ? { thoughtSignature } : {})
+    })
+    const responses: Part[][] = [
+      [call('a', signature), call('b')],
+      [call('c', nextSignature)],
+      [{ text: 'complete', thoughtSignature: textSignature }],
+      [{ text: 'continued' }]
+    ]
+    const server = createServer(async (req, res) => {
+      let raw = ''
+      for await (const chunk of req) raw += chunk
+      requests.push(JSON.parse(raw))
+      res.writeHead(200, { 'content-type': 'text/event-stream' })
+      res.end(
+        `data: ${JSON.stringify({
+          candidates: [{ content: { role: 'model', parts: responses[requests.length - 1] }, finishReason: 'STOP' }],
+          usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1, totalTokenCount: 2 }
+        })}\n\n`
+      )
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    onTestFinished(
+      () =>
+        new Promise<void>((resolve) => {
+          server.closeAllConnections()
+          server.close(() => resolve())
+        })
+    )
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('No test listener')
+    gateway.baseUrl = `http://127.0.0.1:${address.port}`
+    const provider = ProviderSchema.parse({
+      id: 'google-fixture',
+      name: 'Google fixture',
+      reportsActualCost: false,
+      isEnabled: true,
+      apiKeys: [],
+      authType: 'api-key',
+      settings: {},
+      defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+    })
+    const model = ModelSchema.parse({
+      id: 'google-fixture::gemini-4-argon',
+      providerId: provider.id,
+      name: 'Gemini fixture',
+      apiModelId: 'gemini-4-argon',
+      capabilities: [],
+      isEnabled: true,
+      isHidden: false,
+      supportsStreaming: true
+    })
+    const binding = await createPiGatewayModelBinding({ sessionId: 'session-1' }, provider, model)
+    const history: Message[] = [{ role: 'user', content: 'Read fixtures.', timestamp: 1 }]
+    for (let step = 0; step < 3; step++) {
+      const answer = await binding.modelRuntime.completeSimple(binding.model, normalizeContext({ messages: history }))
+      expect(answer.stopReason).toBe(step < 2 ? 'toolUse' : 'stop')
+      history.push(answer)
+      for (const part of answer.content) {
+        if (part.type !== 'toolCall') continue
+        history.push({
+          role: 'toolResult',
+          toolCallId: part.id,
+          toolName: part.name,
+          content: [{ type: 'text', text: 'fixture content' }],
+          isError: false,
+          timestamp: step + 2
+        })
+      }
+    }
+    const calls = (request: (typeof requests)[number]) =>
+      request.contents.flatMap((content) => content.parts.filter((part) => part.functionCall))
+    expect(calls(requests[1])).toEqual([call('a', signature), call('b')])
+    expect(calls(requests[2])).toEqual([call('a', signature), call('b'), call('c', nextSignature)])
+
+    const restored: Message[] = JSON.parse(JSON.stringify(history))
+    for (const message of restored) {
+      if (message.role !== 'assistant') continue
+      if (ownership === 'provider') message.provider = 'foreign-provider'
+      if (ownership === 'model') message.model = 'google-fixture:other-model'
+      if (ownership === 'api') message.api = 'openai-completions'
+    }
+    restored.push({ role: 'user', content: 'Continue.', timestamp: 5 })
+    const saved = JSON.stringify(restored)
+    const reopened = await createPiGatewayModelBinding({ sessionId: 'session-1' }, provider, model)
+    const result = await reopened.modelRuntime.completeSimple(reopened.model, normalizeContext({ messages: restored }))
+    expect(result.stopReason).toBe('stop')
+    expect(JSON.stringify(restored)).toBe(saved)
+    expect(calls(requests[3])).toEqual(
+      ownership === 'same'
+        ? [call('a', signature), call('b'), call('c', nextSignature)]
+        : [call('a'), call('b'), call('c')]
+    )
+    expect(requests[3].contents.flatMap((content) => content.parts).filter((part) => part.text === 'complete')).toEqual(
+      [ownership === 'same' ? { text: 'complete', thoughtSignature: textSignature } : { text: 'complete' }]
+    )
+  }
+)
 
 it('preserves each model route and usage owner when a child shares the native gateway registry', async () => {
   const requests: {

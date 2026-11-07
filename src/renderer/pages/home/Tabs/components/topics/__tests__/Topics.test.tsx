@@ -8,6 +8,7 @@ import type * as SessionHoverPreviewModule from '@renderer/components/chat/resou
 import type * as UseCacheModule from '@renderer/data/hooks/useCache'
 import type * as TopicMenuActionsHook from '@renderer/hooks/chat/useTopicMenuActions'
 import { type AssistantTopicsSource, deriveAssistantTopicsView } from '@renderer/hooks/resourceViewSources'
+import type * as TabHooks from '@renderer/hooks/tab'
 import type * as UseGroupsHook from '@renderer/hooks/useGroups'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -169,7 +170,8 @@ const tabsContextMocks = vi.hoisted(() => ({
 const windowFrameMocks = vi.hoisted(() => ({ mode: 'embedded' as 'embedded' | 'window' }))
 const resourceEditDialogMocks = vi.hoisted(() => ({ renderHost: vi.fn() }))
 
-vi.mock('@renderer/hooks/tab', () => ({
+vi.mock('@renderer/hooks/tab', async (importOriginal) => ({
+  ...(await importOriginal<typeof TabHooks>()),
   useCloseConversationTabs: () => tabsContextMocks.closeConversationTabs,
   useOptionalTabsContext: () => tabsContextMocks
 }))

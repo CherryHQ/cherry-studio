@@ -85,7 +85,7 @@ cases.push({
   origin: 'real Anthropic SDK HTTP 200 non-Message fixture + serializeError',
   input: () => realInputs.get('sdk-anthropic-200-non-message'),
   status: 502,
-  message: 'Invalid JSON response'
+  message: 'Type validation failed: unexpected data structure. Check the provider endpoint and model.'
 })
 for (const status of [200, 201, 204, 206, 299]) {
   add(
@@ -420,7 +420,9 @@ async function anthropicNonMessageFailure() {
     expect((error as APICallError).message).toBe('Invalid JSON response')
     const serialized = serializeError(error)
     expect(serialized.statusCode).toBe(200)
-    expect(serialized.message).toBe('Invalid JSON response')
+    expect(serialized.message).toBe(
+      'Type validation failed: unexpected data structure. Check the provider endpoint and model.'
+    )
     return serialized
   } finally {
     await close(upstream)
@@ -548,7 +550,7 @@ describe('gateway generation errors over real Elysia/node sockets', () => {
               if (test.status === 502) {
                 const lengths =
                   test.id === 'sdk-anthropic-200-non-message'
-                    ? { anthropic: 79, openai: 91, 'openai-responses': 91, gemini: 76 }
+                    ? { anthropic: 147, openai: 159, 'openai-responses': 159, gemini: 144 }
                     : { anthropic: test.providerType ? 107 : 95, openai: 107, 'openai-responses': 107, gemini: 92 }
                 expect(Buffer.byteLength(body, 'utf8')).toBe(lengths[dialect.format])
               }
