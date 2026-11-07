@@ -9,7 +9,7 @@ export type ExternalTarget =
   | { kind: 'document'; application: 'Preview' | 'Pages' | 'TextEdit' | 'Notepad'; path: string }
   | { kind: 'folder'; path: string }
   | { kind: 'terminal'; directory: string }
-  | { kind: 'browser'; title: string; application?: string }
+  | { kind: 'browser'; title: string; application?: string; path?: string }
   | { kind: 'settings' }
 
 export interface ExternalProcess {

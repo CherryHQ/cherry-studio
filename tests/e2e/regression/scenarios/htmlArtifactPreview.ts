@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { once } from 'node:events'
 import { writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
+import { join } from 'node:path'
 
 import { expect, type Page, type TestInfo } from '@playwright/test'
 
@@ -203,8 +204,11 @@ window.addEventListener('pageshow', () => navigator.sendBeacon('http://127.0.0.1
     })
     await attachScreenshot('MP-41 rendered preview and working button after script error')
     await artifact.hover()
+    const browserProbePath = join(app.paths.root, 'browser-handler.html')
+    await writeFile(browserProbePath, '')
     const browserResource = registerExternalResource(app.paths, app.record.platform, {
       kind: 'browser',
+      path: browserProbePath,
       title: externalTitle
     })
     await artifact.getByRole('button', { name: 'Open in external browser', exact: true }).click()

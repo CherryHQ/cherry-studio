@@ -38,7 +38,7 @@ function writeResources(paths: RunPaths, resources: ExternalResource[]): void {
 }
 
 export function registerExternalResource(paths: RunPaths, platform: Platform, target: ExternalTarget): string {
-  if ('path' in target) resolveAllowedPath(target.path, [paths.root])
+  if ('path' in target && target.path) resolveAllowedPath(target.path, [paths.root])
   if ('directory' in target) resolveAllowedPath(target.directory, [paths.root])
   const baseline = externalAppRequest(platform, { action: 'inspect', target, root: paths.root })
   if (target.kind === 'browser' && baseline.browserApplication)

@@ -123,6 +123,8 @@ MP-52 opens the edited source file itself in TextEdit on macOS or Notepad on Win
 
 Windows MP-90 opens the exported image in Microsoft Edge with a run-owned profile under `private/`, checks its decoded dimensions, and closes that browser. Edge must be installed on the runner. MP-82 runs the document-drop flow on both platforms. MP-56 uses a tagged Node timer process on Windows and a shell sleep on macOS to verify actual process cleanup after interruption.
 
+On macOS, MP-41 resolves the default application for a private HTML probe before opening the artifact. Its cleanup tracks the actual file handler even when the HTTPS default differs, and preserves existing browser tabs. Unsupported handlers fail before the external file is opened.
+
 `translation-settings` selects only MP-86. The case uses pinned aiMock responses for
 language detection and translation, while exercising the real settings UI, model
 routing, automatic clipboard copy, history and usage storage, and restart persistence.

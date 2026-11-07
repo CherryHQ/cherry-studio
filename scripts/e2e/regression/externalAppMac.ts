@@ -17,7 +17,8 @@ function run(argv) {
   if (target.kind === 'browser') {
     let bundle = target.application
     if (!bundle) {
-      const url = $.NSWorkspace.sharedWorkspace.URLForApplicationToOpenURL($.NSURL.URLWithString('https://example.invalid'))
+      const openedURL = target.path ? $.NSURL.fileURLWithPath(target.path) : $.NSURL.URLWithString('https://example.invalid')
+      const url = $.NSWorkspace.sharedWorkspace.URLForApplicationToOpenURL(openedURL)
       bundle = ObjC.unwrap($.NSBundle.bundleWithURL(url).bundleIdentifier)
     }
     if (bundles.indexOf(bundle) < 0) throw new Error('Default browser does not support safe tab cleanup: ' + bundle)

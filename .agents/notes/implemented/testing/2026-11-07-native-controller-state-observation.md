@@ -14,6 +14,8 @@ The hosted macOS image build unloads the Notification Center launch agent; the o
 
 Windows shell registration also resolves through the application's isolated `APPDATA`. The SDK could not create its shortcut until the Programs directory existed, and that private shortcut was not visible to the real shell.
 
+macOS can use different applications for HTTPS and local HTML files. Pinning the HTTPS browser for an HTML preview could leave the actual file-handler tab untracked.
+
 ## Decision
 
 - Send Unicode PowerShell save scripts through standard input and verify the owned dialog and address-bar focus before typing.
@@ -24,6 +26,8 @@ Windows shell registration also resolves through the application's isolated `APP
 - Wait up to sixty seconds for a revealed macOS development renderer before replacing its process; a loading renderer alone does not prove process failure.
 - Read the Notification Center service label from its plist, record the hosted GUI service's prior state, enable it for native checks, and restore that state in an always-run step.
 - Prepare the isolated Windows Programs directory. Register an unchanged SDK-generated shortcut in the real Start Menu with an exclusive run-specific name and a checksum lease written before publication. Both case and controller cleanup remove only the unchanged owned copy.
+
+- Resolve the handler of an owned HTML probe before the preview action, and pin that application for tab ownership and cleanup. URL-only registrations continue to resolve HTTPS. Unsupported handlers fail before opening the external file.
 
 ## Alternatives considered
 
@@ -46,3 +50,5 @@ Adapters remain platform specific and fail when native state cannot be confirmed
 - Regression — the cold-renderer case failed before the wait repair and passed afterward; all three window-recovery tests passed.
 - Regression — hosted macOS MP-110 and MP-111 passed together after the tray-startup case waited for visible application chrome; native checks, service restoration and cleanup passed.
 - Regression — 33 lifecycle, debug-bridge and shortcut tests passed, including existing-file preservation, changed-file preservation and actual controller fallback cleanup. Windows MP-110 passed real delivery, click routing and suppression; its independent Start Menu audit found zero owned shortcuts after cleanup.
+
+- Regression — 29 external-resource, driver, browser-association and syntax tests passed, with one existing Windows-only skip. The actual macOS script runs against simulated native objects: different HTTPS/HTML defaults preserve existing tabs in both browsers and close the new HTML tab. File-handler tracking and unsupported-handler rejection both failed before the repair.
