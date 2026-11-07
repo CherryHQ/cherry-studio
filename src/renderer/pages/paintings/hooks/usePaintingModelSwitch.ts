@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 
 import { loggerService } from '@logger'
 import { useModels } from '@renderer/hooks/useModel'
+import type { Model } from '@shared/data/types/model'
 import { isEditImageModel } from '@shared/utils/model'
 
 import { presentPaintingGenerateError } from '../errors/paintingGenerateError'
@@ -60,8 +61,9 @@ export function usePaintingModelSwitch({
         return
       }
 
+      let providerCatalog: ModelOption[]
       try {
-        await ensureProviderCatalog(providerId)
+        providerCatalog = await ensureProviderCatalog(providerId)
       } catch (error) {
         // Cold-cache + DB/IPC failure must not silently revert the dropdown —
         // surface it like the generate path instead of swallowing the switch.
@@ -69,6 +71,36 @@ export function usePaintingModelSwitch({
         presentPaintingGenerateError(error)
         return
       }
+
+      if (modelId === painting.model) {
+        // Same model id served by a different provider: the user changed where
+        // the model is served from, not the model. Preserve the form context
+        // exactly like the same-provider branch instead of resetting params,
+        // mode and attachments to defaults. Equal model ids still carry no
+        // constraint guarantee (provider registries differ, e.g. AiHubMix
+        // numImages 1-10 vs DashScope 1-4), so carried params are reconciled
+        // against the destination's own support: compatible values survive,
+        // incompatible ones reset to the destination default and the displayed
+        // form keeps matching what submission will request.
+        const resetPatch = await computeModelFieldReset({
+          providerId: currentProviderId,
+          newProviderId: providerId,
+          oldModelId: painting.model,
+          newModelId: modelId,
+          mode: tabToImageGenerationMode(painting.mode),
+          currentValues: painting.params ?? {}
+        })
+        const nextModel = providerCatalog.find((option) => option.value === modelId)?.raw as Model | undefined
+        const keepInputFiles = nextModel ? isEditImageModel(nextModel) : false
+        onPaintingChange({
+          providerId,
+          model: modelId,
+          params: { ...painting.params, ...resetPatch },
+          ...(keepInputFiles ? {} : { inputFiles: [] })
+        })
+        return
+      }
+
       const targetPainting = createDefaultPainting({ providerId })
 
       onPaintingChange({
