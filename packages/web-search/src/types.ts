@@ -14,7 +14,8 @@ export const REMOTE_PROVIDER_IDS = Object.freeze([
   'yuanbao',
   'deepseek',
   'desearch',
-  'searchapi'
+  'searchapi',
+  'serpkite'
 ] as const)
 
 export type RemoteProviderId = (typeof REMOTE_PROVIDER_IDS)[number]
