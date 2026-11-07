@@ -57,7 +57,8 @@ export function controlMacPrintDialog(paths: RunPaths, action: 'inspect' | 'canc
   return JSON.parse(
     execFileSync('swift', ['-module-cache-path', join(paths.private, 'swift-module-cache'), '-e', script], {
       encoding: 'utf8',
-      timeout: 30_000
+      timeout: 30_000,
+      env: { ...process.env, TMPDIR: paths.private }
     })
   ) as string[]
 }
@@ -162,7 +163,8 @@ export function closeMacComputerUsePermissionGuide(paths: RunPaths): boolean {
   return (
     execFileSync('swift', ['-module-cache-path', join(paths.private, 'swift-module-cache'), '-e', script], {
       encoding: 'utf8',
-      timeout: 30_000
+      timeout: 30_000,
+      env: { ...process.env, TMPDIR: paths.private }
     }).trim() === 'true'
   )
 }
@@ -995,7 +997,7 @@ export async function saveNativeFileKeepingName(
       AXUIElementCopyAttributeValue(element, name as CFString, &value)
       return value
     }
-    func elements(_ element: AXUIElement, _ depth: Int = 0, skipping: Set<String> = []) -> [AXUIElement] {
+    func elements(_ element: AXUIElement, _ depth: Int = 0, skipping: Set<String> = ["AXScrollArea", "AXBrowser", "AXWebArea"]) -> [AXUIElement] {
       guard depth < 18 else { return [element] }
       let children = attribute(element, "AXChildren") as? [AXUIElement] ?? []
       return [element] + children.filter { !skipping.contains(attribute($0, "AXRole") as? String ?? "") }
@@ -1070,7 +1072,9 @@ export async function saveNativeFileKeepingName(
     if ${keepSuggestedName ? 'false' : 'true'} { setValue(filename, ${JSON.stringify(saveName)}) }
     guard let save = elements(owner).first(where: { attribute($0, "AXRole") as? String == "AXButton" &&
       ["Save", "保存"].contains(attribute($0, "AXTitle") as? String ?? "") }) else { fail("Native save button disappeared") }
-    guard AXUIElementPerformAction(save, kAXPressAction as CFString) == .success else { fail("Native save button failed") }
+    wait("Save enabled") { attribute(save, "AXEnabled") as? Bool == true }
+    AXUIElementSetAttributeValue(filename, "AXFocused" as CFString, kCFBooleanTrue)
+    key(36)
     print(suggested)
   `
   await runAsync(
@@ -1086,7 +1090,7 @@ export async function saveNativeFileKeepingName(
   const { stdout } = await promisify(execFile)(
     'swift',
     ['-module-cache-path', join(paths.private, 'swift-module-cache'), '-e', script],
-    { encoding: 'utf8', timeout: 45_000 }
+    { encoding: 'utf8', timeout: 45_000, env: { ...process.env, TMPDIR: paths.private } }
   )
   const suggestedName = stdout.trim()
 

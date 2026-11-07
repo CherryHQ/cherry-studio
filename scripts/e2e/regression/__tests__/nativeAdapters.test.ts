@@ -90,14 +90,21 @@ it.skipIf(process.platform !== 'win32')(
   60_000
 )
 
-// Exercise Electron's actual Common Item Dialog, including the filename edit/commit contract.
-it.skipIf(process.platform !== 'win32').each(['file', 'multiple', 'directory', 'save'] as const)(
-  'selects the requested path through the real Windows %s dialog',
+const nativePlatform = process.platform === 'darwin' ? 'macos' : 'windows'
+const dialogModes =
+  process.platform === 'darwin'
+    ? (['file', 'directory', 'save'] as const)
+    : (['file', 'multiple', 'directory', 'save'] as const)
+
+// Verify Electron's returned paths after actual native selection and filename commit.
+it.skipIf(!['darwin', 'win32'].includes(process.platform)).each(dialogModes)(
+  `selects the requested path through the real ${nativePlatform} %s dialog`,
   async (mode) => {
     const directory = mkdtempSync(join(tmpdir(), 'cherry-native-dialog-'))
     const paths = getRunPaths(directory)
     const script = join(paths.private, 'dialog.cjs')
     let child: ChildProcess | undefined
+    let logHandle: number | undefined
     try {
       ensureRunDirectories(paths)
       mkdirSync(join(paths.profiles, 'native-dialog'), { recursive: true })
@@ -118,11 +125,13 @@ it.skipIf(process.platform !== 'win32').each(['file', 'multiple', 'directory', '
       app.whenReady().then(async () => {
         const window = new BrowserWindow({ width: 500, height: 300 })
         await window.loadURL('data:text/html,<title>Owned native dialog fixture</title>')
+        window.show()
+        app.focus({ steal: true })
         fs.writeFileSync(${JSON.stringify(readyPath)}, 'ready')
         const result = ${
           mode === 'save'
-            ? `await dialog.showSaveDialog(window, { defaultPath: ${JSON.stringify(join(paths.private, 'suggested.txt'))}, filters: [{name: 'Text', extensions: ['txt']}] })`
-            : `await dialog.showOpenDialog(window, { properties: ${JSON.stringify(mode === 'directory' ? ['openDirectory'] : mode === 'multiple' ? ['openFile', 'multiSelections'] : ['openFile'])} })`
+            ? `await dialog.showSaveDialog(${nativePlatform === 'windows' ? 'window, ' : ''}{ defaultPath: ${JSON.stringify(join(paths.private, 'suggested.txt'))}, filters: [{name: 'Text', extensions: ['txt']}] })`
+            : `await dialog.showOpenDialog(${nativePlatform === 'windows' ? 'window, ' : ''}{ properties: ${JSON.stringify(mode === 'directory' ? ['openDirectory'] : mode === 'multiple' ? ['openFile', 'multiSelections'] : ['openFile'])} })`
         }
         if (result.filePath && !result.canceled) {
           if (fs.realpathSync.native(require('node:path').dirname(result.filePath)) !== fs.realpathSync.native(${JSON.stringify(paths.private)})) throw new Error('Native fixture save escaped its private directory: ' + result.filePath)
@@ -134,9 +143,10 @@ it.skipIf(process.platform !== 'win32').each(['file', 'multiple', 'directory', '
       )
       const environment = { ...process.env }
       delete environment.ELECTRON_RUN_AS_NODE
+      logHandle = openSync(join(paths.logs, 'fixture.log'), 'w')
       child = spawn(createRequire(import.meta.url)('electron') as string, [script], {
         env: environment,
-        stdio: 'ignore',
+        stdio: ['ignore', logHandle, logHandle],
         windowsHide: false
       })
       await expect.poll(() => existsSync(readyPath), { timeout: 30_000 }).toBe(true)
@@ -147,7 +157,7 @@ it.skipIf(process.platform !== 'win32').each(['file', 'multiple', 'directory', '
           ownership: 'regression-driver',
           policy: 'ephemeral',
           mode: 'branch',
-          platform: 'windows',
+          platform: nativePlatform,
           targetRoot: directory,
           runnerPid: child.pid,
           electronPid: child.pid,
@@ -158,8 +168,8 @@ it.skipIf(process.platform !== 'win32').each(['file', 'multiple', 'directory', '
       )
       if (mode === 'multiple') chooseWindowsNativeFiles(paths, inputs)
       else if (mode === 'save')
-        expect(realpathSync.native(await saveNativeFile('windows', paths, saved))).toBe(realpathSync.native(saved))
-      else chooseNativeFile('windows', paths, mode === 'directory' ? folder : inputs[0])
+        expect(realpathSync.native(await saveNativeFile(nativePlatform, paths, saved))).toBe(realpathSync.native(saved))
+      else chooseNativeFile(nativePlatform, paths, mode === 'directory' ? folder : inputs[0])
       await expect.poll(() => existsSync(resultPath), { timeout: 10_000 }).toBe(true)
       const result = JSON.parse(readFileSync(resultPath, 'utf8'))
       expect(result.canceled).toBe(false)
@@ -176,13 +186,37 @@ it.skipIf(process.platform !== 'win32').each(['file', 'multiple', 'directory', '
     } catch (error) {
       let controls = 'Fixture exited before native controls could be inspected'
       if (child?.pid && child.exitCode === null && isAlive(child.pid)) {
-        controls = execFileSync(
-          'powershell.exe',
-          [
-            '-NoProfile',
-            '-NonInteractive',
-            '-Command',
+        try {
+          controls =
+            nativePlatform === 'macos'
+              ? execFileSync(
+                  'osascript',
+                  [
+                    '-e',
+                    `
+              tell application "System Events"
+                set ownedProcess to a reference to (first application process whose unix id is ${child.pid})
+                if unix id of ownedProcess is not ${child.pid} then error "Native diagnostic PID mismatch"
+                set snapshot to {unix id of ownedProcess, name of every window of ownedProcess}
+                repeat with windowIndex from 1 to count of windows of ownedProcess
+                  set ownedWindow to a reference to window windowIndex of ownedProcess
+                  try
+                    set end of snapshot to {name of every button of splitter group 1 of ownedWindow, value of every text field of splitter group 1 of ownedWindow, name of every sheet of ownedWindow}
+                  end try
+                end repeat
+                return snapshot
+              end tell
             `
+                  ],
+                  { encoding: 'utf8', timeout: 10_000 }
+                )
+              : execFileSync(
+                  'powershell.exe',
+                  [
+                    '-NoProfile',
+                    '-NonInteractive',
+                    '-Command',
+                    `
           Add-Type -AssemblyName UIAutomationClient
           Add-Type -AssemblyName UIAutomationTypes
           $root = [Windows.Automation.AutomationElement]::RootElement
@@ -193,21 +227,29 @@ it.skipIf(process.platform !== 'win32').each(['file', 'multiple', 'directory', '
               ForEach-Object { $c = $_.Current; "{0}|{1}|{2}|{3}|enabled={4}|offscreen={5}|focusable={6}|handle={7}|pid={8}" -f $c.Name, $c.ClassName, $c.AutomationId, $c.ControlType.ProgrammaticName, $c.IsEnabled, $c.IsOffscreen, $c.IsKeyboardFocusable, $c.NativeWindowHandle, $c.ProcessId }
           }
         `
-          ],
-          { encoding: 'utf8', timeout: 10_000 }
-        )
+                  ],
+                  { encoding: 'utf8', timeout: 10_000 }
+                )
+        } catch (inspectionError) {
+          controls = `Inspection failed: ${String(inspectionError)}`
+        }
       }
       const result = join(paths.private, 'result.json')
+      const log = join(paths.logs, 'fixture.log')
+      const logTail = existsSync(log) ? readFileSync(log, 'utf8').slice(-5000) : ''
       throw new Error(
-        `Windows ${mode} dialog failed. Result: ${existsSync(result) ? readFileSync(result, 'utf8') : 'pending'}. Owned controls:\n${controls}`,
+        `${nativePlatform} ${mode} dialog failed. Result: ${existsSync(result) ? readFileSync(result, 'utf8') : 'pending'}. Owned controls:\n${controls}\nFixture log:\n${logTail}`,
         { cause: error }
       )
     } finally {
       if (child?.pid && child.exitCode === null && isAlive(child.pid)) {
-        expect(processCommand(child.pid, 'windows'), 'Native dialog fixture ownership changed').toContain(script)
-        execFileSync('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore', timeout: 10_000 })
+        expect(processCommand(child.pid, nativePlatform), 'Native dialog fixture ownership changed').toContain(script)
+        if (nativePlatform === 'windows')
+          execFileSync('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore', timeout: 10_000 })
+        else child.kill('SIGTERM')
         expect(await waitForExit(child.pid), 'Owned native dialog fixture did not exit').toBe(true)
       }
+      if (logHandle !== undefined) closeSync(logHandle)
       rmSync(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
     }
   },

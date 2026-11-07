@@ -189,7 +189,7 @@ jobs:
         run: >-
           pnpm test:scripts
           scripts/e2e/regression/__tests__/externalAppSyntax.test.ts
-          scripts/e2e/regression/__tests__/windowsNativeAdapters.test.ts
+          scripts/e2e/regression/__tests__/nativeAdapters.test.ts
 
       - name: Cache code tool downloads
         uses: actions/cache@v6
