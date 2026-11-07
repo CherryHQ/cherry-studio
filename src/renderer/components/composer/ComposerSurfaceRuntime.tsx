@@ -49,7 +49,7 @@ import {
 import type { ComposerShortcut } from '@shared/data/preference/preferenceTypes'
 
 import { useComposerLayerActive } from './ComposerContext'
-import { createComposerDraftContent, serializeComposerDocument } from './composerDraft'
+import { createComposerDraftContent, resolveComposerRestoreTokens, serializeComposerDocument } from './composerDraft'
 import { ComposerFocusShortcut } from './ComposerFocusShortcut'
 import {
   appendComposerText,
@@ -259,6 +259,8 @@ export interface ComposerSurfaceProps {
   onActionsChange?: (actions: ComposerSurfaceActions) => void
   isInputHistoryActive?: boolean
   onInputHistoryNavigate?: (direction: InputHistoryDirection) => boolean
+  /** Claims Shift+Tab before prompt-variable navigation; return true when handled. */
+  onShiftTab?: () => boolean
   editingState?: ComposerSurfaceEditingState
   getToolLaunchers?: () => ComposerToolLauncher[]
   toolLaunchersVersion?: number
@@ -596,6 +598,7 @@ export default function ComposerSurfaceRuntime({
   onActionsChange,
   isInputHistoryActive = false,
   onInputHistoryNavigate,
+  onShiftTab,
   editingState,
   getToolLaunchers,
   toolLaunchersVersion,
@@ -658,6 +661,7 @@ export default function ComposerSurfaceRuntime({
   const onSendDraftRef = useRef(onSendDraft)
   const isInputHistoryActiveRef = useRef(isInputHistoryActive)
   const onInputHistoryNavigateRef = useRef(onInputHistoryNavigate)
+  const onShiftTabRef = useRef(onShiftTab)
   const promptVariableEditRef = useRef<{ tokenId: string; started: boolean } | null>(null)
   const promptVariableCompositionRef = useRef<{ tokenId: string; text: string } | null>(null)
   const promptVariableSkipTextInputRef = useRef<{ tokenId: string; text: string } | null>(null)
@@ -681,6 +685,7 @@ export default function ComposerSurfaceRuntime({
     onSendDraftRef.current = onSendDraft
     isInputHistoryActiveRef.current = isInputHistoryActive
     onInputHistoryNavigateRef.current = onInputHistoryNavigate
+    onShiftTabRef.current = onShiftTab
   }, [
     filesCount,
     steerShortcut,
@@ -688,6 +693,7 @@ export default function ComposerSurfaceRuntime({
     isInputHistoryActive,
     newlineShortcut,
     onInputHistoryNavigate,
+    onShiftTab,
     onSendDraft,
     quickPanel,
     sendBlockedReason,
@@ -1630,6 +1636,11 @@ export default function ComposerSurfaceRuntime({
         }
 
         if (event.key === 'Tab' && !event.isComposing && !quickPanelRef.current.isVisible) {
+          if (event.shiftKey && onShiftTabRef.current?.()) {
+            event.preventDefault()
+            event.stopPropagation()
+            return true
+          }
           const targetToken = editorRef.current
             ? selectPromptVariableToken(editorRef.current, event.shiftKey ? -1 : 1)
             : null
@@ -1866,7 +1877,7 @@ export default function ComposerSurfaceRuntime({
   const editor = useRichTextEditorKernel({
     extensions: editorExtensions,
     content: createComposerDraftContent(
-      { text, tokens: draftTokens ?? [] },
+      { text, tokens: resolveComposerRestoreTokens(text, draftTokens, tokens) },
       { tokenizeVariables: !deferredIntent?.preservePlainText }
     ),
     editable,
@@ -1959,9 +1970,9 @@ export default function ComposerSurfaceRuntime({
     setComposerEditorContent(
       editor,
       lastSerializedDraftRef,
-      createComposerDraftContent({ text, tokens: draftTokens ?? [] })
+      createComposerDraftContent({ text, tokens: resolveComposerRestoreTokens(text, draftTokens, tokens) })
     )
-  }, [draftTokens, editor, text])
+  }, [draftTokens, editor, text, tokens])
 
   useEffect(() => {
     if (editingHighlightKey === undefined) return

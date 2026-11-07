@@ -2,7 +2,7 @@
 
 `createPiDurableRuntime` adapts Pi Durable 1.4.0 to the
 [agent runtime contracts](../agent-runtime/README.md). It owns one native `Harness`,
-its storage, committed conversation views, and the task graph watch. It does not implement
+its storage, committed conversation views, and commit observation. It does not implement
 another scheduler, submission queue, or agent loop. The
 [desktop driver](../../src/main/ai/runtime/piDurable/README.md) supplies Cherry's
 storage bindings, gateway models and host services.
@@ -62,8 +62,10 @@ foreground work or compaction, and carries terminal inputs after their content. 
 A confirmed rejection releases only its temporary admission hold; unknown admission remains unresolved.
 Initial observation never replays earlier completion. Slow observers retain terminal batches through
 recovery; final persistence must await `Observation.drain()` after native production stops.
-`runtime.settled()` joins admitted submissions and all native tasks, including background work,
-without closing storage. The desktop backup barrier joins this before observation and archive writes.
+`runtime.settled()` joins admitted submissions, all native tasks including background work,
+and tracked relation delivery without closing storage. Shutdown completes admitted relation reads
+before closing storage and delivers their facts before closing feeds. The desktop backup barrier
+joins settlement before draining observation callbacks and writing archives.
 
 Observations normalize committed `ConversationView` snapshots, live assistant
 partials, tool calls/results, and retained live tool output. These snapshots describe the current
@@ -85,13 +87,19 @@ preview IDs; tool results update their calling message instead of creating a sep
 aliases are local to the open runtime; reopening retains committed IDs and starts
 with no preview aliases. The host owns persistent product-message associations.
 
-Native ownership records and live task graph edges expose `Subagent` relationships
-through `snapshot.subagents` and `subagent.upsert`. Their IDs use the native child
+Native ownership records expose `Subagent` relationships through `snapshot.subagents`
+and `subagent.upsert`. Parent attachment queries all pages of immediately owned children;
+commit observation delivers subsequent creations. Completed children remain discoverable after
+restart, with or without shared behavior. The adapter keeps no separate relationship cache or
+task graph watch. Relationship IDs use the native child
 conversation ID within the parent, so subsequent inputs retain the same relationship.
 They carry evidenced creation `origin` and no assignment completion status. Behavior lineage preserves
 the original creation call across continuation; cold recovery also reads stored child relationships.
 `durable.openChild(toolCallId, signal?)` waits for a known creation and returns its relationship and
-access together. Unknown or ambiguous evidence returns an explicit error. Open and observe a child
+access together. It queries native ownership before resolving access, so delayed relation delivery
+cannot make a committed child appear unavailable. `durable.relation()` reads the child's original
+ownership and creation evidence on demand, including before its parent has opened. Unknown or
+ambiguous evidence returns an explicit error. Open and observe a child
 separately; parent output does not recursively contain it.
 
 Without shared behavior, child access can submit further input after the parent access is released. Direct
@@ -172,6 +180,8 @@ pnpm --filter @cherrystudio/agent-runtime-pi-durable typecheck
 
 The child test covers continued conversation, busy rejection, steering, independent
 observation after release, stable relationship identity, and unchanged parent output.
+`relations.test.ts` covers paginated ownership, concurrent initial discovery, read retry,
+independent cancellation, native failure, scoped lookups and blocked relation delivery at settlement/shutdown.
 Archive tests cover pagination, reset, fork ownership and stable identities after
 SQLite reopen. Projection tests cover repeated text, ambiguous coalesced frames,
 retries and tool progress. Shared behavior cases exercise native transactions, goal and

@@ -1,4 +1,4 @@
-import { Copy, Quote } from 'lucide-react'
+import { Copy, NotebookPen, Quote } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -8,12 +8,20 @@ interface TextSelectionToolbarProps {
   children: ReactNode
   onCopy: (selection: Selection) => void
   onQuote: (selection: Selection) => void
+  onSaveToNotes: (selection: Selection) => void
+  isSavingNote: boolean
 }
 
 const SCOPE_SELECTOR = '[data-selection-actions-scope]'
 const EDITABLE_SELECTOR = 'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]'
 
-export function TextSelectionToolbar({ children, onCopy, onQuote }: TextSelectionToolbarProps) {
+export function TextSelectionToolbar({
+  children,
+  onCopy,
+  onQuote,
+  onSaveToNotes,
+  isSavingNote
+}: TextSelectionToolbarProps) {
   const { t } = useTranslation()
   const scopeRef = useRef<HTMLDivElement>(null)
   const toolbarRef = useRef<HTMLDivElement>(null)
@@ -166,6 +174,15 @@ export function TextSelectionToolbar({ children, onCopy, onQuote }: TextSelectio
             <Button type="button" variant="ghost" size="sm" onClick={() => runAction(onQuote)}>
               <Quote aria-hidden="true" />
               {t('chat.message.quote')}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={isSavingNote}
+              onClick={() => runAction(onSaveToNotes)}>
+              <NotebookPen aria-hidden="true" />
+              {t('notes.save')}
             </Button>
           </PopoverContent>
         )}
