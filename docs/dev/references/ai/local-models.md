@@ -313,6 +313,36 @@ Chinese and English. Language preferences select a default voice; they do not sp
 text into separate synthesis requests. The existing host stops the process before changing
 model bundles, on cancellation, or before removing resident model files.
 
+### Kokoro Brazilian Portuguese speech
+
+The `kokoro-int8-multi-lang-v1.0` bundle is a second, independent Kokoro install for
+Brazilian Portuguese. Kokoro v1.1-zh has no Portuguese voices, so this bundle pins the
+multilingual Kokoro v1.0 int8 weights (about 140 MB in total), the `voices.bin` table and only
+the eSpeak data Portuguese needs (`pt_dict`, `lang/roa/pt`, `lang/roa/pt-BR` and the shared
+phoneme tables). It exposes the three Brazilian voices from the v1.0 speaker table:
+`pf_dora` (42), `pm_alex` (43) and `pm_santa` (44).
+
+The worker loads it with the `kokoro-v1` architecture: no lexicon, no Chinese rule FSTs, and
+`lang: 'pt-br'`, which makes sherpa-onnx phonemize every request through eSpeak. That option
+exists in the pinned sherpa-onnx 1.x runtime but is removed in sherpa-onnx 2.0, where language
+comes from lexicon files; upgrading the runtime requires a Portuguese lexicon or an external
+phonemizer for this bundle. The worker keeps one resident Kokoro model and reloads it when a
+request targets the other bundle's directory.
+
+### Piper Brazilian Portuguese speech
+
+Two Piper voices (`piper-pt-br-faber-medium` and `piper-pt-br-cadu-medium`) are separate bundles of about 62 MB each, so a user downloads one
+voice and adds others later. Each is a single-speaker VITS model from the sherpa-onnx
+conversion of `rhasspy/piper-voices` pinned to its Hugging Face revision (the faber repo there holds
+an older export than the sherpa-onnx GitHub release, so its digest differs), installed as `model.onnx` with `tokens.txt` and the same
+Portuguese eSpeak subset as the Kokoro v1.0 bundle. The worker loads them with the `piper`
+architecture through the same resident sherpa-onnx model slot as Kokoro. The voice datasets are
+CC0, but the weights are fine-tuned from Piper's English voices, whose dataset terms should be
+checked before distribution.
+
+The Kokoro v1.0 bundle also exposes `ef_dora` (28), `if_sara` (35) and `im_nicola` (36), Spanish
+and Italian voices that read Portuguese phonemes with an accent, as extra pt-BR voices.
+
 ## Management plane
 
 Commands use one generic IPC surface (`local_model.*`), addressed by bundle id:
