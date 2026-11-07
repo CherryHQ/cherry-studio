@@ -2058,6 +2058,8 @@
   "library.assistant_catalog.preview_description": "简介",
   "library.assistant_catalog.preview_prompt": "提示词",
   "library.assistant_catalog.title": "助手库",
+  "library.config.agent.field.bootstrap_disabled.hint": "不再为此 Agent 显示一次性个性化初始化设置。关闭此开关将恢复正常规则：只有在完成或拒绝设置后，才会停止提示。",
+  "library.config.agent.field.bootstrap_disabled.label": "禁用初始化提示",
   "library.config.agent.field.description.hint": "帮助你快速识别用途",
   "library.config.agent.field.description.label": "描述",
   "library.config.agent.field.description.placeholder": "这个 Agent 的用途…",

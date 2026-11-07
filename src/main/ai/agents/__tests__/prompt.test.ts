@@ -352,6 +352,65 @@ Always cite primary sources.`
   })
 
   describe('bootstrap mode', () => {
+    it('honors explicit opt-out even after bootstrap is reset', async () => {
+      setupFiles({})
+      const { context } = await builder.buildPromptParts(posix('/workspace'), {
+        ...baseConfig,
+        bootstrap_disabled: true,
+        bootstrap_completed: false
+      })
+      expect(context).not.toContain('## Bootstrap Mode')
+    })
+
+    it.each(['missing', 'empty'] as const)(
+      'honors explicit opt-out with no completion flag and %s SOUL.md',
+      async (soul) => {
+        setupFiles(soul === 'empty' ? { [posix('/workspace/SOUL.md')]: '' } : {})
+        const { context } = await builder.buildPromptParts(posix('/workspace'), {
+          ...baseConfig,
+          bootstrap_disabled: true
+        })
+        expect(context).not.toContain('## Bootstrap Mode')
+      }
+    )
+
+    it('does not restart completed setup when the opt-out is turned off', async () => {
+      setupFiles({})
+      const { context } = await builder.buildPromptParts(posix('/workspace'), {
+        ...baseConfig,
+        bootstrap_disabled: false,
+        bootstrap_completed: true
+      })
+      expect(context).not.toContain('## Bootstrap Mode')
+    })
+
+    it('honors an explicit reset over substantial SOUL.md when opt-out is off', async () => {
+      setupFiles({
+        [posix('/workspace/SOUL.md')]:
+          'I am a warm, direct assistant who gives concise answers and adapts to the user’s communication style.'
+      })
+      const { context } = await builder.buildPromptParts(posix('/workspace'), {
+        ...baseConfig,
+        bootstrap_disabled: false,
+        bootstrap_completed: false
+      })
+      expect(context).toContain('## Bootstrap Mode')
+    })
+
+    it.each([
+      { soul: '', bootstrap: true },
+      { soul: '# Soul\n> Template only\n## Personality', bootstrap: true },
+      {
+        soul: 'I am a warm, direct assistant who gives concise answers and adapts to the user’s communication style.',
+        bootstrap: false
+      }
+    ])('preserves the SOUL fallback when opt-out is absent: $bootstrap', async ({ soul, bootstrap }) => {
+      setupFiles({ [posix('/workspace/SOUL.md')]: soul })
+      const { context } = await builder.buildPromptParts(posix('/workspace'), baseConfig)
+      if (bootstrap) expect(context).toContain('## Bootstrap Mode')
+      else expect(context).not.toContain('## Bootstrap Mode')
+    })
+
     it('injects bootstrap instructions when no config is provided and SOUL.md is empty', async () => {
       setupFiles({})
 

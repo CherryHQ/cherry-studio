@@ -2058,6 +2058,8 @@
   "library.assistant_catalog.preview_description": "Обзор",
   "library.assistant_catalog.preview_prompt": "Промпт",
   "library.assistant_catalog.title": "Библиотека помощников",
+  "library.config.agent.field.bootstrap_disabled.hint": "Никогда не показывать первоначальную персонализацию для этого агента. При выключении этой опции действует обычное правило: настройка перестаёт предлагаться только после её завершения или отказа от неё.",
+  "library.config.agent.field.bootstrap_disabled.label": "Отключить предложение настройки",
   "library.config.agent.field.description.hint": "Помогает определить, для чего предназначен этот агент",
   "library.config.agent.field.description.label": "Описание",
   "library.config.agent.field.description.placeholder": "Для чего нужен этот агент…",

@@ -390,6 +390,7 @@ async function deriveConnectionConfigFromSnapshot(
     computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled'),
     builtinRole: agent.configuration?.builtin_role ?? null,
     bootstrapCompleted: agent.configuration?.bootstrap_completed ?? null,
+    bootstrapDisabled: agent.configuration?.bootstrap_disabled ?? null,
     skills: [...skills].sort(),
     envVars: Object.entries(agent.configuration?.env_vars ?? {})
       .filter(([key]) => !isAgentProxyEnvironmentKey(key))

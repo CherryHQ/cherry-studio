@@ -2058,6 +2058,8 @@
   "library.assistant_catalog.preview_description": "Übersicht",
   "library.assistant_catalog.preview_prompt": "Aufforderung",
   "library.assistant_catalog.title": "Assistenten-Bibliothek",
+  "library.config.agent.field.bootstrap_disabled.hint": "Die einmalige Einrichtung zur Personalisierung für diesen Agenten nie anzeigen. Wenn du diese Option ausschaltest, gilt wieder die normale Regel: Die Einrichtung wird erst nach Abschluss oder Ablehnung nicht mehr angezeigt.",
+  "library.config.agent.field.bootstrap_disabled.label": "Einrichtungsaufforderung deaktivieren",
   "library.config.agent.field.description.hint": "Hilft dabei zu erkennen, wofür dieser Agent bestimmt ist",
   "library.config.agent.field.description.label": "Beschreibung",
   "library.config.agent.field.description.placeholder": "Wofür dieser Agent gedacht ist…",

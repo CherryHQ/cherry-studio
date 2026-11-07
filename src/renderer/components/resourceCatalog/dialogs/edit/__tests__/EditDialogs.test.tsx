@@ -352,6 +352,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'common.undo': 'Undo',
           'error.no_response': 'No response',
           'library.action.enable': 'Enable',
+          'library.config.agent.field.bootstrap_disabled.label': 'Disable setup prompt',
           'library.config.agent.field.description.hint': 'Short agent summary.',
           'library.config.agent.field.description.label': 'Description',
           'library.config.agent.field.description.placeholder': 'Describe this agent',
@@ -1505,6 +1506,29 @@ describe('edit dialogs', () => {
     expect(screen.queryByRole('button', { name: 'Model (Opus) Help' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Plan model Help' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Small model Help' })).not.toBeInTheDocument()
+  })
+
+  it('saves the setup opt-out switch and restores it from persisted agent configuration', async () => {
+    const user = userEvent.setup()
+    const props = { open: true, onOpenChange: vi.fn() }
+    const { unmount } = render(<AgentEditDialog {...props} resource={AGENT} />)
+    const toggle = screen.getByRole('switch', { name: 'Disable setup prompt' })
+    expect(toggle).not.toBeChecked()
+    await user.click(toggle)
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({
+        body: { configuration: { bootstrap_disabled: true } }
+      })
+    )
+    expect(toggle).toBeChecked()
+    unmount()
+    render(
+      <AgentEditDialog
+        {...props}
+        resource={{ ...AGENT, configuration: { ...AGENT.configuration, bootstrap_disabled: true } }}
+      />
+    )
+    expect(screen.getByRole('switch', { name: 'Disable setup prompt' })).toBeChecked()
   })
 
   it('persists a heartbeat timeout edit independently of the interval', async () => {

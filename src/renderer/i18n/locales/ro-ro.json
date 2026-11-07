@@ -2058,6 +2058,8 @@
   "library.assistant_catalog.preview_description": "Prezentare generală",
   "library.assistant_catalog.preview_prompt": "Prompt",
   "library.assistant_catalog.title": "Bibliotecă asistent",
+  "library.config.agent.field.bootstrap_disabled.hint": "Nu afișa niciodată configurarea inițială de personalizare pentru acest agent. Dezactivarea acestei opțiuni restabilește regula obișnuită: configurarea nu mai apare doar după ce a fost finalizată sau refuzată.",
+  "library.config.agent.field.bootstrap_disabled.label": "Dezactivează solicitarea de configurare",
   "library.config.agent.field.description.hint": "Ajută la identificarea scopului acestui agent",
   "library.config.agent.field.description.label": "Descriere",
   "library.config.agent.field.description.placeholder": "Pentru ce este acest agent…",

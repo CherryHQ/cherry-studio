@@ -56,6 +56,8 @@ role. Having a configured System Prompt selects the kind of onboarding, not
 whether onboarding is complete. `bootstrap_completed: true` skips onboarding,
 `false` explicitly restarts it, and an absent flag uses substantial existing
 `SOUL.md` content as the legacy completion signal.
+The Agent editor exposes an explicit per-Agent opt-out (`bootstrap_disabled: true`)
+that suppresses onboarding regardless of `bootstrap_completed` or where a conversation branch starts.
 
 `SOUL.md` is not a replica of Agent configuration. With a configured System Prompt, bootstrap may create or edit it only to record the Agent's name, personality, tone, and communication style; it must not discover, restate, or replace the configured role. Without a configured System Prompt, bootstrap preserves the legacy flow and may discover and store the role in `SOUL.md`. Bootstrap records user context in `USER.md` in both modes.
 

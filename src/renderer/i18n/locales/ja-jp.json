@@ -2058,6 +2058,8 @@
   "library.assistant_catalog.preview_description": "概要",
   "library.assistant_catalog.preview_prompt": "プロンプト",
   "library.assistant_catalog.title": "アシスタントライブラリ",
+  "library.config.agent.field.bootstrap_disabled.hint": "このエージェントの初回パーソナライズ設定を表示しません。このスイッチをオフにすると通常のルールに戻り、設定を完了または辞退するまで案内が表示されます。",
+  "library.config.agent.field.bootstrap_disabled.label": "初期設定の案内を無効にする",
   "library.config.agent.field.description.hint": "このエージェントの用途を識別するのに役立ちます",
   "library.config.agent.field.description.label": "説明",
   "library.config.agent.field.description.placeholder": "このエージェントの目的…",
