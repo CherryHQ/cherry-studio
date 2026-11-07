@@ -175,6 +175,29 @@ export function createComposerDraftContent(
   return createComposerContent(draft.text, inputTokens, isComposerInputTokenKind)
 }
 
+/**
+ * Tokens for rebuilding editor content from `text`. `draftTokens` is the persisted seed, but it is
+ * only read once at mount, so a rebuilt editor can hold the current text — which already embeds a
+ * live token's folded prompt text — with an empty seed, materializing that prompt text as plain
+ * prose. Live tokens whose prompt text is present in the text fill the gap where it appears.
+ */
+export function resolveComposerRestoreTokens(
+  text: string,
+  draftTokens: readonly ComposerSerializedToken[] | undefined,
+  liveTokens: readonly ComposerDraftToken[]
+): ComposerSerializedToken[] {
+  if (draftTokens?.length) return [...draftTokens]
+
+  const resolved: ComposerSerializedToken[] = []
+  liveTokens.forEach((token) => {
+    if (!token.promptText) return
+    const textOffset = text.indexOf(token.promptText)
+    if (textOffset < 0) return
+    resolved.push({ ...token, index: resolved.length, textOffset })
+  })
+  return resolved
+}
+
 export function serializeComposerDocument(source: ComposerSerializableSource): ComposerSerializedDraft {
   const json = isEditorSource(source) ? source.getJSON() : source
   const tokens: ComposerSerializedToken[] = []

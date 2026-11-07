@@ -2,14 +2,14 @@
   "roots": [
     ".agents/notes",
     "CONTRIBUTING.md",
-    "docs/i18n",
-    "docs/references/file/file-editing.md",
-    "docs/references/job-and-scheduler/scheduled-tasks-page.md"
+    "docs/dev/i18n",
+    "docs/dev/references/file/file-editing.md",
+    "docs/dev/references/job-and-scheduler/scheduled-tasks-page.md"
   ],
   "excluded": [
     ".agents/notes/AGENTS.md",
     ".agents/notes/implemented/AGENTS.md",
     ".agents/notes/proposed/AGENTS.md",
-    "docs/i18n/terminology.md"
+    "docs/dev/i18n/terminology.md"
   ]
 }

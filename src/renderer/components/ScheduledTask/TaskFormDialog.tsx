@@ -24,7 +24,7 @@ import {
   InputGroupText,
   ItemDescription,
   RowFlex,
-  Scrollbar,
+  ScrollArea,
   Select,
   SelectContent,
   SelectGroup,
@@ -559,7 +559,7 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
           </DialogDescription>
         </DialogHeader>
         {props.agentNotice}
-        <Scrollbar className="-m-1 max-h-[60vh] p-1 pr-3">
+        <ScrollArea viewportProps={{ className: 'p-1 pr-3' }} className="-m-1 max-h-[60vh]">
           <FieldGroup>
             <Field data-invalid={(submitted && !name.trim()) || undefined}>
               <FieldLabel required htmlFor="task-form-name">
@@ -668,7 +668,7 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
               onChange={setChannelIds}
             />
           </FieldGroup>
-        </Scrollbar>
+        </ScrollArea>
         <DialogFooter>
           <Button type="button" variant="outline" disabled={saving} onClick={() => onOpenChange(false)}>
             {t('common.cancel')}

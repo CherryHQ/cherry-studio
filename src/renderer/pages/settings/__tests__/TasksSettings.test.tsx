@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import React from 'react'
@@ -17,6 +18,8 @@ import type { ScheduledTaskEntity, ScheduledTaskListItem } from '@shared/data/ty
 import TasksSettings from '../TasksSettings'
 
 type TranslationFunction = (key: string, values?: Record<string, unknown>) => string
+
+const savedNotificationMock = vi.hoisted(() => ({ taskId: 'task-1' }))
 
 const taskLogsMock = vi.hoisted(() => {
   const defaultTaskLog = {
@@ -132,9 +135,20 @@ vi.mock('@renderer/hooks/agent/useChannels', () => ({
 vi.mock('@renderer/data/hooks/useDataApi', async () => ({
   useDataChange: (await import('@renderer/data/hooks/useDataChange')).useDataChange,
   useQuery: (path: string) =>
-    path === '/agents'
-      ? { data: { items: agentDataMock.agents }, error: undefined, isLoading: false }
-      : { data: [], refetch: vi.fn() }
+    path === '/notifications/:id'
+      ? {
+          data: {
+            id: 'result-1',
+            target: {
+              kind: 'scheduled-task',
+              taskId: savedNotificationMock.taskId,
+              result: { errorSummary: 'Saved safe failure' }
+            }
+          }
+        }
+      : path === '/agents'
+        ? { data: { items: agentDataMock.agents }, error: undefined, isLoading: false }
+        : { data: [], refetch: vi.fn() }
 }))
 
 vi.mock('@renderer/components/PromptEditorField', () => ({
@@ -618,7 +632,7 @@ vi.mock('@cherrystudio/ui', () => {
       ...props
     }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { children?: React.ReactNode }) => <a {...props}>{children}</a>,
     RowFlex: passthrough('div'),
-    Scrollbar: passthrough('div', 'scrollbar'),
+    ScrollArea: MockCherrystudioUI.ScrollArea,
     SearchInput: ({
       'aria-label': ariaLabel,
       clearLabel,
@@ -935,6 +949,17 @@ describe('TasksSettings routing and creation', () => {
     taskMutationMocks.updateTask.mockResolvedValue(taskDataMock.task)
   })
 
+  it.each(['task-1', 'another-task'])(
+    'only displays the saved error for the matching scheduled target (%s)',
+    (taskId) => {
+      savedNotificationMock.taskId = taskId
+      taskLogsMock.logs = []
+      render(<TasksSettings notificationId="result-1" />)
+      if (taskId === 'task-1') expect(screen.getByText('Saved safe failure')).toBeInTheDocument()
+      else expect(screen.queryByText('Saved safe failure')).not.toBeInTheDocument()
+    }
+  )
+
   it('renders only the full-width task list on the base route', async () => {
     navigationMocks.taskId = undefined
 
@@ -1175,7 +1200,7 @@ describe('TasksSettings routing and creation', () => {
         sessionId: 'session-task-chat'
       })
     )
-    expect(ipcMocks.request).toHaveBeenCalledWith('ai.agent.assistant_session.create')
+    expect(ipcMocks.request).toHaveBeenCalledWith('ai.agent.assistant_session.create', {})
   })
 
   it('stays on the page and reports the failure when the chat session cannot be created', async () => {

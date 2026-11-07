@@ -1,5 +1,7 @@
-import type { ComponentProps } from 'react'
+import { useNavigate } from '@tanstack/react-router'
+import { type ComponentProps, useCallback } from 'react'
 
+import type { MessageListState } from '@renderer/components/chat/messages/types'
 import type {
   MessageListActions,
   MessageListSelectAllPagination,
@@ -13,6 +15,7 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 
 import { useAgentRightPaneActions } from './components/AgentRightPane'
 import AgentSessionMessages from './components/AgentSessionMessages'
+import type { NavigateToForkSource } from './messages/agentMessageListAdapter'
 
 interface AgentChatMainProps {
   placement: ConversationComposerPlacement
@@ -31,6 +34,8 @@ interface AgentChatMainProps {
   selectAllPagination?: MessageListSelectAllPagination
   onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
   openDiagnosticReport?: MessageListActions['openDiagnosticReport']
+  getMessageSiblings?: MessageListState['getMessageSiblings']
+  setActiveBranch?: MessageListActions['setActiveBranch']
   deleteMessage: (messageId: string) => Promise<void>
   startEditing: (messageId: string) => Promise<void>
   editBusy: boolean
@@ -55,10 +60,19 @@ export default function AgentChatMain({
   onOpenCitationsPanel,
   openDiagnosticReport,
   deleteMessage,
+  getMessageSiblings,
+  setActiveBranch,
   startEditing,
   editBusy,
   respondToolApproval
 }: AgentChatMainProps) {
+  const navigate = useNavigate()
+  const navigateToForkSource = useCallback<NavigateToForkSource>(
+    ({ sourceSessionId, returnSessionId }) =>
+      navigate({ to: '/app/agents', search: { sessionId: sourceSessionId, forkReturnSessionId: returnSessionId } }),
+    [navigate]
+  )
+
   if (placement !== 'docked' || !sessionMessagesEnabled) {
     return <div className="h-full min-h-0 flex-1" />
   }
@@ -81,10 +95,13 @@ export default function AgentChatMain({
           selectAllPagination={selectAllPagination}
           onOpenCitationsPanel={onOpenCitationsPanel}
           openDiagnosticReport={openDiagnosticReport}
+          getMessageSiblings={getMessageSiblings}
+          setActiveBranch={setActiveBranch}
           deleteMessage={agentId ? deleteMessage : undefined}
           startEditing={agentId ? startEditing : undefined}
           editBusy={editBusy}
           respondToolApproval={agentId ? respondToolApproval : undefined}
+          navigateToForkSource={navigateToForkSource}
         />
       </div>
     </div>

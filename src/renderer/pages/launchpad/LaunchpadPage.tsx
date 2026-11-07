@@ -3,6 +3,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ScrollArea } from '@cherrystudio/ui'
 import { Sortable } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import agentsIcon from '@renderer/assets/images/apps/launchpad-agents.svg'
@@ -19,7 +20,6 @@ import { SidebarIcon } from '@renderer/components/app/sidebarIcons'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import App from '@renderer/components/MiniApp/MiniApp'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { useLaunchpadAppOrder } from '@renderer/hooks/useLaunchpadAppOrder'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
@@ -291,7 +291,7 @@ export default function LaunchpadPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
-      <Scrollbar className="min-h-0 flex-1">
+      <ScrollArea className="min-h-0 flex-1">
         <div className="mx-auto flex w-full max-w-180 flex-col gap-5 py-12.5">
           <section className="flex flex-col gap-2">
             <h2 className="m-0 px-9 py-0 font-semibold text-[14px] text-foreground opacity-80">
@@ -333,7 +333,7 @@ export default function LaunchpadPage() {
             </section>
           )}
         </div>
-      </Scrollbar>
+      </ScrollArea>
     </div>
   )
 }
