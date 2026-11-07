@@ -1,12 +1,19 @@
 import type { UtilityProcessMethod, UtilityProcessStreamMethod } from '@main/core/utilityProcess/types'
 import type { SpeechTextEvent } from '@shared/ai/voice'
 
+export interface TtsSynthesizeSegment {
+  text: string
+  voice: string
+}
+
 export interface TtsSynthesizeInput {
   text: string
   voice: string
   language: string
   speed: number
   outputPath: string
+  /** Optional per-language routing; Kokoro synthesizes each segment with its own voice. */
+  segments?: readonly TtsSynthesizeSegment[]
 }
 
 export type TtsInferenceContract = {
