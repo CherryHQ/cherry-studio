@@ -21,6 +21,7 @@ export interface ClaudeCodeExitInfo {
 const PROVIDER_SETTINGS_CATEGORIES: ReadonlySet<ErrorCategory> = new Set<ErrorCategory>([
   'auth',
   'bad_request',
+  'tool_unsupported',
   'permission',
   'model',
   'quota',

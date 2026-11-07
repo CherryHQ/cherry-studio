@@ -67,6 +67,8 @@ function getActionableAiErrorMessage(error: unknown): string | undefined {
       return t('message.error.stream_admission.execution_not_ready')
     case 'EXECUTION_CHANGED':
       return t('message.error.stream_admission.execution_changed')
+    case 'MODEL_TOOL_CALLING_UNSUPPORTED':
+      return t('error.diagnosis.tool_unsupported')
     case 'TOPIC_BUSY':
       return t('message.error.stream_admission.topic_busy')
     default:

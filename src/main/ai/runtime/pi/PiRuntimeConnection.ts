@@ -26,6 +26,7 @@ import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { ChildThreadProjection } from '@main/ai/agentSession/ChildThreadProjection'
+import { getManualCompactionTurn } from '@main/ai/agentSession/manualCompactCommand'
 import {
   prepareNativeSubmission,
   lookupNativeInput,
@@ -385,7 +386,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     this.usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
     this.reasoningTokens = undefined
     const content = buildAgentUserContent(input.message)
-    const command = input.systemReminder ? undefined : parseManualCompactCommand(content)
+    const command = getManualCompactionTurn('pi', content, !!input.systemReminder)
     if (command) {
       this.manualCompactInFlight = true
       const result = await this.handle.pi.compact(command.instructions || undefined)
@@ -1064,10 +1065,4 @@ function setsEqual(left: ReadonlySet<string>, right: ReadonlySet<string>): boole
  *  anchor only distinguishes user-initiated from auto. */
 function mapCompactionTrigger(reason: 'manual' | 'threshold' | 'overflow'): AgentSessionCompactionTrigger {
   return reason === 'manual' ? 'manual' : 'auto'
-}
-
-function parseManualCompactCommand(content: string): { instructions: string } | undefined {
-  const trimmed = content.trim()
-  if (!/^\/compact(?:\s|$)/.test(trimmed)) return undefined
-  return { instructions: trimmed.slice('/compact'.length).trim() }
 }

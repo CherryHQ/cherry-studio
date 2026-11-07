@@ -52,6 +52,7 @@ export interface AgentConversationControlsProps {
   onModelSelect: (model: Model | undefined) => void
   onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
   modelFilter?: ModelSelectorFilter
+  modelDisabled?: ModelSelectorFilter
   onAgentDialogCloseAutoFocus?: () => void
 }
 
@@ -155,10 +156,18 @@ function ModelControl({
   side,
   iconOnly = false,
   onModelSelect,
-  modelFilter
+  modelFilter,
+  modelDisabled
 }: Pick<
   AgentConversationControlsProps,
-  'model' | 'selectModelLabel' | 'canChangeModel' | 'side' | 'iconOnly' | 'onModelSelect' | 'modelFilter'
+  | 'model'
+  | 'selectModelLabel'
+  | 'canChangeModel'
+  | 'side'
+  | 'iconOnly'
+  | 'onModelSelect'
+  | 'modelFilter'
+  | 'modelDisabled'
 >) {
   const baseTriggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
   const triggerClassName = cn(baseTriggerClassName, iconOnly && model && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
@@ -192,6 +201,7 @@ function ModelControl({
       value={model}
       onSelect={onModelSelect}
       filter={modelFilter}
+      isModelDisabled={modelDisabled}
       shortcut={canChangeModel ? 'chat.model.select' : undefined}
       side={side}
       align="start"

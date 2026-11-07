@@ -14,9 +14,13 @@ import { aiUsageRecordService, type SourceSnapshot } from '@data/services/AiUsag
 import { getRetiredAgentSessionMigration } from '@data/services/retiredAgentRuntimeMigration'
 import { loggerService } from '@logger'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork'
+import { getManualCompactionTurn } from '@main/ai/agentSession/manualCompactCommand'
+import { modelSupportsTools } from '@main/ai/agentSession/modelToolCapability'
 import { ProjectionSubscriptions } from '@main/ai/messages/ProjectionSubscriptions'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
+import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
+import { AiStreamAdmissionError } from '@main/ai/streamManager'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
@@ -57,6 +61,7 @@ import {
 } from '@shared/ai/agentSessionSlashCommands'
 import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY, type AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type { MessageProjectionUpdate, MessageProjectionView } from '@shared/ai/messageProjection'
+import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
@@ -2998,6 +3003,16 @@ export class AgentSessionRuntimeService extends BaseService {
         type: 'reply-delivery-failed',
         turn,
         error: new Error(`Agent ${entry.agentId} has no model configured`)
+      })
+      return
+    }
+    const isCompact = getManualCompactionTurn(entry.agentType, buildAgentUserContent(turn.userMessage), turn.systemReminder === true)
+    if (!isCompact && !modelSupportsTools(turn.modelId)) {
+      this.applyRuntimeStateEvent(entry, { type: 'clear-queue' })
+      this.applyRuntimeStateEvent(entry, {
+        type: 'reply-delivery-failed',
+        turn,
+        error: new AiStreamAdmissionError(aiStreamAdmissionReasons.MODEL_TOOL_CALLING_UNSUPPORTED)
       })
       return
     }

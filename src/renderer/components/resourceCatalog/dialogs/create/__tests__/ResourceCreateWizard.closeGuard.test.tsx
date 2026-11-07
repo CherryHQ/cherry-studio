@@ -34,7 +34,8 @@ vi.mock('@renderer/components/ModelSelector', () => ({
   useIsModelSelectable: () => () => true
 }))
 
-vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
+vi.mock('@renderer/hooks/agent/useAgentModelFilter', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@renderer/hooks/agent/useAgentModelFilter')>()),
   useAgentModelFilter: () => () => true
 }))
 

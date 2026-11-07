@@ -1,6 +1,7 @@
 import { APICallError, NoSuchToolError, RetryError } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
+import enUs from '@renderer/i18n/locales/en-us.json'
 import { isSerializedAiSdkErrorUnion } from '@renderer/types/error'
 import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { aiErrorCodes, aiErrorDetail } from '@shared/ipc/errors/ai'
@@ -20,7 +21,10 @@ import {
 } from '../error'
 import { classifyError } from '../errorClassifier'
 
-vi.mock('i18next', () => ({ t: (key: string) => key }))
+vi.mock('i18next', async () => {
+  const { default: translations } = await import('@renderer/i18n/locales/en-us.json')
+  return { t: (key: string) => (key === 'error.diagnosis.tool_unsupported' ? translations[key] : key) }
+})
 
 describe('error', () => {
   it.each(['responseBody', 'data'] as const)('preserves quota diagnosis after sanitizing %s', (field) => {
@@ -62,6 +66,14 @@ describe('error', () => {
     expect(formatErrorMessageWithPrefix(error, 'Unknown error')).toBe(
       'message.error.stream_admission.model_already_in_live_group'
     )
+  })
+
+  it('shows localized guidance for a model without tool calling', () => {
+    const reason = aiStreamAdmissionReasons.MODEL_TOOL_CALLING_UNSUPPORTED
+    const error = new IpcError(aiErrorCodes.AI_STREAM_ADMISSION_REJECTED, reason, { reason })
+
+    expect(getErrorMessage(error)).toBe(enUs['error.diagnosis.tool_unsupported'])
+    expect(getErrorMessage(error)).not.toContain(reason)
   })
 
   it('maps Agent Session archive busy errors to localized guidance without the internal message', () => {

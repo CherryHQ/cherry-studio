@@ -8,6 +8,7 @@ export const ERROR_CATEGORIES = [
   'permission',
   'region',
   'model',
+  'tool_unsupported',
   'quota',
   'rate_limit',
   'context_length',
@@ -393,6 +394,14 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
   ) {
     return 'parse'
   }
+
+  if (
+    (status === undefined || status === 400) &&
+    (msg.includes('the requested model does not support function calling') ||
+      msg.includes('the model does not support function calling.') ||
+      msg.includes('model_tool_calling_unsupported'))
+  )
+    return 'tool_unsupported'
 
   return status === 400 ? 'bad_request' : 'unknown'
 }

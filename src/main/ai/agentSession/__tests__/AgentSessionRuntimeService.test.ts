@@ -21,6 +21,8 @@ import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRet
 import type { AgentRuntimeConnectInput, AgentRuntimeUserInput } from '../../runtime/types'
 import type * as ForkResourcesModule from '../fork/resources'
 
+vi.mock('@data/services/ModelService', () => ({ modelService: { getByKey: mocks.getModel } }))
+
 vi.mock('../recoverSessionDeliveries', () => ({ recoverSessionDeliveries: vi.fn(() => new Set()) }))
 
 const mocks = vi.hoisted(() => ({
@@ -57,6 +59,7 @@ const mocks = vi.hoisted(() => ({
   closeWarmSession: vi.fn().mockResolvedValue(undefined),
   getSessionById: vi.fn(),
   getAgent: vi.fn(),
+  getModel: vi.fn(),
   ensureTraceId: vi.fn(),
   recordUsage: vi.fn(),
   trackTokenUsage: vi.fn()
@@ -545,6 +548,7 @@ describe('AgentSessionRuntimeService', () => {
     // A live agent with a model — the drain re-reads this to bail on a deleted model. Tests exercising
     // the deleted-model path override it with `{ model: null }`.
     mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
+    mocks.getModel.mockReturnValue({ capabilities: ['function-call'] })
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'AiStreamManager') {
         return {
@@ -6484,6 +6488,64 @@ describe('AgentSessionRuntimeService', () => {
       model: { id: 'claude-opus-4-5', name: 'Claude Opus', provider: 'claude-code' }
     })
     expect(mocks.startRuntimeTurn).toHaveBeenCalledWith(expect.objectContaining({ modelId: switchedModelId }))
+  })
+
+  it('terminalizes an incapable queued model before allocating an assistant', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    service.markTurnTerminal('session-1', 'success')
+    const queued = userMessage('user-2')
+    entry.pendingTurns.push({ message: queued, reasoningEffort: 'default', fastMode: false })
+    mocks.getModel.mockReturnValue({ capabilities: [] })
+    mocks.saveMessage.mockClear()
+    mocks.startRuntimeTurn.mockClear()
+    await (service as any).startNextTurn(entry)
+    expect(mocks.saveMessage).not.toHaveBeenCalled()
+    expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
+    expect(mocks.terminateHeldTopicStream).toHaveBeenCalledWith(
+      'agent-session:session-1',
+      baseTurnInput.modelId,
+      expect.objectContaining({ message: 'MODEL_TOOL_CALLING_UNSUPPORTED' })
+    )
+    expect(entry.pendingTurns).toEqual([])
+    expect(queued.id).toBe('user-2')
+    mocks.getModel.mockReturnValue({ capabilities: ['function-call'] })
+    entry.pendingTurns.push({ message: queued, reasoningEffort: 'default', fastMode: false })
+    await (service as any).startNextTurn(entry)
+    expect(mocks.startRuntimeTurn).toHaveBeenCalledWith(expect.objectContaining({ modelId: baseTurnInput.modelId }))
+  })
+
+  it.each([
+    ['/compact', false, true],
+    ['hello', false, false],
+    ['/compact', true, false]
+  ])('drains Pi Durable queued input %s (steer: %s) only when tool-free', async (text, steer, admitted) => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, agentType: 'pi-durable' })
+    const entry = getEntry(service)
+    service.markTurnTerminal('session-1', 'success')
+    const queued = userMessage('user-2')
+    queued.data.parts = [{ type: 'text', text }]
+    entry.pendingTurns.push({ message: queued, reasoningEffort: 'default', fastMode: false, steer })
+    mocks.getModel.mockReturnValue({ capabilities: [] })
+    mocks.startRuntimeTurn.mockClear()
+    mocks.terminateHeldTopicStream.mockClear()
+
+    await (service as any).startNextTurn(entry)
+
+    if (admitted) {
+      expect(mocks.startRuntimeTurn).toHaveBeenCalledWith(expect.objectContaining({ modelId: baseTurnInput.modelId }))
+      expect(mocks.terminateHeldTopicStream).not.toHaveBeenCalled()
+    } else {
+      expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
+      expect(mocks.terminateHeldTopicStream).toHaveBeenCalledWith(
+        'agent-session:session-1',
+        baseTurnInput.modelId,
+        expect.objectContaining({ message: 'MODEL_TOOL_CALLING_UNSUPPORTED' })
+      )
+      expect(entry.pendingTurns).toEqual([])
+    }
   })
 
   it('does not drain a queued turn onto a stale deleted model; surfaces an error and settles', async () => {

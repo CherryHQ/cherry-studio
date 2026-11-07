@@ -4,7 +4,7 @@ import type * as ReactHookForm from 'react-hook-form'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { AgentType } from '@shared/data/types/agent'
-import type { Model, UniqueModelId } from '@shared/data/types/model'
+import { MODEL_CAPABILITY, type Model, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 const modelHook = vi.hoisted(() => ({
@@ -20,7 +20,7 @@ function makeModel(id: UniqueModelId = 'provider::default'): Model {
     providerId: 'provider',
     apiModelId: id.split('::')[1],
     name: 'Default model',
-    capabilities: [],
+    capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
     supportsStreaming: true,
     isEnabled: true,
     isHidden: false
@@ -48,7 +48,8 @@ vi.mock('@renderer/hooks/useProvider', () => ({
   useProviderById: () => ({ provider: modelHook.defaultProvider })
 }))
 
-vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
+vi.mock('@renderer/hooks/agent/useAgentModelFilter', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@renderer/hooks/agent/useAgentModelFilter')>()),
   useAgentModelFilter: (agentType: AgentType | undefined) => (model: Model, provider?: Provider) =>
     modelHook.agentModelFilter(agentType, model, provider)
 }))
@@ -61,8 +62,12 @@ vi.mock('../steps/BasicInfoStep', async () => {
 
   return {
     BasicInfoStep: ({
-      form
+      form,
+      modelFilter,
+      isModelDisabled
     }: {
+      modelFilter?: (model: Model) => boolean
+      isModelDisabled?: (model: Model) => boolean
       form: {
         control: ReactHookForm.Control<{ modelId: string | null; name: string }>
         setValue: (name: string, value: unknown) => void
@@ -73,6 +78,14 @@ vi.mock('../steps/BasicInfoStep', async () => {
 
       return (
         <>
+          {[[], [MODEL_CAPABILITY.FUNCTION_CALL]].map((capabilities, index) => {
+            const model = { ...makeModel(), capabilities }
+            return !modelFilter || modelFilter(model) ? (
+              <button key={index} disabled={isModelDisabled?.(model)}>
+                {index ? 'capable' : 'incapable'}
+              </button>
+            ) : null
+          })}
           <div data-testid="model-id">{modelId ?? 'empty'}</div>
           <div data-testid="name">{name || 'empty'}</div>
           <button type="button" onClick={() => form.setValue('name', 'My Resource')}>
@@ -148,6 +161,15 @@ describe('ResourceCreateWizard', () => {
     render(<ResourceCreateWizard kind="assistant" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
 
     expect(await screen.findByTestId('model-id')).toHaveTextContent('provider::default')
+  })
+
+  it('lists incapable agent models as disabled and does not preselect one', async () => {
+    modelHook.defaultModel = { ...makeModel(), capabilities: [] }
+    render(<ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
+
+    expect(screen.getByRole('button', { name: 'incapable' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'capable' })).toBeEnabled()
+    expect(await screen.findByTestId('model-id')).toHaveTextContent('empty')
   })
 
   it('does not prefill a disabled default model', async () => {
