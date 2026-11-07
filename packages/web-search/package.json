@@ -289,6 +289,21 @@
       },
       "default": "./dist/providers/desearch.mjs"
     },
+    "./providers/keenable": {
+      "react-native": {
+        "types": "./dist/providers/keenable.d.mts",
+        "default": "./dist/providers/keenable.mjs"
+      },
+      "import": {
+        "types": "./dist/providers/keenable.d.mts",
+        "default": "./dist/providers/keenable.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/keenable.d.cts",
+        "default": "./dist/providers/keenable.cjs"
+      },
+      "default": "./dist/providers/keenable.mjs"
+    },
     "./tools/config": {
       "react-native": {
         "types": "./dist/tools/config.d.mts",

@@ -64,6 +64,9 @@ describe('webSearchProviderMeta', () => {
     expect(getWebSearchProviderIconRef('desearch')).toMatchObject({ kind: 'provider', key: 'desearch' })
     expect(getWebSearchProviderOfficialWebsite('desearch')).toBe('https://desearch.ai')
     expect(getWebSearchProviderApiKeyWebsite('desearch')).toBe('https://console.desearch.ai/api-keys')
+    expect(getWebSearchProviderIconRef('keenable')).toMatchObject({ kind: 'provider', key: 'keenable' })
+    expect(getWebSearchProviderOfficialWebsite('keenable')).toBe('https://keenable.ai')
+    expect(getWebSearchProviderApiKeyWebsite('keenable')).toBe('https://app.keenable.ai/console')
     expect(getWebSearchProviderApiKeyWebsite('fetch')).toBeUndefined()
   })
 

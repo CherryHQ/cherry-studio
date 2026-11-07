@@ -54,6 +54,10 @@ export const WEB_SEARCH_PROVIDER_CATALOG: Readonly<Record<RemoteProviderId, WebS
     desearch: provider('desearch', 'Desearch', [capability('searchKeywords', 'required', 'https://api.desearch.ai')]),
     searchapi: provider('searchapi', 'SearchApi', [
       capability('searchKeywords', 'required', 'https://www.searchapi.io')
+    ]),
+    keenable: provider('keenable', 'Keenable', [
+      capability('searchKeywords', 'optional', 'https://api.keenable.ai'),
+      capability('fetchUrls', 'optional', 'https://api.keenable.ai')
     ])
   }
 )

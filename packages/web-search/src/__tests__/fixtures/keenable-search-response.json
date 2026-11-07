@@ -1,0 +1,19 @@
+{
+  "query": "hello",
+  "results": [
+    {
+      "title": " Keenable Result Title ",
+      "url": "https://keenable.example/result",
+      "description": "",
+      "snippet": " Keenable page text\nacross lines ",
+      "acquired_at": "2026-10-20T04:02:00Z"
+    },
+    {
+      "title": "",
+      "url": "https://keenable.example/second",
+      "description": "",
+      "snippet": "",
+      "acquired_at": "2026-10-21T09:15:00Z"
+    }
+  ]
+}

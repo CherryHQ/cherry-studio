@@ -5967,6 +5967,7 @@
   "settings.tool.websearch.provider_description.fetch": "Yerleşik URL getirme sağlayıcısı. Arama sonuçlarını zenginleştirmek için bir URL'den web sayfası içeriğini getirir.",
   "settings.tool.websearch.provider_description.firecrawl": "Web sitelerini Markdown'a dönüştürmek üzere optimize edilmiş Firecrawl tarama ve arama hizmeti.",
   "settings.tool.websearch.provider_description.jina": "Temiz web içeriği almak için Jina Reader arama ve okuma API'leri.",
+  "settings.tool.websearch.provider_description.keenable": "Yapay zekâ ajanları için Keenable web arama ve sayfa getirme API'si. API anahtarı olmadan çalışır; daha yüksek istek limitleri için bir anahtar ekleyin.",
   "settings.tool.websearch.provider_description.parallel": "Yapay zekâ ajanları için sıralanmış bağlantılar ve yoğun bilgi içeren kısa alıntılar döndüren web arama API'si.",
   "settings.tool.websearch.provider_description.querit": "Yapay zekâ uygulamaları için web sonuçlarını ve sayfa içeriğini alan Querit arama ve içerik API'leri.",
   "settings.tool.websearch.provider_description.searchapi": "Google sonuçlarını yapılandırılmış JSON olarak döndüren SearchApi gerçek zamanlı arama API'si.",

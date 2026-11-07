@@ -72,6 +72,12 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     officialWebsite: 'https://jina.ai/reader',
     apiKeyWebsite: 'https://jina.ai'
   },
+  keenable: {
+    descriptionKey: 'settings.tool.websearch.provider_description.keenable',
+    iconRef: providerIconRef('keenable'),
+    officialWebsite: 'https://keenable.ai',
+    apiKeyWebsite: 'https://app.keenable.ai/console'
+  },
   parallel: {
     descriptionKey: 'settings.tool.websearch.provider_description.parallel',
     iconRef: providerIconRef('parallel'),
