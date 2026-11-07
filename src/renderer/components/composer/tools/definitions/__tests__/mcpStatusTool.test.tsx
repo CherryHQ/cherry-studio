@@ -78,7 +78,9 @@ import {
   buildMcpConfigFooterItem,
   buildMcpGlobalConfigFooterItem,
   buildMcpStatusItems,
+  buildMcpToolbarStatus,
   createMcpStatusLauncher,
+  getMcpToolbarServers,
   McpStatusComposerRuntime,
   resolveMcpConfigTarget,
   updateMcpBinding
@@ -88,8 +90,10 @@ import { isMcpToolbarActive } from '../mcpToolbarState'
 const translations: Record<string, string> = {
   'settings.mcp.runtimeStatus.connected': 'Connected',
   'settings.mcp.runtimeStatus.connecting': 'Connecting',
+  'settings.mcp.runtimeStatus.disconnected': 'Disconnected',
   'settings.mcp.runtimeStatus.disabled': 'Disabled',
   'settings.mcp.runtimeStatus.error': 'Error',
+  'settings.mcp.runtimeStatus.failed': 'Failed',
   'library.config.tools.mode.auto.label': 'Auto',
   'library.config.tools.mode.disabled.label': 'Disabled',
   'library.config.tools.mode.manual.label': 'Manual',
@@ -174,6 +178,58 @@ describe('mcpStatusTool', () => {
     expect(items[0].suffix).toBeUndefined()
   })
 
+  it('selects only the servers enabled for the current conversation', () => {
+    const servers = [
+      server({ id: 'active', name: 'active', isActive: true }),
+      server({ id: 'inactive', name: 'inactive', isActive: false })
+    ]
+
+    expect(
+      getMcpToolbarServers({
+        assistant: { settings: { mcpMode: 'auto' }, mcpServerIds: [] } as unknown as Assistant,
+        mcpServers: servers,
+        scope: TopicType.Chat
+      })
+    ).toEqual([servers[0]])
+    expect(
+      getMcpToolbarServers({
+        assistant: { settings: { mcpMode: 'manual' }, mcpServerIds: ['inactive'] } as Assistant,
+        mcpServers: servers,
+        scope: TopicType.Chat
+      })
+    ).toEqual([servers[1]])
+    expect(
+      getMcpToolbarServers({
+        agent: { mcps: ['inactive'] },
+        mcpServers: servers,
+        scope: TopicType.Session
+      })
+    ).toEqual([servers[1]])
+  })
+
+  it('summarizes each bound server state and prioritizes failures for the toolbar cue', () => {
+    const summary = buildMcpToolbarStatus(
+      [
+        server({ id: 'connected', name: 'Filesystem', isActive: true }),
+        server({ id: 'connecting', name: 'Git', isActive: true }),
+        server({ id: 'disconnected', name: 'Search', isActive: false }),
+        server({ id: 'failed', name: 'Zotero', isActive: true })
+      ],
+      {
+        connected: status('connected'),
+        connecting: status('connecting'),
+        failed: status('error')
+      },
+      t
+    )
+
+    expect(summary).toEqual({
+      state: 'failed',
+      tooltip: 'Filesystem: Connected · Git: Connecting · Search: Disconnected · Zotero: Failed'
+    })
+    expect(buildMcpToolbarStatus([], {}, t)).toBeUndefined()
+  })
+
   it('builds chat manual mode rows from all installed servers and marks assistant bindings', () => {
     const onToggleBinding = vi.fn()
     const items = buildMcpStatusItems({
@@ -200,7 +256,7 @@ describe('mcpStatusTool', () => {
       keepOpenOnAction: true
     })
     expect(items[1]).toMatchObject({
-      description: 'Disabled',
+      description: 'Disconnected',
       disabled: true,
       isSelected: false
     })
@@ -268,8 +324,8 @@ describe('mcpStatusTool', () => {
     })
 
     expect(items.map((item) => item.label)).toEqual(['filesystem', 'search'])
-    expect(items[0]).toMatchObject({ description: 'Error', disabled: false, isSelected: false })
-    expect(items[1]).toMatchObject({ description: 'Disabled', disabled: true, isSelected: false })
+    expect(items[0]).toMatchObject({ description: 'Failed', disabled: false, isSelected: false })
+    expect(items[1]).toMatchObject({ description: 'Disconnected', disabled: true, isSelected: false })
 
     items[0].action?.({} as any)
     expect(onToggleBinding).toHaveBeenCalledWith('active', true)
@@ -473,14 +529,14 @@ describe('mcpStatusTool', () => {
     ])
   })
 
-  it('highlights a bound session agent before the MCP panel opens while deferring server status', async () => {
+  it('loads status for a bound session agent before the MCP panel opens', async () => {
     mocks.agent = { mcps: ['server-1'] }
     renderMcpRuntime({ scope: TopicType.Session, session: { agentId: 'agent-1' } })
     await waitFor(() => expect(mocks.registerLaunchers).toHaveBeenCalled())
 
     const launcher = mocks.registerLaunchers.mock.calls.at(-1)?.[0][0] as ComposerToolLauncher
     expect(launcher.active).toBe(true)
-    expect(mocks.mcpServerOptions.at(-1)).toEqual({ enabled: false })
+    expect(mocks.mcpServerOptions.at(-1)).toEqual({ enabled: true })
     expect(mocks.agentIds.at(-1)).toBe('agent-1')
 
     act(() => {
