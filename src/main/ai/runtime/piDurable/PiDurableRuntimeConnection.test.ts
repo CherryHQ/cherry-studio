@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { createAssistantMessageEventStream, type AssistantMessage } from '@earendil-works/pi-ai'
@@ -7,8 +7,8 @@ import { v7 as uuid } from 'uuid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
-import { runtimeId, type InputState, type ObservationPayload } from '@cherrystudio/agent-runtime'
-import type { PiDurableThreadHandle } from '@cherrystudio/agent-runtime-pi-durable'
+import { runtimeId, type InputState } from '@cherrystudio/agent-runtime'
+import type { DurableObservation, PiDurableThreadHandle } from '@cherrystudio/agent-runtime-pi-durable'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
@@ -16,7 +16,9 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { savedChildView } from '@main/ai/agentSession/ChildThreadProjection'
 import { bindNativeInput, prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
+import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
 import { ModelSchema } from '@shared/data/types/model'
@@ -50,6 +52,7 @@ vi.mock('@application', async () => {
   const overrides = {
     DbService: defaultServiceInstances.DbService,
     ApiGatewayService: {
+      captureAgentSessionUsage: () => ({ headers: {}, release: () => {} }),
       ensureInternalGateway: async () => ({ baseUrl: 'http://gateway.invalid', apiKey: 'fixture' }),
       getAgentSessionUsageHeaders: () => ({})
     },
@@ -200,9 +203,23 @@ describe('desktop Pi Durable connection', () => {
   async function done(events: AgentRuntimeEvent[]) {
     await expect.poll(() => events.some((event) => event.type === 'turn-complete' || event.type === 'error')).toBe(true)
   }
+  function projected(events: AgentRuntimeEvent[]) {
+    const messages = new Map<
+      string,
+      Extract<AgentRuntimeEvent, { type: 'message-projection' }>['projection']['messages'][number]
+    >()
+    for (const event of events) {
+      if (event.type !== 'message-projection') continue
+      for (const old of [...Object.keys(event.projection.replaces), ...event.projection.removed]) messages.delete(old)
+      for (const message of event.projection.messages)
+        if (event.projection.live.includes(message.id)) messages.set(message.id, message)
+    }
+    return [...messages.values()]
+  }
   const text = (events: AgentRuntimeEvent[]) =>
-    events
-      .flatMap((event) => (event.type === 'chunk' && event.chunk.type === 'text-delta' ? [event.chunk.delta] : []))
+    projected(events)
+      .filter((message) => message.role === 'assistant')
+      .flatMap((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])))
       .join('')
   // An idle observation during summary generation must not finish the owning desktop turn.
   it.each(['complete', 'error', 'stop', 'close'] as const)(
@@ -271,6 +288,53 @@ describe('desktop Pi Durable connection', () => {
     expect(text(events)).toBe('No summary was committed; the conversation is unchanged.')
     expect(events.filter((event) => event.type === 'compaction-complete')).toEqual([{ type: 'compaction-complete' }])
     expect(script.calls).toHaveLength(0)
+  })
+
+  // A freshly allocated Durable root must not resolve the verifier's initialization ID as a child.
+  it('verifies and completes a goal in a newly created native root', async () => {
+    script = respondingModel((call) => {
+      if (call.systemPrompt.startsWith('Evaluate whether the objective'))
+        return assistantReply('{"verdict":"met","reason":"Output is present"}')
+      const results = call.messages.filter((entry) => entry.role === 'toolResult')
+      const completed = results.find((entry) => entry.toolName === 'update_goal')
+      if (completed) return assistantReply('GOAL_VERIFIED')
+      const lookup = results.find((entry) => entry.toolName === 'get_goal')
+      if (!lookup) return assistantReply([toolCallPart('get-goal', 'get_goal', {})], 'toolUse')
+      const body = lookup.content.find((part) => part.type === 'text')!
+      if (body.type !== 'text') throw new Error('Goal result has no text')
+      const { goal } = JSON.parse(body.text.split('\n')[0])
+      return assistantReply(
+        [
+          toolCallPart('complete-goal', 'update_goal', {
+            goal_id: goal.id,
+            revision: goal.revision,
+            action: 'complete',
+            evidence: 'The requested output has been produced.'
+          })
+        ],
+        'toolUse'
+      )
+    })
+    const { connection, events } = await connect()
+    await connection.send({ message: message('/goal Produce the requested output') })
+    await expect.poll(() => text(events)).toContain('GOAL_VERIFIED')
+    expect(script.calls.filter((call) => call.systemPrompt.startsWith('Evaluate whether the objective'))).toHaveLength(
+      1
+    )
+    const completion = projected(events)
+      .flatMap((message) => message.parts)
+      .find((part) => part.type === 'dynamic-tool' && part.toolName === 'update_goal')
+    expect(completion).toMatchObject({ state: 'output-available' })
+  })
+
+  // Locally handled commands must keep their answer when the desktop consumes message projections.
+  it('shows the goal command answer without starting a model turn', async () => {
+    const { connection, events } = await connect()
+    await connection.send({ message: message('/goal') })
+    await done(events)
+    expect(text(events)).toBe('No goal is set. Use /goal <objective> to create one.')
+    expect(script.calls).toHaveLength(0)
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
   })
 
   // Catches approval edits being shown in the UI but the original write still executing.
@@ -391,8 +455,8 @@ describe('desktop Pi Durable connection', () => {
           child = call.sessionId!
           childRuns++
           return childRuns === 1
-            ? held.wait(assistantReply('child first answer'))
-            : assistantReply('child continued answer')
+            ? held.wait({ ...assistantReply('child first answer'), responseId: 'child-response-1' })
+            : { ...assistantReply('child continued answer'), responseId: 'child-response-2' }
         }
         if (!call.messages.some((entry) => entry.role === 'toolResult'))
           return assistantReply(
@@ -415,6 +479,7 @@ describe('desktop Pi Durable connection', () => {
       await done(events)
       const view = await connection.childProjection('spawn')
       expect(view).toBeDefined()
+      expect(view!.snapshot().canSubmit).toBe(true)
       expect(text(events)).not.toContain('child first')
       held.open()
       await expect.poll(() => JSON.stringify(view!.snapshot().messages)).toContain('child first answer')
@@ -424,6 +489,20 @@ describe('desktop Pi Durable connection', () => {
       await connection.messageChild(contextId, 'continue research')
       await expect.poll(() => JSON.stringify(view!.snapshot().messages)).toContain('child continued answer')
       expect(contexts.context(contextId).nativeThreadId).toBe(childIdentity)
+      const childMessage = view!
+        .snapshot()
+        .messages.find((message) =>
+          message.parts.some((part) => part.type === 'text' && part.text === 'child continued answer')
+        )!
+      await expect
+        .poll(() =>
+          events.filter((event) => event.type === 'response-start' && event.responseId === 'child-response-2')
+        )
+        .toContainEqual({
+          type: 'response-start',
+          responseId: 'child-response-2',
+          messageId: childMessage.id
+        })
       expect(child).not.toBe(root)
       expect(text(events)).not.toContain('child continued answer')
       expect(events.filter((event) => event.type === 'error')).toEqual([])
@@ -450,6 +529,237 @@ describe('desktop Pi Durable connection', () => {
       expect(script.calls[0].model.id).toBe(MODEL.id)
     }
   )
+
+  // Catches releasing a reply between result delivery and the parent notification generation.
+  it('keeps spawn and continuation results pending through native notification revisions', async () => {
+    const childGates = [gate(), gate()]
+    const summaryGates = [gate(), gate()]
+    let root = ''
+    let childId = ''
+    let children = 0
+    let summaries = 0
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root) return childGates[children++].wait(assistantReply('child result'))
+      const last = JSON.stringify(call.messages.at(-1))
+      if (last.includes('delegate'))
+        return assistantReply(
+          [toolCallPart('spawn', 'subagent', { description: 'scan', prompt: 'task', background: true })],
+          'toolUse'
+        )
+      if (last.includes('continue-child'))
+        return assistantReply(
+          [toolCallPart('continue', 'message_subagent', { id: childId, message: 'next task' })],
+          'toolUse'
+        )
+      if (last.includes('Background subagent update'))
+        return summaryGates[summaries++].wait(assistantReply('parent summary'))
+      return assistantReply('Parent waiting')
+    })
+    try {
+      const { connection, events, handle } = await connect()
+      const batches: DurableObservation[] = []
+      await handle.durable.observe((batch) => {
+        batches.push(batch)
+      })
+      const pending = () => batches.at(-1)?.backgroundResults
+      for (const [index, call] of ['spawn', 'continue'].entries()) {
+        await connection.send({ message: message(index === 0 ? 'delegate' : 'continue-child') })
+        await childGates[index].reached
+        await expect.poll(pending).toMatchObject({ status: 'confirmed', value: { pending: [call] } })
+        await expect.poll(() => events.filter((event) => event.type === 'turn-complete').length).toBe(index * 2 + 1)
+        const relation = batches
+          .flatMap((batch) => batch.events)
+          .flatMap((event) =>
+            event.type === 'snapshot'
+              ? (event.subagents ?? [])
+              : event.type === 'subagent.upsert'
+                ? [event.subagent]
+                : []
+          )
+          .find((child) => child.child)
+        if (!relation?.child) throw new Error('Missing child')
+        childId = relation.child.id
+        const beforeNotification = batches.length
+        childGates[index].open()
+        await summaryGates[index].reached
+        await expect
+          .poll(() => events.findLast((event) => event.type === 'autonomous-turn-state' && event.state === 'started'))
+          .toMatchObject({ sourceToolCallIds: [call] })
+        expect(
+          batches
+            .slice(beforeNotification)
+            .every(
+              (batch) =>
+                batch.backgroundResults.status === 'confirmed' && batch.backgroundResults.value.pending.includes(call)
+            )
+        ).toBe(true)
+        summaryGates[index].open()
+        await expect.poll(pending).toMatchObject({ status: 'confirmed', value: { active: false, pending: [] } })
+      }
+      expect(events.filter((event) => event.type === 'error')).toEqual([])
+    } finally {
+      for (const held of [...childGates, ...summaryGates]) held.open()
+    }
+  })
+
+  it('drains native background work and blocked child observation before final persistence', async () => {
+    const answering = gate()
+    const observing = gate()
+    let root = ''
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root) return answering.wait(assistantReply('Final child output'))
+      if (!call.messages.some((entry) => entry.role === 'toolResult'))
+        return assistantReply(
+          [toolCallPart('spawn', 'subagent', { description: 'drain', prompt: 'work', background: true })],
+          'toolUse'
+        )
+      return assistantReply('Parent finished')
+    })
+    const { connection, events } = await connect()
+    await connection.send({ message: message('delegate') })
+    await answering.reached
+    await done(events)
+    const view = (await connection.childProjection('spawn'))!
+    const accept = ThreadMessageProjection.prototype.accept
+    let blocked = false
+    const observer = vi.spyOn(ThreadMessageProjection.prototype, 'accept').mockImplementation(async function (
+      this: ThreadMessageProjection,
+      ...args
+    ) {
+      if (!blocked && JSON.stringify(args).includes('Final child output')) {
+        blocked = true
+        await observing.wait(undefined)
+      }
+      return accept.apply(this, args)
+    })
+    try {
+      let drained = false
+      const draining = connection.drainChildWrites().then(() => {
+        drained = true
+      })
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(drained).toBe(false)
+      answering.open()
+      await observing.reached
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(drained).toBe(false)
+      observing.open()
+      await draining
+      expect(JSON.stringify(savedChildView(contexts.context(view.snapshot().contextId)).messages)).toContain(
+        'Final child output'
+      )
+      const changes = dbh.sqlite.prepare('SELECT total_changes() AS count').get()
+      await new Promise((resolve) => setTimeout(resolve, 160))
+      expect(dbh.sqlite.prepare('SELECT total_changes() AS count').get()).toEqual(changes)
+    } finally {
+      answering.open()
+      observing.open()
+      observer.mockRestore()
+    }
+  })
+
+  it('streams child text and tool progress after the parent finishes', async () => {
+    let root = ''
+    const releaseTool = join(directory, 'release-tool')
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root)
+        return assistantReply(
+          [
+            toolCallPart('child-bash', 'bash', {
+              command: `printf 'TOOL-FIRST'; while [ ! -f '${releaseTool}' ]; do /bin/sleep 0.05; done; printf 'TOOL-LAST'`
+            })
+          ],
+          'toolUse'
+        )
+      if (!call.messages.some((entry) => entry.role === 'toolResult'))
+        return assistantReply(
+          [toolCallPart('spawn', 'subagent', { description: 'streaming child', prompt: 'work', background: true })],
+          'toolUse'
+        )
+      return assistantReply('parent done')
+    })
+    const fallback = script.model
+    let append!: () => void
+    let finish!: () => void
+    script.model = (model, context, options) => {
+      if (
+        !root ||
+        options?.sessionId === root ||
+        !context.messages.some((entry) => entry.role === 'toolResult' && entry.toolCallId === 'child-bash')
+      )
+        return fallback(model, context, options)
+      const stream = createAssistantMessageEventStream()
+      const partial = { ...assistantReply('child prefix'), model: model.id, api: model.api, provider: model.provider }
+      stream.push({ type: 'start', partial })
+      stream.push({ type: 'text_delta', contentIndex: 0, delta: 'child prefix', partial })
+      append = () => {
+        partial.content = [{ type: 'text', text: 'child prefix suffix' }]
+        stream.push({ type: 'text_delta', contentIndex: 0, delta: ' suffix', partial })
+      }
+      const abort = () => {
+        partial.stopReason = 'aborted'
+        stream.push({ type: 'error', reason: 'aborted', error: partial })
+        stream.end(partial)
+      }
+      options?.signal?.addEventListener('abort', abort, { once: true })
+      finish = () => {
+        options?.signal?.removeEventListener('abort', abort)
+        stream.push({ type: 'done', reason: 'stop', message: partial })
+        stream.end(partial)
+      }
+      return stream
+    }
+    const { connection, events } = await connect()
+    await connection.send({ message: message('delegate') })
+    await done(events)
+    const view = await connection.childProjection('spawn')
+    expect(view).toBeDefined()
+    const tool = () =>
+      view!
+        .snapshot()
+        .messages.flatMap((message) => message.parts)
+        .find((part) => part.type === 'dynamic-tool')
+    await expect.poll(() => JSON.stringify(tool()?.output)).toContain('TOOL-FIRST')
+    expect(view!.snapshot().active).toBe(true)
+    expect(tool()).toMatchObject({
+      toolCallId: 'child-bash',
+      toolName: 'bash',
+      state: 'output-available',
+      preliminary: true,
+      callProviderMetadata: { cherry: { transport: 'pi-agent' } }
+    })
+    expect(JSON.stringify(tool()?.output)).not.toContain('TOOL-LAST')
+
+    writeFileSync(releaseTool, '')
+    const answer = () =>
+      view!
+        .snapshot()
+        .messages.find((message) =>
+          message.parts.some((part) => part.type === 'text' && part.text.startsWith('child prefix'))
+        )
+    await expect.poll(answer).toMatchObject({
+      metadata: { status: 'pending' },
+      parts: expect.arrayContaining([{ type: 'text', text: 'child prefix', state: 'streaming' }])
+    })
+    const id = answer()!.id
+    append()
+    await expect.poll(answer).toMatchObject({
+      id,
+      metadata: { status: 'pending' },
+      parts: expect.arrayContaining([{ type: 'text', text: 'child prefix suffix', state: 'streaming' }])
+    })
+    expect(view!.snapshot().active).toBe(true)
+    expect(JSON.stringify(tool()?.output)).toContain('TOOL-LAST')
+    expect(tool()).toMatchObject({ preliminary: false })
+    finish()
+    await expect.poll(() => view!.snapshot().active).toBe(false)
+    expect(answer()).toMatchObject({ id, metadata: { status: 'success' } })
+    expect(text(events)).not.toContain('child prefix')
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+  })
 
   it.each(['shutdown', 'stop'] as const)('distinguishes %s from durable cancellation', async (action) => {
     const held = gate()
@@ -513,14 +823,32 @@ describe('desktop Pi Durable connection', () => {
       })
     }
     const queued: InputState = { nativeInput, facts: ['accepted', 'queued'] }
-    vi.spyOn(handle, 'lookupInput').mockResolvedValue({ status: 'confirmed', value: { found: true, input: queued } })
-    const observer = connection as unknown as { onObservation(event: ObservationPayload): Promise<void> }
-    const snapshot = { type: 'snapshot' as const, coverage: 'retained-view' as const, messages: [], inputs: [queued] }
-    await observer.onObservation({ ...snapshot, activity: { scope: 'foreground', state: 'active' } })
-    await observer.onObservation({ ...snapshot, activity: { scope: 'foreground', state: 'idle' } })
+    const observer = connection as unknown as {
+      onObservation(batch: DurableObservation): Promise<void>
+    }
+    const snapshot = { type: 'snapshot' as const, messages: [], inputs: [queued] }
+    await observer.onObservation({
+      backgroundResults: { status: 'confirmed', value: { active: false, pending: [], notification: [] } },
+      events: [{ ...snapshot, activity: { state: 'active' } }],
+      aliases: {},
+      live: []
+    })
+    await observer.onObservation({
+      backgroundResults: { status: 'confirmed', value: { active: false, pending: [], notification: [] } },
+      events: [{ ...snapshot, activity: { state: 'idle' } }],
+      aliases: {},
+      live: []
+    })
     expect(events.some((event) => event.type === 'autonomous-turn-state' && event.state === 'started')).toBe(true)
     expect(events.filter((event) => event.type === 'turn-complete' || event.type === 'error')).toEqual([])
-    await observer.onObservation({ type: 'input.changed', input: { ...queued, outcome: 'completed' } })
+    const completed = { ...queued, outcome: 'completed' as const }
+    await observer.onObservation({
+      backgroundResults: { status: 'confirmed', value: { active: false, pending: [], notification: [] } },
+      events: [{ ...snapshot, inputs: [completed], activity: { state: 'idle' } }],
+      aliases: {},
+      live: [],
+      completion: { inputs: [completed] }
+    })
     await done(events)
     expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(1)
     expect(events.filter((event) => event.type === 'error')).toEqual([])

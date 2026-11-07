@@ -140,6 +140,153 @@ describe('publishRegistryCatalog', () => {
     expect(() => validateCatalogFile('provider-models.json', v1)).not.toThrow()
   })
 
+  it.each([1, 2, 3])('removes unsupported GIF choices while retaining static controls in v%s', async (version) => {
+    const { sourceDirectory, destinationDirectory } = makeDirectories()
+    writeCatalog(sourceDirectory, OVERRIDE_WITH_UNKNOWN_EFFORT)
+    const formats = [
+      { type: 'enum', options: ['png', 'gif', 'webp'], default: 'gif' },
+      { type: 'enum', options: ['png', 'gif', 'webp'], default: 'png' },
+      { type: 'enum', options: ['gif'], default: 'gif' },
+      { type: 'enum', options: ['png', 'webp'], default: 'webp' }
+    ]
+    const expectedFormats = [
+      { type: 'enum', options: ['png', 'webp'] },
+      { type: 'enum', options: ['png', 'webp'], default: 'png' },
+      undefined,
+      formats[3]
+    ]
+    const quality = { type: 'enum', options: ['low', 'high'] }
+    const files = [
+      ['models.json', 'models'],
+      ['provider-models.json', 'overrides']
+    ] as const
+    for (const [file, key] of files) {
+      const entries = formats.map((outputFormat, index) => ({
+        ...(key === 'models'
+          ? { id: `format-model-${index}`, name: `Format model ${index}` }
+          : { providerId: 'openai', modelId: `format-model-${index}` }),
+        imageGeneration: {
+          modes: Object.fromEntries(
+            ['generate', 'edit', 'remix', 'upscale', 'merge'].map((mode) => [
+              mode,
+              { supports: { outputFormat, quality } }
+            ])
+          )
+        }
+      }))
+      fs.writeFileSync(path.join(sourceDirectory, file), JSON.stringify({ version: 'original', [key]: entries }))
+    }
+    const directory = path.join(destinationDirectory, `v${version}`)
+    fs.mkdirSync(directory)
+    const oldFloor = ['2.0.9', '2.0.13', '2.1.4'][version - 1]
+    fs.writeFileSync(path.join(directory, 'manifest.json'), JSON.stringify({ minAppVersion: oldFloor }))
+
+    await publishRegistryCatalog({ ...publishOptions, sourceDirectory, destinationDirectory, currentVersion: 4 })
+
+    const read = await readFrozenCatalog(version)
+    const manifest = JSON.parse(fs.readFileSync(path.join(directory, 'manifest.json'), 'utf8'))
+    expect(manifest.minAppVersion).toBe(oldFloor)
+    for (const [file, key] of files) {
+      const wire = JSON.parse(fs.readFileSync(path.join(directory, file), 'utf8'))
+      const decoded = read(file, wire)
+      expect(decoded[key]).toHaveLength(formats.length)
+      for (const [index, entry] of decoded[key].entries()) {
+        for (const descriptor of Object.values(entry.imageGeneration.modes) as Array<{
+          supports: Record<string, unknown>
+        }>) {
+          expect(descriptor.supports.outputFormat).toEqual(expectedFormats[index])
+          expect(descriptor.supports.quality).toEqual(quality)
+        }
+      }
+      expect(manifest.files[file]).toBe(wire.version)
+      expect(wire.version).not.toBe('original')
+      const original = JSON.parse(fs.readFileSync(path.join(sourceDirectory, file), 'utf8'))
+      expect(original[key][0].imageGeneration.modes.generate.supports.outputFormat).toEqual(formats[0])
+    }
+  })
+
+  it.each([1, 2, 3])('publishes only executable legacy OpenAI controls in v%s', async (version) => {
+    const { sourceDirectory, destinationDirectory } = makeDirectories()
+    const endpointTypes = ['openai-image-generation', 'openai-image-edit']
+    const supports = {
+      numImages: { type: 'range', min: 1, max: 10, step: 1 },
+      size: { type: 'enum', options: ['1024x1024'] },
+      quality: { type: 'enum', options: ['low', 'high'] },
+      background: { type: 'enum', options: ['opaque', 'transparent'] },
+      moderation: { type: 'enum', options: ['auto', 'low'] },
+      style: { type: 'enum', options: ['natural', 'vivid'] },
+      outputFormat: { type: 'enum', options: ['png', 'jpeg', 'webp'] },
+      outputCompression: { type: 'range', min: 0, max: 100, step: 1 },
+      frameCount: { type: 'range', min: 2, max: 16 },
+      complexity: { type: 'enum', options: ['low', 'high'] }
+    }
+    const imageGeneration = {
+      modes: Object.fromEntries(['generate', 'edit', 'remix', 'upscale', 'merge'].map((mode) => [mode, { supports }]))
+    }
+    const model = { id: 'image-model', name: 'Image model', endpointTypes, imageGeneration }
+    fs.writeFileSync(path.join(sourceDirectory, 'models.json'), JSON.stringify({ version: 'm1', models: [model] }))
+    const providers = [
+      {
+        id: 'native-images',
+        name: 'Native images',
+        metadata: { website: {} },
+        endpointConfigs: { 'openai-image-generation': { adapterFamily: 'openai' } }
+      },
+      {
+        id: 'router-images',
+        name: 'Router images',
+        metadata: { website: {} },
+        endpointConfigs: { 'openai-image-generation': { adapterFamily: 'openrouter' } }
+      }
+    ]
+    fs.writeFileSync(path.join(sourceDirectory, 'providers.json'), JSON.stringify({ version: 'p1', providers }))
+    const overrides = [
+      { providerId: 'native-images', modelId: model.id, imageGeneration },
+      { providerId: 'native-images', modelId: 'offer-only', endpointTypes, imageGeneration },
+      { providerId: 'router-images', modelId: model.id, endpointTypes, imageGeneration }
+    ]
+    fs.writeFileSync(path.join(sourceDirectory, 'provider-models.json'), JSON.stringify({ version: 'pm1', overrides }))
+    const originals = Object.fromEntries(
+      ['models.json', 'providers.json', 'provider-models.json'].map((file) => [
+        file,
+        fs.readFileSync(path.join(sourceDirectory, file))
+      ])
+    )
+    await publishRegistryCatalog({ ...publishOptions, sourceDirectory, destinationDirectory, currentVersion: 4 })
+    const read = await readFrozenCatalog(version)
+    const models = read(
+      'models.json',
+      JSON.parse(fs.readFileSync(path.join(destinationDirectory, `v${version}/models.json`), 'utf8'))
+    ).models
+    const offers = read(
+      'provider-models.json',
+      JSON.parse(fs.readFileSync(path.join(destinationDirectory, `v${version}/provider-models.json`), 'utf8'))
+    ).overrides
+    expect(models).toHaveLength(1)
+    expect(offers).toHaveLength(3)
+    for (const entry of [models[0], offers[0], offers[1]]) {
+      for (const mode of Object.values(entry.imageGeneration.modes) as Array<{ supports: Record<string, unknown> }>) {
+        expect(mode.supports).toEqual({
+          numImages: supports.numImages,
+          size: supports.size,
+          quality: supports.quality,
+          background: supports.background,
+          moderation: supports.moderation,
+          style: supports.style
+        })
+      }
+    }
+    for (const mode of Object.values(offers[2].imageGeneration.modes) as Array<{ supports: Record<string, unknown> }>) {
+      expect(mode.supports.outputFormat).toEqual(supports.outputFormat)
+      expect(mode.supports.outputCompression).toEqual(supports.outputCompression)
+      expect(mode.supports.frameCount).toBeUndefined()
+      expect(mode.supports.complexity).toBeUndefined()
+    }
+    for (const [file, original] of Object.entries(originals)) {
+      expect(fs.readFileSync(path.join(sourceDirectory, file))).toEqual(original)
+    }
+  })
+
   it('retains a legacy model when optional image parameter vocabulary expands', async () => {
     const { sourceDirectory, destinationDirectory } = makeDirectories()
     writeCatalog(sourceDirectory, OVERRIDE_WITH_UNKNOWN_EFFORT)
@@ -237,7 +384,7 @@ describe('publishRegistryCatalog', () => {
     const { sourceDirectory, destinationDirectory } = makeDirectories()
     writeCatalog(sourceDirectory, { providerId: 'openai', modelId: 'image-model' })
     const input =
-      '{ "version": "untouched", "models": [{ "id": "image-model", "name": "Image model", "imageGeneration": { "modes": { "generate": { "supports": { "quality": { "type": "enum", "options": ["high"] } } } } } }] }'
+      '{ "version": "untouched", "models": [{ "id": "image-model", "name": "Image model", "imageGeneration": { "modes": { "generate": { "supports": { "quality": { "type": "enum", "options": ["high"] }, "outputFormat": { "type": "enum", "options": ["png", "webp"], "default": "png" } } } } } }] }'
     fs.writeFileSync(path.join(sourceDirectory, 'models.json'), input)
     await publishRegistryCatalog({ ...publishOptions, sourceDirectory, destinationDirectory, currentVersion: 3 })
     for (const version of [1, 2, 3]) {
@@ -249,6 +396,8 @@ describe('publishRegistryCatalog', () => {
     }
     const expanded = JSON.parse(input)
     expanded.models[0].imageGeneration.modes.generate.supports.futureImageOption = { type: 'text' }
+    expanded.models[0].imageGeneration.modes.generate.supports.outputFormat.options.push('gif')
+    expanded.models[0].imageGeneration.modes.generate.supports.outputFormat.default = 'gif'
     fs.writeFileSync(path.join(sourceDirectory, 'models.json'), JSON.stringify(expanded))
     await publishRegistryCatalog({ ...publishOptions, sourceDirectory, destinationDirectory, currentVersion: 3 })
     expect(fs.readFileSync(path.join(destinationDirectory, 'v3/models.json'))).toEqual(

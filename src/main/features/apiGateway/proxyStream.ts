@@ -27,7 +27,7 @@ import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
 import { applyFastModeToProviderOptions } from '@main/ai/utils/options'
-import { ServiceTierSelectionSchema } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, ServiceTierSelectionSchema } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 
@@ -160,7 +160,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
       config.fastMode === true || (isInternalRequest && config.requestHeaders?.get(CHERRY_FAST_MODE_HEADER) === 'true')
   }
   const resolvedAddress = await resolveGatewayModelAddress(modelString, isInternalRequest)
-  const { providerId, apiModelId: modelId, uniqueModelId, provider: resolvedProvider, model } = resolvedAddress
+  const { providerId, apiModelId: modelId, uniqueModelId, provider: resolvedProvider } = resolvedAddress
   const agentSessionId = config.requestHeaders
     ? application.get('ApiGatewayService').getAgentSessionId(config.requestHeaders)
     : undefined
@@ -168,9 +168,6 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const logContext = { providerId, modelId, ...(agentSessionId ? { agentSessionId } : {}) }
 
   const isStreaming = config.streaming ?? ('stream' in params && (params as { stream?: boolean }).stream === true)
-  const usageContext = config.requestHeaders
-    ? application.get('ApiGatewayService').resolveAgentSessionUsage(config.requestHeaders)
-    : undefined
 
   logger.info(`Starting ${isStreaming ? 'streaming' : 'non-streaming'} message`, {
     ...logContext,
@@ -180,6 +177,16 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
 
   const provider: Provider = config.provider ?? resolvedProvider
   const isInternalAnthropicAgentRequest = inputFormat === 'anthropic' && isInternalRequest
+  const endpoint = resolveEffectiveEndpoint(
+    provider,
+    resolvedAddress.model,
+    isInternalAnthropicAgentRequest ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES : undefined
+  )
+  const model =
+    endpoint.endpointType && endpoint.endpointType !== resolvedAddress.model.endpointTypes?.[0]
+      ? { ...resolvedAddress.model, endpointTypes: [endpoint.endpointType] }
+      : resolvedAddress.model
+  const resolvedModel = { provider, model }
   let effectiveParams = params
 
   if (isInternalAnthropicAgentRequest) {
@@ -216,12 +223,15 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const convertedMessages = converter.toUIMessages(effectiveParams)
   // Leaving inline system messages in place is what keeps the prompt prefix cacheable
   // across turns; targets that reject them get a downgrade 400 or a fold.
-  const targetEndpointType = resolveEffectiveEndpoint(provider, model).endpointType
-  const positionedMessages = positionInlineSystemMessages(convertedMessages, targetEndpointType, config.requestHeaders)
+  const positionedMessages = positionInlineSystemMessages(
+    convertedMessages,
+    endpoint.endpointType,
+    config.requestHeaders
+  )
   const messages = isInternalAnthropicAgentRequest
     ? appendInternalAgentContinuation(positionedMessages)
     : positionedMessages
-  const tools = converter.toAiSdkTools?.(effectiveParams, targetEndpointType)
+  const tools = converter.toAiSdkTools?.(effectiveParams, endpoint.endpointType)
   const streamOptions = converter.extractStreamOptions(effectiveParams)
 
   // Provider options (reasoning/thinking) use the same enabled provider resolved above.
@@ -252,6 +262,9 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     ...(converter.toClientToolName ? { toClientToolName: converter.toClientToolName.bind(converter) } : {})
   })
   const formatter: ISseFormatter = StreamAdapterFactory.getFormatter(outputFormat)
+  const usageContext = config.requestHeaders
+    ? application.get('ApiGatewayService').resolveAgentSessionUsage(config.requestHeaders, adapter.getMessageId())
+    : undefined
 
   const streamId = `gateway-${uuidv4()}`
   if (messages !== convertedMessages) {
@@ -402,6 +415,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             ...turnOptions,
             streamId,
             uniqueModelId,
+            resolvedModel,
             messages,
             listener,
             callOverrides,
@@ -497,6 +511,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
         ...turnOptions,
         streamId,
         uniqueModelId,
+        resolvedModel,
         messages,
         listener,
         callOverrides,

@@ -86,6 +86,8 @@ overrides:
   ai: "6.0.185"
 
 patchedDependencies:
+  # Forward native idle facts so runtime observation can confirm backup quiescence.
+  "@anthropic-ai/claude-agent-sdk@0.3.311": patches/@anthropic-ai__claude-agent-sdk@0.3.311.patch
   dingtalk-stream@2.1.7-beta.1: patches/dingtalk-stream@2.1.7-beta.1.patch
   "@napi-rs/system-ocr@1.2.0": patches/@napi-rs__system-ocr@1.2.0.patch
   "tesseract.js@6.0.1": patches/tesseract.js-npm-6.0.1-2562a7e46d.patch

@@ -79,6 +79,7 @@
   "common.channel_message_processing_error": "⚠️ Se produjo un error al procesar tu mensaje. Inténtalo de nuevo más tarde.",
   "common.channel_new_session_created": "Nueva sesión creada.",
   "common.channel_no_active_session": "No hay ninguna sesión activa.",
+  "common.channel_processing": "Procesando…",
   "common.channel_session_compacted": "Sesión compactada.",
   "common.channel_session_resolution_error": "⚠️ No se pudo resolver una sesión para este agente. Inténtalo de nuevo más tarde.",
   "common.channel_stopped": "Detenido",
