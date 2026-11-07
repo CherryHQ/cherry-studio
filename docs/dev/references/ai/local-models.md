@@ -199,6 +199,21 @@ directories afterwards rather than trusting the attempt's own verdict, so the on
 cannot be repaired reports "nothing installed" instead of handing out a path that has since
 lost files.
 
+### Offline copies
+
+A machine without network access can be seeded by copying files from a connected one, but both
+parts are required. The bundle's files alone leave its shared runtime missing, so the bundle
+still reports not-installed.
+
+- Model files: `{userData}/Runtime/models/pp-ocrv6/` (for the OCR bundle; the files sit directly
+  in that directory, with the names from its `files` list).
+- Shared runtime: `{userData}/Toolchain/onnxruntime/<installSubdir>/` for the platform in
+  `catalog.ts`, such as `napi-v6/linux/x64`. This part is platform- and architecture-specific,
+  so copy it from a machine that matches the target.
+
+Model files are platform-independent and can come from any machine. The `Toolchain` contents
+must match the target's OS and architecture.
+
 ## Installing and removing
 
 `BundleInstaller` owns one bundle's lifecycle — status, download with progress,
