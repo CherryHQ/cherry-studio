@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 
-import { OAuthServiceError } from '../errors'
+import { OAuthServiceError, OAuthSignInFailureError } from '../errors'
 import type { LoopbackCallbackConfig } from './types'
 
 export class LoopbackCallbackTransport {
@@ -30,7 +30,11 @@ export class LoopbackCallbackTransport {
 
   close(): void {
     for (const server of this.activeServers) {
-      server.close()
+      try {
+        server.close()
+      } catch (error) {
+        throw new OAuthSignInFailureError({ reason: 'callback_unavailable', phase: 'callback' }, error)
+      }
     }
     this.activeServers = []
     this.busy = false
@@ -52,7 +56,12 @@ export class LoopbackCallbackTransport {
       const settleReject = (error: unknown) => {
         if (settled) return
         settled = true
-        this.close()
+        try {
+          this.close()
+        } catch (closeError) {
+          reject(closeError)
+          return
+        }
         reject(error)
       }
 
@@ -81,12 +90,16 @@ export class LoopbackCallbackTransport {
         }
         if (error) {
           respond('Sign-in failed')
-          settleReject(new OAuthServiceError(`OAuth provider returned error: ${error}`))
+          settleReject(
+            new OAuthSignInFailureError({
+              reason: error === 'access_denied' ? 'authorization_denied' : 'callback_failed'
+            })
+          )
           return
         }
         if (!code) {
           respond('Sign-in failed')
-          settleReject(new OAuthServiceError('No authorization code received'))
+          settleReject(new OAuthSignInFailureError({ reason: 'missing_code' }))
           return
         }
 
@@ -102,7 +115,7 @@ export class LoopbackCallbackTransport {
           server.once('listening', resolveListen)
           // Closing during bind must also release callers waiting on `ready`.
           server.once('close', () => {
-            rejectListen(new OAuthServiceError(`OAuth callback server on ${host} closed before it started listening`))
+            rejectListen(new OAuthSignInFailureError({ reason: 'callback_unavailable' }))
           })
           server.once('error', (err: NodeJS.ErrnoException) => {
             this.activeServers = this.activeServers.filter((activeServer) => activeServer !== server)
@@ -111,12 +124,7 @@ export class LoopbackCallbackTransport {
               server.close()
               return
             }
-            rejectListen(
-              new OAuthServiceError(
-                `Failed to start OAuth callback server on ${host}:${this.config.port}: ${err.message}`,
-                err
-              )
-            )
+            rejectListen(new OAuthSignInFailureError({ reason: 'callback_unavailable' }, err))
             server.close()
           })
 

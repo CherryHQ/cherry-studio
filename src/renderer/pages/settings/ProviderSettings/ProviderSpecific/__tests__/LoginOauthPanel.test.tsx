@@ -1,9 +1,11 @@
 import { MockUseDataApiUtils, mockUseInvalidateCache } from '@test-mocks/renderer/useDataApi'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { createInstance } from 'i18next'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import enUs from '@renderer/i18n/locales/en-us.json'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -13,10 +15,18 @@ import LoginOauthPanel from '../LoginOauthPanel'
 
 const { requestMock, tMock, invalidateProviderCacheMock, providerPatchMock } = vi.hoisted(() => ({
   requestMock: vi.fn(),
-  tMock: (key: string) => key,
+  tMock: vi.fn((key: string) => key),
   invalidateProviderCacheMock: vi.fn().mockResolvedValue(undefined),
   providerPatchMock: vi.fn().mockResolvedValue(undefined)
 }))
+
+const i18n = createInstance()
+await i18n.init({
+  resources: { en: { translation: enUs } },
+  lng: 'en',
+  keySeparator: false,
+  interpolation: { escapeValue: false }
+})
 
 const PROVIDER_CACHE_PATHS = ['/providers', '/providers/codex', '/providers/codex/*']
 
@@ -39,6 +49,7 @@ vi.mock('@cherrystudio/ui', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks()
+  tMock.mockImplementation((key: string) => key)
   MockUseDataApiUtils.resetMocks()
   mockUseInvalidateCache.mockReturnValue(invalidateProviderCacheMock)
   MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/providers/:providerId', providerPatchMock)
@@ -217,5 +228,80 @@ describe('LoginOauthPanel', () => {
     await user.click(retryButton)
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('settings.provider.codex.sign_in_success'))
     expect(signInAttempt).toBe(2)
+  })
+  it('shows the received HTTP status and exchange step when starting sign-in fails', async () => {
+    tMock.mockImplementation(i18n.t)
+    requestMock.mockImplementation((channel: string) => {
+      if (channel === 'oauth.has_token') return Promise.resolve(false)
+      if (channel === 'oauth.sign_in.attach') return Promise.resolve({ status: 'not-found' })
+      if (channel === 'oauth.sign_in') {
+        return Promise.reject(
+          new IpcError(oauthErrorCodes.SIGN_IN_FAILED, 'PRIVATE_MESSAGE', {
+            reason: 'http_error',
+            phase: 'exchange',
+            httpStatus: 400
+          })
+        )
+      }
+      throw new Error(`unexpected channel: ${channel}`)
+    })
+    const user = userEvent.setup()
+    render(<LoginOauthPanel providerId="codex" i18nNs="codex" />)
+
+    await user.click(await screen.findByRole('button', { name: enUs['settings.provider.codex.sign_in_button'] }))
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith({
+        title: 'OpenAI Codex sign-in failed',
+        description: 'During token exchange: The request failed (HTTP 400).'
+      })
+    )
+  })
+
+  it('shows the browser authorization failure when attaching to sign-in fails', async () => {
+    tMock.mockImplementation(i18n.t)
+    requestMock.mockImplementation((channel: string) => {
+      if (channel === 'oauth.has_token') return Promise.resolve(false)
+      if (channel === 'oauth.sign_in.attach') {
+        return Promise.reject(
+          new IpcError(oauthErrorCodes.SIGN_IN_FAILED, 'PRIVATE_MESSAGE', {
+            reason: 'callback_timeout',
+            phase: 'callback'
+          })
+        )
+      }
+      throw new Error(`unexpected channel: ${channel}`)
+    })
+    render(<LoginOauthPanel providerId="grok-cli" i18nNs="grok_cli" />)
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith({
+        title: 'Grok CLI sign-in failed',
+        description: 'During browser authorization: Timed out waiting for browser authorization.'
+      })
+    )
+  })
+
+  it('shows a cancel-command failure with the provider and reason', async () => {
+    tMock.mockImplementation(i18n.t)
+    requestMock.mockImplementation((channel: string) => {
+      if (channel === 'oauth.has_token') return Promise.resolve(false)
+      if (channel === 'oauth.sign_in.attach') return new Promise(() => {})
+      if (channel === 'oauth.cancel_sign_in') {
+        return Promise.reject(new IpcError(oauthErrorCodes.SIGN_IN_FAILED, 'PRIVATE_MESSAGE', { reason: 'network' }))
+      }
+      throw new Error(`unexpected channel: ${channel}`)
+    })
+    const user = userEvent.setup()
+    render(<LoginOauthPanel providerId="codex" i18nNs="codex" />)
+
+    await user.click(await screen.findByRole('button', { name: enUs['common.cancel'] }))
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith({
+        title: 'Could not cancel OpenAI Codex sign-in',
+        description: 'A network error prevented sign-in.'
+      })
+    )
   })
 })

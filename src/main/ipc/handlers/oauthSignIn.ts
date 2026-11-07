@@ -1,5 +1,5 @@
 import { application } from '@application'
-import { OAuthSignInCancelledError } from '@main/services/oauth/errors'
+import { classifyOAuthSignInFailure, OAuthSignInCancelledError } from '@main/services/oauth/errors'
 import type { CherryInOAuthContext, CherryInSignInResult } from '@main/services/oauth/runtime/providers/cherryin'
 import type { OAuthAccount, OAuthRuntimeProviderContext } from '@main/services/oauth/runtime/types'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -7,14 +7,14 @@ import { oauthErrorCodes } from '@shared/ipc/errors/oauth'
 import type { WindowId } from '@shared/ipc/types'
 import type { SystemProviderIds } from '@shared/utils/systemProviderId'
 
-export async function mapOAuthSignInCancellation<T>(request: Promise<T>): Promise<T> {
+export async function mapOAuthSignInCancellation<T>(request: () => T | Promise<T>): Promise<T> {
   try {
-    return await request
+    return await request()
   } catch (error) {
     if (error instanceof OAuthSignInCancelledError) {
       throw new IpcError(oauthErrorCodes.SIGN_IN_CANCELLED, error.message)
     }
-    throw error
+    throw new IpcError(oauthErrorCodes.SIGN_IN_FAILED, 'Provider sign-in failed', classifyOAuthSignInFailure(error))
   }
 }
 
@@ -36,12 +36,11 @@ export async function runOAuthSignIn(
   requestId: string,
   context: OAuthRuntimeProviderContext = {}
 ): Promise<OAuthAccount> {
-  const result = await mapOAuthSignInCancellation(
-    application.get('OAuthRuntimeService').signIn(senderId, providerId, requestId, context)
-  )
-
-  if (senderId) {
-    application.get('MainWindowService').showMainWindow()
-  }
-  return result
+  return mapOAuthSignInCancellation(async () => {
+    const result = await application.get('OAuthRuntimeService').signIn(senderId, providerId, requestId, context)
+    if (senderId) {
+      application.get('MainWindowService').showMainWindow()
+    }
+    return result
+  })
 }

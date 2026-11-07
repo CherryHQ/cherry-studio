@@ -11,8 +11,7 @@ const CONFIG = {
   scope: 'openid profile'
 }
 
-const okJson = (body: unknown): Response =>
-  ({ ok: true, status: 200, statusText: 'OK', json: async () => body }) as Response
+const okJson = (body: unknown): Response => Response.json(body)
 
 describe('PkceOAuthClient.createAuthorizationRequest', () => {
   it('emits a PKCE-shaped authorize URL with S256 challenge, state, and verifier', () => {
@@ -75,13 +74,14 @@ describe('PkceOAuthClient.exchangeCode', () => {
     } as Response)
 
     const client = new PkceOAuthClient(CONFIG)
-    await expect(client.exchangeCode('bad', 'verifier')).rejects.toMatchObject({
+    const error = await client.exchangeCode('bad', 'verifier').catch((caught: unknown) => caught)
+    expect(error).toBeInstanceOf(OAuthHttpError)
+    expect(error).toMatchObject({
       name: 'OAuthHttpError',
       message: 'Failed to exchange code for token: 400',
       status: 400,
       body: 'invalid_grant'
     })
-    expect(OAuthHttpError).toBeDefined()
   })
 })
 
