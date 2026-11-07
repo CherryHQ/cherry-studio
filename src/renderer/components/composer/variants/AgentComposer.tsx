@@ -564,6 +564,7 @@ const AgentComposerInner = ({
     customizeFooterAction
   } = useComposerToolbarPinnedTools('agent.input.toolbar.pinned_tools')
   const { t } = useTranslation()
+  const knowledgeBaseRetrievalLabel = t('chat.input.knowledge_base_retrieval_label')
   const agentModelFilter = useAgentModelFilter(agent?.type)
   const isModelUnavailable = Boolean(agent) && !model && !modelPending
   const missingModelMessage = isModelUnavailable ? t('code.model_required') : undefined
@@ -795,6 +796,7 @@ const AgentComposerInner = ({
     scopeKey: selectedKnowledgeBasesScopeKey,
     selectedKnowledgeBases,
     setSelectedKnowledgeBases,
+    knowledgeBaseRetrievalLabel,
     initialKnowledgeBaseIds: initialDraft.knowledgeBaseIds,
     // The tool provider above is keyed by agent + session + workspace, so this hook remounts with the scope.
     remountsOnScopeChange: true
@@ -855,10 +857,12 @@ const AgentComposerInner = ({
   const tokens = useMemo(
     () => [
       ...files.map(agentFileToComposerToken),
-      ...selectedKnowledgeBasesInScope.map(agentKnowledgeBaseToComposerToken),
+      ...selectedKnowledgeBasesInScope.map((base) =>
+        agentKnowledgeBaseToComposerToken(base, knowledgeBaseRetrievalLabel)
+      ),
       ...selectedSkills.map(agentSkillToComposerToken)
     ],
-    [files, selectedKnowledgeBasesInScope, selectedSkills]
+    [files, knowledgeBaseRetrievalLabel, selectedKnowledgeBasesInScope, selectedSkills]
   )
   const resolveSkillMarker = useCallback(
     (marker: string): ComposerDraftToken | null => {

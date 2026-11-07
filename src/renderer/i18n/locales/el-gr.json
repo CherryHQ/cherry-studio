@@ -793,6 +793,8 @@
   "chat.input.knowledge_base": "Βάση γνώσεων",
   "chat.input.knowledge_base_disabled_by_files": "Αφαιρέστε τα συνημμένα αρχεία για να χρησιμοποιήσετε τη Βάση Γνώσεων",
   "chat.input.knowledge_base_manage": "Διαχείριση βάσης γνώσεων",
+  "chat.input.knowledge_base_retrieval_label": "Ανάκτηση",
+  "chat.input.knowledge_base_retrieve": "Ανάκτηση από τη βάση γνώσεων",
   "chat.input.knowledge_base_unavailable": "Επιλέξτε ένα μοντέλο με δυνατότητα χρήσης εργαλείων",
   "chat.input.locate_editing_message": "Εντοπίστε το αρχικό μήνυμα",
   "chat.input.mcp_prompts.description": "Εισαγωγή ενός prompt από έναν διακομιστή MCP",

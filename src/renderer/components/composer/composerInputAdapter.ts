@@ -49,6 +49,20 @@ export function updateComposerToken(editor: Editor, token: ComposerDraftToken) {
   if (transaction.docChanged) editor.view.dispatch(transaction)
 }
 
+/**
+ * Restored drafts can carry an older serialized label for the same token. Refresh only the display
+ * label in place, preserving the stored prompt text and the token's document position.
+ */
+export function refreshComposerTokenLabel(editor: Editor, token: ComposerDraftToken) {
+  const transaction = editor.state.tr
+  editor.state.doc.descendants((node, position) => {
+    if (node.type.name === COMPOSER_TOKEN_NODE_NAME && node.attrs.id === token.id && node.attrs.label !== token.label) {
+      transaction.setNodeMarkup(position, undefined, { ...node.attrs, label: token.label })
+    }
+  })
+  if (transaction.docChanged) editor.view.dispatch(transaction)
+}
+
 export function insertComposerTokenAtCursor(
   editor: Editor,
   token: ComposerDraftToken,
@@ -61,6 +75,39 @@ export function insertComposerTokenAtCursor(
   }
 
   chain.insertContent(' ').run()
+}
+
+export function insertKnowledgeBaseTokenAtStart(editor: Editor, token: ComposerDraftToken) {
+  if (editor.isDestroyed || token.kind !== 'knowledge') return false
+
+  const currentTextLength = serializeComposerDocument(editor).text.length
+  if (currentTextLength + (token.promptText?.length ?? 0) + 1 > COMPOSER_INPUT_MAX_LENGTH) return false
+
+  const paragraph = editor.state.doc.firstChild
+  let position = 1
+  let foundKnowledgeToken = false
+
+  if (paragraph) {
+    for (let index = 0; index < paragraph.childCount; index += 1) {
+      const child = paragraph.child(index)
+      if (child.type.name === COMPOSER_TOKEN_NODE_NAME && child.attrs.kind === 'knowledge') {
+        position += child.nodeSize
+        foundKnowledgeToken = true
+      } else if (foundKnowledgeToken && child.isText && child.text?.startsWith(' ')) {
+        position += 1
+        break
+      } else {
+        break
+      }
+    }
+  }
+
+  const content = Fragment.fromArray([
+    editor.schema.nodeFromJSON({ type: COMPOSER_TOKEN_NODE_NAME, attrs: token }),
+    editor.schema.text(' ')
+  ])
+  editor.view.dispatch(editor.state.tr.insert(position, content))
+  return true
 }
 
 export function deleteComposerTextRange(editor: Editor, range: { from: number; to: number }) {

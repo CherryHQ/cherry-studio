@@ -793,6 +793,8 @@
   "chat.input.knowledge_base": "База знаний",
   "chat.input.knowledge_base_disabled_by_files": "Удалите прикреплённые файлы, чтобы использовать базу знаний",
   "chat.input.knowledge_base_manage": "Управление базой знаний",
+  "chat.input.knowledge_base_retrieval_label": "Поиск",
+  "chat.input.knowledge_base_retrieve": "Искать в базе знаний",
   "chat.input.knowledge_base_unavailable": "Выберите модель с поддержкой инструментов",
   "chat.input.locate_editing_message": "Найти исходное сообщение",
   "chat.input.mcp_prompts.description": "Вставить промпт, опубликованный сервером MCP",

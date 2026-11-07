@@ -793,6 +793,8 @@
   "chat.input.knowledge_base": "Base de connaissances",
   "chat.input.knowledge_base_disabled_by_files": "Supprimez les fichiers joints pour utiliser la base de connaissances",
   "chat.input.knowledge_base_manage": "Gérer la base de connaissances",
+  "chat.input.knowledge_base_retrieval_label": "Récupération",
+  "chat.input.knowledge_base_retrieve": "Récupérer depuis la base de connaissances",
   "chat.input.knowledge_base_unavailable": "Sélectionnez un modèle compatible avec les outils",
   "chat.input.locate_editing_message": "Localiser le message original",
   "chat.input.mcp_prompts.description": "Insérer un prompt publié par un serveur MCP",

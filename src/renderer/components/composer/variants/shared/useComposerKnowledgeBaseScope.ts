@@ -24,6 +24,7 @@ interface UseComposerKnowledgeBaseScopeParams {
   scopeKey: string
   selectedKnowledgeBases: KnowledgeBase[]
   setSelectedKnowledgeBases: Dispatch<SetStateAction<KnowledgeBase[]>>
+  knowledgeBaseRetrievalLabel?: string
   /** Ids saved in the draft cache, restored once the knowledge bases have loaded. */
   initialKnowledgeBaseIds: readonly string[]
   /**
@@ -60,6 +61,7 @@ export function useComposerKnowledgeBaseScope({
   scopeKey,
   selectedKnowledgeBases,
   setSelectedKnowledgeBases,
+  knowledgeBaseRetrievalLabel,
   initialKnowledgeBaseIds,
   remountsOnScopeChange
 }: UseComposerKnowledgeBaseScopeParams): UseComposerKnowledgeBaseScopeResult {
@@ -115,9 +117,9 @@ export function useComposerKnowledgeBaseScope({
   const resolveKnowledgeBaseMarker = useCallback(
     (marker: string): ComposerDraftToken | null => {
       const base = knowledgeBaseMarkerMap.get(marker)
-      return base ? knowledgeBaseToComposerToken(base) : null
+      return base ? knowledgeBaseToComposerToken(base, knowledgeBaseRetrievalLabel) : null
     },
-    [knowledgeBaseMarkerMap]
+    [knowledgeBaseMarkerMap, knowledgeBaseRetrievalLabel]
   )
   const isSelectedKnowledgeBasesScopeCurrent = selectedKnowledgeBasesScopeKeyRef.current === scopeKey
   const selectedKnowledgeBasesInScope = useMemo(

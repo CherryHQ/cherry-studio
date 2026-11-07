@@ -692,6 +692,7 @@ const ChatComposerInner = ({
   }, [isMentionedModelDraftHydrated, mentionedModelMultiSelectMode, mentionedModels, useMentionedModelSelector])
 
   const selectedKnowledgeBasesScopeKey = `${scopeKey}:${selectedAssistantId ?? 'no-assistant'}`
+  const knowledgeBaseRetrievalLabel = t('chat.input.knowledge_base_retrieval_label')
   const {
     selectableKnowledgeBases,
     selectedKnowledgeBasesInScope,
@@ -707,6 +708,7 @@ const ChatComposerInner = ({
     scopeKey: selectedKnowledgeBasesScopeKey,
     selectedKnowledgeBases,
     setSelectedKnowledgeBases,
+    knowledgeBaseRetrievalLabel,
     initialKnowledgeBaseIds: initialDraft.knowledgeBaseIds
   })
 
@@ -1091,8 +1093,11 @@ const ChatComposerInner = ({
   const placeholderText = t('chat.input.placeholder')
 
   const tokens = useMemo(
-    () => [...files.map(fileToComposerToken), ...selectedKnowledgeBasesInScope.map(knowledgeBaseToComposerToken)],
-    [files, selectedKnowledgeBasesInScope]
+    () => [
+      ...files.map(fileToComposerToken),
+      ...selectedKnowledgeBasesInScope.map((base) => knowledgeBaseToComposerToken(base, knowledgeBaseRetrievalLabel))
+    ],
+    [files, knowledgeBaseRetrievalLabel, selectedKnowledgeBasesInScope]
   )
 
   // Editor→state reconciliation owned by the tools: attachmentTool prunes+dedupes files,

@@ -793,6 +793,8 @@
   "chat.input.knowledge_base": "Bază de cunoștințe",
   "chat.input.knowledge_base_disabled_by_files": "Elimină fișierele atașate pentru a folosi Baza de cunoștințe",
   "chat.input.knowledge_base_manage": "Gestionează baza de cunoștințe",
+  "chat.input.knowledge_base_retrieval_label": "Recuperare",
+  "chat.input.knowledge_base_retrieve": "Recuperează din baza de cunoștințe",
   "chat.input.knowledge_base_unavailable": "Selectează un model compatibil cu instrumente",
   "chat.input.locate_editing_message": "Localizați mesajul original",
   "chat.input.mcp_prompts.description": "Inserați un prompt publicat de un server MCP",

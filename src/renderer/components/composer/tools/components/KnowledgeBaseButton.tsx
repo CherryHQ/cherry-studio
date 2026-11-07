@@ -119,7 +119,7 @@ const useKnowledgeBaseToolController = ({
       description: tRef.current('library.config.knowledge.doc_count', { count: base.itemCount ?? 0 }),
       filterText: [base.name, base.id].join(' '),
       icon: <FileSearch />,
-      suffix: tRef.current('chat.input.knowledge_base'),
+      suffix: tRef.current('chat.input.knowledge_base_retrieval_label'),
       isSelected: selectedBaseIds.has(base.id),
       action: ({ context, inputAdapter, item }) => {
         const nextSelectedIds = new Set(selectedBasesRef.current.map((selectedBase) => selectedBase.id))
@@ -186,7 +186,7 @@ const useKnowledgeBaseToolController = ({
       setDataRequested(true)
       disposeCloseOnInputAfterSelection()
       actionQuickPanel.open({
-        title: t('chat.input.knowledge_base'),
+        title: t('chat.input.knowledge_base_retrieve'),
         list: knowledgeBaseItems,
         symbol: ComposerPanelSymbol.KnowledgeBase,
         parentPanel,
@@ -210,7 +210,7 @@ const useKnowledgeBaseToolController = ({
         {
           ...KNOWLEDGE_BASE_TOOLBAR_MANIFEST.toolbar,
           sources: ['popover', 'root-panel'],
-          label: t('chat.input.knowledge_base'),
+          label: t('chat.input.knowledge_base_retrieve'),
           description: resolvedDisabledReason ?? '',
           searchAliases: getQuickPanelSearchAliases(t, 'chat.input.knowledge_base', ['knowledge base']),
           disabledReason: resolvedDisabledReason,
