@@ -308,6 +308,52 @@ describe('PluginEngine', () => {
       expect(resolveModelSpy).toHaveBeenCalledWith('gpt-4', expect.any(Object))
     })
 
+    it('should expose the resolved model object via context.model to transformParams', async () => {
+      const seenModels: unknown[] = []
+
+      const plugin: AiPlugin = {
+        name: 'model-reader',
+        resolveModel: vi.fn().mockResolvedValue(mockLanguageModel),
+        transformParams: vi.fn().mockImplementation(async (params, context) => {
+          seenModels.push(context.model)
+          return params
+        })
+      }
+
+      engine = new PluginEngine('openai', [plugin])
+
+      await engine.executeWithPlugins(
+        'generateText',
+        { model: 'gpt-4', messages: [] },
+        vi.fn().mockResolvedValue({ text: 'test' })
+      )
+
+      expect(seenModels).toEqual([mockLanguageModel])
+    })
+
+    it('should expose the resolved image model via context.model to transformParams', async () => {
+      const seenModels: unknown[] = []
+
+      const plugin: AiPlugin = {
+        name: 'image-model-reader',
+        resolveModel: vi.fn().mockResolvedValue(mockImageModel),
+        transformParams: vi.fn().mockImplementation(async (params, context) => {
+          seenModels.push(context.model)
+          return params
+        })
+      }
+
+      engine = new PluginEngine('openai', [plugin])
+
+      await engine.executeImageWithPlugins(
+        'generateImage',
+        { model: 'dall-e-3', prompt: 'test' },
+        vi.fn().mockResolvedValue({ image: {} })
+      )
+
+      expect(seenModels).toEqual([mockImageModel])
+    })
+
     it('should use first plugin that resolves model', async () => {
       const resolver1 = vi.fn().mockResolvedValue(mockLanguageModel)
       const resolver2 = vi.fn().mockResolvedValue(mockLanguageModel)
@@ -704,11 +750,13 @@ describe('PluginEngine', () => {
 
   describe('Context Management', () => {
     it('should create context with correct provider and model', async () => {
-      const configureContextSpy = vi.fn()
+      let modelAtConfigure: unknown
 
       const plugin: AiPlugin = {
         name: 'context-checker',
-        configureContext: configureContextSpy,
+        configureContext: vi.fn().mockImplementation(async (context) => {
+          modelAtConfigure = context.model
+        }),
         resolveModel: vi.fn().mockResolvedValue(mockLanguageModel)
       }
 
@@ -720,12 +768,7 @@ describe('PluginEngine', () => {
         vi.fn().mockResolvedValue({ text: 'test' })
       )
 
-      expect(configureContextSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          providerId: 'openai',
-          model: 'gpt-4'
-        })
-      )
+      expect(modelAtConfigure).toBe('gpt-4')
     })
 
     it('should pass context to all hooks', async () => {

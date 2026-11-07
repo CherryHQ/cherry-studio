@@ -219,6 +219,8 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
           throw new ModelResolutionError(modelId, this.providerId)
         }
         resolvedModel = resolved
+        // 与 executeStreamWithPlugins 保持一致：后续 plugin 通过 context.model 读取已解析的模型实例
+        context.model = resolvedModel
       }
 
       if (!resolvedModel) {
@@ -327,6 +329,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
           throw new ModelResolutionError(modelId, this.providerId)
         }
         resolvedModel = resolved
+        context.model = resolvedModel
       }
 
       if (!resolvedModel) {
