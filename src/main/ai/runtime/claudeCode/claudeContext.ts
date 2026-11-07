@@ -12,25 +12,58 @@ export function prepareClaudeBranch(sessionId: string, configDir: string, native
     const root = ensureAgentSessionRootTx(tx, sessionId)
     const anchor = messageId ?? getAgentSessionHead(tx, sessionId) ?? root
     const existing = contexts.branchTx(tx, sessionId, anchor)
-    const hasReset = contexts.hasStaleResetBoundaryTx(tx, sessionId, anchor)
+    const resetBoundaryId = contexts.lastStaleResetBoundaryTx(tx, sessionId, anchor)
     if (existing) {
       const backend = contexts.backendTx(tx, existing.backendId)
       if (backend.locator.kind !== 'claude-code' || backend.locator.configDir !== configDir)
         throw new Error('The selected branch belongs to another runtime backend')
-      // A reset boundary at/below this binding means its native identity is the
-      // dead conversation: rotate to fresh instead of reusing it. The binding
-      // sits at/below the boundary (branchTx only searches the effective path),
-      // so siblings whose paths exclude the boundary keep their identities.
-      if (hasReset && (!nativeId || existing.nativeThreadId !== nativeId)) {
-        // If the caller explicitly requested a different live identity, adopt
-        // it; otherwise generate a fresh one so the next connect goes clean.
-        // `nativeId` matching the dead identity is also rotated away — reusing
-        // it would fail identically.
-        return contexts.refreshResetBranchTx(
-          tx,
-          existing.id,
-          nativeId && nativeId !== existing.nativeThreadId ? nativeId : uuid()
-        )
+      if (resetBoundaryId !== undefined) {
+        const handled =
+          (existing.checkpointMapping as { staleResetHandled?: string } | null | undefined)?.staleResetHandled ===
+          resetBoundaryId
+        if (handled) {
+          // Already survived this reset: the binding holds a healthy recovered
+          // identity, not the dead conversation. Reuse it for the same
+          // identity; fork a separate context for a new native (e.g. `/clear`
+          // on a descendant) instead of rewriting in place, which would break
+          // observers holding `(contextId, nativeThreadId)` (#23519 review).
+          if (!nativeId || existing.nativeThreadId === nativeId) return existing
+          if (existing.anchorMessageId !== anchor) {
+            return contexts.reserveBranchTx(tx, {
+              sessionId,
+              backendId: existing.backendId,
+              nativeThreadId: nativeId,
+              anchorMessageId: anchor,
+              checkpointMapping: { staleResetHandled: resetBoundaryId }
+            })
+          }
+          // Same-anchor with a new native after recovery: the anchor is
+          // occupied so a separate row would violate
+          // `agent_session_context_anchor_uniq`. Rotate in place (rare;
+          // descendant `/clear` takes the fork path above).
+          return contexts.refreshResetBranchTx(tx, existing.id, nativeId, resetBoundaryId)
+        }
+        // Unhandled (holds the dead identity): same-anchor collides, so rotate
+        // in place; descendant anchors are free, so fork fresh there.
+        if (existing.anchorMessageId === anchor) {
+          // If the caller explicitly requested a different live identity, adopt
+          // it; otherwise generate a fresh one so the next connect goes clean.
+          // `nativeId` matching the dead identity is also rotated away — reusing
+          // it would fail identically.
+          return contexts.refreshResetBranchTx(
+            tx,
+            existing.id,
+            nativeId && nativeId !== existing.nativeThreadId ? nativeId : uuid(),
+            resetBoundaryId
+          )
+        }
+        return contexts.reserveBranchTx(tx, {
+          sessionId,
+          backendId: existing.backendId,
+          nativeThreadId: nativeId ?? uuid(),
+          anchorMessageId: anchor,
+          checkpointMapping: { staleResetHandled: resetBoundaryId }
+        })
       }
       if (!nativeId || existing.nativeThreadId === nativeId) return existing
     }
@@ -40,12 +73,13 @@ export function prepareClaudeBranch(sessionId: string, configDir: string, native
     // at root would violate `agent_session_context_anchor_uniq`, so anchor the
     // fresh branch at the failed head. Sibling paths exclude the boundary row
     // and keep resolving to the retained root binding.
-    const anchorForFresh = existing ? anchor : hasReset ? anchor : root
+    const anchorForFresh = existing ? anchor : resetBoundaryId !== undefined ? anchor : root
     return contexts.reserveBranchTx(tx, {
       sessionId,
       backendId: backend.id,
       nativeThreadId: nativeId ?? uuid(),
-      anchorMessageId: anchorForFresh
+      anchorMessageId: anchorForFresh,
+      ...(resetBoundaryId !== undefined ? { checkpointMapping: { staleResetHandled: resetBoundaryId } } : {})
     })
   })
 }

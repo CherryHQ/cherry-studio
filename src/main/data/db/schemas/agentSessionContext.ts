@@ -18,6 +18,14 @@ export interface AgentSessionCheckpoints {
     removed?: readonly string[]
     composition?: Record<string, { messageId: string; parts: number[] }[]>
   }
+  /**
+   * Last stale-resume reset boundary this binding has already survived.
+   * Rotation is limited to the invalidated binding: once a context records the
+   * boundary it was rotated/allocated for, later native changes on descendants
+   * (e.g. `/clear`) fork a separate context instead of rewriting this one in
+   * place, preserving observers holding `(contextId, nativeThreadId)` (#23519).
+   */
+  staleResetHandled?: string
 }
 
 export const agentSessionContextTable = sqliteTable(

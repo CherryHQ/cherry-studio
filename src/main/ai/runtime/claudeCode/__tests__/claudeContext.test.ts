@@ -123,6 +123,63 @@ it('reconnects fresh after a stale-resume reset without violating the root ancho
   expect(sessionContexts()).toHaveLength(2)
 })
 
+it('preserves the recovered context when /clear runs on a descendant after stale recovery', () => {
+  prepareClaudeBranch(sessionId, '/test/claude')
+  const parent = messages.saveMessage({
+    sessionId,
+    runtimeResumeToken: 'healthy-parent',
+    message: { role: 'assistant', data: { parts: [] } }
+  })
+  const staleChild = messages.saveMessage({
+    sessionId,
+    parentId: parent.id,
+    runtimeResumeToken: 'stale-id',
+    message: { role: 'assistant', data: { parts: [] } }
+  })
+  messages.clearRuntimeResumeTokens(sessionId, 'stale-id')
+  messages.markStaleResumeResetBoundary(sessionId, staleChild.id)
+
+  const reconnected = prepareClaudeBranch(sessionId, '/test/claude', undefined, staleChild.id)
+  // Simulate successful recovery: the fresh binding is now bound.
+  contexts.bindContext(reconnected.id, reconnected.nativeThreadId!)
+  const recoveredNative = contexts.context(reconnected.id).nativeThreadId!
+
+  // Same-anchor reconnect is truly idempotent — no churn of the native identity.
+  const sameAnchor = prepareClaudeBranch(sessionId, '/test/claude', undefined, staleChild.id)
+  expect(sameAnchor.id).toBe(reconnected.id)
+  expect(sameAnchor.nativeThreadId).toBe(recoveredNative)
+
+  const descendant = messages.saveMessage({
+    sessionId,
+    parentId: staleChild.id,
+    message: { role: 'user', data: { parts: [{ type: 'text', text: 'follow-up' }] } }
+  })
+
+  // Normal next turn reuses the recovered binding.
+  const resumed = prepareClaudeBranch(sessionId, '/test/claude', undefined, descendant.id)
+  expect(resumed.id).toBe(reconnected.id)
+  expect(resumed.nativeThreadId).toBe(recoveredNative)
+
+  // `/clear` with a new native on the descendant must fork a separate context
+  // instead of rewriting the healthy recovered one in place (#23519 review).
+  // Rewriting would break observers holding `(contextId, nativeThreadId)` and
+  // surface `Native input target does not match the captured context`.
+  const clearedNative = randomUUID()
+  const cleared = prepareClaudeBranch(sessionId, '/test/claude', clearedNative, descendant.id)
+  expect(cleared.id).not.toBe(reconnected.id)
+  expect(cleared.anchorMessageId).toBe(descendant.id)
+  expect(cleared.nativeThreadId).toBe(clearedNative)
+  expect(cleared.backendId).toBe(reconnected.backendId)
+
+  // Healthy recovered binding is untouched.
+  expect(contexts.context(reconnected.id).nativeThreadId).toBe(recoveredNative)
+  expect(contexts.context(reconnected.id).anchorMessageId).toBe(staleChild.id)
+
+  // Fork is idempotent for the same new native.
+  expect(prepareClaudeBranch(sessionId, '/test/claude', clearedNative, descendant.id).id).toBe(cleared.id)
+  expect(sessionContexts()).toHaveLength(3)
+})
+
 it('rotates a reset-bound edit fork instead of reusing its dead identity', () => {
   prepareClaudeBranch(sessionId, '/test/claude')
   const edited = messages.saveMessage({

@@ -196,9 +196,44 @@ class AgentSessionContextService {
    * so they keep resolving to the retained root binding (#23519 review).
    */
   hasStaleResetBoundaryTx(tx: DbOrTx, sessionId: string, messageId: string): boolean {
+    return this.lastStaleResetBoundaryTx(tx, sessionId, messageId) !== undefined
+  }
+
+  /**
+   * Last stale-resume reset boundary in the ancestry for `messageId`, if any.
+   * Rotation uses the id to limit in-place rewrites to the invalidated binding:
+   * once a context records this boundary in
+   * `checkpointMapping.staleResetHandled`, later native changes (e.g. `/clear`
+   * on a descendant) fork a separate context instead of rewriting the healthy
+   * recovered one (#23519 review).
+   */
+  lastStaleResetBoundaryTx(tx: DbOrTx, sessionId: string, messageId: string): string | undefined {
     const path = readAgentSessionAncestry(tx, sessionId, messageId)
-    if (path.length === 0) return false
-    return this.effectivePathTx(tx, sessionId, path).length !== path.length
+    if (path.length === 0) return undefined
+    try {
+      const flags = tx
+        .select({
+          id: messages.id,
+          reset: sql<number | null>`json_extract(${messages.data}, '$.staleResumeReset')`
+        })
+        .from(messages)
+        .where(
+          and(
+            eq(messages.sessionId, sessionId),
+            inArray(
+              messages.id,
+              path.map((row) => row.id)
+            )
+          )
+        )
+        .all()
+      const resetIds = new Set(flags.filter((flag) => flag.reset).map((flag) => flag.id))
+      if (resetIds.size === 0) return undefined
+      const lastReset = path.map((row) => (resetIds.has(row.id) ? 1 : 0)).lastIndexOf(1)
+      return lastReset >= 0 ? path[lastReset].id : undefined
+    } catch {
+      return undefined
+    }
   }
 
   private effectivePathTx(tx: DbOrTx, sessionId: string, path: { id: string; parentId: string | null }[]) {
@@ -241,22 +276,50 @@ class AgentSessionContextService {
    * head): reusing its dead `nativeThreadId` would fail identically, and
    * inserting a second row at the same anchor would violate
    * `agent_session_context_anchor_uniq`. The row id and anchor are preserved so
-   * sibling branches (different anchors) are untouched (#23519 review).
+   * sibling branches (different anchors) are untouched. Records the handled
+   * boundary so later native changes (e.g. `/clear` on a descendant) fork a
+   * separate context instead of rewriting the healthy recovered one (#23519
+   * review).
    */
-  refreshResetBranchTx(tx: DbOrTx, contextId: string, nativeThreadId: string): AgentSessionContextRow {
+  refreshResetBranchTx(
+    tx: DbOrTx,
+    contextId: string,
+    nativeThreadId: string,
+    boundaryId?: string
+  ): AgentSessionContextRow {
+    const current = this.contextTx(tx, contextId)
+    const checkpointMapping =
+      boundaryId !== undefined
+        ? { ...current.checkpointMapping, staleResetHandled: boundaryId }
+        : current.checkpointMapping
     return tx
       .update(contexts)
-      .set({ nativeThreadId, bindingState: 'pending', updatedAt: Date.now() })
+      .set({ nativeThreadId, bindingState: 'pending', updatedAt: Date.now(), checkpointMapping })
       .where(eq(contexts.id, contextId))
       .returning()
       .get()
   }
 
   publishBranchTx(tx: DbOrTx, sessionId: string, nativeId: string, checkpointMapping: Record<string, unknown>): void {
-    tx.update(contexts)
-      .set({ nativeThreadId: nativeId, bindingState: 'bound', checkpointMapping: { fork: checkpointMapping } })
+    const existing = tx
+      .select()
+      .from(contexts)
       .where(and(eq(contexts.sessionId, sessionId), eq(contexts.nativeThreadId, nativeId)))
-      .run()
+      .all()
+    for (const row of existing) {
+      const staleResetHandled = row.checkpointMapping?.staleResetHandled
+      tx.update(contexts)
+        .set({
+          nativeThreadId: nativeId,
+          bindingState: 'bound',
+          checkpointMapping: {
+            fork: checkpointMapping,
+            ...(staleResetHandled !== undefined ? { staleResetHandled } : {})
+          }
+        })
+        .where(eq(contexts.id, row.id))
+        .run()
+    }
   }
 
   confirmBranchTx(tx: DbOrTx, contextId: string, sessionId: string, messageId: string, nativeId: string): void {
