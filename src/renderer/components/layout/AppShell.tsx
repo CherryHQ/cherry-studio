@@ -109,8 +109,12 @@ const AppShellContent = () => {
 
   const handleCloseActiveTab = useCallback(() => {
     if (!activeTabId) return
+    if (isMac && tabs.length === 1) {
+      void ipcApi.request('window.close')
+      return
+    }
     handleCloseTab(activeTabId)
-  }, [activeTabId, handleCloseTab])
+  }, [activeTabId, handleCloseTab, tabs.length])
 
   const commandRuntime = useCommandRuntime()
   const tabCommandHints = useNumberShortcutHints(TAB_NUMBER_COMMANDS)
