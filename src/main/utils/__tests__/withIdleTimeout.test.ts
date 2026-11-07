@@ -81,6 +81,26 @@ describe('withIdleTimeout', () => {
     expect((controller.signal.reason as DOMException).name).toBe('TimeoutError')
   })
 
+  it('aborts a pending first read when the source has emitted zero items', async () => {
+    const src = makeControllableStream<number>()
+    const controller = new AbortController()
+    const { stream } = withIdleTimeout(src.stream, controller, 1000)
+    const reader = stream.getReader()
+    let settled = false
+    const firstRead = reader.read().then((value) => {
+      settled = true
+      return value
+    })
+    await vi.advanceTimersByTimeAsync(999)
+    expect(controller.signal.aborted).toBe(false)
+    expect(settled).toBe(false)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(controller.signal.reason).toMatchObject({ name: 'TimeoutError' })
+    expect(settled).toBe(false)
+    await reader.cancel(controller.signal.reason)
+    expect(await firstRead).toMatchObject({ done: true })
+  })
+
   it('resets the timer on every chunk', async () => {
     const src = makeControllableStream<number>()
     const controller = new AbortController()

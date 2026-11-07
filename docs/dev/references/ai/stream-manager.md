@@ -345,7 +345,7 @@ interface StreamExecution {
 }
 
 interface TransportTimings {
-  readonly startedAt: number   // execution loop entry
+  readonly startedAt: number   // execution creation (monotonic)
   completedAt?: number         // execution loop exit (both try and catch paths)
 }
 
@@ -615,6 +615,45 @@ retains readable output and delivers the existing explicit failure outcome.
 | `streamErrorText` (in-stream `error` chunk) | `onExecutionError` | Error part folded into finalMessage, persisted as `error` |
 | Pre-stream, upstream or broadcast throw | `onExecutionError` | Same — error part folded, persisted |
 | Accumulation failure without another terminal cause | `onExecutionError` | Last valid snapshot persisted as `error`, with failure source `host` and reason `internal` |
+
+### Agent startup output bound
+
+Executions with `runtime.kind === 'agent-session'` and no explicit
+`requestOptions.timeout` have a 90-second budget for the first meaningful model
+output. Its epoch is `exec.timings.startedAt`, recorded when the execution is
+created; `runExecutionLoop` subtracts elapsed monotonic time before acquiring the
+source. Acquisition and consumption are both bounded, even if cancellation or a
+late source does not cooperate.
+
+Meaningful output is nonempty, untrimmed text or reasoning, actual tool-input
+progress or a tool result/approval control (including valid empty inputs and
+results), or usable file/source content. Administrative controls, empty
+starts/skeletons, `data-*` parts and transport heartbeats do not retire the
+budget. Chunk sources count incoming chunks; message sources count controls and
+authoritative parts, without treating a projection-only `approval-requested`
+part as output.
+
+Declared connection/compaction preparation and pending approvals suspend the
+remaining budget, with an aggregate 120-minute suspension cap per execution.
+Ending preparation resumes the remainder; repeated phases never grant a fresh
+budget. Authoritative approval snapshots contribute only to suspension. They do
+not publish approval events, change approval timing or create pending-approval
+anchors; the runtime's stream-presentation control remains the publication path.
+Meaningful output permanently disarms startup enforcement.
+
+An owned startup timeout persists and publishes an `error` with
+`error.request_timeout`, rather than `paused`. Recovery uses the existing manual
+retry path; no automatic retry is added. Terminal handlers claim the execution
+synchronously before asynchronous persistence/notification, so late source,
+chunk and phase callbacks cannot publish a second terminal or revive it. A
+normally completed empty source remains successful; genuine provider errors and
+user cancellation retain their own classification.
+
+Home and prompt streams retain the 120-minute parsed-item idle fallback. Gateway
+streams retain their explicit 20-minute timeout, and all explicit timeout
+overrides keep their existing behavior. After meaningful output, gated Agent
+executions also retain the existing idle policy. See the
+[chat stream idle-bound decision](../../../../.agents/notes/implemented/bug-fix/2026-10-29-chat-stream-idle-bound.md).
 
 ## Write quiesce (pause / drainInFlight)
 

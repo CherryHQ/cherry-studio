@@ -196,6 +196,7 @@ export interface OpenAgentSessionTurnStreamInput {
   turnId: string
   interactionWindowId?: string
   signal: AbortSignal
+  preparationSink?: (phase: 'connection' | 'compaction', active: boolean) => void
 }
 
 export interface AgentSessionRuntimeSnapshot {
@@ -232,9 +233,13 @@ type AgentSessionTurn = {
   knowledgeBaseIds: readonly string[]
   fastMode: boolean
   abortController: AbortController
-  controller?: Pick<ReadableStreamDefaultController<UIMessageChunk>, 'enqueue' | 'error' | 'close'> & {
+  controller?: Pick<ReadableStreamDefaultController<UIMessageChunk>, 'error' | 'close'> & {
+    enqueue: (chunk: UIMessageChunk) => void
     message: (parts: CherryUIMessage['parts']) => void
   }
+  preparationSink?: OpenAgentSessionTurnStreamInput['preparationSink']
+  preparationPhases?: Set<'connection' | 'compaction'>
+  streamCleanup?: () => void
   activeToolIds: Set<string>
   projection?: RootMessageProjection
   parentId?: string
@@ -1002,12 +1007,15 @@ export class AgentSessionRuntimeService extends BaseService {
       try {
         this.clearIdleTimer(entry)
         turn.controller = controller
+        turn.preparationSink = input.preparationSink
+        if (isAgentSessionRuntimeCompacting(entry.runtimeState)) this.setTurnPreparation(turn, 'compaction', true)
         this.applyRuntimeStateEvent(entry, { type: 'turn-stream-opened', turn })
         if (turn.projection) this.publishTurnMessage(entry, turn, turn.projection.parts(turn.assistantMessageId) ?? [])
 
         // Durable shutdown preserves work; user Stop must record cancellation before closing.
         const onAbort = () =>
           void this.closeSession(entry.sessionId, !this.isShuttingDown && input.signal.reason !== 'app-shutdown')
+        turn.streamCleanup = () => input.signal.removeEventListener('abort', onAbort)
         if (input.signal.aborted) {
           onAbort()
           return
@@ -1020,14 +1028,22 @@ export class AgentSessionRuntimeService extends BaseService {
         // state transition atomically transfers that buffer to this exact turn before admission.
         this.applyRuntimeStateEvent(entry, { type: 'flush-transition', turn })
         if (!this.isTurnLive(entry, turn)) return
-        const connected = await this.ensureConnection(entry)
+        let connected: boolean
+        this.setTurnPreparation(turn, 'connection', true)
+        try {
+          connected = await this.ensureConnection(entry)
+        } finally {
+          this.setTurnPreparation(turn, 'connection', false)
+        }
         if (!connected || !this.isCurrentEntry(entry) || !this.isTurnLive(entry, turn)) return
         await this.admitTurn(entry, turn)
       } catch (error) {
+        this.clearTurnPreparation(turn)
         controller.error(error)
       }
     }
     const cancel = () => {
+      this.clearTurnPreparation(turn)
       // Routed through the machine so the settle is a real transition (`awaiting-persistence`)
       // rather than an out-of-band mutation the busy/live queries cannot see.
       this.applyRuntimeStateEvent(entry, { type: 'runtime-terminal', turn, outcome: { status: 'paused' } })
@@ -2338,6 +2354,8 @@ export class AgentSessionRuntimeService extends BaseService {
     trigger: AgentSessionCompactionTrigger | undefined
   ): void {
     this.invalidateContextUsage(entry)
+    const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
+    if (turn) this.setTurnPreparation(turn, 'compaction', true)
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'compaction', active: true })
     application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), {
       status: 'compacting',
@@ -2412,6 +2430,8 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private handleCompactionComplete(entry: AgentSessionRuntimeEntry, anchor?: AgentSessionCompactionAnchorData): void {
+    const preparingTurn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
+    if (preparingTurn) this.setTurnPreparation(preparingTurn, 'compaction', false)
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'compaction', active: false })
 
     const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
@@ -2450,6 +2470,8 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private settleCompactionError(entry: AgentSessionRuntimeEntry, error?: string): void {
+    const preparingTurn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
+    if (preparingTurn) this.setTurnPreparation(preparingTurn, 'compaction', false)
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'compaction', active: false })
     if (error) logger.warn('Agent session compaction failed', { sessionId: entry.sessionId, error })
     application
@@ -2900,10 +2922,27 @@ export class AgentSessionRuntimeService extends BaseService {
     turn.controller?.enqueue(chunk)
   }
 
+  private setTurnPreparation(turn: AgentSessionTurn, phase: 'connection' | 'compaction', active: boolean): void {
+    if (!turn.preparationSink) return
+    const phases = (turn.preparationPhases ??= new Set())
+    if (phases.has(phase) === active) return
+    if (active) phases.add(phase)
+    else phases.delete(phase)
+    turn.preparationSink(phase, active)
+  }
+
+  private clearTurnPreparation(turn: AgentSessionTurn): void {
+    for (const phase of turn.preparationPhases ?? []) this.setTurnPreparation(turn, phase, false)
+    turn.preparationSink = undefined
+    turn.streamCleanup?.()
+    turn.streamCleanup = undefined
+  }
+
   /** Pure resource release. Terminality itself lives in the machine (the `settle-turn` transition
    *  is synchronous, so a trailing `chunk` event in the same connection loop already reads not-live
    *  and never touches the closed controller). */
   private closeTurn(turn: AgentSessionTurn): void {
+    this.clearTurnPreparation(turn)
     try {
       turn.controller?.close()
     } catch {
@@ -2914,6 +2953,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private errorTurn(turn: AgentSessionTurn, error: unknown): void {
+    this.clearTurnPreparation(turn)
     try {
       turn.controller?.error(error)
     } catch {
