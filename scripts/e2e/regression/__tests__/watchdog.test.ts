@@ -11,21 +11,31 @@ const target: WatchdogTarget = {
 
 function harness(overrides: Partial<WatchdogDeps> = {}) {
   let clock = 1_000
+  let alive = true
   const kills: WatchdogTarget[] = []
   const deps: WatchdogDeps = {
     readTarget: () => target,
     probe: async () => undefined,
-    kill: (killed) => kills.push(killed),
-    isAlive: () => true,
+    kill: (killed) => {
+      kills.push(killed)
+      alive = false
+    },
+    isAlive: () => alive,
     now: () => clock,
     ...overrides
   }
-  const watchdog = new ApplicationWatchdog(deps, { intervalMs: 1_000, stallTimeoutMs: 5_000 })
+  const watchdog = new ApplicationWatchdog(deps, { intervalMs: 1_000, stallTimeoutMs: 5_000, exitConfirmMs: 0 })
   return {
     watchdog,
     kills,
     advance: (ms: number) => {
       clock += ms
+    },
+    die: () => {
+      alive = false
+    },
+    revive: () => {
+      alive = true
     }
   }
 }
@@ -43,6 +53,7 @@ it('kills a live application whose CDP endpoint stops answering once the stall w
   await watchdog.check()
   expect(kills).toEqual([target])
   expect(watchdog.reason).toContain('unresponsive')
+  expect(watchdog.killedApplication).toBe(true)
 
   advance(60_000)
   await watchdog.check()
@@ -74,18 +85,15 @@ it('restarts the stall window when a probe recovers', async () => {
 })
 
 it('ignores an application that exited on purpose, and starts a fresh window when it comes back', async () => {
-  let alive = false
-  const { watchdog, kills, advance } = harness({
-    isAlive: () => alive,
-    probe: () => Promise.reject(new Error('timeout'))
-  })
+  const { watchdog, kills, advance, die, revive } = harness({ probe: () => Promise.reject(new Error('timeout')) })
 
+  die()
   advance(60_000)
   await watchdog.check()
   expect(kills).toHaveLength(0)
   expect(watchdog.reason).toBeUndefined()
 
-  alive = true
+  revive()
   await watchdog.check()
   advance(4_999)
   await watchdog.check()
@@ -117,18 +125,40 @@ it('does not carry the stall window across a restart that replaces the recorded 
   expect(kills).toEqual([current])
 })
 
-it('cannot kill the application after it was stopped, even with a probe still in flight', async () => {
-  let settle: (() => void) | undefined
-  const { watchdog, kills } = harness({
-    probe: () =>
-      new Promise<void>((_resolve, reject) => {
-        settle = () => reject(new Error('timeout'))
-      })
+it('keeps watching when the Electron process is alive after its process-group leader exited', async () => {
+  const { watchdog, kills, advance } = harness({
+    probe: () => Promise.reject(new Error('timeout')),
+    isAlive: (pid) => pid === target.electronPid
   })
 
+  await watchdog.check()
+  advance(5_000)
+  await watchdog.check()
+  expect(kills).toEqual([target])
+})
+
+it('cannot kill the application after it was stopped, even with an accrued stall and a probe in flight', async () => {
+  let mode: 'fail' | 'pending' = 'fail'
+  let settle: ((error: Error) => void) | undefined
+  const { watchdog, kills, advance } = harness({
+    probe: () => {
+      if (mode === 'fail') return Promise.reject(new Error('timeout'))
+      return new Promise<void>((_resolve, reject) => {
+        settle = reject
+      })
+    }
+  })
+
+  await watchdog.check()
+  advance(4_000)
+  await watchdog.check()
+  expect(kills).toHaveLength(0)
+
+  mode = 'pending'
   const checking = watchdog.check()
   watchdog.stop()
-  settle?.()
+  advance(1_000)
+  settle?.(new Error('timeout'))
   await checking
   expect(kills).toHaveLength(0)
   expect(watchdog.reason).toBeUndefined()
@@ -136,12 +166,13 @@ it('cannot kill the application after it was stopped, even with a probe still in
 
 it('reports a failed kill instead of claiming success, and retries on the next check', async () => {
   let attempt = 0
-  const { watchdog, kills, advance } = harness({
+  const { watchdog, kills, advance, die } = harness({
     probe: () => Promise.reject(new Error('timeout')),
     kill: (killed) => {
       attempt += 1
       if (attempt === 1) throw new Error('Refusing to terminate stale electron PID')
       kills.push(killed)
+      die()
     }
   })
 
@@ -150,11 +181,29 @@ it('reports a failed kill instead of claiming success, and retries on the next c
   await watchdog.check()
   expect(kills).toHaveLength(0)
   expect(watchdog.reason).toContain('killing it failed')
+  expect(watchdog.killedApplication).toBe(false)
 
   advance(5_000)
   await watchdog.check()
   expect(kills).toHaveLength(1)
   expect(watchdog.reason).toContain('killed it')
+})
+
+it('does not accept a kill signal that leaves the recorded process alive', async () => {
+  let attempts = 0
+  const { watchdog, advance } = harness({
+    probe: () => Promise.reject(new Error('timeout')),
+    kill: () => {
+      attempts += 1
+    }
+  })
+
+  await watchdog.check()
+  advance(5_000)
+  await watchdog.check()
+  expect(attempts).toBe(1)
+  expect(watchdog.killedApplication).toBe(false)
+  expect(watchdog.reason).toContain('still alive')
 })
 
 it('does nothing when the watchdog is disabled', async () => {

@@ -6,6 +6,7 @@ const DEFAULT_STALL_TIMEOUT_MS = 60_000
 const PROBE_TIMEOUT_MS = 2_500
 const PROBE_DEADLINE_MS = PROBE_TIMEOUT_MS * 3
 const MAX_KILL_ATTEMPTS = 5
+const DEFAULT_EXIT_CONFIRM_MS = 3_000
 
 /** Fields the watchdog needs from the owned application record. */
 export type WatchdogTarget = Pick<
@@ -43,14 +44,17 @@ async function probeCdp(target: WatchdogTarget): Promise<void> {
 
 /**
  * The only kill path is the owned one: macOS signals the recorded process group after
- * re-checking that this run still owns it, and Windows re-checks the process command
- * line. A PID that has been reused therefore never takes an unrelated process down.
+ * re-checking that this run still owns it, and Windows re-checks both command lines
+ * before taskkill. A reused PID therefore never takes an unrelated process down.
  */
 function killFrozenApp(target: WatchdogTarget): void {
   if (target.platform === 'windows') {
     assertOwnedProcess(target, target.electronPid, 'electron')
     terminateExactProcess(target.electronPid, 'windows')
-    if (isAlive(target.runnerPid)) terminateExactProcess(target.runnerPid, 'windows')
+    if (isAlive(target.runnerPid)) {
+      assertOwnedProcess(target, target.runnerPid, 'runner')
+      terminateExactProcess(target.runnerPid, 'windows')
+    }
     return
   }
   // A frozen main process cannot be identified by its own command line, so ownership is
@@ -77,18 +81,25 @@ export class ApplicationWatchdog {
   private readonly now: () => number
   private readonly intervalMs: number
   private readonly stallTimeoutMs: number
+  private readonly exitConfirmMs: number
 
   constructor(
     private readonly deps: WatchdogDeps,
-    options: { intervalMs?: number; stallTimeoutMs?: number } = {}
+    options: { intervalMs?: number; stallTimeoutMs?: number; exitConfirmMs?: number } = {}
   ) {
     this.now = deps.now ?? Date.now
     this.intervalMs = options.intervalMs ?? deps.intervalMs ?? DEFAULT_INTERVAL_MS
     this.stallTimeoutMs = options.stallTimeoutMs ?? deps.stallTimeoutMs ?? DEFAULT_STALL_TIMEOUT_MS
+    this.exitConfirmMs = options.exitConfirmMs ?? DEFAULT_EXIT_CONFIRM_MS
   }
 
   get reason(): string | undefined {
     return this.trippedReason
+  }
+
+  /** True only after the recorded process is confirmed gone. */
+  get killedApplication(): boolean {
+    return this.killed
   }
 
   start(): void {
@@ -115,9 +126,11 @@ export class ApplicationWatchdog {
       if (identity !== this.lastIdentity) {
         this.lastIdentity = identity
         this.stalledSince = undefined
+        this.killAttempts = 0
       }
-      const alive = () => this.deps.isAlive(target.electronPid) || this.deps.isAlive(target.runnerPid)
-      if (!alive()) {
+      const isLive = (candidate: WatchdogTarget) =>
+        this.deps.isAlive(candidate.electronPid) || this.deps.isAlive(candidate.runnerPid)
+      if (!isLive(target)) {
         this.stalledSince = undefined
         return
       }
@@ -125,14 +138,24 @@ export class ApplicationWatchdog {
         await withDeadline(this.deps.probe(target), PROBE_DEADLINE_MS)
       } catch (error) {
         if (generation !== this.generation) return
-        if (!alive()) {
+        // A restart or relaunch may have replaced the process while the probe was pending;
+        // that failure belongs to the old process and must not cost the new one its window.
+        const current = this.deps.readTarget()
+        const currentIdentity = `${current.runnerPid}:${current.electronPid}`
+        if (currentIdentity !== identity) {
+          this.lastIdentity = currentIdentity
+          this.stalledSince = undefined
+          this.killAttempts = 0
+          return
+        }
+        if (!isLive(current)) {
           this.stalledSince = undefined
           return
         }
         const now = this.now()
         this.stalledSince ??= now
         if (now - this.stalledSince < this.stallTimeoutMs) return
-        this.trip(target, error)
+        await this.trip(current, error)
         return
       }
       if (generation !== this.generation) return
@@ -145,18 +168,32 @@ export class ApplicationWatchdog {
     }
   }
 
-  private trip(target: WatchdogTarget, error: unknown): void {
+  private async exited(target: WatchdogTarget): Promise<boolean> {
+    const deadline = Date.now() + this.exitConfirmMs
+    for (;;) {
+      if (!this.deps.isAlive(target.electronPid) && !this.deps.isAlive(target.runnerPid)) return true
+      if (Date.now() >= deadline) return false
+      await new Promise((resolve) => setTimeout(resolve, 200))
+    }
+  }
+
+  private async trip(target: WatchdogTarget, error: unknown): Promise<void> {
     const seconds = Math.round(this.stallTimeoutMs / 1000)
-    const detail = error instanceof Error ? error.message : String(error)
+    const base = `Application unresponsive for ${seconds}s (${error instanceof Error ? error.message : String(error)})`
+    // Set before the kill so teardown that starts meanwhile still reports the real cause.
+    this.trippedReason = `${base}; killing the application`
     try {
       this.deps.kill(target)
+      if (!(await this.exited(target))) {
+        throw new Error(`the recorded process was still alive ${this.exitConfirmMs}ms after the kill signal`)
+      }
       this.killed = true
       this.stop()
-      this.trippedReason = `Application unresponsive for ${seconds}s (${detail}); the test process killed it so teardown could finish`
+      this.trippedReason = `${base}; the test process killed it so teardown could finish`
     } catch (killError) {
       this.killAttempts += 1
       const why = killError instanceof Error ? killError.message : String(killError)
-      this.trippedReason = `Application unresponsive for ${seconds}s (${detail}); killing it failed (attempt ${this.killAttempts}): ${why}`
+      this.trippedReason = `${base}; killing it failed (attempt ${this.killAttempts}): ${why}`
       if (this.killAttempts >= MAX_KILL_ATTEMPTS) {
         this.trippedReason += '; stopped retrying'
         this.stop()

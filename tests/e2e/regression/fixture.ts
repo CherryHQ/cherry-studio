@@ -24,32 +24,20 @@ interface RegressionOptions {
 
 /**
  * A frozen main process never answers the CDP call a fixture awaits, so every teardown
- * step gets a deadline that starts before the work does. The case still reports its own
- * result instead of hanging until the phase timeout discards the report.
+ * step has a deadline. Exceeding it is reported instead of hanging until the phase
+ * timeout discards the whole report.
  */
-async function bounded<T>(
-  work: () => Promise<T>,
-  label: string,
-  timeoutMs = TEARDOWN_TIMEOUT_MS
-): Promise<T | undefined> {
+async function bounded<T>(work: () => Promise<T>, label: string, timeoutMs = TEARDOWN_TIMEOUT_MS): Promise<T> {
   let timer: NodeJS.Timeout | undefined
-  const timeout = new Promise<undefined>((resolve) => {
-    timer = setTimeout(() => {
-      process.stderr.write(`[regression-fixture] ${label} exceeded ${timeoutMs}ms; continuing teardown\n`)
-      resolve(undefined)
-    }, timeoutMs)
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} did not finish within ${timeoutMs}ms`)), timeoutMs)
     timer.unref()
   })
-  const outcome = await Promise.race([
-    work().then(
-      (value) => ({ value }),
-      (error) => ({ error })
-    ),
-    timeout
-  ])
-  if (timer) clearTimeout(timer)
-  if (outcome && 'error' in outcome) throw outcome.error
-  return outcome?.value
+  try {
+    return await Promise.race([work(), timeout])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
 }
 
 export const test = base.extend<RegressionFixtures & RegressionOptions>({
@@ -71,10 +59,16 @@ export const test = base.extend<RegressionFixtures & RegressionOptions>({
       await use(app)
     } finally {
       watchdog.stop()
+      const stall = watchdog.reason
       // A killed application has nothing left to disconnect from, and any CDP call
-      // would only wait for a socket that is already gone.
-      if (watchdog.reason) throw new Error(watchdog.reason)
-      await bounded(() => app.disconnect(), 'disconnect')
+      // would only wait for a socket that is already gone. When a stall is being
+      // reported, the stall is the failure, not the disconnect that followed it.
+      if (!watchdog.killedApplication) {
+        await bounded(() => app.disconnect(), 'disconnect').catch((error: Error) => {
+          if (!stall) throw error
+        })
+      }
+      if (stall) throw new Error(stall)
     }
   },
 
@@ -84,12 +78,14 @@ export const test = base.extend<RegressionFixtures & RegressionOptions>({
       if (app.caseId !== 'S-01') await prepareScenario(page)
       await use(page)
     } finally {
-      const currentPage = (await bounded(() => app.mainWindow().catch(() => page), 'locate main window')) ?? page
+      const currentPage = await bounded(() => app.mainWindow().catch(() => page), 'locate main window').catch(
+        () => page
+      )
       if (testInfo.status !== testInfo.expectedStatus) {
         const screenshot = await bounded(
-          () => captureMaskedScreenshot(currentPage, getSensitiveConfigValues()).catch(() => undefined),
+          () => captureMaskedScreenshot(currentPage, getSensitiveConfigValues()),
           'capture failure screenshot'
-        )
+        ).catch(() => undefined)
         if (screenshot) await testInfo.attach('Failure screenshot', { body: screenshot, contentType: 'image/png' })
       }
 
