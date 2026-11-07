@@ -118,6 +118,8 @@ import {
   writeAgentDraftCache
 } from './agent/agentDraftCache'
 import { buildAgentFilePartsForAttachments, toAccessiblePaths } from './agent/agentFileParts'
+import { PlanModeHint } from './agent/PlanModeHint'
+import { usePlanModeHint } from './agent/planModeHint'
 import { createAttachmentFromPath, useAgentResourceMentionSource } from './agent/useAgentResourceMentionSource'
 import {
   AGENT_MANAGED_TOKEN_KINDS,
@@ -622,6 +624,11 @@ const AgentComposerInner = ({
   const [shouldValidateSkills, setShouldValidateSkills] = useState(initialDraft.shouldValidateSkills)
   const [text, setTextState] = useState(() => initialDraft.text)
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[]>(() => initialDraft.tokens)
+  const enablePlanMode = useCallback(() => {
+    if (agent)
+      void updateAgent({ id: agent.id, configuration: { permission_mode: 'plan' } }, { showSuccessToast: false })
+  }, [agent, updateAgent])
+  const planHint = usePlanModeHint({ agent, text, enablePlanMode })
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
   const releaseFollowupEditRef = useRef<() => void>(() => {})
@@ -1315,6 +1322,7 @@ const AgentComposerInner = ({
 
   const clearCurrentDraft = useCallback(() => {
     releaseFollowupEditRef.current()
+    planHint.resetDraft()
     setText('')
     setFiles([])
     setSelectedSkills([])
@@ -1343,6 +1351,7 @@ const AgentComposerInner = ({
     draftCacheKey,
     draftPersistenceEnabled,
     knowledgeBaseIdsRef,
+    planHint.resetDraft,
     resetHistoryIndex,
     setFiles,
     setText,
@@ -1639,8 +1648,14 @@ const AgentComposerInner = ({
             launchOptions?.editing ? { ...launchOptions.editing, cancelDisabled: isDirectSending } : undefined
           }
           onPause={abortAgentSession}
+          onShiftTab={() => {
+            if (!planHint.visible) return false
+            planHint.accept()
+            return true
+          }}
           queueContent={
             <>
+              {planHint.visible && <PlanModeHint onAccept={planHint.accept} onDismiss={planHint.dismiss} />}
               {compaction.status === 'failed' && (
                 <Alert
                   type="warning"
