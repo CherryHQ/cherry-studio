@@ -160,10 +160,7 @@ async function expectDraft(page: Page, text: string) {
 }
 
 async function parkPointer(page: Page) {
-  await expect(composer(page)).toBeVisible()
-  const box = await composer(page).boundingBox()
-  expect(box).not.toBeNull()
-  await page.mouse.move(box!.x + 4, box!.y + 4)
+  await composer(page).hover({ position: { x: 4, y: 4 } })
 }
 
 async function capture(page: Page, testInfo: TestInfo, name: string) {

@@ -27,6 +27,8 @@ async function openArchive(page: Page) {
 test('All re-reads after archiving through the topic context menu inside the dedupe window', async ({
   mainWindow: page
 }, testInfo) => {
+  await page.clock.install()
+  await page.reload()
   await page.evaluate(() => window.api.preference.set('app.language', 'zh-CN'))
   await expect
     .poll(
@@ -97,20 +99,31 @@ test('All re-reads after archiving through the topic context menu inside the ded
   }
   const applicationReads = async () =>
     (await logs()).filter((line) => line.message === 'Incoming request: GET /archives' && line.id?.startsWith('req_'))
-  // Starting before the first read is a conservative upper bound on time since its response.
-  const initialReadStart = await page.evaluate(() => performance.now())
   await openArchive(page)
   await expect(page.getByText(labels.empty)).toBeVisible()
   await expect.poll(async () => (await applicationReads()).length).toBe(1)
   await testInfo.attach('archive-all-empty', { body: await page.screenshot(), contentType: 'image/png' })
   await page.getByRole('button', { name: labels.back }).first().click()
   await expect(topicRow).toBeVisible({ timeout: 30_000 })
+  await page.clock.fastForward(5000)
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000))
+  // Keep SWR's cache-expiry timer inside the same window regardless of runner speed.
+  const initialReadStart = await page.evaluate(() => performance.now())
+  await openArchive(page)
+  await page.clock.runFor(100)
+  await expect(page.getByText(labels.empty)).toBeVisible()
+  await expect.poll(async () => (await applicationReads()).length).toBe(2)
+  await page.getByRole('button', { name: labels.back }).first().click()
+  await page.clock.runFor(100)
+  await expect(topicRow).toBeVisible()
   await topicRow.click({ button: 'right' })
+  await page.clock.runFor(100)
   const menu = page.getByRole('menu')
   await expect(menu).toBeVisible()
   const archiveItem = menu.getByRole('menuitem', { name: labels.archive })
   await expect(archiveItem).toBeVisible()
   await archiveItem.click()
+  await page.clock.runFor(100)
   await expect(topicRow).toHaveCount(0)
   const archived = await page.evaluate(async () => {
     const response = await window.api.dataApi.request({
@@ -129,22 +142,20 @@ test('All re-reads after archiving through the topic context menu inside the ded
     ])
   )
   await openArchive(page)
+  await page.clock.runFor(100)
   const elapsed = await page.evaluate((started) => performance.now() - started, initialReadStart)
-  expect(
-    elapsed,
-    'precondition: returned after the dedupe window (conservative response age must be below 4000 ms)'
-  ).toBeLessThan(4000)
+  expect(elapsed, 'precondition: renderer time must remain inside the 4000 ms dedupe window').toBeLessThan(4000)
   await expect(page.getByText(TOPIC, { exact: true })).toBeVisible()
   await expect(page.getByText(labels.empty)).toHaveCount(0)
-  await expect.poll(async () => (await applicationReads()).length).toBe(2)
+  await expect.poll(async () => (await applicationReads()).length).toBe(3)
   const final = await applicationReads()
-  expect(final[1].params).toEqual({ limit: 50 })
+  expect(final[2].params).toEqual({ limit: 50 })
   const lines = await logs()
   const commit = lines.findIndex(
     (line) => line.id === 'archive-diag-commit' && line.message === 'Request completed: GET /archives'
   )
   const freshRead = lines.findIndex(
-    (line) => line.id === final[1].id && line.message === 'Incoming request: GET /archives'
+    (line) => line.id === final[2].id && line.message === 'Incoming request: GET /archives'
   )
   expect(commit).toBeGreaterThanOrEqual(0)
   expect(freshRead).toBeGreaterThan(commit)

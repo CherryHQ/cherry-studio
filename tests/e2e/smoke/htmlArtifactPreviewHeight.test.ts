@@ -65,11 +65,11 @@ test('inline HTML iframe preview settles and stays stable across scrolling', asy
   await artifact.waitFor({ state: 'attached' })
   await artifact.scrollIntoViewIfNeeded()
   await expect(artifact).toBeVisible()
-  const sampling = await page.evaluateHandle(async () => {
+  const sampling = await page.waitForFunction(async () => {
     const surface = document.querySelector<HTMLElement>('[data-testid="html-artifact-surface"]')
     const marker = Array.from(document.querySelectorAll('p')).find((p) => p.textContent === 'after-block-marker')
     const frame = surface?.querySelector('iframe')
-    if (!surface || !marker || !frame) throw new Error('Expected artifact surface, frame and following paragraph')
+    if (!surface || !marker || !frame) return null
     const scroller = surface.closest<HTMLElement>('[data-message-virtual-list-scroller]')
     if (!scroller) throw new Error('Expected message-list scroller')
     let styleMutations = 0
@@ -141,7 +141,7 @@ test('inline HTML iframe preview settles and stays stable across scrolling', asy
       throw error
     }
   })
-  const sampled = await sampling.evaluate((state) => state.measurements)
+  const sampled = await sampling.evaluate((state) => state!.measurements)
   const spread = (values: number[]) => Math.max(...values) - Math.min(...values)
   expect(sampled.elapsed).toBeGreaterThanOrEqual(1500)
   expect(sampled.samples.length).toBeGreaterThanOrEqual(30)
@@ -182,7 +182,7 @@ test('inline HTML iframe preview settles and stays stable across scrolling', asy
   }
   await page.waitForTimeout(600)
   const back = await geometry()
-  const roundTrip = await sampling.evaluate((state) => state.finish())
+  const roundTrip = await sampling.evaluate((state) => state!.finish())
   await sampling.dispose()
   const measurements = { ...sampled, away, back, ...roundTrip }
   await testInfo.attach('height-measurements', {
