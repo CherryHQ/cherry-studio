@@ -2,7 +2,7 @@ import { Eraser, ScanLine } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { NormalTooltip } from '@cherrystudio/ui'
+import { Alert, NormalTooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ContextUsageMeter, ContextUsageSummary } from '@renderer/components/chat/contextUsage'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
@@ -50,6 +50,7 @@ import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import { type Topic, TopicType } from '@renderer/types/topic'
+import { resolveResendModelIds } from '@renderer/utils/chat/resendModelIds'
 import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
 import { resolveSendShortcut } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
@@ -71,6 +72,7 @@ import {
 import type { Provider } from '@shared/data/types/provider'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import { isNonChatModel } from '@shared/utils/model'
 
 import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
@@ -782,6 +784,41 @@ const ChatComposerInner = ({
   // snapshot so the next turn cannot fall back to stale assistant state.
   const submittedMentionedModels =
     assistant && useMentionedModelSelector ? mentionedModelSelectorValue : mentionedModels
+  const { models: queueModels, isLoading: areModelsLoading } = useModels()
+  const resolveCurrentModelRecord = (candidate: Model, currentModels: readonly Model[]) =>
+    currentModels.find((current) => current.id === candidate.id) ?? candidate
+  const directModels = editingMessageForCurrentTopic?.lockedMentionedModels ?? EMPTY_MODELS
+  const isEditingUserMessage =
+    Boolean(editingMessageForCurrentTopic) && editingMessageForCurrentTopic?.message.role !== 'assistant'
+  const membershipIds =
+    isEditingUserMessage && editingMessageForCurrentTopic
+      ? (chatWrite?.getDirectAssistantModelIds?.(editingMessageForCurrentTopic.message.id) ??
+        directModels.map((model) => model.id))
+      : []
+  const resendModelIds = resolveResendModelIds(membershipIds, Boolean(assistantId))
+  // Unknown ids remain in resendModelIds for dispatch but cannot be classified.
+  const resendModels = resendModelIds.flatMap((id) => {
+    const record = queueModels.find((model) => model.id === id) ?? directModels.find((model) => model.id === id)
+    return record ? [record] : []
+  })
+  const unresolvedResendModelIds = isEditingUserMessage
+    ? resendModelIds.filter((id) => !resendModels.some((model) => model.id === id))
+    : []
+  const resendValidationModels = resendModelIds.length > 0 ? resendModels : model ? [model] : EMPTY_MODELS
+  const validationModels = isEditingUserMessage ? resendValidationModels : effectiveSubmittedModels
+  const pendingModels = isEditingUserMessage ? resendModels : submittedMentionedModels
+  const validationPending =
+    isEditingUserMessage && resendModelIds.length === 0
+      ? isModelPending
+      : (pendingModels.length > 0 || unresolvedResendModelIds.length > 0) && areModelsLoading
+  const isValidationBlockingSend = validationPending && editingMessageForCurrentTopic?.message.role !== 'assistant'
+  const currentSubmittedModels = validationModels.map((model) => resolveCurrentModelRecord(model, queueModels))
+  // Current records are authoritative for capability classification; snapshots are the fallback.
+  const hasNonChatModel = !validationPending && currentSubmittedModels.some(isNonChatModel)
+  // Advice follows the resend set, even when inherited replies do not activate the selector lock.
+  const nonChatReason = hasNonChatModel
+    ? t(resendModelIds.length > 1 ? 'chat.input.non_chat_model_locked' : 'chat.input.non_chat_model')
+    : undefined
   // Without an assistant, persistent request controls have no owner. Keep per-turn Fast available.
   const speedControlModel = useMemo(
     () =>
@@ -1382,6 +1419,12 @@ const ChatComposerInner = ({
 
   const sendQueuedPayload = useCallback(
     async (payload: ComposerQueuedMessagePayload) => {
+      const payloadModels = payload.mentionedModels?.length
+        ? queueModels.filter((model) => payload.mentionedModels?.includes(model.id))
+        : runtimeModel
+          ? [resolveCurrentModelRecord(runtimeModel, queueModels)]
+          : EMPTY_MODELS
+      if (payloadModels.some(isNonChatModel)) return false
       setIsSending(true)
 
       try {
@@ -1406,7 +1449,7 @@ const ChatComposerInner = ({
         setIsSending(false)
       }
     },
-    [onSend, saveHistory, t]
+    [onSend, queueModels, runtimeModel, saveHistory, t]
   )
 
   const clearCurrentDraft = useCallback(() => {
@@ -1440,6 +1483,7 @@ const ChatComposerInner = ({
     scopeKey: selectedKnowledgeBasesScopeKey,
     status: streamStatus,
     lastCompletedAt,
+    drainReady: !areModelsLoading,
     onDrain: sendQueuedPayload
   })
   releaseFollowupEditRef.current = releaseEdit
@@ -1539,6 +1583,7 @@ const ChatComposerInner = ({
       if (editSaveInFlightSessionIdRef.current === editingSessionId) return
 
       const isAssistantReply = editingMessageForCurrentTopic.message.role === 'assistant'
+      if (resend && !isAssistantReply && hasNonChatModel) return
       if (!chatWrite) {
         toast.error(t('message.error.operation_unavailable'))
         return
@@ -1617,6 +1662,7 @@ const ChatComposerInner = ({
       editingMessageForCurrentTopicRef,
       editingReasoning,
       fastMode,
+      hasNonChatModel,
       isMentionedModelSelectorLocked,
       reasoningDraft,
       reasoningEffort,
@@ -1642,6 +1688,9 @@ const ChatComposerInner = ({
         stopEditing()
         return
       }
+
+      if (isValidationBlockingSend) return
+      if (hasNonChatModel && editingMessageForCurrentTopic?.message.role !== 'assistant') return
 
       if (editingMessageForCurrentTopic) {
         await commitEditedMessage(draft, true)
@@ -1701,6 +1750,7 @@ const ChatComposerInner = ({
       editingMessageForCurrentTopic,
       enqueueFollowup,
       handleModelSelect,
+      hasNonChatModel,
       loading,
       missingAssistantMessage,
       missingSelectedModelMessage,
@@ -1714,7 +1764,8 @@ const ChatComposerInner = ({
       staleEditingMessage,
       stopEditing,
       restoreSavedDraft,
-      t
+      t,
+      isValidationBlockingSend
     ]
   )
 
@@ -1777,6 +1828,19 @@ const ChatComposerInner = ({
     onMentionedModelMultiSelectModeChange: handleMentionedModelMultiSelectModeChange,
     onMentionedModelSelectorRestore: handleMentionedModelSelectorRestore
   })
+  const isSaveDisabled =
+    (text.trim().length === 0 && files.length === 0) ||
+    (loading && !canSteer) ||
+    isSavingEdit ||
+    isDirectSending ||
+    sendDisabled ||
+    searching ||
+    runtimeModelPending ||
+    hasPendingReference ||
+    !!missingAssistantMessage ||
+    !!missingModelMessage ||
+    !!missingSelectedModelMessage
+
   const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (inputAdapter) => (
     <>
       {speedControlModel ? (
@@ -1807,6 +1871,13 @@ const ChatComposerInner = ({
       <ComposerPinnedToolsProvider value={pinnedToolIds}>
         <ComposerSurface
           showAiDisclaimer
+          topContent={
+            validationPending ? (
+              <Alert type="info" showIcon message={t('common.loading')} />
+            ) : nonChatReason ? (
+              <Alert type="warning" showIcon message={nonChatReason} />
+            ) : undefined
+          }
           voiceTarget={{ targetId: `composer:chat:${streamScopeKey}`, sourceEntityId: streamScopeKey }}
           text={text}
           onTextChange={handleTextChange}
@@ -1821,28 +1892,22 @@ const ChatComposerInner = ({
           placeholder={searching ? t('chat.input.translating') : placeholderText}
           sendMessageShortcut={sendMessageShortcut}
           sendDisabled={
-            (text.trim().length === 0 && files.length === 0) ||
-            (loading && !canSteer) ||
-            isSavingEdit ||
-            isDirectSending ||
-            sendDisabled ||
-            searching ||
-            runtimeModelPending ||
-            hasPendingReference ||
-            !!missingAssistantMessage ||
-            !!missingModelMessage ||
-            !!missingSelectedModelMessage
+            isSaveDisabled ||
+            isValidationBlockingSend ||
+            (hasNonChatModel && editingMessageForCurrentTopic?.message.role !== 'assistant')
           }
           sendBlockedReason={
-            isSavingEdit || isDirectSending || sendDisabled || hasPendingReference
+            (editingMessageForCurrentTopic?.message.role !== 'assistant' ? nonChatReason : undefined) ??
+            (isValidationBlockingSend || isSavingEdit || isDirectSending || sendDisabled || hasPendingReference
               ? t('common.loading')
-              : (missingAssistantMessage ?? missingModelMessage ?? missingSelectedModelMessage)
+              : (missingAssistantMessage ?? missingModelMessage ?? missingSelectedModelMessage))
           }
           isLoading={loading}
           onSendDraft={handleSendDraft}
           editingState={
             editingMessageForCurrentTopic
               ? {
+                  saveDisabled: isSaveDisabled,
                   messageId: editingMessageForCurrentTopic.message.id,
                   highlightKey: editingMessageForCurrentTopic.editingSessionId,
                   onLocate: handleLocateEditingMessage,

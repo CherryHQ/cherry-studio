@@ -806,6 +806,8 @@
   "chat.input.mcp_resources.reader_unavailable": "El modelo actual no puede volver a leer este recurso después de adjuntarlo",
   "chat.input.mcp_resources.title": "Recursos MCP",
   "chat.input.new.context": "Borrar contexto",
+  "chat.input.non_chat_model": "El modelo actual no se puede usar para chatear. Selecciona otro modelo.",
+  "chat.input.non_chat_model_locked": "Un modelo de esta edición no se puede usar para chatear. Sal de la edición y selecciona otro modelo o envía un mensaje nuevo.",
   "chat.input.note_reference.description": "Adjunta una nota de Notas",
   "chat.input.note_reference.empty": "No se encontraron notas",
   "chat.input.note_reference.load_failed": "Error al cargar notas",

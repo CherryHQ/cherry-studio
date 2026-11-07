@@ -806,6 +806,8 @@
   "chat.input.mcp_resources.reader_unavailable": "現在のモデルでは、添付後にこのリソースを読み取れません",
   "chat.input.mcp_resources.title": "MCP リソース",
   "chat.input.new.context": "コンテキストをクリア",
+  "chat.input.non_chat_model": "現在のモデルはチャットに使用できません。別のモデルを選択してください。",
+  "chat.input.non_chat_model_locked": "編集中のモデルはチャットに使用できません。編集を終了して別のモデルを選ぶか、新しいメッセージを送信してください。",
   "chat.input.note_reference.description": "メモからメモを添付",
   "chat.input.note_reference.empty": "メモが見つかりませんでした",
   "chat.input.note_reference.load_failed": "メモの読み込みに失敗しました",

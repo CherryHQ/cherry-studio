@@ -42,6 +42,8 @@ export interface ChatWriteActions {
   startNewContext: () => Promise<void>
   regenerate: (messageId?: string, options?: RegenerateOptions) => Promise<void>
   resend: (messageId?: string) => Promise<void>
+  /** Model ids of the direct replies of `userMessageId`, from the live message list. */
+  getDirectAssistantModelIds?: (userMessageId: string) => UniqueModelId[]
   getMessageDeleteAvailability: (id: string) => MessageDeleteAvailability
   deleteMessage: (id: string, options?: DeleteMessageOptions) => Promise<void>
   deleteMessageGroup: (messageIds: readonly string[]) => Promise<void>

@@ -806,6 +806,8 @@
   "chat.input.mcp_resources.reader_unavailable": "Текущая модель не сможет прочитать этот ресурс после прикрепления",
   "chat.input.mcp_resources.title": "Ресурсы MCP",
   "chat.input.new.context": "Очистить контекст",
+  "chat.input.non_chat_model": "Текущую модель нельзя использовать для чата. Выберите другую модель.",
+  "chat.input.non_chat_model_locked": "Одну из моделей в этом редактировании нельзя использовать для чата. Выйдите из редактирования и выберите другую модель или отправьте новое сообщение.",
   "chat.input.note_reference.description": "Прикрепить заметку из Notes",
   "chat.input.note_reference.empty": "Заметок не найдено",
   "chat.input.note_reference.load_failed": "Не удалось загрузить заметки",

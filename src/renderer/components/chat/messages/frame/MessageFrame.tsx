@@ -101,8 +101,8 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
     (messageId: string) => {
       if (canStartEditing && messageId === message.id) {
         actions.startEditing?.(message, messageParts, {
-          lockedMentionedModels:
-            lockedMentionedModels && lockedMentionedModels.length > 1 ? lockedMentionedModels : undefined
+          // Consumers apply locking only when there are multiple direct models.
+          lockedMentionedModels
         })
       }
     },
