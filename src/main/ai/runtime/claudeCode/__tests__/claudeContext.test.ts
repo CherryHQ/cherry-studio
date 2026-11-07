@@ -180,6 +180,78 @@ it('preserves the recovered context when /clear runs on a descendant after stale
   expect(sessionContexts()).toHaveLength(3)
 })
 
+it('preserves the recovered context when /clear uses a stale branchHead after recovery', () => {
+  prepareClaudeBranch(sessionId, '/test/claude')
+  const parent = messages.saveMessage({
+    sessionId,
+    runtimeResumeToken: 'healthy-parent',
+    message: { role: 'assistant', data: { parts: [] } }
+  })
+  const staleChild = messages.saveMessage({
+    sessionId,
+    parentId: parent.id,
+    runtimeResumeToken: 'stale-id',
+    message: { role: 'assistant', data: { parts: [] } }
+  })
+  messages.clearRuntimeResumeTokens(sessionId, 'stale-id')
+  messages.markStaleResumeResetBoundary(sessionId, staleChild.id)
+
+  const reconnected = prepareClaudeBranch(sessionId, '/test/claude', undefined, staleChild.id)
+  contexts.bindContext(reconnected.id, reconnected.nativeThreadId!)
+  const recoveredNative = contexts.context(reconnected.id).nativeThreadId!
+
+  // Follow-up advances the product head past the reset anchor.
+  const descendant = messages.saveMessage({
+    sessionId,
+    parentId: staleChild.id,
+    message: { role: 'user', data: { parts: [{ type: 'text', text: 'follow-up' }] } }
+  })
+
+  // Persistent connections pass the stale `branchHead` (here `staleChild.id`)
+  // on native `/clear` rotation, while the product head is already the
+  // descendant. The healthy recovered context must be preserved and the new
+  // identity forked at the current head instead of rewriting in place, which
+  // would break observers holding `(contextId, nativeThreadId)` (#23519).
+  const clearedNative = randomUUID()
+  const cleared = prepareClaudeBranch(sessionId, '/test/claude', clearedNative, staleChild.id)
+  expect(cleared.id).not.toBe(reconnected.id)
+  expect(cleared.anchorMessageId).toBe(descendant.id)
+  expect(cleared.nativeThreadId).toBe(clearedNative)
+  expect(cleared.backendId).toBe(reconnected.backendId)
+  expect(contexts.context(reconnected.id).nativeThreadId).toBe(recoveredNative)
+  expect(sessionContexts()).toHaveLength(3)
+})
+
+it('preserves the recovered context when same-anchor /clear has no descendant yet', () => {
+  prepareClaudeBranch(sessionId, '/test/claude')
+  const parent = messages.saveMessage({
+    sessionId,
+    runtimeResumeToken: 'healthy-parent',
+    message: { role: 'assistant', data: { parts: [] } }
+  })
+  const staleChild = messages.saveMessage({
+    sessionId,
+    parentId: parent.id,
+    runtimeResumeToken: 'stale-id',
+    message: { role: 'assistant', data: { parts: [] } }
+  })
+  messages.clearRuntimeResumeTokens(sessionId, 'stale-id')
+  messages.markStaleResumeResetBoundary(sessionId, staleChild.id)
+
+  const reconnected = prepareClaudeBranch(sessionId, '/test/claude', undefined, staleChild.id)
+  contexts.bindContext(reconnected.id, reconnected.nativeThreadId!)
+  const recoveredNative = contexts.context(reconnected.id).nativeThreadId!
+
+  // Head hasn't advanced past the reset anchor: there is no free descendant
+  // anchor, so the healthy binding must be preserved instead of rewritten.
+  // The caller must retry with a descendant anchor (current head after `/clear`).
+  expect(() => prepareClaudeBranch(sessionId, '/test/claude', randomUUID(), staleChild.id)).toThrow(
+    'cannot change native identity at the same anchor'
+  )
+  expect(contexts.context(reconnected.id).nativeThreadId).toBe(recoveredNative)
+  expect(contexts.context(reconnected.id).anchorMessageId).toBe(staleChild.id)
+})
+
 it('rotates a reset-bound edit fork instead of reusing its dead identity', () => {
   prepareClaudeBranch(sessionId, '/test/claude')
   const edited = messages.saveMessage({

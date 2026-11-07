@@ -39,9 +39,33 @@ export function prepareClaudeBranch(sessionId: string, configDir: string, native
           }
           // Same-anchor with a new native after recovery: the anchor is
           // occupied so a separate row would violate
-          // `agent_session_context_anchor_uniq`. Rotate in place (rare;
-          // descendant `/clear` takes the fork path above).
-          return contexts.refreshResetBranchTx(tx, existing.id, nativeId, resetBoundaryId)
+          // `agent_session_context_anchor_uniq`, and rewriting in place would
+          // break observers holding `(contextId, nativeThreadId)` (their next
+          // `bindNativeInput` throws `Native input target does not match the
+          // captured context`). Persistent connections pass a stale
+          // `branchHead` while the product head has advanced to a descendant;
+          // fork there to preserve the healthy recovered context (#23519).
+          const currentHead = getAgentSessionHead(tx, sessionId) ?? root
+          if (currentHead !== anchor) {
+            const headBoundary = contexts.lastStaleResetBoundaryTx(tx, sessionId, currentHead)
+            const headBinding = contexts.branchTx(tx, sessionId, currentHead)
+            const headFree = !headBinding || headBinding.anchorMessageId !== currentHead
+            if (headBoundary === resetBoundaryId && headFree) {
+              return contexts.reserveBranchTx(tx, {
+                sessionId,
+                backendId: existing.backendId,
+                nativeThreadId: nativeId,
+                anchorMessageId: currentHead,
+                checkpointMapping: { staleResetHandled: resetBoundaryId }
+              })
+            }
+            if (headBinding && headBinding.nativeThreadId === nativeId) return headBinding
+          }
+          // No free descendant anchor (head hasn't advanced, or it belongs to
+          // another branch): preserve the healthy binding instead of rewriting
+          // it, matching Pi's mismatch semantics. The caller must supply a
+          // descendant anchor (e.g. current head after `/clear`).
+          throw new Error('Recovered Claude context cannot change native identity at the same anchor')
         }
         // Unhandled (holds the dead identity): same-anchor collides, so rotate
         // in place; descendant anchors are free, so fork fresh there.
