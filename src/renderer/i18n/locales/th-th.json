@@ -1644,7 +1644,6 @@
   "files.all": "ไฟล์ทั้งหมด",
   "files.audio": "เสียง",
   "files.created_at": "สร้างเมื่อ",
-  "files.delete.label": "ลบ",
   "files.delete_or_remove": "ลบ / เอาออก",
   "files.delete_or_remove_confirm.external_count": "นำ {{count}} ไฟล์ภายนอกออกจากคลัง ไฟล์ต้นฉบับบนดิสก์จะไม่ถูกกระทบ",
   "files.delete_or_remove_confirm.internal_count": "ย้าย {{count}} ไฟล์ภายในไปที่คลังจัดเก็บ",

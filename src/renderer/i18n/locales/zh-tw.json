@@ -1644,7 +1644,6 @@
   "files.all": "所有檔案",
   "files.audio": "音訊",
   "files.created_at": "建立時間",
-  "files.delete.label": "刪除",
   "files.delete_or_remove": "刪除/移除",
   "files.delete_or_remove_confirm.external_count": "從資料庫中移除 {{count}} 個外部檔案。磁碟上的原始檔案不會受到影響。",
   "files.delete_or_remove_confirm.internal_count": "將 {{count}} 個內部檔案移至封存。",

@@ -1644,7 +1644,6 @@
   "files.all": "所有文件",
   "files.audio": "音频",
   "files.created_at": "创建时间",
-  "files.delete.label": "删除",
   "files.delete_or_remove": "删除/移除",
   "files.delete_or_remove_confirm.external_count": "从资料库中移除 {{count}} 个外部文件。磁盘上的原始文件不会受到影响。",
   "files.delete_or_remove_confirm.internal_count": "将 {{count}} 个内部文件移至归档。",

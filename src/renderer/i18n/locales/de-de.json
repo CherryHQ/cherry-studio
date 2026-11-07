@@ -1644,7 +1644,6 @@
   "files.all": "Alle Dateien",
   "files.audio": "Audio",
   "files.created_at": "Erstellt am",
-  "files.delete.label": "Löschen",
   "files.delete_or_remove": "Löschen / entfernen",
   "files.delete_or_remove_confirm.external_count": "{{count}} externe Datei(en) aus der Bibliothek entfernen. Die Originaldateien auf dem Datenträger bleiben unverändert.",
   "files.delete_or_remove_confirm.internal_count": "{{count}} interne Datei(en) in das Archiv verschieben.",

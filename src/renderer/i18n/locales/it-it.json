@@ -1644,7 +1644,6 @@
   "files.all": "Tutti i file",
   "files.audio": "Audio",
   "files.created_at": "Data di creazione",
-  "files.delete.label": "Elimina",
   "files.delete_or_remove": "Elimina / rimuovi",
   "files.delete_or_remove_confirm.external_count": "Rimuovi {{count}} file esterni dalla libreria. I file originali sul disco non verranno modificati.",
   "files.delete_or_remove_confirm.internal_count": "Sposta {{count}} file interni nell'archivio.",

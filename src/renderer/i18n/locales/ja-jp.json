@@ -1644,7 +1644,6 @@
   "files.all": "すべてのファイル",
   "files.audio": "オーディオ",
   "files.created_at": "作成日",
-  "files.delete.label": "削除",
   "files.delete_or_remove": "削除",
   "files.delete_or_remove_confirm.external_count": "外部ファイル {{count}} 件をライブラリから削除します。ディスク上の元のファイルには影響しません。",
   "files.delete_or_remove_confirm.internal_count": "内部ファイル {{count}} 件をアーカイブに移動します。",

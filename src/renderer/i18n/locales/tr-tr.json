@@ -1644,7 +1644,6 @@
   "files.all": "Tüm Dosyalar",
   "files.audio": "Ses",
   "files.created_at": "Oluşturulma Tarihi",
-  "files.delete.label": "Sil",
   "files.delete_or_remove": "Sil / kaldır",
   "files.delete_or_remove_confirm.external_count": "{{count}} harici dosyayı kütüphaneden kaldır. Diskteki özgün dosyalar etkilenmez.",
   "files.delete_or_remove_confirm.internal_count": "{{count}} dahili dosyayı Arşive taşı.",

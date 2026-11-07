@@ -1644,7 +1644,6 @@
   "files.all": "Toate fișierele",
   "files.audio": "Audio",
   "files.created_at": "Creat la",
-  "files.delete.label": "Șterge",
   "files.delete_or_remove": "Șterge / elimină",
   "files.delete_or_remove_confirm.external_count": "Elimină {{count}} fișier(e) extern(e) din bibliotecă. Fișierele originale de pe disc nu vor fi afectate.",
   "files.delete_or_remove_confirm.internal_count": "Mută {{count}} fișier(e) intern(e) în arhivă.",

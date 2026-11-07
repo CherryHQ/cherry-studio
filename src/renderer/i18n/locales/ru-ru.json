@@ -1644,7 +1644,6 @@
   "files.all": "Все файлы",
   "files.audio": "Аудио",
   "files.created_at": "Дата создания",
-  "files.delete.label": "Удалить",
   "files.delete_or_remove": "Удалить",
   "files.delete_or_remove_confirm.external_count": "Удалить {{count}} внешних файлов из библиотеки. Исходные файлы на диске не будут затронуты.",
   "files.delete_or_remove_confirm.internal_count": "Переместить {{count}} внутренних файлов в архив.",

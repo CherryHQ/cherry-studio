@@ -1644,7 +1644,6 @@
   "files.all": "Όλα τα αρχεία",
   "files.audio": "Ήχος",
   "files.created_at": "Ημερομηνία δημιουργίας",
-  "files.delete.label": "Διαγραφή",
   "files.delete_or_remove": "Διαγραφή / αφαίρεση",
   "files.delete_or_remove_confirm.external_count": "Αφαίρεση {{count}} εξωτερικών αρχείων από τη βιβλιοθήκη. Τα αρχικά αρχεία στον δίσκο δεν θα επηρεαστούν.",
   "files.delete_or_remove_confirm.internal_count": "Μετακίνηση {{count}} εσωτερικών αρχείων στο αρχείο.",
