@@ -44412,6 +44412,380 @@
       "providerId": "voyageai"
     },
     {
+      "apiModelId": "deepseek-v4.1-flash",
+      "capabilities": {
+        "force": ["function-call", "reasoning", "structured-output", "image-recognition"]
+      },
+      "inputModalities": ["text", "image"],
+      "limits": {
+        "contextWindow": 1048576,
+        "maxOutputTokens": 65536
+      },
+      "modelId": "deepseek-v4-1-flash",
+      "name": "DeepSeek V4.1 Flash",
+      "outputModalities": ["text"],
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.006
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.275
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.2
+        }
+      },
+      "providerId": "wally",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "high",
+                "kind": "effort",
+                "values": ["none", "low", "medium", "high", "max"]
+              }
+            ],
+            "defaultEffort": "high"
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "deepseek-v4.1-flash-1017",
+      "capabilities": {
+        "force": ["function-call", "reasoning"]
+      },
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 1048576,
+        "maxOutputTokens": 65536
+      },
+      "modelId": "deepseek-v4-1-flash-1017",
+      "name": "DeepSeek V4.1 Flash 1017",
+      "outputModalities": ["text"],
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.006
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.195
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        }
+      },
+      "providerId": "wally",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "high",
+                "kind": "effort",
+                "values": ["none", "minimal", "low", "medium", "high", "max"]
+              }
+            ],
+            "defaultEffort": "high"
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "deepseek-v4.1-flash-fast",
+      "capabilities": {
+        "force": ["function-call", "reasoning", "structured-output", "image-recognition"]
+      },
+      "inputModalities": ["text", "image"],
+      "limits": {
+        "contextWindow": 1048576,
+        "maxOutputTokens": 65536
+      },
+      "modelId": "deepseek-v4-1-flash-fast",
+      "name": "DeepSeek V4.1 Flash (Fast)",
+      "outputModalities": ["text"],
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.006
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.275
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.2
+        }
+      },
+      "providerId": "wally",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "high",
+                "kind": "effort",
+                "values": ["none", "low", "medium", "high", "max"]
+              }
+            ],
+            "defaultEffort": "high"
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "deepseek-v4-flash-0731",
+      "capabilities": {
+        "force": ["function-call", "reasoning", "structured-output"]
+      },
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 1048576,
+        "maxOutputTokens": 65536
+      },
+      "modelId": "deepseek-v4-flash",
+      "name": "DeepSeek V4 Flash 0731",
+      "outputModalities": ["text"],
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.0093
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.293
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.88
+        }
+      },
+      "providerId": "wally",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "kind": "effort",
+                "values": ["none", "minimal", "low", "medium", "high", "max"]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "capabilities": {
+        "force": ["function-call", "reasoning", "structured-output"]
+      },
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 1048576,
+        "maxOutputTokens": 65536
+      },
+      "modelId": "deepseek-v4-pro-fast",
+      "name": "DeepSeek V4 Pro (Fast)",
+      "outputModalities": ["text"],
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.14
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.68
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3.38
+        }
+      },
+      "providerId": "wally",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "kind": "effort",
+                "values": ["none", "minimal", "low", "medium", "high", "max"]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "glm-5.3-fast",
+      "capabilities": {
+        "force": ["function-call", "reasoning", "structured-output"]
+      },
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 1048576,
+        "maxOutputTokens": 131072
+      },
+      "modelId": "glm-5-3-fast",
+      "name": "GLM-5.3 (Fast)",
+      "outputModalities": ["text"],
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.26
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.4
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4.4
+        }
+      },
+      "providerId": "wally",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "kind": "effort",
+                "values": ["low", "medium", "high", "max"]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "glm-5.3-flash",
+      "capabilities": {
+        "force": ["function-call", "reasoning", "structured-output"]
+      },
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 1048576,
+        "maxOutputTokens": 131072
+      },
+      "modelId": "glm-5-3-flash",
+      "name": "GLM-5.3 Flash",
+      "outputModalities": ["text"],
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.03
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        }
+      },
+      "providerId": "wally",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "max",
+                "kind": "effort",
+                "values": ["minimal", "low", "medium", "high", "xhigh", "max"]
+              }
+            ],
+            "defaultEffort": "max"
+          }
+        }
+      }
+    },
+    {
+      "capabilities": {
+        "force": ["function-call", "reasoning", "structured-output", "image-recognition"]
+      },
+      "inputModalities": ["text", "image"],
+      "limits": {
+        "contextWindow": 1048576,
+        "maxOutputTokens": 65536
+      },
+      "modelId": "kimi-k3",
+      "name": "Kimi K3",
+      "outputModalities": ["text"],
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2.925
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 15
+        }
+      },
+      "providerId": "wally",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "kind": "effort",
+                "values": ["none", "low", "medium", "high", "xhigh", "max"]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "capabilities": {
+        "force": ["function-call", "reasoning", "structured-output"]
+      },
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 524287,
+        "maxOutputTokens": 131072
+      },
+      "modelId": "minimax-m3",
+      "name": "MiniMax M3",
+      "outputModalities": ["text"],
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.06
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.2
+        }
+      },
+      "providerId": "wally",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "kind": "effort",
+                "values": ["none", "low", "medium", "high", "xhigh", "max"]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -44648,5 +45022,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "a374db806c274eaa"
+  "version": "c3cadbc99bf05085"
 }

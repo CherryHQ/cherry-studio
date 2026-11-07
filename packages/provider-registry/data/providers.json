@@ -2935,7 +2935,31 @@
       },
       "name": "minimax-global",
       "presetProviderId": "minimax"
+    },
+    {
+      "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "Wally - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://inference.runanywhere.ai/v1",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        }
+      },
+      "id": "wally",
+      "metadata": {
+        "website": {
+          "apiKey": "https://console.runanywhere.ai",
+          "docs": "https://docs.runanywhere.ai/wally-cloud/api",
+          "models": "https://www.runwally.com/pricing",
+          "official": "https://www.runwally.com"
+        }
+      },
+      "name": "Wally"
     }
   ],
-  "version": "4c51709815c4b53a"
+  "version": "34f0eb8dea4024b5"
 }
