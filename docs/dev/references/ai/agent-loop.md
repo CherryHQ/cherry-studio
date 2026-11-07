@@ -40,6 +40,20 @@ const agent = new Agent({
 const stream: ReadableStream<UIMessageChunk> = agent.stream(initialMessages, signal)
 // or (non-streaming; input is { prompt } | { messages })
 const result = await agent.generate({ messages }, signal)
+// generate() drives the non-streaming transport by default; pass
+// { streamingTransport: true } for backends that reject non-streaming
+// requests (OpenAI Codex on the ChatGPT Responses endpoint). The run then
+// goes over SDK streaming internally, and callers still receive one
+// aggregated result — text, usage, finishReason and steps. Terminal stream
+// errors are rethrown instead of resolving as an empty success: a
+// finishReason of "error", a trailing `error` stream part (a failed
+// continuation request can resolve the aggregation with finishReason
+// "other" and only a tool-calls step), and a reader rejection all fail the
+// generation. The stream is watched concurrently with the metadata
+// promises so a mid-stream failure settles generation even when those
+// promises never settle, and a captured provider error is preferred over a
+// generic no-output rejection. Ordinary tool errors arrive as `tool-error`
+// parts and keep their own handling.
 
 // internal observers can also register on the agent:
 const dispose = agent.on('onStepFinish', step => { … })

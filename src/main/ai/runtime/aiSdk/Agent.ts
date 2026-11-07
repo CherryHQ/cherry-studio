@@ -7,6 +7,7 @@ import {
   InvalidResponseDataError,
   type LanguageModelUsage,
   type ModelMessage,
+  type StreamTextResult,
   type ToolSet,
   type UIMessage,
   type UIMessageChunk
@@ -49,6 +50,92 @@ function normalizeStreamError(error: unknown, providerId: string, modelId: strin
     return new MissingFinishReasonError(error, providerId, modelId)
   }
   return error
+}
+
+/**
+ * Aggregate a streaming agent run into the same shape `generate()` resolves with.
+ * Backends that reject non-streaming requests (OpenAI Codex on the ChatGPT
+ * Responses endpoint answers HTTP 400 "Stream must be set to true") are driven
+ * through `stream()` instead; their callers keep the non-streaming contract.
+ */
+/** Coerce a captured stream failure into a throwable, keeping the readable message. */
+function asProviderError(failure: unknown): Error {
+  if (failure instanceof Error) return failure
+  // Some parts arrive as plain objects (e.g. a Codex response.failed payload carries
+  // message/type/code/statusCode) rather than Error instances.
+  const plainMessage: unknown =
+    typeof failure === 'object' && failure !== null ? Reflect.get(failure, 'message') : undefined
+  return new Error(
+    `Response stream ended with a terminal provider error: ${typeof plainMessage === 'string' ? plainMessage : String(failure)}`
+  )
+}
+
+async function aggregateStreamResult(streamed: StreamTextResult<ToolSet, never>) {
+  // Provider failures surface on the stream, not the aggregation promises: a failed
+  // continuation request resolves them (empty text, finishReason "other", a tool-calls-only
+  // step) with the failure only in a trailing `error` part; a mid-stream reader rejection
+  // can leave them pending entirely; an initial request failure rejects them with a generic
+  // no-output error while the actionable provider error sits in the stream. Watch the stream
+  // concurrently so generation settles from whichever side fails first — never an unhandled
+  // rejection, never a hang. Ordinary tool errors arrive as `tool-error` parts and keep
+  // their own handling; only a terminal `error` part is propagated here.
+  let terminalStreamError: unknown
+  let streamReadError: unknown
+  const watchTerminalStreamError = (async () => {
+    try {
+      for await (const part of streamed.fullStream) {
+        // First error wins: a later error part with an undefined payload must not erase it.
+        if (part.type === 'error' && terminalStreamError === undefined && part.error !== undefined) {
+          terminalStreamError = part.error
+        }
+      }
+    } catch (error) {
+      // The reader itself can reject (the response body failing mid-stream); capture it so
+      // the failure still settles generation below.
+      streamReadError = error
+    }
+  })()
+  // Settle-typed wrappers keep both sides observed from the start.
+  const metadata = Promise.all([
+    streamed.text,
+    streamed.usage,
+    streamed.finishReason,
+    streamed.steps,
+    streamed.rawFinishReason
+  ]).then(
+    (value) => ({ ok: true as const, value }),
+    (error) => ({ ok: false as const, error })
+  )
+  const watched = watchTerminalStreamError.then(() => 'watcher' as const)
+
+  const first = await Promise.race([metadata, watched])
+  let meta: Awaited<typeof metadata>
+  if (first === 'watcher') {
+    // The stream ended (or failed) before the metadata settled. A captured failure decides
+    // now — the promises may never settle — otherwise the closed stream settles them next.
+    if (terminalStreamError !== undefined) throw asProviderError(terminalStreamError)
+    if (streamReadError !== undefined) throw asProviderError(streamReadError)
+    meta = await metadata
+  } else {
+    meta = first
+    await watched
+  }
+  const capturedFailure = terminalStreamError !== undefined ? terminalStreamError : streamReadError
+  if (!meta.ok) {
+    // The metadata rejected (e.g. AI_NoOutputGeneratedError on an initial HTTP 403): prefer
+    // the captured provider failure, which carries the actionable diagnostics.
+    throw capturedFailure !== undefined ? asProviderError(capturedFailure) : (meta.error as Error)
+  }
+  if (capturedFailure !== undefined) throw asProviderError(capturedFailure)
+  const [text, usage, finishReason, steps, rawFinishReason] = meta.value
+  // A terminal stream error (e.g. a Codex Responses `response.failed` frame) does not reject
+  // these promises: the SDK closes the run with finishReason "error", empty text and partial
+  // usage, so the aggregate would look like a successful empty generation. Surface it as the
+  // failure it is. Ordinary tool errors carry their own finish reasons and are untouched.
+  if (finishReason === 'error' || steps.some((step) => step.finishReason === 'error')) {
+    throw new Error('Response stream ended with a terminal provider error (finishReason: "error").')
+  }
+  return { text, usage, finishReason, steps, rawFinishReason }
 }
 
 type ObserverMap = {
@@ -158,7 +245,8 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
 
   async generate(
     input: { prompt: string } | { messages: ModelMessage[] },
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    options?: { streamingTransport?: boolean }
   ): Promise<{ text: string; usage: LanguageModelUsage; finishReason: FinishReason; rawFinishReason?: string }> {
     const hooks = this.composedHooks()
     try {
@@ -178,7 +266,9 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
               ),
               ...(signal && { abortSignal: signal })
             }
-      const result = await aiAgent.generate(generateInput)
+      const result = options?.streamingTransport
+        ? await aggregateStreamResult(await aiAgent.stream(generateInput))
+        : await aiAgent.generate(generateInput)
       signal?.throwIfAborted()
       const terminalError = resolveToolLoopTerminalError({
         steps: result.steps,

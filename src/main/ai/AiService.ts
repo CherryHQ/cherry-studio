@@ -42,6 +42,7 @@ import type { CompactionSink } from '@shared/ai/compaction'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
+import { isCodexProviderId } from '@shared/data/presets/codex'
 import { type Assistant } from '@shared/data/types/assistant'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import type { ImageGenerationMode, ListedModels } from '@shared/data/types/model'
@@ -938,7 +939,14 @@ export class AiService extends BaseService {
 
     // prompt and messages are mutually exclusive in AI SDK; preserve that.
     return this.withRuntimeActivity('ai:generate-text', () =>
-      agent.generate(request.prompt ? { prompt: request.prompt } : { messages: messages ?? [] }, signal)
+      agent.generate(
+        request.prompt ? { prompt: request.prompt } : { messages: messages ?? [] },
+        signal,
+        // The ChatGPT Codex backend rejects non-streaming Responses requests
+        // (HTTP 400 "Stream must be set to true"), so its generations run over
+        // the streaming transport and resolve with the aggregated result.
+        { streamingTransport: isCodexProviderId(provider.id) }
+      )
     )
   }
 
