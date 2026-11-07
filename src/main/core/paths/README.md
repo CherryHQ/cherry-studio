@@ -150,6 +150,7 @@ No object literals besides the registry itself — the ESLint rule validates eve
 - Calling `application.getPath()` before `initPathRegistry()` throws
 - `LoggerService` and `BootConfigService` bypass the registry — they read from `paths/constants.ts` directly (they run before the registry exists)
 - Unpackaged runs can set `CS_DEV_PROFILE_ROOT` to keep Cherry home, BootConfig, legacy config discovery, Electron `userData`, and logs below one absolute non-root directory
+- Isolated development profiles do not register the global `cherrystudio://` handler. Direct launch arguments and protocol events still route within the instance.
 
 ## Testing
 
