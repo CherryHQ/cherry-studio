@@ -192,10 +192,13 @@ describe('AgentService', () => {
       .onConflictDoNothing()
   }
 
+  // Installed skills are globally enabled by default (AgentGlobalSkillService.insertTx
+  // forces isEnabled: true); the column's schema default is false, so the fixture must
+  // opt in explicitly or agent-scoped list() projections exclude the skill.
   async function insertGlobalSkill(id: string, folderName?: string, source: string = 'local'): Promise<void> {
     await dbh.db
       .insert(agentGlobalSkillTable)
-      .values({ id, name: id, folderName: folderName ?? id, source, contentHash: `hash-${id}` })
+      .values({ id, name: id, folderName: folderName ?? id, source, contentHash: `hash-${id}`, isEnabled: true })
       .onConflictDoNothing()
   }
 
@@ -1229,6 +1232,30 @@ describe('AgentService', () => {
         ])
       )
       expect(rows).toHaveLength(3)
+    })
+
+    it('keeps skill enablement independent between agents', async () => {
+      await insertGlobalSkill('skill_a')
+      await insertGlobalSkill('skill_b')
+      const agentA = createAgentForTest({ type: 'claude-code', name: 'Agent A', model: TEST_MODEL_ID })
+      const agentB = createAgentForTest({ type: 'claude-code', name: 'Agent B', model: TEST_MODEL_ID })
+
+      agentService.updateAgent(agentA.id, {
+        skillUpdates: [
+          { skillId: 'skill_a', isEnabled: true },
+          { skillId: 'skill_b', isEnabled: true }
+        ]
+      })
+      agentService.updateAgent(agentB.id, { skillUpdates: [{ skillId: 'skill_b', isEnabled: true }] })
+      agentService.updateAgent(agentB.id, { skillUpdates: [{ skillId: 'skill_b', isEnabled: false }] })
+
+      const enabledIds = (agentId: string) =>
+        agentGlobalSkillService
+          .list({ agentId })
+          .filter((skill) => skill.isEnabled)
+          .map((skill) => skill.id)
+      expect(enabledIds(agentA.id)).toEqual(['skill_a', 'skill_b'])
+      expect(enabledIds(agentB.id)).toEqual([])
     })
 
     it('writes an explicit disabled row when a builtin skill is disabled', async () => {
