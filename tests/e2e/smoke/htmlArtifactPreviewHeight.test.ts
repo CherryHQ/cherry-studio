@@ -109,7 +109,23 @@ test('inline HTML iframe preview settles and stays stable across scrolling', asy
           break
         }
       }
-      if (!ready) throw new Error('Intended loaded document did not remain unchanged for 500 ms within 10 s')
+      if (!ready) {
+        const doc = frame.contentDocument
+        throw new Error(
+          `Intended loaded document did not remain unchanged for 500 ms within 10 s: ${JSON.stringify({
+            connected: { surface: surface.isConnected, marker: marker.isConnected, frame: frame.isConnected },
+            document: {
+              url: doc?.URL,
+              readyState: doc?.readyState,
+              fonts: doc?.fonts.status,
+              intendedIframe: !!doc?.querySelector('iframe[src="https://example.invalid/x"]')
+            },
+            styleMutations,
+            surfaceBounds: surface.getBoundingClientRect().toJSON(),
+            scrollTop: scroller.scrollTop
+          })}`
+        )
+      }
       const effectiveCap = 0.72 * scroller.clientHeight
       const settledSurfaceHeight = surface.getBoundingClientRect().height
       if (effectiveCap <= settledSurfaceHeight + 8) {
