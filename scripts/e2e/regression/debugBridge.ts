@@ -262,3 +262,31 @@ export async function sendCherryInCallbackToOwnedApp(record: AppRecord, callback
     throw new Error('Failed to deliver the OAuth callback to the owned Cherry Studio instance')
   }
 }
+
+export async function observeOwnedWindowsNotification(record: AppRecord, text: string, finish = false): Promise<unknown> {
+  if (record.platform !== 'windows') throw new Error('Windows diagnostic requires Windows')
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  return evaluateCdpExpression(await ownedMainInspectorUrl(record), `(() => {
+    const { Notification, app } = process.mainModule.require('electron')
+    const key = Symbol.for('cherry.e2e.notificationDiagnostic')
+    if (${JSON.stringify(finish)}) {
+      const state = globalThis[key]
+      if (!state) return { missing: true }
+      Notification.prototype.show = state.original
+      delete globalThis[key]
+      return { supported: Notification.isSupported(), activator: app.toastActivatorCLSID, events: state.events }
+    }
+    const events = []
+    const original = Notification.prototype.show
+    globalThis[key] = { events, original }
+    Notification.prototype.show = function (...args) {
+      if (this.body.includes(${JSON.stringify(text)})) {
+        events.push({ event: 'requested' })
+        this.once('show', () => events.push({ event: 'show' }))
+        this.once('failed', (_event, error) => events.push({ event: 'failed', error: String(error) }))
+      }
+      return Reflect.apply(original, this, args)
+    }
+    return true
+  })()`)
+}

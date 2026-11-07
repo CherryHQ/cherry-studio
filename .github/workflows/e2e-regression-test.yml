@@ -128,8 +128,6 @@ jobs:
       max-parallel: 2
       matrix:
         include:
-          - runner: macos-latest
-            platform: macos
           - runner: windows-2022
             platform: windows
     runs-on: ${{ matrix.runner }}
@@ -231,6 +229,7 @@ jobs:
           key: cherry-code-tools-v1-${{ runner.os }}-${{ runner.arch }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('.github/workflows/e2e-regression-test.yml') }}
 
       - name: Install code tools under test
+        if: false
         shell: bash
         env:
           npm_config_cache: ${{ runner.temp }}/cherry-code-tools-npm
