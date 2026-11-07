@@ -49,8 +49,12 @@ async function probeCdp(target: WatchdogTarget): Promise<void> {
  */
 function killFrozenApp(target: WatchdogTarget): void {
   if (target.platform === 'windows') {
-    assertOwnedProcess(target, target.electronPid, 'electron')
-    terminateExactProcess(target.electronPid, 'windows')
+    // Each pid is validated right before it is terminated: a first attempt may already
+    // have taken one of them down, and that must not block the other.
+    if (isAlive(target.electronPid)) {
+      assertOwnedProcess(target, target.electronPid, 'electron')
+      terminateExactProcess(target.electronPid, 'windows')
+    }
     if (isAlive(target.runnerPid)) {
       assertOwnedProcess(target, target.runnerPid, 'runner')
       terminateExactProcess(target.runnerPid, 'windows')
@@ -78,6 +82,8 @@ export class ApplicationWatchdog {
   private lastIdentity?: string
   private killAttempts = 0
   private lastTripLog?: string
+  private lastTrip: Promise<void> = Promise.resolve()
+  private readonly exhaustedIdentities = new Set<string>()
   private readonly now: () => number
   private readonly intervalMs: number
   private readonly stallTimeoutMs: number
@@ -100,6 +106,11 @@ export class ApplicationWatchdog {
   /** True only after the recorded process is confirmed gone. */
   get killedApplication(): boolean {
     return this.killed
+  }
+
+  /** Resolves once the kill attempt that is currently running has finished. */
+  settled(): Promise<void> {
+    return this.lastTrip
   }
 
   start(): void {
@@ -155,7 +166,11 @@ export class ApplicationWatchdog {
         const now = this.now()
         this.stalledSince ??= now
         if (now - this.stalledSince < this.stallTimeoutMs) return
-        await this.trip(current, error)
+        // A process that survived its attempts is not retried, but the timer keeps
+        // running so a replacement with new pids is still observed.
+        if (this.exhaustedIdentities.has(currentIdentity)) return
+        this.lastTrip = this.trip(current, error)
+        await this.lastTrip
         return
       }
       if (generation !== this.generation) return
@@ -196,7 +211,7 @@ export class ApplicationWatchdog {
       this.trippedReason = `${base}; killing it failed (attempt ${this.killAttempts}): ${why}`
       if (this.killAttempts >= MAX_KILL_ATTEMPTS) {
         this.trippedReason += '; stopped retrying'
-        this.stop()
+        this.exhaustedIdentities.add(`${target.runnerPid}:${target.electronPid}`)
       }
     }
     if (this.trippedReason !== this.lastTripLog) {

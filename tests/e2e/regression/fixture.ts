@@ -11,7 +11,7 @@ import { createApplicationWatchdog } from '../../../scripts/e2e/regression/watch
 import { RegressionApp } from './RegressionApp'
 import { prepareScenario } from './setup'
 
-const TEARDOWN_TIMEOUT_MS = 20_000
+const TEARDOWN_TIMEOUT_MS = 45_000
 
 interface RegressionFixtures {
   app: RegressionApp
@@ -59,6 +59,8 @@ export const test = base.extend<RegressionFixtures & RegressionOptions>({
       await use(app)
     } finally {
       watchdog.stop()
+      // Wait for a kill that is already in flight so the reported reason is final.
+      await watchdog.settled()
       const stall = watchdog.reason
       // A killed application has nothing left to disconnect from, and any CDP call
       // would only wait for a socket that is already gone. When a stall is being

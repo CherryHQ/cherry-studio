@@ -125,6 +125,26 @@ it('does not carry the stall window across a restart that replaces the recorded 
   expect(kills).toEqual([current])
 })
 
+it('ignores a probe failure that lands after the recorded pids changed', async () => {
+  let current = target
+  let settle: ((error: Error) => void) | undefined
+  const { watchdog, kills, advance } = harness({
+    readTarget: () => current,
+    probe: () =>
+      new Promise<void>((_resolve, reject) => {
+        settle = reject
+      })
+  })
+
+  const checking = watchdog.check()
+  current = { ...target, runnerPid: 43_000, electronPid: 43_001 }
+  advance(60_000)
+  settle?.(new Error('timeout'))
+  await checking
+  expect(kills).toHaveLength(0)
+  expect(watchdog.reason).toBeUndefined()
+})
+
 it('keeps watching when the Electron process is alive after its process-group leader exited', async () => {
   const { watchdog, kills, advance } = harness({
     probe: () => Promise.reject(new Error('timeout')),
