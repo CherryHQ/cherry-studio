@@ -6,6 +6,7 @@ import { useScopedPartsMap } from '@renderer/components/chat/messages/blocks/Mes
 import { useMcpServerMutations, useMcpServers } from '@renderer/hooks/useMcpServer'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import type { McpTool } from '@renderer/types/tool'
+import { isMcpAutoApprovalEnforcedBySource } from '@shared/ai/tools/mcpSourcePolicy'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 import { APPROVAL_REQUESTED, APPROVAL_RESPONDED, findToolPartByCallId } from '../toolResponse'
@@ -106,7 +107,7 @@ export function useToolApproval(
   const persistAutoApprove = useCallback(() => {
     if (!mcpTool) return
     const server = mcpServers.find((s) => s.id === mcpTool.serverId)
-    if (!server) return
+    if (!server || isMcpAutoApprovalEnforcedBySource(server)) return
     const current = server.disabledAutoApproveTools ?? []
     if (!current.includes(mcpTool.name)) return // already auto-approved server-side
     const next = current.filter((name) => name !== mcpTool.name)
@@ -134,13 +135,16 @@ export function useToolApproval(
     cancel: () => void respond(false),
     // `autoApprove` ("always allow") only persists for MCP tools (per-server
     // `disabledAutoApproveTools`). Non-MCP (Claude-Agent) tools have no such store, so
-    // expose the action only when there's an `mcpTool` — otherwise the card renders a
+    // expose the action only for a resolved MCP server without a server-wide mandatory
+    // approval rule. A wildcard is enforced, not editable through this per-tool action;
+    // otherwise the card renders a
     // dead affordance that approves once and persists nothing.
-    ...(mcpTool && {
-      autoApprove: () => {
-        void respond(true)
-        persistAutoApprove()
-      }
-    })
+    ...(mcpTool &&
+      mcpServers.some((server) => server.id === mcpTool.serverId && !isMcpAutoApprovalEnforcedBySource(server)) && {
+        autoApprove: () => {
+          void respond(true)
+          persistAutoApprove()
+        }
+      })
   }
 }

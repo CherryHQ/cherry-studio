@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { resolveMcpSourceToolAccess } from '@shared/ai/tools/mcpSourcePolicy'
 import { PRESET_MCP_SERVERS } from '@shared/data/presets/mcpServers'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
@@ -36,6 +37,32 @@ describe('PRESET_MCP_SERVERS', () => {
         isActive: false
       })
     )
+  })
+
+  it('models ZoneFoundry as a configurable hosted built-in server', () => {
+    expect(preset(BuiltinMcpServerNames.zonefoundry)).toEqual(
+      expect.objectContaining({
+        type: 'streamableHttp',
+        baseUrl: 'https://relay.zonefoundry.dev/mcp',
+        env: { ZONEFOUNDRY_API_KEY: '' },
+        shouldConfig: true,
+        isActive: false
+      })
+    )
+  })
+
+  it('requires approval for third-party ZoneFoundry tools and resources, including new tool names', () => {
+    const definition = preset(BuiltinMcpServerNames.zonefoundry)
+    if (!definition) throw new Error('ZoneFoundry preset is missing')
+    const relay = { id: 'relay', ...definition }
+    expect(relay.isTrusted).toBe(false)
+    for (const name of ['play_music', 'set_volume', 'future_tool', 'resources/read']) {
+      expect(resolveMcpSourceToolAccess(relay, { name })).toEqual({ enabled: true, approval: 'prompt' })
+    }
+    expect(resolveMcpSourceToolAccess({ ...relay, name: 'different-relay' }, { name: 'play_music' })).toEqual({
+      enabled: true,
+      approval: 'auto'
+    })
   })
 
   it('gives every non in-memory preset what it needs to connect', () => {
