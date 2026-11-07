@@ -154,6 +154,7 @@ export function buildPathRegistry() {
     // ASR model files, downloaded on demand.
     'feature.asr.qwen3': path.join(appUserDataRuntime, 'models', 'qwen3-asr-1.7b-8bit'),
     'feature.asr.funasr': path.join(appUserDataRuntime, 'models', 'funasr-nano'),
+    'feature.asr.parakeet': path.join(appUserDataRuntime, 'models', 'parakeet-tdt-0.6b-v3-int8'),
     'feature.mlx.binary': path.join(appUserDataToolchain, 'mlx-node'),
     'feature.tts.qwen3': path.join(appUserDataRuntime, 'models', 'qwen3-tts-0.6b-customvoice-8bit'),
     'feature.tts.kokoro': path.join(appUserDataRuntime, 'models', 'kokoro-multi-lang-v1.1'),

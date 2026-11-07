@@ -6122,6 +6122,7 @@
   "settings.voice.model.apple_tts": "Apple システム音声",
   "settings.voice.model.funasr": "FunASR Nano",
   "settings.voice.model.kokoro_tts": "Kokoro v1.1（中国語・英語）",
+  "settings.voice.model.parakeet": "Parakeet TDT 0.6B v3（多言語）",
   "settings.voice.model.qwen3_asr": "Qwen3-ASR 1.7B (8-bit)",
   "settings.voice.model.qwen3_tts": "Qwen3-TTS CustomVoice (8-bit)",
   "settings.voice.model.windows_asr": "Windows システム音声認識",

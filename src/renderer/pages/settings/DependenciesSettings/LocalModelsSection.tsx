@@ -45,6 +45,11 @@ const MODEL_CARDS = {
     nameKey: 'settings.voice.model.funasr',
     sources: ['csukuangfj/sherpa-onnx-funasr-nano-int8-2025-12-30']
   },
+  'parakeet-tdt-0.6b-v3-int8': {
+    icon: <Mic className="size-5" />,
+    nameKey: 'settings.voice.model.parakeet',
+    sources: ['nvidia/parakeet-tdt-0.6b-v3']
+  },
   'qwen3-embedding-0.6b': {
     icon: <Boxes className="size-5" />,
     nameKey: 'settings.dependencies.localModels.embedding.name',
