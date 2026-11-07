@@ -96,7 +96,8 @@ describe('regression execution plan', () => {
     ['knowledge-smoke', ['K-01']],
     ['mini-app-pinning', ['MP-103']],
     ['chat-error-recovery', ['MP-17']],
-    ['code-cli-permissions', ['MP-97']]
+    ['code-cli-permissions', ['MP-97']],
+    ['scheduled-task-conversation', ['MP-145']]
   ] as const)('keeps the focused task %s limited to its intended scenarios', (task, ids) => {
     expect(selectCases(task).map(({ id }) => id)).toEqual(ids)
   })

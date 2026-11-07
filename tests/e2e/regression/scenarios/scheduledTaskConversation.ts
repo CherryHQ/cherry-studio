@@ -1,6 +1,7 @@
 import { writeFile } from 'node:fs/promises'
 
 import { expect, type Page, type TestInfo } from '@playwright/test'
+import { CronPattern } from 'croner'
 
 import type { ScheduledTaskEntity, TaskRunLogEntity } from '@shared/data/types/agent'
 import type { IpcResult } from '@shared/ipc/errors/IpcError'
@@ -183,11 +184,32 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
     const created = (await readTasks()).find((task) => task.name === name)!
     expect(created.prompt).toBe(prompt)
     expect(created.agentId).toBe(agentId)
-    expect(created.trigger).toMatchObject({ kind: 'interval', ms: 300_000 })
+    if (created.trigger.kind === 'cron') {
+      expect(created.trigger.limit).toBeUndefined()
+      const schedule = new CronPattern(created.trigger.expr, created.trigger.timezone)
+      const everyFiveMinutes = new CronPattern('*/5 * * * *')
+      for (const field of [
+        'second',
+        'minute',
+        'hour',
+        'day',
+        'month',
+        'dayOfWeek',
+        'year',
+        'lastDayOfMonth',
+        'lastWeekday',
+        'nearestWeekdays'
+      ] as const) {
+        expect(schedule[field], `Five-minute cron ${field}`).toEqual(everyFiveMinutes[field])
+      }
+    } else {
+      expect(created.trigger).toMatchObject({ kind: 'interval', ms: 300_000 })
+    }
+    const scheduleLabel = created.trigger.kind === 'cron' ? created.trigger.expr : 'Every 5 minutes'
     expect(created.enabled).toBe(true)
     const card = messages.filter({ has: page.getByRole('button', { name: /查看任务|View task/i }) }).last()
     await expect(card).toContainText(name)
-    await expect(card).toContainText(/每\s*5\s*分钟|Every 5 minutes/i)
+    await expect(card).toContainText(scheduleLabel)
     await expect(card).toContainText(/已启用|Enabled/i)
     await screenshot('MP-145 created task card')
     const taskSettings = page.locator('[data-ui~="settings.content"]:visible')
@@ -199,7 +221,7 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
       await expect(taskSettings.getByText(prompt, { exact: true })).toBeVisible()
       await taskSettings.getByRole('tab', { name: 'General Settings', exact: true }).click()
       await expect(taskSettings.getByText(agentName, { exact: true })).toBeVisible()
-      await expect(taskSettings.getByText('Every 5 minutes', { exact: true })).toBeVisible()
+      await expect(taskSettings.getByText(scheduleLabel, { exact: true })).toBeVisible()
     }
     await openTask()
     await screenshot('MP-145 corresponding task settings')

@@ -58,6 +58,10 @@ pnpm exec tsx scripts/e2e/regression/cli.ts run-phase \
   --run-dir /absolute/run-directory --phase basicFeatures
 ```
 
+`scheduled-task-conversation` selects MP-145, including the real-provider interview,
+confirmation, recurring schedule, task execution, history and deletion. Five-minute
+intervals and equivalent unrestricted cron schedules both satisfy its recurrence contract.
+
 The run's task selection controls which cases execute. Use `--task notes` for all
 implemented Notes cases, including those in other phases, or `--task notes-smoke` for
 the create-and-save flow. Do not narrow an all-task run manually and then treat it as

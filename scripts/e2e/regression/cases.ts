@@ -271,7 +271,7 @@ export const REGRESSION_CASES = [
   {
     id: 'MP-145',
     title: 'Create scheduled tasks in Agent chat and view or trigger task cards',
-    tasks: ['agents'],
+    tasks: ['agents', 'scheduled-task-conversation'],
     phase: 'agentRuntimes',
     capabilities: []
   },

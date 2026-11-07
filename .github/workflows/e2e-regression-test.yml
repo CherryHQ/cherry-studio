@@ -55,6 +55,7 @@ on:
           - agent-basic-task
           - claude-agent-runtime
           - pi-runtime
+          - scheduled-task-conversation
           - translation-settings
           - native-settings
       provider_mode:
