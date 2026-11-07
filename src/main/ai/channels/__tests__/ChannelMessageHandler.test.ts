@@ -259,6 +259,20 @@ describe('ChannelMessageHandler', () => {
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Hello world!\n\nDone.', undefined)
   })
 
+  it('constructs only a text part for transcribed text without an audio attachment', async () => {
+    const adapter = createMockAdapter()
+    simulateStream([{ type: 'text-delta', delta: 'reply' }])
+    await handleIncomingAndFlush(adapter, {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'transcribed speech',
+      files: []
+    })
+    expect(mockStartAgentSessionRun.mock.calls[0][0].userParts).toEqual([{ type: 'text', text: 'transcribed speech' }])
+    expect(mockPrepareAgentSessionWorkspaceDirectory).not.toHaveBeenCalled()
+  })
+
   it('delivers a sanitized terminal reply when admission throws an unexpected error', async () => {
     const adapter = createMockAdapter({ channelType: 'wecom' })
     vi.mocked(agentSessionService.create).mockReturnValueOnce({

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
-import { describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { createRecordingLogger, rejectionOf } from '@main/core/utilityProcess/__tests__/hostTestUtils'
 import {
@@ -12,7 +12,10 @@ import {
 import { ProcessHost } from '@main/core/utilityProcess/host/ProcessHost'
 
 import { decodeWebm } from '../decodeWebm'
+import type { decodeVoiceAudio } from '../utilityEntries/voiceAudio'
 import { type VoiceAudioContract, voiceAudioProcess } from '../voiceAudioProcess'
+
+vi.mock('@main/core/utilityProcess/runtime/serveUtilityProcess', () => ({ serveUtilityProcess: vi.fn() }))
 
 const input = {
   audio: new Uint8Array(readFileSync(fileURLToPath(new URL('./fixtures/media-recorder-opus.webm', import.meta.url)))),
@@ -65,4 +68,40 @@ describe('Voice audio utility process ownership', () => {
       await host.stop()
     }
   })
+})
+
+describe('production Voice audio MIME dispatch', () => {
+  let decode: typeof decodeVoiceAudio
+  beforeAll(async () => {
+    const { serveUtilityProcess } = await import('@main/core/utilityProcess/runtime/serveUtilityProcess')
+    await import('../utilityEntries/voiceAudio')
+    const options = vi.mocked(serveUtilityProcess<VoiceAudioContract>).mock.calls[0][0]
+    const handler = options.handlers.decode
+    decode = async (input) =>
+      handler(input, {
+        signal: new AbortController().signal,
+        emit: () => {},
+        callHost: async () => undefined,
+        logger: createRecordingLogger()
+      })
+  })
+  it.each([
+    ['media-recorder-opus.webm', 'audio/webm;codecs=opus'],
+    ['media-recorder-opus.webm', ' Audio/WebM ; CODECS = OPUS '],
+    ['media-recorder-opus.ogg', 'audio/ogg'],
+    ['media-recorder-opus.ogg', ' Audio/OGG ; codecs = Opus '],
+    ['media-recorder-opus.ogg', 'audio/ogg; codecs="opus"']
+  ])('decodes %s through the registered production handler with MIME %s', async (file, mimeType) => {
+    const audio = new Uint8Array(readFileSync(fileURLToPath(new URL(`./fixtures/${file}`, import.meta.url))))
+    const result = await decode({ audio, mimeType })
+    expect(result).toMatchObject({ sampleRate: 16000, channels: 1, durationSeconds: 0.96 })
+  })
+
+  it.each(['audio/wav', 'audio/webm', 'audio/ogg;codecs=vorbis', 'application/ogg'])(
+    'retains the existing unsupported-MIME rejection for %s',
+    async (mimeType) => {
+      const { decodeVoiceAudio } = await import('../utilityEntries/voiceAudio')
+      await expect(decodeVoiceAudio({ ...input, mimeType })).rejects.toMatchObject({ code: 'VOICE_AUDIO_UNSUPPORTED' })
+    }
+  )
 })
