@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/testing/2026-11-07-native-controller-state-observation.md
-2026-11-07-native-controller-state-observation.md: ff876998dbe15c08ac098f0f6353079e28765e13
-2026-11-07-native-controller-state-observation.zh.md: 24e421dd501860e1822266e32d1a822ef4507b95
+2026-11-07-native-controller-state-observation.md: e17894b245c1caf28d260aeb95e7061ad3938474
+2026-11-07-native-controller-state-observation.zh.md: 1ba8a8ce5a06470d2c0d7562a3cf44887dc5740d

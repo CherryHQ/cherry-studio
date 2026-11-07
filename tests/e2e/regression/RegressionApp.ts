@@ -137,7 +137,7 @@ export class RegressionApp {
     // later case would spend its timeout on a hidden #root. Reveal the window instead.
     this.recoveringWindow = true
     try {
-      if ((await this.revealWindow()) && (await rootVisible(page, 20_000))) return page
+      if ((await this.revealWindow()) && (await rootVisible(page, 60_000))) return page
       await this.disconnect()
       await prepareWindowsCdpConnection(await restartApp(this.paths))
       return await this.mainWindow()

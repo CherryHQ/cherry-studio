@@ -1315,6 +1315,9 @@ test(...caseDefinition('MP-111'), async ({ app, mainWindow }, testInfo) => {
     })
 
     await inspectStartup(app, 'show')
+    await expect(page.locator('#app-sidebar:visible, [data-ui~="settings.view"]:visible').first()).toBeVisible({
+      timeout: 90_000
+    })
     await openSettingsSection(page, 'General')
     await expect(page.locator('#setting-general-launch-totray').getByRole('switch')).toBeChecked()
     await attachScreenshot('MP-111 persisted startup settings after restart')
