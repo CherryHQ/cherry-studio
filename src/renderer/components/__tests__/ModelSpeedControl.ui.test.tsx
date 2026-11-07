@@ -130,6 +130,142 @@ function ControlledServiceTier({ model, initialTier }: { model: Model; initialTi
 }
 
 describe('ModelSpeedControl UI', () => {
+  it.each([
+    ['max', 'xhigh'],
+    ['high', 'high'],
+    ['low', 'low']
+  ] as const)('projects stored %s onto the declared tier %s', (stored, expected) => {
+    const model: Model = {
+      ...codexModel,
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'high', 'xhigh'] }],
+        selectableEfforts: ['none', 'low', 'medium', 'high', 'xhigh']
+      }
+    }
+
+    expect(resolveSupportedReasoningEffort(model, stored)).toBe(expected)
+  })
+
+  it.each([
+    ['auto', 'default'],
+    ['max', 'xhigh'],
+    ['medium', 'medium']
+  ] as const)('displays and submits GPT-5.4 stored %s as %s', (stored, expected) => {
+    const model: Model = {
+      ...codexModel,
+      id: 'openai::gpt-5-4',
+      providerId: 'openai',
+      apiModelId: 'gpt-5-4',
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'high', 'xhigh'] }],
+        selectableEfforts: ['none', 'low', 'medium', 'high', 'xhigh']
+      }
+    }
+
+    expect(resolveSupportedReasoningEffort(model, stored)).toBe(expected)
+    render(<ControlledSpeedControl model={model} initialEffort={stored} />)
+    expect(screen.getByTestId('model-speed-effort-label')).toHaveTextContent(
+      `assistants.settings.reasoning_effort.${expected}`
+    )
+  })
+
+  it('submits Default for stored Off when the model cannot disable reasoning', () => {
+    const model: Model = {
+      ...codexModel,
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh'] }],
+        selectableEfforts: ['low', 'medium', 'high', 'xhigh']
+      }
+    }
+
+    expect(resolveSupportedReasoningEffort(model, 'none')).toBe('default')
+    render(<ControlledSpeedControl model={model} initialEffort="none" />)
+    expect(screen.getByTestId('model-speed-effort-label')).toHaveTextContent(
+      'assistants.settings.reasoning_effort.default'
+    )
+  })
+
+  it.each(['low', 'minimal', 'max', 'ultra'] as const)(
+    'displays and submits Default for stored %s on a toggle-only model',
+    (stored) => {
+      const model: Model = {
+        ...codexModel,
+        reasoning: { controls: [{ kind: 'toggle' }], selectableEfforts: ['none', 'auto'] }
+      }
+
+      expect(resolveSupportedReasoningEffort(model, stored)).toBe('default')
+      render(<ControlledSpeedControl model={model} initialEffort={stored} />)
+      expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
+        'assistants.settings.reasoning_effort.default'
+      )
+    }
+  )
+
+  it.each(['low', 'max'] as const)('submits Default for stored %s when only Off is supported', (stored) => {
+    const model: Model = {
+      ...codexModel,
+      reasoning: { selectableEfforts: ['none'] }
+    }
+
+    expect(resolveSupportedReasoningEffort(model, stored)).toBe('default')
+  })
+
+  it.each([
+    ['minimal', 'minimal'],
+    ['max', 'ultra'],
+    ['high', 'ultra']
+  ] as const)('projects stored %s onto sparse intensity tier %s', (stored, expected) => {
+    const model: Model = {
+      ...codexModel,
+      reasoning: { selectableEfforts: ['minimal', 'ultra'] }
+    }
+
+    expect(resolveSupportedReasoningEffort(model, stored)).toBe(expected)
+  })
+
+  it.each(['none', 'auto'] as const)('preserves a native toggle selection of %s for submission', (stored) => {
+    const model: Model = {
+      ...codexModel,
+      reasoning: { controls: [{ kind: 'toggle' }], selectableEfforts: ['none', 'auto'] }
+    }
+
+    expect(resolveSupportedReasoningEffort(model, stored)).toBe(stored)
+    render(<ControlledSpeedControl model={model} initialEffort={stored} />)
+    expect(screen.getByTestId('model-speed-effort-label')).toHaveTextContent(
+      `assistants.settings.reasoning_effort.${stored === 'none' ? 'off' : stored}`
+    )
+  })
+
+  it.each(['max', 'auto', 'default'] as const)(
+    'submits Default for stored %s when selectable efforts are explicitly empty',
+    (stored) => {
+      const model: Model = { ...codexModel, reasoning: { ...codexModel.reasoning, selectableEfforts: [] } }
+
+      expect(resolveSupportedReasoningEffort(model, stored)).toBe('default')
+    }
+  )
+
+  it('displays and submits Max for official OpenAI Luna', () => {
+    const model: Model = {
+      ...codexModel,
+      id: 'openai::gpt-5-6-luna',
+      providerId: 'openai',
+      apiModelId: 'gpt-5-6-luna',
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'] }],
+        selectableEfforts: ['none', 'low', 'medium', 'high', 'xhigh', 'max']
+      }
+    }
+
+    expect(resolveSupportedReasoningEffort(model, 'max')).toBe('max')
+    render(<ControlledSpeedControl model={model} initialEffort="max" />)
+    expect(screen.getByTestId('model-speed-effort-label')).toHaveTextContent('assistants.settings.reasoning_effort.max')
+  })
+
+  it('falls back to Default when the model declares no reasoning vocabulary', () => {
+    expect(resolveSupportedReasoningEffort({ ...codexModel, reasoning: undefined }, 'max')).toBe('default')
+  })
+
   it('preserves a stored Default for a multi-tier slider model', () => {
     expect(resolveSupportedReasoningEffort(codexModel, 'default')).toBe('default')
   })

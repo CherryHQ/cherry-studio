@@ -10,10 +10,11 @@ import { ChevronDown, Gauge, Zap } from 'lucide-react'
 import { type ComponentProps, type ReactNode, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { REASONING_EFFORT_ORDER } from '@cherrystudio/provider-registry'
 import { Button, Popover, PopoverContent, PopoverTrigger, RadioGroup, RadioGroupItem, Slider } from '@cherrystudio/ui'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { cn } from '@renderer/utils/style'
-import { deriveThinkingOptions } from '@shared/ai/reasoning'
+import { deriveThinkingOptions, nearestThinkingOption } from '@shared/ai/reasoning'
 import type { Model, ReasoningSummary, ServiceTierSelection } from '@shared/data/types/model'
 
 const SLIDER_EFFORT_ORDER: readonly ThinkingOption[] = [
@@ -147,15 +148,20 @@ function WheelStepControl({ children, className, min, max, value, onValueChange 
 }
 
 /**
- * Coerce a selection to something this model declares, falling back to provider
- * Default rather than guessing a neighbouring effort. The control displays this
- * value; a caller that submits should send the same one so the wire matches the
- * UI. Whether the coerced value is written back is the caller's policy.
+ * Project intensity selections onto the nearest concrete intensity tier this model declares;
+ * unsupported modes or no concrete tiers fall back to provider Default. The control displays this value;
+ * a caller that submits should send the same one so the wire matches the UI.
+ * Whether the projected value is written back is the caller's policy.
  */
 export function resolveSupportedReasoningEffort(model: Model, effort: ThinkingOption): ThinkingOption {
   const reasoningOptions = deriveThinkingOptions(model) ?? []
 
-  return reasoningOptions.includes(effort) ? effort : 'default'
+  if (reasoningOptions.includes(effort)) return effort
+  if (effort === 'default' || effort === 'auto' || effort === 'none') return 'default'
+  const intensityOptions = REASONING_EFFORT_ORDER.filter(
+    (option) => option !== 'none' && option !== 'auto' && reasoningOptions.includes(option)
+  )
+  return nearestThinkingOption(effort, intensityOptions) ?? 'default'
 }
 
 /** Coerce a selection to one this model's endpoint declares — its default tier, or Standard when it declares no tiers at all. */
