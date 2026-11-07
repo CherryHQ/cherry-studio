@@ -81,7 +81,9 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     name: 'PowerShell',
     command: (_: string, fullCommand: string) => ({
       command: 'powershell',
-      args: ['-NoExit', '-Command', `& "${fullCommand}"`]
+      // The spawn goes through cmd.exe (shell: true), which treats a bare `&` as a command
+      // separator and would cut the PowerShell command off; wrap it in double quotes.
+      args: ['-NoExit', '-Command', `"& '${fullCommand.replace(/'/g, "''")}'"`]
     })
   },
   {
