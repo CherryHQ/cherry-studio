@@ -184,7 +184,7 @@ vi.mock('@application', async () => {
 
 const { AiStreamManager } = await import('../AiStreamManager')
 const pipeStreamLoopModule = await import('../pipeStreamLoop')
-const { StartupDeadline } = await import('../startupDeadline')
+const { StartupDeadline } = await import('../StartupDeadline')
 const { PersistenceListener, TerminalPersistenceError } = await import('../listeners/PersistenceListener')
 const { TraceFlushListener } = await import('../listeners/TraceFlushListener')
 const { WebContentsListener } = await import('../listeners/WebContentsListener')
@@ -3503,6 +3503,95 @@ describe('AiStreamManager', () => {
       expect(listener.pausedResults).toHaveLength(0)
       expect(listener.doneResults).toHaveLength(0)
     }
+
+    it.each(['chunks', 'messages'] as const)('retires a zero-event %s deadline on upstream output', async (kind) => {
+      const input = feed(kind)
+      const controller = new AbortController()
+      const listener = launch(input.source, agentRequest(), controller)
+      await vi.advanceTimersByTimeAsync(89_000)
+      mgr.notifyUpstreamOutput({ agentSessionId: 'session' })
+      mgr.notifyUpstreamOutput({ agentSessionId: 'session' })
+      await vi.advanceTimersByTimeAsync(2_000)
+      expect(controller.signal.aborted).toBe(false)
+      expect(listener.errorResults).toHaveLength(0)
+      expect(listener.pausedResults).toHaveLength(0)
+      input.close()
+      await flushUntil(() => listener.doneResults.length === 1)
+    })
+
+    it('ignores upstream output from another Agent session', async () => {
+      const input = feed('messages')
+      const listener = launch(input.source)
+      await vi.advanceTimersByTimeAsync(89_000)
+      mgr.notifyUpstreamOutput({ agentSessionId: 'another-session' })
+      await vi.advanceTimersByTimeAsync(1_000)
+      await flushUntil(() => listener.errorResults.length === 1)
+      expectTimeout(listener)
+    })
+
+    it('does not extend post-output idle on upstream output', async () => {
+      const input = feed('chunks')
+      const listener = launch(input.source)
+      input.chunk({ type: 'text-start', id: 't' })
+      input.chunk({ type: 'text-delta', id: 't', delta: 'alive' })
+      await flushUntil(() => listener.chunks.length === 2)
+      await vi.advanceTimersByTimeAsync(60 * 60_000)
+      mgr.notifyUpstreamOutput({ agentSessionId: 'session' })
+      await vi.advanceTimersByTimeAsync(60 * 60_000 - 1)
+      expect(listener.errorResults).toHaveLength(0)
+      expect(listener.pausedResults).toHaveLength(0)
+      await vi.advanceTimersByTimeAsync(1)
+      await flushUntil(() => listener.pausedResults.length === 1)
+      expect(listener.errorResults).toHaveLength(0)
+      expect(listener.doneResults).toHaveLength(0)
+    })
+
+    it.each([req('startup'), { ...agentRequest(), requestOptions: { timeout: 100_000 } }])(
+      'leaves an ungated execution unchanged (%j)',
+      async (request) => {
+        const input = feed('chunks')
+        const listener = launch(input.source, request)
+        await vi.advanceTimersByTimeAsync(89_000)
+        expect(() => mgr.notifyUpstreamOutput({ agentSessionId: 'session' })).not.toThrow()
+        await vi.advanceTimersByTimeAsync(2_000)
+        expect(listener.errorResults).toHaveLength(0)
+        expect(listener.pausedResults).toHaveLength(0)
+        input.close()
+        await flushUntil(() => listener.doneResults.length === 1)
+        expect(listener.doneResults[0].isTopicDone).toBe(true)
+      }
+    )
+
+    it.each(['answer-one', 'unmatched', undefined])(
+      'routes upstream output by assistant identity with a session fallback (%s)',
+      async (assistantMessageId) => {
+        const first = feed('messages')
+        const second = feed('messages')
+        const other = feed('messages')
+        const firstListener = launch(first.source, { ...agentRequest('first'), messageId: 'answer-one' })
+        const secondListener = launch(second.source, { ...agentRequest('second'), messageId: 'answer-two' })
+        const otherListener = launch(other.source, {
+          ...agentRequest('other'),
+          messageId: 'answer-one',
+          runtime: { kind: 'agent-session', sessionId: 'other-session', turnId: 'turn' }
+        })
+        await vi.advanceTimersByTimeAsync(89_000)
+        mgr.notifyUpstreamOutput({ agentSessionId: 'session', assistantMessageId })
+        await vi.advanceTimersByTimeAsync(1_000)
+        expect(firstListener.errorResults).toHaveLength(0)
+        expect(firstListener.pausedResults).toHaveLength(0)
+        if (assistantMessageId === 'answer-one') expectTimeout(secondListener)
+        else {
+          expect(secondListener.errorResults).toHaveLength(0)
+          expect(secondListener.pausedResults).toHaveLength(0)
+          second.close()
+          await flushUntil(() => secondListener.doneResults.length === 1)
+        }
+        expectTimeout(otherListener)
+        first.close()
+        await flushUntil(() => firstListener.doneResults.length === 1)
+      }
+    )
 
     it.each(['chunks', 'messages'] as const)(
       'bounds zero-event %s sources even when cancellation stalls',

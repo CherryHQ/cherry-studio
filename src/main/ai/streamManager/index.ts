@@ -8,6 +8,7 @@ export { PersistenceListener } from './listeners/PersistenceListener'
 export { SseListener } from './listeners/SseListener'
 export { TraceFlushListener } from './listeners/TraceFlushListener'
 export { WebContentsListener } from './listeners/WebContentsListener'
+export { isStartupOutputChunk } from './startupOutput'
 export type { MessageRuntimeTimingSink } from './MessageRuntimeTimingCollector'
 export type { PersistAssistantInput, PersistedAssistant, PersistenceBackend } from './persistence/PersistenceBackend'
 export {

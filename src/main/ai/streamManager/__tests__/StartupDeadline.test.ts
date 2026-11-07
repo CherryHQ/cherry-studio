@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { StartupDeadline } from '../startupDeadline'
+import { StartupDeadline } from '../StartupDeadline'
 
 describe('StartupDeadline', () => {
   beforeEach(() => vi.useFakeTimers())

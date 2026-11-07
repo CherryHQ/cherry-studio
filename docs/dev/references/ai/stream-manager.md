@@ -633,6 +633,12 @@ budget. Chunk sources count incoming chunks; message sources count controls and
 authoritative parts, without treating a projection-only `approval-requested`
 part as output.
 
+When native Agent inference crosses the in-process gateway, upstream progress
+that the wire protocol cannot represent (partial tool arguments) is reported
+in-process to the execution holding the startup deadline. The gateway and
+execution share the same chunk predicate, so an actively producing model does
+not time out while its output is buffered for protocol conversion.
+
 Declared connection/compaction preparation and pending approvals suspend the
 remaining budget, with an aggregate 120-minute suspension cap per execution.
 Ending preparation resumes the remainder; repeated phases never grant a fresh

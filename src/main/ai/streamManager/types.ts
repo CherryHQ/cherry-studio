@@ -11,7 +11,7 @@ import type { SerializedError } from '@shared/types/error'
 import type { StreamLifecycle } from './lifecycle/StreamLifecycle'
 import type { MessageRuntimeTimingCollector } from './MessageRuntimeTimingCollector'
 import type { PersistedAssistant } from './persistence/PersistenceBackend'
-import type { StartupDeadline } from './startupDeadline'
+import type { StartupDeadline } from './StartupDeadline'
 
 // ── Re-export shared types for consumers ────────────────────────────
 
@@ -148,7 +148,7 @@ export interface StreamExecution {
   /** Independent abort — multi-model executions don't share. */
   abortController: AbortController
   terminalClaimed?: boolean
-  startupDeadline?: { deadline: StartupDeadline; reason: DOMException; expired: boolean }
+  startupDeadline?: { deadline: StartupDeadline; reason: DOMException; expired: boolean; agentSessionId: string }
   status: 'streaming' | 'done' | 'error' | 'aborted'
   /** Per-execution history ring; delta entries are capped by `maxDeltaBytes`. Ordinary overflow drops oldest and bumps `droppedChunks`; eviction pauses while an approval is pending. */
   buffer: StreamChunkPayload[]

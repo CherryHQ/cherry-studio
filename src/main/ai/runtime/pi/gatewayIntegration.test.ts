@@ -46,6 +46,8 @@ vi.mock('@application', async () => {
     ...defaultServiceInstances,
     AiStreamManager: {
       streamPrompt: (input: Parameters<AiStreamManager['streamPrompt']>[0]) => mocks.manager!.streamPrompt(input),
+      notifyUpstreamOutput: (input: Parameters<AiStreamManager['notifyUpstreamOutput']>[0]) =>
+        mocks.manager!.notifyUpstreamOutput(input),
       abort: (id: string) => mocks.manager!.abort(id, 'gateway-disconnected')
     },
     AiService: { streamText: (input: Parameters<AiService['streamText']>[0]) => mocks.ai!.streamText(input) },

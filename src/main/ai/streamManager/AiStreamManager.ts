@@ -71,7 +71,8 @@ import { MessageRuntimeTimingCollector } from './MessageRuntimeTimingCollector'
 import { pipeMessageStream } from './pipeMessageStream'
 import { pipeStreamLoop } from './pipeStreamLoop'
 import { projectStreamChunkPayloadForRenderer, projectStreamMessageForRenderer } from './rendererPayload'
-import { StartupDeadline } from './startupDeadline'
+import { StartupDeadline } from './StartupDeadline'
+import { isStartupOutputChunk } from './startupOutput'
 import { TopicMessageProjection } from './TopicMessageProjection'
 import type { AiStreamSource } from './types'
 import type {
@@ -89,30 +90,6 @@ import type {
   TransportTimings
 } from './types'
 import { withReasoningTimingMetadata } from './withReasoningTimingMetadata'
-
-function isMeaningfulChunk(chunk: UIMessageChunk): boolean {
-  switch (chunk.type) {
-    case 'text-delta':
-    case 'reasoning-delta':
-      return chunk.delta.length > 0
-    case 'tool-input-delta':
-      return chunk.inputTextDelta.length > 0
-    case 'tool-input-available':
-    case 'tool-input-error':
-    case 'tool-approval-request':
-    case 'tool-output-available':
-    case 'tool-output-error':
-    case 'tool-output-denied':
-      return true
-    case 'file':
-    case 'source-url':
-      return chunk.url.length > 0
-    case 'source-document':
-      return chunk.title.length > 0
-    default:
-      return false
-  }
-}
 
 function isMeaningfulPart(part: CherryMessagePart): boolean {
   if (isToolUIPart(part))
@@ -1135,6 +1112,24 @@ export class AiStreamManager extends BaseService {
       listeners: Array.isArray(input.listener) ? input.listener : [input.listener],
       lifecycle: promptStreamLifecycle
     })
+  }
+
+  /**
+   * Retire the startup bound of the Agent execution that owns this gateway request:
+   * the inference crosses the in-process gateway, which may not be able to represent
+   * some upstream progress (partial tool arguments) on the wire.
+   */
+  notifyUpstreamOutput(context: { agentSessionId: string; assistantMessageId?: string }): void {
+    const candidates: StreamExecution[] = []
+    for (const stream of this.activeStreams.values()) {
+      for (const exec of stream.executions.values()) {
+        if (exec.startupDeadline?.agentSessionId === context.agentSessionId) candidates.push(exec)
+      }
+    }
+    const matches = context.assistantMessageId
+      ? candidates.filter((exec) => exec.anchorMessageId === context.assistantMessageId)
+      : []
+    for (const exec of matches.length > 0 ? matches : candidates) exec.startupDeadline!.deadline.notifyOutput()
   }
 
   startRuntimeTurn(input: StartRuntimeTurnInput): SendResult {
@@ -2252,7 +2247,8 @@ export class AiStreamManager extends BaseService {
   ): Promise<void> {
     const aiService = application.get('AiService')
     const signal = exec.abortController.signal
-    const gated = request.runtime?.kind === 'agent-session' && request.requestOptions?.timeout === undefined
+    const runtime = request.runtime
+    const gated = runtime?.kind === 'agent-session' && request.requestOptions?.timeout === undefined
     if (gated) {
       const reason = new DOMException('Agent turn produced no model output within 90 seconds', 'TimeoutError')
       const deadline = new StartupDeadline({
@@ -2264,7 +2260,7 @@ export class AiStreamManager extends BaseService {
           if (!signal.aborted) exec.abortController.abort(reason)
         }
       })
-      exec.startupDeadline = { deadline, reason, expired: false }
+      exec.startupDeadline = { deadline, reason, expired: false, agentSessionId: runtime.sessionId }
     }
     const deadline = exec.startupDeadline?.deadline
     const snapshotApprovalToolCallIds = new Set<string>()
@@ -2287,7 +2283,7 @@ export class AiStreamManager extends BaseService {
       if (chunk.type === 'error') {
         observedStreamError ??= chunk.errorText
         deadline?.dispose()
-      } else if (isMeaningfulChunk(chunk)) deadline?.notifyOutput()
+      } else if (isStartupOutputChunk(chunk)) deadline?.notifyOutput()
     }
     const publishMessage = (message: CherryUIMessage) => {
       if (exec.terminalClaimed) return
