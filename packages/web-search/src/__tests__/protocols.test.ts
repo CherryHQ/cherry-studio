@@ -133,6 +133,7 @@ describe('portable provider contracts', () => {
     const { client, requests } = setup(specstream, fixture('specstream-response.json'))
     const result = await client.execute({
       ...search('specstream'),
+      capability: 'searchKeywords',
       input: 'a&b',
       config: { apiHost: 'https://service.example/proxy', maxResults: 2 }
     })
