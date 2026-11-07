@@ -452,6 +452,8 @@ export type FileProcessorOptions = {
 export type FileProcessorCapabilityOverride = {
   apiHost?: string
   modelId?: string
+  formulaLevel?: 0 | 1 | 2
+  mergeCrossPageForms?: boolean
 }
 
 export type FileProcessorCapabilityOverrides = Partial<Record<FileProcessorFeature, FileProcessorCapabilityOverride>>
