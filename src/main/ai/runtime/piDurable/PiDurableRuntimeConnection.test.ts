@@ -33,7 +33,7 @@ import {
   tempDir
 } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
 import { gate, toolCallPart } from '../../../../../packages/agent-runtime-pi/tests/subagentSupport'
-import type { PiConnectionSnapshot } from '../pi/piConnectionSignature'
+import { PiInvalidConnectionSnapshotError, type PiConnectionSnapshot } from '../pi/piConnectionSignature'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
 import { prepareDurableBranch } from './durableContext'
 import { PiDurableRuntimeConnection } from './PiDurableRuntimeConnection'
@@ -63,7 +63,14 @@ vi.mock('@application', async () => {
 })
 vi.mock('../pi/piConnectionSignature', () => ({
   capturePiConnectionSnapshot: mocks.capture,
-  PiInvalidConnectionSnapshotError: class extends Error {}
+  PiInvalidConnectionSnapshotError: class extends Error {
+    constructor(
+      message: string,
+      readonly reason: 'reassigned' | 'unavailable' = 'unavailable'
+    ) {
+      super(message)
+    }
+  }
 }))
 vi.mock('../pi/gatewayModelBinding', () => ({ createPiGatewayModelBinding: mocks.binding }))
 vi.mock('@main/ai/runtime/agentPrompt', () => ({ buildAgentRuntimePrompt: mocks.prompt }))
@@ -221,6 +228,21 @@ describe('desktop Pi Durable connection', () => {
       .filter((message) => message.role === 'assistant')
       .flatMap((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])))
       .join('')
+  it('exposes the frozen owner it was spawned under', async () => {
+    const { connection } = await connect()
+    expect(connection.agentId).toBe(input.agentId)
+  })
+  it('keeps an accepted execution alive across an ownership-only reconcile rejection', async () => {
+    const { connection } = await connect()
+    mocks.capture.mockImplementation(async () => {
+      throw new PiInvalidConnectionSnapshotError('reassigned', 'reassigned')
+    })
+    await expect(connection.reconcile({ modelId, servesAcceptedTurn: true })).resolves.toBe('stale-owner')
+    mocks.capture.mockImplementation(async () => {
+      throw new PiInvalidConnectionSnapshotError('unavailable', 'unavailable')
+    })
+    await expect(connection.reconcile({ modelId, servesAcceptedTurn: true })).resolves.toBe('invalid')
+  })
   // An idle observation during summary generation must not finish the owning desktop turn.
   it.each(['complete', 'error', 'stop', 'close'] as const)(
     'keeps manual compaction owned through %s',

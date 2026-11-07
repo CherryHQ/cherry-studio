@@ -62,6 +62,13 @@ export interface AgentRuntimeConnectInput {
   sessionId: string
   agentId: string
   modelId: UniqueModelId
+  /**
+   * The connection serves a turn that was already accepted and frozen to `agentId`; the session row
+   * may since have been re-pointed to another agent (top-bar switch). Snapshot capture then
+   * validates the frozen agent itself (exists, has a model) instead of requiring the session to
+   * still reference it — the accepted turn keeps its captured configuration until it settles.
+   */
+  servesAcceptedTurn?: boolean
   /** Canonical reasoning selection frozen for this connection's turn. */
   reasoningEffort?: ReasoningEffortOption
   /** Canonical provider request tier frozen for this connection's turn. */
@@ -208,15 +215,24 @@ export type AgentRuntimeEvent =
  * - `rebuild`: spawn-frozen config is stale — the host reconnects at a safe boundary (any live
  *   patches were still applied first).
  * - `invalid`: the desired config can no longer be derived (agent/session/model deleted) — close.
+ * - `stale-owner`: ONLY the session-ownership check failed — the connection's frozen agent and
+ *   everything derived from it still resolve, so a live turn it serves may keep it to its boundary.
+ *   Never reported for a config/derivation failure.
  * - `failed`: a live patch failed — fail closed; the connection may be enforcing the OLD policy.
  */
-export type AgentRuntimeReconcileResult = 'current' | 'patched' | 'rebuild' | 'invalid' | 'failed'
+export type AgentRuntimeReconcileResult = 'current' | 'patched' | 'rebuild' | 'invalid' | 'stale-owner' | 'failed'
 
 export interface AgentRuntimeConnection {
   /** Bound product context for controls that precede the first native message. */
   readonly contextId?: string
 
   readonly events: AsyncIterable<AgentRuntimeEvent>
+  /**
+   * The agent this connection was spawned under — the owner of its frozen instructions, tools,
+   * and restrictions. The host replaces (never reconciles) a warm connection whose owner is not
+   * the agent a new turn runs under, so a config re-derived from the old owner cannot serve it.
+   */
+  readonly agentId?: string
   /** The configured Runtime owner remains resident until explicit retirement. */
   readonly retainWhileIdle?: boolean
   /** Refresh per-turn observability metadata without changing spawn-fixed connection configuration. */
@@ -252,6 +268,7 @@ export interface AgentRuntimeConnection {
     serviceTier?: ServiceTierSelection
     knowledgeBaseIds?: readonly string[]
     fastMode?: boolean
+    servesAcceptedTurn?: boolean
   }): Promise<AgentRuntimeReconcileResult>
   /**
    * Read passive, thread-scoped context usage from the harness. Unknown and unsupported

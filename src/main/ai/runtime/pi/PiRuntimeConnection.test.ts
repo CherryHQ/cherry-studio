@@ -945,6 +945,22 @@ describe('desktop Pi root connection', () => {
     }
   )
 
+  it('declares the agent it serves', async () => {
+    const { connection } = await connect()
+    expect(connection.agentId).toBe(input.agentId)
+  })
+
+  it('separates a reassigned snapshot from an unavailable one', async () => {
+    const { connection } = await connect()
+    const { PiInvalidConnectionSnapshotError } = await import('./piConnectionSignature')
+    const reassigned = Object.assign(new PiInvalidConnectionSnapshotError('reassigned'), { reason: 'reassigned' })
+    mocks.capture.mockRejectedValueOnce(reassigned)
+    await expect(connection.reconcile({ modelId: input.modelId })).resolves.toBe('stale-owner')
+    const unavailable = Object.assign(new PiInvalidConnectionSnapshotError('gone'), { reason: 'unavailable' })
+    mocks.capture.mockRejectedValueOnce(unavailable)
+    await expect(connection.reconcile({ modelId: input.modelId })).resolves.toBe('invalid')
+  })
+
   it('keeps equivalent automatic reasoning selections on the same connection', async () => {
     input.reasoningEffort = 'auto'
     const { connection } = await connect()

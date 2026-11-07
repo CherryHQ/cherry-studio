@@ -28,18 +28,23 @@ import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
 import { createDurableMcp } from './durableMcp'
 
 export async function prepareDurableDesktop(input: AgentRuntimeConnectInput, emit: (event: AgentRuntimeEvent) => void) {
+  // A turn already accepted and frozen to this connection's agent keeps its captured
+  // configuration through startup even if the session row was re-pointed mid-materialization.
+  const captureOpts = { servesAcceptedTurn: input.servesAcceptedTurn === true }
   const discovery = await capturePiConnectionSnapshot(
     input.sessionId,
     input.agentId,
     input.modelId,
-    input.knowledgeBaseIds
+    input.knowledgeBaseIds,
+    captureOpts
   )
   await warmAgentMcpToolCatalogs(discovery.agent.mcps ?? [])
   const snapshot = await capturePiConnectionSnapshot(
     input.sessionId,
     input.agentId,
     input.modelId,
-    input.knowledgeBaseIds
+    input.knowledgeBaseIds,
+    captureOpts
   )
   const { session, agent } = snapshot
   const cwd = session.workspace.path
@@ -212,7 +217,8 @@ export async function prepareDurableDesktop(input: AgentRuntimeConnectInput, emi
           next.sessionId,
           next.agentId,
           next.modelId,
-          next.knowledgeBaseIds
+          next.knowledgeBaseIds,
+          { servesAcceptedTurn: next.servesAcceptedTurn === true }
         )
         const mode = current.agent.configuration?.permission_mode ?? 'default'
         const permissionChanged = !active && mode !== permissionMode

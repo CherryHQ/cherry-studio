@@ -92,6 +92,11 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
 
   constructor(private readonly input: AgentRuntimeConnectInput) {}
 
+  /** The frozen owner this connection was spawned under, even after the session row moves on. */
+  get agentId(): string | undefined {
+    return this.input.agentId
+  }
+
   async start(): Promise<this> {
     try {
       this.desktop = await prepareDurableDesktop(this.input, (event) => this.events.push(event))
@@ -603,7 +608,10 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
           return 'rebuild'
         return next.permissionChanged ? 'patched' : 'current'
       } catch (error) {
-        if (error instanceof PiInvalidConnectionSnapshotError) return 'invalid'
+        // Ownership-only rejection is not a derivation failure: the connection still serves an
+        // accepted turn under its frozen owner while the row points elsewhere.
+        if (error instanceof PiInvalidConnectionSnapshotError)
+          return error.reason === 'reassigned' ? 'stale-owner' : 'invalid'
         throw error
       }
     })
