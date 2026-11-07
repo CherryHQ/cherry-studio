@@ -138,10 +138,9 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
     [t]
   )
 
-  const messageNavigationItems = useMemo<SelectOption<'none' | 'buttons' | 'anchor'>[]>(
+  const messageNavigationItems = useMemo<SelectOption<'none' | 'anchor'>[]>(
     () => [
       { value: 'none', label: t('settings.messages.navigation.none') },
-      { value: 'buttons', label: t('settings.messages.navigation.buttons') },
       { value: 'anchor', label: t('settings.messages.navigation.anchor') }
     ],
     [t]

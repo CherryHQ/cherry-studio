@@ -479,9 +479,6 @@ export function PersistentRightPaneHost({
     }
 
     return invalidateActiveTransition
-    // `reconcileAfterEffectsReconnect` is an Effect Event that reads the latest
-    // target and visual state without turning normal renders into reconnects.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invalidateActiveTransition])
 
   useLayoutEffect(() => {
