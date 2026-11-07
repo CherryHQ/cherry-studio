@@ -11,8 +11,11 @@ const renderer = path.join(root, '.context/website-docs-renderer')
 const source = path.join(root, 'docs/website')
 
 export function runPnpm(args, { cwd = renderer, stdio = 'inherit', background = false } = {}) {
-  // Reuse pnpm's entry point instead of launching a Windows .cmd shim through a shell.
-  const executable = process.env.npm_execpath
+  // Re-enter Corepack so the renderer's own packageManager selects its pnpm version.
+  // Invoke its script directly to avoid Windows .cmd shims and shell argument parsing.
+  const executable = process.env.COREPACK_ROOT
+    ? path.join(process.env.COREPACK_ROOT, 'dist/pnpm.js')
+    : process.env.npm_execpath
   if (!executable) throw new Error('Run website documentation commands through pnpm')
   const isScript = /\.[cm]?js$/.test(executable)
   const command = isScript ? process.execPath : executable
