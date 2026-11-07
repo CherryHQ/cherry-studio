@@ -4486,7 +4486,7 @@
   "settings.developer.cdp.title": "Automazione locale (CDP)",
   "settings.developer.client_id": "ID client",
   "settings.developer.enable_developer_mode": "Attiva modalità sviluppatore",
-  "settings.developer.help": "Dopo aver attivato la modalità sviluppatore, puoi usare il tracciamento per visualizzare il flusso dei dati durante le chiamate al modello. Le modifiche hanno effetto dopo il riavvio dell'applicazione.",
+  "settings.developer.help": "Dopo aver attivato la modalità sviluppatore, puoi usare il tracciamento per visualizzare il flusso dei dati durante le chiamate al modello e ispezionare le richieste API del processo principale nel pannello Main Network di DevTools. Le modifiche hanno effetto dopo il riavvio dell'applicazione.",
   "settings.display.custom.css.label": "CSS personalizzato",
   "settings.display.custom.css.migration_notice": "Questo foglio di stile è stato migrato dalla v1 ed è attualmente disattivato. Adattalo alla v2, poi rimuovi la prima riga per attivarlo.",
   "settings.display.custom.css.placeholder": "/* Inserisci qui il CSS personalizzato */",
