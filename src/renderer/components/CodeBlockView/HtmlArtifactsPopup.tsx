@@ -353,6 +353,11 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
               'relative flex items-center justify-between gap-4 border-b border-border bg-background px-2.5',
               isFullscreen && '[-webkit-app-region:drag]'
             )}
+            style={
+              isFullscreen && !isMac
+                ? { paddingRight: 'calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 0.625rem)' }
+                : undefined
+            }
             onDoubleClick={() => setIsFullscreen(!isFullscreen)}>
             <div className={cn('min-w-0 flex-1', isFullscreen && isMac ? 'pl-20' : 'pl-3')}>
               <DialogTitle className="max-w-[45vw] truncate text-sm font-bold text-foreground">{title}</DialogTitle>
