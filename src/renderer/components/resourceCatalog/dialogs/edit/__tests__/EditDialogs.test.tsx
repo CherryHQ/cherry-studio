@@ -12,6 +12,10 @@ import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/i
 import type { Assistant } from '@shared/data/types/assistant'
 
 vi.mock('@renderer/utils/image', () => ({ checkEntityImageSize: vi.fn(() => null), prepareEntityImageBytes: vi.fn() }))
+vi.mock('@renderer/components/EmojiPicker/emojiSupport', () => ({
+  detectEmojiSupportLevel: async () => 15,
+  detectUnsupportedZwjEmojiIds: async () => []
+}))
 
 const {
   bindPromptMock,
@@ -146,14 +150,6 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof CherryStudioUi>()
   return actual
 })
-
-vi.mock('@renderer/components/EmojiPicker', () => ({
-  EmojiPicker: ({ onEmojiClick }: { onEmojiClick: (emoji: string) => void }) => (
-    <button type="button" onClick={() => onEmojiClick('🎓')}>
-      Choose emoji
-    </button>
-  )
-}))
 
 vi.mock('@renderer/components/PromptEditorField', () => ({
   default: ({
@@ -612,6 +608,14 @@ const PI_AGENT: AgentDetail = {
 }
 
 beforeAll(() => {
+  vi.stubGlobal(
+    'IntersectionObserver',
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+  )
   if (!HTMLElement.prototype.hasPointerCapture) {
     HTMLElement.prototype.hasPointerCapture = () => false
   }
@@ -1391,11 +1395,10 @@ describe('edit dialogs', () => {
     const user = userEvent.setup()
     const { rerender } = render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
     await user.click(screen.getByRole('button', { name: 'Pick avatar' }))
-    await user.click(screen.getByRole('button', { name: 'Emoji Picker' }))
-    await user.click(screen.getByRole('button', { name: 'Choose emoji' }))
+    await user.click(screen.getByRole('button', { name: 'Reset Avatar' }))
     expect(ipcRequestMock).toHaveBeenCalledWith('assistant.set_avatar', {
       assistantId: ASSISTANT.id,
-      avatar: { kind: 'emoji', emoji: '🎓' }
+      avatar: { kind: 'default' }
     })
     rerender(<AssistantEditDialog open={false} resource={ASSISTANT} onOpenChange={vi.fn()} />)
     rerender(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
@@ -2523,6 +2526,21 @@ describe('edit dialogs', () => {
     frames.restore()
   })
 
+  it('opens the agent avatar menu from its only avatar control', async () => {
+    const user = userEvent.setup()
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+
+    const dialog = screen.getByRole('dialog')
+    const avatarControls = within(dialog).getAllByRole('button', { name: 'Pick avatar' })
+    expect(avatarControls).toHaveLength(1)
+    await user.click(avatarControls[0])
+
+    expect(screen.getByRole('button', { name: 'Image Upload' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Emoji Picker' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Reset Avatar' })).toBeVisible()
+    expect(screen.queryByRole('textbox', { name: 'Type to search for an emoji' })).not.toBeInTheDocument()
+  })
+
   it('keeps popover content inside the dialog container', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
@@ -2530,7 +2548,7 @@ describe('edit dialogs', () => {
     fireEvent.click(screen.getByLabelText('Pick avatar'))
     fireEvent.click(screen.getByRole('button', { name: 'Emoji Picker' }))
 
-    expect(dialog).toContainElement(screen.getByRole('button', { name: 'Choose emoji' }))
+    expect(dialog).toContainElement(await screen.findByRole('textbox', { name: 'Type to search for an emoji' }))
   })
 
   it('keeps edited values while switching tabs before save', async () => {

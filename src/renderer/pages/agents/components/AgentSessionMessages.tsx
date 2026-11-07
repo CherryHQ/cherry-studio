@@ -102,7 +102,7 @@ const AgentSessionMessages = ({
       activeAgent
         ? {
             name: activeAgent.name,
-            avatar: getAgentAvatarFromConfiguration(activeAgent.configuration)
+            avatar: getAgentAvatarFromConfiguration(activeAgent.configuration, activeAgent.avatarSrc)
           }
         : undefined,
     [activeAgent]

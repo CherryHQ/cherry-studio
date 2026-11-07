@@ -252,6 +252,13 @@
       "when": 1793997301036,
       "tag": "0035_assistant_avatar",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1794010640524,
+      "tag": "0036_glossy_songbird",
+      "breakpoints": true
     }
   ],
   "version": "7"

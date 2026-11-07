@@ -95,7 +95,8 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   return actual
 })
 
-vi.mock('@renderer/data/hooks/useDataApi', () => ({
+vi.mock('@renderer/data/hooks/useDataApi', async () => ({
+  ...(await import('@test-mocks/renderer/useDataApi')).MockUseDataApi,
   useInfiniteFlatItems: (pages: Array<{ items: unknown[] }> = []) => pages.flatMap((page) => page.items),
   useInfiniteQuery: () => ({
     pages: [{ items: [], total: 0 }],

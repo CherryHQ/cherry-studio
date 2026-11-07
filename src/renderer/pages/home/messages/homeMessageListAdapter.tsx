@@ -7,6 +7,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
 import { resolvePartFromParts } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
+import { useMessageAuthorAvatarSources } from '@renderer/components/chat/messages/hooks/useMessageAuthorAvatarSources'
 import { useMessageListAdapterCapabilities } from '@renderer/components/chat/messages/hooks/useMessageListAdapterCapabilities'
 import {
   pickMessageHeaderActions,
@@ -63,7 +64,6 @@ import {
   type TopicImageActionRequest,
   type TopicImageActionType
 } from './topicImageActionBus'
-import { useMessageAuthorAvatarSources } from './useMessageAuthorAvatarSources'
 
 const exportToObsidian: ExportMessagesToObsidian = async (title, messages) => {
   const { default: popup } = await import('@renderer/components/ObsidianExportPopup')

@@ -9,8 +9,9 @@ import { EmojiPicker } from '@renderer/components/EmojiPicker'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/image'
 import type { InputFor } from '@shared/ipc/types'
+
+import { prepareAvatarImage } from './prepareAvatarImage'
 
 type Props = {
   assistantId: string
@@ -58,12 +59,9 @@ export function AssistantAvatarPicker({
     try {
       let avatar: InputFor<'assistant.set_avatar'>['avatar']
       if (intent instanceof File) {
-        const sizeError = checkEntityImageSize(intent)
-        if (sizeError) {
-          toast.error(sizeError)
-          return
-        }
-        avatar = { kind: 'image', data: await prepareEntityImageBytes(intent) }
+        const data = await prepareAvatarImage(intent, () => session.active)
+        if (!data) return
+        avatar = { kind: 'image', data }
       } else {
         avatar = intent
       }
