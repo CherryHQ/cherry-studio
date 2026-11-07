@@ -66,7 +66,6 @@ export async function prepareDurableDesktop(input: AgentRuntimeConnectInput, emi
     workspacePath: cwd,
     agentDataPath,
     effectiveLanguage: snapshot.effectiveLanguage,
-    mcpInstructions: snapshot.mcpInstructions,
     citationsGuidance: buildCitationsGuidance({
       web: enabled(WEB_SEARCH_TOOL_NAME) || enabled(WEB_FETCH_TOOL_NAME),
       kb:
@@ -146,8 +145,27 @@ export async function prepareDurableDesktop(input: AgentRuntimeConnectInput, emi
       native.defineExtension({
         name: 'cherry.desktop',
         sections: [
-          { key: 'agent_identity', render: () => builder.buildMemoriesSection(agentDataPath) },
-          { key: 'skills', render: () => pi.formatSkillsForPrompt(skills.skills) }
+          {
+            key: 'agent_identity',
+            async render() {
+              const { text, resources } = await builder.buildMemoriesContext(agentDataPath)
+              return { text, source: { kind: 'memory-files', resources } }
+            }
+          },
+          {
+            key: 'skills',
+            render: () => ({
+              text: pi.formatSkillsForPrompt(skills.skills),
+              source: { kind: 'skills', resources: pi.skillPromptResources(skills.skills) }
+            })
+          },
+          {
+            key: 'mcp_instructions',
+            render: () =>
+              snapshot.mcpInstructions
+                ? { text: snapshot.mcpInstructions, source: { kind: 'mcp-instructions' } }
+                : undefined
+          }
         ]
       })
     )

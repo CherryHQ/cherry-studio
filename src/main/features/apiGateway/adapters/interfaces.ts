@@ -100,7 +100,7 @@ export interface IStreamAdapter<TOutputEvent = unknown> {
   buildNonStreamingResponse(): unknown
 
   /**
-   * Get the message ID for this adapter instance
+   * Get the response ID serialized on the provider-compatible wire
    */
   getMessageId(): string
 

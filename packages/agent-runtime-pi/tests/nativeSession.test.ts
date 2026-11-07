@@ -11,7 +11,7 @@ import {
 import { defineTool, ModelRuntime } from '@earendil-works/pi-coding-agent'
 import { expect, it, onTestFinished } from 'vitest'
 
-import { createAgentRuntimeSession } from '../src'
+import { createAgentRuntimeSession } from '../src/session'
 
 it('runs native providers and tools without an AI SDK bridge and preserves the borrowed runtime on close', async () => {
   const cwd = mkdtempSync(path.join(tmpdir(), 'native-pi-'))
