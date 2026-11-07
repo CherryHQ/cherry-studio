@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
+import type * as AgentModelFilterModule from '@renderer/hooks/agent/useAgentModelFilter'
 import { MODEL_CAPABILITY, type Model } from '@shared/data/types/model'
 
 import { ResourceEditDialogHost } from '../ResourceEditDialogHost'
@@ -36,7 +37,7 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
 }))
 
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@renderer/hooks/agent/useAgentModelFilter')>()),
+  ...(await importOriginal<typeof AgentModelFilterModule>()),
   useAgentModelFilter: () => vi.fn(() => true)
 }))
 

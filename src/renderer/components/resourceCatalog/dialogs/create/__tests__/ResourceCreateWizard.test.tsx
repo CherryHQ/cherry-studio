@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import type * as ReactHookForm from 'react-hook-form'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type * as AgentModelFilterModule from '@renderer/hooks/agent/useAgentModelFilter'
 import type { AgentType } from '@shared/data/types/agent'
 import { MODEL_CAPABILITY, type Model, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -49,7 +50,7 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 }))
 
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@renderer/hooks/agent/useAgentModelFilter')>()),
+  ...(await importOriginal<typeof AgentModelFilterModule>()),
   useAgentModelFilter: (agentType: AgentType | undefined) => (model: Model, provider?: Provider) =>
     modelHook.agentModelFilter(agentType, model, provider)
 }))

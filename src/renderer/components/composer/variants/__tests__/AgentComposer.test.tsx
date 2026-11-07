@@ -12,6 +12,7 @@ import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { ChatSidePaddingProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import type * as ModelSpeedControlModule from '@renderer/components/ModelSpeedControl'
+import type * as AgentModelFilterModule from '@renderer/hooks/agent/useAgentModelFilter'
 import { handOffAgentDraft } from '@renderer/services/agentDraftHandoff'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
@@ -519,7 +520,7 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
 }))
 
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@renderer/hooks/agent/useAgentModelFilter')>()),
+  ...(await importOriginal<typeof AgentModelFilterModule>()),
   useAgentModelFilter: () => undefined
 }))
 

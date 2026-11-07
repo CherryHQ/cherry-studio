@@ -1,3 +1,4 @@
+import type * as AgentModelFilterModule from '@renderer/hooks/agent/useAgentModelFilter'
 import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -35,7 +36,7 @@ vi.mock('@renderer/components/ModelSelector', () => ({
 }))
 
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@renderer/hooks/agent/useAgentModelFilter')>()),
+  ...(await importOriginal<typeof AgentModelFilterModule>()),
   useAgentModelFilter: () => () => true
 }))
 
