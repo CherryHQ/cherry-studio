@@ -88,13 +88,8 @@ describe('patched @ai-sdk/openai Responses reasoning parser', () => {
     })
   })
 
-  it('normalizes response.reasoning_text.delta into reasoning stream parts', async () => {
+  it('starts a reasoning part when response.reasoning_text.delta arrives without an item-added event', async () => {
     const events = [
-      {
-        type: 'response.output_item.added',
-        output_index: 0,
-        item: { type: 'reasoning', id: 'reasoning-item', encrypted_content: null }
-      },
       { type: 'response.reasoning_text.delta', item_id: 'reasoning-item', delta: 'First ' },
       { type: 'response.reasoning_text.delta', item_id: 'reasoning-item', delta: 'step' },
       {
