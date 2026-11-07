@@ -220,6 +220,75 @@ describe('FeishuAdapter', () => {
     expect(mockDisconnect).toHaveBeenCalledTimes(2)
   })
 
+  it('retries the initial handshake with backoff instead of staying down (REGRESSION channel-startup-retry)', async () => {
+    vi.useFakeTimers()
+    mockConnect.mockRejectedValueOnce(new Error('fetch failed')).mockResolvedValueOnce(undefined)
+    const adapter = createAdapter()
+    const statuses: Array<{ connected: boolean }> = []
+    adapter.on('statusChange', (status) => statuses.push(status))
+
+    await adapter.connect()
+    expect(adapter.connected).toBe(false)
+    expect(mockConnect).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(mockConnect).toHaveBeenCalledTimes(2)
+    expect(adapter.connected).toBe(true)
+    expect(statuses.map((status) => status.connected)).toEqual([false, true])
+  })
+
+  it('backs off repeatedly while the network stays down (REGRESSION channel-startup-retry)', async () => {
+    vi.useFakeTimers()
+    mockConnect
+      .mockRejectedValueOnce(new Error('fetch failed'))
+      .mockRejectedValueOnce(new Error('fetch failed'))
+      .mockResolvedValueOnce(undefined)
+    const adapter = createAdapter()
+
+    await adapter.connect()
+    expect(mockConnect).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(mockConnect).toHaveBeenCalledTimes(2)
+    expect(adapter.connected).toBe(false)
+
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(mockConnect).toHaveBeenCalledTimes(3)
+    expect(adapter.connected).toBe(true)
+    expect(adapter.reconnectAttempts).toBe(0)
+  })
+
+  it('does not retry the initial handshake after disconnect (REGRESSION channel-startup-retry)', async () => {
+    vi.useFakeTimers()
+    mockConnect.mockRejectedValueOnce(new Error('fetch failed'))
+    const adapter = createAdapter()
+
+    await adapter.connect()
+    await adapter.disconnect()
+    await vi.advanceTimersByTimeAsync(60000)
+
+    expect(mockConnect).toHaveBeenCalledTimes(1)
+  })
+
+  it('stops retrying after the reconnect attempt cap (REGRESSION channel-startup-retry)', async () => {
+    vi.useFakeTimers()
+    mockConnect.mockRejectedValue(new Error('fetch failed'))
+    const adapter = createAdapter()
+
+    await adapter.connect()
+    // Drain the full budget: 50 retries at capped 60s backoff after the initial attempt.
+    for (let i = 0; i < 60; i++) await vi.advanceTimersByTimeAsync(60000)
+
+    expect(mockConnect).toHaveBeenCalledTimes(51)
+    expect(loggerMocks.error).toHaveBeenCalledWith(
+      'Feishu max reconnect attempts reached, giving up',
+      expect.objectContaining({ channelId: 'ch-1' })
+    )
+
+    await vi.advanceTimersByTimeAsync(60000)
+    expect(mockConnect).toHaveBeenCalledTimes(51)
+  })
+
   it('starts QR registration when credentials are missing', async () => {
     registrationMocks.begin.mockResolvedValue({
       deviceCode: 'device-code',
