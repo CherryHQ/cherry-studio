@@ -1,5 +1,6 @@
 import {
   ENDPOINT_TYPE,
+  type EndpointType,
   MODALITY,
   type Modality,
   type Model,
@@ -14,7 +15,8 @@ import type {
   ModelCapabilityToggle,
   ModelClassificationState,
   ModelDrawerEndpointType,
-  ModelInputModality
+  ModelInputModality,
+  ModelPrimaryType
 } from './types'
 
 const TOGGLE_TO_CAPABILITY: Record<ModelCapabilityToggle, ModelCapability> = {
@@ -213,4 +215,35 @@ export function areModelClassificationsEqual(left: ModelClassificationState, rig
     left.inputModalities.size === right.inputModalities.size &&
     [...left.inputModalities].every((modality) => right.inputModalities.has(modality))
   )
+}
+
+/**
+ * Non-chat primary types own a single wire endpoint. Image stays purpose-driven
+ * (`image-generation` vs `image-edit`); embedding/rerank are classification-only today.
+ */
+export function endpointTypeForPrimaryType(primaryType: ModelPrimaryType | null): EndpointType | undefined {
+  switch (primaryType) {
+    case 'embedding':
+      return ENDPOINT_TYPE.OPENAI_EMBEDDINGS
+    case 'rerank':
+      return ENDPOINT_TYPE.JINA_RERANK
+    default:
+      return undefined
+  }
+}
+
+/**
+ * Purpose-mode previously kept chat `endpointTypes` when the user classified a
+ * model as embedding/rerank. Health checks then probed `/chat/completions` and
+ * failed with 400 on hosts like Cloudflare Workers AI (`/ai/v1`). Let the
+ * primary type own the endpoint when it implies one.
+ */
+export function resolveEndpointTypesForClassification(
+  primaryType: ModelPrimaryType | null,
+  purposeOrFallbackEndpointTypes: readonly EndpointType[] | undefined
+): EndpointType[] | undefined {
+  const owned = endpointTypeForPrimaryType(primaryType)
+  if (owned) return [owned]
+  if (purposeOrFallbackEndpointTypes?.length) return [...purposeOrFallbackEndpointTypes]
+  return undefined
 }
