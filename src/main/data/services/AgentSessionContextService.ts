@@ -181,6 +181,27 @@ class AgentSessionContextService {
     // instead of falling back to a healthy ancestor's native binding, while
     // sibling branches (whose paths exclude the boundary row) are untouched
     // (#23519 review).
+    const effectivePath = this.effectivePathTx(tx, sessionId, path)
+    return effectivePath
+      .toReversed()
+      .map((row) => bindings.find((binding) => binding.anchorMessageId === row.id))
+      .find((binding) => binding !== undefined)
+  }
+
+  /**
+   * Whether the ancestry for `messageId` contains a stale-resume reset boundary.
+   * Allocation uses this to anchor a fresh branch at the failed head instead of
+   * reusing the hidden root anchor (which would violate
+   * `agent_session_context_anchor_uniq`). Sibling paths exclude the boundary row,
+   * so they keep resolving to the retained root binding (#23519 review).
+   */
+  hasStaleResetBoundaryTx(tx: DbOrTx, sessionId: string, messageId: string): boolean {
+    const path = readAgentSessionAncestry(tx, sessionId, messageId)
+    if (path.length === 0) return false
+    return this.effectivePathTx(tx, sessionId, path).length !== path.length
+  }
+
+  private effectivePathTx(tx: DbOrTx, sessionId: string, path: { id: string; parentId: string | null }[]) {
     let effectivePath = path
     if (path.length > 0) {
       try {
@@ -211,9 +232,24 @@ class AgentSessionContextService {
       }
     }
     return effectivePath
-      .toReversed()
-      .map((row) => bindings.find((binding) => binding.anchorMessageId === row.id))
-      .find((binding) => binding !== undefined)
+  }
+
+  /**
+   * Rotate a reset-bound branch to a fresh native identity without moving its
+   * anchor. Used when `branchTx` still finds a binding at/below the
+   * stale-resume reset boundary (e.g. an edit-fork row anchored at the failed
+   * head): reusing its dead `nativeThreadId` would fail identically, and
+   * inserting a second row at the same anchor would violate
+   * `agent_session_context_anchor_uniq`. The row id and anchor are preserved so
+   * sibling branches (different anchors) are untouched (#23519 review).
+   */
+  refreshResetBranchTx(tx: DbOrTx, contextId: string, nativeThreadId: string): AgentSessionContextRow {
+    return tx
+      .update(contexts)
+      .set({ nativeThreadId, bindingState: 'pending', updatedAt: Date.now() })
+      .where(eq(contexts.id, contextId))
+      .returning()
+      .get()
   }
 
   publishBranchTx(tx: DbOrTx, sessionId: string, nativeId: string, checkpointMapping: Record<string, unknown>): void {

@@ -14,13 +14,17 @@ export function prepareDurableBranch(sessionId: string, messageId?: string) {
   agentSessionService.assertIndependentSession(sessionId)
   return application.get('DbService').withWriteTx((tx) => {
     const root = ensureAgentSessionRootTx(tx, sessionId)
-    const existing = contexts.branchTx(tx, sessionId, messageId ?? root)
+    const anchor = messageId ?? root
+    const existing = contexts.branchTx(tx, sessionId, anchor)
     if (existing) {
       if (contexts.backendTx(tx, existing.backendId).locator.kind !== 'pi-durable')
         throw new Error('The selected branch belongs to another runtime')
       return existing
     }
     const backend = allocateDurableBackendTx(tx)
-    return contexts.reserveBranchTx(tx, { sessionId, backendId: backend.id, anchorMessageId: root })
+    // Hidden root binding still occupies `(sessionId, root)` after a stale
+    // reset — anchor fresh at the failed head so siblings keep root.
+    const hasReset = contexts.hasStaleResetBoundaryTx(tx, sessionId, anchor)
+    return contexts.reserveBranchTx(tx, { sessionId, backendId: backend.id, anchorMessageId: hasReset ? anchor : root })
   })
 }

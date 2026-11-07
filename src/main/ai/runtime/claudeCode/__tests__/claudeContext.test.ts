@@ -78,3 +78,71 @@ it('rolls back an edit binding with its message metadata and then captures the s
   })
   expect(contexts.context(original.id).nativeThreadId).toBe(original.nativeThreadId)
 })
+
+it('reconnects fresh after a stale-resume reset without violating the root anchor', () => {
+  const rootContext = prepareClaudeBranch(sessionId, '/test/claude')
+  const parent = messages.saveMessage({
+    sessionId,
+    runtimeResumeToken: 'healthy-parent',
+    message: { role: 'assistant', data: { parts: [] } }
+  })
+  const staleChild = messages.saveMessage({
+    sessionId,
+    parentId: parent.id,
+    runtimeResumeToken: 'stale-id',
+    message: { role: 'assistant', data: { parts: [] } }
+  })
+  const sibling = messages.saveMessage({
+    sessionId,
+    parentId: parent.id,
+    runtimeResumeToken: 'healthy-sibling',
+    message: { role: 'assistant', data: { parts: [] } }
+  })
+
+  messages.clearRuntimeResumeTokens(sessionId, 'stale-id')
+  messages.markStaleResumeResetBoundary(sessionId, staleChild.id)
+
+  // Failed branch goes fresh instead of falling back to the healthy ancestor.
+  expect(messages.getLastRuntimeResumeToken(sessionId, staleChild.id)).toBeNull()
+
+  // Previously this threw `UNIQUE constraint failed:
+  // agent_session_context.session_id, agent_session_context.anchor_message_id`
+  // because the hidden root binding still occupied `(sessionId, root)` (#23519).
+  const reconnected = prepareClaudeBranch(sessionId, '/test/claude', undefined, staleChild.id)
+  expect(reconnected.anchorMessageId).toBe(staleChild.id)
+  expect(reconnected.nativeThreadId).toBeTruthy()
+  expect(reconnected.nativeThreadId).not.toBe(rootContext.nativeThreadId)
+  expect(reconnected.backendId).toBe(rootContext.backendId)
+
+  // Reconnect is idempotent — the fresh head-anchored binding is reused.
+  expect(prepareClaudeBranch(sessionId, '/test/claude', undefined, staleChild.id).id).toBe(reconnected.id)
+
+  // Healthy sibling paths exclude the boundary row and keep the root binding.
+  expect(prepareClaudeBranch(sessionId, '/test/claude', undefined, sibling.id).id).toBe(rootContext.id)
+  expect(messages.getLastRuntimeResumeToken(sessionId, sibling.id)).toBe('healthy-sibling')
+  expect(sessionContexts()).toHaveLength(2)
+})
+
+it('rotates a reset-bound edit fork instead of reusing its dead identity', () => {
+  prepareClaudeBranch(sessionId, '/test/claude')
+  const edited = messages.saveMessage({
+    sessionId,
+    message: { role: 'user', data: { parts: [{ type: 'text', text: 'Edited request' }] } }
+  })
+  const deadId = randomUUID()
+  const fork = application.get('DbService').withWriteTx((tx) => {
+    const reserved = reserveClaudeBranchTx(tx, sessionId, edited.id, deadId)
+    messages.setEditRuntimeTx(tx, sessionId, edited.id, deadId)
+    return reserved
+  })
+
+  messages.clearNativeSessionIds(sessionId, deadId)
+  messages.markStaleResumeResetBoundary(sessionId, edited.id)
+
+  const rotated = prepareClaudeBranch(sessionId, '/test/claude', undefined, edited.id)
+  expect(rotated.id).toBe(fork.id)
+  expect(rotated.anchorMessageId).toBe(edited.id)
+  expect(rotated.nativeThreadId).toBeTruthy()
+  expect(rotated.nativeThreadId).not.toBe(deadId)
+  expect(rotated.bindingState).toBe('pending')
+})
