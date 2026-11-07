@@ -10,8 +10,11 @@ export interface AgentBrowserContext {
 export type AgentBrowserTarget = BrowserGuestTarget
 
 export class AgentBrowserRegistry extends BrowserGuestRegistry {
-  constructor(claims?: Map<Electron.WebContents, BrowserGuestTarget>) {
-    super((id) => agentSessionService.getById(id).agentId ?? '', 'agent', claims)
+  constructor(
+    claims?: Map<Electron.WebContents, BrowserGuestTarget>,
+    checkGuest?: (target: BrowserGuestTarget) => Promise<boolean>
+  ) {
+    super((id) => agentSessionService.getById(id).agentId ?? '', 'agent', claims, checkGuest)
   }
 
   override get(context: AgentBrowserContext | BrowserGuestContext) {

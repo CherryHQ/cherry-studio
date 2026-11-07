@@ -6403,6 +6403,7 @@
   "webview.browser.import_hint": "Importa tu historial y los datos de sitios web desde otro navegador.",
   "webview.browser.load_failed": "No se pudo cargar esta página. Comprueba que el servidor local siga en ejecución.",
   "webview.browser.loading": "Cargando página…",
+  "webview.browser.recreated": "La página del navegador se ha reconstruido automáticamente. Vuelve a abrirla para continuar.",
   "webview.navigation.address": "Dirección web",
   "webview.navigation.address_placeholder": "Introduce una URL",
   "webview.navigation.back": "Atrás",

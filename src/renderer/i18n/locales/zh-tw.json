@@ -6403,6 +6403,7 @@
   "webview.browser.import_hint": "從其他瀏覽器匯入歷史記錄和網站資料。",
   "webview.browser.load_failed": "無法載入此頁面。請確認本機伺服器仍在執行。",
   "webview.browser.loading": "正在載入頁面…",
+  "webview.browser.recreated": "瀏覽器頁面已自動重建。請重新開啟頁面以繼續。",
   "webview.navigation.address": "網址",
   "webview.navigation.address_placeholder": "輸入網址",
   "webview.navigation.back": "上一頁",

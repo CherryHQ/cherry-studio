@@ -12,9 +12,21 @@ export function useAgentBrowserGuest(
   sessionId: string | undefined,
   guest: WebviewTag | null,
   revision: number,
-  scope?: 'agent' | 'topic'
+  scope?: 'agent' | 'topic',
+  requestId?: string,
+  expiresAt?: number
 ): string | undefined {
-  const [binding, setBinding] = useState<{ guest: WebviewTag; sessionId: string; tabId: string }>()
+  const [binding, setBinding] = useState<{
+    guest: WebviewTag
+    sessionId: string
+    tabId: string
+    revision: number
+    requestId?: string
+    expiresAt?: number
+  }>()
+  const current = binding?.guest === guest && binding?.sessionId === sessionId && binding.revision === revision
+  const bindingRequestId = requestId ?? (current ? binding.requestId : undefined)
+  const bindingExpiresAt = expiresAt ?? (current ? binding.expiresAt : undefined)
   const operations = useRef(new Sequencer())
   useEffect(() => {
     if (!sessionId || !guest) return
@@ -59,18 +71,20 @@ export function useAgentBrowserGuest(
       attaching = true
       void queue.queue(async () => {
         try {
-          if (cancelled) return
+          if (cancelled || (bindingExpiresAt !== undefined && bindingExpiresAt <= Date.now())) return
           const webviewId = guest.getWebContentsId()
           if (!webviewId) return
           const result = await ipcApi.request('browser.pane.attach', {
             sessionId,
             webviewId,
-            ...(scope ? { scope } : {})
+            ...(scope ? { scope } : {}),
+            ...(bindingRequestId ? { requestId: bindingRequestId } : {})
           })
-          if (cancelled) await detach(result.tabId)
+          if (cancelled || (bindingExpiresAt !== undefined && bindingExpiresAt <= Date.now()))
+            await detach(result.tabId)
           else {
             tabId = result.tabId
-            setBinding({ guest, sessionId, tabId })
+            setBinding({ guest, sessionId, tabId, revision, requestId: bindingRequestId, expiresAt: bindingExpiresAt })
           }
         } catch (error) {
           logger.debug('Browser guest is not ready to attach', { error })
@@ -92,6 +106,6 @@ export function useAgentBrowserGuest(
           .catch((error) => logger.debug('Browser guest already detached', { error }))
       }
     }
-  }, [sessionId, guest, revision, scope])
-  return binding?.guest === guest && binding?.sessionId === sessionId ? binding?.tabId : undefined
+  }, [sessionId, guest, revision, scope, bindingRequestId, bindingExpiresAt])
+  return current ? binding.tabId : undefined
 }

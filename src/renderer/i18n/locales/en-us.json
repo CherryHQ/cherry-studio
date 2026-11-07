@@ -6403,6 +6403,7 @@
   "webview.browser.import_hint": "Bring your history and website data from another browser.",
   "webview.browser.load_failed": "This page could not be loaded. Check that the local server is still running.",
   "webview.browser.loading": "Loading page…",
+  "webview.browser.recreated": "The browser page was rebuilt automatically. Reopen the page to continue.",
   "webview.navigation.address": "Web address",
   "webview.navigation.address_placeholder": "Enter a URL",
   "webview.navigation.back": "Back",
