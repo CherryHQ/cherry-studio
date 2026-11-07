@@ -81,7 +81,29 @@ export function assertOwnedProcess(record: ProcessOwner, pid: number, kind: 'ele
   }
 }
 
-export function terminateOwnedMacProcessGroup(record: ProcessOwner, signal: 'SIGTERM' | 'SIGKILL' = 'SIGTERM'): void {
+interface MacProcessIdentity {
+  pid: number
+  command: string
+  startedAt: string
+}
+
+function macProcessStartedAt(pid: string): string {
+  try {
+    return execFileSync('ps', ['-o', 'lstart=', '-p', pid], {
+      encoding: 'utf8',
+      timeout: 10_000,
+      stdio: ['ignore', 'pipe', 'ignore']
+    }).trim()
+  } catch {
+    return ''
+  }
+}
+
+export function terminateOwnedMacProcessGroup(
+  record: ProcessOwner,
+  signal: 'SIGTERM' | 'SIGKILL' = 'SIGTERM',
+  previouslyVerified: readonly MacProcessIdentity[] = []
+): MacProcessIdentity[] {
   const group = execFileSync('ps', ['-axo', 'pid=,pgid=,stat=,command='], { encoding: 'utf8', timeout: 10_000 })
     .split(/\r?\n/)
     .map((line) => line.trim().match(/^(\d+)\s+(\d+)\s+(\S+)\s+(.*)$/))
@@ -91,15 +113,28 @@ export function terminateOwnedMacProcessGroup(record: ProcessOwner, signal: 'SIG
     if (group.length === 0 && isAlive(record.runnerPid)) {
       throw new Error('Refusing cleanup: runner no longer owns its process group')
     }
-    return
+    return []
   }
+  const identities = members.map((member) => ({
+    pid: Number(member[1]),
+    command: member[4],
+    startedAt: macProcessStartedAt(member[1])
+  }))
+  const knownSurvivors = identities.every(
+    (member) =>
+      member.startedAt &&
+      previouslyVerified.some(
+        (previous) =>
+          previous.pid === member.pid && previous.command === member.command && previous.startedAt === member.startedAt
+      )
+  )
   const runnerExited = group.some((member) => Number(member[1]) === record.runnerPid && member[3].startsWith('Z'))
   if (!runnerExited && isAlive(record.runnerPid)) {
     assertOwnedProcess(record, record.runnerPid, 'runner')
     if (!members.some((member) => Number(member[1]) === record.runnerPid)) {
       throw new Error('Refusing cleanup: runner no longer owns its process group')
     }
-  } else {
+  } else if (!knownSurvivors) {
     const expected = record.executablePath ?? (record.mode === 'branch' ? record.targetRoot : undefined)
     const appContents = record.executablePath?.match(/^(.*\.app\/Contents)\/MacOS\/[^/]+$/)?.[1]
     if (
@@ -113,6 +148,7 @@ export function terminateOwnedMacProcessGroup(record: ProcessOwner, signal: 'SIG
   }
   // detached macOS launches own a process group, including children without CDP listeners.
   process.kill(-record.runnerPid, signal)
+  return identities
 }
 
 export function hasLiveMacProcessGroupMembers(groupId: number): boolean {

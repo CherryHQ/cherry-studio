@@ -51,6 +51,40 @@ it('rechecks ownership before escalating to SIGKILL', () => {
   expect(kill.mock.calls.every(([, signal]) => signal === 0)).toBe(true)
 })
 
+it.each([false, true])('retains verified child ownership after the runner exits (PID reused: %s)', (reused) => {
+  let runnerAlive = true
+  let startedAt = 'Sat Nov 7 08:27:52 2026'
+  const alive = new Set([42000, 42001, 99000])
+  execFileSync.mockImplementation((_file, args) => {
+    if (args.includes('lstart=')) return startedAt
+    if (args.includes('-axo'))
+      return `${runnerAlive ? '42000 42000 S node /tmp/regression-target/node_modules/dotenv-cli/cli.js\n' : ''}42001 42000 S npx server-everything\n99000 99000 S TextEdit`
+    return 'node /tmp/regression-target/node_modules/dotenv-cli/cli.js'
+  })
+  vi.spyOn(process, 'kill').mockImplementation((pid, signal) => {
+    if (signal === 0) {
+      if (!alive.has(pid)) throw new Error('ESRCH')
+    } else if (pid === -42000) {
+      if (signal === 'SIGTERM') {
+        alive.delete(42000)
+        runnerAlive = false
+      } else {
+        alive.delete(42001)
+      }
+    }
+    return true
+  })
+  const verified = terminateOwnedMacProcessGroup(owner)
+  if (reused) {
+    startedAt = 'Sat Nov 7 08:28:15 2026'
+    expect(() => terminateOwnedMacProcessGroup(owner, 'SIGKILL', verified)).toThrow('Refusing cleanup')
+    expect([...alive]).toEqual([42001, 99000])
+  } else {
+    terminateOwnedMacProcessGroup(owner, 'SIGKILL', verified)
+    expect([...alive]).toEqual([99000])
+  }
+})
+
 it.each([true, false])(
   'terminates owned descendants without touching another process group (runner alive: %s)',
   (runnerAlive) => {

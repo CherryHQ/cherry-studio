@@ -32,6 +32,9 @@ External-resource cleanup rechecks target ownership before closing windows or te
 window that gains unrelated content is preserved, and its ledger entry remains available for a later cleanup retry.
 Process ownership requires a newly observed matching window; a new windowless process alone is not evidence.
 Once verified, that process identity remains eligible for cleanup after its windows close.
+macOS inspection retries disappearing accessibility objects only; permission and ownership failures still surface.
+Process-group shutdown retains each verified member's PID, command and start time for bounded escalation after
+the runner exits. A reused PID or an unknown orphan cannot inherit that proof.
 The explicit profile/restart operation prepares Windows connections by closing non-main windows before CDP attaches; simply locating a window does not perform this preparation. Both branch and installer launches enable the main-process inspector for this explicit compatibility step.
 
 ## Execution contract

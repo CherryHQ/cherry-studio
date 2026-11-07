@@ -78,3 +78,26 @@ it('reports native failure details without echoing the subprocess command or its
     expect(String(error)).not.toContain('synthetic-private-command')
   }
 })
+
+it('re-reads disappearing macOS objects and retains the fresh ownership result', () => {
+  execute.mockImplementationOnce(() => {
+    desktop.windows = [{ id: 'replacement', pid: process.pid, matches: false }]
+    throw Object.assign(new Error('Object disappeared'), { stderr: 'Cannot get object. (-1728)' })
+  })
+  const snapshot = externalAppRequest('macos', { action: 'inspect', target, root })
+  expect(snapshot.windows).toEqual([{ id: expect.any(String), pid: process.pid, matches: false }])
+})
+
+it('does not retry permission failures as if the desktop were empty', () => {
+  execute.mockImplementationOnce(() => {
+    throw Object.assign(new Error('Denied'), { stderr: 'Not authorized. (-1743)' })
+  })
+  expect(() => externalAppRequest('macos', { action: 'inspect', target, root })).toThrow('Not authorized')
+})
+
+it('surfaces persistent disappearing-object errors instead of reporting successful cleanup', () => {
+  execute.mockImplementation(() => {
+    throw Object.assign(new Error('Object disappeared'), { stderr: 'Cannot get object. (-1728)' })
+  })
+  expect(() => externalAppRequest('macos', { action: 'inspect', target, root })).toThrow('Cannot get object')
+})

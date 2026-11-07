@@ -192,8 +192,9 @@ export async function searchAndFetch(app: RegressionApp, page: Page, testInfo: T
     await attachScreenshot('MP-35 search disabled response')
 
     await toggle.click()
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true')
     const fetched = await send(
-      'Use web_fetch to read https://example.com/ . Report the actual page title and summarize its body. Cite the fetched source. Do not answer from memory.'
+      'Web search has now been re-enabled for this turn. Discover web_fetch with tool_search if necessary and use it to read https://example.com/ . Report the actual page title and summarize its body. Cite the fetched source. Do not answer from memory.'
     )
     expect.soft(fetched.message.status).toBe('success')
     const pages = outputs(fetched.message, 'web_fetch')

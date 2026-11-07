@@ -350,9 +350,9 @@ async function stopOwnedRecord(record: LaunchRecord): Promise<void> {
       await waitForExit(record.electronPid)
       await waitForMacProcessGroupExit(record.runnerPid)
     }
-    terminateOwnedMacProcessGroup(record)
+    const verifiedMembers = terminateOwnedMacProcessGroup(record)
     if (!(await waitForMacProcessGroupExit(record.runnerPid))) {
-      terminateOwnedMacProcessGroup(record, 'SIGKILL')
+      terminateOwnedMacProcessGroup(record, 'SIGKILL', verifiedMembers)
       if (!(await waitForMacProcessGroupExit(record.runnerPid))) {
         throw new Error(`Owned application process group ${record.runnerPid} did not exit after SIGKILL`)
       }

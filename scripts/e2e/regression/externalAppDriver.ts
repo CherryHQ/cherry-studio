@@ -67,7 +67,7 @@ export function externalAppRequest(platform: Platform, request: ExternalAppReque
   return { ...snapshot, windows: snapshot.windows.map((window) => ({ ...window, id: key(window.id) })) }
 }
 
-function runNativeRequest(platform: Platform, request: ExternalAppRequest): ExternalSnapshot {
+function runNativeRequest(platform: Platform, request: ExternalAppRequest, attempt = 0): ExternalSnapshot {
   const args =
     platform === 'macos'
       ? ['-l', 'JavaScript', '-e', MAC_EXTERNAL_APP_SCRIPT, '--', JSON.stringify(request)]
@@ -87,6 +87,8 @@ function runNativeRequest(platform: Platform, request: ExternalAppRequest): Exte
     return JSON.parse(output) as ExternalSnapshot
   } catch (error) {
     const failure = error as { stderr?: string; code?: string }
+    if (platform === 'macos' && request.action === 'inspect' && attempt < 2 && /\(-1728\)/.test(failure.stderr ?? ''))
+      return runNativeRequest(platform, request, attempt + 1)
     throw new Error(
       `External application ${request.action} failed: ${String(failure.stderr || failure.code || 'native automation error').trim()}`
     )

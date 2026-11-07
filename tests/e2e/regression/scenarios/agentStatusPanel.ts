@@ -54,7 +54,8 @@ export async function agentStatusPanel(app: RegressionApp, page: Page, testInfo:
     const view = page.locator('[data-ui~="agent.view"]:visible').first()
     const panel = page.locator('[data-right-pane]:visible').last()
     await openAgentPane(page, 'Status')
-    await expect(panel.getByRole('heading', { name: 'Context usage', exact: true })).toBeVisible()
+    const context = panel.getByRole('region', { name: 'Context', exact: true })
+    await expect(context.getByRole('button', { name: 'Context', exact: true })).toBeVisible()
 
     const progressSamples: { completed: number; total: number; time: number }[] = []
     const progress = view.getByTestId('agent-task-progress-capsule').getByRole('progressbar')
@@ -109,14 +110,18 @@ export async function agentStatusPanel(app: RegressionApp, page: Page, testInfo:
     for (const file of files) {
       await expect.soft(messageCards.getByText(file.name, { exact: true }).first()).toBeVisible({ timeout: 10_000 })
     }
-    const context = panel.locator('section').filter({ has: page.getByRole('heading', { name: 'Context usage' }) })
-    await expect.soft(context).toContainText(/[\d,]+\s*\/\s*[\d,]+\s*\(\d+%\)/, { timeout: 15_000 })
+    await context.getByRole('button', { name: 'Context', exact: true }).click()
+    const usage = context.getByRole('meter', { name: 'Context', exact: true })
+    await expect.soft(usage).toBeVisible({ timeout: 15_000 })
+    expect.soft(Number(await usage.getAttribute('aria-valuenow'))).toBeGreaterThan(0)
+    expect.soft(Number(await usage.getAttribute('aria-valuemax'))).toBeGreaterThan(0)
     for (const category of ['System prompt', 'Messages']) {
       const row = context
-        .locator('div')
-        .filter({ has: page.getByText(category, { exact: true }) })
-        .last()
-      await expect.soft(row).toContainText(/[\d,]+\s*\(\d+%\)/, { timeout: 10_000 })
+        .getByRole('table', { name: 'Context usage', exact: true })
+        .getByRole('row')
+        .filter({ has: page.getByRole('rowheader', { name: category, exact: true }) })
+      await expect.soft(row.getByRole('cell').first()).toHaveText(/[\d,.]+[KMB]?/, { timeout: 10_000 })
+      await expect.soft(row.getByRole('cell').last()).toHaveText(/[\d,.]+%/)
     }
     await screenshot('MP-55 completed task and context categories')
 
