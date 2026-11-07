@@ -99,7 +99,11 @@ export interface FetchedSkill {
 }
 
 /** `openTempDir` is lazy so a malformed identifier is rejected before anything is written to disk. */
-type Fetcher = (identifier: string, openTempDir: () => Promise<string>) => Promise<Omit<FetchedSkill, 'tempDir'>>
+type Fetcher = (
+  identifier: string,
+  openTempDir: () => Promise<string>,
+  signal?: AbortSignal
+) => Promise<Omit<FetchedSkill, 'tempDir'>>
 
 const FETCHERS: Record<string, Fetcher> = {
   'claude-plugins': fetchFromClaudePlugins,
@@ -114,7 +118,11 @@ const FETCHERS: Record<string, Fetcher> = {
  * "skills.sh:{owner}/{repo}/{skillId}", "clawhub:{owner}/{slug}",
  * or "github:{https URL of the skill's SKILL.md}".
  */
-export async function fetchRemoteSkill(source: string, identifier: string): Promise<FetchedSkill> {
+export async function fetchRemoteSkill(
+  source: string,
+  identifier: string,
+  signal?: AbortSignal
+): Promise<FetchedSkill> {
   const fetcher = FETCHERS[source]
   if (!fetcher) {
     throw new Error(`Unknown install source: ${source}`)
@@ -125,7 +133,7 @@ export async function fetchRemoteSkill(source: string, identifier: string): Prom
   const openTempDir = async () => (tempDir = await createTempDir(source.replace(/[^a-zA-Z0-9-]/g, '-')))
 
   try {
-    const fetched = await fetcher(identifier, openTempDir)
+    const fetched = await fetcher(identifier, openTempDir, signal)
     return { tempDir, ...fetched }
   } catch (error) {
     if (tempDir) await safeRemoveDirectory(tempDir)
@@ -135,7 +143,8 @@ export async function fetchRemoteSkill(source: string, identifier: string): Prom
 
 async function fetchFromClaudePlugins(
   identifier: string,
-  openTempDir: () => Promise<string>
+  openTempDir: () => Promise<string>,
+  signal?: AbortSignal
 ): Promise<Omit<FetchedSkill, 'tempDir'>> {
   const parts = identifier.split('/')
   const [owner, repo, ...directoryParts] = parts
@@ -159,7 +168,7 @@ async function fetchFromClaudePlugins(
 
   const repoUrl = `https://github.com/${owner}/${repo}`
   const tempDir = await openTempDir()
-  const commit = await fetchGithubCommit(getGithubTransportUrl(repoUrl), 'HEAD', tempDir)
+  const commit = await fetchGithubCommit(getGithubTransportUrl(repoUrl), 'HEAD', tempDir, signal)
   const { contentDir, skillDir: targetDir } = await materializeGithubTarget(
     commit,
     { kind: 'directory', path: directoryPath },
@@ -190,7 +199,8 @@ async function fetchFromClaudePlugins(
  */
 async function fetchFromGithub(
   identifier: string,
-  openTempDir: () => Promise<string>
+  openTempDir: () => Promise<string>,
+  signal?: AbortSignal
 ): Promise<Omit<FetchedSkill, 'tempDir'>> {
   const location = parseGithubSkillUrl(identifier)
   if (!location) {
@@ -200,7 +210,7 @@ async function fetchFromGithub(
   const { owner, repo, refNamespace, refAndPath, descriptorFileName } = location
   const repoUrl = `https://github.com/${owner}/${repo}`
   const transportRepoUrl = getGithubTransportUrl(repoUrl)
-  const { ref, namespace, oid, target } = await resolveGithubCommit(transportRepoUrl, refAndPath, refNamespace)
+  const { ref, namespace, oid, target } = await resolveGithubCommit(transportRepoUrl, refAndPath, refNamespace, signal)
   logger.info('Installing from GitHub', { owner, repo, ref, namespace, oid, target })
 
   const sourcePath = target.kind === 'root' ? ref : `${ref}/${target.path}`
@@ -209,7 +219,7 @@ async function fetchFromGithub(
     : `${repoUrl}/blob/${encodeGithubPath(`${sourcePath}/${descriptorFileName}`)}`
 
   const tempDir = await openTempDir()
-  const commit = await fetchGithubCommit(transportRepoUrl, oid, tempDir)
+  const commit = await fetchGithubCommit(transportRepoUrl, oid, tempDir, signal)
   const { contentDir, skillDir } = await materializeGithubTarget(commit, target, [descriptorFileName])
   await validateRepositorySkillDirectory(contentDir, skillDir, path.join(skillDir, descriptorFileName))
   await assertSkillDirectoryWithinLimits(skillDir)
@@ -219,7 +229,8 @@ async function fetchFromGithub(
 
 async function fetchFromSkillsSh(
   identifier: string,
-  openTempDir: () => Promise<string>
+  openTempDir: () => Promise<string>,
+  signal?: AbortSignal
 ): Promise<Omit<FetchedSkill, 'tempDir'>> {
   const parts = identifier.split('/')
   if (
@@ -234,7 +245,7 @@ async function fetchFromSkillsSh(
   const [owner, repo, skillName] = parts
   const repoUrl = `https://github.com/${owner}/${repo}`
   const tempDir = await openTempDir()
-  const commit = await fetchGithubCommit(getGithubTransportUrl(repoUrl), 'HEAD', tempDir)
+  const commit = await fetchGithubCommit(getGithubTransportUrl(repoUrl), 'HEAD', tempDir, signal)
   // skills.sh names the skill, not its directory: check out only the descriptors to find it.
   const descriptorDir = path.join(tempDir, 'descriptors')
   await checkoutSparse(commit, descriptorDir, SKILL_DESCRIPTOR_FILE_NAMES)
@@ -270,9 +281,30 @@ function getGithubTransportUrl(repoUrl: string): string {
   return `${mirror.toString().replace(/\/+$/, '')}/${repoUrl}`
 }
 
+/**
+ * Iterate a `net.fetch` response body. Electron rejects the fetch promise with the signal's reason
+ * only until the response headers arrive; an abort during body streaming errors the body stream
+ * with a native `AbortError` instead (`ClientRequest.abort` destroys the response stream without
+ * the reason). When the signal aborted, rethrow its reason so cancelling mid-body reaches the same
+ * cancelled outcome as cancelling before the response; every other failure passes through.
+ */
+async function* readNetResponseBody(response: Response, signal?: AbortSignal): AsyncGenerator<Uint8Array> {
+  try {
+    for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
+      yield chunk
+    }
+  } catch (error) {
+    if (signal?.aborted && error instanceof Error && error.name === 'AbortError') {
+      signal.throwIfAborted()
+    }
+    throw error
+  }
+}
+
 async function fetchFromClawhub(
   identifier: string,
-  openTempDir: () => Promise<string>
+  openTempDir: () => Promise<string>,
+  signal?: AbortSignal
 ): Promise<Omit<FetchedSkill, 'tempDir'>> {
   const [ownerHandle, slug, ...extraParts] = identifier.split('/')
   const invalidPart = (part: string | undefined) => !part || !/^[a-zA-Z0-9_.-]+$/.test(part)
@@ -283,6 +315,7 @@ async function fetchFromClawhub(
   const detailUrl = new URL(`https://clawhub.ai/api/v1/skills/${encodeURIComponent(slug)}`)
   detailUrl.searchParams.set('ownerHandle', ownerHandle)
   const detailResp = await net.fetch(detailUrl.toString(), {
+    signal,
     headers: { 'User-Agent': 'CherryStudio' }
   })
 
@@ -292,7 +325,7 @@ async function fetchFromClawhub(
 
   const detailChunks: Uint8Array[] = []
   let detailBytes = 0
-  for await (const chunk of detailResp.body as unknown as AsyncIterable<Uint8Array>) {
+  for await (const chunk of readNetResponseBody(detailResp, signal)) {
     detailBytes += chunk.byteLength
     if (detailBytes > MAX_CLAWHUB_DETAIL_BYTES) {
       throw new Error(`clawhub detail exceeds the ${MAX_CLAWHUB_DETAIL_BYTES}-byte limit`)
@@ -316,6 +349,7 @@ async function fetchFromClawhub(
   downloadUrl.searchParams.set('slug', slug)
   downloadUrl.searchParams.set('ownerHandle', ownerHandle)
   const downloadResp = await net.fetch(downloadUrl.toString(), {
+    signal,
     headers: { 'User-Agent': 'CherryStudio' }
   })
 
@@ -335,7 +369,7 @@ async function fetchFromClawhub(
   const handle = await fs.promises.open(zipPath, 'w')
   try {
     let received = 0
-    for await (const chunk of downloadResp.body as unknown as AsyncIterable<Uint8Array>) {
+    for await (const chunk of readNetResponseBody(downloadResp, signal)) {
       received += chunk.byteLength
       if (received > MAX_SKILL_SIZE) {
         throw new Error(`clawhub archive exceeds the ${MAX_SKILL_SIZE}-byte limit`)
@@ -374,15 +408,18 @@ async function fetchFromClawhub(
 async function resolveGithubCommit(
   repoUrl: string,
   refAndPath: string[],
-  refNamespace: 'heads' | 'tags' | null
+  refNamespace: 'heads' | 'tags' | null,
+  signal?: AbortSignal
 ): Promise<{ ref: string; namespace: 'heads' | 'tags' | null; oid: string; target: GithubSkillTarget }> {
   const gitCommand = await resolveGitCommand()
-  const output = await runGit(gitCommand, ['ls-remote', '--heads', '--tags', '--', repoUrl]).catch((error: unknown) => {
-    if (!(error instanceof CommandOutputLimitError)) throw error
-    throw new Error(`${repoUrl} lists too many branches and tags to resolve "${refAndPath.join('/')}"`, {
-      cause: error
-    })
-  })
+  const output = await runGit(gitCommand, ['ls-remote', '--heads', '--tags', '--', repoUrl], signal).catch(
+    (error: unknown) => {
+      if (!(error instanceof CommandOutputLimitError)) throw error
+      throw new Error(`${repoUrl} lists too many branches and tags to resolve "${refAndPath.join('/')}"`, {
+        cause: error
+      })
+    }
+  )
   const refs = output.split('\n').flatMap((line) => {
     const [oid, fullName] = line.split('\t').map((part) => part.trim())
     // `^{}` marks a tag's dereferenced commit; the tag itself is already listed.
@@ -419,12 +456,17 @@ async function resolveGithubCommit(
  * Fetch one commit's trees into a bare repository. File contents stay on the remote until a sparse
  * checkout asks for them, so a small skill in a large repository never downloads the rest.
  */
-async function fetchGithubCommit(repoUrl: string, revision: string, tempDir: string): Promise<FetchedGithubCommit> {
+async function fetchGithubCommit(
+  repoUrl: string,
+  revision: string,
+  tempDir: string,
+  signal?: AbortSignal
+): Promise<FetchedGithubCommit> {
   const gitCommand = await resolveGitCommand()
   const gitDir = path.join(tempDir, 'repo.git')
-  const git = (args: string[]) => runGit(gitCommand, [`--git-dir=${gitDir}`, ...args])
+  const git = (args: string[]) => runGit(gitCommand, [`--git-dir=${gitDir}`, ...args], signal)
 
-  await runGit(gitCommand, ['init', '--bare', '--quiet', gitDir])
+  await runGit(gitCommand, ['init', '--bare', '--quiet', gitDir], signal)
   await git(['fetch', '--quiet', '--depth', '1', '--filter=blob:none', '--no-tags', '--', repoUrl, revision])
   return { gitDir, tempDir, git }
 }
@@ -525,12 +567,13 @@ function assertGithubTargetTree(
  * The single entry point for every git subprocess an install spawns: bounded, non-interactive, and
  * routed through Cherry's proxy — which lives in the main process env, not in the captured login shell.
  */
-async function runGit(gitCommand: string, args: string[]): Promise<string> {
+async function runGit(gitCommand: string, args: string[], signal?: AbortSignal): Promise<string> {
   const env = await getShellEnv()
   return executeCommand(gitCommand, args, {
     capture: true,
     maxOutputBytes: MAX_GIT_OUTPUT_BYTES,
     timeout: GIT_COMMAND_TIMEOUT_MS,
+    signal,
     env: {
       ...env,
       ...getProxyEnvironment(process.env),

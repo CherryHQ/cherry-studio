@@ -27,6 +27,10 @@ export const skillRequestSchemas = {
     input: z.object({ installSource: z.string() }),
     output: z.custom<SkillResult<InstalledSkill>>()
   }),
+  'skill.install_cancel': defineRoute({
+    input: z.object({ installSource: z.string() }),
+    output: z.boolean()
+  }),
   'skill.uninstall': defineRoute({
     input: z.object({ skillId: z.string() }),
     output: z.custom<SkillResult<void>>()

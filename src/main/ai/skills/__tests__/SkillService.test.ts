@@ -30,6 +30,7 @@ import type * as ShellEnvModule from '@main/utils/shellEnv'
 import { SKILL_LIST_MEMBERSHIP_DIMENSIONS } from '@shared/data/api/schemas/skills'
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import { BINARY_INSTALL_PREFERENCE_KEY } from '@shared/data/presets/binaryTools'
+import { SKILL_INSTALL_CANCELLED_MESSAGE } from '@shared/types/skill'
 
 const notifyDataApiDataChangeMock = vi.hoisted(() => vi.fn())
 
@@ -910,6 +911,36 @@ describe('SkillService', () => {
   })
 
   describe('install', () => {
+    it('reports whether a cancel reached an in-flight install', () => {
+      expect(new SkillService().cancelInstall('github:https://github.com/o/r/blob/main/SKILL.md')).toBe(false)
+    })
+
+    it('joins an overlapping same-source install so Cancel always targets the running attempt', async () => {
+      const skillService = new SkillService()
+      const source = 'github:https://github.com/o/r/blob/main/SKILL.md'
+      let resolveRun!: (skill: unknown) => void
+      let observedSignal!: AbortSignal
+      const run = vi.spyOn(skillService as any, 'runMarketplaceInstall').mockImplementation(((
+        _source: string,
+        signal: AbortSignal
+      ) => {
+        observedSignal = signal
+        return new Promise((resolve) => (resolveRun = resolve))
+      }) as never)
+
+      const first = skillService.install({ installSource: source })
+      const second = skillService.install({ installSource: source })
+      expect(run).toHaveBeenCalledTimes(1)
+
+      expect(skillService.cancelInstall(source)).toBe(true)
+      expect(observedSignal.aborted).toBe(true)
+
+      resolveRun({ id: 'skill-1' })
+      await expect(first).resolves.toEqual({ id: 'skill-1' })
+      await expect(second).resolves.toEqual({ id: 'skill-1' })
+      expect(skillService.cancelInstall(source)).toBe(false)
+    })
+
     it('throws on unknown install source', async () => {
       const skillService = new SkillService()
       await expect(skillService.install({ installSource: 'unknown:foo/bar' })).rejects.toThrow(
@@ -1712,13 +1743,15 @@ describe('SkillService', () => {
 
         expect(result).toBe(installedSkill)
         expect(net.fetch).toHaveBeenNthCalledWith(1, 'https://clawhub.ai/api/v1/skills/code?ownerHandle=ivangdavila', {
-          headers: { 'User-Agent': 'CherryStudio' }
+          headers: { 'User-Agent': 'CherryStudio' },
+          signal: expect.any(AbortSignal)
         })
         expect(net.fetch).toHaveBeenNthCalledWith(
           2,
           'https://clawhub.ai/api/v1/download?slug=code&ownerHandle=ivangdavila',
           {
-            headers: { 'User-Agent': 'CherryStudio' }
+            headers: { 'User-Agent': 'CherryStudio' },
+            signal: expect.any(AbortSignal)
           }
         )
         expect(createTempDirSpy).toHaveBeenCalledWith('clawhub')
@@ -1825,6 +1858,107 @@ describe('SkillService', () => {
         )
         expect(pulled).toBeLessThanOrEqual((1024 * 1024) / chunk.byteLength + 2)
         expect(net.fetch).toHaveBeenCalledTimes(1)
+      })
+    })
+
+    describe('clawhub cancellation', () => {
+      const clawhubDetailJson = JSON.stringify({
+        skill: { slug: 'code', displayName: 'Code', summary: 'Coding workflow' },
+        owner: { handle: 'ivangdavila', displayName: 'Ivan', image: null },
+        moderation: null
+      })
+
+      // Electron's net.fetch delivers the abort reason to the fetch promise only until the response
+      // headers arrive. An abort while the body streams errors the body reader with a native
+      // AbortError instead, because ClientRequest.abort destroys the response stream without the
+      // reason. This body reproduces that shape: firstChunk flows, the consumer blocks, and the
+      // stream errors with a native AbortError once the request's signal aborts.
+      const electronNetBody = (signal: AbortSignal | null, firstChunk: Uint8Array, onBlocked: () => void) =>
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(firstChunk)
+            signal?.addEventListener(
+              'abort',
+              () => controller.error(new DOMException('The operation was aborted', 'AbortError')),
+              { once: true }
+            )
+          },
+          pull: onBlocked
+        })
+
+      it('reports a cancel that lands while the detail body streams as cancelled, not a failure', async () => {
+        const skillService = new SkillService()
+        let bodyBlocked!: () => void
+        const blocked = new Promise<void>((resolve) => (bodyBlocked = resolve))
+        vi.mocked(net.fetch).mockImplementationOnce(
+          async (_input, init) =>
+            new Response(electronNetBody(init?.signal ?? null, new Uint8Array([0x7b]), bodyBlocked), {
+              headers: { 'Content-Type': 'application/json' },
+              status: 200
+            })
+        )
+
+        const install = skillService.install({ installSource: 'clawhub:ivangdavila/code' })
+        const rejection = expect(install).rejects.toThrow(SKILL_INSTALL_CANCELLED_MESSAGE)
+        await blocked
+        expect(skillService.cancelInstall('clawhub:ivangdavila/code')).toBe(true)
+        await rejection
+        expect(net.fetch).toHaveBeenCalledTimes(1)
+      })
+
+      it('reports a cancel that lands while the archive body streams as cancelled, not a failure', async () => {
+        const skillService = new SkillService()
+        const tempDir = await createTempDir('skill-clawhub-cancel-archive-')
+        let bodyBlocked!: () => void
+        const blocked = new Promise<void>((resolve) => (bodyBlocked = resolve))
+        vi.mocked(net.fetch)
+          .mockResolvedValueOnce(
+            new Response(clawhubDetailJson, { headers: { 'Content-Type': 'application/json' }, status: 200 })
+          )
+          .mockImplementationOnce(
+            async (_input, init) =>
+              new Response(electronNetBody(init?.signal ?? null, new Uint8Array([1, 2, 3]), bodyBlocked), {
+                status: 200
+              })
+          )
+        const createTempDirSpy = vi.mocked(skillPaths.createTempDir).mockResolvedValue(tempDir)
+
+        try {
+          const install = skillService.install({ installSource: 'clawhub:ivangdavila/code' })
+          const rejection = expect(install).rejects.toThrow(SKILL_INSTALL_CANCELLED_MESSAGE)
+          await blocked
+          expect(skillService.cancelInstall('clawhub:ivangdavila/code')).toBe(true)
+          await rejection
+        } finally {
+          createTempDirSpy.mockRestore()
+          vi.mocked(net.fetch).mockReset()
+        }
+      })
+
+      it('keeps an unrelated mid-body failure instead of reporting it as a cancel', async () => {
+        const skillService = new SkillService()
+        const tempDir = await createTempDir('skill-clawhub-body-failure-')
+        const body = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new Uint8Array([1, 2, 3]))
+            queueMicrotask(() => controller.error(new Error('net::ERR_CONNECTION_RESET')))
+          }
+        })
+        vi.mocked(net.fetch)
+          .mockResolvedValueOnce(
+            new Response(clawhubDetailJson, { headers: { 'Content-Type': 'application/json' }, status: 200 })
+          )
+          .mockResolvedValueOnce(new Response(body, { status: 200 }))
+        const createTempDirSpy = vi.mocked(skillPaths.createTempDir).mockResolvedValue(tempDir)
+
+        try {
+          await expect(skillService.install({ installSource: 'clawhub:ivangdavila/code' })).rejects.toThrow(
+            'net::ERR_CONNECTION_RESET'
+          )
+        } finally {
+          createTempDirSpy.mockRestore()
+          vi.mocked(net.fetch).mockReset()
+        }
       })
     })
 
