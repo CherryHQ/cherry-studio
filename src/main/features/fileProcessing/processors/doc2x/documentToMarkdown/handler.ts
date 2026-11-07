@@ -1,14 +1,26 @@
-import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
+import type { FileProcessorFeatureCapability, FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import type { FileInfo } from '@shared/types/file'
 
 import { getRequiredApiHost, getRequiredApiKey, getRequiredCapability } from '../../../utils/provider'
 import type { FileProcessingCapabilityHandler, FileProcessingRemotePollResult } from '../../types'
-import type { Doc2xTaskStage, PreparedDoc2xQueryContext, PreparedDoc2xStartContext } from '../types'
+import type {
+  Doc2xFormulaLevel,
+  Doc2xParsePage,
+  Doc2xTaskStage,
+  PreparedDoc2xQueryContext,
+  PreparedDoc2xStartContext
+} from '../types'
 import { createUploadTask, getExportResult, getParseStatus, triggerExportTask, uploadFile } from '../utils'
 
 type Doc2xQueryContext = Omit<PreparedDoc2xQueryContext, 'signal'> & {
-  stage: Doc2xTaskStage
+  signal?: AbortSignal
+  stage?: Doc2xTaskStage
+  modelVersion?: string
+  formulaLevel?: Doc2xFormulaLevel
+  mergeCrossPageForms?: boolean
+  markdownContent?: string
 }
+type Doc2xCapability = Extract<FileProcessorFeatureCapability, { feature: 'document_to_markdown' }>
 
 export const doc2xDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
   'document_to_markdown',
@@ -36,7 +48,10 @@ export const doc2xDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
           remoteContext: {
             apiHost: startContext.apiHost,
             apiKey: startContext.apiKey,
-            stage: 'parsing'
+            stage: 'parsing',
+            modelVersion: startContext.modelVersion,
+            formulaLevel: startContext.formulaLevel,
+            mergeCrossPageForms: startContext.mergeCrossPageForms
           }
         }
       },
@@ -44,10 +59,15 @@ export const doc2xDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
         task,
         pollSignal
       ): Promise<FileProcessingRemotePollResult<'document_to_markdown', Doc2xQueryContext>> {
-        const context: PreparedDoc2xQueryContext = {
+        const context: Doc2xQueryContext = {
           apiHost: task.remoteContext.apiHost,
           apiKey: task.remoteContext.apiKey,
-          signal: pollSignal
+          signal: pollSignal,
+          stage: task.remoteContext.stage,
+          modelVersion: task.remoteContext.modelVersion,
+          formulaLevel: task.remoteContext.formulaLevel,
+          mergeCrossPageForms: task.remoteContext.mergeCrossPageForms,
+          markdownContent: task.remoteContext.markdownContent
         }
 
         if (task.remoteContext.stage === 'parsing') {
@@ -72,7 +92,10 @@ export const doc2xDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
           remoteContext: {
             apiHost: persisted.apiHost,
             apiKey: getRequiredApiKey(restoredConfig, 'doc2x'),
-            stage: (persisted.stage ?? 'parsing') as Doc2xTaskStage
+            stage: (persisted.stage ?? 'parsing') as Doc2xTaskStage,
+            modelVersion: getDoc2xCapability(restoredConfig).modelId,
+            formulaLevel: getDoc2xCapability(restoredConfig).formulaLevel,
+            mergeCrossPageForms: getDoc2xCapability(restoredConfig).mergeCrossPageForms
           }
         }
       }
@@ -87,14 +110,20 @@ function prepareStartContext(
 ): PreparedDoc2xStartContext {
   signal?.throwIfAborted()
 
-  const capability = getRequiredCapability(config, 'document_to_markdown', 'doc2x')
+  const capability = getDoc2xCapability(config)
 
   return {
     apiHost: getRequiredApiHost(capability),
     apiKey: getRequiredApiKey(config, 'doc2x'),
     file,
-    modelVersion: capability.modelId
+    modelVersion: capability.modelId,
+    formulaLevel: capability.formulaLevel,
+    mergeCrossPageForms: capability.mergeCrossPageForms
   }
+}
+
+function getDoc2xCapability(config: FileProcessorMerged): Doc2xCapability {
+  return getRequiredCapability(config, 'document_to_markdown', 'doc2x') as Doc2xCapability
 }
 
 export async function handleParseStage(
@@ -131,7 +160,11 @@ export async function handleParseStage(
     }
   }
 
-  const exportPayload = await triggerExportTask(providerTaskId, context)
+  const exportPayload = await triggerExportTask(providerTaskId, context, {
+    modelVersion: queryContext.modelVersion,
+    formulaLevel: queryContext.formulaLevel,
+    mergeCrossPageForms: queryContext.mergeCrossPageForms
+  })
 
   if (exportPayload.code !== 'success') {
     return {
@@ -149,19 +182,24 @@ export async function handleParseStage(
     }
   }
 
+  const pages = parseStatus.result?.pages ?? []
+  const hasStructuredLayout =
+    queryContext.modelVersion === 'v3-2026' && pages.some((page) => (page.layout?.blocks.length ?? 0) > 0)
+
   return {
     status: 'processing',
     progress: 99,
     remoteContext: {
       ...queryContext,
-      stage: 'exporting'
+      stage: 'exporting',
+      ...(hasStructuredLayout ? { markdownContent: buildDoc2xMarkdown(pages) } : {})
     }
   }
 }
 
 export async function handleExportStage(
   providerTaskId: string,
-  context: PreparedDoc2xQueryContext
+  context: Doc2xQueryContext
 ): Promise<FileProcessingRemotePollResult<'document_to_markdown', Doc2xQueryContext>> {
   const payload = await getExportResult(providerTaskId, context)
 
@@ -195,9 +233,30 @@ export async function handleExportStage(
   return {
     status: 'completed',
     output: {
-      kind: 'remote-zip-url',
-      downloadUrl: exportStatus.url,
-      configuredApiHost: context.apiHost
+      ...(context.markdownContent !== undefined
+        ? { kind: 'markdown' as const, markdownContent: context.markdownContent }
+        : { kind: 'remote-zip-url' as const, downloadUrl: exportStatus.url, configuredApiHost: context.apiHost })
     }
   }
+}
+
+export function buildDoc2xMarkdown(pages: readonly Doc2xParsePage[]): string {
+  return [...pages]
+    .sort((a, b) => a.page_idx - b.page_idx)
+    .map((page) => {
+      if (!page.layout?.blocks.length) {
+        return page.md ?? ''
+      }
+
+      const content = page.layout.blocks
+        .filter((block) => block.attributes?.is_boilerplate !== true)
+        .sort((a, b) => a.reading_order - b.reading_order)
+        .map((block) => (block.type === 'Table' ? (block.table_data?.html ?? block.text) : block.text))
+        .filter((value) => value.trim().length > 0)
+        .join('\n\n')
+
+      return content
+    })
+    .filter((page) => page.trim().length > 0)
+    .join('\n\n')
 }

@@ -27,8 +27,9 @@ vi.mock('node:fs', async () => {
   }
 })
 
-import { handleExportStage, handleParseStage } from '../documentToMarkdown/handler'
-import { uploadFile } from '../utils'
+import { buildDoc2xMarkdown, handleExportStage, handleParseStage } from '../documentToMarkdown/handler'
+import type { PreparedDoc2xStartContext } from '../types'
+import { createUploadTask, uploadFile } from '../utils'
 
 const { getExportResultMock, getParseStatusMock, triggerExportTaskMock } = vi.hoisted(() => ({
   getExportResultMock: vi.fn(),
@@ -92,6 +93,133 @@ describe('doc2x utils', () => {
     ).rejects.toThrow('Unsafe remote url: local or private addresses are not allowed (127.0.0.1)')
 
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('sends the selected model to preupload and omits it for the default model', async () => {
+    fetchMock.mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({ code: 'success', data: { uid: 'uid-1', url: 'https://upload.example.com/file' } }),
+          {
+            status: 200
+          }
+        )
+    )
+
+    const context = {
+      apiHost: 'https://doc2x.example.com',
+      apiKey: 'secret',
+      file: { path: '/tmp/file.pdf' }
+    } as unknown as PreparedDoc2xStartContext
+
+    await createUploadTask({ ...context, modelVersion: 'v3-2026' })
+    expect(JSON.parse(fetchMock.mock.calls.at(-1)?.[1]?.body as string)).toEqual({ model: 'v3-2026' })
+
+    await createUploadTask(context)
+    expect(JSON.parse(fetchMock.mock.calls.at(-1)?.[1]?.body as string)).toEqual({})
+  })
+
+  it('filters boilerplate, sorts layout blocks, and prefers table HTML', () => {
+    expect(
+      buildDoc2xMarkdown([
+        {
+          page_idx: 1,
+          md: 'fallback page',
+          layout: {
+            blocks: [
+              {
+                id: 'boilerplate',
+                type: 'Text',
+                text: 'header',
+                bbox: [0, 0, 1, 1],
+                reading_order: 0,
+                parent_id: '',
+                src: '',
+                attributes: { is_boilerplate: true }
+              },
+              {
+                id: 'table',
+                type: 'Table',
+                text: 'markdown table',
+                bbox: [0, 0, 1, 1],
+                reading_order: 2,
+                parent_id: '',
+                src: '',
+                table_data: { html: '<table><tr><td>value</td></tr></table>' }
+              },
+              {
+                id: 'body',
+                type: 'Text',
+                text: 'body',
+                bbox: [0, 0, 1, 1],
+                reading_order: 1,
+                parent_id: '',
+                src: ''
+              }
+            ]
+          }
+        }
+      ])
+    ).toBe('body\n\n<table><tr><td>value</td></tr></table>')
+  })
+
+  it('keeps v2 responses on the ZIP fallback even if layout blocks are present', async () => {
+    getParseStatusMock.mockResolvedValueOnce({
+      code: 'success',
+      data: {
+        status: 'success',
+        result: {
+          pages: [
+            {
+              page_idx: 0,
+              md: 'legacy markdown',
+              layout: {
+                blocks: [
+                  {
+                    id: 'text',
+                    type: 'Text',
+                    text: 'structured text',
+                    bbox: [0, 0, 1, 1],
+                    reading_order: 0,
+                    parent_id: '',
+                    src: ''
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    })
+    triggerExportTaskMock.mockResolvedValueOnce({
+      code: 'success',
+      data: { status: 'processing' }
+    })
+
+    await expect(
+      handleParseStage(
+        'uid-v2',
+        {
+          apiHost: 'https://doc2x.example.com',
+          apiKey: 'secret',
+          stage: 'parsing',
+          modelVersion: 'v2'
+        },
+        {
+          apiHost: 'https://doc2x.example.com',
+          apiKey: 'secret'
+        }
+      )
+    ).resolves.toEqual({
+      status: 'processing',
+      progress: 99,
+      remoteContext: {
+        apiHost: 'https://doc2x.example.com',
+        apiKey: 'secret',
+        stage: 'exporting',
+        modelVersion: 'v2'
+      }
+    })
   })
 
   it('maps document-to-markdown parse and export poll states', async () => {

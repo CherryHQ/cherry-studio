@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { Doc2xExportStatusResponseSchema, Doc2xParseStatusResponseSchema, Doc2xPreuploadResponseSchema } from '../types'
+import {
+  Doc2xExportStatusResponseSchema,
+  Doc2xLayoutBlockSchema,
+  Doc2xParseStatusResponseSchema,
+  Doc2xPreuploadResponseSchema
+} from '../types'
 
 describe('doc2x response schemas', () => {
   it('decodes escaped unicode in preupload URLs', () => {
@@ -79,5 +84,38 @@ describe('doc2x response schemas', () => {
     })
 
     expect(payload.data?.url).toBeUndefined()
+  })
+
+  it('accepts v3 layout blocks and their structured table data', () => {
+    const result = Doc2xParseStatusResponseSchema.parse({
+      code: 'success',
+      data: {
+        status: 'success',
+        result: {
+          pages: [
+            {
+              page_idx: 0,
+              layout: {
+                blocks: [
+                  {
+                    id: 'blk-1',
+                    type: 'Table',
+                    text: '',
+                    bbox: [0, 1, 2, 3],
+                    reading_order: 1,
+                    parent_id: '',
+                    src: '',
+                    table_data: { html: '<table />' }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    })
+
+    expect(result.data?.result?.pages[0].layout?.blocks[0].table_data?.html).toBe('<table />')
+    expect(() => Doc2xLayoutBlockSchema.parse({ id: 'bad', type: 'Text', bbox: [0, 1, 2] })).toThrow()
   })
 })
