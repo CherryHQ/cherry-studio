@@ -886,7 +886,7 @@ function chooseNativeSelection(
           ].join('\n')
         : legacyScript
     try {
-      execFileSync('osascript', ['-e', script, '--', filePath, String(electronPid)], {
+      execFileSync('osascript', ['-e', script, '--', selectAll ? `${filePath}/` : filePath, String(electronPid)], {
         stdio: ['ignore', 'ignore', 'pipe'],
         timeout: 45_000
       })

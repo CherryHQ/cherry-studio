@@ -124,6 +124,8 @@ desktop verification. The complete Settings phase allows 40 minutes on hosted ru
 A phase left pending/running becomes blocked during finalization. Passing cases cannot hide a failed or unfinished phase. Missing platform reports block the aggregate gate.
 Only one phase writes a platform's run state at a time; keep `workers: 1` and sequential workflow steps.
 The macOS and Windows jobs run in parallel; each platform keeps its own isolated run directory.
+The native-adapter gate runs after run-state initialization and stores its JSON
+results in the platform report, so an adapter failure still produces blocked-case evidence.
 Test names and generated report text use English. External errors and captured application content retain their original language. Keep `RedactionReporter.ts` first when selecting custom reporters so configured credentials are removed from steps and errors before JSON, HTML and blob serialization.
 
 Capability requirements belong to cases. Missing required capabilities skip execution with an explicit reason and are recorded as blocked, never passed.

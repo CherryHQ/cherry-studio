@@ -185,12 +185,33 @@ jobs:
           echo "RUN_DIR=$RUNNER_TEMP/cherry-regression" >> "$GITHUB_ENV"
           echo "CHERRY_TEST_RUN_DIR=$RUNNER_TEMP/cherry-regression" >> "$GITHUB_ENV"
 
+      - name: Initialize isolated test directory
+        shell: bash
+        env:
+          TEST_MODE: ${{ needs.resolve.outputs.mode }}
+          TEST_REF_NAME: ${{ needs.resolve.outputs.name }}
+          TEST_SHA: ${{ needs.resolve.outputs.sha }}
+          TEST_RUNNER: ${{ matrix.runner }}
+          TEST_TASK: ${{ needs.resolve.outputs.task }}
+        run: >-
+          pnpm exec tsx scripts/e2e/regression/cli.ts initialize
+          --run-dir "$RUN_DIR"
+          --mode "$TEST_MODE"
+          --platform "${{ matrix.platform }}"
+          --ref "$TEST_REF_NAME"
+          --sha "$TEST_SHA"
+          --runner "$TEST_RUNNER"
+          --task "$TEST_TASK"
+          --provider-mode "${{ inputs.provider_mode }}"
+
       - name: Validate native controller adapters
         shell: bash
         run: >-
           pnpm test:scripts
           scripts/e2e/regression/__tests__/externalAppSyntax.test.ts
           scripts/e2e/regression/__tests__/nativeAdapters.test.ts
+          --reporter=default --reporter=json
+          --outputFile.json="$RUN_DIR/report/native-controller-results.json"
 
       - name: Cache code tool downloads
         uses: actions/cache@v6
@@ -222,25 +243,6 @@ jobs:
           $policy = 'HKCU:\Software\Policies\Microsoft\Edge'
           New-Item -Path $policy -Force | Out-Null
           New-ItemProperty -Path $policy -Name HideFirstRunExperience -Value 1 -PropertyType DWord -Force | Out-Null
-
-      - name: Initialize isolated test directory
-        shell: bash
-        env:
-          TEST_MODE: ${{ needs.resolve.outputs.mode }}
-          TEST_REF_NAME: ${{ needs.resolve.outputs.name }}
-          TEST_SHA: ${{ needs.resolve.outputs.sha }}
-          TEST_RUNNER: ${{ matrix.runner }}
-          TEST_TASK: ${{ needs.resolve.outputs.task }}
-        run: >-
-          pnpm exec tsx scripts/e2e/regression/cli.ts initialize
-          --run-dir "$RUN_DIR"
-          --mode "$TEST_MODE"
-          --platform "${{ matrix.platform }}"
-          --ref "$TEST_REF_NAME"
-          --sha "$TEST_SHA"
-          --runner "$TEST_RUNNER"
-          --task "$TEST_TASK"
-          --provider-mode "${{ inputs.provider_mode }}"
 
       - name: Start in-job mock provider
         id: mock

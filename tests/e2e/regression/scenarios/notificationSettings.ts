@@ -10,7 +10,10 @@ import { TopicSchema } from '@shared/data/types/topic'
 import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
-import { prepareOwnedMacNotifications } from '../../../../scripts/e2e/regression/debugBridge'
+import {
+  inspectOwnedNotificationHistory,
+  prepareOwnedMacNotifications
+} from '../../../../scripts/e2e/regression/debugBridge'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import {
   allowMacNotificationPermission,
@@ -243,7 +246,18 @@ export async function notificationSettings(app: RegressionApp, initialPage: Page
         )
         .toBe(true)
       if (enabled) {
-        await expect.poll(() => findNotification(answer), { timeout: 15_000 }).toBe(true)
+        try {
+          await expect.poll(() => findNotification(answer), { timeout: 15_000 }).toBe(true)
+        } catch (error) {
+          const history = await inspectOwnedNotificationHistory(app.record, answer).catch((failure) => ({
+            error: String(failure)
+          }))
+          await testInfo.attach('Owned native notification delivery diagnostic', {
+            body: JSON.stringify(history),
+            contentType: 'application/json'
+          })
+          throw error
+        }
         expect(findNotification(answer, true)).toBe(true)
         await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(true)
         await expect(chat).toBeVisible()

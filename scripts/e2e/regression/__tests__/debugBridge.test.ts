@@ -8,6 +8,7 @@ import { afterEach, vi } from 'vitest'
 import {
   assertOwnedAppIsolation,
   captureCherryInAuthorizationUrl,
+  inspectOwnedNotificationHistory,
   sendCherryInCallbackToOwnedApp,
   setOwnedMainWindowFocus
 } from '../debugBridge'
@@ -86,6 +87,21 @@ const authorizationUrl = 'https://open.cherryin.ai/oauth2/auth?state=test-state'
 const callback = 'http://127.0.0.1:29873/oauth/callback?code=test-code&state=test-state'
 
 describe('owned application debug bridge', () => {
+  it('returns only notification identifiers matching the case without exposing other notification content', async () => {
+    const record = ownedApp('windows')
+    const { context } = mainInspector()
+    context.process.mainModule.require = () => ({
+      Notification: {
+        getHistory: async () => [
+          { id: 'owned-match', body: 'Unique completed answer' },
+          { id: 'other', body: 'Unrelated private notification content' }
+        ]
+      }
+    })
+
+    expect(await inspectOwnedNotificationHistory(record, 'Unique completed answer')).toEqual(['owned-match'])
+  })
+
   it.each([
     ['windows', false],
     ['windows', true],

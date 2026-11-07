@@ -229,6 +229,22 @@ it.skipIf(!['darwin', 'win32'].includes(process.platform)).each(dialogModes)(
                   try
                     set end of snapshot to {name of every button of splitter group 1 of ownedWindow, value of every text field of splitter group 1 of ownedWindow, name of every sheet of ownedWindow}
                   end try
+                  set inspected to 0
+                  repeat with elementReference in entire contents of ownedWindow
+                    if inspected ≥ 120 then exit repeat
+                    try
+                      set element to contents of elementReference
+                      set elementRole to role of element
+                      if elementRole is in {"AXRow", "AXCell", "AXStaticText", "AXTextField", "AXOutline", "AXBrowser"} then
+                        set elementValue to ""
+                        try
+                          set elementValue to value of element as text
+                        end try
+                        set end of snapshot to {elementRole, name of element, elementValue}
+                        set inspected to inspected + 1
+                      end if
+                    end try
+                  end repeat
                 end repeat
                 return snapshot
               end tell

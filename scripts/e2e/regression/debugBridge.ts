@@ -59,6 +59,18 @@ export async function prepareOwnedMacNotifications(record: AppRecord): Promise<v
   )
 }
 
+export async function inspectOwnedNotificationHistory(record: AppRecord, text: string): Promise<string[]> {
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  return evaluateCdpExpression(
+    await ownedMainInspectorUrl(record),
+    `(async () => {
+      const history = await process.mainModule.require('electron').Notification.getHistory()
+      return history.filter(notification => notification.body.includes(${JSON.stringify(text)}))
+        .map(notification => notification.id)
+    })()`
+  )
+}
+
 export async function requestOwnedAppQuit(record: AppRecord): Promise<void> {
   assertOwnedProcess(record, record.electronPid, 'electron')
   await evaluateCdpExpression(
