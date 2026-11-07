@@ -17,6 +17,7 @@ export const BuiltinMcpServerNames = {
   difyKnowledge: '@cherry/dify-knowledge',
   python: '@cherry/python',
   didiMcp: '@cherry/didi-mcp',
+  cloudbase: '@cherry/cloudbase',
   browser: '@cherry/browser',
   nowledgeMem: '@cherry/nowledge-mem',
   hub: '@cherry/hub'
