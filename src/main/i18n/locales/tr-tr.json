@@ -70,6 +70,8 @@
   "appMenu.zoomOut": "Uzaklaştır",
   "backup.restore.failed": "Geri yükleme başarısız",
   "backup.restore.retry": "Yedek geri yüklenemedi. Önceki verileriniz korundu. Lütfen geri yüklemeyi yeniden deneyin.",
+  "browser.tabbar.invalid_address": "Geçerli bir web adresi veya arama terimi gir",
+  "browser.tabbar.load_failed": "Bu sayfa yüklenemedi",
   "chat.conversation.new": "Yeni Sohbet",
   "common.agent_compaction_unchanged": "Özet kaydedilmedi; konuşma değişmedi.",
   "common.channel_available_commands": "Kullanılabilir komutlar:",

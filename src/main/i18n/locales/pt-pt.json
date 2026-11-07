@@ -70,6 +70,8 @@
   "appMenu.zoomOut": "Reduzir Zoom",
   "backup.restore.failed": "Restauração falhou",
   "backup.restore.retry": "A cópia de segurança não foi restaurada. Os seus dados anteriores foram mantidos. Tente restaurar novamente.",
+  "browser.tabbar.invalid_address": "Introduz um endereço web válido ou um termo de pesquisa",
+  "browser.tabbar.load_failed": "Não foi possível carregar esta página",
   "chat.conversation.new": "Nova conversa",
   "common.agent_compaction_unchanged": "Não foi guardado nenhum resumo; a conversa mantém-se inalterada.",
   "common.channel_available_commands": "Comandos disponíveis:",
