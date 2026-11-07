@@ -8,6 +8,7 @@ import { readProviderModelRegistry } from '@cherrystudio/provider-registry/node'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { ImageGenerationSupport } from '@shared/data/types/model'
+import { MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import type { ToolApplyScope } from '../../types'
 
@@ -117,7 +118,10 @@ describe('generate_image', () => {
     getImageGenerationSupport.mockReset()
     generateImage.mockReset()
     fileRead.mockReset()
-    getModelByKey.mockReturnValue({})
+    getModelByKey.mockReturnValue({
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      inputModalities: [MODALITY.TEXT]
+    })
     getImageGenerationSupport.mockReturnValue(null)
   })
 

@@ -34,6 +34,7 @@ import {
 } from '@shared/data/api/schemas/agentWorkspaces'
 import { JobScheduleNameAtomSchema, TriggerSchema } from '@shared/data/api/schemas/jobs'
 import { ContentHashSchema, CleanupPolicySchema, type FileEntry, FileEntrySchema } from '@shared/data/types/file'
+import { IllustrationDataSchema, type IllustrationData, type IllustrationTarget } from '@shared/data/types/illustration'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import {
   ImageGenerationModeSchema,
@@ -45,6 +46,12 @@ import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import { AbsoluteFilePathSchema, FileVersionSchema } from '@shared/types/file'
 
 import { defineRoute } from '../define'
+
+const illustrationTargetSchema = z.strictObject({
+  topicId: z.string().min(1),
+  messageId: z.string().min(1),
+  id: z.string().min(1)
+})
 
 /**
  * AI IPC schemas — `AiService`'s non-streaming model operations (text/embedding/image
@@ -252,6 +259,9 @@ export const aiRequestSchemas = {
     input: z.strictObject({ requestId: z.string().min(1), payload: aiImagePayloadSchema }),
     output: aiImageOutputSchema
   }),
+  'ai.illustration.get': defineRoute({ input: illustrationTargetSchema, output: IllustrationDataSchema.nullable() }),
+  'ai.illustration.retry': defineRoute({ input: illustrationTargetSchema, output: IllustrationDataSchema.nullable() }),
+  'ai.illustration.cancel': defineRoute({ input: illustrationTargetSchema, output: z.void() }),
   'ai.image.abort': defineRoute({
     // Was a one-way `ipcOn`; per the migration guide a one-off becomes a `void` request.
     input: z.strictObject({ requestId: z.string().min(1) }),
@@ -535,6 +545,7 @@ export const aiRequestSchemas = {
  * its coalescing/liveness intact — it does not `broadcast`.
  */
 export type AiEventSchemas = {
+  'ai.illustration.changed': IllustrationTarget & { data: IllustrationData }
   'ai.projection.changed': { subscriptionId: string; update: MessageProjectionUpdate }
   'ai.claude_code.binary.changed': ClaudeCodeBinaryStatus
   'ai.agent.attachment_selections.changed': { sessionId: string }

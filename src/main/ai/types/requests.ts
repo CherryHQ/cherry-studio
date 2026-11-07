@@ -3,6 +3,7 @@ import type { ChatTransport, ToolChoice, ToolSet, UIMessage } from 'ai'
 
 import type { RecordAiInvocationInput, SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { RetainedContext } from '@main/ai/messages/retainedContext'
+import type { IllustrationPolicy } from '@shared/data/types/illustration'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { WindowId } from '@shared/ipc/types'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -79,6 +80,8 @@ export interface AiRequest {
 
 /** Text generation (streaming or not): a conversation plus everything that shapes a turn. */
 export interface AiChatRequest extends AiRequest {
+  /** Main-only snapshot, supplied only by ordinary chat executions. */
+  illustrationPolicy?: IllustrationPolicy
   conversation: ConversationRef
   mcpToolIds?: string[]
   /** Canonical per-turn reasoning selection captured when the message was submitted. */

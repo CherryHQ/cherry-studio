@@ -260,6 +260,9 @@ function extractChatMessageFileRefs(data: MessageData | null | undefined): ChatM
   for (const part of data?.parts ?? []) {
     if (part.type === 'file') {
       add(readCherryMeta(part)?.fileEntryId, 'attachment')
+    } else if (part.type === 'data-illustration') {
+      for (const file of part.data.files ?? []) add(file.id, 'attachment')
+      for (const file of part.data.inputFiles ?? []) add(file.id, 'attachment')
     } else if (isToolUIPart(part) && part.state === 'output-available' && isPersistedToolOutput(part.output)) {
       for (const blob of blobRefsOf(part.output.$persistedToolOutput)) add(blob.fileEntryId, 'tool_output')
     }
@@ -281,7 +284,7 @@ function selectExistingFileEntryIdsTx(tx: DbOrTx, ids: readonly string[]): Set<s
   return existing
 }
 
-function replaceChatMessageFileRefsTx(tx: DbOrTx, messageId: string, data: MessageData): void {
+export function replaceChatMessageFileRefsTx(tx: DbOrTx, messageId: string, data: MessageData): void {
   tx.delete(chatMessageFileRefTable).where(eq(chatMessageFileRefTable.sourceId, messageId)).run()
 
   const refs = extractChatMessageFileRefs(data)

@@ -3,6 +3,10 @@ description: AiStreamManager active-stream registry — listener fan-out, reconn
 sources:
   - src/main/ai/streamManager/AiStreamManager.ts
   - src/main/ai/streamManager/pipeStreamLoop.ts
+  - src/main/ai/streamManager/withIllustrations.ts
+  - src/main/ai/IllustrationService.ts
+  - src/main/ai/messages/illustrationInputs.ts
+  - src/main/ai/streamManager/persistence/backends
   - src/main/ai/streamManager/context
 ---
 
@@ -564,6 +568,47 @@ steps apply to `chunks`.
 **Step 2 — wrap with `withIdleTimeout`.** Resets per chunk; on idle
 timeout it aborts `exec.abortController`, which the upstream request is
 already wired to.
+
+Before the tee, enabled ordinary chat also passes through `withIllustrations`.
+It preserves text order, recognizes `[[IMAGE]]...[[/IMAGE]]` across chunks
+outside code, and emits a stable `data-illustration` placeholder at the opening
+marker. A complete prompt starts `IllustrationService` work without blocking
+subsequent text. Automatic mode uses its configured maximum; forced-on uses its
+target as the hard maximum. Both settings default to one (range 1–10) and are
+remembered independently. Excess intents are hidden without reserving a
+placeholder or submitting image work.
+Incomplete prompts become failed placeholders. The mode and count policy are
+captured at admission; Agent sessions, prompt lifecycles and multi-model reply
+groups are excluded, including single-message retries from a multi-model group.
+
+`IllustrationService` reuses the default painting model and limits concurrent
+image requests to two. It broadcasts revisioned state through
+`ai.illustration.changed`; rendering or reconnecting only reads state. Both
+persistence backends merge the latest image state synchronously with terminal
+message persistence, then hand subsequent image updates to the saved message.
+Managed image files are referenced by the message, including when a temporary
+topic is saved. Cancellation and explicit retry use `ai.illustration.cancel`
+and `ai.illustration.retry`. Stopping a reply also cancels image retries started
+while that reply is streaming. Generated files use automatic cleanup; runtime
+references protect illustration inputs and outputs until the temporary topic is
+deleted or successfully saved with persistent message-file references. Deleting a
+temporary topic cancels and removes its illustration jobs, releasing job-held
+files even before terminal reply persistence. A failed terminal append or save
+preserves those runtime references for retry. Interrupted jobs after restart become failures;
+they do not automatically submit another image request.
+
+An illustration may begin with `references: ["image_2", "image_1"]` on its own
+line before the prompt. Omitted or empty references keep text-only generation.
+Labels identify materialized user images from the current topic and branch;
+the final model middleware excludes images removed by context shaping. Assistant
+images and attachment indexes alone cannot authorize an input. References are
+deduplicated in order. Invalid references, unsupported inputs, excessive counts
+and unreadable originals fail the illustration without silently dropping inputs.
+Selected originals are saved as message-owned file references and appear in
+prompt details. Explicit retry preserves the prompt and ordered selection while
+rechecking the current default painting model, including generate modes that
+accept images. Deleting the original upload message preserves the answer's
+references; normal cleanup applies after all holders are removed.
 
 **Step 3 — `pipeStreamLoop` isolates source errors before teeing the stream.**
 

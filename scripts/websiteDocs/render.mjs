@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, watch } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, realpathSync, watch } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
@@ -10,13 +10,30 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const renderer = path.join(root, '.context/website-docs-renderer')
 const source = path.join(root, 'docs/website')
 
-function pnpm(args) {
-  execFileSync('pnpm', args, { cwd: renderer, stdio: 'inherit' })
+export function runPnpm(args, { cwd = renderer, stdio = 'inherit', background = false } = {}) {
+  // Re-enter Corepack so the renderer's own packageManager selects its pnpm version.
+  // Invoke its script directly to avoid Windows .cmd shims and shell argument parsing.
+  const executable = process.env.COREPACK_ROOT
+    ? path.join(process.env.COREPACK_ROOT, 'dist/pnpm.js')
+    : process.env.npm_execpath
+  if (!executable) throw new Error('Run website documentation commands through pnpm')
+  const isScript = /\.[cm]?js$/.test(executable)
+  const command = isScript ? process.execPath : executable
+  const commandArgs = isScript ? [executable, ...args] : args
+  if (background) return spawn(command, commandArgs, { cwd, stdio })
+  return execFileSync(command, commandArgs, { cwd, stdio })
+}
+
+export function assertIsolatedCheckout(directory) {
+  const toplevel = git(directory, ['rev-parse', '--show-toplevel']).toString().trim()
+  // Git emits forward slashes on Windows; compare the actual filesystem paths.
+  if (realpathSync(toplevel) !== realpathSync(directory))
+    throw new Error('Renderer directory is not an isolated checkout')
 }
 
 function generate() {
   overlayContent(source, path.join(renderer, 'docs-site'))
-  pnpm(['docs:generate'])
+  runPnpm(['docs:generate'])
   const report = JSON.parse(readFileSync(path.join(renderer, 'docs-site/generated/report.json'), 'utf8'))
   if (report.issues.length) throw new Error(`Documentation generation reported ${report.issues.length} issues`)
 }
@@ -26,12 +43,11 @@ export function prepareRenderer(install = true) {
   const revision = sha(config.websiteRevision)
   mkdirSync(renderer, { recursive: true })
   if (!existsSync(path.join(renderer, '.git'))) git(renderer, ['init', '--quiet'])
-  if (git(renderer, ['rev-parse', '--show-toplevel']).toString().trim() !== renderer)
-    throw new Error('Renderer directory is not an isolated checkout')
+  assertIsolatedCheckout(renderer)
   fetchRevision(renderer, `https://github.com/${repositories.website}.git`, revision)
   git(renderer, ['checkout', '--quiet', '--force', '--detach', revision])
   overlayContent(source, path.join(renderer, 'docs-site'))
-  if (install) pnpm(['install', '--frozen-lockfile'])
+  if (install) runPnpm(['install', '--frozen-lockfile'])
   return renderer
 }
 
@@ -46,9 +62,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     prepareRenderer(!values['no-install'])
     generate()
     if (mode === 'dev') {
-      const child = spawn('pnpm', ['exec', 'next', 'dev', '--port', '3001'], {
+      const child = runPnpm(['exec', 'next', 'dev', '--port', '3001'], {
         cwd: path.join(renderer, 'docs-site'),
-        stdio: 'inherit'
+        background: true
       })
       let timer
       const watcher = watch(source, { recursive: true }, () => {
@@ -80,9 +96,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
           child.kill(signal)
         })
     } else {
-      pnpm(['docs:lint'])
+      runPnpm(['docs:lint'])
       if (mode === 'build') {
-        pnpm(['docs:build'])
+        runPnpm(['docs:build'])
         for (const locale of ['zh-cn', 'en']) {
           if (!existsSync(path.join(renderer, 'docs-site/out', locale, 'index.html')))
             throw new Error(`Missing exported documentation: ${locale}`)

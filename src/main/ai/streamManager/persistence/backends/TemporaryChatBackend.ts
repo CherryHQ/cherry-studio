@@ -7,6 +7,7 @@
  * single `persistAssistant` handles success / paused / error uniformly.
  */
 
+import { application } from '@application'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import type { MessageSnapshot } from '@shared/data/types/message'
 
@@ -26,11 +27,16 @@ export class TemporaryChatBackend implements PersistenceBackend {
 
   async persistAssistant(input: PersistAssistantInput): Promise<void> {
     const { finalMessage, status, runtimeStats } = input
+    let parts = finalMessage?.parts ?? []
+    const illustrations = parts.some((part) => part.type === 'data-illustration')
+      ? application.get('IllustrationService')
+      : undefined
+    if (illustrations) parts = illustrations.merge(this.opts.messageId, parts)
     temporaryChatService.appendAssistantMessage(
       this.opts.topicId,
       {
         role: 'assistant',
-        data: { parts: finalMessage?.parts ?? [] },
+        data: { parts },
         status,
         modelId: this.opts.modelId,
         messageSnapshot: this.opts.messageSnapshot
@@ -38,5 +44,6 @@ export class TemporaryChatBackend implements PersistenceBackend {
       runtimeStats,
       this.opts.messageId
     )
+    illustrations?.didPersist(this.opts.messageId)
   }
 }

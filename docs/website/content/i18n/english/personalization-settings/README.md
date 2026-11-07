@@ -61,6 +61,29 @@ Controls how AI replies appear in the chat area:
 | **Conversation navigation button** | How to jump around long conversations, such as **Conversation anchors** |
 | **Message font size** | Drag the slider to adjust the font size in the chat area |
 
+#### Reply Illustrations
+
+Configure **Reply illustrations** under `Settings → Appearance → Message`. The feature is off by default and currently supports ordinary chats with one model. Agent sessions and multi-model conversations do not generate reply illustrations. The mode and count settings are captured when a reply starts; changing them does not rewrite an in-progress reply.
+
+| Setting | Description |
+| --- | --- |
+| **Automatic** | Allows the answering model to decide whether illustrations help and where to place them |
+| **Forced** | Asks for exactly the target count in every reply and accepts no more than that count |
+| **Off** | Adds no illustration instruction and does not process new illustration intents; saved images remain available |
+| **Maximum count** | Shown only in automatic mode; defaults to **1**, configurable from **1–10**; intents beyond the maximum are not submitted for image generation |
+| **Target count** | Shown only in forced mode; defaults to **1**, configurable from **1–10**; also serves as the image-generation maximum |
+| **Painting model** | Selects a configured image model, reusing the default painting model and its provider configuration |
+
+When enabled, the model writes image prompts within the same reply. A gray placeholder with a loading animation reserves each image's position. Generation starts as soon as its complete prompt is recognized while later text continues to appear; the image replaces the placeholder when ready. The full prompt stays out of the answer text. Use **Show prompt** beside an image or placeholder to expand it and **Hide prompt** to collapse it.
+
+For each illustration, the answering model can also select user images from its current context to edit an original, preserve a subject's appearance, or reference its style or layout. Candidates are limited to user images actually sent to the answering model from the current topic and branch, including earlier turns; attach compressed-away images again. **Show prompt** displays the selected originals' names and previews. If the image model does not support image inputs, the selection exceeds its limit, or an original cannot be read, that illustration fails explicitly and the written answer remains.
+
+Saved answers retain references to their originals after the upload message is deleted. Retry preserves the original prompt, selection and order, and uses the current default painting model to recheck capabilities and image limits; missing or damaged originals still cause failure.
+
+You can cancel an unfinished illustration individually. If generation fails or is cancelled, the written answer remains. When a complete prompt is available, use **Retry** while illustrations are enabled. Reopening a saved answer does not generate its images again, and requests interrupted by an application restart do not resume automatically.
+
+The automatic maximum and forced target are saved independently. Switching modes or lowering the automatic maximum does not overwrite the forced target. **Forced** mode requests the target count through the system prompt. A model may still omit or truncate image prompts, and image generation may fail, so fewer images may complete than requested. The application does not make another language-model request to fill the count. Configure a working painting model first. Actual image requests use the selected provider and are billed according to that provider's rules.
+
 ### Math Formulas
 
 * **Enable `$...$`**: when on, inline math wrapped in `$` is recognized and rendered as a formula.

@@ -7,6 +7,7 @@ import { application } from '@application'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
 import { CHAT_STREAM_IDLE_TIMEOUT_MS } from '@main/ai/constants'
+import type { IllustrationInput } from '@main/ai/messages/illustrationInputs'
 import { ProjectionSubscriptions } from '@main/ai/messages/ProjectionSubscriptions'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { serializeError } from '@main/ai/utils/serializeError'
@@ -38,6 +39,11 @@ import type {
 } from '@shared/ai/transport'
 import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
+import {
+  IllustrationModeSchema,
+  normalizeIllustrationCount,
+  type IllustrationPolicy
+} from '@shared/data/types/illustration'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { MessageRuntimeSpan, MessageRuntimeTiming } from '@shared/data/types/message'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
@@ -83,6 +89,7 @@ import type {
   StreamPausedResult,
   TransportTimings
 } from './types'
+import { withIllustrations } from './withIllustrations'
 import { withReasoningTimingMetadata } from './withReasoningTimingMetadata'
 
 function withResolvedApprovals(message: CherryUIMessage, exec: StreamExecution): CherryUIMessage {
@@ -105,6 +112,11 @@ type ManagedAiStreamRequest = AiStreamRequest & {
   usageContext?: InProcessUsageContext
   tokenUsageSource?: TokenUsageSource
   resolvedModel?: AsInProcess<AiStreamRequest>['resolvedModel']
+}
+
+const OFF_ILLUSTRATION_POLICY: IllustrationPolicy = {
+  mode: 'off',
+  count: 1
 }
 
 // Renderer→main stream requests (open/attach/detach/abort) are validated by the IpcApi
@@ -875,7 +887,13 @@ export class AiStreamManager extends BaseService {
         model.runtimeTimingSeed,
         model.seedFromEmpty,
         model.rootSpan,
-        model.abortController
+        model.abortController,
+        this.resolveIllustrationPolicy(
+          model.request,
+          existing.lifecycle,
+          existing.executions.size + (previous ? 0 : 1) > 1,
+          existing.isPersistentConversation
+        )
       )
       // Replacing an existing key preserves its insertion position; appending a new key places the
       // new model last. Both cases keep the visual multi-model order stable.
@@ -949,7 +967,13 @@ export class AiStreamManager extends BaseService {
         runtimeTimingSeed,
         seedFromEmpty,
         rootSpan,
-        abortController
+        abortController,
+        this.resolveIllustrationPolicy(
+          request,
+          input.lifecycle ?? this.chatLifecycle,
+          isMultiModel,
+          input.isPersistentConversation === true
+        )
       )
       executions.set(modelId, exec)
     }
@@ -2085,6 +2109,43 @@ export class AiStreamManager extends BaseService {
 
   // ── Internal helpers ──────────────────────────────────────────────
 
+  private resolveIllustrationPolicy(
+    request: ManagedAiStreamRequest,
+    lifecycle: StreamLifecycle,
+    isMultiModel: boolean,
+    isPersistentConversation: boolean
+  ): IllustrationPolicy {
+    if (
+      request.runtime ||
+      isAgentSessionTopic(request.conversation.topicId) ||
+      lifecycle.name !== 'chat' ||
+      isMultiModel ||
+      !request.messageId
+    )
+      return OFF_ILLUSTRATION_POLICY
+    const preferences = application.get('PreferenceService')
+    const mode = IllustrationModeSchema.catch('off').parse(preferences.get('chat.illustration.mode'))
+    const policy = {
+      mode,
+      count: normalizeIllustrationCount(
+        preferences.get(mode === 'on' ? 'chat.illustration.target_count' : 'chat.illustration.max_count')
+      )
+    }
+    if (mode === 'off' || !isPersistentConversation) return policy
+    const anchor = messageService.getById(request.messageId)
+    if (anchor.parentId && anchor.siblingsGroupId) {
+      const models = new Set(
+        messageService
+          .getChildrenByParentId(anchor.parentId)
+          .filter((message) => message.siblingsGroupId === anchor.siblingsGroupId && message.role === 'assistant')
+          .map((message) => message.modelId)
+          .filter(Boolean)
+      )
+      if (models.size > 1) return { ...policy, mode: 'off' }
+    }
+    return policy
+  }
+
   /**
    * Loop: pull chunks from `AiService.streamText`, tee into broadcast +
    * `readUIMessageStream` accumulator (writes each snapshot to
@@ -2098,7 +2159,8 @@ export class AiStreamManager extends BaseService {
     runtimeTimingSeed?: MessageRuntimeTiming,
     seedFromEmpty?: boolean,
     rootSpan?: Span,
-    abortController?: AbortController
+    abortController?: AbortController,
+    illustrationPolicy: IllustrationPolicy = OFF_ILLUSTRATION_POLICY
   ): StreamExecution {
     // `loopPromise` is overwritten right after launch; initialise to a resolved sentinel
     // so the `exec` object reference is stable inside the arrow function below.
@@ -2128,9 +2190,9 @@ export class AiStreamManager extends BaseService {
     const launchLoop = rootSpan
       ? () =>
           otelContext.with(trace.setSpan(otelContext.active(), rootSpan), () =>
-            this.runExecutionLoop(topicId, modelId, request, exec)
+            this.runExecutionLoop(topicId, modelId, request, exec, illustrationPolicy)
           )
-      : () => this.runExecutionLoop(topicId, modelId, request, exec)
+      : () => this.runExecutionLoop(topicId, modelId, request, exec, illustrationPolicy)
 
     const activity = application.get('RuntimeActivityService').begin(`ai:stream:${topicId}:${modelId}`)
     exec.loopPromise = launchLoop()
@@ -2147,7 +2209,8 @@ export class AiStreamManager extends BaseService {
     topicId: string,
     modelId: UniqueModelId,
     request: ManagedAiStreamRequest,
-    exec: StreamExecution
+    exec: StreamExecution,
+    illustrationPolicy: IllustrationPolicy
   ): Promise<void> {
     const aiService = application.get('AiService')
     const signal = exec.abortController.signal
@@ -2180,6 +2243,7 @@ export class AiStreamManager extends BaseService {
       }
     }
 
+    let illustrationInputs: IllustrationInput[] = []
     let source: AiStreamSource
     try {
       // Pre-stream rejection (model resolution, param build) routes through
@@ -2187,6 +2251,10 @@ export class AiStreamManager extends BaseService {
       // `signal` is injected here because it's not IPC-serialisable.
       source = await aiService.streamText({
         ...request,
+        illustrationPolicy,
+        illustrationInputsSink: (inputs) => {
+          illustrationInputs = inputs
+        },
         requestOptions: { ...request.requestOptions, signal },
         runtimeTimingSink: exec.runtimeTiming.sink,
         // Compaction runs deep inside param-build / the tool loop, where the
@@ -2243,8 +2311,24 @@ export class AiStreamManager extends BaseService {
       )
     } else {
       const { stream: idleStream, idle } = withIdleTimeout(source.stream, exec.abortController, timeoutMs)
+      // Wrap before pipeStreamLoop's tee() so broadcast + accumulator share one
+      // thinkingMs measurement (see withReasoningTimingMetadata).
+      let stream = withReasoningTimingMetadata(idleStream)
+      if (illustrationPolicy.mode !== 'off' && request.messageId) {
+        const illustrations = application.get('IllustrationService')
+        const messageId = request.messageId
+        stream = withIllustrations(
+          stream,
+          {
+            start: (id) => illustrations.start({ topicId, messageId, id }, signal),
+            complete: (id, prompt, valid) =>
+              illustrations.complete({ topicId, messageId, id }, prompt, valid, illustrationInputs)
+          },
+          illustrationPolicy.count
+        )
+      }
       const lastIncoming = request.messages?.at(-1)
-      result = await pipeStreamLoop(withReasoningTimingMetadata(idleStream), signal, {
+      result = await pipeStreamLoop(stream, signal, {
         onChunk: (chunk) => {
           this.onChunk(topicId, modelId, chunk, exec)
           if (exec.pendingApprovalToolCallIds?.size) idle.reset(this.config.approvalIdleTimeoutMs)

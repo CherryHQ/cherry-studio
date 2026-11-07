@@ -31,6 +31,7 @@ import {
   parseUniqueModelId,
   type UniqueModelId
 } from '@shared/data/types/model'
+import { isEditImageModel } from '@shared/utils/model'
 
 import { type GenerateImageToolInput, editInputImageLimit, limitGenerateImageInputIds } from './generateImageTool'
 
@@ -69,6 +70,7 @@ export const PAINTING_INPUT_IMAGE_ERROR_NOTE =
 export interface ConfiguredPaintingModel {
   uniqueModelId: UniqueModelId
   support: ImageGenerationSupport | null
+  acceptsImageInput?: boolean
 }
 
 export function isPaintingError(output: PaintingResult): output is PaintingError {
@@ -95,8 +97,9 @@ export function resolveConfiguredPaintingModel(): ConfiguredPaintingModel | null
   if (!uniqueModelId) return null
 
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+  let acceptsImageInput: boolean
   try {
-    modelService.getByKey(providerId, modelId)
+    acceptsImageInput = isEditImageModel(modelService.getByKey(providerId, modelId))
   } catch (error) {
     if (isDataApiNotFoundError(error)) return null
     throw error
@@ -104,6 +107,7 @@ export function resolveConfiguredPaintingModel(): ConfiguredPaintingModel | null
 
   return {
     uniqueModelId,
+    acceptsImageInput,
     support: providerRegistryService.getImageGenerationSupport(providerId, modelId)
   }
 }
@@ -112,7 +116,7 @@ function resolveMode(input: GenerateImageToolInput): ImageGenerationMode {
   return input.image_ids && input.image_ids.length > 0 ? 'edit' : 'generate'
 }
 
-function extractParamValues(
+export function extractParamValues(
   input: GenerateImageToolInput,
   support: ImageGenerationSupport | null,
   mode: ImageGenerationMode

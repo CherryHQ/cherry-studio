@@ -1,15 +1,13 @@
 /**
  * TemporaryChatService — in-memory backend for temporary chats.
  *
- * A temporary chat behaves like a regular topic + message conversation but
- * never touches SQLite until the user explicitly persists it. Data lives in
- * Maps on the main process and is discarded on delete, persist, or process
- * exit.
+ * Topics and messages live in main-process Maps until explicitly persisted.
+ * Managed illustration files use runtime retention until delete or promotion.
  *
  * Simplifications relative to the persistent topic / message API:
  * - Linear messages (no branching / siblings / activeNodeId).
  * - Messages are immutable once appended (no PATCH / delete-message).
- * - In-memory lifecycle only (no DB, no FTS5, no pagination).
+ * - No persistent topic/message rows, FTS5, or pagination before promotion.
  */
 
 import { eq, isNull } from 'drizzle-orm'
@@ -19,14 +17,22 @@ import { application } from '@application'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { loggerService } from '@logger'
+import { type Disposable, Emitter } from '@main/core/lifecycle'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
 import type { CreateTopicDto } from '@shared/data/api/schemas/topics'
-import type { Message, MessageRole, MessageRuntimeStatsInput, MessageStatus } from '@shared/data/types/message'
+import type {
+  CherryMessagePart,
+  Message,
+  MessageRole,
+  MessageRuntimeStatsInput,
+  MessageStatus
+} from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
 
 import { aiUsageRecordService, mergeMessageUsageProjection } from './AiUsageRecordService'
-import { messageService } from './MessageService'
+import { fileEntryService } from './FileEntryService'
+import { messageService, replaceChatMessageFileRefsTx } from './MessageService'
 import { topicService } from './TopicService'
 import { isConversationActivityRole } from './utils/activityTime'
 import { insertWithOrderKey } from './utils/orderKey'
@@ -72,6 +78,9 @@ function rowToMessage(row: TemporaryMessageRow): Message {
 export class TemporaryChatService {
   private topics = new Map<string, TemporaryTopicRow>()
   private messages = new Map<string, TemporaryMessageRow[]>()
+  private illustrationFiles = new Map<string, Map<string, Disposable>>()
+  private readonly topicDeleted = new Emitter<string>()
+  readonly onTopicDeleted = this.topicDeleted.event
 
   createTopic(dto: CreateTopicDto): Topic {
     const now = Date.now()
@@ -100,6 +109,8 @@ export class TemporaryChatService {
     }
     this.topics.delete(id)
     this.messages.delete(id)
+    this.releaseIllustrationFiles(id)
+    this.topicDeleted.fire(id)
     logger.info('Deleted temporary topic', { id })
   }
 
@@ -156,6 +167,7 @@ export class TemporaryChatService {
     if (!list) {
       throw DataApiErrorFactory.notFound('TemporaryTopic', topicId)
     }
+    this.retainIllustrationFiles(topicId, row.data.parts ?? [])
     list.push(row)
     const topic = this.topics.get(topicId)
     if (topic && isConversationActivityRole(row.role)) {
@@ -174,6 +186,15 @@ export class TemporaryChatService {
    */
   hasTopic(topicId: string): boolean {
     return this.topics.has(topicId)
+  }
+
+  /** Internal update for asynchronous illustrations; message identity and text stay immutable. */
+  updateIllustrationParts(topicId: string, messageId: string, parts: CherryMessagePart[]): void {
+    const row = this.messages.get(topicId)?.find((message) => message.id === messageId)
+    if (!row) throw DataApiErrorFactory.notFound('TemporaryMessage', messageId)
+    this.retainIllustrationFiles(topicId, parts)
+    row.data = { ...row.data, parts }
+    row.updatedAt = Date.now()
   }
 
   /** Main-process internal API — read-only topic accessor (returns ISO-timestamp Topic). */
@@ -251,6 +272,7 @@ export class TemporaryChatService {
               updatedAt: m.updatedAt
             })
             .run()
+          replaceChatMessageFileRefsTx(tx, m.id, m.data)
           prevId = m.id
         }
 
@@ -271,6 +293,7 @@ export class TemporaryChatService {
       throw err
     }
 
+    this.releaseIllustrationFiles(topicId)
     topicService.notifyReadModelChange([topicId], 'membership')
 
     // Promotion never creates or repairs facts. Rebuild the materialized
@@ -283,6 +306,27 @@ export class TemporaryChatService {
 
     logger.info('Persisted temporary topic', { topicId, messageCount: msgs.length })
     return { topicId, messageCount: msgs.length }
+  }
+
+  private retainIllustrationFiles(topicId: string, parts: CherryMessagePart[]): void {
+    const holds = this.illustrationFiles.get(topicId) ?? new Map<string, Disposable>()
+    for (const part of parts) {
+      if (part.type !== 'data-illustration') continue
+      for (const { id } of [...(part.data.files ?? []), ...(part.data.inputFiles ?? [])]) {
+        if (holds.has(id)) continue
+        const entry = fileEntryService.findById(id)
+        if (entry?.origin === 'internal' && entry.cleanupPolicy === 'delete_when_unreferenced') {
+          holds.set(id, application.get('FileManager').retainTemporaryEntry(id))
+        }
+      }
+    }
+    if (holds.size) this.illustrationFiles.set(topicId, holds)
+  }
+
+  private releaseIllustrationFiles(topicId: string): void {
+    const holds = this.illustrationFiles.get(topicId)
+    this.illustrationFiles.delete(topicId)
+    holds?.forEach((hold) => hold.dispose())
   }
 
   private assertAcceptableAppendDto(dto: CreateMessageDto): void {

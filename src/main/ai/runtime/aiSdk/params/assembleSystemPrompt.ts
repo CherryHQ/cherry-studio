@@ -6,14 +6,17 @@ import type { ToolSet } from 'ai'
 
 import { replacePromptVariables } from '@main/utils/prompt'
 import type { Assistant } from '@shared/data/types/assistant'
+import type { IllustrationPolicy } from '@shared/data/types/illustration'
 import type { Model } from '@shared/data/types/model'
 
 import { TOOL_SEARCH_TOOL_NAME } from '../../../tools/adapters/aiSdk/meta/toolSearch'
 import type { ToolEntry } from '../../../tools/adapters/aiSdk/types'
 import { CITATIONS_SYSTEM_PROMPT } from '../prompts/citations'
 import { getDeferredToolsSystemPrompt } from '../prompts/deferredTools'
+import { getIllustrationSystemPrompt } from '../prompts/illustrations'
 
 export interface AssembleSystemPromptInput {
+  illustrationPolicy?: IllustrationPolicy
   assistant?: Assistant
   model: Model
   /** Final tool set going to the model — checked for `tool_search` membership. */
@@ -58,6 +61,8 @@ export async function assembleSystemPrompt(input: AssembleSystemPromptInput): Pr
   }
 
   if (input.mcpInstructions) sections.push(input.mcpInstructions)
+  const illustrationPrompt = getIllustrationSystemPrompt(input.illustrationPolicy)
+  if (illustrationPrompt) sections.push(illustrationPrompt)
 
   if (sections.length === 0) return undefined
   return sections.join('\n\n')

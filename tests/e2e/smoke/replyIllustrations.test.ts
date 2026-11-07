@@ -1,0 +1,321 @@
+import { once } from 'node:events'
+import { readFile, rm } from 'node:fs/promises'
+import { createServer } from 'node:http'
+
+import { _electron as electron } from '@playwright/test'
+
+import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
+import { startMockChatServer } from '../../helpers/http/mockChatServer'
+import { selectSidebarApp } from '../regression/navigation'
+import { expect, test as base } from './fixtures/electron.fixture'
+
+const test = base.extend({
+  electronApp: async ({}, use, testInfo) => {
+    const profile = testInfo.outputPath('profile')
+    const app = await electron.launch({
+      args: ['.'],
+      env: { ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: profile },
+      timeout: 60_000
+    })
+    try {
+      await use(app)
+    } finally {
+      try {
+        await app.close()
+      } finally {
+        await rm(profile, { recursive: true, force: true, maxRetries: 3 })
+      }
+    }
+  }
+})
+
+// Catches failures between real prompt assembly, streaming, image dispatch, UI replacement and saved history.
+test('preserves illustration settings, asynchronous images and prompt details across reloads', async ({
+  mainWindow: page
+}, testInfo) => {
+  test.setTimeout(180_000)
+  const chat = await startMockChatServer()
+  const imageBase64 = (await readFile('build/icons/128x128.png')).toString('base64')
+  const imageRequests: Array<{ prompt: string; originals: Buffer[] }> = []
+  let finishImage: () => void = () => {
+    throw new Error('No image request received')
+  }
+  const images = createServer((request, response) => {
+    void (async () => {
+      if (request.method !== 'POST' || !['/v1/images/generations', '/v1/images/edits'].includes(request.url ?? '')) {
+        response.writeHead(404).end()
+        return
+      }
+      const chunks: Buffer[] = []
+      for await (const chunk of request) chunks.push(Buffer.from(chunk))
+      const bytes = Buffer.concat(chunks)
+      const multipart =
+        request.url === '/v1/images/edits'
+          ? await new Response(bytes, { headers: { 'Content-Type': request.headers['content-type'] ?? '' } }).formData()
+          : null
+      const body = multipart ? { prompt: String(multipart.get('prompt')) } : JSON.parse(bytes.toString('utf8'))
+      const originals = multipart
+        ? await Promise.all(
+            [...multipart.values()]
+              .filter((value) => typeof value !== 'string')
+              .map(async (file) => Buffer.from(await file.arrayBuffer()))
+          )
+        : []
+      finishImage = () => {
+        response.writeHead(200, { 'Content-Type': 'application/json' })
+        response.end(
+          JSON.stringify({
+            created: 1,
+            data: [
+              {
+                b64_json: imageBase64
+              }
+            ]
+          })
+        )
+      }
+      imageRequests.push({ ...body, originals })
+    })().catch(() => response.writeHead(500).end())
+  })
+  images.listen(0, '127.0.0.1')
+  await once(images, 'listening')
+  const address = images.address()
+  if (!address || typeof address === 'string') throw new Error('Image fixture failed to bind')
+
+  try {
+    await page.evaluate(async (policyVersion) => {
+      await window.api.preference.set('app.language', 'en-US')
+      await window.api.preference.set('app.onboarding.provider_setup.status', 'skipped')
+      await window.api.preference.set('app.privacy.policy_version', policyVersion)
+      await window.api.preference.set('topic.naming.enabled', false)
+    }, LATEST_PRIVACY_POLICY_VERSION)
+    await page.reload()
+    await expect(page.locator('[data-ui~="app.shell"]').first()).toBeVisible({ timeout: 60_000 })
+    await selectSidebarApp(page, 'Settings')
+    await page
+      .locator('[data-ui~="settings.navigation"]')
+      .getByRole('button', { name: 'Appearance', exact: true })
+      .click()
+    const mode = page.getByRole('combobox', { name: 'Reply illustrations', exact: true })
+    await expect(mode).toHaveText('Off')
+    for (const [label, value] of [
+      ['Automatic', 'auto'],
+      ['Forced', 'on'],
+      ['Off', 'off'],
+      ['Automatic', 'auto']
+    ]) {
+      await mode.click()
+      await page.getByRole('option', { name: label, exact: true }).click()
+      await expect.poll(() => page.evaluate(() => window.api.preference.get('chat.illustration.mode'))).toBe(value)
+      await expect(mode).toHaveText(label)
+    }
+    const maximum = page.getByRole('spinbutton', { name: 'Maximum count', exact: true })
+    const target = page.getByRole('spinbutton', { name: 'Target count', exact: true })
+    await expect(maximum).toHaveValue('1')
+    await expect(target).toHaveCount(0)
+    await expect(page.getByRole('switch', { name: 'Require exact count', exact: true })).toHaveCount(0)
+    await maximum.fill('3')
+    await maximum.press('Enter')
+    await expect.poll(() => page.evaluate(() => window.api.preference.get('chat.illustration.max_count'))).toBe(3)
+    await mode.click()
+    await page.getByRole('option', { name: 'Forced', exact: true }).click()
+    await expect(maximum).toHaveCount(0)
+    await target.fill('2')
+    await target.press('Enter')
+    await expect.poll(() => page.evaluate(() => window.api.preference.get('chat.illustration.target_count'))).toBe(2)
+    await page.reload()
+    await expect(mode).toHaveText('Forced')
+    await expect(target).toHaveValue('2')
+    await mode.click()
+    await page.getByRole('option', { name: 'Automatic', exact: true }).click()
+    await expect(maximum).toHaveValue('3')
+    await maximum.fill('1')
+    await maximum.press('Enter')
+    await expect.poll(() => page.evaluate(() => window.api.preference.get('chat.illustration.max_count'))).toBe(1)
+    await mode.click()
+    await page.getByRole('option', { name: 'Forced', exact: true }).click()
+    await expect(target).toHaveValue('2')
+    await target.fill('1')
+    await target.press('Enter')
+    await expect.poll(() => page.evaluate(() => window.api.preference.get('chat.illustration.target_count'))).toBe(1)
+    await mode.scrollIntoViewIfNeeded()
+    await page.screenshot({ path: testInfo.outputPath('illustration-settings.png') })
+
+    const providerId = 'reply-illustration-smoke'
+    const assistantName = 'Illustration smoke'
+    const setup = await page.evaluate(
+      async ({ providerId, chatUrl, imageUrl, assistantName }) => {
+        const request = (method: 'POST' | 'PATCH', path: string, body: unknown) =>
+          window.api.dataApi.request({
+            id: crypto.randomUUID(),
+            method,
+            path,
+            body
+          })
+        const provider = await request('POST', '/providers', {
+          providerId,
+          name: 'Local illustration fixture',
+          defaultChatEndpoint: 'openai-chat-completions',
+          endpointConfigs: {
+            'openai-chat-completions': { baseUrl: chatUrl },
+            'openai-image-generation': { baseUrl: imageUrl }
+          },
+          apiKeys: [{ id: 'fixture', key: 'fixture', isEnabled: true }]
+        })
+        const enabled = await request('PATCH', `/providers/${providerId}`, { isEnabled: true })
+        const models = await request('POST', '/models', [
+          {
+            providerId,
+            modelId: 'mock-chat',
+            endpointTypes: ['openai-chat-completions'],
+            inputModalities: ['text', 'image']
+          },
+          {
+            providerId,
+            modelId: 'mock-image',
+            endpointTypes: ['openai-image-generation'],
+            capabilities: ['image-generation'],
+            inputModalities: ['text', 'image'],
+            outputModalities: ['image']
+          }
+        ])
+        const assistant = await request('POST', '/assistants', {
+          name: assistantName,
+          modelId: `${providerId}::mock-chat`
+        })
+        await window.api.preference.set('feature.paintings.default_model_id', `${providerId}::mock-image`)
+        return [provider.status, enabled.status, models.status, assistant.status]
+      },
+      { providerId, chatUrl: chat.baseUrl, imageUrl: `http://127.0.0.1:${address.port}/v1`, assistantName }
+    )
+    expect(setup).toEqual([201, 200, 201, 201])
+    await page.reload()
+    await selectSidebarApp(page, 'Chat')
+    const assistant = page.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
+    await assistant.hover()
+    await assistant.getByRole('button', { name: 'New Chat', exact: true }).click()
+    await page
+      .locator('[data-ui~="chat.composer"]:visible [contenteditable="true"]')
+      .first()
+      .fill('Explain a bird with an illustration.')
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
+    const reply = await chat.nextRequest()
+    expect(JSON.stringify(reply.body.messages)).toContain('You must include exactly 1 illustration in each reply.')
+    reply.sendText('Before illustration\n[[IMAGE]]')
+    const status = page.getByRole('status').filter({ hasText: 'Generating illustration' })
+    await expect(status).toBeVisible()
+    expect(imageRequests).toHaveLength(0)
+    const answer = page.locator('[data-ui~="part:message-content"]').filter({
+      has: page.getByText('Before illustration', { exact: true })
+    })
+    const imagePrompt = 'A **bird** on a branch\nWatercolor style'
+    reply.complete(`${imagePrompt}[[/IMAGE]]\n[[IMAGE]]excess hidden prompt[[/IMAGE]]\nAfter illustration`)
+    await expect(page.getByText('After illustration', { exact: true })).toBeVisible()
+    await expect(page.getByText('excess hidden prompt', { exact: true })).toHaveCount(0)
+    await expect(status).toBeVisible()
+    const promptText = page.getByText(imagePrompt, { exact: true })
+    await expect(promptText).toHaveCount(0)
+    await expect.poll(() => imageRequests.length).toBe(1)
+    expect(imageRequests[0].prompt).toBe(imagePrompt)
+    await page.getByRole('button', { name: 'Show prompt', exact: true }).click()
+    await expect(promptText).toBeVisible()
+    expect(await promptText.textContent()).toBe(imagePrompt)
+    await page.getByRole('button', { name: 'Hide prompt', exact: true }).click()
+    await expect(promptText).toHaveCount(0)
+    await page.screenshot({ path: testInfo.outputPath('illustration-placeholder.png') })
+    finishImage()
+    const image = answer.locator('img')
+    await expect(image).toBeVisible({ timeout: 30_000 })
+    await expect
+      .poll(() => image.evaluate((node: HTMLImageElement) => node.complete && node.naturalWidth > 0))
+      .toBe(true)
+    await expect(status).toHaveCount(0)
+    await page.getByRole('button', { name: 'Show prompt', exact: true }).click()
+    await expect(promptText).toBeVisible()
+    expect(await promptText.textContent()).toBe(imagePrompt)
+    await page.getByRole('button', { name: 'Hide prompt', exact: true }).click()
+    const before = await page.getByText('Before illustration', { exact: true }).boundingBox()
+    const picture = await image.boundingBox()
+    const after = await page.getByText('After illustration', { exact: true }).boundingBox()
+    expect(before!.y).toBeLessThan(picture!.y)
+    expect(picture!.y).toBeLessThan(after!.y)
+    await page.reload()
+    await expect(image).toBeVisible()
+    await expect
+      .poll(() => image.evaluate((node: HTMLImageElement) => node.complete && node.naturalWidth > 0))
+      .toBe(true)
+    expect(imageRequests).toHaveLength(1)
+    await expect(promptText).toHaveCount(0)
+    await page.getByRole('button', { name: 'Show prompt', exact: true }).click()
+    await expect(promptText).toBeVisible()
+    expect(await promptText.textContent()).toBe(imagePrompt)
+    await page.screenshot({ path: testInfo.outputPath('illustration-saved.png') })
+
+    const composer = page.locator('[data-ui~="chat.composer"]:visible [contenteditable="true"]').first()
+    await composer.fill('Modify only the second uploaded image.')
+    const unused = (await readFile('build/icons/64x64.png')).toString('base64')
+    let uploadedCount = 0
+    for (const [name, png] of [
+      ['unused.png', unused],
+      ['original.png', imageBase64]
+    ]) {
+      await composer.evaluate(
+        (element, { name, png }) => {
+          const clipboardData = new DataTransfer()
+          clipboardData.items.add(
+            new File([Uint8Array.from(atob(png), (char) => char.charCodeAt(0))], name, { type: 'image/png' })
+          )
+          element.dispatchEvent(new ClipboardEvent('paste', { clipboardData, bubbles: true, cancelable: true }))
+        },
+        { name, png }
+      )
+      await expect(page.locator('[data-ui~="chat.composer"]:visible [data-composer-token-kind="file"]')).toHaveCount(
+        ++uploadedCount
+      )
+    }
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
+    const edit = await chat.nextRequest()
+    expect(JSON.stringify(edit.body.messages)).toContain('Illustration reference image_2')
+    edit.complete(
+      'Edited illustration\n[[IMAGE]]\nreferences: ["image_2", "image_2"]\nMake the background blue.\n[[/IMAGE]]\nEdit complete'
+    )
+    await expect(page.getByText('Edit complete', { exact: true })).toBeVisible()
+    await expect.poll(() => imageRequests.length).toBe(2)
+    expect(imageRequests[1].prompt).toBe('Make the background blue.')
+    expect(imageRequests[1].originals).toEqual([Buffer.from(imageBase64, 'base64')])
+    finishImage()
+    const editedAnswer = page
+      .locator('[data-ui~="part:message-content"]')
+      .filter({ has: page.getByText('Edited illustration', { exact: true }) })
+    await expect(editedAnswer.locator('img')).toBeVisible()
+    await editedAnswer.getByRole('button', { name: 'Show prompt', exact: true }).click()
+    const references = editedAnswer.getByRole('group', { name: 'Reference images', exact: true })
+    await expect(references).toContainText('original.png')
+    await expect(references).not.toContainText('unused.png')
+    await expect(references.locator('img')).toBeVisible()
+    await page.screenshot({ path: testInfo.outputPath('illustration-original.png') })
+    await page.reload()
+    await editedAnswer.getByRole('button', { name: 'Show prompt', exact: true }).click()
+    await expect(references.locator('img')).toBeVisible()
+    expect(imageRequests).toHaveLength(2)
+
+    await composer.fill('Modify that same original again, using the previous upload.')
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
+    const historical = await chat.nextRequest()
+    expect(JSON.stringify(historical.body.messages)).toContain('Illustration reference image_2')
+    historical.complete('Historical edit\n[[IMAGE]]\nreferences: ["image_2"]\nMake the background green.\n[[/IMAGE]]')
+    await expect.poll(() => imageRequests.length).toBe(3)
+    expect(imageRequests[2].originals).toEqual([Buffer.from(imageBase64, 'base64')])
+    finishImage()
+    await expect(
+      page
+        .locator('[data-ui~="part:message-content"]')
+        .filter({ has: page.getByText('Historical edit', { exact: true }) })
+        .locator('img')
+    ).toBeVisible()
+  } finally {
+    await chat.close()
+    images.closeAllConnections()
+    await new Promise<void>((resolve, reject) => images.close((error) => (error ? reject(error) : resolve())))
+  }
+})

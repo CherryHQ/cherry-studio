@@ -73,6 +73,7 @@ import { getCustomParameters } from '../../../utils/reasoning'
 import { normalizeRequestedSelection, resolveReasoningInvocation } from '../../../utils/reasoningSerializers'
 import { createToolCallLimitStopCondition } from '../loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentOptions } from '../loop/types'
+import { getIllustrationSystemPrompt } from '../prompts/illustrations'
 import { assembleSystemPrompt } from './assembleSystemPrompt'
 import { buildTelemetry } from './buildTelemetry'
 import { resolveCapabilities } from './capabilities'
@@ -342,7 +343,9 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const mcpInstructions = buildMcpInstructionsContext(mcpServerIds)
   const system =
     request.system !== undefined
-      ? [request.system, mcpInstructions].filter(Boolean).join('\n\n')
+      ? [request.system, mcpInstructions, getIllustrationSystemPrompt(request.illustrationPolicy)]
+          .filter(Boolean)
+          .join('\n\n')
       : await assembleSystemPrompt({
           assistant,
           model,
@@ -350,7 +353,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
           deferredEntries,
           hasCitableTools,
           webSearchEnabled: finalWebToolRoutes.webSearch !== 'none',
-          mcpInstructions
+          mcpInstructions,
+          illustrationPolicy: request.illustrationPolicy
         })
   const options = buildAgentOptions(
     scope,

@@ -74,7 +74,8 @@ export const DefaultModelSelector: FC<DefaultModelSelectorProps> = ({
   isModelDisabled,
   includeAgentOnlyModels,
   noneOptionLabel,
-  onSelect
+  onSelect,
+  ...triggerProps
 }) => (
   <ModelSelector
     multiple={false}
@@ -85,7 +86,13 @@ export const DefaultModelSelector: FC<DefaultModelSelectorProps> = ({
     includeAgentOnlyModels={includeAgentOnlyModels}
     noneOptionLabel={noneOptionLabel}
     trigger={
-      <ModelSelectorTriggerButton model={model} providers={providers} placeholder={placeholder} compact={compact} />
+      <ModelSelectorTriggerButton
+        {...triggerProps}
+        model={model}
+        providers={providers}
+        placeholder={placeholder}
+        compact={compact}
+      />
     }
   />
 )

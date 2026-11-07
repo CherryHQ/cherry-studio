@@ -31,6 +31,7 @@ import { isMac } from '@renderer/utils/platform'
 import type { ComposerShortcut } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 
+import { IllustrationSettings } from './IllustrationSettings'
 import {
   SettingDivider,
   SettingGroup,
@@ -376,6 +377,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
             />
           </SettingRow>
           <SettingDivider />
+          <IllustrationSettings />
           <SettingRow id="setting-appearance-message-style" className="scroll-mt-6">
             <SettingRowTitleSmall>{t('message.message.style.label')}</SettingRowTitleSmall>
             <Select value={messageStyle} onValueChange={setMessageStyle}>

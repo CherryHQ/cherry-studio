@@ -86,7 +86,16 @@ describe('copy translated output as an image', () => {
     const text = 'First translated line\n' + 'Long translation\n'.repeat(200) + 'Last translated line'
     const view = render(<TranslateOutputPane {...props()} translatedContent={text} />)
     const body = view.container.querySelector<HTMLDivElement>('[data-ui="translate.output-content"]')!
-    body.style.setProperty('--card', 'rgb(24, 24, 24)')
+    // JSDOM does not load the app theme; provide its computed backdrop without writing an owned token.
+    const styles = getComputedStyle(body)
+    const readProperty = styles.getPropertyValue.bind(styles)
+    vi.spyOn(styles, 'getPropertyValue').mockImplementation((name) =>
+      name === '--card' ? 'rgb(24, 24, 24)' : readProperty(name)
+    )
+    const readStyles = window.getComputedStyle.bind(window)
+    vi.spyOn(window, 'getComputedStyle').mockImplementation((element, pseudo) =>
+      element === body ? styles : readStyles(element, pseudo)
+    )
     Object.defineProperties(body, { scrollWidth: { value: 360 }, scrollHeight: { value: 4096 } })
     fireEvent.click(button())
     await waitFor(() => expect(write).toHaveBeenCalledOnce())

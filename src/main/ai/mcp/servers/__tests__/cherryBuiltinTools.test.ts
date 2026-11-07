@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { WebSearchConfigError, type WebSearchConfigErrorCode } from '@main/services/webSearch'
 import type { ImageGenerationSupport } from '@shared/data/types/model'
+import { MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 const { getImageGenerationSupport, getModelByKey, loggerWarn } = vi.hoisted(() => ({
   getImageGenerationSupport: vi.fn(),
@@ -137,7 +138,10 @@ describe('cherry-tools builtin tools', () => {
     fileRead.mockReset()
     getImageGenerationSupport.mockReset()
     getModelByKey.mockReset()
-    getModelByKey.mockReturnValue({})
+    getModelByKey.mockReturnValue({
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      inputModalities: [MODALITY.TEXT]
+    })
     getImageGenerationSupport.mockReturnValue(null)
     loggerWarn.mockReset()
   })

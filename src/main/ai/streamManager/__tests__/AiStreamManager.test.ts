@@ -1,5 +1,7 @@
 import { EventEmitter } from 'node:events'
 
+import { MockApplicationUtils } from '@test-mocks/main/application'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { APICallError, readUIMessageStream, type UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -10,6 +12,7 @@ import { diagnose } from '@main/services/diagnostics/scan/engine'
 import { applyMessageProjectionUpdate, type MessageProjectionView } from '@shared/ai/messageProjection'
 import { aiStreamAdmissionReasons, type StreamChunkPayload } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
+import type { IllustrationData, IllustrationTarget } from '@shared/data/types/illustration'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 
@@ -358,6 +361,63 @@ describe('AiStreamManager', () => {
     if (failWrite) expect(view?.messages[0].parts.at(-1)).toMatchObject({ type: 'data-error' })
     mgr.detachProjection(sender, 'subscription')
     sender.emit('destroyed')
+  })
+
+  it('keeps illustration prompts out of chunk-source snapshots and terminal messages', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.illustration.mode', 'auto')
+    MockApplicationUtils.setService('IllustrationService', {
+      start: ({ id }: IllustrationTarget): IllustrationData => ({ id, revision: 0, status: 'prompting', prompt: '' }),
+      complete: ({ id }: IllustrationTarget, prompt: string): IllustrationData => ({
+        id,
+        revision: 1,
+        status: 'generating',
+        prompt
+      })
+    })
+    try {
+      const feed = controlledStream()
+      mockStreamText.mockResolvedValueOnce({ kind: 'chunks', stream: feed.stream })
+      const snapshots: CherryUIMessage[] = []
+      const listener = Object.assign(new FakeListener('illustrated-answer'), {
+        onMessage: (message: CherryUIMessage) => snapshots.push(message)
+      })
+      startSingle(mgr, {
+        topicId: 'illustrated-topic',
+        modelId: 'p::m',
+        request: { ...req('illustrated-topic'), messageId: 'illustrated-message' },
+        listeners: [listener]
+      })
+      feed.enqueue({ type: 'start', messageId: 'illustrated-message' })
+      feed.enqueue({ type: 'text-start', id: 'text' })
+      feed.enqueue({ type: 'text-delta', id: 'text', delta: 'Before\n[[IMAGE]]hidden drawing prompt[[/IMAGE]]\nAfter' })
+      feed.enqueue({ type: 'text-end', id: 'text' })
+      feed.enqueue({ type: 'finish' })
+      feed.close()
+
+      await vi.waitFor(() => expect(listener.doneResults).toHaveLength(1))
+      const finalMessage = listener.doneResults[0].finalMessage!
+      expect(
+        finalMessage.parts
+          .filter((part) => part.type === 'text')
+          .map((part) => part.text)
+          .join('')
+      ).toBe('Before\n\nAfter')
+      expect(finalMessage.parts).toContainEqual({
+        type: 'data-illustration',
+        id: expect.any(String),
+        data: { id: expect.any(String), revision: 1, status: 'generating', prompt: 'hidden drawing prompt' }
+      })
+      expect(snapshots.at(-1)?.parts).toEqual(finalMessage.parts)
+      expect(
+        listener.chunks
+          .filter((chunk) => chunk.type === 'text-delta')
+          .map((chunk) => chunk.delta)
+          .join('')
+      ).toBe('Before\n\nAfter')
+    } finally {
+      MockApplicationUtils.resetServices()
+      MockMainPreferenceServiceUtils.resetMocks()
+    }
   })
 
   // A replacement must reach subscribers and terminal persistence without reintroducing withdrawn text.

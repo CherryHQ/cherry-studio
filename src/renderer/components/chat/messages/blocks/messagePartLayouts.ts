@@ -262,6 +262,8 @@ export function findOpenTextTailIndex(entries: readonly PartEntry[]): number | n
  */
 export function isSubstantiveAnswerPart(part: CherryMessagePart): boolean {
   switch (part.type) {
+    case 'data-illustration':
+      return true
     // Turn-start / agent-session folds sit on a turn boundary, so they read as a
     // separator and close the process group. An in-loop fold happens BETWEEN
     // tool calls of one continuous loop — treating it as substantive would split

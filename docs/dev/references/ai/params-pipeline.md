@@ -138,13 +138,24 @@ buildAgentParams(input)
   ├─ resolveRequestedMaxOutputTokens → raw output limit before reasoning adjustment
   ├─ resolveReasoningInvocation → reasoning wire + explicit thinking budget
   ├─ collectFromFeatures      → plugins + hookParts
-  ├─ assembleSystemPrompt     → assistant prompt + deferred-tools header
+  ├─ assembleSystemPrompt     → assistant prompt + deferred-tools header + optional illustration instruction
   └─ buildAgentOptions        → standard params + providerOptions + call overrides
                                 + reasoning-adjusted output limit
                                 + sampling filtering across all parameter surfaces
                                 + optional body-passthrough fetch wrapper
                                 + headers + stopWhen + repair + telemetry
 ```
+
+Ordinary chat executions supply a Main-only `illustrationPolicy` snapshot with
+the mode and its active count. Automatic mode permits
+`[[IMAGE]]...[[/IMAGE]]` intents as needed, up to its configured maximum;
+forced-on requires exactly its target count, and forced-off adds no illustration
+instruction. The automatic maximum and forced-on target default to one, range
+from 1 to 10, and are remembered independently. The same active count limits
+stream admission, so forced-on never accepts more than its target. The section is also
+appended when `request.system` overrides normal prompt assembly. Agent sessions
+and multi-model reply groups receive forced-off. A missing intent does not
+trigger a second text-model request.
 
 ## customParameters split
 

@@ -18,6 +18,7 @@ import type {
 } from '@shared/data/preference/preferenceTypes'
 import type { AiUsageRecordMessageKind } from '@shared/data/types/aiUsageRecord'
 import type { FileHandle } from '@shared/data/types/file'
+import type { IllustrationTarget } from '@shared/data/types/illustration'
 import type {
   CherryMessagePart,
   CherryUIMessage,
@@ -373,6 +374,8 @@ export const DEFAULT_MESSAGE_LIST_CONFIG = {
 } as const satisfies Pick<MessageListState, 'estimateSize' | 'overscan' | 'loadOlderDelayMs' | 'loadingResetDelayMs'>
 
 export interface MessageListActions {
+  retryIllustration?: (target: IllustrationTarget) => Promise<unknown>
+  cancelIllustration?: (target: IllustrationTarget) => Promise<void>
   openForkSourceSession?: (sessionId: string) => Promise<void>
   loadOlder?: () => void
   bindRuntime?: (runtime: MessageListRuntime) => void | (() => void)

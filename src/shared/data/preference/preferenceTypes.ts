@@ -10,6 +10,8 @@ import type { ShortcutBinding } from '@shared/utils/shortcut'
 
 import type { PreferenceSchemas } from './preferenceSchemas'
 
+export type { IllustrationMode } from '@shared/data/types/illustration'
+
 /** DB-backed preferences only (stored in SQLite) */
 export type PreferenceDefaultScopeType = PreferenceSchemas['default']
 export type PreferenceKeyType = keyof PreferenceDefaultScopeType
