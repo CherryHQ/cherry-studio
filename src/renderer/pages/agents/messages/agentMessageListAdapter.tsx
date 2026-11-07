@@ -456,7 +456,7 @@ export function useAgentMessageListProviderValue({
       messageNavigation,
       ...DEFAULT_MESSAGE_LIST_CONFIG,
       listKey: resolvedAgentId,
-      renderConfig,
+      renderConfig: { ...renderConfig, keepIntermediateAssistantText: true },
       menuConfig,
       selection: selectionController.selection,
       getMessageUiState: messageUiStateCache.getMessageUiState,
