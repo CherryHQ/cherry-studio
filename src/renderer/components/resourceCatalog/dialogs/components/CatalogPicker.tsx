@@ -61,6 +61,8 @@ export const CatalogToggleGrid: FC<{
   items: CatalogItem[]
   enabledIds: ReadonlySet<string>
   onToggle: (id: string, enabled: boolean) => void
+  autoApproveIds?: ReadonlySet<string>
+  onAutoApproveToggle?: (id: string, enabled: boolean) => void
   loading?: boolean
   disabled?: boolean
   emptyLabel: ReactNode
@@ -74,6 +76,8 @@ export const CatalogToggleGrid: FC<{
   items,
   enabledIds,
   onToggle,
+  autoApproveIds,
+  onAutoApproveToggle,
   loading,
   disabled,
   emptyLabel,
@@ -83,6 +87,7 @@ export const CatalogToggleGrid: FC<{
   layout = 'grid'
 }) => {
   const { t } = useTranslation()
+  const showAutoApprove = autoApproveIds !== undefined && onAutoApproveToggle !== undefined
 
   if (loading) {
     return <CatalogEmptyPlaceholder>{t('common.loading')}</CatalogEmptyPlaceholder>
@@ -163,18 +168,59 @@ export const CatalogToggleGrid: FC<{
               layout === 'list' ? 'px-3 py-2' : 'rounded-lg border border-border-subtle px-2.5 py-1.5'
             )}>
             {info}
-            <Tooltip
-              content={disabledReason}
-              isDisabled={!disabledReason}
-              portalContainer={portalContainer ?? undefined}>
-              <Switch
-                size={layout === 'list' ? 'xs' : 'sm'}
-                checked={checked}
-                disabled={toggleDisabled}
-                onCheckedChange={(nextChecked) => onToggle(item.id, nextChecked)}
-                aria-label={item.name}
-              />
-            </Tooltip>
+            {showAutoApprove ? (
+              <div className="flex flex-col items-end gap-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-muted-foreground">{t('library.action.enable')}</span>
+                  <Tooltip
+                    content={disabledReason}
+                    isDisabled={!disabledReason}
+                    portalContainer={portalContainer ?? undefined}>
+                    <Switch
+                      size="xs"
+                      checked={checked}
+                      disabled={toggleDisabled}
+                      onCheckedChange={(nextChecked) => onToggle(item.id, nextChecked)}
+                      aria-label={`${t('library.action.enable')} ${item.name}`}
+                    />
+                  </Tooltip>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-muted-foreground">{t('settings.mcp.tools.autoApprove.label')}</span>
+                  <Tooltip
+                    content={
+                      toggleDisabled
+                        ? disabledReason
+                        : checked
+                          ? undefined
+                          : t('settings.mcp.tools.autoApprove.tooltip.howToEnable')
+                    }
+                    isDisabled={!toggleDisabled && checked}
+                    portalContainer={portalContainer ?? undefined}>
+                    <Switch
+                      size="xs"
+                      checked={checked && (autoApproveIds?.has(item.id) ?? false)}
+                      disabled={toggleDisabled || !checked}
+                      onCheckedChange={(nextChecked) => onAutoApproveToggle?.(item.id, nextChecked)}
+                      aria-label={`${t('settings.mcp.tools.autoApprove.label')} ${item.name}`}
+                    />
+                  </Tooltip>
+                </div>
+              </div>
+            ) : (
+              <Tooltip
+                content={disabledReason}
+                isDisabled={!disabledReason}
+                portalContainer={portalContainer ?? undefined}>
+                <Switch
+                  size={layout === 'list' ? 'xs' : 'sm'}
+                  checked={checked}
+                  disabled={toggleDisabled}
+                  onCheckedChange={(nextChecked) => onToggle(item.id, nextChecked)}
+                  aria-label={item.name}
+                />
+              </Tooltip>
+            )}
           </div>
         )
       })}

@@ -35,6 +35,8 @@ export interface AgentFormState {
   /** Knowledge bases bound to the agent (empty = kb_* tools not exposed). */
   knowledgeBaseIds: string[]
   skillIds: string[]
+  /** Tool names that run without per-call approval. */
+  allowedTools: string[]
   /** Opt-out list of disabled tool names (empty = all enabled). */
   disabledTools: string[]
 
@@ -108,6 +110,7 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null, skillIds:
     mcps: [...(agent?.mcps ?? [])],
     knowledgeBaseIds: [...(agent?.knowledgeBaseIds ?? [])],
     skillIds: [...skillIds],
+    allowedTools: [...(agent?.allowedTools ?? [])],
     disabledTools: (agent?.disabledTools ?? []).map((name) =>
       agent?.type === 'pi' || agent?.type === 'pi-durable' ? normalizePiDisabledToolId(name) : name
     ),
@@ -197,6 +200,10 @@ export function diffAgentUpdate(baseline: AgentFormState, next: AgentFormState):
   }
   if (!arraysEqual(baseline.disabledTools, next.disabledTools)) {
     dto.disabledTools = next.disabledTools
+    dirty = true
+  }
+  if (!arraysEqual(baseline.allowedTools, next.allowedTools)) {
+    dto.allowedTools = next.allowedTools
     dirty = true
   }
 

@@ -161,6 +161,13 @@ describe('diffAgentUpdate', () => {
     })
   })
 
+  it('diffs per-tool auto-approval separately from tool availability', () => {
+    const baseline = buildInitialAgentFormState(createAgent({ allowedTools: ['Bash'] }))
+    const next = { ...baseline, allowedTools: ['Read'] }
+
+    expect(diffAgentUpdate(baseline, next)?.dto).toEqual({ allowedTools: ['Read'] })
+  })
+
   it('emits knowledgeBaseIds when the bound knowledge bases change', () => {
     const agent = createAgent({ knowledgeBaseIds: ['kb-1'] })
     const baseline = buildInitialAgentFormState(agent)

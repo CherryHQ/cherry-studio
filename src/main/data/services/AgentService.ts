@@ -329,6 +329,7 @@ export class AgentService {
       model: req.model,
       planModel: req.planModel,
       smallModel: req.smallModel,
+      allowedTools: req.allowedTools,
       disabledTools: req.disabledTools,
       configuration: req.configuration
     }
@@ -749,7 +750,7 @@ export class AgentService {
           }
 
           // Several mutable fields map to NOT NULL columns with DB defaults
-          // (description, instructions, disabledTools, configuration). Writing
+          // (description, instructions, allowedTools, disabledTools, configuration). Writing
           // literal NULL when the DTO omits a field would violate the constraint.
           // Configuration is handled separately as a first-level JSON PATCH.
           for (const field of Object.keys(AGENT_MUTABLE_FIELDS)) {

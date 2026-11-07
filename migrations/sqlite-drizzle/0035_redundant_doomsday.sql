@@ -1,0 +1,1 @@
+ALTER TABLE `agent` ADD `allowed_tools` text DEFAULT '[]' NOT NULL;
