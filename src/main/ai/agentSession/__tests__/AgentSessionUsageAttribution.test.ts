@@ -1,0 +1,180 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { expect, it } from 'vitest'
+
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
+import { aiUsageRecordService, type RecordAiInvocationInput } from '@data/services/AiUsageRecordService'
+import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
+import { AiSdkToOpenAiResponsesSse } from '@main/features/apiGateway/adapters/stream/AiSdkToOpenAiResponsesSse'
+import { AiSdkToOpenAiSse } from '@main/features/apiGateway/adapters/stream/AiSdkToOpenAiSse'
+
+import { AgentSessionUsageAttribution } from '../AgentSessionUsageAttribution'
+
+const dbh = setupTestDatabase()
+const invocation = (id: string): RecordAiInvocationInput => ({
+  requestId: id,
+  context: createAiUsageCaptureContext({
+    providerId: 'provider',
+    modelId: 'model',
+    credentialReceipt: { attribution: 'explicit', id: 'captured-key', masked: 'key-****', label: 'Captured' },
+    pricing: { input: { perMillionTokens: 1, currency: 'USD' }, output: { perMillionTokens: 2, currency: 'USD' } },
+    capturedAt: '2026-10-27T00:00:00Z'
+  }),
+  modality: 'language',
+  usage: { inputTokens: 100, outputTokens: 20, totalTokens: 120 },
+  completedAt: 1234
+})
+
+// A completed gateway request can precede the native steer receipt; neither order may charge the old reply.
+it.each([true, false])('joins by native response ID with frozen attribution (usage first: %s)', (usageFirst) => {
+  const attribution = new AgentSessionUsageAttribution()
+  const first = invocation('call-1')
+  const second = invocation('call-2')
+  const recordFirst = attribution.capture('native-1')
+  const recordSecond = attribution.capture('native-2')
+  if (usageFirst) {
+    recordSecond(second)
+    recordFirst(first)
+    expect(dbh.db.select().from(aiUsageRecordTable).all()).toMatchObject([{ messageId: null }, { messageId: null }])
+  }
+  attribution.bind('native-1', '11111111-1111-4111-8111-111111111111')
+  attribution.bind('native-2', '22222222-2222-4222-8222-222222222222')
+  if (!usageFirst) {
+    recordSecond(second)
+    recordFirst(first)
+  }
+  attribution.bind('native-2', '22222222-2222-4222-8222-222222222222')
+  attribution.close()
+  const rows = dbh.db.select().from(aiUsageRecordTable).all()
+  expect(rows).toHaveLength(2)
+  expect(rows.find((row) => row.requestId === 'call-1')).toMatchObject({
+    messageId: '11111111-1111-4111-8111-111111111111'
+  })
+  expect(rows.find((row) => row.requestId === 'call-2')).toMatchObject({
+    messageId: '22222222-2222-4222-8222-222222222222'
+  })
+  expect(first.context.messageRef).toBeNull()
+  expect(
+    rows.every((row) => row.apiKeyId === 'captured-key' && row.providerId === 'provider' && row.modelId === 'model')
+  ).toBe(true)
+  expect(rows.every((row) => row.costCurrency === 'USD' && Math.abs(row.cost! - 0.00014) < 1e-10)).toBe(true)
+})
+
+// Disconnect must retain real provider usage without guessing the last active message.
+it('records unresolved and late completions without a message owner after close', () => {
+  const attribution = new AgentSessionUsageAttribution()
+  const late = attribution.capture('unobserved-response')
+  late(invocation('before-close'))
+  attribution.close()
+  late(invocation('after-close'))
+  const rows = dbh.db.select().from(aiUsageRecordTable).all()
+  expect(rows).toHaveLength(2)
+  expect(rows.every((row) => row.messageId === null)).toBe(true)
+})
+
+// A hidden auxiliary request must survive process loss before native response correlation.
+it('persists auxiliary usage immediately and binds its child message once', () => {
+  const attribution = new AgentSessionUsageAttribution()
+  const record = attribution.capture('child-response')
+  record(invocation('child-call'))
+  const before = dbh.db.select().from(aiUsageRecordTable).get()!
+  expect(before).toMatchObject({ messageId: null, totalTokens: 120 })
+  attribution.bind('child-response', 'child-message')
+  attribution.bind('child-response', 'child-message')
+  const after = dbh.db.select().from(aiUsageRecordTable).get()!
+  expect(after).toEqual({
+    ...before,
+    messageKind: 'agent-session',
+    messageId: 'child-message'
+  })
+  expect(() => attribution.bind('child-response', 'different-message')).toThrow('another message')
+  expect(dbh.db.select().from(aiUsageRecordTable).all()).toHaveLength(1)
+})
+
+// Late native correlation must repair the message projection without charging a second request.
+it('projects child fees once and retains unbound auxiliary charges', () => {
+  dbh.db
+    .insert(agentWorkspaceTable)
+    .values({ id: 'workspace', name: 'Workspace', path: '/workspace', orderKey: 'a0' })
+    .run()
+  dbh.db
+    .insert(agentSessionTable)
+    .values({ id: 'child-session', workspaceId: 'workspace', name: 'Child', orderKey: 'a0' })
+    .run()
+  dbh.db
+    .insert(agentSessionMessageTable)
+    .values({
+      id: 'child-message',
+      sessionId: 'child-session',
+      role: 'assistant',
+      data: { parts: [] },
+      status: 'success'
+    })
+    .run()
+  const attribution = new AgentSessionUsageAttribution()
+  attribution.capture('response')(invocation('visible-call'))
+  attribution.capture('auxiliary')(invocation('summary-call'))
+  attribution.bind('response', 'child-message')
+  attribution.bind('response', 'child-message')
+  expect(dbh.db.select().from(agentSessionMessageTable).get()?.stats).toMatchObject({
+    requestCount: 1,
+    totalTokens: 120,
+    inputTokens: 100,
+    outputTokens: 20
+  })
+  expect(
+    aiUsageRecordService.list({ messageKind: 'agent-session', messageId: 'child-message', limit: 10 }).items
+  ).toMatchObject([{ requestId: 'visible-call', messageId: 'child-message' }])
+  expect(aiUsageRecordService.list({ limit: 10 }).items).toEqual(
+    expect.arrayContaining([expect.objectContaining({ requestId: 'summary-call', messageId: null, totalTokens: 120 })])
+  )
+  const rows = dbh.db.select().from(aiUsageRecordTable).all()
+  expect(rows).toHaveLength(2)
+  expect(rows.reduce((sum, row) => sum + row.totalTokens!, 0)).toBe(240)
+})
+
+// Best-effort analytics must not prevent a native reply when its initial record was unavailable.
+it('does not recreate a missing invocation during late association', () => {
+  const attribution = new AgentSessionUsageAttribution()
+  attribution.capture('response')(invocation('call'))
+  dbh.db.delete(aiUsageRecordTable).run()
+  expect(() => attribution.bind('response', 'message')).not.toThrow()
+  expect(dbh.db.select().from(aiUsageRecordTable).all()).toEqual([])
+})
+
+// The native harness sees the serialized protocol ID, so capture must use that exact ID too.
+it.each(['chat', 'responses'] as const)(
+  'joins %s wire responses to root and child usage without charging twice',
+  (protocol) => {
+    for (const usageFirst of [true, false]) {
+      const adapter =
+        protocol === 'chat'
+          ? new AiSdkToOpenAiSse({ model: 'model' })
+          : new AiSdkToOpenAiResponsesSse({ model: 'model' })
+      adapter.transformChunk({ type: 'text-delta', id: 'text', delta: 'Answer' })
+      adapter.finalizeEvents()
+      const wire = adapter.buildNonStreamingResponse() as { id: string }
+      const attribution = new AgentSessionUsageAttribution()
+      const record = attribution.capture(adapter.getMessageId())
+      const requestId = `${protocol}-${usageFirst}`
+      if (usageFirst) record(invocation(requestId))
+      attribution.bind(wire.id, `message-${requestId}`)
+      if (!usageFirst) record(invocation(requestId))
+      attribution.bind(wire.id, `message-${requestId}`)
+      attribution.close()
+      const rows = dbh.db
+        .select()
+        .from(aiUsageRecordTable)
+        .all()
+        .filter((row) => row.requestId === requestId)
+      expect(rows).toHaveLength(1)
+      expect(rows[0]).toMatchObject({
+        messageId: `message-${requestId}`,
+        totalTokens: 120
+      })
+      expect(rows[0].cost).toBeCloseTo(0.00014, 10)
+    }
+  }
+)

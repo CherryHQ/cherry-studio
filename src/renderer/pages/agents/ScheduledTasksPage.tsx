@@ -12,6 +12,8 @@ import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useTaskConversation } from '@renderer/hooks/agent/useTaskConversation'
 import { TASKS_PAGE_LIMIT, useAllTasks, useCreateTask, useTask } from '@renderer/hooks/agent/useTasks'
+import { useCurrentTabId } from '@renderer/hooks/tab'
+import { useConversationLocateRequest } from '@renderer/hooks/useConversationLocateRequest'
 import { useConversationShellPaneState } from '@renderer/hooks/useConversationShellPaneState'
 import type { AppRouter } from '@renderer/types/router'
 
@@ -26,17 +28,36 @@ const routeApi = getRouteApi('/app/scheduled-tasks')
 
 export default function ScheduledTasksPage() {
   const { t } = useTranslation()
-  const { taskId, runId } = routeApi.useSearch<AppRouter>()
+  const { taskId, runId, notificationId } = routeApi.useSearch<AppRouter>()
   const navigate = useNavigate()
   const active = useAllTasks('active')
   const paused = useAllTasks('paused')
   const { task, error: taskError, isLoading: taskLoading, refetch: refreshTask } = useTask(taskId ?? null)
   const selectedTask = task?.id === taskId && !taskError ? task : null
+  const { data: notification, error: notificationError } = useQuery('/notifications/:id', {
+    params: { id: notificationId ?? '' },
+    enabled: !!notificationId,
+    swrOptions: { shouldRetryOnError: false }
+  })
+  const resultError =
+    notificationId &&
+    notification?.id === notificationId &&
+    !notificationError &&
+    notification.target?.kind === 'scheduled-task' &&
+    notification.target.taskId === selectedTask?.id
+      ? notification.target.result?.errorSummary
+      : undefined
   const conversation = useTaskConversation(selectedTask, runId)
   const bootstrap = useAgentConversationBootstrap({
     session: conversation.session,
     sessionLoading: conversation.sessionLoading,
     sessionSource: conversation.session ? 'query' : 'none'
+  })
+  const currentTabId = useCurrentTabId()
+  const { locateMessageId, locateToEnd, clearLocate } = useConversationLocateRequest({
+    navigationTabId: currentTabId ?? undefined,
+    activeConversationId: conversation.result?.session?.id,
+    visibleConversationId: bootstrap.session?.id
   })
   const [paneOpen, setPaneOpen] = usePreference('topic.tab.show')
   const shell = useConversationShellPaneState({ persistedPaneOpen: paneOpen, setPersistedPaneOpen: setPaneOpen })
@@ -181,6 +202,9 @@ export default function ScheduledTasksPage() {
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <AgentChat
         conversationBootstrap={bootstrap}
+        locateMessageId={locateMessageId}
+        locateToEnd={locateToEnd}
+        onLocateMessageHandled={clearLocate}
         pane={pane}
         paneOpen={shell.shellPaneOpen}
         panePosition="left"
@@ -191,6 +215,11 @@ export default function ScheduledTasksPage() {
         conversationToolbar={toolbar}
         centerSurface={!conversation.session ? { content: empty } : null}
       />
+      {resultError && (
+        <div role="alert" className="px-3 py-2 text-sm text-destructive">
+          {resultError}
+        </div>
+      )}
       {conversation.session && !!error && (
         <div role="alert" className="flex items-center gap-2 px-3 py-1 text-sm">
           {t('agent.tasks.logs.loadError')}

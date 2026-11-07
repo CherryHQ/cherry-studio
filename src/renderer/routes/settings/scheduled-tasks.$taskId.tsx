@@ -1,7 +1,12 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/settings/scheduled-tasks/$taskId')({
-  beforeLoad: ({ params }) => {
-    throw redirect({ to: '/app/scheduled-tasks', search: { taskId: params.taskId }, replace: true })
+  validateSearch: (search: Record<string, unknown>): { notificationId?: string } => ({
+    ...(typeof search.notificationId === 'string' && search.notificationId.trim()
+      ? { notificationId: search.notificationId }
+      : {})
+  }),
+  beforeLoad: ({ params, search }) => {
+    throw redirect({ to: '/app/scheduled-tasks', search: { taskId: params.taskId, ...search }, replace: true })
   }
 })

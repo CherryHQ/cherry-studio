@@ -22,11 +22,14 @@ import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { CHERRY_FAST_MODE_HEADER, CHERRY_REASONING_EFFORT_HEADER, CHERRY_SERVICE_TIER_HEADER } from '@main/ai/constants'
 import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
 import { applyFastModeToProviderOptions } from '@main/ai/utils/options'
+import { ENDPOINT_TYPE, ServiceTierSelectionSchema } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 
 import type { InputFormat, InputParamsMap, ISseFormatter, IStreamAdapter, OutputFormat } from './adapters'
 import { MessageConverterFactory, StreamAdapterFactory } from './adapters'
@@ -67,10 +70,12 @@ function isStartupCommitChunk(chunk: UIMessageChunk): boolean {
  * this, a truncated reply is indistinguishable from a real completion.
  */
 function streamInterruptedError(): Error & { status: number } {
-  const error = new Error('Upstream stream ended before completion (idle timeout or abort)') as Error & {
+  const error = new Error('Upstream idle timeout exceeded') as Error & {
     status: number
+    cause?: string
   }
   error.status = 504
+  error.cause = 'UPSTREAM_IDLE_TIMEOUT'
   return error
 }
 
@@ -144,8 +149,20 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const isInternalRequest = config.requestHeaders
     ? application.get('ApiGatewayService').isInternalRequest(config.requestHeaders)
     : false
+  const reasoningHeader = isInternalRequest ? config.requestHeaders?.get(CHERRY_REASONING_EFFORT_HEADER) : null
+  const tierHeader = isInternalRequest ? config.requestHeaders?.get(CHERRY_SERVICE_TIER_HEADER) : null
+  const reasoning = ReasoningEffortOptionSchema.safeParse(reasoningHeader ?? undefined)
+  const tier = ServiceTierSelectionSchema.safeParse(tierHeader ?? undefined)
+  if ((reasoningHeader && !reasoning.success) || (tierHeader && !tier.success))
+    throw asClientError(new Error('Invalid internal Agent request options'))
+  const turnOptions = {
+    ...(reasoning.success ? { reasoningEffort: reasoning.data } : {}),
+    ...(tier.success ? { serviceTier: tier.data } : {}),
+    fastMode:
+      config.fastMode === true || (isInternalRequest && config.requestHeaders?.get(CHERRY_FAST_MODE_HEADER) === 'true')
+  }
   const resolvedAddress = await resolveGatewayModelAddress(modelString, isInternalRequest)
-  const { providerId, apiModelId: modelId, uniqueModelId, provider: resolvedProvider, model } = resolvedAddress
+  const { providerId, apiModelId: modelId, uniqueModelId, provider: resolvedProvider } = resolvedAddress
   const agentSessionId = config.requestHeaders
     ? application.get('ApiGatewayService').getAgentSessionId(config.requestHeaders)
     : undefined
@@ -153,9 +170,6 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const logContext = { providerId, modelId, ...(agentSessionId ? { agentSessionId } : {}) }
 
   const isStreaming = config.streaming ?? ('stream' in params && (params as { stream?: boolean }).stream === true)
-  const usageContext = config.requestHeaders
-    ? application.get('ApiGatewayService').resolveAgentSessionUsage(config.requestHeaders)
-    : undefined
 
   logger.info(`Starting ${isStreaming ? 'streaming' : 'non-streaming'} message`, {
     ...logContext,
@@ -165,6 +179,16 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
 
   const provider: Provider = config.provider ?? resolvedProvider
   const isInternalAnthropicAgentRequest = inputFormat === 'anthropic' && isInternalRequest
+  const endpoint = resolveEffectiveEndpoint(
+    provider,
+    resolvedAddress.model,
+    isInternalAnthropicAgentRequest ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES : undefined
+  )
+  const model =
+    endpoint.endpointType && endpoint.endpointType !== resolvedAddress.model.endpointTypes?.[0]
+      ? { ...resolvedAddress.model, endpointTypes: [endpoint.endpointType] }
+      : resolvedAddress.model
+  const resolvedModel = { provider, model }
   let effectiveParams = params
 
   if (isInternalAnthropicAgentRequest) {
@@ -203,23 +227,24 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   // across turns; targets that reject them get a downgrade 400 or a fold.
   const positionedMessages = positionInlineSystemMessages(
     convertedMessages,
-    resolveEffectiveEndpoint(provider, model).endpointType,
+    endpoint.endpointType,
     config.requestHeaders
   )
   const messages = isInternalAnthropicAgentRequest
     ? appendInternalAgentContinuation(positionedMessages)
     : positionedMessages
-  const tools = converter.toAiSdkTools?.(effectiveParams)
+  const tools = converter.toAiSdkTools?.(effectiveParams, endpoint.endpointType)
   const streamOptions = converter.extractStreamOptions(effectiveParams)
 
   // Provider options (reasoning/thinking) use the same enabled provider resolved above.
-  const extractedProviderOptions =
-    converter.extractProviderOptions(provider, model, effectiveParams, streamOptions.maxOutputTokens) ?? {}
+  const extractedProviderOptions = reasoning.success
+    ? {}
+    : (converter.extractProviderOptions(provider, model, effectiveParams, streamOptions.maxOutputTokens) ?? {})
   const fastModeProviderOptions = applyFastModeToProviderOptions(
     provider,
     model,
     extractedProviderOptions,
-    config.fastMode === true
+    turnOptions.fastMode
   )
 
   const providerOptions = agentSessionId
@@ -239,6 +264,9 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     ...(converter.toClientToolName ? { toClientToolName: converter.toClientToolName.bind(converter) } : {})
   })
   const formatter: ISseFormatter = StreamAdapterFactory.getFormatter(outputFormat)
+  const usageContext = config.requestHeaders
+    ? application.get('ApiGatewayService').resolveAgentSessionUsage(config.requestHeaders, adapter.getMessageId())
+    : undefined
 
   const streamId = `gateway-${uuidv4()}`
   if (messages !== convertedMessages) {
@@ -345,7 +373,21 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
         })
         const listener: StreamListener = {
           id: sseListener.id,
-          onChunk: (chunk) => sseListener.onChunk(chunk),
+          onChunk: (chunk) => {
+            if (closed) return
+            try {
+              sseListener.onChunk(chunk)
+            } catch (error) {
+              if (startupState === 'pending') fail(error)
+              else write(buildStreamErrorFrame(outputFormat, error))
+              try {
+                onError?.(error)
+              } finally {
+                safeClose()
+                aiStreamManager.abort(streamId, 'gateway adapter rejected upstream output')
+              }
+            }
+          },
           onDone: (result) => sseListener.onDone(result),
           onPaused: (result) => {
             if (startupState === 'pending') {
@@ -372,8 +414,10 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
         if (closed) return
         try {
           aiStreamManager.streamPrompt({
+            ...turnOptions,
             streamId,
             uniqueModelId,
+            resolvedModel,
             messages,
             listener,
             callOverrides,
@@ -420,6 +464,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   })
 
   let aborted = false
+  let adapterFailed = false
   const onAbort = () => {
     aborted = true
     aiStreamManager.abort(streamId, 'gateway client disconnected')
@@ -433,7 +478,14 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const listener: StreamListener = {
     id: `gateway:${streamId}`,
     onChunk: (chunk) => {
-      adapter.transformChunk(chunk)
+      if (adapterFailed) return
+      try {
+        adapter.transformChunk(chunk)
+      } catch (error) {
+        adapterFailed = true
+        rejectDone(error)
+        aiStreamManager.abort(streamId, 'gateway adapter rejected upstream output')
+      }
     },
     onDone: () => resolveDone(),
     onPaused: () => {
@@ -452,14 +504,16 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
       rejectDone(streamInterruptedError())
     },
     onError: (result) => rejectDone(result.error),
-    isAlive: () => !aborted
+    isAlive: () => !aborted && !adapterFailed
   }
 
   try {
     if (!aborted) {
       aiStreamManager.streamPrompt({
+        ...turnOptions,
         streamId,
         uniqueModelId,
+        resolvedModel,
         messages,
         listener,
         callOverrides,

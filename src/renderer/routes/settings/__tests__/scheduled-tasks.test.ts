@@ -7,7 +7,11 @@ import { Route as indexRoute } from '../scheduled-tasks.index'
 describe('legacy scheduled task links', () => {
   it.each([
     { path: '/settings/scheduled-tasks', search: {} },
-    { path: '/settings/scheduled-tasks/task-1', search: { taskId: 'task-1' } }
+    { path: '/settings/scheduled-tasks/task-1', search: { taskId: 'task-1' } },
+    {
+      path: '/settings/scheduled-tasks/task-1?notificationId=notice',
+      search: { taskId: 'task-1', notificationId: 'notice' }
+    }
   ])('opens the dedicated task page from $path', async ({ path, search }) => {
     const root = createRootRoute()
     const index = createRoute({
@@ -18,6 +22,7 @@ describe('legacy scheduled task links', () => {
     const detail = createRoute({
       getParentRoute: () => root,
       path: '/settings/scheduled-tasks/$taskId',
+      validateSearch: detailRoute.options.validateSearch,
       beforeLoad: detailRoute.options.beforeLoad
     })
     const destination = createRoute({ getParentRoute: () => root, path: '/app/scheduled-tasks' })
