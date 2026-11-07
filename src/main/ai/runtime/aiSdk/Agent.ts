@@ -45,7 +45,15 @@ class MissingFinishReasonError extends Error {
 }
 
 function normalizeStreamError(error: unknown, providerId: string, modelId: string): unknown {
-  if (InvalidResponseDataError.isInstance(error) && error.message === MISSING_FINISH_REASON_MESSAGE) {
+  if (
+    InvalidResponseDataError.isInstance(error) &&
+    (error.message === MISSING_FINISH_REASON_MESSAGE ||
+      (typeof error.data === 'object' &&
+        error.data !== null &&
+        'type' in error.data &&
+        error.data.type === 'message_start' &&
+        /^Received message_start for message .+ while message .+ is still open\.$/.test(error.message)))
+  ) {
     return new MissingFinishReasonError(error, providerId, modelId)
   }
   return error
