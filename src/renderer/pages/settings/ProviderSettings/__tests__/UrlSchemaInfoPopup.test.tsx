@@ -197,4 +197,314 @@ describe('provider import names', () => {
       updatedProvider: { name: 'Internal preset name' }
     })
   })
+
+  it('lets the user rename the provider ID so a colliding import becomes a separate provider', async () => {
+    const user = userEvent.setup()
+    MockUseDataApiUtils.mockQueryResult('/providers', {
+      data: [
+        ProviderSchema.parse({
+          id: params.id,
+          name: 'Saved Relay',
+          isEnabled: true,
+          reportsActualCost: false,
+          apiKeys: [],
+          authType: 'api-key',
+          settings: {},
+          endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://other.example.com' } },
+          defaultChatEndpoint: 'openai-chat-completions'
+        })
+      ]
+    })
+    const { result } = await showImport()
+    expect(screen.getByText(i18n.t('settings.models.provider_import_id_exists'))).toBeVisible()
+    const idInput = screen.getByRole('textbox', { name: i18n.t('settings.models.provider_id') })
+    await user.clear(idInput)
+    await user.type(idInput, 'my-relay-2')
+    expect(screen.queryByText(i18n.t('settings.models.provider_import_id_exists'))).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: i18n.t('common.add') }))
+    await expect(result).resolves.toMatchObject({
+      isNew: true,
+      updatedProvider: { id: 'my-relay-2', apiKey: params.apiKey, apiHost: params.baseUrl }
+    })
+  })
+
+  it('rejects invalid provider IDs', async () => {
+    const user = userEvent.setup()
+    await showImport()
+    const idInput = screen.getByRole('textbox', { name: i18n.t('settings.models.provider_id') })
+    await user.clear(idInput)
+    await user.type(idInput, 'bad/id')
+    expect(screen.getByText(i18n.t('settings.models.provider_import_id_invalid'))).toBeVisible()
+    expect(screen.getByRole('button', { name: i18n.t('common.add') })).toBeDisabled()
+  })
+
+  it('preserves an untouched whitespace-bearing link ID instead of trimming it', async () => {
+    const user = userEvent.setup()
+    MockUseDataApiUtils.mockQueryResult('/providers', {
+      data: [
+        ProviderSchema.parse({
+          id: ' relay ',
+          name: 'Saved Relay',
+          isEnabled: true,
+          reportsActualCost: false,
+          apiKeys: [],
+          authType: 'api-key',
+          settings: {},
+          endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://other.example.com' } },
+          defaultChatEndpoint: 'openai-chat-completions'
+        })
+      ]
+    })
+    const { result } = await showImport({ ...params, id: ' relay ' })
+    // the raw link ID still matches the stored provider, not a trimmed look-alike
+    expect(screen.getByText(i18n.t('settings.models.provider_import_id_exists'))).toBeVisible()
+    await user.click(screen.getByRole('button', { name: i18n.t('common.add') }))
+    await expect(result).resolves.toMatchObject({
+      isNew: false,
+      nameOnly: true,
+      updatedProvider: { id: ' relay ', apiHost: 'https://other.example.com' }
+    })
+  })
+
+  it('trims the provider ID only once the user edits it', async () => {
+    const user = userEvent.setup()
+    const { result } = await showImport()
+    const idInput = screen.getByRole('textbox', { name: i18n.t('settings.models.provider_id') })
+    await user.clear(idInput)
+    await user.type(idInput, '  my-relay-2  ')
+    await user.click(screen.getByRole('button', { name: i18n.t('common.add') }))
+    await expect(result).resolves.toMatchObject({
+      isNew: true,
+      updatedProvider: { id: 'my-relay-2', apiKey: params.apiKey }
+    })
+  })
+
+  it('never treats keys from a previously matched provider as duplicates after the ID changes', async () => {
+    const user = userEvent.setup()
+    MockUseDataApiUtils.mockQueryResult('/providers', {
+      data: [
+        ProviderSchema.parse({
+          id: params.id,
+          name: 'Saved Relay',
+          isEnabled: true,
+          reportsActualCost: false,
+          apiKeys: [],
+          authType: 'api-key',
+          settings: {},
+          endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://other.example.com' } },
+          defaultChatEndpoint: 'openai-chat-completions'
+        })
+      ]
+    })
+    const previousQuery = mockUseQuery.getMockImplementation()!
+    mockUseQuery.mockImplementation((path, options) => {
+      const result = previousQuery(path, options)
+      return path === '/providers/:providerId/api-keys' && options?.enabled !== false
+        ? { ...result, data: { keys: [{ key: params.apiKey }] } }
+        : result
+    })
+    const { result } = await showImport()
+    // the keys query must not retain data across ID edits, or the imported key would be
+    // dropped as a "duplicate" of a provider it was never checked against
+    await waitFor(() =>
+      expect(mockUseQuery).toHaveBeenCalledWith(
+        '/providers/:providerId/api-keys',
+        expect.objectContaining({ swrOptions: expect.objectContaining({ keepPreviousData: false }) })
+      )
+    )
+    // the imported key matches one stored on the matched provider, so confirming is a no-op
+    expect(screen.getByRole('button', { name: i18n.t('common.confirm') })).toBeDisabled()
+    const idInput = screen.getByRole('textbox', { name: i18n.t('settings.models.provider_id') })
+    await user.clear(idInput)
+    await user.type(idInput, 'my-relay-2')
+    // the new ID matches nothing, so the imported key must survive into the new provider
+    await user.click(screen.getByRole('button', { name: i18n.t('common.add') }))
+    await expect(result).resolves.toMatchObject({
+      isNew: true,
+      updatedProvider: { id: 'my-relay-2', apiKey: params.apiKey }
+    })
+  })
+
+  it('discloses every configured endpoint host when merging a key into a multi-host provider', async () => {
+    MockUseDataApiUtils.mockQueryResult('/providers', {
+      data: [
+        ProviderSchema.parse({
+          id: params.id,
+          name: 'Saved Relay',
+          isEnabled: true,
+          reportsActualCost: false,
+          apiKeys: [],
+          authType: 'api-key',
+          settings: {},
+          endpointConfigs: {
+            'openai-chat-completions': { baseUrl: 'https://primary.example.com/v1' },
+            'anthropic-messages': { baseUrl: 'https://anthropic.example.com' }
+          },
+          defaultChatEndpoint: 'openai-chat-completions'
+        })
+      ]
+    })
+    await showImport()
+    expect(
+      screen.getByText(
+        i18n.t('settings.models.provider_import_key_destination_multi', {
+          hosts: 'primary.example.com, anthropic.example.com'
+        })
+      )
+    ).toBeVisible()
+  })
+
+  it('never echoes unparseable stored URLs or embedded credentials in the destination notice', async () => {
+    MockUseDataApiUtils.mockQueryResult('/providers', {
+      data: [
+        ProviderSchema.parse({
+          id: params.id,
+          name: 'Saved Relay',
+          isEnabled: true,
+          reportsActualCost: false,
+          apiKeys: [],
+          authType: 'api-key',
+          settings: {},
+          endpointConfigs: {
+            'openai-chat-completions': { baseUrl: 'https://user:secret@primary.example.com/v1' },
+            'anthropic-messages': { baseUrl: 'not a url sk-secret-123' }
+          },
+          defaultChatEndpoint: 'openai-chat-completions'
+        })
+      ]
+    })
+    await showImport()
+    // userinfo is stripped by URL parsing; the unparseable entry is counted, never echoed
+    expect(
+      screen.getByText(
+        i18n.t('settings.models.provider_import_key_destination_unknown_hosts', {
+          hosts: 'primary.example.com',
+          num: 1
+        })
+      )
+    ).toBeVisible()
+    expect(screen.queryByText(/secret/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/sk-secret-123/)).not.toBeInTheDocument()
+  })
+
+  it('discloses the revived host a bare scheme is formatted into before dispatch', async () => {
+    MockUseDataApiUtils.mockQueryResult('/providers', {
+      data: [
+        ProviderSchema.parse({
+          id: params.id,
+          name: 'Saved Relay',
+          isEnabled: true,
+          reportsActualCost: false,
+          apiKeys: [],
+          authType: 'api-key',
+          settings: {},
+          // unparseable on its own, but formatApiHost appends /v1 -> 'http:/v1' -> host 'v1'
+          endpointConfigs: { 'openai-chat-completions': { baseUrl: 'http://' } },
+          defaultChatEndpoint: 'openai-chat-completions'
+        })
+      ]
+    })
+    await showImport()
+    expect(screen.getByText(i18n.t('settings.models.provider_import_key_destination', { host: 'v1' }))).toBeVisible()
+  })
+
+  it('discloses the host Ollama formatting actually dispatches to when it strips the stored one', async () => {
+    MockUseDataApiUtils.mockQueryResult('/providers', {
+      data: [
+        ProviderSchema.parse({
+          id: params.id,
+          name: 'Saved Relay',
+          isEnabled: true,
+          reportsActualCost: false,
+          apiKeys: [],
+          authType: 'api-key',
+          settings: {},
+          // formatOllamaApiHost strips the /v1$-shaped host: 'http://v1' -> 'http:/api' -> host 'api'
+          endpointConfigs: { 'ollama-chat': { baseUrl: 'http://v1' } },
+          defaultChatEndpoint: 'ollama-chat'
+        })
+      ]
+    })
+    await showImport()
+    expect(screen.getByText(i18n.t('settings.models.provider_import_key_destination', { host: 'api' }))).toBeVisible()
+  })
+
+  it('never claims exclusivity in any destination notice wording', () => {
+    // chat and model-list transports can normalize the same stored base URL to
+    // different hosts, so no wording may promise an exclusive destination
+    expect(i18n.t('settings.models.provider_import_key_destination', { host: 'x' })).not.toMatch(/only/i)
+    expect(i18n.t('settings.models.provider_import_key_destination_multi', { hosts: 'x' })).not.toMatch(/only/i)
+    expect(i18n.t('settings.models.provider_import_key_destination_unknown_hosts', { hosts: 'x', num: 1 })).not.toMatch(
+      /only/i
+    )
+    expect(i18n.t('settings.models.provider_import_key_destination_unknown_only', { num: 1 })).not.toMatch(/only/i)
+  })
+
+  it('counts destinations that stay unparseable instead of claiming an exclusive host', async () => {
+    MockUseDataApiUtils.mockQueryResult('/providers', {
+      data: [
+        ProviderSchema.parse({
+          id: params.id,
+          name: 'Saved Relay',
+          isEnabled: true,
+          reportsActualCost: false,
+          apiKeys: [],
+          authType: 'api-key',
+          settings: {},
+          endpointConfigs: { 'openai-chat-completions': { baseUrl: 'totally not a url' } },
+          defaultChatEndpoint: 'openai-chat-completions'
+        })
+      ]
+    })
+    await showImport()
+    expect(
+      screen.getByText(i18n.t('settings.models.provider_import_key_destination_unknown_only', { num: 1 }))
+    ).toBeVisible()
+    expect(screen.queryByText(/totally not a url/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/sent only to/)).not.toBeInTheDocument()
+  })
+
+  it('keeps the single-host destination notice for a new provider', async () => {
+    await showImport()
+    expect(
+      screen.getByText(i18n.t('settings.models.provider_import_key_destination', { host: 'example.com' }))
+    ).toBeVisible()
+  })
+
+  it('merges into an existing provider without overwriting its endpoint unless replace is chosen', async () => {
+    const user = userEvent.setup()
+    MockUseDataApiUtils.mockQueryResult('/providers', {
+      data: [
+        ProviderSchema.parse({
+          id: params.id,
+          name: 'Saved Relay',
+          isEnabled: true,
+          reportsActualCost: false,
+          apiKeys: [],
+          authType: 'api-key',
+          settings: {},
+          endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://other.example.com' } },
+          defaultChatEndpoint: 'openai-chat-completions'
+        })
+      ]
+    })
+    const { result } = await showImport()
+    await user.click(screen.getByRole('button', { name: i18n.t('common.add') }))
+    await expect(result).resolves.toMatchObject({
+      isNew: false,
+      nameOnly: true,
+      updatedProvider: { name: 'Saved Relay', apiHost: 'https://other.example.com' }
+    })
+
+    const second = await showImport()
+    await user.click(
+      screen.getAllByRole('radio', { name: i18n.t('settings.models.provider_import_resolution_replace') })[0]
+    )
+    await user.click(screen.getAllByRole('button', { name: i18n.t('common.add') })[0])
+    await expect(second.result).resolves.toMatchObject({
+      isNew: false,
+      nameOnly: false,
+      updatedProvider: { name: 'Relay', apiHost: params.baseUrl }
+    })
+  })
 })
