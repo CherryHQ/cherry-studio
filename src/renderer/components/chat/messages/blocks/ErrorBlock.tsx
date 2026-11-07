@@ -109,14 +109,16 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
   if (localModelFailure) return null
 
   if (typeof errorStatus === 'number' && HTTP_ERROR_CODES.includes(errorStatus)) {
+    const providerMessage = providerErrorText(error)
     return (
       <span>
-        {t(getHttpMessageLabelKey(errorStatus.toString()))} {providerErrorText(error)}
+        {t(getHttpMessageLabelKey(errorStatus.toString()))}
+        {providerMessage ? ` ${providerMessage}` : ''}
       </span>
     )
   }
 
-  return providerErrorText(error)
+  return providerErrorText(error) || t('error.unknown')
 }
 
 const MessageErrorInfo: React.FC<{

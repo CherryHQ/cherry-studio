@@ -192,6 +192,10 @@ describe('getSafeProviderErrorMessage', () => {
     ).toBe('Service temporarily unavailable')
   })
 
+  it.each(['400 null', '429 null'])('rejects status-only SDK wrapper text: %s', (message) => {
+    expect(getSafeProviderErrorMessage({ message })).toBe('')
+  })
+
   it.each([
     'Template variable {name} is required',
     'Input [0] must be a string',

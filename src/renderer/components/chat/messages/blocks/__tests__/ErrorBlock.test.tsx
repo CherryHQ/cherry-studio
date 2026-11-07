@@ -182,6 +182,46 @@ required service tier.`
     expect(diagnostic).toHaveTextContent(copy.recovery)
   })
 
+  it.each([
+    [400, '400 null', 'null', 'bad_request'],
+    [403, '[object Object]', '<html>error</html>', 'permission'],
+    [429, '429 null', 'null', 'rate_limit']
+  ])(
+    'shows HTTP %i guidance instead of an opaque provider message',
+    (statusCode, errorMessage, responseBody, category) => {
+      const { container } = render(
+        <ErrorBlock
+          partId="message-1-part-0"
+          error={{
+            name: 'AI_APICallError',
+            message: errorMessage,
+            stack: null,
+            statusCode,
+            responseBody
+          }}
+          message={message}
+        />
+      )
+
+      expect(container.textContent).toContain(`error.diagnosis.${category}`)
+      expect(container.textContent).toContain(`HTTP ${statusCode}`)
+      expect(container.textContent).not.toContain(errorMessage)
+    }
+  )
+
+  it('shows generic guidance when a provider error has no usable message or status', () => {
+    const { container } = render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'AI_APICallError', message: '[object Object]', stack: null }}
+        message={message}
+      />
+    )
+
+    expect(container.textContent).toContain('error.unknown')
+    expect(container.textContent).not.toContain('[object Object]')
+  })
+
   it('renders a known app-owned i18nKey without AI diagnosis', () => {
     const i18nKey = 'tool_call_limit_reached'
     const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')
