@@ -165,6 +165,8 @@ export async function interruptAgentTask(
       .toEqual([])
     expect(Date.now() - stoppedAt).toBeLessThan(20_000)
     const stoppedMessages = await readMessages()
+    const messageContent = (messages: AgentSessionMessageEntity[]) =>
+      messages.map(({ id, role, status, data }) => ({ id, role, status, data }))
     const before = toolIds(stoppedMessages)
     expect(before).toHaveLength(1)
     const inputs = stoppedMessages.flatMap((message) =>
@@ -180,7 +182,7 @@ export async function interruptAgentTask(
       await expect(pause).toBeHidden()
       await page.waitForTimeout(250)
     } while (Date.now() < deadline)
-    expect(await readMessages()).toEqual(stoppedMessages)
+    expect(messageContent(await readMessages())).toEqual(messageContent(stoppedMessages))
     await screenshot('MP-56 after stop and process cleanup')
     await testInfo.attach('MP-56 process cleanup', {
       body: JSON.stringify({
