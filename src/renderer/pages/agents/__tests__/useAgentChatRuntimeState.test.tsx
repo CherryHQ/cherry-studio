@@ -1227,6 +1227,54 @@ describe('useAgentChatRuntimeState', () => {
     expect(result.current.optimisticAskUserQuestionInputsByToolCallId).toEqual({})
   })
 
+  it('re-sends an answer the dead card cannot deliver as the session message', async () => {
+    mocks.respondToolApproval.mockResolvedValueOnce({ ok: false })
+    const part = makeAskUserQuestionPart()
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    await act(async () => {
+      await result.current.respondToolApproval({
+        ...makeAskUserQuestionApproval(part),
+        updatedInput: {
+          ...askUserQuestionUpdatedInput,
+          annotations: { 'Choose logger': { notes: 'or a thin wrapper' } }
+        }
+      })
+    })
+
+    expect(mocks.sendTurn).toHaveBeenCalledWith(
+      expect.objectContaining({ text: 'Choose logger\nWinston\nor a thin wrapper' })
+    )
+    expect(result.current.optimisticAskUserQuestionInputsByToolCallId).toEqual({})
+  })
+
+  it('sends nothing when a dead card was dismissed rather than answered', async () => {
+    mocks.respondToolApproval.mockResolvedValueOnce({ ok: false })
+    const part = makeAskUserQuestionPart()
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    await act(async () => {
+      await result.current.respondToolApproval({
+        match: makeAskUserQuestionApproval(part).match,
+        approved: false
+      })
+    })
+
+    expect(mocks.sendTurn).not.toHaveBeenCalled()
+  })
+
   it('preserves optimistic AskUserQuestion inputs across an <Activity> hide/show and clears them on session change', async () => {
     latestRuntime = null
     const part = makeAskUserQuestionPart()

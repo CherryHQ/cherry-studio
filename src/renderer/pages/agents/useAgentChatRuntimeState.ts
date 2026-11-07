@@ -95,6 +95,24 @@ function getAskUserQuestionAnswers(value: unknown): Record<string, string> | und
   return answers && Object.keys(answers).length > 0 ? answers : undefined
 }
 
+/**
+ * What a submitted answer becomes when the runtime that asked for it is gone: each answered
+ * question followed by the choice and any note the user typed next to it.
+ */
+export function formatAskUserQuestionAnswerMessage(value: unknown): string | undefined {
+  const parsed = parseAskUserQuestionToolInput(value)
+  if (!parsed?.answers) return undefined
+
+  const lines = parsed.questions.flatMap((question) => {
+    const answer = parsed.answers?.[question.question]?.trim()
+    const notes = parsed.annotations?.[question.question]?.notes
+    const body = [answer, typeof notes === 'string' ? notes.trim() : ''].filter(Boolean).join('\n')
+    return body ? [`${question.question}\n${body}`] : []
+  })
+
+  return lines.length > 0 ? lines.join('\n\n') : undefined
+}
+
 function hasAskUserQuestionAnswers(part: AskUserQuestionApprovalPart): boolean {
   const outputContent =
     typeof part.output === 'object' && part.output !== null && 'content' in part.output
@@ -415,11 +433,19 @@ export function useAgentChatRuntimeState({
 
       if (!result.ok) {
         if (optimisticToolCallId) removeOptimisticAskUserQuestionInput(optimisticToolCallId)
-        throw new Error('Tool approval response was not accepted')
+        // Main settles the card with this decision but cannot hand it to a runtime that is already
+        // gone. A submitted answer becomes the session's next message instead of being dropped;
+        // either way the refresh clears the card out of its unanswerable state.
+        const answerText = isAskUserQuestionApprovalResponse(input)
+          ? formatAskUserQuestionAnswerMessage(input.updatedInput)
+          : undefined
+        if (answerText) await sendMessage({ text: answerText })
+        await refresh()
+        return
       }
       await refresh()
     },
-    [refresh, removeOptimisticAskUserQuestionInput, sessionTopicId]
+    [refresh, removeOptimisticAskUserQuestionInput, sendMessage, sessionTopicId]
   )
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
     partsByMessageId,
