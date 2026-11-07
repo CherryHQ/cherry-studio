@@ -20,6 +20,7 @@ import { KnowledgeBaseAdminService } from './base/KnowledgeBaseAdminService'
 import type { OrphanBaseArtifactsInspection } from './base/orphanBaseArtifacts'
 import { FileProcessingWaitManager } from './ingestion/FileProcessingWaitManager'
 import { KnowledgeIngestionService } from './ingestion/KnowledgeIngestionService'
+import { renameKnowledgeFileItem } from './ingestion/renameItem'
 import type {
   KnowledgeConceptContent,
   KnowledgeConceptGrep,
@@ -133,6 +134,10 @@ export class KnowledgeService extends BaseService {
 
   async reindexItems(baseId: string, itemIds: string[]): Promise<void> {
     await this.ingestionService.reindexItems(baseId, itemIds)
+  }
+
+  async renameItem(baseId: string, itemId: string, name: string): Promise<void> {
+    await renameKnowledgeFileItem(this.knowledgeLockManager, baseId, itemId, name)
   }
 
   /** Configure an embedding model on a BM25-only base and backfill embeddings in place (see KnowledgeIngestionService.enableEmbeddingModel). */

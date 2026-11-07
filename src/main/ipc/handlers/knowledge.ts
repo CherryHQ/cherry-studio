@@ -28,6 +28,9 @@ export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> =
   'knowledge.reindex_items': async ({ baseId, itemIds }) => {
     await application.get('KnowledgeService').reindexItems(baseId, itemIds)
   },
+  'knowledge.rename_item': async ({ baseId, itemId, name }) => {
+    await application.get('KnowledgeService').renameItem(baseId, itemId, name)
+  },
   'knowledge.enable_embedding_model': async ({ baseId, patch }) =>
     application.get('KnowledgeService').enableEmbeddingModel(baseId, patch),
   'knowledge.search': async ({ baseId, query }) => application.get('KnowledgeService').search(baseId, query),
