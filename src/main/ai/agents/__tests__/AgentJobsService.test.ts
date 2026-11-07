@@ -963,13 +963,17 @@ describe('AgentJobsService', () => {
     it('archives every linked task conversation, cancels queued runs, and preserves ordinary and other task sessions', async () => {
       const task = service.createTask(AGENT_ID, form)
       const other = service.createTask(AGENT_ID, { ...form, name: 'other' })
-      const create = (name: string) =>
-        agentSessionService.create({ agentId: AGENT_ID, name, workspace: { type: 'system' } })
+      const create = (name: string, scheduleId: string | null = null) =>
+        agentSessionService.create(
+          { agentId: AGENT_ID, name, workspace: { type: 'system' } },
+          'conversation',
+          scheduleId
+        )
       const sticky = create('sticky')
-      const fresh = create('fresh')
-      const legacy = create('legacy')
+      const fresh = create('fresh', task.id)
+      const legacy = create('legacy', task.id)
       const ordinary = create('ordinary')
-      const foreign = create('foreign task')
+      const foreign = create('foreign task', other.id)
       dbh.db.update(agentSessionTable).set({ taskScheduleId: task.id }).where(eq(agentSessionTable.id, sticky.id)).run()
       for (const [id, scheduleId, metadata, output, status] of [
         ['fresh', task.id, { sessionId: fresh.id }, null, 'completed'],

@@ -13,7 +13,6 @@ import {
 } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
-import { jobTable } from '@data/db/schemas/job'
 import { pinTable } from '@data/db/schemas/pin'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
@@ -57,14 +56,7 @@ const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 200
 const conversationFilter = eq(sessionsTable.type, 'conversation')
 // Task runs can use a fresh session per run; the sticky relation alone is not enough.
-const ordinaryConversationFilter = and(
-  isNull(sessionsTable.taskScheduleId),
-  sql`NOT EXISTS (
-    SELECT 1 FROM ${jobTable}
-    WHERE ${jobTable.type} = 'agent.task' AND ${jobTable.scheduleId} IS NOT NULL
-      AND coalesce(json_extract(${jobTable.metadata}, '$.sessionId'), json_extract(${jobTable.output}, '$.sessionId')) = ${sessionsTable.id}
-  )`
-)
+const ordinaryConversationFilter = and(isNull(sessionsTable.taskScheduleId), isNull(sessionsTable.sourceTaskScheduleId))
 type SessionEntitySearchItem = Extract<EntitySearchItem, { type: 'session' }>
 export type SessionMetadataSearchMatch = {
   field: 'name' | 'description'
@@ -307,12 +299,22 @@ export class AgentSessionService {
     })
   }
 
-  create(dto: CreateAgentSessionDto, type: AgentSessionType = 'conversation'): AgentSessionEntity {
+  create(
+    dto: CreateAgentSessionDto,
+    type: AgentSessionType = 'conversation',
+    sourceTaskScheduleId: string | null = null
+  ): AgentSessionEntity {
     const id = uuidv4()
-    withSqliteErrors(() => application.get('DbService').withWriteTx((tx) => this.createTx(tx, id, dto, type)), {
-      ...defaultHandlersFor('Session', id),
-      foreignKey: () => DataApiErrorFactory.notFound('Agent or Workspace')
-    })
+    withSqliteErrors(
+      () =>
+        application
+          .get('DbService')
+          .withWriteTx((tx) => this.createTx(tx, id, dto, type, Date.now(), sourceTaskScheduleId)),
+      {
+        ...defaultHandlersFor('Session', id),
+        foreignKey: () => DataApiErrorFactory.notFound('Agent or Workspace')
+      }
+    )
     this.notifyReadModelChange([id], 'membership')
     return this.getById(id)
   }
@@ -326,7 +328,8 @@ export class AgentSessionService {
     id: string,
     dto: CreateAgentSessionDto,
     type: AgentSessionType = 'conversation',
-    createdAt = Date.now()
+    createdAt = Date.now(),
+    sourceTaskScheduleId: string | null = null
   ): void {
     this.assertAgentExistsTx(tx, dto.agentId)
 
@@ -362,6 +365,7 @@ export class AgentSessionService {
       agentId: dto.agentId,
       name: dto.name,
       description: dto.description,
+      sourceTaskScheduleId,
       workspaceId,
       createdAt,
       updatedAt: createdAt
@@ -419,7 +423,7 @@ export class AgentSessionService {
     return rowToSession(row)
   }
 
-  /** Read the internal sticky-session relation without exposing it on session entities. */
+  /** Read all task-owned sessions, including non-reusing runs whose jobs were collected. */
   listTaskSessionIds(taskScheduleId: string): string[] {
     return application
       .get('DbService')
@@ -427,12 +431,7 @@ export class AgentSessionService {
       .select({ id: sessionsTable.id })
       .from(sessionsTable)
       .where(
-        or(
-          eq(sessionsTable.taskScheduleId, taskScheduleId),
-          sql`EXISTS (SELECT 1 FROM ${jobTable}
-          WHERE ${jobTable.type} = 'agent.task' AND ${jobTable.scheduleId} = ${taskScheduleId}
-          AND coalesce(json_extract(${jobTable.metadata}, '$.sessionId'), json_extract(${jobTable.output}, '$.sessionId')) = ${sessionsTable.id})`
-        )
+        or(eq(sessionsTable.taskScheduleId, taskScheduleId), eq(sessionsTable.sourceTaskScheduleId, taskScheduleId))
       )
       .all()
       .map((row) => row.id)
@@ -1213,7 +1212,7 @@ export class AgentSessionService {
 
     const [row] = db
       .update(sessionsTable)
-      .set({ deletedAt: null })
+      .set({ deletedAt: null, sourceTaskScheduleId: null })
       .where(
         and(or(eq(sessionsTable.id, id), eq(sessionsTable.ownerSessionId, id)), isNotNull(sessionsTable.deletedAt))
       )
