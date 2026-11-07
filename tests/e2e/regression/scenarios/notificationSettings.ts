@@ -12,7 +12,8 @@ import type { IpcResult } from '@shared/ipc/errors/IpcError'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import {
   inspectOwnedNotificationHistory,
-  prepareOwnedMacNotifications
+  prepareOwnedMacNotifications,
+  prepareOwnedWindowsNotifications
 } from '../../../../scripts/e2e/regression/debugBridge'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import {
@@ -22,6 +23,7 @@ import {
   setMacNotificationCenterOpen,
   setWindowsNotificationCenterOpen
 } from '../../../../scripts/e2e/regression/systemAutomation'
+import { cleanupWindowsNotificationShortcut } from '../../../../scripts/e2e/regression/windowsNotificationShortcut'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { selectSidebarApp } from '../helpers/navigation'
 import { openSettingsSection } from '../helpers/settings'
@@ -105,6 +107,8 @@ export async function notificationSettings(app: RegressionApp, initialPage: Page
       await prepareOwnedMacNotifications(app.record)
       await allowMacNotificationPermission(app.paths)
     }
+    if (app.record.platform === 'windows' && app.record.mode === 'branch')
+      await prepareOwnedWindowsNotifications(app.record, app.paths)
     await openSettingsSection(page, 'Notifications')
     for (const [index, row] of rows.entries()) {
       await expect(page.locator(`#setting-notifications-${row}`).getByRole('switch')).toBeChecked({
@@ -229,6 +233,10 @@ export async function notificationSettings(app: RegressionApp, initialPage: Page
         nativeCenterWasOpen ??= previous
       }
       expect(findNotification(answer)).toBe(false)
+      if (app.record.platform === 'windows') {
+        setWindowsNotificationCenterOpen(app.paths, false)
+        await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(false)
+      }
       await new Promise((resolve) => setTimeout(resolve, 1500))
       request.complete(answer)
       await expect
@@ -253,6 +261,7 @@ export async function notificationSettings(app: RegressionApp, initialPage: Page
           )
         )
         .toBe(true)
+      if (app.record.platform === 'windows') setWindowsNotificationCenterOpen(app.paths, true)
       if (enabled) {
         try {
           await expect.poll(() => findNotification(answer), { timeout: 15_000 }).toBe(true)
@@ -303,6 +312,11 @@ export async function notificationSettings(app: RegressionApp, initialPage: Page
   } finally {
     const cleanupErrors: string[] = []
     await server.close().catch((error) => cleanupErrors.push(String(error)))
+    try {
+      cleanupWindowsNotificationShortcut(app.paths)
+    } catch (error) {
+      cleanupErrors.push(String(error))
+    }
     if (app.record.platform === 'macos') {
       try {
         setMacNotificationCenterOpen(app.paths, nativeCenterWasOpen ?? false)

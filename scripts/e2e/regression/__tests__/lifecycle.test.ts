@@ -1,5 +1,5 @@
 import type * as ChildProcess from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, posix, win32 } from 'node:path'
 
@@ -14,23 +14,33 @@ vi.mock('node:child_process', async (importOriginal) => ({
   execFileSync: execFileSyncMock
 }))
 
-import { type AppRecord, ensureProfile, stopOwnedApp, windowsShellDirectories } from '../lifecycle'
+import { type AppRecord, createProfileEnvironment, ensureProfile, stopOwnedApp } from '../lifecycle'
 import { ensureRunDirectories, getRunPaths } from '../paths'
 
 afterEach(() => {
   vi.useRealTimers()
+  vi.unstubAllGlobals()
   execFileSyncMock.mockReset()
   vi.restoreAllMocks()
 })
 
 describe('isolated profile environment', () => {
-  it('creates the Windows shell folders the native save dialog opens by default', () => {
-    const homeDirectory = join(tmpdir(), 'cherry-regression-home')
-    expect(windowsShellDirectories(homeDirectory)).toEqual([
-      join(homeDirectory, 'Desktop'),
-      join(homeDirectory, 'Documents'),
-      join(homeDirectory, 'Downloads')
-    ])
+  it('makes native shell directories available inside the isolated Windows profile', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'cherry-regression-windows-profile-'))
+    vi.stubGlobal('process', { ...process, platform: 'win32' })
+    try {
+      const environment = createProfileEnvironment(getRunPaths(directory), 'authenticated')
+      for (const path of [
+        join(environment.USERPROFILE!, 'Desktop'),
+        join(environment.USERPROFILE!, 'Documents'),
+        join(environment.USERPROFILE!, 'Downloads'),
+        join(environment.APPDATA!, 'Microsoft', 'Windows', 'Start Menu', 'Programs')
+      ]) {
+        expect(statSync(path).isDirectory(), path).toBe(true)
+      }
+    } finally {
+      rmSync(directory, { recursive: true, force: true })
+    }
   })
 })
 

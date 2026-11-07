@@ -17,6 +17,7 @@ import { resolveRepositoryRef } from './ref'
 import { aggregateRuns, renderAggregateMarkdown, writeReports } from './report'
 import { createRun, finalizeRun, getRunVerdict, readRun, setCapabilities, updateRunMetadata, writeRun } from './state'
 import { PLATFORMS, RUN_MODES } from './types'
+import { cleanupWindowsNotificationShortcut } from './windowsNotificationShortcut'
 
 function argument(name: string, required = true): string | undefined {
   const index = process.argv.indexOf(`--${name}`)
@@ -205,7 +206,8 @@ async function cleanupCommand(): Promise<void> {
   for (const cleanup of [
     () => stopOwnedApp(paths),
     () => stopMockProvider(paths),
-    () => cleanupExternalResources(paths)
+    () => cleanupExternalResources(paths),
+    () => cleanupWindowsNotificationShortcut(paths)
   ]) {
     try {
       await Promise.resolve(cleanup())

@@ -643,6 +643,16 @@ jobs:
         shell: bash
         run: pnpm exec tsx scripts/e2e/regression/cli.ts cleanup --run-dir "$RUN_DIR"
 
+      - name: Verify notification shortcut cleanup
+        if: always() && matrix.platform == 'windows' && steps.controller-dependencies.outcome == 'success'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $programs = [Environment]::GetFolderPath([Environment+SpecialFolder]::Programs)
+          $remaining = @(Get-ChildItem -LiteralPath $programs -Filter 'Cherry Studio E2E *.lnk')
+          if ($remaining.Count) { throw 'Run-owned notification shortcuts remain after cleanup' }
+          Write-Output 'Owned notification shortcuts remaining: 0'
+
       - name: Build standalone smoke application
         id: smoke-build
         if: "!cancelled() && steps.stop-app.outcome == 'success' && steps.app-dependencies.outcome == 'success' && needs.resolve.outputs.mode == 'branch' && needs.resolve.outputs.task == 'all'"

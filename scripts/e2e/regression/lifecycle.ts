@@ -118,11 +118,14 @@ async function waitForCdp(
 }
 
 /**
- * Shell known folders Windows resolves from USERPROFILE. The native save dialog opens Desktop by
- * default, so an isolated home without it reports "Location is not available" and writes nothing.
+ * Shell known folders used by native file dialogs and notification registration must exist
+ * under the isolated Windows profile before Electron starts.
  */
 export function windowsShellDirectories(homeDirectory: string): string[] {
-  return ['Desktop', 'Documents', 'Downloads'].map((name) => join(homeDirectory, name))
+  return [
+    ...['Desktop', 'Documents', 'Downloads'].map((name) => join(homeDirectory, name)),
+    join(homeDirectory, 'AppData', 'Roaming', 'Microsoft', 'Windows', 'Start Menu', 'Programs')
+  ]
 }
 
 export function createProfileEnvironment(paths: RunPaths, profile: TestProfile): NodeJS.ProcessEnv {

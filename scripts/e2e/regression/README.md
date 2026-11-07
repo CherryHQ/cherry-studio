@@ -13,6 +13,7 @@ The separate [on-demand QA controller](../ondemand/README.md) reuses the ref, in
 | `cli.ts`, `phases.ts` | CLI entry points and one Playwright invocation per selected phase |
 | `installation.ts`, `artifacts.ts` | Release installation, asset selection, and hashing |
 | `macRuntime.ts` | Isolated Developer ID signing for macOS development notification tests |
+| `windowsNotificationShortcut.ts` | Register the SDK shortcut with the Windows shell and remove the unchanged owned copy |
 | `lifecycle.ts` | Start, reuse, restart, and stop the owned application |
 | `mockProvider.ts`, `mockWorker.ts` | Start, verify and stop the run-owned aiMock service |
 | `process.ts` | OS process identity, ancestry, ports, and termination |
@@ -50,6 +51,11 @@ pipe before falling back to verified process-tree termination.
 macOS multi-file selection uses the same version-aware panel driver as single-file
 selection. It accepts only the complete contents of one isolated fixture directory,
 so Select All cannot import an unrequested file. Native fixtures verify the returned paths.
+
+Windows development notification checks keep `APPDATA` isolated. The controller prepares
+the required shell directories and copies the SDK-generated shortcut into the real Start Menu
+with an exclusive run-specific name. A persisted checksum protects unrelated or modified files;
+the case and controller cleanup both remove the unchanged copy.
 
 ## Execution contract
 
