@@ -7,22 +7,38 @@ import { Route as indexRoute } from '../scheduled-tasks.index'
 describe('legacy scheduled task links', () => {
   it.each([
     { path: '/settings/scheduled-tasks', search: {} },
-    { path: '/settings/scheduled-tasks/task-1', search: { taskId: 'task-1' } }
+    { path: '/settings/scheduled-tasks/task-1', search: { taskId: 'task-1' } },
+    {
+      path: '/settings/scheduled-tasks/task-1?notificationId=notice',
+      search: { taskId: 'task-1', notificationId: 'notice' }
+    }
   ])('opens the dedicated task page from $path', async ({ path, search }) => {
     const root = createRootRoute()
-    const index = createRoute({
+    const settings: typeof indexRoute.types.parentRoute.types.parentRoute = createRoute({
       getParentRoute: () => root,
-      path: '/settings/scheduled-tasks',
+      path: '/settings'
+    })
+    const tasks: typeof indexRoute.types.parentRoute = createRoute({
+      getParentRoute: () => settings,
+      path: '/scheduled-tasks'
+    })
+    const index = createRoute({
+      getParentRoute: () => tasks,
+      path: '/',
       beforeLoad: indexRoute.options.beforeLoad
     })
     const detail = createRoute({
-      getParentRoute: () => root,
-      path: '/settings/scheduled-tasks/$taskId',
+      getParentRoute: () => tasks,
+      path: '/$taskId',
+      validateSearch: detailRoute.options.validateSearch,
       beforeLoad: detailRoute.options.beforeLoad
     })
     const destination = createRoute({ getParentRoute: () => root, path: '/app/scheduled-tasks' })
     const history = createMemoryHistory({ initialEntries: ['/app/chat', path], initialIndex: 1 })
-    const router = createRouter({ routeTree: root.addChildren([index, detail, destination]), history })
+    const router = createRouter({
+      routeTree: root.addChildren([settings.addChildren([tasks.addChildren([index, detail])]), destination]),
+      history
+    })
     await router.load()
     expect(router.state.location.pathname).toBe('/app/scheduled-tasks')
     expect(router.state.location.search).toEqual(search)
