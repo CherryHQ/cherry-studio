@@ -247,8 +247,22 @@ describe('EditModelDrawer', () => {
   it('preserves inherited Vision when only the chat protocol changes', async () => {
     const user = userEvent.setup()
     updateModelMock.mockResolvedValue(undefined)
-    useProviderMock.mockReturnValue({ provider: { id: 'custom-provider', name: 'Custom', defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: {} } } })
-    const model = { ...makePricingModel(), providerId: 'custom-provider', capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION], inputModalities: [MODALITY.TEXT, MODALITY.IMAGE], inputModalitiesExplicit: false, endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] } as Model
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'custom-provider',
+        name: 'Custom',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: {} }
+      }
+    })
+    const model = {
+      ...makePricingModel(),
+      providerId: 'custom-provider',
+      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION],
+      inputModalities: [MODALITY.TEXT, MODALITY.IMAGE],
+      inputModalitiesExplicit: false,
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    } as Model
     render(<EditModelDrawer providerId="custom-provider" open onClose={vi.fn()} model={model} />)
     await user.click(screen.getByRole('button', { name: 'currency-openai-responses' }))
     await waitFor(() => expect(updateModelMock).toHaveBeenCalled())
