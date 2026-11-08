@@ -12,7 +12,7 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agentChannel'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
-import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { agentSessionMessageTable, agentSessionToolOutputTable } from '@data/db/schemas/agentSessionMessage'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
@@ -102,6 +102,7 @@ const MIGRATION_TARGET_TABLES = [
   { table: promptTable, name: 'prompt' },
   // Agents-domain tables — child → parent order
   { table: agentSessionMessageFileRefTable, name: 'agent_session_message_file_ref' },
+  { table: agentSessionToolOutputTable, name: 'agent_session_tool_output' },
   { table: agentSessionMessageTable, name: 'agent_session_message' },
   { table: agentChannelTaskTable, name: 'agent_channel_task' },
   { table: agentMcpServerTable, name: 'agent_mcp_server' },

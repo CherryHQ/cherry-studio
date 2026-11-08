@@ -31,14 +31,20 @@ export class RootMessageProjection {
     const saved = context.checkpointMapping?.root
     for (const id of saved?.removed ?? []) this.removed.add(id)
     const bodies = new Map<string, CherryUIMessage['parts']>()
+    const missing = new Set<string>()
     const ranges = new Map<string, { offset: number; count: number }[]>()
     for (const [id, range] of Object.entries(saved?.sources ?? {})) {
-      if (this.removed.has(id) || !messages.hasSessionMessage(context.sessionId, range.messageId)) {
+      if (this.removed.has(id) || missing.has(range.messageId)) {
         this.removed.add(id)
         continue
       }
       let parts = bodies.get(range.messageId)
       if (!parts) {
+        if (!messages.hasSessionMessage(context.sessionId, range.messageId)) {
+          missing.add(range.messageId)
+          this.removed.add(id)
+          continue
+        }
         parts = messages.getSessionMessage(context.sessionId, range.messageId).data.parts ?? []
         bodies.set(range.messageId, parts)
       }

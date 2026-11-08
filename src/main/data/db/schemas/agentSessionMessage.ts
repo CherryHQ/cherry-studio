@@ -1,5 +1,5 @@
 import { asc, desc, sql } from 'drizzle-orm'
-import { check, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { check, index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import type { AgentSessionDeliveryEnvelope, AgentSessionDeliveryStatus } from '@shared/ai/agentSessionDelivery'
 import type { MessageData, MessageSnapshot, MessageStats } from '@shared/data/types/message'
@@ -81,6 +81,29 @@ export const agentSessionMessageTable = sqliteTable(
 export type AgentSessionMessageRow = typeof agentSessionMessageTable.$inferSelect
 export type InsertAgentSessionMessageRow = typeof agentSessionMessageTable.$inferInsert
 
+export const agentSessionToolOutputTable = sqliteTable(
+  'agent_session_tool_output',
+  {
+    messageId: text()
+      .notNull()
+      .references(() => agentSessionMessageTable.id, { onDelete: 'cascade' }),
+    toolCallId: text().notNull(),
+    sessionId: text()
+      .notNull()
+      .references(() => agentSessionTable.id, { onDelete: 'cascade' }),
+    revision: text().notNull(),
+    output: text({ mode: 'json' }).$type<unknown>().notNull(),
+    ...createUpdateTimestamps
+  },
+  (t) => [
+    primaryKey({ columns: [t.messageId, t.toolCallId] }),
+    index('agent_session_tool_output_session_idx').on(t.sessionId)
+  ]
+)
+
+export type AgentSessionToolOutputRow = typeof agentSessionToolOutputTable.$inferSelect
+export type InsertAgentSessionToolOutputRow = typeof agentSessionToolOutputTable.$inferInsert
+
 export const AGENT_SESSION_MESSAGE_INSERT_TRIGGER_NAME = 'agent_session_message_ai'
 export const AGENT_SESSION_MESSAGE_INSERT_TRIGGER_SQL = `CREATE TRIGGER ${AGENT_SESSION_MESSAGE_INSERT_TRIGGER_NAME} AFTER INSERT ON agent_session_message BEGIN
   UPDATE agent_session_message SET
@@ -131,7 +154,7 @@ export const AGENT_SESSION_MESSAGE_FTS_STATEMENTS: string[] = [
     VALUES ('delete', OLD.fts_rowid, OLD.searchable_text);
   END`,
 
-  `CREATE TRIGGER agent_session_message_au AFTER UPDATE OF data ON agent_session_message BEGIN
+  `CREATE TRIGGER agent_session_message_au AFTER UPDATE OF data ON agent_session_message WHEN OLD.data IS NOT NEW.data BEGIN
     INSERT INTO agent_session_message_fts(agent_session_message_fts, rowid, searchable_text)
     VALUES ('delete', OLD.fts_rowid, OLD.searchable_text);
     UPDATE agent_session_message SET searchable_text = COALESCE((

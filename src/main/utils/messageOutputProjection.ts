@@ -79,15 +79,21 @@ function toCitationGrepMatches(matches: KbGrepMatch[]): KbGrepMatch[] {
 
 /** Keep only the schema-valid fields and bounded snippets needed to render citations. */
 function toCitationPayloadSkeleton(output: unknown): unknown | undefined {
-  const web = webSearchOutputSchema.safeParse(output)
-  if (web.success) {
-    return web.data.map((item) => ({ ...item, content: toCitationSnippet(item.content) }))
+  if (Array.isArray(output)) {
+    const web = webSearchOutputSchema.safeParse(output)
+    if (web.success) {
+      return web.data.map((item) => ({ ...item, content: toCitationSnippet(item.content) }))
+    }
+
+    const knowledgeSearch = kbSearchOutputSchema.safeParse(output)
+    if (knowledgeSearch.success) {
+      return knowledgeSearch.data.map((item) => ({ ...item, content: toCitationSnippet(item.content) }))
+    }
+
+    return undefined
   }
 
-  const knowledgeSearch = kbSearchOutputSchema.safeParse(output)
-  if (knowledgeSearch.success) {
-    return knowledgeSearch.data.map((item) => ({ ...item, content: toCitationSnippet(item.content) }))
-  }
+  if (!isRecord(output) || typeof output.conceptId !== 'string') return undefined
 
   const knowledgeRead = kbReadOutputSchema.safeParse(output)
   if (knowledgeRead.success) {
@@ -136,18 +142,23 @@ function toCitationSkeleton(output: unknown): unknown | undefined {
   }
 }
 
-/** Whether a serialized payload exceeds the renderer transport budget. */
-function exceedsToolOutputTransportLimit(output: unknown): boolean {
-  if (output === undefined || output === null) return false
+/** Return the serialized JSON string when a payload exceeds the renderer transport budget. */
+function serializeOversizedToolOutput(output: unknown): string | undefined {
+  if (output === undefined || output === null) return undefined
   try {
     const serialized = JSON.stringify(output)
-    if (serialized === undefined) return false
+    if (serialized === undefined) return undefined
     // UTF-16 code units are a lower bound on UTF-8 bytes, so this short-circuits without encoding.
-    if (serialized.length > DEFER_TOOL_OUTPUT_BYTES) return true
-    return new TextEncoder().encode(serialized).length > DEFER_TOOL_OUTPUT_BYTES
+    if (serialized.length > DEFER_TOOL_OUTPUT_BYTES) return serialized
+    return Buffer.byteLength(serialized, 'utf8') > DEFER_TOOL_OUTPUT_BYTES ? serialized : undefined
   } catch {
-    return false
+    return undefined
   }
+}
+
+/** Whether a serialized payload exceeds the renderer transport budget. */
+function exceedsToolOutputTransportLimit(output: unknown): boolean {
+  return serializeOversizedToolOutput(output) !== undefined
 }
 
 export function shouldDeferToolOutput(output: unknown): boolean {
@@ -182,9 +193,9 @@ function withCitationSkeleton(deferred: DeferredToolOutput, output: unknown): De
 }
 
 function projectToolOutputForRenderer(output: unknown, ref: DeferredToolResultRef): unknown {
-  if (!isPersistedToolOutput(output) && !shouldDeferToolOutput(output)) return output
-  const versionedRef = { ...ref, revision: createHash('sha256').update(JSON.stringify(output)).digest('hex') }
+  if (isDeferredToolOutput(output)) return output
   if (isPersistedToolOutput(output)) {
+    const versionedRef = { ...ref, revision: createHash('sha256').update(JSON.stringify(output)).digest('hex') }
     const persisted = output.$persistedToolOutput
     const deferred = {
       $deferredToolResult: versionedRef,
@@ -193,6 +204,9 @@ function projectToolOutputForRenderer(output: unknown, ref: DeferredToolResultRe
     return persisted.shape === 'entities' ? withCitationSkeleton(deferred, persisted.skeleton) : deferred
   }
 
+  const serialized = serializeOversizedToolOutput(output)
+  if (serialized === undefined) return output
+  const versionedRef = { ...ref, revision: createHash('sha256').update(serialized).digest('hex') }
   return withCitationSkeleton({ $deferredToolResult: versionedRef }, output)
 }
 
