@@ -760,7 +760,10 @@ describe('AgentRightPane', () => {
   it('activates the first attachment preview after metadata resolves in an empty system workspace', async () => {
     const user = userEvent.setup()
     const metadata = Promise.withResolvers<PhysicalFileMetadata>()
-    ipcRequestMock.mockReturnValueOnce(metadata.promise)
+    const request = ipcRequestMock.getMockImplementation()
+    ipcRequestMock.mockImplementation((route: string, ...args: unknown[]) =>
+      route === 'file.get_metadata' ? metadata.promise : request?.(route, ...args)
+    )
     render(
       <TestAgentRightPane
         sessionId="session-a"

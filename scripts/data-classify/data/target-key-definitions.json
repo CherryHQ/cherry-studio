@@ -1448,6 +1448,19 @@
       },
       "status": "classified",
       "description": "Command shortcut: tab.open_9 (numbered tab navigation)"
+    },
+    {
+      "targetKey": "shortcut.agent.workspace.open",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "O"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: agent.workspace.open (unified command system)"
     }
   ]
 }

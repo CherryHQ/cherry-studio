@@ -126,6 +126,7 @@ import {
   AgentSessionDetailsLayout
 } from './AgentSessionDetails'
 import { AgentRunTaskStopsProvider, AgentSessionDetailsSections, TaskStatusIcon } from './AgentSessionDetailsSections'
+import { AgentWorkspaceOpenShortcut } from './AgentWorkspaceOpenShortcut'
 import { useAgentPreviewUrl } from './useAgentPreviewUrl'
 import { useAgentSessionDetails } from './useAgentSessionDetails'
 
@@ -1639,7 +1640,12 @@ function AgentDetailsScope({ children, present }: { children: ReactNode; present
     <AgentSessionDetailsProvider
       sessionId={meta.sessionId}
       available={present && meta.conversationState === 'ready' && !!meta.sessionId && !panel.presentationMaximized}>
-      <AgentRunTaskStopsProvider>{children}</AgentRunTaskStopsProvider>
+      <AgentRunTaskStopsProvider>
+        {present && meta.conversationState === 'ready' && meta.sessionId && meta.workspacePath && (
+          <AgentWorkspaceOpenShortcut workspacePath={meta.workspacePath} />
+        )}
+        {children}
+      </AgentRunTaskStopsProvider>
     </AgentSessionDetailsProvider>
   )
 }
