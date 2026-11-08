@@ -1103,3 +1103,244 @@ it.each(['process-first', 'source-first'] as const)(
     expect(test.events.filter((event) => event.type === 'error')).toHaveLength(1)
   }
 )
+
+it.each([
+  { ends: true, mode: 'normal' },
+  { ends: false, mode: 'normal' },
+  { ends: true, mode: 'two-roots' },
+  { ends: false, mode: 'two-roots' },
+  { ends: true, mode: 'throw' },
+  { ends: false, mode: 'throw' }
+])('delivers accepted projections before one process-failure terminal: %j', async ({ ends, mode }) => {
+  const test = await desktop()
+  const wire = wireProcess()
+  const stderr = new PassThrough()
+  wire.process.stdin.removeAllListeners('finish')
+  Object.assign(wire.process, { kill: () => true })
+  class TestProcessManager extends ClaudeCodeProcessManager {}
+  const manager = new TestProcessManager()
+  Object.assign(manager, { spawnProcess: () => Object.assign(wire.process, { stderr, pid: 123 }) })
+  ports.spawn.mockImplementation((options: SpawnOptions, diagnostics: ClaudeCodeProcessDiagnostics) =>
+    manager.spawn(options, diagnostics)
+  )
+  const connection = await test.connect()
+  if (mode === 'two-roots') {
+    const access = connection as unknown as {
+      handle: ClaudeThreadHandle
+      observeRoot(handle: ClaudeThreadHandle): Promise<void>
+    }
+    // Same root handle observed twice reproduces the two closing root callbacks
+    // retained after a session switch, without mocking feed drain semantics.
+    await access.observeRoot(access.handle)
+  }
+  const paused = Promise.withResolvers<void>()
+  const resume = Promise.withResolvers<void>()
+  const accept = ThreadMessageProjection.prototype.accept
+  const spy = vi
+    .spyOn(ThreadMessageProjection.prototype, 'accept')
+    .mockImplementation(async function (this: ThreadMessageProjection, event, refresh) {
+      if (JSON.stringify(event).includes('Last accepted answer')) {
+        paused.resolve()
+        await resume.promise
+        if (mode === 'throw') throw new Error('Projection failed after process failure')
+      }
+      return accept.call(this, event, refresh)
+    })
+  try {
+    await connection.send(test.input('Final output race'))
+    await expect.poll(() => wire.inputs.length).toBe(1)
+    const context = sessionContexts(test.sessionId).find((context) => context.nativeThreadId)!
+    wire.send(
+      assistantMessage(context.nativeThreadId!, [{ type: 'text', text: 'Last accepted answer', citations: null }])
+    )
+    await paused.promise
+    stderr.write('native process failed')
+    wire.process.emit('exit', 7, null)
+    stderr.end()
+    if (ends) wire.exit()
+    await new Promise((resolve) => setTimeout(resolve, 350))
+    expect(test.events.filter((event) => event.type === 'error')).toHaveLength(0)
+    resume.resolve()
+    await expect.poll(() => test.events.filter((event) => event.type === 'error').length).toBe(1)
+    const projection = test.events.findIndex(
+      (event) => event.type === 'message-projection' && JSON.stringify(event).includes('Last accepted answer')
+    )
+    const failure = test.events.findIndex((event) => event.type === 'error')
+    if (mode !== 'throw') {
+      expect(projection).toBeGreaterThanOrEqual(0)
+      expect(projection).toBeLessThan(failure)
+    }
+    expect(test.events[failure]).toMatchObject({
+      type: 'error',
+      error: { name: 'ClaudeCodeProcessExitError', processExitCode: 7 }
+    })
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(test.events.filter((event) => event.type === 'error')).toHaveLength(1)
+  } finally {
+    resume.resolve()
+    spy.mockRestore()
+    wire.exit()
+  }
+})
+
+async function gateWire() {
+  const test = await desktop()
+  const wire = wireProcess()
+  const stderr = new PassThrough()
+  wire.process.stdin.removeAllListeners('finish')
+  Object.assign(wire.process, { kill: () => true })
+  class GateManager extends ClaudeCodeProcessManager {}
+  const manager = new GateManager()
+  Object.assign(manager, { spawnProcess: () => Object.assign(wire.process, { stderr, pid: 123 }) })
+  ports.spawn.mockImplementation((options: SpawnOptions, diagnostics: ClaudeCodeProcessDiagnostics) =>
+    manager.spawn(options, diagnostics)
+  )
+  const connection = await test.connect()
+  cleanups.push(async () => {
+    wire.exit()
+  })
+  await connection.send(test.input('Gate failure'))
+  await expect.poll(() => wire.inputs.length).toBe(1)
+  const context = sessionContexts(test.sessionId).find((context) => context.nativeThreadId)!
+  const fail = () => {
+    wire.process.emit('exit', 7, null)
+    stderr.end()
+  }
+  const pause = () => {
+    const paused = Promise.withResolvers<void>()
+    const resume = Promise.withResolvers<void>()
+    const original = ThreadMessageProjection.prototype.accept
+    const spy = vi
+      .spyOn(ThreadMessageProjection.prototype, 'accept')
+      .mockImplementation(async function (this: ThreadMessageProjection, event, refresh) {
+        if (JSON.stringify(event).includes('GATE HELD')) {
+          paused.resolve()
+          await resume.promise
+        }
+        return original.call(this, event, refresh)
+      })
+    return { paused, resume, spy }
+  }
+  return { test, wire, connection, context, fail, pause }
+}
+const gateDelay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+it('GATE no EOF has bounded terminal and closed queue', async () => {
+  const g = await gateWire()
+  const start = Date.now()
+  g.fail()
+  await expect.poll(() => g.test.events.filter((e) => e.type === 'error').length, { timeout: 1500 }).toBe(1)
+  const access = g.connection as any
+  console.log('GATE_NO_EOF_MS', Date.now() - start)
+  expect(await access.events[Symbol.asyncIterator]().next()).toMatchObject({ done: true })
+  await gateDelay(350)
+  expect(g.test.events.filter((e) => e.type === 'error')).toHaveLength(1)
+})
+it('GATE hanging accept blocks failure and user close until released', async () => {
+  const g = await gateWire()
+  const p = g.pause()
+  try {
+    g.wire.send(assistantMessage(g.context.nativeThreadId!, [{ type: 'text', text: 'GATE HELD', citations: null }]))
+    await p.paused.promise
+    g.fail()
+    await gateDelay(1100)
+    expect(g.test.events.filter((e) => e.type === 'error')).toHaveLength(0)
+    let closed = false
+    const closing = g.connection.close().then(() => {
+      closed = true
+    })
+    g.wire.exit()
+    await gateDelay(500)
+    expect(closed).toBe(false)
+    console.log('GATE_HANG: no failure after 1100ms, user close still pending after 500ms')
+    p.resume.resolve()
+    await closing
+    await (g.connection as any).failureDelivery
+    expect(g.test.events.filter((e) => e.type === 'error')).toHaveLength(0)
+  } finally {
+    p.resume.resolve()
+    p.spy.mockRestore()
+  }
+})
+it('GATE native error result while process failure latched is a single terminal', async () => {
+  const g = await gateWire()
+  const p = g.pause()
+  try {
+    g.wire.send(assistantMessage(g.context.nativeThreadId!, [{ type: 'text', text: 'GATE HELD', citations: null }]))
+    await p.paused.promise
+    g.wire.send({
+      type: 'result',
+      subtype: 'error_during_execution',
+      uuid: randomUUID(),
+      session_id: g.context.nativeThreadId!,
+      user_message_uuid: g.wire.inputs[0].uuid,
+      duration_ms: 1,
+      duration_api_ms: 1,
+      is_error: true,
+      num_turns: 1,
+      stop_reason: null,
+      total_cost_usd: 0,
+      errors: ['Native failure'],
+      modelUsage: {},
+      permission_denials: [],
+      usage: {
+        input_tokens: 1,
+        output_tokens: 0,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 0,
+        cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 },
+        iterations: [],
+        server_tool_use: { web_search_requests: 0, web_fetch_requests: 0 },
+        service_tier: 'standard',
+        inference_geo: 'us',
+        speed: 'standard'
+      }
+    })
+    g.fail()
+    g.wire.exit()
+    await gateDelay(350)
+    p.resume.resolve()
+    await (g.connection as any).failureDelivery
+    await gateDelay(100)
+    console.log(
+      'GATE_NATIVE_ERROR_TERMINALS',
+      g.test.events.filter((e) => e.type === 'error')
+    )
+    expect(g.test.events.filter((e) => e.type === 'error')).toHaveLength(1)
+  } finally {
+    p.resume.resolve()
+    p.spy.mockRestore()
+  }
+})
+it('GATE real clear session switch then subprocess failure drains both roots', async () => {
+  const test = await desktop()
+  let child: any
+  class GateManager extends ClaudeCodeProcessManager {}
+  const manager = new GateManager()
+  Object.assign(manager, {
+    spawnProcess: (_command: string, _args: string[], options: any) => {
+      child = test.options.spawnClaudeCodeProcess!({ command: _command, args: _args, ...options })
+      return child
+    }
+  })
+  ports.spawn.mockImplementation((options: SpawnOptions, diagnostics: ClaudeCodeProcessDiagnostics) =>
+    manager.spawn(options, diagnostics)
+  )
+  const connection = await test.connect()
+  await connection.send(test.input('Before clear'))
+  const first = await test.request()
+  first.reply.block({ type: 'text', text: 'Before' })
+  first.reply.finish()
+  await test.wait('turn-complete')
+  await connection.send(test.input('/clear'))
+  await expect.poll(() => test.events.filter((e) => e.type === 'turn-complete').length).toBe(2)
+  expect((connection as any).observations.length).toBeGreaterThanOrEqual(2)
+  await connection.send(test.input('After clear failure'))
+  const next = await test.request()
+  next.reply.startText('Accepted after real clear')
+  await expect.poll(() => JSON.stringify(test.events)).toContain('Accepted after real clear')
+  child.kill('SIGKILL')
+  await expect.poll(() => test.events.filter((e) => e.type === 'error').length, { timeout: 3000 }).toBe(1)
+  await (connection as any).failureDelivery
+  expect(await connection.events[Symbol.asyncIterator]().next()).toMatchObject({ done: true })
+  console.log('GATE_REAL_SESSION_SWITCH_ROOTS', (connection as any).observations.length)
+}, 15000)

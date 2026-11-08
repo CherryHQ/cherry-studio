@@ -128,6 +128,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private nativeError?: unknown
   private processDiagnostics?: ClaudeCodeProcessDiagnostics
   private processFailure?: ProcessFailureReporter
+  private pendingProcessFailure?: { error: unknown }
+  private failureDelivery?: Promise<void>
+  private readonly sourceEnded = Promise.withResolvers<void>()
   private parkedQuery?: ConsumedWarmQuery
   private readonly rootProjections: ThreadMessageProjection[] = []
   private readonly rootContexts = new Map<string, ReturnType<typeof contexts.context>>()
@@ -231,8 +234,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.processDiagnostics = consumedWarmQuery?.processDiagnostics ?? coldProcessDiagnostics
     this.processFailure = new ProcessFailureReporter(this.processDiagnostics, (error) => {
       if (this.closing) return
-      this.eventQueue.push({ type: 'error', error })
-      this.eventQueue.close()
+      this.pendingProcessFailure = { error }
+      this.failureDelivery ??= this.deliverProcessFailure()
     })
     this.spawnOptions = consumedWarmQuery
       ? { ...options, spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(consumedWarmQuery.processDiagnostics) }
@@ -547,6 +550,28 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.eventQueue.close()
   }
 
+  private async deliverProcessFailure(): Promise<void> {
+    // A descendant may keep stdout open after the process dies. Wait briefly for
+    // source completion, then drain root deliveries already accepted by the feed.
+    // Run outside observer callbacks so two closing roots cannot drain each other.
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      await Promise.race([
+        this.sourceEnded.promise,
+        new Promise<void>((resolve) => {
+          timer = setTimeout(resolve, 250)
+        })
+      ])
+      await Promise.all(this.observations.map((observation) => observation.drain().catch(() => {})))
+      if (this.closing || !this.pendingProcessFailure) return
+      this.eventQueue.push({ type: 'error', error: this.pendingProcessFailure.error })
+      this.pendingProcessFailure = undefined
+      this.eventQueue.close()
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
   private async observeRoot(handle: ClaudeThreadHandle): Promise<void> {
     const metadata = new ClaudeMessageMetadata(this.mcpToolMetadata)
     const projection = new ThreadMessageProjection(handle.thread, metadata.decorate)
@@ -606,12 +631,17 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         }
         const terminal = await this.acceptRoot(batch, projection, contextId)
         publish()
-        for (const event of terminal) this.eventQueue.push(event)
-        if (batch.events.some((event) => event.type === 'closed' && event.reason !== 'shutdown') && !this.closing)
-          this.eventQueue.close()
+        for (const event of terminal) {
+          if (!this.pendingProcessFailure || (event.type !== 'turn-complete' && event.type !== 'error'))
+            this.eventQueue.push(event)
+        }
+        if (batch.events.some((event) => event.type === 'closed' && event.reason !== 'shutdown') && !this.closing) {
+          this.sourceEnded.resolve()
+          if (!this.pendingProcessFailure) this.eventQueue.close()
+        }
       } catch (error) {
         publish()
-        this.eventQueue.push({ type: 'error', error })
+        if (!this.pendingProcessFailure) this.eventQueue.push({ type: 'error', error })
       } finally {
         if (batch.events.some((event) => event.type === 'closed')) end()
       }
