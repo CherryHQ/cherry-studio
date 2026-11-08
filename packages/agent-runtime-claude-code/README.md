@@ -50,6 +50,10 @@ is unknown. A native compact threshold is never substituted for the full window.
 resources are estimates; partial coverage and missing reserve/free counts remain explicit.
 Root stream input usage is marked `last-request` and excludes output and cumulative billing.
 Child controls are unsupported because the SDK exposes no child-scoped context report.
+Stream deltas keep the active response model's identity; an unknown window stays unknown
+instead of inheriting the configured model's capacity. Successful and failed context reads
+publish their current result to existing observers and future snapshots. A read superseded
+by a newer read, model change, reset or shutdown cannot overwrite that newer state.
 
 ## Input and control
 
