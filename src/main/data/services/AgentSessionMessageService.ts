@@ -13,7 +13,6 @@ import {
   lt,
   lte,
   ne,
-  notInArray,
   or,
   type SQL,
   sql
@@ -182,10 +181,10 @@ function agentSessionMessageEntityJsonBytes(): SQL<number> {
       length(cast(json(t.output) as blob)) - length(cast(json(json_extract(part.value, '$.output')) as blob))
     )
     from agent_session_tool_output as t
-    join json_each(${sessionMessagesTable.data}, '$.parts') as part
-      on json_extract(part.value, '$.toolCallId') = t.tool_call_id
-     and json_extract(part.value, '$.state') = 'output-available'
+    cross join json_each(${sessionMessagesTable.data}, '$.parts') as part
     where t.message_id = ${sessionMessagesTable.id}
+      and json_extract(part.value, '$.toolCallId') = t.tool_call_id
+      and json_extract(part.value, '$.state') = 'output-available'
   ), 0)`
 }
 
@@ -397,11 +396,13 @@ function extractMessageToolOutputs<T extends SessionMessageRow['data']>(
   storedData: T
   offloaded: OffloadedToolOutput[]
   retainedToolCallIds: Set<string>
+  hasDeferredInput: boolean
 } {
   const parts = data.parts
   const retainedToolCallIds = new Set<string>()
   const offloaded: OffloadedToolOutput[] = []
-  if (!parts?.length) return { storedData: data, offloaded, retainedToolCallIds }
+  let hasDeferredInput = false
+  if (!parts?.length) return { storedData: data, offloaded, retainedToolCallIds, hasDeferredInput }
 
   const topicId = `agent-session:${sessionId}`
   let storedParts: typeof parts | undefined
@@ -410,6 +411,7 @@ function extractMessageToolOutputs<T extends SessionMessageRow['data']>(
     if (!isToolUIPart(part) || part.state !== 'output-available') continue
     if (isDeferredToolOutput(part.output)) {
       retainedToolCallIds.add(part.toolCallId)
+      hasDeferredInput = true
       continue
     }
     if (isPersistedToolOutput(part.output)) continue
@@ -428,8 +430,18 @@ function extractMessageToolOutputs<T extends SessionMessageRow['data']>(
   return {
     storedData: storedParts ? { ...data, parts: storedParts } : data,
     offloaded,
-    retainedToolCallIds
+    retainedToolCallIds,
+    hasDeferredInput
   }
+}
+
+function collectDeferredToolRevisions(data: SessionMessageRow['data']): Map<string, string | undefined> {
+  const revisions = new Map<string, string | undefined>()
+  for (const part of data.parts ?? []) {
+    if (!isToolUIPart(part) || part.state !== 'output-available' || !isDeferredToolOutput(part.output)) continue
+    revisions.set(part.toolCallId, part.output.$deferredToolResult.revision)
+  }
+  return revisions
 }
 
 function syncMessageToolOutputsTx(
@@ -438,10 +450,14 @@ function syncMessageToolOutputsTx(
   messageId: string,
   offloaded: readonly OffloadedToolOutput[],
   retainedToolCallIds: ReadonlySet<string>,
-  isUpdate: boolean,
+  existingData: SessionMessageRow['data'] | undefined,
   timestampMs: number
 ): void {
+  const previousRevisions = existingData ? collectDeferredToolRevisions(existingData) : undefined
   for (const item of offloaded) {
+    if (previousRevisions && item.revision && previousRevisions.get(item.toolCallId) === item.revision) {
+      continue
+    }
     tx.insert(sessionToolOutputsTable)
       .values({
         messageId,
@@ -465,28 +481,8 @@ function syncMessageToolOutputsTx(
       .run()
   }
 
-  if (!isUpdate) return
-  if (retainedToolCallIds.size === 0) {
-    tx.delete(sessionToolOutputsTable).where(eq(sessionToolOutputsTable.messageId, messageId)).run()
-    return
-  }
-  if (retainedToolCallIds.size <= SQLITE_INARRAY_CHUNK) {
-    tx.delete(sessionToolOutputsTable)
-      .where(
-        and(
-          eq(sessionToolOutputsTable.messageId, messageId),
-          notInArray(sessionToolOutputsTable.toolCallId, [...retainedToolCallIds])
-        )
-      )
-      .run()
-    return
-  }
-  const existing = tx
-    .select({ toolCallId: sessionToolOutputsTable.toolCallId })
-    .from(sessionToolOutputsTable)
-    .where(eq(sessionToolOutputsTable.messageId, messageId))
-    .all()
-  const staleIds = existing.map((row) => row.toolCallId).filter((toolCallId) => !retainedToolCallIds.has(toolCallId))
+  if (!previousRevisions) return
+  const staleIds = [...previousRevisions.keys()].filter((toolCallId) => !retainedToolCallIds.has(toolCallId))
   for (let index = 0; index < staleIds.length; index += SQLITE_INARRAY_CHUNK) {
     tx.delete(sessionToolOutputsTable)
       .where(
@@ -878,7 +874,7 @@ export class AgentSessionMessageService {
           updatedAt: row.updatedAt
         })
         .run()
-      syncMessageToolOutputsTx(tx, sessionId, row.id, offloaded, retainedToolCallIds, false, row.updatedAt)
+      syncMessageToolOutputsTx(tx, sessionId, row.id, offloaded, retainedToolCallIds, undefined, row.updatedAt)
       replaceAgentSessionMessageFileRefsTx(tx, row.id, row.data)
       advanceAgentSessionHeadTx(tx, sessionId, parentId, row.id)
       parentId = row.id
@@ -1325,19 +1321,23 @@ import { projectMessagePartForRenderer } from '@main/utils/messageOutputProjecti
       const mergedData: SessionMessageRow['data'] = publicMessageData({ ...existing.data, ...dto.data })
       if (existing.data.deliveryReplyAnchor) mergedData.deliveryReplyAnchor = existing.data.deliveryReplyAnchor
       this.invalidateForkPrefixTx(tx, sessionId, messageId)
-      const { storedData, offloaded, retainedToolCallIds } = extractMessageToolOutputs(sessionId, messageId, mergedData)
+      const { storedData, offloaded, retainedToolCallIds, hasDeferredInput } = extractMessageToolOutputs(
+        sessionId,
+        messageId,
+        mergedData
+      )
       const [updated] = tx
         .update(sessionMessagesTable)
         .set({ data: storedData, updatedAt })
         .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
         .returning()
         .all()
-      syncMessageToolOutputsTx(tx, sessionId, messageId, offloaded, retainedToolCallIds, true, updatedAt)
+      syncMessageToolOutputsTx(tx, sessionId, messageId, offloaded, retainedToolCallIds, existing.data, updatedAt)
       replaceAgentSessionMessageFileRefsTx(tx, messageId, mergedData)
       agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
       return this.rowToEntity({
         ...updated,
-        data: hydrateAgentSessionMessageDataTx(tx, messageId, mergedData)
+        data: hasDeferredInput ? hydrateAgentSessionMessageDataTx(tx, messageId, mergedData) : mergedData
       })
     })
     notifyDataApiDataChange([
@@ -1447,7 +1447,7 @@ import { projectMessagePartForRenderer } from '@main/utils/messageOutputProjecti
       const updatedAt = Date.now()
       for (const message of messages) {
         const existing = tx
-          .select({ sessionId: sessionMessagesTable.sessionId })
+          .select({ sessionId: sessionMessagesTable.sessionId, data: sessionMessagesTable.data })
           .from(sessionMessagesTable)
           .where(and(eq(sessionMessagesTable.id, message.id), eq(sessionMessagesTable.role, 'assistant')))
           .get()
@@ -1461,7 +1461,15 @@ import { projectMessagePartForRenderer } from '@main/utils/messageOutputProjecti
           .set({ status: 'error', data: storedData, updatedAt })
           .where(and(eq(sessionMessagesTable.id, message.id), eq(sessionMessagesTable.role, 'assistant')))
           .run()
-        syncMessageToolOutputsTx(tx, existing.sessionId, message.id, offloaded, retainedToolCallIds, true, updatedAt)
+        syncMessageToolOutputsTx(
+          tx,
+          existing.sessionId,
+          message.id,
+          offloaded,
+          retainedToolCallIds,
+          existing.data,
+          updatedAt
+        )
       }
       if (sessionIds.length > 0) {
         tx.update(sessionMessagesTable)
@@ -1666,7 +1674,11 @@ import { projectMessagePartForRenderer } from '@main/utils/messageOutputProjecti
     if (existingRow) {
       if (existingRow.data.deliveryReplyAnchor) data.deliveryReplyAnchor = existingRow.data.deliveryReplyAnchor
       if (existingRow.data.nativeSessionId) data.nativeSessionId = existingRow.data.nativeSessionId
-      const { storedData, offloaded, retainedToolCallIds } = extractMessageToolOutputs(sessionId, messageId, data)
+      const { storedData, offloaded, retainedToolCallIds, hasDeferredInput } = extractMessageToolOutputs(
+        sessionId,
+        messageId,
+        data
+      )
       if (
         existingRow.inputContextId &&
         (JSON.stringify(existingRow.data.parts) !== JSON.stringify(storedData.parts) ||
@@ -1721,7 +1733,15 @@ import { projectMessagePartForRenderer } from '@main/utils/messageOutputProjecti
             .run(),
         defaultHandlersFor('Message', String(existingRow.id))
       )
-      syncMessageToolOutputsTx(db, sessionId, existingRow.id, offloaded, retainedToolCallIds, true, updatedAtMs)
+      syncMessageToolOutputsTx(
+        db,
+        sessionId,
+        existingRow.id,
+        offloaded,
+        retainedToolCallIds,
+        existingRow.data,
+        updatedAtMs
+      )
       replaceAgentSessionMessageFileRefsTx(db, existingRow.id, message.data)
 
       return {
@@ -1729,7 +1749,7 @@ import { projectMessagePartForRenderer } from '@main/utils/messageOutputProjecti
           ...existingRow,
           role: message.role,
           status,
-          data: hydrateAgentSessionMessageDataTx(db, existingRow.id, data),
+          data: hasDeferredInput ? hydrateAgentSessionMessageDataTx(db, existingRow.id, data) : data,
           searchableText: existingRow.searchableText,
           modelId,
           messageSnapshot,
@@ -1749,7 +1769,11 @@ import { projectMessagePartForRenderer } from '@main/utils/messageOutputProjecti
 
     const parentId = params.parentId ?? getAgentSessionHead(db, sessionId) ?? ensureAgentSessionRootTx(db, sessionId)
     validateAgentSessionParent(db, sessionId, parentId)
-    const { storedData, offloaded, retainedToolCallIds } = extractMessageToolOutputs(sessionId, messageId, data)
+    const { storedData, offloaded, retainedToolCallIds, hasDeferredInput } = extractMessageToolOutputs(
+      sessionId,
+      messageId,
+      data
+    )
     const insertData: InsertSessionMessageRow = {
       parentId,
       id: messageId,
@@ -1771,13 +1795,13 @@ import { projectMessagePartForRenderer } from '@main/utils/messageOutputProjecti
     }
 
     const [saved] = db.insert(sessionMessagesTable).values(insertData).returning().all()
-    syncMessageToolOutputsTx(db, sessionId, saved.id, offloaded, retainedToolCallIds, false, timestampMs)
+    syncMessageToolOutputsTx(db, sessionId, saved.id, offloaded, retainedToolCallIds, undefined, timestampMs)
     replaceAgentSessionMessageFileRefsTx(db, saved.id, message.data)
     advanceAgentSessionHeadTx(db, sessionId, parentId, saved.id)
     return {
       entity: this.rowToEntity({
         ...saved,
-        data: hydrateAgentSessionMessageDataTx(db, saved.id, data)
+        data: hasDeferredInput ? hydrateAgentSessionMessageDataTx(db, saved.id, data) : data
       }),
       dataChange: 'membership',
       activityTimestamp: isConversationActivityRole(message.role) ? timestampMs : null
@@ -2748,20 +2772,24 @@ import { projectMessagePartForRenderer } from '@main/utils/messageOutputProjecti
             ]
           : parts
       }
-      const { storedData, offloaded, retainedToolCallIds } = extractMessageToolOutputs(sessionId, messageId, data)
+      const { storedData, offloaded, retainedToolCallIds, hasDeferredInput } = extractMessageToolOutputs(
+        sessionId,
+        messageId,
+        data
+      )
       const [updated] = tx
         .update(sessionMessagesTable)
         .set({ data: storedData, updatedAt })
         .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
         .returning()
         .all()
-      syncMessageToolOutputsTx(tx, sessionId, messageId, offloaded, retainedToolCallIds, true, updatedAt)
+      syncMessageToolOutputsTx(tx, sessionId, messageId, offloaded, retainedToolCallIds, existingRow.data, updatedAt)
       replaceAgentSessionMessageFileRefsTx(tx, messageId, data)
       if (projection) agentSessionContextService.saveRootProjectionTx(tx, sessionId, projection)
       agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
       return this.rowToEntity({
         ...updated,
-        data: hydrateAgentSessionMessageDataTx(tx, messageId, data)
+        data: hasDeferredInput ? hydrateAgentSessionMessageDataTx(tx, messageId, data) : data
       })
     })
 
