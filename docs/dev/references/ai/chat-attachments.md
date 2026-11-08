@@ -2,6 +2,10 @@
 description: Per-attachment routing to native file parts or capped extracted text, with read_file paging for truncated overflow
 sources:
   - src/main/ai/messages/attachmentRouting.ts
+  - src/main/ai/messages/attachmentBudget.ts
+  - src/main/ai/messages/attachmentInlineBudget.ts
+  - src/main/ai/messages/attachmentWorkerClient.ts
+  - src/main/ai/messages/attachmentTextExtraction.ts
   - src/main/ai/messages/fileProcessor.ts
   - src/main/ai/tools/adapters/aiSdk/builtin/ReadFileTool.ts
   - src/shared/utils/file/fileExtensions.ts
@@ -103,7 +107,14 @@ Extracted text is bounded so multi-turn context stays in control:
   - tool-capable model: `[truncated N/total — call read_file("name", offset=N) for more]`
   - otherwise: `[truncated N/total]`
 
-Default cap ≈ 8k chars/file (tunable).
+When a context window is known, system text, tools, history, and native media
+are priced first. Attachments share the remaining request budget. A worker
+prices attachment bodies by UTF-8 byte length as a conservative token bound;
+small files fit whole and larger files share the remainder. It selects a
+Unicode-safe fitting prefix without whole-body BPE or repeated prefix counting.
+This can inline less text than exact token counting, especially for ASCII.
+
+Without a computable request budget, the fallback cap is 8k characters per file.
 
 ## `read_file` — text-only overflow tool
 
@@ -152,6 +163,15 @@ re-extract or re-OCR the same file. `extractDocumentText` reads bytes through
 extension (`FILE_TYPE.OTHER`) via `decodeTextBufferIfText`) and dispatches on
 the `FileEntry` canonical `ext`. The conservative decoder returns `null` when
 the bytes are binary or their legacy encoding is too ambiguous to decode safely.
+
+Plain-text decoding and inline-budget allocation run in short-lived worker
+threads, with at most two active workers across requests. FileManager owns file
+access and main retains the version cache. Queued cancellation skips worker
+creation; active cancellation terminates its worker, and the concurrency slot
+remains occupied until termination finishes. Worker errors propagate to the
+existing attachment-routing error handling. PDF/Office parsing keeps its
+existing path.
+
 
 ## Capability resolution
 
