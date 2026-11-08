@@ -28,8 +28,7 @@ is not replayed after an uncertain result. `subscriptionAnalytics.ts` formats th
 Cloud event envelope and identity; generic analytics retains consent and transport.
 
 The [ownership Spec](../../../../.agents/notes/proposed/architecture/2026-11-08-cherry-cloud-ownership-convergence.md)
-and [verification skill](../../../../.agents/skills/verify-cherry-cloud/SKILL.md)
-record the preservation boundary, deliberate fixes and offline verification limits.
+records the preservation boundary, deliberate fixes and offline verification limits.
 
 ## Login request signing
 

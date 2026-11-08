@@ -32,7 +32,7 @@ Chat 按各排队 payload 的模型评估。排队的新 Agent turn 在启动时
 
 ### 验证边界
 
-以上合并提交为不可变比较基线。验证可观察的业务和协议合同，不固定偶然调用或既存缺陷。对并发事件顺序进行有界穷举并检查明确不变量，使用受控调度与生成输入运行实际 TypeScript 路径。先证明故意破坏的真实代码变体会使检查失败，再恢复并重跑。在项目内验证技能中记录覆盖文件、函数、边界和同步提交。
+以上合并提交为不可变比较基线。验证可观察的业务和协议合同，不固定偶然调用或既存缺陷。对并发事件顺序进行有界穷举并检查明确不变量，使用受控调度与生成输入运行实际 TypeScript 路径。先证明故意破坏的真实代码变体会使检查失败，再恢复并重跑。在 PR 验证证据中记录覆盖文件、函数、边界和已验证提交。
 
 离线端点 fixtures 和原生 SDK 测试不证明在线后端兼容。本地收据序号不是服务端事务版本。模型检查通过不证明未建模 JavaScript、操作系统浏览器行为或服务端实现。应与聚焦测试、类型检查及 Electron 证据一同报告这些限制。
 
@@ -52,7 +52,7 @@ Chat 按各排队 payload 的模型评估。排队的新 Agent turn 在启动时
 - AC6 — Chat 队列按捕获目标给建议，Agent 启动遵循原有配置生命周期，deferred drain 仅在有意义变化时唤醒。未知事实不生成额度决定。(verification: queue and affected composer tests; owner: conversation runtimes)
 - AC7 — 可信 quota、限流、认证和权益失败保持区分；原生 live 与冷恢复暴露等价且已验证的拒绝事实。(verification: error contract and actual SDK/local-endpoint tests; owner: runtime adapters/product decoration)
 - AC8 — Cloud analytics 格式化移出通用传输，同时保留 consent、source/flow 合同及账号隔离；事件不宣称购买因果。(verification: analytics formatter/consent tests; owner: analytics/Cloud)
-- AC9 — 保留的安全和 HTTP 合同通过聚焦前后检查；每项验证属性都能捕捉故意破坏的真实代码。记录边界和后端限制。(verification: reproducible verification entry and mutation evidence; owner: implementation coordinator)
+- AC9 — 保留的安全和 HTTP 合同通过聚焦前后检查；每项验证属性都能捕捉故意破坏的真实代码。记录边界和后端限制。(verification: focused test files and recorded baseline/mutation evidence; owner: implementation coordinator)
 - AC10 — 删除本次迁移的旧协调路径及孤立 API，受影响调用者编译通过，双语文档符合最终实现。(verification: explicit scope, dependency scan, focused tests, type checks and documentation gates; owner: implementation coordinator)
 
 ## 风险

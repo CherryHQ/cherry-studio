@@ -32,7 +32,7 @@ Deliberate corrections are one terminal login/intent result, latest-click preced
 
 ### Verification boundary
 
-Use the merged commit above as the immutable comparison baseline. Verify preserved observable business and wire contracts, not incidental calls or existing defects. Check bounded concurrent event orders against explicit invariants and exercise actual TypeScript paths with controlled scheduling and generated inputs. Demonstrate that deliberate broken real-code variants fail the checks, then restore and rerun them. Record covered files, functions, bounds and synchronization commit in a project-local verification skill.
+Use the merged commit above as the immutable comparison baseline. Verify preserved observable business and wire contracts, not incidental calls or existing defects. Check bounded concurrent event orders against explicit invariants and exercise actual TypeScript paths with controlled scheduling and generated inputs. Demonstrate that deliberate broken real-code variants fail the checks, then restore and rerun them. Record covered files, functions, bounds and the verified commit in the PR's verification evidence.
 
 Offline endpoint fixtures and native SDK tests do not establish live backend compatibility. Local receipt sequence is not a server transaction revision. A model-checking pass does not prove unmodeled JavaScript, operating-system browser behavior or server implementation. Report these limits alongside focused tests, type checks and Electron evidence.
 
@@ -52,7 +52,7 @@ Offline endpoint fixtures and native SDK tests do not establish live backend com
 - AC6 — Chat queue advice follows captured targets, Agent launch follows its existing configuration lifetime, and deferred drain wakes only on meaningful changes. Unknown facts do not create a quota decision. (verification: queue and affected composer tests; owner: conversation runtimes)
 - AC7 — Trusted quota, rate-limit, authentication and entitlement failures remain distinct; native live and cold replay expose equivalent validated rejection facts. (verification: error contract and actual SDK/local-endpoint tests; owner: runtime adapters/product decoration)
 - AC8 — Cloud analytics formatting leaves generic transport while preserving consent, source/flow contracts and account isolation; no event claims purchase causality. (verification: analytics formatter/consent tests; owner: analytics/Cloud)
-- AC9 — Preserved security and HTTP contracts pass focused baseline/after checks; every verification property detects a deliberate real-code break. Bounds and backend limitations are documented. (verification: reproducible verification entry and mutation evidence; owner: implementation coordinator)
+- AC9 — Preserved security and HTTP contracts pass focused baseline/after checks; every verification property detects a deliberate real-code break. Bounds and backend limitations are documented. (verification: focused test files and recorded baseline/mutation evidence; owner: implementation coordinator)
 - AC10 — All old coordination paths and orphaned APIs introduced by this migration are removed, affected consumers compile, and bilingual documentation matches the final implementation. (verification: explicit scope, dependency scan, focused tests, type checks and documentation gates; owner: implementation coordinator)
 
 ## Risks
