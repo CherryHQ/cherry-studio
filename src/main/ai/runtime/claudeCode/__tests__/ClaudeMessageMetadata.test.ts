@@ -284,3 +284,49 @@ it('decorates native tool identity and output without moving surrounding content
     ]
   })
 })
+
+it.each([true, false])(
+  'strips the quota rejection prefix only for a failed native request (failed: %s)',
+  async (failed) => {
+    const id = randomUUID()
+    const reason = '套餐「Cherry Plus」额度已耗尽，建议 30天后重试。'
+    const text = `API Error: Request rejected (429) · ${reason}`
+    const messages = await project({ id, role: 'assistant', parts: [{ type: 'text', text, state: 'done' }] }, [
+      {
+        source: 'live',
+        message: {
+          type: 'assistant',
+          uuid: id,
+          session_id: 'session',
+          parent_tool_use_id: null,
+          ...(failed ? { error: 'rate_limit' as const } : {}),
+          message: {
+            id: 'response',
+            type: 'message',
+            role: 'assistant',
+            model: 'test',
+            content: [{ type: 'text', text, citations: null }],
+            container: null,
+            context_management: null,
+            stop_details: null,
+            stop_reason: 'end_turn',
+            stop_sequence: null,
+            usage: {
+              input_tokens: 0,
+              output_tokens: 0,
+              cache_creation: null,
+              cache_creation_input_tokens: null,
+              cache_read_input_tokens: null,
+              inference_geo: null,
+              iterations: null,
+              server_tool_use: null,
+              service_tier: null,
+              speed: null
+            }
+          }
+        }
+      }
+    ])
+    expect(messages[0].parts).toEqual([{ type: 'text', text: failed ? reason : text, state: 'done' }])
+  }
+)

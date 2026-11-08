@@ -14,7 +14,11 @@ import type {
   SerializedError
 } from '@renderer/types/error'
 import { isSerializedAiSdkApiCallError, isSerializedAiSdkRetryError } from '@renderer/types/error'
-import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
+import {
+  getSafeProviderErrorMessage,
+  serializeNestedProviderError,
+  stripClaudeCodeRejectionPrefix
+} from '@shared/ai/providerError'
 import { aiErrorDetail, aiStreamAdmissionReason, isAgentSessionArchiveBusyError } from '@shared/ipc/errors/ai'
 import { safeSerialize } from '@shared/utils/serialize'
 
@@ -348,6 +352,15 @@ export function providerErrorText(error: SerializedError | undefined): string {
   if (!error) return ''
   const payload = getSafeProviderErrorMessage({ responseBody: error.responseBody, data: error.data })
   return payload || retryProviderText(error) || getSafeProviderErrorMessage({ message: error.message })
+}
+
+/** A Cherry AI plan rejection's own wording (which plan ran out and when to retry), whatever runtime relayed it. */
+export function cherryCloudQuotaRejectionText(error: SerializedError | undefined): string {
+  if (!error) return ''
+  return stripClaudeCodeRejectionPrefix(
+    providerErrorText(error) ||
+      getSafeProviderErrorMessage({ responseBody: error.message?.replace(/^\s*\d{3}:\s*/, '') })
+  )
 }
 
 export const formatAgentServerError = (error: AgentServerError) =>
