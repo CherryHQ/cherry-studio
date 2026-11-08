@@ -196,7 +196,9 @@ it.each([
   'Invalid URL cannot faithfully replay the literal Node request target.'
 ])('retains captured method, headers and body for an editable export: %s', (note) => {
   const command = loadCurlExport()({
-    url: 'http://localhost/a#fragment', method: 'POST', requestReplayError: note,
+    url: 'http://localhost/a#fragment',
+    method: 'POST',
+    requestReplayError: note,
     requestHeaders: { Authorization: '[REDACTED]', 'X-Debug': "it's a test" },
     requestBody: { text: 'public=1' }
   })
