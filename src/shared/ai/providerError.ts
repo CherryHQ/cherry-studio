@@ -1,4 +1,4 @@
-import { AISDKError, APICallError, RetryError } from 'ai'
+import { AISDKError, APICallError, EmptyResponseBodyError, JSONParseError, RetryError, TypeValidationError } from 'ai'
 
 import type { SerializedError } from '../types/error'
 import type { Serializable } from '../types/serializable'
@@ -12,6 +12,14 @@ const MAX_NESTED_PROVIDER_ERROR_DEPTH = 5
 const NON_ACTIONABLE_PROVIDER_TEXT = new Set(['null', 'undefined', '[object object]', '{}', '[]'])
 const HTML_DOCUMENT_PATTERN = /(?:<!doctype\s+html\b|<html(?:\s|>))/i
 const JSON_CONTAINER_PATTERN = /\{\s*(?:["'{[]|\}|[^\s{}[\],:]+\s*:)|\[(?!\s*\d+(?:\s*,\s*\d+)*\s*\])[^\]]*(?:\]|$)/i
+
+const EMPTY_RESPONSE_MESSAGE = 'Invalid response: empty response body. Retry or switch model.'
+const INVALID_JSON_MESSAGE = 'Invalid JSON data. Retry or check the provider endpoint and model.'
+const INVALID_STRUCTURE_MESSAGE =
+  'Type validation failed: unexpected data structure. Check the provider endpoint and model.'
+const TERMINATED_RESPONSE_MESSAGE = 'Invalid response: response processing terminated. Retry the turn.'
+const UNPROCESSABLE_RESPONSE_MESSAGE =
+  'Invalid response: the provider response could not be processed. Retry or check the provider endpoint and model.'
 
 interface ProviderErrorSource {
   message?: unknown
@@ -150,11 +158,61 @@ export function getSafeAiSdkErrorDiscriminants(source: Record<string, unknown>):
   return discriminants
 }
 
+function sdkResponseDiagnostic(error: unknown): string | undefined {
+  if (EmptyResponseBodyError.isInstance(error)) return EMPTY_RESPONSE_MESSAGE
+  if (JSONParseError.isInstance(error)) return INVALID_JSON_MESSAGE
+  if (TypeValidationError.isInstance(error)) return INVALID_STRUCTURE_MESSAGE
+  return undefined
+}
+
+function isEncodedJsonParseError(value: unknown, decodeDepth = 0): boolean {
+  if (typeof value === 'string') {
+    if (value.length > MAX_PROVIDER_ERROR_INPUT_LENGTH || decodeDepth >= MAX_PROVIDER_ERROR_DECODE_DEPTH) return false
+    try {
+      return isEncodedJsonParseError(JSON.parse(value), decodeDepth + 1)
+    } catch {
+      return false
+    }
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const record = value as Record<string, unknown>
+  return record.name === 'AI_JSONParseError' && typeof record.text === 'string'
+}
+
+function apiResponseDiagnostic(error: APICallError, depth: number): string | undefined {
+  // Anthropic reconstructs the first malformed event as a synthetic 500 without a live cause.
+  if (
+    depth + 1 < MAX_NESTED_PROVIDER_ERROR_DEPTH &&
+    error.statusCode === 500 &&
+    typeof error.responseBody === 'string' &&
+    isEncodedJsonParseError(error.responseBody)
+  )
+    return INVALID_JSON_MESSAGE
+  if (!(error.statusCode !== undefined && error.statusCode >= 200 && error.statusCode < 300)) return undefined
+  const message = error.message.toLowerCase()
+  if (message !== 'failed to process successful response' && message !== 'invalid json response') return undefined
+  if (message === 'invalid json response' && error.responseBody === '') return EMPTY_RESPONSE_MESSAGE
+  if (depth + 1 < MAX_NESTED_PROVIDER_ERROR_DEPTH) {
+    const diagnostic = sdkResponseDiagnostic(error.cause)
+    if (diagnostic) return diagnostic
+    if (
+      error.cause instanceof TypeError &&
+      Object.getPrototypeOf(error.cause) === TypeError.prototype &&
+      error.cause.message === 'terminated'
+    ) {
+      return TERMINATED_RESPONSE_MESSAGE
+    }
+  }
+  return UNPROCESSABLE_RESPONSE_MESSAGE
+}
+
 function serializeNestedAiSdkError(error: AISDKError, depth: number): SerializedError {
   const source = error as unknown as Record<string, unknown>
+  const diagnostic = sdkResponseDiagnostic(error)
   const serialized: SerializedError = {
     name: getSafeProviderErrorMessage({ message: error.name }),
-    message: getSafeProviderErrorMessage({ message: error.message }),
+    message: diagnostic ?? getSafeProviderErrorMessage({ message: error.message }),
+    ...(diagnostic ? { providerErrorCategory: 'parse' as const } : {}),
     stack: null,
     cause: null,
     ...getSafeAiSdkErrorDiscriminants(source)
@@ -171,14 +229,17 @@ function serializeNestedAiSdkError(error: AISDKError, depth: number): Serialized
 function serializeNestedProviderErrorAtDepth(value: unknown, depth: number): Serializable {
   if (depth >= MAX_NESTED_PROVIDER_ERROR_DEPTH) return null
   if (APICallError.isInstance(value)) {
-    const message = getSafeProviderErrorMessage(value)
+    const safeMessage = getSafeProviderErrorMessage(value)
+    const diagnostic = apiResponseDiagnostic(value, depth)
+    const message = diagnostic ?? safeMessage
+    const category = classifyErrorCategory({
+      text: [safeMessage, providerErrorCodes(value.responseBody), providerErrorCodes(value.data)].join('\n'),
+      status: value.statusCode
+    })
     return {
       name: value.name,
       message,
-      providerErrorCategory: classifyErrorCategory({
-        text: [message, providerErrorCodes(value.responseBody), providerErrorCodes(value.data)].join('\n'),
-        status: value.statusCode
-      }),
+      providerErrorCategory: diagnostic && (category === 'unknown' || category === 'parse') ? 'parse' : category,
       stack: null,
       cause: null,
       url: '',

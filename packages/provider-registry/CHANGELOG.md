@@ -1,5 +1,11 @@
 # @cherrystudio/provider-registry
 
+## 0.3.6
+
+### Patch Changes
+
+- [#23535](https://github.com/CherryHQ/cherry-studio/pull/23535) [`4fb6b8a`](https://github.com/CherryHQ/cherry-studio/commit/4fb6b8a5dc954baf7a42020ac9bd8fe5c89989bb) Thanks [@Contentment003111](https://github.com/Contentment003111)! - Add the stable Hunyuan 4 model to the Tencent catalog and TokenHub with image input support.
+
 ## 0.3.5
 
 ### Patch Changes

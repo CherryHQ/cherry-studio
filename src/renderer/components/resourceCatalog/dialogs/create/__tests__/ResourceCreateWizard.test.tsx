@@ -1,11 +1,15 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, type RenderResult, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { Activity, useState } from 'react'
 import type * as ReactHookForm from 'react-hook-form'
+import { useWatch } from 'react-hook-form'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { AgentType } from '@shared/data/types/agent'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+
+import type { ResourceCreateWizardFormValues, ResourceCreateWizardKind } from '../types'
 
 const modelHook = vi.hoisted(() => ({
   defaultModel: undefined as Model | undefined,
@@ -60,14 +64,7 @@ vi.mock('../steps/BasicInfoStep', async () => {
   const { useWatch } = await vi.importActual<typeof ReactHookForm>('react-hook-form')
 
   return {
-    BasicInfoStep: ({
-      form
-    }: {
-      form: {
-        control: ReactHookForm.Control<{ modelId: string | null; name: string }>
-        setValue: (name: string, value: unknown) => void
-      }
-    }) => {
+    BasicInfoStep: ({ form }: { form: ReactHookForm.UseFormReturn<ResourceCreateWizardFormValues> }) => {
       const modelId = useWatch({ control: form.control, name: 'modelId' })
       const name = useWatch({ control: form.control, name: 'name' })
 
@@ -75,6 +72,9 @@ vi.mock('../steps/BasicInfoStep', async () => {
         <>
           <div data-testid="model-id">{modelId ?? 'empty'}</div>
           <div data-testid="name">{name || 'empty'}</div>
+          <DraftValues form={form} />
+          <input aria-label="draft name" {...form.register('name')} />
+          <input aria-label="draft description" {...form.register('description')} />
           <button type="button" onClick={() => form.setValue('name', 'My Resource')}>
             fill name
           </button>
@@ -106,14 +106,24 @@ vi.mock('../steps/BasicInfoStep', async () => {
   }
 })
 vi.mock('../steps/SystemPromptStep', () => ({
-  SystemPromptStep: ({ form }: { form: { setValue: (name: string, value: unknown) => void } }) => (
-    <button type="button" onClick={() => form.setValue('prompt', 'be helpful')}>
-      fill system prompt
-    </button>
+  SystemPromptStep: ({ form }: { form: ReactHookForm.UseFormReturn<ResourceCreateWizardFormValues> }) => (
+    <>
+      <textarea aria-label="draft prompt" {...form.register('prompt')} />
+      <button type="button" onClick={() => form.setValue('prompt', 'be helpful')}>
+        fill system prompt
+      </button>
+    </>
   )
 }))
 vi.mock('../steps/KnowledgeStep', () => ({
-  KnowledgeStep: () => <div data-testid="knowledge-step" />
+  KnowledgeStep: ({ form }: { form: ReactHookForm.UseFormReturn<ResourceCreateWizardFormValues> }) => (
+    <div data-testid="knowledge-step">
+      <DraftValues form={form} />
+      <button type="button" onClick={() => form.setValue('knowledgeBaseIds', ['knowledge-draft'])}>
+        select knowledge base
+      </button>
+    </div>
+  )
 }))
 vi.mock('../steps/CapabilityStep', () => ({
   CapabilityStep: () => <div data-testid="capability-step" />
@@ -125,8 +135,112 @@ const NEXT = 'library.config.dialogs.create.next'
 const CREATE = 'library.config.dialogs.create.submit'
 const CANCEL = 'common.cancel'
 
+const BASIC = /library\.config\.dialogs\.create\.step\.basic$/
+const KNOWLEDGE = /library\.config\.dialogs\.create\.step\.knowledge$/
+const onSubmitSpy = vi.fn()
+const draft = {
+  name: '  Activity draft  ',
+  description: '  Description preserved across tabs  ',
+  prompt: `  DRAFT_START
+${'Keep every instruction across tab switches.\n'.repeat(40)}DRAFT_END  `
+}
+
+function DraftValues({ form }: { form: ReactHookForm.UseFormReturn<ResourceCreateWizardFormValues> }) {
+  const [name, description, prompt, knowledgeBaseIds, agentType, permissionMode] = useWatch({
+    control: form.control,
+    name: ['name', 'description', 'prompt', 'knowledgeBaseIds', 'agentType', 'permissionMode']
+  })
+  return (
+    <>
+      <div data-testid="draft-name">{name}</div>
+      <div data-testid="draft-description">{description}</div>
+      <div data-testid="draft-prompt">{prompt}</div>
+      <div data-testid="knowledge-ids">{JSON.stringify(knowledgeBaseIds)}</div>
+      <div data-testid="knowledge-count">{knowledgeBaseIds.length}</div>
+      <div data-testid="agent-type">{agentType}</div>
+      <div data-testid="permission-mode">{permissionMode}</div>
+    </>
+  )
+}
+
+function ActivityHost({
+  visible,
+  kind,
+  initialName
+}: {
+  visible: boolean
+  kind: ResourceCreateWizardKind
+  initialName?: string
+}) {
+  const [open, setOpen] = useState(true)
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)}>
+        reopen wizard
+      </button>
+      <Activity mode={visible ? 'visible' : 'hidden'}>
+        <div aria-label="wizard-activity">
+          <ResourceCreateWizard
+            kind={kind}
+            open={open}
+            onOpenChange={setOpen}
+            onSubmit={onSubmitSpy}
+            initialName={initialName}
+          />
+        </div>
+      </Activity>
+    </>
+  )
+}
+
+async function hideAndShow(
+  rerender: RenderResult['rerender'],
+  props: { kind: ResourceCreateWizardKind; initialName?: string }
+) {
+  await act(async () => rerender(<ActivityHost {...props} visible={false} />))
+  await waitFor(() => expect(screen.getByLabelText('wizard-activity')).not.toBeVisible())
+  await act(async () => rerender(<ActivityHost {...props} visible />))
+  await waitFor(() => expect(screen.getByLabelText('wizard-activity')).toBeVisible())
+}
+
+async function fillDraftToKnowledge(user: ReturnType<typeof userEvent.setup>, kind: ResourceCreateWizardKind) {
+  await user.clear(screen.getByRole('textbox', { name: 'draft name' }))
+  await user.type(screen.getByRole('textbox', { name: 'draft name' }), draft.name)
+  await user.type(screen.getByRole('textbox', { name: 'draft description' }), draft.description)
+  await user.click(screen.getByRole('button', { name: NEXT }))
+  await user.click(screen.getByRole('textbox', { name: 'draft prompt' }))
+  await user.paste(draft.prompt)
+  await user.click(screen.getByRole('button', { name: NEXT }))
+  if (kind === 'agent') {
+    expect(screen.getByTestId('capability-step')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: NEXT }))
+  }
+  await user.click(screen.getByRole('button', { name: 'select knowledge base' }))
+}
+
+function expectDraft() {
+  expect(screen.getByRole('button', { name: KNOWLEDGE })).toHaveAttribute('aria-current', 'step')
+  expect(screen.getByTestId('draft-name').textContent).toBe(draft.name)
+  expect(screen.getByTestId('draft-description').textContent).toBe(draft.description)
+  expect(screen.getByTestId('draft-prompt').textContent).toBe(draft.prompt)
+  expect(screen.getByTestId('knowledge-ids').textContent).toBe('["knowledge-draft"]')
+  expect(screen.getByTestId('knowledge-count')).toHaveTextContent('1')
+}
+
+function expectDefaults(kind: ResourceCreateWizardKind, name = '') {
+  expect(screen.getByRole('button', { name: BASIC })).toHaveAttribute('aria-current', 'step')
+  expect(screen.getByRole('textbox', { name: 'draft name' })).toHaveValue(name)
+  expect(screen.getByRole('textbox', { name: 'draft description' })).toHaveValue('')
+  expect(screen.getByTestId('draft-prompt')).toBeEmptyDOMElement()
+  expect(screen.getByTestId('knowledge-ids').textContent).toBe('[]')
+  expect(screen.getByTestId('knowledge-count')).toHaveTextContent('0')
+  expect(screen.getByTestId('agent-type')).toHaveTextContent(kind === 'agent' ? 'pi' : 'claude-code')
+  expect(screen.getByTestId('permission-mode')).toHaveTextContent('auto')
+}
+
 afterEach(() => {
   cleanup()
+  onSubmitSpy.mockReset()
   modelHook.defaultModel = undefined
   modelHook.defaultProvider = { id: 'provider', name: 'Provider', isEnabled: true } as Provider
   modelHook.agentModelFilter.mockReset()
@@ -135,6 +249,86 @@ afterEach(() => {
 })
 
 describe('ResourceCreateWizard', () => {
+  it.each(['assistant', 'agent'] as const)(
+    'keeps the draft and the current step after <Activity> hide/show (%s kind)',
+    async (kind) => {
+      const user = userEvent.setup()
+      modelHook.defaultModel = makeModel()
+      const { rerender } = render(<ActivityHost kind={kind} visible />)
+      await fillDraftToKnowledge(user, kind)
+      expectDraft()
+
+      await hideAndShow(rerender, { kind })
+
+      expectDraft()
+      await user.click(screen.getByRole('button', { name: CREATE }))
+      expect(onSubmitSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'Activity draft',
+          description: 'Description preserved across tabs',
+          prompt: draft.prompt.trim(),
+          knowledgeBaseIds: ['knowledge-draft']
+        })
+      )
+    }
+  )
+
+  it.each(['assistant', 'agent'] as const)(
+    'reinitialises the wizard on a committed close and reopen of the same instance (%s kind)',
+    async (kind) => {
+      const user = userEvent.setup()
+      modelHook.defaultModel = makeModel()
+      const { rerender } = render(<ActivityHost kind={kind} visible />)
+      if (kind === 'agent') {
+        await user.click(screen.getByRole('button', { name: 'switch to claude-code' }))
+        await user.click(screen.getByRole('button', { name: 'use plan mode' }))
+      }
+      await fillDraftToKnowledge(user, kind)
+      await hideAndShow(rerender, { kind })
+      expectDraft()
+
+      await user.click(screen.getByRole('button', { name: CANCEL }))
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      await user.click(screen.getByRole('button', { name: 'reopen wizard' }))
+
+      expectDefaults(kind)
+    }
+  )
+
+  it.each(['assistant', 'agent'] as const)(
+    "resets to the new kind's defaults when the resource kind changes while open (%s kind)",
+    async (kind) => {
+      const user = userEvent.setup()
+      modelHook.defaultModel = makeModel()
+      const { rerender } = render(<ActivityHost kind={kind} visible />)
+      await fillDraftToKnowledge(user, kind)
+      expectDraft()
+      const nextKind = kind === 'agent' ? 'assistant' : 'agent'
+
+      rerender(<ActivityHost kind={nextKind} visible />)
+
+      expectDefaults(nextKind)
+    }
+  )
+
+  it('keeps the draft when initialName changes while open and uses the newest seed on the next open', async () => {
+    const user = userEvent.setup()
+    modelHook.defaultModel = makeModel()
+    const { rerender } = render(<ActivityHost kind="assistant" initialName="First seed" visible />)
+    expectDefaults('assistant', 'First seed')
+    await fillDraftToKnowledge(user, 'assistant')
+    await hideAndShow(rerender, { kind: 'assistant', initialName: 'First seed' })
+    expectDraft()
+
+    rerender(<ActivityHost kind="assistant" initialName="Newest seed" visible />)
+
+    expectDraft()
+    await user.click(screen.getByRole('button', { name: CANCEL }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await user.click(screen.getByRole('button', { name: 'reopen wizard' }))
+    expectDefaults('assistant', 'Newest seed')
+  })
+
   it.each(['assistant', 'agent'] as const)('labels the shared authoring step as System Prompt for %s', (kind) => {
     render(<ResourceCreateWizard kind={kind} open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
 

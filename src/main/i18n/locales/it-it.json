@@ -79,6 +79,7 @@
   "common.channel_message_processing_error": "⚠️ Si è verificato un errore durante l'elaborazione del messaggio. Riprova più tardi.",
   "common.channel_new_session_created": "Nuova sessione creata.",
   "common.channel_no_active_session": "Nessuna sessione attiva.",
+  "common.channel_processing": "Elaborazione in corso…",
   "common.channel_session_compacted": "Sessione compattata.",
   "common.channel_session_resolution_error": "⚠️ Impossibile individuare una sessione per questo agente. Riprova più tardi.",
   "common.channel_stopped": "Interrotto",
