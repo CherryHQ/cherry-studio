@@ -238,7 +238,15 @@ describe('TabRouter', () => {
 
     function TargetLanguage() {
       const value = React.useSyncExternalStore(subscribe, getSnapshot)
-      return <p role="status">Target language: {value}</p>
+      const [revision, setRevision] = React.useState(0)
+      return (
+        <>
+          <button type="button" onClick={() => setRevision((value) => value + 1)}>Rerender reader</button>
+          <p role="status" data-revision={revision}>
+            Target language: {value}
+          </p>
+        </>
+      )
     }
 
     knobs.renderPage = () => <TargetLanguage />
@@ -247,6 +255,8 @@ describe('TabRouter', () => {
     const { rerender } = render(<TabRouter tab={currentTab} isActive onUrlChange={onUrlChange} />)
 
     expect(await screen.findByRole('status')).toHaveTextContent('Target language: en')
+    fireEvent.click(screen.getByRole('button', { name: 'Rerender reader' }))
+    expect(screen.getByRole('status')).toHaveAttribute('data-revision', '1')
 
     rerender(<TabRouter tab={currentTab} isActive={false} onUrlChange={onUrlChange} />)
     act(() => {
