@@ -1,13 +1,36 @@
 import { MessageSquareText } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { EmptyState } from '@cherrystudio/ui'
+import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import EditNameDialog from '@renderer/components/EditNameDialog'
+import { useCommandHandler } from '@renderer/hooks/command'
+import { canRunFocusedResourceCommand } from '@renderer/utils/commandFocus'
 
-import type { HistoryRecordDescriptor, HistoryRowState } from '../historyRecordsDescriptor'
+import type { HistoryRecordDescriptor, HistoryRowActions, HistoryRowState } from '../historyRecordsDescriptor'
 import type { SelectAllState } from '../useHistoryRecordsController'
 import { formatHistoryTime, HistoryRecordRow, HistoryTableHeader, HistoryVirtualTable } from './HistoryTableParts'
+
+const PERMANENT_DELETE_ACTION_IDS = new Set(['topic.delete-permanently', 'session.delete-permanently'])
+
+function findPermanentDeleteAction(actions: readonly ResolvedAction[]): ResolvedAction | undefined {
+  for (const action of actions) {
+    if (
+      PERMANENT_DELETE_ACTION_IDS.has(action.id) ||
+      (action.commandId && PERMANENT_DELETE_ACTION_IDS.has(action.commandId))
+    ) {
+      return action
+    }
+    const nested = action.children.length > 0 ? findPermanentDeleteAction(action.children) : undefined
+    if (nested) return nested
+  }
+  return undefined
+}
+
+function isRunnablePermanentDelete(action: ResolvedAction | undefined): action is ResolvedAction {
+  return Boolean(action?.availability.visible && action.availability.enabled)
+}
 
 interface HistoryRecordListProps<T> {
   descriptor: HistoryRecordDescriptor<T>
@@ -56,9 +79,42 @@ function HistoryRecordListRowContent<T>({
   const id = descriptor.getId(item)
   const rowActions = descriptor.getRowActions(item, openRename, rowState)
   const pinned = descriptor.isPinned(id)
+  const rowRef = useRef<HTMLDivElement>(null)
+  const pendingRef = useRef(false)
+  const rowActionsRef = useRef<HistoryRowActions>(rowActions)
+  const rowStateRef = useRef(rowState)
+  rowActionsRef.current = rowActions
+  rowStateRef.current = rowState
+
+  const canRunPermanentDelete = () => {
+    if (pendingRef.current || rowStateRef.current.isRenaming) return false
+    if (!canRunFocusedResourceCommand(rowRef.current)) return false
+    return isRunnablePermanentDelete(findPermanentDeleteAction(rowActionsRef.current.actions))
+  }
+
+  useCommandHandler(
+    'resource.delete_permanently',
+    () => {
+      if (pendingRef.current || !canRunPermanentDelete()) return Promise.resolve()
+      const action = findPermanentDeleteAction(rowActionsRef.current.actions)
+      if (!isRunnablePermanentDelete(action)) return Promise.resolve()
+      pendingRef.current = true
+      try {
+        return Promise.resolve(rowActionsRef.current.onAction(action)).finally(() => {
+          pendingRef.current = false
+        })
+      } catch (error) {
+        pendingRef.current = false
+        throw error
+      }
+    },
+    { enabled: () => canRunPermanentDelete() }
+  )
+
   const row = (
     <HistoryRecordRow
       actions={rowActions.actions}
+      rowRef={rowRef}
       avatar={descriptor.renderAvatar(item)}
       deleteLabel={descriptor.strings.deleteLabel}
       isPinned={pinned}
