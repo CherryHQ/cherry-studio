@@ -241,7 +241,9 @@ describe('TabRouter', () => {
       const [revision, setRevision] = React.useState(0)
       return (
         <>
-          <button type="button" onClick={() => setRevision((value) => value + 1)}>Rerender reader</button>
+          <button type="button" onClick={() => setRevision((value) => value + 1)}>
+            Rerender reader
+          </button>
           <p role="status" data-revision={revision}>
             Target language: {value}
           </p>
