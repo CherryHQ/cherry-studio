@@ -1,85 +1,3 @@
-diff --git a/dist/providers/model-schema.js b/dist/providers/model-schema.js
---- a/dist/providers/model-schema.js
-+++ b/dist/providers/model-schema.js
-@@ -1,5 +1,5 @@
- import { Type } from "typebox";
--export const THINKING_LEVELS = ["minimal", "low", "medium", "high", "xhigh", "max"];
-+export const THINKING_LEVELS = ["minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
- export const MODEL_THINKING_LEVELS = ["off", ...THINKING_LEVELS];
- export const MODEL_INPUT_MODALITIES = ["text", "image"];
- export const CACHE_RETENTIONS = ["none", "short", "long"];
-diff --git a/dist/providers/model-schema.d.ts b/dist/providers/model-schema.d.ts
---- a/dist/providers/model-schema.d.ts
-+++ b/dist/providers/model-schema.d.ts
-@@ -1,11 +1,11 @@
- import { type Static, Type } from "typebox";
--export declare const THINKING_LEVELS: readonly ["minimal", "low", "medium", "high", "xhigh", "max"];
--export declare const MODEL_THINKING_LEVELS: readonly ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
-+export declare const THINKING_LEVELS: readonly ["minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
-+export declare const MODEL_THINKING_LEVELS: readonly ["off", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
- export declare const MODEL_INPUT_MODALITIES: readonly ["text", "image"];
- export declare const CACHE_RETENTIONS: readonly ["none", "short", "long"];
- export declare const MODEL_PROMPT_CACHE_RETENTIONS: readonly ["short", "long"];
--export declare const ThinkingLevelSchema: Type.TEnum<["minimal", "low", "medium", "high", "xhigh", "max"]>;
--export declare const ModelThinkingLevelSchema: Type.TEnum<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
-+export declare const ThinkingLevelSchema: Type.TEnum<["minimal", "low", "medium", "high", "xhigh", "max", "ultra"]>;
-+export declare const ModelThinkingLevelSchema: Type.TEnum<["off", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]>;
- export declare const ModelInputModalitySchema: Type.TEnum<["text", "image"]>;
- export declare const CacheRetentionSchema: Type.TEnum<["none", "short", "long"]>;
- export declare const ThinkingLevelMapSchema: Type.TObject<{
-@@ -16,6 +16,7 @@
-     minimal: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;
-     off: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;
-     xhigh: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;
-+    ultra: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;
- }>;
- export declare const ModelPromptCacheSchema: Type.TObject<{
-     long: Type.TOptional<Type.TNumber>;
-diff --git a/dist/models.js b/dist/models.js
---- a/dist/models.js
-+++ b/dist/models.js
-@@ -689,7 +689,7 @@
-     usage.cost.total = usage.cost.input + usage.cost.output + usage.cost.cacheRead + usage.cost.cacheWrite;
-     return usage.cost;
- }
--const EXTENDED_THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
-+const EXTENDED_THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
- export function getSupportedThinkingLevels(model) {
-     if (!model.reasoning)
-         return ["off"];
-@@ -697,7 +697,7 @@
-         const mapped = model.thinkingLevelMap?.[level];
-         if (mapped === null)
-             return false;
--        if (level === "xhigh" || level === "max")
-+        if (level === "xhigh" || level === "max" || level === "ultra")
-             return mapped !== undefined;
-         return true;
-     });
-diff --git a/dist/api/openai-responses.d.ts b/dist/api/openai-responses.d.ts
---- a/dist/api/openai-responses.d.ts
-+++ b/dist/api/openai-responses.d.ts
-@@ -1,7 +1,7 @@
- import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
- import type { SimpleStreamOptions, StreamFunction, StreamOptions } from "../types.ts";
- export interface OpenAIResponsesOptions extends StreamOptions {
--    reasoningEffort?: "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
-+    reasoningEffort?: "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
-     reasoningSummary?: "auto" | "detailed" | "concise" | null;
-     serviceTier?: ResponseCreateParamsStreaming["service_tier"];
-     toolChoice?: ResponseCreateParamsStreaming["tool_choice"];
-diff --git a/dist/api/openai-codex-responses.d.ts b/dist/api/openai-codex-responses.d.ts
---- a/dist/api/openai-codex-responses.d.ts
-+++ b/dist/api/openai-codex-responses.d.ts
-@@ -1,7 +1,7 @@
- import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
- import type { SimpleStreamOptions, StreamFunction, StreamOptions } from "../types.ts";
- export interface OpenAICodexResponsesOptions extends StreamOptions {
--    reasoningEffort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
-+    reasoningEffort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
-     reasoningSummary?: "auto" | "concise" | "detailed" | "off" | "on" | null;
-     serviceTier?: ResponseCreateParamsStreaming["service_tier"];
-     textVerbosity?: "low" | "medium" | "high";
 diff --git a/dist/api/google-generative-ai.js b/dist/api/google-generative-ai.js
 --- a/dist/api/google-generative-ai.js
 +++ b/dist/api/google-generative-ai.js
@@ -99,7 +17,7 @@ diff --git a/dist/api/google-generative-ai.js b/dist/api/google-generative-ai.js
              let params = buildParams(model, normalizedContext, options);
              const nextParams = await options?.onPayload?.(params, model);
              if (nextParams !== undefined) {
-@@ -267,8 +264,11 @@
+@@ -261,8 +258,11 @@
          },
      });
  };
@@ -112,11 +30,101 @@ diff --git a/dist/api/google-generative-ai.js b/dist/api/google-generative-ai.js
      if (model.baseUrl) {
          httpOptions.baseUrl = model.baseUrl;
          httpOptions.apiVersion = ""; // baseUrl already includes version path, don't append
+diff --git a/dist/api/openai-codex-responses.d.ts b/dist/api/openai-codex-responses.d.ts
+--- a/dist/api/openai-codex-responses.d.ts
++++ b/dist/api/openai-codex-responses.d.ts
+@@ -1,7 +1,7 @@
+ import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
+ import type { SimpleStreamOptions, StreamFunction, StreamOptions } from "../types.ts";
+ export interface OpenAICodexResponsesOptions extends StreamOptions {
+-    reasoningEffort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
++    reasoningEffort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+     reasoningSummary?: "auto" | "concise" | "detailed" | "off" | "on" | null;
+     serviceTier?: ResponseCreateParamsStreaming["service_tier"];
+     textVerbosity?: "low" | "medium" | "high";
+diff --git a/dist/api/openai-responses.d.ts b/dist/api/openai-responses.d.ts
+--- a/dist/api/openai-responses.d.ts
++++ b/dist/api/openai-responses.d.ts
+@@ -1,7 +1,7 @@
+ import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
+ import type { SimpleStreamOptions, StreamFunction, StreamOptions } from "../types.ts";
+ export interface OpenAIResponsesOptions extends StreamOptions {
+-    reasoningEffort?: "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
++    reasoningEffort?: "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+     reasoningSummary?: "auto" | "detailed" | "concise" | null;
+     serviceTier?: ResponseCreateParamsStreaming["service_tier"];
+     toolChoice?: ResponseCreateParamsStreaming["tool_choice"];
+diff --git a/dist/models.js b/dist/models.js
+--- a/dist/models.js
++++ b/dist/models.js
+@@ -690,7 +690,7 @@
+     usage.cost.totalFromProvider = false;
+     return usage.cost;
+ }
+-const EXTENDED_THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
++const EXTENDED_THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
+ export function getSupportedThinkingLevels(model) {
+     if (!model.reasoning)
+         return ["off"];
+@@ -698,7 +698,7 @@
+         const mapped = model.thinkingLevelMap?.[level];
+         if (mapped === null)
+             return false;
+-        if (level === "xhigh" || level === "max")
++        if (level === "xhigh" || level === "max" || level === "ultra")
+             return mapped !== undefined;
+         return true;
+     });
+diff --git a/dist/providers/model-schema.d.ts b/dist/providers/model-schema.d.ts
+--- a/dist/providers/model-schema.d.ts
++++ b/dist/providers/model-schema.d.ts
+@@ -1,11 +1,11 @@
+ import { type Static } from "@earendil-works/pi-schema";
+-export declare const THINKING_LEVELS: readonly ["minimal", "low", "medium", "high", "xhigh", "max"];
+-export declare const MODEL_THINKING_LEVELS: readonly ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
++export declare const THINKING_LEVELS: readonly ["minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
++export declare const MODEL_THINKING_LEVELS: readonly ["off", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
+ export declare const MODEL_INPUT_MODALITIES: readonly ["text", "image"];
+ export declare const CACHE_RETENTIONS: readonly ["none", "short", "long"];
+ export declare const MODEL_PROMPT_CACHE_RETENTIONS: readonly ["short", "long"];
+-export declare const ThinkingLevelSchema: import("@earendil-works/pi-schema").Schema<"high" | "low" | "max" | "medium" | "minimal" | "xhigh">;
+-export declare const ModelThinkingLevelSchema: import("@earendil-works/pi-schema").Schema<"high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh">;
++export declare const ThinkingLevelSchema: import("@earendil-works/pi-schema").Schema<"high" | "low" | "max" | "medium" | "minimal" | "xhigh" | "ultra">;
++export declare const ModelThinkingLevelSchema: import("@earendil-works/pi-schema").Schema<"high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh" | "ultra">;
+ export declare const ModelInputModalitySchema: import("@earendil-works/pi-schema").Schema<"image" | "text">;
+ export declare const CacheRetentionSchema: import("@earendil-works/pi-schema").Schema<"long" | "none" | "short">;
+ export declare const ThinkingLevelMapSchema: import("@earendil-works/pi-schema").Schema<{
+@@ -16,6 +16,7 @@
+     high?: string | null | undefined;
+     xhigh?: string | null | undefined;
+     max?: string | null | undefined;
++    ultra?: string | null | undefined;
+ }>;
+ export declare const ModelPromptCacheSchema: import("@earendil-works/pi-schema").Schema<{
+     short?: number | undefined;
+diff --git a/dist/providers/model-schema.js b/dist/providers/model-schema.js
+--- a/dist/providers/model-schema.js
++++ b/dist/providers/model-schema.js
+@@ -1,6 +1,6 @@
+ import { arr, int, nul, num, oneOf, opt, str, union, } from "@earendil-works/pi-schema";
+ import { openObject as object } from "./schema-builders.js";
+-export const THINKING_LEVELS = ["minimal", "low", "medium", "high", "xhigh", "max"];
++export const THINKING_LEVELS = ["minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
+ export const MODEL_THINKING_LEVELS = ["off", ...THINKING_LEVELS];
+ export const MODEL_INPUT_MODALITIES = ["text", "image"];
+ export const CACHE_RETENTIONS = ["none", "short", "long"];
+@@ -18,6 +18,7 @@
+     high: opt(ThinkingLevelMapValueSchema),
+     xhigh: opt(ThinkingLevelMapValueSchema),
+     max: opt(ThinkingLevelMapValueSchema),
++    ultra: opt(ThinkingLevelMapValueSchema),
+ }, {
+     description: "Provider value sent for each thinking level. null marks a level unsupported. Levels the model does not map use the provider's default value through high; xhigh and max are unsupported.",
+ });
 diff --git a/dist/types.d.ts b/dist/types.d.ts
-index 022faa1969490ca91d67fffa20dab7c41c4384bd..a4f7e6f72b03033148977c616e5f7c3aca609690 100644
 --- a/dist/types.d.ts
 +++ b/dist/types.d.ts
-@@ -337,7 +337,18 @@ export interface DeferredHandle {
+@@ -350,7 +350,18 @@
   * accept system messages mid-conversation send each one in place; other providers
   * rebuild the leading system message from the replayed state.
   */
@@ -135,7 +143,7 @@ index 022faa1969490ca91d67fffa20dab7c41c4384bd..a4f7e6f72b03033148977c616e5f7c3a
      role: "system";
      /** Instruction text. On the leading message this is the base prompt; later, additional instructions. */
      content: string | TextContent[];
-@@ -417,6 +428,8 @@ export type ToolResultMessage<TDetails = JsonValue> = IsJsonCompatible<TDetails>
+@@ -430,6 +441,8 @@
      toolName: string;
      content: (TextContent | ImageContent)[];
      details?: JsonRepresentation<TDetails>;
@@ -146,7 +154,6 @@ index 022faa1969490ca91d67fffa20dab7c41c4384bd..a4f7e6f72b03033148977c616e5f7c3a
      /** Calls this tool made to other tools. Kept for the session record; not sent to the model. */
 diff --git a/dist/utils/context-usage.d.ts b/dist/utils/context-usage.d.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..c2422f31a9a21f6a2b204c9e1c029bfde09acf73
 --- /dev/null
 +++ b/dist/utils/context-usage.d.ts
 @@ -0,0 +1,10 @@
@@ -162,7 +169,6 @@ index 0000000000000000000000000000000000000000..c2422f31a9a21f6a2b204c9e1c029bfd
 +export declare function measureSystemContext(system: SystemMessage | undefined, deferred?: readonly (Tool & { contextSource?: ContextSource })[], estimate?: (promptCharacters: number, toolCharacters: number) => number, separator?: string): ContextPart[];
 diff --git a/dist/utils/context-usage.js b/dist/utils/context-usage.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..a37f8e82c6eb306f36ecad165e6562b07f2df1c6
 --- /dev/null
 +++ b/dist/utils/context-usage.js
 @@ -0,0 +1,35 @@
@@ -202,19 +208,20 @@ index 0000000000000000000000000000000000000000..a37f8e82c6eb306f36ecad165e6562b0
 +    return parts;
 +}
 diff --git a/dist/utils/estimate.d.ts b/dist/utils/estimate.d.ts
-index 6dcca6eff16b95b83e047a6e27b65d9d7694bf2c..0b56a9ffff6251cadfaecea62a6d8c7463b718cd 100644
 --- a/dist/utils/estimate.d.ts
 +++ b/dist/utils/estimate.d.ts
-@@ -15,3 +15,4 @@ export declare function estimateTextAndImageContentTokens(content: string | Arra
+@@ -14,4 +14,5 @@
+ export declare function estimateTextAndImageContentTokens(content: string | Array<TextContent | ImageContent>): number;
  export declare function estimateMessageTokens(message: Message): number;
  export declare function estimateContextTokens(context: TranscriptContext | readonly Message[]): ContextUsageEstimate;
- //# sourceMappingURL=estimate.d.ts.map
+-//# sourceMappingURL=estimate.d.ts.map
+\ No newline at end of file
++//# sourceMappingURL=estimate.d.ts.map
 +export declare function estimateSystemCharacters(promptCharacters: number, toolCharacters: number): number;
 diff --git a/dist/utils/estimate.js b/dist/utils/estimate.js
-index 45be26d820bb38ab85340e7afb8cb4682db2e6b7..cfaf2b004031ddc6fe136b424b4d60c0a498612e 100644
 --- a/dist/utils/estimate.js
 +++ b/dist/utils/estimate.js
-@@ -20,6 +20,9 @@ function estimateTextAndImageContentChars(content) {
+@@ -20,6 +20,9 @@
          chars += block.type === "text" ? block.text.length : ESTIMATED_IMAGE_CHARS;
      return chars;
  }
@@ -224,7 +231,7 @@ index 45be26d820bb38ab85340e7afb8cb4682db2e6b7..cfaf2b004031ddc6fe136b424b4d60c0
  export function estimateTextTokens(text) {
      return Math.ceil(text.length / CHARS_PER_TOKEN);
  }
-@@ -29,8 +32,7 @@ export function estimateTextAndImageContentTokens(content) {
+@@ -29,8 +32,7 @@
  export function estimateMessageTokens(message) {
      let chars = 0;
      if (message.role === "system") {
@@ -235,10 +242,9 @@ index 45be26d820bb38ab85340e7afb8cb4682db2e6b7..cfaf2b004031ddc6fe136b424b4d60c0
      }
      if (message.role === "user")
 diff --git a/dist/utils/transcript.js b/dist/utils/transcript.js
-index c9589da1c658aaabb87b150ae3cdebb09285f9a2..08cee57cb439bd64049fc390a76f0cc91f5149be 100644
 --- a/dist/utils/transcript.js
 +++ b/dist/utils/transcript.js
-@@ -58,11 +58,16 @@ export function getCurrentTools(messages) {
+@@ -58,11 +58,16 @@
  export function getCurrentSystemMessage(messages) {
      const content = [];
      const sections = new Map();
@@ -255,7 +261,7 @@ index c9589da1c658aaabb87b150ae3cdebb09285f9a2..08cee57cb439bd64049fc390a76f0cc9
          const text = contentText(message.content);
          if (text.length > 0)
              content.push(text);
-@@ -79,6 +84,7 @@ export function getCurrentSystemMessage(messages) {
+@@ -79,6 +84,7 @@
      return {
          role: "system",
          content: content.join("\n\n"),
