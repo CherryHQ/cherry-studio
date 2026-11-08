@@ -633,7 +633,10 @@ function AgentEditDialogContent({
         ) : null}
         {open && activeTab === 'channels' ? (
           <TabsContent value="channels" className="m-0">
-            <AgentChannelsTab agentId={resource.id} />
+            <AgentChannelsTab
+              agentId={resource.id}
+              onSettingsNavigate={() => closeBeforeAction(() => openSettingsTab('/settings/channels'))}
+            />
           </TabsContent>
         ) : null}
         <TabsContent value="advanced" forceMount hidden={activeTab !== 'advanced'} className="m-0">

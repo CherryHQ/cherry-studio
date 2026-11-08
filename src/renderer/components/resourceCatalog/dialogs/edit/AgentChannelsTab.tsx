@@ -4,14 +4,12 @@ import { useTranslation } from 'react-i18next'
 import { Button, Switch } from '@cherrystudio/ui'
 import { AVAILABLE_CHANNELS, type AvailableChannel } from '@renderer/config/channelTypes'
 import { useChannels } from '@renderer/hooks/agent/useChannels'
-import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 
-const CHANNEL_SETTINGS_PATH = '/settings/channels'
 const AUTO_ACTIVE_CHANNEL_TYPES = new Set(['feishu', 'wechat'])
 
-export function AgentChannelsTab({ agentId }: { agentId: string }) {
+export function AgentChannelsTab({ agentId, onSettingsNavigate }: { agentId: string; onSettingsNavigate: () => void }) {
   const { t } = useTranslation()
   const { channels, isLoading, createChannel, updateChannel } = useChannels()
   const [pendingType, setPendingType] = useState<string | null>(null)
@@ -68,7 +66,7 @@ export function AgentChannelsTab({ agentId }: { agentId: string }) {
             {bound.length > 0 ? (
               <div className="flex items-center justify-between gap-3 text-muted-foreground text-xs">
                 {needsSetup ? <span>{t('agent.channels.agentTab.inactiveHint')}</span> : <span />}
-                <Button variant="ghost" size="sm" onClick={() => openSettingsTab(CHANNEL_SETTINGS_PATH)}>
+                <Button variant="ghost" size="sm" onClick={onSettingsNavigate}>
                   {t('agent.channels.agentTab.openSettings')}
                 </Button>
               </div>

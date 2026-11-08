@@ -815,7 +815,57 @@ function createDeferred<T>() {
   return { promise, resolve, reject }
 }
 
+vi.mock('@renderer/hooks/agent/useChannels', () => ({
+  useChannels: () => ({
+    channels: [{ id: 'owned-channel', type: 'telegram', agentId: 'agent-1', isActive: true }],
+    isLoading: false,
+    createChannel: vi.fn(),
+    updateChannel: vi.fn()
+  })
+}))
+
 describe('edit dialogs', () => {
+  it.each(['success', 'failure'] as const)('waits for a Channel navigation save and respects %s', async (outcome) => {
+    const user = userEvent.setup()
+    const save = createDeferred<AgentDetail>()
+    updateAgentMock.mockImplementationOnce(() => save.promise)
+    function Host() {
+      const [open, setOpen] = useState(true)
+      return <AgentEditDialog open={open} resource={{ ...AGENT, id: 'agent-1' }} onOpenChange={setOpen} />
+    }
+    render(<Host />)
+    await user.type(screen.getByLabelText('Avatar and name'), ' edited')
+    await user.click(screen.getByRole('tab', { name: 'agent.channels.agentTab.title' }))
+    await user.click(screen.getByRole('button', { name: 'agent.channels.agentTab.openSettings' }))
+    expect(updateAgentMock).toHaveBeenCalled()
+    expect(openSettingsTabMock).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog')).toBeVisible()
+    if (outcome === 'failure') {
+      await act(async () => save.reject(new Error('Save failed')))
+      expect(screen.getByRole('dialog')).toBeVisible()
+      expect(openSettingsTabMock).not.toHaveBeenCalled()
+    } else {
+      await act(async () => save.resolve({ ...AGENT, name: `${AGENT.name} edited` }))
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      await waitFor(() => expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/channels'))
+    }
+  })
+
+  it('saves pending agent edits before navigating to Channel settings', async () => {
+    const user = userEvent.setup()
+    function Host() {
+      const [open, setOpen] = useState(true)
+      return <AgentEditDialog open={open} resource={{ ...AGENT, id: 'agent-1' }} onOpenChange={setOpen} />
+    }
+    render(<Host />)
+    await user.type(screen.getByLabelText('Avatar and name'), ' edited')
+    await user.click(screen.getByRole('tab', { name: 'agent.channels.agentTab.title' }))
+    await user.click(screen.getByRole('button', { name: 'agent.channels.agentTab.openSettings' }))
+    expect(updateAgentMock).toHaveBeenCalledWith({ body: expect.objectContaining({ name: `${AGENT.name} edited` }) })
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(() => expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/channels'))
+  })
+
   it.each(['agent', 'assistant'] as const)(
     'opens global prompt settings from an empty %s prompt panel',
     async (type) => {
