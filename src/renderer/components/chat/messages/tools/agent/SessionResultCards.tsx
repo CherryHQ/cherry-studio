@@ -7,7 +7,7 @@ import { CONVERSATION_ROUTES } from '@shared/utils/conversationRoute'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 import type { ToolResponseLike } from '../toolResponse'
-import { useResolvedToolResponse } from '../useResolvedToolResponse'
+import { useToolResponsePreview } from '../useToolResponsePreview'
 import { getSessionToolTargets, type SessionToolTarget } from './sessionToolResult'
 
 const KIND_LABEL_KEYS = {
@@ -32,7 +32,7 @@ export const SessionResultCards = React.memo(function SessionResultCards({
 })
 
 function SessionToolResultCards({ toolResponse }: { toolResponse: ToolResponseLike }) {
-  const resolvedToolResponse = useResolvedToolResponse(toolResponse)
+  const { toolResponse: resolvedToolResponse } = useToolResponsePreview(toolResponse)
   const targets = getSessionToolTargets(resolvedToolResponse)
   const { t } = useTranslation()
   const actions = useOptionalMessageListActions()

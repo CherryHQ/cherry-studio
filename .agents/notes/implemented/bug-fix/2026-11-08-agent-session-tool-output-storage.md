@@ -16,7 +16,7 @@ English | [中文](2026-11-08-agent-session-tool-output-storage.zh.md)
 
 ## Decision
 
-This storage layer sits above the [tool result Spec](../../proposed/architecture/2026-11-09-tool-result-projection-boundaries.md). It removes the sidecar revision column and keeps one latest output per call. The existing renderer marker still carries its transport revision until the next layer replaces immutable result caching with targeted invalidation; this layer does not claim that broader acceptance criterion is complete.
+This storage layer sits above the [tool result Spec](../architecture/2026-11-09-tool-result-projection-boundaries.md). It removes the sidecar revision column and keeps one latest output per call. The final implementation uses targeted invalidation without result revisions; its architecture note records the cumulative storage, projection and detail verification.
 
 1. **Dedicated sidecar table (`agent_session_tool_output`)**:
    - Added `agent_session_tool_output` (`message_id`, `tool_call_id`, `session_id`, `output`, `created_at`, `updated_at`) with composite primary key `(message_id, tool_call_id)` and `ON DELETE CASCADE` foreign keys to `agent_session_message(id)` and `agent_session(id)`.

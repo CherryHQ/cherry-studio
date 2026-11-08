@@ -6,6 +6,7 @@ import { chunk } from 'es-toolkit'
 import { v4 as uuidv4, v7 as uuidv7, validate as isUuid } from 'uuid'
 
 import { application } from '@application'
+import { isAcceptedToolPart } from '@cherrystudio/agent-runtime'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable as sessionTable } from '@data/db/schemas/agentSession'
@@ -44,7 +45,6 @@ import {
   type AgentSessionDeliveryStatus
 } from '@shared/ai/agentSessionDelivery'
 import {
-  type AiToolResultResponse,
   applyApprovalDecisions,
   type ApprovalDecision,
   isDeferredToolOutput,
@@ -213,6 +213,7 @@ type SaveAgentSessionMessageParams = {
   runtimeAnchor?: unknown
   runtimeResumeToken?: string
   runtimeStats?: MessageRuntimeStatsInput
+  unchangedToolCallIds?: ReadonlySet<string>
   nativeContextId?: string
   message: CreateAgentSessionMessageDto & {
     delivery?: AgentSessionDeliveryEnvelope
@@ -368,13 +369,17 @@ function publicMessageData(data: SessionMessageRow['data']): AgentSessionMessage
 
 type OffloadedToolOutput = {
   toolCallId: string
-  output: unknown
+  serialized: string
 }
+
+type AcceptedToolPart = { messageId: string; projected: CherryMessagePart; serialized: string }
 
 function extractMessageToolOutputs<T extends SessionMessageRow['data']>(
   sessionId: string,
   messageId: string,
-  data: T
+  data: T,
+  acceptedParts: WeakMap<object, AcceptedToolPart>,
+  unchangedToolCallIds?: ReadonlySet<string>
 ): {
   storedData: T
   offloaded: OffloadedToolOutput[]
@@ -398,13 +403,20 @@ function extractMessageToolOutputs<T extends SessionMessageRow['data']>(
       continue
     }
     if (isPersistedToolOutput(part.output)) continue
-    const projected = projectMessagePartForRenderer(part, topicId, messageId)
+    const cached = isAcceptedToolPart(part) ? acceptedParts.get(part) : undefined
+    const serialized = cached?.serialized ?? JSON.stringify(part.output) ?? 'null'
+    const projected =
+      cached?.messageId === messageId
+        ? cached.projected
+        : projectMessagePartForRenderer(part, topicId, messageId, serialized)
     if (projected === part || !isToolUIPart(projected) || !isDeferredToolOutput(projected.output)) continue
     retainedToolCallIds.add(part.toolCallId)
-    offloaded.push({
-      toolCallId: part.toolCallId,
-      output: part.output
-    })
+    if (isAcceptedToolPart(part)) acceptedParts.set(part, { messageId, projected, serialized })
+    if (!isAcceptedToolPart(part) || !unchangedToolCallIds?.has(part.toolCallId))
+      offloaded.push({
+        toolCallId: part.toolCallId,
+        serialized
+      })
     storedParts ??= [...parts]
     storedParts[index] = projected
   }
@@ -442,7 +454,7 @@ function syncMessageToolOutputsTx(
         messageId,
         toolCallId: item.toolCallId,
         sessionId,
-        output: item.output,
+        output: sql`${item.serialized}`,
         createdAt: timestampMs,
         updatedAt: timestampMs
       })
@@ -473,6 +485,17 @@ function syncMessageToolOutputsTx(
 }
 
 export class AgentSessionMessageService {
+  private readonly acceptedToolParts = new WeakMap<object, AcceptedToolPart>()
+
+  private extractMessageToolOutputs<T extends SessionMessageRow['data']>(
+    sessionId: string,
+    messageId: string,
+    data: T,
+    unchangedToolCallIds?: ReadonlySet<string>
+  ) {
+    return extractMessageToolOutputs(sessionId, messageId, data, this.acceptedToolParts, unchangedToolCallIds)
+  }
+
   readWorkspaceRelocationHistory(workspaceId: string) {
     return application
       .get('DbService')
@@ -835,7 +858,7 @@ export class AgentSessionMessageService {
   insertForkMessagesTx(tx: DbOrTx, sessionId: string, rows: readonly SessionMessageRow[]): void {
     let parentId = ensureAgentSessionRootTx(tx, sessionId)
     for (const row of rows) {
-      const { storedData, offloaded, retainedToolCallIds } = extractMessageToolOutputs(sessionId, row.id, row.data)
+      const { storedData, offloaded, retainedToolCallIds } = this.extractMessageToolOutputs(sessionId, row.id, row.data)
       tx.insert(sessionMessagesTable)
         .values({
           id: row.id,
@@ -1276,7 +1299,39 @@ export class AgentSessionMessageService {
     return this.rowToEntity(hydrateAgentSessionMessageRowsTx(database, [row])[0])
   }
 
-  getSessionToolOutput(sessionId: string, messageId: string, toolCallId: string): AiToolResultResponse {
+  getSessionToolOutputRange(
+    sessionId: string,
+    messageId: string,
+    toolCallId: string,
+    cursor: number
+  ): { bytes: Buffer; hasMore: boolean } | undefined | null {
+    const database = application.get('DbService').getDb()
+    this.assertActiveSession(database, sessionId)
+    const limit = 256 * 1024
+    const row = database
+      .select({
+        bytes: sql<Buffer>`substr(cast(${sessionToolOutputsTable.output} as blob), ${cursor + 1}, ${limit + 4})`,
+        total: sql<number>`length(cast(${sessionToolOutputsTable.output} as blob))`
+      })
+      .from(sessionToolOutputsTable)
+      .where(
+        and(
+          eq(sessionToolOutputsTable.sessionId, sessionId),
+          eq(sessionToolOutputsTable.messageId, messageId),
+          eq(sessionToolOutputsTable.toolCallId, toolCallId)
+        )
+      )
+      .get()
+    if (!row) return undefined
+    if (cursor > row.total || (row.bytes.length && (row.bytes[0] & 0xc0) === 0x80)) return null
+    return { bytes: row.bytes, hasMore: cursor + row.bytes.length < row.total }
+  }
+
+  getSessionToolOutput(
+    sessionId: string,
+    messageId: string,
+    toolCallId: string
+  ): { found: true; output: unknown } | { found: false } {
     const database = application.get('DbService').getDb()
     this.assertActiveSession(database, sessionId)
     const row = database
@@ -1290,7 +1345,14 @@ export class AgentSessionMessageService {
         )
       )
       .get()
-    return row ? { found: true, output: row.output } : { found: false }
+    if (row) return { found: true, output: row.output }
+    const message = this.findExistingMessageRow(database, sessionId, messageId)
+    const part = message?.data.parts?.find(
+      (part) => isToolUIPart(part) && part.toolCallId === toolCallId && part.state === 'output-available'
+    )
+    return part && isToolUIPart(part) && part.state === 'output-available' && !isDeferredToolOutput(part.output)
+      ? { found: true, output: part.output }
+      : { found: false }
   }
 
   updateSessionMessage(
@@ -1313,7 +1375,7 @@ export class AgentSessionMessageService {
       const mergedData: SessionMessageRow['data'] = publicMessageData({ ...existing.data, ...dto.data })
       if (existing.data.deliveryReplyAnchor) mergedData.deliveryReplyAnchor = existing.data.deliveryReplyAnchor
       this.invalidateForkPrefixTx(tx, sessionId, messageId)
-      const { storedData, offloaded, retainedToolCallIds, hasDeferredInput } = extractMessageToolOutputs(
+      const { storedData, offloaded, retainedToolCallIds, hasDeferredInput } = this.extractMessageToolOutputs(
         sessionId,
         messageId,
         mergedData
@@ -1444,7 +1506,7 @@ export class AgentSessionMessageService {
           .where(and(eq(sessionMessagesTable.id, message.id), eq(sessionMessagesTable.role, 'assistant')))
           .get()
         if (!existing) continue
-        const { storedData, offloaded, retainedToolCallIds } = extractMessageToolOutputs(
+        const { storedData, offloaded, retainedToolCallIds } = this.extractMessageToolOutputs(
           existing.sessionId,
           message.id,
           message.data
@@ -1666,10 +1728,11 @@ export class AgentSessionMessageService {
     if (existingRow) {
       if (existingRow.data.deliveryReplyAnchor) data.deliveryReplyAnchor = existingRow.data.deliveryReplyAnchor
       if (existingRow.data.nativeSessionId) data.nativeSessionId = existingRow.data.nativeSessionId
-      const { storedData, offloaded, retainedToolCallIds, hasDeferredInput } = extractMessageToolOutputs(
+      const { storedData, offloaded, retainedToolCallIds, hasDeferredInput } = this.extractMessageToolOutputs(
         sessionId,
         messageId,
-        data
+        data,
+        params.unchangedToolCallIds
       )
       if (
         existingRow.inputContextId &&
@@ -1761,7 +1824,7 @@ export class AgentSessionMessageService {
 
     const parentId = params.parentId ?? getAgentSessionHead(db, sessionId) ?? ensureAgentSessionRootTx(db, sessionId)
     validateAgentSessionParent(db, sessionId, parentId)
-    const { storedData, offloaded, retainedToolCallIds, hasDeferredInput } = extractMessageToolOutputs(
+    const { storedData, offloaded, retainedToolCallIds, hasDeferredInput } = this.extractMessageToolOutputs(
       sessionId,
       messageId,
       data
@@ -1856,7 +1919,10 @@ export class AgentSessionMessageService {
   }
 
   saveMessages(
-    params: CreateAgentSessionMessagesDto & { parentId?: string },
+    params: CreateAgentSessionMessagesDto & {
+      parentId?: string
+      unchangedToolCallIds?: ReadonlyMap<string, ReadonlySet<string>>
+    },
     expectedAgent?: string | { id: string; updatedAt: string; model: string | null; type: string }
   ): AgentSessionMessageEntity[] {
     const { entities: saved, activityTimestamp } = application
@@ -1875,7 +1941,10 @@ export class AgentSessionMessageService {
 
   saveMessagesTx(
     tx: DbOrTx,
-    params: CreateAgentSessionMessagesDto & { parentId?: string },
+    params: CreateAgentSessionMessagesDto & {
+      parentId?: string
+      unchangedToolCallIds?: ReadonlyMap<string, ReadonlySet<string>>
+    },
     expectedAgent?: string | { id: string; updatedAt: string; model: string | null; type: string }
   ): AgentSessionMessageEntity[] {
     return this.saveMessagesWithActivityTx(tx, params, expectedAgent).entities
@@ -1915,7 +1984,10 @@ export class AgentSessionMessageService {
 
   private saveMessagesWithActivityTx(
     tx: DbOrTx,
-    params: CreateAgentSessionMessagesDto & { parentId?: string },
+    params: CreateAgentSessionMessagesDto & {
+      parentId?: string
+      unchangedToolCallIds?: ReadonlyMap<string, ReadonlySet<string>>
+    },
     expectedAgent?: string | { id: string; updatedAt: string; model: string | null; type: string }
   ): { entities: AgentSessionMessageEntity[]; activityTimestamp: number | null } {
     const { sessionId, runtimeResumeToken, messages } = params
@@ -1923,7 +1995,17 @@ export class AgentSessionMessageService {
     const timestampMs = Date.now()
     let parentId = params.parentId
     const saved = messages.map((message) => {
-      const result = this.upsertMessage(tx, { sessionId, runtimeResumeToken, message, parentId }, timestampMs)
+      const result = this.upsertMessage(
+        tx,
+        {
+          sessionId,
+          runtimeResumeToken,
+          message,
+          parentId,
+          unchangedToolCallIds: message.id ? params.unchangedToolCallIds?.get(message.id) : undefined
+        },
+        timestampMs
+      )
       parentId = this.branchTip(sessionId, result.entity.id, tx)
       return result
     })
@@ -2764,7 +2846,7 @@ export class AgentSessionMessageService {
             ]
           : parts
       }
-      const { storedData, offloaded, retainedToolCallIds, hasDeferredInput } = extractMessageToolOutputs(
+      const { storedData, offloaded, retainedToolCallIds, hasDeferredInput } = this.extractMessageToolOutputs(
         sessionId,
         messageId,
         data

@@ -1,5 +1,7 @@
 import { isDeepStrictEqual } from 'node:util'
 
+import { isToolUIPart } from 'ai'
+
 import type {
   Activity,
   InputState,
@@ -11,6 +13,7 @@ import type {
   Thread,
   ThreadHandle
 } from '@cherrystudio/agent-runtime'
+import { cloneObservationValue, snapshotRuntimeMessage, snapshotToolPart } from '@cherrystudio/agent-runtime'
 import { loggerService } from '@logger'
 import type { CherryUIMessage } from '@shared/data/types/message'
 
@@ -37,14 +40,19 @@ export type ThreadProjectionUpdate =
       revision: number
       messages: readonly CherryUIMessage[]
       removed: readonly string[]
-      order: readonly string[]
+      order?: readonly string[]
       state: ProjectionState
     }
-export type MessageDecorator = (message: CherryUIMessage, source: RuntimeMessage) => CherryUIMessage
+export type MessageDecorator = (
+  message: CherryUIMessage,
+  source: RuntimeMessage,
+  unchangedParts?: ReadonlySet<number>
+) => CherryUIMessage
 
 /** Main-owned current view. Native execution, product IDs and archive writes belong to its caller. */
 export class ThreadMessageProjection {
   private entries = new Map<string, { source: RuntimeMessage; view: CherryUIMessage }>()
+  private admitted = new Map<string, RuntimeMessage>()
   private readonly listeners = new Set<(update: ThreadProjectionUpdate) => void>()
   private state: ProjectionState = { activity: { state: 'unknown' }, inputs: [], subagents: [] }
   private revision = 0
@@ -114,12 +122,33 @@ export class ThreadMessageProjection {
     refresh: readonly string[] | true = []
   ): Promise<readonly CherryUIMessage[]> {
     if (this.disposed) return Promise.reject(new Error('Thread projection is closed'))
+    const captured = ('type' in event ? [event] : event).map((item): ObservationPayload => {
+      if (item.type === 'snapshot') {
+        const messages = item.messages.map((message) => snapshotRuntimeMessage(message))
+        this.admitted = new Map(messages.map((message) => [message.id, message]))
+        return { ...cloneObservationValue({ ...item, messages: [] }), messages }
+      }
+      if (item.type === 'message.upsert') {
+        const message = snapshotRuntimeMessage(item.message, this.admitted.get(item.message.id), item.changedParts)
+        for (const ref of item.replaces ?? []) if (ref.id !== message.id) this.admitted.delete(ref.id)
+        this.admitted.set(message.id, message)
+        return { ...cloneObservationValue({ ...item, message: undefined }), message }
+      }
+      if (item.type === 'message.remove') this.admitted.delete(item.ref.id)
+      return cloneObservationValue(item)
+    })
     const accepted = this.pending.then(() => {
       const changed = new Map<string, CherryUIMessage>()
       const invalidated = new Set(refresh === true ? this.entries.keys() : refresh)
       try {
-        for (const item of 'type' in event ? [event] : event) {
-          for (const message of this.reduce(item)) changed.set(message.id, message)
+        for (const item of captured) {
+          const refreshed =
+            item.type === 'snapshot'
+              ? invalidated
+              : item.type === 'message.upsert' && invalidated.has(item.message.id)
+                ? new Set([item.message.id])
+                : new Set<string>()
+          for (const message of this.reduce(item, refreshed)) changed.set(message.id, message)
           if (item.type === 'snapshot') invalidated.clear()
           else if (item.type === 'message.upsert') invalidated.delete(item.message.id)
         }
@@ -157,6 +186,7 @@ export class ThreadMessageProjection {
       this.source = undefined
       await this.observation?.stop()
       await this.pending
+      this.admitted.clear()
       this.listeners.clear()
     })())
   }
@@ -256,10 +286,19 @@ export class ThreadMessageProjection {
     }
     for (const id of refresh) {
       const source = this.entries.get(id)?.source
-      if (source) candidates.set(id, source)
+      if (source && !candidates.has(id) && event?.type !== 'snapshot') candidates.set(id, source)
     }
     // Decorators may throw; commit only after every affected message has been projected.
-    const projected = [...candidates.values()].map((source) => ({ source, view: this.project(source) }))
+    const projected = [...candidates.values()].map((source) => ({
+      source,
+      view: this.project(
+        source,
+        refresh.has(source.id),
+        event?.type === 'snapshot' ||
+          (event?.type === 'message.upsert' && event.changedParts === undefined) ||
+          refresh.has(source.id)
+      )
+    }))
     const changed: CherryUIMessage[] = []
     for (const entry of projected) if (entry.view !== this.entries.get(entry.view.id)?.view) changed.push(entry.view)
     for (const id of removed) this.entries.delete(id)
@@ -285,7 +324,7 @@ export class ThreadMessageProjection {
         revision: this.revision,
         messages: changed,
         removed,
-        order: [...this.entries.keys()],
+        ...(orderChanged ? { order: [...this.entries.keys()] } : {}),
         state: this.state
       }
       for (const listener of [...this.listeners]) this.deliver(listener, update)
@@ -301,7 +340,16 @@ export class ThreadMessageProjection {
     }
   }
 
-  private project(source: RuntimeMessage): CherryUIMessage {
+  private project(source: RuntimeMessage, refresh = false, reconcile = false): CherryUIMessage {
+    const before = this.entries.get(source.id)
+    const unchanged = new Set<number>()
+    const parts = source.parts.map((part, index) => {
+      if (!refresh && before?.source.parts[index] === part && before.view.parts[index]) {
+        unchanged.add(index)
+        return before.view.parts[index]
+      }
+      return cloneObservationValue(part) as CherryUIMessage['parts'][number]
+    })
     const pending =
       source.metadata?.completeness === 'partial' ||
       source.parts.some(
@@ -316,11 +364,38 @@ export class ThreadMessageProjection {
     const normalized: CherryUIMessage = {
       id: source.id,
       role: source.role,
-      parts: source.parts as CherryUIMessage['parts'],
+      parts,
       metadata: { status: pending ? 'pending' : 'success' }
     }
-    const message = this.decorate?.(normalized, source) ?? normalized
-    const previous = this.entries.get(message.id)?.view
-    return previous && isDeepStrictEqual(message, previous) ? previous : message
+    const decorated = this.decorate?.(normalized, source, unchanged) ?? normalized
+    const message = {
+      ...decorated,
+      parts: decorated.parts.map((part) =>
+        isToolUIPart(part) && part.state === 'output-available' ? snapshotToolPart(part) : part
+      )
+    }
+    const previous = before?.view
+    if (!previous) return message
+    const stable = message.parts.map((part, index) => {
+      const old = previous.parts[index]
+      if (old === part) return old
+      if (reconcile && isDeepStrictEqual(old, part)) return old
+      if (
+        old &&
+        (part.type === 'text' || part.type === 'reasoning') &&
+        old.type === part.type &&
+        isDeepStrictEqual(old, part)
+      )
+        return old
+      return part
+    })
+    if (
+      previous.role === message.role &&
+      isDeepStrictEqual(previous.metadata, message.metadata) &&
+      stable.length === previous.parts.length &&
+      stable.every((part, index) => part === previous.parts[index])
+    )
+      return previous
+    return { ...message, parts: stable }
   }
 }

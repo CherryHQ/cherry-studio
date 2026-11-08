@@ -16,6 +16,7 @@ export class TopicMessageProjection extends MessageProjection<TopicProjectionSta
 
   constructor(
     readonly topicId: string,
+    /** Accepts a native message and returns an immutable compact projection. */
     private readonly project: (message: CherryUIMessage) => CherryUIMessage
   ) {
     super({ kind: 'topic', topicId, executions: [], messages: [] })
@@ -101,18 +102,17 @@ export class TopicMessageProjection extends MessageProjection<TopicProjectionSta
 
   private setMessage(execution: ProjectedExecution, message: CherryUIMessage): void {
     const id = execution.anchorMessageId ?? message.id
-    this.messages.set(execution.executionId, { ...message, id })
-    this.executions.set(execution.executionId, { ...execution, messageId: id })
+    this.messages.set(execution.executionId, this.project({ ...message, id }))
+    if (execution.messageId !== id) this.executions.set(execution.executionId, { ...execution, messageId: id })
   }
 
   private publish(immediate = false): void {
-    // Projection re-serializes every finished tool output, so it runs per flushed batch, not per chunk.
-    this.update(
+    this.updateAccepted(
       () => ({
         kind: 'topic',
         topicId: this.topicId,
         executions: [...this.executions.values()],
-        messages: [...this.messages.values()].map(this.project)
+        messages: [...this.messages.values()]
       }),
       immediate
     )

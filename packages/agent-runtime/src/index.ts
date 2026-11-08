@@ -36,7 +36,14 @@ export type {
   AgentRuntime
 } from './contracts'
 export { runtimeId } from './contracts'
-export { ThreadFeed } from './observation'
+export {
+  cloneObservationValue,
+  isAcceptedToolOutput,
+  isAcceptedToolPart,
+  snapshotRuntimeMessage,
+  snapshotToolPart,
+  ThreadFeed
+} from './observation'
 export { RuntimeMessageStream } from './messageStream'
 
 export { projectNestedTool, type NestedToolRecord } from './nestedTool'

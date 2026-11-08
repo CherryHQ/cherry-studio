@@ -154,7 +154,11 @@ export class PiProjection {
     this.pending = this.pending
       .then(() => {
         this.backgroundResults = captured
-        this.feed.publish(this.feed.snapshot)
+        const current = this.feed.current
+        this.feed.publish({
+          ...current,
+          messages: current.messages.map((message) => ({ ...message, parts: message.parts.slice() }))
+        })
       })
       .catch((error) => this.report(error))
   }
@@ -359,12 +363,12 @@ export class PiProjection {
     return { session: this.ref, id: runtimeId(id) }
   }
 
-  private publish(message: RuntimeMessage, replaces?: readonly ItemRef[]): void {
+  private publish(message: RuntimeMessage, replaces?: readonly ItemRef[], changedParts?: readonly number[]): void {
     if (this.snapshotMessages) {
       const index = this.snapshotMessages.findIndex((item) => item.id === message.id)
       if (index < 0) this.snapshotMessages.push(message)
       else this.snapshotMessages[index] = message
-    } else this.feed.publish({ type: 'message.upsert', message, replaces })
+    } else this.feed.publish({ type: 'message.upsert', message, replaces, changedParts })
   }
 
   private nested(parentCallId: string, part: RuntimeMessage['parts'][number]): void {
@@ -384,31 +388,37 @@ export class PiProjection {
       ? this.snapshotMessages.find((message) => message.id === id)
       : this.feed.message(id)
     if (!message) return
-    this.publish({
-      ...message,
-      parts: message.parts.map((part) => {
-        if (part.type !== 'dynamic-tool' || part.toolCallId !== callId) return part
-        const base = {
-          type: 'dynamic-tool' as const,
-          toolName: part.toolName,
-          toolCallId: part.toolCallId,
-          input: part.input,
-          callProviderMetadata: part.callProviderMetadata
-        }
-        if (!isError) return { ...base, state: 'output-available', output, preliminary }
-        const content = (output as { content?: { type: string; text?: string }[] }).content
-        return {
-          ...base,
-          state: 'output-error',
-          errorText:
-            content
-              ?.filter((part) => part.type === 'text')
-              .map((part) => part.text)
-              .join('\n') ?? String(output),
-          resultProviderMetadata: { pi: { result: JSON.parse(JSON.stringify(output)) } }
-        }
-      })
-    })
+    this.publish(
+      {
+        ...message,
+        parts: message.parts.map((part) => {
+          if (part.type !== 'dynamic-tool' || part.toolCallId !== callId) return part
+          const base = {
+            type: 'dynamic-tool' as const,
+            toolName: part.toolName,
+            toolCallId: part.toolCallId,
+            input: part.input,
+            callProviderMetadata: part.callProviderMetadata
+          }
+          if (!isError) return { ...base, state: 'output-available', output, preliminary }
+          const content = (output as { content?: { type: string; text?: string }[] }).content
+          return {
+            ...base,
+            state: 'output-error',
+            errorText:
+              content
+                ?.filter((part) => part.type === 'text')
+                .map((part) => part.text)
+                .join('\n') ?? String(output),
+            resultProviderMetadata: { pi: { result: JSON.parse(JSON.stringify(output)) } }
+          }
+        })
+      },
+      undefined,
+      message.parts.flatMap((part, index) =>
+        part.type === 'dynamic-tool' && part.toolCallId === callId ? [index] : []
+      )
+    )
   }
 
   private write(message: PiMessage, id: string, completeness: 'partial' | 'complete'): void {
@@ -535,7 +545,19 @@ export class PiProjection {
         const part = parts[index]
         if (part.type === 'text' || part.type === 'reasoning') parts[index] = { ...part, text }
       }
-      if (this.readers.get(id) === stream) this.publish({ ...message, parts })
+      const changedToolCallId = part?.type === 'toolCall' ? part.id : undefined
+      if (this.readers.get(id) === stream)
+        this.publish(
+          { ...message, parts },
+          undefined,
+          parts.flatMap((part, index) =>
+            part.type === 'text' ||
+            part.type === 'reasoning' ||
+            (part.type === 'dynamic-tool' && part.toolCallId === changedToolCallId)
+              ? [index]
+              : []
+          )
+        )
     }
   }
 

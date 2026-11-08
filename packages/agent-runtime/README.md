@@ -35,6 +35,13 @@ native contract, not application-wide cancellation.
 Ordered parts retain text, reasoning, files, and tools; results and preliminary output update the
 originating tool part. Activity, input outcomes, and child relationships remain separate facts.
 
+Live `message.upsert.changedParts` identifies the native parts accepted by that update. Omit it
+for a full replacement or reconciliation; an empty array accepts metadata only. Producers must
+include an index whenever its contents change, including an in-place tool result replacement.
+The feed snapshots changed parts before returning to the producer. Accepted JSON tool parts and
+their payloads are deeply frozen and shared across isolated delivery containers, so observers must
+treat them as immutable. Text updates reuse settled payloads without copying or comparing their bodies.
+
 `RuntimeMessageStream` uses the pinned `ai@6.0.185` reader once per streaming native message,
 before observer fanout. Adapters with authoritative snapshots publish message values directly.
 The reader is not seeded from a partial snapshot: SDK parser state must come from native deltas.

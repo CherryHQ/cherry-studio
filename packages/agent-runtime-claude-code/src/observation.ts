@@ -1,4 +1,10 @@
-import { ThreadFeed, type Observation, type ObservationPayload, type ThreadSnapshot } from '@cherrystudio/agent-runtime'
+import {
+  cloneObservationValue,
+  ThreadFeed,
+  type Observation,
+  type ObservationPayload,
+  type ThreadSnapshot
+} from '@cherrystudio/agent-runtime'
 
 import { cloneHistoryData } from './cloneHistoryData'
 import type { ClaudeControl, ClaudeControlState } from './control'
@@ -75,8 +81,8 @@ export class ClaudeFeed {
           ? { ...value, isApiErrorMessage: true as const }
           : value
       )
+    events = events.map((event) => this.state.publish(event) ?? event)
     for (const event of events) {
-      this.state.publish(event)
       if (event.type === 'message.upsert') {
         if (native.some((entry) => entry.source === 'live')) this.live.add(event.message.id)
         for (const ref of event.replaces ?? []) {
@@ -143,7 +149,7 @@ export class ClaudeFeed {
     let delivered = 0
     const historical = new Set(this.snapshot.messages.map((message) => message.id))
     const capture = (batch: ClaudeObservation, baseline = false): ClaudeObservation => ({
-      ...cloneHistoryData(batch),
+      ...cloneObservationValue(batch),
       live: baseline ? [] : batch.live?.filter((id) => !historical.has(id))
     })
     type Delivery = { batch: ClaudeObservation; through: number; recovery?: ClaudeObservation }

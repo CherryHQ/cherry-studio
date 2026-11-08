@@ -62,6 +62,7 @@ export type InputLookup = { readonly found: false } | { readonly found: true; re
 export type JsonValue = null | boolean | number | string | readonly JsonValue[] | { readonly [key: string]: JsonValue }
 export type Completeness = 'partial' | 'complete' | 'unknown'
 /** One native conversation message; tools and their results remain in its ordered parts. */
+/** Observation result payloads are immutable snapshots; delivery containers are isolated per observer. */
 export type RuntimeMessage = UIMessage<{
   completeness: Completeness
   inputId?: InputId
@@ -127,7 +128,13 @@ export interface ThreadSnapshot {
 export type ObservationPayload =
   | ThreadSnapshot
   | { readonly type: 'context.changed'; readonly result: OperationResult<ThreadContextUsage> }
-  | { readonly type: 'message.upsert'; readonly message: RuntimeMessage; readonly replaces?: readonly ItemRef[] }
+  | {
+      readonly type: 'message.upsert'
+      readonly message: RuntimeMessage
+      readonly replaces?: readonly ItemRef[]
+      /** Authoritative changed indices; omitted for a full replacement or reconciliation. */
+      readonly changedParts?: readonly number[]
+    }
   | { readonly type: 'message.remove'; readonly ref: ItemRef }
   | { readonly type: 'input.changed'; readonly input: InputState }
   | { readonly type: 'activity.changed'; readonly activity: Activity }

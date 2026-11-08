@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/architecture/2026-11-09-tool-result-projection-boundaries.md
+2026-11-09-tool-result-projection-boundaries.md: 04518e3b66726da61655f5cddf60024362c42f1b
+2026-11-09-tool-result-projection-boundaries.zh.md: a2513eb4fe749ac0c6c40862e19d99889e72c25d

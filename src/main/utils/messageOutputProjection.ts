@@ -3,8 +3,6 @@
  * Full oversized values remain addressable through `ai.tool.get_result`.
  */
 
-import { createHash } from 'node:crypto'
-
 import type { UIMessageChunk } from 'ai'
 import { isToolUIPart } from 'ai'
 
@@ -201,37 +199,49 @@ function withCitationSkeleton(deferred: DeferredToolOutput, output: unknown): De
   return best ?? deferred
 }
 
-function projectToolOutputForRenderer(output: unknown, ref: DeferredToolResultRef): unknown {
-  const isPersisted = isPersistedToolOutput(output)
-  if (!isPersisted && isDeferredToolOutput(output)) return output
-  const serialized = isPersisted ? JSON.stringify(output) : serializeOversizedToolOutput(output)
-  if (serialized === undefined) return output
-  const versionedRef = { ...ref, revision: createHash('sha256').update(serialized).digest('hex') }
-  if (isPersisted) {
+function projectToolOutputForRenderer(
+  output: unknown,
+  ref: DeferredToolResultRef,
+  acceptedSerialized?: string
+): unknown {
+  if (isDeferredToolOutput(output)) return output
+  if (isPersistedToolOutput(output)) {
     const persisted = output.$persistedToolOutput
     const deferred = {
-      $deferredToolResult: versionedRef,
+      $deferredToolResult: ref,
       excerpt: envelopeDisplayExcerpt(persisted)
     } satisfies DeferredToolOutput
     return persisted.shape === 'entities' ? withCitationSkeleton(deferred, persisted.skeleton) : deferred
   }
 
-  return withCitationSkeleton({ $deferredToolResult: versionedRef }, output)
+  const serialized =
+    acceptedSerialized === undefined
+      ? serializeOversizedToolOutput(output)
+      : Buffer.byteLength(acceptedSerialized) > DEFER_TOOL_OUTPUT_BYTES
+        ? acceptedSerialized
+        : undefined
+  if (serialized === undefined) return output
+  return withCitationSkeleton({ $deferredToolResult: ref }, output)
 }
 
 /** Projects a stored or finalized message part. Returns the same object when nothing changed. */
 export function projectMessagePartForRenderer(
   part: CherryMessagePart,
   topicId: string,
-  messageId: string
+  messageId: string,
+  acceptedSerialized?: string
 ): CherryMessagePart {
   if (!isToolUIPart(part) || part.state !== 'output-available') return part
 
-  const output = projectToolOutputForRenderer(part.output, {
-    topicId,
-    messageId,
-    toolCallId: part.toolCallId
-  })
+  const output = projectToolOutputForRenderer(
+    part.output,
+    {
+      topicId,
+      messageId,
+      toolCallId: part.toolCallId
+    },
+    acceptedSerialized
+  )
   if (output === part.output) return part
   return { ...part, output }
 }

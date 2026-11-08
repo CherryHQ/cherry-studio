@@ -18,6 +18,7 @@ vi.mock('../hooks/useToolApproval', () => ({
 
 vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
   useOptionalMessageListActions: () => mockActions(),
+  useOptionalMessageListTopicId: () => undefined,
   useOptionalMessageListUi: () => ({ isToolAutoApproved: mockIsToolAutoApproved }),
   useMessageRenderConfig: () => ({ messageFont: 'sans-serif', fontSize: 14 })
 }))
