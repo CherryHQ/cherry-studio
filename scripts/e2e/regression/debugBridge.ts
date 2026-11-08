@@ -53,6 +53,14 @@ export async function inspectOwnedAppEnvironment(record: AppRecord): Promise<{
   )
 }
 
+export async function isOwnedGlobalShortcutRegistered(record: AppRecord, accelerator: string): Promise<boolean> {
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  return evaluateCdpExpression(
+    await ownedMainInspectorUrl(record),
+    `process.mainModule.require('electron').globalShortcut.isRegistered(${JSON.stringify(accelerator)})`
+  )
+}
+
 export async function prepareOwnedMacNotifications(record: AppRecord): Promise<void> {
   if (record.platform !== 'macos') throw new Error('Native macOS notification preparation requires macOS')
   assertOwnedProcess(record, record.electronPid, 'electron')

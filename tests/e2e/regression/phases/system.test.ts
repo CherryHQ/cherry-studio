@@ -17,6 +17,7 @@ import { computerUseRequestSchemas } from '@shared/ipc/schemas/computerUse'
 
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
+import { isOwnedGlobalShortcutRegistered } from '../../../../scripts/e2e/regression/debugBridge'
 import { observeExternalResource, registerExternalResource } from '../../../../scripts/e2e/regression/externalResources'
 import { isPathInside } from '../../../../scripts/e2e/regression/paths'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
@@ -403,6 +404,7 @@ test(...caseDefinition('MP-128'), async ({ app, mainWindow: page }, testInfo) =>
   }
   let overlay: Page | undefined
   let assistantId: string | undefined
+  let primaryFailure: unknown
   const assistantName = app.resourceName(`Screenshot draft ${Date.now()}`)
   const composer = page.locator('[data-ui~="chat.view"]:visible [data-ui~="chat.composer"]')
   const imageTokens = composer.locator('[data-composer-token-kind="file"][data-file-token-variant="image"]')
@@ -469,7 +471,7 @@ test(...caseDefinition('MP-128'), async ({ app, mainWindow: page }, testInfo) =>
       window.api.preference.setMultiple({
         'feature.screenshot.enabled': true,
         'feature.screenshot.auto_ocr': false,
-        'shortcut.screenshot.capture': { binding: ['CommandOrControl', 'Shift', 'A'], enabled: true }
+        'shortcut.screenshot.capture': { binding: ['CommandOrControl', 'Alt', 'Shift', 'K'], enabled: true }
       })
     )
     await page.bringToFront()
@@ -492,7 +494,8 @@ test(...caseDefinition('MP-128'), async ({ app, mainWindow: page }, testInfo) =>
     const bounds = await page.evaluate(() => ({ x: screenX, y: screenY }))
     const capture = async () => {
       await page.bringToFront()
-      sendSystemHotkey(app.record.platform, [app.record.platform === 'macos' ? 'Meta' : 'Control', 'Shift', 'a'])
+      await expect.poll(() => isOwnedGlobalShortcutRegistered(app.record, 'CommandOrControl+Alt+Shift+K')).toBe(true)
+      sendSystemHotkey(app.record.platform, [app.record.platform === 'macos' ? 'Meta' : 'Control', 'Alt', 'Shift', 'k'])
       overlay = await app.window('/windows/screenshot/')
       await expect(overlay.locator('canvas').first()).toBeVisible({ timeout: 20_000 })
       const origin = await overlay.evaluate(() => ({ x: screenX, y: screenY }))
@@ -648,12 +651,20 @@ test(...caseDefinition('MP-128'), async ({ app, mainWindow: page }, testInfo) =>
     await expect(
       noChat.window.getByRole('dialog').getByRole('button', { name: 'Add to chat', exact: true })
     ).toBeDisabled()
+  } catch (error) {
+    primaryFailure = error
+    throw error
   } finally {
+    const cleanupErrors: unknown[] = []
     try {
       if (overlay && !overlay.isClosed()) {
         await overlay.evaluate(() => window.api.ipcApi.request('screenshot.cancel'))
         await expect.poll(() => overlay!.evaluate(() => document.hidden).catch(() => true)).toBe(true)
       }
+    } catch (error) {
+      cleanupErrors.push(error)
+    }
+    try {
       await page.evaluate(async (original) => {
         document.getElementById('mp128-sample')?.remove()
         await window.api.preference.setMultiple({
@@ -662,7 +673,10 @@ test(...caseDefinition('MP-128'), async ({ app, mainWindow: page }, testInfo) =>
           'shortcut.screenshot.capture': original.shortcut
         })
       }, original)
-    } finally {
+    } catch (error) {
+      cleanupErrors.push(error)
+    }
+    try {
       if (assistantId) {
         const removed = (await page.evaluate(
           (assistantId) =>
@@ -671,6 +685,14 @@ test(...caseDefinition('MP-128'), async ({ app, mainWindow: page }, testInfo) =>
         )) as IpcResult<{ deleted: boolean }>
         expect(removed.ok && removed.data.deleted).toBe(true)
       }
+    } catch (error) {
+      cleanupErrors.push(error)
+    }
+    if (cleanupErrors.length > 0) {
+      throw new AggregateError(
+        primaryFailure === undefined ? cleanupErrors : [primaryFailure, ...cleanupErrors],
+        'MP-128 resource cleanup failed'
+      )
     }
   }
 })

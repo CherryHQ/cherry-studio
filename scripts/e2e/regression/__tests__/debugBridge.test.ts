@@ -9,6 +9,7 @@ import {
   assertOwnedAppIsolation,
   captureCherryInAuthorizationUrl,
   inspectOwnedNotificationHistory,
+  isOwnedGlobalShortcutRegistered,
   prepareOwnedWindowsNotifications,
   sendCherryInCallbackToOwnedApp,
   setOwnedMainWindowFocus
@@ -275,13 +276,41 @@ describe('owned application debug bridge', () => {
     expect(context.__cherryRegressionOauth).toBeUndefined()
   })
 
-  it('rejects a main-process inspector owned by another process', async () => {
+  it.each([
+    ['authorization capture', (record: AppRecord) => captureCherryInAuthorizationUrl(record, async () => {})],
+    [
+      'shortcut inspection',
+      (record: AppRecord) => isOwnedGlobalShortcutRegistered(record, 'CommandOrControl+Alt+Shift+K')
+    ]
+  ] as const)('rejects %s through a main-process inspector owned by another process', async (_name, inspect) => {
     const record = ownedApp('macos', 99_999)
-    await expect(captureCherryInAuthorizationUrl(record, async () => {})).rejects.toThrow(
-      'does not own the main-process inspector'
-    )
+    await expect(inspect(record)).rejects.toThrow('does not own the main-process inspector')
     expect(evaluateCdpExpressionMock).not.toHaveBeenCalled()
   })
+
+  it.each(['macos', 'windows'] as const)(
+    'rejects shortcut inspection after the %s PID loses ownership',
+    async (platform) => {
+      const record = ownedApp(platform)
+      execFileSyncMock.mockReturnValue('unrelated-application')
+      await expect(isOwnedGlobalShortcutRegistered(record, 'CommandOrControl+Alt+Shift+K')).rejects.toThrow(
+        'command no longer matches the owned run'
+      )
+      expect(evaluateCdpExpressionMock).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['ws://example.com:9229/node', 'ws://127.0.0.1:9333/node', 'wss://127.0.0.1:9229/node'])(
+    'rejects shortcut inspection through an unowned discovery target %s',
+    async (webSocketDebuggerUrl) => {
+      const record = ownedApp('macos')
+      vi.stubGlobal('fetch', async () => Response.json([{ type: 'node', webSocketDebuggerUrl }]))
+      await expect(isOwnedGlobalShortcutRegistered(record, 'CommandOrControl+Alt+Shift+K')).rejects.toThrow(
+        'not loopback-owned'
+      )
+      expect(evaluateCdpExpressionMock).not.toHaveBeenCalled()
+    }
+  )
 
   it('delivers the authorization code to the real HTTP listener without forwarding credentials', async () => {
     const record = ownedApp('macos')
