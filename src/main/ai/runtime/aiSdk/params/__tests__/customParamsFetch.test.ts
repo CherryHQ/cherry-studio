@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
+import { createThinkingBodyFetch } from '../anthropicThinkingBody'
 import { createCustomParamsFetch, selectCustomBodyParameters } from '../customParamsFetch'
 
 function createInnerFetch() {
@@ -90,6 +91,22 @@ describe('createCustomParamsFetch', () => {
       enable_search: true,
       messages: []
     })
+  })
+
+  it('runs after custom merging, including a raw cap absent from SDK output', async () => {
+    let body: unknown
+    const inner: typeof globalThis.fetch = async (_input, init) => {
+      body = JSON.parse(String(init?.body))
+      return new Response(null, { status: 204 })
+    }
+    await createCustomParamsFetch(createThinkingBodyFetch(inner, undefined), { max_tokens: 1024, model: 'raw' })(
+      'https://example.com',
+      {
+        method: 'POST',
+        body: JSON.stringify({ model: 'sdk', thinking: { type: 'enabled', budget_tokens: 2048 } })
+      }
+    )
+    expect(body).toEqual({ max_tokens: 1024, model: 'sdk' })
   })
 
   it('reuses wrappers for the same inner fetch and serialized custom parameters', () => {

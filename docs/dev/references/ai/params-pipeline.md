@@ -186,10 +186,19 @@ The resolved raw limit is also used to resolve the reasoning invocation;
 when it is undefined, `model.maxOutputTokens` remains a budget-sizing
 fallback without being forced into `AgentOptions`. For an
 `anthropic-messages` request, `buildAgentOptions` reads the effective thinking
-mode after per-call provider-option overrides. It subtracts an explicit additive
-budget exactly once before passing the non-thinking remainder to the SDK (with a
-minimum of one token). Adaptive or disabled thinking has no explicit budget and
-is not subtracted. An undefined raw limit remains omitted, so unknown
+mode after per-call provider-option overrides. Cherry-owned requests using a
+known Anthropic Messages HTTP serializer pass the resolved raw limit to the SDK
+unchanged. A request-local fetch wrapper then
+enforces the total cap and `max_tokens > budget_tokens` on the serialized body.
+It drops the enabled thinking block when `max_tokens <= 1024`, because the cap
+cannot hold the 1024-token minimum budget. Bedrock uses the Converse body and
+retains the explicit-budget deduction, as do transports without a known
+Anthropic Messages HTTP serializer. Caller-owned requests
+(`contextOwner === 'caller'`, API gateway / mini-app) also subtract an explicit
+additive budget exactly once before passing the non-thinking remainder to the
+SDK (with a minimum of one token). These paths install no thinking-body wrapper.
+Adaptive or disabled thinking has no explicit budget in either case.
+An undefined raw limit remains omitted, so unknown
 Anthropic-compatible non-Claude models can defer to the endpoint instead of
 inheriting an SDK fallback; unrecognized Claude aliases retain the SDK's Claude
 fallback because Anthropic requires `max_tokens`.

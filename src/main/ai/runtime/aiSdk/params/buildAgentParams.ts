@@ -59,6 +59,7 @@ import {
   filterStandardParams,
   getTemperature,
   getTopP,
+  normalizeAnthropicThinkingOptions,
   stripUnsupportedModelParams
 } from '../../../utils/modelParameters'
 import {
@@ -73,6 +74,7 @@ import { getCustomParameters } from '../../../utils/reasoning'
 import { normalizeRequestedSelection, resolveReasoningInvocation } from '../../../utils/reasoningSerializers'
 import { createToolCallLimitStopCondition } from '../loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentOptions } from '../loop/types'
+import { createThinkingBodyFetch } from './anthropicThinkingBody'
 import { assembleSystemPrompt } from './assembleSystemPrompt'
 import { buildTelemetry } from './buildTelemetry'
 import { resolveCapabilities } from './capabilities'
@@ -720,20 +722,39 @@ function buildAgentOptions(
   const callOverrides = request.callOverrides
   const overridden = applyCallOverrides({ standardParams, providerOptions }, callOverrides, model)
   standardParams = overridden.standardParams
-  const effectiveProviderOptions = applyFastModeToProviderOptions(
+  let effectiveProviderOptions = applyFastModeToProviderOptions(
     provider,
     model,
     overridden.providerOptions,
     request.fastMode === true
   )
-  const effectiveBudgetTokens = resolveEffectiveThinkingBudget(
-    effectiveProviderOptions,
-    sdkConfig.providerOptionsKey,
-    reasoning.budgetTokens
-  )
-  const maxOutputTokens = adjustMaxOutputTokensForReasoning(requestedMaxOutputTokens, endpointType, {
-    budgetTokens: effectiveBudgetTokens
-  })
+  const normalizeThinking = endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES && request.contextOwner !== 'caller'
+  const serializesAnthropicMessagesHttpBody =
+    endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES &&
+    aiSdkProviderId !== 'bedrock' &&
+    ['anthropic', 'azure-anthropic', 'google-vertex-anthropic', 'cherryin', 'newapi', 'aihubmix', 'dmxapi'].includes(
+      sdkConfig.providerId
+    )
+  const cap = requestedMaxOutputTokens ?? model.maxOutputTokens
+  if (normalizeThinking) {
+    const normalized = normalizeAnthropicThinkingOptions(
+      effectiveProviderOptions,
+      sdkConfig.providerOptionsKey,
+      sdkConfig.providerId.split('.')[0],
+      cap
+    )
+    effectiveProviderOptions = normalized.providerOptions
+  }
+  const maxOutputTokens =
+    normalizeThinking && serializesAnthropicMessagesHttpBody
+      ? requestedMaxOutputTokens
+      : adjustMaxOutputTokensForReasoning(requestedMaxOutputTokens, endpointType, {
+          budgetTokens: resolveEffectiveThinkingBudget(
+            effectiveProviderOptions,
+            sdkConfig.providerOptionsKey,
+            reasoning.budgetTokens
+          )
+        })
   if (maxOutputTokens !== undefined) {
     standardParams = { ...standardParams, maxOutputTokens }
   } else if ('maxOutputTokens' in standardParams) {
@@ -745,6 +766,12 @@ function buildAgentOptions(
     { standardParams, providerOptions: effectiveProviderOptions, bodyParams },
     model
   )
+  if (normalizeThinking && serializesAnthropicMessagesHttpBody) {
+    sdkConfig.providerSettings.fetch = createThinkingBodyFetch(
+      sdkConfig.providerSettings.fetch ?? globalThis.fetch,
+      cap
+    )
+  }
   // Capture only filtered body parameters; a fetch closure cannot be sanitized later.
   if (Object.keys(sanitized.bodyParams).length > 0) {
     sdkConfig.providerSettings.fetch = createCustomParamsFetch(

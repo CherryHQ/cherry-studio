@@ -94,4 +94,18 @@ describe('@ai-sdk/anthropic maxOutputTokens boundary', () => {
     expect(bodyOf(request).thinking).toEqual({ type: 'enabled', budget_tokens: 2048 })
     expect(bodyOf(request)).not.toHaveProperty('max_tokens')
   })
+  it('does not synthesize max_tokens for internal Anthropic enabled thinking without a limit', async () => {
+    const request = await captureRequest(
+      (fetch) =>
+        createNewApi({
+          apiKey: 'sk',
+          baseURL: 'https://example.com/v1',
+          endpointType: 'anthropic',
+          fetch
+        }).languageModel('qwen3.5-plus'),
+      { providerOptions: { newapi: { thinking: { type: 'enabled', budgetTokens: 2048 } } } }
+    )
+    expect(bodyOf(request).thinking).toEqual({ type: 'enabled', budget_tokens: 2048 })
+    expect(bodyOf(request)).not.toHaveProperty('max_tokens')
+  })
 })
