@@ -65,7 +65,8 @@ export default function ScheduledTasksPage() {
   const [paneOpen, setPaneOpen] = usePreference('topic.tab.show')
   const shell = useConversationShellPaneState({ persistedPaneOpen: paneOpen, setPersistedPaneOpen: setPaneOpen })
   useCommandHandler('app.sidebar.toggle', shell.toggleShellPane, { enabled: isActiveTab })
-  const [createOpen, setCreateOpen] = useState(false)
+  // Keep the lazy form mounted after first use so Dialog can finish its exit animation.
+  const [createOpen, setCreateOpen] = useState<boolean>()
   const triggerRef = useRef<HTMLButtonElement>(null)
   const { createTask } = useCreateTask()
   const ids = useMemo(
@@ -81,7 +82,7 @@ export default function ScheduledTasksPage() {
     refetch: refreshAgents
   } = useQuery('/agents', {
     query: { limit: 500 },
-    enabled: createOpen
+    enabled: createOpen === true
   })
   const selectTask = (id: string) => {
     void navigate({ to: '/app/scheduled-tasks', search: { taskId: id }, replace: true })
@@ -237,7 +238,7 @@ export default function ScheduledTasksPage() {
           </Button>
         </div>
       )}
-      {createOpen && (
+      {createOpen !== undefined && (
         <Suspense fallback={<p role="status">{t('common.loading')}</p>}>
           <TaskFormDialog
             agentNotice={
@@ -259,7 +260,7 @@ export default function ScheduledTasksPage() {
                 </div>
               )
             }
-            open
+            open={createOpen}
             agents={availableAgents?.items ?? []}
             onOpenChange={changeCreateOpen}
             onCreate={async (agentId, form) => {
