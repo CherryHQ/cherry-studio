@@ -20,13 +20,13 @@ This note specializes the payload and consumer boundaries of the [runtime contra
 
 ## Proposal
 
-### One result identity and one delivery sequence
+### One latest result per call and one delivery sequence
 
-A tool call is identified by its product conversation, message, and tool call. An output value is identified by that call plus its existing content revision. Keep the wire field `revision`; do not add another counter, rename the hash to an output ID, or treat a tool completion state as proof that replacement is impossible.
+A tool call is identified by its product conversation, message, and tool call. Its reference always reads the latest accepted result. A preliminary or replacement output overwrites that current value. Do not retain historical outputs or introduce content hashes, stored result revisions, or version-addressed reads.
 
-The output owner creates an immutable accepted result value. It serializes that value once, calculates its existing SHA-256 content revision, and derives the bounded preview at result acceptance. Storage and projection reuse those products. Text appends, disclosure changes, and repeated publication do not revisit the full result. Producer integrations must establish this boundary even when a native source mutates objects in place. Object identity alone is not evidence of unchanged content.
+The output owner creates an immutable snapshot of the latest accepted result. It serializes that value and derives its bounded preview at actual result acceptance. Storage and projection reuse those products. Text appends, disclosure changes, and repeated publication do not revisit the full result or rewrite the result row. Producer integrations must establish this boundary even when a native source mutates objects in place. Object identity alone is not evidence of unchanged content.
 
-A changed preliminary or replacement result obtains a content identity for its changed value. Replayed identical content keeps the same revision. A native snapshot can require reconciliation once on attachment or source replacement; ordinary text changes do not trigger that reconciliation. No new immutable-result exception is inferred from `output-available`.
+Actual result updates replace the current value and invalidate its detail consumers, even if the compact reference and preview compare equal. A snapshot replay may reconcile once at attachment or source replacement. Ordinary text changes do not trigger that reconciliation. Suppress duplicate writes using the native update contract or comparison at that result boundary, not a hash on every message publication. Do not infer permanent content immutability from `output-available`.
 
 `MessageProjectionUpdate.revision` remains a contiguous publication sequence scoped to its publisher and subscription. It detects duplicates and gaps. It never identifies a tool output or authorizes a storage write.
 
@@ -40,33 +40,33 @@ A changed preliminary or replacement result obtains a content identity for its c
 | `MessageProjection` | Publishes a compact immutable view and affected patches. It owns delivery ordering, not tool execution or detail storage. |
 | Renderer detail consumers | Own disclosure, detail read state, and a bounded shared detail cache. They never insert hydrated output into streaming message parts. |
 
-Live and persisted copies use the same content revision across handoff. Persist the new reference and its result atomically. Release the live copy only after durable handoff or an explicit unavailable outcome. A failed archive write remains a persistence failure and does not repeat the tool operation. Shutdown drains accepted writes under the existing runtime barriers.
+Live and persisted copies identify the same call across handoff. Atomically save the latest result, compact reference, and preview, replacing any previous result under that call key. Release the live copy only after durable handoff or an explicit unavailable outcome. A failed archive write remains a persistence failure and does not repeat the tool operation. Shutdown drains accepted writes under the existing runtime barriers.
 
-Use the sidecar layout from #23873 if it lands, or carry its narrowly scoped storage repair as the first implementation layer. Regenerate a new appended migration against the implementation base; the proposal does not reserve that PR's migration number or modify its branch. Keep legacy inline rows readable. Split them when written, without a startup backfill.
+Reuse the separate-result-table boundary from #23873 if it lands, or carry its narrowly scoped storage repair as the first implementation layer. Store one current output per message and tool call, without its content-revision column or hash-based write predicate. If that column has already shipped, remove it through a generated appended migration. Regenerate migrations against the implementation base; the proposal does not reserve that PR's migration number or modify its branch. Keep legacy inline rows readable. Split them when written, without a startup backfill.
 
 Compact message paging does not read the result table for split rows. Full model context, resume, fork, diagnostics, and explicit full-content consumers hydrate only when their contract requires it. Existence checks and projection bookkeeping must not accidentally select or hydrate result bodies.
 
-### Version-aware reads with explicit purpose
+### Latest-value reads with explicit purpose
 
-Extend the existing `ai.tool.get_result` route with a required read purpose and the expected result revision. Migrate every caller in the same layer. Use a discriminated request for `preview`, `text-range`, or `full`, and a discriminated response for `ready`, `pending`, `stale`, or `unavailable`.
+Extend the existing `ai.tool.get_result` route with a required read purpose. The request identifies the call and reads its latest accepted value; it carries no expected output revision. Migrate every caller in the same layer. Use a discriminated request for `preview`, `text-range`, or `full`, and a discriminated response for `ready`, `pending`, or `unavailable`. There is no output-version mismatch or historical-result lookup.
 
 | Read purpose | Consumer and bound |
 | --- | --- |
 | `preview` | A typed tool presentation, citation preview, or active artifact consumer. The serialized response is at most the existing 32 KiB tool transport budget. Images and other large assets use resource references. |
-| `text-range` | An expanded raw-result viewer. Each response contains at most 256 KiB of UTF-8 text, a validated next cursor, and the resolved revision. |
+| `text-range` | An expanded raw-result viewer. Each response contains at most 256 KiB of UTF-8 text and a validated next cursor. Result invalidation discards loaded ranges and restarts at the beginning. |
 | `full` | An explicit full-content operation such as image export or copy. It preserves the original typed value and is not called by ordinary card mounting. |
 
 These bounds are initial design limits, not measured performance results. Text ranges preserve Unicode boundaries. The range path reads a bounded segment of stored serialized bytes; it does not parse and format the complete object before truncating it. Retain raw typed bytes for model and full-content readers.
 
-The owner checks scope and expected revision against the value it actually serves. If A was requested and only replacement B remains, return `stale` without B's body. Do not archive every output version to satisfy old reads. Renderer refreshes the affected reference and starts a separate request for B. A late A response cannot populate B's cache or replace B's display.
+The owner validates the captured conversation, message, call, and live attempt, then reads the current value. Serving replacement B to a latest-value request that began while A existed is valid. Detail views do not promise a historical snapshot across requests. Once a result-change notification is observed, discard previous cached content and ranges, fence already-started reads with a local request generation, and refetch for active consumers. Late completions from the retired generation cannot overwrite the new display or cache.
 
-An old persisted reference without a revision uses a non-immutable discovery read to obtain the current compact reference first. Never permanently cache a latest-value read under an unversioned key. `pending` represents an accepted value whose reader is not ready; it is not cached as permanent absence. `unavailable` is a detail outcome, not evidence that the tool failed.
+Read old persisted references by the same call identity and ignore any legacy output `revision` field. No discovery read or old-version recovery is needed. Replace the immutable full-result cache with a latest-value cache that revalidates on result changes and attachment. `pending` represents an accepted value whose reader is not ready; it is not cached as permanent absence. `unavailable` is a detail outcome, not evidence that the tool failed.
 
 ### Separate detail state from execution state
 
 Generic collapsed cards use metadata and bounded previews without fetching a full result. Mount a detail consumer only when expanded. Closing a card releases its detail subscription and prevents a late response from reopening or overwriting it.
 
-Keep the tool's execution state from its accepted runtime part. Model detail state separately as `idle`, `loading`, `ready`, or `error`. Loading, stale reads, missing details, and detail errors never turn a successful tool into an invoking or failed tool. Read failures do not retry execution.
+Keep the tool's execution state from its accepted runtime part. Model detail state separately as `idle`, `loading`, `ready`, or `error`. Loading, invalidated reads, missing details, and detail errors never turn a successful tool into an invoking or failed tool. Read failures do not retry execution.
 
 Audit the current consumers explicitly:
 
@@ -78,9 +78,11 @@ Audit the current consumers explicitly:
 | Citations, specialized cards, and image presentation | Use bounded typed previews or resource readers. Preserve source identities and ordering. |
 | `markdownImageExport`, full copy, model context, and resume | Use explicit full-content reads. Do not export the deferred marker or silently replace complete output with its preview. |
 
-Keep one detail cache per renderer window, keyed by result identity and read purpose or range. Cap cached serialized payloads at 16 MiB using LRU eviction. A value larger than the cap is not retained. Remove a conversation's inactive entries when its last consumer releases them; one panel closing must not clear another active panel's data. Cancel or detach obsolete reads, and fence late completions by conversation, result identity, and request generation.
+Keep one detail cache per renderer window, keyed by call identity and read purpose or range. Cap cached serialized payloads at 16 MiB using LRU eviction. A value larger than the cap is not retained. Remove a conversation's inactive entries when its last consumer releases them; one panel closing must not clear another active panel's data. Cancel or detach obsolete reads, and fence late completions by conversation, call identity, and local request generation. Generations are transient renderer state; they are neither persisted nor transmitted as result revisions.
 
 The 16 MiB cap applies to retained cache payloads, not a claim about total JS heap or DOM memory. Do not layer an additional unbounded SWR full-result cache under this budget.
+
+Carry a targeted result-change invalidation in the existing ordered projection batch, even when the compact result part has not otherwise changed. Apply it before notifying detail consumers. Coalesce repeated changes to the latest value. Persistence emits the corresponding existing data-change notification only after commit. Cover both root and child views, duplicate delivery, and changes during initial attachment. A gap, baseline replacement, or source replacement invalidates affected cached details before revalidation. An unobserved conversation cannot retain cache entries across a detached interval. No second result event log or content counter is added.
 
 ### Make publication and subscriptions incremental
 
@@ -92,8 +94,8 @@ Renderer keeps stable structure for pure text updates. Text consumers subscribe 
 
 ### Delivery order and verification owners
 
-1. Storage and accepted results. Integrate the storage repair and centralize result serialization, revision, and preview at actual change boundaries. Main data and runtime maintainers verify compact paging, populated-database migration, handoff, and replacement behavior.
-2. Version-aware reads and bounded detail state. Migrate every route caller and remove the eager full-result gate in the same layer. IPC and renderer maintainers verify races, disclosure, specialized previews, export, and cache release.
+1. Storage and accepted results. Integrate the storage repair and centralize latest-result writes, serialization, and previews at actual change boundaries. Main data and runtime maintainers verify compact paging, populated-database migration, handoff, and replacement behavior.
+2. Latest-value reads and bounded detail state. Migrate every route caller and remove the eager full-result gate in the same layer. IPC and renderer maintainers verify invalidation, late responses, disclosure, specialized previews, export, and cache release.
 3. Incremental publication and subscriptions. Change root and child producers together with affected renderer subscriptions. Runtime and renderer maintainers verify publication gaps, source replacement, stable consumers, and scroll ownership.
 4. Electron acceptance and final documentation. The implementation owner records actual interaction traces, focused checks, remaining platform gaps, and AC evidence. Only this final layer moves the bilingual note to implemented.
 
@@ -101,8 +103,8 @@ Implementation PRs stack on the approved Spec and list their AC coverage. Every 
 
 ## Alternatives considered
 
-- Remove all output revisions and key immutable caches by call identity. Rejected because same-call replacement and preliminary results exist.
-- Add a manually synchronized result counter or output ID. Rejected because it duplicates content identity without removing the acceptance and read-validation obligations.
+- Keep historical results or content revisions to serve references to old output. Rejected because all consumers need the latest value or an explicit full read, not a past result. Same-call replacement requires cache invalidation, not version-addressed storage.
+- Add a result counter, content hash, or new output ID to invalidate caches. Rejected because existing ordered projection delivery can carry targeted invalidation without another persistent identity.
 - Hash complete results on each projection, or retain full results in renderer messages behind more memoization. Rejected because unchanged content still incurs copying, serialization, or comparison costs.
 - Increase the DataApi timeout or always hydrate before truncating a preview. Rejected because neither bounds the synchronous work.
 - Adopt T3's entire event log and turn-item storage model. Rejected because Cherry already owns runtime projections, patch delivery, and history. This proposal adopts the smaller boundaries.
@@ -110,16 +112,16 @@ Implementation PRs stack on the approved Spec and list their AC coverage. Every 
 
 ## Acceptance criteria
 
-- AC1 — After an oversized result is accepted, pure text appends and repeated publication perform no new serialization, hashing, or preview extraction of that unchanged result; changed and replayed preliminary results preserve correct content identity. (verification: unit; Main runtime owner)
+- AC1 — After an oversized result is accepted, pure text appends and repeated publication perform no new serialization, hashing, or preview extraction of that unchanged result; changed preliminary or replacement results overwrite the same current result row without generating stored or wire output revisions. (verification: unit; Main runtime owner)
 - AC2 — Split message paging and existence checks read no complete result bodies, while populated legacy databases migrate forward, retain full-reader output, and cascade-delete results with their messages. (verification: unit with setupTestDatabase; Main data owner)
-- AC3 — A replacement during detail reads never serves B as A or caches one revision under another; stale, pending, unversioned, removed, and unavailable references produce the declared read outcomes. (verification: unit and renderer; IPC owner)
+- AC3 — After result-change invalidation, old in-flight responses cannot overwrite the current cache or display, active consumers read the latest result, and loaded ranges restart; pending, legacy, removed, and unavailable references follow the latest-value contract without historical-result lookup. (verification: unit and renderer; IPC owner)
 - AC4 — A collapsed generic card issues no detail read; expansion reads only its result, closing detaches the consumer, and detail loading or failure preserves the runtime execution state. (verification: renderer; tool presentation owner)
 - AC5 — Preview and text-range responses respect 32 KiB and 256 KiB limits, preserve Unicode and resource references, and do not fully parse a stored oversized result before serving a text range. (verification: unit and renderer; Main data and IPC owners)
 - AC6 — Detail cache payloads remain within 16 MiB, obsolete responses cannot revive a closed consumer, and releasing the last conversation consumer removes inactive entries without clearing another active consumer. (verification: renderer; cache owner)
 - AC7 — Citation identities and numbering, specialized cards, active child panels, preview resources, image export, full copy, model context, resume, and fork retain their complete-content or bounded-preview contracts. (verification: focused unit and renderer tests plus Electron scenarios; affected consumer owners)
 - AC8 — Pure text publication uses affected patches and stable list structure without whole-view cloning or deep comparison; root and child attachment, duplicate delivery, gaps, replacement, shutdown, and persistence failure preserve their existing contracts. (verification: unit and renderer; projection owners)
 - AC9 — During sustained streaming, twenty expand-close cycles for each of 256 KiB, 2 MiB, and 16 MiB settled result fixtures have p95 input-to-visible-disclosure latency at most 100 ms, with no renderer task of at least 50 ms attributable to repeated processing of the unchanged result; record hardware, build, workload, Main and renderer traces, and a separate real-Agent run. (verification: Electron; implementation owner)
-- AC10 — All internal result-read consumers use the explicit-purpose contract, the old eager full-result gate is removed, and both language documents describe the final verified behavior without presenting fixtures or component tests as full system acceptance. (verification: source audit and docs gate; implementation owner)
+- AC10 — All internal result-read consumers use the explicit-purpose contract, the old eager full-result gate and output-revision cache keys are removed, and both language documents describe the final verified behavior without presenting fixtures or component tests as full system acceptance. (verification: source audit and docs gate; implementation owner)
 
 ## Risks
 
@@ -128,4 +130,5 @@ Implementation PRs stack on the approved Spec and list their AC coverage. Every 
 - Legacy inline rows still require parsing until rewritten. The no-sidecar-read guarantee covers split rows; this proposal does not hide that compatibility cost.
 - The initial response and cache limits can affect large structured presentations. A failing required consumer needs an explicit typed preview or resource reader, not an unbounded generic bypass.
 - #23873 can change before implementation, and Main already has newer migration numbers. Reconcile its actual merged contract and regenerate migrations rather than copying a numbered migration.
+- Latest-value range reads are not a historical snapshot. Result invalidation resets the viewer; notification ordering, attachment, gap recovery, and late-response fencing require explicit regression coverage.
 - The Electron latency criterion is a proposed acceptance target. No performance trace or speedup has been measured for this proposal.
