@@ -50,6 +50,7 @@ macOS 的 HTTPS 与本地 HTML 文件可以使用不同默认应用。若以 HTT
 - macOS 保存失败时，记录所拥有面板的 AX PID/role、前台应用身份及激活/raise 结果，不记录标题、内容或输入值。保留原前台归属检查。原生测试覆盖全部 BrowserWindow 隐藏后独立保存的截图保存场景。
 - 截图测试使用专用 `CommandOrControl+Alt+Shift+K` 绑定，避开[飞书默认截图绑定](https://www.feishu.cn/hc/zh-CN/articles/258254899042-%E6%8F%90%E5%8F%96%E5%9B%BE%E7%89%87%E4%B8%AD%E7%9A%84%E6%96%87%E5%AD%97)。每次真实触发前，检查所拥有 Electron 进程的 `globalShortcut.isRegistered()` 结果；未注册时不发送按键。遮罩取消、原偏好恢复和所拥有助手删除分别尝试，失败均保留。
 - 等待保存面板状态及执行严格前台 PID 检查前，推进 AppKit 主 RunLoop。[Apple 的应用状态契约](https://developer.apple.com/documentation/appkit/nsrunningapplication?language=objc) 要求通过 RunLoop 迭代刷新动态观察值；激活请求被接受本身不能证明键盘归属。每轮 MP-128 使用独立助手和新会话，结束后只删除该助手及其话题。
+- 托盘操作、外部文本检查和前台检查的 PowerShell 探针隐藏控制台。空菜单及前台失败仅保留归属 PID、前台 PID、窗口类型与几何。Notepad 缺少文本控件时，记录有界、限定归属 PID 的 UIA 元数据，不读取正文；macOS 划词工具栏点击失败时，在清理前保留有界 DOM／帧状态及所拥有原生窗口状态。这些观测不替代原交互或结果断言。
 - MP-17 的 Send 使用 Playwright 的 `noWaitAfter` 选项，随后验证实际错误详情、Retry 和恢复结果。MP-92 在失败清理删除 provider 前保留模型选择器状态与遮罩截图。
 
 ## 考虑过的替代方案
@@ -90,3 +91,5 @@ macOS 的 HTTPS 与本地 HTML 文件可以使用不同默认应用。若以 HTT
 - Regression — 保存驱动的 RunLoop 后续修复通过三个真实 macOS 保存变体（指定文件名、保留建议文件名、隐藏 BrowserWindow），以及 24 项系统自动化检查和 E2E 类型检查。增加逐用例草稿隔离前，MP-128 连续执行三轮得到一项通过、两项失败：前台状态观察超时，以及上一轮成功执行遗留附件导致数量错误。
 
 - Regression — 28 项 debug bridge 测试通过，包括只读快捷键检查对过期 Electron 身份、外来 inspector、远程地址及错误端口的拒绝。专用截图绑定的真实触发验证与这些归属契约单独记录。
+
+- Regression — 53 项 debug bridge 与系统自动化检查、Node/E2E 类型检查通过。Windows 托盘、重复启动及编辑器 provider 路径仍需原生 CI 验证；macOS 工具栏诊断保留尚未解决的点击失败。

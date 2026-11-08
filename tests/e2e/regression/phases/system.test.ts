@@ -17,7 +17,10 @@ import { computerUseRequestSchemas } from '@shared/ipc/schemas/computerUse'
 
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
-import { isOwnedGlobalShortcutRegistered } from '../../../../scripts/e2e/regression/debugBridge'
+import {
+  inspectOwnedWindowsByUrl,
+  isOwnedGlobalShortcutRegistered
+} from '../../../../scripts/e2e/regression/debugBridge'
 import { observeExternalResource, registerExternalResource } from '../../../../scripts/e2e/regression/externalResources'
 import { isPathInside } from '../../../../scripts/e2e/regression/paths'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
@@ -233,7 +236,63 @@ test(...caseDefinition('MP-127'), async ({ app, mainWindow: page }, testInfo) =>
     for (const action of ['Explain', 'Translate']) {
       const toolbar = await invoke()
       await screenshot(toolbar, `MP-127 native selection toolbar ${action}`)
-      await toolbar.getByRole('button', { name: action, exact: true }).click()
+      const actionButton = toolbar.getByRole('button', { name: action, exact: true })
+      try {
+        await actionButton.click()
+      } catch (error) {
+        if (app.record.platform === 'macos') {
+          await Promise.allSettled([
+            Promise.race([
+              actionButton.evaluate(
+                (button) =>
+                  new Promise((resolve) => {
+                    const samples = [button.getBoundingClientRect().toJSON()]
+                    let frame = 0
+                    const finish = () => {
+                      clearTimeout(timer)
+                      cancelAnimationFrame(frame)
+                      resolve({
+                        hidden: document.hidden,
+                        visibility: document.visibilityState,
+                        focused: document.hasFocus(),
+                        buttonVisible: button.checkVisibility({ visibilityProperty: true }),
+                        buttonDisabled: (button as HTMLButtonElement).disabled,
+                        buttonFocused: document.activeElement === button,
+                        animationFrames: samples.length - 1,
+                        bounds: samples
+                      })
+                    }
+                    const timer = setTimeout(finish, 500)
+                    const sample = () => {
+                      samples.push(button.getBoundingClientRect().toJSON())
+                      if (samples.length === 3) finish()
+                      else frame = requestAnimationFrame(sample)
+                    }
+                    frame = requestAnimationFrame(sample)
+                  }),
+                undefined,
+                { timeout: 2_000 }
+              ),
+              new Promise((resolve) => {
+                const timer = setTimeout(() => resolve({ inspectionTimedOut: true }), 2_000)
+                timer.unref()
+              })
+            ]).then((state) =>
+              testInfo.attach(`MP-127 ${action} toolbar DOM failure state`, {
+                body: JSON.stringify(state),
+                contentType: 'application/json'
+              })
+            ),
+            inspectOwnedWindowsByUrl(app.record, toolbar.url()).then((state) =>
+              testInfo.attach(`MP-127 ${action} toolbar native failure state`, {
+                body: JSON.stringify(state),
+                contentType: 'application/json'
+              })
+            )
+          ])
+        }
+        throw error
+      }
       let resultWindow: typeof page | undefined
       await expect
         .poll(async () => {
@@ -487,7 +546,8 @@ test(...caseDefinition('MP-128'), async ({ app, mainWindow: page }, testInfo) =>
       canvas.id = 'mp128-sample'
       canvas.width = 560
       canvas.height = 220
-      canvas.style.cssText = 'position:fixed;left:120px;top:100px;width:560px;height:220px;z-index:2147483647'
+      canvas.style.cssText =
+        'position:fixed;left:120px;top:100px;width:560px;height:220px;z-index:2147483647;pointer-events:none'
       const context = canvas.getContext('2d')!
       context.fillStyle = '#ffffff'
       context.fillRect(0, 0, 560, 220)

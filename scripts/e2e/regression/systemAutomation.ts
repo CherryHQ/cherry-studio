@@ -825,17 +825,64 @@ export function readWindowsExternalText(): {
     'if (-not $window) { throw "Owned external text window is unavailable" }',
     '$editorCondition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Edit)',
     '$editor = $window.FindFirst([Windows.Automation.TreeScope]::Descendants, $editorCondition)',
-    'if (-not $editor) { throw "Owned external editor has no text control" }',
+    'if (-not $editor) {',
+    '  $nodes = @(); $visited = 0; $queued = 0; $diagnosticError = $null',
+    '  try {',
+    '    $queue = [System.Collections.Generic.Queue[object]]::new()',
+    '    $windows = [Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Children, $condition)',
+    '    foreach ($candidate in @($windows | Select-Object -First 6)) { $queue.Enqueue(@{ element = $candidate; depth = 0 }); $queued++ }',
+    '    $walker = [Windows.Automation.TreeWalker]::ControlViewWalker',
+    '    while ($queue.Count -gt 0 -and $visited -lt 80) {',
+    '      $entry = $queue.Dequeue(); $visited++',
+    '      try {',
+    '        $current = $entry.element.Current',
+    `        if ($current.ProcessId -ne ${activeWindowsTextFixturePid}) { continue }`,
+    '        $textPattern = $null; $supportsText = $entry.element.TryGetCurrentPattern([Windows.Automation.TextPattern]::Pattern, [ref]$textPattern)',
+    '        if ($entry.depth -eq 0 -or $supportsText -or $current.ControlType -in @([Windows.Automation.ControlType]::Edit, [Windows.Automation.ControlType]::Document)) {',
+    '          $bounds = $current.BoundingRectangle',
+    '          $nodes += @{ depth = $entry.depth; processId = $current.ProcessId; class = [string]$current.ClassName; controlType = $current.ControlType.ProgrammaticName; automationId = [string]$current.AutomationId; visible = -not $current.IsOffscreen; supportsTextPattern = $supportsText; bounds = @{ x = $bounds.X; y = $bounds.Y; width = $bounds.Width; height = $bounds.Height } }',
+    '        }',
+    '        if ($entry.depth -lt 6 -and $queued -lt 80) {',
+    '          $child = $walker.GetFirstChild($entry.element)',
+    '          while ($null -ne $child -and $queued -lt 80) {',
+    '            $queue.Enqueue(@{ element = $child; depth = $entry.depth + 1 }); $queued++',
+    '            $child = $walker.GetNextSibling($child)',
+    '          }',
+    '        }',
+    '      } catch { $nodes += @{ depth = $entry.depth; errorType = $_.Exception.GetType().Name; hresult = $_.Exception.HResult } }',
+    '    }',
+    '  } catch { $diagnosticError = @{ errorType = $_.Exception.GetType().Name; hresult = $_.Exception.HResult } }',
+    `  [Console]::Out.WriteLine((@{ processId = ${activeWindowsTextFixturePid}; visited = $visited; nodes = $nodes; error = $diagnosticError } | ConvertTo-Json -Depth 6 -Compress))`,
+    '  throw "Owned external editor has no text control"',
+    '}',
     '$text = $editor.GetCurrentPattern([Windows.Automation.TextPattern]::Pattern)',
     '$bounds = $window.Current.BoundingRectangle',
     '@{ text = $text.DocumentRange.GetText(-1); selectedText = (($text.GetSelection() | ForEach-Object { $_.GetText(-1) }) -join ""); bounds = @{ x = $bounds.X; y = $bounds.Y; width = $bounds.Width; height = $bounds.Height } } | ConvertTo-Json -Compress'
   ].join('; ')
-  return JSON.parse(
-    execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+  let output: string
+  try {
+    output = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
       encoding: 'utf8',
+      windowsHide: true,
       timeout: 10_000
     })
-  )
+  } catch (error) {
+    const diagnostic = (error as { stdout?: Buffer | string }).stdout?.toString().trim()
+    if (diagnostic) {
+      try {
+        const state = createRedactor(getSensitiveConfigValues())(JSON.parse(diagnostic))
+        writeFileSync(
+          join(activeTextResource.paths.logs, 'native-external-text.json'),
+          JSON.stringify(state, (_key, value) => (typeof value === 'string' ? value.slice(0, 160) : value)),
+          { mode: 0o600 }
+        )
+      } catch (diagnosticError) {
+        throw new AggregateError([error, diagnosticError], 'External text inspection and diagnostic capture failed')
+      }
+    }
+    throw error
+  }
+  return JSON.parse(output)
 }
 
 export async function inspectImageInExternalBrowser(

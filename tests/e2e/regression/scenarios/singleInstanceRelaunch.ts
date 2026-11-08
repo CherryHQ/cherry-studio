@@ -88,12 +88,21 @@ export async function singleInstanceRelaunch(app: RegressionApp, page: Page, tes
             'if (-not $main) { throw "Owned main window was not found" }',
             '[uint32]$foregroundPid = 0',
             '$null = [WindowState]::GetWindowThreadProcessId([WindowState]::GetForegroundWindow(), [ref]$foregroundPid)',
-            `@{ minimized = [WindowState]::IsIconic([IntPtr]$main.Current.NativeWindowHandle); frontmost = $foregroundPid -eq ${record.electronPid} } | ConvertTo-Json -Compress`
+            '$current = $main.Current; $rect = $current.BoundingRectangle',
+            `@{ minimized = [WindowState]::IsIconic([IntPtr]$current.NativeWindowHandle); frontmost = $foregroundPid -eq ${record.electronPid}; diagnostic = @{ ownedPid = ${record.electronPid}; foregroundPid = $foregroundPid; windowClass = $current.ClassName; controlType = $current.ControlType.ProgrammaticName; rect = @{ x = $rect.X; y = $rect.Y; width = $rect.Width; height = $rect.Height } } } | ConvertTo-Json -Depth 4 -Compress`
           ].join('; ')
         ],
-        { timeout: 10_000 }
+        { timeout: 10_000, windowsHide: true }
       )
-      return JSON.parse(stdout) as { minimized: boolean; frontmost: boolean }
+      const { minimized, frontmost, diagnostic } = JSON.parse(stdout)
+      if (minimized || !frontmost) {
+        await writeFile(
+          join(app.paths.logs, 'mp133-native-window.json'),
+          JSON.stringify({ at: new Date().toISOString(), ...diagnostic }),
+          { mode: 0o600 }
+        )
+      }
+      return { minimized: minimized as boolean, frontmost: frontmost as boolean }
     }
     // Preserve PID selectors when other development processes share Electron's name.
     const { stdout } = await exec('/usr/bin/osascript', [
@@ -129,7 +138,7 @@ export async function singleInstanceRelaunch(app: RegressionApp, page: Page, tes
           '-Command',
           'Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId, CommandLine, ExecutablePath | ConvertTo-Json -Compress'
         ],
-        { timeout: 10_000 }
+        { timeout: 10_000, windowsHide: true }
       )
       all = (
         JSON.parse(stdout) as Array<{

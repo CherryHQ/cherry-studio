@@ -61,6 +61,28 @@ export async function isOwnedGlobalShortcutRegistered(record: AppRecord, acceler
   )
 }
 
+export async function inspectOwnedWindowsByUrl(
+  record: AppRecord,
+  url: string
+): Promise<
+  {
+    id: number
+    visible: boolean
+    focused: boolean
+    minimized: boolean
+    bounds: { x: number; y: number; width: number; height: number }
+  }[]
+> {
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  return evaluateCdpExpression(
+    await ownedMainInspectorUrl(record),
+    `process.mainModule.require('electron').BrowserWindow.getAllWindows()
+      .filter(window => window.webContents.getURL() === ${JSON.stringify(url)}).slice(0, 8)
+      .map(window => ({ id: window.id, visible: window.isVisible(), focused: window.isFocused(),
+        minimized: window.isMinimized(), bounds: window.getBounds() }))`
+  )
+}
+
 export async function prepareOwnedMacNotifications(record: AppRecord): Promise<void> {
   if (record.platform !== 'macos') throw new Error('Native macOS notification preparation requires macOS')
   assertOwnedProcess(record, record.electronPid, 'electron')

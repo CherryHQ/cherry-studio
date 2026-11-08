@@ -9,6 +9,7 @@ import {
   assertOwnedAppIsolation,
   captureCherryInAuthorizationUrl,
   inspectOwnedNotificationHistory,
+  inspectOwnedWindowsByUrl,
   isOwnedGlobalShortcutRegistered,
   prepareOwnedWindowsNotifications,
   sendCherryInCallbackToOwnedApp,
@@ -279,6 +280,10 @@ describe('owned application debug bridge', () => {
   it.each([
     ['authorization capture', (record: AppRecord) => captureCherryInAuthorizationUrl(record, async () => {})],
     [
+      'window inspection',
+      (record: AppRecord) => inspectOwnedWindowsByUrl(record, 'file:///windows/selection/toolbar/index.html')
+    ],
+    [
       'shortcut inspection',
       (record: AppRecord) => isOwnedGlobalShortcutRegistered(record, 'CommandOrControl+Alt+Shift+K')
     ]
@@ -289,11 +294,14 @@ describe('owned application debug bridge', () => {
   })
 
   it.each(['macos', 'windows'] as const)(
-    'rejects shortcut inspection after the %s PID loses ownership',
+    'rejects shortcut and window inspection after the %s PID loses ownership',
     async (platform) => {
       const record = ownedApp(platform)
       execFileSyncMock.mockReturnValue('unrelated-application')
       await expect(isOwnedGlobalShortcutRegistered(record, 'CommandOrControl+Alt+Shift+K')).rejects.toThrow(
+        'command no longer matches the owned run'
+      )
+      await expect(inspectOwnedWindowsByUrl(record, 'file:///windows/selection/toolbar/index.html')).rejects.toThrow(
         'command no longer matches the owned run'
       )
       expect(evaluateCdpExpressionMock).not.toHaveBeenCalled()
@@ -301,11 +309,14 @@ describe('owned application debug bridge', () => {
   )
 
   it.each(['ws://example.com:9229/node', 'ws://127.0.0.1:9333/node', 'wss://127.0.0.1:9229/node'])(
-    'rejects shortcut inspection through an unowned discovery target %s',
+    'rejects shortcut and window inspection through an unowned discovery target %s',
     async (webSocketDebuggerUrl) => {
       const record = ownedApp('macos')
       vi.stubGlobal('fetch', async () => Response.json([{ type: 'node', webSocketDebuggerUrl }]))
       await expect(isOwnedGlobalShortcutRegistered(record, 'CommandOrControl+Alt+Shift+K')).rejects.toThrow(
+        'not loopback-owned'
+      )
+      await expect(inspectOwnedWindowsByUrl(record, 'file:///windows/selection/toolbar/index.html')).rejects.toThrow(
         'not loopback-owned'
       )
       expect(evaluateCdpExpressionMock).not.toHaveBeenCalled()
