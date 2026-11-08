@@ -4812,6 +4812,49 @@ describe('ComposerSurface', () => {
     })
   })
 
+  it('rebuilds a chip from the live token when the draft seed is empty instead of leaking its prompt text', async () => {
+    // A rebuilt editor keeps the live `text` (which already embeds the token's folded prompt text)
+    // while its token seed was only read once at mount. The chip must come back from the live
+    // token, not materialize the prompt text as plain prose.
+    const promptText = 'The user attached knowledge base "Notes" (id: kb-1).'
+    render(
+      <ComposerSurface
+        {...baseProps}
+        text={`${promptText} `}
+        tokens={[
+          {
+            id: 'knowledge:kb-1',
+            kind: 'knowledge',
+            label: 'Notes',
+            promptText
+          }
+        ]}
+        draftTokens={undefined}
+      />
+    )
+
+    expect(mocks.editorOptions.content).toEqual({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            {
+              type: 'composerToken',
+              attrs: {
+                id: 'knowledge:kb-1',
+                kind: 'knowledge',
+                label: 'Notes',
+                promptText
+              }
+            },
+            { type: 'text', text: ' ' }
+          ]
+        }
+      ]
+    })
+  })
+
   it('preserves serialized file token payload when initializing draft content', async () => {
     render(
       <ComposerSurface
