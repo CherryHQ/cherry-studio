@@ -21,6 +21,10 @@ import { sendChatMarker } from '../helpers/chat'
 import { selectSidebarApp } from '../helpers/navigation'
 import type { RegressionApp } from '../RegressionApp'
 
+type CodeClickDiagnosticWindow = Window & {
+  __mp41CodeClick?: { read: () => unknown; dispose: () => void }
+}
+
 export async function htmlArtifactPreview(app: RegressionApp, page: Page, testInfo: TestInfo): Promise<void> {
   const attachScreenshot = async (name: string) => {
     const path = testInfo.outputPath(`${name}.png`)
@@ -260,6 +264,72 @@ window.addEventListener('pageshow', () => navigator.sendBeacon('http://127.0.0.1
       await setOwnedMainWindowFocus(app.record, true)
       await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(true)
       await artifact.hover()
+      await artifact.getByRole('button', { name: 'Code', exact: true }).evaluate((button) => {
+        const owner = window as CodeClickDiagnosticWindow
+        owner.__mp41CodeClick?.dispose()
+        const started = performance.now()
+        const events: unknown[] = []
+        const states: unknown[] = []
+        const snapshot = () => {
+          const rect = button.getBoundingClientRect()
+          const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)
+          const style = getComputedStyle(button)
+          return {
+            at: performance.now() - started,
+            connected: button.isConnected,
+            pressed: button.getAttribute('aria-pressed'),
+            focused: document.hasFocus(),
+            rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+            opacity: style.opacity,
+            pointerEvents: style.pointerEvents,
+            hit: {
+              tag: hit?.tagName ?? null,
+              role: hit?.getAttribute('role') ?? null,
+              inside: !!hit && button.contains(hit)
+            }
+          }
+        }
+        const initial = snapshot()
+        let connected = button.isConnected
+        const record = (event: Event) => {
+          if (events.length >= 12) return
+          events.push({
+            at: performance.now() - started,
+            type: event.type,
+            trusted: event.isTrusted,
+            reachedButton: event.composedPath().includes(button),
+            targetTag: event.target instanceof Element ? event.target.tagName : null,
+            x: event instanceof MouseEvent ? event.clientX : null,
+            y: event instanceof MouseEvent ? event.clientY : null,
+            pressed: button.getAttribute('aria-pressed'),
+            connected: button.isConnected
+          })
+        }
+        const observer = new MutationObserver((changes) => {
+          if (
+            states.length < 8 &&
+            (connected !== button.isConnected || changes.some((change) => change.target === button))
+          ) {
+            states.push(snapshot())
+          }
+          connected = button.isConnected
+        })
+        observer.observe(document.body, {
+          subtree: true,
+          childList: true,
+          attributes: true,
+          attributeFilter: ['aria-pressed']
+        })
+        const eventTypes = ['pointerdown', 'pointerup', 'click']
+        for (const type of eventTypes) document.addEventListener(type, record, true)
+        owner.__mp41CodeClick = {
+          read: () => ({ initial, events, states, final: snapshot() }),
+          dispose: () => {
+            observer.disconnect()
+            for (const type of eventTypes) document.removeEventListener(type, record, true)
+          }
+        }
+      })
       await artifact.getByRole('button', { name: 'Code', exact: true }).click()
       await expect(artifact.getByRole('button', { name: 'Preview', exact: true })).toHaveAttribute(
         'aria-pressed',
@@ -308,14 +378,25 @@ window.addEventListener('pageshow', () => navigator.sendBeacon('http://127.0.0.1
           }
         })
         .catch(() => ({ artifactUnavailable: true }))
+      const click = await page
+        .evaluate(() => (window as CodeClickDiagnosticWindow).__mp41CodeClick?.read() ?? null)
+        .catch(() => ({ unavailable: true }))
       await Promise.allSettled([
         testInfo.attach('MP-41 code view geometry before cleanup', {
-          body: JSON.stringify(diagnostics),
+          body: JSON.stringify({ ...diagnostics, click }),
           contentType: 'application/json'
         }),
         attachScreenshot('MP-41 code view failure before cleanup')
       ])
       throw error
+    } finally {
+      await page
+        .evaluate(() => {
+          const owner = window as CodeClickDiagnosticWindow
+          owner.__mp41CodeClick?.dispose()
+          delete owner.__mp41CodeClick
+        })
+        .catch(() => undefined)
     }
     await attachScreenshot('MP-41 code view preserves generated HTML')
     await artifact.hover()
