@@ -69,7 +69,7 @@ describe('ProviderService AiOnly read-time registry merge (#21168)', () => {
     expect((config.providerSettings as Record<string, unknown>).baseURL).toBe('https://api.aiionly.com/v1')
   })
 
-  it('refreshes stale rows and routes Gemini models through google-generate-content (#21249)', async () => {
+  it('refreshes stale rows and honors the provider default for Gemini models (#21443)', async () => {
     await dbh.db.insert(userProviderTable).values({
       providerId: 'aionly',
       presetProviderId: 'aionly',
@@ -91,7 +91,7 @@ describe('ProviderService AiOnly read-time registry merge (#21168)', () => {
     const config = await providerToAiSdkConfig(provider, model)
 
     expect(config.providerId).toBe('newapi')
-    expect((config.providerSettings as Record<string, unknown>).endpointType).toBe('gemini')
-    expect((config.providerSettings as Record<string, unknown>).baseURL).toBe('https://api.aiionly.com/v1beta')
+    expect((config.providerSettings as Record<string, unknown>).endpointType).toBe('openai')
+    expect((config.providerSettings as Record<string, unknown>).baseURL).toBe('https://api.aiionly.com/v1')
   })
 })

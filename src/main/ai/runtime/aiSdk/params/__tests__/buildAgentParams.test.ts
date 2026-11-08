@@ -77,9 +77,9 @@ beforeEach(() => {
 })
 
 describe('buildAgentParams provider resolution', () => {
-  it.each([true, false])(
-    'uses the explicit New API default in the production request builder (%s)',
-    async (explicit) => {
+  it.each([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, undefined])(
+    'uses the existing New API default in the production request builder (%s)',
+    async (defaultChatEndpoint) => {
       resolveProviderAiSdkConfigMock.mockResolvedValue({
         config: { providerId: 'newapi', providerSettings: {} },
         credentialReceipt: { attribution: 'unknown' }
@@ -87,8 +87,7 @@ describe('buildAgentParams provider resolution', () => {
       const provider = makeProvider({
         id: 'aionly',
         presetProviderId: 'aionly',
-        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-        defaultChatEndpointExplicit: explicit,
+        defaultChatEndpoint,
         endpointConfigs: {
           [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example/v1', adapterFamily: 'newapi' },
           [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl: 'https://relay.example/v1beta', adapterFamily: 'newapi' }
@@ -102,7 +101,7 @@ describe('buildAgentParams provider resolution', () => {
       expect(resolveProviderAiSdkConfigMock).toHaveBeenLastCalledWith(provider, model, {
         apiKeyOverride: undefined,
         resolvedEndpoint: expect.objectContaining({
-          endpointType: explicit ? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS : ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+          endpointType: defaultChatEndpoint ?? ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
         })
       })
     }
@@ -1609,7 +1608,7 @@ describe('buildAgentParams assistant-less reasoning', () => {
     })
     const provider = makeProvider({
       id: 'dashscope',
-      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
       endpointConfigs: {
         [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'openai-compatible' },
         [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' }

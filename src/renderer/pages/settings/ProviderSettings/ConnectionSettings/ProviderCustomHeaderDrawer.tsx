@@ -226,7 +226,6 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
   const [rows, setRows] = useState<HeaderRow[]>([])
   const [endpointDrafts, setEndpointDrafts] = useState<Record<string, EndpointDraft>>({})
   const [defaultChatEndpoint, setDefaultChatEndpoint] = useState<EndpointType>(primaryEndpoint)
-  const [defaultChatEndpointExplicit, setDefaultChatEndpointExplicit] = useState(false)
   const [imageEndpointDraft, setImageEndpointDraft] = useState<ProviderImageEndpointDraft>(() =>
     readProviderImageEndpointDraft(undefined)
   )
@@ -255,7 +254,6 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     }
     setEndpointDrafts(drafts)
     setDefaultChatEndpoint(primaryEndpoint)
-    setDefaultChatEndpointExplicit(false)
     setImageEndpointDraft(readProviderImageEndpointDraft(provider?.endpointConfigs))
     setInvalidImageEndpointField(null)
     setVisibleEndpointTypes(endpointTypes)
@@ -345,9 +343,6 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
         // `defaultChatEndpoint` names a text endpoint; an image-only provider
         // keeps the value it already has instead of recording an image one.
         defaultChatEndpoint: defaultEndpointIsImage ? provider.defaultChatEndpoint : defaultChatEndpoint,
-        ...(!defaultEndpointIsImage && defaultChatEndpointExplicit
-          ? { defaultChatEndpointExplicit: true as const }
-          : {}),
         providerSettings: {
           ...provider.settings,
           extraHeaders: buildExtraHeadersReplacementPatch(sourceHeaders, parsedHeaders)
@@ -375,7 +370,6 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     onClose()
   }, [
     defaultChatEndpoint,
-    defaultChatEndpointExplicit,
     endpointDrafts,
     headersUiMode,
     imageEndpointDraft,
@@ -453,10 +447,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
                     variant="outline"
                     size="sm"
                     className="relative h-5 min-h-0 rounded-full px-2 text-xs transition-transform before:absolute before:inset-x-0 before:-top-5 before:bottom-0 before:content-[''] active:scale-[0.96]"
-                    onClick={() => {
-                      setDefaultChatEndpoint(type)
-                      setDefaultChatEndpointExplicit(true)
-                    }}>
+                    onClick={() => setDefaultChatEndpoint(type)}>
                     {t('settings.provider.create_custom.endpoint_fields.set_default_chat')}
                   </Button>
                 ) : null}

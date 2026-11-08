@@ -530,25 +530,6 @@ describe('ProviderService read-time registry merge (#17096)', () => {
     expect(row.defaultChatEndpoint).toBeNull()
   })
 
-  it('retains an explicit baseline-equal chat choice across reads and unrelated edits', async () => {
-    await dbh.db
-      .insert(userProviderTable)
-      .values({ providerId: 'cherryin', presetProviderId: 'cherryin', name: 'CherryIN', orderKey: 'a0' })
-    expect(providerService.getByProviderId('cherryin').defaultChatEndpointExplicit).toBe(false)
-    providerService.update('cherryin', {
-      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-      defaultChatEndpointExplicit: true
-    })
-    expect(ProviderSchema.parse(providerService.getByProviderId('cherryin'))).toMatchObject({
-      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-      defaultChatEndpointExplicit: true
-    })
-    providerService.update('cherryin', { name: 'Renamed', defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS })
-    const [row] = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'cherryin'))
-    expect(row.defaultChatEndpoint).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
-    expect(providerService.getByProviderId('cherryin').defaultChatEndpointExplicit).toBe(true)
-  })
-
   it('drops endpoint baseUrls that match the registry default on write', async () => {
     await dbh.db.insert(userProviderTable).values({
       providerId: 'cherryin',

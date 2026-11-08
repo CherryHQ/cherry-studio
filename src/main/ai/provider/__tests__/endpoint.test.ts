@@ -358,7 +358,7 @@ describe('resolveEffectiveEndpoint', () => {
     expect(baseUrl).toBe('https://api.minimax.io/anthropic')
   })
 
-  it('prefers the Gemini native endpoint for New API Gemini models when both openai and gemini are listed (#21249)', () => {
+  it('honors the existing OpenAI default when both openai and gemini are listed (#21443)', () => {
     const provider = makeProvider({
       id: 'aionly',
       presetProviderId: 'aionly',
@@ -376,37 +376,55 @@ describe('resolveEffectiveEndpoint', () => {
       endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
     })
 
-    expect(resolveEffectiveEndpoint(provider, model).endpointType).toBe(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
+    expect(resolveEffectiveEndpoint(provider, model).endpointType).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
   })
 
-  it.each([true, false])('honors explicit New API chat preference (%s) before native auto-selection', (explicit) => {
+  it.each([undefined, ENDPOINT_TYPE.OPENAI_RESPONSES])(
+    'auto-selects native New API chat when default %s is absent or unsupported',
+    (defaultChatEndpoint) => {
+      const provider = makeProvider({
+        id: 'aionly',
+        presetProviderId: 'aionly',
+        defaultChatEndpoint,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example/v1', adapterFamily: 'newapi' },
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'newapi' }
+        }
+      })
+      const model = makeModel({
+        apiModelId: 'gemini-3.8-flash',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+      })
+      expect(resolveEffectiveEndpoint(provider, model).endpointType).toBe(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
+    }
+  )
+
+  it('ignores an unconfigured chat default but retains forced SDK and image priority', () => {
     const provider = makeProvider({
       id: 'aionly',
       presetProviderId: 'aionly',
-      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-      defaultChatEndpointExplicit: explicit,
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
       endpointConfigs: {
         [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example/v1', adapterFamily: 'newapi' },
-        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'newapi' }
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl: 'https://relay.example/v1beta', adapterFamily: 'newapi' }
       }
     })
     const model = makeModel({
       apiModelId: 'gemini-3.8-flash',
-      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+      endpointTypes: [
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+        ENDPOINT_TYPE.OPENAI_RESPONSES
+      ]
     })
-    expect(resolveEffectiveEndpoint(provider, model).endpointType).toBe(
-      explicit ? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS : ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
-    )
-    // Runtime-specific dialect requests still win over the ordinary-chat default.
-    const configured = {
-      ...provider,
-      endpointConfigs: {
-        ...provider.endpointConfigs,
-        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl: 'https://relay.example/v1beta' }
-      }
-    }
-    expect(resolveEffectiveEndpoint(configured, model, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT).endpointType).toBe(
+    expect(resolveEffectiveEndpoint(provider, model).endpointType).toBe(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
+    const openaiDefault = { ...provider, defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS }
+    expect(resolveEffectiveEndpoint(openaiDefault, model).endpointType).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+    expect(resolveEffectiveEndpoint(openaiDefault, model, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT).endpointType).toBe(
       ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+    )
+    expect(resolveEffectiveEndpoint(openaiDefault, model, undefined, 'image').endpointType).toBe(
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
     )
   })
 
@@ -545,7 +563,7 @@ describe('resolveEffectiveEndpoint', () => {
         endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
         baseUrl: 'https://api.deepseek.com/anthropic'
       })
-      expect(resolveEffectiveEndpoint(deepseek, flash).endpointType).toBe(ENDPOINT_TYPE.OPENAI_RESPONSES)
+      expect(resolveEffectiveEndpoint(deepseek, flash).endpointType).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
     })
 
     it('is declined when the model does not declare it', () => {

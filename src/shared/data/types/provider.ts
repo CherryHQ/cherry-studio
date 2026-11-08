@@ -272,8 +272,6 @@ export const ProviderSchema = z.object({
   endpointConfigs: z.partialRecord(EndpointTypeSchema, EndpointConfigSchema).optional(),
   /** Default text generation endpoint type */
   defaultChatEndpoint: EndpointTypeSchema.optional(),
-  /** True when the endpoint is a persisted user choice, not a registry default. */
-  defaultChatEndpointExplicit: z.boolean().optional(),
   /**
    * Where the model list comes from. `'registry'` providers cannot enumerate
    * models over an API; the shipped catalog is returned instead. Carried from

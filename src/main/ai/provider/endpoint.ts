@@ -79,7 +79,7 @@ function resolveNewApiModelEndpoint(
 }
 
 /**
- * Priority: `preferredEndpointType` → explicit user chat default → model endpoint (including native New API selection) → gateway per-model route →
+ * Priority: `preferredEndpointType` → provider chat default → model endpoint (including native New API selection) → gateway per-model route →
  * `provider.defaultChatEndpoint` → `undefined`. The gateway step resolves the wire endpoint from the
  * model id for multi-backend gateways (AiHubMix, …) whose models carry no explicit `endpointTypes`
  * (see `gatewayRouting`). `getBaseUrl` applies its own fallback among `endpointConfigs`.
@@ -107,7 +107,6 @@ export function resolveEffectiveEndpoint(
       : undefined
   const userPreference =
     intent === 'chat' &&
-    provider.defaultChatEndpointExplicit &&
     provider.defaultChatEndpoint &&
     model.endpointTypes?.includes(provider.defaultChatEndpoint) &&
     provider.endpointConfigs?.[provider.defaultChatEndpoint]

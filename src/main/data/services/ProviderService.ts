@@ -335,7 +335,6 @@ function rowToRuntimeProvider(row: UserProviderRow, metadata?: ProviderDisplayMe
       providerRegistryService.mergeEndpointConfigs(row.endpointConfigs, row.providerId, row.presetProviderId) ??
       undefined,
     defaultChatEndpoint: row.defaultChatEndpoint ?? presetMetadata.defaultChatEndpoint,
-    defaultChatEndpointExplicit: row.defaultChatEndpoint != null,
     modelListSource: presetMetadata.modelListSource,
     supplementModelsFromRegistry: presetMetadata.supplementModelsFromRegistry,
     authMethods: presetMetadata.authMethods,
@@ -516,9 +515,7 @@ class ProviderService {
       )
     }
     const defaultChatEndpoint =
-      dto.defaultChatEndpointExplicit || dto.defaultChatEndpoint !== presetMetadata.defaultChatEndpoint
-        ? (dto.defaultChatEndpoint ?? null)
-        : null
+      dto.defaultChatEndpoint !== presetMetadata.defaultChatEndpoint ? (dto.defaultChatEndpoint ?? null) : null
 
     const row = withSqliteErrors(
       () =>
@@ -575,7 +572,6 @@ class ProviderService {
           providerId: userProviderTable.providerId,
           providerSettings: userProviderTable.providerSettings,
           endpointConfigs: userProviderTable.endpointConfigs,
-          defaultChatEndpoint: userProviderTable.defaultChatEndpoint,
           presetProviderId: userProviderTable.presetProviderId
         })
         .from(userProviderTable)
@@ -613,11 +609,7 @@ class ProviderService {
       // default into the row.
       if (dto.defaultChatEndpoint !== undefined) {
         updates.defaultChatEndpoint =
-          !dto.defaultChatEndpointExplicit && dto.defaultChatEndpoint === presetMetadata?.defaultChatEndpoint
-            ? current.defaultChatEndpoint === dto.defaultChatEndpoint
-              ? current.defaultChatEndpoint
-              : null
-            : dto.defaultChatEndpoint
+          dto.defaultChatEndpoint === presetMetadata?.defaultChatEndpoint ? null : dto.defaultChatEndpoint
       }
       if (dto.providerSettings !== undefined) {
         updates.providerSettings = applyJsonMergePatch(
