@@ -20243,6 +20243,17 @@
       }
     },
     {
+      "capabilities": ["reasoning", "function-call", "structured-output", "image-recognition"],
+      "contextWindow": 1048576,
+      "id": "hy4",
+      "inputModalities": ["text", "image"],
+      "maxInputTokens": 983010,
+      "maxOutputTokens": 65536,
+      "metadata": {},
+      "name": "Hunyuan 4",
+      "ownedBy": "tencent"
+    },
+    {
       "capabilities": ["reasoning", "function-call", "structured-output"],
       "contextWindow": 1048576,
       "family": "Hy",
@@ -23424,5 +23435,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "bb9d927f96a2d4d9"
+  "version": "db4181752729e17e"
 }

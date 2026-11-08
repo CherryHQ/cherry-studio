@@ -1,7 +1,9 @@
 import type { UIMessageChunk } from 'ai'
 import { describe, expect, it } from 'vitest'
 
+import { MessageProjection } from '@main/ai/messages/MessageProjection'
 import { CITATION_SNIPPET_MAX_CHARS } from '@shared/ai/builtinTools'
+import { applyMessageProjectionUpdate, type TopicProjectionState } from '@shared/ai/messageProjection'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
@@ -108,6 +110,25 @@ const blob = (key: string, n: number) => ({
 })
 
 describe('message tool-output projection', () => {
+  it('delivers a large replacement on the same call with a fresh cache identity', () => {
+    const parts = (value: string) => [projectMessagePartForRenderer(partWith(value), TOPIC_ID, MESSAGE_ID)]
+    const first = { id: MESSAGE_ID, role: 'assistant' as const, parts: parts('a'.repeat(64 * 1024)) }
+    const state: TopicProjectionState = { kind: 'topic', topicId: TOPIC_ID, executions: [] }
+    const projection = new MessageProjection({ ...state, messages: [first] })
+    let view = projection.snapshot()
+    projection.subscribe((update) => {
+      view = applyMessageProjectionUpdate(view, update)!
+    })
+    const replacement = { ...first, parts: parts('b'.repeat(64 * 1024)) }
+    projection.update({ ...state, messages: [replacement] }, true)
+    expect(view.messages[0]).toEqual(replacement)
+    expect(view.messages[0]).not.toEqual(first)
+    expect(parts('b'.repeat(64 * 1024))).toEqual(replacement.parts)
+    projection.update({ ...state, messages: [{ ...first, parts: [] }] }, true)
+    expect(view.messages[0].parts).toEqual([])
+    projection.dispose()
+  })
+
   it('leaves an output that fits under the threshold untouched', () => {
     const part = partWith(small)
     expect(projectMessagePartForRenderer(part, TOPIC_ID, MESSAGE_ID)).toBe(part)
@@ -122,7 +143,12 @@ describe('message tool-output projection', () => {
     }
     expect(isDeferredToolOutput(projected.output)).toBe(true)
     expect(projected.output).toEqual({
-      $deferredToolResult: { topicId: TOPIC_ID, messageId: MESSAGE_ID, toolCallId: TOOL_CALL_ID }
+      $deferredToolResult: {
+        topicId: TOPIC_ID,
+        messageId: MESSAGE_ID,
+        toolCallId: TOOL_CALL_ID,
+        revision: expect.any(String)
+      }
     })
   })
 
@@ -287,7 +313,12 @@ describe('message tool-output projection', () => {
     }
     expect(isDeferredToolOutput(projected.output)).toBe(true)
     expect(projected.output).toEqual({
-      $deferredToolResult: { topicId: TOPIC_ID, messageId: MESSAGE_ID, toolCallId: TOOL_CALL_ID },
+      $deferredToolResult: {
+        topicId: TOPIC_ID,
+        messageId: MESSAGE_ID,
+        toolCallId: TOOL_CALL_ID,
+        revision: expect.any(String)
+      },
       excerpt: { head: 'first lines', tail: 'last lines', totalChars: 200_000, totalLines: 5_000 }
     })
   })
@@ -306,7 +337,12 @@ describe('message tool-output projection', () => {
     }
 
     expect(projected.output).toMatchObject({
-      $deferredToolResult: { topicId: TOPIC_ID, messageId: MESSAGE_ID, toolCallId: TOOL_CALL_ID },
+      $deferredToolResult: {
+        topicId: TOPIC_ID,
+        messageId: MESSAGE_ID,
+        toolCallId: TOOL_CALL_ID,
+        revision: expect.any(String)
+      },
       excerpt: { head: 'head-1', tail: 'tail-1', totalChars: 1000, totalLines: 10 }
     })
     expect(projected.output.skeleton?.[0]).toMatchObject({ id: '70536f0b-1' })

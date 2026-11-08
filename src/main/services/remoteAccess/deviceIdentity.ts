@@ -23,9 +23,16 @@ function decodeIdentity(base64: string): Uint8Array {
   return bytes
 }
 
+async function hasOsProtectedKeyStore(platform: NodeJS.Platform): Promise<boolean> {
+  // Async availability only confirms encryptor initialization, which on Linux may use
+  // Chromium's hardcoded POSIX fallback key rather than an OS-protected key store.
+  if (platform === 'linux') return safeStorage.isEncryptionAvailable()
+  return safeStorage.isAsyncEncryptionAvailable()
+}
+
 export async function loadDesktopIdentity(): Promise<Uint8Array> {
   const secure =
-    safeStorage.isEncryptionAvailable() &&
+    (await hasOsProtectedKeyStore(process.platform)) &&
     !(process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text')
   const encryptedFile = application.getPath('feature.remote_access.identity_file')
   const plainFile = application.getPath('feature.remote_access.plain_identity_file')
@@ -34,7 +41,8 @@ export async function loadDesktopIdentity(): Promise<Uint8Array> {
   if (encrypted) {
     // Never replace an existing identity: that would silently unpair every device.
     if (!secure) throw new Error('OS-protected key storage is unavailable')
-    return decodeIdentity(safeStorage.decryptString(encrypted))
+    const { result } = await safeStorage.decryptStringAsync(encrypted)
+    return decodeIdentity(result)
   }
   const plain = await readIfExists(plainFile)
   if (plain) return decodeIdentity(plain.toString('utf8'))
@@ -42,7 +50,7 @@ export async function loadDesktopIdentity(): Promise<Uint8Array> {
   const identity = await createDeviceIdentity()
   const base64 = Buffer.from(identity).toString('base64')
   if (secure) {
-    await writeFile(encryptedFile, safeStorage.encryptString(base64), { mode: 0o600, flag: 'wx' })
+    await writeFile(encryptedFile, await safeStorage.encryptStringAsync(base64), { mode: 0o600, flag: 'wx' })
   } else {
     logger.warn('OS-protected key storage is unavailable; storing the remote identity unencrypted')
     await writeFile(plainFile, base64, { mode: 0o600, flag: 'wx' })
