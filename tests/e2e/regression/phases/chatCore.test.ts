@@ -20,14 +20,18 @@ import { selectSidebarApp } from '../helpers/navigation'
 import { openSettingsSection } from '../helpers/settings'
 import { chatEfficiency } from '../scenarios/chatEfficiency'
 import { chatImageGeneration } from '../scenarios/chatImageGeneration'
+import { chatStreamingStopContinue } from '../scenarios/chatStreamingStopContinue'
 import { codeBlockToolbar } from '../scenarios/codeBlockToolbar'
 import { documentAttachments } from '../scenarios/documentAttachments'
 import { dragDropPasteAttachments } from '../scenarios/dragDropPasteAttachments'
+import { htmlArtifactPreview } from '../scenarios/htmlArtifactPreview'
 import { imageAttachments } from '../scenarios/imageAttachments'
+import { knowledgeAttachmentExclusion } from '../scenarios/knowledgeAttachmentExclusion'
 import { manageChatContext } from '../scenarios/manageChatContext'
 import { mcpPromptsAndResources } from '../scenarios/mcpPromptsAndResources'
 import { messageBranches } from '../scenarios/messageBranches'
 import { messageOperations } from '../scenarios/messageOperations'
+import { messageSelectionToolbar } from '../scenarios/messageSelectionToolbar'
 import { messageTokenDetails } from '../scenarios/messageTokenDetails'
 import { polishPrompt } from '../scenarios/polishPrompt'
 import { searchAndFetch } from '../scenarios/searchAndFetch'
@@ -543,6 +547,11 @@ test(...caseDefinition('MP-10'), async ({ app, mainWindow }, testInfo) => {
   }
 })
 
+test(...caseDefinition('MP-149'), async ({ app, mainWindow }, testInfo) => {
+  test.setTimeout(3 * 60_000)
+  await messageSelectionToolbar(app, mainWindow, testInfo)
+})
+
 test(...caseDefinition('MP-16'), async ({ app, mainWindow }, testInfo) => {
   await polishPrompt(app, mainWindow, testInfo)
 })
@@ -837,6 +846,10 @@ test(...caseDefinition('MP-33'), async ({ app, mainWindow }, testInfo) => {
   await dragDropPasteAttachments(app, mainWindow, testInfo)
 })
 
+test(...caseDefinition('MP-34'), async ({ app, mainWindow }, testInfo) => {
+  await knowledgeAttachmentExclusion(app, mainWindow, testInfo)
+})
+
 test(...caseDefinition('MP-35'), async ({ app, mainWindow }, testInfo) => {
   test.setTimeout(420_000)
   await searchAndFetch(app, mainWindow, testInfo)
@@ -862,4 +875,14 @@ test(...caseDefinition('MP-39'), async ({ app, mainWindow }, testInfo) => {
 
 test(...caseDefinition('MP-40'), async ({ app, mainWindow }, testInfo) => {
   await codeBlockToolbar(app, mainWindow, testInfo)
+})
+
+test(...caseDefinition('MP-41'), async ({ app, mainWindow }, testInfo) => {
+  test.setTimeout(3 * 60_000)
+  await htmlArtifactPreview(app, mainWindow, testInfo)
+})
+
+test(...caseDefinition('MP-02'), async ({ app, mainWindow }, testInfo) => {
+  test.setTimeout(3 * 60_000)
+  await chatStreamingStopContinue(app, mainWindow, testInfo)
 })

@@ -1,22 +1,787 @@
+import { execFileSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import { join } from 'node:path'
 
 import type { Page } from '@playwright/test'
+import sharp from 'sharp'
 
 import { createDeviceIdentity } from '@cherrystudio/remote-transport'
 import type { AppInfo } from '@renderer/types/app'
+import type { SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
+import { AssistantSchema } from '@shared/data/types/assistant'
+import { createUniqueModelId } from '@shared/data/types/model'
 import type { IpcResult } from '@shared/ipc/errors/IpcError'
+import { computerUseRequestSchemas } from '@shared/ipc/schemas/computerUse'
 
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
+import {
+  inspectOwnedWindowsByUrl,
+  isOwnedGlobalShortcutRegistered
+} from '../../../../scripts/e2e/regression/debugBridge'
+import { observeExternalResource, registerExternalResource } from '../../../../scripts/e2e/regression/externalResources'
 import { isPathInside } from '../../../../scripts/e2e/regression/paths'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
+import {
+  closeMacComputerUsePermissionGuide,
+  saveNativeFile,
+  dragMacPointer,
+  sendSystemHotkey,
+  closeExternalText,
+  openExternalText,
+  readWindowsExternalText
+} from '../../../../scripts/e2e/regression/systemAutomation'
+import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { expect, test } from '../fixture'
+import {
+  computerUseMain,
+  isNativePermissionPanelOpen,
+  readNativePermission,
+  stopNativeDesktopControl
+} from '../helpers/computerUseNative'
 import { openLaunchpad, selectSidebarApp } from '../helpers/navigation'
-import { openSettingsSection } from '../helpers/settings'
+import { openSettingsSection, closeSettings } from '../helpers/settings'
+import { inspectStartup } from '../helpers/startupInspection'
+import { openWindowsTrayMenu, windowsTrayMenu } from '../helpers/windowsTray'
+import { globalSearch } from '../scenarios/globalSearch'
 import { launchpadPinning } from '../scenarios/launchpadPinning'
+import { singleInstanceRelaunch } from '../scenarios/singleInstanceRelaunch'
+import { systemTrayMenu } from '../scenarios/systemTrayMenu'
+
+test(...caseDefinition('MP-127'), async ({ app, mainWindow: page }, testInfo) => {
+  const screenshot = async (target: typeof page, name: string) => {
+    const path = testInfo.outputPath(`${name}.png`)
+    await writeFile(path, await captureMaskedScreenshot(target, getSensitiveConfigValues()))
+    await testInfo.attach(name, { path, contentType: 'image/png' })
+  }
+  await openSettingsSection(page, 'Selection Assistant')
+  if (app.record.platform === 'macos') {
+    const trusted = await page.evaluate(async () => {
+      const response = (await window.api.ipcApi.request('system.mac.is_process_trusted')) as {
+        ok: boolean
+        data?: boolean
+        error?: { message: string }
+      }
+      if (!response.ok) throw new Error(response.error?.message)
+      return response.data
+    })
+    if (!trusted) {
+      await page.getByRole('switch').first().click()
+      const permission = page.getByRole('dialog', { name: 'Accessibility Permission', exact: true })
+      await expect(permission).toContainText('Accessibility Permission')
+      await expect(permission.getByRole('button', { name: 'Open Accessibility Settings', exact: true })).toBeVisible()
+      await screenshot(page, 'MP-127 accessibility permission required')
+      await page.keyboard.press('Escape')
+      // Missing Accessibility trust is a prerequisite gap, not a regression: the controller
+      // records skipped as blocked, while a throw would be reported as a product failure.
+      test.skip(true, 'UNCOVERED: macOS has not granted Accessibility permission to the test application')
+    }
+  }
+
+  // Real native selection and UI; only the external model HTTP responses are mocked.
+  const server = await startMockChatServer()
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
+  })
+  const providerId = `mp127-${Date.now()}`
+  const original = 'The early bird catches the worm. Preparation and timely action improve the chances of success.'
+  const preferenceKeys = [
+    'feature.selection.enabled',
+    'feature.selection.trigger_mode',
+    'feature.selection.action_items',
+    'feature.selection.auto_pin',
+    'feature.selection.auto_close',
+    'feature.selection.filter_mode',
+    'feature.quick_assistant.assistant_id',
+    'shortcut.selection.capture_text',
+    'feature.translate.model_id',
+    'feature.translate.auto_detection_method'
+  ] as const
+  const previous = await page.evaluate(async (keys) => {
+    const entries = await Promise.all(keys.map(async (key) => [key, await window.api.preference.get(key)]))
+    return Object.fromEntries(entries)
+  }, preferenceKeys)
+  let assistantId: string | undefined
+  const actionWindows = new Set<Page>()
+  try {
+    const assistant = await page.evaluate(
+      async ({ providerId, baseUrl, modelId }) => {
+        const provider = await window.api.dataApi.request({
+          id: 'mp127-provider',
+          method: 'POST',
+          path: '/providers',
+          body: {
+            providerId,
+            name: 'MP-127 mock',
+            defaultChatEndpoint: 'openai-chat-completions',
+            endpointConfigs: { 'openai-chat-completions': { baseUrl } },
+            apiKeys: [{ id: 'mock', key: 'mock-api-key', isEnabled: true }]
+          }
+        })
+        if (provider.status !== 201) throw new Error('Could not create MP-127 provider')
+        const enabled = await window.api.dataApi.request({
+          id: 'mp127-enable',
+          method: 'PATCH',
+          path: `/providers/${providerId}`,
+          body: { isEnabled: true }
+        })
+        if (enabled.status !== 200) throw new Error('Could not enable MP-127 provider')
+        const models = await window.api.dataApi.request({
+          id: 'mp127-model',
+          method: 'POST',
+          path: '/models',
+          body: [{ providerId, modelId, endpointTypes: ['openai-chat-completions'] }]
+        })
+        if (models.status !== 201) throw new Error('Could not create MP-127 model')
+        return window.api.dataApi.request({
+          id: 'mp127-assistant',
+          method: 'POST',
+          path: '/assistants',
+          body: { name: 'MP-127 Selection', modelId: `${providerId}::${modelId}` }
+        })
+      },
+      { providerId, baseUrl: server.baseUrl, modelId: server.modelId }
+    )
+    expect(assistant.status).toBe(201)
+    assistantId = AssistantSchema.parse(assistant.data).id
+    await page.evaluate(
+      async ({ assistantId, modelId }) => {
+        const items = await window.api.preference.get('feature.selection.action_items')
+        await window.api.preference.setMultiple({
+          'feature.selection.action_items': items.map((item) => ({
+            ...item,
+            enabled: ['explain', 'translate', 'copy'].includes(item.id)
+          })),
+          'feature.quick_assistant.assistant_id': assistantId,
+          'feature.selection.trigger_mode': 'shortcut' as SelectionTriggerMode,
+          'feature.selection.filter_mode': 'default' as SelectionFilterMode,
+          'feature.selection.auto_pin': false,
+          'feature.selection.auto_close': false,
+          'feature.translate.model_id': modelId,
+          'feature.translate.auto_detection_method': 'franc',
+          'shortcut.selection.capture_text': { binding: ['CommandOrControl', 'Alt', 'Shift', 'S'], enabled: true },
+          'feature.selection.enabled': true
+        })
+      },
+      { assistantId, modelId: createUniqueModelId(providerId, server.modelId) }
+    )
+    await expect(page.getByRole('switch').first()).toHaveAttribute('aria-checked', 'true')
+    await closeSettings(page)
+
+    const textFile = `${app.paths.fixtures}/MP-127-selection.txt`
+    await writeFile(textFile, original)
+    const attachToolbarFailure = async (toolbar: Page, action: string) => {
+      const actionButton = toolbar.getByRole('button', { name: action, exact: true })
+      await Promise.allSettled([
+        Promise.race([
+          actionButton.evaluate(
+            (button) =>
+              new Promise((resolve) => {
+                const samples = [button.getBoundingClientRect().toJSON()]
+                let frame = 0
+                const finish = () => {
+                  clearTimeout(timer)
+                  cancelAnimationFrame(frame)
+                  resolve({
+                    hidden: document.hidden,
+                    visibility: document.visibilityState,
+                    focused: document.hasFocus(),
+                    buttonVisible: button.checkVisibility({ visibilityProperty: true }),
+                    buttonDisabled: (button as HTMLButtonElement).disabled,
+                    buttonFocused: document.activeElement === button,
+                    animationFrames: samples.length - 1,
+                    bounds: samples
+                  })
+                }
+                const timer = setTimeout(finish, 500)
+                const sample = () => {
+                  samples.push(button.getBoundingClientRect().toJSON())
+                  if (samples.length === 3) finish()
+                  else frame = requestAnimationFrame(sample)
+                }
+                frame = requestAnimationFrame(sample)
+              }),
+            undefined,
+            { timeout: 2_000 }
+          ),
+          new Promise((resolve) => {
+            const timer = setTimeout(() => resolve({ inspectionTimedOut: true }), 2_000)
+            timer.unref()
+          })
+        ]).then((state) =>
+          testInfo.attach(`MP-127 ${action} toolbar DOM failure state`, {
+            body: JSON.stringify(state),
+            contentType: 'application/json'
+          })
+        ),
+        inspectOwnedWindowsByUrl(app.record, toolbar.url()).then((state) =>
+          testInfo.attach(`MP-127 ${action} toolbar native failure state`, {
+            body: JSON.stringify(state),
+            contentType: 'application/json'
+          })
+        )
+      ])
+    }
+    const invoke = async (action: string) => {
+      openExternalText(app.record.platform, app.paths, textFile)
+      if (app.record.platform === 'windows') {
+        await expect.poll(() => readWindowsExternalText().selectedText).toBe(original)
+      } else {
+        await expect
+          .poll(() => {
+            execFileSync(
+              'osascript',
+              [
+                '-e',
+                'tell application "TextEdit" to activate',
+                '-e',
+                'tell application "System Events" to tell process "TextEdit"',
+                '-e',
+                'set frontmost to true',
+                '-e',
+                'set focused of text area 1 of scroll area 1 of window 1 to true',
+                '-e',
+                'keystroke "a" using command down',
+                '-e',
+                'end tell'
+              ],
+              { timeout: 10_000 }
+            )
+            return execFileSync(
+              'osascript',
+              [
+                '-e',
+                'tell application "System Events" to tell process "TextEdit" to get value of attribute "AXSelectedText" of text area 1 of scroll area 1 of window 1'
+              ],
+              { encoding: 'utf8', timeout: 10_000 }
+            ).trim()
+          })
+          .toBe(original)
+      }
+      sendSystemHotkey(app.record.platform, [app.record.platform === 'macos' ? 'Meta' : 'Control', 'Alt', 'Shift', 's'])
+      const toolbar = await app.window('/windows/selection/toolbar/')
+      try {
+        await expect
+          .poll(async () => {
+            const windows = await inspectOwnedWindowsByUrl(app.record, toolbar.url())
+            return windows.some((window) => window.visible) && (await toolbar.evaluate(() => !document.hidden))
+          })
+          .toBe(true)
+        await expect(toolbar.getByRole('button', { name: 'Explain', exact: true })).toBeVisible()
+      } catch (error) {
+        await attachToolbarFailure(toolbar, action).catch(() => undefined)
+        throw error
+      }
+      const position = await toolbar.evaluate(() => ({ x: screenX, y: screenY }))
+      const bounds =
+        app.record.platform === 'windows'
+          ? (() => {
+              const { x, y, width, height } = readWindowsExternalText().bounds
+              return [x, y, width, height]
+            })()
+          : execFileSync(
+              'osascript',
+              ['-e', 'tell application "System Events" to tell process "TextEdit" to get {position, size} of window 1'],
+              { encoding: 'utf8', timeout: 10_000 }
+            )
+              .trim()
+              .split(', ')
+              .map(Number)
+      expect(position.x).toBeGreaterThanOrEqual(bounds[0] - 50)
+      expect(position.x).toBeLessThanOrEqual(bounds[0] + bounds[2] + 50)
+      expect(position.y).toBeGreaterThanOrEqual(bounds[1] - 50)
+      expect(position.y).toBeLessThanOrEqual(bounds[1] + bounds[3] + 50)
+      return toolbar
+    }
+    for (const action of ['Explain', 'Translate']) {
+      const toolbar = await invoke(action)
+      await screenshot(toolbar, `MP-127 native selection toolbar ${action}`)
+      const actionButton = toolbar.getByRole('button', { name: action, exact: true })
+      try {
+        await actionButton.focus()
+        await expect.poll(() => toolbar.evaluate(() => !document.hidden)).toBe(true)
+        await actionButton.press('Enter')
+      } catch (error) {
+        await attachToolbarFailure(toolbar, action).catch(() => undefined)
+        throw error
+      }
+      let resultWindow: typeof page | undefined
+      await expect
+        .poll(async () => {
+          for (const candidate of page.context().pages()) {
+            if (
+              candidate.url().includes('/windows/selection/action/') &&
+              (await candidate.title()) === `${action} - Selection Assistant` &&
+              (await candidate.evaluate(() => !document.hidden))
+            ) {
+              resultWindow = candidate
+              return true
+            }
+          }
+          return false
+        })
+        .toBe(true)
+      if (!resultWindow) throw new Error(`${action} result window was not shown`)
+      const result = resultWindow
+      actionWindows.add(result)
+      const request = await server.nextRequest(30_000)
+      expect(request.body.model).toBe(server.modelId)
+      expect(JSON.stringify(request.body.messages)).toContain(original)
+      const answer =
+        action === 'Explain'
+          ? 'The proverb means that people who prepare and act early have a better chance of success.'
+          : '早起的鸟儿有虫吃。充分准备并及时行动会增加成功的机会。'
+      request.complete(Array.from({ length: 45 }, (_, index) => `Paragraph ${index + 1}: ${answer}`).join('\n\n'))
+      try {
+        await expect(result.getByText(`Paragraph 45: ${answer}`, { exact: true })).toBeAttached({ timeout: 30_000 })
+      } catch (error) {
+        const unexpected = await server.nextRequest(1_000).catch(() => undefined)
+        await testInfo.attach('Selection action mock requests', {
+          body: JSON.stringify({ action, answered: request.body, unexpected: unexpected?.body }),
+          contentType: 'application/json'
+        })
+        throw error
+      }
+      await result.getByRole('button', { name: 'Show Original', exact: true }).click()
+      await expect(result.getByText(original, { exact: true })).toBeVisible()
+      await screenshot(result, `MP-127 ${action} result and original`)
+      const scrollable = result
+        .locator('[data-ui~="selection.action"]')
+        .locator('div')
+        .filter({ has: result.getByText(original, { exact: true }) })
+      const scroll = await scrollable.evaluateAll((elements) => {
+        const node = elements.find(
+          (element) =>
+            element.scrollHeight > element.clientHeight &&
+            ['auto', 'scroll'].includes(getComputedStyle(element).overflowY)
+        )
+        if (!node) return null
+        node.scrollTop = node.scrollHeight
+        const bottom = node.scrollTop
+        node.scrollTop = 0
+        return bottom
+      })
+      expect(scroll).toBeGreaterThan(0)
+      const pin = result.getByRole('button', { name: 'Pin', exact: true })
+      await pin.hover()
+      await expect(result.getByRole('tooltip', { name: 'Pin', exact: true })).toBeVisible()
+      await pin.click()
+      await result.getByRole('button', { name: 'Pinned', exact: true }).hover()
+      await expect(result.getByRole('tooltip', { name: 'Pinned', exact: true })).toBeVisible()
+      const copy = result.getByRole('button', { name: 'Copy Original', exact: true })
+      await copy.hover()
+      await expect(result.getByRole('tooltip', { name: 'Copy Original', exact: true })).toBeVisible()
+      await copy.click()
+      await expect
+        .poll(() =>
+          app.record.platform === 'macos'
+            ? execFileSync('pbpaste', { encoding: 'utf8', timeout: 10_000 })
+            : execFileSync(
+                'powershell.exe',
+                ['-NoProfile', '-NonInteractive', '-Command', '[Console]::Write((Get-Clipboard -Raw))'],
+                { encoding: 'utf8', timeout: 10_000 }
+              )
+        )
+        .toBe(original)
+      await result.keyboard.press('Escape')
+      if (app.record.platform === 'windows') {
+        await expect
+          .poll(() =>
+            result.isClosed() ? true : result.evaluate(() => document.hidden).catch(() => result.isClosed())
+          )
+          .toBe(true)
+        expect(readWindowsExternalText().text).toBe(original)
+      } else {
+        await expect
+          .poll(() =>
+            execFileSync(
+              'osascript',
+              [
+                '-e',
+                `tell application "System Events" to tell (first application process whose unix id is ${app.record.electronPid}) to exists window "${action} - Selection Assistant"`
+              ],
+              { encoding: 'utf8', timeout: 10_000 }
+            ).trim()
+          )
+          .toBe('false')
+        expect(
+          execFileSync(
+            'osascript',
+            [
+              '-e',
+              'tell application "System Events" to tell process "TextEdit" to get value of text area 1 of scroll area 1 of window 1'
+            ],
+            {
+              encoding: 'utf8',
+              timeout: 10_000
+            }
+          ).trim()
+        ).toBe(original)
+      }
+    }
+  } finally {
+    for (const actionWindow of actionWindows) {
+      if (actionWindow.isClosed()) continue
+      await actionWindow.evaluate(() => {
+        void window.api.ipcApi.request('window.close')
+      })
+      await expect.poll(() => actionWindow.isClosed() || actionWindow.evaluate(() => document.hidden)).toBe(true)
+    }
+    closeExternalText(app.record.platform)
+    await server.close()
+    await page.evaluate(
+      async ({ previous, providerId, assistantId }) => {
+        await window.api.preference.setMultiple(previous)
+        if (assistantId) {
+          const permanentlyDeletedAssistant = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
+            assistantId,
+            deleteTopics: true
+          })) as IpcResult<{ deleted: boolean }>
+          if (!permanentlyDeletedAssistant.ok || !permanentlyDeletedAssistant.data.deleted)
+            throw new Error('cleanup left the case assistant in the trash')
+        }
+        await window.api.dataApi.request({ id: 'mp127-cleanup', method: 'DELETE', path: `/providers/${providerId}` })
+      },
+      { previous, providerId, assistantId }
+    )
+  }
+})
+
+test(...caseDefinition('MP-128'), async ({ app, mainWindow: page }, testInfo) => {
+  test.setTimeout(180_000)
+  const permission = (await page.evaluate(() => window.api.ipcApi.request('system.mac.screen_capture_status'))) as {
+    ok: boolean
+    data?: string
+    error?: { message: string }
+  }
+  // A transport failure is a real defect; an unavailable grant is a missing prerequisite.
+  expect(permission.ok, permission.error?.message ?? 'system.mac.screen_capture_status failed').toBe(true)
+  if (permission.data !== 'authorized') {
+    // Controller-screen-capture availability says nothing about Electron's own TCC grant, so an
+    // unavailable permission must be blocked rather than reported as a regression (see MP-127).
+    test.skip(true, `UNCOVERED: macOS screen recording permission is ${permission.data ?? 'unknown'}`)
+  }
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+
+  const original = await page.evaluate(async () => ({
+    enabled: await window.api.preference.get('feature.screenshot.enabled'),
+    autoOcr: await window.api.preference.get('feature.screenshot.auto_ocr'),
+    shortcut: await window.api.preference.get('shortcut.screenshot.capture')
+  }))
+  const screenshot = async (window: Page, name: string) => {
+    const path = testInfo.outputPath(`${name}.png`)
+    await writeFile(path, await captureMaskedScreenshot(window, getSensitiveConfigValues()))
+    await testInfo.attach(name, { path, contentType: 'image/png' })
+  }
+  let overlay: Page | undefined
+  let assistantId: string | undefined
+  let primaryFailure: unknown
+  const assistantName = app.resourceName(`Screenshot draft ${Date.now()}`)
+  const composer = page.locator('[data-ui~="chat.view"]:visible [data-ui~="chat.composer"]')
+  const imageTokens = composer.locator('[data-composer-token-kind="file"][data-file-token-variant="image"]')
+  const drag = async (window: Page, x: number, y: number, width: number, height: number) => {
+    if (app.record.platform === 'macos') {
+      const origin = await window.evaluate(() => ({ x: screenX, y: screenY }))
+      dragMacPointer(
+        app.paths,
+        { x: origin.x + x, y: origin.y + y },
+        { x: origin.x + x + width, y: origin.y + y + height }
+      )
+      return
+    }
+    await window.mouse.move(x, y)
+    await window.mouse.down()
+    await window.mouse.move(x + width, y + height, { steps: 15 })
+    await window.mouse.up()
+  }
+  const clipboard = async () => {
+    let result!: { png: string; width: number; height: number }
+    await expect(async () => {
+      result = await (overlay ?? page).evaluate(async () => {
+        const items = await navigator.clipboard.read()
+        const item = items.find((item) => item.types.includes('image/png'))
+        if (!item) throw new Error('Clipboard contains no PNG image')
+        const blob = await item.getType('image/png')
+        const image = await createImageBitmap(blob)
+        const png = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve((reader.result as string).split(',')[1])
+          reader.onerror = reject
+          reader.readAsDataURL(blob)
+        })
+        return { png, width: image.width, height: image.height }
+      })
+    }).toPass({ timeout: 5_000 })
+    return result
+  }
+
+  try {
+    const assistant = await page.evaluate(
+      (name) =>
+        window.api.dataApi.request({
+          id: 'mp128-assistant',
+          method: 'POST',
+          path: '/assistants',
+          body: { name }
+        }),
+      assistantName
+    )
+    expect(assistant.status).toBe(201)
+    assistantId = AssistantSchema.parse(assistant.data).id
+    await page.reload()
+    await selectSidebarApp(page, 'Chat')
+    const chat = page.locator('[data-ui~="chat.view"]:visible')
+    const topics = chat.locator('[data-ui~="chat.topic-list"]:visible').first()
+    const showSidebar = chat.getByRole('button', { name: 'Show Sidebar', exact: true })
+    await expect(topics.or(showSidebar).first()).toBeVisible({ timeout: 20_000 })
+    if (!(await topics.isVisible())) await showSidebar.click()
+    await expect(topics).toBeVisible({ timeout: 20_000 })
+    const assistantRow = chat.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
+    await assistantRow.hover()
+    await assistantRow.getByRole('button', { name: 'New Chat', exact: true }).click()
+    await expect(
+      page.locator('.home-navbar:visible').getByRole('button').filter({ hasText: assistantName })
+    ).toBeVisible()
+    await expect(composer.locator('[contenteditable="true"]').first()).toBeEmpty()
+    await expect(imageTokens).toHaveCount(0)
+    await page.evaluate(() =>
+      window.api.preference.setMultiple({
+        'feature.screenshot.enabled': true,
+        'feature.screenshot.auto_ocr': false,
+        'shortcut.screenshot.capture': { binding: ['CommandOrControl', 'Alt', 'Shift', 'K'], enabled: true }
+      })
+    )
+    await page.bringToFront()
+    // This is capture input displayed in the real application, never an injected OCR result.
+    await page.evaluate(() => {
+      const canvas = document.createElement('canvas')
+      canvas.id = 'mp128-sample'
+      canvas.width = 560
+      canvas.height = 220
+      canvas.style.cssText =
+        'position:fixed;left:120px;top:100px;width:560px;height:220px;z-index:2147483647;pointer-events:none'
+      const context = canvas.getContext('2d')!
+      context.fillStyle = '#ffffff'
+      context.fillRect(0, 0, 560, 220)
+      context.fillStyle = '#000000'
+      context.font = '40px Arial'
+      context.fillText('canary-seven', 40, 80)
+      document.body.append(canvas)
+    })
+    await screenshot(page, 'MP-128 sample before capture')
+    const bounds = await page.evaluate(() => ({ x: screenX, y: screenY }))
+    const capture = async () => {
+      await page.bringToFront()
+      await expect.poll(() => isOwnedGlobalShortcutRegistered(app.record, 'CommandOrControl+Alt+Shift+K')).toBe(true)
+      sendSystemHotkey(app.record.platform, [app.record.platform === 'macos' ? 'Meta' : 'Control', 'Alt', 'Shift', 'k'])
+      overlay = await app.window('/windows/screenshot/')
+      await expect(overlay.locator('canvas').first()).toBeVisible({ timeout: 20_000 })
+      const origin = await overlay.evaluate(() => ({ x: screenX, y: screenY }))
+      const x = bounds.x + 120 - origin.x
+      const y = bounds.y + 100 - origin.y
+      await testInfo.attach('MP-128 capture coordinates', {
+        body: JSON.stringify({
+          bounds,
+          origin,
+          x,
+          y,
+          viewport: await overlay.evaluate(() => ({
+            width: innerWidth,
+            height: innerHeight,
+            ratio: devicePixelRatio
+          }))
+        }),
+        contentType: 'application/json'
+      })
+      await drag(overlay, x, y, 560, 220)
+      await expect(overlay.getByRole('button', { name: 'Rectangle', exact: true })).toBeVisible()
+      const selection = await overlay.locator('canvas').last().boundingBox()
+      await testInfo.attach('MP-128 selected capture bounds', {
+        body: JSON.stringify(selection),
+        contentType: 'application/json'
+      })
+      return { window: overlay, x, y }
+    }
+    const { window: capturePage, x, y } = await capture()
+    await capturePage.getByRole('button', { name: 'Rectangle', exact: true }).click()
+    await expect(capturePage.getByRole('button', { name: 'Rectangle', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+    await expect
+      .poll(() => capturePage.locator('canvas').last().boundingBox())
+      .toMatchObject({ x, y, width: 560, height: 220 })
+    await capturePage.getByRole('button', { name: 'Red', exact: true }).click()
+    await expect(capturePage.getByRole('button', { name: 'Red', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    await drag(capturePage, x + 20, y + 20, 400, 100)
+    await screenshot(capturePage, 'MP-128 rectangle before undo')
+    const painted = await capturePage
+      .locator('canvas')
+      .last()
+      .evaluate((canvas: HTMLCanvasElement) => canvas.toDataURL())
+    await capturePage.getByRole('button', { name: 'Undo', exact: true }).click()
+    await expect
+      .poll(() =>
+        capturePage
+          .locator('canvas')
+          .last()
+          .evaluate((canvas: HTMLCanvasElement) => canvas.toDataURL())
+      )
+      .not.toBe(painted)
+    await capturePage.getByRole('button', { name: 'Redo', exact: true }).click()
+    await expect
+      .poll(() =>
+        capturePage
+          .locator('canvas')
+          .last()
+          .evaluate((canvas: HTMLCanvasElement) => canvas.toDataURL())
+      )
+      .toBe(painted)
+    await capturePage.getByRole('button', { name: 'Text', exact: true }).click()
+    await capturePage.getByRole('button', { name: 'Blue', exact: true }).click()
+    await capturePage.getByRole('button', { name: 'Text size 28', exact: true }).click()
+    await expect(capturePage.getByRole('button', { name: 'Text size 28', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+    await capturePage.mouse.click(x + 40, y + 140)
+    await capturePage.locator('textarea').fill('MP-128 annotation')
+    await capturePage.getByRole('button', { name: 'Text', exact: true }).click()
+    await screenshot(capturePage, 'MP-128 rectangle and text annotations')
+
+    // Copy must preserve the overlay; accepting Copy and close here would hide the regression.
+    await capturePage.evaluate(() => navigator.clipboard.writeText('MP128 copy baseline'))
+    await expect(capturePage.getByRole('button', { name: 'Copy to clipboard', exact: true })).toBeVisible()
+    await capturePage.getByRole('button', { name: 'Copy to clipboard', exact: true }).click()
+    const copied = await clipboard()
+    expect(copied.width).toBeGreaterThanOrEqual(560)
+    expect(copied.height / copied.width).toBeCloseTo(220 / 560, 2)
+    await expect(capturePage.getByRole('button', { name: 'Copy and close', exact: true })).toBeVisible()
+    await expect(capturePage.getByRole('button', { name: 'Save image', exact: true })).toBeVisible()
+
+    const savedPath = join(app.paths.evidence, 'MP-128-annotated.png')
+    await rm(savedPath, { force: true })
+    await capturePage.getByRole('button', { name: 'Save image', exact: true }).click()
+    await saveNativeFile(app.record.platform, app.paths, savedPath)
+    await expect
+      .poll(() =>
+        readFile(savedPath).then(
+          (buffer) => buffer.subarray(0, 8).toString('hex'),
+          (error) => {
+            if (error.code !== 'ENOENT') throw error
+            return ''
+          }
+        )
+      )
+      .toBe('89504e470d0a1a0a')
+    const savedPixels = await sharp(savedPath).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+    const copiedPixels = await sharp(Buffer.from(copied.png, 'base64'))
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true })
+    expect(savedPixels.info).toMatchObject({ width: copied.width, height: copied.height, channels: 4 })
+    expect(savedPixels.data.equals(copiedPixels.data), 'Saved PNG must preserve every copied pixel').toBe(true)
+    await page.evaluate(async (png) => {
+      const image = new Image()
+      image.src = `data:image/png;base64,${png}`
+      await image.decode()
+      if (image.naturalWidth === 0) throw new Error('Saved PNG cannot be opened')
+    }, copied.png)
+    await testInfo.attach('MP-128 saved PNG', { path: savedPath, contentType: 'image/png' })
+
+    const ocrCapture = await capture()
+    await ocrCapture.window.getByRole('button', { name: 'Recognize text', exact: true }).click()
+    const recognized = ocrCapture.window.getByText('canary-seven', { exact: true }).first()
+    await expect(recognized).toBeVisible({ timeout: 30_000 })
+    await recognized.evaluate((element) => {
+      const range = document.createRange()
+      range.selectNodeContents(element)
+      getSelection()?.removeAllRanges()
+      getSelection()?.addRange(range)
+    })
+    expect(await ocrCapture.window.evaluate(() => getSelection()?.toString())).toBe('canary-seven')
+    await ocrCapture.window.getByRole('button', { name: 'Copy all text, or select it on screen', exact: true }).click()
+    expect(await ocrCapture.window.evaluate(() => navigator.clipboard.readText())).toContain('canary-seven')
+    await screenshot(ocrCapture.window, 'MP-128 recognized text')
+    await ocrCapture.window.getByRole('button', { name: 'Copy and close', exact: true }).click()
+    await expect(ocrCapture.window.getByRole('button', { name: 'Copy and close', exact: true })).toBeHidden()
+    await composer.locator('[contenteditable="true"]').first().click()
+    await page.keyboard.press(app.record.platform === 'macos' ? 'Meta+v' : 'Control+v')
+    await expect(imageTokens).toHaveCount(1)
+    await imageTokens.first().hover()
+    await expect(page.locator('[data-file-token-image-preview] img')).toBeVisible()
+    await screenshot(page, 'MP-128 pasted image in chat')
+
+    const chatCapture = await capture()
+    await chatCapture.window.getByRole('button', { name: 'Add to chat', exact: true }).click()
+    await chatCapture.window.getByRole('dialog').getByRole('button', { name: 'Add to chat', exact: true }).click()
+    await expect(imageTokens).toHaveCount(2)
+    await screenshot(page, 'MP-128 added screenshot to conversation')
+
+    await selectSidebarApp(page, 'Settings')
+    const noChat = await capture()
+    await noChat.window.getByRole('button', { name: 'Add to chat', exact: true }).click()
+    await expect(
+      noChat.window.getByText('Open a chat or Agent conversation, then start a new capture to add it to that draft.', {
+        exact: true
+      })
+    ).toBeVisible()
+    await expect(
+      noChat.window.getByRole('dialog').getByRole('button', { name: 'Add to chat', exact: true })
+    ).toBeDisabled()
+  } catch (error) {
+    primaryFailure = error
+    throw error
+  } finally {
+    const cleanupErrors: unknown[] = []
+    try {
+      if (overlay && !overlay.isClosed()) {
+        await overlay.evaluate(() => window.api.ipcApi.request('screenshot.cancel'))
+        await expect.poll(() => overlay!.evaluate(() => document.hidden).catch(() => true)).toBe(true)
+      }
+    } catch (error) {
+      cleanupErrors.push(error)
+    }
+    try {
+      await page.evaluate(async (original) => {
+        document.getElementById('mp128-sample')?.remove()
+        await window.api.preference.setMultiple({
+          'feature.screenshot.enabled': original.enabled,
+          'feature.screenshot.auto_ocr': original.autoOcr,
+          'shortcut.screenshot.capture': original.shortcut
+        })
+      }, original)
+    } catch (error) {
+      cleanupErrors.push(error)
+    }
+    try {
+      if (assistantId) {
+        const removed = (await page.evaluate(
+          (assistantId) =>
+            window.api.ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true }),
+          assistantId
+        )) as IpcResult<{ deleted: boolean }>
+        expect(removed.ok && removed.data.deleted).toBe(true)
+      }
+    } catch (error) {
+      cleanupErrors.push(error)
+    }
+    if (cleanupErrors.length > 0) {
+      throw new AggregateError(
+        primaryFailure === undefined ? cleanupErrors : [primaryFailure, ...cleanupErrors],
+        'MP-128 resource cleanup failed'
+      )
+    }
+  }
+})
+
+test(...caseDefinition('MP-129'), async ({ app, mainWindow }, testInfo) => {
+  await globalSearch(app, mainWindow, testInfo)
+})
 
 test(...caseDefinition('MP-130'), async ({ app, mainWindow }, testInfo) => {
   await launchpadPinning(app, mainWindow, testInfo)
@@ -154,6 +919,249 @@ test(...caseDefinition('MP-131'), async ({ app, mainWindow: page }, testInfo) =>
   } finally {
     if (child && !child.isClosed()) await child.close()
     await page.evaluate((mode) => window.api.preference.set('menu.presentation_mode', mode), menuMode)
+  }
+})
+
+test(...caseDefinition('MP-132'), async ({ app, mainWindow }, testInfo) => {
+  await systemTrayMenu(app, mainWindow, testInfo)
+})
+
+test(...caseDefinition('MP-133'), async ({ app, mainWindow }, testInfo) => {
+  await singleInstanceRelaunch(app, mainWindow, testInfo)
+})
+
+test(...caseDefinition('MP-140'), async ({ app, mainWindow }, testInfo) => {
+  const settingsResource =
+    app.record.platform === 'macos'
+      ? registerExternalResource(app.paths, app.record.platform, { kind: 'settings' })
+      : undefined
+  let page = mainWindow
+  let primaryFailure: unknown
+  const original = await page.evaluate(async () => ({
+    language: await window.api.preference.get('app.language'),
+    enabled: await window.api.preference.get('app.computer_use.agent_control.enabled')
+  }))
+  const screenshot = async (name: string) => {
+    const path = testInfo.outputPath(`${name}.png`)
+    await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
+    await testInfo.attach(name, { path, contentType: 'image/png' })
+  }
+
+  try {
+    await openSettingsSection(page, 'Computer Use')
+    await page.evaluate(() => window.api.preference.set('app.language', 'zh-CN'))
+    const settings = page.locator('[data-ui~="settings.view"]:visible')
+    await expect(settings.getByRole('heading', { name: '电脑操作', exact: true })).toBeVisible()
+    await screenshot('MP-140 step 1 computer use settings')
+    await testInfo.attach('MP-140 actual settings text', {
+      body: await settings.innerText(),
+      contentType: 'text/plain'
+    })
+    await expect(settings.getByText('让 AI 查看屏幕、操作应用，帮你完成电脑上的任务。', { exact: true })).toBeVisible({
+      timeout: 5_000
+    })
+
+    if (app.record.platform === 'macos') {
+      const permissions = [
+        { id: 'accessibility', name: '辅助功能', panel: 'Privacy_Accessibility' },
+        { id: 'screenRecording', name: '屏幕录制', panel: 'Privacy_ScreenCapture' }
+      ] as const
+      const permissionStates = new Map<string, string>()
+      for (const { id, name, panel } of permissions) {
+        const row = settings.getByTestId(`computer-use-permission-${id}`)
+        const status = row.getByText(/^(已授权|已拒绝|未确认|不可用)$/, { exact: true })
+        await expect(status).toBeVisible()
+        const state = await status.innerText()
+        permissionStates.set(name, state)
+        const nativeState = readNativePermission(panel)
+        await testInfo.attach(`MP-140 ${id} native permission`, {
+          body: JSON.stringify({ state, nativeState }),
+          contentType: 'application/json'
+        })
+        if (nativeState === 'not-listed') expect(state, `${name}: no native permission entry`).not.toBe('已授权')
+        else expect(nativeState, `${name}: ${state}`).toBe(state === '已授权' ? '1' : '0')
+      }
+      observeExternalResource(app.paths, settingsResource!)
+      await screenshot('MP-140 step 2 permission states')
+
+      const refresh = settings.getByRole('button', { name: '重新检查权限', exact: true })
+      await refresh.click()
+      await expect(refresh).toBeEnabled()
+      await expect(settings.getByRole('alert')).toHaveCount(0)
+      await expect(settings.getByTestId('computer-use-permission-accessibility')).toBeVisible()
+      await screenshot('MP-140 step 3 permissions refreshed')
+
+      for (const { name, panel } of permissions) {
+        const guide = settings.getByRole('button', { name: `管理${name}权限`, exact: true })
+        const state = permissionStates.get(name)
+        if (state === '已授权' || state === '不可用') {
+          await expect(guide).toHaveCount(0)
+          continue
+        }
+        await expect(guide).toBeVisible()
+        await expect(guide).toHaveText('打开授权引导')
+        readNativePermission(panel === 'Privacy_Accessibility' ? 'Privacy_ScreenCapture' : 'Privacy_Accessibility')
+        await guide.click()
+        await expect.poll(() => isNativePermissionPanelOpen(panel)).toBe(true)
+        await screenshot(`MP-140 step 3 ${name} guide`)
+        await expect.poll(() => closeMacComputerUsePermissionGuide(app.paths)).toBe(true)
+        await page.bringToFront()
+        await refresh.click()
+        await expect(refresh).toBeEnabled()
+        await expect(settings.getByRole('alert')).toHaveCount(0)
+      }
+    } else {
+      await expect(settings.locator('[data-testid^="computer-use-permission-"]')).toHaveCount(0)
+      await expect(
+        settings.getByText('此运行时没有系统权限申请流程。桌面能力是否可用仍取决于运行环境。', { exact: true })
+      ).toBeVisible()
+      const refresh = settings.getByRole('button', { name: '重新检查权限', exact: true })
+      await refresh.click()
+      await expect(refresh).toBeEnabled()
+      await expect(settings.getByRole('alert')).toHaveCount(0)
+    }
+    const permissionResult = (await page.evaluate(() =>
+      window.api.ipcApi.request('computer_use.get_permission_status')
+    )) as { ok: true; data: unknown } | { ok: false; error: unknown }
+    if (!permissionResult.ok) throw new Error(JSON.stringify(permissionResult.error))
+    computerUseRequestSchemas['computer_use.get_permission_status'].output.parse(permissionResult.data)
+
+    let control = page.getByRole('switch', { name: '允许 Agent 控制桌面应用', exact: true })
+    await control.setChecked(true)
+    await expect(control).toBeEnabled()
+    await expect
+      .poll(() => page.evaluate(() => window.api.preference.get('app.computer_use.agent_control.enabled')))
+      .toBe(true)
+    await screenshot('MP-140 step 4 control enabled')
+    const oldPid = app.record.electronPid
+    page = await app.restart()
+    expect(app.record.electronPid).not.toBe(oldPid)
+    await openSettingsSection(page, '电脑操作')
+    control = page.getByRole('switch', { name: '允许 Agent 控制桌面应用', exact: true })
+    await expect(control).toBeChecked()
+    await screenshot('MP-140 step 4 enabled after full restart')
+
+    if (app.record.platform === 'windows') {
+      const fixture = join(app.paths.fixtures, 'MP-140-desktop-control.txt')
+      await writeFile(fixture, 'MP-140 controlled application')
+      openExternalText(app.record.platform, app.paths, fixture)
+      await page.bringToFront()
+    }
+    const startControl = (ownerId: string) =>
+      computerUseMain(
+        app,
+        `
+      const context = service.createTask(${JSON.stringify(ownerId)}, 'MP-140 desktop control')
+      const { apps } = await service.listApps(context)
+      const matches = apps.filter(app => ${JSON.stringify(app.record.platform)} === 'macos'
+        ? app.identity === 'com.apple.systempreferences' : /notepad/i.test(app.name))
+      if (matches.length !== 1) throw new Error('Expected one controlled fixture application')
+      const target = matches[0]
+      const session = await service.openApp(context, target.id)
+      return session.app.id
+    `
+      )
+    await startControl('MP-140-toggle')
+    await control.setChecked(false)
+    await expect(control).toBeEnabled()
+    await expect
+      .poll(() =>
+        computerUseMain(
+          app,
+          `
+      return service.getControls().some(control => ['active', 'opening', 'stopping'].includes(control.status))
+    `
+        )
+      )
+      .toBe(false)
+    expect(
+      await computerUseMain(
+        app,
+        `
+      try {
+        await service.listApps(service.createTask('MP-140-disabled', 'MP-140 disabled attempt'))
+        return 'ALLOWED'
+      } catch (error) { return error.code }
+    `
+      )
+    ).toBe('CONTROL_DISABLED')
+    await expect(page.getByRole('alert')).toHaveCount(0)
+    await screenshot('MP-140 step 4 control disabled and revoked')
+
+    await control.setChecked(true)
+    await expect(control).toBeEnabled()
+    await startControl('MP-140-tray')
+    let menuLabel: string
+    if (app.record.platform === 'windows') {
+      await openWindowsTrayMenu(app)
+      await expect.poll(() => windowsTrayMenu(app)).toContain('桌面控制')
+      windowsTrayMenu(app, '桌面控制', true)
+      await expect.poll(() => windowsTrayMenu(app)).toContain('停止所有桌面控制')
+      menuLabel = '停止所有桌面控制'
+      windowsTrayMenu(app, menuLabel)
+    } else menuLabel = stopNativeDesktopControl(app)
+    await testInfo.attach('MP-140 tray stop menu label', { body: menuLabel, contentType: 'text/plain' })
+    expect(menuLabel).toBe('停止所有桌面控制')
+    await expect
+      .poll(() =>
+        computerUseMain(
+          app,
+          `
+      return service.getControls().some(control => ['active', 'opening', 'stopping'].includes(control.status))
+    `
+        )
+      )
+      .toBe(false)
+    expect(
+      await computerUseMain(
+        app,
+        `
+      try {
+        await service.listApps(service.createTask('MP-140-tray', 'MP-140 stopped attempt'))
+        return 'ALLOWED'
+      } catch (error) { return error.code }
+    `
+      )
+    ).toBe('USER_STOPPED')
+    await page.bringToFront()
+    expect(await control.isChecked()).toBe(
+      await page.evaluate(() => window.api.preference.get('app.computer_use.agent_control.enabled'))
+    )
+    await screenshot('MP-140 step 5 tray stopped desktop control')
+  } catch (error) {
+    primaryFailure = error
+    throw error
+  } finally {
+    const cleanupErrors: unknown[] = []
+    try {
+      if (app.record.platform === 'windows') await inspectStartup(app, 'tray-close')
+    } catch (error) {
+      cleanupErrors.push(error)
+    }
+    try {
+      if (app.record.platform === 'windows') closeExternalText(app.record.platform)
+    } catch (error) {
+      cleanupErrors.push(error)
+    }
+    try {
+      if (page.isClosed()) page = await app.mainWindow()
+      await page.evaluate(
+        ({ language, enabled }) =>
+          window.api.preference.setMultiple({
+            'app.language': language,
+            'app.computer_use.agent_control.enabled': enabled
+          }),
+        original
+      )
+    } catch (error) {
+      cleanupErrors.push(error)
+    }
+    if (cleanupErrors.length) {
+      throw new AggregateError(
+        primaryFailure === undefined ? cleanupErrors : [primaryFailure, ...cleanupErrors],
+        'MP-140 resource cleanup failed'
+      )
+    }
   }
 })
 

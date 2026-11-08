@@ -16,6 +16,7 @@ import { CUSTOM_CHAT_PROVIDER, ensureCustomChatProvider } from '../helpers/model
 import { openLaunchpadApp } from '../helpers/navigation'
 import { closeSettings } from '../helpers/settings'
 import type { RegressionApp } from '../RegressionApp'
+import { verifyCodeMatePermissions } from '../scenarios/codeMatePermissions'
 
 async function openCodeTool(page: Page, name: string): Promise<void> {
   await openLaunchpadApp(page, 'Code Mate')
@@ -147,4 +148,8 @@ test(...caseDefinition('CODE-03'), async ({ app, mainWindow: page }) => {
       await page.evaluate((port) => window.api.preference.set('feature.openclaw.gateway_port', port), previousPort)
     }
   }
+})
+
+test(...caseDefinition('MP-97'), async ({ app, mainWindow: page }, testInfo) => {
+  await verifyCodeMatePermissions(app, page, testInfo)
 })

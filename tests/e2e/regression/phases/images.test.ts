@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import { once } from 'node:events'
 import { readFile, rm, writeFile } from 'node:fs/promises'
-import { createServer } from 'node:http'
+import { createServer, type ServerResponse } from 'node:http'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -331,5 +331,271 @@ test(...caseDefinition('MP-91'), async ({ mainWindow: page }, testInfo) => {
       server.close(() => resolve())
       server.closeAllConnections()
     })
+  }
+})
+
+test(...caseDefinition('MP-92'), async ({ mainWindow: page }, testInfo) => {
+  // Mock only the provider HTTP boundary; exercise real UI, IPC, storage, and image decoding.
+  const keys = { invalid: 'sk-mp92-invalid-secret', empty: 'sk-mp92-empty-secret', valid: 'sk-mp92-valid-secret' }
+  const providers = [`mp92-invalid-${Date.now()}`, `mp92-empty-${Date.now()}`]
+  const requests: { authorization: string; body: { model?: string; prompt?: string }; response: ServerResponse }[] = []
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Loopback mock image provider responses; real Electron UI, IPC, storage and image decoding. Does not validate external model quality.'
+  })
+  const server = createServer(async (request, response) => {
+    if (request.method !== 'POST' || request.url !== '/v1/images/generations') {
+      response.writeHead(404).end()
+      return
+    }
+    const chunks: Buffer[] = []
+    for await (const chunk of request) chunks.push(Buffer.from(chunk))
+    requests.push({
+      authorization: request.headers.authorization ?? '',
+      body: JSON.parse(Buffer.concat(chunks).toString()),
+      response
+    })
+  })
+  server.listen(0, '127.0.0.1')
+  await once(server, 'listening')
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('Image mock did not bind a TCP port')
+  const baseUrl = `http://127.0.0.1:${address.port}/v1`
+  const modelId = 'dall-e-3'
+  const prompt = 'MP-92: a red cherry on a white background'
+  const screenshot = async (name: string) => {
+    const path = testInfo.outputPath(`${name}.png`)
+    await writeFile(path, await captureMaskedScreenshot(page, [...getSensitiveConfigValues(), ...Object.values(keys)]))
+    await testInfo.attach(name, { path, contentType: 'image/png' })
+  }
+  const selectModel = async (providerId: string) => {
+    await page.locator('[data-selector-shell-root="true"] > button').first().click()
+    try {
+      await selectVisibleModel(page, modelId, providerId)
+    } catch (error) {
+      await Promise.allSettled([
+        page
+          .evaluate(
+            ({ providerId, modelId }) => {
+              const popups = [...document.querySelectorAll('[data-testid="model-selector-content"]')]
+              const visible = (element: Element | null | undefined) =>
+                element?.checkVisibility({ visibilityProperty: true }) ?? false
+              const popup = popups.filter(visible).at(-1) ?? popups.at(-1)
+              const option = popup?.querySelector(
+                `[role="option"][data-testid="${CSS.escape(`model-selector-item-${providerId}::${modelId}`)}"]`
+              )
+              const search = popup?.querySelector<HTMLInputElement>('[data-testid="model-selector-search"]')
+              const trigger = document.querySelector('[data-selector-shell-root="true"] > button')
+              return {
+                popupExists: popups.length > 0,
+                popupVisible: popups.some(visible),
+                optionExists: Boolean(option),
+                optionVisible: visible(option),
+                searchValue: search?.value.slice(0, 100) ?? null,
+                triggerExpanded: trigger?.getAttribute('aria-expanded') ?? null,
+                focusInPopup: Boolean(popup?.contains(document.activeElement))
+              }
+            },
+            { providerId, modelId }
+          )
+          .then((state) =>
+            testInfo.attach('MP-92 model selection failure state', {
+              body: JSON.stringify(state),
+              contentType: 'application/json'
+            })
+          ),
+        screenshot('MP-92 model selection failure')
+      ])
+      throw error
+    }
+  }
+  const generating = page.getByRole('status', {
+    name: /Drawing in progress\. Please do not leave this page\.|Revealing generated image/
+  })
+  const send = page.getByRole('button', { name: 'Send', exact: true })
+  const submit = async (key: string) => {
+    await page.locator('[contenteditable="true"]').fill(prompt)
+    const count = requests.length
+    await send.click()
+    await expect(generating).toBeVisible({ timeout: 15_000 })
+    await expect.poll(() => requests.length, { timeout: 15_000 }).toBe(count + 1)
+    const request = requests[count]
+    expect(request.authorization === `Bearer ${key}`, 'Configured provider credential reaches HTTP boundary').toBe(true)
+    expect(request.body.model).toBe(modelId)
+    expect(request.body.prompt).toBe(prompt)
+    return request.response
+  }
+
+  try {
+    for (const [index, providerId] of providers.entries()) {
+      const created = await page.evaluate(
+        ({ providerId, baseUrl, key, index }) =>
+          window.api.dataApi.request({
+            id: 'mp92-provider-create',
+            method: 'POST',
+            path: '/providers',
+            body: {
+              providerId,
+              name: `MP-92 HTTP fixture ${index}`,
+              presetProviderId: 'openai',
+              endpointConfigs: { 'openai-image-generation': { baseUrl } },
+              apiKeys: [{ id: 'mp92-key', key, isEnabled: true }]
+            }
+          }),
+        { providerId, baseUrl, key: index === 0 ? keys.invalid : keys.empty, index }
+      )
+      expect(created.status).toBe(201)
+      const enabled = await page.evaluate(
+        (providerId) =>
+          window.api.dataApi.request({
+            id: 'mp92-enable',
+            method: 'PATCH',
+            path: `/providers/${providerId}`,
+            body: { isEnabled: true }
+          }),
+        providerId
+      )
+      expect(enabled.status).toBe(200)
+      const model = await page.evaluate(
+        ({ providerId, modelId }) =>
+          window.api.dataApi.request({
+            id: 'mp92-model',
+            method: 'POST',
+            path: '/models',
+            body: [
+              { providerId, modelId, endpointTypes: ['openai-image-generation'], capabilities: ['image-generation'] }
+            ]
+          }),
+        { providerId, modelId }
+      )
+      expect(model.status).toBe(201)
+    }
+    await page.reload()
+    await selectSidebarApp(page, 'Paintings')
+
+    for (const [index, scenario] of [
+      {
+        key: keys.invalid,
+        status: 401,
+        code: 'invalid_api_key',
+        message: `Incorrect API key provided: ${keys.invalid}`,
+        expected: /Please check the validity of the token/i
+      },
+      {
+        key: keys.empty,
+        status: 403,
+        code: 'insufficient_quota',
+        message: 'Insufficient quota: account balance is exhausted',
+        expected: /quota|balance|credit|billing/i
+      }
+    ].entries()) {
+      await selectModel(providers[index])
+      const response = await submit(scenario.key)
+      response.writeHead(scenario.status, { 'Content-Type': 'application/json' })
+      response.end(JSON.stringify({ error: { message: scenario.message, type: scenario.code, code: scenario.code } }))
+      const dialog = page.getByRole('alertdialog').or(page.getByRole('dialog'))
+      await expect(dialog, 'Provider failure is shown to the user').toBeVisible({ timeout: 15_000 })
+      await expect
+        .soft(dialog, index === 0 ? 'Invalid token needs actionable token guidance' : 'No balance needs quota guidance')
+        .toContainText(scenario.expected, { timeout: 1_000 })
+      const errorText = await dialog.innerText()
+      for (const key of Object.values(keys)) {
+        expect.soft(errorText.includes(key), 'Error text must not expose provider credentials').toBe(false)
+      }
+      await expect(generating, 'Failure must leave generating state promptly').toBeHidden({ timeout: 15_000 })
+      await screenshot(index === 0 ? 'MP-92 invalid token error' : 'MP-92 quota error')
+      await dialog.getByRole('button', { name: /OK|Confirm|Close/i }).click()
+      await expect(dialog).toBeHidden()
+      await expect(send).toBeEnabled()
+      await expect(page.getByTestId('artboard-image-transform')).toHaveCount(0)
+    }
+
+    const restored = await page.evaluate(
+      ({ providerId, key }) =>
+        window.api.dataApi.request({
+          id: 'mp92-restore-key',
+          method: 'PUT',
+          path: `/providers/${providerId}/api-keys`,
+          body: { keys: [{ id: 'mp92-key', key, isEnabled: true }] }
+        }),
+      { providerId: providers[0], key: keys.valid }
+    )
+    expect(restored.status).toBe(200)
+    await selectModel(providers[0])
+    const response = await submit(keys.valid)
+    response.writeHead(200, { 'Content-Type': 'application/json' })
+    response.end(
+      JSON.stringify({
+        created: Math.floor(Date.now() / 1000),
+        data: [
+          {
+            b64_json:
+              'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADUlEQVQImWNQTX79HwAElwJzdIqk6AAAAABJRU5ErkJggg=='
+          }
+        ]
+      })
+    )
+    await expect(generating).toBeHidden({ timeout: 30_000 })
+    const image = page.getByTestId('artboard-image-transform').last()
+    await expect(image).toBeVisible()
+    await expect
+      .poll(() =>
+        image.evaluate((element) => {
+          const image = element as HTMLImageElement
+          return image.complete && image.naturalWidth > 0 && image.naturalHeight > 0
+        })
+      )
+      .toBe(true)
+    const paintings = await page.evaluate(
+      (providerId) =>
+        window.api.dataApi.request({
+          id: 'mp92-receipt',
+          method: 'GET',
+          path: '/paintings',
+          params: { providerId }
+        }),
+      providers[0]
+    )
+    expect(paintings.status).toBe(200)
+    expect(paintings.data).toMatchObject({
+      items: expect.arrayContaining([
+        expect.objectContaining({
+          prompt,
+          files: expect.objectContaining({ output: expect.arrayContaining([expect.any(String)]) })
+        })
+      ])
+    })
+    await page.getByTestId('painting-prompt-dock-collapsed').getByRole('button').click()
+    await expect(send).toBeEnabled()
+    await screenshot('MP-92 recovered generation')
+  } finally {
+    server.closeAllConnections()
+    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
+    await page.evaluate(async (providers) => {
+      for (const providerId of providers) {
+        const response = await window.api.dataApi.request({
+          id: 'mp92-cleanup-read',
+          method: 'GET',
+          path: '/paintings',
+          params: { providerId }
+        })
+        const data = response.data as { items?: { id: string }[] } | undefined
+        for (const painting of data?.items ?? []) {
+          await window.api.dataApi.request({ id: 'mp92-trash', method: 'DELETE', path: `/paintings/${painting.id}` })
+          await window.api.dataApi.request({
+            id: 'mp92-delete',
+            method: 'DELETE',
+            path: `/paintings/${painting.id}`,
+            params: { permanent: true }
+          })
+        }
+        await window.api.dataApi.request({
+          id: 'mp92-provider-delete',
+          method: 'DELETE',
+          path: `/providers/${providerId}`
+        })
+      }
+    }, providers)
   }
 })

@@ -15,6 +15,11 @@ const manager = (page: Page) => uiLocator(page, 'paintings.prompt-presets')
 const rows = (page: Page) => part(part(manager(page), 'prompt-preset-list'), 'prompt-preset-row')
 const row = (page: Page, id: string) => rows(page).and(page.locator(`[data-prompt-id="${id}"]`))
 const entry = (view: Locator) => uiLocator(view, 'paintings.prompt-presets.action.open')
+const form = (page: Page, edit = false) =>
+  page.getByRole('dialog', {
+    name: en[edit ? 'settings.prompts.edit' : 'settings.prompts.add'],
+    exact: true
+  })
 
 async function prepare(page: Page) {
   await expect(
@@ -91,8 +96,10 @@ async function draft(view: Locator) {
 }
 
 async function fillDraft(page: Page, view: Locator, text: string) {
-  await input(view).fill(text)
-  // A cold textarea may mount the rich editor after its first change.
+  await input(view).focus()
+  await page.keyboard.press('ControlOrMeta+A')
+  await page.keyboard.type(text)
+  // Focus may replace the cold textarea with the rich editor, so read the current input.
   await expect.poll(() => draft(view)).toBe(text)
   await input(view).click()
   await page.keyboard.press('End')
@@ -157,4 +164,93 @@ test('discovers the labelled entry and inserts a global preset without generatin
   await expect(input(view)).toBeFocused()
   await screenshot(page, testInfo, 'applied.png')
   await probe(page, view, testInfo, 'applied.json')
+})
+
+test('manages and persists global presets in the painting page while preserving its draft', async ({
+  mainWindow: page
+}, testInfo) => {
+  test.setTimeout(120000)
+  const { view } = await prepare(page)
+  const originalDraft = 'Keep this painting draft'
+  await fillDraft(page, view, originalDraft)
+  await entry(view).click()
+  await expect(rows(page)).toHaveCount(2)
+  await part(manager(page), 'prompt-preset-add').click()
+  await form(page)
+    .getByRole('textbox', { name: en['settings.prompts.titleLabel'], exact: true })
+    .fill('Created in painting')
+  await form(page).getByRole('textbox').and(form(page).locator('[contenteditable="true"]')).fill('New preset content')
+  await form(page).getByRole('button', { name: en['common.confirm'], exact: true }).click()
+  await expect(form(page)).not.toBeVisible()
+  await expect
+    .poll(async () => (await list(page)).find((item) => item.title === 'Created in painting')?.content)
+    .toBe('New preset content')
+  const created = (await list(page)).find((item) => item.title === 'Created in painting')!
+  await expectDraft(view, originalDraft)
+  await part(row(page, created.id), 'prompt-preset-edit').click()
+  await form(page, true)
+    .getByRole('textbox', { name: en['settings.prompts.titleLabel'], exact: true })
+    .fill('Edited in painting')
+  await form(page, true).getByRole('button', { name: en['common.confirm'], exact: true }).click()
+  await expect(form(page, true)).not.toBeVisible()
+  await expect
+    .poll(async () => (await list(page)).find((item) => item.id === created.id)?.title)
+    .toBe('Edited in painting')
+  await expectDraft(view, originalDraft)
+
+  const confirmation = page.getByRole('dialog', { name: en['settings.prompts.delete'], exact: true })
+  await part(row(page, created.id), 'prompt-preset-delete').click()
+  await confirmation.getByRole('button', { name: en['common.cancel'], exact: true }).click()
+  await expect(confirmation).not.toBeVisible()
+  expect((await list(page)).some((item) => item.id === created.id)).toBe(true)
+  await expectDraft(view, originalDraft)
+  await part(row(page, created.id), 'prompt-preset-delete').click()
+  await confirmation.getByRole('button', { name: en['common.delete'], exact: true }).click()
+  await expect(confirmation).not.toBeVisible()
+  await expect.poll(async () => (await list(page)).some((item) => item.id === created.id)).toBe(false)
+  await expectDraft(view, originalDraft)
+  await screenshot(page, testInfo, 'managed.png')
+  await probe(page, view, testInfo, 'managed.json')
+
+  const before = (await list(page)).map((item) => item.id)
+  const source = await part(row(page, before[0]), 'prompt-preset-drag').boundingBox()
+  const target = await row(page, before.at(-1)!).boundingBox()
+  if (!source || !target) throw new Error('Drag source and target must have visible bounding boxes')
+  const start = { x: source.x + source.width / 2, y: source.y + source.height / 2 }
+  const end = { x: start.x, y: target.y + target.height / 2 }
+  await page.mouse.move(start.x, start.y)
+  await page.mouse.down()
+  try {
+    await page.mouse.move(start.x + 10, start.y)
+    for (let step = 1; step <= 15; step++) {
+      await page.mouse.move(
+        start.x + 10 + ((end.x - start.x - 10) * step) / 15,
+        start.y + ((end.y - start.y) * step) / 15
+      )
+      await page.waitForTimeout(20)
+    }
+    await screenshot(page, testInfo, 'reordering.png')
+    await probe(page, view, testInfo, 'reordering.json')
+  } finally {
+    await page.mouse.up()
+  }
+  const expected = [...before.slice(1), before[0]]
+  await expect.poll(async () => (await list(page)).map((item) => item.id)).toEqual(expected)
+  const domIds = () =>
+    rows(page).evaluateAll((elements) => elements.map((element) => element.getAttribute('data-prompt-id')))
+  await expect.poll(domIds).toEqual(expected)
+  await expectDraft(view, originalDraft)
+  await expect(part(row(page, expected[0]), 'prompt-preset-edit')).toBeEnabled()
+  // The shared Sortable keeps its DragOverlay portal over the page for the drop
+  // animation, so the first click that lands during it is swallowed.
+  await expect(async () => {
+    await manager(page).getByRole('button', { name: en['common.close'], exact: true }).click()
+    await expect(manager(page)).not.toBeVisible({ timeout: 2000 })
+  }).toPass({ timeout: 15000 })
+  await entry(view).click()
+  await expect.poll(domIds).toEqual(expected)
+  expect((await list(page)).map((item) => item.id)).toEqual(expected)
+  await expectDraft(view, originalDraft)
+  await screenshot(page, testInfo, 'reordered.png')
+  await probe(page, view, testInfo, 'reordered.json')
 })

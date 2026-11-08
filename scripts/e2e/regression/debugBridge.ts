@@ -200,8 +200,11 @@ export async function setOwnedMainWindowFocus(record: AppRecord, focused: boolea
     await ownedMainInspectorUrl(record),
     `(() => {
       const { app, BrowserWindow } = process.mainModule.require('electron')
-      const window = BrowserWindow.getAllWindows().find(candidate =>
-        new URL(candidate.webContents.getURL()).pathname.endsWith(${JSON.stringify(MAIN_WINDOW_PATH)}))
+      const window = BrowserWindow.getAllWindows().find(candidate => {
+        const url = candidate.webContents.getURL()
+        if (!URL.canParse(url)) return false
+        return new URL(url).pathname.endsWith(${JSON.stringify(MAIN_WINDOW_PATH)})
+      })
       if (!window) throw new Error('Owned main window is unavailable')
       if (${JSON.stringify(focused)}) {
         if (${JSON.stringify(record.platform)} === 'macos') {

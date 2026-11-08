@@ -24,6 +24,7 @@ Custom assistants and knowledge bases are named with their case ID. Agent work d
 M-02 sends its provider-verification message from a case-owned assistant with no custom prompt and removes that assistant after the persistence check.
 Each non-startup scenario begins on Chat with quick/selection assistants disabled. Persistence assertions restart the application inside the same scenario without repeating setup, so initialization cannot hide lost persisted state.
 The built-in assistant's tests start new tasks and clear skill tokens where required. A scenario that mutates a shared resource must restore its intended state explicitly before relying on it.
+`MP-121` stops the owned application before copying its entire isolated profile into `private/`, then restarts it before exercising Reset. Copy errors remain failures; the application is also restarted when the backup fails.
 
 A failed scenario must not supply the expected result for another scenario. Assert a new assistant response, a newly written file, or a real native event; do not inject success markers through IPC.
 
@@ -59,7 +60,11 @@ pnpm exec tsx scripts/e2e/regression/cli.ts run-phase \
 ```
 
 `native-notifications` selects MP-110 for notification settings, actual system delivery,
-native activation and disabled-category suppression. `native-settings` selects the same case.
+native activation and disabled-category suppression. `native-settings` also runs startup/tray checks.
+
+`scheduled-task-conversation` selects MP-145, including the real-provider interview,
+confirmation, recurring schedule, task execution, history and deletion. Five-minute
+intervals and equivalent unrestricted cron schedules both satisfy its recurrence contract.
 
 `marketplace-smoke` selects MARKET-01: open Marketplace from Launchpad, switch resource
 categories, search the built-in MCP catalog, and open server management. `scheduled-tasks`
@@ -124,7 +129,9 @@ word processor is outside this application's regression contract.
 
 MP-52 opens the edited source file itself in TextEdit on macOS or Notepad on Windows, copies the editor selection, and compares it with the expected file content. Its registered editor window and newly launched process are cleaned up after the check.
 
-Windows MP-90 opens the exported image in Microsoft Edge with a run-owned profile under `private/`, checks its decoded dimensions, and closes that browser. Edge must be installed on the runner. MP-82 runs the document-drop flow on both platforms.
+Windows MP-90 opens the exported image in Microsoft Edge with a run-owned profile under `private/`, checks its decoded dimensions, and closes that browser. Edge must be installed on the runner. MP-82 runs the document-drop flow on both platforms. MP-56 uses a tagged Node timer process on Windows and a shell sleep on macOS to verify actual process cleanup after interruption.
+
+On macOS, MP-41 resolves the default application for a private HTML probe before opening the artifact. Its cleanup tracks the actual file handler even when the HTTPS default differs, and preserves existing browser tabs. Unsupported handlers fail before the external file is opened.
 
 `translation-settings` selects only MP-86. The case uses pinned aiMock responses for
 language detection and translation, while exercising the real settings UI, model
@@ -155,6 +162,8 @@ Windows single-instance checks use Restart Manager's [resource-user query](https
 
 These adapters require real desktop execution; successful typechecking or enumeration is not cross-platform acceptance.
 
+`MP-140` dismisses the run-owned native permission guide before refreshing its status. It validates native permission states and desktop-control start/stop without changing OS grants; screen capture is outside this case. The macOS adapter uses the SDK agent's protocol-owner PID to avoid closing an unrelated helper instance.
+
 ## Partial coverage
 
 A passing implemented flow does not cover capabilities absent from the current product. Scenarios record these gaps with `uncovered` annotations; they do not search for fictional controls.
@@ -164,6 +173,7 @@ A passing implemented flow does not cover capabilities absent from the current p
 | MP-18 | Message queue, hover card, attachment preview, copy source, MCP inline images, URL fallback and Chinese title search | A direct Delete action in the sent-image menu; public tool-result image URL previews; pinyin-initial search |
 | MP-19 | Markdown, DOCX, video, empty PPTX error, pasted-text preview and clipboard round trip | Rendering a nonempty PPTX; external-app fallback; a Quote selection button in plain-text previews |
 | MP-48 | Window-local draft recovery across topic switches and clearing after send | Process-restart recovery is outside the documented composer memory-cache contract |
+| MP-57 | Real memory-file writes, recall across sessions, setting persistence and retained snapshots | Memory file-path display; runtime memory-tool exclusion is covered by `builtinAgentCapabilities.test.ts`, not by this E2E flow |
 | MP-69 | File categories, counts and clearing filters | Filename search and result highlighting |
 | MP-72 | Not registered: the product has no library-file reference entry point | Referencing an existing library file from the composer |
 | MP-74 | Draft persistence and external-edit conflict handling | An explicit Saved status indicator |

@@ -7,6 +7,7 @@ export interface StartupState {
   openAtLogin: boolean
   visible: boolean
   dockVisible: boolean
+  accessibilitySupportEnabled: boolean
   windows: { id: number; visible: boolean; minimized: boolean; route: string | null }[]
   trays: {
     destroyed: boolean
@@ -17,7 +18,7 @@ export interface StartupState {
 
 export async function inspectStartup(
   app: RegressionApp,
-  action?: 'show' | 'quit' | 'tray-menu'
+  action?: 'show' | 'quit' | 'tray-menu' | 'tray-close'
 ): Promise<StartupState> {
   const record = app.record
   const inspectorPort = Number(process.env.V8_INSPECTOR_PORT ?? MAIN_INSPECTOR_PORT)
@@ -65,6 +66,7 @@ export async function inspectStartup(
             if (!tray || tray.isDestroyed() || !service.contextMenu) throw new Error('Owned tray menu is unavailable')
             tray.popUpContextMenu(service.contextMenu)
           }
+          if (${JSON.stringify(action)} === 'tray-close' && tray && !tray.isDestroyed()) tray.closeContextMenu()
           if (!tray) return []
           const destroyed = tray.isDestroyed()
           const bounds = destroyed ? { x: 0, y: 0, width: 0, height: 0 } : tray.getBounds()
@@ -89,7 +91,8 @@ export async function inspectStartup(
           return { id: window.id, visible: window.isVisible(), minimized: window.isMinimized(), route }
         })
         const state = { openAtLogin: app.getLoginItemSettings().openAtLogin,
-          visible: main?.isVisible() ?? false, dockVisible: app.dock?.isVisible() ?? false, windows }
+          visible: main?.isVisible() ?? false, dockVisible: app.dock?.isVisible() ?? false,
+          accessibilitySupportEnabled: app.accessibilitySupportEnabled, windows }
         if (${JSON.stringify(action)} === 'quit') setTimeout(() => app.quit(), 100)
         return state
       })()`,

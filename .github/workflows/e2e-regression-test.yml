@@ -52,15 +52,18 @@ on:
           - skill-import
           - code-cli
           - openclaw
+          - code-cli-permissions
+          - native-recovery
           - cherryin-chat
           - image-generation
           - agent-basic-task
           - claude-agent-runtime
           - pi-runtime
+          - scheduled-task-conversation
+          - html-artifact-preview
           - translation-settings
           - native-settings
           - native-notifications
-          - native-recovery
       provider_mode:
         description: "Provider backend: real = repository vars (default), mock = in-job mock service (deterministic, no quota, fault injection). Mock supports a subset of tasks; see scripts/e2e/regression/mock-fixtures/README.md"
         required: true

@@ -20,7 +20,10 @@ import { CDP_PORT, isAlive, processCommand, waitForExit } from '../process'
 import {
   chooseNativeFile,
   chooseNativeFiles,
+  closeExternalText,
   dismissNativeMessageBox,
+  openExternalText,
+  readWindowsExternalText,
   readWindowsPrintDialog,
   saveNativeFile,
   saveNativeFileKeepingName,
@@ -142,6 +145,49 @@ it.skipIf(process.platform !== 'win32')('reports the real owner only while its f
     rmSync(directory, { recursive: true, force: true })
   }
 })
+
+it.skipIf(process.platform !== 'win32')(
+  'reads the owned Notepad document and its real selected text',
+  async () => {
+    const paths = getRunPaths(mkdtempSync(join(tmpdir(), 'cherry-native-text-')))
+    ensureRunDirectories(paths)
+    const file = join(paths.fixtures, 'native-selection.txt')
+    const content = 'Owned native text selection\nSecond line remains selected'
+    writeFileSync(file, content.replaceAll('\n', '\r\n'))
+    const errors: unknown[] = []
+    try {
+      openExternalText('windows', paths, file)
+      await expect
+        .poll(() => {
+          const { text, selectedText } = readWindowsExternalText()
+          return [text, selectedText].map((value) => value.replace(/\r\n?/g, '\n').trimEnd())
+        })
+        .toEqual([content, content])
+      const { bounds } = readWindowsExternalText()
+      expect(bounds.width).toBeGreaterThan(0)
+      expect(bounds.height).toBeGreaterThan(0)
+    } catch (error) {
+      errors.push(error)
+      try {
+        const diagnostic = join(paths.evidence, 'native-diagnostics', 'native-external-text.json')
+        if (existsSync(diagnostic))
+          errors.push(new Error(`External text metadata: ${readFileSync(diagnostic, 'utf8')}`))
+      } catch (diagnosticError) {
+        errors.push(diagnosticError)
+      }
+    } finally {
+      try {
+        closeExternalText('windows')
+        expect(JSON.parse(readFileSync(join(paths.private, 'external-resources.json'), 'utf8'))).toEqual([])
+        rmSync(paths.root, { recursive: true, force: true })
+      } catch (error) {
+        errors.push(error)
+      }
+    }
+    if (errors.length) throw new AggregateError(errors, errors.map(String).join('\n'))
+  },
+  60_000
+)
 
 it.skipIf(process.platform !== 'win32').each(['direct', 'shared', 'detached'] as const)(
   'reads and types through the owned native console (%s shell)',

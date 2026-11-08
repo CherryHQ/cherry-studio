@@ -17,6 +17,7 @@ import { sendChatMarker } from '../helpers/chat'
 import { selectSidebarApp, dismissOnboarding } from '../helpers/navigation'
 import { collectVirtualizedText, revealVirtualized } from '../helpers/virtualList'
 import { exportTopicFiles } from '../scenarios/exportTopicFiles'
+import { topicGrouping } from '../scenarios/topicGrouping'
 
 test(...caseDefinition('MP-05'), async ({ app, mainWindow }, testInfo) => {
   let page = mainWindow
@@ -757,6 +758,10 @@ test(...caseDefinition('MP-44'), async ({ app, mainWindow }, testInfo) => {
       { assistantId, preferences }
     )
   }
+})
+
+test(...caseDefinition('MP-45'), async ({ app, mainWindow }, testInfo) => {
+  await topicGrouping(app, mainWindow, testInfo)
 })
 
 test(...caseDefinition('MP-46'), async ({ app, mainWindow }, testInfo) => {

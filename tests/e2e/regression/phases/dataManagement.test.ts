@@ -24,6 +24,7 @@ import { revealVirtualized } from '../helpers/virtualList'
 import { applicationDataMigration } from '../scenarios/applicationDataMigration'
 import { clearCacheItems } from '../scenarios/clearCacheItems'
 import { importConversationFixtures } from '../scenarios/importConversationFixtures'
+import { resetAppData } from '../scenarios/resetAppData'
 
 test(...caseDefinition('MP-115'), async ({ app, mainWindow: page }, testInfo) => {
   testInfo.annotations.push({
@@ -776,4 +777,8 @@ test(...caseDefinition('MP-120'), async ({ app, mainWindow: page }, testInfo) =>
       }, assistantId)
     }
   }
+})
+
+test(...caseDefinition('MP-121'), async ({ app, mainWindow }, testInfo) => {
+  await resetAppData(app, mainWindow, testInfo)
 })
