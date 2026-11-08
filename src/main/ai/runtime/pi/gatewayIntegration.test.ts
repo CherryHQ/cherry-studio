@@ -592,7 +592,42 @@ describe('native Pi through the production gateway', () => {
     await sendUser('question')
     expect(dbh.db.select().from(aiUsageRecordTable).all()).toMatchObject([{ messageId: 'original-answer' }])
   })
-  it('keeps the explicit reasoning selection through native wire defaults and gateway execution', async () => {
+  it.each(['high', 'ultra'] as const)(
+    'keeps %s reasoning through native wire defaults and gateway execution',
+    async (reasoningEffort) => {
+      dbh.db
+        .update(userModelTable)
+        .set({
+          capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING],
+          reasoning: { controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'ultra'] }] }
+        })
+        .where(eq(userModelTable.id, 'port::wire-model'))
+        .run()
+      const binding = await createPiGatewayModelBinding(
+        { sessionId: 'session', reasoningEffort },
+        providerService.getByProviderId('port'),
+        modelService.getByKey('port', 'wire-model')
+      )
+      const directory = tempDir('gateway-options')
+      session = await openSession({
+        ...binding,
+        cwd: directory,
+        agentDir: directory,
+        systemPrompt: 'Preserve the instructions through the gateway'
+      })
+      await sendUser('Think carefully')
+      expect(requests).toHaveLength(1)
+      expect(requests[0].reasoning_effort).toBe(reasoningEffort)
+      expect(requests[0].messages).toContainEqual(
+        expect.objectContaining({
+          role: 'system',
+          content: expect.stringContaining('Preserve the instructions through the gateway')
+        })
+      )
+    }
+  )
+
+  it('uses the original selection when an internal Anthropic request carries conflicting native thinking', async () => {
     dbh.db
       .update(userModelTable)
       .set({
@@ -601,16 +636,26 @@ describe('native Pi through the production gateway', () => {
       })
       .where(eq(userModelTable.id, 'port::wire-model'))
       .run()
-    const binding = await createPiGatewayModelBinding(
-      { sessionId: 'session', reasoningEffort: 'high' },
-      providerService.getByProviderId('port'),
-      modelService.getByKey('port', 'wire-model')
-    )
-    const directory = tempDir('gateway-options')
-    session = await openSession({ ...binding, cwd: directory, agentDir: directory })
-    await sendUser('Think carefully')
+    const response = await processMessage({
+      params: {
+        model: 'port:wire-model',
+        stream: true,
+        max_tokens: 256,
+        thinking: { type: 'enabled', budget_tokens: 16384 },
+        messages: [{ role: 'user', content: 'fixture' }]
+      },
+      inputFormat: 'anthropic',
+      outputFormat: 'anthropic',
+      requestHeaders: new Headers({
+        authorization: 'Bearer internal-fixture-key',
+        'x-cherry-reasoning-effort': 'low'
+      })
+    })
+    expect(response.status).toBe(200)
+    expect(await response.text()).toContain('Model answer')
     expect(requests).toHaveLength(1)
-    expect(requests[0].reasoning_effort).toBe('high')
+    expect(requests[0]).toMatchObject({ reasoning_effort: 'low', max_tokens: 256 })
+    expect(requests[0]).not.toHaveProperty('thinking')
   })
 
   it('propagates a native stop through the gateway to the upstream request', async () => {

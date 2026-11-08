@@ -52,6 +52,19 @@ const {
   }
 })
 
+const posthog = vi.hoisted(() => ({
+  capture: vi.fn(),
+  shutdown: vi.fn(async () => undefined),
+  constructor: vi.fn()
+}))
+
+vi.mock('posthog-node', () => ({
+  PostHog: vi.fn(function PostHogMock(key: string, options: unknown) {
+    posthog.constructor(key, options)
+    return { capture: posthog.capture, shutdown: posthog.shutdown }
+  })
+}))
+
 vi.mock('@cherrystudio/analytics-client', () => ({
   AnalyticsClient: MockAnalyticsClient
 }))
@@ -89,6 +102,10 @@ function changePreference(key: string, value: boolean | string): void {
 
 beforeEach(() => {
   BaseService.resetInstances()
+  vi.unstubAllEnvs()
+  posthog.capture.mockClear()
+  posthog.shutdown.mockClear()
+  posthog.constructor.mockClear()
   vi.mocked(getAppEdition).mockReturnValue('global')
   for (const key of Object.keys(captured.prefHandlers)) {
     delete captured.prefHandlers[key]
@@ -121,6 +138,124 @@ describe('AnalyticsService data collection preference', () => {
     await service.trackAppUpdate()
     expect(mockTrackAppUpdate).not.toHaveBeenCalled()
   })
+
+  it('sends product events to PostHog anonymously, and only while data collection is consented', async () => {
+    vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
+    const service = new AnalyticsService()
+    await service._doInit()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+
+    service.trackEvent('subscription_entry_view', { source: 'settings' })
+
+    expect(posthog.constructor).toHaveBeenCalledWith(
+      'phc_test',
+      expect.objectContaining({ host: 'https://us.i.posthog.com', disableGeoip: true })
+    )
+    expect(posthog.capture).toHaveBeenCalledWith({
+      distinctId: 'test-client-id',
+      event: 'subscription_entry_view',
+      properties: expect.objectContaining({
+        source: 'settings',
+        app_edition: 'global',
+        producer: 'client',
+        surface: 'desktop',
+        region: 'global',
+        environment: 'development',
+        test: true,
+        product: 'cloud-api',
+        $ip: '0.0.0.0',
+        $process_person_profile: false
+      })
+    })
+
+    // While the revoked client is still shutting down, nothing new may be captured.
+    let finishShutdown = () => {}
+    posthog.shutdown.mockImplementationOnce(
+      () => new Promise<undefined>((resolve) => (finishShutdown = () => resolve(undefined)))
+    )
+    changePreference('app.privacy.data_collection.enabled', false)
+    await vi.waitFor(() => expect(posthog.shutdown).toHaveBeenCalledWith(1_000))
+    posthog.capture.mockClear()
+    service.trackEvent('subscription_entry_view', { source: 'settings' })
+
+    expect(posthog.capture).not.toHaveBeenCalled()
+    finishShutdown()
+  })
+
+  it.each([
+    ['cn', 'account-1', 'cloud-api:cn:development:account:account-1', true],
+    ['cn', null, 'test-client-id', false],
+    ['global', 'account-1', 'test-client-id', false]
+  ] as const)(
+    'identifies a %s edition event with account %s the way the China subscription web page does',
+    async (edition, accountId, distinctId, personProfile) => {
+      vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
+      vi.mocked(getAppEdition).mockReturnValue(edition)
+      const service = new AnalyticsService()
+      await service._doInit()
+      await vi.waitFor(() => expect(service.isActivated).toBe(true))
+
+      service.trackEvent('subscription_entry_clicked', { source: 'settings' }, accountId)
+
+      expect(posthog.capture).toHaveBeenCalledWith(
+        expect.objectContaining({
+          distinctId,
+          properties: expect.objectContaining({ $process_person_profile: personProfile })
+        })
+      )
+    }
+  )
+
+  it.each([
+    ['a release build against a test backend', 'https://cloud-dev.cherry-ai.com', 'development', true],
+    ['a release build against production', '', 'production', false]
+  ] as const)('marks events from %s as that environment', async (_case, apiOrigin, environment, test) => {
+    vi.stubEnv('DEV', false)
+    vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
+    vi.stubEnv('MAIN_VITE_CHERRY_CLOUD_API_ORIGIN', apiOrigin)
+    vi.mocked(getAppEdition).mockReturnValue('cn')
+    const service = new AnalyticsService()
+    await service._doInit()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+
+    service.trackEvent('subscription_entry_clicked', { source: 'settings' }, 'account-1')
+
+    expect(posthog.capture).toHaveBeenCalledWith(
+      expect.objectContaining({
+        distinctId: `cloud-api:cn:${environment}:account:account-1`,
+        properties: expect.objectContaining({ environment, test })
+      })
+    )
+  })
+
+  it('sends no product events from a development build without a PostHog key', async () => {
+    vi.stubEnv('MAIN_VITE_POSTHOG_KEY', '')
+    const service = new AnalyticsService()
+    await service._doInit()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+
+    service.trackEvent('subscription_entry_view', { source: 'settings' })
+
+    expect(posthog.constructor).not.toHaveBeenCalled()
+    expect(posthog.capture).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['cn', 'phc_vwsf7qr54Vk2ff23Nj2B4PEYtSkkpheKrb8VcdfDujna'],
+    ['global', 'phc_G0omsYajA6A9BY5c0rnU04ZaZck25xpR0DqKhwfF39n']
+  ] as const)(
+    'sends %s edition usage insights to that edition’s PostHog project in release builds',
+    async (edition, key) => {
+      vi.stubEnv('DEV', false)
+      vi.stubEnv('MAIN_VITE_POSTHOG_KEY', '')
+      vi.mocked(getAppEdition).mockReturnValue(edition)
+      const service = new AnalyticsService()
+      await service._doInit()
+      await vi.waitFor(() => expect(service.isActivated).toBe(true))
+
+      expect(posthog.constructor).toHaveBeenCalledWith(key, expect.anything())
+    }
+  )
 
   it('activates after the latest privacy policy is accepted', async () => {
     captured.preferenceValues['app.privacy.policy_version'] = ''

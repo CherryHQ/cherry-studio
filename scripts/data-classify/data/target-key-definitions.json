@@ -327,6 +327,11 @@
           "type": "shortcut"
         },
         {
+          "id": "sidebar-shortcut:core.app:scheduled_tasks",
+          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "scheduled_tasks" } },
+          "type": "shortcut"
+        },
+        {
           "id": "sidebar-shortcut:core.app:translate",
           "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "translate" } },
           "type": "shortcut"

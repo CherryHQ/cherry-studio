@@ -1,5 +1,17 @@
 # @cherrystudio/ai-core
 
+## 2.4.7
+
+### Patch Changes
+
+- [#23893](https://github.com/CherryHQ/cherry-studio/pull/23893) [`02f8389`](https://github.com/CherryHQ/cherry-studio/commit/02f8389bd4f94602a5d701dd8eacf9809b160d49) Thanks [@kovsu](https://github.com/kovsu)! - Drop the unused `@ai-sdk/provider-utils` runtime dependency.
+
+## 2.4.6
+
+### Patch Changes
+
+- [#23793](https://github.com/CherryHQ/cherry-studio/pull/23793) [`354ca0c`](https://github.com/CherryHQ/cherry-studio/commit/354ca0cb88fb0e8ed34d64b28568abc7fb73e4ce) Thanks [@404-Page-Found](https://github.com/404-Page-Found)! - Assign the resolved model to `context.model` in the non-streaming text and image paths, so plugins observe the same resolved model there as they do in the streaming path.
+
 ## 2.4.5
 
 ### Patch Changes

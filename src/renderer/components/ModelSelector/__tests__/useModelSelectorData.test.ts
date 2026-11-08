@@ -1,4 +1,7 @@
-import { renderHook } from '@testing-library/react'
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
+import { renderHook, waitFor } from '@testing-library/react'
+import { createElement, type ReactNode } from 'react'
+import { SWRConfig } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CHERRY_CLOUD_PROVIDER_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
@@ -14,10 +17,12 @@ const mockUseProviders = vi.fn()
 const mockUsePins = vi.fn()
 const cloudAvailability = vi.hoisted(() => {
   const isModelHidden: (model: Model, includeAgentOnlyModels: boolean) => boolean = () => false
+  const isModelFree: (model: Model) => boolean = () => false
   return {
     isAvailabilityReady: true,
     availabilityError: undefined as Error | undefined,
     isModelHidden,
+    isModelFree,
     isModelUnavailable: () => false,
     getModelDescription: () => undefined
   }
@@ -35,6 +40,18 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 
 vi.mock('@renderer/hooks/usePins', () => ({
   usePins: (...args: unknown[]) => mockUsePins(...args)
+}))
+const cloudPlans = vi.hoisted(() => ({
+  data: undefined as unknown,
+  activePaid: undefined as unknown,
+  phase: 'signed-in' as 'signed-in' | 'signed-out'
+}))
+vi.mock('@renderer/hooks/useCherryCloudPlans', () => ({
+  useCherryCloudPlans: () => ({
+    session: { status: { phase: cloudPlans.phase } },
+    plansQuery: { data: cloudPlans.data },
+    activePaid: cloudPlans.activePaid
+  })
 }))
 
 vi.mock('@renderer/i18n/label', () => ({
@@ -109,6 +126,7 @@ function wireDeps({
 }
 
 beforeEach(() => {
+  MockUseCacheUtils.resetMocks()
   mockUseModels.mockReset()
   mockUseProviders.mockReset()
   mockUsePins.mockReset()
@@ -153,6 +171,294 @@ describe('useModelSelectorData', () => {
     ])
     expect(result.current.modelItems.map((item) => item.model)).toEqual([cloud])
     expect(result.current.modelItems[0].showIdentifier).toBe(false)
+  })
+
+  it('lists free CherryAI models after subscription models unless searching', () => {
+    const qwen = makeModel('qwen', CHERRYAI_PROVIDER_ID)
+    const paid = makeModel('paid-model', CHERRY_CLOUD_PROVIDER_ID)
+    wireDeps({
+      providers: [makeProvider(CHERRYAI_PROVIDER_ID), makeProvider(CHERRY_CLOUD_PROVIDER_ID)],
+      models: [qwen, paid]
+    })
+    cloudAvailability.isModelFree = (model) => model.providerId === CHERRYAI_PROVIDER_ID
+
+    try {
+      const { result, rerender } = renderHook(({ searchText }) => useModelSelectorData({ searchText }), {
+        initialProps: { searchText: '' }
+      })
+
+      expect(result.current.modelItems.map((item) => item.model)).toEqual([paid, qwen])
+      expect(result.current.listItems[0]).toMatchObject({ type: 'group', isCherryAiGroup: true })
+
+      rerender({ searchText: 'qwen' })
+
+      expect(result.current.modelItems.map((item) => item.model)).toEqual([qwen])
+    } finally {
+      cloudAvailability.isModelFree = () => false
+    }
+  })
+
+  it('lists purchasable plan models the account cannot use as locked rows with their capabilities', () => {
+    const owned = makeModel('owned-model', CHERRY_CLOUD_PROVIDER_ID)
+    wireDeps({
+      providers: [makeProvider(CHERRYAI_PROVIDER_ID), makeProvider(CHERRY_CLOUD_PROVIDER_ID)],
+      models: [owned]
+    })
+    const planModel = (id: string, features: string[]) => ({
+      id,
+      display_name: id.toUpperCase(),
+      capabilities: ['reasoning', 'not-a-capability'],
+      available_features: features
+    })
+    cloudPlans.data = {
+      measured_at: '2026-10-27T00:00:00Z',
+      entitlements: [],
+      available_plans: [
+        {
+          id: '22222222-2222-4222-8222-222222222222',
+          display_name: 'Plus',
+          is_free: false,
+          default_for_new_accounts: false,
+          quota_pool_count: 1,
+          model_count: 3,
+          // The China backend reports false for plans its portal still sells.
+          purchase_available: false,
+          models: [
+            planModel('owned-model', ['agent', 'chat', 'translate']),
+            planModel('locked-chat', ['agent', 'chat', 'translate']),
+            planModel('locked-agent-only', ['agent'])
+          ]
+        }
+      ]
+    }
+
+    try {
+      const { result } = renderHook(() => useModelSelectorData({ searchText: '' }))
+      const lockedItems = result.current.modelItems.filter((item) => item.locked)
+
+      expect(lockedItems.map((item) => item.model.name)).toEqual(['LOCKED-CHAT'])
+      expect(lockedItems[0].model.capabilities).toEqual(['reasoning'])
+      expect(result.current.modelItems.filter((item) => item.model.id === owned.id)).toHaveLength(1)
+      expect(result.current.selectableModelsById.has(lockedItems[0].modelId)).toBe(false)
+    } finally {
+      cloudPlans.data = undefined
+    }
+  })
+
+  it('lists the CherryAI group first even when only locked offers create it', () => {
+    wireDeps({
+      providers: [makeProvider('openai'), makeProvider(CHERRY_CLOUD_PROVIDER_ID)],
+      models: [makeModel('gpt-4', 'openai')]
+    })
+    cloudPlans.data = {
+      measured_at: '2026-10-27T00:00:00Z',
+      entitlements: [],
+      available_plans: [
+        {
+          id: '22222222-2222-4222-8222-222222222222',
+          display_name: 'Plus',
+          is_free: false,
+          default_for_new_accounts: false,
+          quota_pool_count: 1,
+          model_count: 1,
+          purchase_available: true,
+          models: [{ id: 'plus-model', display_name: 'Plus model', available_features: ['agent', 'chat', 'translate'] }]
+        }
+      ]
+    }
+
+    try {
+      const { result } = renderHook(() => useModelSelectorData({ searchText: '' }))
+
+      expect(result.current.listItems.filter((item) => item.type === 'group').map((item) => item.key)).toEqual([
+        'provider-cherryai',
+        'provider-openai'
+      ])
+    } finally {
+      cloudPlans.data = undefined
+    }
+  })
+
+  it('still offers a paid model that was pinned before it became locked', () => {
+    wireDeps({
+      providers: [makeProvider(CHERRYAI_PROVIDER_ID), makeProvider(CHERRY_CLOUD_PROVIDER_ID)],
+      models: [],
+      pinnedIds: [`${CHERRY_CLOUD_PROVIDER_ID}::plus-model`]
+    })
+    cloudPlans.data = {
+      measured_at: '2026-10-27T00:00:00Z',
+      entitlements: [],
+      available_plans: [
+        {
+          id: '22222222-2222-4222-8222-222222222222',
+          display_name: 'Plus',
+          is_free: false,
+          default_for_new_accounts: false,
+          quota_pool_count: 1,
+          model_count: 1,
+          purchase_available: true,
+          models: [{ id: 'plus-model', display_name: 'Plus model', available_features: ['agent', 'chat', 'translate'] }]
+        }
+      ]
+    }
+
+    try {
+      const { result } = renderHook(() => useModelSelectorData({ searchText: '' }))
+
+      expect(result.current.modelItems.filter((item) => item.locked).map((item) => item.model.name)).toEqual([
+        'Plus model'
+      ])
+    } finally {
+      cloudPlans.data = undefined
+    }
+  })
+
+  it('lists a model offered by several paid plans as one locked row', () => {
+    wireDeps({ providers: [makeProvider(CHERRYAI_PROVIDER_ID), makeProvider(CHERRY_CLOUD_PROVIDER_ID)], models: [] })
+    const shared = { id: 'shared-model', display_name: 'Shared', available_features: ['agent', 'chat', 'translate'] }
+    const plan = (id: string) => ({
+      id,
+      display_name: id,
+      is_free: false,
+      default_for_new_accounts: false,
+      quota_pool_count: 1,
+      model_count: 1,
+      purchase_available: true,
+      models: [shared]
+    })
+    cloudPlans.data = {
+      measured_at: '2026-10-27T00:00:00Z',
+      entitlements: [],
+      available_plans: [plan('22222222-2222-4222-8222-222222222222'), plan('33333333-3333-4333-8333-333333333333')]
+    }
+
+    try {
+      const { result } = renderHook(() => useModelSelectorData({ searchText: '' }))
+
+      expect(result.current.modelItems.filter((item) => item.locked).map((item) => item.model.name)).toEqual(['Shared'])
+    } finally {
+      cloudPlans.data = undefined
+    }
+  })
+
+  it('keeps offering the paid plan models after sign-out, but not while a session loads its plans', () => {
+    wireDeps({ providers: [makeProvider(CHERRYAI_PROVIDER_ID), makeProvider(CHERRY_CLOUD_PROVIDER_ID)], models: [] })
+    const plan = {
+      id: '22222222-2222-4222-8222-222222222222',
+      display_name: 'Plus',
+      is_free: false,
+      default_for_new_accounts: false,
+      quota_pool_count: 1,
+      model_count: 1,
+      purchase_available: true,
+      models: [{ id: 'plus-model', display_name: 'Plus model', available_features: ['agent', 'chat', 'translate'] }]
+    }
+    const lockedNames = (items: ModelSelectorModelItem[]) =>
+      items.filter((item) => item.locked).map((item) => item.model.name)
+
+    try {
+      cloudPlans.data = { measured_at: '2026-10-27T00:00:00Z', entitlements: [], available_plans: [plan] }
+      const { result, rerender } = renderHook(() => useModelSelectorData({ searchText: '' }))
+      expect(lockedNames(result.current.modelItems)).toEqual(['Plus model'])
+
+      // The plans API needs a session; signed out, the plans last seen keep the offer.
+      cloudPlans.data = undefined
+      cloudPlans.phase = 'signed-out'
+      rerender()
+      expect(lockedNames(result.current.modelItems)).toEqual(['Plus model'])
+
+      // A new session shows nothing stale while its own plans load.
+      cloudPlans.phase = 'signed-in'
+      rerender()
+      expect(lockedNames(result.current.modelItems)).toEqual([])
+    } finally {
+      cloudPlans.data = undefined
+      cloudPlans.phase = 'signed-in'
+    }
+  })
+
+  it('offers paid plan models from the public catalog to a signed-out user who never signed in', async () => {
+    wireDeps({ providers: [makeProvider(CHERRYAI_PROVIDER_ID), makeProvider(CHERRY_CLOUD_PROVIDER_ID)], models: [] })
+    const request = vi.mocked(window.api.ipcApi.request)
+    const previousRequest = request.getMockImplementation()
+    request.mockImplementation(async (route) =>
+      route === 'cherry_cloud.public_plans.get'
+        ? {
+            ok: true,
+            data: {
+              measured_at: '2026-11-03T00:00:00Z',
+              plans: [
+                {
+                  id: '22222222-2222-4222-8222-222222222222',
+                  display_name: 'Plus',
+                  is_free: false,
+                  models: [
+                    {
+                      id: 'public-model',
+                      display_name: 'Public model',
+                      available_features: ['agent', 'chat', 'translate']
+                    }
+                  ]
+                },
+                {
+                  id: '33333333-3333-4333-8333-333333333333',
+                  display_name: 'Free',
+                  is_free: true,
+                  models: [
+                    { id: 'free-model', display_name: 'Free model', available_features: ['agent', 'chat', 'translate'] }
+                  ]
+                }
+              ]
+            }
+          }
+        : { ok: true, data: undefined }
+    )
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(SWRConfig, { value: { provider: () => new Map(), dedupingInterval: 0 } }, children)
+    cloudPlans.phase = 'signed-out'
+
+    try {
+      const { result } = renderHook(() => useModelSelectorData({ searchText: '' }), { wrapper })
+
+      await waitFor(() =>
+        expect(result.current.modelItems.filter((item) => item.locked).map((item) => item.model.name)).toEqual([
+          'Public model'
+        ])
+      )
+    } finally {
+      cloudPlans.phase = 'signed-in'
+      if (previousRequest) request.mockImplementation(previousRequest)
+    }
+  })
+
+  it('shows no locked rows once the account has a paid plan', () => {
+    wireDeps({
+      providers: [makeProvider(CHERRYAI_PROVIDER_ID), makeProvider(CHERRY_CLOUD_PROVIDER_ID)],
+      models: [makeModel('owned-model', CHERRY_CLOUD_PROVIDER_ID)]
+    })
+    const otherPlan = {
+      id: '33333333-3333-4333-8333-333333333333',
+      display_name: 'Other',
+      is_free: false,
+      default_for_new_accounts: false,
+      quota_pool_count: 1,
+      model_count: 1,
+      purchase_available: true,
+      models: [
+        { id: 'other-plan-model', display_name: 'Other model', available_features: ['agent', 'chat', 'translate'] }
+      ]
+    }
+    cloudPlans.data = { measured_at: '2026-10-27T00:00:00Z', entitlements: [], available_plans: [otherPlan] }
+    cloudPlans.activePaid = { id: '11111111-1111-4111-8111-111111111111', plan: { display_name: 'Plus' } }
+
+    try {
+      const { result } = renderHook(() => useModelSelectorData({ searchText: '' }))
+
+      expect(result.current.modelItems.some((item) => item.locked)).toBe(false)
+    } finally {
+      cloudPlans.data = undefined
+      cloudPlans.activePaid = undefined
+    }
   })
 
   it('passes the selector activation state to every catalog query', () => {

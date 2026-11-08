@@ -129,7 +129,7 @@ On restore:
 | Previously paused by the user | Remains paused |
 | Enabled cron or interval | Re-arms for a future occurrence; no catch-up Job |
 | Future once | Re-arms |
-| Overdue, unconsumed once | Disabled with `metadata.missed`, displayed as **Missed** |
+| Overdue, unconsumed once | Disabled with `metadata.missed`, displayed in **Paused** with a missed-time reason |
 | Consumed once | Remains completed; no repeat |
 
 Missed tasks remain editable, deletable, and manually runnable; they cannot be
