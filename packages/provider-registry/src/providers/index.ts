@@ -57,6 +57,7 @@ import p_radeon_cloud from './radeon-cloud'
 import p_silicon from './silicon'
 import p_sophnet from './sophnet'
 import p_stepfun from './stepfun'
+import p_teapot_router from './teapot-router'
 import p_together from './together'
 import p_tokendance from './tokendance'
 import p_tokenhub from './tokenhub'
@@ -135,5 +136,6 @@ export const PROVIDERS: Provider[] = [
   p_comfyui,
   p_mimo,
   p_zai,
-  p_minimax_global
+  p_minimax_global,
+  p_teapot_router
 ]

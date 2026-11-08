@@ -3364,6 +3364,7 @@
   "provider.sophnet": "SophNet",
   "provider.stepfun": "StepFun",
   "provider.system": "Sistem OCR'si",
+  "provider.teapot-router": "Teapot Router",
   "provider.tencent-cloud-ti": "Tencent Cloud TI",
   "provider.tesseract": "Tesseract",
   "provider.together": "Together",

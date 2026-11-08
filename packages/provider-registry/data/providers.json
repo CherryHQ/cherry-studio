@@ -2935,7 +2935,35 @@
       },
       "name": "minimax-global",
       "presetProviderId": "minimax"
+    },
+    {
+      "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "Teapot Router - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://api.teapotrouter.com"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.teapotrouter.com/v1",
+          "modelsApiUrls": {
+            "default": "https://api.teapotrouter.com/v1/models"
+          }
+        }
+      },
+      "id": "teapot-router",
+      "metadata": {
+        "website": {
+          "apiKey": "https://teapotrouter.com/en/dashboard/keys",
+          "docs": "https://teapotrouter.com/en/docs",
+          "models": "https://teapotrouter.com/pricing",
+          "official": "https://teapotrouter.com"
+        }
+      },
+      "name": "Teapot Router"
     }
   ],
-  "version": "4c51709815c4b53a"
+  "version": "2144ebf0829cba9d"
 }
