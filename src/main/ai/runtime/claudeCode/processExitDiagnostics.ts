@@ -89,11 +89,14 @@ export function isClaudeCodeProcessFailure(error: unknown, diagnostics?: ClaudeC
 }
 
 function safeProcessOutput(output: string): string {
-  // Stderr may contain credentials, private endpoint URLs, paths or terminal control sequences.
+  // An unquoted path's end is ambiguous when it contains spaces. Prefer losing
+  // the remainder of that diagnostic line to exposing a private path suffix.
+  const ansiColor = new RegExp(String.fromCharCode(27) + '\\[[0-9;]*[A-Za-z]', 'g')
   const text = output
+    .replace(ansiColor, '')
     .replace(/https?:\/\/[^\s"']+/gi, '<redacted-url>')
-    .replace(/(?:[A-Za-z]:\\|\/)(?:[^\s"'<>]+[\\/])*[^\s"'<>]*/g, '<redacted-path>')
-    .replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')
+    .replace(/(?:[A-Za-z]:[\\/]|\\\\)[^\r\n]*/g, '<redacted-path>')
+    .replace(/(^|[\s"'=(:[{,;~`<>)])\/[^\r\n]*/g, '$1<redacted-path>')
   return redactSecretTokens(redactSecretText(text)).slice(0, 1000)
 }
 
