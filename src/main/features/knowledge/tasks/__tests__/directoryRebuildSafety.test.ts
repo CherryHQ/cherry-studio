@@ -20,6 +20,14 @@ describe('directory rebuild safety', () => {
     file.data.source = '/imported-docs-other/a.pdf'
     expect(() => assertDirectoryRebuildSafe(root, [file])).toThrow('independently added documents')
   })
+  it.each(['.independent.md', '.private/independent.md', 'nested/.private/independent.md'])(
+    'protects scanner-hidden %s',
+    (relative) => {
+      const file = createFileItem()
+      file.data.source = `/imported-docs/${relative}`
+      expect(() => assertDirectoryRebuildSafe(root, [file])).toThrow('independently added documents')
+    }
+  )
   it('leaves selected leaf roots alone', () => {
     expect(() => assertDirectoryRebuildSafe(createNoteItem(), [createUrlItem()])).not.toThrow()
   })

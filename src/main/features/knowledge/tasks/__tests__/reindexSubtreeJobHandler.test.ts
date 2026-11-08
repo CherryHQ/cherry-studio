@@ -42,26 +42,38 @@ function createExpandedFile(id: string, parent: string, status: 'processing' | '
 }
 
 describe('reindex-subtree job handler', () => {
-  it('preserves an independently added note before any reindex mutation', async () => {
-    const root = createDirectoryItem('dir-1')
-    const note = createNoteItem('independent-note', 'dir-1')
-    knowledgeItemGetSubtreeItemsMock.mockImplementation((_baseId, _rootIds, options = {}) =>
-      options.includeRoots ? [root, note] : [note]
-    )
-    const handler = createReindexSubtreeJobHandler(
-      knowledgeLockManager as never,
-      ingestionService,
-      new FileProcessingWaitManager()
-    )
-    await expect(handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }))).rejects.toThrow(
-      'independently added documents'
-    )
-    expect(deleteMaterialsMock).not.toHaveBeenCalled()
-    expect(deleteKnowledgeItemFilesBestEffortMock).not.toHaveBeenCalled()
-    expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
-    expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
-    expect(note.data.content).toBe('hello independent-note')
-  })
+  it.each(['note', 'hidden-file', 'hidden-directory'])(
+    'preserves an independently added note before any reindex mutation: %s',
+    async (kind) => {
+      const root = createDirectoryItem('dir-1')
+      const note =
+        kind === 'note' ? createNoteItem('independent-note', 'dir-1') : createExpandedFile('independent-note', 'dir-1')
+      if (kind !== 'note')
+        note.data.source = kind === 'hidden-file' ? '/dir-1/.independent.md' : '/dir-1/.private/independent.md'
+      knowledgeItemGetSubtreeItemsMock.mockImplementation((_baseId, _rootIds, options = {}) =>
+        options.includeRoots ? [root, note] : [note]
+      )
+      const handler = createReindexSubtreeJobHandler(
+        knowledgeLockManager as never,
+        ingestionService,
+        new FileProcessingWaitManager()
+      )
+      await expect(handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }))).rejects.toThrow(
+        'independently added documents'
+      )
+      expect(deleteMaterialsMock).not.toHaveBeenCalled()
+      expect(deleteKnowledgeItemFilesBestEffortMock).not.toHaveBeenCalled()
+      expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
+      expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
+      expect(note.type === 'note' ? note.data.content : note.data.source).toBe(
+        kind === 'note'
+          ? 'hello independent-note'
+          : kind === 'hidden-file'
+            ? '/dir-1/.independent.md'
+            : '/dir-1/.private/independent.md'
+      )
+    }
+  )
 
   it('rechecks a note added between activation and the reset lock', async () => {
     const root = createDirectoryItem('dir-1')

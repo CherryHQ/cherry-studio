@@ -39,22 +39,34 @@ function createExpandedFile(id: string, parent: string, status: 'processing' | '
 }
 
 describe('prepare-root job handler', () => {
-  it('preserves independently added notes in prepare-root retry cleanup', async () => {
-    const root = createDirectoryItem('dir-1')
-    const note = createNoteItem('independent-note', 'dir-1')
-    knowledgeItemGetByIdMock.mockReturnValue(root)
-    knowledgeItemGetSubtreeItemsMock.mockReturnValue([note])
-    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
-    await expect(handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }))).rejects.toThrow(
-      'independently added documents'
-    )
-    expect(deleteMaterialsMock).not.toHaveBeenCalled()
-    expect(deleteKnowledgeItemFilesBestEffortMock).not.toHaveBeenCalled()
-    expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
-    expect(removeDirMock).not.toHaveBeenCalled()
-    expect(expandDirectoryOwnerToTreeMock).not.toHaveBeenCalled()
-    expect(note.data.content).toBe('hello independent-note')
-  })
+  it.each(['note', 'hidden-file', 'hidden-directory'])(
+    'preserves independently added notes in prepare-root retry cleanup: %s',
+    async (kind) => {
+      const root = createDirectoryItem('dir-1')
+      const note =
+        kind === 'note' ? createNoteItem('independent-note', 'dir-1') : createExpandedFile('independent-note', 'dir-1')
+      if (kind !== 'note')
+        note.data.source = kind === 'hidden-file' ? '/dir-1/.independent.md' : '/dir-1/.private/independent.md'
+      knowledgeItemGetByIdMock.mockReturnValue(root)
+      knowledgeItemGetSubtreeItemsMock.mockReturnValue([note])
+      const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
+      await expect(handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }))).rejects.toThrow(
+        'independently added documents'
+      )
+      expect(deleteMaterialsMock).not.toHaveBeenCalled()
+      expect(deleteKnowledgeItemFilesBestEffortMock).not.toHaveBeenCalled()
+      expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
+      expect(removeDirMock).not.toHaveBeenCalled()
+      expect(expandDirectoryOwnerToTreeMock).not.toHaveBeenCalled()
+      expect(note.type === 'note' ? note.data.content : note.data.source).toBe(
+        kind === 'note'
+          ? 'hello independent-note'
+          : kind === 'hidden-file'
+            ? '/dir-1/.independent.md'
+            : '/dir-1/.private/independent.md'
+      )
+    }
+  )
 
   it('clears stale expansion and schedules recreated leaves', async () => {
     const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)

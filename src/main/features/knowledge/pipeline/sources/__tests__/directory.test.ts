@@ -375,3 +375,27 @@ describe('expandDirectoryOwnerToTree', () => {
     ).rejects.toBe(abortError)
   })
 })
+
+describe('explicit hidden additions cannot be reconstructed', () => {
+  it('does not expand an explicit hidden file or a file under a hidden directory', async () => {
+    const root = createTempRoot()
+    try {
+      realFs.writeFileSync(realPath.join(root, '.independent.md'), 'authoritative hidden file')
+      realFs.mkdirSync(realPath.join(root, '.private'))
+      realFs.writeFileSync(realPath.join(root, '.private', 'independent.md'), 'authoritative nested file')
+      realFs.writeFileSync(realPath.join(root, 'visible.md'), 'visible file')
+      const tree = await expandDirectoryOwnerToTree(
+        createDirectoryOwner(root),
+        'kb-1',
+        'docs',
+        createSignal(),
+        ignoreCopyProgress
+      )
+      expect(tree).toHaveLength(1)
+      expect(tree[0]).toMatchObject({ type: 'file', data: { source: realPath.join(root, 'visible.md') } })
+      expect(realFs.readFileSync(realPath.join(root, '.independent.md'), 'utf8')).toBe('authoritative hidden file')
+    } finally {
+      realFs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+})

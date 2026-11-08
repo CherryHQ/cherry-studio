@@ -10,7 +10,15 @@ export function assertDirectoryRebuildSafe(root: KnowledgeItem, descendants: Kno
     if (item.id === root.id) return false
     if (item.type !== 'file' && item.type !== 'directory') return true
     const relative = path.relative(sourceRoot, path.resolve(item.data.source))
-    return relative === '' || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)
+    return (
+      relative === '' ||
+      relative === '..' ||
+      relative.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(relative) ||
+      // The directory scanner skips dot-prefixed entries at every depth. Containment alone
+      // does not mean an explicitly added source can be recreated after cleanup.
+      relative.split(path.sep).some((segment) => segment.startsWith('.'))
+    )
   })
   if (independent) {
     throw new Error(
