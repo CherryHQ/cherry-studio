@@ -9,11 +9,7 @@ import { definePlugin } from '../'
 import { mergeProviderOptions } from '../../options'
 import { extensionRegistry } from '../../providers'
 import type { ToolCapability } from '../../providers/types/toolFactory'
-export const providerToolPlugin = (
-  capability: ToolCapability,
-  config: Record<string, any> = {},
-  options: { anthropicWebToolSchema?: 'basic' | 'dynamic' } = {}
-) =>
+export const providerToolPlugin = (capability: ToolCapability, config: Record<string, any> = {}) =>
   definePlugin({
     name: capability,
     enforce: 'pre',
@@ -30,7 +26,7 @@ export const providerToolPlugin = (
       if (!resolved) return params
 
       const userConfig = config[providerId] ?? {}
-      const patch = resolved.factory(resolved.provider)(userConfig, options.anthropicWebToolSchema)
+      const patch = resolved.factory(resolved.provider)(userConfig)
 
       if (patch.tools) {
         params.tools = { ...params.tools, ...patch.tools }

@@ -11,10 +11,10 @@ import type {
   CoreProviderSettingsMap,
   ExtensionConfigToIdResolutionMap,
   ExtractExtensionIds,
-  ExtractToolConfig,
   ExtractProviderIds,
   StringKeys,
-  UnionToIntersection
+  UnionToIntersection,
+  WebSearchToolConfigMap
 } from '../types'
 
 describe('Type Utilities', () => {
@@ -269,13 +269,8 @@ describe('ProviderExtensionConfig Type Constraints', () => {
   })
 })
 
-it('extracts tool config with an optional schema argument', () => {
-  type Extension = {
-    config: {
-      toolFactories: {
-        webSearch: (provider: unknown) => (config: { maxUses?: number }, schema?: 'basic' | 'dynamic') => object
-      }
-    }
-  }
-  expectTypeOf<ExtractToolConfig<Extension, 'webSearch'>>().toEqualTypeOf<{ maxUses?: number }>()
+it('exposes the Anthropic schema selector through its provider-specific tool config', () => {
+  expectTypeOf<NonNullable<WebSearchToolConfigMap['anthropic']>['schema']>().toEqualTypeOf<
+    'basic' | 'dynamic' | undefined
+  >()
 })

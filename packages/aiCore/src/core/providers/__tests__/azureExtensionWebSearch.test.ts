@@ -86,8 +86,8 @@ it.each(['claude-opus-4-5', 'claude-opus-4-6', 'deployment-alias'])(
       },
       { model, prompt: 'hello' },
       [
-        providerToolPlugin('webSearch', {}, { anthropicWebToolSchema: 'dynamic' }),
-        providerToolPlugin('urlContext', {}, { anthropicWebToolSchema: 'dynamic' })
+        providerToolPlugin('webSearch', { 'azure-anthropic': { schema: 'dynamic' } }),
+        providerToolPlugin('urlContext', { 'azure-anthropic': { schema: 'dynamic' } })
       ]
     )
     expect(body.tools.map((tool: { type: string }) => tool.type)).toEqual(['web_search_20250305', 'web_fetch_20250910'])
