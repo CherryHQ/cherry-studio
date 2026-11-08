@@ -167,6 +167,19 @@ describe('MinimalToolbar address bar', () => {
     await waitFor(() => expect(mocks.loadURL).toHaveBeenCalledWith('https://example.com:8080/path'))
   })
 
+  it('loads a bare IPv6 loopback address instead of rejecting it', async () => {
+    const { webview } = createWebview()
+    const user = userEvent.setup()
+    renderToolbar(webview)
+
+    const address = screen.getByRole('textbox', { name: 'URL' })
+    await user.clear(address)
+    await user.type(address, '::1/status{Enter}')
+
+    await waitFor(() => expect(mocks.loadURL).toHaveBeenCalledWith('http://[::1]/status'))
+    expect(mocks.toastError).not.toHaveBeenCalled()
+  })
+
   it('normalizes a local hostname with an explicit port as HTTP', async () => {
     const { webview } = createWebview()
     const user = userEvent.setup()

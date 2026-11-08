@@ -182,6 +182,7 @@
 | [Handler Authoring](./references/job-and-scheduler/handler-authoring.md) | Writing a JobHandler — onInit registration timing, minimal echo example, and JobRegistry type binding |
 | [Migration Checklist](./references/job-and-scheduler/migration-checklist.md) | Per-handler checklist for migrating existing background services to JobManager — recovery, queues, tests, data moves |
 | [Job & Scheduler — Architecture Overview](./references/job-and-scheduler/overview.md) | Job and scheduler architecture — two-service split, DB-driven dispatch, six-state machine, and startup recovery |
+| [Scheduled tasks page](./references/job-and-scheduler/scheduled-tasks-page.md) | Scheduled tasks page navigation, conversation selection, pagination, and upgrade behavior |
 | [Scheduler Usage — Decision Tree](./references/job-and-scheduler/scheduler-usage.md) | Decision tree for choosing JobManager, SchedulerService, BaseService.registerInterval, or a raw timer |
 
 ### Knowledge

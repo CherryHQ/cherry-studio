@@ -41,6 +41,7 @@ import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useCherryCloudQuotaExhaustion } from '@renderer/hooks/useCherryCloudQuotaExhaustion'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useLatest } from '@renderer/hooks/useLatest'
 import { useModelById, useModels } from '@renderer/hooks/useModel'
@@ -72,6 +73,7 @@ import type { Provider } from '@shared/data/types/provider'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
+import { CherryCloudQuotaNotice } from '../CherryCloudQuotaNotice'
 import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
@@ -890,6 +892,7 @@ const ChatComposerInner = ({
     useMentionedModelSelector && !isMentionedModelSelectorLocked && mentionedModelSelectorValue.length === 0
       ? t('code.model_required')
       : undefined
+  const quotaExhaustion = useCherryCloudQuotaExhaustion(effectiveSubmittedModel)
   const isModelUnavailable =
     !missingAssistantMessage &&
     !runtimeModelPending &&
@@ -1440,7 +1443,8 @@ const ChatComposerInner = ({
     scopeKey: selectedKnowledgeBasesScopeKey,
     status: streamStatus,
     lastCompletedAt,
-    onDrain: sendQueuedPayload
+    onDrain: sendQueuedPayload,
+    blocked: !!quotaExhaustion
   })
   releaseFollowupEditRef.current = releaseEdit
 
@@ -1448,8 +1452,9 @@ const ChatComposerInner = ({
     (item) => (item.payload.mentionedModels?.length ?? 0) > 0
   )
   const isQueuedFollowupSteerDisabled = useCallback(
-    (item: FollowupQueueItem) => (isPending || awaitingApproval) && item.payload.chatTarget?.mode === 'reserved-branch',
-    [awaitingApproval, isPending]
+    (item: FollowupQueueItem) =>
+      !!quotaExhaustion || ((isPending || awaitingApproval) && item.payload.chatTarget?.mode === 'reserved-branch'),
+    [awaitingApproval, isPending, quotaExhaustion]
   )
   const { models: allModels } = useModels({ enabled: true }, { fetchEnabled: queuedFollowupModelsDataEnabled })
 
@@ -1644,6 +1649,8 @@ const ChatComposerInner = ({
       }
 
       if (editingMessageForCurrentTopic) {
+        // Save-only edits stay available out of quota; only the resend is held.
+        if (quotaExhaustion) return
         await commitEditedMessage(draft, true)
         return
       }
@@ -1704,6 +1711,7 @@ const ChatComposerInner = ({
       loading,
       missingAssistantMessage,
       missingSelectedModelMessage,
+      quotaExhaustion,
       runtimeModel,
       runtimeModelPending,
       selectedModelForMissingAssistantDefault,
@@ -1797,6 +1805,29 @@ const ChatComposerInner = ({
     </>
   )
 
+  const followupsDock =
+    queuedFollowups.length > 0 ? (
+      <QueuedFollowupsDock
+        items={queuedFollowups}
+        paused={followupPaused}
+        onTogglePause={() => setFollowupPaused(!followupPaused)}
+        onSteer={sendFollowup}
+        onEdit={(id) => {
+          if (directSendInFlightRef.current) return
+          editFollowup(id, {
+            editingMessage: Boolean(editingMessageForCurrentTopic),
+            getDraft: () => actionsRef.current.getDraft(),
+            buildPayload: buildQueuedPayload,
+            hasFiles: files.length > 0,
+            restore: restoreFollowupDraft
+          })
+        }}
+        onRemove={removeFollowup}
+        onReorder={reorderFollowups}
+        isSteerDisabled={isQueuedFollowupSteerDisabled}
+      />
+    ) : undefined
+
   return (
     <ComposerToolDerivedStateProvider
       couldAddImageFile={canAddImageFile}
@@ -1831,7 +1862,8 @@ const ChatComposerInner = ({
             hasPendingReference ||
             !!missingAssistantMessage ||
             !!missingModelMessage ||
-            !!missingSelectedModelMessage
+            !!missingSelectedModelMessage ||
+            (!!quotaExhaustion && !editingMessageForCurrentTopic)
           }
           sendBlockedReason={
             isSavingEdit || isDirectSending || sendDisabled || hasPendingReference
@@ -1867,27 +1899,14 @@ const ChatComposerInner = ({
           }
           onPause={onPause}
           queueContent={
-            queuedFollowups.length > 0 ? (
-              <QueuedFollowupsDock
-                items={queuedFollowups}
-                paused={followupPaused}
-                onTogglePause={() => setFollowupPaused(!followupPaused)}
-                onSteer={sendFollowup}
-                onEdit={(id) => {
-                  if (directSendInFlightRef.current) return
-                  editFollowup(id, {
-                    editingMessage: Boolean(editingMessageForCurrentTopic),
-                    getDraft: () => actionsRef.current.getDraft(),
-                    buildPayload: buildQueuedPayload,
-                    hasFiles: files.length > 0,
-                    restore: restoreFollowupDraft
-                  })
-                }}
-                onRemove={removeFollowup}
-                onReorder={reorderFollowups}
-                isSteerDisabled={isQueuedFollowupSteerDisabled}
-              />
-            ) : undefined
+            quotaExhaustion ? (
+              <>
+                <CherryCloudQuotaNotice exhaustion={quotaExhaustion} />
+                {followupsDock}
+              </>
+            ) : (
+              followupsDock
+            )
           }
           supportedExts={supportedExts}
           setFiles={setFiles}

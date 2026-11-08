@@ -12,7 +12,12 @@ import { modelService } from '@data/services/ModelService'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { CHERRY_FAST_MODE_HEADER, DEFAULT_TIMEOUT } from '@main/ai/constants'
+import {
+  CHERRY_FAST_MODE_HEADER,
+  CHERRY_REASONING_EFFORT_HEADER,
+  CHERRY_SERVICE_TIER_HEADER,
+  DEFAULT_TIMEOUT
+} from '@main/ai/constants'
 import {
   type AgentNotificationContext,
   resolveAgentNotificationContext,
@@ -42,7 +47,7 @@ import { isExternalCliProvider, isSupportFastMode } from '@shared/utils/provider
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { gatewayCredentialsFingerprint, resolveApiGatewayRuntime } from '../agentApiGateway'
-import type { AgentSessionUsageCapture } from '../types'
+import type { AgentRuntimeConnectInput, AgentSessionUsageCapture } from '../types'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
 import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
 import { createClaudeCodeQueryOptions } from './queryOptions'
@@ -121,6 +126,7 @@ interface ConnectionMaterializationFacts {
   notificationContext: AgentNotificationContext
   contextWindow: number | null
   maxOutputTokens: number | null
+  fastMode: boolean
   proxyEnvironmentFingerprint: string
   effectiveLanguage?: string | null
 }
@@ -283,7 +289,8 @@ export async function deriveConnectionConfig(
   connectionModelId?: UniqueModelId,
   reasoningEffort: ReasoningEffortOption = 'default',
   fastMode = false,
-  selectedKnowledgeBaseIds: readonly string[] = []
+  selectedKnowledgeBaseIds: readonly string[] = [],
+  serviceTier: AgentRuntimeConnectInput['serviceTier'] = 'standard'
 ): Promise<DeriveConnectionConfigResult> {
   const unroutable = { ok: false, reason: 'unroutable' } as const
 
@@ -301,7 +308,8 @@ export async function deriveConnectionConfig(
         reasoningEffort,
         fastMode,
         selectedKnowledgeBaseIds,
-        undefined
+        undefined,
+        serviceTier
       )
     }
   } catch (error) {
@@ -339,18 +347,21 @@ async function deriveConnectionConfigFromSnapshot(
   reasoningEffort: ReasoningEffortOption,
   fastMode: boolean,
   selectedKnowledgeBaseIds: readonly string[] = [],
-  materialized?: ConnectionMaterializationFacts
+  materialized?: ConnectionMaterializationFacts,
+  serviceTier: AgentRuntimeConnectInput['serviceTier'] = 'standard'
 ): Promise<ConnectionConfig> {
   const cwd = session.workspace?.path
   if (!cwd) throw new Error(`Agent session ${session.id} has no workspace path`)
-  const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-  const provider = providerService.getByProviderId(providerId)
-  const model = modelService.getByKey(providerId, modelId)
-  const contextWindow = materialized ? materialized.contextWindow : (model.contextWindow ?? null)
-  const maxOutputTokens = materialized ? materialized.maxOutputTokens : (model.maxOutputTokens ?? null)
-  const effectiveFastMode = fastMode && isSupportFastMode(provider, model)
+  let contextWindow = materialized?.contextWindow ?? null
+  let maxOutputTokens = materialized?.maxOutputTokens ?? null
+  let effectiveFastMode = materialized?.fastMode ?? fastMode
   let routeFacts = materialized?.route
   if (!routeFacts) {
+    const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+    const provider = providerService.getByProviderId(providerId)
+    const model = modelService.getByKey(providerId, modelId)
+    contextWindow = model.contextWindow ?? null
+    maxOutputTokens = model.maxOutputTokens ?? null
     const { baseUrl } = resolveEffectiveEndpoint(provider, model)
     // Same pinning semantics as the query-request builder (see its comment).
     const pinSubModelsToPrimary = uniqueModelId !== agent.model
@@ -362,6 +373,10 @@ async function deriveConnectionConfigFromSnapshot(
       pinSubModelsToPrimary ? undefined : agent.planModel,
       pinSubModelsToPrimary ? undefined : agent.smallModel
     )
+    if (routeFacts.branch === 'external-cli') {
+      effectiveFastMode =
+        fastMode && isSupportFastMode(provider, model) && provider.fastMode.transport === 'claude-code'
+    }
   }
   const skills = materialized?.skills ?? (await buildSkillWhitelist(agent, cwd))
   const notificationContext = materialized?.notificationContext ?? resolveAgentNotificationContext(session.id, agent.id)
@@ -372,6 +387,7 @@ async function deriveConnectionConfigFromSnapshot(
     contextWindow,
     maxOutputTokens,
     reasoningEffort,
+    serviceTier: routeFacts.branch === 'gateway' ? serviceTier : undefined,
     fastMode: effectiveFastMode,
     route: buildRebuildRouteFacts(routeFacts),
     cwd,
@@ -462,7 +478,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   /** Fast selection frozen when the turn was submitted. */
   fastMode = false,
   /** Composer knowledge selection frozen when the turn was submitted. */
-  selectedKnowledgeBaseIds: readonly string[] = []
+  selectedKnowledgeBaseIds: readonly string[] = [],
+  serviceTier: AgentRuntimeConnectInput['serviceTier'] = 'standard'
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
   const session = agentSessionService.getById(sessionId)
   if (!session?.agentId) return undefined
@@ -482,8 +499,11 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   // compaction window from the one actually passed to Claude Code.
   const contextWindow = model.contextWindow
   const maxOutputTokens = model.maxOutputTokens
-  const fastModeTransport = fastMode && isSupportFastMode(provider, model) ? provider.fastMode.transport : undefined
-  const thinkingOptions = resolveClaudeCodeThinkingOptions(model, reasoningEffort)
+  const nativeFastMode =
+    isExternalCliProvider(provider) &&
+    fastMode &&
+    isSupportFastMode(provider, model) &&
+    provider.fastMode.transport === 'claude-code'
   const { baseUrl } = resolveEffectiveEndpoint(provider, model)
   // A captured turn must not pick up root or background model edits made before its connection opens.
   const pinSubModelsToPrimary = uniqueModelId !== agent.model
@@ -522,14 +542,15 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         notificationContext,
         knowledgeBaseIds: selectedKnowledgeBaseIds,
         supportsImages: Array.isArray(model.capabilities) && isVisionModel(model),
-        thinkingOptions,
-        fastMode: fastModeTransport === 'claude-code',
+        thinkingOptions:
+          route.branch === 'external-cli' ? resolveClaudeCodeThinkingOptions(model, reasoningEffort) : undefined,
+        fastMode: nativeFastMode,
         effectiveLanguage
       },
       agent
     ),
     route,
-    fastModeTransport
+    { reasoningEffort, serviceTier, fastMode }
   )
   // Capture the baseline from the exact route, MCP rows, agent snapshot, and skill list that
   // materialized this request. This runs after route materialization so a first-use gateway key is
@@ -548,11 +569,13 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       notificationContext,
       contextWindow: contextWindow ?? null,
       maxOutputTokens: maxOutputTokens ?? null,
+      fastMode: route.branch === 'gateway' ? fastMode : nativeFastMode,
       proxyEnvironmentFingerprint: createAgentProxyEnvironmentFingerprint(settings.env ?? {}, {
         additionalBypassRule: gatewayBypassRule(route)
       }),
       effectiveLanguage
-    }
+    },
+    serviceTier
   )
   const sdkModelId = route.modelIds.primary
   const options = createClaudeCodeQueryOptions({
@@ -560,11 +583,6 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     settings,
     effectiveResume: resumeSessionId ?? settings.resume
   })
-
-  if (options.includePartialMessages === undefined) {
-    options.includePartialMessages = true
-  }
-  options.forwardSubagentText = true
 
   return {
     connectionConfig,
@@ -583,10 +601,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   }
 }
 
-/**
- * Claude Agent SDK always speaks the Anthropic-native reasoning dialect. When its route points at
- * Cherry's gateway, the gateway translates those native fields again for the target endpoint.
- */
+/** Encode reasoning for CLI subscriptions, whose requests bypass Cherry's provider execution. */
 function resolveClaudeCodeThinkingOptions(
   model: Model,
   reasoningEffort: ReasoningEffortOption
@@ -821,16 +836,20 @@ function resolveAnthropicBaseUrl(provider: Provider, baseUrl: string) {
 function mergeRuntimeSettings(
   settings: ClaudeCodeSettings,
   route: ClaudeCodeRuntimeRoute,
-  fastModeTransport?: NonNullable<Provider['fastMode']>['transport']
+  requestOptions: Pick<AgentRuntimeConnectInput, 'reasoningEffort' | 'serviceTier' | 'fastMode'> = {}
 ): ClaudeCodeSettings {
-  const fastModeHeaders =
-    route.branch === 'gateway' && fastModeTransport === 'openai-priority'
-      ? `${CHERRY_FAST_MODE_HEADER}: true`
+  const requestHeaders =
+    route.branch === 'gateway'
+      ? {
+          [CHERRY_REASONING_EFFORT_HEADER]: requestOptions.reasoningEffort ?? 'default',
+          [CHERRY_SERVICE_TIER_HEADER]: requestOptions.serviceTier ?? 'standard',
+          [CHERRY_FAST_MODE_HEADER]: String(requestOptions.fastMode === true)
+        }
       : undefined
   const customHeaders = mergeAnthropicCustomHeaders(
     settings.env?.ANTHROPIC_CUSTOM_HEADERS,
     route.customHeaders,
-    fastModeHeaders
+    requestHeaders
   )
   const env = mergeAgentLoopbackProxyBypass(
     {

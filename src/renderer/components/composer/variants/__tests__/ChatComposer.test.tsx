@@ -11,6 +11,7 @@ import { cacheService } from '@data/CacheService'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
 import type * as ModelSpeedControlModule from '@renderer/components/ModelSpeedControl'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
+import type { CherryCloudQuotaExhaustion } from '@renderer/hooks/useCherryCloudQuotaExhaustion'
 import type * as UseProviderModule from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import { voiceTargetManager } from '@renderer/services/voice'
@@ -27,6 +28,7 @@ import type { ComposerToolFooterAction } from '../../toolLauncher'
 import ChatComposer, { ChatHomeComposer, ChatPlacementComposer } from '../ChatComposer'
 
 const mocks = vi.hoisted(() => ({
+  quotaExhaustion: null as CherryCloudQuotaExhaustion | null,
   createTopic: vi.fn(),
   updateTopic: vi.fn(),
   setModel: vi.fn(),
@@ -576,7 +578,12 @@ vi.mock('@renderer/hooks/useProvider', async (importOriginal) => {
   }
 })
 
+vi.mock('@renderer/hooks/useCherryCloudQuotaExhaustion', () => ({
+  useCherryCloudQuotaExhaustion: () => mocks.quotaExhaustion
+}))
+
 vi.mock('@renderer/hooks/command', () => ({
+  useCommandRuntime: () => ({ execute: vi.fn() }),
   useCommandHandler: (command: string, handler: () => void, options?: { enabled?: boolean }) => {
     mocks.commandHandlers.set(command, handler)
     mocks.commandOptions.set(command, options ?? {})
@@ -686,6 +693,7 @@ const originalFetch = globalThis.fetch
 
 describe('ChatComposer', () => {
   beforeEach(() => {
+    mocks.quotaExhaustion = null
     globalThis.fetch = vi.fn(async () => ({
       ok: true,
       blob: async () => new Blob([new Uint8Array(42)], { type: 'image/png' })
@@ -861,6 +869,17 @@ describe('ChatComposer', () => {
     globalThis.ResizeObserver = originalResizeObserver
   })
 
+  it('blocks sending and shows the quota notice while the current model is out of quota', () => {
+    mocks.quotaExhaustion = { reason: 'quota_exhausted', isFreeModel: true, isSubscribed: false }
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+    // The notice explains the block; a send-blocked toast would repeat it.
+    expect(mocks.surfaceProps?.sendBlockedReason).toBeUndefined()
+    render(<>{mocks.surfaceProps?.queueContent}</>)
+    expect(screen.getByRole('button', { name: 'settings.subscription.go_to_subscribe' })).toBeInTheDocument()
+  })
   it('appends a screenshot and its message to the draft without sending', async () => {
     const onSend = vi.fn()
     const metadata = {
@@ -3084,6 +3103,41 @@ describe('ChatComposer', () => {
     expect(forkAndResend).toHaveBeenCalled()
     // Edits do not represent new "things the user said" — they should not enter history.
     expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
+  })
+
+  it('keeps save-only edits available out of quota while holding the resend', async () => {
+    mocks.quotaExhaustion = { reason: 'quota_exhausted', isFreeModel: true, isSubscribed: false }
+    const editMessage = vi.fn().mockResolvedValue(undefined)
+    const resend = vi.fn()
+    mocks.chatWrite = { pause: vi.fn(), editMessage, resend, forkAndResend: vi.fn() }
+    const message = {
+      id: 'msg-quota-edit',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    }
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={[{ type: 'text', text: 'original' }]} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('msg-quota-edit'))
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'edited and resent', tokens: [] })
+    })
+    expect(editMessage).not.toHaveBeenCalled()
+    expect(resend).not.toHaveBeenCalled()
+
+    expect(mocks.surfaceProps?.sendDisabled).toBe(false)
+    await act(async () => {
+      await mocks.surfaceProps?.editingState?.onSave?.({ text: 'edited only', tokens: [] })
+    })
+    expect(editMessage).toHaveBeenCalledTimes(1)
+    expect(resend).not.toHaveBeenCalled()
   })
 
   it('saves an answer-only edit when the existing reasoning part is empty', async () => {
