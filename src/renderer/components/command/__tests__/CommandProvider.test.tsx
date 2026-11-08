@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import { type ReactNode, useLayoutEffect } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CommandId } from '@shared/utils/command'
@@ -23,7 +23,7 @@ vi.mock('@data/hooks/usePreference', () => ({
   useMultiplePreferences: () => [preferenceValues, vi.fn()]
 }))
 
-import { useCommandHandler, useCommandRuntime } from '@renderer/hooks/command'
+import { type CommandHandler, useCommandHandler, useCommandRuntime } from '@renderer/hooks/command'
 
 import { CommandContextKeyProvider } from '../CommandContextKeyProvider'
 import { CommandProvider } from '../CommandProvider'
@@ -280,5 +280,30 @@ describe('keyboard routing predicates', () => {
     event.preventDefault()
     window.dispatchEvent(event)
     expect(execute).toHaveBeenCalledOnce()
+  })
+
+  it('executes the matched callback even when a predicate updates its live source', () => {
+    const first = vi.fn()
+    const replacement = vi.fn()
+    function ChangingSource() {
+      const runtime = useCommandRuntime()
+      useLayoutEffect(() => {
+        const source: { current: CommandHandler } = { current: first }
+        return runtime.registerHandler('topic.create', source, {
+          shouldHandleKeyEvent: () => {
+            source.current = replacement
+            return true
+          }
+        })
+      }, [runtime])
+      return null
+    }
+    renderProvider(<ChangingSource />)
+    dispatchShortcut({})
+    expect(first).toHaveBeenCalledOnce()
+    expect(replacement).not.toHaveBeenCalled()
+    dispatchShortcut({})
+    expect(first).toHaveBeenCalledOnce()
+    expect(replacement).toHaveBeenCalledOnce()
   })
 })

@@ -4,6 +4,7 @@ import { KeyboardLayerProvider } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
+  type CommandHandler,
   CommandRuntimeContext,
   type CommandRuntime,
   runCommandHandler,
@@ -76,7 +77,10 @@ export function CommandProvider({ children }: { children: ReactNode }) {
       const base = readScopeContext(scope, stateRef.current.context)
       const context: ContextReader = (key) =>
         key === 'input.focused' ? editable : typeof base === 'function' ? base(key) : undefined
-      const candidates = new Map<CommandId, ReturnType<typeof findScopeHandler>>()
+      const candidates = new Map<
+        CommandId,
+        { entry: NonNullable<ReturnType<typeof findScopeHandler>>; handler: CommandHandler }
+      >()
       const command = resolveCommandByKeybinding({
         binding: getShortcutBindingFromKeyboardEvent(event, platform as SupportedPlatform),
         preferences: stateRef.current.shortcutPreferences,
@@ -85,15 +89,15 @@ export function CommandProvider({ children }: { children: ReactNode }) {
         scope: 'renderer',
         canExecuteCommand: (id) => {
           const entry = findScopeHandler(scope, id)
-          candidates.set(id, entry)
+          if (entry) candidates.set(id, { entry, handler: readRegisteredHandler(entry) })
           return Boolean(entry)
         }
       })
       if (!command) return
-      const entry = candidates.get(command)
-      if (!entry || entry.options.shouldHandleKeyEvent?.(event) === false) return
+      const candidate = candidates.get(command)
+      if (!candidate || candidate.entry.options.shouldHandleKeyEvent?.(event) === false) return
       event.preventDefault()
-      runCommandHandler(command, readRegisteredHandler(entry))
+      runCommandHandler(command, candidate.handler)
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
