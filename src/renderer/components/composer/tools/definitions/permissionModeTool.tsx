@@ -112,7 +112,7 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
               order: 79,
               label: t(planCard.titleKey, planCard.titleFallback),
               description: t(planCard.descriptionKey, planCard.descriptionFallback),
-              suffix: 'Shift+Tab',
+              shortcut: 'Shift+Tab',
               icon: <PermissionModeIcon mode="plan" />,
               active: currentMode === 'plan',
               action: () => handleSelectMode(currentMode === 'plan' ? 'default' : 'plan')

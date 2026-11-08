@@ -132,6 +132,7 @@ export type QuickPanelListItem = {
   /** Stable identity for selection updates and DOM keys. */
   id?: string
   label: React.ReactNode | string
+  shortcut?: string
   description?: React.ReactNode | string
   tooltip?: React.ReactNode | string
   /** In-row element used as the controlled Tooltip trigger. */
