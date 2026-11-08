@@ -886,6 +886,7 @@
   "chat.input.upload.attachment": "Télécharger la pièce jointe",
   "chat.input.upload.document_only": "Documents uniquement",
   "chat.input.upload.image_not_supported": "Ce modèle ne prend pas en charge le téléchargement d'images. Documents uniquement.",
+  "chat.input.use_as_reference": "Utiliser comme référence",
   "chat.input.web_search.builtin.disabled_content": "Le modèle actuel ne prend pas en charge la recherche web",
   "chat.input.web_search.label": "Activer la recherche web",
   "chat.input.web_search.route.builtin": "Recherches avec l'outil intégré au modèle",

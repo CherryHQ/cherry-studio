@@ -373,6 +373,7 @@ export const DEFAULT_MESSAGE_LIST_CONFIG = {
 } as const satisfies Pick<MessageListState, 'estimateSize' | 'overscan' | 'loadOlderDelayMs' | 'loadingResetDelayMs'>
 
 export interface MessageListActions {
+  addGeneratedImageToComposer?: (image: { url: string; name: string }) => void | Promise<void>
   openForkSourceSession?: (sessionId: string) => Promise<void>
   loadOlder?: () => void
   bindRuntime?: (runtime: MessageListRuntime) => void | (() => void)

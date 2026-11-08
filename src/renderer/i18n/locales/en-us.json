@@ -886,6 +886,7 @@
   "chat.input.upload.attachment": "Upload attachment",
   "chat.input.upload.document_only": "Documents only",
   "chat.input.upload.image_not_supported": "This model does not support image uploads. Documents only.",
+  "chat.input.use_as_reference": "Use as Reference",
   "chat.input.web_search.builtin.disabled_content": "The current model does not support web search",
   "chat.input.web_search.label": "Web Search",
   "chat.input.web_search.route.builtin": "Searches with the model's built-in tool",

@@ -886,6 +886,7 @@
   "chat.input.upload.attachment": "Anhang hochladen",
   "chat.input.upload.document_only": "Nur Dokumente",
   "chat.input.upload.image_not_supported": "Dieses Modell unterstützt kein Hochladen von Bildern. Nur Dokumente.",
+  "chat.input.use_as_reference": "Als Referenz verwenden",
   "chat.input.web_search.builtin.disabled_content": "Aktuelles Modell unterstützt keine Websuche",
   "chat.input.web_search.label": "Websuche",
   "chat.input.web_search.route.builtin": "Suchen mit dem integrierten Tool des Modells",

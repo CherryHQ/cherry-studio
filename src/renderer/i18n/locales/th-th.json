@@ -886,6 +886,7 @@
   "chat.input.upload.attachment": "อัปโหลดไฟล์แนบ",
   "chat.input.upload.document_only": "เฉพาะเอกสาร",
   "chat.input.upload.image_not_supported": "โมเดลนี้ไม่รองรับการอัปโหลดรูปภาพ เฉพาะเอกสาร",
+  "chat.input.use_as_reference": "ใช้เป็นภาพอ้างอิง",
   "chat.input.web_search.builtin.disabled_content": "โมเดลปัจจุบันไม่รองรับการค้นหาเว็บ",
   "chat.input.web_search.label": "ค้นหาเว็บ",
   "chat.input.web_search.route.builtin": "ค้นหาด้วยเครื่องมือในตัวของโมเดล",

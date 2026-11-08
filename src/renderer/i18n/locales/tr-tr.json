@@ -886,6 +886,7 @@
   "chat.input.upload.attachment": "Ek yükle",
   "chat.input.upload.document_only": "Yalnızca belgeler",
   "chat.input.upload.image_not_supported": "Bu model görüntü yüklemelerini desteklemiyor. Yalnızca belgeler.",
+  "chat.input.use_as_reference": "Referans olarak kullan",
   "chat.input.web_search.builtin.disabled_content": "Geçerli model web aramasını desteklemiyor",
   "chat.input.web_search.label": "Web Araması",
   "chat.input.web_search.route.builtin": "Modelin yerleşik aracıyla arar",

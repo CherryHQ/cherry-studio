@@ -886,6 +886,7 @@
   "chat.input.upload.attachment": "添付ファイルをアップロード",
   "chat.input.upload.document_only": "文書のみ",
   "chat.input.upload.image_not_supported": "このモデルは画像のアップロードに対応していません。ドキュメントのみです。",
+  "chat.input.use_as_reference": "参照として使用",
   "chat.input.web_search.builtin.disabled_content": "現在のモデルはウェブ検索をサポートしていません",
   "chat.input.web_search.label": "ウェブ検索",
   "chat.input.web_search.route.builtin": "モデル内蔵ツールを使用した検索",

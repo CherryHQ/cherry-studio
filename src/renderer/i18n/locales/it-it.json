@@ -886,6 +886,7 @@
   "chat.input.upload.attachment": "Carica allegato",
   "chat.input.upload.document_only": "Solo documenti",
   "chat.input.upload.image_not_supported": "Questo modello non supporta il caricamento di immagini. Sono consentiti solo documenti.",
+  "chat.input.use_as_reference": "Usa come riferimento",
   "chat.input.web_search.builtin.disabled_content": "Il modello attuale non supporta la ricerca sul web",
   "chat.input.web_search.label": "Ricerca sul web",
   "chat.input.web_search.route.builtin": "Cerca con lo strumento integrato del modello",

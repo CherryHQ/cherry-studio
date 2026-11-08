@@ -886,6 +886,7 @@
   "chat.input.upload.attachment": "Загрузить вложение",
   "chat.input.upload.document_only": "Только документы",
   "chat.input.upload.image_not_supported": "Эта модель не поддерживает загрузку изображений. Только документы.",
+  "chat.input.use_as_reference": "Использовать как референс",
   "chat.input.web_search.builtin.disabled_content": "Текущая модель не поддерживает веб-поиск",
   "chat.input.web_search.label": "Веб-поиск",
   "chat.input.web_search.route.builtin": "Поиск с помощью встроенного инструмента модели",

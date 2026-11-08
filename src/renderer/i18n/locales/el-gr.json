@@ -886,6 +886,7 @@
   "chat.input.upload.attachment": "Μεταφόρτωση συνημμένου",
   "chat.input.upload.document_only": "Έγγραφα μόνο",
   "chat.input.upload.image_not_supported": "Αυτό το μοντέλο δεν υποστηρίζει μεταφόρτωση εικόνων. Μόνο έγγραφα.",
+  "chat.input.use_as_reference": "Χρήση ως αναφορά",
   "chat.input.web_search.builtin.disabled_content": "Η τρέχουσα έκδοση του μοντέλου δεν υποστηρίζει τη δυνατότητα διαδικτυακής αναζήτησης",
   "chat.input.web_search.label": "Ενεργοποίηση διαδικτυακής αναζήτησης",
   "chat.input.web_search.route.builtin": "Αναζητήσεις με το ενσωματωμένο εργαλείο του μοντέλου",
