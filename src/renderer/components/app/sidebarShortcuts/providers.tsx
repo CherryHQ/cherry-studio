@@ -397,7 +397,10 @@ const codeCliProvider: SidebarShortcutProvider = {
       (tool) => ({
         label: i18n.t(tool.label),
         renderIcon: ({ slotSize, glyphSize }) => (
-          <CliIcon id={tool.value} size={tool.value === CodeCli.PI ? glyphSize : slotSize} />
+          <CliIcon
+            id={tool.value}
+            size={tool.value === CodeCli.PI || tool.value === CodeCli.OMP ? glyphSize : slotSize}
+          />
         ),
         supportsNewTab: true
       })

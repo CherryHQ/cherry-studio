@@ -15,6 +15,7 @@ import {
   buildGeminiSettingsConfig,
   buildHermesEnvConfig,
   buildKimiConfig,
+  buildOmpModelsConfig,
   buildOpenCodeConfig,
   buildPiModelsConfig,
   buildPiSettingsConfig,
@@ -25,6 +26,7 @@ import {
   CHERRY_PROVIDER_PREFIX,
   HERMES_ENDPOINTS,
   MINIMAX_ENDPOINTS,
+  OMP_ENDPOINTS,
   OPEN_CODE_ENDPOINTS,
   PI_ENDPOINTS
 } from './constants'
@@ -78,12 +80,14 @@ import {
   type HermesApiMode,
   type MinimaxApi,
   modelSupportsReasoningEffort,
+  type OmpApi,
   openCodeNpmInfoFromNpmPackage,
   resolveClaudeBaseUrl,
   resolveCodexBaseUrl,
   resolveGeminiBaseUrl,
   resolveHermesProviderInfo,
   resolveMinimaxProviderInfo,
+  resolveOmpProviderInfo,
   resolveOpenAIBaseUrl,
   resolveOpenCodeNpmInfo,
   resolvePiProviderInfo
@@ -285,6 +289,99 @@ function clearMinimaxConfig(content: string): string | null {
   ) {
     document.delete('defaultModel')
   }
+  return document.toString()
+}
+
+function ompManagedProviderKey(document: Document): string | undefined {
+  const providers = document.getIn(['providers'])
+  return isMap(providers)
+    ? providers.items
+        .map((item) => (isScalar(item.key) ? String(item.key.value) : ''))
+        .find((key) => key.startsWith(CHERRY_PROVIDER_PREFIX))
+    : undefined
+}
+
+function ompManagedApi(document: Document, providerKey: string): OmpApi {
+  const api = document.getIn(['providers', providerKey, 'api'])
+  return api === 'anthropic-messages' ||
+    api === 'openai-completions' ||
+    api === 'openai-responses' ||
+    api === 'google-generative-ai'
+    ? api
+    : 'openai-completions'
+}
+
+/** Delete every Cherry-managed `providers` entry; returns the deleted keys. */
+function deleteOmpManagedProviders(document: Document): string[] {
+  const deletedKeys: string[] = []
+  let providerKey = ompManagedProviderKey(document)
+  while (providerKey) {
+    document.deleteIn(['providers', providerKey])
+    deletedKeys.push(providerKey)
+    providerKey = ompManagedProviderKey(document)
+  }
+  return deletedKeys
+}
+
+function writeOmpConfig(
+  document: Document,
+  resolved: {
+    api: OmpApi
+    apiKey: string
+    baseUrl: string
+    contextWindow?: number
+    headers?: Record<string, string>
+    input: Array<'image' | 'text'>
+    maxTokens?: number
+    model: string
+    modelLabel: string
+    providerKey: string
+    reasoning: boolean
+  }
+): string {
+  deleteOmpManagedProviders(document)
+  // Single source of truth for the provider-node shape lives in buildOmpModelsConfig
+  // (covered by builders.test.ts); the Document path only handles comment-preserving
+  // YAML placement, not schema construction.
+  const built = buildOmpModelsConfig({}, resolved)
+  const provider = (built.providers as Record<string, any>)[resolved.providerKey]
+  document.setIn(['providers', resolved.providerKey], document.createNode(provider))
+  return document.toString()
+}
+
+function clearOmpConfig(content: string): string | null {
+  const document = parseYamlDocumentOrThrow(content)
+  const deletedKeys = deleteOmpManagedProviders(document)
+  if (deletedKeys.length === 0) return null
+  const nextProviders = document.getIn(['providers'])
+  if (isMap(nextProviders) && nextProviders.items.length === 0) document.delete('providers')
+  return document.toString()
+}
+
+function ompConfigManagedDefault(document: Document): string | undefined {
+  const def = document.getIn(['modelRoles', 'default'])
+  return typeof def === 'string' && def.startsWith(CHERRY_PROVIDER_PREFIX) ? def : undefined
+}
+
+function writeOmpConfigDefault(document: Document, providerKey: string, model: string): string {
+  const existing = document.get('modelRoles', true)
+  // A bare `modelRoles:` parses to a null scalar node, not a missing key — an empty
+  // section is a valid starting point, not a malformed mapping.
+  if (existing == null || (isScalar(existing) && existing.value == null)) {
+    document.set('modelRoles', document.createNode({}))
+  } else if (!isMap(existing)) {
+    throw new Error('invalid OMP config: expected an object')
+  }
+  document.setIn(['modelRoles', 'default'], `${providerKey}/${model}`)
+  return document.toString()
+}
+
+function clearOmpConfigDefault(content: string): string | null {
+  const document = parseYamlDocumentOrThrow(content)
+  if (!ompConfigManagedDefault(document)) return null
+  document.deleteIn(['modelRoles', 'default'])
+  const modelRoles = document.get('modelRoles', true)
+  if (isMap(modelRoles) && modelRoles.items.length === 0) document.delete('modelRoles')
   return document.toString()
 }
 
@@ -1101,6 +1198,149 @@ const piAdapter: CliConfigAdapter = {
   }
 }
 
+// OMP inherits Pi's provider schema but stores it as YAML. Custom providers live in
+// `~/.omp/agent/models.yml` under `providers:`; the active model is selected via
+// `~/.omp/agent/config.yml` `modelRoles.default` (`provider/model`, e.g.
+// `cherry-DeepSeek/deepseek-chat`), mirroring Pi's `settings.json`
+// `defaultProvider/defaultModel`. Both files preserve user entries and comments.
+const ompAdapter: CliConfigAdapter = {
+  targets: getCliConfigTargets(CodeCli.OMP),
+  providerBaseUrls: (provider) =>
+    OMP_ENDPOINTS.flatMap((endpoint) => {
+      if (!provider.endpointConfigs?.[endpoint]?.baseUrl) return []
+      const baseUrl = normalizeUrl(resolveOmpProviderInfo(provider, [endpoint]).baseUrl)
+      return baseUrl ? [baseUrl] : []
+    }),
+  sanitize: () => ({}),
+  async buildDraft(args, context) {
+    const { provider, apiKey, model, modelLabel, modelRecord } = context
+    const providerInfo = resolveOmpProviderInfo(provider, modelRecord?.endpointTypes)
+    const providerKey = `${CHERRY_PROVIDER_PREFIX}${cliProviderKeyName(provider)}`
+    const read = await readConfigFilesForDraft(this.targets, args.files)
+    const modelsDocument = readAndParseDraftFile('omp-models', parseYamlDocumentOrThrow, args.files, read)
+    const configDocument = readAndParseDraftFile('omp-config', parseYamlDocumentOrThrow, args.files, read)
+    const input: Array<'image' | 'text'> = modelRecord?.inputModalities?.includes('image')
+      ? ['text', 'image']
+      : ['text']
+    return [
+      makeDraftFile(
+        'omp-models',
+        writeOmpConfig(modelsDocument, {
+          api: providerInfo.api,
+          apiKey,
+          baseUrl: providerInfo.baseUrl,
+          contextWindow: modelRecord?.contextWindow,
+          headers: provider.settings?.extraHeaders,
+          input,
+          maxTokens: modelRecord?.maxOutputTokens,
+          model,
+          modelLabel: modelLabel ?? model,
+          providerKey,
+          reasoning: Boolean(modelRecord?.reasoning)
+        }),
+        read
+      ),
+      makeDraftFile('omp-config', writeOmpConfigDefault(configDocument, providerKey, model), read)
+    ]
+  },
+  assertCredentials(context) {
+    const { baseUrl } = resolveOmpProviderInfo(context.provider, context.modelRecord?.endpointTypes)
+    if (!context.apiKey || !baseUrl) throw new Error('OMP config is missing required fields (apiKey/baseUrl)')
+  },
+  updateDraftConfig(files, connection) {
+    const modelsDocument = parseDraftFileOrThrow('omp-models', files, parseYamlDocumentOrThrow)
+    const configDocument = parseDraftFileOrThrow('omp-config', files, parseYamlDocumentOrThrow)
+    const providerKey = requireDraftValue(ompManagedProviderKey(modelsDocument), 'OMP provider key')
+    // Derive the plain provider for metadata preservation from the same Document
+    // (no second parse, so no divergent error path); the Document stays the
+    // comment-preserving write target.
+    const existingProvider = asRecord(asRecord(asRecord(modelsDocument.toJS()).providers)[providerKey])
+    // Preserve model metadata (name/reasoning/input/contextWindow/maxTokens) written at
+    // inject time; a config-only edit only re-keys connection fields. Reuse the builder
+    // shape for the provider node so inject and update stay in sync.
+    const existingModels: Array<Record<string, any>> = Array.isArray(existingProvider?.models)
+      ? existingProvider.models
+      : []
+    const currentModel = existingModels[0] ?? {}
+    // Hand-edited YAML may contain invalid input values or non-string headers;
+    // filter them so a config-only edit never persists values OMP would reject.
+    const rawInput = Array.isArray(currentModel.input) ? currentModel.input : []
+    const filteredInput = rawInput.filter((v): v is 'image' | 'text' => v === 'image' || v === 'text')
+    const input: Array<'image' | 'text'> = filteredInput.length > 0 ? [...new Set(filteredInput)] : ['text']
+    const rawHeaders = asRecord(existingProvider?.headers)
+    const headers = Object.fromEntries(Object.entries(rawHeaders).filter(([, v]): v is string => typeof v === 'string'))
+    const contextWindow =
+      typeof currentModel.contextWindow === 'number' && Number.isFinite(currentModel.contextWindow)
+        ? currentModel.contextWindow
+        : undefined
+    const maxTokens =
+      typeof currentModel.maxTokens === 'number' && Number.isFinite(currentModel.maxTokens)
+        ? currentModel.maxTokens
+        : undefined
+    return replaceDraftContent(
+      replaceDraftContent(
+        files,
+        'omp-models',
+        writeOmpConfig(modelsDocument, {
+          api: ompManagedApi(modelsDocument, providerKey),
+          apiKey: requireDraftValue(connection.apiKey, 'OMP API key'),
+          baseUrl: requireDraftValue(connection.baseUrl, 'OMP base URL'),
+          contextWindow,
+          headers,
+          input,
+          maxTokens,
+          model: requireDraftValue(connection.model, 'OMP model'),
+          modelLabel:
+            typeof currentModel.name === 'string' && currentModel.name.trim()
+              ? currentModel.name
+              : requireDraftValue(connection.model, 'OMP model'),
+          providerKey,
+          reasoning: currentModel.reasoning === true
+        })
+      ),
+      'omp-config',
+      writeOmpConfigDefault(configDocument, providerKey, requireDraftValue(connection.model, 'OMP model'))
+    )
+  },
+  async buildClearFiles() {
+    const read = await readConfigFiles(this.targets)
+    const files: CliConfigWriteFile[] = []
+    const models = requireReadFile('omp-models', read)
+    if (models.content !== null) {
+      const content = clearOmpConfig(models.content)
+      if (content !== null) files.push({ target: 'omp-models', content })
+    }
+    const config = requireReadFile('omp-config', read)
+    if (config.content !== null) {
+      const content = clearOmpConfigDefault(config.content)
+      if (content !== null) files.push({ target: 'omp-config', content })
+    }
+    return files
+  },
+  extractConnection(files) {
+    const modelsConfig = parseYamlOrThrow(getDraftFile(files, 'omp-models')?.content ?? '')
+    const providers = asRecord(modelsConfig.providers)
+    const providerKey = findCherryProviderKey(providers)
+    if (!providerKey) return null
+    const provider = asRecord(providers[providerKey])
+    const configuredModels = Array.isArray(provider.models) ? provider.models : []
+    const selector = stringValue(
+      asRecord(parseYamlOrThrow(getDraftFile(files, 'omp-config')?.content ?? '').modelRoles).default
+    )
+    const prefix = `${providerKey}/`
+    const defaultModel =
+      selector && selector.startsWith(prefix) ? selector.slice(prefix.length) : stringValue(configuredModels[0]?.id)
+    return {
+      baseUrl: stringValue(provider.baseUrl),
+      apiKey: stringValue(provider.apiKey),
+      model: defaultModel
+    }
+  },
+  extractConfig() {
+    return {}
+  }
+}
+
 const minimaxAdapter: CliConfigAdapter = {
   targets: getCliConfigTargets(CodeCli.MINIMAX_CODE),
   providerBaseUrls: (provider) =>
@@ -1188,6 +1428,7 @@ export const CLI_CONFIG_ADAPTERS: Record<FileConfiguredCli, CliConfigAdapter> = 
   [CodeCli.QWEN_CODE]: qwenAdapter,
   [CodeCli.KIMI_CODE]: kimiAdapter,
   [CodeCli.PI]: piAdapter,
+  [CodeCli.OMP]: ompAdapter,
   [CodeCli.HERMES]: hermesAdapter,
   [CodeCli.MINIMAX_CODE]: minimaxAdapter
 }

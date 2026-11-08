@@ -19,6 +19,8 @@ export const CLI_CONFIG_TARGET_IDS = [
   'kimi-config',
   'pi-models',
   'pi-settings',
+  'omp-models',
+  'omp-config',
   'hermes-config',
   'hermes-env',
   'minimax-config'
@@ -43,6 +45,8 @@ export const QWEN_CONFIG_PATH = '~/.qwen/settings.json'
 export const KIMI_CONFIG_PATH = '~/.kimi-code/config.toml'
 export const PI_MODELS_PATH = '~/.pi/agent/models.json'
 export const PI_SETTINGS_PATH = '~/.pi/agent/settings.json'
+export const OMP_MODELS_PATH = '~/.omp/agent/models.yml'
+export const OMP_CONFIG_PATH = '~/.omp/agent/config.yml'
 
 // Unlike the `~/…` paths above, these are relative to the runtime-resolved Hermes
 // home (HERMES_HOME or platform default) — see `pathBase: 'hermes-home'` below.
@@ -64,6 +68,8 @@ export const CLI_CONFIG_FILE_SPECS: Record<
   'kimi-config': { label: 'Kimi config.toml', path: KIMI_CONFIG_PATH, language: 'toml' },
   'pi-models': { label: 'Pi models.json', path: PI_MODELS_PATH, language: 'json' },
   'pi-settings': { label: 'Pi settings.json', path: PI_SETTINGS_PATH, language: 'json' },
+  'omp-models': { label: 'OMP models.yml', path: OMP_MODELS_PATH, language: 'yaml' },
+  'omp-config': { label: 'OMP config.yml', path: OMP_CONFIG_PATH, language: 'yaml' },
   'hermes-config': {
     label: 'Hermes config.yaml',
     pathBase: 'hermes-home',
@@ -83,6 +89,7 @@ export const FILE_CONFIGURED_CLI_TOOL_IDS = [
   CodeCli.QWEN_CODE,
   CodeCli.KIMI_CODE,
   CodeCli.PI,
+  CodeCli.OMP,
   CodeCli.HERMES,
   CodeCli.MINIMAX_CODE
 ] as const
@@ -103,6 +110,7 @@ const CLI_CONFIG_TARGETS: Record<FileConfiguredCli, readonly CliConfigTarget[]> 
   [CodeCli.QWEN_CODE]: ['qwen-settings'],
   [CodeCli.KIMI_CODE]: ['kimi-config'],
   [CodeCli.PI]: ['pi-models', 'pi-settings'],
+  [CodeCli.OMP]: ['omp-models', 'omp-config'],
   [CodeCli.HERMES]: ['hermes-config', 'hermes-env'],
   [CodeCli.MINIMAX_CODE]: ['minimax-config']
 }

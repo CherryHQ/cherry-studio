@@ -374,6 +374,7 @@ export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
   'qoder-cli',
   'github-copilot-cli',
   'pi',
+  'omp',
   'hermes',
   'minimax-code'
 ]

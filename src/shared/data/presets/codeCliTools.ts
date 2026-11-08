@@ -133,6 +133,13 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
     install: 'npm'
   }),
   defineCodeCliTool({
+    id: CodeCli.OMP,
+    executable: 'omp',
+    skillFolderName: 'code-mate-omp',
+    packageName: '@oh-my-pi/pi-coding-agent',
+    install: 'npm'
+  }),
+  defineCodeCliTool({
     id: CodeCli.HERMES,
     executable: 'hermes',
     skillFolderName: 'code-mate-hermes',

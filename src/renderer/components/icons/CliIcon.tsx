@@ -29,6 +29,10 @@ export const CLI_TOOLS = [
   { value: CodeCli.QODER_CLI, label: 'code.cli_tools.qoder_cli', icon: QoderCli },
   { value: CodeCli.GITHUB_COPILOT_CLI, label: 'code.cli_tools.github_copilot_cli', icon: GithubCopilotCli },
   { value: CodeCli.PI, label: 'code.cli_tools.pi', icon: PiCli },
+  // TODO: OMP reuses the Pi glyph until a dedicated OMP asset lands in @cherrystudio/ui.
+  // OMP is a fork of Pi, so the shared glyph is a reasonable placeholder, but the two
+  // entries are currently visually indistinguishable in the tool list/sidebar.
+  { value: CodeCli.OMP, label: 'code.cli_tools.omp', icon: PiCli },
   { value: CodeCli.HERMES, label: 'code.cli_tools.hermes', icon: Nousresearch },
   { value: CodeCli.OPENCLAW, label: 'code.cli_tools.openclaw', icon: Openclaw },
   { value: CodeCli.DEEPSEEK_HARNESS, label: 'code.cli_tools.deepseek_harness', icon: Deepseek },

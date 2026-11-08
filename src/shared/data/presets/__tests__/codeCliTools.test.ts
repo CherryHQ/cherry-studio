@@ -24,6 +24,7 @@ const EXPECTED_ACQUISITION_FACTS = [
   ['qoder-cli', 'qoderclicn', '@qodercn-ai/qoderclicn', 'npm', 'npm:@qodercn-ai/qoderclicn'],
   ['github-copilot-cli', 'copilot', '@github/copilot', 'npm', 'npm:@github/copilot'],
   ['pi', 'pi', '@earendil-works/pi-coding-agent', 'npm', 'npm:@earendil-works/pi-coding-agent'],
+  ['omp', 'omp', '@oh-my-pi/pi-coding-agent', 'npm', 'npm:@oh-my-pi/pi-coding-agent'],
   ['hermes', 'hermes', 'hermes-agent', 'pipx', 'pipx:hermes-agent[extras=web]'],
   ['minimax-code', 'mcode', '@minimax-ai/code', 'npm', 'npm:@minimax-ai/code']
 ]
@@ -41,6 +42,7 @@ const EXPECTED_SKILL_COMMANDS: Record<CodeCli, string> = {
   [CodeCli.QODER_CLI]: 'qoderclicn -p "<prompt>" -o json --no-session-persistence',
   [CodeCli.GITHUB_COPILOT_CLI]: 'copilot -p "<prompt>" -s --output-format json --no-ask-user',
   [CodeCli.PI]: 'pi --mode json --no-session "<prompt>"',
+  [CodeCli.OMP]: 'omp --mode json --no-session "<prompt>"',
   [CodeCli.HERMES]: 'hermes -z "<prompt>"',
   [CodeCli.MINIMAX_CODE]: 'mcode exec "<prompt>"'
 }
@@ -52,6 +54,7 @@ const EXPECTED_SKILL_CAVEATS: Partial<Record<CodeCli, string[]>> = {
   [CodeCli.KIMI_CODE]: ['automatically approves', 'read-only copy', 'KIMI_CODE_HOME', 'sandbox_permissions'],
   [CodeCli.QODER_CLI]: ['qoderclicn', 'is_error'],
   [CodeCli.PI]: ['no tool-approval prompt', '--tools read,grep,find,ls'],
+  [CodeCli.OMP]: ['approval mode', '--tools read,grep,glob'],
   [CodeCli.HERMES]: ['YOLO', 'exit two']
 }
 

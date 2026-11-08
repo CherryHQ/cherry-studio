@@ -18,6 +18,8 @@ const mocks = vi.hoisted(() => ({ request: vi.fn() }))
 const resolvedSpecPath = (target: CliConfigTarget) => `/resolved${CLI_CONFIG_FILE_SPECS[target].path}`
 const hermesConfigPath = resolvedSpecPath('hermes-config')
 const minimaxConfigPath = resolvedSpecPath('minimax-config')
+const ompModelsPath = resolvedSpecPath('omp-models')
+const ompAgentConfigPath = resolvedSpecPath('omp-config')
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: mocks.request }
@@ -402,6 +404,252 @@ describe('writeCliConfigDraft', () => {
       await expect(
         writeCliConfigDraft({ cliTool: CodeCli.MINIMAX_CODE, modelId: 'deepseek::deepseek-chat' })
       ).rejects.toThrow(/Failed to parse MiniMax Code config\.yaml/)
+    })
+  })
+
+  describe('omp (~/.omp/agent/models.yml + config.yml)', () => {
+    const getWritten = (target: CliConfigTarget) => {
+      const files = vi.mocked(mocks.request).mock.calls.at(-1)?.[1].files as CliConfigWriteFile[]
+      const config = files.find((file) => file.target === target)
+      if (!config || typeof config.content !== 'string') throw new Error(`Expected OMP ${target} file`)
+      return config.content
+    }
+
+    it('injects a providers entry and selects it as the default model role', async () => {
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({ cliTool: CodeCli.OMP, modelId: 'deepseek::deepseek-chat' })
+
+      expect(mocks.request).toHaveBeenCalledWith('code_cli.write_config', {
+        cliTool: CodeCli.OMP,
+        files: [
+          { target: 'omp-models', content: expect.any(String) },
+          { target: 'omp-config', content: expect.any(String) }
+        ]
+      })
+      expect(parseYaml(getWritten('omp-models'))).toEqual({
+        providers: {
+          'cherry-DeepSeek': {
+            baseUrl: 'https://api.deepseek.com/v1',
+            api: 'openai-completions',
+            apiKey: 'sk-secret',
+            models: [{ id: 'deepseek-chat', name: 'deepseek-chat', reasoning: false, input: ['text'] }]
+          }
+        }
+      })
+      expect(parseYaml(getWritten('omp-config'))).toEqual({
+        modelRoles: { default: 'cherry-DeepSeek/deepseek-chat' }
+      })
+    })
+
+    it('prefers the Anthropic dialect when the provider exposes it', async () => {
+      mockGet({
+        '/providers/anthropic': () => anthropicProvider,
+        '/providers/anthropic/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({ cliTool: CodeCli.OMP, modelId: 'anthropic::claude-4' })
+
+      const files = vi.mocked(mocks.request).mock.calls.at(-1)?.[1].files as CliConfigWriteFile[]
+      const modelsContent = files.find((file) => file.target === 'omp-models')
+      if (!modelsContent || typeof modelsContent.content !== 'string') throw new Error('Expected OMP models file')
+      expect(parseYaml(modelsContent.content).providers['cherry-Anthropic'].api).toBe('anthropic-messages')
+      expect(parseYaml(getWritten('omp-config')).modelRoles.default).toBe('cherry-Anthropic/claude-4')
+    })
+
+    it('preserves user-owned YAML presentation and replaces a stale Cherry provider and default', async () => {
+      existing[ompModelsPath] = [
+        '# user-owned comment',
+        'providers:',
+        '  cherry-old: { baseUrl: https://old.example, api: openai-completions, apiKey: stale }',
+        '  user-relay: { baseUrl: https://relay.example, api: openai-completions }',
+        ''
+      ].join('\n')
+      existing[ompAgentConfigPath] = [
+        '# config comment',
+        'theme: dark',
+        'modelRoles:',
+        '  default: cherry-old/old-model',
+        ''
+      ].join('\n')
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({ cliTool: CodeCli.OMP, modelId: 'deepseek::deepseek-chat' })
+
+      const modelsContent = getWritten('omp-models')
+      expect(modelsContent).toContain('# user-owned comment')
+      const parsedModels = parseYaml(modelsContent)
+      expect(parsedModels.providers['cherry-old']).toBeUndefined()
+      expect(parsedModels.providers['cherry-DeepSeek'].baseUrl).toBe('https://api.deepseek.com/v1')
+      expect(parsedModels.providers['user-relay']).toBeDefined()
+      const configContent = getWritten('omp-config')
+      expect(configContent).toContain('# config comment')
+      const parsedConfig = parseYaml(configContent)
+      expect(parsedConfig.theme).toBe('dark')
+      expect(parsedConfig.modelRoles.default).toBe('cherry-DeepSeek/deepseek-chat')
+    })
+
+    it('round-trips the connection through extract and update without drift', async () => {
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({ cliTool: CodeCli.OMP, modelId: 'deepseek::deepseek-chat' })
+
+      const files = vi.mocked(mocks.request).mock.calls.at(-1)?.[1].files as CliConfigWriteFile[]
+      const modelsFile = files.find((file) => file.target === 'omp-models')
+      const configFile = files.find((file) => file.target === 'omp-config')
+      if (
+        !modelsFile ||
+        typeof modelsFile.content !== 'string' ||
+        !configFile ||
+        typeof configFile.content !== 'string'
+      ) {
+        throw new Error('Expected OMP models and config files')
+      }
+      const draft = [
+        {
+          target: 'omp-models',
+          label: 'OMP models.yml',
+          path: ompModelsPath,
+          language: 'yaml',
+          content: modelsFile.content
+        } as const,
+        {
+          target: 'omp-config',
+          label: 'OMP config.yml',
+          path: ompAgentConfigPath,
+          language: 'yaml',
+          content: configFile.content
+        } as const
+      ]
+      expect(extractConnectionFromCliConfigDraft(CodeCli.OMP, [...draft])).toEqual({
+        baseUrl: 'https://api.deepseek.com/v1',
+        apiKey: 'sk-secret',
+        model: 'deepseek-chat'
+      })
+
+      const updated = updateCliConfigDraftConfig(CodeCli.OMP, [...draft], {})
+      const updatedModels = updated.find((file) => file.target === 'omp-models')!
+      const updatedConfig = updated.find((file) => file.target === 'omp-config')!
+      const draftModels = draft.find((file) => file.target === 'omp-models')!
+      const draftConfig = draft.find((file) => file.target === 'omp-config')!
+      expect(parseYaml(updatedModels.content)).toEqual(parseYaml(draftModels.content))
+      expect(parseYaml(updatedConfig.content)).toEqual(parseYaml(draftConfig.content))
+    })
+
+    it('reads the model from config.yml modelRoles.default when it points at the cherry provider', async () => {
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({ cliTool: CodeCli.OMP, modelId: 'deepseek::deepseek-chat' })
+
+      const files = vi.mocked(mocks.request).mock.calls.at(-1)?.[1].files as CliConfigWriteFile[]
+      const modelsFile = files.find((file) => file.target === 'omp-models')
+      if (!modelsFile || typeof modelsFile.content !== 'string') throw new Error('Expected OMP models file')
+      const draft = [
+        {
+          target: 'omp-models',
+          label: 'OMP models.yml',
+          path: ompModelsPath,
+          language: 'yaml',
+          content: modelsFile.content
+        } as const,
+        {
+          target: 'omp-config',
+          label: 'OMP config.yml',
+          path: ompAgentConfigPath,
+          language: 'yaml',
+          content: 'modelRoles:\n  default: cherry-DeepSeek/deepseek-chat\n'
+        } as const
+      ]
+      expect(extractConnectionFromCliConfigDraft(CodeCli.OMP, [...draft])?.model).toBe('deepseek-chat')
+    })
+
+    it('sanitizes invalid input values and non-string headers on update', async () => {
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({ cliTool: CodeCli.OMP, modelId: 'deepseek::deepseek-chat' })
+
+      const files = vi.mocked(mocks.request).mock.calls.at(-1)?.[1].files as CliConfigWriteFile[]
+      const modelsFile = files.find((file) => file.target === 'omp-models')
+      const configFile = files.find((file) => file.target === 'omp-config')
+      if (
+        !modelsFile ||
+        typeof modelsFile.content !== 'string' ||
+        !configFile ||
+        typeof configFile.content !== 'string'
+      ) {
+        throw new Error('Expected OMP models and config files')
+      }
+      const tainted = parseYaml(modelsFile.content)
+      tainted.providers['cherry-DeepSeek'].models[0].input = ['text', 'evil']
+      tainted.providers['cherry-DeepSeek'].headers = { 'X-Title': 'keep', 'X-Retry': 3 }
+      const { stringify } = await import('yaml')
+      const draft = [
+        {
+          target: 'omp-models',
+          label: 'OMP models.yml',
+          path: ompModelsPath,
+          language: 'yaml',
+          content: stringify(tainted)
+        } as const,
+        {
+          target: 'omp-config',
+          label: 'OMP config.yml',
+          path: ompAgentConfigPath,
+          language: 'yaml',
+          content: configFile.content
+        } as const
+      ]
+      const updated = updateCliConfigDraftConfig(CodeCli.OMP, [...draft], {})
+      const parsed = parseYaml(updated.find((file) => file.target === 'omp-models')!.content)
+      expect(parsed.providers['cherry-DeepSeek'].models[0].input).toEqual(['text'])
+      expect(parsed.providers['cherry-DeepSeek'].headers).toEqual({ 'X-Title': 'keep' })
+    })
+
+    it('rejects the draft when the on-disk models config cannot be parsed', async () => {
+      existing[ompModelsPath] = 'providers: [unclosed\n'
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await expect(writeCliConfigDraft({ cliTool: CodeCli.OMP, modelId: 'deepseek::deepseek-chat' })).rejects.toThrow(
+        /Failed to parse OMP models\.yml/
+      )
+    })
+
+    it('rejects the draft when the on-disk agent config cannot be parsed', async () => {
+      existing[ompAgentConfigPath] = 'modelRoles: [unclosed\n'
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await expect(writeCliConfigDraft({ cliTool: CodeCli.OMP, modelId: 'deepseek::deepseek-chat' })).rejects.toThrow(
+        /Failed to parse OMP config\.yml/
+      )
     })
   })
 

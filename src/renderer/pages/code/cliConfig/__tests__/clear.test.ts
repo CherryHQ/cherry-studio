@@ -21,6 +21,8 @@ const resolvedSpecPath = (target: CliConfigTarget) => `/resolved${CLI_CONFIG_FIL
 const hermesConfigPath = resolvedSpecPath('hermes-config')
 const hermesEnvPath = resolvedSpecPath('hermes-env')
 const minimaxConfigPath = resolvedSpecPath('minimax-config')
+const ompModelsPath = resolvedSpecPath('omp-models')
+const ompAgentConfigPath = resolvedSpecPath('omp-config')
 
 beforeEach(() => {
   existing = {}
@@ -400,6 +402,61 @@ describe('clearCliConfig', () => {
   it('minimax: missing config is already clear and sends no rewrite', async () => {
     await clearCliConfig({ cliTool: CodeCli.MINIMAX_CODE })
     expect(writes[minimaxConfigPath]).toBeUndefined()
+  })
+
+  it('omp: strips the Cherry-managed provider and default while preserving user config and comments', async () => {
+    existing[ompModelsPath] = [
+      '# user-owned comment',
+      'providers:',
+      '  cherry-deepseek:',
+      '    baseUrl: https://api.deepseek.com/v1',
+      '    api: openai-completions',
+      '    apiKey: sk-secret',
+      '  user-relay:',
+      '    baseUrl: https://relay.example.com',
+      ''
+    ].join('\n')
+    existing[ompAgentConfigPath] = [
+      '# config comment',
+      'theme: dark',
+      'modelRoles:',
+      '  default: cherry-deepseek/deepseek-chat',
+      ''
+    ].join('\n')
+
+    await clearCliConfig({ cliTool: CodeCli.OMP })
+
+    expect(parseYaml(writes[ompModelsPath])).toEqual({
+      providers: { 'user-relay': { baseUrl: 'https://relay.example.com' } }
+    })
+    expect(writes[ompModelsPath]).toContain('# user-owned comment')
+    expect(parseYaml(writes[ompAgentConfigPath])).toEqual({ theme: 'dark' })
+    expect(writes[ompAgentConfigPath]).toContain('# config comment')
+  })
+
+  it('omp: clears a models-only cherry provider and its default to empty mappings', async () => {
+    existing[ompModelsPath] = [
+      'providers:',
+      '  cherry-deepseek:',
+      '    baseUrl: https://api.deepseek.com/v1',
+      '    api: openai-completions',
+      '    apiKey: sk-secret',
+      '    models:',
+      '      - id: deepseek-chat',
+      ''
+    ].join('\n')
+    existing[ompAgentConfigPath] = ['modelRoles:', '  default: cherry-deepseek/deepseek-chat', ''].join('\n')
+
+    await clearCliConfig({ cliTool: CodeCli.OMP })
+
+    expect(parseYaml(writes[ompModelsPath])).toEqual({})
+    expect(parseYaml(writes[ompAgentConfigPath])).toEqual({})
+  })
+
+  it('omp: missing config is already clear and sends no rewrite', async () => {
+    await clearCliConfig({ cliTool: CodeCli.OMP })
+    expect(writes[ompModelsPath]).toBeUndefined()
+    expect(writes[ompAgentConfigPath]).toBeUndefined()
   })
 
   it('is a no-op for tools without a managed config file (openclaw)', async () => {

@@ -29,6 +29,7 @@ describe('LOGIN_CAPABLE_CLI_TOOLS', () => {
         CodeCli.QWEN_CODE,
         CodeCli.KIMI_CODE,
         CodeCli.PI,
+        CodeCli.OMP,
         CodeCli.MINIMAX_CODE
       ].sort()
     )
@@ -74,6 +75,26 @@ describe('MiniMax Code provider support', () => {
   })
 })
 
+describe('OMP provider support', () => {
+  const provider = (partial: Record<string, unknown>): Provider =>
+    ({ id: 'provider', name: 'Provider', endpointConfigs: {}, ...partial }) as unknown as Provider
+
+  it('offers the Unified Gateway plus Anthropic, OpenAI-compatible and Gemini providers', () => {
+    expect(GATEWAY_CAPABLE_CLI_TOOLS.has(CodeCli.OMP)).toBe(true)
+    expect(LOGIN_CAPABLE_CLI_TOOLS.has(CodeCli.OMP)).toBe(true)
+    const supported = CLI_TOOL_PROVIDER_MAP[CodeCli.OMP]([
+      provider({ id: 'anthropic', endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.example' } } }),
+      provider({
+        id: 'chat',
+        endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://api.example/v1' } }
+      }),
+      provider({ id: 'gemini', endpointConfigs: { 'google-generate-content': { baseUrl: 'https://api.example' } } })
+    ])
+
+    expect(supported.map((item) => item.id)).toEqual(['anthropic', 'chat', 'gemini'])
+  })
+})
+
 describe('GATEWAY_CAPABLE_CLI_TOOLS', () => {
   it('covers exactly the tools that can launch through the Unified Gateway', () => {
     expect([...GATEWAY_CAPABLE_CLI_TOOLS].sort()).toEqual(
@@ -86,6 +107,7 @@ describe('GATEWAY_CAPABLE_CLI_TOOLS', () => {
         CodeCli.QWEN_CODE,
         CodeCli.KIMI_CODE,
         CodeCli.PI,
+        CodeCli.OMP,
         CodeCli.HERMES,
         CodeCli.DEEPSEEK_HARNESS,
         CodeCli.MINIMAX_CODE

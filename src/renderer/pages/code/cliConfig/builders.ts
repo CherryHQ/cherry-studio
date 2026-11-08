@@ -17,7 +17,7 @@ import {
   isCodexReasoningEffort,
   isOpenCodePermissionMode
 } from './permissionModes'
-import type { OpenCodeNpmInfo, PiApi } from './resolvers'
+import type { OmpApi, OpenCodeNpmInfo, PiApi } from './resolvers'
 import { sanitizeGeminiConfigBlob, sanitizeKimiConfigBlob, sanitizeQwenConfigBlob } from './sanitize'
 import {
   asRecord,
@@ -381,4 +381,25 @@ export function buildPiSettingsConfig(
   resolved: { model: string; providerKey: string }
 ): Record<string, any> {
   return { ...existing, defaultProvider: resolved.providerKey, defaultModel: resolved.model }
+}
+
+export function buildOmpModelsConfig(
+  existing: Record<string, any>,
+  resolved: {
+    api: OmpApi
+    apiKey: string
+    baseUrl: string
+    contextWindow?: number
+    headers?: Record<string, string>
+    input: Array<'image' | 'text'>
+    maxTokens?: number
+    model: string
+    modelLabel: string
+    providerKey: string
+    reasoning: boolean
+  }
+): Record<string, any> {
+  // OMP inherits Pi's provider schema; delegate so the node shape stays in sync.
+  // OmpApi is an alias of PiApi, so the resolved shape is identical.
+  return buildPiModelsConfig(existing, resolved)
 }
