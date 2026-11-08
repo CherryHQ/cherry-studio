@@ -11,6 +11,41 @@ import { parse } from 'yaml'
 import { getCase, missingCapabilities, PHASE_IDS, selectCases, supportsPlatform, TASK_SELECTIONS } from '../cases'
 
 describe('regression execution plan', () => {
+  it('prepares the isolated runtime before native fixtures can start any Electron instance', () => {
+    const workflow = parse(readFileSync(resolve('.github/workflows/e2e-regression-test.yml'), 'utf8'))
+    const steps = workflow.jobs.test.steps as Array<{ run?: string }>
+    const sign = steps.findIndex((step) => step.run?.includes('cli.ts prepare-mac-runtime'))
+    const native = steps.findIndex((step) => step.run?.includes('nativeAdapters.test.ts'))
+    const launch = steps.findIndex((step) => step.run?.includes('cli.ts launch'))
+    expect(sign).toBeGreaterThan(-1)
+    expect(native).toBeGreaterThan(sign)
+    expect(launch).toBeGreaterThan(native)
+  })
+
+  it.each(['branch', 'tag'])(
+    'signs macOS fixture runtime from the correct dependency tree for %s without replacing release installation',
+    (mode) => {
+      const workflow = parse(readFileSync(resolve('.github/workflows/e2e-regression-test.yml'), 'utf8'))
+      const sign = workflow.jobs.test.steps.find((step: { run?: string }) =>
+        step.run?.includes('cli.ts prepare-mac-runtime')
+      )
+      for (const platform of ['macos', 'windows']) {
+        const context = {
+          needs: { resolve: { outputs: { mode } } },
+          matrix: { platform },
+          env: { TARGET_DIR: '/owned/application' },
+          github: { workspace: '/owned/controller' }
+        }
+        expect(runInNewContext(sign.if, context)).toBe(platform === 'macos')
+        const source = sign.env.MAC_RUNTIME_TARGET_DIR.replace(/^\$\{\{\s*|\s*\}\}$/g, '')
+        expect(runInNewContext(source, context)).toBe(mode === 'branch' ? '/owned/application' : '/owned/controller')
+      }
+      expect(sign.run).toContain('--target-root "$MAC_RUNTIME_TARGET_DIR"')
+      const release = workflow.jobs.test.steps.find((step: { run?: string }) => step.run?.includes('cli.ts release'))
+      expect(runInNewContext(release.if, { needs: { resolve: { outputs: { mode } } } })).toBe(mode === 'tag')
+    }
+  )
+
   it('offers every supported task in the workflow dropdown with full regression as the default', () => {
     const workflow = parse(readFileSync(resolve('.github/workflows/e2e-regression-test.yml'), 'utf8'))
     const task = workflow.on.workflow_dispatch.inputs.task
@@ -63,7 +98,12 @@ describe('regression execution plan', () => {
     expect(prepare).toBeGreaterThan(steps.findIndex((step) => step.name === 'Install application dependencies'))
     expect(prepare).toBeLessThan(steps.findIndex((step) => step.name === 'Launch controlled Cherry Studio once'))
     expect(steps[prepare].if).toBe("needs.resolve.outputs.mode == 'branch'")
+    const build = steps.findIndex((step) => step.name === 'Build application once')
+    expect(build).toBeGreaterThan(prepare)
+    expect(build).toBeLessThan(steps.findIndex((step) => step.name === 'Launch controlled Cherry Studio once'))
+    expect(steps[build].if).toBe("needs.resolve.outputs.mode == 'branch'")
     const commands = steps.flatMap((step) => step.run?.split('\n') ?? [])
+    expect(commands.filter((command) => command.includes('electron-vite build'))).toHaveLength(1)
     expect(commands.filter((command) => command.includes('rebuild:electron'))).toEqual([
       'pnpm --dir target-app rebuild:electron'
     ])
@@ -75,7 +115,7 @@ describe('regression execution plan', () => {
   it('selects only the requested task within its workflow phase', () => {
     expect(selectCases('translation-settings', 'translation').map(({ id }) => id)).toEqual(['MP-86'])
     expect(selectCases('knowledge-smoke', 'knowledge').map(({ id }) => id)).toEqual(['K-01'])
-    expect(selectCases('code-cli', 'codeTools').map(({ id }) => id)).toEqual(['CODE-01', 'CODE-02'])
+    expect(selectCases('code-cli', 'codeTools').map(({ id }) => id)).toEqual(['CODE-01'])
     expect(selectCases('notes', 'modelsAndAssistants')).toEqual([])
     expect(selectCases('notes', 'basicFeatures').map(({ id }) => id)).toEqual(['N-01'])
     expect(() => getCase('missing')).toThrow('Unknown regression case')
@@ -84,8 +124,8 @@ describe('regression execution plan', () => {
   it.each([
     ['notes', ['N-01', 'MP-11', 'MP-74', 'MP-75', 'MP-76', 'MP-77', 'MP-78', 'MP-79']],
     ['knowledge', ['K-01', 'MP-59', 'MP-60', 'MP-61', 'MP-62', 'MP-63', 'MP-64', 'MP-65', 'MP-66', 'MP-67']],
-    ['code-tools', ['CODE-01', 'CODE-02', 'CODE-03', 'MP-97']],
-    ['paintings', ['P-01', 'MP-90', 'MP-91', 'MP-92']],
+    ['code-tools', ['CODE-01', 'CODE-03']],
+    ['paintings', ['P-01', 'MP-90', 'MP-91']],
     ['translation', ['T-01', 'T-02', 'MP-81', 'MP-82', 'MP-83', 'MP-85', 'MP-86']]
   ] as const)('includes existing scenarios as well as case-library scenarios in %s', (task, ids) => {
     expect(selectCases(task).map(({ id }) => id)).toEqual(ids)
@@ -96,7 +136,8 @@ describe('regression execution plan', () => {
     ['knowledge-smoke', ['K-01']],
     ['mini-app-pinning', ['MP-103']],
     ['chat-error-recovery', ['MP-17']],
-    ['code-cli-permissions', ['MP-97']]
+    ['native-recovery', ['MP-110', 'MP-116']],
+    ['native-notifications', ['MP-110']]
   ] as const)('keeps the focused task %s limited to its intended scenarios', (task, ids) => {
     expect(selectCases(task).map(({ id }) => id)).toEqual(ids)
   })
@@ -140,52 +181,15 @@ describe('regression execution plan', () => {
     ).toEqual(['screenCapture'])
   })
 
-  it('keeps macOS-only scenarios out of Windows runs and leaves cross-platform cases applicable', () => {
-    for (const id of [
-      'MP-52',
-      'MP-56',
-      'MP-68',
-      'MP-70',
-      'MP-72',
-      'MP-77',
-      'MP-82',
-      'MP-90',
-      'MP-97',
-      'MP-105',
-      'MP-110',
-      'MP-111',
-      'MP-121',
-      'MP-127',
-      'MP-132',
-      'MP-133',
-      'MP-140'
-    ] as const) {
-      expect(supportsPlatform(id, 'macos')).toBe(true)
-    }
-    for (const id of [
-      'MP-52',
-      'MP-68',
-      'MP-72',
-      'MP-77',
-      'MP-97',
-      'MP-105',
-      'MP-110',
-      'MP-111',
-      'MP-121',
-      'MP-127',
-      'MP-132',
-      'MP-133',
-      'MP-140'
-    ] as const) {
-      expect(supportsPlatform(id, 'windows'), id).toBe(false)
-    }
-    for (const id of ['MP-56', 'MP-70', 'MP-82', 'MP-90', 'MP-109', 'S-01'] as const) {
+  it('covers every regression case on both desktop platforms', () => {
+    for (const { id } of selectCases('all')) {
+      expect(supportsPlatform(id, 'macos'), id).toBe(true)
       expect(supportsPlatform(id, 'windows'), id).toBe(true)
     }
   })
 })
 
-it.each(['all', 'notes', 'notes-smoke', 'knowledge', 'code-tools', 'code-cli-permissions'] as const)(
+it.each(['all', 'notes', 'notes-smoke', 'knowledge', 'code-tools', 'native-recovery'] as const)(
   'discovers the selected %s cases through Playwright without matching another task prefix',
   (task) => {
     const directory = mkdtempSync(join(tmpdir(), 'cherry-regression-enumeration-'))
@@ -225,3 +229,18 @@ it.each(['all', 'notes', 'notes-smoke', 'knowledge', 'code-tools', 'code-cli-per
     }
   }
 )
+
+it('keeps failed phase steps visible while allowing later phases to run', () => {
+  const workflow = parse(readFileSync(resolve('.github/workflows/e2e-regression-test.yml'), 'utf8'))
+  const phases = workflow.jobs.test.steps.filter((step: { name: string }) => step.name.startsWith('Phase -'))
+  expect(phases.length).toBeGreaterThan(0)
+  for (const phase of phases) {
+    expect(Boolean(phase['continue-on-error'])).toBe(false)
+    expect(
+      runInNewContext(phase.if, {
+        cancelled: () => false,
+        steps: { launch: { outcome: 'success' } }
+      })
+    ).toBe(true)
+  }
+})

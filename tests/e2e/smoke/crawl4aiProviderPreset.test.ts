@@ -1,45 +1,5 @@
-import fs from 'node:fs'
-import os from 'node:os'
-import path from 'node:path'
-
-import { _electron as electron } from '@playwright/test'
-
-import { expect, test as base } from './fixtures/electron.fixture'
-
-const test = base.extend<{ isolatedProfile: string }>({
-  isolatedProfile: async ({}, use) => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cherry-e2e-crawl4ai-'))
-    const previousProfile = process.env.CS_DEV_PROFILE_ROOT
-    process.env.CS_DEV_PROFILE_ROOT = dir
-    try {
-      await use(dir)
-    } finally {
-      if (previousProfile === undefined) {
-        delete process.env.CS_DEV_PROFILE_ROOT
-      } else {
-        process.env.CS_DEV_PROFILE_ROOT = previousProfile
-      }
-      fs.rmSync(dir, { recursive: true, force: true })
-    }
-  },
-  electronApp: async ({ isolatedProfile }, use) => {
-    // Pass the isolated profile at launch so provider settings cannot affect an existing profile.
-    const electronApp = await electron.launch({
-      args: ['.'],
-      env: {
-        ...process.env,
-        CS_DEV_PROFILE_ROOT: isolatedProfile,
-        NODE_ENV: 'development'
-      },
-      timeout: 60000
-    })
-    try {
-      await use(electronApp)
-    } finally {
-      await electronApp.close()
-    }
-  }
-})
+import { expect, test } from './fixtures/electron.fixture'
+import { openSettings } from './utils/navigation'
 
 test('Crawl4AI defaults to Cloud and keeps its setup description visible', async ({ mainWindow: page }, testInfo) => {
   test.setTimeout(300_000)
@@ -66,7 +26,7 @@ test('Crawl4AI defaults to Cloud and keeps its setup description visible', async
   ).toBeVisible({
     timeout: 60_000
   })
-  await page.getByRole('button', { name: 'Settings', exact: true }).first().click({ timeout: 60_000 })
+  await openSettings(page)
   await expect(page.locator('[data-ui="settings.view"]')).toBeVisible({ timeout: 60_000 })
   await page
     .locator('[data-ui="settings.navigation"] [data-slot="menu-item"]')

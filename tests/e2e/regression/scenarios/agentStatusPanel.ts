@@ -54,7 +54,8 @@ export async function agentStatusPanel(app: RegressionApp, page: Page, testInfo:
     const view = page.locator('[data-ui~="agent.view"]:visible').first()
     const panel = page.locator('[data-right-pane]:visible').last()
     await openAgentPane(page, 'Status')
-    await expect(panel.getByRole('heading', { name: 'Context usage', exact: true })).toBeVisible()
+    const context = panel.getByRole('region', { name: 'Context', exact: true })
+    await expect(context.getByRole('button', { name: 'Context', exact: true })).toBeVisible()
 
     const progressSamples: { completed: number; total: number; time: number }[] = []
     const progress = view.getByTestId('agent-task-progress-capsule').getByRole('progressbar')
@@ -91,7 +92,10 @@ export async function agentStatusPanel(app: RegressionApp, page: Page, testInfo:
       .toPass({ timeout: 90_000, intervals: [200] })
     await screenshot('MP-55 status during multi-step task')
 
-    const response = view.locator('[data-ui~="chat.message"]:visible').filter({ hasText: 'MP55_SUMMARY' }).last()
+    const response = view
+      .locator('[data-ui~="chat.message"]:visible')
+      .filter({ has: page.locator('.message-assistant'), hasText: 'MP55_SUMMARY' })
+      .last()
     await expect(response).toBeVisible({ timeout: 180_000 })
     for (const file of files) await expect(response).toContainText(file.fact)
     await expect(view.getByRole('button', { name: 'Send', exact: true })).toBeVisible({ timeout: 90_000 })
@@ -103,21 +107,29 @@ export async function agentStatusPanel(app: RegressionApp, page: Page, testInfo:
 
     const completed = view.getByTestId('completed-process-trigger')
     for (const trigger of await completed.all()) {
-      if ((await trigger.getAttribute('data-state')) !== 'open') await trigger.click()
+      if ((await trigger.getAttribute('aria-expanded')) !== 'true') await trigger.click()
     }
     const messageCards = view.locator('[data-ui~="chat.message"]:visible')
+    for (const group of await messageCards.getByTestId('child-tool-group').all()) {
+      const trigger = group.getByRole('button').first()
+      if ((await trigger.getAttribute('aria-expanded')) !== 'true') await trigger.click()
+      await expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    }
     for (const file of files) {
       await expect.soft(messageCards.getByText(file.name, { exact: true }).first()).toBeVisible({ timeout: 10_000 })
-      await expect.soft(panel.getByText(file.name, { exact: true })).toHaveCount(1, { timeout: 10_000 })
     }
-    const context = panel.locator('section').filter({ has: page.getByRole('heading', { name: 'Context usage' }) })
-    await expect.soft(context).toContainText(/[\d,]+\s*\/\s*[\d,]+\s*\(\d+%\)/, { timeout: 15_000 })
+    await context.getByRole('button', { name: 'Context', exact: true }).click()
+    const usage = context.getByRole('meter', { name: 'Context', exact: true })
+    await expect.soft(usage).toBeVisible({ timeout: 15_000 })
+    expect.soft(Number(await usage.getAttribute('aria-valuenow'))).toBeGreaterThan(0)
+    expect.soft(Number(await usage.getAttribute('aria-valuemax'))).toBeGreaterThan(0)
     for (const category of ['System prompt', 'Messages']) {
       const row = context
-        .locator('div')
-        .filter({ has: page.getByText(category, { exact: true }) })
-        .last()
-      await expect.soft(row).toContainText(/[\d,]+\s*\(\d+%\)/, { timeout: 10_000 })
+        .getByRole('table', { name: 'Context usage', exact: true })
+        .getByRole('row')
+        .filter({ has: page.getByRole('rowheader', { name: category, exact: true }) })
+      await expect.soft(row.getByRole('cell').first()).toHaveText(/[\d,.]+[KMB]?/, { timeout: 10_000 })
+      await expect.soft(row.getByRole('cell').last()).toHaveText(/[\d,.]+%/)
     }
     await screenshot('MP-55 completed task and context categories')
 
@@ -135,10 +147,9 @@ export async function agentStatusPanel(app: RegressionApp, page: Page, testInfo:
     const preview = page.getByTestId('artifact-file-preview-overlay')
     await expect(preview).toBeVisible()
     await expect(preview).toContainText('The orchard harvested 37 apples.')
-    await expect(page.getByTestId('artifact-pane-header-title')).toHaveAttribute(
-      'title',
-      join(app.paths.workspace, folderName, files[0].name)
-    )
+    await expect(
+      page.getByTestId('artifact-pane-header').getByRole('tab', { name: files[0].name, exact: true })
+    ).toHaveAttribute('title', join(app.paths.workspace, folderName, files[0].name))
     await screenshot('MP-55 expanded workspace and correct file preview path')
   } finally {
     const cleanupErrors = await page

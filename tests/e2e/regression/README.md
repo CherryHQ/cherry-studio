@@ -27,6 +27,12 @@ The built-in assistant's tests start new tasks and clear skill tokens where requ
 
 A failed scenario must not supply the expected result for another scenario. Assert a new assistant response, a newly written file, or a real native event; do not inject success markers through IPC.
 
+`MCP-01` uses a scripted loopback model with declared function-call support and a
+128k context window. It still creates the real Everything server through the UI,
+executes `get-sum` in that process, verifies the actual tool response and persisted
+input/output, and reconnects after a restart. External model behavior is outside
+this case; provider-backed chat cases retain their separate coverage.
+
 Development update checks in `MP-114` start the [loopback update feed](../../helpers/http/README.md#mock-development-update-feed)
 from `dev-app-update.yml`, serving the running version without an installer.
 The real updater performs the HTTP request and version comparison; installer
@@ -52,6 +58,9 @@ pnpm exec tsx scripts/e2e/regression/cli.ts run-phase \
   --run-dir /absolute/run-directory --phase basicFeatures
 ```
 
+`native-notifications` selects MP-110 for notification settings, actual system delivery,
+native activation and disabled-category suppression. `native-settings` selects the same case.
+
 The run's task selection controls which cases execute. Use `--task notes` for all
 implemented Notes cases, including those in other phases, or `--task notes-smoke` for
 the create-and-save flow. Do not narrow an all-task run manually and then treat it as
@@ -72,8 +81,10 @@ Run from the repository root, with CDP port 9222 and inspector port 9229 free:
 
 ```sh
 pnpm install
+pnpm download:binaries
 pnpm rebuild:electron
 pnpm run build:utility-process
+pnpm exec dotenv -v CHERRY_EDITION=global -- electron-vite build
 TEST_RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/cherry-stream-failure.XXXXXX")"
 pnpm exec tsx scripts/e2e/regression/cli.ts preflight --task chat-stream-failure
 pnpm exec tsx scripts/e2e/regression/cli.ts initialize \
@@ -101,10 +112,13 @@ alone can also match the hidden prewarmed SubWindow and produce a false empty-pa
 
 ## Configuration and evidence
 
-MP-77 verifies PDF text/fonts and DOCX structure before checking for `/Applications/Pages.app`.
-Without Pages, the remaining native editing and print checks are blocked; successful export checks do not make the whole case pass.
+MP-77 verifies PDF text/fonts, DOCX text and table structure, native PDF preview,
+print preview, and empty-note export errors. Editing documents in a third-party
+word processor is outside this application's regression contract.
 
-Windows MP-90 opens the exported image in Microsoft Edge with a run-owned profile under `private/`, checks its decoded dimensions, and closes that browser. Edge must be installed on the runner. MP-82 runs the document-drop flow on both platforms. MP-56 uses a tagged Node timer process on Windows and a shell sleep on macOS to verify actual process cleanup after interruption.
+MP-52 opens the edited source file itself in TextEdit on macOS or Notepad on Windows, copies the editor selection, and compares it with the expected file content. Its registered editor window and newly launched process are cleaned up after the check.
+
+Windows MP-90 opens the exported image in Microsoft Edge with a run-owned profile under `private/`, checks its decoded dimensions, and closes that browser. Edge must be installed on the runner. MP-82 runs the document-drop flow on both platforms.
 
 `translation-settings` selects only MP-86. The case uses pinned aiMock responses for
 language detection and translation, while exercising the real settings UI, model
@@ -127,6 +141,14 @@ Never attach credentials or enable credential-bearing Playwright traces. HTML re
 Use the [frontend testing guidelines](../../../docs/dev/references/testing/frontend-testing.md). Keep local changes separate from hosted runtime validation; successful enumeration and unit tests do not prove desktop permissions or external model availability.
 
 
+## Desktop platform coverage
+
+All 134 registered regression cases participate on both macOS and Windows. Platform-specific subflows use the actual desktop integration: TextEdit or Notepad, native file and print dialogs, native notification and tray menus, and Terminal or the Windows console. macOS permission prompts and transparent window controls are checked only where the product exposes them; shared settings, execution, persistence and cleanup assertions still run on Windows.
+
+Windows single-instance checks use Restart Manager's [resource-user query](https://learn.microsoft.com/en-us/windows/win32/api/_rstmgr/) to verify SQLite file owners. The probe never calls shutdown or restart APIs. Native console input is limited to the new Claude launch process under the isolated run directory, with PID and creation-time checks before each operation.
+
+These adapters require real desktop execution; successful typechecking or enumeration is not cross-platform acceptance.
+
 ## Partial coverage
 
 A passing implemented flow does not cover capabilities absent from the current product. Scenarios record these gaps with `uncovered` annotations; they do not search for fictional controls.
@@ -135,9 +157,9 @@ A passing implemented flow does not cover capabilities absent from the current p
 | --- | --- | --- |
 | MP-18 | Message queue, hover card, attachment preview, copy source, MCP inline images, URL fallback and Chinese title search | A direct Delete action in the sent-image menu; public tool-result image URL previews; pinyin-initial search |
 | MP-19 | Markdown, DOCX, video, empty PPTX error, pasted-text preview and clipboard round trip | Rendering a nonempty PPTX; external-app fallback; a Quote selection button in plain-text previews |
-| MP-57 | Memory setting persistence and retained snapshots | Memory file-path display; runtime memory-tool exclusion is covered by `builtinAgentCapabilities.test.ts`, not by this E2E flow |
+| MP-48 | Window-local draft recovery across topic switches and clearing after send | Process-restart recovery is outside the documented composer memory-cache contract |
 | MP-69 | File categories, counts and clearing filters | Filename search and result highlighting |
-| MP-72 | Blocked; no executable reference flow | Referencing an existing library file from the composer |
+| MP-72 | Not registered: the product has no library-file reference entry point | Referencing an existing library file from the composer |
 | MP-74 | Draft persistence and external-edit conflict handling | An explicit Saved status indicator |
 | MP-82 | Document import, size limit, translation and Notes export control | Source character counter, Markdown save-as and translated-file naming |
 | MP-90 | Preview zoom, pan, rotation and saving the original image | Image upscaling or enhancement |
