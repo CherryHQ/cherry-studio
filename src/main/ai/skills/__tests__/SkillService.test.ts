@@ -378,7 +378,7 @@ describe('SkillService', () => {
         expect(filtered[0]).toMatchObject({ id: SKILL_ID_2, scope: 'local' })
         const realpathSpy = vi.spyOn(fs.promises, 'realpath').mockRejectedValue(new Error('unavailable filesystem'))
         try {
-          expect(await dataSkillHandlers['/skills'].GET({ query: {} } as never)).toHaveLength(3)
+          expect(await dataSkillHandlers['/skills'].GET({ query: {} })).toHaveLength(3)
         } finally {
           realpathSpy.mockRestore()
         }

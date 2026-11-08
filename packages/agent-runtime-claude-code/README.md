@@ -50,6 +50,10 @@ is unknown. A native compact threshold is never substituted for the full window.
 resources are estimates; partial coverage and missing reserve/free counts remain explicit.
 Root stream input usage is marked `last-request` and excludes output and cumulative billing.
 Child controls are unsupported because the SDK exposes no child-scoped context report.
+Stream deltas keep the active response model's identity; an unknown window stays unknown
+instead of inheriting the configured model's capacity. Successful and failed context reads
+publish their current result to existing observers and future snapshots. A read superseded
+by a newer read, model change, reset or shutdown cannot overwrite that newer state.
 
 ## Input and control
 
@@ -115,6 +119,12 @@ the adapter validates this field, omitted from the pinned SDK status declaration
 `ClaudeControlState` owns native lifecycle, task receipts, autonomous work and compaction semantics.
 Control payloads reuse SDK message types; only interpreted state, task/tool correlation and observation
 timestamps are adapter-owned fields. Main maps native payloads to product labels and display fields.
+The adapter exposes `isApiErrorMessage: true` on typed native evidence only when
+proved by a live SDK rejection or the matching archived assistant UUID's native
+boolean marker. The SDK's normalized history omits that marker, so recovery reads
+it from the already imported raw native records. Baseline and overflow recovery
+retain the fact. Main owns rejection wording; ordinary text quoting an API error
+is not rejection evidence.
 `ClaudeInvocations` aggregates SDK usage by native response identity before fanout, retaining SDK
 usage fields and types. A task notification finalizes only the completed response on its
 `tool_use_id` lane; a task update without that correlation cannot finalize an invocation.

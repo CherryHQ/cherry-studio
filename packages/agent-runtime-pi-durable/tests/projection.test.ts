@@ -41,7 +41,7 @@ function setup(initial: ConversationView) {
   return { projection, events, errors, update: (next: ConversationView) => projection.update(next) }
 }
 const live = (attempt = 1): LiveState => ({
-  run: { taskId, inputs: [] },
+  run: { taskId, inputs: [], turns: 0 },
   generation: { attempt, message: JSON.parse(JSON.stringify(fauxAssistantMessage('same text'))) }
 })
 
@@ -90,7 +90,7 @@ describe('Durable preview identity', () => {
     const assistant: EntryRecord = { ...entry(10, ''), model: [message] }
     update(
       view([assistant], {
-        run: { taskId, inputs: [] },
+        run: { taskId, inputs: [], turns: 0 },
         tools: [{ callId: 'call', name: 'echo', status: 'running', taskId: 8 as TaskId, output: 'partial' }]
       })
     )

@@ -231,6 +231,7 @@ export interface ComposerSurfaceProps {
   isLoading: boolean
   onSendDraft: (draft: ComposerSerializedDraft, options?: { steer?: boolean }) => void | Promise<void>
   onPause: () => void | Promise<void>
+  onShiftTab?: () => void
   supportedExts: string[]
   setFiles: React.Dispatch<React.SetStateAction<ComposerAttachment[]>>
   previewInputFile?: ComposerInputFilePreviewAction
@@ -575,6 +576,7 @@ export default function ComposerSurfaceRuntime({
   isLoading,
   onSendDraft,
   onPause,
+  onShiftTab,
   supportedExts,
   setFiles,
   previewInputFile,
@@ -656,6 +658,7 @@ export default function ComposerSurfaceRuntime({
   const steerShortcutRef = useRef(steerShortcut)
   const setFilesRef = useRef(setFiles)
   const onSendDraftRef = useRef(onSendDraft)
+  const onShiftTabRef = useRef(onShiftTab)
   const isInputHistoryActiveRef = useRef(isInputHistoryActive)
   const onInputHistoryNavigateRef = useRef(onInputHistoryNavigate)
   const promptVariableEditRef = useRef<{ tokenId: string; started: boolean } | null>(null)
@@ -679,6 +682,7 @@ export default function ComposerSurfaceRuntime({
     steerShortcutRef.current = steerShortcut
     setFilesRef.current = setFiles
     onSendDraftRef.current = onSendDraft
+    onShiftTabRef.current = onShiftTab
     isInputHistoryActiveRef.current = isInputHistoryActive
     onInputHistoryNavigateRef.current = onInputHistoryNavigate
   }, [
@@ -689,6 +693,7 @@ export default function ComposerSurfaceRuntime({
     newlineShortcut,
     onInputHistoryNavigate,
     onSendDraft,
+    onShiftTab,
     quickPanel,
     sendBlockedReason,
     sendDisabled,
@@ -1640,6 +1645,12 @@ export default function ComposerSurfaceRuntime({
             promptVariableEditRef.current = { tokenId: targetToken.id, started: false }
             return true
           }
+          if (event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey && onShiftTabRef.current) {
+            if (!event.repeat) onShiftTabRef.current()
+            event.preventDefault()
+            event.stopPropagation()
+            return true
+          }
         }
 
         // Every Enter combination is resolved here, in priority order, and never falls through to
@@ -2380,8 +2391,8 @@ export default function ComposerSurfaceRuntime({
             tabIndex={0}
             onMouseDown={startEditorResize}
             onKeyDown={handleResizeKeyDown}
-            className="group/composer-resize-handle absolute top-0 right-4 left-4 z-3 h-2 cursor-row-resize [-webkit-app-region:no-drag] focus-visible:bg-primary/40 focus-visible:outline-none">
-            <div className="absolute top-0 right-0 left-0 h-0.5 rounded-full bg-primary/20 opacity-0 transition-opacity group-hover/composer-resize-handle:opacity-100 group-focus/composer-resize-handle:opacity-100 group-data-[resizing=true]/composer-resize-handle:bg-primary/35 group-data-[resizing=true]/composer-resize-handle:opacity-100" />
+            className="group/composer-resize-handle absolute top-0 right-4 left-4 z-3 h-2 cursor-row-resize [-webkit-app-region:no-drag] focus-visible:bg-border-strong focus-visible:outline-none">
+            <div className="absolute top-0 right-0 left-0 h-0.5 rounded-full bg-border opacity-0 transition-opacity group-hover/composer-resize-handle:opacity-100 group-focus/composer-resize-handle:opacity-100 group-data-[resizing=true]/composer-resize-handle:bg-border-strong group-data-[resizing=true]/composer-resize-handle:opacity-100" />
           </div>
           {!editingState ? (
             <div data-composer-expand-corner="" className="group/expand-corner absolute top-px right-px z-4 size-8">

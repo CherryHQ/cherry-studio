@@ -46,6 +46,7 @@ import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { AutoBackupService } from '@main/services/AutoBackupService'
 import { AutomationReplService } from '@main/services/automation'
 import { BinaryManager } from '@main/services/binaryManager'
+import { CherryCloudNotificationService } from '@main/services/cherryCloud/CherryCloudNotificationService'
 import { CherryCloudService } from '@main/services/cherryCloud/CherryCloudService'
 import { CitationPreviewService } from '@main/services/CitationPreviewService'
 import { CodeCliService } from '@main/services/codeCli'
@@ -137,6 +138,7 @@ export const services = {
   ConversationNavigationService,
   CitationPreviewService,
   CherryCloudService,
+  CherryCloudNotificationService,
   DeepSeekHarnessService,
   HermesDashboardService,
   FileManager,

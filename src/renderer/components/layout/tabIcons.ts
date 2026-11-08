@@ -1,5 +1,6 @@
 import {
   Code,
+  Clock,
   FileSearch,
   Folder,
   Globe,
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react'
 
 import type { Tab } from '@renderer/hooks/tab'
+import { parseAppRouteUrl } from '@renderer/utils/appRouteUrl'
 
 export type IconComponent = React.FC<{ size?: number; strokeWidth?: number; className?: string }>
 
@@ -26,6 +28,7 @@ export const ROUTE_ICONS: Record<string, IconComponent> = {
   '/app/chat': MessageCircle,
   '/app/browser': Globe,
   '/app/agents': MousePointerClick,
+  '/app/scheduled-tasks': Clock,
   '/app/paintings': Palette,
   '/app/marketplace': Store,
   '/app/translate': Languages,
@@ -42,7 +45,7 @@ export const ROUTE_ICONS: Record<string, IconComponent> = {
 
 export function getTabIcon(tab: Tab): IconComponent {
   if (tab.type === 'webview') return Globe
-  const pathname = new URL(tab.url, 'https://www.cherry-ai.com/').pathname
+  const pathname = parseAppRouteUrl(tab.url)?.pathname ?? '/'
   const segments = pathname.split('/').filter(Boolean)
   const key = segments[0] === 'app' && segments.length >= 2 ? '/app/' + segments[1] : '/' + (segments[0] || '')
   return ROUTE_ICONS[key] || MessageCircle

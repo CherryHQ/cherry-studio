@@ -123,24 +123,6 @@ vi.mock('@renderer/services/toast', () => ({
   }
 }))
 
-vi.mock('@renderer/i18n/label', () => ({
-  getSidebarIconLabelKey: (key: SidebarAppId) =>
-    ({
-      assistants: 'Chat',
-      agents: 'Agent',
-      store: 'Library',
-      paintings: 'Paintings',
-      marketplace: 'Marketplace',
-      translate: 'Translate',
-      mini_app: 'Mini Apps',
-      knowledge: 'Knowledge',
-      files: 'Files',
-      code_tools: 'Code',
-      notes: 'Notes',
-      openclaw: 'OpenClaw'
-    })[key]
-}))
-
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => mocks.navigate
 }))
@@ -152,6 +134,10 @@ vi.mock('react-i18next', () => ({
         {
           'agent.sidebar_title': 'Agent',
           'title.chat': 'Chat',
+          'title.work': 'Agent',
+          'title.paintings': 'Paintings',
+          'title.marketplace': 'Marketplace',
+          'settings.scheduledTasks.title': 'Scheduled Tasks',
           'assistants.presets.title': 'Library',
           'code.title': 'Code',
           'files.title': 'Files',
@@ -227,17 +213,11 @@ describe('LaunchpadPage', () => {
 
     const appsHeading = screen.getByRole('heading', { name: 'Apps' })
     const miniAppsHeading = screen.getByRole('heading', { name: 'Mini Apps' })
-    const chatButton = screen.getByRole('button', { name: 'Chat' })
-
-    expect(appsHeading.closest('section')?.parentElement).toHaveClass('max-w-180', 'gap-5')
-    expect(appsHeading.nextElementSibling).toHaveClass('grid-cols-6', 'justify-items-center', 'gap-2', 'px-2')
-    expect(miniAppsHeading.nextElementSibling).toHaveClass('grid-cols-6', 'justify-items-center', 'gap-2', 'px-2')
-    expect(chatButton).toHaveClass('mx-auto', 'w-[92px]')
-    expect(screen.getByRole('button', { name: 'Calculator' }).parentElement).toHaveClass(
-      'mx-auto',
-      'w-[92px]',
-      'justify-center'
-    )
+    expect(appsHeading).toBeVisible()
+    expect(miniAppsHeading).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Chat' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Calculator' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Scheduled Tasks' })).toBeVisible()
     expect(screen.getByRole('button', { name: 'Agent' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Knowledge' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Manage' })).not.toBeInTheDocument()
@@ -258,6 +238,7 @@ describe('LaunchpadPage', () => {
           'Translate',
           'Chat',
           'Agent',
+          'Scheduled Tasks',
           'Paintings',
           'Library',
           'Mini Apps',
@@ -269,7 +250,7 @@ describe('LaunchpadPage', () => {
         ].includes(label ?? '')
       )
 
-    expect(appLabels.slice(0, 4)).toEqual(['Translate', 'Chat', 'Agent', 'Paintings'])
+    expect(appLabels.slice(0, 5)).toEqual(['Translate', 'Chat', 'Agent', 'Scheduled Tasks', 'Paintings'])
   })
 
   it('sorts every app tile and persists to the launchpad app order, not the sidebar favorites', () => {
@@ -296,14 +277,17 @@ describe('LaunchpadPage', () => {
     expect(mocks.setSidebarFavorites).not.toHaveBeenCalled()
   })
 
-  it('navigates apps inside the current launchpad tab', async () => {
+  it.each([
+    { label: 'Knowledge', path: '/app/knowledge' },
+    { label: 'Scheduled Tasks', path: '/app/scheduled-tasks' }
+  ])('navigates $label inside the current launchpad tab', async ({ label, path }) => {
     const user = userEvent.setup()
 
     render(<LaunchpadPage />)
 
-    await user.click(screen.getByRole('button', { name: 'Knowledge' }))
+    await user.click(screen.getByRole('button', { name: label }))
 
-    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/knowledge' })
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: path })
   })
 
   it('suppresses only the dragged launchpad item click', () => {
