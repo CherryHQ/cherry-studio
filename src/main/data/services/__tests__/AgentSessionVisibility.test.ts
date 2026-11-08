@@ -136,7 +136,7 @@ describe('background session isolation', () => {
     expect(agentSessionService.getById(unpinnedBackground.id).id).toBe(unpinnedBackground.id)
   })
 
-  it('excludes sticky and per-run task conversations before pagination and latest restore, but keeps them readable', () => {
+  it('excludes sticky and per-run task conversations before pagination and latest restore, but keeps them readable', async () => {
     const ordinary = create('ordinary')
     const sticky = create('sticky task')
     const perRun = create('per-run task')
@@ -192,8 +192,25 @@ describe('background session isolation', () => {
     expect(agentSessionService.getLatestActive({ agentId: 'agent' })?.id).toBe(ordinary.id)
     for (const session of [sticky, perRun, legacy]) {
       expect(agentSessionService.getConversationById(session.id).id).toBe(session.id)
+      await expect(
+        agentSessionHandlers['/agent-sessions/:sessionId'].GET({
+          params: { sessionId: session.id },
+          query: { excludeTaskSessions: true }
+        })
+      ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+      await expect(
+        agentSessionHandlers['/agent-sessions/:sessionId'].GET({
+          params: { sessionId: session.id }
+        })
+      ).resolves.toMatchObject({ id: session.id })
       expect(agentSessionService.listByCursor({ ids: [session.id] }).items.map((row) => row.id)).toEqual([session.id])
     }
+    await expect(
+      agentSessionHandlers['/agent-sessions/:sessionId'].GET({
+        params: { sessionId: ordinary.id },
+        query: { excludeTaskSessions: true }
+      })
+    ).resolves.toMatchObject({ id: ordinary.id })
     agentSessionService.delete(perRun.id)
     expect(agentSessionService.listByCursor({ inTrash: true }).items.map((row) => row.id)).toEqual([perRun.id])
   })

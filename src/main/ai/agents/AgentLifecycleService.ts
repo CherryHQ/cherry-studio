@@ -118,6 +118,11 @@ export class AgentLifecycleService extends BaseService {
       this.withStableSessions(
         () => agentSessionService.listTaskSessionIds(taskId),
         async () => {
+          await Promise.all(
+            agentSessionService
+              .listTaskSessionIds(taskId)
+              .map((id) => application.get('AgentSessionRuntimeService').closeSessionForArchive(id))
+          )
           const result = application.get('DbService').withWriteTx((tx) => {
             const ids = agentSessionService.listTaskSessionIds(taskId)
             const trashed = agentSessionService.trashByIdsTx(tx, ids)
@@ -129,7 +134,7 @@ export class AgentLifecycleService extends BaseService {
           await this.finishDeletion(result.trashedIds, result.deliveryResults)
           return result.deleted
         },
-        false
+        true
       )
     )
   }

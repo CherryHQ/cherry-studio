@@ -12,6 +12,9 @@ import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useTaskConversation } from '@renderer/hooks/agent/useTaskConversation'
 import { useAllTasks, useCreateTask, useTask } from '@renderer/hooks/agent/useTasks'
+import { useCommandHandler } from '@renderer/hooks/command'
+import { useCurrentTabId, useIsActiveTab } from '@renderer/hooks/tab'
+import { useConversationLocateRequest } from '@renderer/hooks/useConversationLocateRequest'
 import { useConversationShellPaneState } from '@renderer/hooks/useConversationShellPaneState'
 import type { AppRouter } from '@renderer/types/router'
 
@@ -38,8 +41,16 @@ export default function ScheduledTasksPage() {
     sessionLoading: conversation.sessionLoading,
     sessionSource: conversation.session ? 'query' : 'none'
   })
+  const currentTabId = useCurrentTabId()
+  const isActiveTab = useIsActiveTab()
+  const { locateMessageId, locateToEnd, clearLocate } = useConversationLocateRequest({
+    navigationTabId: currentTabId ?? undefined,
+    activeConversationId: conversation.result?.session?.id,
+    visibleConversationId: bootstrap.session?.id
+  })
   const [paneOpen, setPaneOpen] = usePreference('topic.tab.show')
   const shell = useConversationShellPaneState({ persistedPaneOpen: paneOpen, setPersistedPaneOpen: setPaneOpen })
+  useCommandHandler('app.sidebar.toggle', shell.toggleShellPane, { enabled: isActiveTab })
   const [createOpen, setCreateOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const { createTask } = useCreateTask()
@@ -181,6 +192,9 @@ export default function ScheduledTasksPage() {
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <AgentChat
         conversationBootstrap={bootstrap}
+        locateMessageId={locateMessageId}
+        locateToEnd={locateToEnd}
+        onLocateMessageHandled={clearLocate}
         pane={pane}
         paneOpen={shell.shellPaneOpen}
         panePosition="left"

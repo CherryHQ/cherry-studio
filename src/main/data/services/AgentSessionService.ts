@@ -31,6 +31,7 @@ import type {
   AgentSessionEntity,
   CreateAgentSessionDto,
   DeleteAgentSessionsResult,
+  GetAgentSessionQuery,
   LatestAgentSessionQuery,
   ListAgentSessionsQuery,
   ReusableAgentSessionPlaceholdersResponse,
@@ -402,8 +403,11 @@ export class AgentSessionService {
     if (!agent) throw DataApiErrorFactory.notFound('Agent', agentId)
   }
 
-  getConversationById(id: string): AgentSessionEntity {
-    return this.readById(id, conversationFilter)
+  getConversationById(id: string, query: GetAgentSessionQuery = {}): AgentSessionEntity {
+    return this.readById(
+      id,
+      and(conversationFilter, query.excludeTaskSessions ? ordinaryConversationFilter : undefined)
+    )
   }
 
   getById(id: string): AgentSessionEntity {
