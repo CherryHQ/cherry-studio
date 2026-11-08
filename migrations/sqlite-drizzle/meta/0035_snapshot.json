@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "db624c69-6658-4a44-98e8-8e9587be32eb",
+  "id": "13604f26-aae6-4e99-acf4-83eb07b6e40f",
   "prevId": "21fa5fe5-e74e-4e5c-94f1-5fae6691f254",
   "tables": {
     "agent": {
@@ -748,19 +748,20 @@
           "notNull": true,
           "autoincrement": false
         },
-        "task_schedule_id": {
-          "name": "task_schedule_id",
+        "task_id": {
+          "name": "task_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
-        "source_task_schedule_id": {
-          "name": "source_task_schedule_id",
-          "type": "text",
+        "is_task_reuse_target": {
+          "name": "is_task_reuse_target",
+          "type": "integer",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
         },
         "trace_id": {
           "name": "trace_id",
@@ -813,13 +814,6 @@
         }
       },
       "indexes": {
-        "agent_session_taskScheduleId_unique": {
-          "name": "agent_session_taskScheduleId_unique",
-          "columns": [
-            "task_schedule_id"
-          ],
-          "isUnique": true
-        },
         "agent_session_order_key_idx": {
           "name": "agent_session_order_key_idx",
           "columns": [
@@ -827,12 +821,20 @@
           ],
           "isUnique": false
         },
-        "agent_session_source_task_idx": {
-          "name": "agent_session_source_task_idx",
+        "agent_session_task_idx": {
+          "name": "agent_session_task_idx",
           "columns": [
-            "source_task_schedule_id"
+            "task_id"
           ],
           "isUnique": false
+        },
+        "agent_session_task_reuse_uq": {
+          "name": "agent_session_task_reuse_uq",
+          "columns": [
+            "task_id"
+          ],
+          "isUnique": true,
+          "where": "\"agent_session\".\"is_task_reuse_target\" = 1"
         },
         "agent_session_owner_idx": {
           "name": "agent_session_owner_idx",
@@ -896,25 +898,12 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "agent_session_task_schedule_id_job_schedule_id_fk": {
-          "name": "agent_session_task_schedule_id_job_schedule_id_fk",
+        "agent_session_task_id_job_schedule_id_fk": {
+          "name": "agent_session_task_id_job_schedule_id_fk",
           "tableFrom": "agent_session",
           "tableTo": "job_schedule",
           "columnsFrom": [
-            "task_schedule_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "agent_session_source_task_schedule_id_job_schedule_id_fk": {
-          "name": "agent_session_source_task_schedule_id_job_schedule_id_fk",
-          "tableFrom": "agent_session",
-          "tableTo": "job_schedule",
-          "columnsFrom": [
-            "source_task_schedule_id"
+            "task_id"
           ],
           "columnsTo": [
             "id"
@@ -925,7 +914,12 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "agent_session_task_reuse_owner_check": {
+          "name": "agent_session_task_reuse_owner_check",
+          "value": "\"agent_session\".\"is_task_reuse_target\" = 0 OR \"agent_session\".\"task_id\" IS NOT NULL"
+        }
+      }
     },
     "agent_session_context": {
       "name": "agent_session_context",
@@ -6732,7 +6726,9 @@
   "_meta": {
     "schemas": {},
     "tables": {},
-    "columns": {}
+    "columns": {
+      "\"agent_session\".\"task_schedule_id\"": "\"agent_session\".\"task_id\""
+    }
   },
   "internal": {
     "indexes": {
