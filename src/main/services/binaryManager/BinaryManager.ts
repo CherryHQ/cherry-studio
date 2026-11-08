@@ -47,6 +47,7 @@ import type {
 } from '@shared/types/binary'
 import { Semaphore } from '@shared/utils/async'
 
+import { claudeNpmRegistries, resolveClaudeNpmPackage } from './claudeNpm'
 import { sanitizedCommandError } from './commandError'
 import { installToolDependencies } from './pipDependencies'
 import { provideManagedPython } from './pythonRuntime'
@@ -425,7 +426,7 @@ export class BinaryManager extends BaseService {
    *
    * Bundled tools (bun, uv, rg) ship inside the app and are extracted at boot.
    * The UI uses this to distinguish "available (bundled)" from "managed"
-   * vs "not installed" — see docs/references/binary-manager/README.md.
+   * vs "not installed" — see docs/dev/references/binary-manager/README.md.
    *
    * Returns a map of tool name → version string (from .{name}-version marker)
    * or null when the marker is missing. Absent keys mean the binary is not
@@ -1550,6 +1551,23 @@ export class BinaryManager extends BaseService {
       const runtimeVersion = pinnedRuntime.requestedVersion ?? (await this.getInstalledVersion(runtimeTool))
       runtime = `${runtimeTool}@${runtimeVersion}`
     }
+    if (definition.tool === 'claude' && isWin && process.arch === 'arm64') {
+      const registries = claudeNpmRegistries((await this.getIsolatedEnv()).env.NPM_CONFIG_REGISTRY)
+      for (const [index, source] of registries.entries()) {
+        try {
+          const pkg = await resolveClaudeNpmPackage(source, requested)
+          await this.runMise(['use', '-g', pkg.toolSpec], { timeoutMs: MISE_INSTALL_TIMEOUT_MS })
+          await this.runMise(['reshim'])
+          return await this.getInstalledVersion(definition.tool, pkg.version)
+        } catch (error) {
+          if (index === registries.length - 1) throw error
+          logger.warn('Claude npm source failed; trying fallback', {
+            registry: source,
+            error: this.errorMessage(error)
+          })
+        }
+      }
+    }
     const toolSpec = `${addNpmAllowBuildsOption(definition.tool, definition.npmAllowBuilds)}@${requested}`
     const includePrerelease = MISE_PRERELEASE_TOOLS.has(definition.tool)
     const shellOutNpm = MISE_NPM_SHELL_OUT_TOOLS.has(definition.tool)
@@ -2174,6 +2192,18 @@ export class BinaryManager extends BaseService {
         const name = applied[cursor++]
         const { tool } = candidates.get(name)!
         try {
+          if (tool === 'claude' && isWin && process.arch === 'arm64') {
+            const registries = claudeNpmRegistries((await this.getIsolatedEnv()).env.NPM_CONFIG_REGISTRY)
+            for (const [index, source] of registries.entries()) {
+              try {
+                result[name] = (await resolveClaudeNpmPackage(source, 'latest')).version
+                break
+              } catch (error) {
+                if (index === registries.length - 1) throw error
+              }
+            }
+            continue
+          }
           const includePrerelease = MISE_PRERELEASE_TOOLS.has(tool)
           const releaseAgeArgs = includePrerelease ? ['--minimum-release-age', '0s'] : []
           const { stdout } = await this.runMise(['latest', ...releaseAgeArgs, tool], { includePrerelease })

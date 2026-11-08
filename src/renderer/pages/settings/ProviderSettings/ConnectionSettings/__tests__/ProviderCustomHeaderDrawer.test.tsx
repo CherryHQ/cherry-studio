@@ -114,6 +114,7 @@ describe('ProviderCustomHeaderDrawer', () => {
       expect(updateProviderMock).toHaveBeenCalledWith({
         endpointConfigs: provider.endpointConfigs,
         defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+        defaultChatEndpointExplicit: true,
         providerSettings: { extraHeaders: {} }
       })
     })
@@ -124,6 +125,28 @@ describe('ProviderCustomHeaderDrawer', () => {
       })
     )
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('persists a deliberate return to the initial default without pinning an unrelated save', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<ProviderCustomHeaderDrawer providerId={provider.id} open onClose={() => {}} />)
+    await user.click(
+      screen.getByRole('button', { name: 'settings.provider.create_custom.endpoint_fields.set_default_chat' })
+    )
+    await user.click(
+      screen.getByRole('button', { name: 'settings.provider.create_custom.endpoint_fields.set_default_chat' })
+    )
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
+    expect(updateProviderMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        defaultChatEndpointExplicit: true
+      })
+    )
+    rerender(<ProviderCustomHeaderDrawer providerId={provider.id} open={false} onClose={() => {}} />)
+    rerender(<ProviderCustomHeaderDrawer providerId={provider.id} open onClose={() => {}} />)
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
+    expect(updateProviderMock.mock.lastCall?.[0].defaultChatEndpointExplicit).toBeUndefined()
   })
 
   it('saves an image-only provider without recording its image endpoint as the chat default', async () => {

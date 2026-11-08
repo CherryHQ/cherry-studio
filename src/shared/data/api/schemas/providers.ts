@@ -110,6 +110,8 @@ export const CreateProviderSchema = z.strictObject({
   endpointConfigs: ProviderEndpointConfigsSchema.optional(),
   /** Default text generation endpoint (kebab-case `EndpointType` value) */
   defaultChatEndpoint: EndpointTypeSchema.optional(),
+  /** A deliberate default-endpoint selection, including a choice equal to the preset. */
+  defaultChatEndpointExplicit: z.literal(true).optional(),
   /** API keys */
   apiKeys: z.array(ApiKeyEntrySchema).optional(),
   /** Authentication configuration */
@@ -129,6 +131,7 @@ const ProviderMutableFieldsSchema = CreateProviderSchema.pick({
   name: true,
   endpointConfigs: true,
   defaultChatEndpoint: true,
+  defaultChatEndpointExplicit: true,
   authConfig: true
 })
 

@@ -379,6 +379,37 @@ describe('resolveEffectiveEndpoint', () => {
     expect(resolveEffectiveEndpoint(provider, model).endpointType).toBe(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
   })
 
+  it.each([true, false])('honors explicit New API chat preference (%s) before native auto-selection', (explicit) => {
+    const provider = makeProvider({
+      id: 'aionly',
+      presetProviderId: 'aionly',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      defaultChatEndpointExplicit: explicit,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example/v1', adapterFamily: 'newapi' },
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'newapi' }
+      }
+    })
+    const model = makeModel({
+      apiModelId: 'gemini-3.8-flash',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+    })
+    expect(resolveEffectiveEndpoint(provider, model).endpointType).toBe(
+      explicit ? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS : ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+    )
+    // Runtime-specific dialect requests still win over the ordinary-chat default.
+    const configured = {
+      ...provider,
+      endpointConfigs: {
+        ...provider.endpointConfigs,
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl: 'https://relay.example/v1beta' }
+      }
+    }
+    expect(resolveEffectiveEndpoint(configured, model, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT).endpointType).toBe(
+      ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+    )
+  })
+
   it('keeps the image-generation primary endpoint for New API Gemini image models (#21443)', () => {
     const provider = makeProvider({
       id: 'aionly',

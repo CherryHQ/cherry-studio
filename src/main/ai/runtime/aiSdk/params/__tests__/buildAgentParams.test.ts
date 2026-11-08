@@ -77,6 +77,37 @@ beforeEach(() => {
 })
 
 describe('buildAgentParams provider resolution', () => {
+  it.each([true, false])(
+    'uses the explicit New API default in the production request builder (%s)',
+    async (explicit) => {
+      resolveProviderAiSdkConfigMock.mockResolvedValue({
+        config: { providerId: 'newapi', providerSettings: {} },
+        credentialReceipt: { attribution: 'unknown' }
+      })
+      const provider = makeProvider({
+        id: 'aionly',
+        presetProviderId: 'aionly',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        defaultChatEndpointExplicit: explicit,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example/v1', adapterFamily: 'newapi' },
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl: 'https://relay.example/v1beta', adapterFamily: 'newapi' }
+        }
+      })
+      const model = makeModel({
+        apiModelId: 'gemini-3.8-flash',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+      })
+      await buildAgentParams({ request: { conversation: CONVERSATION }, signal: undefined, provider, model })
+      expect(resolveProviderAiSdkConfigMock).toHaveBeenLastCalledWith(provider, model, {
+        apiKeyOverride: undefined,
+        resolvedEndpoint: expect.objectContaining({
+          endpointType: explicit ? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS : ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+        })
+      })
+    }
+  )
+
   it('sends only selected MCP guidance to the provider and suppresses it for tool-disabled requests', async () => {
     const server = { id: 'docs', name: 'Documents', isActive: true, disabledTools: [], disabledAutoApproveTools: [] }
     const toolId = 'mcp__docs__read'
@@ -948,6 +979,79 @@ describe('buildAgentParams standard model parameters', () => {
           expect(body).not.toHaveProperty('top_p')
         }
         expect(body).not.toHaveProperty('topP')
+      }
+    )
+
+    it.each(['flat custom', 'assistant namespace', 'gateway namespace'])(
+      'removes fixed-sampling Claude top-k from %s before serializing the request',
+      async (source) => {
+        let body: Record<string, unknown> | undefined
+        resolveProviderAiSdkConfigMock.mockResolvedValue({
+          config: {
+            providerId: 'anthropic',
+            providerSettings: {
+              fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+                body = JSON.parse(String(init?.body))
+                throw new Error('request captured')
+              }
+            }
+          },
+          credentialReceipt: { attribution: 'unknown' }
+        })
+        const namespace = { topK: 5, top_k: 5, user: 'probe-user' }
+        const result = await buildAgentParams({
+          request: {
+            conversation: CONVERSATION,
+            callOverrides: {
+              maxOutputTokens: 100,
+              ...(source === 'gateway namespace' && { providerOptions: { anthropic: namespace } })
+            }
+          },
+          signal: undefined,
+          provider: makeProvider({
+            id: 'anthropic',
+            defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+          }),
+          model: makeModel({
+            id: 'anthropic::claude-sonnet-5',
+            providerId: 'anthropic',
+            apiModelId: 'claude-sonnet-5'
+          }),
+          assistant:
+            source === 'gateway namespace'
+              ? undefined
+              : makeAssistant({
+                  settings: {
+                    customParameters:
+                      source === 'flat custom'
+                        ? [
+                            { name: 'top_k', type: 'number', value: 5 },
+                            { name: 'user', type: 'string', value: 'probe-user' }
+                          ]
+                        : [{ name: 'anthropic', type: 'json', value: JSON.stringify(namespace) }]
+                  }
+                })
+        })
+        const sdkModel = createAnthropic({
+          apiKey: 'test-key',
+          baseURL: 'https://provider.test/v1',
+          fetch: result.sdkConfig.providerSettings.fetch
+        })('claude-sonnet-5')
+        await expect(
+          sdkModel.doGenerate({
+            prompt: [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }],
+            maxOutputTokens: result.options.maxOutputTokens,
+            providerOptions: result.options.providerOptions
+          })
+        ).rejects.toThrow('request captured')
+
+        expect(body).toMatchObject({ model: 'claude-sonnet-5', max_tokens: 100 })
+        expect(body).not.toHaveProperty('top_k')
+        expect(body).not.toHaveProperty('topK')
+        if (source === 'flat custom') expect(body).toHaveProperty('user', 'probe-user')
+        expect(result.options.providerOptions?.anthropic).toMatchObject({ user: 'probe-user' })
+        expect(result.options.providerOptions?.anthropic).not.toHaveProperty('top_k')
+        expect(result.options.providerOptions?.anthropic).not.toHaveProperty('topK')
       }
     )
 

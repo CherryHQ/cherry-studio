@@ -1,4 +1,5 @@
 import { createAnthropic } from '@ai-sdk/anthropic'
+import { createAzure } from '@ai-sdk/azure'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI } from '@ai-sdk/openai'
 import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
@@ -562,6 +563,76 @@ describe('toolSchemaCompatibilityFeature', () => {
     expect(JSON.stringify(sent.input_schema)).not.toMatch(/"(minimum|maximum|minLength)"/)
   })
 
+  // Responses (incl. Azure OpenAI) treat a tool without `strict` as strict and
+  // mark every property required, so the model invents optional MCP arguments.
+  it('opts non-strict tools out of the Azure Responses default strict mode', async () => {
+    const { requests, captureFetch } = captureRequest()
+    const model = wrapLanguageModel({
+      model: createAzure({ resourceName: 'test', apiKey: 'test-key', fetch: captureFetch }).responses('gpt-5'),
+      middleware: await getMiddleware({
+        aiSdkProviderId: 'azure-responses',
+        endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES
+      })
+    })
+
+    await expect(
+      generateText({
+        model,
+        prompt: 'hello',
+        tools: {
+          sequentialthinking: tool({
+            inputSchema: jsonSchema({
+              type: 'object',
+              properties: { thought: { type: 'string' }, chainId: { type: 'string' } },
+              required: ['thought']
+            })
+          }),
+          read_file: tool({ inputSchema: readFileInputSchema, strict: true })
+        }
+      })
+    ).rejects.toBeDefined()
+
+    const sent = (
+      requests[0].body as unknown as {
+        tools: Array<{ name: string; strict?: boolean; parameters: { required?: string[] } }>
+      }
+    ).tools
+    const byName = Object.fromEntries(sent.map((entry) => [entry.name, entry]))
+    expect(byName.sequentialthinking.strict).toBe(false)
+    expect(byName.sequentialthinking.parameters.required).toEqual(['thought'])
+    expect(byName.read_file.strict).toBe(true)
+  })
+
+  // Strict-unaware upstreams such as Bedrock reject an unexpected `strict` key (issue #23378).
+  it.each([
+    {
+      endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      createModel: (fetch: typeof globalThis.fetch) => createOpenAI({ apiKey: 'test-key', fetch }).chat('gpt-5'),
+      readTool: (body: unknown) => (body as { tools: Array<{ function: object }> }).tools[0].function
+    },
+    {
+      endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      createModel: (fetch: typeof globalThis.fetch) => createAnthropic({ apiKey: 'test-key', fetch })('claude-opus-5'),
+      readTool: (body: unknown) => (body as { tools: object[] }).tools[0]
+    }
+  ])('sends no strict key for a non-strict tool on $endpointType', async ({ endpointType, createModel, readTool }) => {
+    const { requests, captureFetch } = captureRequest()
+    const model = wrapLanguageModel({
+      model: createModel(captureFetch),
+      middleware: await getMiddleware({ endpointType })
+    })
+
+    await expect(
+      generateText({
+        model,
+        prompt: 'hello',
+        tools: { lookup: tool({ inputSchema: z.object({ query: z.string(), limit: z.number().optional() }) }) }
+      })
+    ).rejects.toBeDefined()
+
+    expect(readTool(requests[0].body)).not.toHaveProperty('strict')
+  })
+
   // Gemini's Schema proto types `enum` as string lists; a numeric or boolean
   // `enum`/`const` 400s the whole request (browser `click.clickCount`).
   it('replaces numeric and boolean enum/const with their bare type on the Gemini endpoint only', async () => {
@@ -766,13 +837,7 @@ describe('toolSchemaCompatibilityFeature', () => {
 
     for (const scope of [
       { aiSdkProviderId: 'google', endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT },
-      { aiSdkProviderId: 'aihubmix', endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT },
-      {
-        runtimeProviderId: 'newapi',
-        endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-        model: makeModel({ apiModelId: 'gemini-3.8-flash' }),
-        provider: makeProvider({ id: 'aionly', presetProviderId: 'aionly' })
-      }
+      { aiSdkProviderId: 'aihubmix', endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT }
     ] as const) {
       const transformed = (await transform(params, scope)).tools?.[0]
       if (transformed?.type !== 'function') throw new Error('expected a transformed function tool')
@@ -785,6 +850,36 @@ describe('toolSchemaCompatibilityFeature', () => {
         required: ['query']
       })
     }
+  })
+
+  it('preserves OpenAI-compatible Gemini constraints and untyped-array tools on New API relays', async () => {
+    const params: LanguageModelV3CallOptions = {
+      prompt: [],
+      tools: [
+        {
+          type: 'function',
+          name: 'relay_tool',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              count: { type: 'integer', enum: [1, 2] },
+              flag: { const: true },
+              values: { type: 'array' }
+            },
+            propertyNames: { pattern: '^[a-z]+$' },
+            additionalProperties: false
+          }
+        }
+      ]
+    }
+    const result = await transform(params, {
+      runtimeProviderId: 'newapi',
+      endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      model: makeModel({ apiModelId: 'gemini-3.8-flash' }),
+      provider: makeProvider({ id: 'aionly', presetProviderId: 'aionly' })
+    })
+    expect(result.tools).toHaveLength(1)
+    expect(result.tools?.[0]).toBe(params.tools?.[0])
   })
 
   it('keeps propertyNames and additionalProperties out of Gemini wire declarations', async () => {

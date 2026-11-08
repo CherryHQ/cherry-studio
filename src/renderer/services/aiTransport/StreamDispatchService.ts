@@ -33,20 +33,19 @@ class StreamDispatchService {
     }
   }
 
-  dispatch(topicId: string, request: AiStreamOpenRequest): void {
-    ipcApi
-      .request('ai.stream.open', request)
-      .then((ack) => {
-        if (ack.mode === 'blocked') {
-          toast.error(getStreamBlockedMessage(ack))
-        }
-        this.notify({ ok: true, topicId, ack })
-      })
-      .catch((error: unknown) => {
-        const err = error instanceof Error ? error : new Error(String(error))
-        logger.error('streamOpen IPC failed', err)
-        this.notify({ ok: false, topicId, error: err })
-      })
+  async dispatch(topicId: string, request: AiStreamOpenRequest): Promise<StreamDispatchResult> {
+    let result: StreamDispatchResult
+    try {
+      const ack = await ipcApi.request('ai.stream.open', request)
+      if (ack.mode === 'blocked') toast.error(getStreamBlockedMessage(ack))
+      result = { ok: true, topicId, ack }
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error))
+      logger.error('streamOpen IPC failed', err)
+      result = { ok: false, topicId, error: err }
+    }
+    this.notify(result)
+    return result
   }
 
   subscribe(topicId: string, listener: Listener): () => void {

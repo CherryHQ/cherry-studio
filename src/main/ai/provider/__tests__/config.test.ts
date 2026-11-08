@@ -1164,6 +1164,215 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     })
   })
 
+  describe('DashScope native image base URL', () => {
+    const endpoint = '/api/v1/services/aigc/multimodal-generation/generation'
+    const imageModel = makeModel({
+      id: 'dashscope::qwen-image-3-0-pro',
+      providerId: 'dashscope',
+      apiModelId: 'qwen-image-3.0-pro',
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+    })
+    const dashscopeEndpointConfigs = {
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+        baseUrl: 'https://proxy.example.com/ds/compatible-mode/v1/',
+        adapterFamily: 'openai-compatible'
+      },
+      [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+        baseUrl: 'https://responses.example.com/v1/',
+        adapterFamily: 'openai'
+      },
+      [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+        baseUrl: 'https://anthropic.example.com/apps/anthropic',
+        adapterFamily: 'anthropic'
+      }
+    }
+    const dashscopeProvider = makeProvider({
+      id: 'dashscope',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: dashscopeEndpointConfigs
+    })
+
+    async function expectNativeSubmit(
+      config: Awaited<ReturnType<typeof providerToAiSdkConfig>>,
+      expectedBaseURL: string
+    ) {
+      const settings = config.providerSettings as Record<string, unknown>
+      const wireModelId = resolveWireModelId(imageModel, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+      expect(config.providerId).toBe('dashscope')
+      vi.mocked(net.fetch).mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            output: { choices: [{ message: { content: [{ image: 'https://image.example/result.png' }] } }] }
+          })
+        )
+      )
+      const transport = resolveImageTransport(config.providerId, wireModelId, settings)
+      expect(transport).not.toBeNull()
+      const result = await transport!.submit({
+        modelId: wireModelId,
+        prompt: 'a red circle',
+        n: 1,
+        size: undefined,
+        seed: undefined,
+        files: undefined,
+        mask: undefined,
+        modelDescriptor: { id: wireModelId, endpoint, isSync: true, mode: 'generate' },
+        providerParams: {}
+      })
+      expect(result.imageUrls).toEqual(['https://image.example/result.png'])
+      const [url, request] = vi.mocked(net.fetch).mock.calls[0]
+      expect(String(url)).toBe(`${expectedBaseURL}${endpoint}`)
+      expect(new Headers(request?.headers).get('Authorization')).toBe('Bearer sk-test-key')
+      expect(JSON.parse(String(request?.body)).model).toBe('qwen-image-3.0-pro')
+    }
+
+    it.each([
+      ['https://token-plan.maas.qianwenaiapi.com/compatible-mode/v1/', 'https://token-plan.maas.qianwenaiapi.com'],
+      ['https://dashscope-intl.aliyuncs.com/compatible-mode/v1/', 'https://dashscope-intl.aliyuncs.com'],
+      ['https://maas.qianwenaiapi.com/compatible-mode/v1/', 'https://maas.qianwenaiapi.com']
+    ])('submits native images on the configured chat host %s', async (baseUrl, expectedBaseURL) => {
+      const provider = makeProvider({
+        ...dashscopeProvider,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl, adapterFamily: 'openai-compatible' }
+        }
+      })
+
+      const config = await providerToAiSdkConfig(provider, imageModel)
+
+      expect((config.providerSettings as Record<string, unknown>).imageBaseURL).toBe(expectedBaseURL)
+      await expectNativeSubmit(config, expectedBaseURL)
+    })
+
+    it('preserves the native image proxy path for a preset-derived instance', async () => {
+      const provider = makeProvider({
+        ...dashscopeProvider,
+        id: 'dashscope-proxy',
+        presetProviderId: 'dashscope'
+      })
+      const model = makeModel({ ...imageModel, id: 'dashscope-proxy::qwen-image-3-0-pro', providerId: provider.id })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect((config.providerSettings as Record<string, unknown>).imageBaseURL).toBe('https://proxy.example.com/ds')
+      await expectNativeSubmit(config, 'https://proxy.example.com/ds')
+    })
+
+    it.each([
+      ['https://proxy.example.com/ds/v1/', 'https://proxy.example.com/ds/v1'],
+      ['https://token-plan.maas.qianwenaiapi.com', 'https://token-plan.maas.qianwenaiapi.com/v1'],
+      ['https://token-plan.maas.qianwenaiapi.com#', 'https://token-plan.maas.qianwenaiapi.com'],
+      ['https://dashscope-intl.aliyuncs.com/compatible-mode/v1/#', 'https://dashscope-intl.aliyuncs.com']
+    ])('retains the existing image base URL derivation for %s', async (baseUrl, expectedBaseURL) => {
+      const provider = makeProvider({
+        ...dashscopeProvider,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl, adapterFamily: 'openai-compatible' }
+        }
+      })
+
+      const config = await providerToAiSdkConfig(provider, imageModel)
+
+      expect((config.providerSettings as Record<string, unknown>).imageBaseURL).toBe(expectedBaseURL)
+    })
+
+    it('submits without a version suffix when the chat host ends in #', async () => {
+      const provider = makeProvider({
+        ...dashscopeProvider,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://token-plan.maas.qianwenaiapi.com#',
+            adapterFamily: 'openai-compatible'
+          }
+        }
+      })
+
+      const config = await providerToAiSdkConfig(provider, imageModel)
+
+      await expectNativeSubmit(config, 'https://token-plan.maas.qianwenaiapi.com')
+    })
+
+    it('propagates the explicitly configured legacy image host', async () => {
+      const provider = makeProvider({
+        ...dashscopeProvider,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/',
+            adapterFamily: 'openai-compatible'
+          }
+        }
+      })
+
+      const config = await providerToAiSdkConfig(provider, imageModel)
+
+      // The submit URL already matched before the fix; the field assertion detects the regression.
+      expect((config.providerSettings as Record<string, unknown>).imageBaseURL).toBe('https://dashscope.aliyuncs.com')
+      await expectNativeSubmit(config, 'https://dashscope.aliyuncs.com')
+    })
+
+    it('uses the transport fallback when no endpoint base URL is configured', async () => {
+      const provider = makeProvider({ ...dashscopeProvider, endpointConfigs: {} })
+
+      const config = await providerToAiSdkConfig(provider, imageModel)
+
+      expect((config.providerSettings as Record<string, unknown>).imageBaseURL).toBe('')
+      await expectNativeSubmit(config, 'https://maas.qianwenaiapi.com')
+    })
+
+    it('propagates the chat-derived image base URL to Responses settings', async () => {
+      const provider = makeProvider({ ...dashscopeProvider, defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES })
+
+      const config = await providerToAiSdkConfig(provider, imageModel)
+
+      expect(config.providerId).toBe('openai')
+      expect((config.providerSettings as Record<string, unknown>).imageBaseURL).toBe('https://proxy.example.com/ds')
+    })
+
+    it('honors a model Chat Completions pin over the provider Responses default', async () => {
+      const provider = makeProvider({ ...dashscopeProvider, defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES })
+      const model = makeModel({ ...imageModel, endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect((config.providerSettings as Record<string, unknown>).imageBaseURL).toBe('https://proxy.example.com/ds')
+      await expectNativeSubmit(config, 'https://proxy.example.com/ds')
+    })
+
+    describe.each([
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'dashscope'],
+      [ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai'],
+      [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'anthropic']
+    ] as const)('without image generation on %s', (defaultChatEndpoint, expectedProviderId) => {
+      it.each([
+        { capabilities: [] },
+        { capabilities: [MODEL_CAPABILITY.EMBEDDING] },
+        { capabilities: [MODEL_CAPABILITY.RERANK] },
+        { capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] }
+      ])('omits imageBaseURL for $capabilities', async ({ capabilities }) => {
+        const provider = makeProvider({ ...dashscopeProvider, defaultChatEndpoint })
+        const model = makeModel({ ...imageModel, capabilities })
+
+        const config = await providerToAiSdkConfig(provider, model)
+        const settings = config.providerSettings as Record<string, unknown>
+
+        expect(config.providerId).toBe(expectedProviderId)
+        expect(settings).not.toHaveProperty('imageBaseURL')
+      })
+    })
+
+    it('includes imageBaseURL when generation and recognition capabilities coexist', async () => {
+      const model = makeModel({
+        ...imageModel,
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION, MODEL_CAPABILITY.IMAGE_RECOGNITION]
+      })
+
+      const config = await providerToAiSdkConfig(dashscopeProvider, model)
+
+      expect(config.providerId).toBe('dashscope')
+      expect((config.providerSettings as Record<string, unknown>).imageBaseURL).toBe('https://proxy.example.com/ds')
+    })
+  })
+
   describe('CherryAI routing', () => {
     it('uses custom fetch to sign chat completions requests', async () => {
       resolveApiKeyMock.mockReturnValue({ value: '', apiKeySelection: { attribution: 'unknown' } })

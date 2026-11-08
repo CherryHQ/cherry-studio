@@ -9,6 +9,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { type FC, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 
 import { useMessageListActions, useMessageListUi } from '../MessageListProvider'
@@ -25,20 +26,26 @@ const SiblingNavigator: FC<Props> = ({ messageId }) => {
   const messageUi = useMessageListUi()
   const siblings = messageUi.getMessageSiblings?.(messageId)
 
-  const handleSwitch = useCallback(
-    async (direction: -1 | 1) => {
-      if (!siblings || !actions.setActiveBranch) return
-      const { group, activeIndex } = siblings
-      const nextIndex = (activeIndex + direction + group.length) % group.length
-      const target = group[nextIndex]
+  const switchTo = useCallback(
+    async (targetId: string) => {
+      if (!actions.setActiveBranch) return
       try {
-        await actions.setActiveBranch(target.id)
+        await actions.setActiveBranch(targetId)
       } catch (error) {
         logger.error('Failed to switch sibling branch', error as Error)
         actions.notifyError?.(error instanceof Error ? error.message : String(error))
       }
     },
-    [actions, siblings]
+    [actions]
+  )
+
+  const handleSwitch = useCallback(
+    async (direction: -1 | 1) => {
+      if (!siblings) return
+      const { group, activeIndex } = siblings
+      await switchTo(group[(activeIndex + direction + group.length) % group.length].id)
+    },
+    [siblings, switchTo]
   )
 
   if (!siblings) return null
@@ -54,9 +61,28 @@ const SiblingNavigator: FC<Props> = ({ messageId }) => {
         aria-label={t('common.previous')}>
         <ChevronLeft size={12} />
       </button>
-      <span className="min-w-8 text-center font-mono tabular-nums">
-        {activeIndex + 1}/{group.length}
-      </span>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className="min-w-8 rounded text-center font-mono tabular-nums transition-colors hover:bg-muted hover:text-foreground"
+            aria-label={t('chat.message.branches')}>
+            {activeIndex + 1}/{group.length}
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="center" className="min-w-16">
+          {group.map((item, index) => (
+            <DropdownMenuItem
+              key={item.id}
+              className={index === activeIndex ? 'font-medium' : undefined}
+              onSelect={() => {
+                if (index !== activeIndex) void switchTo(item.id)
+              }}>
+              {index + 1}/{group.length}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
       <button
         type="button"
         className="flex size-4.5 items-center justify-center rounded transition-colors hover:bg-muted hover:text-foreground"

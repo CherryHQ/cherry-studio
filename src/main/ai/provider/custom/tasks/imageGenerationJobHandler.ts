@@ -46,7 +46,7 @@ const logger = loggerService.withContext('ImageGenerationJobHandler')
  * (for paintings, the already-persisted `painting.id` — the row exists before
  * enqueue) and have this handler write the result there, which registers
  * `painting_file_ref` rows and makes GC correct for free. Then switch `recovery` back to `'retry'` and restore the resume branch from
- * the recipe in `docs/references/job-and-scheduler/handler-authoring.md`.
+ * the recipe in `docs/dev/references/job-and-scheduler/handler-authoring.md`.
  */
 export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = {
   recovery: 'abandon',

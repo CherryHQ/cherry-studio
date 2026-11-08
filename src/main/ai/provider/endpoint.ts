@@ -1,6 +1,6 @@
 /**
  * Endpoint + AI SDK provider id resolution. See
- * `docs/references/ai/adapter-family.md` for design rationale.
+ * `docs/dev/references/ai/adapter-family.md` for design rationale.
  */
 
 import { endpointImpliedCapability, MODEL_CAPABILITY, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
@@ -79,7 +79,7 @@ function resolveNewApiModelEndpoint(
 }
 
 /**
- * Priority: `preferredEndpointType` → `model.endpointTypes[0]` → gateway per-model route →
+ * Priority: `preferredEndpointType` → explicit user chat default → model endpoint (including native New API selection) → gateway per-model route →
  * `provider.defaultChatEndpoint` → `undefined`. The gateway step resolves the wire endpoint from the
  * model id for multi-backend gateways (AiHubMix, …) whose models carry no explicit `endpointTypes`
  * (see `gatewayRouting`). `getBaseUrl` applies its own fallback among `endpointConfigs`.
@@ -105,8 +105,17 @@ export function resolveEffectiveEndpoint(
     provider.endpointConfigs?.[preferredEndpointType]?.baseUrl
       ? preferredEndpointType
       : undefined
+  const userPreference =
+    intent === 'chat' &&
+    provider.defaultChatEndpointExplicit &&
+    provider.defaultChatEndpoint &&
+    model.endpointTypes?.includes(provider.defaultChatEndpoint) &&
+    provider.endpointConfigs?.[provider.defaultChatEndpoint]
+      ? provider.defaultChatEndpoint
+      : undefined
   const endpointType =
     preferred ??
+    userPreference ??
     resolveNewApiModelEndpoint(provider, model, intent) ??
     gatewayRoute?.endpointType ??
     provider.defaultChatEndpoint
