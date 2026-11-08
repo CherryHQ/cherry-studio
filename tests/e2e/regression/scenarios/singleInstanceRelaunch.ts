@@ -71,6 +71,26 @@ export async function singleInstanceRelaunch(app: RegressionApp, page: Page, tes
   expect(original).toHaveLength(1)
   expect(original[0].url).toBe(page.url())
   const title = await page.title()
+  let lastNativeState: Record<string, unknown> | undefined
+  const nativePhases: { stage: string; state: Record<string, unknown> }[] = []
+  const persistNativeState = async () => {
+    if (!lastNativeState) return
+    try {
+      const directory = join(app.paths.evidence, 'native-diagnostics')
+      await mkdir(directory, { recursive: true })
+      await writeFile(
+        join(directory, 'mp133-native-window.json'),
+        JSON.stringify({ ...lastNativeState, phases: nativePhases }),
+        { mode: 0o600 }
+      )
+    } catch {}
+  }
+  const recordNativePhase = async (stage: string) => {
+    if (lastNativeState && nativePhases.length < 4) {
+      nativePhases.push({ stage, state: lastNativeState })
+      await persistNativeState()
+    }
+  }
   const nativeState = async () => {
     if (record.platform === 'windows') {
       const { stdout } = await exec(
@@ -82,29 +102,27 @@ export async function singleInstanceRelaunch(app: RegressionApp, page: Page, tes
           [
             'Add-Type -AssemblyName UIAutomationClient',
             'Add-Type -AssemblyName UIAutomationTypes',
-            `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class WindowState { [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h); [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow(); [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid); }'`,
+            `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class WindowState { [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h); [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow(); [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid); [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetClassName(IntPtr h, System.Text.StringBuilder value, int size); }'`,
             `$condition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty, ${record.electronPid})`,
             '$windows = [Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Children, $condition)',
             `$main = $windows | Where-Object { $_.Current.Name -eq '${title.replaceAll("'", "''")}' } | Select-Object -First 1`,
             'if (-not $main) { throw "Owned main window was not found" }',
             '[uint32]$foregroundPid = 0',
-            '$null = [WindowState]::GetWindowThreadProcessId([WindowState]::GetForegroundWindow(), [ref]$foregroundPid)',
+            '$foregroundHandle = [WindowState]::GetForegroundWindow()',
+            '$null = [WindowState]::GetWindowThreadProcessId($foregroundHandle, [ref]$foregroundPid)',
+            '$foregroundClass = [System.Text.StringBuilder]::new(256)',
+            '$null = [WindowState]::GetClassName($foregroundHandle, $foregroundClass, $foregroundClass.Capacity)',
+            '$foregroundIdentity = $null',
+            'try { $foregroundProcess = Get-CimInstance Win32_Process -Filter "ProcessId = $foregroundPid" -ErrorAction Stop; if ($foregroundProcess) { $foregroundIdentity = @{ processName = $foregroundProcess.Name; parentPid = $foregroundProcess.ParentProcessId; startTime = $(if ($foregroundProcess.CreationDate) { $foregroundProcess.CreationDate.ToUniversalTime().ToString("o") } else { $null }); executable = $(if ($foregroundProcess.ExecutablePath) { [IO.Path]::GetFileName($foregroundProcess.ExecutablePath) } else { $null }) } } } catch { $foregroundIdentity = @{ errorType = $_.Exception.GetType().Name; hresult = $_.Exception.HResult } }',
             '$current = $main.Current; $rect = $current.BoundingRectangle',
-            `@{ minimized = [WindowState]::IsIconic([IntPtr]$current.NativeWindowHandle); frontmost = $foregroundPid -eq ${record.electronPid}; diagnostic = @{ ownedPid = ${record.electronPid}; foregroundPid = $foregroundPid; windowClass = $current.ClassName; controlType = $current.ControlType.ProgrammaticName; rect = ${WINDOWS_DIAGNOSTIC_RECTANGLE} } } | ConvertTo-Json -Depth 4 -Compress`
+            `@{ minimized = [WindowState]::IsIconic([IntPtr]$current.NativeWindowHandle); frontmost = $foregroundPid -eq ${record.electronPid}; diagnostic = @{ ownedPid = ${record.electronPid}; ownedHandle = ([IntPtr]$current.NativeWindowHandle).ToInt64().ToString(); foregroundPid = $foregroundPid; foregroundHandle = $foregroundHandle.ToInt64().ToString(); foregroundClass = $foregroundClass.ToString(); foregroundIdentity = $foregroundIdentity; windowClass = $current.ClassName; controlType = $current.ControlType.ProgrammaticName; rect = ${WINDOWS_DIAGNOSTIC_RECTANGLE} } } | ConvertTo-Json -Depth 4 -Compress`
           ].join('; ')
         ],
         { timeout: 10_000, windowsHide: true }
       )
       const { minimized, frontmost, diagnostic } = JSON.parse(stdout)
-      if (minimized || !frontmost) {
-        const directory = join(app.paths.evidence, 'native-diagnostics')
-        await mkdir(directory, { recursive: true })
-        await writeFile(
-          join(directory, 'mp133-native-window.json'),
-          JSON.stringify({ at: new Date().toISOString(), ...diagnostic }),
-          { mode: 0o600 }
-        )
-      }
+      lastNativeState = { at: new Date().toISOString(), minimized, frontmost, ...diagnostic }
+      if (minimized || !frontmost) await persistNativeState()
       return { minimized: minimized as boolean, frontmost: frontmost as boolean }
     }
     // Preserve PID selectors when other development processes share Electron's name.
@@ -225,9 +243,16 @@ export async function singleInstanceRelaunch(app: RegressionApp, page: Page, tes
     await expect.poll(async () => (await nativeState()).minimized).toBe(true)
   }
   await screenshot('MP-133 original application before second launch')
+  if (record.platform === 'windows') {
+    await nativeState().catch(() => {})
+    await recordNativePhase('before-minimize')
+  }
   await minimize()
+  await recordNativePhase('minimized')
   if (record.platform === 'windows') {
     await exec(executablePath, args, { cwd: record.cwd, timeout: 30_000, env: environment })
+    await nativeState().catch(() => {})
+    await recordNativePhase('second-launch-returned')
   } else {
     // Finder opens through LaunchServices; -n also exercises the actual same-profile exclusion guard.
     await exec(
@@ -252,7 +277,11 @@ export async function singleInstanceRelaunch(app: RegressionApp, page: Page, tes
       { timeout: 30_000, env: environment }
     )
   }
-  await assertReused('MP-133 desktop relaunch reuses original window')
+  try {
+    await assertReused('MP-133 desktop relaunch reuses original window')
+  } finally {
+    await recordNativePhase('final')
+  }
   await expect(page.locator('[data-ui~="chat.view"]:visible')).toBeVisible()
   await minimize()
   await exec(executablePath, [...args, 'cherrystudio://navigate/settings/provider'], {
