@@ -194,10 +194,105 @@ export async function interruptAgentTask(
 
     const marker = `MP56_SESSION_USABLE_${Date.now()}`
     await composer.fill(`Do not use any tools. Reply with exactly ${marker}.`)
-    await view.getByRole('button', { name: 'Send', exact: true }).click()
-    await expect(
-      view.locator('[data-ui~="chat.message"][data-message-id]').getByText(marker, { exact: true }).last()
-    ).toBeVisible({ timeout: 60_000 })
+    const observation = await view
+      .evaluateHandle((root, marker) => {
+        const sendSelector = '[data-ui~="chat.composer.action.send"]'
+        const composerSelector = '[data-ui~="chat.composer"] [contenteditable="true"]'
+        const send = root.querySelector(sendSelector)
+        const editor = root.querySelector(composerSelector)
+        const events: object[] = []
+        const started = performance.now()
+        const describe = (element: Element | null) => ({
+          tag: element?.tagName ?? null,
+          role: element?.getAttribute('role') ?? null,
+          inSend: Boolean(element && send?.contains(element)),
+          inComposer: Boolean(element && editor?.contains(element))
+        })
+        const snapshot = () => {
+          const currentSend = root.querySelector(sendSelector)
+          const currentEditor = root.querySelector(composerSelector)
+          const rect = currentSend?.getBoundingClientRect()
+          return {
+            rootConnected: root.isConnected,
+            originalSendConnected: send?.isConnected ?? false,
+            sendReplaced: currentSend !== send,
+            editorReplaced: currentEditor !== editor,
+            disabled: currentSend?.matches(':disabled') ?? false,
+            ariaDisabled: currentSend?.getAttribute('aria-disabled') ?? null,
+            markerInComposer: currentEditor?.textContent?.includes(marker) ?? false,
+            messageCount: root.querySelectorAll('[data-ui~="chat.message"][data-message-id]').length,
+            documentFocused: document.hasFocus(),
+            focus: describe(document.activeElement),
+            rect: rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null,
+            centerHit: describe(
+              rect ? document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2) : null
+            )
+          }
+        }
+        const record = (event: Event, phase: string) => {
+          const target = event.target instanceof Element ? event.target : null
+          if (events.length >= 32) return
+          events.push({
+            type: event.type,
+            phase,
+            elapsedMs: Math.round(performance.now() - started),
+            defaultPrevented: event.defaultPrevented,
+            target: describe(target),
+            state: snapshot()
+          })
+        }
+        const capture = (event: Event) => record(event, 'capture')
+        const bubble = (event: Event) => record(event, 'bubble')
+        const types = ['pointerdown', 'pointerup', 'click', 'focusin', 'focusout']
+        for (const type of types) {
+          document.addEventListener(type, capture, true)
+          document.addEventListener(type, bubble)
+        }
+        return {
+          snapshot: () => ({ events, current: snapshot() }),
+          dispose: () => {
+            for (const type of types) {
+              document.removeEventListener(type, capture, true)
+              document.removeEventListener(type, bubble)
+            }
+          }
+        }
+      }, marker)
+      .catch(() => undefined)
+    try {
+      await view.getByRole('button', { name: 'Send', exact: true }).click()
+      await expect(
+        view.locator('[data-ui~="chat.message"][data-message-id]').getByText(marker, { exact: true }).last()
+      ).toBeVisible({ timeout: 60_000 })
+    } catch (error) {
+      await Promise.allSettled([
+        observation
+          ?.evaluate((state) => state.snapshot())
+          .then((state) =>
+            testInfo.attach('MP-56 recovery send interaction', {
+              body: JSON.stringify(state),
+              contentType: 'application/json'
+            })
+          ),
+        readMessages().then((messages) =>
+          testInfo.attach('MP-56 recovery message state', {
+            body: JSON.stringify({
+              count: messages.length,
+              messages: messages.map(({ role, status, searchableText }) => ({
+                role,
+                status,
+                hasMarker: searchableText.includes(marker)
+              }))
+            }),
+            contentType: 'application/json'
+          })
+        )
+      ])
+      throw error
+    } finally {
+      await observation?.evaluate((state) => state.dispose()).catch(() => undefined)
+      await observation?.dispose().catch(() => undefined)
+    }
     await expect(pause).toBeHidden({ timeout: 30_000 })
     const after = await readMessages()
     expect(

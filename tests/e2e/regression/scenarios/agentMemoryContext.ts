@@ -70,22 +70,133 @@ export async function agentMemoryContext(app: RegressionApp, page: Page, testInf
   const view = page.locator('[data-ui~="agent.view"]:visible').first()
   const composer = view.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first()
   const pause = view.getByRole('button', { name: 'Pause', exact: true })
+  let memorySettingsOpenCount = 0
   const openMemorySettings = async () => {
+    memorySettingsOpenCount += 1
     await page.bringToFront()
     const agentRow = view
       .getByRole('listbox')
       .getByRole('button')
       .filter({ has: page.getByRole('button', { name, exact: true }) })
     await agentRow.hover()
-    await agentRow.getByRole('button', { name: 'More', exact: true }).click()
-    const edit = page.getByRole('menuitem', { name: 'Edit Agent', exact: true })
-    await expect(edit).toBeVisible()
-    await expect(edit).toBeEnabled()
-    await edit.press('Enter')
-    const dialog = page.getByRole('dialog').last()
-    await expect(dialog).toBeVisible()
-    await dialog.getByRole('tab', { name: 'Built-in tools', exact: true }).click()
-    return dialog
+    const observation =
+      memorySettingsOpenCount === 2
+        ? await agentRow
+            .evaluateHandle((row) => {
+              const trigger = row.querySelector('[aria-label="More"]')
+              let menu: Element | null = null
+              const events: object[] = []
+              const started = performance.now()
+              const describe = (element: Element | null) => ({
+                tag: element?.tagName ?? null,
+                role: element?.getAttribute('role') ?? null,
+                inRow: Boolean(element && row.contains(element)),
+                inTrigger: Boolean(element && trigger?.contains(element)),
+                inMenu: Boolean(element && menu?.contains(element))
+              })
+              const snapshot = () => {
+                const menuId = trigger?.getAttribute('aria-controls')
+                const currentMenu = menuId ? document.getElementById(menuId) : null
+                if (currentMenu) menu = currentMenu
+                const rect = trigger?.getBoundingClientRect()
+                return {
+                  rowConnected: row.isConnected,
+                  triggerConnected: trigger?.isConnected ?? false,
+                  triggerReplaced: row.querySelector('[aria-label="More"]') !== trigger,
+                  expanded: trigger?.getAttribute('aria-expanded') ?? null,
+                  triggerState: trigger?.getAttribute('data-state') ?? null,
+                  disabled: trigger?.matches(':disabled') ?? false,
+                  menuPresent: Boolean(currentMenu),
+                  menuConnected: menu?.isConnected ?? false,
+                  menuState: menu?.getAttribute('data-state') ?? null,
+                  documentFocused: document.hasFocus(),
+                  focus: describe(document.activeElement),
+                  rect: rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null,
+                  centerHit: describe(
+                    rect ? document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2) : null
+                  )
+                }
+              }
+              let previousState = JSON.stringify(snapshot())
+              const record = (event: Event, phase: string) => {
+                if (events.length >= 32 || (event instanceof KeyboardEvent && event.key !== 'Escape')) return
+                events.push({
+                  type: event.type,
+                  phase,
+                  elapsedMs: Math.round(performance.now() - started),
+                  defaultPrevented: event.defaultPrevented,
+                  target: describe(event.target instanceof Element ? event.target : null),
+                  state: snapshot()
+                })
+              }
+              const capture = (event: Event) => record(event, 'capture')
+              const bubble = (event: Event) => record(event, 'bubble')
+              const types = [
+                'pointerdown',
+                'pointerup',
+                'click',
+                'focusin',
+                'focusout',
+                'keydown',
+                'dismissableLayer.pointerDownOutside',
+                'dismissableLayer.focusOutside'
+              ]
+              for (const type of types) {
+                document.addEventListener(type, capture, true)
+                document.addEventListener(type, bubble)
+              }
+              const observer = new MutationObserver(() => {
+                if (events.length >= 32) return
+                const state = snapshot()
+                const serialized = JSON.stringify(state)
+                if (serialized === previousState) return
+                previousState = serialized
+                events.push({ type: 'state-change', elapsedMs: Math.round(performance.now() - started), state })
+              })
+              observer.observe(document.body, {
+                subtree: true,
+                childList: true,
+                attributes: true,
+                attributeFilter: ['aria-expanded', 'data-state', 'disabled']
+              })
+              return {
+                snapshot: () => ({ events, current: snapshot() }),
+                dispose: () => {
+                  observer.disconnect()
+                  for (const type of types) {
+                    document.removeEventListener(type, capture, true)
+                    document.removeEventListener(type, bubble)
+                  }
+                }
+              }
+            })
+            .catch(() => undefined)
+        : undefined
+    try {
+      await agentRow.getByRole('button', { name: 'More', exact: true }).click()
+      const edit = page.getByRole('menuitem', { name: 'Edit Agent', exact: true })
+      await expect(edit).toBeVisible()
+      await expect(edit).toBeEnabled()
+      await edit.press('Enter')
+      const dialog = page.getByRole('dialog').last()
+      await expect(dialog).toBeVisible()
+      await dialog.getByRole('tab', { name: 'Built-in tools', exact: true }).click()
+      return dialog
+    } catch (error) {
+      await observation
+        ?.evaluate((state) => state.snapshot())
+        .then((state) =>
+          testInfo.attach('MP-57 second memory menu interaction', {
+            body: JSON.stringify(state),
+            contentType: 'application/json'
+          })
+        )
+        .catch(() => undefined)
+      throw error
+    } finally {
+      await observation?.evaluate((state) => state.dispose()).catch(() => undefined)
+      await observation?.dispose().catch(() => undefined)
+    }
   }
   const send = async (prompt: string) => {
     const messages = view.locator('[data-ui~="chat.message"]')
