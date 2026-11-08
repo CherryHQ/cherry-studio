@@ -27,7 +27,7 @@ async function openArchive(page: Page) {
 test('All re-reads after archiving through the topic context menu inside the dedupe window', async ({
   mainWindow: page
 }, testInfo) => {
-  await page.clock.install()
+  await page.clock.install({ time: new Date('2026-01-01T00:00:00Z') })
   await page.reload()
   await page.evaluate(() => window.api.preference.set('app.language', 'zh-CN'))
   await expect
@@ -105,8 +105,7 @@ test('All re-reads after archiving through the topic context menu inside the ded
   await testInfo.attach('archive-all-empty', { body: await page.screenshot(), contentType: 'image/png' })
   await page.getByRole('button', { name: labels.back }).first().click()
   await expect(topicRow).toBeVisible({ timeout: 30_000 })
-  await page.clock.fastForward(5000)
-  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000))
+  await page.clock.pauseAt(new Date('2026-01-01T01:00:00Z'))
   // Keep SWR's cache-expiry timer inside the same window regardless of runner speed.
   const initialReadStart = await page.evaluate(() => performance.now())
   await openArchive(page)

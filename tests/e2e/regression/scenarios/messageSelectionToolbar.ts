@@ -164,6 +164,8 @@ export async function messageSelectionToolbar(app: RegressionApp, page: Page, te
     const textCoordinates = async (target: Locator, length: number) => {
       if (!(await target.evaluate((element) => !!element.closest('.in-popover')))) {
         await page.keyboard.press('Escape')
+      } else {
+        await target.hover()
       }
       const measure = () =>
         target.evaluate((element, length) => {

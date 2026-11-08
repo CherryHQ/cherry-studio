@@ -423,7 +423,46 @@ async function terminateMacProcessGroupWithDrain(
       throw error
     }
     logLifecycleStage(record, 'unverified-group-drain-start')
-    if (!(await waitForMacProcessGroupExit(record.runnerPid))) throw error
+    if (!(await waitForMacProcessGroupExit(record.runnerPid))) {
+      if (signal === 'SIGKILL') {
+        try {
+          const members = execFileSync('ps', ['-axo', 'pid=,ppid=,pgid=,lstart='], {
+            encoding: 'utf8',
+            timeout: 2_000,
+            stdio: ['ignore', 'pipe', 'ignore']
+          })
+            .split(/\r?\n/)
+            .flatMap((line) => {
+              const match = line.trim().match(/^(\d+)\s+(\d+)\s+(\d+)\s+(.+)$/)
+              if (!match || Number(match[3]) !== record.runnerPid) return []
+              const pid = Number(match[1])
+              const startedAt = match[4]
+              return [
+                {
+                  pid,
+                  ppid: Number(match[2]),
+                  pgid: Number(match[3]),
+                  startedAt,
+                  previouslyVerifiedStartMatches: previouslyVerified.some(
+                    (previous) => previous.pid === pid && previous.startedAt === startedAt
+                  )
+                }
+              ]
+            })
+          appendFileSync(
+            record.logPath,
+            `[${new Date().toISOString()}] lifecycle=unverified-group-survivors ${JSON.stringify({
+              runnerPid: record.runnerPid,
+              members: members.slice(0, 32),
+              truncated: members.length > 32
+            })}\n`
+          )
+        } catch {
+          // A diagnostic failure must not replace the original ownership refusal.
+        }
+      }
+      throw error
+    }
     logLifecycleStage(record, 'unverified-group-drain-finished')
     try {
       processExited(record.runnerPid)

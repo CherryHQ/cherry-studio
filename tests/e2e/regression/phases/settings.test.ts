@@ -1419,6 +1419,7 @@ test(...caseDefinition('MP-113'), async ({ app, mainWindow }, testInfo) => {
     }
   }
   let observedContext = page.context()
+  let primaryFailure: unknown
   try {
     await openPrivacy()
     await expect(privacyRow().getByRole('switch')).toBeChecked({ checked: original })
@@ -1491,16 +1492,35 @@ test(...caseDefinition('MP-113'), async ({ app, mainWindow }, testInfo) => {
     await screenshot('MP-113 diagnostic bundle privacy and explicit consent')
     await consent.getByRole('button', { name: 'Cancel', exact: true }).click()
     await page.keyboard.press('Escape')
+  } catch (error) {
+    primaryFailure = error
+    throw error
   } finally {
-    observedContext.off('request', observeRequest)
-    await page.evaluate(
-      ({ original, originalPolicy }) =>
-        window.api.preference.setMultiple({
-          'app.privacy.data_collection.enabled': original,
-          'app.privacy.policy_version': originalPolicy
-        }),
-      { original, originalPolicy }
-    )
+    const cleanupErrors: unknown[] = []
+    try {
+      observedContext.off('request', observeRequest)
+    } catch (error) {
+      cleanupErrors.push(error)
+    }
+    try {
+      page = await app.mainWindow().catch(() => app.restart())
+      await page.evaluate(
+        ({ original, originalPolicy }) =>
+          window.api.preference.setMultiple({
+            'app.privacy.data_collection.enabled': original,
+            'app.privacy.policy_version': originalPolicy
+          }),
+        { original, originalPolicy }
+      )
+    } catch (error) {
+      cleanupErrors.push(error)
+    }
+    if (cleanupErrors.length > 0) {
+      throw new AggregateError(
+        primaryFailure === undefined ? cleanupErrors : [primaryFailure, ...cleanupErrors],
+        'MP-113 resource cleanup failed'
+      )
+    }
   }
 })
 
