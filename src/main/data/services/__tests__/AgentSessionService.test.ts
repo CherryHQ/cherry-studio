@@ -1066,6 +1066,7 @@ describe('AgentSessionService', () => {
 
   it('rejects workspace updates after messages are sent', async () => {
     const firstWorkspace = await createWorkspace('before-locked-switch')
+    await mkdir(firstWorkspace.path, { recursive: true })
     const secondWorkspace = await createWorkspace('after-locked-switch')
     const session = await createSession('Locked workspace switch', firstWorkspace.id)
     await insertSessionMessage(session.id, 'message-locks-workspace')
