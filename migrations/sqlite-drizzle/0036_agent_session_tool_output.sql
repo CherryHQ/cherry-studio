@@ -2,7 +2,6 @@ CREATE TABLE `agent_session_tool_output` (
 	`message_id` text NOT NULL,
 	`tool_call_id` text NOT NULL,
 	`session_id` text NOT NULL,
-	`revision` text NOT NULL,
 	`output` text NOT NULL,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,

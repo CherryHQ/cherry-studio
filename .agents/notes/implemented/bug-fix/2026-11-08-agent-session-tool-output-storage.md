@@ -16,10 +16,12 @@ English | [中文](2026-11-08-agent-session-tool-output-storage.zh.md)
 
 ## Decision
 
+This storage layer sits above the [tool result Spec](../../proposed/architecture/2026-11-09-tool-result-projection-boundaries.md). It removes the sidecar revision column and keeps one latest output per call. The existing renderer marker still carries its transport revision until the next layer replaces immutable result caching with targeted invalidation; this layer does not claim that broader acceptance criterion is complete.
+
 1. **Dedicated sidecar table (`agent_session_tool_output`)**:
-   - Added `agent_session_tool_output` (`message_id`, `tool_call_id`, `session_id`, `output`, `revision`, `created_at`, `updated_at`) with composite primary key `(message_id, tool_call_id)` and `ON DELETE CASCADE` foreign keys to `agent_session_message(id)` and `agent_session(id)`.
+   - Added `agent_session_tool_output` (`message_id`, `tool_call_id`, `session_id`, `output`, `created_at`, `updated_at`) with composite primary key `(message_id, tool_call_id)` and `ON DELETE CASCADE` foreign keys to `agent_session_message(id)` and `agent_session(id)`.
    - On write (`upsertMessage`, `replaceMessageParts`, `updateSessionMessage`, `insertForkMessagesTx`, `resolveCrashOrphanedMessages`), `AgentSessionMessageService` extracts completed tool outputs exceeding `DEFER_TOOL_OUTPUT_BYTES` (32 KiB) into `agent_session_tool_output` and stores only the compact `$deferredToolResult` marker (reference identifiers `sessionId`, `messageId`, `toolCallId`, `revision`, and optional `excerpt` and `skeleton`) in `agent_session_message.data`.
-   - `syncMessageToolOutputsTx` upserts sidecar rows with `setWhere: revision != excluded.revision` so repeated `replaceMessageParts` updates on a streaming assistant message skip rewriting unchanged tool outputs.
+   - `syncMessageToolOutputsTx` replaces the current output at the same `(message_id, tool_call_id)` key. `setWhere: output IS NOT excluded.output` skips writes when serialized content is unchanged, without a stored result revision. The update reuses `excluded.output` rather than serializing the same value again.
 2. **Deferred vs hydrated reads**:
    - `listSessionMessages(sessionId, { deferToolOutputs: true })` reads `agent_session_message` directly without querying `agent_session_tool_output` for rows persisted under the split layout, while still projecting legacy inline rows in memory for backward compatibility.
    - Callers that require full tool outputs (`getSessionMessage`, `listApprovalMessages`, `findCrashOrphanedAssistantMessages`, `readAgentSessionPath`, `readRetiredAgentSessionHistory`, and `listSessionMessages` without `deferToolOutputs`) batch-hydrate `$deferredToolResult` markers from `agent_session_tool_output` in `SQLITE_INARRAY_CHUNK` chunks.
@@ -38,14 +40,14 @@ English | [中文](2026-11-08-agent-session-tool-output-storage.zh.md)
 
 ## Consequences
 
-- `agent_session_message.data` stays compact (~1–4 KB per message regardless of tool output size), eliminating multi-megabyte synchronous JSON parse/stringify stalls on the Electron main thread during message paging and live streaming.
+- Split message rows exclude oversized tool bodies, so compact paging avoids parsing those bodies. This does not establish a universal paging latency or eliminate other synchronous streaming work.
 - Deleting a session, message, or branch automatically cleans up offloaded tool outputs via SQLite `ON DELETE CASCADE` within the same transaction.
 - Legacy messages persisted before this change remain readable without a destructive migration.
 
 ## Verification
 
-- Regression — `pnpm test:main src/main/data/services/__tests__/AgentSessionMessageService.test.ts`: verifies write-time offloading into `agent_session_tool_output`, compact deferred reads, hydrated default/single reads, `getSessionToolOutput` point lookups, `entityJsonBytes` parity, unchanged-revision skip on `replaceMessageParts`, and cascade deletion.
+- Regression — `pnpm test:main src/main/data/services/__tests__/AgentSessionMessageService.test.ts`: verifies write-time offloading into `agent_session_tool_output`, compact deferred reads, hydrated default/single reads, `getSessionToolOutput` point lookups, `entityJsonBytes` parity, unchanged-content skip and same-call latest-output replacement on `replaceMessageParts`, and cascade deletion.
 - Regression — `pnpm test:main src/main/ai/runtime/pi/__tests__/retiredSessionHistory.test.ts`: verifies crash-orphan recovery followed by retired DSH session history import hydrates oversized tool outputs into resumed Pi context.
 - Regression — `pnpm test:main src/main/utils/__tests__/messageOutputProjection.test.ts src/main/ai/messages/__tests__/readConversation.test.ts src/main/ipc/handlers/__tests__/ai.test.ts`: verifies single-pass projection, citation skeleton preservation, and O(1) `ai.message.readToolOutput` lookup.
 - Regression — `pnpm test:main src/main/ai/agentSession/__tests__/RootMessageProjection.test.ts src/main/ai/agentSession/__tests__/ChildThreadProjection.test.ts`: verifies deduplicated message lookups and single-pass child archive initialization.
-- Regression — `pnpm test:main src/main/data/db/__tests__/applyMigrations.test.ts src/main/data/db/__tests__/applyMigrations.populated.test.ts src/main/data/db/__tests__/ftsRebuild.test.ts`: verifies migration `0035_exotic_wild_child.sql` and `WHEN OLD.data IS NOT NEW.data` FTS trigger integrity.
+- Regression — `pnpm test:main src/main/data/db/__tests__/applyMigrations.test.ts src/main/data/db/__tests__/applyMigrations.populated.test.ts src/main/data/db/__tests__/ftsRebuild.test.ts`: verifies migration `0036_agent_session_tool_output.sql` and `WHEN OLD.data IS NOT NEW.data` FTS trigger integrity.

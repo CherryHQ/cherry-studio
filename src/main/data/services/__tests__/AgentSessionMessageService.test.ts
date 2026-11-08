@@ -2946,7 +2946,7 @@ describe('AgentSessionMessageService', () => {
       expect(metadata.entityJsonBytes).toBe(Buffer.byteLength(JSON.stringify(single), 'utf8'))
     })
 
-    it('skips rewriting unchanged tool outputs on replaceMessageParts and cleans up removed or cascade-deleted outputs', () => {
+    it('keeps only the latest tool output, skips unchanged writes and cleans up removed or cascade-deleted outputs', () => {
       agentSessionMessageService.saveMessage({
         sessionId: SESSION_ID,
         message: {
@@ -3003,6 +3003,35 @@ describe('AgentSessionMessageService', () => {
         messageId: ASSISTANT_MESSAGE_ID,
         toolCallId: 'call-1',
         updatedAt: 1000
+      })
+
+      agentSessionMessageService.replaceMessageParts(SESSION_ID, ASSISTANT_MESSAGE_ID, [
+        {
+          type: 'dynamic-tool',
+          toolName: 'Read',
+          toolCallId: 'call-1',
+          state: 'output-available',
+          input: {},
+          output: oversizedOutputB
+        }
+      ])
+
+      const replaced = dbh.db.select().from(agentSessionToolOutputTable).all()
+      expect(replaced).toHaveLength(1)
+      expect(replaced[0]).toMatchObject({
+        messageId: ASSISTANT_MESSAGE_ID,
+        toolCallId: 'call-1',
+        output: oversizedOutputB,
+        createdAt: remaining[0].createdAt
+      })
+      expect(agentSessionMessageService.getSessionToolOutput(SESSION_ID, ASSISTANT_MESSAGE_ID, 'call-1')).toEqual({
+        found: true,
+        output: oversizedOutputB
+      })
+      expect(
+        agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).data.parts?.[0]
+      ).toMatchObject({
+        output: oversizedOutputB
       })
 
       agentSessionMessageService.deleteSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)

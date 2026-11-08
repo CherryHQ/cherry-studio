@@ -357,7 +357,6 @@ function publicMessageData(data: SessionMessageRow['data']): AgentSessionMessage
 
 type OffloadedToolOutput = {
   toolCallId: string
-  revision: string
   output: unknown
 }
 
@@ -393,7 +392,6 @@ function extractMessageToolOutputs<T extends SessionMessageRow['data']>(
     retainedToolCallIds.add(part.toolCallId)
     offloaded.push({
       toolCallId: part.toolCallId,
-      revision: projected.output.$deferredToolResult.revision ?? '',
       output: part.output
     })
     storedParts ??= [...parts]
@@ -408,13 +406,13 @@ function extractMessageToolOutputs<T extends SessionMessageRow['data']>(
   }
 }
 
-function collectDeferredToolRevisions(data: SessionMessageRow['data']): Map<string, string | undefined> {
-  const revisions = new Map<string, string | undefined>()
+function collectDeferredToolCallIds(data: SessionMessageRow['data']): Set<string> {
+  const toolCallIds = new Set<string>()
   for (const part of data.parts ?? []) {
     if (!isToolUIPart(part) || part.state !== 'output-available' || !isDeferredToolOutput(part.output)) continue
-    revisions.set(part.toolCallId, part.output.$deferredToolResult.revision)
+    toolCallIds.add(part.toolCallId)
   }
-  return revisions
+  return toolCallIds
 }
 
 function syncMessageToolOutputsTx(
@@ -426,17 +424,13 @@ function syncMessageToolOutputsTx(
   existingData: SessionMessageRow['data'] | undefined,
   timestampMs: number
 ): void {
-  const previousRevisions = existingData ? collectDeferredToolRevisions(existingData) : undefined
+  const previousToolCallIds = existingData ? collectDeferredToolCallIds(existingData) : undefined
   for (const item of offloaded) {
-    if (previousRevisions && item.revision && previousRevisions.get(item.toolCallId) === item.revision) {
-      continue
-    }
     tx.insert(sessionToolOutputsTable)
       .values({
         messageId,
         toolCallId: item.toolCallId,
         sessionId,
-        revision: item.revision,
         output: item.output,
         createdAt: timestampMs,
         updatedAt: timestampMs
@@ -445,17 +439,16 @@ function syncMessageToolOutputsTx(
         target: [sessionToolOutputsTable.messageId, sessionToolOutputsTable.toolCallId],
         set: {
           sessionId,
-          revision: item.revision,
-          output: item.output,
+          output: sql`excluded.output`,
           updatedAt: timestampMs
         },
-        setWhere: sql`${sessionToolOutputsTable.revision} != excluded.revision`
+        setWhere: sql`${sessionToolOutputsTable.output} IS NOT excluded.output`
       })
       .run()
   }
 
-  if (!previousRevisions) return
-  const staleIds = [...previousRevisions.keys()].filter((toolCallId) => !retainedToolCallIds.has(toolCallId))
+  if (!previousToolCallIds) return
+  const staleIds = [...previousToolCallIds].filter((toolCallId) => !retainedToolCallIds.has(toolCallId))
   for (let index = 0; index < staleIds.length; index += SQLITE_INARRAY_CHUNK) {
     tx.delete(sessionToolOutputsTable)
       .where(

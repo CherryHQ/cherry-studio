@@ -91,7 +91,6 @@ export const agentSessionToolOutputTable = sqliteTable(
     sessionId: text()
       .notNull()
       .references(() => agentSessionTable.id, { onDelete: 'cascade' }),
-    revision: text().notNull(),
     output: text({ mode: 'json' }).$type<unknown>().notNull(),
     ...createUpdateTimestamps
   },
