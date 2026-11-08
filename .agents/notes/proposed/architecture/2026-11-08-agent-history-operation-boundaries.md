@@ -1,4 +1,4 @@
-# Agent Note: Agent history operations and Plan Mode hint removal
+# Agent Note: Agent history operations and explicit Plan/Goal controls
 
 Status: proposed
 
@@ -6,7 +6,7 @@ English | [中文](2026-11-08-agent-history-operation-boundaries.zh.md)
 
 ## Problem
 
-A planning word in a draft currently offers a Plan Mode hint and temporarily changes Shift+Tab handling. Accepting the hint persists the Agent's permission mode, although the affordance is tied to one draft. The existing permission-mode menu already provides explicit selection. The user has chosen to remove this draft-driven suggestion.
+A planning word in a draft currently offers a Plan Mode hint and temporarily changes Shift+Tab handling. Accepting the hint persists the Agent's permission mode, although the affordance is tied to one draft. The user wants explicit Plan and Goal entries in the Quick Panel without input-placeholder hints or draft inference. Shift+Tab must toggle only ordinary/Plan; Goal is selected separately.
 
 History operations have a separate ambiguity. Claude Code and Pi save native fork boundaries and implement desktop fork/edit. Pi Durable can fork a native child conversation but does not expose desktop fork/edit checkpoints. The renderer currently enables fork for a successful assistant row without checking driver support or checkpoint presence. Conversation editing does not restore workspace files.
 
@@ -43,13 +43,17 @@ Deliver hint removal, accurate history-action availability, and the existing Cla
 
 Use “edit and resend” and “fork conversation” for the current product actions. Do not label either as restoring files or rolling back execution. A copied system workspace reflects the copy-time state, not the selected message's historical file state.
 
-### 2. Remove the draft-driven Plan Mode path
+### 2. Use explicit Plan and Goal entries
 
-Delete the hint component, keyword matcher, per-draft state and dedicated tests. Remove its imports, accept/dismiss/reset wiring and JSX from `AgentComposer.tsx`. Remove the dedicated `onShiftTab` prop, refs and forwarding from both composer surfaces; preserve their existing prompt-variable navigation and editor keyboard handling.
+Delete the hint component, keyword matcher, per-draft state and dedicated tests. Remove its imports, accept/dismiss/reset wiring and JSX from `AgentComposer.tsx`, and all `agent.input.plan_hint.*` locale keys. Do not add mode suggestions or mode-specific input placeholders.
 
-Remove all `agent.input.plan_hint.*` locale keys. Keep the permission-mode launcher, supported-mode filtering, native Plan Mode, existing saved settings and the shared `useUpdateAgent` consumers for reasoning/service-tier settings. Do not reset existing Agents to default mode. No replacement keyword detector, model classifier, notification or onboarding banner is introduced.
+Move Plan out of the composer's Permission Mode submenu into an independent Quick Panel toggle. Keep the existing supported-mode filtering and saved native `permission_mode`: Plan selects `plan`; leaving Plan selects `default`. Do not reset existing Agents on mount or introduce another persisted mode. The Agent configuration dialogs keep their existing native permission choices.
 
-The baseline already renames the hook to `usePlanModeHint.ts`, resolving the case-insensitive module collision. This delivery removes the remaining product behavior the user rejected.
+Keep `onShiftTab` in both composer surfaces. On supported harnesses, plain Shift+Tab toggles ordinary/Plan regardless of draft wording; it neither sends nor rewrites the draft. Repeated keydown events do not cycle again. Open-panel navigation and prompt-variable navigation retain priority; composition and modified shortcuts do not change modes. Goal never joins this cycle.
+
+Promote the existing native `/goal` command to an independent Goal Mode Quick Panel entry. Selection prefixes the draft with `/goal ` once, preserves existing tokens and focuses the composer; the user supplies the objective and explicitly submits it through the existing native command path. Do not create another Goal state machine or infer a goal from normal text. Pi and Durable advertise their implemented command in the static fallback; Claude shows the entry when its live SDK catalog advertises it. Explicit custom commands are not promoted as native mode controls.
+
+Keep Full Access confirmation, native Plan execution and the shared `useUpdateAgent` consumers for reasoning/service-tier settings. No replacement keyword detector, model classifier, notification or onboarding banner is introduced.
 
 ### 3. Keep three different checkpoint purposes distinct
 
@@ -110,7 +114,7 @@ File rewind also remains outside this delivery. A future proposal must distingui
 
 | Step | Files or owner | Change | Verification |
 |---|---|---|---|
-| A | `variants/agent/PlanModeHint.tsx`, `usePlanModeHint.ts`, dedicated test, `AgentComposer.tsx`, both composer surfaces and locale catalogs | Delete the complete hint path and its one-consumer keyboard API | Composer consumer tests and unmodified Electron Work launch |
+| A | `variants/agent/PlanModeHint.tsx`, `usePlanModeHint.ts`, dedicated test, `AgentComposer.tsx`, both composer surfaces and locale catalogs | Delete draft hints; keep ordinary/Plan Shift+Tab and separate Quick Panel Plan/Goal entries | Composer consumer tests and unmodified Electron Work launch |
 | B | `AgentSessionMessageBackend.ts`, existing context/read-model service and Agent message action adapter | Keep checkpoint evidence coherent; publish honest action availability | Real migrated SQLite and renderer action behavior |
 | C | `ClaudeCodeRuntimeDriver.ts`, `claudeContext.ts`, existing fork helpers and fork operations | Correct reset boundary handoff; retain SDK identity mapping and publication/compensation | Native SDK contract and Main fork/edit failure cases |
 | D | Runtime package/desktop READMEs, Agent runtime reference and action copy | Document exact support and distinguish conversation history from file state | Documentation gates and representative Electron interaction |
@@ -119,11 +123,11 @@ Deliver A independently, then B/C with their affected consumers, and finish D ag
 
 ### 9. Local implementation verification (2026-11-09)
 
-The local implementation uses the existing driver schemas and message read model. `historyActions` contains nullable fork/edit failure reasons; no native checkpoint is sent to the renderer. The draft hint path and its dedicated keyboard API are deleted. Claude reset prepares the current-head successor before switching handles and ignores retired-session results.
+The local implementation uses the existing driver schemas and message read model. `historyActions` contains nullable fork/edit failure reasons; no native checkpoint is sent to the renderer. The draft hint path is deleted. Explicit Quick Panel controls and ordinary/Plan Shift+Tab use the existing native mode/command paths. Claude reset prepares the current-head successor before switching handles and ignores retired-session results.
 
 | Criteria | Recorded evidence |
 |---|---|
-| AC1–AC2 | Composer consumer tests; real Electron drafting/Shift+Tab does not change the saved mode, and explicit Plan/default selection preserves the draft |
+| AC1–AC2 | Correction acceptance is recorded separately below; the earlier Shift+Tab-does-not-change-mode check is superseded and does not verify the corrected contract |
 | AC3 | Migrated SQLite read-model tests and `AgentSessionMessageBackend.test.ts` cover missing, malformed, foreign and failed-persistence checkpoints without losing completed answers |
 | AC4 | Pi SDK leaf/compaction and Claude SDK UUID/unsafe-metadata contract tests; real native JSONL checks exclude later source turns and retain independent identities |
 | AC5 | Pi and Claude Electron fork, noninitial edit, first-input edit and branch navigation; persisted edited text and native transcript match the new input |
@@ -139,6 +143,14 @@ The provider acceptance uses the existing development LongCat-2.5 configuration 
 
 One existing UI gap remains separate: a successful, empty Claude `/clear` receipt is persisted as success but the Agent message adapter renders its generic “No response” error card. This verification does not claim that card is fixed. The Spec stays proposed until its publication/review lifecycle is completed; Durable desktop fork and file rewind remain outside the delivery.
 
+### 10. Mode-control correction verification (2026-11-09)
+
+The corrected AC1–AC2 contract was verified on the current checkout after the main-base refresh. Nine explicitly selected renderer test files passed 475 tests, including both composer surfaces, the Agent consumer, Plan/Goal launchers, Quick Panel behavior and a real editor preserving selected text/file chips during command prefix insertion. The shared capability file passed six tests; the Pi and Durable connection consumers passed 59 tests, including their existing native Goal command cases. Web typecheck, changed-file Oxfmt/Oxlint/ESLint, i18n and documentation checks passed.
+
+In the tracked Electron instance, Claude Shift+Tab changed saved mode `default → plan → default` without changing the draft. The root Plan entry toggled the same native setting, and the composer permission submenu omitted Plan. Claude's live SDK catalog exposed Goal; its root entry prefixed an existing draft once without submitting or changing permissions. Pi and Durable exposed Goal independently, preserved the objective and returned their native status after an explicit `/goal` submission. These status checks do not claim a complete autonomous Goal run.
+
+A separate real LongCat-2.5 request in Claude Plan mode returned the exact requested `MODE_BOUNDARY_PLAN_OK` reply and persisted the expected user input with a successful answer. The shortcut then returned the saved mode to `default`. Correction screenshots, logs and results are under `.context/cherry-electron-dev/mode-correction/`; the earlier history acceptance remains separately scoped above.
+
 ## Alternatives considered
 
 - Rename the hint hook or move the hint elsewhere. This repairs import resolution or placement while retaining keyword inference and the draft-to-Agent scope mismatch.
@@ -150,8 +162,8 @@ One existing UI gap remains separate: a successful, empty Claude `/clear` receip
 
 ## Acceptance criteria
 
-- AC1 — Planning keywords, negations and quoted text never render a Plan Mode suggestion or change Agent settings; explicit mode selection still works and saved modes remain unchanged. (verification: renderer and Electron — implementation author)
-- AC2 — Shift+Tab retains existing prompt-variable/editor behavior in both deferred and initialized composer surfaces, independent of draft wording. (verification: renderer and Electron — implementation author)
+- AC1 — Planning keywords, negations and quoted text never render mode suggestions or change settings. Plan and native Goal have independent Quick Panel entries; Plan is absent from the composer permission submenu, Goal selection inserts the native command without submitting, and existing saved modes are not reset on mount. (verification: renderer and Electron — implementation author)
+- AC2 — Plain Shift+Tab toggles only ordinary/Plan on supported harnesses in both deferred and initialized composer surfaces, preserves the draft and ignores repeats/composition/modified shortcuts. Goal stays independent; open-panel and prompt-variable navigation retain priority. (verification: renderer and Electron — implementation author)
 - AC3 — A successful Claude/Pi reply saves its evidenced native boundary with the product reply; absent/invalid checkpoint evidence preserves the answer and disables fork rather than inventing a boundary. (verification: unit with migrated SQLite — implementation author)
 - AC4 — Claude and Pi forks include exactly the selected native prefix, preserve supported compaction/replacement state, remap inherited checkpoints and leave source history unchanged. (verification: native SDK contract — implementation author)
 - AC5 — Editing a noninitial input keeps the old branch and selects a sibling with new product input and native identities; editing the first input succeeds without a fake checkpoint. (verification: unit with migrated SQLite and Electron — implementation author)

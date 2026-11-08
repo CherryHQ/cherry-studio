@@ -1,4 +1,4 @@
-# Agent Note: Agent 历史操作与 Plan Mode 提示移除
+# Agent Note: Agent 历史操作与显式 Plan／Goal 入口
 
 Status: proposed
 
@@ -6,7 +6,7 @@ Status: proposed
 
 ## 问题
 
-当前草稿中出现规划相关词语时会显示 Plan Mode 提示，并临时改变 Shift+Tab 的处理。接受提示会持久化整个 Agent 的权限模式，尽管提示围绕单条草稿出现。现有权限模式菜单已经提供显式选择。用户已选择移除这条根据草稿触发的建议。
+当前草稿中出现规划相关词语时会显示 Plan Mode 提示，并临时改变 Shift+Tab 的处理。接受提示会持久化整个 Agent 的权限模式，尽管提示围绕单条草稿出现。用户要求在 Quick Panel 中提供独立的 Plan、Goal 入口，输入框不显示模式提示，也不根据草稿推断模式。Shift+Tab 只切换普通／计划，Goal 单独选择。
 
 历史操作还存在另一层歧义。Claude Code 和 Pi 保存原生分叉边界并实现了桌面 fork/edit。Pi Durable 能分叉原生子会话，却没有暴露桌面 fork/edit 检查点。renderer 目前只凭助手消息成功就启用分叉，没有检查 driver 支持或检查点是否存在。对话编辑不会恢复工作区文件。
 
@@ -43,13 +43,17 @@ Status: proposed
 
 当前产品操作使用“编辑并重发”和“分叉对话”。两者都不标为恢复文件或撤销执行。复制后的系统工作区反映复制时状态，不是所选历史消息时刻的文件状态。
 
-### 2. 移除草稿驱动的 Plan Mode 链路
+### 2. 使用显式 Plan、Goal 入口
 
-删除提示组件、关键词匹配器、每草稿状态及专属测试。从 `AgentComposer.tsx` 删除相应导入、接受／关闭／重置接线和 JSX。删除两个 composer surface 专为提示增加的 `onShiftTab` 属性、ref 和转发，保留其既有提示词变量导航和编辑器键盘处理。
+删除提示组件、关键词匹配器、每草稿状态及专属测试。从 `AgentComposer.tsx` 删除相应导入、接受／关闭／重置接线和 JSX，并删除全部 `agent.input.plan_hint.*` locale key。不增加模式建议或模式专属 placeholder。
 
-删除全部 `agent.input.plan_hint.*` locale key。保留权限模式菜单、支持模式过滤、原生 Plan Mode、已有保存配置，以及仍被推理／service-tier 设置使用的共享 `useUpdateAgent` 消费者。不将已有 Agent 重置为默认模式。不增加替代关键词检测器、模型分类器、通知或引导横幅。
+将 Plan 从输入框的 Permission Mode 子菜单移至 Quick Panel 独立开关。保留既有支持模式过滤与已保存的原生 `permission_mode`：开启 Plan 设为 `plan`，退出 Plan 设为 `default`。不在挂载时重置已有 Agent，也不增加另一份持久化模式。Agent 配置对话框保留已有原生权限选项。
 
-基线已将 hook 重命名为 `usePlanModeHint.ts`，解决了大小写不敏感文件系统上的模块冲突。本次交付移除用户已否定的剩余产品行为。
+两个 composer surface 均保留 `onShiftTab`。受支持的 harness 中，单独按 Shift+Tab 始终切换普通／计划，与草稿措辞无关，不发送也不改写草稿。重复 keydown 不再次切换；已打开面板的导航和提示词变量导航保持优先，输入法组合输入及带其他修饰键的快捷键不改变模式。Goal 不加入此循环。
+
+将已有原生 `/goal` 命令提升为 Quick Panel 独立的 Goal 模式入口。选择后在草稿开头插入一次 `/goal `，保留已有 token 并聚焦输入框；用户填写目标并显式发送，继续走已有原生命令链路。不新增 Goal 状态机，也不根据普通文本推断目标。Pi、Durable 的静态回退目录声明其已实现的命令；Claude 在实时 SDK 目录声明该命令时显示入口。显式自定义命令不提升为原生模式控制。
+
+保留 Full Access 确认、原生 Plan 执行，以及仍被推理／service-tier 设置使用的共享 `useUpdateAgent` 消费者。不增加替代关键词检测器、模型分类器、通知或引导横幅。
 
 ### 3. 区分三类不同目的的检查点
 
@@ -110,7 +114,7 @@ Main 保持权威。复用现有 Agent 消息读模型，只提供 renderer 实�
 
 | 步骤 | 文件或所有者 | 修改 | 验证 |
 |---|---|---|---|
-| A | `variants/agent/PlanModeHint.tsx`、`usePlanModeHint.ts`、专属测试、`AgentComposer.tsx`、两个 composer surface 与 locale catalog | 删除完整提示链路及其单消费者键盘 API | Composer 消费者测试与未经适配的 Electron Work 启动 |
+| A | `variants/agent/PlanModeHint.tsx`、`usePlanModeHint.ts`、专属测试、`AgentComposer.tsx`、两个 composer surface 与 locale catalog | 删除草稿提示；保留普通／计划 Shift+Tab 与独立 Quick Panel Plan／Goal 入口 | Composer 消费者测试与未经适配的 Electron Work 启动 |
 | B | `AgentSessionMessageBackend.ts`、现有 context／读模型 service 与 Agent 消息操作 adapter | 保持检查点证据一致；提供真实操作可用性 | 生产迁移后的真实 SQLite 与 renderer 操作行为 |
 | C | `ClaudeCodeRuntimeDriver.ts`、`claudeContext.ts`、现有 fork helper 和 fork operations | 修正重置边界交接；保留 SDK 身份映射及发布／补偿 | 原生 SDK 契约与 Main fork/edit 失败场景 |
 | D | Runtime package／桌面 README、Agent runtime reference 与操作文案 | 记录准确支持范围，区分对话历史与文件状态 | 文档门禁与代表性 Electron 交互 |
@@ -119,11 +123,11 @@ A 独立交付，然后完成带受影响消费者的 B/C，最后按实际实�
 
 ### 9. 本地实现验证（2026-11-09）
 
-本地实现复用现有 driver schema 与消息读模型。`historyActions` 提供可为 null 的 fork/edit 失败原因，不向 renderer 发送原生检查点。草稿提示链路及专属键盘 API 已删除。Claude 重置先按当前 head 准备后继 context，再切换 handle，并忽略退休会话的结果。
+本地实现复用现有 driver schema 与消息读模型。`historyActions` 提供可为 null 的 fork/edit 失败原因，不向 renderer 发送原生检查点。草稿提示链路已删除；显式 Quick Panel 控制与普通／计划 Shift+Tab 复用已有原生模式／命令链路。Claude 重置先按当前 head 准备后继 context，再切换 handle，并忽略退休会话的结果。
 
 | 验收标准 | 已记录证据 |
 |---|---|
-| AC1–AC2 | Composer 消费者测试；真实 Electron 草稿输入／Shift+Tab 不改变已保存模式，显式 Plan/default 选择保留草稿 |
+| AC1–AC2 | 修正后的验收单独记录在下方；此前“Shift+Tab 不改变模式”的检查已被取代，不能证明修正后的契约 |
 | AC3 | 迁移后 SQLite 读模型测试与 `AgentSessionMessageBackend.test.ts` 覆盖检查点缺失、格式错误、其他 runtime 及持久化失败，并保留完成的回答 |
 | AC4 | Pi SDK leaf／压缩与 Claude SDK UUID／不安全元数据契约测试；真实原生 JSONL 核对排除源的后续轮次并保留独立身份 |
 | AC5 | Pi、Claude Electron 分叉、非首条编辑、首条编辑及分支导航；落盘编辑文本与原生记录均匹配新输入 |
@@ -139,6 +143,14 @@ A 独立交付，然后完成带受影响消费者的 B/C，最后按实际实�
 
 另有一处现有 UI 缺口：Claude `/clear` 的空回执成功落盘，但 Agent 消息 adapter 会渲染通用“No response”错误卡片。本次验证不宣称已修复该卡片。Spec 在发布／审查生命周期完成前保持 proposed；Durable 桌面 fork 与文件回滚仍不属于本次交付。
 
+### 10. 模式入口修正验证（2026-11-09）
+
+修正后的 AC1–AC2 契约已在更新 main 基线后的当前工作区验证。显式选择的九个 renderer 测试文件共 475 项通过，覆盖两种 composer surface、Agent 消费者、Plan／Goal 入口、Quick Panel 行为，以及真实编辑器在命令前缀插入时保留选中文本和文件 chip。共享能力文件的六项测试通过；Pi、Durable connection 消费者的 59 项测试通过，包含已有原生 Goal 命令场景。Web 类型检查、变更文件 Oxfmt／Oxlint／ESLint、翻译与文档检查通过。
+
+在受跟踪 Electron 实例中，Claude Shift+Tab 将保存的模式按 `default → plan → default` 切换，草稿不变。根级 Plan 入口切换同一个原生设置，输入框权限子菜单不含 Plan。Claude 实时 SDK 目录提供 Goal；根级入口在已有草稿开头只插入一次命令，不发送，也不改变权限。Pi、Durable 独立提供 Goal，保留目标，并在显式发送 `/goal` 后返回原生状态。这些状态检查不代表完整的自主 Goal 执行验收。
+
+另一次真实 LongCat-2.5 请求在 Claude Plan 模式下准确返回 `MODE_BOUNDARY_PLAN_OK`，落盘用户输入匹配，助手回答状态为成功。随后通过快捷键将保存模式恢复为 `default`。修正后的截图、日志与结果位于 `.context/cherry-electron-dev/mode-correction/`；此前历史操作验收按上文单独记录范围。
+
 ## 考虑过的替代方案
 
 - 重命名提示 hook 或将提示搬到其他位置。这样只修复导入解析或位置，仍保留关键词推断和草稿到 Agent 的作用范围错配。
@@ -150,8 +162,8 @@ A 独立交付，然后完成带受影响消费者的 B/C，最后按实际实�
 
 ## 验收标准
 
-- AC1 — 规划关键词、否定句和引用文本均不渲染 Plan Mode 建议，也不改变 Agent 配置；显式模式选择仍可用，已保存模式保持不变。 (verification: renderer and Electron — implementation author)
-- AC2 — Shift+Tab 在延迟加载和已初始化的 composer surface 中均保留原有提示词变量／编辑器行为，不随草稿内容改变。 (verification: renderer and Electron — implementation author)
+- AC1 — 规划关键词、否定句和引用文本均不渲染模式建议，也不改变配置。Plan 与原生 Goal 拥有独立 Quick Panel 入口；输入框权限子菜单不含 Plan，Goal 选择只插入原生命令、不发送；已有保存模式不在挂载时重置。 (verification: renderer and Electron — implementation author)
+- AC2 — 单独按 Shift+Tab 在延迟加载和已初始化的 composer surface 中均只切换受支持 harness 的普通／计划模式，保留草稿，忽略重复按键、输入法组合输入及带其他修饰键的组合。Goal 保持独立，已打开面板及提示词变量导航优先。 (verification: renderer and Electron — implementation author)
 - AC3 — Claude/Pi 成功回复将有证据的原生边界与产品回复一起保存；检查点缺失／无效时保留回答并禁用分叉，不制造边界。 (verification: unit with migrated SQLite — implementation author)
 - AC4 — Claude、Pi 分叉只包含所选原生前缀，保留受支持的压缩／替换状态，重映射继承检查点，并保持源历史不变。 (verification: native SDK contract — implementation author)
 - AC5 — 编辑非首条输入时保留旧分支，选择带新产品输入和原生身份的兄弟分支；编辑首条输入无需伪造检查点即可成功。 (verification: unit with migrated SQLite and Electron — implementation author)
