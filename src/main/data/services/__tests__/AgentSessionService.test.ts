@@ -1,4 +1,5 @@
 import '@data/services/AgentSessionMessageService'
+import { mkdir } from 'node:fs/promises'
 import path from 'path'
 
 import { setupTestDatabase } from '@test-helpers/db'
@@ -1133,6 +1134,32 @@ describe('AgentSessionService', () => {
       .from(agentWorkspaceTable)
       .where(eq(agentWorkspaceTable.type, 'system'))
     expect(systemWorkspaceRows).toHaveLength(0)
+  })
+
+  it('rebinds a messaged session whose user workspace folder is missing', async () => {
+    const missingWorkspace = await createWorkspace('missing-folder')
+    const replacement = await createWorkspace('replacement-folder')
+    await mkdir(replacement.path, { recursive: true })
+    const session = await createSession('Recoverable', missingWorkspace.id)
+    await insertSessionMessage(session.id, 'message-recoverable')
+
+    expect(agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: replacement.id })).toMatchObject({
+      workspaceId: replacement.id,
+      workspace: { type: 'user', path: replacement.path }
+    })
+  })
+
+  it('keeps a messaged session bound while its user workspace folder exists', async () => {
+    const userWorkspace = await createWorkspace('present-folder')
+    const replacement = await createWorkspace('other-folder')
+    await mkdir(userWorkspace.path, { recursive: true })
+    const session = await createSession('Present', userWorkspace.id)
+    await insertSessionMessage(session.id, 'message-present')
+
+    expect(
+      captureError(() => agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: replacement.id }))
+    ).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+    expect(agentSessionService.getById(session.id)).toMatchObject({ workspaceId: userWorkspace.id })
   })
 
   it('deletes a session', async () => {

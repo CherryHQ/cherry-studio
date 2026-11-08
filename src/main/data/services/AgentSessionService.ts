@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto'
+import { statSync } from 'node:fs'
 
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, notInArray, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
@@ -51,6 +52,14 @@ import {
 } from './utils/pinnedListCursor'
 
 const logger = loggerService.withContext('AgentSessionService')
+
+function isDirectoryAccessible(directoryPath: string): boolean {
+  try {
+    return statSync(directoryPath).isDirectory()
+  } catch {
+    return false
+  }
+}
 
 const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 200
@@ -903,10 +912,11 @@ export class AgentSessionService {
   }
 
   /**
-   * Replace a session's workspace. Only an empty session (no messages) may
-   * change its workspace; once a conversation has started the binding is
-   * permanent. Lives on `PUT /agent-sessions/:id/workspace` rather than the
-   * generic PATCH because it creates/deletes the backing system workspace row.
+   * Replace a session's workspace. A session with messages may only change its
+   * workspace when the current user workspace folder is inaccessible, so a
+   * migrated or moved Agent can be re-pointed at a valid folder. Lives on
+   * `PUT /agent-sessions/:id/workspace` rather than the generic PATCH because it
+   * creates/deletes the backing system workspace row.
    */
   setWorkspace(id: string, source: AgentSessionWorkspaceSource): AgentSessionEntity {
     withSqliteErrors(
@@ -923,8 +933,12 @@ export class AgentSessionService {
 
   setWorkspaceTx(tx: DbOrTx, id: string, source: AgentSessionWorkspaceSource): void {
     const current = this.getJoinedSessionRowTx(tx, id)
-    // The workspace binding is locked the moment a session has any message.
-    this.assertSessionHasNoMessagesTx(tx, id)
+    const recoveringMissingWorkspace =
+      source.type === AGENT_WORKSPACE_TYPE.USER &&
+      current.workspace.type === AGENT_WORKSPACE_TYPE.USER &&
+      !isDirectoryAccessible(current.workspace.path)
+    // The workspace binding is locked once a session has messages, unless its folder is gone (migrated/renamed/unplugged).
+    if (!recoveringMissingWorkspace) this.assertSessionHasNoMessagesTx(tx, id)
 
     if (source.type === AGENT_WORKSPACE_TYPE.USER) {
       const workspace = agentWorkspaceService.getRowByIdTx(tx, source.workspaceId)

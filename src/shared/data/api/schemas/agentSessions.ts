@@ -164,9 +164,8 @@ export type AgentSessionSchemas = {
   '/agent-sessions/:sessionId/workspace': {
     /**
      * Replace the session's workspace. Only permitted while the session has no
-     * messages — once a conversation has started the binding is permanent
-     * (NOT_FOUND if the session is missing, INVALID_OPERATION if it already has
-     * messages).
+     * messages, or when its current user workspace folder is inaccessible
+     * (NOT_FOUND if the session is missing, INVALID_OPERATION otherwise).
      *
      * Side effects: switching away from a system workspace deletes that backing
      * row; switching to `{ type: 'system' }` creates a fresh system workspace.
