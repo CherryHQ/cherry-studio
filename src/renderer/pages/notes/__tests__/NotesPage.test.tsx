@@ -99,6 +99,7 @@ vi.mock('i18next', () => {
 
 vi.mock('@cherrystudio/ui', async () => {
   const React = await import('react')
+  const { Separator } = await import('@cherrystudio/ui/components/primitives/separator')
   const withoutDomOnlyProps = (props: Record<string, unknown>) => {
     const domProps = { ...props }
     delete domProps.active
@@ -112,6 +113,7 @@ vi.mock('@cherrystudio/ui', async () => {
 
   return {
     Breadcrumb: passthrough('nav'),
+    Separator,
     BreadcrumbItem: passthrough('span'),
     BreadcrumbList: passthrough('div'),
     BreadcrumbSeparator: passthrough('span'),

@@ -6,6 +6,13 @@
   },
   "definitions": [
     {
+      "targetKey": "feature.notes.workspace_width",
+      "type": "number",
+      "defaultValue": 250,
+      "status": "classified",
+      "description": "Notes sidebar tree width in px, user-resizable"
+    },
+    {
       "targetKey": "assistant.archive.related_topics",
       "type": "boolean",
       "defaultValue": false,

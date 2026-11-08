@@ -41,8 +41,10 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle, type DirectoryTreeOptions } from '@shared/utils/file'
 
 import HeaderNavbar from './HeaderNavbar'
+import { useNotesWorkspaceResize } from './hooks/useNotesWorkspaceResize'
 import NotesEditor, { NotesEditorLoading } from './NotesEditor'
 import NotesSidebar from './NotesSidebar'
+import { NotesSidebarResizeHandle } from './NotesSidebarResizeHandle'
 
 const logger = loggerService.withContext('NotesPage')
 const SAVE_FAILURE_TOAST_INTERVAL_MS = 5000
@@ -69,6 +71,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
   const codeEditorRef = useRef<CodeEditorHandles>(null)
   const { t } = useTranslation()
   const { showWorkspace } = useShowWorkspace()
+  const { workspaceWidth, isResizing, resizeTransitionActive, onResizeStart, onResize } = useNotesWorkspaceResize()
   const [activeFilePath, setActiveFilePath] = useCache('notes.active_file_path')
   const voiceNoteId = useMemo(() => (activeFilePath ? crypto.randomUUID() : undefined), [activeFilePath])
   const { notesPath, updateNotesPath, sortType, updateSortType } = useNotesSettings()
@@ -1069,10 +1072,17 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
         <AnimatePresence initial={false}>
           {showWorkspace && (
             <motion.div
+              id="notes-workspace"
+              data-testid="notes-workspace"
+              className="relative"
               initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 250, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.3, ease: 'easeInOut' }}
+              animate={{ width: workspaceWidth, opacity: 1 }}
+              exit={{ width: 0, opacity: 0, transition: { duration: 0.3, ease: 'easeInOut' } }}
+              transition={{
+                duration: 0.3,
+                ease: 'easeInOut',
+                width: { duration: resizeTransitionActive ? 0 : 0.3, ease: 'easeInOut' }
+              }}
               style={{ height: '100%', overflow: 'hidden', flexShrink: 0 }}>
               <NotesSidebar
                 notesTree={notesTree}
@@ -1090,6 +1100,12 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
                 onSortNodes={handleSortNodes}
                 onUploadFiles={handleUploadFiles}
                 onLocateNoteLine={handleLocateNoteLine}
+              />
+              <NotesSidebarResizeHandle
+                width={workspaceWidth}
+                isResizing={isResizing}
+                onResizeStart={onResizeStart}
+                onResize={onResize}
               />
             </motion.div>
           )}

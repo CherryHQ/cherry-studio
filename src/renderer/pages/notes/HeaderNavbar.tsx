@@ -1,5 +1,5 @@
 import { t } from 'i18next'
-import { Check, ChevronRight, MoreHorizontal, PanelLeftClose, PanelRightClose, Star } from 'lucide-react'
+import { Check, ChevronRight, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Star } from 'lucide-react'
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 
 import {
@@ -320,7 +320,7 @@ const HeaderNavbar = ({
               aria-label={t('navbar.show_sidebar')}
               aria-pressed={showWorkspace}
               onClick={handleToggleShowWorkspace}>
-              <PanelRightClose size={18} />
+              <PanelLeftOpen size={18} />
             </BaseNavbarIcon>
           </Tooltip>
         )}
