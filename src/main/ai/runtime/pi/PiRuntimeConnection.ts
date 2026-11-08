@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { readdirSync, lstatSync } from 'node:fs'
 
 import type { Usage } from '@earendil-works/pi-ai'
-import type { CreateAgentSessionOptions, ToolDefinition } from '@earendil-works/pi-coding-agent'
+import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
 import { SpanKind, SpanStatusCode, type Span } from '@opentelemetry/api'
 
 import { application } from '@application'
@@ -88,7 +88,6 @@ import { buildPiMcpToolName, createPiMcpExtension } from './piMcpExtension'
 import { PiMessageMetadata, resolvePiMcpToolMetadata } from './PiMessageMetadata'
 import { loadPiSdk } from './piSdk'
 import { buildPiLoginPathPrefix, mergePiBashExecutionEnv, resolvePiShellPath } from './piShell'
-import { resolvePiThinkingLevel } from './piThinkingLevel'
 
 const logger = loggerService.withContext('PiRuntimeConnection')
 
@@ -326,7 +325,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       cwd: workspacePath,
       agentDir,
       sessionManager: manager,
-      thinkingLevel: resolvePiThinkingLevel(this.input.reasoningEffort) as CreateAgentSessionOptions['thinkingLevel'],
       systemPrompt: prompt.base.kind === 'custom' ? prompt.base.content : undefined,
       appendSystemPrompt: prompt.append ? [prompt.append] : [],
       contextFiles: true,
@@ -921,7 +919,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     if (
       this.failure ||
       snapshot.signature !== this.connectionSignature ||
-      resolvePiThinkingLevel(input.reasoningEffort) !== resolvePiThinkingLevel(this.input.reasoningEffort) ||
+      (input.reasoningEffort ?? 'default') !== (this.input.reasoningEffort ?? 'default') ||
       (input.serviceTier ?? 'standard') !== (this.input.serviceTier ?? 'standard') ||
       Boolean(input.fastMode) !== Boolean(this.input.fastMode)
     )

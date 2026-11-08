@@ -5,7 +5,7 @@ import { _electron as electron, type ElectronApplication, type Page } from '@pla
 
 import { startMockChatServer } from '../../helpers/http/mockChatServer'
 import { selectVisibleModel } from '../regression/helpers/models'
-import { selectSidebarApp } from '../regression/navigation'
+import { selectSidebarApp } from '../regression/helpers/navigation'
 import { expect, test as base } from './fixtures/electron.fixture'
 import { uiLocator } from './utils/uiLocator'
 

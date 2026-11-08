@@ -86,10 +86,14 @@ describe('copy translated output as an image', () => {
     const text = 'First translated line\n' + 'Long translation\n'.repeat(200) + 'Last translated line'
     const view = render(<TranslateOutputPane {...props()} translatedContent={text} />)
     const body = view.container.querySelector<HTMLDivElement>('[data-ui="translate.output-content"]')!
+    body.style.cssText = '--card: rgb(24, 24, 24)'
     Object.defineProperties(body, { scrollWidth: { value: 360 }, scrollHeight: { value: 4096 } })
     fireEvent.click(button())
     await waitFor(() => expect(write).toHaveBeenCalledOnce())
-    expect(toCanvas).toHaveBeenLastCalledWith(body, expect.objectContaining({ width: 360, height: 4096 }))
+    expect(toCanvas).toHaveBeenLastCalledWith(
+      body,
+      expect.objectContaining({ width: 360, height: 4096, backgroundColor: 'rgb(24, 24, 24)' })
+    )
     expect(body).toHaveTextContent('First translated line')
     expect(body).toHaveTextContent('Last translated line')
     expect(body.querySelector('button')).toBeNull()

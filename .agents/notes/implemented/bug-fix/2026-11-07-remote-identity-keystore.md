@@ -12,6 +12,8 @@ MP-141 supplied a valid profile-owned plaintext identity, but enabling network a
 
 Read the existing identity files first. Probe the key store only when decrypting an encrypted identity or choosing storage for a newly created identity.
 
+macOS and Windows use asynchronous safeStorage discovery and encryption/decryption APIs. Linux retains the OS-key-store probe and rejects the `basic_text` backend, since async availability alone also accepts Chromium's insecure fallback.
+
 ## Alternatives considered
 
 Changing the user’s keychain or disabling encryption globally would exceed the repair. Generating a replacement identity would invalidate paired devices.
@@ -23,3 +25,5 @@ Existing plaintext identities retain their identity and avoid unnecessary intera
 ## Verification
 
 - Regression — `deviceIdentity.test.ts` makes key-store discovery fail interactively while reloading an existing plaintext identity. The identity is preserved after the fix; the case failed before it. Encrypted creation and unavailable-key-store cases remain covered.
+
+- Regression — after merging asynchronous key-store access, all 23 identity contracts pass; plaintext reload still rejects an attempted interactive probe before the repair. The gateway integration retains its activation/heartbeat assertions and waits for asynchronous file reads to reach the pending key-store boundary.
