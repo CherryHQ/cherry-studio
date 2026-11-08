@@ -516,7 +516,7 @@ sessionActionRegistry.registerAction({
   group: 'danger',
   order: 90,
   surface: 'menu',
-  availability: ({ pinned, isBusy }) => ({ visible: !pinned, enabled: !isBusy })
+  availability: ({ isBusy }) => ({ enabled: !isBusy })
 })
 
 sessionActionRegistry.registerAction({

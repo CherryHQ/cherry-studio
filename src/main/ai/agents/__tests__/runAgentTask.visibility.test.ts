@@ -149,14 +149,10 @@ describe('scheduled session visibility', () => {
     expect(agentSessionService.listByCursor({ ids: [sessions[0].id] }).items.map((row) => row.id)).toEqual([
       sessions[0].id
     ])
-    expect(sessions[0].sourceTaskScheduleId).toBeTruthy()
-    const repeated = await run('summarize the project', undefined, sessions[0].sourceTaskScheduleId!)
+    expect(sessions[0].taskId).toBeTruthy()
+    const repeated = await run('summarize the project', undefined, sessions[0].taskId!)
     expect(repeated).toHaveLength(2)
-    expect(
-      repeated.every(
-        (row) => row.sourceTaskScheduleId === sessions[0].sourceTaskScheduleId && row.taskScheduleId === null
-      )
-    ).toBe(true)
+    expect(repeated.every((row) => row.taskId === sessions[0].taskId && !row.isTaskReuseTarget)).toBe(true)
     expect(agentSessionService.getLatestActive()).toBeNull()
     expect(agentSessionService.getById(sessions[0].id).workspace.type).toBe('system')
   })

@@ -425,6 +425,7 @@ vi.mock('../AgentBrowserView', () => ({
 
 vi.mock('@renderer/components/command', async (importOriginal) => ({
   ...(await importOriginal<typeof CommandComponents>()),
+  CommandShortcut: () => null,
   CommandTooltip: ({ children }: PropsWithChildren) => <>{children}</>
 }))
 

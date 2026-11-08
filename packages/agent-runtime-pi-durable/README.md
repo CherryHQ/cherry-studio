@@ -22,6 +22,11 @@ Harness or cancel work. `shutdown()` seals all accesses, closes the Harness and
 storage, and joins tracked calls. Unfinished durable tasks are not marked cancelled.
 It captures committed archives after native execution has quiesced and before storage
 closes; retained accesses can flush these archives until `release()`.
+Shared behavior drains native input admission before ending local consumption waits.
+Ending a wait does not cancel or resend an admitted input; a queued steer remains in
+native storage for recovery. Unexpected native closure seals accesses and closes
+observation feeds immediately, even while task cleanup is still running. Normal shutdown
+still drains admitted relation reads and their final facts before closing feeds.
 
 `resume()` enables the entire Harness scheduler. Reading with `open` or `observe` does not resume it. Native `submit` and `interrupt` can resume the entire
 Harness, including other conversations. Without shared behavior, `interrupt()` uses native ordinary-scope
@@ -189,6 +194,9 @@ The child test covers continued conversation, busy rejection, steering, independ
 observation after release, stable relationship identity, and unchanged parent output.
 `relations.test.ts` covers paginated ownership, concurrent initial discovery, read retry,
 independent cancellation, native failure, scoped lookups and blocked relation delivery at settlement/shutdown.
+It also checks that fatal storage failure reaches observers while tool cleanup is blocked.
+`shutdown.test.ts` closes a running shared-behavior child with a queued steer and reopens
+SQLite to verify that the original input remains queued exactly once.
 Archive tests cover pagination, reset, fork ownership and stable identities after
 SQLite reopen. Projection tests cover repeated text, ambiguous coalesced frames,
 retries and tool progress. Shared behavior cases exercise native transactions, goal and

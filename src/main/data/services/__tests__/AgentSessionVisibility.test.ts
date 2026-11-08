@@ -11,6 +11,7 @@ import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
 import { pinTable } from '@data/db/schemas/pin'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import '@data/services/AgentTaskService'
 import { ErrorCode } from '@shared/data/api/errors'
 
 const { notify } = vi.hoisted(() => ({ notify: vi.fn() }))
@@ -152,7 +153,11 @@ describe('background session isolation', () => {
         catchUpPolicy: { kind: 'skip-missed' }
       })
       .run()
-    dbh.db.update(agentSessionTable).set({ taskScheduleId: 'task' }).where(eq(agentSessionTable.id, sticky.id)).run()
+    dbh.db
+      .update(agentSessionTable)
+      .set({ isTaskReuseTarget: true, taskId: 'task' })
+      .where(eq(agentSessionTable.id, sticky.id))
+      .run()
     for (const [session, metadata, output] of [
       [perRun, { sessionId: perRun.id }, null],
       [legacy, {}, { sessionId: legacy.id }]
@@ -175,7 +180,7 @@ describe('background session isolation', () => {
     for (const session of [sticky, perRun, legacy]) {
       dbh.db
         .update(agentSessionTable)
-        .set({ sourceTaskScheduleId: 'task', lastActivityAt: Date.now() + 60_000 })
+        .set({ taskId: 'task', lastActivityAt: Date.now() + 60_000 })
         .where(eq(agentSessionTable.id, session.id))
         .run()
     }

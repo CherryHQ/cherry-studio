@@ -69,6 +69,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
+import { getPermissionModeCards } from '@renderer/utils/agent'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import {
   getComposerShortcutLabel,
@@ -120,9 +121,7 @@ import {
   writeAgentDraftCache
 } from './agent/agentDraftCache'
 import { buildAgentFilePartsForAttachments, toAccessiblePaths } from './agent/agentFileParts'
-import { PlanModeHint } from './agent/PlanModeHint'
 import { createAttachmentFromPath, useAgentResourceMentionSource } from './agent/useAgentResourceMentionSource'
-import { usePlanModeHint } from './agent/usePlanModeHint'
 import {
   AGENT_MANAGED_TOKEN_KINDS,
   AGENT_MANAGED_TOKEN_KINDS_BEFORE_KNOWLEDGE_RESTORE,
@@ -628,16 +627,17 @@ const AgentComposerInner = ({
   const [shouldValidateSkills, setShouldValidateSkills] = useState(initialDraft.shouldValidateSkills)
   const [text, setTextState] = useState(() => initialDraft.text)
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[]>(() => initialDraft.tokens)
-  const enablePlanMode = useCallback(() => {
-    if (agent)
-      void updateAgent({ id: agent.id, configuration: { permission_mode: 'plan' } }, { showSuccessToast: false })
+  const supportsPlan = !!agent && getPermissionModeCards(agent.type).some((card) => card.mode === 'plan')
+  const togglePlanMode = useCallback(() => {
+    if (!agent) return
+    void updateAgent(
+      {
+        id: agent.id,
+        configuration: { permission_mode: agent.configuration?.permission_mode === 'plan' ? 'default' : 'plan' }
+      },
+      { showSuccessToast: false }
+    )
   }, [agent, updateAgent])
-  const {
-    visible: planHintVisible,
-    accept: acceptPlanHint,
-    dismiss: dismissPlanHint,
-    resetDraft: resetPlanHintDraft
-  } = usePlanModeHint({ agent, text, enablePlanMode })
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
   const releaseFollowupEditRef = useRef<() => void>(() => {})
@@ -1331,7 +1331,6 @@ const AgentComposerInner = ({
 
   const clearCurrentDraft = useCallback(() => {
     releaseFollowupEditRef.current()
-    resetPlanHintDraft()
     setText('')
     setFiles([])
     setSelectedSkills([])
@@ -1360,7 +1359,6 @@ const AgentComposerInner = ({
     draftCacheKey,
     draftPersistenceEnabled,
     knowledgeBaseIdsRef,
-    resetPlanHintDraft,
     resetHistoryIndex,
     setFiles,
     setText,
@@ -1658,15 +1656,10 @@ const AgentComposerInner = ({
             launchOptions?.editing ? { ...launchOptions.editing, cancelDisabled: isDirectSending } : undefined
           }
           onPause={abortAgentSession}
-          onShiftTab={() => {
-            if (!planHintVisible) return false
-            acceptPlanHint()
-            return true
-          }}
+          onShiftTab={supportsPlan ? togglePlanMode : undefined}
           queueContent={
             <>
               {quotaExhaustion ? <CherryCloudQuotaNotice exhaustion={quotaExhaustion} /> : null}
-              {planHintVisible && <PlanModeHint onAccept={acceptPlanHint} onDismiss={dismissPlanHint} />}
               {compaction.status === 'failed' && (
                 <Alert
                   type="warning"

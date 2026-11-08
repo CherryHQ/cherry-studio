@@ -1091,7 +1091,8 @@ describe('HistoryRecordsView agent mode', () => {
     expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
   })
 
-  it('hides the session delete action for pinned history rows', () => {
+  it('unpins a session from the history row context menu', async () => {
+    const user = userEvent.setup()
     setupAgentHistory({
       pinIdBySessionId: new Map([['session-alpha', 'pin-session-alpha']])
     })
@@ -1099,10 +1100,11 @@ describe('HistoryRecordsView agent mode', () => {
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
 
-    expect(Array.from(menuContent?.children ?? []).map((child) => child.textContent)).toEqual([
-      'Edit task name',
-      'Unpin task'
-    ])
+    await user.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Unpin task' }))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
+    await vi.waitFor(() => expect(hookMocks.togglePin).toHaveBeenCalledWith('session-alpha'))
   })
 
   it('renames a session from the history row context menu without selecting the row', async () => {

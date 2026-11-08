@@ -30,6 +30,7 @@ function backend(overrides: Partial<ComputerUseClient> = {}) {
     appSessionId: 'app-1',
     app: { id: 'app', name: 'Editor' },
     window: { id: 'window', title: 'Document' },
+    inputChannel: { kind: 'accessibility' },
     tree: { status: 'available', elements: [], truncated: [] },
     screenshot: { status: 'unavailable', reason: { code: 'CAPTURE_FAILED', message: 'No capture' } }
   }

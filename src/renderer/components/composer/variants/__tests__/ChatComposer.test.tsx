@@ -244,6 +244,7 @@ vi.mock('../chat/useNoteReferenceMentionItems', () => ({
 
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
+    ADD_CHAT_COMPOSER_IMAGE_REFERENCE: 'ADD_CHAT_COMPOSER_IMAGE_REFERENCE',
     FOCUS_CHAT_COMPOSER: 'FOCUS_CHAT_COMPOSER',
     LOCATE_MESSAGE: 'LOCATE_MESSAGE',
     SEND_MESSAGE: 'SEND_MESSAGE'
@@ -505,7 +506,8 @@ vi.mock('@renderer/utils/model', () => ({
   isSupportedThinkingTokenModel: () => false,
   isVideoModel: () => false,
   isVideoModels: () => false,
-  isVisionModel: () => false,
+  isVisionModel: (currentModel?: Model) =>
+    currentModel?.capabilities.includes(MODEL_CAPABILITY.IMAGE_RECOGNITION) ?? false,
   isVisionModels: () => false,
   isWebSearchModel: () => false
 }))
@@ -1165,6 +1167,7 @@ describe('ChatComposer', () => {
       expect(onConversationControlsChange).toHaveBeenCalledWith(
         expect.objectContaining({
           scopeKey: topic.id,
+          supportsImageInput: false,
           mentionedModelSelectorValue: [model]
         })
       )
@@ -1649,6 +1652,50 @@ describe('ChatComposer', () => {
       mocks.eventListeners.get('FOCUS_CHAT_COMPOSER')?.({ topicId: 'topic-1' })
     })
     expect(mocks.focusComposer).toHaveBeenCalledTimes(1)
+  })
+
+  it('adds a generated image reference only to its matching image-capable topic composer', async () => {
+    mocks.model = { ...model, capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] }
+    const onConversationControlsChange = vi.fn()
+    render(<ChatComposer topic={topic} onSend={vi.fn()} onConversationControlsChange={onConversationControlsChange} />)
+
+    await waitFor(() => {
+      expect(mocks.eventListeners.has('ADD_CHAT_COMPOSER_IMAGE_REFERENCE')).toBe(true)
+      expect(onConversationControlsChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({ supportsImageInput: true })
+      )
+    })
+    const addReference = mocks.eventListeners.get('ADD_CHAT_COMPOSER_IMAGE_REFERENCE')! as (
+      payload: unknown
+    ) => Promise<void>
+
+    await act(async () => {
+      await addReference({
+        topicId: 'other-topic',
+        url: 'data:image/png;base64,AAAA',
+        name: 'generated.png'
+      })
+    })
+    expect(mocks.files).toEqual([])
+
+    await act(async () => {
+      await addReference({
+        topicId: topic.id,
+        url: 'data:image/png;base64,AAAA',
+        name: 'generated.png'
+      })
+    })
+    expect(mocks.setFiles).toHaveBeenCalled()
+    expect(mocks.files).toMatchObject([
+      {
+        name: 'generated',
+        origin_name: 'generated.png',
+        size: 3,
+        ext: '.png',
+        type: 'image'
+      }
+    ])
+    expect(mocks.files?.[0].blob).toBeInstanceOf(Blob)
   })
 
   it('shows only icons in the input bottom toolbar when it is narrow', async () => {

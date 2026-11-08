@@ -127,7 +127,7 @@ sessionMenuActions.exportMenuOptions = {
 }
 
 describe('SessionItem', () => {
-  it('archives through the hover action without requesting permanent deletion', async () => {
+  it.each([false, true])('archives through the hover action without permanent deletion (pinned=%s)', async (pinned) => {
     const user = userEvent.setup()
     const onDelete = vi.fn()
     const Provider = ResourceList.Provider<AgentSessionEntity>
@@ -136,6 +136,7 @@ describe('SessionItem', () => {
       <Provider items={[session]} selectedId={session.id}>
         <SessionHoverPreviewGroup>
           <SessionItem
+            pinned={pinned}
             session={session}
             sessionMenuActions={sessionMenuActions}
             onDelete={onDelete}

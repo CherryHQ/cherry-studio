@@ -348,12 +348,20 @@ export async function createPiDurableRuntime(
     },
     end() {}
   }).detach
+  const unsubscribeClose = native.subscribeClose(() => {
+    if (!shutdown) closeAccesses('source-lost')
+  })
   void native.closed.then(() => {
+    unsubscribeClose()
+    unsubscribe()
+    closeAccesses(shutdown ? 'shutdown' : 'source-lost')
+  })
+
+  function closeAccesses(reason: 'shutdown' | 'source-lost'): void {
     closing = true
     closingAccess.abort()
-    unsubscribe()
-    for (const entry of live.values()) entry.projection.feed.close(shutdown ? 'shutdown' : 'source-lost')
-  })
+    for (const entry of live.values()) entry.projection.feed.close(reason)
+  }
 
   function track<T>(operation: Promise<T>): Promise<T> {
     pending.add(operation)
@@ -790,11 +798,11 @@ export async function createPiDurableRuntime(
                 facts: state.facts
               }
             } catch (cause) {
-              report(cause)
+              if (!closing) report(cause)
               return {
                 status: cause instanceof ConversationBusy ? 'rejected' : 'unknown',
                 inputId: input.inputId,
-                error: error('submit', cause instanceof ConversationBusy ? 'busy' : 'native-error')
+                error: error('submit', closing ? 'closed' : cause instanceof ConversationBusy ? 'busy' : 'native-error')
               }
             }
           })

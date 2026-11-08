@@ -84,6 +84,7 @@ interface HomeMessageListParams {
   hasOlder?: boolean
   selectAllPagination?: MessageListSelectAllPagination
   openCitationsPanel?: MessageListActions['openCitationsPanel']
+  addGeneratedImageToComposer?: MessageListActions['addGeneratedImageToComposer']
   imageActionConsumer?: 'capture'
   onBindRuntime?: MessageListActions['bindRuntime']
   onStartBranchDraft?: MessageListActions['startMessageBranch']
@@ -103,6 +104,7 @@ export function useHomeMessageListProviderValue({
   hasOlder = false,
   selectAllPagination,
   openCitationsPanel,
+  addGeneratedImageToComposer,
   imageActionConsumer,
   onBindRuntime,
   onStartBranchDraft,
@@ -851,6 +853,7 @@ export function useHomeMessageListProviderValue({
       bindMessageRuntime,
       bindMessageGroupRuntime,
       locateMessage,
+      addGeneratedImageToComposer: normalInteractionsEnabled ? addGeneratedImageToComposer : undefined,
       ...(canStartNewContext && { startNewContext }),
       saveCodeBlock,
       ...exportActions,
@@ -889,6 +892,7 @@ export function useHomeMessageListProviderValue({
       bindMessageRuntime,
       bindRuntime,
       canStartNewContext,
+      addGeneratedImageToComposer,
       copyBranchToNewTopic,
       getMessageDeleteAvailability,
       deleteMessage,

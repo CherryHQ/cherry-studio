@@ -29,6 +29,7 @@ export interface OpenTargetButtonProps {
   targetPath: string
   pathKind: ExternalOpenTargetPathKind
   primaryContent?: ReactNode
+  primaryShortcut?: ReactNode
   primaryClassName?: string
   menuClassName?: string
   menuAction?: 'open' | 'select'
@@ -41,6 +42,7 @@ export function OpenTargetButton({
   targetPath,
   pathKind,
   primaryContent,
+  primaryShortcut,
   primaryClassName,
   menuClassName,
   menuAction = 'open',
@@ -80,7 +82,16 @@ export function OpenTargetButton({
             key={target.id}
             label={getOpenTargetLabel(target, t)}
             icon={<OpenTargetIcon target={target} />}
-            suffix={getOpenTargetBadge(target, t)}
+            suffix={
+              selectedTarget?.id === target.id && primaryShortcut ? (
+                <>
+                  {getOpenTargetBadge(target, t)}
+                  {primaryShortcut}
+                </>
+              ) : (
+                getOpenTargetBadge(target, t)
+              )
+            }
             active={selectedTarget?.id === target.id}
             aria-pressed={menuAction === 'select' ? selectedTarget?.id === target.id : undefined}
             onClick={() => {
