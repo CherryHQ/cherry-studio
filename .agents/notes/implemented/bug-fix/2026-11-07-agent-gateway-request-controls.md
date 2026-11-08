@@ -20,10 +20,11 @@ Pi and Durable share a gateway binding that clears native request reasoning befo
 
 The binding registers native model metadata directly; the separate model-injection builder is removed. Upstream store and developer-role compatibility guesses do not configure the loopback client. Protocol routing, image support, context and output limits, and CherryIN empty-signature replay remain. Zero native costs stay explicit because extension registration does not apply the configuration-file loader's defaults; Cherry remains the billing owner.
 
-Pi compares the original normalized reasoning selection when reconciling a connection. Gateway Fast processing is applied once by the provider request builder. Public gateway clients retain their protocol-defined request parameters; external headers cannot supply authenticated internal selections.
+Pi compares the original normalized reasoning selection when reconciling a connection. Gateway Fast processing is applied once by the provider request builder. Eligible HTTP Fast requests clear conflicting tier options from the selected SDK namespace and send the provider-declared `service_tier` through the existing body-passthrough path. Compatible adapter namespaces and OpenAI model-name allowlists therefore cannot silently drop the selection. Disabling Fast preserves ordinary service-tier and custom-parameter precedence; native CLI Fast remains SDK-owned. Public gateway clients retain their protocol-defined request parameters; external headers cannot supply authenticated internal selections.
 
 ## Alternatives considered
 
+- Encode every Fast request as `providerOptions.openai.serviceTier`: compatible adapters use their own namespace, and the OpenAI Responses adapter removes tiers for third-party model IDs. The existing body-passthrough path preserves the declared wire without another SDK patch.
 - Keep both reasoning interpreters: native clamping and budget expansion can change a request before the authoritative builder sees it.
 - Remove native output limits or compaction metadata: summaries, verifier calls and context management have legitimate consumers of those values.
 - Remove the AI SDK thinking-budget adjustment: the installed Anthropic adapter adds the thinking budget during serialization; that adjustment has a separate SDK contract.
@@ -41,4 +42,8 @@ Optional response metadata, malformed tool calls, stream truncation and error re
 - Regression — `src/main/ai/runtime/pi/gatewayIntegration.test.ts`: production gateway execution sends `high` and `ultra` to a controlled upstream, ignores conflicting Anthropic thinking when a trusted original selection exists, and retains replay and billing behavior.
 - Regression — `src/main/ai/runtime/pi/PiRuntimeConnection.test.ts`: switching between `default` and `auto` rebuilds the connection instead of retaining old headers.
 
-These are offline SDK and loopback integration checks. They do not establish real-provider or Electron acceptance.
+- Regression — `src/main/ai/runtime/aiSdk/params/__tests__/buildAgentParams.test.ts`: installed compatible and Responses SDKs deliver Fast on the final HTTP body despite conflicting saved and per-call tiers; disabled or ineligible Fast preserves ordinary behavior and native CLI transports emit no HTTP Fast tier.
+
+- Regression — Electron acceptance: Claude Code, Pi and Durable each send `service_tier: fast` when enabled and omit it when disabled over both Chat Completions and Responses to a controlled upstream; tier/effort changes and the 256-token cap remain intact. Six real LongCat Off/Auto turns also complete and persist successfully.
+
+Controlled upstream checks establish request encoding, not actual Fast admission, price or latency at a provider. Live Ark probes complete in Standard mode over both protocols, but Fast returns `ModelNotOpen` until the account activates that model service. Native CLI subscription Fast is not covered by this Electron acceptance.

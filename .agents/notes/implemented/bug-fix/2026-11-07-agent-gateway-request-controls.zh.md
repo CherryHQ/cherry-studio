@@ -20,10 +20,11 @@ Pi 和 Durable 共用的网关 binding 在原生序列化前清除原生请求�
 
 binding 直接注册原生模型元数据，独立的 model-injection 构建器被移除。对上游 store 和 developer role 的兼容性推断不再配置本地回环客户端。协议路由、图片能力、上下文和输出限制，以及 CherryIN 空签名回放仍然保留。原生成本仍显式设为零，因为扩展注册不会应用配置文件加载器的默认值；Cherry 仍是计费所有者。
 
-Pi 在协调连接时比较规范化后的原始推理选择。Gateway 的 Fast 处理只由提供商请求构建器应用一次。公开网关客户端保留协议定义的请求参数；外部请求头不能提供经过内部鉴权的选择。
+Pi 在协调连接时比较规范化后的原始推理选择。Gateway 的 Fast 处理只由提供商请求构建器应用一次。符合条件的 HTTP Fast 请求会清除选定 SDK 命名空间中冲突的档位选项，并通过现有请求体透传路径发送提供商声明的 `service_tier`，避免兼容 adapter 的命名空间差异和 OpenAI 模型名称白名单静默丢弃选择。关闭 Fast 时保留普通服务档位与自定义参数的优先级；原生 CLI Fast 仍由 SDK 持有。公开网关客户端保留协议定义的请求参数；外部请求头不能提供经过内部鉴权的选择。
 
 ## 备选方案
 
+- 把所有 Fast 请求编码成 `providerOptions.openai.serviceTier`：兼容 adapter 使用各自的命名空间，OpenAI Responses adapter 又会移除第三方模型的档位。现有请求体透传路径可保留声明的协议字段，无需再加 SDK 补丁。
 - 保留两个推理解释器：原生夹紧和预算扩展可能在权威构建器看到请求之前改变它。
 - 移除原生输出限制或压缩元数据：总结、验证调用和上下文管理对这些值有真实用途。
 - 移除 AI SDK 的 thinking budget 换算：安装的 Anthropic adapter 会在序列化时加回思考预算；该换算属于另一项 SDK 契约。
@@ -41,4 +42,8 @@ Pi 在协调连接时比较规范化后的原始推理选择。Gateway 的 Fast 
 - Regression — `src/main/ai/runtime/pi/gatewayIntegration.test.ts`：生产网关执行向受控上游发送 `high` 和 `ultra`，存在可信原始选择时忽略冲突的 Anthropic thinking，并保留回放和计费行为。
 - Regression — `src/main/ai/runtime/pi/PiRuntimeConnection.test.ts`：在 `default` 和 `auto` 之间切换会重建连接，不再保留旧请求头。
 
-这些是离线 SDK 和本地回环集成检查，不代表真实提供商或 Electron 验收。
+- Regression — `src/main/ai/runtime/aiSdk/params/__tests__/buildAgentParams.test.ts`：安装的兼容与 Responses SDK 在历史参数和调用级档位冲突时，仍在最终 HTTP 请求体发送 Fast；关闭或不符合条件时保留普通行为，原生 CLI 传输不生成 HTTP Fast 档位。
+
+- Regression — Electron 验收：Claude Code、Pi 和 Durable 经 Chat Completions 与 Responses 向受控上游发送请求，开启时包含 `service_tier: fast`，关闭时省略；档位／推理切换和 256 token 上限保持正确。六次真实 LongCat Off/Auto 轮次也完成回复并成功持久化。
+
+受控上游检查证明请求编码正确，不证明提供商实际接纳 Fast、价格或延迟。真实方舟探测在两个协议的普通档位下都能完成，但 Fast 返回 `ModelNotOpen`，需要账号先开通对应模型服务。原生 CLI 订阅 Fast 不在本次 Electron 验收范围内。
