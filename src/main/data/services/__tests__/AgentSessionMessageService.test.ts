@@ -27,6 +27,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSessionForkOperations'
+import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
 import { ClaudeMessageMetadata } from '@main/ai/runtime/claudeCode/ClaudeMessageMetadata'
 import { AgentSessionForkError, type RuntimeForkInput } from '@main/ai/runtime/fork/checkpoint'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
@@ -1379,7 +1380,13 @@ describe('AgentSessionMessageService', () => {
     } as Parameters<ClaudeProjection['message']>[0]
     for (const message of [call, result]) projection.publish(projection.message(message))
     const metadata = new ClaudeMessageMetadata()
-    const message = metadata.decorate(projection.feed.snapshot.messages[0], projection.feed.snapshot.messages[0])
+    const view = new ThreadMessageProjection(
+      { backendId: runtimeId('claude'), id: runtimeId('session') },
+      metadata.decorate
+    )
+    await view.accept({ type: 'message.upsert', message: projection.feed.snapshot.messages[0] })
+    const message = view.snapshot().messages[0]
+    await view.close()
     agentSessionMessageService.saveMessage({
       sessionId: SESSION_ID,
       message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', data: { parts: message.parts } }
