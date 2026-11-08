@@ -593,7 +593,8 @@
         "defaultBinding": [
           "CommandOrControl",
           "Backspace"
-        ]
+        ],
+        "when": "resource.focused && !input.focused"
       }
     },
     {

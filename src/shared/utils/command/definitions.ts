@@ -368,7 +368,8 @@ export const COMMAND_DEFINITIONS = [
     categoryKey: 'settings.shortcuts.topic',
     scope: 'renderer',
     keybinding: {
-      defaultBinding: ['CommandOrControl', 'Backspace']
+      defaultBinding: ['CommandOrControl', 'Backspace'],
+      when: 'resource.focused && !input.focused'
     }
   }),
   defineCommand({

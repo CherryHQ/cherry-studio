@@ -1,12 +1,12 @@
 import { MessageSquareText } from 'lucide-react'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { type RefObject, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { EmptyState } from '@cherrystudio/ui'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
+import { CommandFocusScope } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import { useCommandHandler } from '@renderer/hooks/command'
-import { canRunFocusedResourceCommand } from '@renderer/utils/commandFocus'
 
 import type { HistoryRecordDescriptor, HistoryRowActions, HistoryRowState } from '../historyRecordsDescriptor'
 import type { SelectAllState } from '../useHistoryRecordsController'
@@ -65,7 +65,16 @@ interface HistoryRecordListRowContentProps<T> extends HistoryRecordListRowProps<
   rowState: HistoryRowState
 }
 
-function HistoryRecordListRowContent<T>({
+function HistoryRecordListRowContent<T>(props: HistoryRecordListRowContentProps<T>) {
+  const rowRef = useRef<HTMLDivElement>(null)
+  return (
+    <CommandFocusScope rootRef={rowRef} context={{ 'resource.focused': true }}>
+      <HistoryRecordListScopedRow {...props} rowRef={rowRef} />
+    </CommandFocusScope>
+  )
+}
+
+function HistoryRecordListScopedRow<T>({
   descriptor,
   isSelected,
   item,
@@ -73,13 +82,13 @@ function HistoryRecordListRowContent<T>({
   openRename,
   onTogglePin,
   rowState,
-  showFixedActionShadow
-}: HistoryRecordListRowContentProps<T>) {
+  showFixedActionShadow,
+  rowRef
+}: HistoryRecordListRowContentProps<T> & { rowRef: RefObject<HTMLDivElement | null> }) {
   const { t } = useTranslation()
   const id = descriptor.getId(item)
   const rowActions = descriptor.getRowActions(item, openRename, rowState)
   const pinned = descriptor.isPinned(id)
-  const rowRef = useRef<HTMLDivElement>(null)
   const pendingRef = useRef(false)
   const rowActionsRef = useRef<HistoryRowActions>(rowActions)
   const rowStateRef = useRef(rowState)
@@ -88,7 +97,6 @@ function HistoryRecordListRowContent<T>({
 
   const canRunPermanentDelete = () => {
     if (pendingRef.current || rowStateRef.current.isRenaming) return false
-    if (!canRunFocusedResourceCommand(rowRef.current)) return false
     return isRunnablePermanentDelete(findPermanentDeleteAction(rowActionsRef.current.actions))
   }
 

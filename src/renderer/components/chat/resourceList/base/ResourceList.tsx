@@ -4,7 +4,7 @@ import { createContext, use, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, EmptyState as UiEmptyState, Input, MenuItem, Skeleton, Tooltip } from '@cherrystudio/ui'
-import { CommandHint } from '@renderer/components/command'
+import { CommandFocusScope, CommandHint } from '@renderer/components/command'
 import { cn } from '@renderer/utils/style'
 import type { CommandId } from '@shared/utils/command'
 
@@ -68,6 +68,7 @@ export type { ResourceListPresentation } from './resourceListLayout'
 
 type FrameProps = ComponentProps<'div'> & {
   presentation?: ResourceListPresentation
+  active?: boolean
   ref?: Ref<HTMLDivElement>
 }
 
@@ -77,24 +78,40 @@ function useResourceListPresentation() {
   return use(ResourceListPresentationContext)
 }
 
-function Frame({ className, presentation = 'left-panel', ref, ...props }: FrameProps) {
+function Frame({ className, presentation = 'left-panel', active = true, ref, ...props }: FrameProps) {
+  const rootRef = useRef<HTMLDivElement>(null)
+  const setRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      rootRef.current = node
+      if (typeof ref === 'function') return ref(node)
+      if (ref) ref.current = node
+    },
+    [ref]
+  )
   const meta = useResourceListMeta()
   const presentationClassNames = RESOURCE_LIST_PRESENTATION_CLASS_NAMES[presentation]
 
   return (
-    <ResourceListPresentationContext value={presentation}>
-      <div
-        ref={ref}
-        data-resource-list-presentation={presentation}
-        data-resource-list-variant={meta.variant}
-        className={cn(
-          'flex min-h-0 flex-1 flex-col overflow-hidden bg-background p-1.5 text-foreground',
-          presentationClassNames.frame,
-          className
-        )}
-        {...props}
-      />
-    </ResourceListPresentationContext>
+    <CommandFocusScope
+      rootRef={rootRef}
+      active={
+        active && !props.hidden && !props.inert && props['aria-hidden'] !== true && props['aria-hidden'] !== 'true'
+      }
+      context={{ 'resource.focused': true }}>
+      <ResourceListPresentationContext value={presentation}>
+        <div
+          ref={setRef}
+          data-resource-list-presentation={presentation}
+          data-resource-list-variant={meta.variant}
+          className={cn(
+            'flex min-h-0 flex-1 flex-col overflow-hidden bg-background p-1.5 text-foreground',
+            presentationClassNames.frame,
+            className
+          )}
+          {...props}
+        />
+      </ResourceListPresentationContext>
+    </CommandFocusScope>
   )
 }
 

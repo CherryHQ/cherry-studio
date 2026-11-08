@@ -3,7 +3,7 @@ import { act, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { CommandProvider } from '@renderer/components/command'
+import { CommandKeyboardLayer, CommandProvider } from '@renderer/components/command'
 import { useResolvedCommand } from '@renderer/hooks/command'
 import { isMac } from '@renderer/utils/platform'
 
@@ -62,12 +62,14 @@ function List({
   onOwnerDelete,
   onRowDelete = vi.fn(),
   eligible = (group: ResourceListGroup) => group.id !== 'protected',
-  renameField = false
+  renameField = false,
+  active = true
 }: {
   onOwnerDelete: (group: ResourceListGroup) => void | Promise<void>
   onRowDelete?: (item: Item) => void | Promise<void>
   eligible?: (group: ResourceListGroup) => boolean
   renameField?: boolean
+  active?: boolean
 }) {
   const Provider = ResourceList.Provider<Item>
   return (
@@ -80,7 +82,7 @@ function List({
       getGroupHeaderAction={
         renameField ? (group) => (group.id === 'ada' ? <input aria-label="Rename Ada" /> : null) : undefined
       }>
-      <ResourceList.Frame aria-label="Topics">
+      <ResourceList.Frame aria-label="Topics" active={active}>
         <ResourceList.PermanentDelete onDelete={onRowDelete} />
         <ResourceList.VirtualItems<Item>
           renderItem={(item) => (
@@ -182,11 +184,17 @@ describe('group header permanent delete shortcut', () => {
     expect(syntheticEvent.defaultPrevented).toBe(false)
 
     const ada = focusHeader('Ada')
-    const header = ada.closest('.group\\/resource-list-group')
-    expect(header).toBeInstanceOf(HTMLElement)
-    if (header instanceof HTMLElement) header.hidden = true
+    rerender(
+      <CommandProvider>
+        <List onOwnerDelete={onOwnerDelete} renameField active={false} />
+      </CommandProvider>
+    )
     expect(pressDelete(ada).defaultPrevented).toBe(false)
-    if (header instanceof HTMLElement) header.hidden = false
+    rerender(
+      <CommandProvider>
+        <List onOwnerDelete={onOwnerDelete} renameField />
+      </CommandProvider>
+    )
 
     const input = screen.getByRole('textbox', { name: 'Rename Ada' })
     act(() => {
@@ -197,7 +205,9 @@ describe('group header permanent delete shortcut', () => {
     rerender(
       <CommandProvider>
         <ShortcutLabel />
-        <div role="dialog">Confirm</div>
+        <CommandKeyboardLayer active element={null}>
+          <div role="dialog">Confirm</div>
+        </CommandKeyboardLayer>
         <List onOwnerDelete={onOwnerDelete} />
       </CommandProvider>
     )

@@ -11,6 +11,7 @@ type TopicResourceListProps<T extends ResourceListItemBase> = Omit<
   Parameters<typeof ResourceList.Provider<T>>[0],
   'variant'
 > & {
+  active?: boolean
   children: ReactNode
   permanentDelete?: Pick<ResourceListPermanentDeleteProps<T>, 'isItemEligible' | 'onDelete'>
   onGroupHeaderDeletePermanently?: Parameters<typeof ResourceList.Provider<T>>[0]['onGroupHeaderDeletePermanently']
@@ -21,6 +22,7 @@ type TopicResourceListProps<T extends ResourceListItemBase> = Omit<
 }
 
 export function TopicResourceList<T extends ResourceListItemBase>({
+  active = true,
   children,
   permanentDelete,
   onGroupHeaderDeletePermanently,
@@ -37,7 +39,7 @@ export function TopicResourceList<T extends ResourceListItemBase>({
       variant="topic"
       onGroupHeaderDeletePermanently={onGroupHeaderDeletePermanently}
       isGroupHeaderPermanentDeleteEligible={isGroupHeaderPermanentDeleteEligible}>
-      <Frame data-ui="chat.topic-list" data-testid="resource-list-topic" presentation={presentation}>
+      <Frame active={active} data-ui="chat.topic-list" data-testid="resource-list-topic" presentation={presentation}>
         {permanentDelete ? (
           <ResourceList.PermanentDelete
             isItemEligible={permanentDelete.isItemEligible}

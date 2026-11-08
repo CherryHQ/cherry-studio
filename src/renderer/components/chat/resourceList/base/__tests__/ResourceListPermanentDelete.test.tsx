@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ResourceListItemBase } from '@renderer/components/chat/resourceList/base/ResourceListContext'
-import { CommandProvider } from '@renderer/components/command'
+import { CommandKeyboardLayer, CommandProvider } from '@renderer/components/command'
 import { useResolvedCommand } from '@renderer/hooks/command'
 import { isMac } from '@renderer/utils/platform'
 
@@ -68,7 +68,8 @@ function List({
   isItemEligible,
   selectedId = 'alpha',
   extra,
-  inner
+  inner,
+  active = true
 }: {
   items?: Item[]
   label: string
@@ -77,11 +78,12 @@ function List({
   selectedId?: string | null
   extra?: ReactNode
   inner?: 'button' | 'input'
+  active?: boolean
 }) {
   const Provider = ResourceList.Provider<Item>
   return (
     <Provider items={items} selectedId={selectedId}>
-      <ResourceList.Frame aria-label={label}>
+      <ResourceList.Frame aria-label={label} active={active}>
         <ResourceList.PermanentDelete isItemEligible={isItemEligible} onDelete={onDelete} />
         {extra}
         <ResourceList.Body<Item>
@@ -294,43 +296,38 @@ describe('ResourceList permanent delete shortcut', () => {
     expect(event.defaultPrevented).toBe(false)
   })
 
-  it('preserves the native shortcut for blur, a hidden list, and an open modal', () => {
+  it('preserves the native shortcut for blur, an inactive retained list, and an open keyboard boundary', () => {
     const onDelete = vi.fn()
-    const { container } = renderLists(
-      <>
+    const tree = (active: boolean, modal = false) => (
+      <CommandProvider>
         <button type="button">Elsewhere</button>
-        <List label="Topics" onDelete={onDelete} />
-      </>
+        {modal && (
+          <CommandKeyboardLayer active element={null}>
+            <div role="dialog">Confirm</div>
+          </CommandKeyboardLayer>
+        )}
+        <List label="Topics" onDelete={onDelete} active={active} />
+      </CommandProvider>
     )
+    const { rerender } = render(tree(true))
     const box = focusRow('Topics', 1)
     const elsewhere = screen.getByRole('button', { name: 'Elsewhere' })
     act(() => {
       elsewhere.focus()
     })
-    const blurred = pressDelete(box)
+    expect(pressDelete(elsewhere).defaultPrevented).toBe(false)
     expect(onDelete).not.toHaveBeenCalled()
-    expect(blurred.defaultPrevented).toBe(false)
 
     act(() => {
       box.focus()
     })
-    const frame = container.querySelector('[data-resource-list-variant]')
-    frame?.setAttribute('hidden', '')
-    const hidden = pressDelete(box)
+    rerender(tree(false))
+    expect(pressDelete(box).defaultPrevented).toBe(false)
     expect(onDelete).not.toHaveBeenCalled()
-    expect(hidden.defaultPrevented).toBe(false)
-    frame?.removeAttribute('hidden')
 
-    const dialog = document.createElement('div')
-    dialog.setAttribute('role', 'dialog')
-    document.body.append(dialog)
-    act(() => {
-      box.focus()
-    })
-    const modal = pressDelete(box)
+    rerender(tree(true, true))
+    expect(pressDelete(box).defaultPrevented).toBe(false)
     expect(onDelete).not.toHaveBeenCalled()
-    expect(modal.defaultPrevented).toBe(false)
-    dialog.remove()
   })
 
   it('does not consume the shortcut for a protected row or while a row is renaming', () => {

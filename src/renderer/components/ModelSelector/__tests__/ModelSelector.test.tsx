@@ -668,7 +668,7 @@ describe('ModelSelector', () => {
           execute: vi.fn(),
           hasHandler: () => true,
           registerHandler: (_command, handler) => {
-            openRecovery = handler
+            openRecovery = typeof handler === 'function' ? handler : handler.current
             return () => undefined
           }
         }}>

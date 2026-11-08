@@ -6,6 +6,7 @@ type SessionResourceListProps<T extends ResourceListItemBase> = Omit<
   Parameters<typeof ResourceList.Provider<T>>[0],
   'variant'
 > & {
+  active?: boolean
   children: ReactNode
   presentation: ResourceListPresentation
   onDeletePermanently?: (item: T) => void | Promise<void>
@@ -15,6 +16,7 @@ type SessionResourceListProps<T extends ResourceListItemBase> = Omit<
 }
 
 export function SessionResourceList<T extends ResourceListItemBase>({
+  active = true,
   children,
   presentation,
   onDeletePermanently,
@@ -32,7 +34,7 @@ export function SessionResourceList<T extends ResourceListItemBase>({
       variant="session"
       onGroupHeaderDeletePermanently={onGroupHeaderDeletePermanently}
       isGroupHeaderPermanentDeleteEligible={isGroupHeaderPermanentDeleteEligible}>
-      <Frame data-testid="resource-list-session" presentation={presentation}>
+      <Frame active={active} data-testid="resource-list-session" presentation={presentation}>
         {onDeletePermanently ? (
           <ResourceList.PermanentDelete isItemEligible={isPermanentDeleteEligible} onDelete={onDeletePermanently} />
         ) : null}
