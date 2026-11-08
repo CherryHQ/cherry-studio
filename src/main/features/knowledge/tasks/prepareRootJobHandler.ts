@@ -19,6 +19,7 @@ import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId, toKnowl
 import type { KnowledgePrepareRootPayload } from './jobTypes'
 import { createExpandedDirectoryChildren, pinDirectoryPathPrefix } from './prepareItem'
 import { directoryCopyProgressCacheKey } from './utils/directoryCopyProgress'
+import { assertDirectoryRebuildSafe } from './utils/directoryRebuildSafety'
 import { resolveLiveKnowledgeItem } from './utils/liveItem'
 import { markKnowledgeItemFailedOnSettled } from './utils/settled'
 
@@ -124,6 +125,8 @@ async function deletePreviousLeafExpansion(
   await knowledgeLockManager.runExclusive(baseId, async () => {
     const base = knowledgeBaseService.getById(baseId)
     const descendants = knowledgeItemService.getSubtreeItems(baseId, [itemId])
+    const result = resolveLiveKnowledgeItem(itemId)
+    if ('item' in result) assertDirectoryRebuildSafe(result.item, descendants)
     const removableDescendants = descendants.filter((item) => item.status !== 'deleting')
     await purgeKnowledgeSubtreeWithinLock(base, removableDescendants, { baseId, itemId })
 
@@ -132,7 +135,6 @@ async function deletePreviousLeafExpansion(
     // copying any byte (see prepareDirectoryForRuntime), so if orphan bytes exist the row
     // records their prefix — reclaim the whole shell here. removeDir is idempotent (ENOENT
     // no-op) when the shell was never created.
-    const result = resolveLiveKnowledgeItem(itemId)
     if ('item' in result && result.item.type === 'directory') {
       const prefix = result.item.data.relativePath
       if (prefix) {

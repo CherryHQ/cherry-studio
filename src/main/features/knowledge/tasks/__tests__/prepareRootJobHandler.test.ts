@@ -7,6 +7,7 @@ import { getKnowledgeBaseFilePath } from '../../pathStorage'
 import {
   createCtx,
   createDirectoryItem,
+  createFileItem,
   createNoteItem,
   createExpandedDirectoryChildrenMock,
   createPrepareRootJobHandler,
@@ -31,7 +32,30 @@ function createPinnedDirectoryItem(relativePath: string) {
   return { ...container, data: { ...container.data, relativePath } }
 }
 
+// Real directory expansion creates files, never notes.
+function createExpandedFile(id: string, parent: string, status: 'processing' | 'deleting' = 'processing') {
+  const file = createFileItem(id, status)
+  return { ...file, groupId: parent, data: { ...file.data, source: `/${parent}/${id}.pdf` } }
+}
+
 describe('prepare-root job handler', () => {
+  it('preserves independently added notes in prepare-root retry cleanup', async () => {
+    const root = createDirectoryItem('dir-1')
+    const note = createNoteItem('independent-note', 'dir-1')
+    knowledgeItemGetByIdMock.mockReturnValue(root)
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([note])
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
+    await expect(handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }))).rejects.toThrow(
+      'independently added documents'
+    )
+    expect(deleteMaterialsMock).not.toHaveBeenCalled()
+    expect(deleteKnowledgeItemFilesBestEffortMock).not.toHaveBeenCalled()
+    expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
+    expect(removeDirMock).not.toHaveBeenCalled()
+    expect(expandDirectoryOwnerToTreeMock).not.toHaveBeenCalled()
+    expect(note.data.content).toBe('hello independent-note')
+  })
+
   it('clears stale expansion and schedules recreated leaves', async () => {
     const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
     knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
@@ -184,7 +208,7 @@ describe('prepare-root job handler', () => {
 
   it('clears stale expansion vectors before deleting rows', async () => {
     const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
-    const activeChild = createNoteItem('active-note', 'dir-1')
+    const activeChild = createExpandedFile('active-note', 'dir-1')
     knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
     knowledgeItemGetSubtreeItemsMock.mockReturnValue([activeChild])
 
@@ -199,7 +223,7 @@ describe('prepare-root job handler', () => {
 
   it('routes stale-expansion cleanup through best-effort delete before deleting rows', async () => {
     const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
-    const activeChild = createNoteItem('active-note', 'dir-1')
+    const activeChild = createExpandedFile('active-note', 'dir-1')
     knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
     knowledgeItemGetSubtreeItemsMock.mockReturnValue([activeChild])
 
@@ -218,8 +242,8 @@ describe('prepare-root job handler', () => {
 
   it('leaves deleting descendants for delete-subtree cleanup', async () => {
     const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
-    const activeChild = createNoteItem('active-note', 'dir-1')
-    const deletingChild = createNoteItem('deleting-note', 'dir-1', 'deleting')
+    const activeChild = createExpandedFile('active-note', 'dir-1')
+    const deletingChild = createExpandedFile('deleting-note', 'dir-1', 'deleting')
     knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
     knowledgeItemGetSubtreeItemsMock.mockReturnValue([activeChild, deletingChild])
 
@@ -259,7 +283,7 @@ describe('prepare-root job handler', () => {
 
   it('purges descendant rows before reclaiming the container shell', async () => {
     const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
-    const activeChild = createNoteItem('active-note', 'dir-1')
+    const activeChild = createExpandedFile('active-note', 'dir-1')
     knowledgeItemGetByIdMock.mockReturnValue(createPinnedDirectoryItem('docs'))
     knowledgeItemGetSubtreeItemsMock.mockReturnValue([activeChild])
 
@@ -304,9 +328,9 @@ describe('prepare-root job handler', () => {
   it('marks unscheduled child leaves failed when enqueueing a child fails', async () => {
     const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
     const leaves = [
-      createNoteItem('leaf-1', 'dir-1'),
-      createNoteItem('leaf-2', 'dir-1'),
-      createNoteItem('leaf-3', 'dir-1')
+      createExpandedFile('leaf-1', 'dir-1'),
+      createExpandedFile('leaf-2', 'dir-1'),
+      createExpandedFile('leaf-3', 'dir-1')
     ]
     knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
     createExpandedDirectoryChildrenMock.mockResolvedValue(leaves)
@@ -330,7 +354,7 @@ describe('prepare-root job handler', () => {
 
   it('reports unrecovered leaves when failed status cleanup also fails', async () => {
     const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
-    const leaves = [createNoteItem('leaf-1', 'dir-1')]
+    const leaves = [createExpandedFile('leaf-1', 'dir-1')]
     knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
     createExpandedDirectoryChildrenMock.mockResolvedValue(leaves)
     scheduleItemMock.mockRejectedValueOnce(new Error('enqueue failed'))

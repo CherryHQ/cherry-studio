@@ -404,6 +404,7 @@ function readTree(
         depth: node.depth,
         title: node.title,
         type: node.itemType,
+        itemId: node.itemId,
         status: node.status,
         conceptId: node.conceptId
       }))
