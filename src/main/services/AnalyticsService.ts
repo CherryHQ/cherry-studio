@@ -15,7 +15,6 @@ import { APP_NAME } from '@shared/utils/constants'
 const logger = loggerService.withContext('AnalyticsService')
 
 // Public, write-only keys of the PostHog projects that keep usage insights, like the Sentry DSN.
-// The China edition shares its project with the China subscription web page.
 const POSTHOG_PROJECT_KEYS = {
   cn: 'phc_vwsf7qr54Vk2ff23Nj2B4PEYtSkkpheKrb8VcdfDujna',
   global: 'phc_G0omsYajA6A9BY5c0rnU04ZaZck25xpR0DqKhwfF39n'
@@ -27,11 +26,6 @@ function resolvePostHogKey(): string {
   const override = import.meta.env.MAIN_VITE_POSTHOG_KEY?.trim()
   if (override) return override
   return import.meta.env.DEV ? '' : POSTHOG_PROJECT_KEYS[getAppEdition()]
-}
-
-// A build pointed at a non-production Cherry Cloud backend reports as that backend's test traffic, so the two join.
-function isTestTraffic(): boolean {
-  return import.meta.env.DEV || !!import.meta.env.MAIN_VITE_CHERRY_CLOUD_API_ORIGIN?.trim()
 }
 
 // Distinct name so the SDK retry classifier treats it as non-retriable.
@@ -202,42 +196,24 @@ export class AnalyticsService extends BaseService implements Activatable {
     this.client!.trackTokenUsage(data)
   }
 
-  /**
-   * Records a usage insight in PostHog; dropped unless data collection is consented under the current policy and a
-   * project key is configured. In the China edition a signed-in Cherry Account is identified the way the China
-   * subscription web page and server identify it, so the purchase funnel joins by account; otherwise the event stays
-   * on the anonymous client id without a person profile.
-   */
+  /** Captures a consented event; callers own domain identity and event properties. */
   public trackEvent(
     eventType: string,
     data: Record<string, string | number | boolean>,
-    accountId?: string | null
+    identity?: { distinctId: string; processPersonProfile: boolean }
   ): void {
     if (!this.isActivated || !this.desiredEnabled || !this.posthog) return
-    const testTraffic = isTestTraffic()
-    const environment = testTraffic ? 'development' : 'production'
-    const accountDistinctId =
-      accountId && getAppEdition() === 'cn' ? `cloud-api:cn:${environment}:account:${accountId}` : null
     this.posthog.capture({
-      distinctId: accountDistinctId ?? getClientId(),
+      distinctId: identity?.distinctId ?? getClientId(),
       event: eventType,
       properties: {
         ...data,
         app_version: app.getVersion(),
         app_edition: getAppEdition(),
         os: process.platform,
-        // Same envelope as the subscription web page and server events in the shared project.
-        product: 'cloud-api',
-        producer: 'client',
-        surface: 'desktop',
-        entry: 'desktop',
-        region: getAppEdition(),
-        environment,
-        test: testTraffic,
-        schema_version: 1,
-        // Pinned so PostHog does not record the sender's address in place of a missing one.
+        // Keep addresses out of usage insights, including anonymous events.
         $ip: '0.0.0.0',
-        $process_person_profile: accountDistinctId !== null
+        $process_person_profile: identity?.processPersonProfile ?? false
       }
     })
   }
