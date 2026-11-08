@@ -181,15 +181,24 @@ function withCitationSkeleton(deferred: DeferredToolOutput, output: unknown): De
   if (!entities || entities.length <= 1) return deferred
 
   // Citation order defines display numbering, so retain the longest prefix that fits.
-  for (let end = entities.length - 1; end > 0; end -= 1) {
+  let low = 1
+  let high = entities.length - 1
+  let best: DeferredToolOutput | undefined
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2)
     const trimmedSkeleton = Array.isArray(skeleton)
-      ? entities.slice(0, end)
-      : { ...skeleton, content: entities.slice(0, end) }
-    const trimmed = { ...deferred, skeleton: trimmedSkeleton } satisfies DeferredToolOutput
-    if (!exceedsToolOutputTransportLimit(trimmed)) return trimmed
+      ? entities.slice(0, mid)
+      : { ...skeleton, content: entities.slice(0, mid) }
+    const candidate = { ...deferred, skeleton: trimmedSkeleton } satisfies DeferredToolOutput
+    if (!exceedsToolOutputTransportLimit(candidate)) {
+      best = candidate
+      low = mid + 1
+    } else {
+      high = mid - 1
+    }
   }
 
-  return deferred
+  return best ?? deferred
 }
 
 function projectToolOutputForRenderer(output: unknown, ref: DeferredToolResultRef): unknown {
