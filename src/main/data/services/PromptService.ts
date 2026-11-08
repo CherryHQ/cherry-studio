@@ -19,7 +19,12 @@ import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
-import type { CreatePromptDto, ListPromptsQuery, UpdatePromptDto } from '@shared/data/api/schemas/prompts'
+import type {
+  CreatePromptDto,
+  ListPromptsQuery,
+  UpdatePromptBindingsDto,
+  UpdatePromptDto
+} from '@shared/data/api/schemas/prompts'
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import type {
   Prompt,
@@ -182,6 +187,35 @@ export class PromptService {
       { pkColumn: promptBindingTable.promptId, scope: bindingTargetCondition(target) }
     )
     return prompts.map((prompt) => prompt.id)
+  }
+
+  replaceBindingsForTargetTx(
+    tx: Pick<DbType, 'delete' | 'insert' | 'select'>,
+    target: PromptBindingTarget,
+    { ids, expectedIds }: UpdatePromptBindingsDto
+  ): void {
+    this.assertBindingTargetExistsTx(tx, target)
+    const scope = bindingTargetCondition(target)
+    const current = tx
+      .select({ id: promptBindingTable.promptId })
+      .from(promptBindingTable)
+      .where(scope)
+      .orderBy(asc(promptBindingTable.orderKey))
+      .all()
+    if (current.length !== expectedIds.length || current.some((binding, index) => binding.id !== expectedIds[index])) {
+      throw DataApiErrorFactory.concurrentModification('Prompt bindings', target.id)
+    }
+    if (current.length === ids.length && current.every((binding, index) => binding.id === ids[index])) return
+    for (const id of ids) this.assertPromptIsRestrictedTx(tx, id, 'replace prompt bindings')
+    tx.delete(promptBindingTable).where(scope).run()
+    if (ids.length) {
+      insertManyWithOrderKey(
+        tx,
+        promptBindingTable,
+        ids.map((promptId) => ({ promptId, targetType: target.type, targetId: target.id })),
+        { pkColumn: promptBindingTable.promptId, scope }
+      )
+    }
   }
 
   cloneBindingsForTargetTx(
