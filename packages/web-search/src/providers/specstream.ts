@@ -18,19 +18,24 @@ const searchSchema = z.looseObject({
         })
       )
       .default([]),
-    passages: z.array(z.looseObject({ url: z.string(), text: z.string() })).default([])
+    passages: z
+      .array(z.looseObject({ url: z.string(), text: z.string() }))
+      .nullish()
+      .transform((value) => value ?? [])
   })
 })
 
 const extractSchema = z.looseObject({
-  results: z.array(
-    z.looseObject({
-      url: z.string(),
-      status: z.string(),
-      title: z.string().nullish(),
-      text: z.string().nullish()
-    })
-  )
+  data: z.looseObject({
+    results: z.array(
+      z.looseObject({
+        url: z.string(),
+        status: z.string(),
+        title: z.string().nullish(),
+        text: z.string().nullish()
+      })
+    )
+  })
 })
 
 export const specstream: WebSearchProviderModule = {
@@ -72,7 +77,7 @@ export const specstream: WebSearchProviderModule = {
       },
       extractSchema
     )
-    const page = payload.results[0]
+    const page = payload.data.results[0]
     if (!page) throw invalidResponse(context, 'empty_results', 'SpecStream Extract returned no result')
     const content = page.text?.trim()
     if (page.status !== 'ok' || !content) {

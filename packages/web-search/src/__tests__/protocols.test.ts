@@ -156,6 +156,25 @@ describe('portable provider contracts', () => {
     ])
   })
 
+  it('falls back to SpecStream source snippets when passages is null', async () => {
+    const body = JSON.stringify({
+      data: {
+        sources: [{ title: 'Only Title', url: 'https://specstream.example/only', snippet: 'Only Snippet' }],
+        passages: null
+      }
+    })
+    const { client } = setup(specstream, body)
+    const result = await client.execute(search('specstream'))
+    expect(result.results).toEqual([
+      {
+        title: 'Only Title',
+        content: 'Only Snippet',
+        url: 'https://specstream.example/only',
+        sourceInput: 'hello'
+      }
+    ])
+  })
+
   it('posts SpecStream extract calls and rejects pages that were not read', async () => {
     const call = {
       providerId: 'specstream',
@@ -176,7 +195,7 @@ describe('portable provider contracts', () => {
 
     const blocked = setup(
       specstream,
-      JSON.stringify({ results: [{ url: call.input, status: 'blocked' }], request_id: 'req_2' })
+      JSON.stringify({ data: { results: [{ url: call.input, status: 'blocked' }], request_id: 'req_2' } })
     )
     await expect(blocked.client.execute(call)).rejects.toMatchObject({ code: 'extract_blocked' })
   })

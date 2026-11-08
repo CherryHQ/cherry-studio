@@ -1,6 +1,8 @@
 {
-  "results": [
-    { "url": "https://specstream.example/page", "status": "ok", "title": " Page Title ", "text": " Page text " }
-  ],
-  "request_id": "req_1"
+  "data": {
+    "results": [
+      { "url": "https://specstream.example/page", "status": "ok", "title": " Page Title ", "text": " Page text " }
+    ],
+    "request_id": "req_1"
+  }
 }
