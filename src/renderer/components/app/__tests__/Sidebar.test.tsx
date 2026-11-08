@@ -13,6 +13,7 @@ import type * as SidebarFooterModule from '../../Sidebar/SidebarFooter'
 
 const mocks = vi.hoisted(() => ({
   isMac: false,
+  hasUnread: false,
   activate: vi.fn(),
   registryResolve: vi.fn(),
   remove: vi.fn(),
@@ -68,6 +69,10 @@ vi.mock('../../layout/ShellTabBarActions', () => ({
     </button>
   )
 }))
+vi.mock('../../NotificationCenter', () => ({
+  useNotificationCenter: () => ({ hasUnread: mocks.hasUnread })
+}))
+
 vi.mock('../../Sidebar', async () => {
   const constants = await vi.importActual<typeof SidebarConstantsModule>('../../Sidebar/constants')
   const { SidebarFooter } = await vi.importActual<typeof SidebarFooterModule>('../../Sidebar/SidebarFooter')
@@ -162,6 +167,7 @@ function renderedShortcutLabels(): Array<string | null> {
 
 describe('app Sidebar', () => {
   beforeEach(() => {
+    mocks.hasUnread = false
     vi.clearAllMocks()
     mocks.isMac = false
     mocks.shortcuts = []
@@ -191,16 +197,28 @@ describe('app Sidebar', () => {
     { isMac: false, isFullscreen: false },
     { isMac: true, isFullscreen: false },
     { isMac: true, isFullscreen: true }
-  ])('opens settings independently on macOS=$isMac fullscreen=$isFullscreen', async ({ isMac, isFullscreen }) => {
-    mocks.isMac = isMac
+  ])(
+    'keeps standalone settings and notification actions out of the sidebar on macOS=$isMac fullscreen=$isFullscreen',
+    ({ isMac, isFullscreen }) => {
+      mocks.isMac = isMac
+      render(<Sidebar isFullscreen={isFullscreen} />)
+      expect(screen.queryByRole('button', { name: 'settings.title' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'notification.center.title' })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'User' })).toBeVisible()
+    }
+  )
+
+  it('shows unread state on the account trigger without clearing it when opening the menu', async () => {
+    mocks.hasUnread = true
     const user = userEvent.setup()
-    render(<Sidebar isFullscreen={isFullscreen} />)
-    const settingsButton = screen.getByRole('button', { name: 'settings.title' })
-    if (isMac && !isFullscreen) expect(settingsButton).not.toHaveTextContent('settings.title')
-    else expect(settingsButton).toHaveTextContent('settings.title')
-    await user.click(settingsButton)
-    expect(mocks.openSettingsTab).toHaveBeenCalledOnce()
-    expect(screen.queryByTestId('account-menu')).not.toBeInTheDocument()
+    const view = render(<Sidebar />)
+    expect(screen.getByRole('button', { name: 'User' })).toHaveAccessibleDescription('notification.center.unread')
+    await user.click(screen.getByRole('button', { name: 'User' }))
+    expect(screen.getByTestId('account-menu')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'User' })).toHaveAccessibleDescription('notification.center.unread')
+    mocks.hasUnread = false
+    view.rerender(<Sidebar />)
+    expect(screen.getByRole('button', { name: 'User' })).not.toHaveAttribute('aria-describedby')
   })
 
   it('opens and closes the anchored account menu from the sidebar identity', async () => {
@@ -281,7 +299,7 @@ describe('app Sidebar', () => {
     if (width === 0) fireEvent.mouseEnter(screen.getByTestId('docked-sidebar'))
     const sidebar = screen.getByTestId(width === 0 ? 'floating-sidebar' : 'docked-sidebar')
 
-    expect(within(sidebar).getByRole('button', { name: 'settings.title' })).toBeVisible()
+    expect(within(sidebar).queryByRole('button', { name: 'settings.title' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'help.title' })).not.toBeInTheDocument()
 
     await user.click(within(sidebar).getByRole('button', { name: 'User' }))
