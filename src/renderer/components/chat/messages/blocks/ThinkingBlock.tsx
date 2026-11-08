@@ -78,7 +78,10 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
   const contentId = useId()
   const contentRef = useRef<HTMLDivElement>(null)
   const followingRef = useRef(true)
-  const previousThoughtAutoCollapse = useRef(thoughtAutoCollapse)
+  const [previousThoughtAutoCollapse, setPreviousThoughtAutoCollapse] = useMessageDisclosureState(
+    `reasoning-preference:${id}`,
+    thoughtAutoCollapse
+  )
   const hasContent = !!content
 
   useEffect(() => {
@@ -116,10 +119,9 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
   }, [thinkingPreviewScanResult])
 
   useEffect(() => {
-    if (previousThoughtAutoCollapse.current === thoughtAutoCollapse) return
-    previousThoughtAutoCollapse.current = thoughtAutoCollapse
-    setIsExpanded(!thoughtAutoCollapse)
-  }, [setIsExpanded, thoughtAutoCollapse])
+    if (previousThoughtAutoCollapse !== thoughtAutoCollapse) setIsExpanded(!thoughtAutoCollapse)
+    setPreviousThoughtAutoCollapse(thoughtAutoCollapse)
+  }, [previousThoughtAutoCollapse, setIsExpanded, setPreviousThoughtAutoCollapse, thoughtAutoCollapse])
 
   if (!content) {
     return null

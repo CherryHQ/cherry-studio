@@ -83,14 +83,19 @@ describe('ThinkingBlock', () => {
 
   const renderThinkingBlock = (block: ThinkingBlockFixture, props: { showTitlePreview?: boolean } = {}) => {
     return render(
-      <MessagePartsScopeProvider messageId="thinking-test-message" parts={[]}>
-        <ThinkingBlock
-          id={block.id}
-          content={block.content}
-          isStreaming={block.status === 'streaming'}
-          showTitlePreview={props.showTitlePreview}
-        />
-      </MessagePartsScopeProvider>
+      <ThinkingBlock
+        id={block.id}
+        content={block.content}
+        isStreaming={block.status === 'streaming'}
+        showTitlePreview={props.showTitlePreview}
+      />,
+      {
+        wrapper: ({ children }) => (
+          <MessagePartsScopeProvider messageId="thinking-test-message" parts={[]}>
+            {children}
+          </MessagePartsScopeProvider>
+        )
+      }
     )
   }
 
@@ -275,6 +280,30 @@ describe('ThinkingBlock', () => {
       renderThinkingBlock(block)
 
       expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
+    })
+
+    it.each([true, false])('reconciles a preference changed while unmounted: %s', (initial) => {
+      mockRenderConfig.thoughtAutoCollapse = initial
+      const block = createThinkingBlock()
+      const first = renderThinkingBlock(block)
+      mockRenderConfig.thoughtAutoCollapse = !initial
+      first.rerender(<ThinkingBlock id={block.id} content={block.content} isStreaming={false} />)
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', String(initial))
+      first.unmount()
+      mockRenderConfig.thoughtAutoCollapse = initial
+      renderThinkingBlock(block)
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', String(!initial))
+    })
+
+    it.each([true, false])('preserves a manual choice with unchanged preference: %s', (initial) => {
+      mockRenderConfig.thoughtAutoCollapse = initial
+      const block = createThinkingBlock()
+      const first = renderThinkingBlock(block)
+      fireEvent.click(getToggleButton())
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', String(initial))
+      first.unmount()
+      renderThinkingBlock(block)
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', String(initial))
     })
 
     it('should render expanded by default when auto-collapse is disabled', () => {
