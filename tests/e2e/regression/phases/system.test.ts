@@ -402,6 +402,10 @@ test(...caseDefinition('MP-128'), async ({ app, mainWindow: page }, testInfo) =>
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
   let overlay: Page | undefined
+  let assistantId: string | undefined
+  const assistantName = app.resourceName(`Screenshot draft ${Date.now()}`)
+  const composer = page.locator('[data-ui~="chat.view"]:visible [data-ui~="chat.composer"]')
+  const imageTokens = composer.locator('[data-composer-token-kind="file"][data-file-token-variant="image"]')
   const drag = async (window: Page, x: number, y: number, width: number, height: number) => {
     if (app.record.platform === 'macos') {
       const origin = await window.evaluate(() => ({ x: screenX, y: screenY }))
@@ -439,6 +443,28 @@ test(...caseDefinition('MP-128'), async ({ app, mainWindow: page }, testInfo) =>
   }
 
   try {
+    const assistant = await page.evaluate(
+      (name) =>
+        window.api.dataApi.request({
+          id: 'mp128-assistant',
+          method: 'POST',
+          path: '/assistants',
+          body: { name }
+        }),
+      assistantName
+    )
+    expect(assistant.status).toBe(201)
+    assistantId = AssistantSchema.parse(assistant.data).id
+    await page.reload()
+    await selectSidebarApp(page, 'Chat')
+    const assistantRow = page.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
+    await assistantRow.hover()
+    await assistantRow.getByRole('button', { name: 'New Chat', exact: true }).click()
+    await expect(
+      page.locator('.home-navbar:visible').getByRole('button').filter({ hasText: assistantName })
+    ).toBeVisible()
+    await expect(composer.locator('[contenteditable="true"]').first()).toBeEmpty()
+    await expect(imageTokens).toHaveCount(0)
     await page.evaluate(() =>
       window.api.preference.setMultiple({
         'feature.screenshot.enabled': true,
@@ -598,8 +624,6 @@ test(...caseDefinition('MP-128'), async ({ app, mainWindow: page }, testInfo) =>
     await screenshot(ocrCapture.window, 'MP-128 recognized text')
     await ocrCapture.window.getByRole('button', { name: 'Copy and close', exact: true }).click()
     await expect(ocrCapture.window.getByRole('button', { name: 'Copy and close', exact: true })).toBeHidden()
-    const composer = page.locator('[data-ui~="chat.view"]:visible [data-ui~="chat.composer"]')
-    const imageTokens = composer.locator('[data-composer-token-kind="file"][data-file-token-variant="image"]')
     await composer.locator('[contenteditable="true"]').first().click()
     await page.keyboard.press(app.record.platform === 'macos' ? 'Meta+v' : 'Control+v')
     await expect(imageTokens).toHaveCount(1)
@@ -625,18 +649,29 @@ test(...caseDefinition('MP-128'), async ({ app, mainWindow: page }, testInfo) =>
       noChat.window.getByRole('dialog').getByRole('button', { name: 'Add to chat', exact: true })
     ).toBeDisabled()
   } finally {
-    if (overlay && !overlay.isClosed()) {
-      await overlay.evaluate(() => window.api.ipcApi.request('screenshot.cancel'))
-      await expect.poll(() => overlay!.evaluate(() => document.hidden).catch(() => true)).toBe(true)
+    try {
+      if (overlay && !overlay.isClosed()) {
+        await overlay.evaluate(() => window.api.ipcApi.request('screenshot.cancel'))
+        await expect.poll(() => overlay!.evaluate(() => document.hidden).catch(() => true)).toBe(true)
+      }
+      await page.evaluate(async (original) => {
+        document.getElementById('mp128-sample')?.remove()
+        await window.api.preference.setMultiple({
+          'feature.screenshot.enabled': original.enabled,
+          'feature.screenshot.auto_ocr': original.autoOcr,
+          'shortcut.screenshot.capture': original.shortcut
+        })
+      }, original)
+    } finally {
+      if (assistantId) {
+        const removed = (await page.evaluate(
+          (assistantId) =>
+            window.api.ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true }),
+          assistantId
+        )) as IpcResult<{ deleted: boolean }>
+        expect(removed.ok && removed.data.deleted).toBe(true)
+      }
     }
-    await page.evaluate(async (original) => {
-      document.getElementById('mp128-sample')?.remove()
-      await window.api.preference.setMultiple({
-        'feature.screenshot.enabled': original.enabled,
-        'feature.screenshot.auto_ocr': original.autoOcr,
-        'shortcut.screenshot.capture': original.shortcut
-      })
-    }, original)
   }
 })
 

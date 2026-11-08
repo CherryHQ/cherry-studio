@@ -1308,10 +1308,12 @@ export async function saveNativeFileKeepingName(
       let deadline = Date().addingTimeInterval(10)
       while !condition() {
         if Date() > deadline { fail("Native save timed out at " + label + "; foreground=" + String(NSWorkspace.shared.frontmostApplication?.processIdentifier ?? 0)) }
-        Thread.sleep(forTimeInterval: 0.1)
+        // AppKit's application state refreshes when the main run loop advances.
+        RunLoop.current.run(until: Date().addingTimeInterval(0.1))
       }
     }
     func key(_ code: CGKeyCode, _ flags: CGEventFlags = []) {
+      RunLoop.current.run(until: Date().addingTimeInterval(0.01))
       guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else { fail("Native save lost foreground ownership") }
       for down in [true, false] {
         let event = CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: down)!

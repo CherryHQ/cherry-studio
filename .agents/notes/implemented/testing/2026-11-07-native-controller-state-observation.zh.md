@@ -47,6 +47,7 @@ macOS 的 HTTPS 与本地 HTML 文件可以使用不同默认应用。若以 HTT
 - Windows 原生确认按钮按语义 Button 控件类型、旧版 Button 类或 TaskDialog 的 CCPushButton 类匹配，同时要求名称精确匹配及所拥有进程 ID。本轮 TaskDialog 提供程序将 OK 控件暴露为 CCPushButton/Pane；保留精确对话框身份和单次调用。
 - 分别保留 Windows 恢复后的窗口关闭与原生确认结果。为所拥有进程记录有界、脱敏的原生匹配与调用元数据，诊断快照不代替实际匹配。限制失败后的渲染器清理等待，并同时保留原始与清理错误。
 - macOS 保存失败时，记录所拥有面板的 AX PID/role、前台应用身份及激活/raise 结果，不记录标题、内容或输入值。保留原前台归属检查。原生测试覆盖全部 BrowserWindow 隐藏后独立保存的截图保存场景。
+- 等待保存面板状态及执行严格前台 PID 检查前，推进 AppKit 主 RunLoop。[Apple 的应用状态契约](https://developer.apple.com/documentation/appkit/nsrunningapplication?language=objc) 要求通过 RunLoop 迭代刷新动态观察值；激活请求被接受本身不能证明键盘归属。每轮 MP-128 使用独立助手和新会话，结束后只删除该助手及其话题。
 - MP-17 的 Send 使用 Playwright 的 `noWaitAfter` 选项，随后验证实际错误详情、Retry 和恢复结果。MP-92 在失败清理删除 provider 前保留模型选择器状态与遮罩截图。
 
 ## 考虑过的替代方案
@@ -84,3 +85,4 @@ macOS 的 HTTPS 与本地 HTML 文件可以使用不同默认应用。若以 HTT
 - Regression — 托管 Windows 在 `9c182f4a74` 通过所有控制台原生测试，包含仅输入正文后单独发送 Return。真实 TaskDialog 测试失败，并记录到 OK 控件为 CCPushButton/Pane，证明仅匹配语义 Button 不足。兼容修复通过 24 项系统自动化检查，仍需重新执行原生测试。
 - Regression — 本机 `e4dc4fbd51` 全量回归通过 133/134，运行资源清理成功；MP-128 在原生保存的前台归属检查上失败。新增隐藏窗口原生测试通过，仅加入诊断的 MP-128 单项在 34 秒内通过且完成清理。这些单项成功不能证明间歇性失败的根因已确定，仍需重新完整执行。
 - Regression — 生命周期、启动与进程的 61 项检查通过。七个升级案例验证所拥有 SIGTERM 后的 SIGKILL 归属拒绝可通过自然退出恢复，且不发送任何 SIGKILL；持续存活进程、PID 复用及未知/权限不足的存活状态仍阻止清理。托管失败发生于 8.418 秒后，同一进程组随后约 1.1 秒自然清空。
+- Regression — 保存驱动的 RunLoop 后续修复通过三个真实 macOS 保存变体（指定文件名、保留建议文件名、隐藏 BrowserWindow），以及 24 项系统自动化检查和 E2E 类型检查。增加逐用例草稿隔离前，MP-128 连续执行三轮得到一项通过、两项失败：前台状态观察超时，以及上一轮成功执行遗留附件导致数量错误。
