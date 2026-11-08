@@ -59,6 +59,8 @@ Cold Vite dependency optimization reloaded hosted renderers during cases. Phase 
 
 - Store bounded, content-free native failure metadata under `evidence/native-diagnostics`, which the existing sanitized artifact bundle includes. Keep general logs private. Windows rectangles encode non-finite coordinates as null; diagnostic serialization must not replace the real minimized/foreground verdict. External cleanup reuses existing snapshots and records hashed tab identities plus explicit close dispatch or unknown state, without broadening permission to close foreign tabs.
 
+- Selection action tests require the owned native toolbar and its document to be visible before keyboard activation of the public action button. Windows text reads query TextPattern capability within the owned PID; failed reads record bounded RawView structure without foreign text. Tray cases open the actual service menu through Electron’s owned inspector, then retain native UIA selection and business assertions; this does not verify taskbar right-click delivery. Relaunch failures retain four bounded stages and content-free foreground process identities without changing the foreground requirement.
+
 ## Alternatives considered
 
 - Larger timeouts alone do not fix wrong-window input, oversized command lines or ownership races.
@@ -105,3 +107,5 @@ Adapters remain platform specific and fail when native state cannot be confirmed
 - Regression — all 33 lifecycle contracts pass. The new cases copy real temporary Data, Network/Cookies and file contents after a simulated asynchronous shutdown flush; a quit timeout rejects before copying and does not force-terminate or launch another process. Actual Windows lock release remains part of hosted MP-121 verification.
 
 - Regression — 57 affected automation/driver/resource/syntax checks pass with one platform-specific skip. Missing IDs leave replacement tabs intact, foreign tabs and failed ledgers remain preserved, and failure evidence excludes private contents and truncates collections. Node/E2E types and scoped lint pass. The real Windows PowerShell non-finite serialization contract is part of the hosted native gate; it cannot run on this macOS host.
+
+- Regression — 25 system-automation contracts, Node/E2E types, scoped lint and formatting pass after the text-capability/menu changes. Independent review preserves ownership, native visibility and complete business oracles. Actual Windows text/menu behavior and the visible-toolbar keyboard path remain subject to the focused workflow rerun.

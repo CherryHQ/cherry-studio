@@ -15,7 +15,10 @@ export interface StartupState {
   }[]
 }
 
-export async function inspectStartup(app: RegressionApp, action?: 'show' | 'quit'): Promise<StartupState> {
+export async function inspectStartup(
+  app: RegressionApp,
+  action?: 'show' | 'quit' | 'tray-menu'
+): Promise<StartupState> {
   const record = app.record
   const inspectorPort = Number(process.env.V8_INSPECTOR_PORT ?? MAIN_INSPECTOR_PORT)
   assertOwnedProcess(record, record.electronPid, 'electron')
@@ -56,7 +59,12 @@ export async function inspectStartup(app: RegressionApp, action?: 'show' | 'quit
       expression: `(() => {
           const application = Object.values(process.mainModule.require('node:module')._cache)
             .map(module => module.exports?.application).find(candidate => candidate?.getPath)
-          const tray = application.get('TrayService').tray
+          const service = application.get('TrayService')
+          const tray = service.tray
+          if (${JSON.stringify(action)} === 'tray-menu') {
+            if (!tray || tray.isDestroyed() || !service.contextMenu) throw new Error('Owned tray menu is unavailable')
+            tray.popUpContextMenu(service.contextMenu)
+          }
           if (!tray) return []
           const destroyed = tray.isDestroyed()
           const bounds = destroyed ? { x: 0, y: 0, width: 0, height: 0 } : tray.getBounds()
