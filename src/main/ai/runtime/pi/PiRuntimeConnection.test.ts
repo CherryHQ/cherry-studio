@@ -2,7 +2,8 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync,
 import { join } from 'node:path'
 
 import type { AssistantMessage } from '@earendil-works/pi-ai'
-import { createAssistantMessageEventStream, Type } from '@earendil-works/pi-ai'
+import { createAssistantMessageEventStream } from '@earendil-works/pi-ai'
+import { obj } from '@earendil-works/pi-schema'
 import { setupTestDatabase } from '@test-helpers/db'
 import { v7 as uuid } from 'uuid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -84,7 +85,7 @@ vi.mock('./piMcpExtension', async (original) => ({
         name: buildPiMcpToolName('cherry-tools', name),
         label: name,
         description: name,
-        parameters: Type.Object({}),
+        parameters: obj({}),
         execute: async () => {
           mocks.delegated()
           return { content: [{ type: 'text', text: 'delegated' }] }

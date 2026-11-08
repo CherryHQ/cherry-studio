@@ -167,7 +167,7 @@ describe('desktop control ownership and user stop', () => {
     await service.stop()
   })
 
-  it('reports an unexpected unconfirmed native exit separately from user stop and keeps ownership blocked', async () => {
+  it('reports an unexpected unconfirmed native exit separately from user stop and recovers when the user allows control again', async () => {
     const native = backend({
       close: async () => {
         throw new Error('Native runtime is gone')
@@ -180,11 +180,12 @@ describe('desktop control ownership and user stop', () => {
     native.disconnect({ cleanup: 'unconfirmed' })
     await expect(service.listApps(task)).rejects.toMatchObject({ code: 'CLEANUP_UNCONFIRMED' })
     service.allowControl('owner')
-    await expect(service.listApps(service.createTask('owner', 'Conversation'))).rejects.toMatchObject({
-      code: 'CLEANUP_UNCONFIRMED'
+    await expect(service.listApps(service.createTask('owner', 'Conversation'))).resolves.toMatchObject({
+      apps: [{ id: 'app', name: 'Editor' }]
     })
-    await expect(service.openApp(service.createTask('other', 'Other'), 'app')).rejects.toMatchObject({
-      code: 'APP_BUSY'
+    // Acknowledging the unconfirmed cleanup also releases the application reservation it kept alive.
+    await expect(service.openApp(service.createTask('other', 'Other'), 'app')).resolves.toMatchObject({
+      status: 'active'
     })
     await service.stop()
   })
@@ -352,7 +353,7 @@ describe('desktop control ownership and user stop', () => {
     await service.stop()
   })
 
-  it('retains uncertain cleanup and its application reservation instead of claiming stopped', async () => {
+  it('retains uncertain cleanup until the user allows control again instead of claiming stopped', async () => {
     const native = backend({
       stopAppSession: async () => {
         throw new Error('Cleanup unconfirmed')
@@ -366,12 +367,17 @@ describe('desktop control ownership and user stop', () => {
     await service.openApp(service.createTask('owner', 'Conversation'), 'app')
     await service.stopApp('owner', 'app')
     expect(service.getControls().filter((row) => row.appId === 'app')).toMatchObject([{ status: 'unconfirmed' }])
-    service.allowControl('owner')
+    // Until the user acknowledges, both the owner and the application stay blocked.
     await expect(service.openApp(service.createTask('owner', 'Conversation'), 'app')).rejects.toMatchObject({
       code: 'CLEANUP_UNCONFIRMED'
     })
     await expect(service.openApp(service.createTask('other', 'Other'), 'app')).rejects.toMatchObject({
       code: 'APP_BUSY'
+    })
+    service.allowControl('owner')
+    expect(service.getControls().filter((row) => row.appId === 'app')).toEqual([])
+    await expect(service.openApp(service.createTask('owner', 'Conversation'), 'app')).resolves.toMatchObject({
+      status: 'active'
     })
     await service.stop()
   })

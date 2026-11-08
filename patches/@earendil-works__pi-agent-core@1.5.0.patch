@@ -1,8 +1,7 @@
 diff --git a/dist/agent-loop.js b/dist/agent-loop.js
-index 6bbfbc3..82a733d 100644
 --- a/dist/agent-loop.js
 +++ b/dist/agent-loop.js
-@@ -668,6 +668,7 @@ function createToolResultMessage(finalized) {
+@@ -668,6 +668,7 @@
          // so the null never enters session history or provider payloads.
          content: finalized.result.content ?? [],
          details: finalized.result.details,
