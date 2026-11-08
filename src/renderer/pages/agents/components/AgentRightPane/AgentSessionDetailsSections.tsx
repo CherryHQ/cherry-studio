@@ -295,7 +295,13 @@ export function AgentSessionDetailsSections({
             </span>
           </Tooltip>
           {workspacePath && (
-            <OpenTargetButton targetPath={workspacePath} pathKind="directory" className="shrink-0 border-0" />
+            <OpenTargetButton
+              targetPath={workspacePath}
+              pathKind="directory"
+              className="shrink-0 border-0"
+              menuAction="select"
+              menuContentProps={{ className: 'w-70 max-w-[calc(100vw_-_24px)]', alignOffset: -16 }}
+            />
           )}
         </div>
       )}
