@@ -55,11 +55,15 @@ interface Props {
 
 function pickPreferredSelectedMessage(
   messages: MessageListItem[],
-  getMessageUiState: (messageId: string) => MessageUiState
+  getMessageUiState: (messageId: string) => MessageUiState,
+  activeBranchMessageId: string | null = messages.find((message) => message.isActiveBranch)?.id ?? null
 ) {
   return (
+    messages.find((message) => {
+      const ui = getMessageUiState(message.id)
+      return ui.foldSelected && (ui.foldSelectedBranchId ?? null) === activeBranchMessageId
+    }) ??
     messages.find((message) => message.isActiveBranch) ??
-    messages.find((message) => getMessageUiState(message.id).foldSelected) ??
     messages.find(isMessageListItemProcessing)
   )
 }
@@ -130,13 +134,20 @@ const MessageGroup = ({
 
   const isGrid = multiModelMessageStyle === 'grid'
 
+  const activeBranchMessage = useMemo(() => messages.find((message) => message.isActiveBranch), [messages])
+  const activeBranchMessageId = activeBranchMessage?.id ?? null
+
   // Track the selected message ID in React state. The active branch remains
   // the single source of truth for which grouped reply is used as context.
   const [selectedMessageId, setSelectedMessageIdState] = useState<string>(() => {
     if (messages.length === 1) return messages[0]?.id
-    return pickPreferredSelectedMessage(messages, getMessageUiState)?.id ?? messages.at(-1)?.id ?? messages[0]?.id
+    return (
+      pickPreferredSelectedMessage(messages, getMessageUiState, activeBranchMessageId)?.id ??
+      messages.at(-1)?.id ??
+      messages[0]?.id
+    )
   })
-  const previousActiveBranchMessageIdRef = useRef(messages.find((message) => message.isActiveBranch)?.id)
+  const previousActiveBranchMessageIdRef = useRef(activeBranchMessageId)
 
   // Re-sync the selected ID when the active branch or group membership changes.
   // Without this, fold mode can keep showing an old model column even after
@@ -150,44 +161,53 @@ const MessageGroup = ({
     previousMessageIdsRef.current = messages.map((message) => message.id)
 
     const hasSelected = messages.some((m) => m.id === selectedMessageId)
-    const activeBranchMessage = messages.find((message) => message.isActiveBranch)
-    const activeBranchChanged = activeBranchMessage?.id !== previousActiveBranchMessageIdRef.current
-    previousActiveBranchMessageIdRef.current = activeBranchMessage?.id
+    const activeBranchChanged = activeBranchMessageId !== previousActiveBranchMessageIdRef.current
+    previousActiveBranchMessageIdRef.current = activeBranchMessageId
     let nextSelectedMessage: MessageListItem | undefined
 
     if (activeBranchChanged && activeBranchMessage && activeBranchMessage.id !== selectedMessageId) {
       nextSelectedMessage = activeBranchMessage
     } else if (!hasSelected) {
-      nextSelectedMessage = pickPreferredSelectedMessage(messages, getMessageUiState) ?? messages.at(-1) ?? messages[0]
+      nextSelectedMessage =
+        pickPreferredSelectedMessage(messages, getMessageUiState, activeBranchMessageId) ??
+        messages.at(-1) ??
+        messages[0]
     } else if (addedMessages.length > 0) {
-      nextSelectedMessage = pickPreferredSelectedMessage(addedMessages, getMessageUiState) ?? addedMessages.at(-1)
+      nextSelectedMessage =
+        pickPreferredSelectedMessage(addedMessages, getMessageUiState, activeBranchMessageId) ?? addedMessages.at(-1)
     }
 
     if (nextSelectedMessage && nextSelectedMessage.id !== selectedMessageId) {
       if (selectedMessageId) {
         updateMessageUiState(selectedMessageId, { foldSelected: false })
       }
-      updateMessageUiState(nextSelectedMessage.id, { foldSelected: true })
+      updateMessageUiState(nextSelectedMessage.id, {
+        foldSelected: true,
+        foldSelectedBranchId: activeBranchMessageId
+      })
       setSelectedMessageIdState(nextSelectedMessage.id)
     }
-  }, [captureMode, getMessageUiState, messages, selectedMessageId, updateMessageUiState])
+  }, [
+    activeBranchMessage,
+    activeBranchMessageId,
+    captureMode,
+    getMessageUiState,
+    messages,
+    selectedMessageId,
+    updateMessageUiState
+  ])
 
   const setSelectedMessage = useCallback(
     (message: MessageListItem) => {
-      // 前一个
+      // Browsing changes only the visible reply; context changes use onSelectContext.
       if (selectedMessageId) {
         updateMessageUiState(selectedMessageId, { foldSelected: false })
       }
-      // 当前选中的消息
-      updateMessageUiState(message.id, { foldSelected: true })
+      updateMessageUiState(message.id, {
+        foldSelected: true,
+        foldSelectedBranchId: activeBranchMessageId
+      })
       setSelectedMessageIdState(message.id)
-
-      if (message.role === 'assistant' && message.id !== selectedMessageId) {
-        void Promise.resolve(actions.setActiveBranch?.(message.id)).catch((error) => {
-          logger.error('Failed to set active branch from message group', error as Error, { messageId: message.id })
-          actions.notifyError?.(error instanceof Error ? error.message : String(error))
-        })
-      }
 
       setTimeoutTimer(
         'setSelectedMessage',
@@ -202,7 +222,7 @@ const MessageGroup = ({
         200
       )
     },
-    [actions, navigateWithScrollRuntime, selectedMessageId, setTimeoutTimer, updateMessageUiState]
+    [activeBranchMessageId, navigateWithScrollRuntime, selectedMessageId, setTimeoutTimer, updateMessageUiState]
   )
   useEffect(() => {
     if (captureMode) return
@@ -252,13 +272,12 @@ const MessageGroup = ({
   )
 
   const groupContextMessageId = useMemo(() => {
-    const activeBranchMessage = messages.find((message) => message.isActiveBranch)
-    if (activeBranchMessage) return activeBranchMessage.id
+    if (activeBranchMessageId) return activeBranchMessageId
     if (messages.length > 0) return messages[0].id
 
     logger.warn('Empty message group')
     return ''
-  }, [messages])
+  }, [activeBranchMessageId, messages])
 
   const handleHorizontalGroupWheel = useCallback(
     (event: WheelEvent) => {
