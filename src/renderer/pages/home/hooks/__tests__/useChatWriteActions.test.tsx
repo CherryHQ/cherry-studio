@@ -565,7 +565,7 @@ describe('useChatWriteActions — regenerate', () => {
     ['success', 'provider-a::model-x', undefined],
     ['error', undefined, undefined]
   ])(
-    'uses the latest composer selection for a retryable %s reply with model %s and source %s',
+    'uses the latest composer selection for a %s reply with model %s and source %s',
     async (status, modelId, modelSelection) => {
       const assistantMessage = uiMsg('a1', 'assistant', 'u1', false, status)
       assistantMessage.metadata.modelId = modelId
@@ -606,7 +606,7 @@ describe('useChatWriteActions — regenerate', () => {
     })
   })
 
-  it.each(['success', 'pending'])('does not apply a retry override to a non-retryable %s reply', async (status) => {
+  it.each(['success', 'pending'])('regenerates a non-text %s reply with the appropriate model', async (status) => {
     const nonTextAssistant = uiMsg('a1', 'assistant', 'u1', false, status)
     nonTextAssistant.metadata.modelId = 'provider::model-a'
     nonTextAssistant.parts =
@@ -616,12 +616,23 @@ describe('useChatWriteActions — regenerate', () => {
 
     await result.current.actions.regenerate('a1')
 
-    expect(streamOpen).not.toHaveBeenCalled()
-    expect(regenerate).toHaveBeenCalledWith({
-      messageId: 'a1',
-      body: expect.objectContaining({ parentAnchorId: 'u1' })
-    })
-    expect(regenerate.mock.calls[0][0]?.body).not.toHaveProperty('mentionedModels')
+    if (status === 'pending') {
+      expect(streamOpen).not.toHaveBeenCalled()
+      expect(regenerate).toHaveBeenCalledWith({
+        messageId: 'a1',
+        body: expect.objectContaining({ parentAnchorId: 'u1' })
+      })
+      expect(regenerate.mock.calls[0][0]?.body).not.toHaveProperty('mentionedModels')
+    } else {
+      expect(regenerate).not.toHaveBeenCalled()
+      expect(streamOpen).toHaveBeenCalledWith({
+        trigger: 'regenerate-message',
+        topicId: 't1',
+        parentAnchorId: 'u1',
+        appendToLiveGroupMessageId: 'a1',
+        mentionedModelIds: ['provider::model-b']
+      })
+    }
   })
 
   it('routes an explicit @ model through Main so a live reply group can append without moving the branch', async () => {
@@ -692,7 +703,7 @@ describe('useChatWriteActions — regenerate', () => {
     }
   )
 
-  it.each([true, false])('keeps an explicitly selected model when a sibling remains: %s', async (hasSibling) => {
+  it.each([true, false])('uses the current model when regenerating an explicitly selected reply: %s', async (hasSibling) => {
     const replyA = uiMsg('a1', 'assistant', 'u1', false, 'success')
     replyA.metadata.modelId = 'provider::model-a'
     replyA.metadata.modelSelection = 'explicit'
@@ -716,7 +727,7 @@ describe('useChatWriteActions — regenerate', () => {
       topicId: 't1',
       parentAnchorId: 'u1',
       appendToLiveGroupMessageId: 'a1',
-      mentionedModelIds: ['provider::model-a']
+      mentionedModelIds: ['provider::model-c']
     })
   })
 
