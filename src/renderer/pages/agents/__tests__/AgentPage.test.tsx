@@ -349,7 +349,6 @@ vi.mock('@renderer/services/EventService', () => ({
     FOCUS_CHAT_COMPOSER: 'FOCUS_CHAT_COMPOSER',
     GLOBAL_SEARCH_SELECT_AGENT_SESSION: 'GLOBAL_SEARCH_SELECT_AGENT_SESSION',
     GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE: 'GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE',
-    SHOW_ASSISTANTS: 'SHOW_ASSISTANTS',
     REVEAL_ACTIVE_RESOURCE_LIST: 'REVEAL_ACTIVE_RESOURCE_LIST'
   },
   EventEmitter: {
@@ -672,8 +671,8 @@ vi.mock('../components/AgentCreateDialog', () => ({
     ) : null
 }))
 
-vi.mock('../components/Sessions', () => ({
-  default: ({
+vi.mock('../components/sessions', () => ({
+  Sessions: ({
     agentSessionsSource,
     agentIdFilter,
     onSetPanePosition,

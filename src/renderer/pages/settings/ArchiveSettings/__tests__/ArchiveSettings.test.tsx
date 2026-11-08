@@ -9,6 +9,7 @@ import type * as CherryStudioUi from '@cherrystudio/ui'
 import { dataApiService } from '@renderer/data/DataApiService'
 import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
+import type { FileRef } from '@shared/data/types/file'
 
 import type { ArchiveItem } from '../archive'
 
@@ -16,6 +17,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof Cher
 
 const mocks = vi.hoisted(() => ({
   fileItems: [] as ArchiveItem[],
+  allItems: [] as ArchiveItem[],
   hideItems: false,
   isLoading: false,
   ipcRequest: vi.fn(),
@@ -97,7 +99,23 @@ vi.mock('../AllArchiveSection', async () => {
         React.Fragment,
         null,
         React.createElement(TopicArchiveSection, props),
-        React.createElement(SessionArchiveSection, props)
+        React.createElement(SessionArchiveSection, props),
+        mocks.allItems.length > 0 &&
+          React.createElement(
+            'button',
+            {
+              type: 'button',
+              onClick: () =>
+                props.onRequestDelete({
+                  items: mocks.allItems,
+                  fileEntryIds: mocks.allItems
+                    .filter((item) => item.id.startsWith('files:'))
+                    .map((item) => item.id.slice(6)),
+                  run: mocks.runDelete
+                })
+            },
+            'Open all permanent delete'
+          )
       )
   }
 })
@@ -107,10 +125,55 @@ const { default: ArchiveSettings } = await import('../ArchiveSettings')
 
 function fileItems(count: number): ArchiveItem[] {
   return Array.from({ length: count }, (_, index) => ({
-    id: `file-${index + 1}`,
+    id: `019a0000-0000-7000-8000-${(index + 1).toString(16).padStart(12, '0')}`,
     name: `File ${index + 1}`,
     deletedAt: 1_750_000_000_000 + index
   }))
+}
+
+const [FILE_ID, FILE_2_ID, FILE_3_ID] = fileItems(3).map((item) => item.id)
+const JOB_ID = '019a0000-0000-7000-9000-000000000001'
+const PAINTING_ID = '019a0000-0000-4000-9000-000000000002'
+const RELEASE =
+  'Image-generation job references are released automatically when the job record is cleaned up, normally about 7 days after the job finishes; older records can be removed sooner and cleanup may be delayed. This file becomes eligible for background cleanup only after every reference is released, and other references can still block deletion.'
+
+function jobRef(role: 'input' | 'mask' = 'input', fileEntryId = FILE_ID): FileRef {
+  return {
+    id: `${role === 'input' ? 'a' : 'b'}0000000-0000-4000-8000-${fileEntryId.slice(-12)}`,
+    fileEntryId,
+    sourceType: 'job',
+    sourceId: JOB_ID,
+    role,
+    createdAt: 1_750_000_000_000,
+    updatedAt: 1_750_000_000_000
+  }
+}
+
+function mockReferenceReads({
+  counts = [{ entryId: FILE_ID, refCount: 1 }],
+  refs = { [FILE_ID]: [jobRef()] },
+  jobs = { [JOB_ID]: 'image-generation.generate' }
+}: {
+  counts?: Array<{ entryId: string; refCount: number }> | (() => Promise<Array<{ entryId: string; refCount: number }>>)
+  refs?: Record<string, FileRef[] | Error | Promise<FileRef[]> | (() => FileRef[] | Promise<FileRef[]>)>
+  jobs?: Record<string, string | Error | Promise<string> | (() => string | Promise<string>)>
+} = {}) {
+  vi.mocked(dataApiService.get).mockImplementation(async (path) => {
+    if (path === '/files/entries/ref-counts') return (typeof counts === 'function' ? await counts() : counts) as never
+    const entryId = Object.keys(refs).find((id) => path === `/files/entries/${id}/refs`)
+    if (entryId) {
+      const response = refs[entryId]
+      if (response instanceof Error) throw response
+      return (typeof response === 'function' ? await response() : await response) as never
+    }
+    const jobId = Object.keys(jobs).find((id) => path === `/jobs/${id}`)
+    if (jobId) {
+      const response = jobs[jobId]
+      if (response instanceof Error) throw response
+      return { type: typeof response === 'function' ? await response() : await response } as never
+    }
+    throw new Error(`Unexpected read: ${path}`)
+  })
 }
 
 async function chooseCategory(user: ReturnType<typeof userEvent.setup>, next: string) {
@@ -133,6 +196,7 @@ beforeEach(async () => {
   mocks.deleteItems.mockReset().mockResolvedValue({ succeeded: ['topic-1'], failed: [] })
   mocks.runDelete.mockReset().mockResolvedValue({ succeeded: [], failed: [] })
   mocks.fileItems = fileItems(1)
+  mocks.allItems = []
   mocks.hideItems = false
   mocks.isLoading = false
 })
@@ -353,7 +417,7 @@ describe('ArchiveSettings permanent-delete confirmation', () => {
     expect(confirm).toBeDisabled()
     expect(screen.getByText('Checking file references…')).toBeInTheDocument()
 
-    resolveCounts([{ entryId: 'file-1', refCount: 0 }])
+    resolveCounts([{ entryId: FILE_ID, refCount: 0 }])
     await waitFor(() => expect(confirm).toBeEnabled())
     await user.click(confirm)
 
@@ -364,9 +428,10 @@ describe('ArchiveSettings permanent-delete confirmation', () => {
   it('chunks 501 selected file ids into 500 and 1 before enabling confirmation', async () => {
     const user = userEvent.setup()
     mocks.fileItems = fileItems(501)
-    vi.mocked(dataApiService.get).mockImplementation(async (_path, options) =>
-      (options?.query?.entryIds ?? []).map((entryId) => ({ entryId, refCount: 0 }))
-    )
+    vi.mocked(dataApiService.get).mockImplementation(async (path, options) => {
+      if (path !== '/files/entries/ref-counts') throw new Error(`Unexpected detail read: ${path}`)
+      return (options?.query?.entryIds ?? []).map((entryId) => ({ entryId, refCount: 0 }))
+    })
     render(<ArchiveSettings />)
     await chooseCategory(user, i18n.language === 'zh-CN' ? '话题' : 'Topics')
 
@@ -403,11 +468,34 @@ describe('ArchiveSettings permanent-delete confirmation', () => {
   it('keeps confirmation disabled for referenced files and reports both impact totals', async () => {
     const user = userEvent.setup()
     mocks.fileItems = fileItems(3)
-    vi.mocked(dataApiService.get).mockResolvedValueOnce([
-      { entryId: 'file-1', refCount: 2 },
-      { entryId: 'file-2', refCount: 0 },
-      { entryId: 'file-3', refCount: 4 }
-    ])
+    mockReferenceReads({
+      counts: [
+        { entryId: FILE_ID, refCount: 2 },
+        { entryId: FILE_2_ID, refCount: 0 },
+        { entryId: FILE_3_ID, refCount: 4 }
+      ],
+      refs: {
+        [FILE_ID]: [jobRef('input'), jobRef('mask')],
+        [FILE_3_ID]: [
+          jobRef('input', FILE_3_ID),
+          jobRef('mask', FILE_3_ID),
+          {
+            ...jobRef('input', FILE_3_ID),
+            id: 'c0000000-0000-4000-8000-000000000003',
+            sourceType: 'painting',
+            sourceId: PAINTING_ID,
+            role: 'input'
+          },
+          {
+            ...jobRef('input', FILE_3_ID),
+            id: 'c0000000-0000-4000-8000-000000000004',
+            sourceType: 'painting',
+            sourceId: PAINTING_ID,
+            role: 'output'
+          }
+        ]
+      }
+    })
     render(<ArchiveSettings />)
     await chooseCategory(user, i18n.language === 'zh-CN' ? '话题' : 'Topics')
 
@@ -422,7 +510,7 @@ describe('ArchiveSettings permanent-delete confirmation', () => {
     const user = userEvent.setup()
     vi.mocked(dataApiService.get)
       .mockRejectedValueOnce(new Error('ref counts unavailable'))
-      .mockResolvedValueOnce([{ entryId: 'file-1', refCount: 0 }])
+      .mockResolvedValueOnce([{ entryId: FILE_ID, refCount: 0 }])
     render(<ArchiveSettings />)
     await chooseCategory(user, i18n.language === 'zh-CN' ? '话题' : 'Topics')
 
@@ -438,7 +526,8 @@ describe('ArchiveSettings permanent-delete confirmation', () => {
 
   it('does not reuse a successful reference preview after closing and reopening', async () => {
     const user = userEvent.setup()
-    vi.mocked(dataApiService.get).mockResolvedValue([{ entryId: 'file-1', refCount: 0 }])
+    let preview = 0
+    mockReferenceReads({ counts: async () => [{ entryId: FILE_ID, refCount: preview++ === 0 ? 0 : 1 }] })
     render(<ArchiveSettings />)
     await chooseCategory(user, i18n.language === 'zh-CN' ? '话题' : 'Topics')
     await openFileDelete(user)
@@ -447,19 +536,22 @@ describe('ArchiveSettings permanent-delete confirmation', () => {
 
     await user.click(screen.getByRole('button', { name: 'Open file permanent delete' }))
 
-    await waitFor(() => expect(dataApiService.get).toHaveBeenCalledTimes(2))
+    expect(await screen.findByText(`Image-generation job record ${JOB_ID} (input image)`)).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Delete Permanently' })).toBeDisabled()
   })
 
   it('ignores an old preview response after closing, switching category, and reopening', async () => {
     const user = userEvent.setup()
     let resolveOld!: (value: Array<{ entryId: string; refCount: number }>) => void
-    vi.mocked(dataApiService.get)
-      .mockReturnValueOnce(
-        new Promise((resolve) => {
-          resolveOld = resolve
-        }) as never
-      )
-      .mockResolvedValueOnce([{ entryId: 'file-1', refCount: 3 }])
+    let preview = 0
+    mockReferenceReads({
+      counts: async () =>
+        preview++ === 0
+          ? new Promise((resolve) => {
+              resolveOld = resolve
+            })
+          : [{ entryId: FILE_ID, refCount: 3 }]
+    })
     render(<ArchiveSettings />)
     await chooseCategory(user, i18n.language === 'zh-CN' ? '话题' : 'Topics')
     await openFileDelete(user)
@@ -469,9 +561,265 @@ describe('ArchiveSettings permanent-delete confirmation', () => {
     await user.click(screen.getByRole('button', { name: 'Open file permanent delete' }))
     expect(await screen.findByText(/1 file is still used by 3 records/)).toBeInTheDocument()
 
-    await act(async () => resolveOld([{ entryId: 'file-1', refCount: 0 }]))
+    await act(async () => resolveOld([{ entryId: FILE_ID, refCount: 0 }]))
 
     expect(screen.getByText(/1 file is still used by 3 records/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Delete Permanently' })).toBeDisabled()
+  })
+})
+
+// A job-held archived image must explain which generation record blocks deletion and how it is released,
+// without allowing deletion or concealing another holder.
+describe('ArchiveSettings holder disclosure', () => {
+  it.each(['input', 'mask'] as const)('names the image-generation record and its %s role', async (role) => {
+    const user = userEvent.setup()
+    mockReferenceReads({ refs: { [FILE_ID]: [jobRef(role)] } })
+    render(<ArchiveSettings />)
+    await openFileDelete(user)
+
+    const dialog = screen.getByRole('dialog')
+    expect(await within(dialog).findByText(`Image-generation job record ${JOB_ID} (${role} image)`)).toBeVisible()
+    expect(dialog).toHaveTextContent(
+      '1 file is still used by 1 record and will be kept. Remove that reference before deleting permanently.'
+    )
+    expect(within(dialog).getByText('File 1')).toBeVisible()
+    expect(within(dialog).getByText(RELEASE)).toBeVisible()
+    expect(within(dialog).getByRole('button', { name: 'Delete Permanently' })).toBeDisabled()
+  })
+
+  it('keeps every association visible alongside one image-job policy paragraph', async () => {
+    const user = userEvent.setup()
+    const paintingRef: FileRef = {
+      ...jobRef(),
+      id: 'c0000000-0000-4000-8000-000000000003',
+      sourceType: 'painting',
+      sourceId: PAINTING_ID,
+      role: 'output'
+    }
+    mockReferenceReads({
+      counts: [{ entryId: FILE_ID, refCount: 3 }],
+      refs: { [FILE_ID]: [jobRef(), jobRef('mask'), paintingRef] }
+    })
+    render(<ArchiveSettings />)
+    await openFileDelete(user)
+
+    expect(await screen.findByText(`Image-generation job record ${JOB_ID} (input image)`)).toBeVisible()
+    expect(screen.getByText(`Image-generation job record ${JOB_ID} (mask image)`)).toBeVisible()
+    expect(screen.getByText(`Holding record ${PAINTING_ID} (source: painting, role: output)`)).toBeVisible()
+    expect(screen.getAllByText(RELEASE)).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Delete Permanently' })).toBeDisabled()
+  })
+
+  it.each([
+    [new Error('404: job not found'), `Job record ${JOB_ID} (details unavailable; role: input)`],
+    ['other.generate', `Job record ${JOB_ID} (type: other.generate, role: input)`]
+  ])('shows only known job details for %s', async (response, label) => {
+    const user = userEvent.setup()
+    mockReferenceReads({ jobs: { [JOB_ID]: response } })
+    render(<ArchiveSettings />)
+    await openFileDelete(user)
+
+    expect(await screen.findByText(label)).toBeVisible()
+    expect(screen.queryByText(RELEASE)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Delete Permanently' })).toBeDisabled()
+  })
+
+  it('discloses a roleless holder without inventing a role or an image-job policy', async () => {
+    const user = userEvent.setup()
+    mockReferenceReads({
+      refs: {
+        [FILE_ID]: [
+          {
+            id: 'd0000000-0000-4000-8000-000000000001',
+            fileEntryId: FILE_ID,
+            sourceType: 'provider_logo',
+            sourceId: 'archived-provider',
+            createdAt: 1_750_000_000_000,
+            updatedAt: 1_750_000_000_000
+          }
+        ]
+      }
+    })
+    render(<ArchiveSettings />)
+    await openFileDelete(user)
+
+    expect(await screen.findByText('Holding record archived-provider (source: provider_logo, role: —)')).toBeVisible()
+    expect(screen.queryByText(RELEASE)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Delete Permanently' })).toBeDisabled()
+  })
+
+  it('keeps refs failures blocked and retries the complete preview', async () => {
+    const user = userEvent.setup()
+    let available = false
+    mockReferenceReads({
+      refs: {
+        [FILE_ID]: () => {
+          if (!available) throw new Error('refs unavailable')
+          return [jobRef()]
+        }
+      }
+    })
+    render(<ArchiveSettings />)
+    await openFileDelete(user)
+
+    expect(await screen.findByText('Could not check file references.')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Delete Permanently' })).toBeDisabled()
+    available = true
+    await user.click(screen.getByRole('button', { name: 'Retry reference check' }))
+    expect(await screen.findByText(`Image-generation job record ${JOB_ID} (input image)`)).toBeVisible()
+    expect(screen.getByText(RELEASE)).toBeVisible()
+    expect(screen.queryByText('Could not check file references.')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Delete Permanently' })).toBeDisabled()
+  })
+
+  it('fails closed if positive counts lose their details before the refs read', async () => {
+    const user = userEvent.setup()
+    mockReferenceReads({ refs: { [FILE_ID]: [] } })
+    render(<ArchiveSettings />)
+    await openFileDelete(user)
+
+    expect(await screen.findByText('Could not check file references.')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Retry reference check' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Delete Permanently' })).toBeDisabled()
+    expect(screen.queryByText(RELEASE)).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['refs', 'resolve'],
+    ['refs', 'reject'],
+    ['jobs', 'resolve'],
+    ['jobs', 'reject']
+  ] as const)('discards a stale %s phase that later %ss after closing and reopening', async (phase, outcome) => {
+    const user = userEvent.setup()
+    const detail = Promise.withResolvers<FileRef[]>()
+    const job = Promise.withResolvers<string>()
+    const started = Promise.withResolvers<void>()
+    let current = false
+    mockReferenceReads({
+      counts: async () => [{ entryId: FILE_ID, refCount: current ? 0 : 1 }],
+      refs: {
+        [FILE_ID]: () => {
+          if (phase === 'refs') started.resolve()
+          return phase === 'refs' ? detail.promise : [jobRef()]
+        }
+      },
+      jobs: {
+        [JOB_ID]: () => {
+          started.resolve()
+          return job.promise
+        }
+      }
+    })
+    vi.mocked(toast.error).mockClear()
+    render(<ArchiveSettings />)
+    await openFileDelete(user)
+    await started.promise
+    expect(screen.getByRole('button', { name: 'Delete Permanently' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    current = true
+    await user.click(screen.getByRole('button', { name: 'Open file permanent delete' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Delete Permanently' })).toBeEnabled())
+    await act(async () => {
+      if (outcome === 'resolve') {
+        detail.resolve([jobRef()])
+        job.resolve('image-generation.generate')
+      } else if (phase === 'refs') {
+        detail.reject(new Error('stale refs failed'))
+      } else {
+        job.reject(new Error('stale job failed'))
+      }
+    })
+
+    expect(screen.getByRole('button', { name: 'Delete Permanently' })).toBeEnabled()
+    expect(screen.queryByText(RELEASE)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Image-generation job record/)).not.toBeInTheDocument()
+    expect(screen.queryByText('Could not check file references.')).not.toBeInTheDocument()
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('loads every holder within the eight-request detail limit', async () => {
+    const user = userEvent.setup()
+    mocks.fileItems = fileItems(17)
+    let activeRefs = 0
+    let activeJobs = 0
+    const refs: Record<string, () => Promise<FileRef[]>> = {}
+    const jobs: Record<string, () => Promise<string>> = {}
+    for (const [index, item] of mocks.fileItems.entries()) {
+      const sourceId = `019a0000-0000-7000-9000-${(index + 1).toString(16).padStart(12, '0')}`
+      refs[item.id] = async () => {
+        activeRefs += 1
+        try {
+          if (activeRefs > 8) throw new Error('Too many concurrent refs requests')
+          await Promise.resolve()
+          return [{ ...jobRef('input', item.id), sourceId }]
+        } finally {
+          activeRefs -= 1
+        }
+      }
+      jobs[sourceId] = async () => {
+        activeJobs += 1
+        try {
+          if (activeJobs > 8) throw new Error('Too many concurrent job requests')
+          await Promise.resolve()
+          return 'image-generation.generate'
+        } finally {
+          activeJobs -= 1
+        }
+      }
+    }
+    mockReferenceReads({ counts: mocks.fileItems.map((item) => ({ entryId: item.id, refCount: 1 })), refs, jobs })
+    render(<ArchiveSettings />)
+    await openFileDelete(user)
+
+    expect(await screen.findByText(/17 files are still used by 17 records/)).toBeVisible()
+    for (const [index, item] of mocks.fileItems.entries()) {
+      const group = screen.getByRole('region', { name: item.name })
+      expect(
+        within(group).getByText(
+          `Image-generation job record 019a0000-0000-7000-9000-${(index + 1).toString(16).padStart(12, '0')} (input image)`
+        )
+      ).toBeVisible()
+    }
+    expect(screen.getAllByText(RELEASE)).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Delete Permanently' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('groups All-category holders under the file name despite other domains and reversed count order', async () => {
+    const user = userEvent.setup()
+    mocks.allItems = [
+      { id: `topics:${FILE_ID}`, name: 'Unrelated topic', deletedAt: 1 },
+      { id: `files:${FILE_2_ID}`, name: 'Second archived image', deletedAt: 1 },
+      { id: `files:${FILE_ID}`, name: 'First archived image', deletedAt: 1 }
+    ]
+    let jobAvailable = true
+    mockReferenceReads({
+      counts: [
+        { entryId: FILE_ID, refCount: 1 },
+        { entryId: FILE_2_ID, refCount: 1 }
+      ],
+      refs: { [FILE_ID]: [jobRef()], [FILE_2_ID]: [jobRef('mask', FILE_2_ID)] },
+      jobs: {
+        [JOB_ID]: () => {
+          if (!jobAvailable) throw new Error('Job disappeared after its first read')
+          jobAvailable = false
+          return 'image-generation.generate'
+        }
+      }
+    })
+    render(<ArchiveSettings />)
+    await user.click(screen.getByRole('button', { name: 'Open all permanent delete' }))
+
+    const first = await screen.findByRole('region', { name: 'First archived image' })
+    const second = screen.getByRole('region', { name: 'Second archived image' })
+    expect(within(first).getByText(`Image-generation job record ${JOB_ID} (input image)`)).toBeVisible()
+    expect(within(second).getByText(`Image-generation job record ${JOB_ID} (mask image)`)).toBeVisible()
+    expect(screen.queryByRole('region', { name: 'Unrelated topic' })).not.toBeInTheDocument()
+    expect(screen.getAllByRole('region').map((region) => region.getAttribute('aria-label'))).toEqual([
+      'Second archived image',
+      'First archived image'
+    ])
     expect(screen.getByRole('button', { name: 'Delete Permanently' })).toBeDisabled()
   })
 })

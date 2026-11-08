@@ -1,4 +1,4 @@
-import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { type AnySQLiteColumn, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateDeleteTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
 import { agentTable } from './agent'
@@ -9,6 +9,7 @@ export const agentSessionTable = sqliteTable(
   'agent_session',
   {
     id: uuidPrimaryKey(),
+    ownerSessionId: text().references((): AnySQLiteColumn => agentSessionTable.id, { onDelete: 'cascade' }),
     type: text({ enum: ['conversation', 'background'] })
       .notNull()
       .default('conversation'),
@@ -25,7 +26,10 @@ export const agentSessionTable = sqliteTable(
     taskScheduleId: text()
       .unique()
       .references(() => jobScheduleTable.id, { onDelete: 'set null' }),
+    // All task runs retain ownership independently of the sticky reuse pointer and job GC.
+    sourceTaskScheduleId: text().references(() => jobScheduleTable.id, { onDelete: 'set null' }),
     traceId: text(),
+    activeNodeId: text(),
     ...orderKeyColumns,
     // Dedicated conversation activity time. Name, owner, workspace and order
     // changes must not move this column.
@@ -34,6 +38,8 @@ export const agentSessionTable = sqliteTable(
   },
   (t) => [
     orderKeyIndex('agent_session')(t),
+    index('agent_session_source_task_idx').on(t.sourceTaskScheduleId),
+    index('agent_session_owner_idx').on(t.ownerSessionId),
     index('agent_session_last_activity_at_idx').on(t.lastActivityAt),
     index('agent_session_updated_at_idx').on(t.updatedAt)
   ]

@@ -3,6 +3,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ScrollArea } from '@cherrystudio/ui'
 import { Sortable } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import agentsIcon from '@renderer/assets/images/apps/launchpad-agents.svg'
@@ -13,21 +14,21 @@ import knowledgeIcon from '@renderer/assets/images/apps/launchpad-knowledge.svg'
 import miniAppIcon from '@renderer/assets/images/apps/launchpad-mini-app.svg'
 import notesIcon from '@renderer/assets/images/apps/launchpad-notes.svg'
 import paintingsIcon from '@renderer/assets/images/apps/launchpad-paintings.svg'
+import scheduledTasksIcon from '@renderer/assets/images/apps/launchpad-scheduled-tasks.svg'
 import translateIcon from '@renderer/assets/images/apps/launchpad-translate.svg'
+import { SidebarIcon } from '@renderer/components/app/sidebarIcons'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import App from '@renderer/components/MiniApp/MiniApp'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { useLaunchpadAppOrder } from '@renderer/hooks/useLaunchpadAppOrder'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import { toast } from '@renderer/services/toast'
+import { parseAppRouteUrl } from '@renderer/utils/appRouteUrl'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import { createSidebarShortcutTarget, getSidebarMenuPath, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
-
-const BASE_URL = 'https://www.cherry-ai.com/'
 
 const LAUNCHPAD_GRID_CLASS = 'grid grid-cols-6 justify-items-center gap-2 px-2'
 const LAUNCHPAD_ITEM_CLASS = 'mx-auto w-[92px]'
@@ -38,9 +39,10 @@ const APP_ICON_FRAME_CLASS =
 const APP_ICON_CLASS = 'size-11 object-contain'
 const SORTABLE_CONTENTS_STYLE = { display: 'contents' } as const
 
-const APP_ICON_SOURCES: Record<SidebarAppId, string> = {
+const APP_ICON_SOURCES: Record<SidebarAppId, string | undefined> = {
   assistants: assistantsIcon,
   agents: agentsIcon,
+  scheduled_tasks: scheduledTasksIcon,
   paintings: paintingsIcon,
   translate: translateIcon,
   mini_app: miniAppIcon,
@@ -115,7 +117,8 @@ export default function LaunchpadPage() {
 
   const navigateToUrl = useCallback(
     (url: string) => {
-      const parsedUrl = new URL(url, BASE_URL)
+      const parsedUrl = parseAppRouteUrl(url)
+      if (!parsedUrl) return
       if (parsedUrl.search) {
         return navigate({
           to: parsedUrl.pathname,
@@ -250,7 +253,11 @@ export default function LaunchpadPage() {
         <span className="relative flex size-14 items-center justify-center">
           <span className={APP_ICON_SURFACE_CLASS}>
             <span className={APP_ICON_FRAME_CLASS}>
-              <img src={item.iconSrc} alt="" className={APP_ICON_CLASS} draggable={false} />
+              {item.iconSrc ? (
+                <img src={item.iconSrc} alt="" className={APP_ICON_CLASS} draggable={false} />
+              ) : (
+                <SidebarIcon icon={item.id} className="size-9 text-foreground" />
+              )}
             </span>
           </span>
         </span>
@@ -284,7 +291,7 @@ export default function LaunchpadPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
-      <Scrollbar className="min-h-0 flex-1">
+      <ScrollArea className="min-h-0 flex-1">
         <div className="mx-auto flex w-full max-w-180 flex-col gap-5 py-12.5">
           <section className="flex flex-col gap-2">
             <h2 className="m-0 px-9 py-0 font-semibold text-[14px] text-foreground opacity-80">
@@ -326,7 +333,7 @@ export default function LaunchpadPage() {
             </section>
           )}
         </div>
-      </Scrollbar>
+      </ScrollArea>
     </div>
   )
 }

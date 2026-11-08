@@ -1,63 +1,102 @@
-import type { TFunction } from 'i18next'
 import { ExternalLink, RefreshCw } from 'lucide-react'
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import useSWR from 'swr'
 
-import { Button } from '@cherrystudio/ui'
-import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
-import { ipcApi } from '@renderer/ipc'
-import { openCherryCloudAccountPortal } from '@renderer/services/cherryCloudAccountPortal'
-import { getAppEdition } from '@renderer/utils/appEdition'
-import type { CherryCloudAccountPlans } from '@shared/ipc/schemas/cherryCloud'
-
-function percent(value: number, limit: number): number {
-  return limit > 0 ? Math.min(100, Math.round((value / limit) * 100)) : 0
-}
-
-function quotaWindowLabel(
-  window: CherryCloudAccountPlans['entitlements'][number]['quota_pools'][number]['windows'][number],
-  t: TFunction
-): string {
-  if (window.window_type === 'calendar_day') return t('settings.subscription.limit_daily')
-  if (window.duration_seconds === 7 * 24 * 60 * 60) return t('settings.subscription.limit_weekly')
-  if (window.duration_seconds % (24 * 60 * 60) === 0) {
-    return t('settings.subscription.limit_days', { count: window.duration_seconds / (24 * 60 * 60) })
-  }
-  return t('settings.subscription.limit_hours', { count: Math.max(1, Math.round(window.duration_seconds / 3600)) })
-}
+import { Button, Skeleton } from '@cherrystudio/ui'
+import { CherryCloudQuotaUsage } from '@renderer/components/CherryCloudQuotaUsage'
+import { useCherryCloudPlans } from '@renderer/hooks/useCherryCloudPlans'
+import { openCherryCloudAccountPortal, openCherryCloudFaq } from '@renderer/services/cherryCloudAccountPortal'
+import { startCherryCloudSubscription } from '@renderer/services/cherryCloudSubscription'
+import { trackSubscriptionEntryView, trackSubscriptionEvent } from '@renderer/services/cherryCloudSubscriptionAnalytics'
 
 export function SubscriptionSettings() {
-  const { t, i18n } = useTranslation()
-  const { status, login } = useCherryAccountSession(getAppEdition() === 'global')
-  const accountId = status?.phase === 'signed-in' ? status.accountId : null
-  // Keyed by account: a response for a previous account only ever lands in that account's cache entry.
+  const { t } = useTranslation()
   const {
-    data: plans,
-    error,
-    isLoading: loading,
-    mutate
-  } = useSWR(accountId ? ['cherry-cloud/account-plans', accountId] : null, () =>
-    ipcApi.request('cherry_cloud.account_plans.get')
-  )
+    session: { status, loadState, login, cancelLogin, isAuthorizing, isCancellingLogin },
+    plansQuery: { data: plans, error, isLoading: loading, mutate },
+    activePaid,
+    upcomingPaid
+  } = useCherryCloudPlans()
+  const paidPlan = activePaid ?? upcomingPaid
   const failed = Boolean(error)
 
-  const activePaid = useMemo(
-    () => plans?.entitlements.find((item) => item.state === 'active' && !item.plan.is_free),
-    [plans]
-  )
   const availablePlan = useMemo(() => plans?.available_plans.find((item) => !item.is_free), [plans])
-  const openPortal = () => void openCherryCloudAccountPortal()
+  const plansLoaded = status?.phase === 'signed-in' && plans !== undefined
+  const subscribed = Boolean(activePaid)
+  const usageViewReported = useRef(false)
+  useEffect(() => {
+    if (!plansLoaded) return
+    if (!usageViewReported.current) {
+      usageViewReported.current = true
+      trackSubscriptionEvent({ event: 'subscription_usage_view', subscribed })
+    }
+    if (!subscribed) trackSubscriptionEntryView('settings')
+  }, [plansLoaded, subscribed])
+
+  const header = (
+    <div className="flex items-center justify-between gap-4">
+      <h3 className="text-[15px] font-semibold">{t('settings.subscription.title')}</h3>
+      <button
+        type="button"
+        className="cursor-pointer border-0 bg-transparent p-0 text-[13px] text-link hover:underline"
+        onClick={() => {
+          trackSubscriptionEvent({ event: 'subscription_faq_click', subscribed })
+          void openCherryCloudFaq()
+        }}>
+        {t('settings.subscription.faq')}
+      </button>
+    </div>
+  )
 
   if (status?.phase !== 'signed-in') {
+    // Placeholders until the first status arrives, so a signed-in user never sees the sign-in prompt flash.
+    const statusPending = !status && loadState === 'loading'
     return (
-      <div className="space-y-4">
-        <h3 className="text-[15px] font-semibold">{t('settings.subscription.title')}</h3>
-        <div className="rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">
-          <p>{t('settings.subscription.sign_in_required')}</p>
-          <Button className="mt-4" onClick={() => void login()}>
-            {t('settings.subscription.sign_in')}
-          </Button>
+      <div className="space-y-6">
+        {header}
+        <div className="rounded-xl border border-border bg-card p-4">
+          <div className="flex items-center justify-between gap-4">
+            {statusPending ? (
+              <>
+                <div className="min-w-0 flex-1" aria-busy="true">
+                  <div className="flex h-5 items-center">
+                    <Skeleton className="h-3.5 w-24" />
+                  </div>
+                  <div className="mt-1 flex h-4 items-center">
+                    <Skeleton className="h-3 w-64 max-w-full" />
+                  </div>
+                </div>
+                <Skeleton className="h-7 w-16" />
+              </>
+            ) : (
+              <>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">{t('settings.subscription.signed_out')}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{t('settings.subscription.sign_in_hint')}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  {isAuthorizing && (
+                    <Button variant="ghost" size="sm" disabled={isCancellingLogin} onClick={() => void cancelLogin()}>
+                      {t('common.cancel')}
+                    </Button>
+                  )}
+                  <Button variant="outline" size="sm" loading={isAuthorizing} onClick={() => void login()}>
+                    {t(isAuthorizing ? 'settings.provider.cherry_cloud.signing_in' : 'settings.subscription.sign_in')}
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+        <div>
+          <h3 className="mb-2 text-sm font-medium">{t('settings.subscription.usage')}</h3>
+          <div className="rounded-xl border border-border bg-card p-4">
+            <div className="flex items-center justify-center py-6">
+              <div className="flex h-5 items-center text-sm text-muted-foreground">
+                {statusPending ? <Skeleton className="h-3 w-36" /> : t('settings.subscription.sign_in_usage')}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -65,26 +104,35 @@ export function SubscriptionSettings() {
 
   return (
     <div className="space-y-6">
-      <h3 className="text-[15px] font-semibold">{t('settings.subscription.title')}</h3>
-      <div className="rounded-xl border border-border bg-card p-4">
-        <div className="flex items-center justify-between gap-4">
-          <div className="min-w-0">
-            <p className="text-sm font-medium">
-              {activePaid?.plan.display_name ?? availablePlan?.display_name ?? t('settings.subscription.no_plan')}
-            </p>
-            {activePaid?.plan.subscription_price && (
-              <p className="mt-1 text-xs text-muted-foreground">
-                {activePaid.plan.subscription_price.currency.toUpperCase()}{' '}
-                {activePaid.plan.subscription_price.unit_amount / 100} / {activePaid.plan.subscription_price.interval}
+      {header}
+      {/* Unknown until plans load; a failed load must not tell a subscriber they have no plan. */}
+      {plans && (
+        <div className="rounded-xl border border-border bg-card p-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">
+                {paidPlan?.plan.display_name ?? availablePlan?.display_name ?? t('settings.subscription.no_plan')}
+                {!activePaid && upcomingPaid && (
+                  <span className="ml-2 text-xs font-normal text-muted-foreground">
+                    {t('settings.subscription.upcoming')}
+                  </span>
+                )}
               </p>
-            )}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (!paidPlan) return void startCherryCloudSubscription('settings')
+                trackSubscriptionEvent({ event: 'subscription_manage_click' })
+                void openCherryCloudAccountPortal({ entrySource: 'manage' })
+              }}>
+              {paidPlan ? t('settings.subscription.manage') : t('settings.subscription.subscribe')}
+              <ExternalLink />
+            </Button>
           </div>
-          <Button variant="outline" size="sm" onClick={openPortal}>
-            {activePaid ? t('settings.subscription.manage') : t('settings.subscription.subscribe')}
-            <ExternalLink />
-          </Button>
         </div>
-      </div>
+      )}
       <div>
         <h3 className="mb-2 text-sm font-medium">{t('settings.subscription.usage')}</h3>
         <div className="rounded-xl border border-border bg-card p-4">
@@ -98,44 +146,11 @@ export function SubscriptionSettings() {
                 {t('common.retry')}
               </Button>
             </div>
-          ) : activePaid?.quota_pools.length ? (
-            activePaid.quota_pools.map((pool) => (
-              <div key={pool.allocation_id} className="space-y-3 py-2">
-                {pool.windows.map((window) => {
-                  const label = quotaWindowLabel(window, t)
-                  const remainingPercent = percent(window.remaining_units, window.limit_units)
-                  return (
-                    <div key={`${pool.allocation_id}-${window.window_type}-${window.duration_seconds}`}>
-                      <div className="flex items-baseline justify-between gap-3 text-xs">
-                        <span className="font-medium">{label}</span>
-                        <span className="tabular-nums text-muted-foreground">
-                          {t('settings.subscription.remaining', { percent: remainingPercent })}
-                        </span>
-                      </div>
-                      <div
-                        className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted"
-                        role="progressbar"
-                        aria-label={label}
-                        aria-valuenow={remainingPercent}
-                        aria-valuemin={0}
-                        aria-valuemax={100}>
-                        <div className="h-full bg-primary" style={{ width: `${remainingPercent}%` }} />
-                      </div>
-                      {window.next_recovery_at && (
-                        <p className="mt-1 text-[11px] text-muted-foreground">
-                          {t('settings.subscription.next_recovery', {
-                            time: new Date(window.next_recovery_at).toLocaleString(i18n.language)
-                          })}
-                        </p>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            ))
+          ) : paidPlan?.quota_pools.length ? (
+            <CherryCloudQuotaUsage entitlement={paidPlan} />
           ) : (
             <p className="py-6 text-center text-sm text-muted-foreground">
-              {activePaid ? t('settings.subscription.no_quota') : t('settings.subscription.subscribe_hint')}
+              {paidPlan ? t('settings.subscription.no_quota') : t('settings.subscription.subscribe_hint')}
             </p>
           )}
         </div>

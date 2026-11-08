@@ -1,0 +1,27 @@
+[
+ {
+  "code": "zh-cn",
+  "label": "简体中文",
+  "directory": ""
+ },
+ {
+  "code": "en",
+  "label": "English",
+  "directory": "i18n/english",
+  "removed": {
+   "pre-basic/websearch/volcengine.md": "pre-basic/websearch/README.md",
+   "pre-basic/websearch/tavily.md": "pre-basic/websearch/README.md",
+   "pre-basic/personalization-settings/font.md": "pre-basic/settings/display.md",
+   "pre-basic/providers/ppio.md": "pre-basic/providers/README.md",
+   "pre-basic/providers/doubao.md": "pre-basic/providers/README.md",
+   "pre-basic/providers/a-li-yun-bai-lian.md": "pre-basic/providers/README.md",
+   "pre-basic/providers/modelscope.md": "pre-basic/providers/README.md",
+   "pre-basic/providers/oneapi.md": "pre-basic/providers/zi-ding-yi-fu-wu-shang.md",
+   "pre-basic/providers/newapi.md": "pre-basic/providers/zi-ding-yi-fu-wu-shang.md",
+   "pre-basic/providers/vertex-ai.md": "pre-basic/providers/README.md",
+   "pre-basic/data-settings/siyuan.md": "pre-basic/data-settings/README.md",
+   "advanced-basic/cases/long-document-review.md": "advanced-basic/cases/README.md",
+   "advanced-basic/cases/automated-daily-report.md": "advanced-basic/cases/README.md"
+  }
+ }
+]

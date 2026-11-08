@@ -216,9 +216,9 @@ vi.mock('@renderer/hooks/resourceViewSources', async () => {
       const source = React.useMemo(
         () => ({
           topics: homeMocks.classicLayoutTopics,
-          // The mocked mapApiTopicToRendererTopic below is the identity, so the
-          // shared renderer view is the same list.
-          rendererTopics: homeMocks.classicLayoutTopics,
+          // Mirror the real mapped view: rendererTopics are separate renderer-shape
+          // objects, so a consumer reading the raw `topics` list fails identity checks.
+          rendererTopics: homeMocks.classicLayoutTopics.map((topic) => ({ ...topic, messages: [], pinned: false })),
           orderSignature: '',
           isLoading: homeMocks.isTopicsFirstPageLoading,
           isLoadingAll: homeMocks.isTopicsLoadingAll,
@@ -491,7 +491,7 @@ vi.mock('../Tabs/HomeTabs', () => ({
   }
 }))
 
-vi.mock('../Tabs/components/Topics', () => ({
+vi.mock('../Tabs/components/topics', () => ({
   Topics: ({
     assistantIdFilter,
     assistantTopicsSource,
@@ -676,7 +676,6 @@ vi.mock('@renderer/components/history/HistoryRecordsView', () => ({
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
     FOCUS_CHAT_COMPOSER: 'FOCUS_CHAT_COMPOSER',
-    SHOW_ASSISTANTS: 'SHOW_ASSISTANTS',
     GLOBAL_SEARCH_SELECT_TOPIC: 'GLOBAL_SEARCH_SELECT_TOPIC',
     GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE: 'GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE',
     REVEAL_ACTIVE_RESOURCE_LIST: 'REVEAL_ACTIVE_RESOURCE_LIST'
@@ -1729,6 +1728,92 @@ describe('HomePage', () => {
     })
 
     expect(homeMocks.setShowSidebar).toHaveBeenCalledWith(false)
+  })
+
+  it('cycles only unlinked topics with the topic shortcuts when no assistant is visible', () => {
+    const unlinkedFirst = {
+      id: 'topic-unlinked-1',
+      name: 'Unlinked first',
+      updatedAt: '2026-01-04T00:00:00.000Z'
+    } as Topic
+    const assistantOwned = {
+      id: 'topic-assistant-owned',
+      assistantId: 'assistant-default',
+      name: 'Assistant topic',
+      updatedAt: '2026-01-05T00:00:00.000Z'
+    } as Topic
+    const unlinkedSecond = {
+      id: 'topic-unlinked-2',
+      name: 'Unlinked second',
+      updatedAt: '2026-01-06T00:00:00.000Z'
+    } as Topic
+    homeMocks.classicLayoutTopics = [unlinkedFirst, assistantOwned, unlinkedSecond]
+    homeMocks.entryTopic = unlinkedFirst
+    homeMocks.routeSearch = { topicId: unlinkedFirst.id }
+
+    render(<HomePage />)
+
+    const nextHandler = vi
+      .mocked(useCommandHandler)
+      .mock.calls.filter(([command]) => command === 'topic.next')
+      .at(-1)?.[1]
+    expect(nextHandler).toBeDefined()
+
+    act(() => {
+      void nextHandler?.()
+    })
+
+    // Skips the assistant-owned topic between the two unlinked ones.
+    expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-unlinked-2')
+    // The activated topic is the shared renderer-view object, not the raw DataApi row.
+    const source = homeMocks.createdAssistantTopicsSource as { rendererTopics: Array<{ id: string }> }
+    expect(homeMocks.activeTopicOverride).toBe(source.rendererTopics.find((topic) => topic.id === 'topic-unlinked-2'))
+
+    const prevHandler = vi
+      .mocked(useCommandHandler)
+      .mock.calls.filter(([command]) => command === 'topic.prev')
+      .at(-1)?.[1]
+    act(() => {
+      void prevHandler?.()
+    })
+    expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-unlinked-1')
+  })
+
+  it("cycles only the visible assistant's topics with the topic shortcuts", () => {
+    const firstOwned = {
+      id: 'topic-owned-1',
+      assistantId: 'assistant-default',
+      name: 'First owned',
+      updatedAt: '2026-01-04T00:00:00.000Z'
+    } as Topic
+    const otherAssistant = {
+      id: 'topic-other-assistant',
+      assistantId: 'assistant-2',
+      name: 'Other assistant topic',
+      updatedAt: '2026-01-05T00:00:00.000Z'
+    } as Topic
+    const secondOwned = {
+      id: 'topic-owned-2',
+      assistantId: 'assistant-default',
+      name: 'Second owned',
+      updatedAt: '2026-01-06T00:00:00.000Z'
+    } as Topic
+    homeMocks.classicLayoutTopics = [firstOwned, otherAssistant, secondOwned]
+    homeMocks.entryTopic = firstOwned
+    homeMocks.routeSearch = { topicId: firstOwned.id }
+
+    render(<HomePage />)
+
+    const nextHandler = vi
+      .mocked(useCommandHandler)
+      .mock.calls.filter(([command]) => command === 'topic.next')
+      .at(-1)?.[1]
+    act(() => {
+      void nextHandler?.()
+    })
+
+    // Skips the topic owned by the other assistant.
+    expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-owned-2')
   })
 
   it('keeps detached topic sidebar state local, default-closed, and fixed on the left', () => {
