@@ -136,6 +136,41 @@ describe('keyboard layer integration', () => {
     expect(activeLayers()[0].element).toBe(screen.getByRole('dialog'))
   })
 
+  it('uses controlled context-menu state for its force-mounted keyboard boundary', () => {
+    let requestedOpen: boolean | undefined
+    const tree = (open: boolean) => (
+      <KeyboardLayerProvider adapter={LayerAdapter}>
+        <ContextMenu
+          open={open}
+          onOpenChange={(nextOpen) => {
+            requestedOpen = nextOpen
+          }}>
+          <ContextMenuTrigger>Controlled context target</ContextMenuTrigger>
+          <ContextMenuContent forceMount>
+            <ContextMenuItem>Controlled context action</ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
+      </KeyboardLayerProvider>
+    )
+    const { rerender } = render(tree(false))
+    expect(screen.getByText('Controlled context action')).toBeInTheDocument()
+    expect(activeLayers()).toHaveLength(0)
+
+    fireEvent.contextMenu(screen.getByText('Controlled context target'), { button: 2 })
+    expect(requestedOpen).toBe(true)
+    expect(activeLayers()).toHaveLength(0)
+
+    rerender(tree(true))
+    expect(activeLayers().map((layer) => layer.element)).toEqual([screen.getByRole('menu')])
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
+    expect(requestedOpen).toBe(false)
+    expect(activeLayers().map((layer) => layer.element)).toEqual([screen.getByRole('menu')])
+
+    rerender(tree(false))
+    expect(screen.getByText('Controlled context action')).toBeInTheDocument()
+    expect(activeLayers()).toHaveLength(0)
+  })
+
   it('tracks context-menu cancellation and controlled dropdown visibility', async () => {
     const tree = (open: boolean) => (
       <KeyboardLayerProvider adapter={LayerAdapter}>

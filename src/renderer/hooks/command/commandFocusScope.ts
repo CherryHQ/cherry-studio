@@ -41,11 +41,12 @@ export class CommandFocusScopeState {
 
   constructor(
     readonly parent: CommandFocusScopeState | null,
-    readonly options: FocusScopeOptions
+    readonly options: FocusScopeOptions,
+    readonly owner: CommandFocusScopeState | null = parent
   ) {}
 
   isActive(): boolean {
-    return this.mounted && this.options.active() && (!this.parent || this.parent.isActive())
+    return this.mounted && this.options.active() && (!this.owner || this.owner.isActive())
   }
 
   registerHandler(command: CommandId, handler: CommandHandlerSource, options: CommandHandlerOptions = {}): () => void {
@@ -109,7 +110,20 @@ export function readScopeContext(scope: CommandFocusScopeState | null, base: Con
 
 export class CommandFocusRegistry {
   readonly roots = new WeakMap<HTMLElement, CommandFocusScopeState>()
-  readonly boundaries: CommandFocusScopeState[] = []
+  private readonly boundaries: {
+    scope: CommandFocusScopeState
+    activation: { active: boolean; order: number }
+  }[] = []
+  private readonly boundaryActivations = new WeakMap<CommandFocusScopeState, { active: boolean; order: number }>()
+  private nextBoundaryOrder = 0
+
+  updateBoundaryActivation(scope: CommandFocusScopeState, active: boolean) {
+    const activation = this.boundaryActivations.get(scope) ?? { active: false, order: 0 }
+    if (active && !activation.active) activation.order = ++this.nextBoundaryOrder
+    activation.active = active
+    this.boundaryActivations.set(scope, activation)
+    return activation
+  }
 
   attach(scope: CommandFocusScopeState): () => void {
     scope.mounted = true
@@ -122,15 +136,35 @@ export class CommandFocusRegistry {
   }
 
   openBoundary(scope: CommandFocusScopeState): () => void {
-    this.boundaries.push(scope)
+    const entry = { scope, activation: this.updateBoundaryActivation(scope, scope.options.active()) }
+    this.boundaries.push(entry)
     return () => {
-      const index = this.boundaries.indexOf(scope)
+      const index = this.boundaries.indexOf(entry)
       if (index >= 0) this.boundaries.splice(index, 1)
     }
   }
 
   resolve(event: KeyboardEvent, root: CommandFocusScopeState): CommandFocusScopeState {
-    const boundary = this.boundaries.findLast((scope) => scope.options.active())
+    const active = this.boundaries
+      .filter(
+        ({ scope, activation }) =>
+          activation.active && scope.options.active() && (!scope.owner || scope.owner.isActive())
+      )
+      .sort((left, right) => right.activation.order - left.activation.order)
+    let boundary = active[0]?.scope
+    // Activation order survives effect replay; an active descendant still owns its reopened parent.
+    while (boundary) {
+      const parent = boundary
+      const nested = active.find(({ scope }) => {
+        for (let owner = scope.owner; owner; owner = owner.owner) {
+          if (owner === parent) return true
+        }
+        return false
+      })
+      if (!nested) break
+      boundary = nested.scope
+    }
+
     for (const node of event.composedPath()) {
       if (!(node instanceof HTMLElement)) continue
       const scope = this.roots.get(node)

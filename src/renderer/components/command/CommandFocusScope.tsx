@@ -27,19 +27,23 @@ function ScopeProvider({
   optionsRef.current = options
   const scopeRef = useRef<CommandFocusScopeState | null>(null)
   if (!scopeRef.current) {
-    const owner = boundary ? parent : null
-    scopeRef.current = new CommandFocusScopeState(boundary ? (host?.rootScope ?? null) : parent, {
-      element: () => optionsRef.current.element(),
-      active: () => optionsRef.current.active() && (!owner || owner.isActive()),
-      context: () => optionsRef.current.context(),
-      boundary
-    })
+    scopeRef.current = new CommandFocusScopeState(
+      boundary ? (host?.rootScope ?? null) : parent,
+      {
+        element: () => optionsRef.current.element(),
+        active: () => optionsRef.current.active(),
+        context: () => optionsRef.current.context(),
+        boundary
+      },
+      parent
+    )
   }
   const scope = scopeRef.current
 
   useLayoutEffect(() => registry?.attach(scope))
   useLayoutEffect(() => scope.publish())
   const active = options.active()
+  if (boundary) registry?.updateBoundaryActivation(scope, active)
   useLayoutEffect(() => {
     if (boundary && active && registry) {
       const dispose = registry.openBoundary(scope)

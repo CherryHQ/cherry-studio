@@ -90,12 +90,22 @@ conversation for a missing focused row. Resource deletion requires
 `resource.focused && !input.focused`; the dispatcher derives editable focus from
 the event path, including inherited contenteditable and select controls.
 
+Conversation-number navigation belongs to the active tab, not its list's focus
+scope. `TabIdProvider` captures that tab's runtime; `useTabCommandRuntime` lets the
+list register navigation there while retaining its own ordering, loading and
+activation guards. The shortcut therefore works from the composer. Outside a
+tab provider, the window runtime is the navigation owner. Permanent deletion
+continues to register in the list scope and does not gain tab-wide eligibility.
+
 Shared Dialog, ContextMenu and DropdownMenu primitives expose their lifecycle
 through `KeyboardLayerProvider`. `CommandProvider` supplies the renderer adapter;
 `packages/ui` has no dependency on renderer command services. Portal layers begin
 from the window context instead of inheriting their invoking list's eligibility.
 They isolate background commands until focus restoration completes, including
-nested close and unmount. A dialog can contain its own resource scope.
+nested close and unmount. Logical layer ownership and opening priority survive
+Activity effect replay, so an open inner dialog remains above its parent and the
+later-opened sibling retains priority. Controlled menu content and its boundary
+use the same resolved open state. A dialog can contain its own resource scope.
 
 Window-root handlers are unavailable inside a keyboard layer unless explicitly
 registered with `allowInKeyboardLayer: true`. Opt in only for actions intended to

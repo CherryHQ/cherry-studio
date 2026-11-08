@@ -187,6 +187,88 @@ describe('command keyboard layers with real UI primitives', () => {
     expect(screen.getByLabelText('list actions')).toHaveTextContent('1')
   })
 
+  it('restores the innermost dialog command owner after an Activity hide/show', async () => {
+    const user = userEvent.setup()
+    const tree = (visible: boolean) => (
+      <Providers>
+        <Activity mode={visible ? 'visible' : 'hidden'}>
+          <Surface name="cached page" active={visible}>
+            <Dialog defaultOpen>
+              <DialogContent aria-describedby={undefined}>
+                <DialogTitle>Retained outer dialog</DialogTitle>
+                <Counter name="outer dialog" />
+                <button type="button">Focus outer dialog</button>
+                <Dialog>
+                  <DialogTrigger>Open retained inner dialog</DialogTrigger>
+                  <DialogContent aria-describedby={undefined}>
+                    <DialogTitle>Retained inner dialog</DialogTitle>
+                    <Counter name="inner dialog" />
+                    <button type="button">Focus inner dialog</button>
+                    <DialogClose>Close retained inner dialog</DialogClose>
+                  </DialogContent>
+                </Dialog>
+              </DialogContent>
+            </Dialog>
+          </Surface>
+        </Activity>
+        <Surface name="visible sibling" />
+      </Providers>
+    )
+    const { rerender } = render(tree(true))
+    await user.click(screen.getByRole('button', { name: 'Open retained inner dialog' }))
+    const inner = screen.getByRole('button', { name: 'Focus inner dialog' })
+    expect(pressShortcut(inner)).toBe(true)
+    expect(screen.getByLabelText('inner dialog actions')).toHaveTextContent('1')
+    expect(screen.getByLabelText('outer dialog actions')).toHaveTextContent('0')
+
+    rerender(tree(false))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Retained inner dialog' })).toBeNull())
+    expect(pressShortcut(screen.getByRole('button', { name: 'Focus visible sibling' }))).toBe(true)
+
+    rerender(tree(true))
+    await screen.findByText('Retained inner dialog')
+    expect(pressShortcut(inner)).toBe(true)
+    expect(screen.getByLabelText('inner dialog actions')).toHaveTextContent('2')
+    expect(screen.getByLabelText('outer dialog actions')).toHaveTextContent('0')
+  })
+
+  it('preserves sibling dialog opening order across Activity effect replay', async () => {
+    const tree = (visible: boolean, firstOpen: boolean) => (
+      <Providers>
+        <Activity mode={visible ? 'visible' : 'hidden'}>
+          <Surface name="sibling dialog page" active={visible}>
+            <Dialog open={firstOpen}>
+              <DialogContent aria-describedby={undefined}>
+                <DialogTitle>First sibling dialog</DialogTitle>
+                <Counter name="first sibling dialog" />
+                <button type="button">Focus first sibling dialog</button>
+              </DialogContent>
+            </Dialog>
+            <Dialog open>
+              <DialogContent aria-describedby={undefined}>
+                <DialogTitle>Second sibling dialog</DialogTitle>
+                <Counter name="second sibling dialog" />
+              </DialogContent>
+            </Dialog>
+          </Surface>
+        </Activity>
+      </Providers>
+    )
+    const { rerender } = render(tree(true, false))
+    rerender(tree(true, true))
+    const first = screen.getByRole('button', { name: 'Focus first sibling dialog' })
+    expect(pressShortcut(first)).toBe(true)
+    expect(screen.getByLabelText('first sibling dialog actions')).toHaveTextContent('1')
+    expect(screen.getByLabelText('second sibling dialog actions')).toHaveTextContent('0')
+
+    rerender(tree(false, true))
+    rerender(tree(true, true))
+    await screen.findByText('First sibling dialog')
+    expect(pressShortcut(first)).toBe(true)
+    expect(screen.getByLabelText('first sibling dialog actions')).toHaveTextContent('2')
+    expect(screen.getByLabelText('second sibling dialog actions')).toHaveTextContent('0')
+  })
+
   it('releases a cached Activity dialog boundary while hidden and restores its retained scope when shown', async () => {
     const tree = (visible: boolean) => (
       <Providers>

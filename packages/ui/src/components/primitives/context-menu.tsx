@@ -74,8 +74,12 @@ type ContextMenuOpeningPointerUpGuard = {
 
 const ContextMenuOpeningPointerUpGuardContext = React.createContext<ContextMenuOpeningPointerUpGuard | null>(null)
 
-function ContextMenu({ onOpenChange, ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Root>) {
-  const [open, setOpen] = React.useState(false)
+function ContextMenu({
+  open: openProp,
+  onOpenChange,
+  ...props
+}: React.ComponentProps<typeof ContextMenuPrimitive.Root>) {
+  const [open, setOpen] = useControllableState({ prop: openProp, defaultProp: false, onChange: onOpenChange })
   const shouldStopOpeningPointerUpRef = React.useRef(false)
   const clearOpeningPointerUpListenerRef = React.useRef<(() => void) | null>(null)
   const clearOpeningPointerUpTimerRef = React.useRef<number | null>(null)
@@ -115,9 +119,8 @@ function ContextMenu({ onOpenChange, ...props }: React.ComponentProps<typeof Con
     (open: boolean) => {
       setOpen(open)
       if (!open) clearOpeningPointerUp()
-      onOpenChange?.(open)
     },
-    [clearOpeningPointerUp, onOpenChange]
+    [clearOpeningPointerUp, setOpen]
   )
 
   React.useEffect(() => clearOpeningPointerUp, [clearOpeningPointerUp])
@@ -125,7 +128,7 @@ function ContextMenu({ onOpenChange, ...props }: React.ComponentProps<typeof Con
   return (
     <KeyboardLayerRoot open={open}>
       <ContextMenuOpeningPointerUpGuardContext value={pointerUpGuard}>
-        <ContextMenuPrimitive.Root data-slot="context-menu" onOpenChange={handleOpenChange} {...props} />
+        <ContextMenuPrimitive.Root data-slot="context-menu" open={open} onOpenChange={handleOpenChange} {...props} />
       </ContextMenuOpeningPointerUpGuardContext>
     </KeyboardLayerRoot>
   )

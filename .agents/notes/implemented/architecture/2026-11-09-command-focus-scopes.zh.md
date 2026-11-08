@@ -20,9 +20,11 @@ Renderer 持有附着于 DOM 的 `CommandFocusScope` 实例及其上下文/handl
 
 `TabRouter` 在 React Activity 外提供明确的 Tab/切换激活状态。保留挂载的列表面板将现有 `dataEnabled` 可见性状态传给列表作用域。布局清理、DOM 附着和激活状态阻止隐藏/已释放拥有者执行。三类删除消费者共用该路由；移除 `commandFocus.ts` 及仅针对扫描的旧测试。
 
+会话数字导航注册到所属 Tab 的运行时，由 `TabIdProvider` 捕获并通过 `useTabCommandRuntime` 读取。列表顺序、加载状态、活动 Tab 和列表激活状态仍决定可用位置。这允许在 composer 中使用 Cmd/Ctrl+1–9，而不会把永久删除提升到列表之外。不在 Tab provider 内时，导航使用窗口拥有者。
+
 ### 交互边界与来源
 
-`packages/ui` 暴露 `KeyboardLayerProvider` 和通用 adapter 契约。Dialog、ContextMenu、DropdownMenu 持有打开状态和实际 Portal DOM 根节点。Renderer 将交互层适配为以窗口上下文为根的命令作用域，保留来源作用域的激活生命周期，但不继承其列表资格。焦点陷阱和恢复仍由 Radix 负责。边界清理可通过 `releaseAfterFocusRestore` 延迟到实际恢复回调；嵌套清理只释放自身 lease。普通 Portal 不成为阻断层。
+`packages/ui` 暴露 `KeyboardLayerProvider` 和通用 adapter 契约。Dialog、ContextMenu、DropdownMenu 持有打开状态和实际 Portal DOM 根节点。Renderer 将交互层适配为以窗口上下文为根的命令作用域，保留来源作用域的激活生命周期，但不继承其列表资格。焦点陷阱和恢复仍由 Radix 负责。边界清理可通过 `releaseAfterFocusRestore` 延迟到实际恢复回调；嵌套清理只释放自身 lease。逻辑拥有者和稳定的打开优先级独立于 effect 注册顺序，在 Activity 恢复后保留内层及较晚打开的兄弟边界优先级。受控和非受控 Root 使用同一个解析后的打开状态控制内容及边界。普通 Portal 不成为阻断层。
 
 Renderer 根 handler 只有显式声明 `allowInKeyboardLayer` 才能跨键盘层执行。窗口级搜索/Tab 命令和全屏处理保留现有应用策略；全屏仍尊重已被处理的 Escape。边界内自有命令保持可用，不放行后台列表删除。主进程和操作系统全局快捷键的归属不变。
 
@@ -48,6 +50,7 @@ Renderer 根 handler 只有显式声明 `allowInKeyboardLayer` 才能跨键盘�
 - 新增保留挂载界面必须发布激活状态，新增 renderer 根命令必须明确选择能否跨键盘层执行。
 - 异步菜单结果不能重新指向较新的注册项。Handler 被替换或拥有者脱离 DOM 时，需要重新打开菜单。
 - Electron 证据使用隔离的真实模块夹具、生产 ResourceList 和真实原生弹出 IPC。原生选择通过主进程 inspector 调用 Electron MenuItem 回调；不证明操作系统鼠标交互或完整 Chat/智能体/History 流程。
+- 真实 Chat/智能体输入框通过 Cmd+1/2 切换会话并保留草稿，不存在的 Cmd+9 保持当前会话。嵌套 Activity 的命令路由也通过验证，但夹具暴露了独立的 Radix 遮罩/指针和 aria-hidden 恢复限制；不证明完整的指针与无障碍恢复。
 - 前置 PR 保持可独立审查。源码/CI 范围按 #21837 实际 head 检查；本说明记录行为，不声称已有 GitHub review Approval。
 
 ## 验证
@@ -55,8 +58,8 @@ Renderer 根 handler 只有显式声明 `allowInKeyboardLayer` 才能跨键盘�
 - AC1 — `CommandFocusScope.test.tsx` 验证兄弟注册顺序、事件即时焦点、嵌套上下文/handler 归属和禁用作用域回退屏障；Electron 夹具计数验证独立拥有者。
 - AC2 — `ResourceListPermanentDelete.test.tsx`、`ResourceListGroupPermanentDelete.test.tsx`、`HistoryRecordList.permanentDelete.test.tsx` 和作用域测试覆盖可编辑/重命名/受保护/缺失目标以及焦点与选中条目的身份区分；生产 ResourceList Electron 夹具保留输入/受保护目标。
 - AC3 — `CommandFocusLayers.test.tsx` 隐藏/恢复带打开 Dialog 的真实 React Activity，验证兄弟路由及保留的对话框状态；作用域生命周期和 TabRouter 测试覆盖未激活/已释放拥有者，Electron 保留 Tab 夹具重复隐藏/显示场景。
-- AC4 — 真实 `CommandFocusLayers.test.tsx` 和 UI `keyboard-layer.test.tsx` 覆盖嵌套 Dialog/菜单隔离、显式允许的根命令和恢复顺序；Electron 夹具验证对话框内路由及后台隔离。
+- AC4 — 真实 `CommandFocusLayers.test.tsx` 和 UI `keyboard-layer.test.tsx` 覆盖嵌套 Dialog/菜单隔离、显式允许的根命令和恢复顺序、嵌套/兄弟 Activity 重放及受控 ContextMenu 状态变化；Electron 夹具验证对话框内路由及后台隔离。
 - AC5 — `CommandMenus.test.tsx` 验证捕获来源、已变化/脱离 DOM 的注册项及取消/失败/卸载清理；真实原生弹出 IPC 和 MenuItem 回调夹具验证取消、焦点变化及来源脱离 DOM 后拒绝执行，受上述原生交互限制约束。
 - AC6 — `useCommandShortcuts.test.tsx`、`command.test.ts`、CommandControls 和 CommandMenus 测试验证设置/提示独立于键盘焦点、功能门控、禁用绑定和重新绑定；shared 快捷键测试覆盖触发器解析。
-- AC7 — CommandProvider、局部上下文、全屏及受影响消费者测试与 renderer 类型检查覆盖即时执行和输入法/根命令行为；依赖检查确保 renderer 状态不进入 shared 纯工具，UI 不依赖 renderer 服务。
+- AC7 — `useConversationListShortcuts.test.tsx` 使用真实列表 Frame 和 Chat/智能体 composer 验证导航、顺序及列表停用保护；CommandProvider、局部上下文、全屏及受影响消费者测试与 renderer 类型检查覆盖即时执行和输入法/根命令行为；依赖检查确保 renderer 状态不进入 shared 纯工具，UI 不依赖 renderer 服务。
 - AC8 — 消费者测试、明确改动范围和源码检查确认三类迁移及旧扫描移除；命令参考更新和文档/配对/Agent Note 状态迁移检查验证文档改动。
