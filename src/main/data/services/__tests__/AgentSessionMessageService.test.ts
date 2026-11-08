@@ -24,6 +24,7 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSessionForkOperations'
+import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import { ClaudeForkCheckpointSchema } from '@main/ai/runtime/claudeCode/forkCheckpoint'
 import { AgentSessionForkError, type RuntimeForkInput } from '@main/ai/runtime/fork/checkpoint'
 import { PiForkCheckpointSchema } from '@main/ai/runtime/pi/forkCheckpoint'
@@ -47,8 +48,8 @@ type AgentSessionInsert = typeof agentSessionTable.$inferInsert
 describe('AgentSessionMessageService', () => {
   const dbh = setupTestDatabase()
 
-  function commitData(input: Parameters<typeof agentSessionForkService.commitTx>[1]): void {
-    application.get('DbService').withWriteTx((tx) => agentSessionForkService.commitTx(tx, input))
+  function commitData(input: Omit<Parameters<typeof agentSessionForkService.commitTx>[1], 'contexts'>): void {
+    application.get('DbService').withWriteTx((tx) => agentSessionForkService.commitTx(tx, { ...input, contexts: [] }))
   }
 
   async function seedSession(values: Omit<AgentSessionInsert, 'workspaceId'> & { workspaceId?: string }) {
@@ -151,6 +152,7 @@ describe('AgentSessionMessageService', () => {
               data: { parts: [{ type: 'text', text: 'answer' }] }
             }
           })
+          if (storedType !== 'pi') prepareClaudeBranch('fork-source', directory, 'native-parent')
           const operations = new AgentSessionForkOperations()
           if (storedType === 'claude-code') {
             fork.mockRejectedValueOnce(new AgentSessionForkError('history_missing'))

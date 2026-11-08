@@ -73,6 +73,8 @@ Claude 继续固定 JSONL 前缀，通过现有 worker 和 SessionStore 调用 S
 
 Pi 继续打开固定的源快照，调用 `SessionManager.createBranchedSession(leafId)`。发布前验证 session 和 leaf，重写继承检查点中的 session 身份。不根据展示用产品文本重建原生上下文。
 
+保留的产品前缀可能因 `/clear` 跨越多个原生 context。通过现有 adapter 分别分叉每个 context 的保留边界，保持各自的检查点映射和独立原生身份。复制前缀中的全部产品消息，将每段副本绑定到各自准备的 context，后续只恢复选中边界所在的 context。较早 context 继续支撑历史编辑和再次分叉，不进入选中 context 的模型历史。发布前准备全部原生产物，连同产品前缀重新核对已捕获的 context 绑定，并在一次 SQLite 事务中发布会话、消息和绑定。准备或发布失败时补偿全部归本操作所有的产物。删除源会话不得使早期或后期的副本历史失效。原地编辑只分叉其前置边界所在的原生 context，较早 context 继续归同一个产品会话所有。
+
 编辑前缀非空时，要求被编辑用户输入之前紧邻的成功助手边界。编辑第一条输入、前缀为空时，预留新原生身份，不制造输入前检查点。保留以下产品消息树结果：
 
 ```text
@@ -159,7 +161,17 @@ A 独立交付，然后完成带受影响消费者的 B/C，最后按实际实�
 
 重启后的隔离 Electron 实例通过生产 DataApi 读取已有真实模型历史，核对单条分页与页外父节点对应的操作，准备 Pi/Claude 编辑草稿，并发布原生 Pi/Claude 分叉。强制调用 Durable fork/edit 返回约定的不支持原因；实际消息界面保持历史可读、不显示编辑并禁用 Fork。本轮修正没有发起新的模型请求。证据位于 `.context/cherry-electron-dev/history-policy/`。
 
-另观察到一个独立限制：旧 Claude 历史跨过多次 `/clear` context，分叉其后期边界时，未修改的原生前缀校验器返回 `history_changed`；分叉早期单一 context 内的边界成功。本轮修正保留该执行时拒绝，不宣称支持跨 context 历史。
+另观察到一个独立限制：旧 Claude 历史跨过多次 `/clear` context，分叉其后期边界时，未修改的原生前缀校验器返回 `history_changed`；分叉早期单一 context 内的边界成功。该现象暴露了把整个产品前缀视为单一原生 context 的假设；上文按 context 发布的契约修正该问题，其后续验证单独记录。
+
+### 12. 独立 context 分叉验证（2026-11-09）
+
+AC13 复用既有分叉协调器与资源记录实现。Main 按已持久化的 context 绑定分组保留检查点，每个 adapter 只分叉自身原生历史。发布前准备全部原生产物，产品会话、复制消息和 context 绑定在一次 SQLite 事务中提交。重新校验包含已捕获的原生绑定与分支专属检查点映射。原地编辑只分叉其前置 context，保留较早 context。
+
+明确指定的七个 Main 测试文件通过 329 项测试，`AgentChatContextProvider` 另有 20 项通过；两个 renderer 历史操作／编辑消费者通过 22 项测试。六个新增的真实 Pi SDK／生产迁移用例覆盖独立原生前缀、删除源会话及原生文件后的早期／后期分叉与编辑、再次分叉已编辑的共享前缀、第二个 context 准备失败、并发绑定变化，以及原生发布后绑定插入失败。失败用例不留下部分目标会话或归本操作所有的产物。禁用增量缓存后的 Node 类型检查、改动文件格式／lint 与文档检查通过。
+
+重启后的隔离 Electron 实例成功分叉了此前拒绝的、跨两次 `/clear` 的真实 Claude 历史，得到三个独立原生 context。随后再次分叉副本，通过生产 IPC 永久删除中间源会话，并确认其三份原生 JSONL 文件全部移除。存活副本的早期、后期边界仍可成功分叉。真实 LongCat-2.5 继续请求只使用选中 context；编辑并重发该输入创建新的原生 context，排除被替换的输入，较早两份原生文件逐字节保持不变。随后再次分叉已编辑的多 context 历史成功。选中原生历史不含两个较早 context 的标记，产品历史仍可见。未观察到 renderer 页面异常。
+
+证据保存在 `.context/cherry-electron-dev/context-fork/`，包括 `result.json`、`live-result.json`、`edited-live.png`、日志与脚本。这些检查不代表打包、跨平台或进程强杀验收；上文空 `/clear` 回执的显示缺口仍独立保留。
 
 ## 考虑过的替代方案
 
@@ -184,6 +196,7 @@ A 独立交付，然后完成带受影响消费者的 B/C，最后按实际实�
 - AC10 — 分叉产品历史不含活跃批准或任务所有权；打开分叉不重放继承执行。 (verification: Main fork/SDK consumers — implementation author)
 - AC11 — 真实 Main prewarm/connect 后连续执行 Claude /clear 并继续输入，分支与原生身份保持一致，不发生锚点唯一约束错误或旧观察回写检查点。 (verification: desktop runtime integration and Electron — implementation author)
 - AC12 — 配对 reference 记录已交付支持矩阵、文件状态限制及未完成的 Durable／文件回滚门槛；只记录实际执行检查的验收结果。 (verification: docs gate and final evidence review — implementation author and maintainer)
+- AC13 — 跨原生重置分叉产品前缀时，为每段保留历史创建独立 context，后续只恢复选中的 context。删除源会话及其原生文件后，早期和后期副本边界仍可正确分叉与编辑。准备失败、绑定变化或发布失败，不留下部分产品会话或归本操作所有的原生产物。 (verification: migrated SQLite/native SDK tests and Electron — implementation author)
 
 ## 风险
 

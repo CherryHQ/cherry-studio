@@ -3,12 +3,20 @@ import { alias, type AnySQLiteColumn } from 'drizzle-orm/sqlite-core'
 
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
+import { agentRuntimeBackendTable } from '@data/db/schemas/agentRuntimeBackend'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import {
+  agentSessionContextTable,
+  type AgentSessionCheckpoints,
+  type AgentSessionContextRow
+} from '@data/db/schemas/agentSessionContext'
 import { type AgentSessionMessageRow, agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import type { DbOrTx } from '@data/db/types'
 
+import { agentSessionContextService } from './AgentSessionContextService'
 import { agentSessionMessageService } from './AgentSessionMessageService'
+import { agentSessionPathIds, ensureAgentSessionRootTx } from './agentSessionMessageTree'
 import { agentSessionService } from './AgentSessionService'
 
 export class AgentSessionForkSourceError extends Error {
@@ -19,6 +27,32 @@ export class AgentSessionForkSourceError extends Error {
 }
 
 export class AgentSessionForkService {
+  readBindingsTx(tx: DbOrTx, sessionId: string, messageId: string) {
+    return tx
+      .select({
+        id: agentSessionContextTable.id,
+        backendId: agentSessionContextTable.backendId,
+        locator: agentRuntimeBackendTable.locator,
+        nativeThreadId: agentSessionContextTable.nativeThreadId,
+        anchorMessageId: agentSessionContextTable.anchorMessageId,
+        forkMapping: sql<
+          AgentSessionCheckpoints['fork'] | null
+        >`json_quote(json_extract(${agentSessionContextTable.checkpointMapping}, '$.fork'))`.mapWith(
+          (value: string): AgentSessionCheckpoints['fork'] | null => JSON.parse(value)
+        )
+      })
+      .from(agentSessionContextTable)
+      .innerJoin(agentRuntimeBackendTable, eq(agentRuntimeBackendTable.id, agentSessionContextTable.backendId))
+      .where(
+        and(
+          eq(agentSessionContextTable.sessionId, sessionId),
+          inArray(agentSessionContextTable.anchorMessageId, agentSessionPathIds(sessionId, messageId))
+        )
+      )
+      .orderBy(agentSessionContextTable.id)
+      .all()
+  }
+
   readHistoryBoundaries(sessionId: string, messageIds: readonly string[]) {
     if (!messageIds.length) return []
     const parent = alias(agentSessionMessageTable, 'parent')
@@ -55,7 +89,7 @@ export class AgentSessionForkService {
       throw new AgentSessionForkSourceError('source_missing')
     const messages = agentSessionMessageService.readForkPrefixTx(tx, sourceSessionId, messageId, excludedIds)
     if (!messages) throw new AgentSessionForkSourceError('source_missing')
-    return { ...source, messages }
+    return { ...source, messages, contexts: this.readBindingsTx(tx, sourceSessionId, messageId) }
   }
 
   read(sourceSessionId: string, messageId: string, excludedIds: readonly string[] = []) {
@@ -86,6 +120,7 @@ export class AgentSessionForkService {
       excludedIds: readonly string[]
       messageId: string
       messages: AgentSessionMessageRow[]
+      contexts: Array<Pick<AgentSessionContextRow, 'backendId' | 'anchorMessageId'> & { nativeThreadId: string }>
     }
   ): void {
     const { source } = input
@@ -96,7 +131,8 @@ export class AgentSessionForkService {
       current.agent.id !== source.agent.id ||
       current.workspace.id !== source.workspace.id ||
       current.workspace.path !== source.workspace.path ||
-      JSON.stringify(current.messages) !== JSON.stringify(source.messages)
+      JSON.stringify(current.messages) !== JSON.stringify(source.messages) ||
+      JSON.stringify(current.contexts) !== JSON.stringify(source.contexts)
     )
       throw new AgentSessionForkSourceError('source_changed')
     // Allocate the suffix in the publishing transaction so concurrent forks cannot claim the same name.
@@ -134,6 +170,16 @@ export class AgentSessionForkService {
       input.createdAt
     )
     agentSessionMessageService.insertForkMessagesTx(tx, input.targetSessionId, input.messages)
+    for (const binding of input.contexts) {
+      const anchor = binding.anchorMessageId ?? ensureAgentSessionRootTx(tx, input.targetSessionId)
+      const context = agentSessionContextService.reserveBranchTx(tx, {
+        sessionId: input.targetSessionId,
+        backendId: binding.backendId,
+        nativeThreadId: binding.nativeThreadId,
+        anchorMessageId: anchor
+      })
+      agentSessionContextService.confirmBranchTx(tx, context.id, input.targetSessionId, anchor, binding.nativeThreadId)
+    }
   }
 }
 

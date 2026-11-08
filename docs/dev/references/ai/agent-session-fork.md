@@ -111,18 +111,30 @@ coordinates runtime and filesystem operations in addition to SQLite writes.
 2. `AgentSessionMessageBackend` validates the common envelope and saves it in the
    existing message's private `data.runtimeAnchor`. If checkpoint validation or
    checkpoint persistence fails, the completed answer is still saved without it.
-3. Fork reads the selected message prefix. The message must be a successful
-   assistant turn with an anchor matching the Agent's runtime. Pending deliveries
-   and the anchor's excluded message IDs are omitted.
-4. The coordinator prepares the workspace and staging directory. The selected
-   adapter validates native fields, forks the native boundary, and returns a child
-   `resumeToken`, remapped checkpoints, and artifact source/target paths.
+3. Fork reads the selected product prefix and its context bindings. The selected
+   message must be a successful assistant turn with an anchor matching the Agent's
+   runtime. Pending deliveries and excluded message IDs are omitted. Checkpoints
+   are grouped by their evidenced native context; a prefix can span several contexts
+   after `/clear`.
+4. The coordinator prepares the workspace and a staging directory per context.
+   The existing adapter forks each context at its last retained checkpoint and returns
+   that context's independent resume reference, remapped checkpoints, and artifacts.
+   Every context is prepared before any native artifact is published.
 5. The coordinator clones visible messages with new IDs, remaps their anchors,
    strips execution state and statistics, and publishes the native artifacts.
-6. `DbService.withWriteTx` rechecks the source prefix, Agent, and workspace, then
-   creates the child and its messages atomically. Later source appends are allowed;
+6. `DbService.withWriteTx` rechecks the source prefix, captured context bindings,
+   backend locators, Agent, and workspace, then creates the child, messages and
+   per-segment context bindings atomically. Later source appends are allowed;
    changes to the selected prefix fail with `source_changed`. A read-model change
    notification follows the commit, and IPC returns the child session ID.
+
+Copied contexts retain separate native histories. Only the context at the selected
+boundary resumes on the next send; earlier model context is not reintroduced after
+`/clear`. Historical edits and further forks remain available in either segment,
+including after the source conversation and its native files are removed. An in-place
+edit forks only the predecessor's context and maps only that context's checkpoints;
+earlier contexts stay with the same product session. A later failure compensates
+all artifacts prepared or published by the operation.
 
 The public checkpoint envelope knows only `runtime`; all other checkpoint fields
 are opaque to the host and data layer. Native schemas live in each adapter's

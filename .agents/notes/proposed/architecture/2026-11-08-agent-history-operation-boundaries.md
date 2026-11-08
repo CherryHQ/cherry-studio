@@ -73,6 +73,8 @@ Claude continues to freeze the JSONL prefix and call the SDK's `forkSession()` t
 
 Pi continues to open a fixed source snapshot and call `SessionManager.createBranchedSession(leafId)`. Verify the session and leaf before publication and rewrite inherited checkpoint session identities. Do not reconstruct native context from the displayed product text.
 
+A retained product prefix may span several native contexts after `/clear`. Fork the retained boundary of each context separately through the existing adapter, preserving per-context checkpoint mappings and independent native identities. Copy all product messages in the prefix, bind each copied segment to its own prepared context, and resume only the context at the selected boundary. Earlier contexts remain available for historical edits and further forks without entering the selected context’s model history. Prepare every native artifact before publication, revalidate the captured context bindings with the product prefix, and publish the session, messages and bindings in one SQLite transaction. A preparation or publication failure compensates all operation-owned artifacts. Deleting the source must not invalidate either earlier or later copied history. In-place editing forks only its predecessor’s native context and leaves earlier contexts owned by the same product session intact.
+
 For a nonempty edit prefix, require the successful assistant boundary immediately before the edited user input. For an empty first-input prefix, reserve a fresh native identity without inventing a pre-input checkpoint. Preserve this product-tree result:
 
 ```text
@@ -159,7 +161,17 @@ Ordinary message pagination no longer accepts a runtime callback or computes act
 
 A restarted, isolated Electron instance read existing real-model histories through the production DataApi, matched one-row page actions with their off-page parents, prepared Pi/Claude edit drafts, and published native Pi/Claude forks. Durable forced fork/edit requests returned their declared unsupported reasons; its real message UI kept history readable, omitted editing and disabled Fork. This correction made no new model request. Evidence is under `.context/cherry-electron-dev/history-policy/`.
 
-One separate limitation was observed: forking the later boundary of the old Claude history spanning multiple `/clear` contexts returned `history_changed` from the unchanged native prefix validator. Forking the earlier single-context boundary succeeded. This correction preserves that execution-time rejection and does not claim cross-context history support.
+One separate limitation was observed: forking the later boundary of the old Claude history spanning multiple `/clear` contexts returned `history_changed` from the unchanged native prefix validator. Forking the earlier single-context boundary succeeded. That observation exposed the single-context fork assumption addressed by the per-context publication contract above; verification of the follow-up is recorded separately.
+
+### 12. Independent context fork verification (2026-11-09)
+
+AC13 is implemented through the existing fork coordinator and resource ledger. Main groups retained checkpoints by their persisted context binding; each adapter forks only its own native history. All native artifacts are prepared before publication, and the product session, copied messages and context bindings commit in one SQLite transaction. Revalidation includes the captured native bindings and branch-specific checkpoint mapping. In-place editing forks only the predecessor context and preserves earlier contexts.
+
+Seven explicit Main test files passed 329 tests, with another 20 tests passing for `AgentChatContextProvider`; two renderer history-action/edit consumers passed 22 tests. The six new real-Pi-SDK/production-migration cases cover independent native prefixes, source/native-file deletion followed by earlier and later forks and edits, reforking an edited shared prefix, second-context preparation failure, concurrent binding change, and binding insertion failure after native publication. Failure cases leave no partial target session or operation-owned artifacts. Fresh Node typechecking without incremental cache, changed-file formatting/lint and documentation checks passed.
+
+The restarted isolated Electron instance successfully forked the previously rejected real Claude history spanning two `/clear` operations into three independent native contexts. It then forked that copy again, permanently deleted the intermediate source through production IPC, and verified removal of all three source JSONL files. Earlier and later boundaries in the surviving copy still forked successfully. A real LongCat-2.5 continuation used only the selected context. Editing and resending that input created a new native context, excluded the replaced input, and left the earlier two native files byte-for-byte unchanged. A further fork of the edited multi-context history succeeded. The selected native transcripts excluded both earlier-context markers; product history remained visible. No renderer page errors were observed.
+
+Evidence is stored under `.context/cherry-electron-dev/context-fork/` (`result.json`, `live-result.json`, `edited-live.png`, logs and scripts). These checks do not establish packaged, cross-platform or power-kill behavior. The empty `/clear` receipt display gap recorded above remains separate.
 
 ## Alternatives considered
 
@@ -184,6 +196,7 @@ One separate limitation was observed: forking the later boundary of the old Clau
 - AC10 — Forked product history contains no live approval or task ownership; opening the fork does not replay inherited execution. (verification: Main fork/SDK consumers — implementation author)
 - AC11 — Actual Main prewarm/connect followed by repeated Claude /clear and later input retains consistent branch/native identities without unique-anchor failures or stale-observer checkpoint writes. (verification: desktop runtime integration and Electron — implementation author)
 - AC12 — Paired references state the shipped support matrix, file-state limits and outstanding Durable/file-rewind gates; acceptance is recorded only for checks actually run. (verification: docs gate and final evidence review — implementation author and maintainer)
+- AC13 — Forking a product prefix across native resets creates independent contexts for every retained segment; only the selected context resumes. After deleting the source and its native files, both earlier and later copied boundaries still fork and edit correctly. Failed preparation, changed bindings or publication leave no partial product conversation or owned native artifacts. (verification: migrated SQLite/native SDK tests and Electron — implementation author)
 
 ## Risks
 

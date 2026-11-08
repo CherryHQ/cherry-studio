@@ -453,9 +453,12 @@ describe('Agent fork publication', () => {
       await entered.promise
       await owner.recover()
       const resources = (await readForkResources())[0]
-      expect(await readFile(path.join(resources.artifactDirectory, 'native.jsonl'), 'utf8')).toBe(
-        'native child history'
-      )
+      expect(
+        await readFile(
+          path.join(resources.artifactDirectory, (await readdir(resources.artifactDirectory))[0], 'native.jsonl'),
+          'utf8'
+        )
+      ).toBe('native child history')
     } finally {
       release.resolve()
     }
