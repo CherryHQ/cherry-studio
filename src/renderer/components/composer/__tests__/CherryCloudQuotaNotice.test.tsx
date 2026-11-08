@@ -15,21 +15,49 @@ vi.mock('@renderer/services/mainWindowNavigation', () => ({ openSettingsTab }))
 vi.mock('@renderer/services/cherryCloudSubscription', () => ({ startCherryCloudSubscription }))
 
 const request = vi.mocked(window.api.ipcApi.request)
+const tracked = () =>
+  request.mock.calls.filter(([route]) => route === 'cherry_cloud.analytics.track').map(([, event]) => event)
 
 beforeEach(() => vi.clearAllMocks())
 
 describe('CherryCloudQuotaNotice', () => {
-  it('offers a subscription when a free quota runs out', async () => {
+  it('reports the exhausted free quota and a subscription started from the notice', async () => {
     render(
       <CherryCloudQuotaNotice exhaustion={{ reason: 'quota_exhausted', isFreeModel: true, isSubscribed: false }} />
     )
 
+    expect(tracked()).toContainEqual({
+      event: 'subscription_quota_exhausted_view',
+      modelType: 'free',
+      subscribed: false
+    })
     await userEvent.click(screen.getByRole('button', { name: '去订阅' }))
 
-    expect(startCherryCloudSubscription).toHaveBeenCalled()
+    expect(tracked()).toContainEqual({ event: 'subscription_quota_action', action: 'subscribe', modelType: 'free' })
+    expect(startCherryCloudSubscription).toHaveBeenCalledWith('quota_notice')
   })
 
-  it('asks a signed-out user to sign in', async () => {
+  it('reports viewing usage and switching models from a paid quota notice', async () => {
+    render(
+      <CherryCloudQuotaNotice exhaustion={{ reason: 'quota_exhausted', isFreeModel: false, isSubscribed: true }} />
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: '查看用量' }))
+    await userEvent.click(screen.getByRole('button', { name: '切换模型' }))
+
+    expect(tracked()).toEqual(
+      expect.arrayContaining([
+        { event: 'subscription_quota_exhausted_view', modelType: 'paid', subscribed: true },
+        { event: 'subscription_quota_action', action: 'view_usage', modelType: 'paid' },
+        { event: 'subscription_quota_action', action: 'switch_model', modelType: 'paid' }
+      ])
+    )
+    expect(openSettingsTab).toHaveBeenCalledWith('/settings/profile')
+    expect(execute).toHaveBeenCalledWith('chat.model.select')
+    expect(startCherryCloudSubscription).not.toHaveBeenCalled()
+  })
+
+  it('asks a signed-out user to sign in, without reporting a quota notice', async () => {
     render(
       <CherryCloudQuotaNotice exhaustion={{ reason: 'sign_in_required', isFreeModel: false, isSubscribed: false }} />
     )
@@ -38,6 +66,7 @@ describe('CherryCloudQuotaNotice', () => {
     await userEvent.click(screen.getByRole('button', { name: '登录' }))
 
     expect(request).toHaveBeenCalledWith('cherry_cloud.login.start', undefined)
+    expect(tracked()).toEqual([])
     expect(startCherryCloudSubscription).not.toHaveBeenCalled()
   })
 
@@ -51,9 +80,11 @@ describe('CherryCloudQuotaNotice', () => {
 
       expect(screen.getByText(text)).toBeInTheDocument()
       expect(screen.queryByRole('button', { name: '去订阅' }) !== null).toBe(offers)
-      expect(screen.queryByRole('button', { name: '查看用量' })).toBeNull()
       await userEvent.click(screen.getByRole('button', { name: '切换模型' }))
       expect(execute).toHaveBeenCalledWith('chat.model.select')
+      expect(tracked()).not.toContainEqual(
+        expect.objectContaining({ event: expect.stringMatching(/^subscription_quota/) })
+      )
     }
   )
 })

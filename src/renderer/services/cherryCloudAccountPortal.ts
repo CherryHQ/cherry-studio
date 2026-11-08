@@ -3,13 +3,19 @@ import { getAppEdition } from '@renderer/utils/appEdition'
 
 import { openExternalWebsite } from './website'
 
-async function openCherryCloudPage(path: string): Promise<void> {
-  const accountOrigin = new URL(await ipcApi.request('cherry_cloud.account_origin.get')).origin
-  return openExternalWebsite(`${accountOrigin}${path}`)
+/** Tells the page the visit came from the desktop client, and from which touchpoint and subscription flow. */
+type PageAttribution = { entrySource?: string; flowId?: string }
+
+async function openCherryCloudPage(path: string, { entrySource, flowId }: PageAttribution = {}): Promise<void> {
+  const url = new URL(path, await ipcApi.request('cherry_cloud.account_origin.get'))
+  url.searchParams.set('entry', 'desktop')
+  if (entrySource) url.searchParams.set('entry_source', entrySource)
+  if (flowId) url.searchParams.set('flow_id', flowId)
+  return openExternalWebsite(url.toString())
 }
 
-export function openCherryCloudAccountPortal(): Promise<void> {
-  return openCherryCloudPage('/account/plans')
+export function openCherryCloudAccountPortal(attribution: PageAttribution = {}): Promise<void> {
+  return openCherryCloudPage('/account/plans', attribution)
 }
 
 // The official website has no test deployment, so every China-edition build links the production FAQ.

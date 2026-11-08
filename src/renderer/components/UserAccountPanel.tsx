@@ -1,5 +1,5 @@
 import { ChevronRight, CreditCard, Gauge, LogIn, RotateCcw, Settings } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { type ReactNode, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 
@@ -22,6 +22,7 @@ import { useCherryCloudSubscribeReminder } from '@renderer/hooks/useCherryCloudP
 import { ipcApi } from '@renderer/ipc'
 import { openCherryCloudAccountPortal } from '@renderer/services/cherryCloudAccountPortal'
 import { startCherryCloudSubscription } from '@renderer/services/cherryCloudSubscription'
+import { trackSubscriptionEntryView } from '@renderer/services/cherryCloudSubscriptionAnalytics'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { getAppEdition } from '@renderer/utils/appEdition'
 import { formatQuotaPercent, getLowestRemainingPercent } from '@renderer/utils/cherryCloudQuota'
@@ -111,11 +112,15 @@ export function UserAccountPanel({
   ) : (
     <span className="text-link">{t('settings.subscription.go_to_subscribe')}</span>
   )
+  const offersSubscription = !subscriptionLoading && !subscriptionFailed && !paidPlanName
+  useEffect(() => {
+    if (offersSubscription) trackSubscriptionEntryView('account_panel')
+  }, [offersSubscription])
   const handleSubscriptionClick = () => {
     if (cloudStatusLoadState === 'error') {
       void loadCloudStatus()
     } else if (!isCloudSignedIn) {
-      void startCherryCloudSubscription()
+      void startCherryCloudSubscription('account_panel')
     } else if (plansError && !plans) {
       void reloadPlans().catch(() => {})
     } else if (plans) {
@@ -123,7 +128,7 @@ export function UserAccountPanel({
       if (paidPlanName) {
         openSettingsTab('/settings/profile')
       } else {
-        void startCherryCloudSubscription()
+        void startCherryCloudSubscription('account_panel')
       }
     }
   }
