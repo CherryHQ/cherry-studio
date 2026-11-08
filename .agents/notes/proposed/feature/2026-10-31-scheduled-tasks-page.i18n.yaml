@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-10-31-scheduled-tasks-page.md
-2026-10-31-scheduled-tasks-page.md: 6845d5182e5b42e6451f1a6005d2d54fb70c2bee
-2026-10-31-scheduled-tasks-page.zh.md: 141fda6b0c75e4e6004d0b3e28bab521b61fdc45
+2026-10-31-scheduled-tasks-page.md: adab3908e5798668f0a3a481f57b5f396eae321e
+2026-10-31-scheduled-tasks-page.zh.md: 13ebc85f66e8f1ae1c266a2d724a78ef1b3b1df7

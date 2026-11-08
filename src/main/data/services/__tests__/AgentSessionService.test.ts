@@ -1439,7 +1439,18 @@ describe('AgentSessionService', () => {
     const session = await createSession('Task deletion FK')
     bindTaskSession(session.id, task.id)
 
-    jobScheduleService.delete(task.id)
+    expect(() => jobScheduleService.delete(task.id)).toThrow()
+    expect(agentSessionService.getByTaskScheduleId(task.id)?.id).toBe(session.id)
+    expect(() =>
+      dbh.db.transaction((tx) => {
+        agentTaskService.deleteScheduleTx(tx, task.id)
+        throw new Error('rollback task deletion')
+      })
+    ).toThrow('rollback task deletion')
+    expect(jobScheduleService.getById(task.id)?.id).toBe(task.id)
+    expect(agentSessionService.getByTaskScheduleId(task.id)?.id).toBe(session.id)
+
+    dbh.db.transaction((tx) => agentTaskService.deleteScheduleTx(tx, task.id))
 
     expect(agentSessionService.getByTaskScheduleId(task.id)).toBeNull()
     expect(agentSessionService.getById(session.id)).toMatchObject({ id: session.id })
@@ -1999,7 +2010,7 @@ describe('task session ownership migration', () => {
     expect(agentSessionService.listTaskSessionIds('task').sort()).toEqual(['metadata', 'output', 'sticky'])
     expect(agentSessionService.listByCursor().items.map((s) => s.id)).toEqual(['ordinary'])
     expect(agentSessionService.getByTaskScheduleId('task')?.id).toBe('sticky')
-    jobScheduleService.delete('task')
+    dbh.db.transaction((tx) => agentTaskService.deleteScheduleTx(tx, 'task'))
     expect(agentSessionService.listTaskSessionIds('task')).toEqual([])
     expect(dbh.sqlite.prepare('SELECT count(*) AS count FROM agent_session').get()).toEqual({ count: 4 })
     expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])

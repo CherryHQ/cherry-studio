@@ -1560,6 +1560,21 @@ describe('AgentJobsService', () => {
       const trashed = service.createTask(AGENT_ID, form)
       const missing = service.createTask(OTHER_AGENT_ID, { ...form, name: 'missing-agent-task' })
       const restored = service.createTask('agent-active', { ...form, name: 'restored-agent-task' })
+      const retained = agentSessionService.create(
+        {
+          agentId: OTHER_AGENT_ID,
+          name: 'Orphaned reuse target',
+          workspace: { type: 'system' }
+        },
+        'conversation',
+        missing.id
+      )
+      dbh.db
+        .update(agentSessionTable)
+        .set({ isTaskReuseTarget: true })
+        .where(eq(agentSessionTable.id, retained.id))
+        .run()
+
       dbh.db.update(agentTable).set({ deletedAt: Date.now() }).where(eq(agentTable.id, AGENT_ID)).run()
       dbh.db.delete(agentTable).where(eq(agentTable.id, OTHER_AGENT_ID)).run()
       jobScheduleService.update(restored.id, {
@@ -1578,6 +1593,11 @@ describe('AgentJobsService', () => {
         metadata: { agentTrash: { resumeOnRestore: true } }
       })
       expect(jobScheduleService.getById(missing.id)).toBeNull()
+      expect(dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, retained.id)).get()).toMatchObject({
+        taskId: null,
+        isTaskReuseTarget: false
+      })
+
       expect(jobScheduleService.getById(restored.id)).toMatchObject({ enabled: true })
       expect(jobScheduleService.getById(restored.id)?.metadata).not.toHaveProperty('agentTrash')
       expect(scheduler.has(`schedule:${trashed.id}`)).toBe(false)
