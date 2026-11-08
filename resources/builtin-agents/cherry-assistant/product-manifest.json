@@ -17,6 +17,10 @@
         "path": "/app/chat"
       },
       {
+        "id": "scheduled_tasks",
+        "path": "/app/scheduled-tasks"
+      },
+      {
         "id": "paintings",
         "path": "/app/paintings"
       },
@@ -58,6 +62,7 @@
       "/app/launchpad",
       "/app/notes",
       "/app/release-notes",
+      "/app/scheduled-tasks",
       "/app/translate",
       "/settings/about",
       "/settings/api-gateway",

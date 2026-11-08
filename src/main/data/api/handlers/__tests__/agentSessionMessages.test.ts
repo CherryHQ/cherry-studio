@@ -77,7 +77,7 @@ describe('agentSessionMessageHandlers', () => {
       const result = (await agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'].GET({
         params: { sessionId: 'session-1' },
         query: { deferToolOutputs: true }
-      } as never)) as unknown as { items: { data: { parts: unknown[] } }[] }
+      })) as unknown as { items: { data: { parts: unknown[] } }[] }
 
       expect(result.items[0].data.parts[1]).toEqual({
         type: 'dynamic-tool',
@@ -103,7 +103,7 @@ describe('agentSessionMessageHandlers', () => {
       const next = await agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'].GET({
         params: { sessionId: 'session-1' },
         query: { deferToolOutputs: true }
-      } as never)
+      })
       if (!('items' in next)) throw new Error('Expected a message page')
       expect(next.items[0].data.parts![0]).not.toEqual(result.items[0].data.parts[1])
     })
@@ -121,7 +121,7 @@ describe('agentSessionMessageHandlers', () => {
       const result = (await agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'].GET({
         params: { sessionId: 'session-1' },
         query: { deferToolOutputs: true }
-      } as never)) as unknown as { items: unknown[] }
+      })) as unknown as { items: unknown[] }
 
       expect(result.items[0]).toBe(assistant)
     })

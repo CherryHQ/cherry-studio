@@ -24,10 +24,22 @@ async function startLogin() {
 
 export const cherryCloudHandlers: IpcHandlersFor<typeof cherryCloudRequestSchemas> = {
   'cherry_cloud.status.get': async () => application.get('CherryCloudService').getStatus(),
-  'cherry_cloud.api_origin.get': async () => application.get('CherryCloudService').getApiOrigin(),
+  'cherry_cloud.account_origin.get': async () => application.get('CherryCloudService').getAccountOrigin(),
   'cherry_cloud.login.start': startLogin,
   'cherry_cloud.login.cancel': async () => application.get('CherryCloudService').cancelLogin(),
   'cherry_cloud.session.revoke': async () => application.get('CherryCloudService').revokeCurrentSession(),
   'cherry_cloud.models.sync': async () => application.get('CherryCloudService').syncEntitledModelsIfStale(),
-  'cherry_cloud.account_plans.get': async () => application.get('CherryCloudService').getAccountPlans()
+  'cherry_cloud.account_plans.get': async () => application.get('CherryCloudService').getAccountPlans(),
+  'cherry_cloud.public_plans.get': async () => application.get('CherryCloudService').getPublicPlans(),
+  'cherry_cloud.analytics.track': async ({ event, ...fields }) => {
+    // The analytics backend uses snake_case keys like the built-in token_usage event.
+    const data = Object.fromEntries(
+      Object.entries(fields).map(([key, value]) => [
+        key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`),
+        value
+      ])
+    )
+    const status = await application.get('CherryCloudService').getStatus()
+    application.get('AnalyticsService').trackEvent(event, data, status.accountId)
+  }
 }
