@@ -4,7 +4,7 @@ import type { RefObject } from 'react'
 import { memo, useCallback, useMemo, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Tooltip } from '@cherrystudio/ui'
+import { Kbd, Tooltip } from '@cherrystudio/ui'
 import { useSharedCacheSelector } from '@data/hooks/useCache'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import type {
@@ -21,6 +21,7 @@ import {
   useResourceListRowState
 } from '@renderer/components/chat/resourceList/base'
 import { SessionHoverPreview } from '@renderer/components/chat/resourceList/SessionHoverPreview'
+import { useConversationListShortcuts } from '@renderer/components/chat/resourceList/useConversationListShortcuts'
 import {
   readChatDraftPresence,
   subscribeChatDraftCache
@@ -178,10 +179,19 @@ export function TopicListBody(props: TopicListBodyProps) {
     ]
   )
 
+  const shortcutHints = useConversationListShortcuts(onSwitchTopic)
   const activeTopicId = activeTopic?.id
   const renderItem = useCallback(
-    (topic: Topic) => <TopicRow key={topic.id} topic={topic} isActive={topic.id === activeTopicId} {...rowProps} />,
-    [activeTopicId, rowProps]
+    (topic: Topic) => (
+      <TopicRow
+        key={topic.id}
+        shortcutHint={shortcutHints.get(topic.id)}
+        topic={topic}
+        isActive={topic.id === activeTopicId}
+        {...rowProps}
+      />
+    ),
+    [activeTopicId, rowProps, shortcutHints]
   )
 
   return (
@@ -200,6 +210,7 @@ export function TopicListBody(props: TopicListBodyProps) {
 }
 
 interface TopicRowWithStatusProps extends TopicRowSharedProps {
+  shortcutHint?: string
   isActive: boolean
   topic: Topic
 }
@@ -226,6 +237,7 @@ const TopicRow = memo(function TopicRow({
   panePosition,
   sidebarTopicFavoriteIdSet,
   topic,
+  shortcutHint,
   topicsLength
 }: TopicRowProps) {
   const { t } = useTranslation()
@@ -347,6 +359,9 @@ const TopicRow = memo(function TopicRow({
           isActive={isActive}
           status={conversationRowStatus}
         />
+      )}
+      {!rowState.renaming && shortcutHint && (
+        <Kbd className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-muted-foreground">{shortcutHint}</Kbd>
       )}
       <ResourceList.ItemActions pinned={topic.pinned && showPinAction}>
         {showPinAction && (

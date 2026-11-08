@@ -11,6 +11,7 @@ import { readAgentSessionPath } from '@data/services/agentSessionMessageTree'
 import { loggerService } from '@logger'
 import { MessageProjection } from '@main/ai/messages/MessageProjection'
 import type { AgentChildUpdate, AgentChildView } from '@shared/ai/agentChildProjection'
+import { AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY } from '@shared/ai/agentSessionContextUsage'
 import type { ChildProjectionState } from '@shared/ai/messageProjection'
 import type { CherryUIMessage, MessageStatus } from '@shared/data/types/message'
 
@@ -35,6 +36,7 @@ export function savedChildView(context: AgentSessionContextRow): AgentChildView 
     revision: 0,
     active: false,
     available: false,
+    canSubmit: false,
     diagnostic: context.checkpointMapping?.child?.gap,
     messages: compose(
       readAgentSessionPath(application.get('DbService').getDb(), context.sessionId).map((row) => ({
@@ -53,6 +55,7 @@ export class ChildThreadProjection {
   private readonly projection: ThreadMessageProjection
   private observation?: Observation
   private source?: object
+  private contextVersion = 0
   private attaching?: Promise<void>
   private view: AgentChildView
   private readonly productIds = new Map<string, string>()
@@ -68,6 +71,7 @@ export class ChildThreadProjection {
   private reloadSaved = false
   private readonly archiveGap?: string
   private history?: CommittedHistory
+  private canonicalIds = new Map<string, string>()
   private readonly composition: Composition
   private readonly sourceRows = new Map<string, Composition[string]>()
 
@@ -118,6 +122,19 @@ export class ChildThreadProjection {
     this.source = source
     const result = await this.handle.observe(async (event) => {
       if (this.stopped || this.source !== source) return
+      if (event.type === 'context.changed') {
+        this.contextVersion++
+        application
+          .get('CacheService')
+          .setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(this.context.sessionId), { result: event.result })
+        return
+      }
+      if (event.type === 'snapshot' && event.contextUsage) {
+        this.contextVersion++
+        application
+          .get('CacheService')
+          .setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(this.context.sessionId), { result: event.contextUsage })
+      }
       if (event.type === 'message.remove') this.removed.add(event.ref.id)
       if (event.type === 'message.upsert') {
         for (const ref of event.replaces ?? []) {
@@ -153,6 +170,12 @@ export class ChildThreadProjection {
       throw new Error(result.error.message)
     }
     this.observation = result.value
+    const contextVersion = this.contextVersion
+    const usage = await this.handle.contextUsage()
+    if (!this.stopped && this.source === source && contextVersion === this.contextVersion)
+      application
+        .get('CacheService')
+        .setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(this.context.sessionId), { result: usage })
     await this.flush()
   }
 
@@ -162,7 +185,14 @@ export class ChildThreadProjection {
     await this.flush()
   }
 
-  async refreshDecoration(ids: readonly string[]): Promise<void> {
+  async drain(): Promise<void> {
+    await this.attaching
+    await this.observation?.drain()
+    this.needsHistory = true
+    await this.flush()
+  }
+
+  async refreshDecoration(ids: readonly string[] | true = true): Promise<void> {
     if (this.stopped) return
     await this.projection.accept([], ids)
     this.needsHistory = true
@@ -174,7 +204,7 @@ export class ChildThreadProjection {
       this.timer = undefined
       void this.flush().catch((error) => {
         logger.error('Child archive flush failed', { contextId: this.context.id, error })
-        this.publish({ ...this.view, diagnostic: String(error), available: false })
+        this.publish({ ...this.view, diagnostic: String(error), available: false, canSubmit: false })
       })
     }, 80)
     this.timer.unref()
@@ -210,7 +240,12 @@ export class ChildThreadProjection {
     const history = this.needsHistory
     this.needsHistory = false
     const archive = history ? await this.readCommitted() : undefined
-    if (archive) this.history = archive
+    if (archive) {
+      this.history = archive
+      this.canonicalIds = new Map()
+      for (const [id, live] of Object.entries(archive.aliases))
+        if (!this.canonicalIds.has(live)) this.canonicalIds.set(live, id)
+    }
     const beforeComposition = structuredClone(this.composition)
     for (const id of archive?.removed ?? []) this.removed.add(id)
     for (const [old, source] of Object.entries(this.history?.legacy ?? {}))
@@ -236,7 +271,6 @@ export class ChildThreadProjection {
       try {
         await recovered.accept({
           type: 'snapshot',
-          coverage: 'current-view',
           messages: archive.messages.filter((item) => !this.removed.has(item.id)),
           inputs: [],
           activity: current.activity
@@ -305,9 +339,10 @@ export class ChildThreadProjection {
       next.size !== this.saved.size ||
       !isDeepStrictEqual(beforeComposition, this.composition)
     ) {
+      const positions = new Map(order.map((id, index) => [id, index]))
       application.get('DbService').withWriteTx((tx) => {
         for (const message of changed) {
-          const at = order.indexOf(message.id)
+          const at = positions.get(message.id)!
           messages.saveMessagesTx(tx, {
             sessionId: this.context.sessionId,
             parentId: at === 0 ? this.context.anchorMessageId! : order[at - 1],
@@ -351,12 +386,13 @@ export class ChildThreadProjection {
       messages: compose([...next.values()], this.composition),
       active: current.activity.state === 'active',
       available: !this.stopped && !current.closed,
+      canSubmit: !this.stopped && !current.closed && !!this.handle.input,
       diagnostic: current.diagnostic?.message ?? this.archiveGap ?? current.gap
     })
   }
 
   private canonical(id: string): string {
-    return Object.entries(this.history?.aliases ?? {}).find(([, live]) => live === id)?.[0] ?? id
+    return this.canonicalIds.get(id) ?? id
   }
 
   private materialize(message: CherryUIMessage, id: string): CherryUIMessage[] {
@@ -415,14 +451,16 @@ export class ChildThreadProjection {
   }
 
   async stop(): Promise<void> {
+    await this.attaching
+    await this.observation?.drain()
     this.stopped = true
+    application.get('CacheService').deleteShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(this.context.sessionId))
     this.source = undefined
     this.needsHistory = true
-    await this.attaching
     await this.observation?.stop()
     await this.flush()
     await this.projection.close()
-    this.publish({ ...this.view, available: false, active: false })
+    this.publish({ ...this.view, available: false, canSubmit: false, active: false })
     this.delivery.dispose()
   }
 

@@ -1,11 +1,4 @@
-import {
-  type Api,
-  type AssistantMessage,
-  type AssistantMessageEventStream,
-  createAssistantMessageEventStream,
-  type Model,
-  type TSchema
-} from '@earendil-works/pi-ai'
+import { lazyStream, type TSchema } from '@earendil-works/pi-ai'
 import type {
   AgentSession,
   ContextEvent,
@@ -30,7 +23,6 @@ import {
 import type { JsonValue } from '@cherrystudio/agent-runtime'
 
 import type { CompactionSummarizer } from '../compaction'
-import { zeroUsage } from '../subagentRun'
 import {
   addUsage,
   keysOf,
@@ -229,7 +221,9 @@ export function meterRequests(adapter: Adapter, conv: Conversation, session: Age
     const allowance = allow(adapter, conv, run?.requests ?? 0)
     if (!allowance.ok) {
       if (run) run.refused = allowance.text
-      return refusal(model, allowance.text)
+      return lazyStream(model, async () => {
+        throw new Error(allowance.text)
+      })
     }
     if (run) run.requests += 1
     return stream(model, context, options)
@@ -280,22 +274,4 @@ export function compactionSummarizer(adapter: Adapter, conv: Conversation): Comp
     }
     return verdict.summary
   }
-}
-
-function refusal(model: Model<Api>, text: string): AssistantMessageEventStream {
-  const message: AssistantMessage = {
-    role: 'assistant',
-    content: [],
-    api: model.api,
-    provider: model.provider,
-    model: model.id,
-    usage: zeroUsage(),
-    stopReason: 'error',
-    errorMessage: text,
-    timestamp: Date.now()
-  }
-  const stream = createAssistantMessageEventStream()
-  stream.push({ type: 'error', reason: 'error', error: message })
-  stream.end(message)
-  return stream
 }
