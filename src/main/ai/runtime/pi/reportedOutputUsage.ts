@@ -1,5 +1,7 @@
 import type { StreamOptions } from '@earendil-works/pi-ai'
 
+import { REPORTED_OUTPUT_USAGE_KEY } from '@shared/ai/reportedOutputUsage'
+
 /** Raw wire counts, captured before SDK adapters fill absent fields with zero. */
 export interface ReportedOutputUsage {
   outputTokens?: number
@@ -15,6 +17,14 @@ function count(value: unknown): number | undefined {
 export function collectReportedOutputUsage(value: unknown, counts: ReportedOutputUsage): void {
   const chunk = record(value)
   if (!chunk) return
+  const gateway = record(chunk[REPORTED_OUTPUT_USAGE_KEY])
+  if (gateway) {
+    // The internal gateway's protocol counters are normalized. Only this
+    // presence-preserving extension describes upstream reported counts.
+    counts.outputTokens = count(gateway.outputTokens)
+    counts.reasoningTokens = count(gateway.reasoningTokens)
+    return
+  }
   const choices = Array.isArray(chunk.choices) ? chunk.choices : []
   const usage =
     record(chunk.usage) ??

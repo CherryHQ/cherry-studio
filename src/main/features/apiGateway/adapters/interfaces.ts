@@ -1,3 +1,4 @@
+import type { ProviderOptions } from '@ai-sdk/provider-utils'
 /**
  * Core interfaces for the API Server adapter system
  *
@@ -6,10 +7,9 @@
  * - Message converters: Convert between API message formats
  * - SSE formatters: Format events for Server-Sent Events
  */
-
-import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { ToolSet, UIMessageChunk } from 'ai'
 
+import type { ProviderReportedOutputUsage } from '@shared/ai/reportedOutputUsage'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -24,6 +24,7 @@ import type { Provider } from '@shared/data/types/provider'
  * only available through `inputTokenDetails`.
  */
 export interface GatewayUsageMetadata {
+  reportedOutputUsage?: ProviderReportedOutputUsage
   stats?: {
     totalTokens?: number
     inputTokens?: number

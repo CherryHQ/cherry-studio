@@ -104,6 +104,9 @@ describe('native Pi through the production gateway', () => {
   let holdResponse = false
   let upstreamClosed = false
   let protocol: InputFormat = 'openai'
+  let reportedOutput: number | undefined = 25
+  let finishReason = 'stop'
+  let outputForRequest: ((body: Record<string, unknown>) => number | undefined) | undefined
   const requests: Array<Record<string, unknown>> = []
   let call: (body: Record<string, unknown>) => { content?: string; tool_calls?: unknown[] }
   beforeEach(async () => {
@@ -140,6 +143,9 @@ describe('native Pi through the production gateway', () => {
     holdResponse = false
     upstreamClosed = false
     protocol = 'openai'
+    reportedOutput = 25
+    finishReason = 'stop'
+    outputForRequest = undefined
     mocks.messageId = 'original-answer'
     call = () => ({ content: 'Model answer' })
     server = createServer(async (req, res) => {
@@ -159,7 +165,7 @@ describe('native Pi through the production gateway', () => {
               content: [],
               stop_reason: null,
               stop_sequence: null,
-              usage: { input_tokens: 100, output_tokens: 0 }
+              ...(reportedOutput !== undefined ? { usage: { input_tokens: 100, output_tokens: 0 } } : {})
             }
           },
           {
@@ -173,8 +179,8 @@ describe('native Pi through the production gateway', () => {
           { type: 'content_block_stop', index: 1 },
           {
             type: 'message_delta',
-            delta: { stop_reason: 'end_turn', stop_sequence: null },
-            usage: { output_tokens: 25 }
+            delta: { stop_reason: finishReason === 'length' ? 'max_tokens' : 'end_turn', stop_sequence: null },
+            ...(reportedOutput !== undefined ? { usage: { output_tokens: reportedOutput } } : {})
           },
           { type: 'message_stop' }
         ]
@@ -190,8 +196,22 @@ describe('native Pi through the production gateway', () => {
         ]
         const events = parts.map((part) => ({ candidates: [{ content: { role: 'model', parts: [part] }, index: 0 }] }))
         const finish = {
-          candidates: [{ content: { role: 'model', parts: [] }, finishReason: 'STOP', index: 0 }],
-          usageMetadata: { promptTokenCount: 100, candidatesTokenCount: 25, totalTokenCount: 125 }
+          candidates: [
+            {
+              content: { role: 'model', parts: [] },
+              finishReason: finishReason === 'length' ? 'MAX_TOKENS' : 'STOP',
+              index: 0
+            }
+          ],
+          ...(reportedOutput !== undefined
+            ? {
+                usageMetadata: {
+                  promptTokenCount: 100,
+                  candidatesTokenCount: reportedOutput,
+                  totalTokenCount: 100 + reportedOutput
+                }
+              }
+            : {})
         }
         res.writeHead(200, { 'content-type': 'text/event-stream' })
         res.end([...events, finish].map((event) => `data: ${JSON.stringify(event)}\n\n`).join(''))
@@ -224,13 +244,14 @@ describe('native Pi through the production gateway', () => {
           },
           { type: 'response.output_item.done', output_index: 1, item: message },
           {
-            type: 'response.completed',
+            type: finishReason === 'length' ? 'response.incomplete' : 'response.completed',
             response: {
               id: `resp_${requests.length}`,
               model: 'wire-model',
-              status: 'completed',
+              status: finishReason === 'length' ? 'incomplete' : 'completed',
+              ...(finishReason === 'length' ? { incomplete_details: { reason: 'max_output_tokens' } } : {}),
               output: [reasoning, message],
-              usage: { input_tokens: 100, output_tokens: 25 }
+              ...(reportedOutput !== undefined ? { usage: { input_tokens: 100, output_tokens: reportedOutput } } : {})
             }
           }
         ]
@@ -239,13 +260,18 @@ describe('native Pi through the production gateway', () => {
         return
       }
       const delta = call(body)
+      const output = outputForRequest ? outputForRequest(body) : reportedOutput
       const payload = {
         id: `response-${requests.length}`,
         model: 'wire-model',
         object: 'chat.completion.chunk',
         created: 1,
-        choices: [{ index: 0, delta, finish_reason: holdResponse ? null : delta.tool_calls ? 'tool_calls' : 'stop' }],
-        usage: { prompt_tokens: 100, completion_tokens: 25, total_tokens: 125 }
+        choices: [
+          { index: 0, delta, finish_reason: holdResponse ? null : delta.tool_calls ? 'tool_calls' : finishReason }
+        ],
+        ...(output !== undefined
+          ? { usage: { prompt_tokens: 100, completion_tokens: output, total_tokens: 100 + output } }
+          : {})
       }
       res.writeHead(200, { 'content-type': 'text/event-stream' })
       if (holdResponse) {
@@ -331,6 +357,70 @@ describe('native Pi through the production gateway', () => {
       observe: () => {}
     })
   }
+
+  it.each([
+    { format: 'openai', endpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS },
+    { format: 'anthropic', endpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES },
+    { format: 'openai-responses', endpoint: ENDPOINT_TYPE.OPENAI_RESPONSES },
+    { format: 'gemini', endpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT }
+  ] as const)(
+    'preserves upstream output count presence through the production $format gateway',
+    async ({ format, endpoint }) => {
+      protocol = format
+      finishReason = 'length'
+      const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/${format === 'gemini' ? 'v1beta' : 'v1'}`
+      dbh.db
+        .update(userProviderTable)
+        .set({ endpointConfigs: { [endpoint]: { baseUrl: url } }, defaultChatEndpoint: endpoint })
+        .where(eq(userProviderTable.providerId, 'port'))
+        .run()
+      const binding = await createPiGatewayModelBinding(
+        { sessionId: 'session' },
+        providerService.getByProviderId('port'),
+        modelService.getByKey('port', 'wire-model')
+      )
+      for (const count of [undefined, 0, 25, undefined]) {
+        reportedOutput = count
+        const stream = binding.modelRuntime.streamSimple(binding.model, {
+          messages: [{ role: 'user', content: 'answer', timestamp: Date.now() }]
+        })
+        let terminal: string | undefined
+        for await (const event of stream) if (event.type === 'done') terminal = event.message.errorMessage
+        const result = await stream.result()
+        expect(result.stopReason, result.errorMessage).toBe('length')
+        expect(result.errorMessage).toContain(
+          `provider-reported output tokens: ${count === undefined ? 'unknown' : count}`
+        )
+        expect(terminal).toBe(result.errorMessage)
+        expect(result.errorMessage).not.toContain('reasoning tokens:')
+      }
+      expect(requests).toHaveLength(4)
+    }
+  )
+
+  it('isolates upstream count provenance across concurrent production gateway streams', async () => {
+    finishReason = 'length'
+    outputForRequest = (body) => {
+      const text = JSON.stringify(body.messages)
+      return text.includes('explicit-zero') ? 0 : text.includes('explicit-positive') ? 25 : undefined
+    }
+    const binding = await createPiGatewayModelBinding(
+      { sessionId: 'session' },
+      providerService.getByProviderId('port'),
+      modelService.getByKey('port', 'wire-model')
+    )
+    const results = await Promise.all(
+      ['explicit-zero', 'explicit-positive', 'missing'].map(async (text) => {
+        return binding.modelRuntime
+          .streamSimple(binding.model, { messages: [{ role: 'user', content: text, timestamp: Date.now() }] })
+          .result()
+      })
+    )
+    expect(
+      results.map((result) => result.errorMessage?.match(/provider-reported output tokens: (unknown|[0-9]+)/)?.[1])
+    ).toEqual(['0', '25', 'unknown'])
+    expect(requests).toHaveLength(3)
+  })
 
   it('excludes a disabled provider with the same model name and preserves the inherited model', async () => {
     dbh.db

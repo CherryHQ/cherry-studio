@@ -15,6 +15,7 @@ import * as z from 'zod'
 import { CURRENCY, objectValues } from '@cherrystudio/provider-registry'
 import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
+import type { ProviderReportedOutputUsage } from '@shared/ai/reportedOutputUsage'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import { type ReasoningEffortOption, ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 
@@ -219,6 +220,8 @@ export interface CherryUIMessageMetadata {
   totalTokens?: number
   /** Live token/timing view using the same shape as persisted `MessageStats`. */
   stats?: MessageStats
+  /** Per-invocation upstream count presence, before cumulative usage normalization. */
+  reportedOutputUsage?: ProviderReportedOutputUsage
   /** Trusted cross-session sender attribution and durable delivery lifecycle. */
   delivery?: AgentSessionDelivery
   /** Why a runtime opened this assistant turn with no user message (goal round, background work). */

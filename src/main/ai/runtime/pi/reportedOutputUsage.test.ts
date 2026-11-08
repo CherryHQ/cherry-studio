@@ -25,6 +25,16 @@ describe('raw output usage before SDK normalization', () => {
     collectReportedOutputUsage(wire, counts)
     expect(counts).toEqual(expected)
   })
+  it('prefers gateway provenance over normalized zeros and clears previous counts', () => {
+    const counts: ReportedOutputUsage = { outputTokens: 99, reasoningTokens: 9 }
+    for (const outputTokens of [null, 0, 25, null]) {
+      collectReportedOutputUsage(
+        { usage: { completion_tokens: 0 }, cherry_reported_output_usage: { outputTokens, reasoningTokens: null } },
+        counts
+      )
+      expect(counts).toEqual({ outputTokens: outputTokens ?? undefined, reasoningTokens: undefined })
+    }
+  })
   it('composes the caller observer without mutating the raw event', async () => {
     const counts: ReportedOutputUsage = {}
     const data = Object.freeze({ usage: Object.freeze({ completion_tokens: 0 }) })
