@@ -17,6 +17,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { CommandShortcut } from '@renderer/components/command'
 import { OpenTargetButton } from '@renderer/components/OpenTarget'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { ipcApi } from '@renderer/ipc'
@@ -328,6 +329,7 @@ export function AgentSessionDetailsSections({
             pathKind="directory"
             className="shrink-0 border-0"
             menuAction="select"
+            primaryShortcut={<CommandShortcut command="agent.workspace.open" />}
             menuContentProps={{ className: 'w-70 max-w-[calc(100vw_-_24px)]', alignOffset: -16 }}
           />
         )}
