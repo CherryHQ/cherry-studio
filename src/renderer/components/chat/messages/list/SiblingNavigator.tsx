@@ -81,9 +81,11 @@ const SiblingNavigator: FC<Props> = ({ messageId }) => {
         <DropdownMenuContent
           align="end"
           className="max-h-80 w-72 max-w-[calc(100vw-2rem)]"
-          onOpenAutoFocus={(event) => {
-            event.preventDefault()
-            currentItemRef.current?.focus()
+          onFocus={(event) => {
+            if (event.target === event.currentTarget) {
+              event.preventDefault()
+              currentItemRef.current?.focus()
+            }
           }}>
           <DropdownMenuLabel>{t('chat.message.branches')}</DropdownMenuLabel>
           {group.map((item, index) => (
