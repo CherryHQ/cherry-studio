@@ -6411,5 +6411,10 @@
   "webview.navigation.invalid_address": "Geçerli bir HTTP, HTTPS veya dosya URL’si girin",
   "webview.navigation.load_failed": "Sayfa yüklenemedi",
   "webview.navigation.open_external": "Harici tarayıcıda aç",
-  "webview.navigation.reload": "Yenile"
+  "webview.navigation.reload": "Yenile",
+  "agent.channels.agentTab.description": "Bu kanallardan gelen mesajları yalnızca bu aracı işler.",
+  "agent.channels.agentTab.inactiveHint": "Bağlandı, ancak henüz etkin değil. Bağlanmak için kanal ayarlarından kimlik bilgilerini yapılandırıp etkinleştirin.",
+  "agent.channels.agentTab.openSettings": "Kanal ayarları",
+  "agent.channels.agentTab.title": "Kanallar",
+  "agent.channels.connectIm": "Anlık mesajlaşmaya bağlan…"
 }

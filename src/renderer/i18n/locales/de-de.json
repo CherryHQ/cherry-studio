@@ -6411,5 +6411,10 @@
   "webview.navigation.invalid_address": "Gib eine gültige HTTP-, HTTPS- oder Datei-URL ein",
   "webview.navigation.load_failed": "Seite konnte nicht geladen werden",
   "webview.navigation.open_external": "Im externen Browser öffnen",
-  "webview.navigation.reload": "Neu laden"
+  "webview.navigation.reload": "Neu laden",
+  "agent.channels.agentTab.description": "Nachrichten aus diesen Kanälen werden nur von diesem Agenten bearbeitet.",
+  "agent.channels.agentTab.inactiveHint": "Verknüpft, aber noch nicht aktiv. Richten Sie die Zugangsdaten ein und aktivieren Sie den Kanal in den Kanaleinstellungen.",
+  "agent.channels.agentTab.openSettings": "Kanaleinstellungen",
+  "agent.channels.agentTab.title": "Kanäle",
+  "agent.channels.connectIm": "Mit IM verbinden…"
 }

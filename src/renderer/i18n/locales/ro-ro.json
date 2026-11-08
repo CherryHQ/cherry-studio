@@ -6411,5 +6411,10 @@
   "webview.navigation.invalid_address": "Introduceți un URL valid HTTP, HTTPS sau de fișier",
   "webview.navigation.load_failed": "Încărcarea paginii a eșuat",
   "webview.navigation.open_external": "Deschide în browserul extern",
-  "webview.navigation.reload": "Reîncarcă"
+  "webview.navigation.reload": "Reîncarcă",
+  "agent.channels.agentTab.description": "Doar acest agent gestionează mesajele de pe aceste canale.",
+  "agent.channels.agentTab.inactiveHint": "Asociat, dar încă inactiv. Configurați datele de autentificare și activați-l în setările canalelor.",
+  "agent.channels.agentTab.openSettings": "Setările canalelor",
+  "agent.channels.agentTab.title": "Canale",
+  "agent.channels.connectIm": "Conectare la mesagerie…"
 }

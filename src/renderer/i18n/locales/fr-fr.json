@@ -6411,5 +6411,10 @@
   "webview.navigation.invalid_address": "Saisissez une URL HTTP, HTTPS ou de fichier valide",
   "webview.navigation.load_failed": "Échec du chargement de la page",
   "webview.navigation.open_external": "Ouvrir dans le navigateur externe",
-  "webview.navigation.reload": "Recharger"
+  "webview.navigation.reload": "Recharger",
+  "agent.channels.agentTab.description": "Seul cet agent traite les messages de ces canaux.",
+  "agent.channels.agentTab.inactiveHint": "Associé, mais pas encore actif. Configurez ses identifiants et activez-le dans les paramètres des canaux.",
+  "agent.channels.agentTab.openSettings": "Paramètres des canaux",
+  "agent.channels.agentTab.title": "Canaux",
+  "agent.channels.connectIm": "Connecter à une messagerie…"
 }

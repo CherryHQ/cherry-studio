@@ -6411,5 +6411,10 @@
   "webview.navigation.invalid_address": "Εισαγάγετε μια έγκυρη διεύθυνση URL HTTP, HTTPS ή αρχείου",
   "webview.navigation.load_failed": "Αποτυχία φόρτωσης της σελίδας",
   "webview.navigation.open_external": "Άνοιγμα σε εξωτερικό πρόγραμμα περιήγησης",
-  "webview.navigation.reload": "Επαναφόρτωση"
+  "webview.navigation.reload": "Επαναφόρτωση",
+  "agent.channels.agentTab.description": "Τα μηνύματα από αυτά τα κανάλια τα χειρίζεται μόνο αυτός ο πράκτορας.",
+  "agent.channels.agentTab.inactiveHint": "Συνδεδεμένο, αλλά όχι ακόμη ενεργό. Ρυθμίστε τα διαπιστευτήρια και ενεργοποιήστε το στις ρυθμίσεις καναλιών.",
+  "agent.channels.agentTab.openSettings": "Ρυθμίσεις καναλιών",
+  "agent.channels.agentTab.title": "Κανάλια",
+  "agent.channels.connectIm": "Σύνδεση με IM…"
 }

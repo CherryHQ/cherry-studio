@@ -6411,5 +6411,10 @@
   "webview.navigation.invalid_address": "Nhập URL HTTP, HTTPS hoặc tệp hợp lệ",
   "webview.navigation.load_failed": "Tải trang thất bại",
   "webview.navigation.open_external": "Mở trong trình duyệt bên ngoài",
-  "webview.navigation.reload": "Tải lại"
+  "webview.navigation.reload": "Tải lại",
+  "agent.channels.agentTab.description": "Chỉ tác nhân này xử lý tin nhắn từ các kênh này.",
+  "agent.channels.agentTab.inactiveHint": "Đã liên kết nhưng chưa hoạt động. Thiết lập thông tin xác thực và bật trong cài đặt kênh để kết nối.",
+  "agent.channels.agentTab.openSettings": "Cài đặt kênh",
+  "agent.channels.agentTab.title": "Kênh",
+  "agent.channels.connectIm": "Kết nối IM…"
 }

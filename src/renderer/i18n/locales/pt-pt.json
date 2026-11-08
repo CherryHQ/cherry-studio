@@ -6411,5 +6411,10 @@
   "webview.navigation.invalid_address": "Introduza um URL HTTP, HTTPS ou de ficheiro válido",
   "webview.navigation.load_failed": "Falha ao carregar a página",
   "webview.navigation.open_external": "Abrir no navegador externo",
-  "webview.navigation.reload": "Recarregar"
+  "webview.navigation.reload": "Recarregar",
+  "agent.channels.agentTab.description": "Só este agente trata as mensagens destes canais.",
+  "agent.channels.agentTab.inactiveHint": "Associado, mas ainda não está ativo. Configure as credenciais e ative-o nas definições de canais.",
+  "agent.channels.agentTab.openSettings": "Definições de canais",
+  "agent.channels.agentTab.title": "Canais",
+  "agent.channels.connectIm": "Ligar a mensagens instantâneas…"
 }

@@ -6411,5 +6411,10 @@
   "webview.navigation.invalid_address": "有効な HTTP、HTTPS、またはファイル URL を入力してください",
   "webview.navigation.load_failed": "ページの読み込みに失敗しました",
   "webview.navigation.open_external": "外部ブラウザで開く",
-  "webview.navigation.reload": "再読み込み"
+  "webview.navigation.reload": "再読み込み",
+  "agent.channels.agentTab.description": "これらのチャンネルのメッセージは、このエージェントのみが処理します。",
+  "agent.channels.agentTab.inactiveHint": "紐付け済みですが、まだ有効ではありません。チャンネル設定で認証情報を設定し、有効にしてください。",
+  "agent.channels.agentTab.openSettings": "チャンネル設定",
+  "agent.channels.agentTab.title": "チャンネル",
+  "agent.channels.connectIm": "IM に接続…"
 }

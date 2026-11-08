@@ -6411,5 +6411,10 @@
   "webview.navigation.invalid_address": "ป้อน URL ที่ถูกต้องแบบ HTTP, HTTPS หรือ file",
   "webview.navigation.load_failed": "โหลดหน้าไม่สำเร็จ",
   "webview.navigation.open_external": "เปิดในเบราว์เซอร์ภายนอก",
-  "webview.navigation.reload": "โหลดใหม่"
+  "webview.navigation.reload": "โหลดใหม่",
+  "agent.channels.agentTab.description": "เฉพาะเอเจนต์นี้เท่านั้นที่จัดการข้อความจากช่องทางเหล่านี้",
+  "agent.channels.agentTab.inactiveHint": "ผูกแล้วแต่ยังไม่เปิดใช้งาน ตั้งค่าข้อมูลรับรองและเปิดใช้งานในการตั้งค่าช่องทางเพื่อเชื่อมต่อ",
+  "agent.channels.agentTab.openSettings": "การตั้งค่าช่องทาง",
+  "agent.channels.agentTab.title": "ช่องทาง",
+  "agent.channels.connectIm": "เชื่อมต่อ IM…"
 }

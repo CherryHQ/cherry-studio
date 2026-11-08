@@ -6411,5 +6411,10 @@
   "webview.navigation.invalid_address": "Введите корректный URL HTTP, HTTPS или файла",
   "webview.navigation.load_failed": "Не удалось загрузить страницу",
   "webview.navigation.open_external": "Открыть во внешнем браузере",
-  "webview.navigation.reload": "Перезагрузить"
+  "webview.navigation.reload": "Перезагрузить",
+  "agent.channels.agentTab.description": "Сообщения из этих каналов обрабатывает только этот агент.",
+  "agent.channels.agentTab.inactiveHint": "Привязан, но пока не активен. Настройте учётные данные и включите его в настройках каналов.",
+  "agent.channels.agentTab.openSettings": "Настройки каналов",
+  "agent.channels.agentTab.title": "Каналы",
+  "agent.channels.connectIm": "Подключить мессенджер…"
 }
