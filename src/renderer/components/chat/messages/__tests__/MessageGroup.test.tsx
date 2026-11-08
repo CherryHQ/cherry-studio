@@ -1511,8 +1511,6 @@ describe('MessageGroup', () => {
         undefined
       )
     })
-    expect(updateMessageUiState).toHaveBeenCalledWith('model-a', { foldSelected: false })
-    expect(updateMessageUiState).toHaveBeenCalledWith('model-b', expect.objectContaining({ foldSelected: true }))
   })
 
   it('browses another reply without changing context while the active reply continues streaming', async () => {
@@ -1564,8 +1562,6 @@ describe('MessageGroup', () => {
     )
     expect(contextByMessageId.get('model-a')).toBe(true)
     expect(contextByMessageId.get('model-b')).toBe(false)
-    expect(updateMessageUiState).toHaveBeenCalledWith('model-a', { foldSelected: false })
-    expect(updateMessageUiState).toHaveBeenCalledWith('model-b', expect.objectContaining({ foldSelected: true }))
     expect(setActiveBranch).not.toHaveBeenCalled()
   })
 
@@ -1604,6 +1600,44 @@ describe('MessageGroup', () => {
     )
     expect(contextByMessageId.get(activeId)).toBe(true)
     expect(setActiveBranch).not.toHaveBeenCalled()
+  })
+
+  it.each(['mounted', 'unmounted'])('follows navigation after the active reply changes while %s', (scenario) => {
+    mocks.settings.mockReturnValue({ ...mocks.settings(), multiModelMessageStyle: 'fold' })
+    const setActiveBranch = vi.fn()
+    mocks.messageListActions.mockReturnValue({
+      setActiveBranch,
+      updateMessageUiState: updateCachedMessageUiState
+    })
+    mocks.messageListUiSelectors.mockReturnValue({ getMessageUiState: getCachedMessageUiState })
+    const messages = ['model-a', 'model-b'].map((id, index) => ({
+      ...createMessage(id, index, 'fold'),
+      isActiveBranch: id === 'model-a'
+    }))
+    const firstRender = render(<MessageGroup messages={messages} />)
+    const [menuProps] = mocks.MessageGroupMenuBar.mock.calls.at(-1) as unknown as [
+      { setSelectedMessage: (message: MessageListItem) => void }
+    ]
+
+    act(() => menuProps.setSelectedMessage(messages[1]))
+    const activeB = (
+      <MessageGroup messages={messages.map((message) => ({ ...message, isActiveBranch: message.id === 'model-b' }))} />
+    )
+    if (scenario === 'mounted') {
+      firstRender.rerender(activeB)
+      firstRender.unmount()
+    } else {
+      firstRender.unmount()
+      render(activeB).unmount()
+    }
+
+    const { container } = render(
+      <MessageGroup messages={messages.map((message) => ({ ...message, isActiveBranch: message.id === 'model-a' }))} />
+    )
+
+    // Fold layout shows only the reply whose wrapper has the selected class.
+    expect(container.querySelector('#message-model-a')).toHaveClass('selected')
+    expect(container.querySelector('#message-model-b')).not.toHaveClass('selected')
   })
 
   it('shows the context indicator on the active branch instead of stale useful UI state', () => {

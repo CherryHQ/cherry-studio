@@ -149,9 +149,7 @@ const MessageGroup = ({
   })
   const previousActiveBranchMessageIdRef = useRef(activeBranchMessageId)
 
-  // Re-sync the selected ID when the active branch or group membership changes.
-  // Without this, fold mode can keep showing an old model column even after
-  // branch navigation moves the active path to another multi-model node.
+  // Branch navigation overrides browsing; streaming updates preserve it.
   useEffect(() => {
     if (captureMode) return
 
@@ -177,16 +175,18 @@ const MessageGroup = ({
         pickPreferredSelectedMessage(addedMessages, getMessageUiState, activeBranchMessageId) ?? addedMessages.at(-1)
     }
 
-    if (nextSelectedMessage && nextSelectedMessage.id !== selectedMessageId) {
-      if (selectedMessageId) {
-        updateMessageUiState(selectedMessageId, { foldSelected: false })
+    const visibleMessageId = nextSelectedMessage?.id ?? selectedMessageId
+    for (const message of messages) {
+      const ui = getMessageUiState(message.id)
+      if (message.id === visibleMessageId) {
+        if (!ui.foldSelected || ui.foldSelectedBranchId !== activeBranchMessageId) {
+          updateMessageUiState(message.id, { foldSelected: true, foldSelectedBranchId: activeBranchMessageId })
+        }
+      } else if (ui.foldSelected) {
+        updateMessageUiState(message.id, { foldSelected: false })
       }
-      updateMessageUiState(nextSelectedMessage.id, {
-        foldSelected: true,
-        foldSelectedBranchId: activeBranchMessageId
-      })
-      setSelectedMessageIdState(nextSelectedMessage.id)
     }
+    if (visibleMessageId !== selectedMessageId) setSelectedMessageIdState(visibleMessageId)
   }, [
     activeBranchMessage,
     activeBranchMessageId,
@@ -200,13 +200,6 @@ const MessageGroup = ({
   const setSelectedMessage = useCallback(
     (message: MessageListItem) => {
       // Browsing changes only the visible reply; context changes use onSelectContext.
-      if (selectedMessageId) {
-        updateMessageUiState(selectedMessageId, { foldSelected: false })
-      }
-      updateMessageUiState(message.id, {
-        foldSelected: true,
-        foldSelectedBranchId: activeBranchMessageId
-      })
       setSelectedMessageIdState(message.id)
 
       setTimeoutTimer(
@@ -222,7 +215,7 @@ const MessageGroup = ({
         200
       )
     },
-    [activeBranchMessageId, navigateWithScrollRuntime, selectedMessageId, setTimeoutTimer, updateMessageUiState]
+    [navigateWithScrollRuntime, setTimeoutTimer]
   )
   useEffect(() => {
     if (captureMode) return

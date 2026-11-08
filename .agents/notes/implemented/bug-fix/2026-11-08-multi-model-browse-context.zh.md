@@ -19,8 +19,8 @@ Status: implemented
 
 ## Consequences
 
-在折叠视图浏览其他模型回答不再修改 active path 或上下文标记。显式选择上下文仍保留现有的分支切换行为。UI 缓存同时记录浏览选择及当时的 active reply：重新挂载时，只有 active reply 未变化才恢复浏览选择，否则跟随分支导航。该缓存是临时状态，不跨应用重启保留。快速的显式上下文选择仍按顺序执行。
+在折叠视图浏览其他模型回答不再修改 active path 或上下文标记。显式选择上下文仍保留现有的分支切换行为。UI 缓存同时记录浏览选择及当时的 active reply：重新挂载时，只有 active reply 未变化才恢复浏览选择，否则跟随分支导航。挂载及后续选择变化会将缓存与可见回答对齐，并清除过期选择，避免后续导航再次恢复它们。该缓存是临时状态，不跨应用重启保留。快速的显式上下文选择仍按顺序执行。
 
 ## Verification
 
-- Regression — `pnpm test:renderer src/renderer/components/chat/messages/__tests__/MessageGroup.test.tsx src/renderer/pages/home/__tests__/ChatContent.test.tsx`：折叠视图下浏览其他回答在流式更新期间保留原上下文标记且不调用 `setActiveBranch`，在同分支重挂载后恢复所浏览回答，并在卸载期间分支变更后跟随新的分支。
+- Regression — `pnpm test:renderer src/renderer/components/chat/messages/__tests__/MessageGroup.test.tsx src/renderer/pages/home/__tests__/ChatContent.test.tsx`：折叠视图下浏览其他回答在流式更新期间保留原上下文标记且不调用 `setActiveBranch`，在同分支重挂载后恢复所浏览回答，在卸载期间分支变更后跟随新的分支，并在挂载或卸载期间活动回答变化、随后导航回原分支时不会恢复过期的浏览选择。
