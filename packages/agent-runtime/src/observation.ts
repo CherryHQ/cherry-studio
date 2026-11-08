@@ -1,4 +1,104 @@
-import type { Observation, ObservationPayload, ObservationSink, ThreadSnapshot } from './contracts'
+import { isToolUIPart } from 'ai'
+
+import type { Observation, ObservationPayload, ObservationSink, RuntimeMessage, ThreadSnapshot } from './contracts'
+
+const immutableOutputs = new WeakSet<object>()
+const acceptedToolParts = new WeakSet<object>()
+
+export function isAcceptedToolOutput(value: unknown): boolean {
+  return typeof value === 'object' && value !== null && immutableOutputs.has(value)
+}
+
+export function isAcceptedToolPart(value: unknown): boolean {
+  return typeof value === 'object' && value !== null && acceptedToolParts.has(value)
+}
+
+/** Establishes immutable part ownership after adapter decoration, including primitive result values. */
+export function snapshotToolPart<T extends RuntimeMessage['parts'][number]>(part: T): T {
+  if (isAcceptedToolPart(part)) return part
+  const accepted = cloneObservationValue(part)
+  if (freezeOutput(accepted)) acceptedToolParts.add(accepted)
+  return accepted
+}
+
+function freezeOutput(value: unknown, seen = new WeakSet<object>()): boolean {
+  if (typeof value !== 'object' || value === null || immutableOutputs.has(value) || seen.has(value)) return true
+  if (
+    !Array.isArray(value) &&
+    Object.getPrototypeOf(value) !== Object.prototype &&
+    Object.getPrototypeOf(value) !== null
+  )
+    return false
+  seen.add(value)
+  const children = Object.values(value).map((item) => freezeOutput(item, seen))
+  if (!children.every(Boolean)) return false
+  Object.freeze(value)
+  immutableOutputs.add(value)
+  return true
+}
+
+/** Copies delivery containers while sharing only deeply frozen, accepted JSON tool payloads. */
+export function cloneObservationValue<T>(value: T): T {
+  const copies = new WeakMap<object, object>()
+  const clone = (item: unknown): unknown => {
+    if (typeof item === 'function' || typeof item === 'symbol') return structuredClone(item)
+    if (typeof item !== 'object' || item === null || immutableOutputs.has(item)) return item
+    const known = copies.get(item)
+    if (known) return known
+    if (Array.isArray(item)) {
+      const result: unknown[] = []
+      copies.set(item, result)
+      for (const child of item) result.push(clone(child))
+      return result
+    }
+    if (Object.getPrototypeOf(item) !== Object.prototype && Object.getPrototypeOf(item) !== null)
+      return structuredClone(item)
+    const result: Record<string, unknown> = {}
+    copies.set(item, result)
+    for (const [key, child] of Object.entries(item))
+      Object.defineProperty(result, key, { value: clone(child), enumerable: true, writable: true, configurable: true })
+    return result
+  }
+  return clone(value) as T
+}
+
+/** A changed index is a native acceptance boundary; untouched parts reuse the previous owned snapshot. */
+export function snapshotRuntimeMessage(
+  message: RuntimeMessage,
+  previous?: RuntimeMessage,
+  changedParts?: readonly number[]
+): RuntimeMessage {
+  const changed = changedParts && new Set(changedParts)
+  return {
+    ...cloneObservationValue({ ...message, parts: [] }),
+    parts: message.parts.map((part, index) => {
+      if (previous?.parts[index] && changed && !changed.has(index)) return previous.parts[index]
+      if (isAcceptedToolPart(part)) return part
+      if (!isToolUIPart(part) || part.state !== 'output-available') return cloneObservationValue(part)
+      const output = cloneObservationValue(part.output)
+      freezeOutput(output)
+      return snapshotToolPart({ ...cloneObservationValue({ ...part, output: undefined }), output })
+    })
+  }
+}
+
+function snapshotObservation(event: ObservationPayload, previous?: ThreadSnapshot): ObservationPayload {
+  if (event.type === 'message.upsert')
+    return {
+      ...cloneObservationValue({ ...event, message: undefined }),
+      message: snapshotRuntimeMessage(
+        event.message,
+        previous?.messages.find((message) => message.id === event.message.id),
+        event.changedParts
+      )
+    }
+  if (event.type === 'snapshot')
+    return {
+      ...cloneObservationValue({ ...event, messages: [] }),
+      messages: event.messages.map((message) => snapshotRuntimeMessage(message))
+    }
+  return cloneObservationValue(event)
+}
 
 /** Bounded delivery for normalized facts; never schedules native execution. */
 export class ThreadFeed {
@@ -12,16 +112,28 @@ export class ThreadFeed {
     private value: ThreadSnapshot,
     private readonly report: (error: unknown) => void
   ) {
-    this.value = structuredClone(value)
+    this.value = {
+      ...cloneObservationValue({ ...value, messages: [] }),
+      messages: value.messages.map((message) => snapshotRuntimeMessage(message))
+    }
   }
 
   get snapshot(): ThreadSnapshot {
     return structuredClone(this.value)
   }
 
-  publish(event: ObservationPayload): void {
+  /** Adapters can read owned snapshots without copying history; mutations go through publish(). */
+  get current(): Omit<ThreadSnapshot, 'messages'> & {
+    readonly messages: readonly (Omit<RuntimeMessage, 'parts'> & {
+      readonly parts: readonly RuntimeMessage['parts'][number][]
+    })[]
+  } {
+    return this.value
+  }
+
+  publish(event: ObservationPayload): ObservationPayload | undefined {
     if (this.ended) return
-    const next = structuredClone(event)
+    const next = snapshotObservation(event, this.value)
     switch (next.type) {
       case 'snapshot':
         this.value = next
@@ -65,6 +177,7 @@ export class ThreadFeed {
         break
     }
     for (const observer of this.observers) observer.send(next)
+    return cloneObservationValue(next)
   }
 
   observe(sink: ObservationSink): Observation {
@@ -88,7 +201,7 @@ export class ThreadFeed {
     let lost = false
     type Delivery = { value: T; through: number; shouldClose: boolean; recovery?: T }
     const captureFrame = (event: ObservationPayload, delivery: Parameters<typeof capture>[1]) =>
-      structuredClone(capture(event, delivery))
+      cloneObservationValue(capture(event, delivery))
     let pending: Delivery[] = [{ value: captureFrame(this.value, 'baseline').value, through: sent, shouldClose: false }]
     const barriers = new Set<{ through: number; resolve(): void; reject(error: Error): void }>()
     const settle = () => {

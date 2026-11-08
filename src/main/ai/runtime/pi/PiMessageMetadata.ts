@@ -56,10 +56,11 @@ function toolProviderMetadata(toolName: string, nativeTool?: ReturnType<typeof r
 export class PiMessageMetadata {
   constructor(private readonly resolveToolMetadata?: (name: string) => ReturnType<typeof resolvePiMcpToolMetadata>) {}
 
-  decorate(message: CherryUIMessage): CherryUIMessage {
+  decorate(message: CherryUIMessage, unchangedParts?: ReadonlySet<number>): CherryUIMessage {
     return {
       ...message,
-      parts: message.parts.map((part) => {
+      parts: message.parts.map((part, index) => {
+        if (unchangedParts?.has(index)) return part
         if (part.type !== 'dynamic-tool') return part
         const metadata = toolProviderMetadata(part.toolName, this.resolveToolMetadata?.(part.toolName))
         const decoration = {

@@ -7,6 +7,7 @@ import { application } from '@application'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
 import { CHAT_STREAM_IDLE_TIMEOUT_MS } from '@main/ai/constants'
+import { AcceptedToolResults } from '@main/ai/messages/AcceptedToolResults'
 import { ProjectionSubscriptions } from '@main/ai/messages/ProjectionSubscriptions'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { serializeError } from '@main/ai/utils/serializeError'
@@ -24,7 +25,6 @@ import type { SourceSnapshot } from '@main/data/services/AiUsageRecordService'
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { isAbortError } from '@main/utils/error'
-import { shouldDeferToolOutput } from '@main/utils/messageOutputProjection'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import type { MessageProjectionUpdate, MessageProjectionView } from '@shared/ai/messageProjection'
@@ -215,7 +215,6 @@ const DEFAULT_CONFIG: AiStreamManagerConfig = {
   gracePeriodMs: 30_000,
   backgroundMode: 'continue',
   maxBufferChunks: 10_000,
-  maxDeferredOutputs: 64,
   maxDeltaBytes: 16_384,
   // Generous (2 h) but bounded: a human can deliberate, yet a renderer that never responds (window
   // closed/crashed) can't leave the stream + subprocess hanging until app quit.
@@ -371,7 +370,26 @@ export class AiStreamManager extends BaseService {
   private topicProjection(topicId: string): TopicMessageProjection {
     let projection = this.projections.get(topicId)
     if (!projection) {
-      projection = new TopicMessageProjection(topicId, (message) => projectStreamMessageForRenderer(topicId, message))
+      projection = new TopicMessageProjection(topicId, (message) => {
+        const stream = this.activeStreams.get(topicId)
+        const exec =
+          stream &&
+          [...stream.executions.values()].find(
+            (item) => item.anchorMessageId === message.id || item.finalMessage?.id === message.id
+          )
+        if (!exec) return structuredClone(projectStreamMessageForRenderer(topicId, message))
+        const accepted = (exec.acceptedToolResults ??= new AcceptedToolResults(topicId))
+        const parts = message.parts.map((part) => {
+          if (isToolUIPart(part) && part.state === 'output-available')
+            return accepted.project(message.id, part, () => {
+              this.projections
+                .get(topicId)
+                ?.invalidateToolResults([{ topicId, messageId: message.id, toolCallId: part.toolCallId }])
+            })
+          return structuredClone(part)
+        })
+        return { ...structuredClone({ ...message, parts: [] }), parts }
+      })
       this.projections.set(topicId, projection)
     }
     return projection
@@ -1495,14 +1513,33 @@ export class AiStreamManager extends BaseService {
         exec.buffer.push(segment)
       }
     }
-    // Keeps stripped outputs resolvable until the message lands in SQLite. Bounded; an evicted
-    // entry just falls through to the persisted copy.
-    if (chunk.type === 'tool-output-available' && shouldDeferToolOutput(chunk.output)) {
+    if (chunk.type === 'tool-output-available') {
+      const accepted = (exec.acceptedToolResults ??= new AcceptedToolResults(topicId))
+      const messageId = exec.anchorMessageId ?? exec.finalMessage?.id
+      if (messageId) {
+        accepted.accept(messageId, {
+          type: 'dynamic-tool',
+          toolName: '',
+          toolCallId: chunk.toolCallId,
+          state: 'output-available',
+          input: undefined,
+          output: chunk.output
+        })
+        this.projections.get(topicId)?.invalidateToolResults([{ topicId, messageId, toolCallId: chunk.toolCallId }])
+      }
       const deferredOutputs = (exec.deferredOutputs ??= new Map())
       deferredOutputs.set(chunk.toolCallId, chunk.output)
-      if (deferredOutputs.size > this.config.maxDeferredOutputs) {
-        const oldest = deferredOutputs.keys().next()
-        if (!oldest.done) deferredOutputs.delete(oldest.value)
+    }
+    if (
+      chunk.type === 'tool-output-error' ||
+      chunk.type === 'tool-input-error' ||
+      chunk.type === 'tool-output-denied'
+    ) {
+      const messageId = exec.anchorMessageId ?? exec.finalMessage?.id
+      exec.deferredOutputs?.delete(chunk.toolCallId)
+      if (messageId) {
+        exec.acceptedToolResults?.remove(messageId, chunk.toolCallId)
+        this.projections.get(topicId)?.invalidateToolResults([{ topicId, messageId, toolCallId: chunk.toolCallId }])
       }
     }
 
@@ -2065,17 +2102,26 @@ export class AiStreamManager extends BaseService {
   }
 
   /** Full output of a deferred tool call, while the stream that produced it is still active. */
-  getDeferredToolOutput(topicId: string, toolCallId: string): { found: true; output: unknown } | { found: false } {
+  getDeferredToolOutput(
+    topicId: string,
+    toolCallId: string,
+    messageId?: string
+  ): { found: true; output: unknown; serializedBytes?: Buffer } | { found: false } {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return { found: false }
 
     for (const exec of stream.executions.values()) {
       if (exec.persistence?.status === 'saved') continue
+      if (messageId && messageId !== exec.anchorMessageId && messageId !== exec.finalMessage?.id) continue
+      const acceptedId = messageId ?? exec.anchorMessageId ?? exec.finalMessage?.id
       if (exec.sourceKind === 'messages') {
         const part = exec.finalMessage?.parts.find((part) => isToolUIPart(part) && part.toolCallId === toolCallId)
-        if (part && isToolUIPart(part) && part.state === 'output-available') return { found: true, output: part.output }
-        continue
+        if (!part || !isToolUIPart(part) || part.state !== 'output-available') continue
+        const accepted = acceptedId && exec.acceptedToolResults?.get(acceptedId, toolCallId)
+        return accepted && accepted.found ? accepted : { found: true, output: part.output }
       }
+      const accepted = acceptedId && exec.acceptedToolResults?.get(acceptedId, toolCallId)
+      if (accepted && accepted.found) return accepted
       if (exec.deferredOutputs?.has(toolCallId)) {
         return { found: true, output: exec.deferredOutputs.get(toolCallId) }
       }
@@ -2463,6 +2509,10 @@ export class AiStreamManager extends BaseService {
           }
         }
       }
+    }
+    if (exec.persistence?.status === 'saved') {
+      exec.acceptedToolResults?.clear()
+      exec.deferredOutputs?.clear()
     }
     for (const id of dead) stream.listeners.delete(id)
   }

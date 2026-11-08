@@ -2355,12 +2355,15 @@ describe('AiStreamManager', () => {
       startSingle(mgr, { topicId, modelId: 'p::m', request: req(topicId), listeners: [persistence, listener] })
       controller.enqueue({ type: 'message', parts: [{ type: 'text', text: 'Before preparation' }] })
       controller.close()
-      await vi.waitFor(() => expect(mgr.inspect(topicId)?.executions[0].finalMessage).toEqual(prepared))
-      expect(mgr.getDeferredToolOutput(topicId, 'call')).toEqual({ found: true, output: 'Latest answer'.repeat(4096) })
+      await vi.waitFor(() => expect(mgr.inspect(topicId)?.executions[0].finalMessage).toMatchObject(prepared))
+      expect(mgr.getDeferredToolOutput(topicId, 'call')).toMatchObject({
+        found: true,
+        output: 'Latest answer'.repeat(4096)
+      })
       gate.resolve()
       await vi.waitFor(() => expect(fail ? listener.errorResults : listener.doneResults).toHaveLength(1))
-      expect(mgr.inspect(topicId)?.executions[0].finalMessage).toEqual(prepared)
-      expect(mgr.getDeferredToolOutput(topicId, 'call')).toEqual(
+      expect(mgr.inspect(topicId)?.executions[0].finalMessage).toMatchObject(prepared)
+      expect(mgr.getDeferredToolOutput(topicId, 'call')).toMatchObject(
         fail ? { found: true, output: 'Latest answer'.repeat(4096) } : { found: false }
       )
     })
@@ -2393,18 +2396,18 @@ describe('AiStreamManager', () => {
         output
       }
       controller.enqueue({ type: 'message', parts: [tool] })
-      await vi.waitFor(() => expect(mgr.getDeferredToolOutput(topicId, 'call')).toEqual({ found: true, output }))
+      await vi.waitFor(() => expect(mgr.getDeferredToolOutput(topicId, 'call')).toMatchObject({ found: true, output }))
       controller.enqueue({ type: 'message', parts: [{ ...tool, output: 'replacement' }] })
       await vi.waitFor(() =>
-        expect(mgr.getDeferredToolOutput(topicId, 'call')).toEqual({ found: true, output: 'replacement' })
+        expect(mgr.getDeferredToolOutput(topicId, 'call')).toMatchObject({ found: true, output: 'replacement' })
       )
       controller.enqueue({ type: 'message', parts: [] })
-      await vi.waitFor(() => expect(mgr.getDeferredToolOutput(topicId, 'call')).toEqual({ found: false }))
+      await vi.waitFor(() => expect(mgr.getDeferredToolOutput(topicId, 'call')).toMatchObject({ found: false }))
       controller.close()
       await vi.waitFor(() => expect(listener.doneResults).toHaveLength(1))
     })
 
-    it('retains only outputs large enough to have been stripped on the way out', () => {
+    it('retains the latest accepted value for both inline and deferred results', () => {
       const topicId = 'agent-session:session-1'
       startSingle(mgr, {
         topicId,
@@ -2424,15 +2427,27 @@ describe('AiStreamManager', () => {
         output: { content: 'tiny' }
       })
 
-      expect(mgr.getDeferredToolOutput(topicId, 'call-large')).toEqual({ found: true, output: large })
-      // A small output travelled inline, so nothing needs to be resolvable for it.
-      expect(mgr.getDeferredToolOutput(topicId, 'call-small')).toEqual({ found: false })
-      expect(mgr.getDeferredToolOutput(topicId, 'missing')).toEqual({ found: false })
+      expect(mgr.getDeferredToolOutput(topicId, 'call-large')).toMatchObject({ found: true, output: large })
+      expect(mgr.getDeferredToolOutput(topicId, 'call-small')).toMatchObject({
+        found: true,
+        output: { content: 'tiny' }
+      })
+      expect(mgr.getDeferredToolOutput(topicId, 'missing')).toMatchObject({ found: false })
+      mgr.onChunk(topicId, 'provider-a::model-a', {
+        type: 'tool-output-error',
+        toolCallId: 'call-large',
+        errorText: 'Latest result failed'
+      })
+      expect(mgr.getDeferredToolOutput(topicId, 'call-large')).toEqual({ found: false })
+      expect(mgr.getDeferredToolOutput(topicId, 'call-small')).toMatchObject({
+        found: true,
+        output: { content: 'tiny' }
+      })
     })
 
-    it('evicts the oldest retained output instead of growing without bound', () => {
+    it('retains every uncommitted output until durable handoff', () => {
       const topicId = 'agent-session:session-1'
-      const cappedMgr = createManager({ maxDeferredOutputs: 2 })
+      const cappedMgr = createManager()
       startSingle(cappedMgr, {
         topicId,
         modelId: 'provider-a::model-a',
@@ -2448,10 +2463,9 @@ describe('AiStreamManager', () => {
         })
       }
 
-      // The evicted one is not lost — it resolves from SQLite once the message is persisted.
-      expect(cappedMgr.getDeferredToolOutput(topicId, 'call-a')).toEqual({ found: false })
-      expect(cappedMgr.getDeferredToolOutput(topicId, 'call-b')).toEqual({ found: true, output: large('b') })
-      expect(cappedMgr.getDeferredToolOutput(topicId, 'call-c')).toEqual({ found: true, output: large('c') })
+      expect(cappedMgr.getDeferredToolOutput(topicId, 'call-a')).toMatchObject({ found: true, output: large('a') })
+      expect(cappedMgr.getDeferredToolOutput(topicId, 'call-b')).toMatchObject({ found: true, output: large('b') })
+      expect(cappedMgr.getDeferredToolOutput(topicId, 'call-c')).toMatchObject({ found: true, output: large('c') })
     })
   })
 

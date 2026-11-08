@@ -33,7 +33,13 @@ import { getEffectiveStatus, type ToolStatus } from '../tools/shared/GenericTool
 import ToolHeader, { getReadableToolActivity } from '../tools/ToolHeader'
 import { isToolPartAwaitingApproval, type ToolRenderItem, type ToolResponseLike } from '../tools/toolResponse'
 import BlockErrorFallback from './BlockErrorFallback'
-import { PartsContext, PartsProvider, usePartsMap } from './MessagePartsContext'
+import {
+  PartsContext,
+  PartsProvider,
+  ToolPartScopeProvider,
+  useMessagePartsScopeId,
+  usePartsMap
+} from './MessagePartsContext'
 import { PlaceholderShimmerText } from './PlaceholderShimmerText'
 import { useMinimumDisplayDuration } from './useMinimumDisplayDuration'
 import { useScrollAnchor } from './useScrollAnchor'
@@ -555,7 +561,7 @@ export const ToolBlockGroupContent = React.memo(({ items, scrollRef }: ToolBlock
       return (
         <div key={item.id} data-block-id={item.id} className="w-full">
           <ErrorBoundary fallbackComponent={BlockErrorFallback}>
-            <MessageTools toolResponse={item.toolResponse} />
+            <ScopedToolItem item={item} />
           </ErrorBoundary>
         </div>
       )
@@ -563,6 +569,15 @@ export const ToolBlockGroupContent = React.memo(({ items, scrollRef }: ToolBlock
   </div>
 ))
 ToolBlockGroupContent.displayName = 'ToolBlockGroupContent'
+
+const ScopedToolItem = React.memo(function ScopedToolItem({ item }: { item: ToolRenderItem }) {
+  const messageId = useMessagePartsScopeId()
+  return (
+    <ToolPartScopeProvider messageId={messageId} part={item.part}>
+      <MessageTools toolResponse={item.toolResponse} />
+    </ToolPartScopeProvider>
+  )
+})
 
 interface ToolBlockGroupProps {
   children?: React.ReactNode

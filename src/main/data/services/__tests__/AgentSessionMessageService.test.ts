@@ -2935,7 +2935,8 @@ describe('AgentSessionMessageService', () => {
         output: oversizedOutputA
       })
       expect(agentSessionMessageService.getSessionToolOutput(SESSION_ID, ASSISTANT_MESSAGE_ID, 'call-small')).toEqual({
-        found: false
+        found: true,
+        output: smallOutput
       })
 
       const metadata = agentSessionMessageService.listLiveCreatedInRangeMetadataPage({
@@ -2944,6 +2945,59 @@ describe('AgentSessionMessageService', () => {
         limit: 10
       }).items[0]
       expect(metadata.entityJsonBytes).toBe(Buffer.byteLength(JSON.stringify(single), 'utf8'))
+    })
+
+    it('reads bounded serialized ranges without hydrating the complete stored result', () => {
+      const output = { content: '汉😀'.repeat(100_000) }
+      const serialized = JSON.stringify(output)
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: ASSISTANT_MESSAGE_ID,
+          role: 'assistant',
+          data: {
+            parts: [
+              {
+                type: 'dynamic-tool',
+                toolName: 'Read',
+                toolCallId: 'call-range',
+                state: 'output-available',
+                input: {},
+                output
+              }
+            ]
+          }
+        }
+      })
+      const parse = JSON.parse
+      vi.spyOn(JSON, 'parse').mockImplementation((text, reviver) => {
+        if (text === serialized) throw Error('Range read hydrated the complete output')
+        return parse(text, reviver)
+      })
+      const first = agentSessionMessageService.getSessionToolOutputRange(
+        SESSION_ID,
+        ASSISTANT_MESSAGE_ID,
+        'call-range',
+        0
+      )
+      expect(first?.bytes.byteLength).toBeLessThanOrEqual(256 * 1024 + 4)
+      expect(first?.bytes.toString()).toBe(
+        Buffer.from(serialized)
+          .subarray(0, 256 * 1024 + 4)
+          .toString()
+      )
+      expect(first?.hasMore).toBe(true)
+      expect(
+        agentSessionMessageService.getSessionToolOutputRange(
+          SESSION_ID,
+          ASSISTANT_MESSAGE_ID,
+          'call-range',
+          Buffer.byteLength(serialized) + 1
+        )
+      ).toBeNull()
+      expect(
+        agentSessionMessageService.getSessionToolOutputRange(SESSION_ID, ASSISTANT_MESSAGE_ID, 'missing', 0)
+      ).toBeUndefined()
     })
 
     it('keeps only the latest tool output, skips unchanged writes and cleans up removed or cascade-deleted outputs', () => {

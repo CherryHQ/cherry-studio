@@ -4,6 +4,7 @@ import { protocol, session } from 'electron'
 import parseRange from 'range-parser'
 
 import { loggerService } from '@logger'
+import { parseToolResultImageUrl, readToolResultImage } from '@main/ai/messages/toolResultImageResources'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
 
@@ -40,10 +41,12 @@ export class MediaProtocolService extends BaseService {
         const url = new URL(details.url)
         const entry = this.stores.get(url.hostname as MediaKind)?.get(url.pathname.slice(1))
         const access = entry?.access
+        const isToolResult = url.hostname === 'tool-result'
         callback({
           cancel: Boolean(
-            access &&
-            (details.webContentsId !== access.webContentsId ||
+            (access || isToolResult) &&
+            ((access && details.webContentsId !== access.webContentsId) ||
+              (isToolResult && details.webContentsId === undefined) ||
               !details.frame ||
               details.frame !== details.frame.top ||
               !isAppRendererUrl(details.frame.url))
@@ -82,12 +85,25 @@ export class MediaProtocolService extends BaseService {
     return `${CHERRY_MEDIA_SCHEME}://${kind}/${id}`
   }
 
-  private handleRequest(request: Request): Response {
+  private async handleRequest(request: Request): Promise<Response> {
     if (request.method !== 'GET' && request.method !== 'HEAD') {
       return new Response(null, { status: 405, headers: { Allow: 'GET, HEAD' } })
     }
     const url = new URL(request.url)
     const kind = url.hostname
+    if (kind === 'tool-result') {
+      const identity = parseToolResultImageUrl(url)
+      if (!identity) return new Response('Invalid tool result image', { status: 400 })
+      const image = await readToolResultImage(identity, identity.imageIndex)
+      if (!image) return new Response('Not found', { status: 404 })
+      return new Response(request.method === 'HEAD' ? null : new Uint8Array(image.data), {
+        headers: {
+          'Content-Type': image.mimeType,
+          'Content-Length': String(image.data.length),
+          'Cache-Control': 'no-store'
+        }
+      })
+    }
 
     if (!MEDIA_KINDS.has(kind)) {
       return new Response('Unknown media kind', { status: 400 })

@@ -3,6 +3,7 @@ description: Shared root and child message projections, bounded attachment recov
 sources:
   - src/shared/ai/messageProjection.ts
   - src/main/ai/messages/MessageProjection.ts
+  - src/main/ai/messages/AcceptedToolResults.ts
   - src/main/ai/messages/ProjectionSubscriptions.ts
   - src/main/ai/streamManager/TopicMessageProjection.ts
   - src/main/ai/agentSession/ChildThreadProjection.ts
@@ -47,7 +48,11 @@ absence from a compacted native view alone does not remove saved product history
 
 ## Publication
 
-`MessageProjection` shares diffing, immutable baselines and subscriber delivery. A changed message is upserted; text/reasoning growth with otherwise unchanged structure uses an append patch. Every update carries the complete message order, which also expresses removal. Unchanged messages and parts keep stable references in the renderer.
+`MessageProjection` shares diffing, immutable baselines and subscriber delivery. A changed message is upserted; text/reasoning growth with otherwise unchanged structure uses an append patch. `order` is included only when message membership or order changes, including removal. Otherwise the existing order is retained. Unchanged messages and parts keep stable references in the renderer.
+
+Owners capture mutable native parts at acceptance and retain untouched accepted parts. A tool update captures its latest output and compact renderer part once; subsequent text batches reuse that accepted part instead of cloning, serializing or hashing the result again. A replacement supersedes the previous accepted result rather than retaining a value history.
+
+Tool replacements add a `tool-result` patch containing the stable result reference to the same ordered publication batch. The renderer validates the complete update before invalidating affected detail reads and notifying message consumers. Covered revisions do not repeat invalidation; a gap requires reattachment and topic-detail invalidation. The publication `revision` orders delivery, not result content. See [IPC Transport](./ipc-transport.md#tool-result-reads) for detail-read purposes and cache limits.
 
 Root updates coalesce into one pending view over 80 ms; renderer output projection runs once per flushed batch, not per accepted chunk. Without subscribers, the pending view waits for the next baseline capture instead of a timer. Child reconciliation already batches native updates and writes its archive before publication, so it publishes immediately after that work. Revisions count published batches, not model chunks. Capturing a baseline flushes pending accepted content first.
 

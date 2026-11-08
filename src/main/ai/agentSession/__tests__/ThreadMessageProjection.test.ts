@@ -38,6 +38,31 @@ const text = (value: ThreadMessageProjection) =>
   value.snapshot().messages.flatMap((entry) => entry.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])))
 
 describe('ThreadMessageProjection', () => {
+  it('snapshots native mutations at acceptance and retains settled results until their explicit part changes', async () => {
+    const value = projection()
+    const output = { body: 'accepted A' }
+    const source: RuntimeMessage = {
+      id: 'native',
+      role: 'assistant',
+      metadata: { completeness: 'partial' },
+      parts: [
+        { type: 'dynamic-tool', toolName: 'Read', toolCallId: 'call', state: 'output-available', input: {}, output },
+        { type: 'text', text: 'prefix', state: 'streaming' }
+      ]
+    }
+    const accepting = value.accept({ type: 'message.upsert', message: source })
+    output.body = 'accepted B'
+    await accepting
+    const before = value.snapshot()
+    expect(before.messages[0].parts[0]).toMatchObject({ output: { body: 'accepted A' } })
+    source.parts[1] = { type: 'text', text: 'prefix suffix', state: 'streaming' }
+    await value.accept({ type: 'message.upsert', message: source, changedParts: [1] })
+    expect(value.snapshot().messages[0].parts[0]).toBe(before.messages[0].parts[0])
+    expect(value.snapshot().messages[0].parts[1]).toMatchObject({ text: 'prefix suffix' })
+    await value.accept({ type: 'message.upsert', message: source, changedParts: [0] })
+    expect(value.snapshot().messages[0].parts[0]).toMatchObject({ output: { body: 'accepted B' } })
+    expect(before.messages[0].parts[0]).toMatchObject({ output: { body: 'accepted A' } })
+  })
   it('returns only changed messages without redecorating history or mutating an earlier view', async () => {
     let budget = Infinity
     const value = new ThreadMessageProjection(root, (message) => {

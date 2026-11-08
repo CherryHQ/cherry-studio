@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { readToolResultImage } from '@main/ai/messages/toolResultImageResources'
+import type * as ToolResultImageResources from '@main/ai/messages/toolResultImageResources'
 import { BaseService } from '@main/core/lifecycle'
 
 import { MediaKind } from '../types'
@@ -18,6 +20,11 @@ vi.mock('electron', () => ({
   protocol: { handle: handleMock, unhandle: unhandleMock },
   session: { defaultSession: { webRequest: { onBeforeRequest: beforeRequestMock } } },
   ipcMain: ipcMainMock
+}))
+
+vi.mock('@main/ai/messages/toolResultImageResources', async (importOriginal) => ({
+  ...(await importOriginal<typeof ToolResultImageResources>()),
+  readToolResultImage: vi.fn()
 }))
 
 import { MediaProtocolService } from '../MediaProtocolService'
@@ -56,6 +63,50 @@ describe('MediaProtocolService', () => {
 
     expect(service.remove(MediaKind.Image, id)).toBe(true)
     expect((await handler(new Request(url))).status).toBe(404)
+  })
+
+  it('serves a latest tool image without registering or retaining another media entry', async () => {
+    const uri = 'cherry-media://tool-result/topic%3A1/message%2F1/call/0'
+    vi.mocked(readToolResultImage).mockResolvedValue({ data: Buffer.from([1, 2, 3]), mimeType: 'image/png' })
+    const response = await handler(new Request(uri))
+    expect(response.headers.get('Content-Type')).toBe('image/png')
+    expect(response.headers.get('Cache-Control')).toBe('no-store')
+    expect([...new Uint8Array(await response.arrayBuffer())]).toEqual([1, 2, 3])
+    expect(readToolResultImage).toHaveBeenCalledWith(
+      { topicId: 'topic:1', messageId: 'message/1', toolCallId: 'call', imageIndex: 0 },
+      0
+    )
+    vi.mocked(readToolResultImage).mockResolvedValue({ data: Buffer.from([9]), mimeType: 'image/png' })
+    expect([...new Uint8Array(await (await handler(new Request(uri))).arrayBuffer())]).toEqual([9])
+    const head = await handler(new Request(uri, { method: 'HEAD' }))
+    expect(await head.text()).toBe('')
+    expect(head.headers.get('Content-Length')).toBe('1')
+    vi.mocked(readToolResultImage).mockResolvedValue(undefined)
+    expect((await handler(new Request(uri))).status).toBe(404)
+    expect((await handler(new Request('cherry-media://tool-result/topic/message/call/-1'))).status).toBe(400)
+  })
+
+  it('denies tool image reads from untrusted or missing renderer provenance', () => {
+    vi.mocked(application.getPath).mockReturnValue('/app')
+    const check = beforeRequestMock.mock.calls[0][1]
+    const main = { url: 'file:///app/renderer/index.html', top: undefined as unknown }
+    main.top = main
+    const allowed = (webContentsId: number | undefined, frame: unknown) => {
+      let cancelled: boolean | undefined
+      check(
+        { url: 'cherry-media://tool-result/topic/message/call/0', webContentsId, frame },
+        (response: { cancel: boolean }) => {
+          cancelled = response.cancel
+        }
+      )
+      return cancelled === false
+    }
+    expect(allowed(7, main)).toBe(true)
+    expect(allowed(undefined, main)).toBe(false)
+    expect(allowed(7, undefined)).toBe(false)
+    expect(allowed(7, { url: main.url, top: main })).toBe(false)
+    main.url = 'https://untrusted.example'
+    expect(allowed(7, main)).toBe(false)
   })
 
   it('rejects an unknown kind instead of falling through to another kind store', async () => {

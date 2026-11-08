@@ -26,6 +26,7 @@ export type {
   AiStreamOpenResponse,
   AiToolApprovalRespondRequest,
   AiToolApprovalRespondResponse,
+  AiToolResultReadOptions,
   AiToolResultRequest,
   AiToolResultResponse,
   ApprovalDecision,

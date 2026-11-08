@@ -1340,7 +1340,7 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
     () => findDeferredToolResult(runtime.partsByMessageId, tab?.toolCallId),
     [runtime.partsByMessageId, tab?.toolCallId]
   )
-  const { output: selectedToolOutput } = useToolResult(active ? deferredToolResult : undefined)
+  const { output: selectedToolOutput } = useToolResult(active ? deferredToolResult : undefined, 'preview')
   const retainedFlowRef = useRef<ReturnType<typeof buildAgentToolFlowProjection> | null>(null)
   const flow = useMemo<ReturnType<typeof buildAgentToolFlowProjection>>(
     () =>

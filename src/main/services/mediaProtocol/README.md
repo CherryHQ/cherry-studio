@@ -1,6 +1,6 @@
 # mediaProtocol
 
-Serves in-memory binary media to renderer processes over the custom `cherry-media://` scheme, so a renderer can read large bytes the main process already holds without an IPC copy or a temp file on disk.
+Serves owned binary media to renderer processes over the custom `cherry-media://` scheme, so a renderer can read large bytes the main process already holds without an IPC copy or a temp file on disk.
 
 The first consumer is the screenshot overlay: each display's full-screen capture is tens of MB, and the overlay both paints it and re-reads regions of it. Structured-cloning that through IPC, or round-tripping it via disk, costs more than the whole capture.
 
@@ -14,6 +14,9 @@ cherry-media://<kind>/<id>
 One scheme carries every kind, with the kind as the host segment. `protocol.registerSchemesAsPrivileged` may only be called once per process and only before the app is ready, so a per-kind scheme would make every new media type a preboot change; a new kind is instead one entry in `MediaKind`.
 
 An unknown kind is a 400, not a fallthrough to another kind's store — ids are per-kind, so serving `cherry-media://video/<image-id>` would hand out the wrong bytes.
+
+Tool-result image previews use `cherry-media://tool-result/<topic>/<message>/<call>/<image-index>`.
+Each identity segment is percent-encoded. The responder reads the current result from its existing runtime or persisted owner and decodes only the requested image; it adds no store entry or temporary file. Replacing or deleting that result changes subsequent reads. Responses use `no-store`, and the renderer remounts image previews when its local detail request generation changes. Full copy and export still read the original result.
 
 ## Module map
 
@@ -51,7 +54,7 @@ Per `core/preboot/README.md` membership criterion 2, this module is *not* in `co
 
 Voice playback registers `MediaKind.Audio` with `{ webContentsId }` and returns a URL over IPC. Audio loads directly from that URL; recordings still use FileManager. Audio responses support GET, HEAD and a single byte range (206 / 416). Multiple disjoint or malformed ranges are ignored and return the full resource. Responses use `Cache-Control: no-store`.
 
-For entries with an access constraint, the default session's `onBeforeRequest` checks the issuing window and a trusted main frame. Missing provenance, other windows, and untrusted/subframes are denied. This service owns that listener slot on the default session; restricted browser and mini-app sessions own their separate policies. Do not register another default-session listener over it. Protocol handlers are registered only in the default session.
+For tool-result images and entries with an access constraint, the default session's `onBeforeRequest` checks a known issuing window and a trusted main frame; access-constrained entries additionally require their owning window. Missing provenance, other windows, and untrusted/subframes are denied. This service owns that listener slot on the default session; restricted browser and mini-app sessions own their separate policies. Do not register another default-session listener over it. Protocol handlers are registered only in the default session.
 
 The owning voice session removes its output on release, cancellation or teardown; pause retains it. Removal prevents new reads, but cannot retract bytes already buffered by Chromium. The player also pauses, detaches listeners, removes `src`, and calls `load()` before releasing an output. Main guards registration against cancelled operations, including synthesis that returns late.
 

@@ -339,12 +339,14 @@ export const aiRequestSchemas = {
   // (AiStreamManager holds the live output, AiService applies the decision) —
   // the subtree groups by domain, not by service.
   'ai.tool.get_result': defineRoute({
-    // Mirrors AiToolResultRequest (z.ZodType pins exact-shape drift here, not in a test).
-    input: z.strictObject({
-      topicId: z.string().min(1),
-      messageId: z.string().min(1),
-      toolCallId: z.string().min(1)
-    }) satisfies z.ZodType<AiToolResultRequest>,
+    input: z.intersection(
+      z.object({ topicId: z.string().min(1), messageId: z.string().min(1), toolCallId: z.string().min(1) }),
+      z.discriminatedUnion('purpose', [
+        z.object({ purpose: z.literal('preview') }),
+        z.object({ purpose: z.literal('text-range'), cursor: z.number().int().nonnegative().optional() }),
+        z.object({ purpose: z.literal('full') })
+      ])
+    ) satisfies z.ZodType<AiToolResultRequest>,
     output: z.custom<AiToolResultResponse>()
   }),
   'ai.tool.respond_approval': defineRoute({

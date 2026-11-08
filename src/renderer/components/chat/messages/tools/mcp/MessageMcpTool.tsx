@@ -9,7 +9,9 @@ import { CircularProgress, Flex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { ipcApi } from '@renderer/ipc'
 import type { McpToolResponse } from '@renderer/types/mcpTool'
+import type { DeferredToolOutput } from '@shared/ai/transport'
 
 import {
   useMessageRenderConfig,
@@ -18,12 +20,14 @@ import {
 } from '../../MessageListProvider'
 import { useToolApproval } from '../hooks/useToolApproval'
 import { ArgKey, ArgsSection, ArgsSectionTitle, ArgsTable, ArgValue, ResponseSection } from '../shared/ArgsTable'
+import { DeferredToolDetails } from '../shared/DeferredToolDetails'
 import { getEffectiveStatus, SkeletonSpan, ToolStatusIndicator, TruncatedIndicator } from '../shared/GenericTools'
 import { ToolApprovalOutcome } from '../shared/ToolApprovalOutcome'
 import { ToolDisclosure, type ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { ToolResultLinkList } from '../shared/ToolResultLinkList'
 import { getToolResultLinks, type ToolResultLinkData } from '../shared/toolResultLinks'
 import { truncateOutput } from '../shared/truncateOutput'
+import { useToolOutputReference } from '../useToolResponsePreview'
 
 interface Props {
   toolResponse: McpToolResponse
@@ -39,6 +43,7 @@ const MAX_ARG_ARRAY_ITEMS = 24
 const logger = loggerService.withContext('MessageTools')
 
 const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
+  const deferredOutput = useToolOutputReference(toolResponse.response, toolResponse.toolCallId)
   const [activeKeys, setActiveKeys] = useState<string[]>([])
   const [copiedMap, setCopiedMap] = useState<Record<string, boolean>>({})
   const { t } = useTranslation()
@@ -87,27 +92,33 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
     setActiveKeys(Array.isArray(keys) ? keys : [keys])
   }
 
-  const copyContent = (content: string, toolId: string) => {
+  const copyContent = async (toolId: string) => {
     if (!copyText) return
-    Promise.resolve(copyText(content, { successMessage: t('message.copied') }))
-      .then(() => {
-        setCopiedMap((prev) => ({ ...prev, [toolId]: true }))
-        setTimeoutTimer('copyContent', () => setCopiedMap((prev) => ({ ...prev, [toolId]: false })), 2000)
+    try {
+      let response = toolResponse.response
+      if (deferredOutput) {
+        const result = await ipcApi.request('ai.tool.get_result', {
+          ...deferredOutput.$deferredToolResult,
+          purpose: 'full'
+        })
+        if (result.status !== 'ready' || result.purpose !== 'full') throw new Error(result.status)
+        response = result.output
+      }
+      await copyText(JSON.stringify({ params: toolResponse.arguments, response }, null, 2), {
+        successMessage: t('message.copied')
       })
-      .catch((error) => {
-        logger.error('Failed to copy tool response:', error as Error)
-        notifyError?.(t('message.copy.failed'))
-      })
+      setCopiedMap((prev) => ({ ...prev, [toolId]: true }))
+      setTimeoutTimer('copyContent', () => setCopiedMap((prev) => ({ ...prev, [toolId]: false })), 2000)
+    } catch (error) {
+      logger.error('Failed to copy tool response:', error as Error)
+      notifyError?.(t('message.copy.failed'))
+    }
   }
 
   // Format tool responses for collapse items
   const getDisclosureItems = (): ToolDisclosureItem[] => {
     const items: ToolDisclosureItem[] = []
     const hasError = response?.isError === true
-    const result = {
-      params: toolResponse.arguments,
-      response: toolResponse.response
-    }
     items.push({
       key: id,
       label: (
@@ -141,7 +152,7 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
         <Tooltip content={t('common.copy')} delay={500}>
           <ActionButton
             className="message-action-button invisible opacity-0 transition-opacity duration-150 group-hover/tool:visible group-hover/tool:opacity-100 focus-visible:visible focus-visible:opacity-100"
-            onClick={() => copyContent(JSON.stringify(result, null, 2), id)}
+            onClick={() => void copyContent(id)}
             aria-label={t('common.copy')}>
             {copiedMap[id] ? t('common.copied') : t('common.copy')}
           </ActionButton>
@@ -155,6 +166,7 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
           }}>
           <ToolResponseContent
             isExpanded={activeKeys.includes(id)}
+            deferredOutput={deferredOutput}
             args={isStreaming ? partialArguments : toolResponse.arguments}
             isStreaming={!!isStreaming}
             response={isDone || isError ? toolResponse.response : undefined}
@@ -281,10 +293,11 @@ const formatArgPreviewValue = (value: unknown, depth = 0): string => {
 
 const ToolResponseContent: FC<{
   isExpanded: boolean
+  deferredOutput?: DeferredToolOutput
   args: string | Record<string, unknown> | Record<string, unknown>[] | undefined
   isStreaming: boolean
   response?: unknown
-}> = ({ isExpanded, args, isStreaming, response }) => {
+}> = ({ isExpanded, args, isStreaming, response, deferredOutput }) => {
   const [shouldRender, setShouldRender] = useState(false)
 
   useEffect(() => {
@@ -299,7 +312,16 @@ const ToolResponseContent: FC<{
 
   if (!isExpanded || !shouldRender) return null
 
-  return <ExpandedToolResponseContent args={args} isStreaming={isStreaming} response={response} />
+  return (
+    <>
+      <ExpandedToolResponseContent
+        args={args}
+        isStreaming={isStreaming}
+        response={deferredOutput ? undefined : response}
+      />
+      {deferredOutput && <DeferredToolDetails resultRef={deferredOutput.$deferredToolResult} />}
+    </>
+  )
 }
 
 // Unified tool response content component

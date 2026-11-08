@@ -1,9 +1,11 @@
+import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { projectionIpc } from '@test-mocks/renderer/ProjectionIpc'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { MessageProjectionUpdate, MessageProjectionView, ProjectionTarget } from '@shared/ai/messageProjection'
 
 import { MessageProjectionService } from '../MessageProjectionService'
+import { toolResultService } from '../ToolResultService'
 
 const flush = async () => {
   await new Promise((resolve) => setTimeout(resolve, 0))
@@ -97,4 +99,65 @@ describe('shared projection delivery', () => {
     off3()
     expect(ipc.request.mock.calls.map(([route]) => route)).not.toContain('ai.stream.abort')
   })
+})
+
+// A child lookup belongs to its parent, but detail storage belongs to the child's separate archive.
+it('invalidates and releases the installed child archive without clearing its parent or another child observer', async () => {
+  const ipc = projectionIpc()
+  const projectionRequest = ipc.request.getMockImplementation()
+  if (!projectionRequest) throw new Error('Projection bridge is unavailable')
+  let output = 'A'
+  ipc.request.mockImplementation(async (route, input) =>
+    route === 'ai.tool.get_result'
+      ? { ok: true, data: { status: 'ready', purpose: 'preview', output, truncated: false } }
+      : projectionRequest(route, input)
+  )
+  const childTarget: ProjectionTarget = { kind: 'child', sessionId: 'parent', toolCallId: 'spawn' }
+  const childBase: MessageProjectionView = {
+    kind: 'child',
+    sessionId: 'child-archive',
+    contextId: 'child-context',
+    active: false,
+    available: true,
+    canSubmit: false,
+    revision: 0,
+    messages: []
+  }
+  const childRef = { topicId: 'agent-session:child-archive', messageId: 'message', toolCallId: 'tool' }
+  const parentRef = { ...childRef, topicId: 'agent-session:parent' }
+  const parentRelease = toolResultService.retainTopic(parentRef.topicId)
+  const store = new MessageProjectionService()
+  const first = store.subscribe(childTarget, () => {})
+  const second = store.subscribe(childTarget, () => {})
+  ipc.attachments[0].resolve(childBase)
+  await flush()
+  await toolResultService.read(childRef)
+  await toolResultService.read(parentRef)
+  first()
+  expect(toolResultService.getSnapshot(childRef)).toMatchObject({ status: 'ready', output: 'A' })
+  ipc.emit(ipc.attachments[0].subscriptionId, { ...childBase, revision: 3, patches: [] })
+  expect(toolResultService.getSnapshot(childRef)).toEqual({ status: 'idle' })
+  expect(toolResultService.getSnapshot(parentRef)).toMatchObject({ status: 'ready', output: 'A' })
+  output = 'B'
+  ipc.attachments[1].resolve({ ...childBase, revision: 3 })
+  await flush()
+  await toolResultService.read(childRef)
+  MockDataApiUtils.emitDataChange([
+    { endpoint: '/agent-sessions/:sessionId/messages', kind: 'membership', routeParams: { sessionId: 'child-archive' } }
+  ])
+  expect(toolResultService.getSnapshot(childRef)).toEqual({ status: 'idle' })
+  await toolResultService.read(childRef)
+  expect(toolResultService.getSnapshot(childRef)).toMatchObject({ status: 'ready', output: 'B' })
+  ipc.emit(ipc.attachments[1].subscriptionId, { ...childBase, revision: 6, patches: [] })
+  ipc.attachments[2].resolve({ ...childBase, sessionId: 'replacement-child', revision: 6 })
+  await flush()
+  const replacementRef = { ...childRef, topicId: 'agent-session:replacement-child' }
+  await toolResultService.read(replacementRef)
+  expect(toolResultService.getSnapshot(childRef)).toEqual({ status: 'idle' })
+  expect(toolResultService.getSnapshot(replacementRef)).toMatchObject({ status: 'ready', output: 'B' })
+  second()
+  expect(toolResultService.getSnapshot(replacementRef)).toEqual({ status: 'idle' })
+  expect(toolResultService.getSnapshot(childRef)).toEqual({ status: 'idle' })
+  expect(toolResultService.getSnapshot(parentRef)).toMatchObject({ status: 'ready', output: 'A' })
+  parentRelease()
 })

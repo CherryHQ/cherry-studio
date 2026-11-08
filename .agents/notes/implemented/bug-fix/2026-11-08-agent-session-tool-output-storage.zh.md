@@ -16,7 +16,7 @@ Status: implemented
 
 ## 决策
 
-本存储层位于[工具结果 Spec](../../proposed/architecture/2026-11-09-tool-result-projection-boundaries.md) 之上。它删除旁路结果表的 revision 列，每个调用只保留最新输出。现有 renderer 标记仍携带传输 revision，待下一层以定向失效替代不可变结果缓存时一并迁移；本层不声称已完成该更广的验收条件。
+本存储层位于[工具结果 Spec](../architecture/2026-11-09-tool-result-projection-boundaries.md) 之上。它删除旁路结果表的 revision 列，每个调用只保留最新输出。最终实现以定向失效替代结果 revision；其架构说明记录存储、投影与详情的累计验证。
 
 1. **独立工具输出旁路表（`agent_session_tool_output`）**：
    - 新增 `agent_session_tool_output` 表（`message_id`、`tool_call_id`、`session_id`、`output`、`revision`、`created_at`、`updated_at`），采用复合主键 `(message_id, tool_call_id)`，并对 `agent_session_message(id)` 与 `agent_session(id)` 配置 `ON DELETE CASCADE` 外键。

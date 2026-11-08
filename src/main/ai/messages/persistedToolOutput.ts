@@ -7,31 +7,36 @@ import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
 import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { inflateEntities, isToolOutputBlobEntry, reconstructOutput } from '@main/ai/contextBuild/toolOutputStore'
-import type { AiToolResultResponse, PersistedToolOutput, PersistedToolOutputBlobRef } from '@shared/ai/transport'
-import { blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
+import type { PersistedToolOutput, PersistedToolOutputBlobRef } from '@shared/ai/transport'
+import { blobRefsOf, isDeferredToolOutput, isPersistedToolOutput } from '@shared/ai/transport'
 
 const logger = loggerService.withContext('ai:persistedToolOutput')
 
 export async function findPersistedToolOutput(
   topicId: string,
   messageId: string,
-  toolCallId: string
-): Promise<AiToolResultResponse> {
+  toolCallId: string,
+  hydrate = true
+): Promise<{ found: true; output: unknown } | { found: false }> {
   try {
     if (isAgentSessionTopic(topicId)) {
       const sessionId = extractAgentSessionId(topicId)
-      const direct = agentSessionMessageService.getSessionToolOutput?.(sessionId, messageId, toolCallId)
-      if (direct?.found) return direct
+      const direct = agentSessionMessageService.getSessionToolOutput(sessionId, messageId, toolCallId)
+      if (direct.found && hydrate && isPersistedToolOutput(direct.output)) {
+        return { found: true, output: await resolvePersistedToolOutput(direct.output) }
+      }
+      return direct
     }
-    const parts = isAgentSessionTopic(topicId)
-      ? agentSessionMessageService.getSessionMessage(extractAgentSessionId(topicId), messageId).data.parts
-      : messageService.getById(messageId).data.parts
+    const message = messageService.getById(messageId)
+    if ('topicId' in message && message.topicId !== topicId) return { found: false }
+    const parts = message.data.parts
     for (const part of parts ?? []) {
       if (!isToolUIPart(part) || part.state !== 'output-available') continue
       if (part.toolCallId !== toolCallId) continue
       if (isPersistedToolOutput(part.output)) {
-        return { found: true, output: await resolvePersistedToolOutput(part.output) }
+        return { found: true, output: hydrate ? await resolvePersistedToolOutput(part.output) : part.output }
       }
+      if (isDeferredToolOutput(part.output)) return { found: false }
       return { found: true, output: part.output }
     }
   } catch (error) {
@@ -42,7 +47,7 @@ export async function findPersistedToolOutput(
   return { found: false }
 }
 
-async function resolvePersistedToolOutput(output: PersistedToolOutput): Promise<unknown> {
+export async function resolvePersistedToolOutput(output: PersistedToolOutput): Promise<unknown> {
   const ref = output.$persistedToolOutput
   const readBlob = async (blob: PersistedToolOutputBlobRef): Promise<string> => {
     try {

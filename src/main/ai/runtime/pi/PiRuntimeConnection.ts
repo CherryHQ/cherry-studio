@@ -442,7 +442,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         this.handle!.thread,
         this.context!.id,
         (projection) => this.eventQueue.push({ type: 'message-projection', projection }),
-        (message) => this.adapter.decorate(message)
+        (message, _source, unchangedParts) => this.adapter.decorate(message, unchangedParts)
       )
       for (const event of batch.events) {
         if (event.type === 'context.changed') this.eventQueue.push({ type: 'context-usage', result: event.result })
@@ -655,7 +655,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
               })
           },
           () => access.pi.archive(),
-          (message) => this.adapter.decorate(message),
+          (message, _source, unchangedParts) => this.adapter.decorate(message, unchangedParts),
           (responseId, messageId) => this.eventQueue.push({ type: 'response-start', responseId, messageId })
         )
         resource = { relation, handle: access, projection }

@@ -46,6 +46,42 @@ const live = (attempt = 1): LiveState => ({
 })
 
 describe('Durable preview identity', () => {
+  it('reuses immutable committed results while publishing only the growing live message', async () => {
+    const assistant = {
+      ...entry(10, ''),
+      model: [fauxAssistantMessage(fauxToolCall('echo', {}, { id: 'call' }), { stopReason: 'toolUse' })]
+    }
+    const block = { type: 'text' as const, text: 'accepted result' }
+    const result: EntryRecord = {
+      ...entry(11, ''),
+      model: [
+        { role: 'toolResult', toolCallId: 'call', toolName: 'echo', content: [block], isError: false, timestamp: 0 }
+      ]
+    }
+    const entries = [assistant, result]
+    const { projection, update, events } = setup(view(entries, live()))
+    const before = projection.feed.current.messages[0].parts[0]
+    Object.defineProperty(block, 'text', {
+      get: () => {
+        throw new Error('Text publication revisited a committed result')
+      }
+    })
+    const active = live()
+    if (!active.generation?.message) throw new Error('Missing live generation')
+    update(
+      view(entries, {
+        ...active,
+        generation: {
+          ...active.generation,
+          message: { ...active.generation.message, content: [{ type: 'text', text: 'new streamed text' }] }
+        }
+      })
+    )
+    await expect.poll(() => events.some((event) => event.type === 'message.upsert')).toBe(true)
+    expect(events.filter((event) => event.type === 'snapshot')).toHaveLength(1)
+    expect(projection.feed.current.messages[0].parts[0]).toBe(before)
+    expect(projection.feed.current.messages.at(-1)?.parts).toMatchObject([{ text: 'new streamed text' }])
+  })
   it('keeps a preview stable when unrelated entries arrive and associates only its producing task', () => {
     const { projection, update } = setup(view([], live()))
     const preview = projection.feed.snapshot.messages[0].id

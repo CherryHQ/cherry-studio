@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
+import { isDeferredToolOutput, isPersistedToolOutput } from '@shared/ai/transport'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 import {
@@ -12,9 +13,11 @@ import {
   type ToolInput,
   type ToolOutput
 } from '../shared/agentToolTypes'
+import { DeferredToolDetails } from '../shared/DeferredToolDetails'
 import { type ToolStatus, ToolStatusIndicator } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { extractToolErrorText } from '../toolError'
+import { useToolOutputReference } from '../useToolResponsePreview'
 import { AgentToolDisclosure, AgentToolDisclosureLabel } from './AgentToolDisclosure'
 import { SessionCreateTool } from './SessionCreateTool'
 import { SessionSendTool } from './SessionSendTool'
@@ -52,7 +55,7 @@ export function AgentToolCallCard({
   toolCallId,
   toolName,
   input,
-  output,
+  output: rawOutput,
   isStreaming = false,
   status,
   hasError = false,
@@ -71,6 +74,8 @@ export function AgentToolCallCard({
   openFlowOnClick?: boolean
   showInlineDetails?: boolean
 }) {
+  const deferredOutput = useToolOutputReference(rawOutput, toolCallId)
+  const output = isDeferredToolOutput(rawOutput) || isPersistedToolOutput(rawOutput) ? undefined : rawOutput
   const actions = useOptionalMessageListActions()
   const { t } = useTranslation()
   const renderedItem =
@@ -153,6 +158,7 @@ export function AgentToolCallCard({
 
   const toolContentItem: ToolDisclosureItem = {
     ...renderedItem,
+    ...(deferredOutput ? { children: <DeferredToolDetails resultRef={deferredOutput.$deferredToolResult} /> } : {}),
     label: (
       <AgentToolDisclosureLabel
         label={
@@ -170,7 +176,7 @@ export function AgentToolCallCard({
     }
   }
   const canShowInlineDetails =
-    showInlineDetails && renderedItem.children !== undefined && renderedItem.children !== null
+    showInlineDetails && toolContentItem.children !== undefined && toolContentItem.children !== null
 
   return (
     <AgentToolDisclosure
@@ -181,6 +187,7 @@ export function AgentToolCallCard({
       onOpenDetails={openToolFlow}
       stateId={toolCallId}
       showInlineDetails={canShowInlineDetails}
+      unmountOnClose={!!deferredOutput}
     />
   )
 }
