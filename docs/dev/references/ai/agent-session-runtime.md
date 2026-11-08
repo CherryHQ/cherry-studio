@@ -1063,7 +1063,8 @@ The seeder records each affected session in `app_state` and leaves native tokens
 Fork recovery retires already-published retired-runtime journals without deleting their files.
 After fork recovery and crash-message reconciliation, `retiredSessionHistory` imports the
 persisted Cherry transcript through Pi's `SessionManager`, validates the generated file,
-and transactionally replaces resume tokens, fork checkpoints, and edited native identities.
+and transactionally replaces resume tokens, fork checkpoints, and edited native identities
+while binding the imported native context to the product root branch.
 Tools appear as historical text and are never executed during import. Attachments retain
 managed file paths. Native DSH goals and child-process state are not carried over.
 
