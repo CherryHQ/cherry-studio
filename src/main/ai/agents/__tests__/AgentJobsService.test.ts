@@ -995,7 +995,11 @@ describe('AgentJobsService', () => {
       const legacy = create('legacy', task.id)
       const ordinary = create('ordinary')
       const foreign = create('foreign task', other.id)
-      dbh.db.update(agentSessionTable).set({ taskScheduleId: task.id }).where(eq(agentSessionTable.id, sticky.id)).run()
+      dbh.db
+        .update(agentSessionTable)
+        .set({ isTaskReuseTarget: true, taskId: task.id })
+        .where(eq(agentSessionTable.id, sticky.id))
+        .run()
       for (const [id, scheduleId, metadata, output, status] of [
         ['fresh', task.id, { sessionId: fresh.id }, null, 'completed'],
         ['legacy', task.id, {}, { sessionId: legacy.id }, 'completed'],
@@ -1153,7 +1157,7 @@ describe('AgentJobsService', () => {
       const session = agentSessionService.create({ agentId: AGENT_ID, name: 'task', workspace: { type: 'system' } })
       dbh.db
         .update(agentSessionTable)
-        .set({ taskScheduleId: task.id })
+        .set({ isTaskReuseTarget: true, taskId: task.id })
         .where(eq(agentSessionTable.id, session.id))
         .run()
       const remove = vi.spyOn(jobScheduleService, 'deleteTx').mockImplementationOnce(() => {
@@ -1685,11 +1689,11 @@ describe('AgentJobsService', () => {
       expect(agentTaskService.getTask(AGENT_ID, task.id)?.reuseSessionId).toBeNull()
       expect(
         dbh.db
-          .select({ taskScheduleId: agentSessionTable.taskScheduleId })
+          .select({ isTaskReuseTarget: agentSessionTable.isTaskReuseTarget })
           .from(agentSessionTable)
           .where(eq(agentSessionTable.id, session.id))
           .get()
-      ).toEqual({ taskScheduleId: null })
+      ).toEqual({ isTaskReuseTarget: false })
     })
 
     it('trashing and restoring also preserves a legacy task whose template has no workspace', async () => {
@@ -1782,11 +1786,11 @@ describe('AgentJobsService', () => {
       expect(jobScheduleService.getById(pausedTask.id)).toMatchObject({ enabled: false, name: 'paused-task' })
       expect(
         dbh.db
-          .select({ taskScheduleId: agentSessionTable.taskScheduleId })
+          .select({ isTaskReuseTarget: agentSessionTable.isTaskReuseTarget })
           .from(agentSessionTable)
           .where(eq(agentSessionTable.id, session.id))
           .get()
-      ).toEqual({ taskScheduleId: null })
+      ).toEqual({ isTaskReuseTarget: false })
     })
 
     it('repairs archived owner schedules without enabling them', async () => {
