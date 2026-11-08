@@ -248,7 +248,7 @@ describe('PageSidePanel', () => {
       expect(header.className).toContain('pt-6')
       expect(header.className).toContain('pb-3')
 
-      const body = document.querySelector('[data-slot="page-side-panel-body"]')!
+      const body = document.querySelector('[data-slot="page-side-panel-body"] > [data-slot="scroll-area-content"]')!
       expect(body.className).toContain('px-6')
       expect(body.className).toContain('py-4')
     })

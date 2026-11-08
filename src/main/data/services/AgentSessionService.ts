@@ -31,6 +31,7 @@ import type {
   AgentSessionEntity,
   CreateAgentSessionDto,
   DeleteAgentSessionsResult,
+  GetAgentSessionQuery,
   LatestAgentSessionQuery,
   ListAgentSessionsQuery,
   ReusableAgentSessionPlaceholdersResponse,
@@ -41,6 +42,7 @@ import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
 
+import { ensureAgentSessionRootTx } from './agentSessionMessageTree'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import {
   decodePinnedListCursor,
@@ -54,6 +56,8 @@ const logger = loggerService.withContext('AgentSessionService')
 const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 200
 const conversationFilter = eq(sessionsTable.type, 'conversation')
+// Task runs can use a fresh session per run; the sticky relation alone is not enough.
+const ordinaryConversationFilter = and(isNull(sessionsTable.taskScheduleId), isNull(sessionsTable.sourceTaskScheduleId))
 type SessionEntitySearchItem = Extract<EntitySearchItem, { type: 'session' }>
 export type SessionMetadataSearchMatch = {
   field: 'name' | 'description'
@@ -155,6 +159,34 @@ export function agentSessionReadModelEffects(
 }
 
 export class AgentSessionService {
+  createChildArchiveTx(tx: DbOrTx, ownerSessionId: string, name: string): string {
+    const owner = tx.select().from(sessionsTable).where(eq(sessionsTable.id, ownerSessionId)).get()
+    if (!owner || owner.deletedAt) throw new Error('Child archive owner is unavailable')
+    const id = uuidv4()
+    this.insertTx(tx, {
+      id,
+      ownerSessionId,
+      type: 'background',
+      name,
+      workspaceId: owner.workspaceId,
+      agentId: owner.agentId,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    })
+    ensureAgentSessionRootTx(tx, id)
+    return id
+  }
+
+  assertIndependentSession(id: string): void {
+    const row = application
+      .get('DbService')
+      .getDb()
+      .select({ owner: sessionsTable.ownerSessionId })
+      .from(sessionsTable)
+      .where(eq(sessionsTable.id, id))
+      .get()
+    if (row?.owner) throw new Error('Child execution must be accessed through its native owner')
+  }
   private readonly sessionUpdated = new Emitter<{ sessionId: string }>()
   readonly onSessionUpdated: Event<{ sessionId: string }> = this.sessionUpdated.event
 
@@ -268,12 +300,22 @@ export class AgentSessionService {
     })
   }
 
-  create(dto: CreateAgentSessionDto, type: AgentSessionType = 'conversation'): AgentSessionEntity {
+  create(
+    dto: CreateAgentSessionDto,
+    type: AgentSessionType = 'conversation',
+    sourceTaskScheduleId: string | null = null
+  ): AgentSessionEntity {
     const id = uuidv4()
-    withSqliteErrors(() => application.get('DbService').withWriteTx((tx) => this.createTx(tx, id, dto, type)), {
-      ...defaultHandlersFor('Session', id),
-      foreignKey: () => DataApiErrorFactory.notFound('Agent or Workspace')
-    })
+    withSqliteErrors(
+      () =>
+        application
+          .get('DbService')
+          .withWriteTx((tx) => this.createTx(tx, id, dto, type, Date.now(), sourceTaskScheduleId)),
+      {
+        ...defaultHandlersFor('Session', id),
+        foreignKey: () => DataApiErrorFactory.notFound('Agent or Workspace')
+      }
+    )
     this.notifyReadModelChange([id], 'membership')
     return this.getById(id)
   }
@@ -287,7 +329,8 @@ export class AgentSessionService {
     id: string,
     dto: CreateAgentSessionDto,
     type: AgentSessionType = 'conversation',
-    createdAt = Date.now()
+    createdAt = Date.now(),
+    sourceTaskScheduleId: string | null = null
   ): void {
     this.assertAgentExistsTx(tx, dto.agentId)
 
@@ -323,10 +366,12 @@ export class AgentSessionService {
       agentId: dto.agentId,
       name: dto.name,
       description: dto.description,
+      sourceTaskScheduleId,
       workspaceId,
       createdAt,
       updatedAt: createdAt
     })
+    ensureAgentSessionRootTx(tx, id)
   }
 
   /** Bump metadata modification time from a foreign service's transaction. */
@@ -358,8 +403,11 @@ export class AgentSessionService {
     if (!agent) throw DataApiErrorFactory.notFound('Agent', agentId)
   }
 
-  getConversationById(id: string): AgentSessionEntity {
-    return this.readById(id, conversationFilter)
+  getConversationById(id: string, query: GetAgentSessionQuery = {}): AgentSessionEntity {
+    return this.readById(
+      id,
+      and(conversationFilter, query.excludeTaskSessions ? ordinaryConversationFilter : undefined)
+    )
   }
 
   getById(id: string): AgentSessionEntity {
@@ -379,7 +427,20 @@ export class AgentSessionService {
     return rowToSession(row)
   }
 
-  /** Read the internal sticky-session relation without exposing it on session entities. */
+  /** Read all task-owned sessions, including non-reusing runs whose jobs were collected. */
+  listTaskSessionIds(taskScheduleId: string): string[] {
+    return application
+      .get('DbService')
+      .getDb()
+      .select({ id: sessionsTable.id })
+      .from(sessionsTable)
+      .where(
+        or(eq(sessionsTable.taskScheduleId, taskScheduleId), eq(sessionsTable.sourceTaskScheduleId, taskScheduleId))
+      )
+      .all()
+      .map((row) => row.id)
+  }
+
   getByTaskScheduleId(taskScheduleId: string): AgentSessionEntity | null {
     return this.getByTaskScheduleIdTx(application.get('DbService').getDb(), taskScheduleId)
   }
@@ -474,7 +535,13 @@ export class AgentSessionService {
         .select({ path: agentWorkspaceTable.path })
         .from(sessionsTable)
         .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
-        .where(and(eq(sessionsTable.agentId, agentId), eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.SYSTEM)))
+        .where(
+          and(
+            eq(sessionsTable.agentId, agentId),
+            isNull(sessionsTable.ownerSessionId),
+            eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.SYSTEM)
+          )
+        )
         .all()
         .map((row) => row.path)
       return {
@@ -543,7 +610,7 @@ export class AgentSessionService {
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
       .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
-      .where(and(conversationFilter, isNull(sessionsTable.deletedAt), ownerFilter))
+      .where(and(conversationFilter, ordinaryConversationFilter, isNull(sessionsTable.deletedAt), ownerFilter))
       .orderBy(desc(sessionsTable.lastActivityAt), asc(sessionsTable.id))
       .limit(1)
       .all()
@@ -593,6 +660,7 @@ export class AgentSessionService {
                   SELECT 1
                   FROM ${agentSessionMessageTable}
                   WHERE ${agentSessionMessageTable.sessionId} = ${sessionsTable.id}
+                    AND ${agentSessionMessageTable.role} != 'root'
                 )`
               )
             )
@@ -704,6 +772,8 @@ export class AgentSessionService {
     const workspaceFilter = query.workspaceId ? eq(sessionsTable.workspaceId, query.workspaceId) : undefined
     const idFilter = query.ids ? inArray(sessionsTable.id, query.ids) : undefined
     const inTrash = query.inTrash === true
+    // Explicit ID lookups also serve task history; only discovery lists hide task sessions.
+    const taskFilter = inTrash || query.ids ? undefined : ordinaryConversationFilter
     const activeAgentFilter = !inTrash && query.agentId ? isNotNull(agentsTable.id) : undefined
 
     const items: Array<{ session: AgentSessionEntity; pinOrderKey?: string }> = []
@@ -724,6 +794,7 @@ export class AgentSessionService {
         .where(
           and(
             conversationFilter,
+            taskFilter,
             agentFilter,
             workspaceFilter,
             idFilter,
@@ -782,6 +853,7 @@ export class AgentSessionService {
       .where(
         and(
           conversationFilter,
+          taskFilter,
           agentFilter,
           workspaceFilter,
           idFilter,
@@ -859,6 +931,9 @@ export class AgentSessionService {
       .where(and(eq(sessionsTable.id, id), isNull(sessionsTable.deletedAt)))
       .returning()
       .all()
+    if (reassigned) {
+      tx.update(sessionsTable).set({ agentId: patch.agentId }).where(eq(sessionsTable.ownerSessionId, id)).run()
+    }
     return { row, clearedTaskScheduleIds }
   }
 
@@ -922,7 +997,7 @@ export class AgentSessionService {
     const [message] = tx
       .select({ id: agentSessionMessageTable.id })
       .from(agentSessionMessageTable)
-      .where(eq(agentSessionMessageTable.sessionId, sessionId))
+      .where(and(eq(agentSessionMessageTable.sessionId, sessionId), sql`${agentSessionMessageTable.role} != 'root'`))
       .limit(1)
       .all()
     if (message) {
@@ -938,7 +1013,9 @@ export class AgentSessionService {
     values: {
       type: AgentSessionType
       id: string
-      agentId: string
+      agentId: string | null
+      ownerSessionId?: string
+      sourceTaskScheduleId?: string | null
       name: string
       description?: string
       workspaceId: string
@@ -1039,7 +1116,7 @@ export class AgentSessionService {
       return {
         ...this.cascadeDeleteSessionRowsTx(tx, rows),
         purgedSystemWorkspacePaths: rows
-          .filter((row) => row.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM)
+          .filter((row) => row.session.ownerSessionId === null && row.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM)
           .map((row) => row.workspace.path)
       }
     })
@@ -1060,7 +1137,10 @@ export class AgentSessionService {
     ids: string[],
     options: { requireAll?: boolean; deletedAt?: number } = {}
   ): { trashedIds: string[]; taskScheduleIds: string[]; deliveryResults: AgentSessionMessageEntity[] } {
-    const uniqueIds = Array.from(new Set(ids))
+    const children = ids.length
+      ? tx.select({ id: sessionsTable.id }).from(sessionsTable).where(inArray(sessionsTable.ownerSessionId, ids)).all()
+      : []
+    const uniqueIds = Array.from(new Set([...ids, ...children.map((row) => row.id)]))
     if (uniqueIds.length === 0) return { trashedIds: [], taskScheduleIds: [], deliveryResults: [] }
 
     const rows = tx
@@ -1137,8 +1217,10 @@ export class AgentSessionService {
 
     const [row] = db
       .update(sessionsTable)
-      .set({ deletedAt: null })
-      .where(and(eq(sessionsTable.id, id), isNotNull(sessionsTable.deletedAt)))
+      .set({ deletedAt: null, sourceTaskScheduleId: null })
+      .where(
+        and(or(eq(sessionsTable.id, id), eq(sessionsTable.ownerSessionId, id)), isNotNull(sessionsTable.deletedAt))
+      )
       .returning({ id: sessionsTable.id })
       .all()
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
@@ -1195,7 +1277,7 @@ export class AgentSessionService {
 
     const purgedIds = rows.map((row) => row.session.id)
     const systemWorkspaceIds = rows
-      .filter((row) => row.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM)
+      .filter((row) => row.session.ownerSessionId === null && row.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM)
       .map((row) => row.workspace.id)
     tx.delete(sessionsTable).where(inArray(sessionsTable.id, purgedIds)).run()
     pinService.purgeForEntitiesTx(tx, 'session', purgedIds)
@@ -1347,6 +1429,7 @@ export class AgentSessionService {
       .where(
         and(
           eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.SYSTEM),
+          isNull(sessionsTable.ownerSessionId),
           ids ? inArray(sessionsTable.id, [...ids]) : undefined
         )
       )
@@ -1395,9 +1478,8 @@ export class AgentSessionService {
     const normalSessionIds: string[] = []
     const systemWorkspaceIds = new Set<string>()
     for (const row of rows) {
-      // Deleting through a system workspace removes its tied session rows before
-      // the backing workspace row.
-      if (row.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM) {
+      // Only the root owns a shared system workspace; child deletion must not remove it.
+      if (row.session.ownerSessionId === null && row.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM) {
         systemWorkspaceIds.add(row.workspace.id)
       } else {
         normalSessionIds.push(row.session.id)

@@ -2,14 +2,17 @@ import '@data/services/AgentSessionMessageService'
 import path from 'path'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 import { application } from '@application'
+import { applyMigrations } from '@data/db/applyMigrations'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { jobTable } from '@data/db/schemas/job'
 import { pinTable } from '@data/db/schemas/pin'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
@@ -105,6 +108,49 @@ describe('AgentSessionService', () => {
       )
     })
   }
+
+  it('keeps task sessions out of conversations after job retention cleanup', async () => {
+    const task = createTaskSchedule()
+    const workspace = await createWorkspace('task-runs')
+    const sessions = ['run-one', 'run-two'].map((name) =>
+      agentSessionService.create(
+        {
+          agentId: 'agent-session-test',
+          name,
+          workspace: { type: 'user', workspaceId: workspace.id }
+        },
+        'conversation',
+        task.id
+      )
+    )
+    for (const session of sessions) {
+      dbh.db
+        .insert(jobTable)
+        .values({
+          type: 'agent.task',
+          status: 'completed',
+          queue: 'agent',
+          scheduleId: task.id,
+          scheduledAt: 0,
+          finishedAt: 1,
+          input: {},
+          metadata: { sessionId: session.id }
+        })
+        .run()
+    }
+    expect(agentSessionService.listTaskSessionIds(task.id).sort()).toEqual(sessions.map((s) => s.id).sort())
+    expect(agentSessionService.getLatestActive()).toBeNull()
+    dbh.db.delete(jobTable).run()
+    expect(agentSessionService.listTaskSessionIds(task.id).sort()).toEqual(sessions.map((s) => s.id).sort())
+    expect(agentSessionService.getLatestActive()).toBeNull()
+    expect(agentSessionService.listByCursor().items).toEqual([])
+    expect(agentSessionService.listByCursor({ ids: sessions.map((s) => s.id) }).items).toHaveLength(2)
+    expect(agentSessionService.getByTaskScheduleId(task.id)).toBeNull()
+    dbh.db.transaction((tx) => agentSessionService.trashByIdsTx(tx, [sessions[0].id]))
+    agentSessionService.restore(sessions[0].id)
+    expect(agentSessionService.listByCursor().items.map((s) => s.id)).toEqual([sessions[0].id])
+    expect(agentSessionService.listTaskSessionIds(task.id)).toEqual([sessions[1].id])
+  })
 
   it('orders matching sessions and exposes timestamps by conversation activity', async () => {
     const workspace = await createWorkspace('search')
@@ -1364,13 +1410,14 @@ describe('AgentSessionService', () => {
     agentSessionService.delete(session.id)
 
     expect(captureError(() => agentSessionService.getById(session.id))).toMatchObject({ code: ErrorCode.NOT_FOUND })
-    expect(await dbh.db.select().from(agentSessionMessageTable)).toHaveLength(2)
+    expect((await dbh.db.select().from(agentSessionMessageTable)).filter((row) => row.role !== 'root')).toHaveLength(2)
 
     const restored = agentSessionService.restore(session.id)
 
     expect(restored).toMatchObject({ id: session.id, workspaceId: session.workspaceId })
     expect(
       (await dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.sessionId, session.id)))
+        .filter((row) => row.role !== 'root')
         .map((row) => row.id)
         .sort()
     ).toEqual(['msg-trash-1', 'msg-trash-2'])
@@ -1837,5 +1884,44 @@ describe('AgentSessionService', () => {
 
     const rows = await dbh.db.select().from(agentWorkspaceTable)
     expect(rows).toHaveLength(0)
+  })
+})
+
+describe('task session ownership migration', () => {
+  const dbh = setupTestDatabase({ beforeMigration: '0035_agent_session_task_ownership' })
+
+  it('backfills sticky, metadata and legacy output links without changing ordinary sessions', () => {
+    dbh.sqlite.exec(`
+      INSERT INTO agent (id, type, name, instructions, order_key, created_at, updated_at)
+      VALUES ('agent', 'claude-code', 'Agent', '', 'a0', 1, 1);
+      INSERT INTO agent_workspace (id, name, path, order_key, created_at, updated_at)
+      VALUES ('workspace', 'Workspace', '/task-migration', 'a0', 1, 1);
+      INSERT INTO job_schedule (id, type, name, trigger, job_input_template, catch_up_policy, created_at, updated_at)
+      VALUES ('task', 'agent.task', 'Task', '{}', '{}', '{}', 1, 1);
+    `)
+    for (const id of ['sticky', 'metadata', 'output', 'ordinary']) {
+      dbh.sqlite
+        .prepare(`INSERT INTO agent_session
+        (id, name, agent_id, workspace_id, order_key, last_activity_at, created_at, updated_at, task_schedule_id)
+        VALUES (?, ?, 'agent', 'workspace', ?, 1, 1, 1, ?)`)
+        .run(id, id, id, id === 'sticky' ? 'task' : null)
+    }
+    for (const field of ['metadata', 'output']) {
+      dbh.sqlite
+        .prepare(`INSERT INTO job
+        (id, type, status, queue, schedule_id, scheduled_at, input, created_at, updated_at, ${field})
+        VALUES (?, 'agent.task', 'completed', 'agent', 'task', 1, '{}', 1, 1, ?)`)
+        .run(field, JSON.stringify({ sessionId: field }))
+    }
+    applyMigrations(dbh.db, resolveMigrationsPath())
+    dbh.db.delete(jobTable).run()
+    expect(agentSessionService.listTaskSessionIds('task').sort()).toEqual(['metadata', 'output', 'sticky'])
+    expect(agentSessionService.listByCursor().items.map((s) => s.id)).toEqual(['ordinary'])
+    expect(agentSessionService.getByTaskScheduleId('task')?.id).toBe('sticky')
+    jobScheduleService.delete('task')
+    expect(agentSessionService.listTaskSessionIds('task')).toEqual([])
+    expect(dbh.sqlite.prepare('SELECT count(*) AS count FROM agent_session').get()).toEqual({ count: 4 })
+    expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
+    expect(dbh.sqlite.pragma('integrity_check', { simple: true })).toBe('ok')
   })
 })

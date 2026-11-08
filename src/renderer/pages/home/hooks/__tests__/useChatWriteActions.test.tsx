@@ -497,6 +497,23 @@ describe('useChatWriteActions — regenerate', () => {
     })
   })
 
+  it('uses the selected composer model when regenerating from a user message', async () => {
+    const { result, rerender, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot')])
+    rerender({ composerModelId: 'provider::model-b' })
+
+    await result.current.actions.regenerate('u1')
+
+    expect(regenerate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messageId: 'u1',
+        body: expect.objectContaining({
+          parentAnchorId: 'u1',
+          mentionedModels: ['provider::model-b']
+        })
+      })
+    )
+  })
+
   it('retries a failed assistant in place through Main and seeds the fresh attempt identity', async () => {
     const failedAssistant = uiMsg('a1', 'assistant', 'u1', false, 'error')
     failedAssistant.metadata.modelId = 'provider::model-a'
@@ -836,5 +853,133 @@ describe('useChatWriteActions — fork and resend', () => {
     const { actions } = renderActions([uiMsg('u1', 'user', 'vroot')], cache)
 
     await expect(actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any)).rejects.toThrow('blocked')
+  })
+})
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
+
+describe.each([
+  { handler: 'resend', firstSeeds: 0 },
+  { handler: 'forkAndResend', firstSeeds: 1 }
+] as const)('useChatWriteActions — $handler bottom-follow acceptance', ({ handler, firstSeeds }) => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    streamOpen.mockReset()
+  })
+
+  function setup() {
+    const cache = makeCache()
+    vi.mocked(cache.createSiblingTrigger).mockResolvedValueOnce({
+      id: 'forked-user',
+      parentId: 'vroot',
+      siblingsGroupId: 1,
+      status: 'success',
+      createdAt: '2026-01-01T00:00:00.000Z'
+    } as never)
+    const harness = renderActions([uiMsg('u1', 'user', 'vroot')], cache)
+    const invoke = () =>
+      handler === 'resend'
+        ? harness.actions.resend('u1')
+        : harness.actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }])
+    return { ...harness, invoke }
+  }
+
+  it.each([
+    { mode: 'started', reservations: 'nonempty' },
+    { mode: 'started', reservations: 'empty' },
+    { mode: 'started', reservations: 'absent' },
+    { mode: 'injected', reservations: 'nonempty' },
+    { mode: 'injected', reservations: 'empty' },
+    { mode: 'injected', reservations: 'absent' }
+  ] as const)(
+    'hands off once after $mode open and final seed resolve with $reservations reservations',
+    async ({ mode, reservations }) => {
+      const { invoke, seedReservedMessages, scrollToBottom } = setup()
+      const reservedMessages = reservations === 'nonempty' ? [uiMsg('a2', 'assistant', 'u1', false, 'pending')] : []
+      const ack = {
+        mode,
+        ...(reservations !== 'absent' && { reservedMessages }),
+        activeExecutions: [{ executionId: 'provider::model-a', attemptId: 2, anchorMessageId: 'a2' }],
+        preserveActiveNode: true
+      }
+      const open = deferred<typeof ack>()
+      const finalSeed = deferred<void>()
+      streamOpen.mockImplementationOnce(() => open.promise)
+      if (firstSeeds) seedReservedMessages.mockResolvedValueOnce()
+      seedReservedMessages.mockImplementationOnce(() => finalSeed.promise)
+
+      const request = invoke()
+      await vi.waitFor(() => expect(streamOpen).toHaveBeenCalledOnce())
+      expect(seedReservedMessages).toHaveBeenCalledTimes(firstSeeds)
+      expect(scrollToBottom).not.toHaveBeenCalled()
+
+      open.resolve(ack)
+      await vi.waitFor(() => expect(seedReservedMessages).toHaveBeenCalledTimes(firstSeeds + 1))
+      expect(seedReservedMessages).toHaveBeenLastCalledWith(reservedMessages, {
+        activeExecutions: ack.activeExecutions,
+        preserveActiveNode: true
+      })
+      expect(scrollToBottom).not.toHaveBeenCalled()
+
+      finalSeed.resolve()
+      await request
+      expect(scrollToBottom).toHaveBeenCalledExactlyOnceWith()
+    }
+  )
+
+  it('rejects a blocked open without final seeding or handing off', async () => {
+    const { invoke, seedReservedMessages, scrollToBottom } = setup()
+    const open = deferred<{ mode: 'blocked'; message: string }>()
+    streamOpen.mockImplementationOnce(() => open.promise)
+    const request = invoke()
+    const rejection = expect(request).rejects.toThrow('blocked')
+    await vi.waitFor(() => expect(streamOpen).toHaveBeenCalledOnce())
+    expect(scrollToBottom).not.toHaveBeenCalled()
+
+    open.resolve({ mode: 'blocked', message: 'blocked' })
+    await rejection
+    expect(seedReservedMessages).toHaveBeenCalledTimes(firstSeeds)
+    expect(scrollToBottom).not.toHaveBeenCalled()
+  })
+
+  it('propagates an open rejection without handing off', async () => {
+    const { invoke, seedReservedMessages, scrollToBottom } = setup()
+    const error = new Error('open failed')
+    const open = deferred<never>()
+    streamOpen.mockImplementationOnce(() => open.promise)
+    const request = invoke()
+    const rejection = expect(request).rejects.toBe(error)
+    await vi.waitFor(() => expect(streamOpen).toHaveBeenCalledOnce())
+    expect(scrollToBottom).not.toHaveBeenCalled()
+
+    open.reject(error)
+    await rejection
+    expect(seedReservedMessages).toHaveBeenCalledTimes(firstSeeds)
+    expect(scrollToBottom).not.toHaveBeenCalled()
+  })
+
+  it('propagates a final seed rejection without handing off after acceptance', async () => {
+    const { invoke, seedReservedMessages, scrollToBottom } = setup()
+    const error = new Error('seed failed')
+    const finalSeed = deferred<void>()
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    if (firstSeeds) seedReservedMessages.mockResolvedValueOnce()
+    seedReservedMessages.mockImplementationOnce(() => finalSeed.promise)
+    const request = invoke()
+    const rejection = expect(request).rejects.toBe(error)
+    await vi.waitFor(() => expect(seedReservedMessages).toHaveBeenCalledTimes(firstSeeds + 1))
+    expect(scrollToBottom).not.toHaveBeenCalled()
+
+    finalSeed.reject(error)
+    await rejection
+    expect(scrollToBottom).not.toHaveBeenCalled()
   })
 })

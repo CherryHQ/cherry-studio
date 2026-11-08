@@ -198,7 +198,7 @@ Implemented note 持续同步路径、名称、默认值、所有权、失败和
 
 ## Pairing 与门禁
 
-每条 note 和本 README 都遵循[双语 pairing 契约](../../docs/i18n/README.md)。Agent instruction 文件保持仅英文。
+每条 note 和本 README 都遵循[双语 pairing 契约](../../docs/dev/i18n/README.md)。Agent instruction 文件保持仅英文。
 
 运行：
 

@@ -7,10 +7,7 @@ import { loggerService } from '@logger'
 import { ContextUsageMeter, ContextUsageSummary } from '@renderer/components/chat/contextUsage'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
-import {
-  hasSignedReasoningMetadata,
-  replaceReasoningPartText
-} from '@renderer/components/chat/messages/blocks/reasoningEditing'
+import { replaceReasoningPartText } from '@renderer/components/chat/messages/blocks/reasoningEditing'
 import { useConversationTopBarPortalLayout } from '@renderer/components/chat/shell/ConversationTopBarPortal'
 import { useActiveComposerOverride, useComposerLayerActive } from '@renderer/components/composer/ComposerContext'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/composer/ComposerSurface'
@@ -44,6 +41,7 @@ import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useCherryCloudQuotaExhaustion } from '@renderer/hooks/useCherryCloudQuotaExhaustion'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useLatest } from '@renderer/hooks/useLatest'
 import { useModelById, useModels } from '@renderer/hooks/useModel'
@@ -75,6 +73,7 @@ import type { Provider } from '@shared/data/types/provider'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
+import { CherryCloudQuotaNotice } from '../CherryCloudQuotaNotice'
 import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
@@ -97,6 +96,7 @@ import {
   replaceEditedMessageParts
 } from './chat/messageEditingDraft'
 import { useChatMentionedModels } from './chat/useChatMentionedModels'
+import { useNoteReferenceMentionItems } from './chat/useNoteReferenceMentionItems'
 import {
   chatComposerTokenId,
   fileToComposerToken,
@@ -419,7 +419,7 @@ const ChatComposerInner = ({
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
   // Yield the same rail gutter as the message column so the composer stays aligned.
-  const { railGutterPx } = useChatLayoutMode()
+  const { railGutterPx, sidePaddingPx } = useChatLayoutMode()
   const { available: topBarPortalAvailable, iconOnly: topBarPortalIconOnly } = useConversationTopBarPortalLayout()
   const composerOverridden = useActiveComposerOverride() !== null
   const layerActive = useComposerLayerActive()
@@ -429,9 +429,10 @@ const ChatComposerInner = ({
   const { editingMessage, cancelEditing, stopEditing } = useMessageEditing()
   const editingMessageForCurrentTopic = topicId && editingMessage?.message.topicId === topicId ? editingMessage : null
   const staleEditingMessage = editingMessage && !editingMessageForCurrentTopic
-  // Assistant edits expose the unsigned reasoning above the main text; signed
-  // reasoning cannot be replayed after a change, so it stays read-only. A
-  // message with several reasoning parts keeps the plain anchor behaviour.
+  // Assistant edits expose the reasoning above the main text. Signed reasoning
+  // is saved with a replay marker so the main-process pipeline can send the
+  // corrected text as a plain `<think>` block. A message with several reasoning
+  // parts keeps the plain anchor behaviour.
   const editingReasoning = useMemo(() => {
     const snapshot = editingMessageForCurrentTopic
     if (!snapshot || snapshot.message.role !== 'assistant') return undefined
@@ -439,7 +440,7 @@ const ChatComposerInner = ({
     if (reasoningIndexes.length !== 1) return undefined
     const index = reasoningIndexes[0]
     const part = snapshot.parts[index]
-    if (part.type !== 'reasoning' || hasSignedReasoningMetadata(part)) return undefined
+    if (part.type !== 'reasoning') return undefined
     return { index, text: part.text ?? '' }
   }, [editingMessageForCurrentTopic])
   const [reasoningDraft, setReasoningDraft] = useState('')
@@ -891,6 +892,7 @@ const ChatComposerInner = ({
     useMentionedModelSelector && !isMentionedModelSelectorLocked && mentionedModelSelectorValue.length === 0
       ? t('code.model_required')
       : undefined
+  const quotaExhaustion = useCherryCloudQuotaExhaustion(effectiveSubmittedModel)
   const isModelUnavailable =
     !missingAssistantMessage &&
     !runtimeModelPending &&
@@ -979,7 +981,6 @@ const ChatComposerInner = ({
         savedDraft?.mentionedModelMultiSelectMode ?? mentionedModelDraftRef.current.modelMultiSelectMode
     })
   })
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest draft; cleanup is keyed only by topic.
   useEffect(() => () => persistFinalDraft(), [draftCacheScopeKey])
 
   const restoreSavedDraft = useCallback(() => {
@@ -1108,9 +1109,22 @@ const ChatComposerInner = ({
     [reconcileTokens]
   )
 
+  const { getItems: getNoteReferenceItems, onExit: closeNoteReferences } = useNoteReferenceMentionItems({
+    files,
+    setFiles
+  })
+  const additionalReferenceItems = useMemo(
+    () => ({
+      getItems: getNoteReferenceItems,
+      onExit: closeNoteReferences,
+      title: t('chat.input.note_reference.title')
+    }),
+    [closeNoteReferences, getNoteReferenceItems, t]
+  )
   const { sources: entityReferenceSources, hasPendingReference } = useEntityReferenceMentionSource({
     entityType: 'topic',
-    excludeId: topicId
+    excludeId: topicId,
+    additionalItems: additionalReferenceItems
   })
 
   const onPause = useCallback(() => {
@@ -1429,7 +1443,8 @@ const ChatComposerInner = ({
     scopeKey: selectedKnowledgeBasesScopeKey,
     status: streamStatus,
     lastCompletedAt,
-    onDrain: sendQueuedPayload
+    onDrain: sendQueuedPayload,
+    blocked: !!quotaExhaustion
   })
   releaseFollowupEditRef.current = releaseEdit
 
@@ -1437,8 +1452,9 @@ const ChatComposerInner = ({
     (item) => (item.payload.mentionedModels?.length ?? 0) > 0
   )
   const isQueuedFollowupSteerDisabled = useCallback(
-    (item: FollowupQueueItem) => (isPending || awaitingApproval) && item.payload.chatTarget?.mode === 'reserved-branch',
-    [awaitingApproval, isPending]
+    (item: FollowupQueueItem) =>
+      !!quotaExhaustion || ((isPending || awaitingApproval) && item.payload.chatTarget?.mode === 'reserved-branch'),
+    [awaitingApproval, isPending, quotaExhaustion]
   )
   const { models: allModels } = useModels({ enabled: true }, { fetchEnabled: queuedFollowupModelsDataEnabled })
 
@@ -1633,6 +1649,8 @@ const ChatComposerInner = ({
       }
 
       if (editingMessageForCurrentTopic) {
+        // Save-only edits stay available out of quota; only the resend is held.
+        if (quotaExhaustion) return
         await commitEditedMessage(draft, true)
         return
       }
@@ -1693,6 +1711,7 @@ const ChatComposerInner = ({
       loading,
       missingAssistantMessage,
       missingSelectedModelMessage,
+      quotaExhaustion,
       runtimeModel,
       runtimeModelPending,
       selectedModelForMissingAssistantDefault,
@@ -1786,6 +1805,29 @@ const ChatComposerInner = ({
     </>
   )
 
+  const followupsDock =
+    queuedFollowups.length > 0 ? (
+      <QueuedFollowupsDock
+        items={queuedFollowups}
+        paused={followupPaused}
+        onTogglePause={() => setFollowupPaused(!followupPaused)}
+        onSteer={sendFollowup}
+        onEdit={(id) => {
+          if (directSendInFlightRef.current) return
+          editFollowup(id, {
+            editingMessage: Boolean(editingMessageForCurrentTopic),
+            getDraft: () => actionsRef.current.getDraft(),
+            buildPayload: buildQueuedPayload,
+            hasFiles: files.length > 0,
+            restore: restoreFollowupDraft
+          })
+        }}
+        onRemove={removeFollowup}
+        onReorder={reorderFollowups}
+        isSteerDisabled={isQueuedFollowupSteerDisabled}
+      />
+    ) : undefined
+
   return (
     <ComposerToolDerivedStateProvider
       couldAddImageFile={canAddImageFile}
@@ -1820,7 +1862,8 @@ const ChatComposerInner = ({
             hasPendingReference ||
             !!missingAssistantMessage ||
             !!missingModelMessage ||
-            !!missingSelectedModelMessage
+            !!missingSelectedModelMessage ||
+            (!!quotaExhaustion && !editingMessageForCurrentTopic)
           }
           sendBlockedReason={
             isSavingEdit || isDirectSending || sendDisabled || hasPendingReference
@@ -1856,27 +1899,14 @@ const ChatComposerInner = ({
           }
           onPause={onPause}
           queueContent={
-            queuedFollowups.length > 0 ? (
-              <QueuedFollowupsDock
-                items={queuedFollowups}
-                paused={followupPaused}
-                onTogglePause={() => setFollowupPaused(!followupPaused)}
-                onSteer={sendFollowup}
-                onEdit={(id) => {
-                  if (directSendInFlightRef.current) return
-                  editFollowup(id, {
-                    editingMessage: Boolean(editingMessageForCurrentTopic),
-                    getDraft: () => actionsRef.current.getDraft(),
-                    buildPayload: buildQueuedPayload,
-                    hasFiles: files.length > 0,
-                    restore: restoreFollowupDraft
-                  })
-                }}
-                onRemove={removeFollowup}
-                onReorder={reorderFollowups}
-                isSteerDisabled={isQueuedFollowupSteerDisabled}
-              />
-            ) : undefined
+            quotaExhaustion ? (
+              <>
+                <CherryCloudQuotaNotice exhaustion={quotaExhaustion} />
+                {followupsDock}
+              </>
+            ) : (
+              followupsDock
+            )
           }
           supportedExts={supportedExts}
           setFiles={setFiles}
@@ -1891,6 +1921,7 @@ const ChatComposerInner = ({
           fontSize={fontSize}
           narrowMode={forceNarrowLayout || narrowMode}
           railGutterPx={railGutterPx}
+          sidePaddingPx={sidePaddingPx}
           onFocus={() => setSearching(false)}
           onActionsChange={handleSurfaceActionsChange}
           isInputHistoryActive={isInputHistoryActive}

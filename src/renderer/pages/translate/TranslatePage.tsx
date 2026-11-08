@@ -407,7 +407,7 @@ const TranslatePage: FC = () => {
   //
   // Backfills for different history ids can overlap on this one template-path
   // mutation, which shares `isMutating`/`error` across them (see
-  // docs/references/data/data-api-in-renderer.md). Harmless today because
+  // docs/dev/references/data/data-api-in-renderer.md). Harmless today because
   // nothing here reads that state — revisit if this call site ever does.
   const backfillHistorySourceLanguage = useCallback(
     (historyId: string, rawText: string) => {

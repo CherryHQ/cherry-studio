@@ -3,18 +3,11 @@ import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 
 import { ipcApi, useIpcOn } from '@renderer/ipc'
-import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
+import { isManagedCherryAiProviderId, isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
-import type { CherryCloudModelSyncResult } from '@shared/ipc/schemas/cherryCloud'
 
-const CHERRY_CLOUD_AVAILABILITY_KEY = 'cherry-cloud/model-availability'
+export const CHERRY_CLOUD_AVAILABILITY_KEY = 'cherry-cloud/model-availability'
 const CHERRY_CLOUD_AVAILABILITY_REFRESH_INTERVAL_MS = 60_000
-const EMPTY_CHERRY_CLOUD_AVAILABILITY: CherryCloudModelSyncResult = {
-  entitledModelIds: [],
-  freeModelIds: [],
-  availableModelIds: { agent: [], general: [] },
-  quotaExhaustedModelIds: []
-}
 
 /**
  * Cherry Cloud's server-declared model availability, expressed in model-selector terms so no other
@@ -23,20 +16,21 @@ const EMPTY_CHERRY_CLOUD_AVAILABILITY: CherryCloudModelSyncResult = {
  */
 export function useCherryCloudModelAvailability(enabled = true) {
   const { t } = useTranslation()
-  const { data: cloudAvailability, mutate } = useSWR(
-    enabled ? CHERRY_CLOUD_AVAILABILITY_KEY : null,
-    () => ipcApi.request('cherry_cloud.models.sync'),
-    {
-      dedupingInterval: 5_000,
-      refreshInterval: CHERRY_CLOUD_AVAILABILITY_REFRESH_INTERVAL_MS,
-      revalidateOnReconnect: false,
-      shouldRetryOnError: false
-    }
-  )
+  const {
+    data: cloudAvailability,
+    error: availabilityError,
+    mutate
+  } = useSWR(enabled ? CHERRY_CLOUD_AVAILABILITY_KEY : null, () => ipcApi.request('cherry_cloud.models.sync'), {
+    dedupingInterval: 5_000,
+    refreshInterval: CHERRY_CLOUD_AVAILABILITY_REFRESH_INTERVAL_MS,
+    revalidateOnReconnect: false,
+    shouldRetryOnError: false
+  })
 
   useIpcOn('cherry_cloud.status_changed', () => {
     if (!enabled) return
-    void mutate(EMPTY_CHERRY_CLOUD_AVAILABILITY, { revalidate: true }).catch(() => undefined)
+    // Clear stale account availability without fabricating a completed empty response.
+    void mutate(undefined, { revalidate: true }).catch(() => undefined)
   })
 
   return useMemo(() => {
@@ -44,12 +38,23 @@ export function useCherryCloudModelAvailability(enabled = true) {
     const quotaExhaustedModelIds = new Set(cloudAvailability?.quotaExhaustedModelIds)
     const agentModelIds = new Set(cloudAvailability?.availableModelIds.agent)
     const generalModelIds = new Set(cloudAvailability?.availableModelIds.general)
+    const settled = cloudAvailability !== undefined
 
     return {
+      /** False until a server snapshot arrives, including after a status reset. */
+      isAvailabilityReady: settled,
+      availabilityError,
       /** Hidden until the first snapshot arrives, then hidden wherever the server does not enable it. */
       isModelHidden: (model: Model, includeAgentOnlyModels: boolean) =>
         isManagedCherryCloudModel(model.providerId) &&
         !(includeAgentOnlyModels ? agentModelIds : generalModelIds).has(model.id),
+      /** Unusable here per a settled snapshot: signed out, not entitled, or not enabled for this module. */
+      isModelLocked: (model: Model, includeAgentOnlyModels: boolean) =>
+        settled &&
+        isManagedCherryCloudModel(model.providerId) &&
+        !(includeAgentOnlyModels ? agentModelIds : generalModelIds).has(model.id),
+      /** The built-in CherryAI models and Cloud models granted only by a free plan. */
+      isModelFree: (model: Model) => isManagedCherryAiProviderId(model.providerId) || freeModelIds.has(model.id),
       isModelUnavailable: (model: Model) =>
         isManagedCherryCloudModel(model.providerId) && quotaExhaustedModelIds.has(model.id),
       getModelDescription: (model: Model): string | undefined => {
@@ -66,5 +71,5 @@ export function useCherryCloudModelAvailability(enabled = true) {
         )
       }
     }
-  }, [cloudAvailability, t])
+  }, [cloudAvailability, availabilityError, t])
 }
