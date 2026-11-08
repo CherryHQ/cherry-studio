@@ -57,8 +57,9 @@ function TaskRow({
   const { updateTask } = useUpdateTask()
   const { deleteTask } = useDeleteTask()
   const [busy, setBusy] = useState(false)
-  const [editOpen, setEditOpen] = useState(false)
-  const [deleteOpen, setDeleteOpen] = useState(false)
+  // Keep dialogs mounted after first use so they can finish their exit animations.
+  const [editOpen, setEditOpen] = useState<boolean>()
+  const [deleteOpen, setDeleteOpen] = useState<boolean>()
   const paused = task.status === 'paused'
   const perform = async (command: () => Promise<unknown>) => {
     if (busy) return
@@ -150,10 +151,10 @@ function TaskRow({
           </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
-      {editOpen && (
+      {editOpen !== undefined && (
         <Suspense fallback={null}>
           <TaskFormDialog
-            open
+            open={editOpen}
             task={task}
             agents={[{ id: task.agentId, name: agentName ?? task.agentId }]}
             onOpenChange={setEditOpen}
@@ -161,9 +162,9 @@ function TaskRow({
           />
         </Suspense>
       )}
-      {deleteOpen && (
+      {deleteOpen !== undefined && (
         <ConfirmDialog
-          open
+          open={deleteOpen}
           onOpenChange={setDeleteOpen}
           title={t('agent.tasks.delete.confirm')}
           description={t('agent.tasks.delete.description')}
