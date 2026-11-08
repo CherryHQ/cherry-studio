@@ -1,4 +1,4 @@
-import type { Context } from '@earendil-works/chord/context'
+import { awaitWithContext, type Context } from '@earendil-works/chord/context'
 import { createModels, fauxAssistantMessage, fauxProvider, fauxToolCall } from '@earendil-works/pi-ai'
 import {
   createRegistry,
@@ -435,6 +435,55 @@ it('settles pending child access when the runtime closes', async () => {
   expect(await opening).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
   finish.resolve()
   expect(await closing).toMatchObject({ status: 'confirmed' })
+})
+
+it('signals source loss before blocked tool cleanup finishes', async () => {
+  const entered = gate()
+  const cancelled = gate()
+  const cleanup = gate()
+  const never = gate()
+  let fail = false
+  const storage = new MemoryStorage()
+  const wrapped = new Proxy(storage, {
+    get(target, key) {
+      if (key === 'scanEntries')
+        return async (...args: Parameters<Storage['scanEntries']>) => {
+          if (fail) throw new Error('fatal storage read')
+          return target.scanEntries(...args)
+        }
+      const value = Reflect.get(target, key)
+      return typeof value === 'function' ? value.bind(target) : value
+    }
+  })
+  const { runtime } = await setup(async (_api, context) => {
+    entered.resolve()
+    try {
+      await awaitWithContext(never.promise, context)
+    } finally {
+      cancelled.resolve()
+      await cleanup.promise
+    }
+  }, wrapped)
+  const root = await parent(runtime)
+  const { events } = await observe(root)
+  await submit(root)
+  await entered.promise
+  let opened: unknown
+  const opening = root.durable.openChild('spawn').then((result) => {
+    opened = result
+  })
+  fail = true
+  const reading = root.archive()
+  try {
+    await cancelled.promise
+    await expect.poll(() => events.at(-1), { timeout: 1000 }).toEqual({ type: 'closed', reason: 'source-lost' })
+    await expect.poll(() => opened, { timeout: 1000 }).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
+  } finally {
+    cleanup.resolve()
+    never.resolve()
+    await reading
+    await opening
+  }
 })
 
 it.each(['settled', 'shutdown'] as const)('joins admitted relation delivery before %s completes', async (operation) => {

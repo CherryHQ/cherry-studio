@@ -61,7 +61,9 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
   const abandoned = new Set<TaskId>()
   const admissions = new Map<ThreadId, Promise<unknown>>()
   const messages = new Map<TaskId, Set<Promise<unknown>>>()
+  const stopWaiting = new AbortController()
   let unsubscribe: (() => void) | undefined
+  let unsubscribeClose: (() => void) | undefined
   let harness: Harness
   let closed = false
   let recovering = true
@@ -181,23 +183,20 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
   }
 
   async function waitFor<T>(read: () => Promise<T | undefined>, callContext: Context): Promise<T> {
+    const waiting = withAbortSignal(stopWaiting.signal, callContext)
     for (;;) {
       let changed!: () => void
       const update = new Promise<void>((resolve) => {
         changed = resolve
       })
       const off = harness.observeCommits({ advance: changed, end: changed }).detach
-      const signal = callContext.abortSignal
-      const cancel = () => changed()
-      signal?.addEventListener('abort', cancel, { once: true })
       try {
-        signal?.throwIfAborted()
+        waiting.abortSignal?.throwIfAborted()
         const value = await read()
         if (value !== undefined) return value
-        await update
+        await awaitWithContext(update, waiting)
       } finally {
         off()
-        signal?.removeEventListener('abort', cancel)
       }
     }
   }
@@ -857,6 +856,10 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
     providerThread,
     async bind(value: Harness) {
       harness = value
+      unsubscribeClose = harness.subscribeClose(() => {
+        closed = true
+        stopWaiting.abort()
+      })
       recovering = true
       const tasks = await harness.commit((tx) => pages((cursor) => tx.scanTasks({}, 256, cursor)), context)
       for (const task of tasks) if (task.abandonOnRestart && task.state.status !== 'terminal') abandoned.add(task.id)
@@ -902,6 +905,9 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
           (ports) => lifecycle?.onClose(threadId(conversation.id), ports) ?? Promise.resolve()
         )
       closed = true
+      await Promise.all([...admissions.values()])
+      stopWaiting.abort()
+      unsubscribeClose?.()
     }
   }
 }
