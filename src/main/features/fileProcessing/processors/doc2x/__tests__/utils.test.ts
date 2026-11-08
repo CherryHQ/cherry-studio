@@ -307,6 +307,31 @@ describe('doc2x utils', () => {
     )
   })
 
+  it('replaces tables nested inside list items without duplicating them', () => {
+    expect(
+      buildDoc2xMarkdown([
+        {
+          page_idx: 0,
+          md: '- Item\n\n    | Nested | Value |\n    | --- | --- |\n    | kept | as table |\n\n  Following paragraph.',
+          layout: {
+            blocks: [
+              {
+                id: 'table',
+                type: 'Table',
+                text: '',
+                bbox: [0, 0, 1, 1],
+                reading_order: 0,
+                parent_id: '',
+                src: '',
+                table_data: { html: '<table><tr><td>nested</td></tr></table>' }
+              }
+            ]
+          }
+        }
+      ])
+    ).toBe('- Item\n\n    <table><tr><td>nested</td></tr></table>\n\n  Following paragraph.')
+  })
+
   it('uses structured figure URLs when a v3 page has no Markdown fallback', () => {
     expect(
       buildDoc2xMarkdown([

@@ -1,3 +1,8 @@
+import remarkGfm from 'remark-gfm'
+import remarkParse from 'remark-parse'
+import { unified } from 'unified'
+import { visit } from 'unist-util-visit'
+
 import type { FileProcessorFeatureCapability, FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import type { FileInfo } from '@shared/types/file'
 
@@ -22,6 +27,8 @@ type Doc2xQueryContext = Omit<PreparedDoc2xQueryContext, 'signal'> & {
   markdownContent?: string
 }
 type Doc2xCapability = Extract<FileProcessorFeatureCapability, { feature: 'document_to_markdown' }>
+
+const markdownParser = unified().use(remarkParse).use(remarkGfm)
 
 export const doc2xDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
   'document_to_markdown',
@@ -302,79 +309,24 @@ function stripDoc2xBoilerplate(markdown: string): string {
 }
 
 function replaceNextMarkdownTable(markdown: string, tableHtml: string): string {
-  const lines = markdown.split('\n')
-  let fence: MarkdownFence | undefined
-  let separatorIndex = -1
+  const tree = markdownParser.parse(markdown)
+  let tableStart: number | undefined
+  let tableEnd: number | undefined
 
-  for (let index = 0; index < lines.length; index += 1) {
-    const marker = parseMarkdownFence(lines[index], fence !== undefined)
-    if (fence) {
-      if (marker?.character === fence.character && marker.length >= fence.length) {
-        fence = undefined
-      }
-      continue
-    }
+  visit(tree, 'table', (node) => {
+    if (tableStart !== undefined) return
 
-    if (marker) {
-      fence = marker
-      continue
-    }
+    const start = node.position?.start.offset
+    const end = node.position?.end.offset
+    if (start === undefined || end === undefined) return
 
-    if (index > 0 && isMarkdownTableRow(lines[index - 1]) && isMarkdownTableSeparator(lines[index])) {
-      separatorIndex = index
-      break
-    }
-  }
+    tableStart = start
+    tableEnd = end
+  })
 
-  if (separatorIndex === -1) {
+  if (tableStart === undefined || tableEnd === undefined) {
     return `${markdown.trim()}\n\n${tableHtml}`
   }
 
-  let start = separatorIndex - 1
-  while (start > 0 && !parseMarkdownFence(lines[start - 1], false) && isMarkdownTableRow(lines[start - 1])) {
-    start -= 1
-  }
-
-  let end = separatorIndex + 1
-  while (end < lines.length && !parseMarkdownFence(lines[end], false) && isMarkdownTableRow(lines[end])) {
-    end += 1
-  }
-
-  lines.splice(start, end - start, tableHtml)
-  return lines.join('\n').trim()
-}
-
-function isMarkdownTableRow(line: string): boolean {
-  if (isMarkdownIndentedCodeLine(line)) return false
-
-  const value = line.trim()
-  return value.includes('|')
-}
-
-function isMarkdownIndentedCodeLine(line: string): boolean {
-  return /^(?: {4,}|\t)/.test(line)
-}
-
-type MarkdownFence = {
-  character: '`' | '~'
-  length: number
-}
-
-function parseMarkdownFence(line: string, closing: boolean): MarkdownFence | undefined {
-  const match = /^( {0,3})(`{3,}|~{3,})(.*)$/.exec(line)
-  if (!match || (closing && match[3].trim().length > 0)) return undefined
-
-  const marker = match[2]
-
-  return {
-    character: marker[0] as '`' | '~',
-    length: marker.length
-  }
-}
-
-function isMarkdownTableSeparator(line: string): boolean {
-  if (isMarkdownIndentedCodeLine(line)) return false
-
-  const cells = line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|')
-  return cells.length > 0 && cells.every((cell) => /^\s*:?-{3,}:?\s*$/.test(cell))
+  return `${markdown.slice(0, tableStart)}${tableHtml}${markdown.slice(tableEnd)}`.trim()
 }
