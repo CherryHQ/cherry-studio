@@ -1871,6 +1871,32 @@ describe('CherryCloudService', () => {
     }
   })
 
+  it('keeps a pool the gateway refused for quota exhausted until one of its windows grows', async () => {
+    const service = await createSignedInService()
+    const withRemaining = (units: number) => ({
+      ...accountSnapshot,
+      quota_pools: [{ model_ids: ['deepseek-go'], windows: [{ remaining_units: units }] }]
+    })
+    mockModelSync(withRemaining(5))
+    expect((await service['syncEntitledModels']()).quotaExhaustedModelIds).toEqual([])
+
+    mockCloudRoute('/v1/messages', cloudErrorResponse(429, 'QUOTA_EXHAUSTED'))
+    await service.authenticatedFetch('/v1/messages', { method: 'POST', body: '{"model":"deepseek-go","messages":[]}' })
+
+    mockModelSync(withRemaining(5))
+    expect((await service['syncEntitledModels']()).quotaExhaustedModelIds).toEqual([
+      'cherryai-subscription::deepseek-go'
+    ])
+    mockModelSync(withRemaining(5))
+    expect((await service['syncEntitledModels']()).quotaExhaustedModelIds).toEqual([
+      'cherryai-subscription::deepseek-go'
+    ])
+    mockModelSync(withRemaining(40))
+    expect((await service['syncEntitledModels']()).quotaExhaustedModelIds).toEqual([])
+    mockModelSync(withRemaining(40))
+    expect((await service['syncEntitledModels']()).quotaExhaustedModelIds).toEqual([])
+  })
+
   it('adds an idempotency key to signed Anthropic message requests', async () => {
     const service = await createSignedInService()
     mockCloudRoute('/v1/messages', jsonResponse({ type: 'message' }))
