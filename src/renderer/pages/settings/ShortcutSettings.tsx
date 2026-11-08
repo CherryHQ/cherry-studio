@@ -41,6 +41,14 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { AppRouter } from '@renderer/types/router'
 import { scrollIntoView } from '@renderer/utils/dom'
+import {
+  getNumberShortcutMode,
+  getNumberShortcutPreset,
+  getNumberShortcutUpdates,
+  isNumberShortcut,
+  NUMBER_COMMANDS,
+  type NumberShortcutMode
+} from '@renderer/utils/numberShortcuts'
 import { isMac, platform } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
@@ -58,7 +66,11 @@ import {
   type ShortcutToken
 } from '@shared/utils/shortcut'
 
+import { NumberShortcutSettings } from './NumberShortcutSettings'
+
 const logger = loggerService.withContext('ShortcutSettings')
+const numberShortcutPlatform =
+  platform === 'darwin' || platform === 'win32' || platform === 'linux' ? platform : undefined
 const shortcutRouteApi = getRouteApi('/settings/shortcut')
 
 const isBindingEqual = (a: ShortcutBinding, b: ShortcutBinding): boolean =>
@@ -107,6 +119,11 @@ const ShortcutSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const { shortcuts, updatePreference } = useCommandShortcuts()
+  const [savingNumberMode, setSavingNumberMode] = useState(false)
+  const listedShortcuts = useMemo(
+    () => shortcuts.filter((shortcut) => !isNumberShortcut(shortcut.command)),
+    [shortcuts]
+  )
   const recorderRefs = useRef<Record<string, HTMLButtonElement>>({})
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [pendingKeys, setPendingKeys] = useState<ShortcutBinding>([])
@@ -140,24 +157,24 @@ const ShortcutSettings: FC = () => {
   )
 
   const shortcutsByGroup = useMemo(() => {
-    return shortcuts.reduce<Record<ShortcutSettingsGroup, typeof shortcuts>>(
+    return listedShortcuts.reduce<Record<ShortcutSettingsGroup, typeof shortcuts>>(
       (acc, shortcut) => {
         acc[shortcut.group].push(shortcut)
         return acc
       },
       { general: [], chat: [], topic: [], assistant: [] }
     )
-  }, [shortcuts])
+  }, [listedShortcuts])
 
   const groupOptions = useMemo<ShortcutGroupOption[]>(
     () => [
       {
         value: 'all' as const,
         label: t('settings.shortcuts.categories.all'),
-        count: shortcuts.length
+        count: listedShortcuts.length + 1
       },
       ...groupMeta.flatMap((group) => {
-        const count = shortcutsByGroup[group.key].length
+        const count = shortcutsByGroup[group.key].length + (group.key === 'general' ? 1 : 0)
         if (count === 0) return []
 
         return {
@@ -167,12 +184,12 @@ const ShortcutSettings: FC = () => {
         }
       })
     ],
-    [groupMeta, shortcuts.length, shortcutsByGroup, t]
+    [groupMeta, listedShortcuts.length, shortcutsByGroup, t]
   )
 
   const activeGroupOption = groupOptions.find((option) => option.value === activeGroup) ?? groupOptions[0]
 
-  const currentGroupShortcuts = activeGroup === 'all' ? shortcuts : shortcutsByGroup[activeGroup]
+  const currentGroupShortcuts = activeGroup === 'all' ? listedShortcuts : shortcutsByGroup[activeGroup]
 
   const visibleShortcuts = useMemo(() => {
     const query = searchQuery.toLowerCase().trim()
@@ -423,6 +440,44 @@ const ShortcutSettings: FC = () => {
     }
   }
 
+  const numberMode = getNumberShortcutMode(shortcutPreferences, numberShortcutPlatform)
+  const handleNumberModeChange = async (mode: NumberShortcutMode) => {
+    const preset = getNumberShortcutPreset(mode, numberShortcutPlatform)
+    const nextPreferences = { ...shortcutPreferences, ...preset }
+    for (const command of NUMBER_COMMANDS) {
+      const preference = preset[command]
+      if (!preference) continue
+      const conflict = findConflictLabel(command, preference, nextPreferences)
+      if (conflict) {
+        showConflictToast(conflict)
+        return
+      }
+    }
+    setSavingNumberMode(true)
+    try {
+      await preferenceService.setMultiple(getNumberShortcutUpdates(mode, numberShortcutPlatform))
+    } catch (error) {
+      logger.error('Failed to update numbered shortcuts', error as Error)
+      toast.error(t('settings.shortcuts.save_failed'))
+    } finally {
+      setSavingNumberMode(false)
+    }
+  }
+  const numberSearchText = [
+    t('settings.shortcuts.number_keys.title'),
+    t('settings.shortcuts.number_keys.conversations'),
+    t('settings.shortcuts.number_keys.tabs'),
+    '1–9',
+    '1-9'
+  ]
+    .join(' ')
+    .toLowerCase()
+  const showNumberSettings =
+    (activeGroup === 'all' || activeGroup === 'general') &&
+    (!searchQuery.trim() ||
+      numberSearchText.includes(searchQuery.trim().toLowerCase()) ||
+      (!!focusedCommand && isNumberShortcut(focusedCommand)))
+
   const renderShortcutCell = (record: (typeof shortcuts)[number]) => {
     const isEditing = editingKey === record.key
     const displayKeys = record.preference.binding
@@ -657,17 +712,28 @@ const ShortcutSettings: FC = () => {
               </div>
             </div>
 
-            <SettingGroup theme={theme} className="mt-0 p-0">
-              {visibleShortcuts.length > 0 ? (
-                <div className="px-4">
-                  {visibleShortcuts.map((record, index) =>
-                    renderShortcutRow(record, index === visibleShortcuts.length - 1)
-                  )}
-                </div>
-              ) : (
-                <div className="py-10 text-center text-muted-foreground text-sm">{t('settings.shortcuts.empty')}</div>
-              )}
-            </SettingGroup>
+            {showNumberSettings && (
+              <div ref={focusedCommand && isNumberShortcut(focusedCommand) ? focusedRowRef : undefined}>
+                <NumberShortcutSettings
+                  mode={numberMode}
+                  saving={savingNumberMode}
+                  onChange={(mode) => void handleNumberModeChange(mode)}
+                />
+              </div>
+            )}
+            {(visibleShortcuts.length > 0 || !showNumberSettings) && (
+              <SettingGroup theme={theme} className="mt-0 p-0">
+                {visibleShortcuts.length > 0 ? (
+                  <div className="px-4">
+                    {visibleShortcuts.map((record, index) =>
+                      renderShortcutRow(record, index === visibleShortcuts.length - 1)
+                    )}
+                  </div>
+                ) : (
+                  <div className="py-10 text-center text-muted-foreground text-sm">{t('settings.shortcuts.empty')}</div>
+                )}
+              </SettingGroup>
+            )}
           </SettingsContentBody>
         </ScrollArea>
       </div>

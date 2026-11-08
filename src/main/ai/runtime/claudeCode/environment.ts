@@ -179,7 +179,7 @@ export async function buildEnvironment(
     ENABLE_TOOL_SEARCH: 'auto',
     CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1',
     // The stream adapter's background-work release waits for `session_state_changed: idle`
-    // (streamAdapter.ts), which the CLI only emits when this flag is set.
+    // (ClaudeRuntimeState.ts), which the CLI only emits when this flag is set.
     CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: '1',
     CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT: '1',
     CHERRY_STUDIO_BUN_PATH: bunPath,

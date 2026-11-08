@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ButtonHTMLAttributes, ReactNode, Ref, RefObject } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -70,6 +71,10 @@ vi.mock('@cherrystudio/ui', () => ({
 }))
 
 vi.mock('@renderer/components/CodeViewer', () => ({ default: mocks.CodeViewer }))
+vi.mock('lucide-react', async (importOriginal) => ({
+  ...(await importOriginal()),
+  Check: () => <span role="img" aria-label="Copied" />
+}))
 vi.mock('@renderer/components/CodeBlockView/HtmlArtifactsPopup', () => ({ default: mocks.HtmlArtifactsPopup }))
 vi.mock('@renderer/components/CodeBlockView/HtmlPreviewFrame', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>
@@ -122,6 +127,7 @@ function renderWithScrollRuntime(
 
 describe('HtmlArtifactView', () => {
   const originalInnerHeight = window.innerHeight
+  const originalClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard')
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -156,6 +162,11 @@ describe('HtmlArtifactView', () => {
 
   afterEach(() => {
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: originalInnerHeight })
+    if (originalClipboard) {
+      Object.defineProperty(navigator, 'clipboard', originalClipboard)
+    } else {
+      Reflect.deleteProperty(navigator, 'clipboard')
+    }
     vi.unstubAllGlobals()
   })
 
@@ -1342,6 +1353,96 @@ describe('HtmlArtifactView', () => {
 
     await waitFor(() => expect(mocks.save).toHaveBeenCalledWith('Preview-Page.html', '<main>Page</main>'))
     expect(mocks.toastSuccess).toHaveBeenCalledWith('message.download.success')
+  })
+
+  it('copies the entire untrimmed source instead of displayed or selected content', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    const html = ` \t\n<!-- SOURCE START -->\n\n${Array.from(
+      { length: 1000 },
+      (_, index) => `<p data-line="${String(index).padStart(4, '0')}">Line ${index}</p>`
+    ).join('\n')}\n\n<!-- SOURCE END -->\n\t `
+    render(<HtmlArtifactView html={html} title="Preview" />)
+
+    expect(screen.queryByRole('button', { name: 'code_block.copy.source' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'html_artifacts.code' }))
+    await user.click(screen.getByRole('button', { name: 'code_block.copy.source' }))
+
+    expect(writeText).toHaveBeenCalledExactlyOnceWith(html)
+    expect(mocks.toastSuccess).toHaveBeenCalledWith('code_block.copy.success')
+    expect(mocks.toastError).not.toHaveBeenCalled()
+    expect(
+      within(screen.getByRole('button', { name: 'code_block.copy.source' })).getByRole('img', { name: 'Copied' })
+    ).toBeInTheDocument()
+  })
+
+  it('copies the current html after rerender instead of capturing the initial source', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    const { rerender } = render(<HtmlArtifactView html="<p>Original</p>" title="Preview" />)
+
+    await user.click(screen.getByRole('button', { name: 'html_artifacts.code' }))
+    await user.click(screen.getByRole('button', { name: 'code_block.copy.source' }))
+    rerender(<HtmlArtifactView html={' \n<p>Updated</p>\n '} title="Preview" />)
+    await user.click(screen.getByRole('button', { name: 'code_block.copy.source' }))
+
+    expect(writeText).toHaveBeenNthCalledWith(1, '<p>Original</p>')
+    expect(writeText).toHaveBeenNthCalledWith(2, ' \n<p>Updated</p>\n ')
+  })
+
+  it.each(['rejected', 'throwing'] as const)(
+    'reports a %s clipboard write and clears previous success feedback',
+    async (failure) => {
+      const user = userEvent.setup()
+      const error = new Error('Clipboard unavailable')
+      const writeText = vi.fn().mockImplementation(() => {
+        if (failure === 'throwing') throw error
+        return Promise.reject(error)
+      })
+      Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+      render(<HtmlArtifactView html="<p>Source</p>" title="Preview" />)
+      await user.click(screen.getByRole('button', { name: 'html_artifacts.code' }))
+      const copyButton = screen.getByRole('button', { name: 'code_block.copy.source' })
+
+      await user.click(copyButton)
+
+      expect(mocks.toastError).toHaveBeenCalledWith('code_block.copy.failed')
+      expect(mocks.loggerError).toHaveBeenCalledWith(expect.any(String), error)
+      expect(mocks.toastSuccess).not.toHaveBeenCalled()
+      expect(within(copyButton).queryByRole('img', { name: 'Copied' })).not.toBeInTheDocument()
+
+      writeText.mockResolvedValueOnce(undefined)
+      await user.click(copyButton)
+      expect(within(copyButton).getByRole('img', { name: 'Copied' })).toBeInTheDocument()
+      mocks.toastSuccess.mockClear()
+      mocks.toastError.mockClear()
+      mocks.loggerError.mockClear()
+
+      await user.click(copyButton)
+
+      expect(mocks.toastError).toHaveBeenCalledWith('code_block.copy.failed')
+      expect(mocks.loggerError).toHaveBeenCalledWith(expect.any(String), error)
+      expect(mocks.toastSuccess).not.toHaveBeenCalled()
+      expect(copyButton).toHaveAccessibleName('code_block.copy.source')
+      expect(within(copyButton).queryByRole('img', { name: 'Copied' })).not.toBeInTheDocument()
+    }
+  )
+
+  it.each(['', ' \t\r\n '])('disables source copying for blank html %j and hides it in preview', async (html) => {
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    render(<HtmlArtifactView html={html} title="Preview" />)
+
+    expect(screen.queryByRole('button', { name: 'code_block.copy.source' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'html_artifacts.code' }))
+    const copyButton = screen.getByRole('button', { name: 'code_block.copy.source' })
+    expect(copyButton).toBeDisabled()
+    await user.click(copyButton)
+
+    expect(writeText).not.toHaveBeenCalled()
   })
 
   it('zooms the HTML viewport and keeps the surface fitted to the scaled content', () => {

@@ -17,6 +17,7 @@ it('joins snapshot and live patches, repairs a revision gap, and fences an old c
     revision: 0,
     active: true,
     available: true,
+    canSubmit: true,
     messages: [{ id: 'm', role: 'assistant', parts: [{ type: 'text', text: 'first', state: 'streaming' }] }]
   }
   vi.spyOn(window.api.ipcApi, 'on').mockImplementation((_event, listener) => {
@@ -41,7 +42,8 @@ it('joins snapshot and live patches, repairs a revision gap, and fences an old c
     patches: [{ type: 'append', messageId: 'm', part: 0, text: ' second' }],
     order: ['m'],
     active: true,
-    available: true
+    available: true,
+    canSubmit: true
   }
   await act(async () => {
     deliver({ subscriptionId, update: patch })

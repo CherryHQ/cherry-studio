@@ -1,3 +1,5 @@
+import type { Server } from 'node:http'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -96,6 +98,7 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
 }))
 
 import { buildApp } from '../../app'
+import { CountTokensBodySchema, MessagesBodySchema } from '../schemas'
 
 const AUTH = { 'content-type': 'application/json', 'x-api-key': 'test-key' }
 function post(app: ReturnType<typeof buildApp>, path: string, body: unknown, headers: Record<string, string> = AUTH) {
@@ -329,6 +332,174 @@ describe('API gateway routes (integration)', () => {
       // Anthropic dialect: { type: 'error', error: { type, message } }.
       expect(body.type).toBe('error')
       expect(body.error.type).toBe('invalid_request_error')
+    })
+  })
+
+  describe('Anthropic message content contract', () => {
+    const contract = 'content is required and must be a string or an array of content blocks'
+
+    for (const path of ['/v1/messages', '/v1/messages/count_tokens']) {
+      it.each([0, 178])(`${path} rejects missing content at index %i before processing`, async (index) => {
+        const messages = [...Array.from({ length: index }, () => ({ role: 'user', content: 'hi' })), { role: 'user' }]
+        const { status, body } = await read(
+          await post(app, path, { model: 'anthropic:claude', messages, stream: true })
+        )
+        expect(status).toBe(400)
+        expect(body).toEqual({
+          type: 'error',
+          error: { type: 'invalid_request_error', message: `messages.${index}.content: ${contract}` }
+        })
+        expect(mockProcessMessage).not.toHaveBeenCalled()
+        expect(mockEstimateAnthropicRequestTokens).not.toHaveBeenCalled()
+      })
+
+      it.each([null, false, 42, {}])(`${path} rejects content %j`, async (content) => {
+        const { status, body } = await read(
+          await post(app, path, { model: 'anthropic:claude', messages: [{ role: 'user', content }] })
+        )
+        expect(status).toBe(400)
+        expect(body).toEqual({
+          type: 'error',
+          error: { type: 'invalid_request_error', message: `messages.0.content: ${contract}` }
+        })
+        expect(mockProcessMessage).not.toHaveBeenCalled()
+        expect(mockEstimateAnthropicRequestTokens).not.toHaveBeenCalled()
+      })
+
+      it.each([
+        { role: 'user', content: 'hi' },
+        { role: 'user', content: [{ type: 'text', text: 'hi' }] },
+        { role: 'user', content: '' },
+        { role: 'user', content: [] },
+        { role: 'system', content: 'Inline instructions' },
+        { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'tool-1' }] }
+      ])(`${path} accepts $role content $content`, async (message) => {
+        const { status, body } = await read(await post(app, path, { model: 'anthropic:claude', messages: [message] }))
+        expect(status).toBe(200)
+        if (path === '/v1/messages') {
+          expect(body).toEqual({ ok: true })
+          expect(mockProcessMessage).toHaveBeenCalledOnce()
+        } else {
+          expect(body).toEqual({ input_tokens: 42 })
+        }
+      })
+
+      it(`${path} preserves unknown message and block fields`, async () => {
+        const messages = [
+          { role: 'user', content: [{ type: 'text', text: 'hi', future_block: 42 }], future_message: true }
+        ]
+        const { status, body } = await read(await post(app, path, { model: 'anthropic:claude', messages }))
+        expect(status).toBe(200)
+        if (path === '/v1/messages') {
+          expect(body).toEqual({ ok: true })
+          expect(mockProcessMessage).toHaveBeenCalledWith(
+            expect.objectContaining({ params: { model: 'anthropic:claude', messages } })
+          )
+        } else {
+          expect(body).toEqual({ input_tokens: 42 })
+          expect(mockEstimateAnthropicRequestTokens).toHaveBeenCalledWith(
+            { model: 'anthropic:claude', messages },
+            expect.any(AbortSignal),
+            false
+          )
+        }
+      })
+    }
+
+    it.each([MessagesBodySchema, CountTokensBodySchema])('rejects explicitly undefined content', (schema) => {
+      const result = schema.safeParse({ model: 'anthropic:claude', messages: [{ role: 'user', content: undefined }] })
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error.issues[0].path).toEqual(['messages', 0, 'content'])
+        expect(result.error.issues[0].message).toBe(contract)
+      }
+    })
+
+    it('keeps OpenAI tool calls without content valid', async () => {
+      const { status, body } = await read(
+        await post(app, '/v1/chat/completions', {
+          model: 'openai:gpt-4',
+          messages: [
+            {
+              role: 'assistant',
+              tool_calls: [{ id: 'call-1', type: 'function', function: { name: 'lookup', arguments: '{}' } }]
+            }
+          ]
+        })
+      )
+      expect(status).toBe(200)
+      expect(body).toEqual({ ok: true })
+      expect(mockProcessMessage).toHaveBeenCalledOnce()
+    })
+
+    it('keeps Responses function_call items valid', async () => {
+      const { status, body } = await read(
+        await post(app, '/v1/responses', {
+          model: 'openai:gpt-4',
+          input: [{ type: 'function_call', call_id: 'call-1', name: 'lookup', arguments: '{}' }]
+        })
+      )
+      expect(status).toBe(200)
+      expect(body).toEqual({ ok: true })
+      expect(mockProcessMessage).toHaveBeenCalledOnce()
+    })
+
+    it('enforces the content contract through real buildApp HTTP sockets', async () => {
+      let server: Server | undefined
+      try {
+        const baseUrl = await new Promise<string>((resolve, reject) => {
+          app.listen({ port: 0, hostname: '127.0.0.1', gracefulShutdown: false }, (info) => {
+            const handle = info as unknown as { raw: { node: { server: Server }; ready(): Promise<unknown> } }
+            server = handle.raw.node.server
+            void handle.raw.ready().then(() => {
+              const address = server!.address()
+              if (!address || typeof address === 'string') return reject(new Error('No gateway port'))
+              resolve(`http://127.0.0.1:${address.port}`)
+            }, reject)
+          })
+        })
+        for (const path of ['/v1/messages', '/v1/messages/count_tokens']) {
+          for (const index of [0, 178]) {
+            const messages = [
+              ...Array.from({ length: index }, () => ({ role: 'user', content: 'hi' })),
+              { role: 'user' }
+            ]
+            const response = await fetch(`${baseUrl}${path}`, {
+              method: 'POST',
+              headers: AUTH,
+              body: JSON.stringify({ model: 'anthropic:claude', messages }),
+              signal: AbortSignal.timeout(5000)
+            })
+            expect(response.status).toBe(400)
+            expect(await response.json()).toEqual({
+              type: 'error',
+              error: { type: 'invalid_request_error', message: `messages.${index}.content: ${contract}` }
+            })
+            expect(mockProcessMessage).not.toHaveBeenCalled()
+            expect(mockEstimateAnthropicRequestTokens).not.toHaveBeenCalled()
+          }
+        }
+        for (const path of ['/v1/messages', '/v1/messages/count_tokens']) {
+          for (const content of ['hi', [{ type: 'text', text: 'hi' }]]) {
+            const response = await fetch(`${baseUrl}${path}`, {
+              method: 'POST',
+              headers: AUTH,
+              body: JSON.stringify({ model: 'anthropic:claude', messages: [{ role: 'user', content }] }),
+              signal: AbortSignal.timeout(5000)
+            })
+            expect(response.status).toBe(200)
+            expect(await response.json()).toEqual(path === '/v1/messages' ? { ok: true } : { input_tokens: 42 })
+          }
+        }
+      } finally {
+        if (server) {
+          const listener = server
+          await new Promise<void>((resolve, reject) => {
+            listener.close((error) => (error ? reject(error) : resolve()))
+            listener.closeAllConnections()
+          })
+        }
+      }
     })
   })
 
