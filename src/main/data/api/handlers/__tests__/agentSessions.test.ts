@@ -55,7 +55,7 @@ describe('agentSessionHandlers', () => {
           agentId: 'agent-1',
           limit: '10'
         }
-      } as never)
+      })
 
       expect(listByCursorMock).toHaveBeenCalledWith({
         agentId: 'agent-1',
@@ -84,16 +84,14 @@ describe('agentSessionHandlers', () => {
       getLatestActiveMock.mockReturnValueOnce(session)
 
       await expect(
-        agentSessionHandlers['/agent-sessions/latest'].GET({ query: { agentId: 'agent-1' } } as never)
+        agentSessionHandlers['/agent-sessions/latest'].GET({ query: { agentId: 'agent-1' } })
       ).resolves.toEqual({ session })
 
       expect(getLatestActiveMock).toHaveBeenCalledWith({ agentId: 'agent-1' })
     })
 
     it('rejects an empty agentId', async () => {
-      await expect(
-        agentSessionHandlers['/agent-sessions/latest'].GET({ query: { agentId: '' } } as never)
-      ).rejects.toThrow()
+      await expect(agentSessionHandlers['/agent-sessions/latest'].GET({ query: { agentId: '' } })).rejects.toThrow()
 
       expect(getLatestActiveMock).not.toHaveBeenCalled()
     })
