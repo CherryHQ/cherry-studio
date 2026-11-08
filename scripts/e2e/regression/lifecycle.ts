@@ -408,6 +408,32 @@ function windowsIdentityDiagnostic(pid: number): string {
   }
 }
 
+async function terminateMacProcessGroupWithDrain(
+  record: LaunchRecord,
+  signal: 'SIGTERM' | 'SIGKILL',
+  previouslyVerified: ReturnType<typeof terminateOwnedMacProcessGroup> = []
+): Promise<ReturnType<typeof terminateOwnedMacProcessGroup>> {
+  try {
+    return terminateOwnedMacProcessGroup(record, signal, previouslyVerified)
+  } catch (error) {
+    // Observing a still-visible runner grants no authority to signal its unverified group.
+    try {
+      processExited(record.runnerPid)
+    } catch {
+      throw error
+    }
+    logLifecycleStage(record, 'unverified-group-drain-start')
+    if (!(await waitForMacProcessGroupExit(record.runnerPid))) throw error
+    logLifecycleStage(record, 'unverified-group-drain-finished')
+    try {
+      processExited(record.runnerPid)
+    } catch {
+      throw error
+    }
+    return terminateOwnedMacProcessGroup(record, signal, previouslyVerified)
+  }
+}
+
 async function stopOwnedRecord(record: LaunchRecord): Promise<void> {
   logLifecycleStage(record, 'stop-start')
   if (record.platform === 'macos') {
@@ -425,28 +451,9 @@ async function stopOwnedRecord(record: LaunchRecord): Promise<void> {
       await waitForMacProcessGroupExit(record.runnerPid)
     }
     logLifecycleStage(record, 'group-termination-start')
-    let verifiedMembers: ReturnType<typeof terminateOwnedMacProcessGroup>
-    try {
-      verifiedMembers = terminateOwnedMacProcessGroup(record)
-    } catch (error) {
-      // Observing a still-visible runner grants no authority to signal its unverified group.
-      try {
-        processExited(record.runnerPid)
-      } catch {
-        throw error
-      }
-      logLifecycleStage(record, 'unverified-group-drain-start')
-      if (!(await waitForMacProcessGroupExit(record.runnerPid))) throw error
-      logLifecycleStage(record, 'unverified-group-drain-finished')
-      try {
-        processExited(record.runnerPid)
-      } catch {
-        throw error
-      }
-      verifiedMembers = terminateOwnedMacProcessGroup(record)
-    }
+    const verifiedMembers = await terminateMacProcessGroupWithDrain(record, 'SIGTERM')
     if (!(await waitForMacProcessGroupExit(record.runnerPid))) {
-      terminateOwnedMacProcessGroup(record, 'SIGKILL', verifiedMembers)
+      await terminateMacProcessGroupWithDrain(record, 'SIGKILL', verifiedMembers)
       if (!(await waitForMacProcessGroupExit(record.runnerPid))) {
         throw new Error(`Owned application process group ${record.runnerPid} did not exit after SIGKILL`)
       }

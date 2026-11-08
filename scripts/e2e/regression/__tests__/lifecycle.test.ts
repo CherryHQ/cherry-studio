@@ -195,6 +195,96 @@ describe('owned application lifecycle', () => {
     }
   )
 
+  it.each(['natural-exit', 'survivor', 'pid-reused', 'EPERM', 'UNKNOWN', 'after-EPERM', 'after-UNKNOWN'])(
+    'observes an unverified macOS survivor after owned SIGTERM without escalating its signal: %s',
+    async (outcome) => {
+      vi.useFakeTimers()
+      const directory = mkdtempSync(join(tmpdir(), 'cherry-escalating-runner-'))
+      const paths = getRunPaths(directory)
+      ensureRunDirectories(paths)
+      const runnerPid = 42_000
+      writeFileSync(
+        paths.appRecord,
+        JSON.stringify({
+          schemaVersion: 1,
+          ownership: 'regression-driver',
+          policy: 'ephemeral',
+          mode: 'branch',
+          platform: 'macos',
+          targetRoot: '/owned/app',
+          runnerPid,
+          cdpPort: 9222,
+          logPath: join(paths.logs, 'electron.log')
+        })
+      )
+      let terminated = false
+      let groupAlive = true
+      let escalationProbed = false
+      let escalationAt: number | undefined
+      const startedAt = Date.now()
+      const signals: { pid: number; signal: NodeJS.Signals | number | undefined }[] = []
+      const releasedPorts = new Set<string>()
+      vi.spyOn(process, 'kill').mockImplementation((pid, signal) => {
+        if (signal !== 0) {
+          signals.push({ pid, signal })
+          terminated = true
+          return true
+        }
+        if (!terminated) return true
+        if (!escalationProbed) {
+          escalationProbed = true
+          throw Object.assign(new Error('Runner exited'), { code: 'ESRCH' })
+        }
+        if (outcome === 'EPERM' || outcome === 'UNKNOWN')
+          throw Object.assign(new Error('Runner liveness'), { code: outcome })
+        if (!groupAlive) {
+          if (outcome === 'pid-reused') return true
+          const code = outcome.startsWith('after-') ? outcome.slice('after-'.length) : 'ESRCH'
+          throw Object.assign(new Error('Runner liveness'), { code })
+        }
+        return true
+      })
+      execFileSyncMock.mockImplementation((file: string, args: string[]) => {
+        if (file === 'lsof') {
+          releasedPorts.add(args[1])
+          return ''
+        }
+        if (file === 'ps' && args.includes('command=')) return 'node /owned/app/node_modules/dotenv-cli/cli.js'
+        if (file === 'ps' && args.includes('lstart=')) return 'Sun Nov 8 00:51:13 2026'
+        if (file === 'ps' && args.includes('pid=,pgid=,stat=,command=')) {
+          if (!terminated) return `${runnerPid} ${runnerPid} S node /owned/app/node_modules/dotenv-cli/cli.js`
+          escalationAt ??= Date.now()
+          if (groupAlive) return `42001 ${runnerPid} S /usr/bin/transient-worker`
+          return outcome === 'pid-reused' ? `${runnerPid} 43000 S /unrelated/application` : ''
+        }
+        if (file === 'ps' && args.includes('pgid=,stat=')) return groupAlive ? `${runnerPid} S` : ''
+        throw new Error('Unexpected process query')
+      })
+      if (['natural-exit', 'pid-reused', 'after-EPERM', 'after-UNKNOWN'].includes(outcome))
+        setTimeout(() => (groupAlive = false), 8_250)
+      try {
+        const stopped = stopOwnedApp(paths)
+        const assertion =
+          outcome === 'natural-exit'
+            ? expect(stopped).resolves.toBeUndefined()
+            : expect(stopped).rejects.toThrow(
+                outcome === 'pid-reused'
+                  ? 'runner no longer owns its process group'
+                  : 'orphaned process group does not match the owned application'
+              )
+        await Promise.all([assertion, vi.runAllTimersAsync()])
+        expect(escalationAt).toBe(startedAt + 8_000)
+        expect(escalationProbed).toBe(true)
+        expect(signals).toEqual([{ pid: -runnerPid, signal: 'SIGTERM' }])
+        expect(releasedPorts).toEqual(
+          outcome === 'natural-exit' ? new Set(['-iTCP:9222', `-iTCP:${processUtils.MAIN_INSPECTOR_PORT}`]) : new Set()
+        )
+      } finally {
+        rmSync(directory, { recursive: true, force: true })
+      }
+    }
+  )
+
   it.each(['ESRCH', 'EPERM', 'UNKNOWN', 'alive'])(
     'handles a Windows identity lookup race without terminating an unverified PID: %s',
     async (liveness) => {

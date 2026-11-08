@@ -371,7 +371,44 @@ test(...caseDefinition('MP-92'), async ({ mainWindow: page }, testInfo) => {
   }
   const selectModel = async (providerId: string) => {
     await page.locator('[data-selector-shell-root="true"] > button').first().click()
-    await selectVisibleModel(page, modelId, providerId)
+    try {
+      await selectVisibleModel(page, modelId, providerId)
+    } catch (error) {
+      await Promise.allSettled([
+        page
+          .evaluate(
+            ({ providerId, modelId }) => {
+              const popups = [...document.querySelectorAll('[data-testid="model-selector-content"]')]
+              const visible = (element: Element | null | undefined) =>
+                element?.checkVisibility({ visibilityProperty: true }) ?? false
+              const popup = popups.filter(visible).at(-1) ?? popups.at(-1)
+              const option = popup?.querySelector(
+                `[role="option"][data-testid="${CSS.escape(`model-selector-item-${providerId}::${modelId}`)}"]`
+              )
+              const search = popup?.querySelector<HTMLInputElement>('[data-testid="model-selector-search"]')
+              const trigger = document.querySelector('[data-selector-shell-root="true"] > button')
+              return {
+                popupExists: popups.length > 0,
+                popupVisible: popups.some(visible),
+                optionExists: Boolean(option),
+                optionVisible: visible(option),
+                searchValue: search?.value.slice(0, 100) ?? null,
+                triggerExpanded: trigger?.getAttribute('aria-expanded') ?? null,
+                focusInPopup: Boolean(popup?.contains(document.activeElement))
+              }
+            },
+            { providerId, modelId }
+          )
+          .then((state) =>
+            testInfo.attach('MP-92 model selection failure state', {
+              body: JSON.stringify(state),
+              contentType: 'application/json'
+            })
+          ),
+        screenshot('MP-92 model selection failure')
+      ])
+      throw error
+    }
   }
   const generating = page.getByRole('status', {
     name: /Drawing in progress\. Please do not leave this page\.|Revealing generated image/
