@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } fr
 import type * as ForkDataModule from '@data/services/AgentSessionForkService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import type { AgentSessionForkResources } from '@main/ai/agentSession/fork/resources'
+import { PiForkCheckpointSchema } from '@main/ai/runtime/pi/forkCheckpoint'
 import type { AgentRuntimeConnection, AgentRuntimeEvent } from '@main/ai/runtime/types'
 import type { StreamDoneResult, StreamErrorResult, StreamPausedResult } from '@main/ai/streamManager'
 import { BaseService } from '@main/core/lifecycle/BaseService'
@@ -493,7 +494,20 @@ describe('AgentSessionForkOperations recovery', () => {
   })
 
   it('rejects a missing checkpoint before creating fork artifacts or rebuilding history', async () => {
+    mocks.getAgent.mockReturnValueOnce({ id: 'fork-agent', type: 'pi' })
+    runtimeDriverRegistry.register({
+      type: 'pi',
+      validateSession() {},
+      isForkCheckpoint: (value) => PiForkCheckpointSchema.safeParse(value).success,
+      async connect() {
+        throw new Error('History validation must not connect')
+      },
+      async fork() {
+        throw new Error('Missing checkpoints must not reach native preparation')
+      }
+    })
     forkRecoveryMocks.read.mockReturnValue({
+      agent: { id: 'fork-agent' },
       messages: [{ role: 'assistant', status: 'success', data: {} }]
     })
 
@@ -580,7 +594,20 @@ describe('AgentSessionRuntimeService', () => {
 
   it('blocks edits only on the source session until its fork settles', async () => {
     const service = new AgentSessionRuntimeService()
+    mocks.getAgent.mockReturnValueOnce({ id: 'fork-agent', type: 'pi' })
+    runtimeDriverRegistry.register({
+      type: 'pi',
+      validateSession() {},
+      isForkCheckpoint: (value) => PiForkCheckpointSchema.safeParse(value).success,
+      async connect() {
+        throw new Error('History validation must not connect')
+      },
+      async fork() {
+        throw new Error('Missing checkpoints must not reach native preparation')
+      }
+    })
     forkRecoveryMocks.read.mockReturnValueOnce({
+      agent: { id: 'fork-agent' },
       messages: [{ role: 'assistant', status: 'success', data: {} }]
     })
     const fork = service.forkSession('session-1', 'assistant-1')

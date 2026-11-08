@@ -620,7 +620,11 @@ identities or replaying their inputs. Rows owned by persisted delivery turns rem
 For Claude Code, the resume token is the SDK `session_id`. The driver
 maps it to `options.resume`. This is separate from the SDK's file
 checkpointing / `rewindFiles()` feature, which uses user-message UUIDs
-to restore files.
+to restore files and is not integrated into desktop history actions. Fork and
+edit/resend preserve the current file state. After `/clear`, the driver prepares
+a successor context at the current product head before switching the active
+native handle/context; results from the retired native session cannot overwrite
+the successor checkpoint.
 
 ## Native user-data SQLite guard
 
@@ -1061,7 +1065,8 @@ The seeder records each affected session in `app_state` and leaves native tokens
 Fork recovery retires already-published retired-runtime journals without deleting their files.
 After fork recovery and crash-message reconciliation, `retiredSessionHistory` imports the
 persisted Cherry transcript through Pi's `SessionManager`, validates the generated file,
-and transactionally replaces resume tokens, fork checkpoints, and edited native identities.
+and transactionally replaces resume tokens, fork checkpoints, and edited native identities
+while binding the imported native context to the product root branch.
 Tools appear as historical text and are never executed during import. Attachments retain
 managed file paths. Native DSH goals and child-process state are not carried over.
 

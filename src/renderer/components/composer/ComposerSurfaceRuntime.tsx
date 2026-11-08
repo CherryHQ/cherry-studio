@@ -231,6 +231,7 @@ export interface ComposerSurfaceProps {
   isLoading: boolean
   onSendDraft: (draft: ComposerSerializedDraft, options?: { steer?: boolean }) => void | Promise<void>
   onPause: () => void | Promise<void>
+  onShiftTab?: () => void
   supportedExts: string[]
   setFiles: React.Dispatch<React.SetStateAction<ComposerAttachment[]>>
   previewInputFile?: ComposerInputFilePreviewAction
@@ -259,8 +260,6 @@ export interface ComposerSurfaceProps {
   onActionsChange?: (actions: ComposerSurfaceActions) => void
   isInputHistoryActive?: boolean
   onInputHistoryNavigate?: (direction: InputHistoryDirection) => boolean
-  /** Claims Shift+Tab before prompt-variable navigation; return true when handled. */
-  onShiftTab?: () => boolean
   editingState?: ComposerSurfaceEditingState
   getToolLaunchers?: () => ComposerToolLauncher[]
   toolLaunchersVersion?: number
@@ -577,6 +576,7 @@ export default function ComposerSurfaceRuntime({
   isLoading,
   onSendDraft,
   onPause,
+  onShiftTab,
   supportedExts,
   setFiles,
   previewInputFile,
@@ -598,7 +598,6 @@ export default function ComposerSurfaceRuntime({
   onActionsChange,
   isInputHistoryActive = false,
   onInputHistoryNavigate,
-  onShiftTab,
   editingState,
   getToolLaunchers,
   toolLaunchersVersion,
@@ -659,9 +658,9 @@ export default function ComposerSurfaceRuntime({
   const steerShortcutRef = useRef(steerShortcut)
   const setFilesRef = useRef(setFiles)
   const onSendDraftRef = useRef(onSendDraft)
+  const onShiftTabRef = useRef(onShiftTab)
   const isInputHistoryActiveRef = useRef(isInputHistoryActive)
   const onInputHistoryNavigateRef = useRef(onInputHistoryNavigate)
-  const onShiftTabRef = useRef(onShiftTab)
   const promptVariableEditRef = useRef<{ tokenId: string; started: boolean } | null>(null)
   const promptVariableCompositionRef = useRef<{ tokenId: string; text: string } | null>(null)
   const promptVariableSkipTextInputRef = useRef<{ tokenId: string; text: string } | null>(null)
@@ -683,9 +682,9 @@ export default function ComposerSurfaceRuntime({
     steerShortcutRef.current = steerShortcut
     setFilesRef.current = setFiles
     onSendDraftRef.current = onSendDraft
+    onShiftTabRef.current = onShiftTab
     isInputHistoryActiveRef.current = isInputHistoryActive
     onInputHistoryNavigateRef.current = onInputHistoryNavigate
-    onShiftTabRef.current = onShiftTab
   }, [
     filesCount,
     steerShortcut,
@@ -693,8 +692,8 @@ export default function ComposerSurfaceRuntime({
     isInputHistoryActive,
     newlineShortcut,
     onInputHistoryNavigate,
-    onShiftTab,
     onSendDraft,
+    onShiftTab,
     quickPanel,
     sendBlockedReason,
     sendDisabled,
@@ -1636,11 +1635,6 @@ export default function ComposerSurfaceRuntime({
         }
 
         if (event.key === 'Tab' && !event.isComposing && !quickPanelRef.current.isVisible) {
-          if (event.shiftKey && onShiftTabRef.current?.()) {
-            event.preventDefault()
-            event.stopPropagation()
-            return true
-          }
           const targetToken = editorRef.current
             ? selectPromptVariableToken(editorRef.current, event.shiftKey ? -1 : 1)
             : null
@@ -1649,6 +1643,12 @@ export default function ComposerSurfaceRuntime({
             event.preventDefault()
             event.stopPropagation()
             promptVariableEditRef.current = { tokenId: targetToken.id, started: false }
+            return true
+          }
+          if (event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey && onShiftTabRef.current) {
+            if (!event.repeat) onShiftTabRef.current()
+            event.preventDefault()
+            event.stopPropagation()
             return true
           }
         }
