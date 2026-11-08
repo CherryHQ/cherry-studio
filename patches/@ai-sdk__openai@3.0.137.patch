@@ -242,7 +242,7 @@ diff --git a/dist/index.js b/dist/index.js
                  modelId: value.response.model
                });
              } else if (isTextDeltaChunk(value)) {
-@@ -7778,6 +7810,17 @@
+@@ -7778,6 +7810,29 @@
                controller.enqueue({
                  type: "reasoning-delta",
                  id: `${value.item_id}:${value.summary_index}`,
@@ -254,6 +254,18 @@ diff --git a/dist/index.js b/dist/index.js
 +                }
 +              });
 +            } else if (value.type === "response.reasoning_text.delta") {
++              if (activeReasoning[value.item_id] == null) {
++                activeReasoning[value.item_id] = { summaryParts: { 0: "active" } };
++                controller.enqueue({
++                  type: "reasoning-start",
++                  id: `${value.item_id}:0`,
++                  providerMetadata: {
++                    [providerOptionsName]: {
++                      itemId: value.item_id
++                    }
++                  }
++                });
++              }
 +              controller.enqueue({
 +                type: "reasoning-delta",
 +                id: `${value.item_id}:0`,
@@ -504,7 +516,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
                  modelId: value.response.model
                });
              } else if (isTextDeltaChunk(value)) {
-@@ -7901,6 +7933,17 @@
+@@ -7901,6 +7933,29 @@
                controller.enqueue({
                  type: "reasoning-delta",
                  id: `${value.item_id}:${value.summary_index}`,
@@ -516,6 +528,18 @@ diff --git a/dist/index.mjs b/dist/index.mjs
 +                }
 +              });
 +            } else if (value.type === "response.reasoning_text.delta") {
++              if (activeReasoning[value.item_id] == null) {
++                activeReasoning[value.item_id] = { summaryParts: { 0: "active" } };
++                controller.enqueue({
++                  type: "reasoning-start",
++                  id: `${value.item_id}:0`,
++                  providerMetadata: {
++                    [providerOptionsName]: {
++                      itemId: value.item_id
++                    }
++                  }
++                });
++              }
 +              controller.enqueue({
 +                type: "reasoning-delta",
 +                id: `${value.item_id}:0`,
@@ -766,7 +790,7 @@ diff --git a/dist/internal/index.js b/dist/internal/index.js
                  modelId: value.response.model
                });
              } else if (isTextDeltaChunk(value)) {
-@@ -8069,6 +8101,17 @@
+@@ -8069,6 +8101,29 @@
                controller.enqueue({
                  type: "reasoning-delta",
                  id: `${value.item_id}:${value.summary_index}`,
@@ -778,6 +802,18 @@ diff --git a/dist/internal/index.js b/dist/internal/index.js
 +                }
 +              });
 +            } else if (value.type === "response.reasoning_text.delta") {
++              if (activeReasoning[value.item_id] == null) {
++                activeReasoning[value.item_id] = { summaryParts: { 0: "active" } };
++                controller.enqueue({
++                  type: "reasoning-start",
++                  id: `${value.item_id}:0`,
++                  providerMetadata: {
++                    [providerOptionsName]: {
++                      itemId: value.item_id
++                    }
++                  }
++                });
++              }
 +              controller.enqueue({
 +                type: "reasoning-delta",
 +                id: `${value.item_id}:0`,
@@ -1028,7 +1064,7 @@ diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
                  modelId: value.response.model
                });
              } else if (isTextDeltaChunk(value)) {
-@@ -8162,6 +8194,17 @@
+@@ -8162,6 +8194,29 @@
                controller.enqueue({
                  type: "reasoning-delta",
                  id: `${value.item_id}:${value.summary_index}`,
@@ -1040,6 +1076,18 @@ diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
 +                }
 +              });
 +            } else if (value.type === "response.reasoning_text.delta") {
++              if (activeReasoning[value.item_id] == null) {
++                activeReasoning[value.item_id] = { summaryParts: { 0: "active" } };
++                controller.enqueue({
++                  type: "reasoning-start",
++                  id: `${value.item_id}:0`,
++                  providerMetadata: {
++                    [providerOptionsName]: {
++                      itemId: value.item_id
++                    }
++                  }
++                });
++              }
 +              controller.enqueue({
 +                type: "reasoning-delta",
 +                id: `${value.item_id}:0`,
@@ -1326,7 +1374,7 @@ diff --git a/src/responses/openai-responses-language-model.ts b/src/responses/op
                  modelId: value.response.model,
                });
              } else if (isTextDeltaChunk(value)) {
-@@ -2312,6 +2315,17 @@
+@@ -2312,6 +2315,29 @@
                controller.enqueue({
                  type: 'reasoning-delta',
                  id: `${value.item_id}:${value.summary_index}`,
@@ -1338,6 +1386,18 @@ diff --git a/src/responses/openai-responses-language-model.ts b/src/responses/op
 +                },
 +              });
 +            } else if (value.type === 'response.reasoning_text.delta') {
++              if (activeReasoning[value.item_id] == null) {
++                activeReasoning[value.item_id] = { summaryParts: { 0: 'active' } };
++                controller.enqueue({
++                  type: 'reasoning-start',
++                  id: `${value.item_id}:0`,
++                  providerMetadata: {
++                    [providerOptionsName]: {
++                      itemId: value.item_id,
++                    },
++                  },
++                });
++              }
 +              controller.enqueue({
 +                type: 'reasoning-delta',
 +                id: `${value.item_id}:0`,
