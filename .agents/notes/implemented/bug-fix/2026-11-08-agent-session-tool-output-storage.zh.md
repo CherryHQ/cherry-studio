@@ -17,12 +17,12 @@ Status: implemented
 ## 决策
 
 1. **独立工具输出旁路表（`agent_session_tool_output`）**：
-   - 新增 `agent_session_tool_output` 表（`message_id`、`tool_call_id`、`session_id`、`output`、`revision`、`byte_length`、`created_at`、`updated_at`），采用复合主键 `(message_id, tool_call_id)`，并对 `agent_session_message(id)` 与 `agent_session(id)` 配置 `ON DELETE CASCADE` 外键。
-   - 在写入路径（`upsertMessage`、`replaceMessageParts`、`updateSessionMessage`、`insertForkMessagesTx`、`resolveCrashOrphanedMessages`）中，`AgentSessionMessageService` 将超过 `RENDERER_TOOL_OUTPUT_INLINE_MAX_BYTES`（8 KB）的已完成工具输出剥离至 `agent_session_tool_output`，主表 `agent_session_message.data` 仅保留轻量的 `$deferredToolResult` 标记（`byteLength`、`preview`、`citable`、`revision`）。
+   - 新增 `agent_session_tool_output` 表（`message_id`、`tool_call_id`、`session_id`、`output`、`revision`、`created_at`、`updated_at`），采用复合主键 `(message_id, tool_call_id)`，并对 `agent_session_message(id)` 与 `agent_session(id)` 配置 `ON DELETE CASCADE` 外键。
+   - 在写入路径（`upsertMessage`、`replaceMessageParts`、`updateSessionMessage`、`insertForkMessagesTx`、`resolveCrashOrphanedMessages`）中，`AgentSessionMessageService` 将超过 `DEFER_TOOL_OUTPUT_BYTES`（32 KiB）的已完成工具输出剥离至 `agent_session_tool_output`，主表 `agent_session_message.data` 仅保留轻量的 `$deferredToolResult` 标记（引用标识 `sessionId`、`messageId`、`toolCallId`、`revision`，以及可选的 `excerpt` 与 `skeleton`）。
    - `syncMessageToolOutputsTx` 使用 `setWhere: revision != excluded.revision` 条件更新，使流式回复期间重复调用的 `replaceMessageParts` 跳过未发生变化的大工具输出重写。
 2. **按需延迟读取与批量回填**：
    - `listSessionMessages(sessionId, { deferToolOutputs: true })` 直接读取紧凑的 `agent_session_message` 行，无需查询 `agent_session_tool_output`；同时对存量内联旧数据保留内存裁剪以兼容历史会话。
-   - 需要完整工具输出的调用方（`getSessionMessage`、`listApprovalMessages`、`findCrashOrphanedAssistantMessages`、`readAgentSessionPath` 以及未开启 `deferToolOutputs` 的 `listSessionMessages`）按 `SQLITE_INARRAY_CHUNK` 分块从 `agent_session_tool_output` 批量回填 `$deferredToolResult` 标记。
+   - 需要完整工具输出的调用方（`getSessionMessage`、`listApprovalMessages`、`findCrashOrphanedAssistantMessages`、`readAgentSessionPath`、`readRetiredAgentSessionHistory` 以及未开启 `deferToolOutputs` 的 `listSessionMessages`）按 `SQLITE_INARRAY_CHUNK` 分块从 `agent_session_tool_output` 批量回填 `$deferredToolResult` 标记。
    - `getSessionToolOutput(sessionId, messageId, toolCallId)` 与 `findPersistedToolOutput` 优先对 `agent_session_tool_output` 执行 O(1) 主键点查，仅在存量未剥离行或内联小输出时回退到 `getSessionMessage`。
    - `agentSessionMessageEntityJsonBytes()` 计入旁路表输出与占位标记的字节差值，保证诊断元数据分页（`listLiveCreatedInRangeMetadataPage`）计算的 `entityJsonBytes` 与 `JSON.stringify(getSessionMessage(sessionId, id))` 严格一致。
 3. **热路径优化与 FTS 触发器守卫**：
@@ -45,6 +45,7 @@ Status: implemented
 ## 验证
 
 - Regression — `pnpm test:main src/main/data/services/__tests__/AgentSessionMessageService.test.ts`：验证写入时剥离至 `agent_session_tool_output`、紧凑延迟读取、默认/单条回填读取、`getSessionToolOutput` 点查、`entityJsonBytes` 字节一致性、`replaceMessageParts` 未变更 `revision` 跳过重写，以及级联删除。
+- Regression — `pnpm test:main src/main/ai/runtime/pi/__tests__/retiredSessionHistory.test.ts`：验证孤儿崩溃恢复（crash-orphan recovery）后紧接着执行已退役 DSH 会话历史导入时，已剥离的超大工具输出能完整回填到恢复的 Pi 上下文中。
 - Regression — `pnpm test:main src/main/utils/__tests__/messageOutputProjection.test.ts src/main/ai/messages/__tests__/readConversation.test.ts src/main/ipc/handlers/__tests__/ai.test.ts`：验证单次序列化投影、引用摘要骨架保留，以及 `ai.message.readToolOutput` 的 O(1) 点查。
 - Regression — `pnpm test:main src/main/ai/agentSession/__tests__/RootMessageProjection.test.ts src/main/ai/agentSession/__tests__/ChildThreadProjection.test.ts`：验证按 `messageId` 去重查询与子线程归档单次读取初始化。
 - Regression — `pnpm test:main src/main/data/db/__tests__/applyMigrations.test.ts src/main/data/db/__tests__/applyMigrations.populated.test.ts src/main/data/db/__tests__/ftsRebuild.test.ts`：验证迁移 `0035_exotic_wild_child.sql` 与 `WHEN OLD.data IS NOT NEW.data` FTS 触发器完整性。

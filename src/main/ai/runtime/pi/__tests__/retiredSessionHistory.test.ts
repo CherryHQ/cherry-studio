@@ -957,4 +957,50 @@ describe('retired DSH session migration', () => {
       }
     }
   )
+
+  it('hydrates oversized tool outputs offloaded during crash-orphan recovery before importing retired history', async () => {
+    const oversizedOutput = `oversized-recovered-tool-output-${'x'.repeat(36 * 1024)}`
+    dbh.db
+      .update(agentSessionMessageTable)
+      .set({
+        status: 'pending',
+        data: {
+          parts: [
+            {
+              type: 'dynamic-tool',
+              toolName: 'bash',
+              toolCallId: 'completed-large-tool',
+              state: 'output-available',
+              input: { command: 'cat large.txt' },
+              output: oversizedOutput
+            },
+            {
+              type: 'dynamic-tool',
+              toolName: 'bash',
+              toolCallId: 'interrupted-tool',
+              state: 'input-available',
+              input: { command: 'sleep 60' }
+            }
+          ]
+        }
+      })
+      .where(eq(agentSessionMessageTable.id, 'assistant-2'))
+      .run()
+    seeder.run(dbh.db)
+    new AgentSessionMessageTreeSeeder().run(dbh.db)
+    BaseService.resetInstances()
+    runtimeDriverRegistry.register(new PiRuntimeDriver())
+    const runtime = new AgentSessionRuntimeService()
+    try {
+      await runtime._doInit()
+      const token = agentSessionMessageService.getLastRuntimeResumeToken('conversation')!
+      const file = resolveResumeTokenSessionFile(token, path.join(directory, 'sessions'))!
+      const context = JSON.stringify(SessionManager.open(file, path.dirname(file), directory).buildContextEntries())
+      expect(context).toContain(oversizedOutput)
+      expect(context).not.toContain('$deferredToolResult')
+    } finally {
+      await runtime._doDestroy()
+      runtimeDriverRegistry.clearForTest()
+    }
+  })
 })
