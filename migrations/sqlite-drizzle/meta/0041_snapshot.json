@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "d14d36e4-bf80-4488-a7f8-74aff17e2af4",
+  "id": "76fd64ea-a03b-443c-a3eb-bc3f483eb0e3",
   "prevId": "999b080c-958b-479b-b396-1d5b062ef612",
   "tables": {
     "agent": {
@@ -1465,13 +1465,6 @@
         },
         "session_id": {
           "name": "session_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "revision": {
-          "name": "revision",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
