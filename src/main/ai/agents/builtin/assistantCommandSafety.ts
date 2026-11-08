@@ -3,6 +3,52 @@ interface DestructiveCommandPattern {
   pattern: RegExp
 }
 
+// PowerShell identifier/name characters with every Unicode whitespace excluded: whitespace
+// inside the class overlaps the adjacent \s* scans (U+00A0 matched both sides), which was
+// a quadratic backtracking family on whitespace-padded inputs; identifiers never
+// legitimately contain whitespace, so matching is unchanged on real input.
+const PS_IDENTIFIER_CHARS = String.raw`\w\u0080-\u009f\u00a1-\u167f\u1681-\u1fff\u200b-\u2027\u202a-\u202e\u2030-\u205e\u2060-\u2fff\u3001-\ufefe\uff00-\uffff`
+
+// Parenthesized assignment targets (round-21 review findings): PowerShell accepts `($h).result`,
+// `($a)[0]`, `([Console])::Title` and one deeper nesting level as assignment LHS, and the shipped
+// main guard denies every del-token form of them. The fragments below mirror the member/variable/
+// index pieces used by the main alternation so the parenthesized branch stays byte-aligned with it.
+// Deliberate bounds (grounded against the official PowerShell 7.6.9
+// Parser.ParseInput AST, parse-only): bare parenthesized variables are valid assignment targets
+// and deny (`($h)`, `($5)`, `(($h))`); nesting stops at two parenthesization levels, and a
+// continuation after an inner parenthesized group (`(($h).x).y`, `(($a)[0]).x`) plus command
+// roots stay allow even though they parse as valid assignments - documented best-effort gaps.
+// The branch also refuses to start right after a `.`, so the documented computed-member gap
+// `$h.($x) = ...` keeps its shipped allow behavior instead of matching its inner `($x)`.
+// PowerShell string delimiters beyond ASCII (pwsh 7.4.6 parse probes + CharTraits.cs /
+// tokenizer.cs ScanStringLiteral, round-32 review findings): a string opens and closes
+// with ANY character of its class - doubles are U+0022/U+201C/U+201D/U+201E, singles
+// U+0027/U+2018/U+2019/U+201A/U+201B; U+201F forms nothing. ANY two consecutive
+// characters of the class are an escaped literal quote inside the string (mixed pairs
+// included), so a class character closes only when the next character is not in the
+// class. The backtick escape applies only inside the double class. Sites that track
+// cmd.exe syntax (scanTokenEnd, the CMD_* operand grammar) keep ASCII-only quoting: cmd
+// has no smart quotes.
+const PS_DQUOTE_CHARS = new Set(['"', '“', '”', '„'])
+const PS_SQUOTE_CHARS = new Set(["'", '‘', '’', '‚', '‛'])
+const isPSDQuote = (c: string): boolean => PS_DQUOTE_CHARS.has(c)
+const isPSSQuote = (c: string): boolean => PS_SQUOTE_CHARS.has(c)
+const isPSQuote = (c: string): boolean => PS_DQUOTE_CHARS.has(c) || PS_SQUOTE_CHARS.has(c)
+const PS_QUOTED_DOUBLE = String.raw`["“”„][^"“”„\r\n]*(?:["“”„]{2}[^"“”„\r\n]*)*["“”„]`
+const PS_QUOTED_SINGLE = String.raw`['‘’‚‛][^'‘’‚‛\r\n]*(?:['‘’‚‛]{2}[^'‘’‚‛\r\n]*)*['‘’‚‛]`
+const PS_STATIC_MEMBER = String.raw`(?:[${PS_IDENTIFIER_CHARS}]+|${PS_QUOTED_DOUBLE}|${PS_QUOTED_SINGLE}|\(\s*(?:${PS_QUOTED_DOUBLE}|${PS_QUOTED_SINGLE})\s*\))`
+const PS_DOT_MEMBER = String.raw`(?:[${PS_IDENTIFIER_CHARS}]+|(?:${PS_QUOTED_DOUBLE}|${PS_QUOTED_SINGLE})|\(\s*(?:${PS_QUOTED_DOUBLE}|${PS_QUOTED_SINGLE})\s*\))`
+const PS_VARIABLE = String.raw`\$[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*(?::[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*)?`
+const PS_BRACED_VARIABLE = String.raw`\$\{[^{}\r\n]*\}`
+const PS_INDEX_SEGMENT = String.raw`\[(?:[^\[\]\r\n]|\[[^\[\]\r\n]*\])*\]`
+const PS_TYPE_LITERAL = String.raw`\[[^\[\]\r\n]+\]`
+const PS_TYPE_STATIC_CHAIN = String.raw`${PS_TYPE_LITERAL}(?:\s*::\s*${PS_STATIC_MEMBER})+`
+const PS_TARGET_SEGMENT = String.raw`(?:\s*\.\s*${PS_DOT_MEMBER}|${PS_INDEX_SEGMENT})`
+const PS_PAREN_INNER = String.raw`${PS_TYPE_STATIC_CHAIN}|${PS_TYPE_LITERAL}|(?:${PS_VARIABLE}|${PS_BRACED_VARIABLE})${PS_TARGET_SEGMENT}*(?:\s*::\s*${PS_STATIC_MEMBER})*`
+const PS_PAREN_TARGET_L1 = String.raw`\(\s*(?:${PS_PAREN_INNER})\s*\)`
+const PS_PAREN_TARGET_L2 = String.raw`\(\s*(?:${PS_PAREN_TARGET_L1}|${PS_PAREN_INNER})\s*\)`
+const PS_PAREN_TARGET = String.raw`(?<!\.)(?:${PS_PAREN_TARGET_L2}|${PS_PAREN_TARGET_L1})${PS_TARGET_SEGMENT}*(?:\s*::\s*${PS_STATIC_MEMBER})*`
+
 const SHELL_ARGUMENT_PATTERN = String.raw`(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s;&|]+)`
 const GIT_GLOBAL_OPTION_PATTERN = String.raw`(?:(?:-C|-c|--exec-path|--git-dir|--work-tree|--namespace|--super-prefix|--config-env)\s+${SHELL_ARGUMENT_PATTERN}|(?:--exec-path|--git-dir|--work-tree|--namespace|--super-prefix|--config-env|--list-cmds|--attr-source)=${SHELL_ARGUMENT_PATTERN}|-p|--paginate|--no-pager|--bare|--no-replace-objects|--literal-pathspecs|--no-literal-pathspecs|--glob-pathspecs|--noglob-pathspecs|--icase-pathspecs|--no-optional-locks|--no-lazy-fetch|--no-advice)`
 const GIT_DESTRUCTIVE_COMMAND_PATTERN = new RegExp(
@@ -14,6 +60,1087 @@ const LARK_FORM_SUBMISSION_PATTERN =
 const GITHUB_ISSUE_CREATION_PATTERN =
   /(?:^\s*|[;&|]\s*|\r?\n\s*)(?:"(?:[^"\r\n]*[\\/])?gh(?:\.exe)?"|'(?:[^'\r\n]*[\\/])?gh(?:\.exe)?'|(?:[^\s;&|]*[\\/])?gh(?:\.exe)?)\s+issue\s+create(?:\s|$)/i
 
+// `del`/`erase`/`rd` are ordinary words in prose (e.g. Spanish "del"), so only match them in command position.
+// Command position includes cmd.exe conditional prefixes (`if [/i] [not] exist|defined|errorlevel|
+// cmdextversion|<operand>==<operand>|<operand> EQU|NEQ|LSS|LEQ|GTR|GEQ <operand>`, operands may be
+// quoted), a batch `@` echo-suppression prefix on the deletion token (whitespace is allowed between
+// `@` and the command - `@ echo off` is idiomatic, so `@ del` executes like `@del`), and a bare
+// powershell/pwsh prefix
+// (with optional .exe suffix and bounded launcher flags with at most one value each, such as -nop or -ep bypass), since those still
+// execute the deletion.
+// Two deliberate limits, both acceptable for a deny-side guard:
+// - Conservative blocking: prose that contains a syntactically valid conditional (e.g.
+//   "echo if a==b then del is risky") still blocks, matching pre-existing behavior; erring toward
+//   deny is safe here.
+// - Structural bounding, not caps: an unquoted LEFT `==` operand may not cross a `==` boundary
+//   (single `=` segments are allowed), so a failed match has exactly one operand split per
+//   position and cannot repartition a run like `a==a==...` across operand boundaries - that
+//   repartitioning was the quadratic. Arbitrary-length operands (257+ chars) match again,
+//   restoring pre-narrowing parity; the right `==` operand and `EQU`-style operands are plain
+//   space-delimited scans, which are linear. No complete cmd parser is intended.
+// The `exist` operand is deliberately NOT capped: the pre-existing guard blocked a bare token of
+// any length after `exist`, and `\S+` / quoted scans are plain linear repetitions, so capping it
+// would only narrow coverage (a 257+ char token would stop matching and the deletion would sail through).
+const CMD_QUOTED_OR_BARE = String.raw`(?:"[^"]*"|'[^']*'|[^\s]+)`
+const CMD_EQ_LEFT_OPERAND = String.raw`(?:"[^"]*"|'[^']*'|[^\s=]+(?:=[^\s=]+)*)`
+const CMD_EXIST_OPERAND = String.raw`(?:"[^"]*"|'[^']*'|\S+)`
+const CMD_COMPARISON_OPERANDS = String.raw`${CMD_QUOTED_OR_BARE}\s+(?:EQU|NEQ|LSS|LEQ|GTR|GEQ)\s+${CMD_QUOTED_OR_BARE}`
+const CMD_CONDITIONAL_PREFIX = String.raw`\bif\s+(?:\/i\s+)?(?:not\s+)?(?:exist\s+${CMD_EXIST_OPERAND}|defined\s+\S+|errorlevel\s+\d+|cmdextversion\s+\d+|${CMD_EQ_LEFT_OPERAND}\s*==\s*${CMD_QUOTED_OR_BARE}|${CMD_COMPARISON_OPERANDS})(?=\s)`
+// CMD and sh both allow redirections before the command word (`2>nul del x`, `>log 2>&1 rd x`,
+// `<nul erase x`), with optional whitespace between operator and target (`2> nul del x`). Targets
+// stay unbounded: the unquoted form excludes whitespace, redirection and quote characters, inner
+// whitespace is consumed only between redirects via lookahead, and trailing whitespace belongs to
+// the atomic gap below, so each position has exactly one parse and matching stays linear on the
+// main thread. The fragment loop is bounded ({1,8}): the expression is unanchored, so a failing
+// run of redirects would otherwise be rescanned from every redirect start (quadratic). Detection
+// is unaffected: a match may start at any of the last <=8 redirects before the deletion token.
+const CMD_REDIRECT_TARGET = String.raw`(?:&[0-9]|"[^"]*"|'[^']*'|[^\s;&|<>"']+)`
+const CMD_REDIRECT_PREFIX = String.raw`(?:[0-9]?(?:>>?|<)\s*${CMD_REDIRECT_TARGET}(?:\s+(?=[0-9]?(?:>>?|<)))?){1,8}`
+// `start` accepts any mix of quoted titles, switches and switch values before the program word:
+// `start /b del x`, `start "t" /min del x`, `start /d C:\ del x`. Tokens are disjoint by first
+// character, so each position has one parse, and the unbounded count mirrors the unbounded
+// argument list instead of drawing a line a valid command can cross. A bare value may be neither
+// the deletion word nor `start` itself: without that, every `start` word in the string would
+// restart an argument scan over the whole remainder (quadratic), and nested `start start del x`
+// still denies because the unanchored retry anchors at the innermost `start`. The anchor itself
+// is suppressed after argument-token characters (`/start`, `\start`, `foo-start`): a `start`
+// glued to an argument token is not the start command (an echo-suppression `@` only counts at a
+// command position, so `/x@start` stays an argument), and every such token would otherwise
+// restart an argument scan (quadratic, e.g. `/start ` repeated). The glue run between token and
+// `start` (quotes, `@`, backticks) is checked through a fixed 64-character window: real
+// decorations are 1-3 characters, a bounded lookbehind costs at most 64 characters of backscan
+// per position on any regex engine (an unbounded window is quadratic per position on engines
+// that cannot skip it via first-char analysis). A separate fixed-width check refuses to anchor a
+// `start` buried under 65 or more glue characters: the check costs a fixed 65-character
+// compare per position on any engine, and without it those anchors each rescan the remaining
+// argument list (quadratic). The banned long-glue anchors are not lost: the linear scanner
+// below (longGlueStartDeletion) restores exactly that family - a `start` preceded by a 65+
+// glue run - with an O(n) memoized token walk mirroring CMD_START_ARGS, the atomic gap and
+// the deletion tail, so the regex-plus-scanner union keeps the pre-ban deny coverage while
+// both halves stay linear. Command-position starts - after
+// whitespace, separators, quotes or a batch `@` echo-suppression prefix - still anchor, so
+// `@start /b del x` and nested starts keep denying. Bare values stop at `@start` too: an
+// echo-suppressed start token is a command, not an argument - and neither is a quote-prefixed
+// one (`'start`) or a backtick-prefixed one (` + '`' + `start` + '`' + `): decorated start tokens still anchor their own scan,
+// so swallowing them as arguments would only restart overlapping suffix scans.
+// A quoted argument whose content CONTAINS a command-position (glue-decorated) `start`
+// token followed by whitespace is refused here on purpose: that token anchors its own start
+// scan, and consuming it as an argument would restart an overlapping suffix scan once per
+// embedded `start` anchor (quadratic on `echo "start /b" "start /b" ...` and on
+// `echo "a start /b" "a start /b" ...`). The temper is a lazy content scan with a
+// fixed-width unicode-aware boundary lookbehind and NO nested quantifiers: each content
+// position costs O(1), so one anchor pays O(unit length) and a glue-heavy title
+// (`echo start "@@@...x"`) stays linear. (The earlier form - greedy prefix backtracking
+// against an unbounded glue run, both classes matching `@` - was quadratic per anchor on
+// that family, and simply bounding the prefix instead lets each anchor consume the rest of
+// the suffix, which is quadratic again on `start "...65+... start /b"` repeated.) Glue
+// characters are non-word, so the lookbehind alone covers decorated tokens; a start glued
+// to a word (`restart` / `mystart`) keeps consuming as argument text, preserving the deny
+// on `start "restart job" del x`. The check covers content starting with the token and
+// content where it follows any non-word character; titles that are exactly `start` (no
+// trailing whitespace) still consume: their inner anchor cannot fire, so refusing them
+// would lose the deny on `start "start" del x`. Denies dropped here are restored by the
+// linear scanner below, which walks every command-position start anchor with untempered
+// arguments.
+const CMD_START_ARGS =
+  String.raw`(?:\s+"(?![^"\r\n]*?(?<![${PS_IDENTIFIER_CHARS}])start\s)[^"\r\n]*"|\s+\/[a-zA-Z][^\s;&|\/]*|\s+(?!del\b|erase\b|rd\b|[@'` +
+  '`' +
+  String.raw`]*start\b)[^\s;&|/"(){}]+)+`
+const POWERSHELL_LAUNCHER = String.raw`\b(?:powershell|pwsh)(?:\.exe)?(?:\s+-[a-zA-Z][^\s]{0,31}(?:\s+(?![-\"'\s])[^\s]{1,31})?){0,8}(?=\s+["'“”„‘’‚‛]?(?:del|erase|rd)\b)`
+// The gap before the deletion token is one atomic scan: the lookahead captures the maximal run of
+// whitespace/quotes/`@` and the backreference re-matches it, so a failed token check cannot split the
+// run across adjacent quantifiers (split ambiguity was the quadratic here). The pattern has no other
+// capture groups, so the backreference stays group 1 - keep it that way.
+// A newline acts as a command separator only when no newline precedes it inside the same gap
+// run: the expression is unanchored, so every later newline (including alternating space/CR/
+// quote mixes) would restart a maximal gap rescan - quadratic. The lookbehind checks backwards
+// only as far as the nearest preceding newline (lazy run), so a whole run stays linear, and a
+// newline after other gap characters still fires at the run's first newline.
+// `start` may carry arguments before the deletion token (`start /b del x`), a PowerShell
+// assignment target may precede it (`$null = del x`, including scoped targets like
+// `$script:output = del x`, indexed, property, braced or quoted targets like `$a[0] =` / `$h.result =` / `${output} =` / `$h."result" =`
+// a static member chain accepts scoped and property-rooted targets
+// (`$global:t::Title = del x`, `$h.t::Title = del x` - every executable static assignment form),
+// and (an index segment allows one nesting level, so `$a[$i]` and `$a[$b[0]]` deny;
+// deeper nesting stays a documented best-effort gap), and compound operators
+// like `+=` - every assignment form evaluates its right-hand side), a PowerShell invocation keyword or operator may precede it (`return`,
+// `iex`/`Invoke-Expression`, `in` (a `foreach ($i in <collection>)` collection expression
+// evaluates a command in that position before the loop body runs), and dot invocation `. del x` - the dot anchor requires a
+// command-position predecessor (start, whitespace, quote, `@` or a separator), so a sentence
+// period in prose like `cleanup. erase` does not anchor), and the token itself may be followed by
+// adjacent redirections (`del>nul x`), and the deletion token may close an executable statement or
+// pipeline (`del; ...`, `del| ...`, `del}`, `(Get-Item x | del)`, `del&& more` or `del& more` - the
+// closing paren ends an executable subexpression and `&`/`&&` are CMD separators and PowerShell 7
+// pipeline-chain operators, so the target arrives from pipeline input or the bare token prompts,
+// which the pre-narrowing guard already denied) - all ordinary executable deletion forms that keep
+// the
+// enforced deny. A `$var =` mention inside prose still denies, matching the pre-narrowing
+// guard: the mention is indistinguishable from a real assignment without full quoting state.
+// Bare and scoped identifiers accept `?` in any position (`$a?` / `$?` / `$global:a?` / `$global:?`).
+// Native execution ordering for read-only targets is unverified here; the deny direction
+// conservatively assumes the right-hand side may run, matching the `$null = del x` form's intent.
+const WINDOWS_AMBIGUOUS_DELETE_PATTERN = new RegExp(
+  String.raw`(?:^|[;&|(){` +
+    '`' +
+    String.raw`]|(?=[\r\n])(?<![\r\n](?:\s|["'“”„‘’‚‛]|@)*?)[\r\n]|\/[ck]|-[a-z]*c|-command|\b(?:call|xargs|sudo|exec|exit|then|do|else|return|throw|iex|in|Invoke-Expression)(?=\s)|(?<![^\s;&|(){}"'“”„‘’‚‛` +
+    '`' +
+    String.raw`@])\.(?=\s)|(?<![@` +
+    '`' +
+    String.raw`"'“”„‘’‚‛]{65})(?<![^\s;&|(){}"'“”„‘’‚‛` +
+    '`' +
+    String.raw`@][@` +
+    '`' +
+    String.raw`"'“”„‘’‚‛]{0,64})\bstart(?=\s)|(?<![@` +
+    '`' +
+    String.raw`"'“”„‘’‚‛]{65})(?<![^\s;&|(){}"'“”„‘’‚‛` +
+    '`' +
+    String.raw`@][@` +
+    '`' +
+    String.raw`"'“”„‘’‚‛]{0,64})\bstart${CMD_START_ARGS}(?=\s)|(?:\[[^\[\]\r\n]+\](?:\s*::\s*(?:[${PS_IDENTIFIER_CHARS}]+|["“”„][^"“”„\r\n]*(?:["“”„]{2}[^"“”„\r\n]*)*["“”„]|['‘’‚‛][^'‘’‚‛\r\n]*(?:['‘’‚‛]{2}[^'‘’‚‛\r\n]*)*['‘’‚‛]|\(\s*(?:["“”„][^"“”„\r\n]*(?:["“”„]{2}[^"“”„\r\n]*)*["“”„]|['‘’‚‛][^'‘’‚‛\r\n]*(?:['‘’‚‛]{2}[^'‘’‚‛\r\n]*)*['‘’‚‛])\s*\)))+|\$[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*(?::[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*)?|\$\{[^{}\r\n]*\}|(?:\$[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*(?::[${PS_IDENTIFIER_CHARS}?][${PS_IDENTIFIER_CHARS}?]*)?|\$\{[^{}\r\n]*\})(?:\s*\.\s*(?:[${PS_IDENTIFIER_CHARS}]+|(?:["“”„][^"“”„\r\n]*(?:["“”„]{2}[^"“”„\r\n]*)*["“”„]|['‘’‚‛][^'‘’‚‛\r\n]*(?:['‘’‚‛]{2}[^'‘’‚‛\r\n]*)*['‘’‚‛])|\(\s*(?:["“”„][^"“”„\r\n]*(?:["“”„]{2}[^"“”„\r\n]*)*["“”„]|['‘’‚‛][^'‘’‚‛\r\n]*(?:['‘’‚‛]{2}[^'‘’‚‛\r\n]*)*['‘’‚‛])\s*\)))*(?:\s*::\s*(?:[${PS_IDENTIFIER_CHARS}]+|["“”„][^"“”„\r\n]*(?:["“”„]{2}[^"“”„\r\n]*)*["“”„]|['‘’‚‛][^'‘’‚‛\r\n]*(?:['‘’‚‛]{2}[^'‘’‚‛\r\n]*)*['‘’‚‛]|\(\s*(?:["“”„][^"“”„\r\n]*(?:["“”„]{2}[^"“”„\r\n]*)*["“”„]|['‘’‚‛][^'‘’‚‛\r\n]*(?:['‘’‚‛]{2}[^'‘’‚‛\r\n]*)*['‘’‚‛])\s*\)))+|${PS_PAREN_TARGET})(?:\s*\.\s*(?:[${PS_IDENTIFIER_CHARS}]+|(?:["“”„][^"“”„\r\n]*(?:["“”„]{2}[^"“”„\r\n]*)*["“”„]|['‘’‚‛][^'‘’‚‛\r\n]*(?:['‘’‚‛]{2}[^'‘’‚‛\r\n]*)*['‘’‚‛])|\(\s*(?:["“”„][^"“”„\r\n]*(?:["“”„]{2}[^"“”„\r\n]*)*["“”„]|['‘’‚‛][^'‘’‚‛\r\n]*(?:['‘’‚‛]{2}[^'‘’‚‛\r\n]*)*['‘’‚‛])\s*\))|\[(?:[^\[\]\r\n]|\[[^\[\]\r\n]*\])*\])*\s*(?:[-+*/%]|\?\?)?=(?!=)|\bexist\s+${CMD_EXIST_OPERAND}(?=\s)|${CMD_CONDITIONAL_PREFIX}|${CMD_REDIRECT_PREFIX}|${POWERSHELL_LAUNCHER})(?=((?:\s|["'“”„‘’‚‛]|@)*))\1(?:del|erase|rd)(?=\s|$|["'(“”„‘’‚‛]|>>?|<|[;|}&)])`,
+  'i'
+)
+
+// Linear scanner restoring the >=65-glue `start` anchor family that the bounded {65} lookbehind
+// ban above suppresses. The regex covers glue runs of 0-64 (its window lookbehind) and every
+// non-start anchor; this scanner covers exactly the banned anchors: a `start` token immediately
+// preceded by a glue run (`@`, backtick, `"`, `'`) of length >= 65. Anchoring mirrors the
+// unbounded-window semantics the {0,64} window approximates: any predecessor character is
+// accepted, matching the pre-ban behavior for long runs. The continuation mirrors
+// CMD_START_ARGS (quoted / switch / bare token edges are disjoint and deterministic, so each
+// position has exactly one successor) plus the atomic gap (`\s`, `"`, `'`, `@` - no backtick,
+// matching the regex gap class) and the `del|erase|rd` tail with its following boundary.
+// Per-position memoization makes the reachability walk O(n) total: independent per-candidate
+// rescans would be quadratic on composed inputs.
+const SCAN_WS = /\s/
+const SCAN_GLUE = new Set(['@', '`', '"', "'", '“', '”', '„', '‘', '’', '‚', '‛'])
+const SCAN_GAP = new Set(['"', "'", '@', '“', '”', '„', '‘', '’', '‚', '‛'])
+const SCAN_BARE_EXCLUDE = new Set([';', '&', '|', '/', '"', '(', ')', '{', '}'])
+const SCAN_SEP = new Set([';', '&', '|', '(', ')', '{', '}'])
+const isScanWord = (c: string): boolean =>
+  (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c === '_'
+// PowerShell bare hashtable keys and variable names accept BMP Unicode letters and decimal
+// digits beyond ASCII, so `@{résultat = del x}` and `@{结果 = del x}` parse with `del` as
+// the entry value (round-30 review finding; pwsh 7.4.6 parse probes: \p{L} and \p{Nd}
+// continue and start a bare key, while combining marks, connector/other punctuation, Nl,
+// ZWNJ and every astral character terminate it). Lone surrogate code units never match the
+// category test, so astral characters keep the parser's own rejection. This widens only
+// the key walk; deletion-token boundaries keep the regex family's ASCII `\b` contract.
+const UNICODE_KEY_CHAR = /[\p{L}\p{Nd}]/u
+const isKeyChar = (c: string): boolean => isScanWord(c) || (c > '\x7f' && UNICODE_KEY_CHAR.test(c))
+const scanLower = (c: string): string => (c >= 'A' && c <= 'Z' ? String.fromCharCode(c.charCodeAt(0) + 32) : c)
+function scanWordAt(s: string, i: number, w: string): boolean {
+  for (let k = 0; k < w.length; k++) if (scanLower(s[i + k] ?? '') !== w[k]) return false
+  return true
+}
+// Token end from token-start p, or -1 if no valid CMD_START_ARGS token starts here.
+function scanTokenEnd(s: string, n: number, p: number): number {
+  const c = s[p]
+  if (c === '"') {
+    for (let j = p + 1; j < n; j++) {
+      const d = s[j]
+      if (d === '"') return j + 1
+      if (d === '\r' || d === '\n') return -1
+    }
+    return -1
+  }
+  if (c === '/' && p + 1 < n && /[a-zA-Z]/.test(s[p + 1])) {
+    let j = p + 2
+    while (j < n && !SCAN_WS.test(s[j]) && ![';', '&', '|', '/'].includes(s[j])) j++
+    return j
+  }
+  if (!SCAN_WS.test(c) && !SCAN_BARE_EXCLUDE.has(c)) {
+    let j = p + 1
+    while (j < n && !SCAN_WS.test(s[j]) && !SCAN_BARE_EXCLUDE.has(s[j])) j++
+    // bare-token exclusions: del/erase/rd or glue*start at token start (both with a right boundary)
+    for (const w of ['del', 'erase', 'rd']) if (scanWordAt(s, p, w) && !isScanWord(s[p + w.length] ?? '')) return -1
+    let q = p
+    while (q < n && SCAN_GLUE.has(s[q])) q++
+    if (scanWordAt(s, q, 'start') && !isScanWord(s[q + 5] ?? '')) return -1
+    return j
+  }
+  return -1
+}
+function longGlueStartDeletion(s: string): boolean {
+  const n = s.length
+  // acceptPos[e]: s[e] is whitespace and the maximal gap run containing e ends right before a
+  // del|erase|rd token with the regex's following boundary. Built run by run: O(n) total.
+  const accept = new Uint8Array(n)
+  let i = 0
+  while (i < n) {
+    if (SCAN_WS.test(s[i]) || SCAN_GAP.has(s[i])) {
+      let d = i
+      while (d < n && (SCAN_WS.test(s[d]) || SCAN_GAP.has(s[d]))) d++
+      let len = 0
+      for (const w of ['erase', 'del', 'rd']) {
+        if (scanWordAt(s, d, w)) {
+          len = w.length
+          break
+        }
+      }
+      if (len) {
+        const after = s[d + len]
+        if (
+          d + len >= n ||
+          SCAN_WS.test(after) ||
+          isPSQuote(after) ||
+          after === '>' ||
+          after === '<' ||
+          after === ';' ||
+          after === '|' ||
+          after === '}' ||
+          after === ')' ||
+          after === '&'
+        ) {
+          for (let e = i; e < d; e++) if (SCAN_WS.test(s[e])) accept[e] = 1
+        }
+      }
+      i = d
+    } else i++
+  }
+  // Memoized args-chain reachability: good(e) = some args* continuation from e lands on accept.
+  const memo = new Map<number, boolean>()
+  function good(e: number): boolean {
+    let cur = e
+    const path: number[] = []
+    while (true) {
+      if (accept[cur]) {
+        for (const p of path) memo.set(p, true)
+        return true
+      }
+      const m = memo.get(cur)
+      if (m !== undefined) {
+        for (const p of path) memo.set(p, m)
+        return m
+      }
+      path.push(cur)
+      let j = cur
+      while (j < n && SCAN_WS.test(s[j])) j++
+      if (j === cur || j >= n) {
+        for (const p of path) memo.set(p, false)
+        return false
+      }
+      const te = scanTokenEnd(s, n, j)
+      if (te < 0) {
+        for (const p of path) memo.set(p, false)
+        return false
+      }
+      cur = te
+    }
+  }
+  // Anchors: any command-position `start` (case-insensitive, word boundary on the left).
+  // Glue runs of 0-64 need a separator/whitespace/string-start predecessor (the regex
+  // window's semantics); runs >=65 accept any predecessor (the pre-ban long-run semantics).
+  // The untempered args walk here restores deny coverage the regex's quoted-branch temper
+  // drops when an early anchor's argument chain swallows later quoted `start` tokens.
+  for (let a = 0; a + 5 <= n; a++) {
+    if (!scanWordAt(s, a, 'start')) continue
+    if (a > 0 && isScanWord(s[a - 1])) continue // \b
+    let r = a - 1
+    while (r >= 0 && SCAN_GLUE.has(s[r])) r--
+    const runLen = a - 1 - r
+    if (runLen < 65 && r >= 0 && !SCAN_WS.test(s[r]) && !SCAN_SEP.has(s[r])) continue
+    if (good(a + 5)) return true
+  }
+  return false
+}
+
+const SCAN_VALUE_SEP = new Set([';', '&', '|', '(', ')', '{', '}'])
+// PowerShell strips block comments before parameter binding, so a comment between a
+// lookup flag and its value still binds the value: `& (Get-Command -Name <# ; #> del) x`
+// resolves and invokes `del` (Get-Alias/gal alike), while the raw lookup walk stops at the
+// `<#` because comment text is not skippable gap content (round-30 review finding). Blank
+// every block-comment span to spaces - length preserved so every index stays aligned -
+// with one forward pass that mirrors commentGapDeletion's span collection exactly:
+// comments do not nest, the first `#>` closes (about_Comments), and an unterminated `<#`
+// swallows the rest as comment text (a syntax error PowerShell never executes). The pass
+// is deliberately quote-blind like the rest of the family: `pwsh -Command '... <# ; #>
+// del ...'` re-parses its argument, where the span IS a comment, and the guard's
+// established stance already denies quoted `"del"` values, so blanking comment-shaped
+// string content can only over-deny in the same documented direction - never allow. The
+// call site unions the raw and blanked walks, so original-input denies are preserved and
+// the copy can only add denies; both passes are O(n) with no recursive copying.
+function blankBlockComments(s: string): string {
+  const n = s.length
+  const out = s.split('')
+  for (let i = 0; i + 1 < n;) {
+    if (s[i] === '<' && s[i + 1] === '#') {
+      let j = i + 2
+      while (j + 1 < n && !(s[j] === '#' && s[j + 1] === '>')) j++
+      const end = j + 1 < n ? j + 2 : n
+      for (let m = i; m < end; m++) out[m] = ' '
+      i = end
+    } else {
+      i++
+    }
+  }
+  return out.join('')
+}
+
+// Linear scanner for the Get-Command/gcm and Get-Alias/gal lookup families: `Get-Command -Name del`,
+// `Get-Command -Name:del`, `& (Get-Command -ErrorAction:Stop del) x`,
+// `& (gcm -CommandType:Alias -Name:del) x` and `Get-Command -ListImported:$true del`
+// all resolve `del`/`erase`/`rd` to the destructive command, which runs when the lookup
+// result is invoked through the call operator (about_Operators); a parameter name and
+// value may be separated by a space or a colon (about_Parameters). The listing-only
+// spelling over-denies conservatively, matching the pre-narrowing guard. A flag run of
+// any length and values of any length stay covered - unlike a bounded regex run there is
+// no cap boundary - and per-position memoization keeps repeated `gcm -x ` adversaries
+// O(n) total instead of one overlapping suffix rescan per occurrence. Precomputed
+// gap/value-end tables keep every good() step O(1), so overlapping colon-glued anchors
+// (`gcm:gcm:...`) that never memo-hit stay O(n) total as well (round-26 review finding).
+// Get-Alias/gal resolve an alias to its target command, so `gal del` and
+// `Get-Alias -Name erase` deny through the same walk (round-26 review finding). The token itself
+// must follow the regex's following boundary, so `-Name delivery` / `-Name erased`
+// stay allowed and the comma-joined list form stays a documented open gap. A block
+// comment between a flag and its name (`-Name <# ; #> del`) still binds the name
+// (round-30 review finding); the call site re-runs this walk on the comment-blanked
+// copy and unions the verdicts, so the copy can only add denies. The parameter dash
+// itself may be an en dash, em dash or horizontal bar: PowerShell forms a
+// CommandParameterAst for exactly `-` U+002D, U+2013, U+2014 and U+2015 (round-31 review
+// finding; pwsh 7.4.6 parse probes - U+2010/U+2011/U+2012/U+2212 stay bareword text), so
+// `& (Get-Command –Name:del) victim.txt` binds and invokes `del`.
+function getCommandLookupDeletion(s: string): boolean {
+  const n = s.length
+  const tailOk = (i: number): boolean => {
+    if (i >= n) return true
+    const c = s[i]
+    return (
+      SCAN_WS.test(c) ||
+      isPSQuote(c) ||
+      c === '(' ||
+      c === ')' ||
+      c === '>' ||
+      c === '<' ||
+      c === ';' ||
+      c === '|' ||
+      c === '}' ||
+      c === '&'
+    )
+  }
+  const tokenAt = (i: number): boolean => {
+    for (const w of ['erase', 'del', 'rd']) {
+      if (scanWordAt(s, i, w)) {
+        const e = i + w.length
+        if (e >= n || !isScanWord(s[e])) return tailOk(e)
+      }
+    }
+    return false
+  }
+  // Memoized flag-chain reachability: good(e) = some flags/values continuation from e
+  // lands on the deletion token. Every transition consumes at least one character and
+  // each position is resolved once, so the whole walk stays O(n).
+  const memo = new Map<number, boolean>()
+  // Accepted parameter prefixes (see the family comment): exactly these four characters.
+  const PS_PARAM_DASH = new Set(['-', '–', '—', '―'])
+  // O(1) stepping tables: they precompute the same indices the gap/value loops found
+  // character by character, so verdicts are unchanged. Overlapping colon-glued anchors
+  // (`gcm:gcm:...`) never memo-hit, so without these the per-step rescans go quadratic.
+  const skipGap = new Int32Array(n + 1)
+  skipGap[n] = n
+  for (let i = n - 1; i >= 0; i--) {
+    const c = s[i]
+    skipGap[i] = SCAN_WS.test(c) || SCAN_GAP.has(c) || c === ':' ? skipGap[i + 1] : i
+  }
+  const valueEnd = new Int32Array(n + 1)
+  valueEnd[n] = n
+  for (let i = n - 1; i >= 0; i--) {
+    const c = s[i]
+    valueEnd[i] = SCAN_WS.test(c) || SCAN_VALUE_SEP.has(c) ? i : valueEnd[i + 1]
+  }
+  function good(e0: number): boolean {
+    let cur = e0
+    const path: number[] = []
+    while (true) {
+      const m = memo.get(cur)
+      if (m !== undefined) {
+        for (const p of path) memo.set(p, m)
+        return m
+      }
+      path.push(cur)
+      const j = skipGap[cur]
+      if (j === cur || j >= n) {
+        for (const p of path) memo.set(p, false)
+        return false
+      }
+      if (tokenAt(j)) {
+        for (const p of path) memo.set(p, true)
+        return true
+      }
+      if (PS_PARAM_DASH.has(s[j])) {
+        let k = j + 1
+        while (k < n && ((s[k] >= 'a' && s[k] <= 'z') || (s[k] >= 'A' && s[k] <= 'Z'))) k++
+        if (k === j + 1) {
+          for (const p of path) memo.set(p, false)
+          return false
+        }
+        if (k < n && s[k] === ':') {
+          k++
+          // Colon-bound name: the token check wins over value consumption, mirroring the
+          // space-bound form's token-first rule, and the colon's gap mirrors the main
+          // walk so quoted names (`-Name:"del"`, `-Name:'del'`) keep the deny. Fallback
+          // value consumption still starts at the original position.
+          const g = skipGap[k]
+          if (g < n && tokenAt(g)) {
+            for (const p of path) memo.set(p, true)
+            return true
+          }
+          k = valueEnd[k]
+        }
+        cur = k
+      } else if (!SCAN_VALUE_SEP.has(s[j])) {
+        cur = valueEnd[j]
+      } else {
+        for (const p of path) memo.set(p, false)
+        return false
+      }
+    }
+  }
+  for (let a = 0; a + 3 <= n; a++) {
+    let wlen = 0
+    if (scanWordAt(s, a, 'get-command')) wlen = 11
+    else if (scanWordAt(s, a, 'get-alias')) wlen = 9
+    else if (scanWordAt(s, a, 'gcm')) wlen = 3
+    else if (scanWordAt(s, a, 'gal')) wlen = 3
+    else continue
+    if (a > 0 && isScanWord(s[a - 1])) continue
+    if (a + wlen < n && isScanWord(s[a + wlen])) continue
+    if (good(a + wlen)) return true
+  }
+  return false
+}
+
+// Linear scanner for the hashtable-literal value family (round-27 review findings): every
+// entry value in `@{key = <pipeline>}` executes when the literal evaluates, so
+// `@{result = del victim.txt}` deletes, and nested tables (`@{a=@{b=del x}}`) run their
+// values too. The assignment anchors in the regex family only recognize `$`-rooted or
+// parenthesized targets, so bare and quoted hashtable keys never anchored the value. This
+// scanner is a single forward pass: a frame stack tracks each open table's entry state
+// (key, `=`, value start, value skip), every transition consumes at least one character
+// and no position is revisited, so deeply nested or densely keyed adversaries stay O(n).
+// It is quote-blind like the regex family (a quoted `"del"` value denies, matching the
+// `$x = "del"` assignment stance and the pre-narrowing guard). A closed quoted string at
+// the value start is one opaque segment, so separators or braces inside it cannot split
+// the entry; values that interpolate (`$` or backtick before the close), quotes glued to
+// other value content, escaped or doubled quotes inside values, concatenated segments,
+// here-strings, dotted bare keys, block comments before the value token and malformed
+// entries stay documented best-effort gaps. Bare keys follow the parser's BMP
+// letter/digit boundary (round-30 review finding), so `@{résultat = del x}` and
+// `@{结果 = del x}` anchor the value like `@{result = del x}`. The deletion token keeps the regex's following boundary, so `@{result = delivery}`
+// stays allowed.
+// Binding a deletion token as an alias value arms a later bare invocation:
+// `Set-Alias -Name wipe -Value del; wipe victim.txt` deletes through `wipe`. Deny the
+// binding command itself when a deletion token appears anywhere in its argument extent
+// (flags and positionals alike), matching the pre-narrowing guard's plain-token
+// coverage. Quote-blind and argument-shape-blind like the lookup family: an alias
+// command word plus a deletion word before the next command separator denies
+// conservatively (`Set-Alias -Name del -Value Get-ChildItem` redefines the token away
+// from deletion but still denies, mirroring the shipped over-deny).
+function aliasBindDeletion(s: string): boolean {
+  const n = s.length
+  // commandEnd[p]: the next command terminator (`;`, `&`, `|`, newline, `)`, `}`) at or
+  // after p, or n. Disjoint extents make the per-command walks O(n) in total. Terminator
+  // positions are collected by one forward pass that tracks PowerShell quoting and block
+  // comments, so a quoted `";"` argument (`Set-Alias -Description ";" ...`) or comment text
+  // never ends the extent: only out-of-string, out-of-comment separators do. Double quotes
+  // honor backtick escapes and `""` doubling; single quotes honor `''` doubling; block
+  // comments do not nest and end at the first `#>`.
+  const terminator = new Uint8Array(n + 1)
+  for (let k = 0; k < n;) {
+    const c = s[k]
+    if (isPSQuote(c)) {
+      const dq = isPSDQuote(c)
+      const inClass = dq ? isPSDQuote : isPSSQuote
+      k++
+      while (k < n) {
+        if (inClass(s[k])) {
+          if (k + 1 < n && inClass(s[k + 1])) {
+            k += 2
+            continue
+          }
+          k++
+          break
+        }
+        if (dq && s[k] === '`' && k + 1 < n) {
+          k += 2
+          continue
+        }
+        k++
+      }
+      continue
+    }
+    if (c === '<' && k + 1 < n && s[k + 1] === '#') {
+      let j = k + 2
+      while (j + 1 < n && !(s[j] === '#' && s[j + 1] === '>')) j++
+      k = j + 1 < n ? j + 2 : n
+      continue
+    }
+    if (c === '`' && k + 1 < n) {
+      k += 2
+      continue
+    }
+    if (c === ';' || c === '&' || c === '|' || c === '\r' || c === '\n' || c === ')' || c === '}') terminator[k] = 1
+    k++
+  }
+  const commandEnd = new Int32Array(n + 1)
+  commandEnd[n] = n
+  for (let k = n - 1; k >= 0; k--) commandEnd[k] = terminator[k] === 1 ? k : commandEnd[k + 1]
+  for (let a = 0; a < n; a++) {
+    let wlen = 0
+    if (scanWordAt(s, a, 'set-alias')) wlen = 9
+    else if (scanWordAt(s, a, 'new-alias')) wlen = 9
+    else if (scanWordAt(s, a, 'sal')) wlen = 3
+    else if (scanWordAt(s, a, 'nal')) wlen = 3
+    else continue
+    if (a > 0 && isScanWord(s[a - 1])) continue
+    if (a + wlen < n && isScanWord(s[a + wlen])) continue
+    const end = commandEnd[a]
+    for (let k = a + wlen; k < end; k++) {
+      for (const w of ['erase', 'del', 'rd']) {
+        if (scanWordAt(s, k, w) && !isScanWord(s[k - 1] ?? '')) {
+          const e = k + w.length
+          if (e >= n || !isScanWord(s[e])) return true
+        }
+      }
+    }
+    a = end
+  }
+  return false
+}
+
+// A PowerShell block comment (`<# ... #>`) never executes and never separates commands, so
+// `<# note #> del x` runs the deletion exactly like whitespace would. Comments do not nest and
+// the first `#>` ends the comment (about_Comments); an unterminated `<#` swallows the rest of
+// the input as comment text (a syntax error), so span collection stops there. This scanner is
+// the linear home for that gap content - putting a comment atom inside the regex's
+// capture/backreference gap rescans an unterminated `<#` run at every gap position (quadratic).
+// One forward pass collects comment spans with disjoint jumps; a second pass extends each
+// maximal gap run (whitespace/quotes/`@`/comments) and, when the run ends at a deletion token
+// with the regex's following boundary, blanks that run's comments to spaces (length preserved)
+// and lets the unchanged regex family judge the anchor on the blanked copy. The verdict is
+// original-input OR blanked-input, so this scanner can only add denies; comment content that
+// merely looks anchored (`<#; del x #>`) keeps the original quote-blind verdict.
+function commentGapDeletion(s: string): boolean {
+  const n = s.length
+  const commentEndAtStart = new Int32Array(n + 1).fill(-1)
+  let count = 0
+  for (let i = 0; i + 1 < n;) {
+    if (s[i] === '<' && s[i + 1] === '#') {
+      let j = i + 2
+      while (j + 1 < n && !(s[j] === '#' && s[j + 1] === '>')) j++
+      if (j + 1 >= n) break
+      commentEndAtStart[i] = j + 2
+      count++
+      i = j + 2
+    } else {
+      i++
+    }
+  }
+  if (count === 0) return false
+  const isGapChar = (c: string): boolean => isPSQuote(c) || c === '@' || SCAN_WS.test(c)
+  const blank = new Uint8Array(n)
+  let marked = 0
+  let i = 0
+  while (i < n) {
+    // Extend the maximal gap run starting at i.
+    let j = i
+    const spans: number[] = [] // flattened [start, end) comment spans inside this run
+    while (j < n) {
+      if (isGapChar(s[j])) {
+        j++
+        continue
+      }
+      const ce = commentEndAtStart[j]
+      if (ce !== -1) {
+        spans.push(j, ce)
+        j = ce
+        continue
+      }
+      break
+    }
+    // A deletion token with the regex's following boundary at the run end?
+    if (spans.length > 0) {
+      for (const w of ['erase', 'del', 'rd']) {
+        if (scanWordAt(s, j, w) && (j === 0 || !isScanWord(s[j - 1]))) {
+          const e = j + w.length
+          const b = e >= n ? '' : s[e]
+          // Mirrors the regex's following boundary exactly: \s, end, quote, `(`, `>`/`<`,
+          // `;`, `|`, `}`, `)`, AND `&` (`del&&` chains the next command in PowerShell 7).
+          if (
+            e >= n ||
+            SCAN_WS.test(b) ||
+            isPSQuote(b) ||
+            b === '(' ||
+            b === '>' ||
+            b === '<' ||
+            b === ';' ||
+            b === '|' ||
+            b === '}' ||
+            b === ')' ||
+            b === '&'
+          ) {
+            for (let k = 0; k < spans.length; k += 2) {
+              for (let p = spans[k]; p < spans[k + 1]; p++) blank[p] = 1
+            }
+            marked += spans.length / 2
+          }
+          break
+        }
+      }
+    }
+    i = j + 1
+  }
+  if (marked === 0) return false
+  const chars = s.split('')
+  for (let k = 0; k < n; k++) if (blank[k] === 1) chars[k] = ' '
+  return WINDOWS_AMBIGUOUS_DELETE_PATTERN.test(chars.join(''))
+}
+
+function hashtableValueDeletion(s: string): boolean {
+  const n = s.length
+  interface TableFrame {
+    expect: 'key' | 'eq' | 'valueStart' | 'skip'
+    brace: number
+    paren: number
+    escaped?: boolean
+    quotesBlind?: boolean
+  }
+  const stack: TableFrame[] = []
+  const nextDQuote = new Int32Array(n + 1)
+  const nextSQuote = new Int32Array(n + 1)
+  const nextRBrace = new Int32Array(n + 1)
+  nextDQuote[n] = n
+  nextSQuote[n] = n
+  nextRBrace[n] = n
+  for (let k = n - 1; k >= 0; k--) {
+    nextDQuote[k] = isPSDQuote(s[k]) ? k : nextDQuote[k + 1]
+    nextSQuote[k] = isPSSQuote(s[k]) ? k : nextSQuote[k + 1]
+    nextRBrace[k] = s[k] === '}' ? k : nextRBrace[k + 1]
+  }
+  // Lazily built once: quote/comment opacity (mirroring the alias family's string and
+  // comment rules exactly) plus a matching-close table over non-opaque positions.
+  // Expression keys (`@{(1+1) = ...}`, `@{[string]1 = ...}`, round-31 review finding) look
+  // up their close in O(1) instead of rescanning the suffix per key.
+  // Per-candidate quoted-key close memo: quote pairing is positional, so a failed walk
+  // from one start says nothing about a later start whose first candidate pairs
+  // differently (a fake `@{` inside a string or comment must not poison a later real
+  // key). The walk from a given first-candidate position is deterministic, so memoizing
+  // per candidate position is sound and stays O(n) total: every candidate position is
+  // resolved once. -2 unresolved, -1 no close, otherwise the close position.
+  const dquoteKeyClose = new Int32Array(n).fill(-2)
+  const squoteKeyClose = new Int32Array(n).fill(-2)
+  const resolveKeyQuoteClose = (start: number, q: string): number => {
+    const dq = isPSDQuote(q)
+    const next = dq ? nextDQuote : nextSQuote
+    const memo = dq ? dquoteKeyClose : squoteKeyClose
+    const inClass = dq ? isPSDQuote : isPSSQuote
+    const path: number[] = []
+    let j = next[start]
+    while (j < n && memo[j] === -2) {
+      path.push(j)
+      if (j + 1 < n && inClass(s[j + 1])) {
+        j = next[j + 2]
+      } else {
+        break
+      }
+    }
+    const result = j < n ? (memo[j] === -2 ? j : memo[j]) : -1
+    for (const pos of path) memo[pos] = result
+    return result
+  }
+  let exprTables: { matchClose: Int32Array } | undefined
+  const getExprTables = (): { matchClose: Int32Array } => {
+    if (exprTables !== undefined) return exprTables
+    const opaque = new Uint8Array(n)
+    for (let k = 0; k < n;) {
+      const c = s[k]
+      if (c === '"' || c === "'") {
+        const q = c
+        k++
+        while (k < n) {
+          if (s[k] === q) {
+            if (k + 1 < n && s[k + 1] === q) {
+              k += 2
+              continue
+            }
+            k++
+            break
+          }
+          if (q === '"' && s[k] === '`' && k + 1 < n) {
+            k += 2
+            continue
+          }
+          opaque[k] = 1
+          k++
+        }
+        continue
+      }
+      if (c === '<' && k + 1 < n && s[k + 1] === '#') {
+        let j = k + 2
+        while (j + 1 < n && !(s[j] === '#' && s[j + 1] === '>')) j++
+        const end = j + 1 < n ? j + 2 : n
+        for (let m = k; m < end; m++) opaque[m] = 1
+        k = end
+        continue
+      }
+      // Line comments end at CR, LF or CRLF (pwsh 7.4.6 tokenizer); their text must be
+      // opaque so a `)`/`]` inside the comment cannot balance an expression key. Only a
+      // `#` at a token boundary starts a comment - inside a bare word it is literal.
+      if (c === '#' && (k === 0 || !isKeyChar(s[k - 1]))) {
+        let j = k + 1
+        while (j < n && s[j] !== '\n' && s[j] !== '\r') j++
+        for (let m = k; m < j; m++) opaque[m] = 1
+        k = j
+        continue
+      }
+      if (c === '`' && k + 1 < n) {
+        k += 2
+        continue
+      }
+      k++
+    }
+    const matchClose = new Int32Array(n).fill(-1)
+    const open: number[] = []
+    for (let k = 0; k < n; k++) {
+      if (opaque[k]) continue
+      const c = s[k]
+      if (c === '(' || c === '[') open.push(k)
+      else if (c === ')' || c === ']') {
+        const openIdx = open.pop()
+        if (openIdx !== undefined && ((c === ')' && s[openIdx] === '(') || (c === ']' && s[openIdx] === '['))) {
+          matchClose[openIdx] = k
+        }
+      }
+    }
+    exprTables = { matchClose }
+    return exprTables
+  }
+  const tokenAt = (i: number): boolean => {
+    for (const w of ['erase', 'del', 'rd']) {
+      if (scanWordAt(s, i, w)) {
+        const e = i + w.length
+        if (e >= n || !isScanWord(s[e])) {
+          if (e >= n) return true
+          const c = s[e]
+          return (
+            SCAN_WS.test(c) ||
+            isPSQuote(c) ||
+            c === '(' ||
+            c === ')' ||
+            c === '>' ||
+            c === '<' ||
+            c === ';' ||
+            c === '|' ||
+            c === '}' ||
+            c === '&'
+          )
+        }
+      }
+    }
+    return false
+  }
+  let i = 0
+  while (i < n) {
+    const c = s[i]
+    const top = stack[stack.length - 1]
+    if (top === void 0) {
+      if (c === '@' && i + 1 < n && s[i + 1] === '{') {
+        stack.push({ expect: 'key', brace: 0, paren: 0 })
+        i += 2
+      } else i++
+      continue
+    }
+    if (top.expect === 'key') {
+      if (SCAN_WS.test(c) || c === ';') {
+        i++
+        continue
+      }
+      if (c === '}') {
+        stack.pop()
+        i++
+        continue
+      }
+      if (isPSQuote(c)) {
+        const q = c
+        // Same closes as the character loop, resolved through the per-candidate memo:
+        // a doubled pair defers to the next candidate, a lone quote is the close. O(1)
+        // amortized per key, no per-key suffix rescan.
+        const close = resolveKeyQuoteClose(i + 1, q)
+        if (close < 0) {
+          stack.pop()
+          i++
+          continue
+        }
+        top.expect = 'eq'
+        i = close + 1
+        continue
+      }
+      if (isKeyChar(c) || c === '?') {
+        let j = i + 1
+        while (j < n && (isKeyChar(s[j]) || s[j] === '?')) j++
+        top.expect = 'eq'
+        i = j
+        continue
+      }
+      if (c === '$') {
+        let j = i + 1
+        if (j < n && s[j] === '{') {
+          const close = nextRBrace[j]
+          if (close < n) {
+            j = close + 1
+          } else {
+            stack.pop()
+            i++
+            continue
+          }
+        } else {
+          while (j < n && (isKeyChar(s[j]) || s[j] === '?' || s[j] === ':')) j++
+        }
+        top.expect = 'eq'
+        i = j
+        continue
+      }
+      // Signed numeric keys: `@{-1 = ...}` / `@{+ 1 = ...}` parse as unary-expression
+      // keys and the table value still executes (pwsh 7.4.6 parse probes, round-33
+      // review finding). Only a sign followed by digits is such a key; anything else
+      // falls through to the discard path unchanged.
+      if (c === '+' || c === '-') {
+        let j = i + 1
+        while (j < n && SCAN_WS.test(s[j])) j++
+        let digits = 0
+        while (j < n && s[j] >= '0' && s[j] <= '9') {
+          j++
+          digits++
+        }
+        if (digits > 0 && j < n && s[j] === '.' && j + 1 < n && s[j + 1] >= '0' && s[j + 1] <= '9') {
+          j++
+          while (j < n && s[j] >= '0' && s[j] <= '9') j++
+        }
+        if (digits === 0) {
+          stack.pop()
+          i++
+          continue
+        }
+        top.expect = 'eq'
+        i = j
+        continue
+      }
+      // Expression keys: `@{(1+1) = ...}` and `@{[string]1 = ...}` are valid keys whose
+      // values execute (round-31 review finding; pwsh 7.4.6 parse-only: ParenExpressionAst
+      // and ConvertExpressionAst keys with an execution-shaped del value). The close comes
+      // from the precomputed match table, so an unterminated group abandons the table in
+      // O(1) instead of rescanning the suffix per key.
+      if (c === '(') {
+        const close = getExprTables().matchClose[i]
+        if (close < 0) {
+          stack.pop()
+          i++
+          continue
+        }
+        top.expect = 'eq'
+        i = close + 1
+        continue
+      }
+      if (c === '[') {
+        const close = getExprTables().matchClose[i]
+        if (close < 0) {
+          stack.pop()
+          i++
+          continue
+        }
+        let j = close + 1
+        // The complete converted operand (pwsh 7.4.6 parse probes, round-32 review
+        // finding): whitespace and further chained casts (`[int][double]1`), one unary
+        // sign with optional surrounding whitespace (`[int] - 1`, `[int]-1`), then the
+        // operand token itself - a quoted string (same-char doubling honored), a
+        // parenthesized expression (`[int](1+1)`), a variable (`[int]$x`), or a bare run
+        // of key characters and dots (`[string]1`, `[int].5`, `[int]0x10`).
+        while (j < n) {
+          while (j < n && SCAN_WS.test(s[j])) j++
+          if (j < n && s[j] === '[') {
+            const castClose = getExprTables().matchClose[j]
+            if (castClose < 0) break
+            j = castClose + 1
+            continue
+          }
+          break
+        }
+        while (j < n && SCAN_WS.test(s[j])) j++
+        if (j < n && (s[j] === '+' || s[j] === '-')) {
+          j++
+          while (j < n && SCAN_WS.test(s[j])) j++
+        }
+        if (j < n && isPSQuote(s[j])) {
+          const dq = isPSDQuote(s[j])
+          const next = dq ? nextDQuote : nextSQuote
+          const inClass = dq ? isPSDQuote : isPSSQuote
+          let k = next[j + 1]
+          while (k < n && k + 1 < n && inClass(s[k + 1])) k = next[k + 2]
+          j = k < n ? k + 1 : n
+        } else if (j < n && s[j] === '(') {
+          const parenClose = getExprTables().matchClose[j]
+          if (parenClose >= 0) j = parenClose + 1
+        } else if (j < n && s[j] === '$') {
+          j++
+          while (j < n && (isKeyChar(s[j]) || s[j] === '?' || s[j] === ':')) j++
+        } else {
+          while (j < n && (isKeyChar(s[j]) || s[j] === '.')) j++
+        }
+        top.expect = 'eq'
+        i = j
+        continue
+      }
+      // A line comment before a key is valid PowerShell (`@{ # cleanup\nresult=...}`,
+      // glued `@{#c` and multiple comment lines included; pwsh 7.4.6 parse probes,
+      // round-32 review finding): skip to the newline and keep the table frame. A
+      // comment between a key and its `=` is a parse error, so the eq state stays
+      // strict, and the documented comment-in-value exclusion is unchanged.
+      if (c === '#') {
+        let j = i + 1
+        while (j < n && s[j] !== '\n' && s[j] !== '\r') j++
+        i = j
+        continue
+      }
+      stack.pop()
+      i++
+      continue
+    }
+    if (top.expect === 'eq') {
+      if (SCAN_WS.test(c)) {
+        i++
+        continue
+      }
+      if (c === '=' && (i + 1 >= n || s[i + 1] !== '=')) {
+        top.expect = 'valueStart'
+        i++
+        continue
+      }
+      stack.pop()
+      i++
+      continue
+    }
+    if (top.expect === 'valueStart') {
+      if (c === '@' && i + 1 < n && s[i + 1] === '{') {
+        top.expect = 'skip'
+        stack.push({ expect: 'key', brace: 0, paren: 0 })
+        i += 2
+        continue
+      }
+      if (SCAN_WS.test(c) || c === '@') {
+        i++
+        continue
+      }
+      if (isPSQuote(c)) {
+        const close = isPSDQuote(c) ? nextDQuote[i + 1] : nextSQuote[i + 1]
+        if (close < n) {
+          let interpolates = false
+          let holdsTable = false
+          for (let k = i + 1; k < close; k++) {
+            const kc = s[k]
+            if (isPSDQuote(c) && (kc === '$' || kc === '`')) {
+              interpolates = true
+              break
+            }
+            if (kc === '@' && s[k + 1] === '{') {
+              holdsTable = true
+              break
+            }
+          }
+          if (interpolates) {
+            top.escaped = true
+            top.quotesBlind = true
+          } else if (holdsTable) {
+            top.quotesBlind = true
+          } else {
+            let g = i + 1
+            while (g < close && (SCAN_WS.test(s[g]) || isPSQuote(s[g]))) g++
+            if (g < close && tokenAt(g)) return true
+            top.expect = 'skip'
+            i = close + 1
+            continue
+          }
+        } else {
+          top.quotesBlind = true
+        }
+        i++
+        continue
+      }
+      if (tokenAt(i)) return true
+      top.expect = 'skip'
+      continue
+    }
+    // A backtick escapes the next character in argument-mode bare text and inside an
+    // expandable string, so an escaped quote or separator is literal text, never a boundary.
+    // Skip the pair when scanning bare text (not quote-blind) or when the blindness came from
+    // an interpolated value start (escaped set) - both keep the frame aligned with the real
+    // parse, where the deletion behind the escape still runs. When blindness came from a
+    // refused mid-value segment (escaped unset) the backtick keeps its plain-character
+    // alignment: hiding an escaped `; there would let the quoted `}` behind it pop the frame
+    // early (parse-only PowerShell 7.4.6 differential over the 242,760-case matrix: the
+    // execution-shaped D->A families were exactly these three shapes).
+    if (c === '`' && i + 1 < n && (top.escaped === true || top.quotesBlind !== true)) {
+      i += 2
+      continue
+    }
+    if (isPSQuote(c)) {
+      if (top.quotesBlind !== true) {
+        const close = isPSDQuote(c) ? nextDQuote[i + 1] : nextSQuote[i + 1]
+        if (close < n) {
+          let opaque = true
+          for (let k = i + 1; k < close; k++) {
+            const kc = s[k]
+            if ((kc === '@' && s[k + 1] === '{') || (isPSDQuote(c) && (kc === '$' || kc === '`'))) {
+              opaque = false
+              break
+            }
+          }
+          if (opaque) {
+            i = close + 1
+            continue
+          }
+        }
+        top.quotesBlind = true
+      }
+      i++
+      continue
+    }
+    if (c === '@' && i + 1 < n && s[i + 1] === '{') {
+      stack.push({ expect: 'key', brace: 0, paren: 0 })
+      i += 2
+      continue
+    }
+    if (c === '(') {
+      top.paren++
+      i++
+      continue
+    }
+    if (c === ')' && top.paren > 0) {
+      top.paren--
+      i++
+      continue
+    }
+    if (c === '{') {
+      top.brace++
+      i++
+      continue
+    }
+    if (c === '}') {
+      if (top.brace > 0) top.brace--
+      else stack.pop()
+      i++
+      continue
+    }
+    if ((c === ';' || c === '\n' || c === '\r') && top.brace === 0 && top.paren === 0) {
+      top.expect = 'key'
+      top.quotesBlind = void 0
+      top.escaped = void 0
+      i++
+      continue
+    }
+    i++
+  }
+  return false
+}
+
 const DESTRUCTIVE_COMMAND_PATTERNS: readonly DestructiveCommandPattern[] = [
   {
     reason: 'permanent file deletion',
@@ -21,7 +1148,11 @@ const DESTRUCTIVE_COMMAND_PATTERNS: readonly DestructiveCommandPattern[] = [
   },
   {
     reason: 'permanent Windows file deletion',
-    pattern: /\b(?:remove-item|clear-content|del|erase|rd|rmdir)\b/i
+    pattern: /\b(?:remove-item|clear-content|rmdir)\b/i
+  },
+  {
+    reason: 'permanent Windows file deletion',
+    pattern: WINDOWS_AMBIGUOUS_DELETE_PATTERN
   },
   {
     reason: 'scripted permanent file deletion',
@@ -66,7 +1197,17 @@ const DESTRUCTIVE_COMMAND_PATTERNS: readonly DestructiveCommandPattern[] = [
 
 export function detectDestructiveAssistantCommand(command: string): string | undefined {
   const normalized = command.replace(/\\\r?\n|\^\r?\n|`\r?\n/g, ' ')
-  return DESTRUCTIVE_COMMAND_PATTERNS.find(({ pattern }) => pattern.test(normalized))?.reason
+  return (
+    DESTRUCTIVE_COMMAND_PATTERNS.find(({ pattern }) => pattern.test(normalized))?.reason ??
+    (longGlueStartDeletion(normalized) ||
+    getCommandLookupDeletion(normalized) ||
+    (normalized.includes('<#') && getCommandLookupDeletion(blankBlockComments(normalized))) ||
+    hashtableValueDeletion(normalized) ||
+    aliasBindDeletion(normalized) ||
+    commentGapDeletion(normalized)
+      ? 'permanent Windows file deletion'
+      : undefined)
+  )
 }
 
 export function isLarkFormSubmissionCommand(command: string): boolean {
