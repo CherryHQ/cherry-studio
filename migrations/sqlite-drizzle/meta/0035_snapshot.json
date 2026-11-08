@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "7ff5bbe3-be6e-4b45-9600-7b7c47297385",
+  "id": "db624c69-6658-4a44-98e8-8e9587be32eb",
   "prevId": "21fa5fe5-e74e-4e5c-94f1-5fae6691f254",
   "tables": {
     "agent": {
@@ -59,13 +59,6 @@
         },
         "small_model": {
           "name": "small_model",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "expert_model": {
-          "name": "expert_model",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -172,19 +165,6 @@
           "tableTo": "user_model",
           "columnsFrom": [
             "small_model"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "agent_expert_model_user_model_id_fk": {
-          "name": "agent_expert_model_user_model_id_fk",
-          "tableFrom": "agent",
-          "tableTo": "user_model",
-          "columnsFrom": [
-            "expert_model"
           ],
           "columnsTo": [
             "id"
@@ -775,6 +755,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "source_task_schedule_id": {
+          "name": "source_task_schedule_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "trace_id": {
           "name": "trace_id",
           "type": "text",
@@ -837,6 +824,13 @@
           "name": "agent_session_order_key_idx",
           "columns": [
             "order_key"
+          ],
+          "isUnique": false
+        },
+        "agent_session_source_task_idx": {
+          "name": "agent_session_source_task_idx",
+          "columns": [
+            "source_task_schedule_id"
           ],
           "isUnique": false
         },
@@ -908,6 +902,19 @@
           "tableTo": "job_schedule",
           "columnsFrom": [
             "task_schedule_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "agent_session_source_task_schedule_id_job_schedule_id_fk": {
+          "name": "agent_session_source_task_schedule_id_job_schedule_id_fk",
+          "tableFrom": "agent_session",
+          "tableTo": "job_schedule",
+          "columnsFrom": [
+            "source_task_schedule_id"
           ],
           "columnsTo": [
             "id"

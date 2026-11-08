@@ -77,7 +77,7 @@ describe('agentSessionMessageHandlers', () => {
       const result = (await agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'].GET({
         params: { sessionId: 'session-1' },
         query: { deferToolOutputs: true }
-      } as never)) as unknown as { items: { data: { parts: unknown[] } }[] }
+      })) as unknown as { items: { data: { parts: unknown[] } }[] }
 
       expect(result.items[0].data.parts[1]).toEqual({
         type: 'dynamic-tool',
@@ -88,12 +88,24 @@ describe('agentSessionMessageHandlers', () => {
           $deferredToolResult: {
             topicId: 'agent-session:session-1',
             messageId: 'assistant-message',
-            toolCallId: 'tool-call-1'
+            toolCallId: 'tool-call-1',
+            revision: expect.any(String)
           }
         }
       })
       expect(result.items[1]).toBe(user)
       expect(assistant.data.parts[1]).toMatchObject({ output })
+      const replaced = {
+        ...assistant,
+        data: { parts: [{ ...assistant.data.parts[1], output: { content: 'y'.repeat(64 * 1024) } }] }
+      }
+      listSessionMessagesMock.mockReturnValueOnce({ items: [replaced], nextCursor: undefined })
+      const next = await agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'].GET({
+        params: { sessionId: 'session-1' },
+        query: { deferToolOutputs: true }
+      })
+      if (!('items' in next)) throw new Error('Expected a message page')
+      expect(next.items[0].data.parts![0]).not.toEqual(result.items[0].data.parts[1])
     })
 
     it('leaves a small tool output inline so no round trip is needed to render it', async () => {
@@ -109,7 +121,7 @@ describe('agentSessionMessageHandlers', () => {
       const result = (await agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'].GET({
         params: { sessionId: 'session-1' },
         query: { deferToolOutputs: true }
-      } as never)) as unknown as { items: unknown[] }
+      })) as unknown as { items: unknown[] }
 
       expect(result.items[0]).toBe(assistant)
     })

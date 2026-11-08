@@ -43271,6 +43271,11 @@
       "providerId": "tokenhub"
     },
     {
+      "apiModelId": "hy4",
+      "modelId": "hy4",
+      "providerId": "tokenhub"
+    },
+    {
       "apiModelId": "hy4-preview",
       "modelId": "hy4-preview",
       "providerId": "tokenhub"
@@ -44643,5 +44648,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "ae42a0ee7c463c59"
+  "version": "a374db806c274eaa"
 }

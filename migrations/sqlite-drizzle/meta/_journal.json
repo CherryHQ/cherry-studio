@@ -249,8 +249,15 @@
     {
       "idx": 35,
       "version": "6",
-      "when": 1793991991224,
-      "tag": "0035_expert_model",
+      "when": 1794057800687,
+      "tag": "0035_agent_session_task_ownership",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1794159396025,
+      "tag": "0036_useful_malcolm_colcord",
       "breakpoints": true
     }
   ],

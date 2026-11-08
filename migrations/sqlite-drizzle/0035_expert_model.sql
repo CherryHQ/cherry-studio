@@ -1,1 +1,0 @@
-ALTER TABLE `agent` ADD `expert_model` text REFERENCES user_model(id) ON DELETE SET NULL;

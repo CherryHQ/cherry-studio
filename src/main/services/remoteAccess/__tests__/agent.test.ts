@@ -1345,6 +1345,132 @@ describe('remote agent access', () => {
     ).toMatchObject({ error: { data: { reason: 'FORBIDDEN' } } })
   })
 
+  it('keeps streaming replacements across the content-reference threshold in the same journal epoch', async () => {
+    const journal = hub.journal(sessionId)
+    await journal.startRun('hi', 'agent-1', () => {})
+    const epoch = journal.epoch
+    const answerId = randomUUID()
+    for (const length of [4096, 4097, 5000]) {
+      const text = '界'.repeat(length)
+      for (const listener of fake.streams.get(`agent-session:${sessionId}`) ?? [])
+        listener.onMessage?.(
+          { id: answerId, role: 'assistant', parts: [{ type: 'text', text, state: 'streaming' }] },
+          undefined,
+          'messages'
+        )
+      expect(journal.epoch).toBe(epoch)
+      const part = journal.projection.parts[journal.projection.messages[answerId].partIds[0]]
+      expect(part).toMatchObject({ state: 'streaming', content: { text } })
+      const checkpoint = journal.capture()
+      const installed = installAgentCheckpoint(
+        checkpoint.descriptor,
+        checkpoint.pages,
+        Object.fromEntries(checkpoint.content),
+        integrity
+      )
+      if (!installed.ok) throw new Error(installed.reason)
+      expect(installed.projection.parts[part.partId]).toMatchObject({ content: { text } })
+    }
+    await finish(answerId, [{ type: 'text', text: 'Final', state: 'done' }])
+    expect(journal.epoch).toBe(epoch)
+    expect(Object.values(journal.projection.executions)).toEqual([
+      expect.objectContaining({ status: 'completed', durable: true })
+    ])
+  })
+
+  // An offline client must resolve every retained streaming reference even after the answer commits.
+  it('keeps terminal replay content until the replay window is evicted', async () => {
+    const journal = hub.journal(sessionId)
+    await journal.startRun('hi', 'agent-1', () => {})
+    const checkpoint = journal.capture()
+    const baseline = installAgentCheckpoint(checkpoint.descriptor, checkpoint.pages, {}, integrity)
+    if (!baseline.ok) throw new Error(baseline.reason)
+    const answerId = randomUUID()
+    const text = '界'.repeat(5000)
+    for (const listener of fake.streams.get(`agent-session:${sessionId}`) ?? []) {
+      listener.onMessage?.(
+        { id: answerId, role: 'assistant', parts: [{ type: 'text', text, state: 'streaming' }] },
+        undefined,
+        'messages'
+      )
+    }
+    await finish(answerId, [{ type: 'text', text: 'Final', state: 'done' }])
+    const events = journal.eventsAfter(Number(baseline.cursor.seq), Infinity)
+    const content: Record<string, Uint8Array> = {}
+    for (const event of events) {
+      if (event.kind !== 'part.created' && event.kind !== 'part.replaced') continue
+      const part = event.payload.part
+      if (part.kind === 'file' || !('ref' in part.content)) continue
+      const ref = part.content.ref
+      const read = await call('agent.content.read', {
+        sessionId,
+        contentId: ref.contentId,
+        revision: ref.revision,
+        offset: '0',
+        maxBytes: 24_576
+      })
+      expect(Buffer.from(read.dataBase64, 'base64').toString()).toBe(text)
+      content[`${ref.contentId}:${ref.revision}`] = Buffer.from(read.dataBase64, 'base64')
+    }
+    expect(Object.keys(content)).toHaveLength(1)
+    const applied = applyAgentEvents(
+      baseline.projection,
+      { subscriptionId: 'replay', sessionId, streamEpoch: journal.epoch, events },
+      content,
+      integrity
+    )
+    if (!applied.ok) throw new Error(applied.reason)
+    expect(applied.projection.messages[answerId]).toBeUndefined()
+    expect(Object.values(applied.projection.executions)).toEqual([
+      expect.objectContaining({ status: 'completed', durable: true })
+    ])
+    journal.trimReplay(0)
+    expect(journal.firstRetainedSeq).toBe(Number(journal.cursor.seq) + 1)
+    expect(journal.pins.size).toBe(0)
+    expect(journal.replayBytes).toBe(0)
+  })
+
+  it('projects replacement views in order and replays removals without reviving old content', async () => {
+    const journal = hub.journal(sessionId)
+    await journal.startRun('hi', 'agent-1', () => {})
+    const publish = (parts: CherryMessagePart[]) => {
+      for (const listener of fake.streams.get(`agent-session:${sessionId}`) ?? [])
+        listener.onMessage?.({ id: 'answer', role: 'assistant', parts }, undefined, 'messages')
+    }
+    publish([
+      { type: 'text', text: 'Withdrawn', state: 'streaming' },
+      { type: 'text', text: 'Tail', state: 'done' }
+    ])
+    const checkpoint = journal.capture()
+    const baseline = installAgentCheckpoint(checkpoint.descriptor, checkpoint.pages, {}, integrity)
+    if (!baseline.ok) throw new Error(baseline.reason)
+    publish([
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'call',
+        toolName: 'Bash',
+        state: 'input-available',
+        input: { command: 'pwd' }
+      },
+      { type: 'text', text: 'Tail', state: 'done' }
+    ])
+    publish([{ type: 'text', text: 'Replacement', state: 'done' }])
+    const events = journal.eventsAfter(Number(baseline.cursor.seq), Infinity)
+    const batch: AgentEventBatch = { subscriptionId: 'test', sessionId, streamEpoch: journal.epoch, events }
+    const applied = applyAgentEvents(baseline.projection, batch, {}, integrity)
+    if (!applied.ok) throw new Error(applied.reason)
+    expect(applied.projection.messages.answer.partIds).toHaveLength(1)
+    expect(applied.projection.parts[applied.projection.messages.answer.partIds[0]]).toMatchObject({
+      kind: 'text',
+      content: { text: 'Replacement' },
+      state: 'completed'
+    })
+    expect(applyAgentEvents(applied.projection, batch, {}, integrity)).toEqual(applied)
+    const legacy = installLegacyCheckpoint(checkpoint.descriptor, checkpoint.pages, {}, integrity)
+    if (!legacy.ok) throw new Error(legacy.reason)
+    expect(applyLegacyEvents(legacy.projection, legacyBatchSchema.parse(batch), {}, integrity).ok).toBe(true)
+  })
+
   it('coalesces Unicode deltas within a bounded window and replays them from a checkpoint', async () => {
     const journal = hub.journal(sessionId)
     await journal.startRun('hi', 'agent-1', () => {})

@@ -4,7 +4,7 @@ import { isToolUIPart } from 'ai'
 import * as z from 'zod'
 
 import { application } from '@application'
-import type { ApprovalOutcome, CallRef, HostPorts, BehaviorEvent, SubagentOrigin } from '@cherrystudio/agent-behavior'
+import type { ApprovalOutcome, CallRef, HostPorts, BehaviorEvent } from '@cherrystudio/agent-behavior'
 import type { JsonValue, ThreadId, Thread } from '@cherrystudio/agent-runtime'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { modelService } from '@data/services/ModelService'
@@ -18,7 +18,7 @@ import { getRawModelId } from '@shared/utils/model'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
 import { createPiGatewayModelBinding } from './gatewayModelBinding'
 import { readPiApprovalFacts, type PiApprovalContext } from './piApprovalFacts'
-import { PI_TRANSPORT } from './piStreamAdapter'
+import { PI_TRANSPORT } from './PiMessageMetadata'
 
 type Binding = Awaited<ReturnType<typeof createPiGatewayModelBinding>>
 type HostOptions = {
@@ -28,6 +28,7 @@ type HostOptions = {
   model: Model
   bindModel?: (model: Model) => Promise<Binding>
   approval: PiApprovalContext
+  usageSessionId(thread: ThreadId): Promise<string>
   toolCallId(call: CallRef): Promise<string>
   emit(event: AgentRuntimeEvent): void
   observe(event: BehaviorEvent): void
@@ -44,7 +45,7 @@ const approvalId = (call: CallRef) => `behavior:${JSON.stringify(call)}`
 /** Desktop services for one root's behavior tree; no tool loop or policy decisions live here. */
 export async function createPiBehaviorHost(options: HostOptions): Promise<{
   host: HostPorts
-  configureChild(child: { thread: Thread; parent: Thread; origin: SubagentOrigin }): Promise<Binding>
+  configureChild(child: { thread: Thread; modelKey: string }): Promise<Binding>
 }> {
   const { DEFAULT_MAX_BACKGROUND } = await import('@cherrystudio/agent-behavior')
   const { input, approval, binding } = options
@@ -54,14 +55,19 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
   const threads = new Map<ThreadId, string>([[options.root, rootKey]])
   async function complete(thread: ThreadId, system: string, value: JsonValue, signal: AbortSignal) {
     const selected = bindings.get(threads.get(thread) ?? rootKey)!
-    const result = await selected.modelRuntime.completeSimple(
-      selected.model,
-      {
-        systemPrompt: system,
-        messages: [{ role: 'user', content: JSON.stringify(value), timestamp: Date.now() }]
-      },
-      { signal, maxTokens: Math.min(4096, selected.model.maxTokens) }
-    )
+    const usage = application
+      .get('ApiGatewayService')
+      .captureAgentSessionUsage(input.sessionId, await options.usageSessionId(thread))
+    const result = await selected.modelRuntime
+      .completeSimple(
+        selected.model,
+        {
+          systemPrompt: system,
+          messages: [{ role: 'user', content: JSON.stringify(value), timestamp: Date.now() }]
+        },
+        { signal, maxTokens: Math.min(4096, selected.model.maxTokens), headers: usage.headers }
+      )
+      .finally(usage.release)
     signal.throwIfAborted()
     if (result.stopReason !== 'stop')
       throw new Error(result.errorMessage ?? `Model request ended: ${result.stopReason}`)
@@ -154,17 +160,17 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
   }
   return {
     host,
-    async configureChild({ thread, origin }) {
-      if (!models.has(origin.modelKey)) await host.models.find('')
-      const model = models.get(origin.modelKey)
-      if (!model) throw new Error(`Unknown subagent model: ${origin.modelKey}`)
-      let child = bindings.get(origin.modelKey)
+    async configureChild({ thread, modelKey }) {
+      if (!models.has(modelKey)) await host.models.find('')
+      const model = models.get(modelKey)
+      if (!model) throw new Error(`Unknown subagent model: ${modelKey}`)
+      let child = bindings.get(modelKey)
       if (!child) {
         child = await (options.bindModel?.(model) ??
           createPiGatewayModelBinding(input, providerService.getByProviderId(model.providerId), model))
-        bindings.set(origin.modelKey, child)
+        bindings.set(modelKey, child)
       }
-      threads.set(thread.id, origin.modelKey)
+      threads.set(thread.id, modelKey)
       return child
     }
   }

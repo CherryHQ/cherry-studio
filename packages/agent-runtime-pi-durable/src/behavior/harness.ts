@@ -2,6 +2,8 @@ import { copyJson, type JsonRepresentation, type JsonValue as NativeJson } from 
 import { BACKGROUND_CONTEXT, awaitWithContext, withAbortSignal, type Context } from '@earendil-works/chord/context'
 import { Type } from '@earendil-works/pi-ai'
 import {
+  AssistantEntry,
+  CompactionEntry,
   configure,
   ConversationBusy,
   defineDoc,
@@ -11,6 +13,8 @@ import {
   hook,
   InboxDoc,
   LiveDoc,
+  GenerationTask,
+  ToolResultEntry,
   ToolTask,
   ProviderDoc,
   type AgentChange,
@@ -382,8 +386,8 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
                     if (message.role === 'assistant')
                       for (const part of message.content)
                         if (part.type === 'toolCall')
-                          await tx.appendEntry(child.id, {
-                            kind: 'pi.toolResult',
+                          await tx.appendEntry(ToolResultEntry, child.id, {
+                            data: { diagnostics: [] },
                             model: [
                               {
                                 role: 'toolResult',
@@ -509,8 +513,8 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
                       )
                       for (const part of last.content)
                         if (part.type === 'toolCall' && !answered.has(part.id))
-                          await tx.appendEntry(id, {
-                            kind: 'pi.toolResult',
+                          await tx.appendEntry(ToolResultEntry, id, {
+                            data: { diagnostics: [] },
                             model: [
                               {
                                 role: 'toolResult',
@@ -597,13 +601,13 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
                   )
                   const replies = entries
                     .filter(
-                      (entry) => entry.conversationId === id && (entry.data as { runId?: TaskId })?.runId === runId
+                      (entry) => entry.conversationId === id && AssistantEntry.is(entry) && entry.data.runId === runId
                     )
                     .flatMap((entry) => entry.model ?? [])
                     .filter((message) => message.role === 'assistant')
                   const last = replies.at(-1)
                   const outcome = tasks
-                    .filter((task) => task.kind === 'pi.generation' && taskRun(task) === runId)
+                    .filter((task) => task.kind === GenerationTask.definition.name && taskRun(task) === runId)
                     .at(-1)?.state.outcome
                   const text = last?.content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('') ?? ''
                   const error =
@@ -873,7 +877,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
       recovering = false
       unsubscribe = harness.subscribeCommits((publication) => {
         for (const change of publication.changes) {
-          if (change.type !== 'entry' || change.value.kind !== 'pi.compaction') continue
+          if (change.type !== 'entry' || !CompactionEntry.is(change.value)) continue
           const thread = threadId(change.value.conversationId)
           void withCall(thread, (ports) => lifecycle?.onCompacted(thread, ports) ?? Promise.resolve()).catch(
             options.onError ?? (() => {})
