@@ -1,5 +1,24 @@
 # @cherrystudio/ai-core
 
+## 2.4.6
+
+### Patch Changes
+
+- [#23793](https://github.com/CherryHQ/cherry-studio/pull/23793) [`354ca0c`](https://github.com/CherryHQ/cherry-studio/commit/354ca0cb88fb0e8ed34d64b28568abc7fb73e4ce) Thanks [@404-Page-Found](https://github.com/404-Page-Found)! - Assign the resolved model to `context.model` in the non-streaming text and image paths, so plugins observe the same resolved model there as they do in the streaming path.
+
+## 2.4.5
+
+### Patch Changes
+
+- [#23471](https://github.com/CherryHQ/cherry-studio/pull/23471) [`e19a772`](https://github.com/CherryHQ/cherry-studio/commit/e19a772a0620902507fd844f163b122c93512a48) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Discover OpenRouter reranking models and rerank through the OpenRouter provider: the model list now reads the rerank catalog (`?output_modalities=rerank`) and marks those models as rerank-capable, and the OpenRouter extension now provides a reranking model so the connection check reaches `POST /api/v1/rerank` instead of failing with `No such rerankingModel`.
+
+## 2.4.4
+
+### Patch Changes
+
+- Updated dependencies [[`1ad6b7f`](https://github.com/CherryHQ/cherry-studio/commit/1ad6b7f56a8735111641a05005f234b44d8bfcae)]:
+  - @cherrystudio/ai-sdk-provider@0.1.10
+
 ## 2.4.3
 
 ### Patch Changes

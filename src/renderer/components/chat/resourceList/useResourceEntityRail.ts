@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
-import {
-  buildResourceListItemDropAnchor,
-  compareResourceOrderKey,
-  type ResourceListReorderPayload,
-  type ResourceListStatus
-} from './base'
+import { buildResourceListItemDropAnchor, compareResourceOrderKey } from '@renderer/utils/chat/resourceListBase'
+import { applyOptimisticOrder } from '@renderer/utils/resourceEntity'
+
+import type { ResourceListReorderPayload, ResourceListStatus } from './base'
 import type { ResourceEntityRailItem } from './ResourceEntityRail'
 import { useOwnerResourceActivation } from './useOwnerResourceActivation'
 
@@ -78,16 +76,7 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
 
   const items = useMemo<TEntity[]>(() => {
     const ordered = [...entities].sort((a, b) => compareResourceOrderKey(a.orderKey, b.orderKey))
-    let base = ordered
-    if (optimisticOrderIds) {
-      const byId = new Map(ordered.map((entity) => [entity.id, entity]))
-      const optimistic = optimisticOrderIds.flatMap((id) => {
-        const entity = byId.get(id)
-        return entity ? [entity] : []
-      })
-      const optimisticIds = new Set(optimisticOrderIds)
-      base = [...optimistic, ...ordered.filter((entity) => !optimisticIds.has(entity.id))]
-    }
+    const base = optimisticOrderIds ? applyOptimisticOrder(ordered, optimisticOrderIds) : ordered
 
     // Float pinned entities into the rail's "pinned" group at the top, preserving their relative order.
     const pinned = base.filter((entity) => entity.pinned)

@@ -1,4 +1,4 @@
-import { APICallError, RetryError } from 'ai'
+import { APICallError, JSONParseError, RetryError, TypeValidationError } from 'ai'
 
 import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
 import type { SerializedError } from '@shared/types/error'
@@ -35,7 +35,9 @@ function toSerializable(value: unknown): Serializable {
  *  so every `SerializedAiSdkErrorUnion` shape carries its discriminant
  *  fields and the renderer's type guards match. */
 export function serializeError(error: unknown): SerializedError {
-  if (APICallError.isInstance(error)) return serializeNestedProviderError(error) as SerializedError
+  if (APICallError.isInstance(error) || JSONParseError.isInstance(error) || TypeValidationError.isInstance(error)) {
+    return serializeNestedProviderError(error) as SerializedError
+  }
   if (error instanceof Error) {
     const e = error as unknown as Record<string, unknown>
     const isRetryError = RetryError.isInstance(error)
@@ -96,6 +98,8 @@ export function serializeError(error: unknown): SerializedError {
     if ('diagnosticReference' in e && typeof e.diagnosticReference === 'string') {
       serialized.diagnosticReference = e.diagnosticReference
     }
+    if ('processExitDetail' in e && typeof e.processExitDetail === 'string')
+      serialized.processExitDetail = e.processExitDetail
     if ('processExitCode' in e && typeof e.processExitCode === 'number') serialized.processExitCode = e.processExitCode
     if ('processExitSignal' in e && typeof e.processExitSignal === 'string') {
       serialized.processExitSignal = e.processExitSignal

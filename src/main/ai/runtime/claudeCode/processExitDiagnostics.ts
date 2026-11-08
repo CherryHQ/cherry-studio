@@ -1,18 +1,17 @@
 import { randomUUID } from 'node:crypto'
 
-import { t } from '@main/i18n'
 import { classifyErrorCategory, type ErrorCategory, extractHttpStatus } from '@shared/utils/errorCategory'
+import { redactSecretText, redactSecretTokens } from '@shared/utils/redaction'
 
 export interface ClaudeCodeProcessDiagnostics {
   readonly reference: string
   exited?: Promise<void>
   terminalReason?: string
+  output?: string
   category?: ErrorCategory
   exitCode?: number
   exitSignal?: NodeJS.Signals
   spawnFailed?: true
-  /** Recorded at spawn: the launch env had no usable Linux session-bus address. */
-  sessionBusUnavailable?: true
 }
 
 export function createClaudeCodeProcessDiagnostics(reference: string = randomUUID()): ClaudeCodeProcessDiagnostics {
@@ -20,12 +19,12 @@ export function createClaudeCodeProcessDiagnostics(reference: string = randomUUI
 }
 
 export function resetClaudeCodeProcessDiagnostics(diagnostics: ClaudeCodeProcessDiagnostics): void {
+  delete diagnostics.output
   delete diagnostics.terminalReason
   delete diagnostics.category
   delete diagnostics.exitCode
   delete diagnostics.exitSignal
   delete diagnostics.spawnFailed
-  delete diagnostics.sessionBusUnavailable
 }
 
 /** CLI stderr carries no structured status, so the status is recovered from the text itself. */
@@ -42,44 +41,60 @@ export function recordClaudeCodeProcessExit(
   const stderr = stderrTail.trim()
   const status = code !== null ? `exited with code ${code}` : `terminated by signal ${String(signal)}`
   diagnostics.terminalReason = `Claude Code process ${status}${stderr ? `. stderr: ${stderr}` : ''}`
+  diagnostics.output = stderr
   diagnostics.category = classifyClaudeCodeTerminalReason(stderr)
   if (code !== null) diagnostics.exitCode = code
   if (signal !== null) diagnostics.exitSignal = signal
+  if (code !== 0) notifyProcessFailure(diagnostics)
 }
 
 export function recordClaudeCodeSpawnError(diagnostics: ClaudeCodeProcessDiagnostics, error: Error): void {
   diagnostics.terminalReason = `Failed to spawn Claude Code process: ${error.message}`
   diagnostics.category = classifyClaudeCodeTerminalReason(diagnostics.terminalReason)
+  diagnostics.output = error.message
   diagnostics.spawnFailed = true
+  notifyProcessFailure(diagnostics)
 }
 
-export function isClaudeCodeProcessFailure(error: unknown, diagnostics?: ClaudeCodeProcessDiagnostics): error is Error {
-  if (!(error instanceof Error)) return false
-  // An early child exit surfaces as a generic transport close, so attribute a recorded abnormal
-  // exit instead of the closed-transport message. Clean exits and distant token pairs stay generic.
-  if (
-    diagnostics?.terminalReason &&
-    diagnostics.exitCode !== 0 &&
-    /(json-rpc|transport)[\s\S]{0,100}closed/i.test(error.message)
-  ) {
-    return true
-  }
+const failureListeners = new WeakMap<ClaudeCodeProcessDiagnostics, Set<() => void>>()
+
+export function hasClaudeCodeProcessFailure(diagnostics?: ClaudeCodeProcessDiagnostics): boolean {
   return (
     diagnostics?.spawnFailed === true ||
-    /Claude Code process (?:exited with code|terminated by signal|failed to spawn)|Failed to spawn Claude Code process/i.test(
-      error.message
-    )
+    diagnostics?.exitSignal !== undefined ||
+    (diagnostics?.exitCode !== undefined && diagnostics.exitCode !== 0)
   )
 }
 
-/**
- * Non-empty session-bus address check. Kept next to the failure attribution that consumes it:
- * a missing bus never blocks a launch (the native CLI runs bus-less), it only annotates an
- * actual child failure with the remediation.
- */
-export function hasSessionBusAddress(env: Record<string, string | undefined>): boolean {
-  const value = env.DBUS_SESSION_BUS_ADDRESS
-  return typeof value === 'string' && value.trim().length > 0
+function notifyProcessFailure(diagnostics: ClaudeCodeProcessDiagnostics): void {
+  for (const listener of failureListeners.get(diagnostics) ?? []) listener()
+}
+
+/** Separate from the SDK transport stream, including failures recorded during prewarm. */
+export function subscribeClaudeCodeProcessFailure(
+  diagnostics: ClaudeCodeProcessDiagnostics,
+  listener: () => void
+): () => void {
+  const listeners = failureListeners.get(diagnostics) ?? new Set()
+  failureListeners.set(diagnostics, listeners)
+  listeners.add(listener)
+  if (hasClaudeCodeProcessFailure(diagnostics)) listener()
+  return () => listeners.delete(listener)
+}
+
+export function isClaudeCodeProcessFailure(error: unknown, diagnostics?: ClaudeCodeProcessDiagnostics): error is Error {
+  return (
+    error instanceof Error && (error.name === 'ClaudeCodeProcessExitError' || hasClaudeCodeProcessFailure(diagnostics))
+  )
+}
+
+function safeProcessOutput(output: string): string {
+  // Stderr may contain credentials, private endpoint URLs, paths or terminal control sequences.
+  const text = output
+    .replace(/https?:\/\/[^\s"']+/gi, '<redacted-url>')
+    .replace(/(?:[A-Za-z]:\\|\/)(?:[^\s"'<>]+[\\/])*[^\s"'<>]*/g, '<redacted-path>')
+    .replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')
+  return redactSecretTokens(redactSecretText(text)).slice(0, 1000)
 }
 
 export function createClaudeCodeProcessExitError(
@@ -92,18 +107,26 @@ export function createClaudeCodeProcessExitError(
       : diagnostics.exitSignal
         ? `terminated by signal ${diagnostics.exitSignal}`
         : 'failed to start'
-  // The child demonstrably failed AND the launch env had no session bus: the bus is the prime
-  // suspect (packaged zypak dies before JSON-RPC), so attach the remediation to the surfaced
-  // error. Bus-less configs that work never see this — nothing is gated on the address.
-  const remediation = diagnostics.sessionBusUnavailable
-    ? `\n\n${t('agent.session.claude.linux_session_bus_unavailable')}`
-    : ''
-  return Object.assign(new Error(`Claude Code process ${status}${remediation}`), {
+  return Object.assign(new Error(`Claude Code process ${status}`), {
     name: 'ClaudeCodeProcessExitError',
+    processExitDetail: safeProcessOutput(diagnostics.output ?? ''),
     claudeCodeExitCategory:
       diagnostics.category ?? classifyClaudeCodeTerminalReason(diagnostics.terminalReason ?? originalError.message),
     diagnosticReference: diagnostics.reference,
     ...(diagnostics.exitCode !== undefined ? { processExitCode: diagnostics.exitCode } : {}),
     ...(diagnostics.exitSignal ? { processExitSignal: diagnostics.exitSignal } : {})
   })
+}
+
+/** Preserve interrupted output only when native abortion or a truncated JSON frame proves the boundary. */
+export function canSalvageClaudeOutput(error: unknown, bufferedChars: number, aborted: boolean): boolean {
+  if (aborted) return true
+  const value = error as { name?: string; message?: string } | null
+  return (
+    bufferedChars >= 512 &&
+    value?.name?.toLowerCase() === 'syntaxerror' &&
+    /unexpected end of (?:json input|input|string)|unexpected eof|end of file|unterminated string/i.test(
+      value.message ?? ''
+    )
+  )
 }

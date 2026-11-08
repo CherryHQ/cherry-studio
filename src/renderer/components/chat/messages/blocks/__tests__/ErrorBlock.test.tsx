@@ -4,6 +4,7 @@ import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import enUS from '@renderer/i18n/locales/en-us.json'
+import zhCN from '@renderer/i18n/locales/zh-cn.json'
 
 import type { MessageListActions, MessageListItem } from '../../types'
 
@@ -37,12 +38,23 @@ vi.mock('@renderer/i18n/label', () => ({
   getProviderLabelKey: (providerId: string) => providerId
 }))
 
-vi.mock('@tanstack/react-router', () => ({
-  Link: ({ children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => <a {...props}>{children}</a>
-}))
-
 vi.mock('react-i18next', () => ({
-  Trans: ({ i18nKey }: { i18nKey: string }) => <>{i18nKey}</>,
+  Trans: ({
+    i18nKey,
+    values,
+    components
+  }: {
+    i18nKey: string
+    values?: Record<string, string>
+    components?: Record<string, React.ReactElement>
+  }) => (
+    <>
+      {i18nKey}
+      {components?.provider &&
+        // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Trans tag interpolation
+        React.cloneElement(components.provider, undefined, values?.provider)}
+    </>
+  ),
   useTranslation: () => ({
     t: (key: string, options?: Record<string, string>) => {
       let translation = mocks.translations.get(key) ?? key
@@ -89,6 +101,32 @@ describe('ErrorBlock', () => {
     mocks.translations.set('HTTP 413', 'Request body too large')
     vi.clearAllMocks()
   })
+
+  it.each([
+    { language: 'en-US', detail: '' },
+    { language: 'en-US', detail: 'Provider unavailable' },
+    { language: 'zh-CN', detail: '' },
+    { language: 'zh-CN', detail: 'Provider unavailable' }
+  ] as const)(
+    'shows localized response interruption for a persisted stream failure ($language, $detail)',
+    ({ language, detail }) => {
+      const catalog = language === 'en-US' ? enUS : zhCN
+      mocks.language = language
+      mocks.translations = new Map(Object.entries(catalog))
+
+      render(
+        <ErrorBlock
+          partId="message-1-part-0"
+          error={{ name: 'StreamError', message: detail, stack: null, streamStage: 'response-stream' }}
+          message={message}
+        />
+      )
+
+      expect(screen.getAllByText(catalog['error.diagnosis.stream'], { exact: true })).toHaveLength(1)
+      expect(screen.queryByText(catalog['error.diagnosis.unknown'], { exact: true })).not.toBeInTheDocument()
+      if (detail) expect(screen.getByText(detail, { exact: true })).toBeInTheDocument()
+    }
+  )
 
   it('renders Groq entitlement copy and opens its provider settings', async () => {
     const user = userEvent.setup()
@@ -157,6 +195,7 @@ required service tier.`
           name: 'ToolLoopTerminalError',
           message: 'fallback message',
           stack: null,
+          streamStage: 'response-stream',
           i18nKey
         }}
         message={message}
@@ -174,6 +213,40 @@ required service tier.`
 
     expect(screen.queryByLabelText('close')).toBeNull()
     expect(screen.queryByText('common.detail')).toBeNull()
+  })
+
+  it('opens provider settings from the provider name without opening the error detail', () => {
+    const navigateToRoute = vi.fn()
+    const openErrorDetail = vi.fn()
+    mocks.actions = { navigateToRoute, openErrorDetail }
+    mocks.i18nKeys.add('error.chat.no_api_key')
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'Error', message: 'No API key', stack: null, i18nKey: 'chat.no_api_key', providerId: 'openai' }}
+        message={message}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'openai' }))
+    expect(navigateToRoute).toHaveBeenCalledWith({ path: '/settings/provider', query: { id: 'openai' } })
+    expect(openErrorDetail).not.toHaveBeenCalled()
+  })
+
+  it('shows the provider name as plain text when the host cannot navigate', () => {
+    mocks.i18nKeys.add('error.chat.no_api_key')
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'Error', message: 'No API key', stack: null, i18nKey: 'chat.no_api_key', providerId: 'openai' }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText('openai')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'openai' })).toBeNull()
   })
 
   it('offers provider settings recovery when Claude Code reports that the session is not logged in', () => {
@@ -264,6 +337,51 @@ required service tier.`
 
     fireEvent.click(screen.getByText(GO_TO_SETTINGS_LABEL))
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
+  })
+
+  it('shows the safe process diagnostic in the visible error, not only raw details', () => {
+    mocks.translations = new Map(Object.entries(enUS))
+    render(
+      <ErrorBlock
+        partId="process-detail"
+        error={{
+          name: 'ClaudeCodeProcessExitError',
+          message: 'Claude Code process exited with code 2',
+          stack: null,
+          claudeCodeExitCategory: 'unknown',
+          diagnosticReference: 'safe-ref',
+          processExitCode: 2,
+          processExitDetail: 'Native library could not be loaded'
+        }}
+        message={message}
+      />
+    )
+    expect(screen.getByText('Native library could not be loaded')).toBeVisible()
+    expect(screen.getByText(/code 2.*safe-ref/)).toBeVisible()
+  })
+
+  it('shows an unknown-reason explanation when no stderr was captured', () => {
+    mocks.translations = new Map(Object.entries(enUS))
+    render(
+      <ErrorBlock
+        partId="process-empty"
+        error={{
+          name: 'ClaudeCodeProcessExitError',
+          message: 'Claude Code process terminated',
+          stack: null,
+          claudeCodeExitCategory: 'unknown',
+          diagnosticReference: 'empty-ref',
+          processExitSignal: 'SIGSEGV',
+          processExitDetail: ''
+        }}
+        message={message}
+      />
+    )
+    expect(
+      screen
+        .getAllByText(enUS['settings.doctor.error_category.unknown'])
+        .some((node) => node.closest('.whitespace-pre-wrap'))
+    ).toBe(true)
   })
 
   it('does not treat an unknown exit category as a Claude Code diagnostic', async () => {
@@ -403,6 +521,33 @@ required service tier.`
     expect(screen.getByText('error.diagnosis.auth')).toBeInTheDocument()
     fireEvent.click(screen.getByText(GO_TO_SETTINGS_LABEL))
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
+  })
+
+  it('shows a content rejection with the provider explanation and no settings recovery', () => {
+    mocks.actions = { navigateErrorTarget: vi.fn() }
+    mocks.translations.set('error.diagnosis.content', enUS['error.diagnosis.content'])
+    mocks.translations.set('error.diagnosis.bad_request', enUS['error.diagnosis.bad_request'])
+    mocks.translations.set('error.diagnosis.go_to_settings', enUS['error.diagnosis.go_to_settings'])
+    const providerMessage = 'This request was blocked by our content filtering policy. Please revise your message.'
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'AI_APICallError',
+          message: providerMessage,
+          stack: null,
+          statusCode: 400,
+          providerId: 'openai'
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText(enUS['error.diagnosis.content'], { exact: true })).toBeVisible()
+    expect(screen.queryByText('Provider request failed (HTTP 400)', { exact: true })).not.toBeInTheDocument()
+    expect(screen.getByText(providerMessage, { exact: false })).toBeVisible()
+    expect(screen.queryByRole('button', { name: GO_TO_SETTINGS_LABEL })).not.toBeInTheDocument()
   })
 
   it('shows a Claude SDK request failure with its original error and provider settings', async () => {

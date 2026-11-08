@@ -1,24 +1,23 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import { serializeError } from '../../../utils/serializeError'
-
-vi.mock('@main/i18n', () => ({
-  t: (key: string) =>
-    key === 'agent.session.claude.linux_session_bus_unavailable'
-      ? 'Claude Code cannot start on Linux without a desktop session bus (DBUS_SESSION_BUS_ADDRESS is missing). Open Cherry Studio from your desktop session so the bus address is inherited, then try again.'
-      : key
-}))
-
-const {
+import {
+  canSalvageClaudeOutput,
   createClaudeCodeProcessDiagnostics,
   createClaudeCodeProcessExitError,
-  hasSessionBusAddress,
-  isClaudeCodeProcessFailure,
   recordClaudeCodeProcessExit,
   resetClaudeCodeProcessDiagnostics
-} = await import('../processExitDiagnostics')
+} from '../processExitDiagnostics'
 
 describe('Claude Code process exit diagnostics', () => {
+  it('keeps interrupted partial output without hiding unrelated failures', () => {
+    expect(canSalvageClaudeOutput(new Error('interrupted'), 0, true)).toBe(true)
+    expect(canSalvageClaudeOutput(new SyntaxError('Unterminated string in JSON'), 1024, false)).toBe(true)
+    expect(canSalvageClaudeOutput(new SyntaxError('Unexpected end of JSON input'), 12, false)).toBe(false)
+    expect(canSalvageClaudeOutput(new Error('Authentication failed'), 4096, false)).toBe(false)
+    expect(canSalvageClaudeOutput(new SyntaxError('Unexpected token'), 4096, false)).toBe(false)
+  })
+
   it.each([
     ['Authentication failed', 'auth'],
     ['model claude-sonnet-4 was not found', 'model'],
@@ -106,71 +105,24 @@ describe('Claude Code process exit diagnostics', () => {
 
     expect(diagnostics).toEqual({ reference: 'retry-ref' })
   })
+})
 
-  it('treats a closed transport after a recorded exit as a process failure', () => {
-    const diagnostics = createClaudeCodeProcessDiagnostics('zypak-ref')
-    recordClaudeCodeProcessExit(diagnostics, 1, null, 'zypak-helper failed to connect to the session bus')
+it('projects actual stderr through serialization with credentials, paths and URLs removed', () => {
+  const diagnostics = createClaudeCodeProcessDiagnostics('safe-ref')
+  recordClaudeCodeProcessExit(
+    diagnostics,
+    1,
+    null,
+    'native loader failed\napi_key=sk-ant-private\nhttps://user:password@private.example/path?token=private\n/Users/alice/private/file\nC:\\Users\\alice\\private\\file'
+  )
+  const serialized = serializeError(createClaudeCodeProcessExitError(new Error('SDK closed'), diagnostics))
+  expect(serialized.processExitDetail).toContain('native loader failed')
+  expect(JSON.stringify(serialized)).not.toMatch(/sk-ant-private|private\.example|alice|password@|token=private/)
+})
 
-    expect(isClaudeCodeProcessFailure(new Error('TransportClosedError: JSON-RPC input closed'), diagnostics)).toBe(true)
-  })
-
-  it('leaves a closed transport without a recorded exit as a generic error', () => {
-    const diagnostics = createClaudeCodeProcessDiagnostics('no-exit-ref')
-
-    expect(isClaudeCodeProcessFailure(new Error('TransportClosedError: JSON-RPC input closed'), diagnostics)).toBe(
-      false
-    )
-  })
-
-  it('leaves a transport close after a clean exit as a generic error', () => {
-    const diagnostics = createClaudeCodeProcessDiagnostics('clean-exit-ref')
-    recordClaudeCodeProcessExit(diagnostics, 0, null, '')
-
-    expect(isClaudeCodeProcessFailure(new Error('TransportClosedError: JSON-RPC input closed'), diagnostics)).toBe(
-      false
-    )
-  })
-
-  it('attaches the session-bus remediation when a bus-less child actually fails', () => {
-    const diagnostics = createClaudeCodeProcessDiagnostics('bus-ref')
-    diagnostics.sessionBusUnavailable = true
-    recordClaudeCodeProcessExit(diagnostics, 1, null, 'zypak-helper failed to connect to the session bus')
-
-    const surfaced = createClaudeCodeProcessExitError(
-      new Error('TransportClosedError: JSON-RPC input closed'),
-      diagnostics
-    )
-
-    expect(surfaced.message).toContain('Claude Code process exited with code 1')
-    expect(surfaced.message).toContain('DBUS_SESSION_BUS_ADDRESS')
-  })
-
-  it('keeps the bare exit message when the launch env provided a session bus', () => {
-    const diagnostics = createClaudeCodeProcessDiagnostics('bus-ok-ref')
-    recordClaudeCodeProcessExit(diagnostics, 1, null, 'segfault')
-
-    const surfaced = createClaudeCodeProcessExitError(
-      new Error('TransportClosedError: JSON-RPC input closed'),
-      diagnostics
-    )
-
-    expect(surfaced.message).toBe('Claude Code process exited with code 1')
-  })
-
-  it('clears the bus fact with the rest of the process result before a respawn', () => {
-    const diagnostics = createClaudeCodeProcessDiagnostics('bus-retry-ref')
-    diagnostics.sessionBusUnavailable = true
-
-    resetClaudeCodeProcessDiagnostics(diagnostics)
-
-    expect(diagnostics).toEqual({ reference: 'bus-retry-ref' })
-  })
-
-  it('treats absent, empty and whitespace-only bus addresses as unavailable', () => {
-    expect(hasSessionBusAddress({})).toBe(false)
-    expect(hasSessionBusAddress({ DBUS_SESSION_BUS_ADDRESS: undefined })).toBe(false)
-    expect(hasSessionBusAddress({ DBUS_SESSION_BUS_ADDRESS: '' })).toBe(false)
-    expect(hasSessionBusAddress({ DBUS_SESSION_BUS_ADDRESS: ' ' })).toBe(false)
-    expect(hasSessionBusAddress({ DBUS_SESSION_BUS_ADDRESS: 'unix:path=/run/user/1000/bus' })).toBe(true)
-  })
+it('does not invent a D-Bus cause for an unrelated recorded failure', () => {
+  const diagnostics = createClaudeCodeProcessDiagnostics('no-cause')
+  recordClaudeCodeProcessExit(diagnostics, 1, null, 'native library missing')
+  const error = createClaudeCodeProcessExitError(new Error('transport closed'), diagnostics)
+  expect(JSON.stringify(serializeError(error))).not.toMatch(/DBUS|session.bus/i)
 })

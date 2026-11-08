@@ -1,4 +1,3 @@
-import { Link } from '@tanstack/react-router'
 import { AlertTriangle, ChevronRight, X } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
@@ -38,13 +37,26 @@ const ErrorBlock: React.FC<Props> = ({ partId, error, message }) => {
 
 const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
   const { t, i18n } = useTranslation()
+  const { navigateToRoute } = useMessageListActions()
 
   const claudeCodeExit = getClaudeCodeExitInfo(error)
   if (claudeCodeExit) {
     const { reference, exitCode, exitSignal } = claudeCodeExit
-    if (exitCode !== undefined) return t('error.claude_code_exit.code', { code: exitCode, reference })
-    if (exitSignal !== undefined) return t('error.claude_code_exit.signal', { signal: exitSignal, reference })
-    return t('error.claude_code_exit.start', { reference })
+    const status =
+      exitCode !== undefined
+        ? t('error.claude_code_exit.code', { code: exitCode, reference })
+        : exitSignal !== undefined
+          ? t('error.claude_code_exit.signal', { signal: exitSignal, reference })
+          : t('error.claude_code_exit.start', { reference })
+    const detail = typeof error?.processExitDetail === 'string' ? error.processExitDetail : ''
+    return (
+      <span>
+        {status}
+        <span className="mt-1 block whitespace-pre-wrap break-words">
+          {detail || t('settings.doctor.error_category.unknown')}
+        </span>
+      </span>
+    )
   }
 
   const i18nKey = error && 'i18nKey' in error ? `error.${(error as Record<string, unknown>).i18nKey}` : ''
@@ -65,7 +77,18 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
           i18nKey={i18nKey}
           values={{ provider: t(getProviderLabelKey(providerId)) }}
           components={{
-            provider: <Link style={{ color: 'var(--link)' }} to="/settings/provider" search={{ id: providerId }} />
+            provider: navigateToRoute ? (
+              <button
+                type="button"
+                className="cursor-pointer text-link hover:underline focus-visible:underline focus-visible:outline-none"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  void navigateToRoute({ path: '/settings/provider', query: { id: providerId } })
+                }}
+              />
+            ) : (
+              <span />
+            )
           }}
         />
       )

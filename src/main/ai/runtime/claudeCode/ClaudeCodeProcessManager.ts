@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import { type ChildProcess, spawn } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import type { Readable } from 'node:stream'
 import { StringDecoder } from 'node:string_decoder'
@@ -8,12 +8,11 @@ import type { SpawnedProcess, SpawnOptions } from '@anthropic-ai/claude-agent-sd
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { isLinux } from '@main/core/platform'
+import { killProcessTree } from '@main/utils/processRunner'
 
 import {
   type ClaudeCodeProcessDiagnostics,
   createClaudeCodeProcessDiagnostics,
-  hasSessionBusAddress,
   recordClaudeCodeProcessExit,
   recordClaudeCodeSpawnError,
   resetClaudeCodeProcessDiagnostics
@@ -141,6 +140,11 @@ class ManagedClaudeCodeProcess implements SpawnedProcess {
   }
 
   kill(signal: NodeJS.Signals): boolean {
+    // Windows has no signal-driven process-group cleanup, so a plain kill orphans the CLI's descendants.
+    if (process.platform === 'win32' && this.child.pid !== undefined) {
+      killProcessTree(this.child as unknown as ChildProcess)
+      return true
+    }
     return this.child.kill(signal)
   }
 
@@ -192,13 +196,6 @@ export class ClaudeCodeProcessManager extends BaseService {
 
   spawn(options: SpawnOptions, diagnostics = createClaudeCodeProcessDiagnostics()): SpawnedProcess {
     resetClaudeCodeProcessDiagnostics(diagnostics)
-    // A missing Linux session bus is NOT a launch blocker (the managed native CLI completes
-    // turns with the address absent or empty — cherry-pr-review inv_4deed46d90e3ec21), so this
-    // only records the fact: if the child later fails, the surfaced exit error names the bus as
-    // the prime suspect; working bus-less configs are never annotated or denied.
-    if (isLinux && !hasSessionBusAddress(options.env ?? process.env)) {
-      diagnostics.sessionBusUnavailable = true
-    }
     const spawnOptions: Parameters<SpawnProcess>[2] = {
       cwd: options.cwd,
       env: options.env,
