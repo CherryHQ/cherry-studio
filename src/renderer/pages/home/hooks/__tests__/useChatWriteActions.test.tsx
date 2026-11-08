@@ -607,6 +607,7 @@ describe('useChatWriteActions — regenerate', () => {
   })
 
   it.each(['success', 'pending'])('regenerates a non-text %s reply with the appropriate model', async (status) => {
+    if (status === 'success') streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
     const nonTextAssistant = uiMsg('a1', 'assistant', 'u1', false, status)
     nonTextAssistant.metadata.modelId = 'provider::model-a'
     nonTextAssistant.parts =
