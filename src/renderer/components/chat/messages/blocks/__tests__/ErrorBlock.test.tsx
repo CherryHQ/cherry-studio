@@ -339,7 +339,56 @@ required service tier.`
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
   })
 
-  it('does not treat an unknown exit category as a Claude Code diagnostic', async () => {
+  it.each([true, false])('renders the real English exit 3 evidence for captured=%s', (captured) => {
+    for (const key of [
+      'error.claude_code_exit.unresolved',
+      'error.claude_code_exit.code',
+      'error.claude_code_exit.stderr_empty',
+      'error.claude_code_exit.stderr_unrecognized'
+    ] as const)
+      mocks.translations.set(key, enUS[key])
+    render(
+      <ErrorBlock
+        partId="part"
+        error={{
+          name: 'ClaudeCodeProcessExitError',
+          message: 'process exited',
+          stack: null,
+          claudeCodeExitCategory: 'unknown',
+          diagnosticReference: 'diagnostic-ref',
+          processExitCode: 3,
+          processStderrCaptured: captured
+        }}
+        message={message}
+      />
+    )
+    expect(screen.getByText('Claude Code stopped mid-turn.')).toBeInTheDocument()
+    const description = screen.getByText(/Claude Code exited unexpectedly \(code 3\)/)
+    expect(description).toHaveTextContent('Diagnostic reference: diagnostic-ref')
+    expect(description).toHaveTextContent(
+      captured ? enUS['error.claude_code_exit.stderr_unrecognized'] : enUS['error.claude_code_exit.stderr_empty']
+    )
+    expect(description).not.toHaveClass('line-clamp-3')
+    expect(document.body.textContent).not.toMatch(/\/Users\/alice\/private|sk-ant-private/)
+  })
+
+  it.each(['auth', 'unknown'] as const)('keeps the existing %s heading without new evidence', (category) => {
+    const payload = {
+      name: 'ClaudeCodeProcessExitError',
+      message: 'process exited',
+      stack: null,
+      claudeCodeExitCategory: category,
+      diagnosticReference: 'ref',
+      processExitCode: 3,
+      ...(category === 'auth' ? { processStderrCaptured: true } : {})
+    }
+    render(<ErrorBlock partId="part" error={payload} message={message} />)
+    expect(screen.getByText(`error.diagnosis.${category}`)).toBeInTheDocument()
+    expect(document.body.textContent).not.toContain(enUS['error.claude_code_exit.stderr_empty'])
+    expect(document.body.textContent).not.toContain(enUS['error.claude_code_exit.stderr_unrecognized'])
+  })
+
+  it('does not treat an invalid exit category as a Claude Code diagnostic', async () => {
     const diagnoseMessageError = vi.fn().mockResolvedValue('diagnosed')
     mocks.actions = { diagnoseMessageError }
 

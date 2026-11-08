@@ -167,6 +167,56 @@ required service tier.`
     ).toMatchObject({ category, navTarget })
   })
 
+  it.each([true, false])('uses the unresolved exit heading for capture %s', (captured) => {
+    expect(
+      classifyError(
+        makeError({
+          message: 'process exited',
+          claudeCodeExitCategory: 'unknown',
+          diagnosticReference: 'ref',
+          processExitCode: 3,
+          processStderrCaptured: captured
+        })
+      )
+    ).toEqual({ category: 'unknown', i18nKey: 'error.claude_code_exit.unresolved', navTarget: null })
+  })
+
+  it.each([
+    { processStderrCaptured: undefined },
+    { processExitCode: '3' },
+    { processStderrCaptured: 'true' },
+    { processExitCode: 1 },
+    { processExitCode: 3221226505 },
+    { diagnosticReference: '' }
+  ])('keeps the generic heading for incomplete or other exit %j', (overrides) => {
+    expect(
+      classifyError(
+        makeError({
+          message: 'process exited',
+          claudeCodeExitCategory: 'unknown',
+          diagnosticReference: 'ref',
+          processExitCode: 3,
+          processStderrCaptured: false,
+          ...overrides
+        })
+      )
+    ).toEqual({ category: 'unknown', i18nKey: 'error.diagnosis.unknown', navTarget: null })
+  })
+
+  it('keeps recognized exit 3 category navigation', () => {
+    expect(
+      classifyError(
+        makeError({
+          message: 'process exited',
+          claudeCodeExitCategory: 'auth',
+          diagnosticReference: 'ref',
+          processExitCode: 3,
+          processStderrCaptured: true
+        })
+      )
+    ).toEqual({ category: 'auth', i18nKey: 'error.diagnosis.auth', navTarget: '/settings/provider' })
+  })
+
   it('falls back to the message when the exit category is not one the app knows', () => {
     const result = classifyError(
       makeError({ message: 'HTTP 429 too many requests', claudeCodeExitCategory: 'sandbox_denied' }),

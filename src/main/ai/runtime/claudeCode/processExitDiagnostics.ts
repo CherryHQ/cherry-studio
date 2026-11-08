@@ -9,6 +9,8 @@ export interface ClaudeCodeProcessDiagnostics {
   category?: ErrorCategory
   exitCode?: number
   exitSignal?: NodeJS.Signals
+  /** Whether the trimmed tail used for classification contained text. */
+  stderrCaptured?: boolean
   spawnFailed?: true
 }
 
@@ -21,6 +23,7 @@ export function resetClaudeCodeProcessDiagnostics(diagnostics: ClaudeCodeProcess
   delete diagnostics.category
   delete diagnostics.exitCode
   delete diagnostics.exitSignal
+  delete diagnostics.stderrCaptured
   delete diagnostics.spawnFailed
 }
 
@@ -36,6 +39,7 @@ export function recordClaudeCodeProcessExit(
   stderrTail: string
 ): void {
   const stderr = stderrTail.trim()
+  diagnostics.stderrCaptured = stderr.length > 0
   const status = code !== null ? `exited with code ${code}` : `terminated by signal ${String(signal)}`
   diagnostics.terminalReason = `Claude Code process ${status}${stderr ? `. stderr: ${stderr}` : ''}`
   diagnostics.category = classifyClaudeCodeTerminalReason(stderr)
@@ -75,7 +79,8 @@ export function createClaudeCodeProcessExitError(
       diagnostics.category ?? classifyClaudeCodeTerminalReason(diagnostics.terminalReason ?? originalError.message),
     diagnosticReference: diagnostics.reference,
     ...(diagnostics.exitCode !== undefined ? { processExitCode: diagnostics.exitCode } : {}),
-    ...(diagnostics.exitSignal ? { processExitSignal: diagnostics.exitSignal } : {})
+    ...(diagnostics.exitSignal ? { processExitSignal: diagnostics.exitSignal } : {}),
+    ...(diagnostics.stderrCaptured !== undefined ? { processStderrCaptured: diagnostics.stderrCaptured } : {})
   })
 }
 

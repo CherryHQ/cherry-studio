@@ -13,7 +13,8 @@ import {
   classifyError,
   getClaudeCodeExitCategory,
   getClaudeCodeExitInfo,
-  getLocalModelResolutionFailure
+  getLocalModelResolutionFailure,
+  isUnresolvedExitUnknown
 } from '@renderer/utils/errorClassifier'
 
 import { useMessageListActions } from '../MessageListProvider'
@@ -39,7 +40,22 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
   const { t, i18n } = useTranslation()
   const { navigateToRoute } = useMessageListActions()
 
+  const unresolvedExit = isUnresolvedExitUnknown(error)
   const claudeCodeExit = getClaudeCodeExitInfo(error)
+  if (unresolvedExit && claudeCodeExit) {
+    return (
+      <>
+        {t('error.claude_code_exit.code', { code: claudeCodeExit.exitCode, reference: claudeCodeExit.reference })}
+        <span className="block">
+          {t(
+            claudeCodeExit.stderrCaptured
+              ? 'error.claude_code_exit.stderr_unrecognized'
+              : 'error.claude_code_exit.stderr_empty'
+          )}
+        </span>
+      </>
+    )
+  }
   if (claudeCodeExit) {
     const { reference, exitCode, exitSignal } = claudeCodeExit
     if (exitCode !== undefined) return t('error.claude_code_exit.code', { code: exitCode, reference })
@@ -130,6 +146,7 @@ const MessageErrorInfo: React.FC<{
   const { t, i18n } = useTranslation()
   const [aiSummary, setAiSummary] = useState<string>('')
 
+  const unresolvedExit = isUnresolvedExitUnknown(error)
   const errorMessage = error?.message ?? undefined
   const errorProviderId = (error as Record<string, unknown> | undefined)?.providerId as string | undefined
   const errorI18nKey = (error as Record<string, unknown> | undefined)?.i18nKey
@@ -264,7 +281,10 @@ const MessageErrorInfo: React.FC<{
 
       {/* Description */}
       <div
-        className="ml-5.75 line-clamp-3 text-xs leading-normal [overflow-wrap:anywhere] [&_a]:text-link"
+        className={cn(
+          'ml-5.75 text-xs leading-normal [overflow-wrap:anywhere] [&_a]:text-link',
+          !unresolvedExit && 'line-clamp-3'
+        )}
         style={{ color: ERROR_DESCRIPTION_COLOR }}>
         <ErrorMessage error={error} />
       </div>

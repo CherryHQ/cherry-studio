@@ -15,6 +15,7 @@ import type { Serializable } from './serializable'
  * - `providerErrorCategory?: ErrorCategory` — Diagnosis retained before provider payload redaction.
  * - `streamStage?: 'response-stream'` — Boundary where the failure was observed;
  *   does not identify a provider or network cause.
+ * - `processStderrCaptured?: boolean` — Observed captured-tail presence; does not change classification.
  * - `providerId?: string` — Provider ID for i18n interpolation in error messages.
  */
 export interface SerializedError {

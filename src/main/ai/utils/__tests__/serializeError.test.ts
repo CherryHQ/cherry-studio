@@ -144,6 +144,18 @@ describe('serializeError', () => {
       expect(serializeError(error).i18nKey).toBe('tool_call_limit_reached')
     })
 
+    it.each([true, false])('preserves boolean stderr capture %s', (value) => {
+      expect(
+        serializeError(Object.assign(new Error('exit'), { processStderrCaptured: value })).processStderrCaptured
+      ).toBe(value)
+    })
+
+    it.each(['true', 1, null, [], {}])('omits malformed stderr capture %j', (value) => {
+      expect(serializeError(Object.assign(new Error('exit'), { processStderrCaptured: value }))).not.toHaveProperty(
+        'processStderrCaptured'
+      )
+    })
+
     it('does not forward an unknown Claude Code exit category', () => {
       const error = Object.assign(new Error('Claude Code process exited'), {
         claudeCodeExitCategory: 'future-category'

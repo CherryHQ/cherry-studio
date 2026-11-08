@@ -16,6 +16,7 @@ export interface ClaudeCodeExitInfo {
   reference: string
   exitCode?: number
   exitSignal?: string
+  stderrCaptured?: boolean
 }
 
 const PROVIDER_SETTINGS_CATEGORIES: ReadonlySet<ErrorCategory> = new Set<ErrorCategory>([
@@ -64,8 +65,21 @@ export function getClaudeCodeExitInfo(error?: SerializedError): ClaudeCodeExitIn
     category,
     reference,
     ...(typeof errorBag?.processExitCode === 'number' ? { exitCode: errorBag.processExitCode } : {}),
-    ...(typeof errorBag?.processExitSignal === 'string' ? { exitSignal: errorBag.processExitSignal } : {})
+    ...(typeof errorBag?.processExitSignal === 'string' ? { exitSignal: errorBag.processExitSignal } : {}),
+    ...(typeof errorBag?.processStderrCaptured === 'boolean' ? { stderrCaptured: errorBag.processStderrCaptured } : {})
   }
+}
+
+const UNRESOLVED_EXIT_UNKNOWN_KEY = 'error.claude_code_exit.unresolved'
+
+/** Main attributed the failure to the Claude Code process but no stderr category resolved. */
+function unresolvedExitUnknown(error?: SerializedError): boolean {
+  const info = getClaudeCodeExitInfo(error)
+  return info?.category === 'unknown' && info.exitCode === 3 && typeof info.stderrCaptured === 'boolean'
+}
+
+export function isUnresolvedExitUnknown(error?: SerializedError): boolean {
+  return unresolvedExitUnknown(error)
 }
 
 /**
@@ -165,6 +179,8 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   })
 
   if (!error) return classify('unknown')
+  if (unresolvedExitUnknown(error))
+    return { category: 'unknown', i18nKey: UNRESOLVED_EXIT_UNKNOWN_KEY, navTarget: null }
 
   const claudeCodeExitCategory = getClaudeCodeExitCategory(error)
   if (claudeCodeExitCategory) return classify(claudeCodeExitCategory)

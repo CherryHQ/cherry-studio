@@ -251,6 +251,7 @@ describe('ClaudeCodeProcessManager', () => {
         ([message]) => message === 'Claude Code process failed'
       )?.[1]
       expect(logged).toMatchObject({ reference: 'diagnostic-ref', category: 'unknown', spawnFailed: true })
+      expect(logged).not.toHaveProperty('stderrCaptured')
       expect(JSON.stringify(logged)).not.toContain('/Users/alice/private')
     } finally {
       Object.defineProperty(process, 'platform', platformDescriptor)
@@ -278,6 +279,7 @@ describe('ClaudeCodeProcessManager', () => {
     expect(diagnostics.terminalReason).toContain('sk-ant-private')
     expect(diagnostics.terminalReason).not.toContain('discarded-')
     expect(diagnostics.category).toBe('auth')
+    expect(diagnostics.stderrCaptured).toBe(true)
     expect(diagnostics.exitCode).toBe(1)
   })
 
@@ -311,10 +313,24 @@ describe('ClaudeCodeProcessManager', () => {
     const logged = mockMainLoggerService.warn.mock.calls.findLast(
       ([message]) => message === 'Claude Code process failed'
     )?.[1]
-    expect(logged).toMatchObject({ reference: 'diagnostic-ref', category: 'region', exitCode: 1 })
+    expect(logged).toMatchObject({ reference: 'diagnostic-ref', category: 'region', exitCode: 1, stderrCaptured: true })
     expect(logged).not.toHaveProperty('reason')
     expect(JSON.stringify(logged)).not.toContain('sk-ant-standalone-secret')
     expect(JSON.stringify(logged)).not.toContain('/Users/alice/private')
+  })
+
+  it('logs false for whitespace-only stderr', async () => {
+    const child = createFakeChild()
+    const manager = new TestProcessManager(vi.fn(() => child.process))
+    const onExit = vi.fn()
+    manager.spawn(spawnOptions, createClaudeCodeProcessDiagnostics('whitespace-ref')).once('exit', onExit)
+    child.stderr.end('  \t\n')
+    child.emitExit(3)
+    await vi.waitFor(() => expect(onExit).toHaveBeenCalled())
+    const logged = mockMainLoggerService.warn.mock.calls.findLast(
+      ([message]) => message === 'Claude Code process failed'
+    )?.[1]
+    expect(logged).toMatchObject({ reference: 'whitespace-ref', stderrCaptured: false })
   })
 
   it('leaves a clean exit unlogged', async () => {
