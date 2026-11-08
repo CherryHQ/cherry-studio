@@ -1,4 +1,4 @@
-import type { MouseEventHandler } from 'react'
+import type { MouseEventHandler, SetStateAction } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -19,26 +19,33 @@ export function useNotesWorkspaceResize() {
   const [storedWidth, setStoredWidth] = usePreference('feature.notes.workspace_width')
   const savedWidth = clampWidth(storedWidth ?? DEFAULT_NOTES_WORKSPACE_WIDTH)
   const [liveWidth, setLiveWidth] = useState<number | null>(null)
-  const [isSaving, setIsSaving] = useState(false)
+  const [pendingWrites, setPendingWrites] = useState(0)
+  const requestedWidth = useRef<{ width: number } | null>({ width: savedWidth })
   const dragStart = useRef({ clientX: 0, width: savedWidth })
   const lastWidth = useRef(savedWidth)
   const workspaceWidth = liveWidth ?? savedWidth
 
   const saveWidth = useCallback(
     async (width: number) => {
-      if (width === savedWidth) return
-      setIsSaving(true)
+      if (width === requestedWidth.current?.width) return
+      const request = { width }
+      requestedWidth.current = request
+      setLiveWidth(width)
+      setPendingWrites((pending) => pending + 1)
       try {
         await setStoredWidth(width)
       } catch (error) {
         logger.error('Failed to update notes workspace width', error as Error)
-        toast.error(t('notes.settings.save_failed'))
-        setLiveWidth(null)
+        if (requestedWidth.current === request) {
+          requestedWidth.current = null
+          toast.error(t('notes.settings.save_failed'))
+          setLiveWidth(null)
+        }
       } finally {
-        setIsSaving(false)
+        setPendingWrites((pending) => pending - 1)
       }
     },
-    [savedWidth, setStoredWidth, t]
+    [setStoredWidth, t]
   )
 
   const { isResizing, startResizing } = useResizeDrag({
@@ -54,8 +61,11 @@ export function useNotesWorkspaceResize() {
 
   useEffect(() => {
     // Keep the final target's zero-duration transition through its render before releasing the preview.
-    if (!isResizing && !isSaving) setLiveWidth(null)
-  }, [isResizing, isSaving])
+    if (!isResizing && pendingWrites === 0) {
+      setLiveWidth(null)
+      requestedWidth.current = { width: savedWidth }
+    }
+  }, [isResizing, pendingWrites, savedWidth])
 
   const onResizeStart = useCallback<MouseEventHandler<HTMLDivElement>>(
     (event) => {
@@ -68,10 +78,11 @@ export function useNotesWorkspaceResize() {
   )
 
   const onResize = useCallback(
-    (requestedWidth: number) => {
-      void saveWidth(clampWidth(requestedWidth))
+    (target: SetStateAction<number>) => {
+      const width = typeof target === 'function' ? target(requestedWidth.current?.width ?? savedWidth) : target
+      void saveWidth(clampWidth(width))
     },
-    [saveWidth]
+    [saveWidth, savedWidth]
   )
 
   return {

@@ -2,6 +2,7 @@ import { mockPreferenceState } from '@test-mocks/renderer/PreferenceService'
 import { MockUsePreferenceUtils, mockUsePreference } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useSyncExternalStore } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { toast } from '@renderer/services/toast'
@@ -56,6 +57,80 @@ const expectSavedWidth = async (width: number) => {
     expect(screen.getByTestId('width')).toHaveAttribute('data-transition-active', 'false')
     expectWidth(width)
   })
+}
+
+function mockQueuedWidthWrites() {
+  MockUsePreferenceUtils.setPreferenceValue(widthKey, 250)
+  const writes: { width: number; resolve: () => void; reject: (error: Error) => void }[] = []
+  const persistedWidths: number[] = []
+  let queue = Promise.resolve()
+  let nextSettlement = 0
+  const setValue = vi.fn(async (width: number) => {
+    const previousWidth = mockPreferenceState.get(widthKey)
+    MockUsePreferenceUtils.setPreferenceValue(widthKey, width)
+    try {
+      await new Promise<void>((resolve, reject) => writes.push({ width, resolve, reject }))
+      persistedWidths.push(width)
+    } catch (error) {
+      MockUsePreferenceUtils.setPreferenceValue(widthKey, previousWidth)
+      throw error
+    }
+  })
+  const enqueue = (width: number) => {
+    const request = queue.then(() => setValue(width))
+    queue = request.catch(() => {})
+    return request
+  }
+  mockUsePreference.mockImplementation(function useQueuedPreference(key) {
+    const value = useSyncExternalStore(
+      (notify) => MockUsePreferenceUtils.addSubscriber(key, notify),
+      () => mockPreferenceState.get(key)
+    )
+    return [value, enqueue]
+  })
+  return {
+    setValue,
+    persistedWidths,
+    settleNext: async (error?: Error) => {
+      const write = writes[nextSettlement++]
+      expect(write).toBeDefined()
+      await act(async () => {
+        if (error) write.reject(error)
+        else write.resolve()
+      })
+    }
+  }
+}
+
+async function pressResizeKey(key: string) {
+  await act(async () => {
+    fireEvent.keyDown(separator(), { key })
+  })
+}
+
+function deferWidthWrites() {
+  const pending: ReturnType<typeof Promise.withResolvers<void>>[] = []
+  let queue = Promise.resolve()
+  const setValue = (width: number) => {
+    const write = queue.then(async () => {
+      const committedWidth = mockPreferenceState.get(widthKey) ?? 250
+      const deferred = Promise.withResolvers<void>()
+      pending.push(deferred)
+      MockUsePreferenceUtils.mockPreferenceReturn(widthKey, width, setValue)
+      try {
+        await deferred.promise
+        MockUsePreferenceUtils.setPreferenceValue(widthKey, width)
+      } catch (error) {
+        MockUsePreferenceUtils.mockPreferenceReturn(widthKey, committedWidth, setValue)
+        throw error
+      }
+    })
+    queue = write.catch(() => {})
+    return write
+  }
+  MockUsePreferenceUtils.setPreferenceValue(widthKey, 250)
+  MockUsePreferenceUtils.mockPreferenceReturn(widthKey, 250, setValue)
+  return pending
 }
 
 describe('useNotesWorkspaceResize with the real resize handle', () => {
@@ -197,6 +272,73 @@ describe('useNotesWorkspaceResize with the real resize handle', () => {
     expect(mockPreferenceState.has(widthKey)).toBe(false)
   })
 
+  it('persists the final Home in Home → End → Home while writes are pending', async () => {
+    const user = userEvent.setup()
+    const pending = deferWidthWrites()
+    const { rerender } = render(<Harness />)
+    await user.tab()
+    await user.keyboard('{Home}')
+    rerender(<Harness />)
+    await user.keyboard('{End}{Home}')
+
+    while (pending.length > 0) {
+      await act(async () => pending.shift()!.resolve())
+      rerender(<Harness />)
+    }
+
+    await expectSavedWidth(200)
+  })
+
+  it('accumulates three ArrowRight presses from 250 while writes are pending', async () => {
+    const user = userEvent.setup()
+    const pending = deferWidthWrites()
+    const { rerender } = render(<Harness />)
+    await user.tab()
+    await user.keyboard('{ArrowRight}')
+    rerender(<Harness />)
+    await user.keyboard('{ArrowRight}{ArrowRight}')
+
+    while (pending.length > 0) {
+      await act(async () => pending.shift()!.resolve())
+      rerender(<Harness />)
+    }
+
+    await expectSavedWidth(298)
+  })
+
+  it.each(['succeeds', 'fails'])('keeps the latest preview after a superseded failure until it %s', async (outcome) => {
+    const user = userEvent.setup()
+    const pending = deferWidthWrites()
+    const { rerender } = render(<Harness />)
+    fireEvent.mouseDown(separator(), { button: 0, clientX: 400 })
+    fireEvent.mouseMove(document, { clientX: 480 })
+    fireEvent.mouseUp(document)
+    await act(async () => {})
+    rerender(<Harness />)
+    separator().focus()
+    await user.keyboard('{End}')
+
+    await act(async () => pending.shift()!.reject(new Error('superseded save failed')))
+    rerender(<Harness />)
+    expectWidth(480)
+    expect(screen.getByTestId('width')).toHaveAttribute('data-transition-active', 'true')
+    expect(toast.error).not.toHaveBeenCalled()
+
+    if (outcome === 'succeeds') {
+      await act(async () => pending.shift()!.resolve())
+      rerender(<Harness />)
+      await expectSavedWidth(480)
+      expect(toast.error).not.toHaveBeenCalled()
+    } else {
+      await act(async () => pending.shift()!.reject(new Error('latest save failed')))
+      rerender(<Harness />)
+      expectWidth(250)
+      expect(mockPreferenceState.get(widthKey)).toBe(250)
+      expect(screen.getByTestId('width')).toHaveAttribute('data-transition-active', 'false')
+      expect(toast.error).toHaveBeenCalledExactlyOnceWith('notes.settings.save_failed')
+    }
+  })
+
   it.each([1, 2])('ignores mouse button %s', (button) => {
     render(<Harness />)
     fireEvent.mouseDown(separator(), { button, clientX: 400 })
@@ -245,5 +387,108 @@ describe('useNotesWorkspaceResize with the real resize handle', () => {
       expect(screen.getByTestId('width')).toHaveAttribute('data-transition-active', 'false')
     })
     expect(mockPreferenceState.get(widthKey)).toBe(250)
+  })
+
+  it('persists the last Home when Home, End and Home overlap', async () => {
+    const { persistedWidths, setValue, settleNext } = mockQueuedWidthWrites()
+    render(<Harness />)
+
+    await pressResizeKey('Home')
+    await pressResizeKey('End')
+    await pressResizeKey('Home')
+    expect(setValue.mock.calls.map(([width]) => width)).toEqual([200])
+
+    await settleNext()
+    await settleNext()
+    expect(setValue.mock.calls.map(([width]) => width)).toEqual([200, 480, 200])
+    await settleNext()
+
+    expect(persistedWidths).toEqual([200, 480, 200])
+    await expectSavedWidth(200)
+  })
+
+  it('accumulates three ArrowRight steps while the first write is pending', async () => {
+    const { persistedWidths, setValue, settleNext } = mockQueuedWidthWrites()
+    render(<Harness />)
+
+    await pressResizeKey('ArrowRight')
+    await pressResizeKey('ArrowRight')
+    await pressResizeKey('ArrowRight')
+    expect(setValue.mock.calls.map(([width]) => width)).toEqual([266])
+    expectWidth(298)
+
+    await settleNext()
+    await settleNext()
+    await settleNext()
+
+    expect(persistedWidths).toEqual([266, 282, 298])
+    await expectSavedWidth(298)
+  })
+
+  it('keeps the preview transition active until all three writes settle', async () => {
+    const { settleNext } = mockQueuedWidthWrites()
+    render(<Harness />)
+
+    await pressResizeKey('Home')
+    await pressResizeKey('ArrowRight')
+    await pressResizeKey('End')
+    expect(screen.getByTestId('width')).toHaveAttribute('data-transition-active', 'true')
+
+    await settleNext()
+    expect(screen.getByTestId('width')).toHaveAttribute('data-transition-active', 'true')
+    expectWidth(480)
+    expect(mockPreferenceState.get(widthKey)).toBe(216)
+
+    await settleNext()
+    expect(screen.getByTestId('width')).toHaveAttribute('data-transition-active', 'true')
+    expectWidth(480)
+
+    await settleNext()
+    await expectSavedWidth(480)
+  })
+
+  it('rolls back a rejected latest queued target and retries the same width', async () => {
+    const { persistedWidths, setValue, settleNext } = mockQueuedWidthWrites()
+    render(<Harness />)
+
+    await pressResizeKey('Home')
+    await pressResizeKey('End')
+    expectWidth(480)
+    await settleNext()
+    await settleNext(new Error('latest save failed'))
+
+    expect(toast.error).toHaveBeenCalledWith('notes.settings.save_failed')
+    expect(toast.error).toHaveBeenCalledTimes(1)
+    expectWidth(200)
+    expect(screen.getByTestId('width')).toHaveAttribute('data-transition-active', 'false')
+    expect(persistedWidths).toEqual([200])
+
+    await pressResizeKey('End')
+    expect(setValue.mock.calls.map(([width]) => width)).toEqual([200, 480, 480])
+    await settleNext()
+    expect(persistedWidths).toEqual([200, 480])
+    await expectSavedWidth(480)
+  })
+
+  it('preserves a newer target when a superseded write rejects', async () => {
+    const { persistedWidths, settleNext } = mockQueuedWidthWrites()
+    render(<Harness />)
+
+    await pressResizeKey('Home')
+    await pressResizeKey('End')
+    await pressResizeKey('Home')
+    await settleNext(new Error('superseded save failed'))
+
+    expect(toast.error).not.toHaveBeenCalled()
+    expectWidth(200)
+    expect(mockPreferenceState.get(widthKey)).toBe(480)
+    expect(screen.getByTestId('width')).toHaveAttribute('data-transition-active', 'true')
+
+    await settleNext()
+    expectWidth(200)
+    await settleNext()
+    expect(persistedWidths).toEqual([480, 200])
+    await expectSavedWidth(200)
+    expect(toast.error).not.toHaveBeenCalled()
   })
 })

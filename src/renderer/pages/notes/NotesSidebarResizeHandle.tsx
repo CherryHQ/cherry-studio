@@ -1,4 +1,4 @@
-import type { MouseEventHandler } from 'react'
+import type { MouseEventHandler, SetStateAction } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Separator } from '@cherrystudio/ui'
@@ -9,7 +9,7 @@ type NotesSidebarResizeHandleProps = {
   width: number
   isResizing: boolean
   onResizeStart: MouseEventHandler<HTMLDivElement>
-  onResize: (requestedWidth: number) => void
+  onResize: (requestedWidth: SetStateAction<number>) => void
 }
 
 export function NotesSidebarResizeHandle({
@@ -35,13 +35,13 @@ export function NotesSidebarResizeHandle({
       className="group absolute top-0 right-0 z-10 flex cursor-col-resize justify-end bg-transparent outline-none data-[orientation=vertical]:w-3"
       onMouseDown={onResizeStart}
       onKeyDown={(event) => {
-        let requestedWidth: number
+        let requestedWidth: SetStateAction<number>
         switch (event.key) {
           case 'ArrowRight':
-            requestedWidth = width + 16
+            requestedWidth = (currentWidth) => currentWidth + 16
             break
           case 'ArrowLeft':
-            requestedWidth = width - 16
+            requestedWidth = (currentWidth) => currentWidth - 16
             break
           case 'Home':
             requestedWidth = MIN_NOTES_WORKSPACE_WIDTH
