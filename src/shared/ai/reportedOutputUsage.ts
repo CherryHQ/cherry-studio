@@ -29,12 +29,15 @@ export function providerReportedOutputUsage(usage: {
   const breakdown = typeof details === 'object' && details !== null ? (details as Record<string, unknown>) : undefined
   const candidates = count(wire.candidatesTokenCount)
   const thoughts = count(wire.thoughtsTokenCount)
+  const rawOutput =
+    count(wire.completion_tokens) ??
+    count(wire.output_tokens) ??
+    count(wire.outputTokens) ??
+    (candidates === null ? null : candidates + (thoughts ?? 0))
   return {
-    outputTokens:
-      count(wire.completion_tokens) ??
-      count(wire.output_tokens) ??
-      count(wire.outputTokens) ??
-      (candidates === null ? null : candidates + (thoughts ?? 0)),
+    // Raw fields establish presence, while the provider adapter owns semantics:
+    // xAI Chat adds reasoning to completion_tokens; OpenAI includes it already.
+    outputTokens: rawOutput === null ? null : (count(usage.outputTokens) ?? rawOutput),
     reasoningTokens:
       count(breakdown?.reasoning_tokens) ??
       count(breakdown?.thinking_tokens) ??

@@ -1,6 +1,8 @@
 import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock'
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { createPerplexity } from '@ai-sdk/perplexity'
 import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
+import { createXai } from '@ai-sdk/xai'
 import { describe, expect, it } from 'vitest'
 
 import { collectReportedOutputUsage, type ReportedOutputUsage } from '@main/ai/runtime/pi/reportedOutputUsage'
@@ -84,6 +86,47 @@ describe('pinned provider count provenance', () => {
     expect(provenance).toEqual({ outputTokens: 25, reasoningTokens: reasoning ?? null })
     expect(counts.outputTokens).toBe(25)
     expect(counts.reasoningTokens).toBe(reasoning)
+  })
+
+  it.each([undefined, 0, 10])('preserves xAI Chat additive reasoning semantics: %s', async (reasoning) => {
+    const raw = {
+      prompt_tokens: 100,
+      completion_tokens: 25,
+      total_tokens: 125 + (reasoning ?? 0),
+      ...(reasoning !== undefined ? { completion_tokens_details: { reasoning_tokens: reasoning } } : {})
+    }
+    const response = () =>
+      Response.json({
+        id: 'r',
+        model: 'grok-3-mini',
+        created: 1,
+        object: 'chat.completion',
+        choices: [{ index: 0, message: { role: 'assistant', content: 'partial' }, finish_reason: 'length' }],
+        usage: raw
+      })
+    const xai = createXai({ apiKey: 'fixture', fetch: async () => response() })
+    const result = await xai('grok-3-mini').doGenerate({ prompt })
+    const projected = geminiProjection(
+      result.usage.outputTokens.total,
+      result.usage.outputTokens.reasoning,
+      result.usage.raw
+    )
+    expect(projected.provenance).toEqual({ outputTokens: 25 + (reasoning ?? 0), reasoningTokens: reasoning ?? null })
+    expect(projected.counts).toEqual({
+      outputTokens: 25 + (reasoning ?? 0),
+      ...(reasoning !== undefined ? { reasoningTokens: reasoning } : {})
+    })
+    // Identical wire fields under an ordinary OpenAI-compatible adapter are inclusive.
+    const compatible = createOpenAICompatible({
+      name: 'fixture',
+      baseURL: 'http://fixture.invalid',
+      fetch: async () => response()
+    })
+    const control = await compatible('m').doGenerate({ prompt })
+    expect(
+      geminiProjection(control.usage.outputTokens.total, control.usage.outputTokens.reasoning, control.usage.raw).counts
+        .outputTokens
+    ).toBe(25)
   })
 
   it('computes Gemini candidates from the same reported pair, not a normalized thoughts default', () => {
