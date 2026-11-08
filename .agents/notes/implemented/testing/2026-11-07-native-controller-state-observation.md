@@ -57,6 +57,8 @@ Cold Vite dependency optimization reloaded hosted renderers during cases. Phase 
 
 - Stop the owned application before copying the complete MP-121 profile backup, then restart it before the original Reset UI checks. Share the normal-stop lifecycle with restart; require Windows quit and verified exit within 30 seconds rather than ignoring locked files or force-killing to make the copy succeed. A backup failure still attempts restart, and simultaneous failures preserve both errors.
 
+- Store bounded, content-free native failure metadata under `evidence/native-diagnostics`, which the existing sanitized artifact bundle includes. Keep general logs private. Windows rectangles encode non-finite coordinates as null; diagnostic serialization must not replace the real minimized/foreground verdict. External cleanup reuses existing snapshots and records hashed tab identities plus explicit close dispatch or unknown state, without broadening permission to close foreign tabs.
+
 ## Alternatives considered
 
 - Larger timeouts alone do not fix wrong-window input, oversized command lines or ownership races.
@@ -101,3 +103,5 @@ Adapters remain platform specific and fail when native state cannot be confirmed
 - Regression — 43 focused runtime/workflow contracts pass, including real temporary helper plists, workspace identity separation, missing-runtime refusal and branch/tag ordering. Node/E2E types and scoped lint pass. Actual signed native-dialog execution and hosted permission attribution remain separate checks.
 
 - Regression — all 33 lifecycle contracts pass. The new cases copy real temporary Data, Network/Cookies and file contents after a simulated asynchronous shutdown flush; a quit timeout rejects before copying and does not force-terminate or launch another process. Actual Windows lock release remains part of hosted MP-121 verification.
+
+- Regression — 57 affected automation/driver/resource/syntax checks pass with one platform-specific skip. Missing IDs leave replacement tabs intact, foreign tabs and failed ledgers remain preserved, and failure evidence excludes private contents and truncates collections. Node/E2E types and scoped lint pass. The real Windows PowerShell non-finite serialization contract is part of the hosted native gate; it cannot run on this macOS host.

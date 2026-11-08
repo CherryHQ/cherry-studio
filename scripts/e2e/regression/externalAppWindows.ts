@@ -4,6 +4,10 @@ Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
 Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class ExternalWindow { [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint p); [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h); [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow(); }'
 $handles = @{}
 $target = $request.target
+$closeResult = $null
+if ($request.action -eq 'close') {
+  $closeResult = @{ requestedId = $request.window.id; found = $false; matches = $null; dispatched = $false }
+}
 function Inspect-External {
   $processes = @()
   $windows = @()
@@ -22,7 +26,9 @@ function Inspect-External {
       $windows += @{ id = $id; pid = [int]$owner; matches = $directory -eq [IO.Path]::GetDirectoryName($target.path) }
       $handles[$id] = @{ explorer = $window }
     }
-    return @{ processes = $processes; windows = $windows }
+    $result = @{ processes = $processes; windows = $windows }
+    if ($closeResult) { $result.close = $closeResult }
+    return $result
   }
   foreach ($entry in $native) {
     $browser = $entry.Name -match '^(chrome|msedge|firefox|brave)\.exe$'
@@ -60,17 +66,22 @@ function Inspect-External {
       $handles[$id] = @{ process = $process }
     }
   }
-  return @{ processes = $processes; windows = $windows }
+  $result = @{ processes = $processes; windows = $windows }
+  if ($closeResult) { $result.close = $closeResult }
+  return $result
 }
 $snapshot = Inspect-External
 if ($request.action -eq 'inspect') { $snapshot | ConvertTo-Json -Depth 8 -Compress; exit }
 if ($request.action -eq 'close') {
   $window = @($snapshot.windows | Where-Object { $_.id -eq $request.window.id })
+  $closeResult.found = $window.Count -gt 0
+  if ($window.Count -gt 0) { $closeResult.matches = [bool]$window[0].matches }
   if ($window.Count -eq 0) { $snapshot | ConvertTo-Json -Depth 8 -Compress; exit }
   if (-not $window[0].matches) { throw 'External window contains unrelated content; refusing to close' }
 }
 if ($request.action -eq 'close' -and $request.window -and $handles.ContainsKey($request.window.id) -and $target.kind -eq 'folder') {
   $handles[$request.window.id].explorer.Quit()
+  $closeResult.dispatched = $true
 } else {
   $expected = $request.process
   $current = @($snapshot.processes | Where-Object { $_.pid -eq $expected.pid -and $_.startedAt -eq $expected.startedAt })
@@ -88,6 +99,7 @@ if ($request.action -eq 'close' -and $request.window -and $handles.ContainsKey($
       $close = $handle.tab.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
       if ($close) {
         $close.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
+        $closeResult.dispatched = $true
       } else {
         $selection = $handle.tab.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern)
         $selection.Select()
@@ -95,8 +107,12 @@ if ($request.action -eq 'close' -and $request.window -and $handles.ContainsKey($
         [ExternalWindow]::SetForegroundWindow($hwnd) | Out-Null
         if ([ExternalWindow]::GetForegroundWindow() -ne $hwnd) { throw 'Could not activate the owned browser window' }
         (New-Object -ComObject WScript.Shell).SendKeys('^w')
+        $closeResult.dispatched = $true
       }
-    } elseif ($handle.process) { $process.CloseMainWindow() | Out-Null }
+    } elseif ($handle.process) {
+      $process.CloseMainWindow() | Out-Null
+      $closeResult.dispatched = $true
+    }
   } else {
     if (@($snapshot.windows | Where-Object { $_.pid -eq $expected.pid -and ($_.id -notin $request.owned -or -not $_.matches) }).Count) { throw 'External application contains unrelated windows' }
     if ($request.action -eq 'force') {

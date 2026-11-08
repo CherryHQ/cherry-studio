@@ -129,6 +129,38 @@ it('closes owned content but refuses to quit a new application that gained unrel
   expect(desktop.processes).toEqual([])
 })
 
+it('preserves foreign tabs and records bounded cleanup identities without private content', () => {
+  const secret = 'synthetic-private-browser-content'
+  const id = registerExternalResource(paths, 'windows', { kind: 'browser', title: secret })
+  opened()
+  observeExternalResource(paths, id)
+  desktop.windows.push(
+    ...Array.from({ length: 40 }, (_, index) => ({
+      id: `opaque-foreign-${index}`,
+      pid: application.pid,
+      matches: false,
+      title: secret,
+      url: `https://private.invalid/?token=${secret}`
+    }))
+  )
+  const foreign = structuredClone(desktop.windows.slice(1))
+
+  expect(() => cleanupExternalResources(paths)).toThrow('has unrelated windows; refusing to quit')
+  expect(desktop).toEqual({ processes: [application], windows: foreign })
+  expect(ledger()).toHaveLength(1)
+  const serialized = readFileSync(join(paths.evidence, 'native-diagnostics', `external-cleanup-${id}.json`), 'utf8')
+  expect(serialized).not.toContain(secret)
+  expect(serialized).not.toContain('https://')
+  const diagnostic = JSON.parse(serialized)
+  expect(diagnostic.baseline).toMatchObject({ processes: [], windows: [] })
+  expect(diagnostic.acquired.windows).toEqual([{ id: 'owned', pid: application.pid, matches: true }])
+  const beforeQuit = diagnostic.snapshots.find((snapshot: { stage: string }) => snapshot.stage === 'pre-quit')
+  expect(beforeQuit.processes).toEqual([{ pid: application.pid, startedAt: application.startedAt }])
+  expect(beforeQuit.windows).toHaveLength(32)
+  expect(beforeQuit.truncated).toBe(true)
+  expect(beforeQuit.windows).toEqual(foreign.slice(0, 32).map(({ id, pid, matches }) => ({ id, pid, matches })))
+})
+
 it('preserves a recorded terminal window that gained an unrelated tab and retries only after ownership returns', () => {
   const id = registerExternalResource(paths, 'macos', { kind: 'terminal', directory: paths.workspace })
   opened()

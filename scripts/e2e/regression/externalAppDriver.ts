@@ -29,6 +29,7 @@ export interface ExternalSnapshot {
   processes: ExternalProcess[]
   windows: ExternalWindow[]
   browserApplication?: string
+  close?: { requestedId: string; found: boolean; matches: boolean | null; dispatched: boolean }
 }
 
 export interface ExternalAppRequest {
@@ -42,6 +43,18 @@ export interface ExternalAppRequest {
 
 export function externalAppRequest(platform: Platform, request: ExternalAppRequest): ExternalSnapshot {
   const key = (id: string) => createHash('sha256').update(id).digest('hex')
+  const encodeSnapshot = ({ close, ...snapshot }: ExternalSnapshot): ExternalSnapshot => ({
+    ...snapshot,
+    windows: snapshot.windows.map((window) => ({ ...window, id: key(window.id) })),
+    ...(close && {
+      close: {
+        requestedId: key(close.requestedId),
+        found: close.found,
+        matches: close.matches,
+        dispatched: close.dispatched
+      }
+    })
+  })
   let nativeRequest = request
   if (request.action !== 'inspect') {
     const snapshot = runNativeRequest(platform, { ...request, action: 'inspect' })
@@ -51,7 +64,10 @@ export function externalAppRequest(platform: Platform, request: ExternalAppReque
       owned: snapshot.windows.filter(({ id }) => request.owned?.includes(key(id))).map(({ id }) => id)
     }
     if (request.action === 'close' && !nativeRequest.window)
-      return { ...snapshot, windows: snapshot.windows.map((window) => ({ ...window, id: key(window.id) })) }
+      return {
+        ...encodeSnapshot(snapshot),
+        close: { requestedId: request.window!.id, found: false, matches: null, dispatched: false }
+      }
     if (request.action === 'close' && !nativeRequest.window?.matches)
       throw new Error('External window contains unrelated content; refusing to close')
     if (
@@ -64,7 +80,7 @@ export function externalAppRequest(platform: Platform, request: ExternalAppReque
       throw new Error('External application contains unrelated windows; refusing to terminate')
   }
   const snapshot = runNativeRequest(platform, nativeRequest)
-  return { ...snapshot, windows: snapshot.windows.map((window) => ({ ...window, id: key(window.id) })) }
+  return encodeSnapshot(snapshot)
 }
 
 function runNativeRequest(platform: Platform, request: ExternalAppRequest, attempt = 0): ExternalSnapshot {

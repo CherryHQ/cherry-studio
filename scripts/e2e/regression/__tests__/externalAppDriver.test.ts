@@ -51,6 +51,57 @@ it('treats a vanished native handle as closed instead of acting on a replacement
   expect(desktop.windows).toEqual([{ id: '123:replacement:owned-tab', pid: process.pid, matches: false }])
 })
 
+it('distinguishes a missing tab from a dispatched close without acting on the replacement', () => {
+  execute.mockImplementation((_command, args) => {
+    const encoded = String(args.at(-1)).match(/FromBase64String\('([^']+)'\)/)![1]
+    const request = JSON.parse(Buffer.from(encoded, 'base64').toString('utf8')) as ExternalAppRequest
+    if (request.action === 'close') desktop.windows = []
+    return JSON.stringify(desktop)
+  })
+  const snapshot = externalAppRequest('windows', { action: 'inspect', target, root })
+  const window = snapshot.windows.find(({ matches }) => matches)!
+  desktop.windows = [{ id: '123:replacement:private-tab', pid: process.pid, matches: false }]
+  const replacement = structuredClone(desktop)
+
+  const result = externalAppRequest('windows', { action: 'close', target, root, process, window })
+
+  expect(desktop).toEqual(replacement)
+  expect(result).toMatchObject({
+    close: { requestedId: window.id, found: false, matches: null, dispatched: false }
+  })
+  expect(JSON.stringify(result)).not.toContain('private-tab')
+})
+
+it.each([false, true])('only reports native close dispatch when supplied by the adapter: %s', (reported) => {
+  const snapshot = externalAppRequest('macos', { action: 'inspect', target, root })
+  const window = snapshot.windows.find(({ matches }) => matches)!
+  execute.mockImplementation((_command, args) => {
+    const request = JSON.parse(args.at(-1)) as ExternalAppRequest
+    if (request.action !== 'close') return JSON.stringify(desktop)
+    desktop.windows = desktop.windows.filter(({ id }) => id !== request.window?.id)
+    return JSON.stringify({
+      ...desktop,
+      ...(reported && {
+        close: {
+          requestedId: request.window!.id,
+          found: true,
+          matches: true,
+          dispatched: true,
+          title: 'synthetic-private-close-title'
+        }
+      })
+    })
+  })
+
+  const result = externalAppRequest('macos', { action: 'close', target, root, process, window })
+
+  expect(result.windows).toEqual([snapshot.windows.find(({ matches }) => !matches)])
+  expect(result.close).toEqual(
+    reported ? { requestedId: window.id, found: true, matches: true, dispatched: true } : undefined
+  )
+  expect(JSON.stringify(result)).not.toContain('synthetic-private-close-title')
+})
+
 it.each(['close', 'quit', 'force'] as const)(
   'refuses %s when a recorded window now contains unrelated content',
   (action) => {

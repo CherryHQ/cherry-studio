@@ -20,6 +20,14 @@ const sameProcess = (a: ExternalProcess, b: ExternalProcess) => a.pid === b.pid 
 const emptySnapshot = (): ExternalSnapshot => ({ processes: [], windows: [] })
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
+function diagnosticSnapshot(snapshot: ExternalSnapshot) {
+  return {
+    processes: snapshot.processes.slice(0, 32).map(({ pid, startedAt }) => ({ pid, startedAt })),
+    windows: snapshot.windows.slice(0, 32).map(({ id, pid, matches }) => ({ id, pid, matches })),
+    truncated: snapshot.processes.length > 32 || snapshot.windows.length > 32
+  }
+}
+
 function ledgerPath(paths: RunPaths): string {
   return join(paths.private, 'external-resources.json')
 }
@@ -90,10 +98,39 @@ export function cleanupExternalResources(paths: RunPaths, ids?: string[]): void 
   const errors: unknown[] = []
   for (const resource of [...resources].reverse()) {
     if (ids && !ids.includes(resource.id)) continue
-    const request = (action: 'inspect' | 'close' | 'quit' | 'force', extra = {}) =>
-      externalAppRequest(resource.platform, { action, target: resource.target, root: paths.root, ...extra })
+    const snapshots = new Map<string, ReturnType<typeof diagnosticSnapshot>>()
+    const closes: {
+      requestedId: string
+      found: boolean | null
+      matches: boolean | null
+      dispatched: boolean | null
+    }[] = []
+    let closeCount = 0
+    const request = (
+      action: 'inspect' | 'close' | 'quit' | 'force',
+      extra: { process?: ExternalProcess; window?: ExternalSnapshot['windows'][number]; owned?: string[] } = {}
+    ) => {
+      let result: ExternalSnapshot | undefined
+      try {
+        result = externalAppRequest(resource.platform, { action, target: resource.target, root: paths.root, ...extra })
+        if (action === 'close') snapshots.set('after-close', diagnosticSnapshot(result))
+        return result
+      } finally {
+        if (action === 'close' && extra.window) {
+          closeCount += 1
+          if (closes.length < 32)
+            closes.push({
+              requestedId: extra.window.id,
+              found: result?.close?.found ?? null,
+              matches: result?.close?.matches ?? null,
+              dispatched: result?.close?.dispatched ?? null
+            })
+        }
+      }
+    }
     try {
       let snapshot = request('inspect')
+      snapshots.set('before-close', diagnosticSnapshot(snapshot))
       acquire(resource, snapshot)
       writeResources(paths, resources)
       const owned = resource.acquired.windows.map(({ id }) => id)
@@ -119,6 +156,7 @@ export function cleanupExternalResources(paths: RunPaths, ids?: string[]): void 
       for (const process of resource.acquired.processes) {
         if (process.shared) continue
         snapshot = request('inspect')
+        snapshots.set('pre-quit', diagnosticSnapshot(snapshot))
         if (!snapshot.processes.some((current) => sameProcess(current, process))) continue
         if (
           snapshot.windows.some(
@@ -142,6 +180,7 @@ export function cleanupExternalResources(paths: RunPaths, ids?: string[]): void 
         }
       }
       snapshot = request('inspect')
+      snapshots.set('final', diagnosticSnapshot(snapshot))
       const remaining = snapshot.windows.filter(({ id }) => owned.includes(id))
       if (remaining.length)
         failures.push(
@@ -153,6 +192,23 @@ export function cleanupExternalResources(paths: RunPaths, ids?: string[]): void 
       resources.splice(resources.indexOf(resource), 1)
     } catch (error) {
       errors.push(error)
+      try {
+        const diagnosticDirectory = join(paths.evidence, 'native-diagnostics')
+        mkdirSync(diagnosticDirectory, { recursive: true })
+        writeFileSync(
+          join(diagnosticDirectory, `external-cleanup-${resource.id}.json`),
+          JSON.stringify({
+            baseline: diagnosticSnapshot(resource.baseline),
+            acquired: diagnosticSnapshot(resource.acquired),
+            snapshots: [...snapshots].map(([stage, snapshot]) => ({ stage, ...snapshot })),
+            closes,
+            closesTruncated: closeCount > closes.length
+          }),
+          { mode: 0o600 }
+        )
+      } catch {
+        // Diagnostic I/O must preserve the cleanup refusal and its private ledger.
+      }
     }
     writeResources(paths, resources)
   }

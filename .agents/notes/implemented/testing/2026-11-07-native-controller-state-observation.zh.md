@@ -57,6 +57,8 @@ macOS 的 HTTPS 与本地 HTML 文件可以使用不同默认应用。若以 HTT
 
 - MP-121 先停止所拥有的应用，再完整复制 profile 备份，随后重启执行原 Reset UI 检查。正常停止与重启共用生命周期；Windows 必须在 30 秒内完成 quit 并确认退出，不忽略锁定文件，也不靠强杀让复制成功。备份失败仍尝试重启，同时失败时保留两项错误。
 
+- 将有界且无正文的原生失败元数据保存到 `evidence/native-diagnostics`，由既有脱敏产物流程上传；通用日志仍保持私有。Windows 矩形的非有限坐标编码为 null，诊断序列化不能取代真实的最小化和前台判定。外部清理复用已有快照，记录哈希标签身份及明确的关闭派发或未知状态，不扩大关闭外来标签的权限。
+
 ## 考虑过的替代方案
 
 - 单纯增加超时无法修复错误窗口输入、超长命令行或进程归属竞态。
@@ -101,3 +103,5 @@ macOS 的 HTTPS 与本地 HTML 文件可以使用不同默认应用。若以 HTT
 - Regression — 43 项定向 runtime/workflow 合同通过，包含真实临时 helper plist、workspace 身份隔离、缺失 runtime 拒绝和 branch/tag 顺序。Node/E2E 类型检查及定向 lint 通过。真实签名原生对话框执行及托管权限归属仍需单独验证。
 
 - Regression — 33 项生命周期合同全部通过。新增用例在模拟异步退出落盘后，复制真实临时 Data、Network/Cookies 和文件内容；quit 超时在复制前拒绝，不强杀也不启动其他进程。真实 Windows 锁释放仍需托管 MP-121 验证。
+
+- Regression — 57 项受影响的自动化、driver、资源及语法检查通过，另有一项平台专用跳过。缺失 ID 不会关闭替换标签，外来标签和失败 ledger 均保留，失败证据不含私有正文且集合有截断限制。Node/E2E 类型和定向 lint 通过。真实 Windows PowerShell 非有限值序列化合同纳入托管原生 gate，不能在当前 macOS 本机执行。
