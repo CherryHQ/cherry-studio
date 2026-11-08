@@ -83,7 +83,9 @@ type AgentTopBarControlsProps = Omit<AgentConversationControlsProps, 'iconOnly' 
 function AgentTopBarControls(props: AgentTopBarControlsProps) {
   const { iconOnly } = useConversationTopBarPortalLayout()
 
-  return <AgentConversationControls {...props} side="bottom" iconOnly={iconOnly} />
+  return (
+    <AgentConversationControls {...props} side="bottom" iconOnly={iconOnly} showWorkspace={!!props.onWorkspaceChange} />
+  )
 }
 
 interface AgentChatProps {

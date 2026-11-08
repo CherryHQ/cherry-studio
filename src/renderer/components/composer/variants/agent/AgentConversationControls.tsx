@@ -37,6 +37,7 @@ export interface AgentConversationControlsProps {
   model?: Model
   workspace?: AgentConversationWorkspace | null
   workspaceId?: string | null
+  showWorkspace?: boolean
   workspaceChanging?: boolean
   workspaceWarning?: string
   selectAgentLabel: string
@@ -355,7 +356,7 @@ export function AgentConversationControls(props: AgentConversationControlsProps)
     <>
       <AgentControl {...props} />
       <ModelControl {...props} />
-      <WorkspaceControl {...props} />
+      {props.showWorkspace !== false && <WorkspaceControl {...props} />}
     </>
   )
 }
