@@ -2619,7 +2619,8 @@ export class ClaudeCodeStreamAdapter {
       // round-9 initial-probe-stalls-code-stream).
       if (
         !atBlockEnd &&
-        (textHasUnclosedInlineCodeOutsideCodeBlocks(probe) ||
+        (incompleteMarkupStart(probe) !== -1 ||
+          textHasUnclosedInlineCodeOutsideCodeBlocks(probe) ||
           (textHasUnclosedCodeFence(probe) && stripped.length === probe.length))
       ) {
         return { action: 'pending' }
@@ -2868,7 +2869,9 @@ export class ClaudeCodeStreamAdapter {
           })
           ctx.textPartStarted = true
           this.endCompactionArtifactGrace(ctx)
-          text = classified.visible
+          // Keep multiline paragraph ancestry for the ongoing filter. Inline-only
+          // releases still use the classifier's normalization of opaque markup.
+          text = /[\r\n]/.test(ctx.scratchpadTextProbe) ? ctx.scratchpadTextProbe : classified.visible
           ctx.scratchpadTextProbe = ''
         }
       }

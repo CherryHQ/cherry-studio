@@ -165,16 +165,7 @@ const PIECES = [
   '# heading\n',
   '- \t tabbed\n'
 ]
-// Inherited known-base leads: these cases fail IDENTICALLY on the public head
-// (0d2860cb21, base-80 subset verified case-by-case via comm against the base
-// probe log) - they are pre-existing whole-vs-chunked divergences, not
-// rebuild-introduced. it.fails keeps each lead gated and reproducible without
-// a default CI regression: a future fix turns the case green, which fails
-// it.fails and forces this list to shrink (conformance-sweep precedent).
-// Case 237 retired: the round-17 stale-sibling-ownership fix made its
-// whole-vs-chunked delivery consistent (cherry-pr-review P2, CommonMark ex313).
-const KNOWN_INHERITED = new Set([2, 111, 138, 203, 256, 264, 300, 334, 339, 375, 384])
-
+// All 400 cases now pass their underlying whole-vs-chunked assertion.
 describe('seeded fuzz whole-vs-chunked delivery', () => {
   const rnd = mulberry32(0xc0ffee)
   for (let caseNo = 0; caseNo < 400; caseNo++) {
@@ -184,8 +175,7 @@ describe('seeded fuzz whole-vs-chunked delivery', () => {
       input += PIECES[Math.floor(rnd() * PIECES.length)]
       if (rnd() < 0.5) input += '\n'
     }
-    const run = KNOWN_INHERITED.has(caseNo) ? it.fails : it
-    run(`case ${caseNo}`, () => {
+    it(`case ${caseNo}`, () => {
       const whole = deliver(input, null)
       for (const size of [1, 2, 3, 5, 8]) {
         const chunked = deliver(input, size)

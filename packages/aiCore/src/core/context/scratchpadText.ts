@@ -1096,14 +1096,20 @@ function findScratchpadBlockRanges(text: string): Array<{ start: number; end: nu
   return ranges
 }
 
-function maskInlineCodeSpans(text: string): {
+function maskInlineCodeSpans(
+  text: string,
+  rawEndAt?: (index: number) => number | undefined
+): {
   text: string
   spans: string[]
   ranges: Array<{ start: number; end: number }>
   placeholderBase: string
 } {
   let cachedBlockEnd = -1
-  const paragraphAt = inlineParagraphLookup(text)
+  let paragraphLookup: ReturnType<typeof inlineParagraphLookup> | undefined
+  const paragraphAt = (index: number) => (paragraphLookup ??= inlineParagraphLookup(text))(index)
+  let rawLookup: ReturnType<typeof rawParagraphLookup> | undefined
+  const rawLeafAt = rawEndAt ?? ((index: number) => (rawLookup ??= rawParagraphLookup(text))(index))
   const inHtml = htmlOpeningTagLookup(text)
   const placeholderBase = pickPlaceholderBase(text, 'INLINE_CODE')
   const spans: string[] = []
@@ -1142,7 +1148,8 @@ function maskInlineCodeSpans(text: string): {
     const contentStart = i
     let j = contentStart
     let closedAt = -1
-    const blockEnd = j < cachedBlockEnd ? cachedBlockEnd : (cachedBlockEnd = inlineBlockEnd(text, j, paragraphAt))
+    const blockEnd =
+      j < cachedBlockEnd ? cachedBlockEnd : (cachedBlockEnd = rawLeafAt(j) ?? inlineBlockEnd(text, j, paragraphAt))
     while (j < blockEnd) {
       if (text[j] !== '`') {
         j++
@@ -2348,9 +2355,11 @@ export function textEndsWithPartialFenceMarker(text: string): boolean {
 }
 
 /** True when an inline code span opened by backticks has no closing delimiter yet. */
-export function textHasUnclosedInlineCode(text: string): boolean {
+export function textHasUnclosedInlineCode(text: string, rawEndAt?: (index: number) => number | undefined): boolean {
   let cachedBlockEnd = -1
   const paragraphAt = inlineParagraphLookup(text)
+  let rawLookup: ReturnType<typeof rawParagraphLookup> | undefined
+  const rawLeafAt = rawEndAt ?? ((index: number) => (rawLookup ??= rawParagraphLookup(text))(index))
   const inHtml = htmlOpeningTagLookup(text)
   let pos = 0
   while (pos < text.length) {
@@ -2378,7 +2387,8 @@ export function textHasUnclosedInlineCode(text: string): boolean {
     const contentStart = i
     let j = contentStart
     let closedAt = -1
-    const blockEnd = j < cachedBlockEnd ? cachedBlockEnd : (cachedBlockEnd = inlineBlockEnd(text, j, paragraphAt))
+    const blockEnd =
+      j < cachedBlockEnd ? cachedBlockEnd : (cachedBlockEnd = rawLeafAt(j) ?? inlineBlockEnd(text, j, paragraphAt))
     while (j < blockEnd) {
       if (text[j] !== '`') {
         j++
@@ -2529,7 +2539,10 @@ export function stableScratchpadStreamPrefix(
   if (tick !== -1) {
     // The trailing delimiter can still grow on the next delta and revoke
     // this pairing. Only spans with a sealed closing run own stable markup.
-    const inlineRanges = maskInlineCodeSpans(masked).ranges.filter((range) => range.end < masked.length)
+    const inlineRanges = maskInlineCodeSpans(
+      masked,
+      projectedRawLeafLookup(masked, (value) => unmaskCodeFences(value, fenced.fences, fenced.placeholderBase))
+    ).ranges.filter((range) => range.end < masked.length)
     let inlineIndex = 0
     const ownedByInlineCode = (at: number): boolean => {
       while (inlineIndex < inlineRanges.length && inlineRanges[inlineIndex].end <= at) inlineIndex++
@@ -2566,7 +2579,12 @@ export function stableScratchpadStreamPrefix(
   // every '<' with a full-prefix predicate. Mapping a selected offset back is one pass/stage.
   const fm = maskCodeFences(candidate)
   const im = maskIndentedCodeBlocksStepped(fm.text)
-  const cm = maskInlineCodeSpans(im.text)
+  const cm = maskInlineCodeSpans(
+    im.text,
+    projectedRawLeafLookup(im.text, (value) =>
+      unmaskCodeFences(unmaskIndentedCodeBlocks(value, im.blocks, im.placeholderBase), fm.fences, fm.placeholderBase)
+    )
+  )
   const stack: Array<{ name: string; at: number }> = []
   let unresolved = cm.text.length
   for (let pos = 0; pos < cm.text.length;) {
@@ -2656,11 +2674,7 @@ export function shouldDeferScratchpadStripping(
     textHasUnclosedScratchpad(text, seed, options?.initialMaskState) ||
     textHasUnclosedCodeFence(text, { initialContainerPrefix: seed, initialMaskState: options?.initialMaskState }) ||
     textEndsWithPartialFenceMarker(text) ||
-    textHasUnclosedInlineCode(
-      /[`~]{3}/.test(text)
-        ? maskCodeFences(text, { initialContainerPrefix: seed, initialMaskState: options?.initialMaskState }).text
-        : text
-    )
+    unclosedInlineWithRawOwnership(text, seed, options?.initialMaskState)
   )
 }
 
@@ -2683,11 +2697,7 @@ export function deferralIsInlineCodeOnly(
     !textHasUnclosedScratchpad(text, seed, options?.initialMaskState) &&
     !textHasUnclosedCodeFence(text, { initialContainerPrefix: seed, initialMaskState: options?.initialMaskState }) &&
     !textEndsWithPartialFenceMarker(text) &&
-    textHasUnclosedInlineCode(
-      /[`~]{3}/.test(text)
-        ? maskCodeFences(text, { initialContainerPrefix: seed, initialMaskState: options?.initialMaskState }).text
-        : text
-    )
+    unclosedInlineWithRawOwnership(text, seed, options?.initialMaskState)
   )
 }
 
@@ -2771,9 +2781,14 @@ export function textHasUnclosedCodeFence(
  * initial-probe-stalls-code-stream).
  */
 export function textHasUnclosedInlineCodeOutsideCodeBlocks(text: string): boolean {
-  const { text: fenceMasked } = maskCodeFences(text)
-  const { text: indentedMasked } = maskIndentedCodeBlocks(fenceMasked)
-  return textHasUnclosedInlineCode(indentedMasked)
+  const { text: fenceMasked, fences, placeholderBase: fenceBase } = maskCodeFences(text)
+  const { text: indentedMasked, blocks, placeholderBase: indentedBase } = maskIndentedCodeBlocks(fenceMasked)
+  return textHasUnclosedInlineCode(
+    indentedMasked,
+    projectedRawLeafLookup(indentedMasked, (value) =>
+      unmaskCodeFences(unmaskIndentedCodeBlocks(value, blocks, indentedBase), fences, fenceBase)
+    )
+  )
 }
 
 /**
@@ -2881,7 +2896,18 @@ export function stripKnownModelScratchpadBlocksPreservingCodeFencesStepped(
     blocks,
     placeholderBase: indentedBase
   } = maskIndentedCodeBlocksStepped(fenceMasked, { initialState: options?.initialMaskState })
-  const { text: inlineMasked, spans, placeholderBase: inlineBase } = maskInlineCodeSpans(indentedMasked)
+  const {
+    text: inlineMasked,
+    spans,
+    placeholderBase: inlineBase
+  } = maskInlineCodeSpans(
+    indentedMasked,
+    projectedRawLeafLookup(
+      indentedMasked,
+      (value) => unmaskCodeFences(unmaskIndentedCodeBlocks(value, blocks, indentedBase), fences, fenceBase),
+      options?.initialMaskState?.containers
+    )
+  )
   const stripped = stripKnownModelScratchpadBlocks(inlineMasked)
   const withInline = unmaskInlineCodeSpans(stripped, spans, inlineBase)
   const withIndented = unmaskIndentedCodeBlocks(withInline, blocks, indentedBase)
@@ -2891,7 +2917,16 @@ export function stripKnownModelScratchpadBlocksPreservingCodeFencesStepped(
 export function stripKnownModelScratchpadBlocksPreservingCodeFences(raw: string): string {
   const { text: fenceMasked, fences, placeholderBase: fenceBase } = maskCodeFences(raw)
   const { text: indentedMasked, blocks, placeholderBase: indentedBase } = maskIndentedCodeBlocks(fenceMasked)
-  const { text: inlineMasked, spans, placeholderBase: inlineBase } = maskInlineCodeSpans(indentedMasked)
+  const {
+    text: inlineMasked,
+    spans,
+    placeholderBase: inlineBase
+  } = maskInlineCodeSpans(
+    indentedMasked,
+    projectedRawLeafLookup(indentedMasked, (value) =>
+      unmaskCodeFences(unmaskIndentedCodeBlocks(value, blocks, indentedBase), fences, fenceBase)
+    )
+  )
   const stripped = stripKnownModelScratchpadBlocks(inlineMasked)
   const withInline = unmaskInlineCodeSpans(stripped, spans, inlineBase)
   const withIndented = unmaskIndentedCodeBlocks(withInline, blocks, indentedBase)
@@ -3154,7 +3189,16 @@ export function stripModelScratchpadBlocks(raw: string): string {
   raw = unwrapWholeSummaryWrapper(raw) ?? raw
   const { text: fenceMasked, fences, placeholderBase: fenceBase } = maskCodeFences(raw)
   const { text: indentedMasked, blocks, placeholderBase: indentedBase } = maskIndentedCodeBlocks(fenceMasked)
-  const { text: inlineMasked, spans, placeholderBase: inlineBase } = maskInlineCodeSpans(indentedMasked)
+  const {
+    text: inlineMasked,
+    spans,
+    placeholderBase: inlineBase
+  } = maskInlineCodeSpans(
+    indentedMasked,
+    projectedRawLeafLookup(indentedMasked, (value) =>
+      unmaskCodeFences(unmaskIndentedCodeBlocks(value, blocks, indentedBase), fences, fenceBase)
+    )
+  )
   let out = stripKnownModelScratchpadBlocks(inlineMasked)
 
   // A complete summary is usable even if the model forgot the leading
@@ -3245,7 +3289,16 @@ export function stripTrailingToolProtocolClosingFragments(raw: string): string {
   if (!raw || !hasTrailingToolProtocolClosingFragment(raw)) return raw
   const { text: fenceMasked, fences, placeholderBase: fenceBase } = maskCodeFences(raw)
   const { text: indentedMasked, blocks, placeholderBase: indentedBase } = maskIndentedCodeBlocks(fenceMasked)
-  const { text: inlineMasked, spans, placeholderBase: inlineBase } = maskInlineCodeSpans(indentedMasked)
+  const {
+    text: inlineMasked,
+    spans,
+    placeholderBase: inlineBase
+  } = maskInlineCodeSpans(
+    indentedMasked,
+    projectedRawLeafLookup(indentedMasked, (value) =>
+      unmaskCodeFences(unmaskIndentedCodeBlocks(value, blocks, indentedBase), fences, fenceBase)
+    )
+  )
   let out = inlineMasked
   for (;;) {
     const trailing = TRAILING_TOOL_PROTOCOL_CLOSE_RE.exec(out)
@@ -3328,4 +3381,108 @@ export function stripTrailingToolProtocolClosingFragments(raw: string): string {
   out = unmaskInlineCodeSpans(out, spans, inlineBase)
   out = unmaskIndentedCodeBlocks(out, blocks, indentedBase)
   return unmaskCodeFences(out, fences, fenceBase)
+}
+
+/**
+ * Raw container lines own paragraph boundaries before masks change offsets or line counts.
+ * HTML and incomplete reference definitions retain the established scanner's policy until
+ * this classifier models their full block ownership. A carried state is cloned, never advanced.
+ */
+function rawParagraphLookup(text: string, initialContainers?: ContainerState): (index: number) => number | undefined {
+  if (/<\/?(?!analysis\b|assessment\b|thinking\b)[a-z][a-z0-9-]*(?:[ \t>]|$)|<!|<\?/im.test(text))
+    return () => undefined
+  if (/^(?:[ \t]*>[ \t]*)*[ \t]{0,3}\[[^\]\r\n]+\]:[ \t]*(?:\r?\n|$)/m.test(text)) return () => undefined
+  const state = initialContainers ? cloneContainerState(initialContainers) : initialContainerState()
+  const rows: Array<{ start: number; end: number; leaf: number | null }> = []
+  let leaf = 0
+  let previous: number | null = null
+  for (let pos = 0; pos < text.length; pos = lineEndAfter(text, pos)) {
+    const before = state.paragraph
+    const verdict = containerLine(state, text.slice(pos, lineContentEnd(text, pos)))
+    if (
+      (before === null || state.paragraph !== before) &&
+      /^ {0,3}\[[^\]\n]+\]:[ \t]*[^ \t]+(?:[ \t]+(?:"[^"\n]*"|'[^'\n]*'|\([^()\n]*\)))?[ \t]*$/.test(verdict.content)
+    )
+      state.paragraph = null
+    const owner = state.paragraph
+    if (owner === null || before === null || owner !== previous) leaf++
+    rows.push({ start: pos, end: lineEndAfter(text, pos), leaf: owner === null ? null : leaf })
+    previous = owner
+  }
+  const ends = new Int32Array(rows.length)
+  for (let i = rows.length - 1; i >= 0; i--) {
+    ends[i] =
+      rows[i].leaf !== null && i + 1 < rows.length && rows[i + 1].leaf === rows[i].leaf ? ends[i + 1] : rows[i].end
+  }
+  return (index) => {
+    let lo = 0,
+      hi = rows.length
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1
+      if (rows[mid].end <= index) lo = mid + 1
+      else hi = mid
+    }
+    return lo < rows.length && rows[lo].start <= index ? ends[lo] : undefined
+  }
+}
+/** Map masked offsets to raw paragraph ends, then back by binary search. */
+function projectedRawLeafLookup(
+  masked: string,
+  expand: (value: string) => string,
+  initialContainers?: ContainerState
+): (index: number) => number | undefined {
+  if (!masked.includes('`')) return () => undefined
+  const positions = new Int32Array(masked.length + 1)
+  const chunks: string[] = []
+  const re = /[\uE000-\uF8FF]+(?:CODE_FENCE|INDENTED_CODE)_\d+\uE001/g
+  let pos = 0,
+    rawLength = 0
+  for (const match of masked.matchAll(re)) {
+    const before = masked.slice(pos, match.index!)
+    chunks.push(before)
+    while (pos < match.index!) positions[pos++] = rawLength++
+    const literal = expand(match[0])
+    positions.fill(rawLength, pos, pos + match[0].length)
+    chunks.push(literal)
+    rawLength += literal.length
+    pos += match[0].length
+  }
+  chunks.push(masked.slice(pos))
+  while (pos < masked.length) positions[pos++] = rawLength++
+  positions[pos] = rawLength
+  const raw = chunks.join('')
+  const rawEndAt = rawParagraphLookup(raw, initialContainers)
+  return (index) => {
+    const end = rawEndAt(positions[index])
+    if (end === undefined) return undefined
+    let lo = index,
+      hi = masked.length
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1
+      if (positions[mid] < end) lo = mid + 1
+      else hi = mid
+    }
+    return lo
+  }
+}
+
+function unclosedInlineWithRawOwnership(
+  text: string,
+  initialContainerPrefix?: string,
+  initialMaskState?: IndentedMaskState
+): boolean {
+  if (!/[`~]{3}/.test(text))
+    return textHasUnclosedInlineCode(
+      text,
+      initialMaskState ? rawParagraphLookup(text, initialMaskState.containers) : undefined
+    )
+  const fenced = maskCodeFences(text, { initialContainerPrefix, initialMaskState })
+  return textHasUnclosedInlineCode(
+    fenced.text,
+    projectedRawLeafLookup(
+      fenced.text,
+      (value) => unmaskCodeFences(value, fenced.fences, fenced.placeholderBase),
+      initialMaskState?.containers
+    )
+  )
 }

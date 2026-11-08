@@ -437,7 +437,7 @@ it.each([
   ['>> z\n    `\n> `\n--\n`<thinking>MARK</thinking>`\n', '>> z\n    `\n> `\n--\n`<thinking>MARK</thinking>`'],
   [
     '>> z\n    `\n--\nx `<thinking>MARK</thinking>` y\n> quoted `code`\n    `\n`<thinking>MARK</thinking>`\n',
-    '>> z\n    `\n--\nx `<thinking>MARK</thinking>` y\n> quoted `code`\n    `\n``'
+    '>> z\n    `\n--\nx `` y\n> quoted `code`\n    `\n`<thinking>MARK</thinking>`'
   ],
   ['> ``\n--\n2. item\n> ``<thinking>MARK</thinking>``\n', '> ``\n--\n2. item\n> ``<thinking>MARK</thinking>``'],
   [
@@ -466,11 +466,11 @@ it.each([
   ],
   [
     '> x\n\t`\n> x `<thinking>MARK</thinking>` y\n2. item\n    x `<thinking>MARK</thinking>` y\n',
-    '> x\n\t`\n> x `<thinking>MARK</thinking>` y\n2. item\n    x `<thinking>MARK</thinking>` y'
+    '> x\n\t`\n> x `` y\n2. item\n    x `<thinking>MARK</thinking>` y'
   ],
   [
     '>> z\n    `\n> > nested `d`\n`<analysis>MARK</analysis>`\n> `\n> `<analysis>MARK</analysis>`\n',
-    '>> z\n    `\n> > nested `d`\n`<analysis>MARK</analysis>`\n> `\n> ``'
+    '>> z\n    `\n> > nested `d`\n``\n> `\n> `<analysis>MARK</analysis>`'
   ],
   [
     '> x\r\n\t`\r\n2. item\r\n  <thinking>MARK</thinking>\r\n> quoted `code`\r\n',
@@ -487,7 +487,7 @@ it.each([
   ],
   [
     '>> <thinking>MARK</thinking>\r\n\t`\r\n>> `<thinking>MARK</thinking>`\r\n2. x `<thinking>MARK</thinking>` y\r\n',
-    '>> \r\n\t`\r\n>> `<thinking>MARK</thinking>`\r\n2. x `<thinking>MARK</thinking>` y'
+    '>> \r\n\t`\r\n>> ``\r\n2. x `<thinking>MARK</thinking>` y'
   ],
   [
     '> text `t`\r\nlazy `\r\n--\r\n> ``\r\n    ``<thinking>MARK</thinking>``\r\n2. item\r\n    `\r\n',
@@ -574,7 +574,7 @@ it.each([
   ],
   [
     '>> z\n    `\n===\n    `<thinking>MARK</thinking>`\n> <thinking>MARK</thinking>\n  `open\n',
-    '>> z\n    `\n===\n    `<thinking>MARK</thinking>`\n> \n  `open'
+    '>> z\n    `\n===\n    ``\n> <thinking>MARK</thinking>\n  `open'
   ],
   ['>> z\n    ``\n> ``\n  <thinking>MARK</thinking>\n===\n> ``\n', '>> z\n    ``\n> ``\n  \n===\n> ``'],
   [
@@ -593,7 +593,7 @@ it.each([
   ],
   [
     '> > ===\t\n``` a`b\n2. `<analysis>MARK</analysis>`\n>> `<thinking>MARK</thinking>`\n',
-    '> > ===\t\n``` a`b\n2. ``\n>> `<thinking>MARK</thinking>`'
+    '> > ===\t\n``` a`b\n2. `<analysis>MARK</analysis>`\n>> `<thinking>MARK</thinking>`'
   ],
   ['> `<thinking>MARK</thinking>\r\n===\r\n2. item\r\n> close`\r\n', '> `\r\n===\r\n2. item\r\n> close`'],
   [
@@ -602,7 +602,7 @@ it.each([
   ],
   [
     '>> z\n`<thinking>MARK</thinking>\n> ``\n--\n    `\n``<thinking>MARK</thinking>``\n',
-    '>> z\n`\n> ``\n--\n    `\n``<thinking>MARK</thinking>``'
+    '>> z\n`<thinking>MARK</thinking>\n> ``\n--\n    `\n``<thinking>MARK</thinking>``'
   ],
   [
     '> > inner\nlazy `\n2. item\n> > inner\n`<thinking>MARK</thinking>`\n',
@@ -657,7 +657,7 @@ it.each([
   ],
   [
     '>> z\n  `open\n> > inner\n    `<thinking>MARK</thinking>`\n> `\n> `<thinking>MARK</thinking>`\n',
-    '>> z\n  `open\n> > inner\n    `<thinking>MARK</thinking>`\n> `\n> ``'
+    '>> z\n  `open\n> > inner\n    ``\n> `\n> `<thinking>MARK</thinking>`'
   ],
   [
     '> a `b`\n    `\n--\n2. item\n    `<thinking>MARK</thinking>\nlazy `\n',
@@ -780,7 +780,7 @@ it.each([
   ],
   [
     '>> z\r\n  `open\r\n\t`\r\n> quoted `code`\r\n`<thinking>MARK</thinking>\r\n> > nested `d`\r\n  `open\r\n===\r\n  `<thinking>MARK</thinking>`\r\n',
-    '>> z\r\n  `open\r\n\t`\r\n> quoted `code`\r\n`\r\n> > nested `d`\r\n  `open\r\n===\r\n  `<thinking>MARK</thinking>`'
+    '>> z\r\n  `open\r\n\t`\r\n> quoted `code`\r\n`<thinking>MARK</thinking>\r\n> > nested `d`\r\n  `open\r\n===\r\n  `<thinking>MARK</thinking>`'
   ],
   [
     '> a `b`\n===\n2. item\n\t`\n> `<thinking>MARK</thinking>`\n',
@@ -793,14 +793,14 @@ it.each([
   ['>> z\n\t`\n> close`\n===\n> <thinking>MARK</thinking>\n> `\n', '>> z\n\t`\n> close`\n===\n> \n> `'],
   [
     '>> z\n    `\n> > nested `d`\n  `<analysis>MARK</analysis>`\n    `\n    `\n> `\n`<thinking>MARK</thinking>`\n',
-    '>> z\n    `\n> > nested `d`\n  `<analysis>MARK</analysis>`\n    `\n    `\n> `\n``'
+    '>> z\n    `\n> > nested `d`\n  ``\n    `\n    `\n> `\n`<thinking>MARK</thinking>`'
   ],
   ['> x\r\n`<thinking>MARK</thinking>\r\n2. item\r\n> close`\r\n', '> x\r\n`\r\n2. item\r\n> close`'],
   [
     '> ``\r\n--\r\n2. item\r\n``<thinking>MARK</thinking>``\r\n',
     '> ``\r\n--\r\n2. item\r\n``<thinking>MARK</thinking>``'
   ]
-])('leaves excluded mixed-container shapes at the baseline policy: %s', (raw, expected) => {
+])('matches independently verified literal ownership in mixed containers: %s', (raw, expected) => {
   expect(stripModelScratchpadBlocks(raw)).toBe(expected)
 })
 
