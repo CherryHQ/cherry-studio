@@ -63,6 +63,7 @@ import p_tokenhub from './tokenhub'
 import type { Provider } from './types'
 import p_vertexai from './vertexai'
 import p_voyageai from './voyageai'
+import p_wally from './wally'
 import p_xirang from './xirang'
 import p_zai from './zai'
 import p_zhipu from './zhipu'
@@ -135,5 +136,6 @@ export const PROVIDERS: Provider[] = [
   p_comfyui,
   p_mimo,
   p_zai,
-  p_minimax_global
+  p_minimax_global,
+  p_wally
 ]
