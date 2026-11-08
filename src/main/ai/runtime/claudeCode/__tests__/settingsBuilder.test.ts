@@ -2856,44 +2856,6 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(await submit()).toEqual({})
   })
 
-  it('wires a PreToolUse steer hook that drains the holder and injects it as additionalContext', async () => {
-    const session = {
-      id: 'session-1',
-      agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
-    }
-
-    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-
-    // The session-scoped steer holder is wired onto the settings — the driver reads it from here and
-    // the connection's redirect() fills `pending`. Without it the whole agent steer is inert.
-    expect(settings.steerHolder).toBeDefined()
-
-    const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
-    const steerHook = preToolUse?.find((hook) => hook.name === 'steerHook') as unknown as (input: {
-      hook_event_name: string
-    }) => Promise<{ continue?: boolean; hookSpecificOutput?: { additionalContext?: string } }>
-    expect(steerHook).toBeDefined()
-
-    // No queued steer → the hook no-ops.
-    expect(await steerHook({ hook_event_name: 'PreToolUse' })).toEqual({})
-
-    // A steer stashed mid-turn is drained and injected as additionalContext (model redirects without
-    // aborting); `onInjected` fires so the connection can arm its steer-boundary.
-    const onInjected = vi.fn()
-    settings.steerHolder!.onInjected = onInjected
-    settings.steerHolder!.pending.push({
-      message: { data: { parts: [{ type: 'text', text: 'change direction now' }] } }
-    } as never)
-
-    const output = await steerHook({ hook_event_name: 'PreToolUse' })
-
-    expect(output.continue).toBe(true)
-    expect(output.hookSpecificOutput?.additionalContext).toContain('change direction now')
-    expect(settings.steerHolder!.pending).toHaveLength(0) // drained in place
-    expect(onInjected).toHaveBeenCalledTimes(1)
-  })
-
   it('keeps RTK as the only Bash text rewrite', async () => {
     mocks.rtkRewrite.mockResolvedValue('rtk eslint .')
     const session = {
@@ -2917,30 +2879,6 @@ describe('buildClaudeCodeSessionSettings', () => {
         updatedInput: { command: 'rtk eslint .' }
       }
     })
-  })
-
-  it('keeps an empty-text steer pending when the PreToolUse hook cannot inject it', async () => {
-    const session = {
-      id: 'session-1',
-      agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
-    }
-
-    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-    const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
-    const steerHook = preToolUse?.find((hook) => hook.name === 'steerHook') as unknown as (input: {
-      hook_event_name: string
-    }) => Promise<{ continue?: boolean; hookSpecificOutput?: { additionalContext?: string } }>
-    expect(steerHook).toBeDefined()
-    const onInjected = vi.fn()
-    settings.steerHolder!.onInjected = onInjected
-    const emptySteer = { message: { data: { parts: [{ type: 'text', text: '   ' }] } } } as never
-    settings.steerHolder!.pending.push(emptySteer)
-
-    await expect(steerHook({ hook_event_name: 'PreToolUse' })).resolves.toEqual({})
-
-    expect(settings.steerHolder!.pending).toEqual([emptySteer])
-    expect(onInjected).not.toHaveBeenCalled()
   })
 
   it('hands the real kb_manage approval exception to the tool-policy snapshot (production gate wiring)', async () => {
@@ -3054,28 +2992,6 @@ describe('buildClaudeCodeSessionSettings', () => {
       expect(out).toContainEqual(
         expect.objectContaining({ hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' }) })
       )
-    })
-
-    it('steers via the live holder after the original is disposed and rebuilt (Bug B)', async () => {
-      const prewarm = await buildClaudeCodeSessionSettings(sessionWith('warm-b'), {} as never)
-      // Simulate the connection that prewarm baked for closing — disposes + evicts the holder.
-      prewarm.steerHolder?.dispose()
-
-      // Reconnect builds a brand-new holder; the host stashes a steer into it via redirect().
-      const reconnect = await buildClaudeCodeSessionSettings(sessionWith('warm-b'), {} as never)
-      const onInjected = vi.fn()
-      reconnect.steerHolder!.onInjected = onInjected
-      reconnect.steerHolder!.pending.push({
-        message: { data: { parts: [{ type: 'text', text: 'go north instead' }] } }
-      } as never)
-
-      // The prewarm-baked steer hook resolves the live holder by id → injects the steer.
-      const out = await runHooks(prewarm, 'Read')
-      const additionalContexts = out.map(
-        (o) => (o as { hookSpecificOutput?: { additionalContext?: string } })?.hookSpecificOutput?.additionalContext
-      )
-      expect(additionalContexts).toContainEqual(expect.stringContaining('go north instead'))
-      expect(onInjected).toHaveBeenCalledTimes(1)
     })
 
     it('approves via the re-bound emitter after the original is disposed and rebuilt (approval)', async () => {

@@ -160,6 +160,33 @@ describe('FileTree - editable form (all callbacks)', () => {
     expect(onSelectedChange).not.toHaveBeenCalled()
   })
 
+  it('renders row detail below the row without selecting or collapsing it', async () => {
+    const onSelectedChange = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <FileTree
+        nodes={nodes}
+        defaultExpandedIds={new Set(['root'])}
+        onSelectedChange={onSelectedChange}
+        renderRowDetail={(n) => (
+          <button type="button" data-testid={`detail-${n.id}`}>
+            detail
+          </button>
+        )}
+        renderList={passthroughRenderList}
+      />
+    )
+
+    const rootRow = screen.getByRole('treeitem', { name: 'Root' })
+    const rootDetail = screen.getByTestId('detail-root')
+    expect(rootRow).not.toContainElement(rootDetail)
+
+    await user.click(rootDetail)
+
+    expect(onSelectedChange).not.toHaveBeenCalled()
+    expect(screen.getByText('A.md')).toBeInTheDocument()
+  })
+
   it('stops row context-menu events after opening the row menu', () => {
     const onWrapperContextMenu = vi.fn()
 

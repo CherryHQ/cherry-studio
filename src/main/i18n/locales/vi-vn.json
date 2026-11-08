@@ -79,6 +79,7 @@
   "common.channel_message_processing_error": "⚠️ Đã xảy ra lỗi khi xử lý tin nhắn của bạn. Vui lòng thử lại sau.",
   "common.channel_new_session_created": "Đã tạo phiên mới.",
   "common.channel_no_active_session": "Không có phiên hoạt động.",
+  "common.channel_processing": "Đang xử lý…",
   "common.channel_session_compacted": "Đã thu gọn phiên.",
   "common.channel_session_resolution_error": "⚠️ Không thể phân giải phiên cho tác nhân này. Vui lòng thử lại sau.",
   "common.channel_stopped": "Đã dừng",

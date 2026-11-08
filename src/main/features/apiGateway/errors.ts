@@ -1,5 +1,5 @@
 import { JSONRPC_VERSION, ProtocolErrorCode } from '@modelcontextprotocol/server'
-import { ElysiaCustomStatusResponse, type ErrorHandler } from 'elysia'
+import { ElysiaCustomStatusResponse, type ErrorHandler, ValidationError } from 'elysia'
 
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
@@ -247,7 +247,9 @@ export function buildStreamErrorFrame(outputFormat: OutputFormat, error: unknown
  */
 export function anthropicErrorHandler({ code, error, status }: GatewayErrorContext) {
   if (code === 'VALIDATION') {
-    return status(400, anthropicEnvelope('invalid_request_error', messageOf(error, 'Invalid request parameters')))
+    const issue = error instanceof ValidationError ? error.all[0] : undefined
+    const message = issue ? `${issue.path}: ${issue.message}` : 'Invalid request parameters'
+    return status(400, anthropicEnvelope('invalid_request_error', message))
   }
   if (code === 'NOT_FOUND') {
     return status(404, anthropicEnvelope('not_found_error', 'Not found'))
@@ -333,6 +335,23 @@ export function restErrorHandler({ code, error, status }: GatewayErrorContext) {
   }
   if (code === 'PARSE') {
     return status(400, restEnvelope('BAD_REQUEST', 'Malformed request body'))
+  }
+
+  // Preserve classified HTTP status from errors that carry it (e.g. idle timeout → 504).
+  const explicitStatus = (error as { status?: number })?.status
+  if (explicitStatus && explicitStatus >= 500 && explicitStatus !== 500) {
+    const statusCode = explicitStatus
+    return status(
+      statusCode,
+      restEnvelope(
+        statusCode >= 503 ? 'SERVICE_UNAVAILABLE' : 'INTERNAL_SERVER_ERROR',
+        isDev
+          ? messageOf(error, `Server error ${statusCode}`)
+          : statusCode === 504
+            ? 'Upstream idle timeout exceeded'
+            : 'Internal server error'
+      )
+    )
   }
 
   logger.error('API gateway request error', { code, error })
