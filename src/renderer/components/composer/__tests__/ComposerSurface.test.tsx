@@ -1763,6 +1763,30 @@ describe('ComposerSurface', () => {
     expect(mocks.chainRun).toHaveBeenCalled()
   })
 
+  it('handles Shift+Tab mode switching without intercepting modified shortcuts or composition', async () => {
+    let mode = 'ordinary'
+    render(
+      <ComposerSurface
+        {...baseProps}
+        onShiftTab={() => {
+          mode = mode === 'ordinary' ? 'plan' : 'ordinary'
+        }}
+      />
+    )
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    const key = { key: 'Tab', shiftKey: true, isComposing: false, preventDefault: vi.fn(), stopPropagation: vi.fn() }
+    const handle = mocks.editorOptions.editorProps.handleKeyDown
+    expect(handle(null, key)).toBe(true)
+    expect(mode).toBe('plan')
+    handle(null, { ...key, repeat: true })
+    expect(mode).toBe('plan')
+    handle(null, { ...key, ctrlKey: true })
+    handle(null, { ...key, isComposing: true })
+    expect(mode).toBe('plan')
+    handle(null, key)
+    expect(mode).toBe('ordinary')
+  })
+
   it('uses Tab to select the next prompt variable token', async () => {
     mocks.docDescendants.mockImplementation((visit: (node: unknown, position: number) => void) => {
       visit(

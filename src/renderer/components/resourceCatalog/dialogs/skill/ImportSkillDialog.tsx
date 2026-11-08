@@ -329,11 +329,15 @@ export function ImportSkillDialog({ open, onOpenChange, requireConfirmation = fa
                 'dataTransfer' in event && event.dataTransfer ? Array.from(event.dataTransfer.files) : files
               void handleDroppedEntries(droppedFiles)
             }}
-            className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border-subtle bg-transparent p-8 text-center shadow-none transition-colors hover:border-border-strong hover:bg-accent disabled:pointer-events-none disabled:opacity-60">
+            className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border-subtle bg-transparent p-8 text-center whitespace-normal shadow-none transition-colors hover:border-border-strong hover:bg-accent disabled:pointer-events-none disabled:opacity-60">
             <DropzoneEmptyState>
               <Package size={26} strokeWidth={1.2} className="mb-3 size-6 text-foreground-tertiary" />
-              <p className="mb-1 text-xs text-muted-foreground">{t('library.import_skill_dialog.local.drop_hint')}</p>
-              <p className="text-xs text-muted-foreground">{t('library.import_skill_dialog.local.formats')}</p>
+              <p className="mb-1 w-full text-xs whitespace-normal text-wrap break-words text-muted-foreground">
+                {t('library.import_skill_dialog.local.drop_hint')}
+              </p>
+              <p className="w-full text-xs whitespace-normal text-wrap break-words text-muted-foreground">
+                {t('library.import_skill_dialog.local.formats')}
+              </p>
             </DropzoneEmptyState>
           </Dropzone>
 

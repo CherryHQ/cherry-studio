@@ -46,6 +46,8 @@ export type SkillLibraryTags = {
   removedDefaults?: string[]
 }
 
+export type AgentDetailsSectionConfig = { id: string; visible: boolean }
+
 export type OnboardingProviderSetupStatus = 'pending' | 'completed' | 'skipped'
 
 export type RetryFallbackModelId = UniqueModelId
@@ -147,6 +149,7 @@ export type AgentSessionDisplayMode = 'time' | 'agent' | 'workdir'
 export const SIDEBAR_FAVORITES = [
   'assistants',
   'agents',
+  'scheduled_tasks',
   'paintings',
   'marketplace',
   'translate',
@@ -459,6 +462,8 @@ export type FileProcessorOptions = {
 export type FileProcessorCapabilityOverride = {
   apiHost?: string
   modelId?: string
+  formulaLevel?: 0 | 1 | 2
+  mergeCrossPageForms?: boolean
 }
 
 export type FileProcessorCapabilityOverrides = Partial<Record<FileProcessorFeature, FileProcessorCapabilityOverride>>

@@ -177,7 +177,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.input.modelId,
       this.input.reasoningEffort ?? 'default',
       this.input.fastMode === true,
-      this.input.knowledgeBaseIds
+      this.input.knowledgeBaseIds,
+      this.input.serviceTier
     )
     if (!request) {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
@@ -342,6 +343,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   async reconcile(input: {
     modelId: UniqueModelId
     reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
+    serviceTier?: AgentRuntimeConnectInput['serviceTier']
     knowledgeBaseIds?: readonly string[]
     fastMode?: boolean
   }): Promise<AgentRuntimeReconcileResult> {
@@ -359,6 +361,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private async reconcileOnce(input: {
     modelId: UniqueModelId
     reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
+    serviceTier?: AgentRuntimeConnectInput['serviceTier']
     knowledgeBaseIds?: readonly string[]
     fastMode?: boolean
   }): Promise<AgentRuntimeReconcileResult> {
@@ -368,7 +371,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       input.modelId,
       input.reasoningEffort ?? 'default',
       input.fastMode === true,
-      input.knowledgeBaseIds
+      input.knowledgeBaseIds,
+      input.serviceTier
     )
     if (!derived.ok) return 'invalid'
     const baseline = this.connectionConfig
@@ -640,41 +644,49 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
             : event
         )
       }
-      const result = await this.handleControl(control)
+      const result = await this.handleControl(control, contextId)
       if (result) terminal.push(result)
     }
     return terminal
   }
 
-  private async handleControl(control: ClaudeControl): Promise<AgentRuntimeEvent | undefined> {
+  private async handleControl(control: ClaudeControl, contextId: string): Promise<AgentRuntimeEvent | undefined> {
     if (control.type === 'input-boundary') {
       this.eventQueue.push({ type: 'steer-boundary', inputIds: control.inputIds })
       this.currentSources.clear()
     } else if (control.type === 'autonomous-turn-state' && control.state === 'started') {
       this.currentSources.clear()
     } else if (control.type === 'session') {
+      if (contextId !== this.context?.id) return
       if (control.sessionId !== this.handle!.claude.sessionId) {
         const opened = await this.runtime!.open({
           backendId: this.handle!.thread.backendId,
           id: runtimeId(control.sessionId)
         })
         if (opened.status !== 'confirmed') throw new Error(opened.error.message)
+        let context: NonNullable<typeof this.context>
+        try {
+          context = prepareClaudeBranch(
+            this.input.sessionId,
+            resolveClaudeConfigDirectory(this.spawnOptions?.env),
+            control.sessionId
+          )
+        } catch (error) {
+          await opened.value.release()
+          throw error
+        }
+        this.context = context
         this.handle = opened.value
-        this.context = prepareClaudeBranch(
-          this.input.sessionId,
-          resolveClaudeConfigDirectory(this.spawnOptions?.env),
-          control.sessionId,
-          this.input.branchHead
-        )
         await this.observeRoot(this.handle)
       }
-      this.context = contexts.bindContext(this.context!.id, control.sessionId)
+      this.context = contexts.bindContext(this.context.id, control.sessionId)
       this.updateResumeToken(control.sessionId)
     } else if (control.type === 'archive-changed') {
       await this.handle!.claude.archive()
     } else if (control.type === 'diagnostic') {
       logger.warn(control.message, { detail: control.detail })
     } else if (control.type === 'result') {
+      if (control.sessionId !== this.handle?.claude.sessionId) return
       if (control.failure) return { type: 'error', error: new ClaudeCodeResultError(control.failure) }
       if (!control.terminal) return
       this.updateResumeToken(control.sessionId)
@@ -1247,6 +1259,9 @@ function toClaudeImageMediaType(value: string | undefined) {
 export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly workspaceRelocation = claudeWorkspaceRelocation
   readonly fork = forkClaudeSession
+  isForkCheckpoint(value: unknown): boolean {
+    return ClaudeForkCheckpointSchema.safeParse(value).success
+  }
   readonly type = 'claude-code'
 
   async validateSession(session: AgentSessionEntity): Promise<void> {

@@ -113,6 +113,32 @@ export class AgentLifecycleService extends BaseService {
     )
   }
 
+  deleteTaskWithSessions(taskId: string) {
+    return this.runOperation('delete-task:' + taskId, () =>
+      this.withStableSessions(
+        () => agentSessionService.listTaskSessionIds(taskId),
+        async () => {
+          await Promise.all(
+            agentSessionService
+              .listTaskSessionIds(taskId)
+              .map((id) => application.get('AgentSessionRuntimeService').closeSessionForArchive(id))
+          )
+          const result = application.get('DbService').withWriteTx((tx) => {
+            const ids = agentSessionService.listTaskSessionIds(taskId)
+            const trashed = agentSessionService.trashByIdsTx(tx, ids)
+            const deleted = agentTaskService.deleteScheduleTx(tx, taskId)
+            return { ...trashed, deleted }
+          })
+          this.syncSchedules([taskId])
+          agentSessionService.notifyReadModelChange(result.trashedIds, 'membership')
+          await this.finishDeletion(result.trashedIds, result.deliveryResults)
+          return result.deleted
+        },
+        true
+      )
+    )
+  }
+
   archiveSessions(ids: string[]) {
     return this.runOperation('archive-sessions:' + ids.join(','), () =>
       this.deleteSessionsInternal([...new Set(ids)], false)
