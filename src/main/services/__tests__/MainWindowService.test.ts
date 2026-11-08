@@ -354,6 +354,37 @@ describe('MainWindowService', () => {
     vi.clearAllMocks()
   })
 
+  describe('application activation', () => {
+    function registerAndActivate() {
+      ;(svc as any).registerActivateHandler()
+      const activation = (app.on as any).mock.calls.find(([event]: [string]) => event === 'activate')
+      if (!activation) throw new Error('activate handler not registered')
+      activation[1]()
+    }
+
+    it('keeps focus on a focused Quick Assistant instead of showing Main', () => {
+      const quickAssistant = createMockWindow()
+      quickAssistant.isFocused.mockReturnValue(true)
+      windowManagerMock.getWindowsByType.mockReturnValue([quickAssistant])
+      const showMainWindow = vi.spyOn(svc, 'showMainWindow')
+
+      registerAndActivate()
+
+      expect(showMainWindow).not.toHaveBeenCalled()
+    })
+
+    it('shows Main when Quick Assistant is not focused', () => {
+      const quickAssistant = createMockWindow()
+      quickAssistant.isFocused.mockReturnValue(false)
+      windowManagerMock.getWindowsByType.mockReturnValue([quickAssistant])
+      const showMainWindow = vi.spyOn(svc, 'showMainWindow')
+
+      registerAndActivate()
+
+      expect(showMainWindow).toHaveBeenCalledOnce()
+    })
+  })
+
   describe('Apple Silicon architecture warning', () => {
     beforeEach(() => {
       platformState.isMac = true
