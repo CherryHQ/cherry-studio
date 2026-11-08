@@ -157,12 +157,6 @@ describe('AnalyticsService data collection preference', () => {
       properties: expect.objectContaining({
         source: 'settings',
         app_edition: 'global',
-        producer: 'client',
-        surface: 'desktop',
-        region: 'global',
-        environment: 'development',
-        test: true,
-        product: 'cloud-api',
         $ip: '0.0.0.0',
         $process_person_profile: false
       })
@@ -182,48 +176,20 @@ describe('AnalyticsService data collection preference', () => {
     finishShutdown()
   })
 
-  it.each([
-    ['cn', 'account-1', 'cloud-api:cn:development:account:account-1', true],
-    ['cn', null, 'test-client-id', false],
-    ['global', 'account-1', 'test-client-id', false]
-  ] as const)(
-    'identifies a %s edition event with account %s the way the China subscription web page does',
-    async (edition, accountId, distinctId, personProfile) => {
-      vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
-      vi.mocked(getAppEdition).mockReturnValue(edition)
-      const service = new AnalyticsService()
-      await service._doInit()
-      await vi.waitFor(() => expect(service.isActivated).toBe(true))
-
-      service.trackEvent('subscription_entry_clicked', { source: 'settings' }, accountId)
-
-      expect(posthog.capture).toHaveBeenCalledWith(
-        expect.objectContaining({
-          distinctId,
-          properties: expect.objectContaining({ $process_person_profile: personProfile })
-        })
-      )
-    }
-  )
-
-  it.each([
-    ['a release build against a test backend', 'https://cloud-dev.cherry-ai.com', 'development', true],
-    ['a release build against production', '', 'production', false]
-  ] as const)('marks events from %s as that environment', async (_case, apiOrigin, environment, test) => {
-    vi.stubEnv('DEV', false)
+  it('preserves a caller-provided identity without interpreting its domain', async () => {
     vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
-    vi.stubEnv('MAIN_VITE_CHERRY_CLOUD_API_ORIGIN', apiOrigin)
-    vi.mocked(getAppEdition).mockReturnValue('cn')
     const service = new AnalyticsService()
     await service._doInit()
     await vi.waitFor(() => expect(service.isActivated).toBe(true))
-
-    service.trackEvent('subscription_entry_clicked', { source: 'settings' }, 'account-1')
-
+    service.trackEvent(
+      'feature_used',
+      { source: 'settings' },
+      { distinctId: 'chosen-identity', processPersonProfile: true }
+    )
     expect(posthog.capture).toHaveBeenCalledWith(
       expect.objectContaining({
-        distinctId: `cloud-api:cn:${environment}:account:account-1`,
-        properties: expect.objectContaining({ environment, test })
+        distinctId: 'chosen-identity',
+        properties: expect.objectContaining({ source: 'settings', $process_person_profile: true, $ip: '0.0.0.0' })
       })
     )
   })

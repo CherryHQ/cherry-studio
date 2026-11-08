@@ -3,8 +3,8 @@ import { useCallback } from 'react'
 import { useCherryCloudModelAvailability } from '@renderer/hooks/useCherryCloudModelAvailability'
 import type { Model } from '@shared/data/types/model'
 
-/** Whether the selector would offer `model` as a selectable row, for owners that preselect a value. */
-export function useIsModelSelectable({
+/** Cloud availability check for owners that independently validate model, provider and capability eligibility. */
+export function useIsCherryCloudModelSelectable({
   includeAgentOnlyModels = false,
   enabled = true
 }: { includeAgentOnlyModels?: boolean; enabled?: boolean } = {}): (model: Model) => boolean {

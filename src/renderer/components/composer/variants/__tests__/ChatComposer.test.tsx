@@ -3,7 +3,7 @@ import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { type ComponentType, type ReactNode, useEffect } from 'react'
+import { Children, isValidElement, type ComponentType, type ReactElement, type ReactNode, useEffect } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -16,7 +16,7 @@ import type * as UseProviderModule from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import { voiceTargetManager } from '@renderer/services/voice'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { createUniqueModelId, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { IpcChannel } from '@shared/IpcChannel'
 
@@ -29,6 +29,8 @@ import ChatComposer, { ChatHomeComposer, ChatPlacementComposer } from '../ChatCo
 
 const mocks = vi.hoisted(() => ({
   quotaExhaustion: null as CherryCloudQuotaExhaustion | null,
+  exhaustedTargets: new Set<string>(),
+  availabilityRevision: 1,
   createTopic: vi.fn(),
   updateTopic: vi.fn(),
   setModel: vi.fn(),
@@ -63,6 +65,7 @@ const mocks = vi.hoisted(() => ({
   selectedModel: undefined as Model | undefined,
   modelSelectorProps: [] as any[],
   topicPending: false,
+  topicFulfilled: false,
   awaitingApproval: false,
   surfaceProps: undefined as ComposerSurfaceProps | undefined,
   realSurface: undefined as ComponentType<ComposerSurfaceProps> | undefined,
@@ -389,6 +392,13 @@ vi.mock('../SelectedModelsTrigger', () => ({
   )
 }))
 
+vi.mock('@renderer/components/cherryCloud/CherryCloudModelSelector', async () => {
+  const selector = await import('@renderer/components/ModelSelector')
+  return {
+    CherryCloudModelSelector: selector.ModelSelector
+  }
+})
+
 vi.mock('@renderer/components/ModelSelector', () => ({
   getProviderDisplayName: (provider: Provider) => provider.name,
   ModelSelector: (props: any) => {
@@ -578,6 +588,15 @@ vi.mock('@renderer/hooks/useProvider', async (importOriginal) => {
   }
 })
 
+vi.mock('@renderer/hooks/useCherryCloudModelAvailability', () => ({
+  useCherryCloudModelAvailability: () => ({
+    availabilityFreshness: 'fresh',
+    scopeId: 'account-scope',
+    revision: mocks.availabilityRevision,
+    isModelUnavailable: (model: Pick<Model, 'id' | 'providerId'>) => mocks.exhaustedTargets.has(model.id)
+  })
+}))
+
 vi.mock('@renderer/hooks/useCherryCloudQuotaExhaustion', () => ({
   useCherryCloudQuotaExhaustion: () => mocks.quotaExhaustion
 }))
@@ -607,7 +626,13 @@ vi.mock('@renderer/hooks/useTopicAwaitingApproval', () => ({
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   useTopicAwaitingApproval: () => mocks.awaitingApproval,
-  useTopicStreamStatus: () => ({ isPending: mocks.topicPending, isFulfilled: false, markSeen: () => {} })
+  useTopicStreamStatus: () => ({
+    isPending: mocks.topicPending,
+    isFulfilled: mocks.topicFulfilled,
+    status: mocks.topicFulfilled ? 'done' : mocks.topicPending ? 'streaming' : undefined,
+    lastCompletedAt: mocks.topicFulfilled ? 100 : null,
+    markSeen: () => {}
+  })
 }))
 
 vi.mock('@shared/utils/model', () => ({
@@ -694,6 +719,8 @@ const originalFetch = globalThis.fetch
 describe('ChatComposer', () => {
   beforeEach(() => {
     mocks.quotaExhaustion = null
+    mocks.exhaustedTargets.clear()
+    mocks.availabilityRevision = 1
     globalThis.fetch = vi.fn(async () => ({
       ok: true,
       blob: async () => new Blob([new Uint8Array(42)], { type: 'image/png' })
@@ -816,6 +843,7 @@ describe('ChatComposer', () => {
     mocks.selectedModel = undefined
     mocks.modelSelectorProps = []
     mocks.topicPending = false
+    mocks.topicFulfilled = false
     mocks.awaitingApproval = false
     mocks.surfaceProps = undefined
     mocks.realSurface = undefined
@@ -5926,6 +5954,87 @@ describe('ChatComposer', () => {
       }
     )
   })
+  it.each([false, true])(
+    'submits captured targets without deciding quota in the queue (captured exhausted=%s)',
+    async (capturedExhausted) => {
+      const a = { ...model, id: createUniqueModelId('cherryai-subscription', 'a'), providerId: 'cherryai-subscription' }
+      const b = {
+        ...modelB,
+        id: createUniqueModelId('cherryai-subscription', 'b'),
+        providerId: 'cherryai-subscription'
+      }
+      mocks.topicPending = true
+      mocks.mentionedModels = [a]
+      const onSend = vi.fn().mockResolvedValue(undefined)
+      const view = render(<ChatComposer topic={topic} onSend={onSend} />)
+      await act(async () => {
+        await mocks.surfaceProps?.onSendDraft({ text: 'captured target', tokens: [] })
+      })
+      const dock = getCapturedQueueDock
+      expect(dock()?.props.items).toHaveLength(1)
+      mocks.exhaustedTargets.add(capturedExhausted ? a.id : b.id)
+      mocks.quotaExhaustion = capturedExhausted
+        ? null
+        : { reason: 'quota_exhausted', isFreeModel: false, isSubscribed: true }
+      mocks.mentionedModels = [b]
+      mocks.topicPending = false
+      mocks.topicFulfilled = true
+      await act(async () => view.rerender(<ChatComposer topic={topic} onSend={onSend} />))
+      expect(onSend).toHaveBeenCalledWith('captured target', expect.objectContaining({ mentionedModels: [a.id] }))
+      expect(dock()?.props.items ?? []).toEqual([])
+      await act(async () => view.rerender(<ChatComposer topic={topic} onSend={onSend} />))
+      expect(onSend).toHaveBeenCalledTimes(1)
+    }
+  )
+
+  it('submits every captured target without blocking healthy models on another target quota', async () => {
+    const a = { ...model, id: createUniqueModelId('cherryai-subscription', 'a'), providerId: 'cherryai-subscription' }
+    mocks.topicPending = true
+    mocks.mentionedModels = [a, modelB]
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    const view = render(<ChatComposer topic={topic} onSend={onSend} />)
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'all targets', tokens: [] })
+    })
+    mocks.exhaustedTargets.add(a.id)
+    mocks.topicPending = false
+    mocks.topicFulfilled = true
+    await act(async () => view.rerender(<ChatComposer topic={topic} onSend={onSend} />))
+    expect(onSend).toHaveBeenCalledWith('all targets', expect.objectContaining({ mentionedModels: [a.id, modelB.id] }))
+    expect(getCapturedQueueDock()?.props.items ?? []).toEqual([])
+  })
+
+  it('keeps an unaccepted draft paused when quota recovers until an explicit retry', async () => {
+    const a = { ...model, id: createUniqueModelId('cherryai-subscription', 'a'), providerId: 'cherryai-subscription' }
+    mocks.topicPending = true
+    mocks.mentionedModels = [a]
+    const onSend = vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true)
+    const view = render(<ChatComposer topic={topic} onSend={onSend} />)
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'retry explicitly', tokens: [] })
+    })
+    mocks.exhaustedTargets.add(a.id)
+    mocks.topicPending = false
+    mocks.topicFulfilled = true
+    await act(async () => view.rerender(<ChatComposer topic={topic} onSend={onSend} />))
+    const dock = getCapturedQueueDock
+    expect(onSend).toHaveBeenCalledTimes(1)
+    expect(dock()?.props.items).toEqual([
+      expect.objectContaining({ payload: expect.objectContaining({ text: 'retry explicitly' }) })
+    ])
+
+    mocks.exhaustedTargets.clear()
+    mocks.availabilityRevision++
+    await act(async () => view.rerender(<ChatComposer topic={topic} onSend={onSend} />))
+    expect(onSend).toHaveBeenCalledTimes(1)
+    expect(dock()?.props.items).toHaveLength(1)
+
+    await act(async () => {
+      await dock()!.props.onSteer(dock()!.props.items[0].id)
+    })
+    expect(onSend).toHaveBeenCalledTimes(2)
+    expect(dock()?.props.items ?? []).toEqual([])
+  })
 })
 
 async function notifyComposerBottomToolbarWidth(width: number, scrollWidth = width + 240) {
@@ -5962,4 +6071,13 @@ async function notifyComposerBottomToolbarWidth(width: number, scrollWidth = wid
       )
     }
   })
+}
+
+type CapturedQueueDockProps = { items: { id: string }[]; onSteer(id: string): Promise<unknown> }
+function getCapturedQueueDock(): ReactElement<CapturedQueueDockProps> | undefined {
+  const content = mocks.surfaceProps?.queueContent as ReactElement<{ children?: ReactNode }> | undefined
+  return [content, ...Children.toArray(content?.props.children)].find(
+    (node): node is ReactElement<CapturedQueueDockProps> =>
+      isValidElement<CapturedQueueDockProps>(node) && Array.isArray(node.props.items)
+  )
 }

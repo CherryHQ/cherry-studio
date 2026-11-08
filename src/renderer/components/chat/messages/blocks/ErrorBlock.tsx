@@ -8,14 +8,14 @@ import { loggerService } from '@logger'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getHttpMessageLabelKey, getProviderLabelKey } from '@renderer/i18n/label'
 import type { SerializedError } from '@renderer/types/error'
-import { cherryCloudQuotaRejectionText, formatErrorMessageWithPrefix, providerErrorText } from '@renderer/utils/error'
+import { getCherryCloudErrorPresentation } from '@renderer/utils/cherryCloudErrorPresentation'
+import { formatErrorMessageWithPrefix, providerErrorText } from '@renderer/utils/error'
 import {
   classifyError,
   getClaudeCodeExitCategory,
   getClaudeCodeExitInfo,
   getLocalModelResolutionFailure
 } from '@renderer/utils/errorClassifier'
-import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 
 import { useMessageListActions } from '../MessageListProvider'
 import type { MessageListItem } from '../types'
@@ -141,14 +141,9 @@ const MessageErrorInfo: React.FC<{
   const providerId = getMessageListItemModel(message)?.provider ?? errorProviderId
   const classification = useMemo(() => classifyError(error, providerId), [error, providerId])
   const localModelFailure = useMemo(() => getLocalModelResolutionFailure(error), [error])
-  // A Cherry AI subscription plan's own rejection says which plan ran out and when to retry; settings cannot fix it.
-  const cherryCloudQuotaRejection =
-    providerId === CHERRY_CLOUD_PROVIDER_ID &&
-    (classification.category === 'rate_limit' || classification.category === 'quota')
-  const cherryCloudQuotaText = useMemo(
-    () => (cherryCloudQuotaRejection && error ? cherryCloudQuotaRejectionText(error) : ''),
-    [cherryCloudQuotaRejection, error]
-  )
+  const cloudPresentation = getCherryCloudErrorPresentation(error, providerId, classification.category)
+  const cherryCloudQuotaRejection = cloudPresentation.quota
+  const cherryCloudQuotaText = cherryCloudQuotaRejection ? cloudPresentation.text : ''
   // An app-owned i18nKey is the throwing code's own display text — prefer it over a
   // pattern-matched category heading, which can name the wrong subsystem entirely (an
   // OCR-fallback failure must not present as a chat-provider auth error). Keys that

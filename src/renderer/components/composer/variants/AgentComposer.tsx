@@ -540,6 +540,7 @@ const AgentComposerInner = ({
 }: InnerProps) => {
   const { updateAgent, updateModel } = useUpdateAgent()
   const quotaExhaustion = useCherryCloudQuotaExhaustion(model, true)
+  const quotaBlocksSend = !!quotaExhaustion && quotaExhaustion.reason !== 'unknown'
   const { updateSession } = useUpdateSession()
   const scope = TopicType.Session
   const config = getComposerToolConfig(scope)
@@ -631,7 +632,12 @@ const AgentComposerInner = ({
     if (agent)
       void updateAgent({ id: agent.id, configuration: { permission_mode: 'plan' } }, { showSuccessToast: false })
   }, [agent, updateAgent])
-  const planHint = usePlanModeHint({ agent, text, enablePlanMode })
+  const {
+    visible: planHintVisible,
+    accept: acceptPlanHint,
+    dismiss: dismissPlanHint,
+    resetDraft: resetPlanHintDraft
+  } = usePlanModeHint({ agent, text, enablePlanMode })
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
   const releaseFollowupEditRef = useRef<() => void>(() => {})
@@ -1325,7 +1331,7 @@ const AgentComposerInner = ({
 
   const clearCurrentDraft = useCallback(() => {
     releaseFollowupEditRef.current()
-    planHint.resetDraft()
+    resetPlanHintDraft()
     setText('')
     setFiles([])
     setSelectedSkills([])
@@ -1354,7 +1360,7 @@ const AgentComposerInner = ({
     draftCacheKey,
     draftPersistenceEnabled,
     knowledgeBaseIdsRef,
-    planHint.resetDraft,
+    resetPlanHintDraft,
     resetHistoryIndex,
     setFiles,
     setText,
@@ -1378,8 +1384,7 @@ const AgentComposerInner = ({
     scopeKey: launchOptions?.editing ? `${sessionTopicId}:edit:${launchOptions.editing.messageId}` : sessionTopicId,
     status: sendDisabled || launchOptions?.editing ? undefined : sessionStatus,
     lastCompletedAt,
-    onDrain: sendQueuedPayload,
-    blocked: !!quotaExhaustion
+    onDrain: sendQueuedPayload
   })
   releaseFollowupEditRef.current = releaseEdit
 
@@ -1641,7 +1646,7 @@ const AgentComposerInner = ({
             hasPendingReference ||
             modelPending ||
             !!missingModelMessage ||
-            !!quotaExhaustion ||
+            quotaBlocksSend ||
             (text.trim().length === 0 && files.length === 0 && selectedSkills.length === 0)
           }
           sendBlockedReason={
@@ -1654,14 +1659,14 @@ const AgentComposerInner = ({
           }
           onPause={abortAgentSession}
           onShiftTab={() => {
-            if (!planHint.visible) return false
-            planHint.accept()
+            if (!planHintVisible) return false
+            acceptPlanHint()
             return true
           }}
           queueContent={
             <>
               {quotaExhaustion ? <CherryCloudQuotaNotice exhaustion={quotaExhaustion} /> : null}
-              {planHint.visible && <PlanModeHint onAccept={planHint.accept} onDismiss={planHint.dismiss} />}
+              {planHintVisible && <PlanModeHint onAccept={acceptPlanHint} onDismiss={dismissPlanHint} />}
               {compaction.status === 'failed' && (
                 <Alert
                   type="warning"
@@ -1689,7 +1694,6 @@ const AgentComposerInner = ({
                   }}
                   onRemove={removeFollowup}
                   onReorder={reorderFollowups}
-                  isSteerDisabled={quotaExhaustion ? () => true : undefined}
                 />
               ) : undefined}
             </>
