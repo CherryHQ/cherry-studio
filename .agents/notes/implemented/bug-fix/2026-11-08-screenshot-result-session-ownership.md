@@ -27,3 +27,5 @@ Cancelling a capture invalidates its pending export. Completing an old save cann
 - Regression — the two public-API save-dialog cancellation/error cases failed before the generation guard: the newer capture became visible while its native save was pending. All 89 service tests passed after that repair.
 - Regression — `ScreenshotOverlayService.test.ts` and the screenshot IPC handler tests pass 106 checks covering pooled capture identity, stale requests, cancelled and failed dialogs, duplicate saves and file output.
 - Regression — `CaptureOverlay.test.tsx`, `Toolbar.test.tsx` and `generateBlob.test.ts` pass 13 checks, including delayed real PNG encoding, duplicate exports, capture reuse and the older completion's inability to release a newer export.
+
+- Regression — MP-128 passed in the normal 134-case local run at `00effcea97`, including save, pixel equality, OCR and chat delivery. Owned-runtime cleanup passed; that complete suite finished 127/134, so this case result is not full acceptance.

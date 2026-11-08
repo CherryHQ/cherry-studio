@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-08-screenshot-result-session-ownership.md
-2026-11-08-screenshot-result-session-ownership.md: 8350627b9a713dd7b6b1f15033c3119a81da3454
-2026-11-08-screenshot-result-session-ownership.zh.md: c0d17709fb2c8f5aa0990f26f01c14307525be88
+2026-11-08-screenshot-result-session-ownership.md: 9052b4b70156b94b992ca63dfb2fa5172949c894
+2026-11-08-screenshot-result-session-ownership.zh.md: e0e80f8f65cc2f5f17a4783bbce6590e71ee5e2f

@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-07-selection-translation-request-lifetime.md
-2026-11-07-selection-translation-request-lifetime.md: 5fb6173d7205c4490fc1ce77d911c45c83a228d6
-2026-11-07-selection-translation-request-lifetime.zh.md: 4816b509d881d3eeb7e3170d233c965536297b26
+2026-11-07-selection-translation-request-lifetime.md: 3d0bc93e868dc715c662d4a50b0e51d8130dbec7
+2026-11-07-selection-translation-request-lifetime.zh.md: 2b1d15355dffd6261ac0ffe517e9e31ca5a8b847

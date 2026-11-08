@@ -27,3 +27,5 @@ Status: implemented
 - 回归 — 添加 generation 保护前，两条通过公共 API 触发保存框取消或异常的测试失败：新捕获的原生保存仍在等待时，其遮罩被错误显示。修复后全部 89 项服务测试通过。
 - 回归 — `ScreenshotOverlayService.test.ts` 和截图 IPC handler 测试共 106 项通过，覆盖池化捕获身份、过期请求、保存框取消与异常、重复保存及文件输出。
 - 回归 — `CaptureOverlay.test.tsx`、`Toolbar.test.tsx` 和 `generateBlob.test.ts` 共 13 项通过，覆盖延迟完成的真实 PNG 编码、重复导出、捕获复用，以及旧操作结束不能释放新导出。
+
+- 回归 — MP-128 在 `00effcea97` 的本机正常 134 用例运行中通过，覆盖保存、像素一致性、OCR 和聊天投递。所拥有运行资源清理成功；该套件整体为 127/134，因此这条用例结果不能作为完整验收通过的依据。
