@@ -1,7 +1,8 @@
 import type * as ChildProcess from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { cp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join, posix, win32 } from 'node:path'
+import { dirname, join, posix, win32 } from 'node:path'
 
 import { afterEach, vi } from 'vitest'
 
@@ -16,7 +17,7 @@ vi.mock('node:child_process', async (importOriginal) => ({
   spawn: spawnMock
 }))
 
-import { type AppRecord, createProfileEnvironment, ensureProfile, launchApp, stopOwnedApp } from '../lifecycle'
+import { type AppRecord, createProfileEnvironment, ensureProfile, launchApp, stopApp, stopOwnedApp } from '../lifecycle'
 import { ensureRunDirectories, getRunPaths } from '../paths'
 import * as processUtils from '../process'
 
@@ -50,6 +51,98 @@ describe('isolated profile environment', () => {
 })
 
 describe('owned application lifecycle', () => {
+  it.each(['exited', 'timed-out'] as const)(
+    'only permits a complete Windows profile backup after normal shutdown: %s',
+    async (outcome) => {
+      vi.useFakeTimers()
+      const directory = mkdtempSync(join(tmpdir(), 'cherry-stopped-profile-'))
+      const paths = getRunPaths(directory)
+      ensureRunDirectories(paths)
+      const profile = join(paths.profiles, 'authenticated', 'userData')
+      const files = {
+        'Data/cherrystudio.sqlite': 'database committed during normal shutdown',
+        'Network/Cookies': 'cookie store closed during normal shutdown',
+        'Data/Files/owned.txt': 'complete business file contents'
+      }
+      for (const [name, content] of Object.entries(files)) {
+        const file = join(profile, name)
+        mkdirSync(dirname(file), { recursive: true })
+        writeFileSync(file, name === 'Data/Files/owned.txt' ? content : 'not yet flushed')
+      }
+      const record: AppRecord = {
+        schemaVersion: 1,
+        ownership: 'regression-driver',
+        policy: 'ephemeral',
+        mode: 'tag',
+        platform: 'windows',
+        profile: 'authenticated',
+        runKey: 'stopped-profile',
+        targetRoot: directory,
+        executablePath: join(directory, 'owned.exe'),
+        command: join(directory, 'owned.exe'),
+        args: [],
+        cwd: directory,
+        runnerPid: 42_000,
+        electronPid: 42_001,
+        cdpPort: 9222,
+        targetUrl: 'file:///owned/windows/main/index.html',
+        logPath: join(paths.logs, 'electron.log'),
+        startedAt: '2026-11-08T00:00:00.000Z',
+        restartCount: 0
+      }
+      writeFileSync(paths.appRecord, JSON.stringify(record))
+      const alive = new Set([record.runnerPid, record.electronPid])
+      vi.spyOn(process, 'kill').mockImplementation((pid) => {
+        if (alive.has(pid)) return true
+        throw Object.assign(new Error('Process exited'), { code: 'ESRCH' })
+      })
+      execFileSyncMock.mockImplementation((file: string, args: string[]) => {
+        const script = args.at(-1) ?? ''
+        if (file === 'taskkill.exe') {
+          alive.clear()
+          return ''
+        }
+        if (script.includes('Get-NetTCPConnection'))
+          return alive.has(record.electronPid) ? String(record.electronPid) : ''
+        if (script.includes('CommandLine')) return record.executablePath!
+        if (script.includes('ParentProcessId')) return String(record.runnerPid)
+        throw new Error('Unexpected process query')
+      })
+      const debugBridge = await import('../debugBridge')
+      vi.spyOn(debugBridge, 'requestOwnedAppQuit').mockImplementation(async () => {
+        if (outcome === 'exited') {
+          setTimeout(() => {
+            for (const [name, content] of Object.entries(files)) writeFileSync(join(profile, name), content)
+            alive.clear()
+          }, 250)
+        }
+      })
+      const backup = join(paths.private, 'profile-backup')
+      try {
+        const copying = stopApp(paths).then(() => cp(profile, backup, { recursive: true }))
+        const assertion =
+          outcome === 'exited'
+            ? expect(copying).resolves.toBeUndefined()
+            : expect(copying).rejects.toThrow('did not exit after a normal shutdown request')
+        await Promise.all([assertion, vi.runAllTimersAsync()])
+        if (outcome === 'exited') {
+          expect([...alive]).toEqual([])
+          for (const [name, content] of Object.entries(files)) {
+            expect(readFileSync(join(backup, name), 'utf8')).toBe(content)
+          }
+          await stopApp(paths)
+        } else {
+          expect(alive).toEqual(new Set([record.runnerPid, record.electronPid]))
+          expect(existsSync(backup)).toBe(false)
+        }
+        expect(execFileSyncMock.mock.calls.some(([file]) => file === 'taskkill.exe')).toBe(false)
+        expect(spawnMock).not.toHaveBeenCalled()
+      } finally {
+        rmSync(directory, { recursive: true, force: true })
+      }
+    }
+  )
+
   it.each(['drained', 'stuck', 'alive', 'EPERM', 'UNKNOWN'])(
     'observes an unverified macOS group without signalling its members: %s',
     async (outcome) => {

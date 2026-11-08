@@ -15,6 +15,7 @@ import {
   readAppRecord,
   readOwnedRecord,
   restartApp,
+  stopApp,
   type AppRecord
 } from '../../../scripts/e2e/regression/lifecycle'
 import { getRunPaths, type RunPaths } from '../../../scripts/e2e/regression/paths'
@@ -216,6 +217,11 @@ export class RegressionApp {
     await dismissTransientDialogs(mainWindow)
     const transientPages = pages.filter((page) => /\/windows\/(quickassistant|selection)\//i.test(page.url()))
     await Promise.all(transientPages.map((page) => page.keyboard.press('Escape').catch(() => undefined)))
+  }
+
+  async stop(): Promise<void> {
+    await this.disconnect()
+    await stopApp(this.paths)
   }
 
   async restart(profile?: TestProfile): Promise<Page> {

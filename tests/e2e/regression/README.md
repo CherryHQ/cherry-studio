@@ -24,6 +24,7 @@ Custom assistants and knowledge bases are named with their case ID. Agent work d
 M-02 sends its provider-verification message from a case-owned assistant with no custom prompt and removes that assistant after the persistence check.
 Each non-startup scenario begins on Chat with quick/selection assistants disabled. Persistence assertions restart the application inside the same scenario without repeating setup, so initialization cannot hide lost persisted state.
 The built-in assistant's tests start new tasks and clear skill tokens where required. A scenario that mutates a shared resource must restore its intended state explicitly before relying on it.
+`MP-121` stops the owned application before copying its entire isolated profile into `private/`, then restarts it before exercising Reset. Copy errors remain failures; the application is also restarted when the backup fails.
 
 A failed scenario must not supply the expected result for another scenario. Assert a new assistant response, a newly written file, or a real native event; do not inject success markers through IPC.
 

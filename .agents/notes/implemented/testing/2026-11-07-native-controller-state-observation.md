@@ -55,6 +55,8 @@ Cold Vite dependency optimization reloaded hosted renderers during cases. Phase 
 
 - Prepare the isolated macOS runtime before native adapters in both branch and tag runs. Give its main bundle and four Electron helpers workspace-specific names and IDs before signing; keep the downloaded runtime unchanged. Native fixtures with a configured run must use that prepared executable and reject a missing copy. Tag business tests still launch the installed release. Save the signed bundle identity manifest for permission diagnostics; a generic Electron prompt remains unapproved without requester attribution.
 
+- Stop the owned application before copying the complete MP-121 profile backup, then restart it before the original Reset UI checks. Share the normal-stop lifecycle with restart; require Windows quit and verified exit within 30 seconds rather than ignoring locked files or force-killing to make the copy succeed. A backup failure still attempts restart, and simultaneous failures preserve both errors.
+
 ## Alternatives considered
 
 - Larger timeouts alone do not fix wrong-window input, oversized command lines or ownership races.
@@ -97,3 +99,5 @@ Adapters remain platform specific and fail when native state cannot be confirmed
 - Regression — 53 debug-bridge and system-automation checks passed with Node/E2E types. The Windows tray, relaunch and editor-provider paths still require native CI confirmation; the macOS toolbar diagnostics preserve the unresolved click failure.
 
 - Regression — 43 focused runtime/workflow contracts pass, including real temporary helper plists, workspace identity separation, missing-runtime refusal and branch/tag ordering. Node/E2E types and scoped lint pass. Actual signed native-dialog execution and hosted permission attribution remain separate checks.
+
+- Regression — all 33 lifecycle contracts pass. The new cases copy real temporary Data, Network/Cookies and file contents after a simulated asynchronous shutdown flush; a quit timeout rejects before copying and does not force-terminate or launch another process. Actual Windows lock release remains part of hosted MP-121 verification.

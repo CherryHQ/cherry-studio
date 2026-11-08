@@ -622,9 +622,8 @@ export async function adoptRelaunchedApp(paths: RunPaths, timeout = 120_000): Pr
   throw new Error(`The relaunched application did not take over the CDP port (${lastError})`)
 }
 
-export async function restartApp(paths: RunPaths, profile?: TestProfile): Promise<AppRecord> {
+export async function stopApp(paths: RunPaths): Promise<void> {
   const current = readOwnedRecord(paths)
-  logLifecycleStage(current, 'restart-start')
   if (current.platform === 'windows' && current.electronPid && isAlive(current.electronPid)) {
     const { requestOwnedAppQuit } = await import('./debugBridge')
     const app = readAppRecord(paths)
@@ -634,6 +633,12 @@ export async function restartApp(paths: RunPaths, profile?: TestProfile): Promis
     }
   }
   await stopOwnedApp(paths)
+}
+
+export async function restartApp(paths: RunPaths, profile?: TestProfile): Promise<AppRecord> {
+  const current = readOwnedRecord(paths)
+  logLifecycleStage(current, 'restart-start')
+  await stopApp(paths)
   logLifecycleStage(current, 'restart-stopped')
   return launchApp(paths, {
     mode: current.mode,

@@ -55,6 +55,8 @@ macOS 的 HTTPS 与本地 HTML 文件可以使用不同默认应用。若以 HTT
 
 - branch 和 tag 运行均在原生适配器之前准备隔离的 macOS runtime。签名前为主 bundle 和四个 Electron helper 设置按 workspace 区分的名称及 ID，保持下载的原 runtime 不变。配置运行目录的原生 fixture 必须使用该准备好的可执行文件，副本缺失时拒绝回退；tag 业务测试仍启动已安装的发布包。保存签名 bundle 身份清单用于权限诊断；没有 requester 归属证据时仍不批准通用 Electron 弹窗。
 
+- MP-121 先停止所拥有的应用，再完整复制 profile 备份，随后重启执行原 Reset UI 检查。正常停止与重启共用生命周期；Windows 必须在 30 秒内完成 quit 并确认退出，不忽略锁定文件，也不靠强杀让复制成功。备份失败仍尝试重启，同时失败时保留两项错误。
+
 ## 考虑过的替代方案
 
 - 单纯增加超时无法修复错误窗口输入、超长命令行或进程归属竞态。
@@ -97,3 +99,5 @@ macOS 的 HTTPS 与本地 HTML 文件可以使用不同默认应用。若以 HTT
 - Regression — 53 项 debug bridge 与系统自动化检查、Node/E2E 类型检查通过。Windows 托盘、重复启动及编辑器 provider 路径仍需原生 CI 验证；macOS 工具栏诊断保留尚未解决的点击失败。
 
 - Regression — 43 项定向 runtime/workflow 合同通过，包含真实临时 helper plist、workspace 身份隔离、缺失 runtime 拒绝和 branch/tag 顺序。Node/E2E 类型检查及定向 lint 通过。真实签名原生对话框执行及托管权限归属仍需单独验证。
+
+- Regression — 33 项生命周期合同全部通过。新增用例在模拟异步退出落盘后，复制真实临时 Data、Network/Cookies 和文件内容；quit 超时在复制前拒绝，不强杀也不启动其他进程。真实 Windows 锁释放仍需托管 MP-121 验证。

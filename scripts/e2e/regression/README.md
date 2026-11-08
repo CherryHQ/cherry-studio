@@ -91,9 +91,9 @@ application dependencies, then build the application once with
 cannot reload a renderer during a case. Local controller runs must perform the same
 preparation in the target checkout before `launch`; release installers
 do not need it. Restarting preserves the owned application's profile. On Windows,
-restart of a live instance requests `app.quit()` through its verified main-process inspector and waits
+`RegressionApp.stop()` and restart of a live instance request `app.quit()` through its verified main-process inspector and wait
 for normal shutdown so persistence tests do not simulate a forced crash. A shutdown
-timeout fails the restart; it does not force termination and launch a replacement.
+timeout fails the stop or restart; it does not force termination and launch a replacement.
 An already-exited launch is cleaned up with the same ownership checks before its replacement starts.
 Branch launches invoke the checkout's dotenv and electron-vite entry points through Node,
 so package-manager subprocesses cannot escape the owned process group. Each profile sets
