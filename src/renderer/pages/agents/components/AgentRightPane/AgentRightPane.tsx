@@ -125,7 +125,7 @@ import {
   AgentSessionDetailsToggle,
   AgentSessionDetailsLayout
 } from './AgentSessionDetails'
-import { AgentSessionDetailsSections, TaskStatusIcon } from './AgentSessionDetailsSections'
+import { AgentRunTaskStopsProvider, AgentSessionDetailsSections, TaskStatusIcon } from './AgentSessionDetailsSections'
 import { useAgentPreviewUrl } from './useAgentPreviewUrl'
 import { useAgentSessionDetails } from './useAgentSessionDetails'
 
@@ -1639,7 +1639,7 @@ function AgentDetailsScope({ children, present }: { children: ReactNode; present
     <AgentSessionDetailsProvider
       sessionId={meta.sessionId}
       available={present && meta.conversationState === 'ready' && !!meta.sessionId && !panel.presentationMaximized}>
-      {children}
+      <AgentRunTaskStopsProvider>{children}</AgentRunTaskStopsProvider>
     </AgentSessionDetailsProvider>
   )
 }

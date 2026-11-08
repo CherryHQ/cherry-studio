@@ -1,10 +1,17 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render as renderView, screen, waitFor } from '@testing-library/react'
+import type { ReactElement } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { ipcApi } from '@renderer/ipc'
 
 import type { AgentRightPaneStatus, AgentRunTask } from '../agentRightPaneProjection'
-import { AgentSessionDetailsSections } from '../AgentSessionDetailsSections'
+import { AgentRunTaskStopsProvider, AgentSessionDetailsSections } from '../AgentSessionDetailsSections'
+
+vi.mock('@cherrystudio/ui', async (original) => original())
+
+function render(ui: ReactElement) {
+  return renderView(ui, { wrapper: AgentRunTaskStopsProvider })
+}
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 afterEach(() => vi.restoreAllMocks())
@@ -77,4 +84,43 @@ describe('runtime-owned task settlement', () => {
     expect(screen.getByText('Review')).toBeInTheDocument()
     expect(screen.getByRole('img', { name: 'message.tools.cancelled' })).toBeInTheDocument()
   })
+})
+
+// Catches disclosure or presentation unmounts permitting a duplicate outstanding Stop request.
+it('keeps Stop pending across disclosure and content remounts, and allows retry after failure', async () => {
+  let settle!: (accepted: boolean) => void
+  const request = vi.spyOn(ipcApi, 'request').mockImplementation(
+    () =>
+      new Promise<boolean>((resolve) => {
+        settle = resolve
+      })
+  )
+  const task: AgentRunTask = { id: 'r', title: 'Review', status: 'in_progress', taskType: 'subagent' }
+  const content = (sessionId = 'a') => <AgentSessionDetailsSections sessionId={sessionId} status={status([task])} />
+  const view = render(content())
+  const expand = () => fireEvent.click(screen.getByRole('button', { name: /agent.right_pane.info.subagents/ }))
+  const stop = () => screen.getByRole('button', { name: 'agent.right_pane.status.stop_run_task' })
+  expand()
+  fireEvent.click(stop())
+  expand()
+  expect(screen.queryByRole('button', { name: 'agent.right_pane.status.stop_run_task' })).toBeNull()
+  expand()
+  expect(stop()).toBeDisabled()
+  view.rerender(<></>)
+  view.rerender(content('b'))
+  expand()
+  expect(stop()).toBeEnabled()
+  view.rerender(<></>)
+  view.rerender(content())
+  expand()
+  expect(stop()).toBeDisabled()
+  fireEvent.click(stop())
+  expect(request).toHaveBeenCalledTimes(1)
+  await act(async () => settle(false))
+  await waitFor(() => expect(stop()).toBeEnabled())
+  fireEvent.click(stop())
+  expect(request).toHaveBeenCalledTimes(2)
+  await act(async () => settle(true))
+  expect(stop()).toBeDisabled()
+  expect(screen.getByRole('img', { name: 'message.tools.status.running' })).toBeInTheDocument()
 })

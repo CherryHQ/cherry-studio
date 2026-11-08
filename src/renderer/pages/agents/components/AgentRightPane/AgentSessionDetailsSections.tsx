@@ -11,7 +11,7 @@ import {
   Terminal,
   Workflow
 } from 'lucide-react'
-import { type ReactNode, useState } from 'react'
+import { createContext, type ReactNode, use, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, Button, Tooltip } from '@cherrystudio/ui'
@@ -31,13 +31,43 @@ import type {
 
 const logger = loggerService.withContext('AgentSessionDetails')
 
-// The runtime owns the final status; pending disables duplicate stop submissions.
+interface RunTaskStops {
+  pending: ReadonlySet<string>
+  stop: (sessionId: string, taskId: string) => Promise<void>
+}
+
+const RunTaskStopsContext = createContext<RunTaskStops | null>(null)
+
+export function AgentRunTaskStopsProvider({ children }: { children: ReactNode }) {
+  const { t } = useTranslation()
+  const pendingRef = useRef(new Set<string>())
+  const [pending, setPending] = useState<ReadonlySet<string>>(pendingRef.current)
+
+  const stop = async (sessionId: string, taskId: string) => {
+    const key = JSON.stringify([sessionId, taskId])
+    if (pendingRef.current.has(key)) return
+    pendingRef.current.add(key)
+    setPending(new Set(pendingRef.current))
+    let accepted = false
+    try {
+      accepted = await ipcApi.request('ai.agent.session.stop_background_task', { sessionId, taskId })
+    } catch (error) {
+      logger.warn('Failed to stop background task', { sessionId, taskId, error })
+    }
+    if (!accepted) {
+      pendingRef.current.delete(key)
+      setPending(new Set(pendingRef.current))
+      toast.error(t('agent.right_pane.status.stop_run_task_failed'))
+    }
+  }
+
+  return <RunTaskStopsContext value={{ pending, stop }}>{children}</RunTaskStopsContext>
+}
+
 function RunTaskStopButton({ sessionId, taskId }: { sessionId?: string; taskId: string }) {
   const { t } = useTranslation()
-  const [stopping, setStopping] = useState(false)
-
-  if (!sessionId) return null
-
+  const stops = use(RunTaskStopsContext)
+  if (!sessionId || !stops) return null
   const label = t('agent.right_pane.status.stop_run_task')
 
   return (
@@ -45,23 +75,10 @@ function RunTaskStopButton({ sessionId, taskId }: { sessionId?: string; taskId: 
       <Button
         size="icon-sm"
         variant="ghost"
-        disabled={stopping}
+        disabled={stops.pending.has(JSON.stringify([sessionId, taskId]))}
         aria-label={label}
         className="-mt-0.5 shrink-0 text-muted-foreground"
-        onClick={async () => {
-          setStopping(true)
-          try {
-            const stopped = await ipcApi.request('ai.agent.session.stop_background_task', { sessionId, taskId })
-            if (!stopped) {
-              setStopping(false)
-              toast.error(t('agent.right_pane.status.stop_run_task_failed'))
-            }
-          } catch (error) {
-            logger.warn('Failed to stop background task', { taskId, error })
-            setStopping(false)
-            toast.error(t('agent.right_pane.status.stop_run_task_failed'))
-          }
-        }}>
+        onClick={() => void stops.stop(sessionId, taskId)}>
         <CircleStop size={14} />
       </Button>
     </Tooltip>

@@ -109,7 +109,11 @@ export function AgentSessionDetailsToggle({ children }: { children: ReactNode })
       variant="ghost"
       aria-label={label}
       aria-expanded={state.mode === 'inline' ? state.inlineOpen : state.popupOpen}
-      onClick={state.mode === 'inline' ? () => state.setOpen(!state.inlineOpen) : undefined}
+      onClick={(event) => {
+        if (state.mode !== 'inline') return
+        event.preventDefault()
+        state.setOpen(!state.inlineOpen)
+      }}
       className="text-muted-foreground aria-expanded:bg-accent aria-expanded:text-foreground">
       <ListCollapse className="size-3.5" />
     </Button>
@@ -117,7 +121,7 @@ export function AgentSessionDetailsToggle({ children }: { children: ReactNode })
   return (
     <>
       <Tooltip content={label} asChild>
-        {state.mode === 'popover' ? <PopoverTrigger asChild>{button}</PopoverTrigger> : button}
+        <PopoverTrigger asChild>{button}</PopoverTrigger>
       </Tooltip>
       {state.mode === 'popover' && (
         <PopoverContent
@@ -127,12 +131,7 @@ export function AgentSessionDetailsToggle({ children }: { children: ReactNode })
           aria-label={label}
           className="w-70 max-w-[calc(100vw_-_24px)] overflow-hidden rounded-xl p-0"
           onCloseAutoFocus={(event) => {
-            if (
-              state.suppressCloseFocusRef.current ||
-              !state.available ||
-              state.mode !== 'popover' ||
-              !state.triggerRef.current?.isConnected
-            )
+            if (state.suppressCloseFocusRef.current || !state.available || !state.triggerRef.current?.isConnected)
               event.preventDefault()
           }}>
           <ScrollArea

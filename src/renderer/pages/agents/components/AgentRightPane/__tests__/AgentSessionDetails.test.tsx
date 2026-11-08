@@ -114,3 +114,22 @@ describe('session details presentation', () => {
     expect(toggle()).toHaveFocus()
   })
 })
+
+// Catches mode changes replacing the focused toggle or stranding popup focus on document.body.
+it('preserves toggle focus through both mode changes and returns popup focus when widening', async () => {
+  render(<Fixture />)
+  fireEvent.click(screen.getByText('Wide'))
+  const trigger = toggle()
+  act(() => trigger.focus())
+  fireEvent.click(screen.getByText('Narrow'))
+  expect(toggle()).toBe(trigger)
+  expect(trigger).toHaveFocus()
+  fireEvent.click(screen.getByText('Wide'))
+  expect(trigger).toHaveFocus()
+  fireEvent.click(screen.getByText('Narrow'))
+  fireEvent.click(trigger)
+  act(() => screen.getByRole('button', { name: 'Content a' }).focus())
+  fireEvent.click(screen.getByText('Wide'))
+  await vi.waitFor(() => expect(trigger).toHaveFocus())
+  expect(screen.queryByRole('dialog')).toBeNull()
+})

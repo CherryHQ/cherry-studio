@@ -264,6 +264,7 @@ vi.mock('../components/AgentRightPane', () => {
   return {
     AgentRightPane: {
       Scope: MockAgentRightPaneScope,
+      DetailsLayout: ({ children }: PropsWithChildren) => <>{children}</>,
       Shell: ({ children }: PropsWithChildren) => <>{children}</>,
       Viewport: () => <div data-testid="agent-right-pane-viewport" />,
       Shortcuts: () => <button type="button">Shortcuts</button>
