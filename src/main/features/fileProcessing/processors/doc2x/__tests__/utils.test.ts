@@ -228,10 +228,28 @@ describe('doc2x utils', () => {
               }
             ]
           }
+        },
+        {
+          page_idx: 2,
+          md: '~~~~md\n~~~~not-a-closer\n| Nested | Value |\n| --- | --- |\n| kept | as code |\n~~~~\n\n| Actual | Value |\n| --- | --- |\n| item | 42 |',
+          layout: {
+            blocks: [
+              {
+                id: 'trailing-text-table',
+                type: 'Table',
+                text: '',
+                bbox: [0, 0, 1, 1],
+                reading_order: 0,
+                parent_id: '',
+                src: '',
+                table_data: { html: '<table><tr><td>trailing text</td></tr></table>' }
+              }
+            ]
+          }
         }
       ])
     ).toBe(
-      '````md\n```md\n| Nested | Value |\n| --- | --- |\n| kept | as code |\n```\n````\n\n<table><tr><td>backtick</td></tr></table>\n\n```md\n~~~md\n| Nested | Value |\n| --- | --- |\n| kept | as code |\n~~~\n```\n\n<table><tr><td>tilde</td></tr></table>'
+      '````md\n```md\n| Nested | Value |\n| --- | --- |\n| kept | as code |\n```\n````\n\n<table><tr><td>backtick</td></tr></table>\n\n```md\n~~~md\n| Nested | Value |\n| --- | --- |\n| kept | as code |\n~~~\n```\n\n<table><tr><td>tilde</td></tr></table>\n\n~~~~md\n~~~~not-a-closer\n| Nested | Value |\n| --- | --- |\n| kept | as code |\n~~~~\n\n<table><tr><td>trailing text</td></tr></table>'
     )
   })
 

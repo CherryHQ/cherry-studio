@@ -307,7 +307,7 @@ function replaceNextMarkdownTable(markdown: string, tableHtml: string): string {
   let separatorIndex = -1
 
   for (let index = 0; index < lines.length; index += 1) {
-    const marker = parseMarkdownFence(lines[index])
+    const marker = parseMarkdownFence(lines[index], fence !== undefined)
     if (fence) {
       if (marker?.character === fence.character && marker.length >= fence.length) {
         fence = undefined
@@ -331,12 +331,12 @@ function replaceNextMarkdownTable(markdown: string, tableHtml: string): string {
   }
 
   let start = separatorIndex - 1
-  while (start > 0 && !parseMarkdownFence(lines[start - 1]) && isMarkdownTableRow(lines[start - 1])) {
+  while (start > 0 && !parseMarkdownFence(lines[start - 1], false) && isMarkdownTableRow(lines[start - 1])) {
     start -= 1
   }
 
   let end = separatorIndex + 1
-  while (end < lines.length && !parseMarkdownFence(lines[end]) && isMarkdownTableRow(lines[end])) {
+  while (end < lines.length && !parseMarkdownFence(lines[end], false) && isMarkdownTableRow(lines[end])) {
     end += 1
   }
 
@@ -354,9 +354,11 @@ type MarkdownFence = {
   length: number
 }
 
-function parseMarkdownFence(line: string): MarkdownFence | undefined {
-  const marker = /^\s*(`{3,}|~{3,})/.exec(line)?.[1]
-  if (!marker) return undefined
+function parseMarkdownFence(line: string, closing: boolean): MarkdownFence | undefined {
+  const match = /^\s*(`{3,}|~{3,})(.*)$/.exec(line)
+  if (!match || (closing && match[2].trim().length > 0)) return undefined
+
+  const marker = match[1]
 
   return {
     character: marker[0] as '`' | '~',
