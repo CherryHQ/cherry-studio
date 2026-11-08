@@ -267,3 +267,31 @@ it('reserves bounded space for both process and SDK error text', () => {
   expect(detail).toContain('SDK reason')
   expect(detail.length).toBeLessThanOrEqual(1000)
 })
+
+it.each([
+  "https://alice:prefix'SECRET_SUFFIX@private.proxy.example/x",
+  'https://alice:prefix"SECRET_SUFFIX@private.proxy.example/x',
+  'https://alice:prefix%27SECRET_SUFFIX@private.proxy.example/x'
+])('redacts URL credentials before retaining suppressed SDK diagnostic: %s', (url) => {
+  const diagnostics = createClaudeCodeProcessDiagnostics('quoted-url-ref')
+  recordClaudeCodeProcessExit(diagnostics, 7, null, 'native failure')
+  const result = withClaudeCodeSdkFailure(
+    createClaudeCodeProcessExitError(new Error('closed'), diagnostics),
+    new Error(`429 rate_limit_error ${url}`)
+  )
+  const serialized = JSON.stringify(serializeError(result))
+  expect(serialized).toContain('429 rate_limit_error')
+  expect(serialized).not.toMatch(/alice|prefix|SECRET_SUFFIX|private.proxy/)
+})
+
+it.each(['api_key', 'token'])('preserves text after a URL query credential: %s', (key) => {
+  const diagnostics = createClaudeCodeProcessDiagnostics('query-url-ref')
+  recordClaudeCodeProcessExit(diagnostics, 7, null, 'native failure')
+  const result = withClaudeCodeSdkFailure(
+    createClaudeCodeProcessExitError(new Error('closed'), diagnostics),
+    new Error(`GET https://api.example.com/v1?${key}=abc rate limited, retry later`)
+  )
+  const detail = serializeError(result).processExitDetail
+  expect(detail).toContain('GET <redacted-url> rate limited, retry later')
+  expect(detail).not.toContain('abc')
+})

@@ -94,6 +94,7 @@ function safeProcessOutput(output: string): string {
   const ansiColor = new RegExp(String.fromCharCode(27) + '\\[[0-9;]*[A-Za-z]', 'g')
   const text = output
     .replace(ansiColor, '')
+    .replace(/(\/\/)[^\s/\\?#]+@/g, '$1<redacted>@')
     .replace(/https?:\/\/[^\s"']+/gi, '<redacted-url>')
     .replace(/(?:[A-Za-z]:[\\/]|\\\\)[^\r\n]*/g, '<redacted-path>')
     .replace(/(^|[\s"'=(:[{,;~`<>)])\/[^\r\n]*/g, '$1<redacted-path>')
