@@ -173,7 +173,7 @@ it('preserves repeated raw Node header entries without losing the first value', 
   expect(command).toContain("'X-Route: two'")
 })
 
-it('keeps path-normalization warnings separate from connection export refusals', () => {
+it('keeps editable commands alongside target and connection warnings', () => {
   const build = loadCurlExport()
   const warning = 'URL path may be normalized; replay can differ from the original Node request target.'
   const event = {
@@ -186,5 +186,23 @@ it('keeps path-normalization warnings separate from connection export refusals',
   expect(build(event)).toContain('--data-raw')
   expect(
     build({ ...event, requestReplayError: 'Unix socket request cannot faithfully replay through a URL.' })
-  ).not.toContain('curl ')
+  ).toContain('curl ')
+})
+
+it.each([
+  'Unix socket request cannot faithfully replay through a URL.',
+  'Authenticated Node request cannot faithfully replay from redacted capture.',
+  'Literal Node request target cannot faithfully replay through a URL.',
+  'Invalid URL cannot faithfully replay the literal Node request target.'
+])('retains captured method, headers and body for an editable export: %s', (note) => {
+  const command = loadCurlExport()({
+    url: 'http://localhost/a#fragment', method: 'POST', requestReplayError: note,
+    requestHeaders: { Authorization: '[REDACTED]', 'X-Debug': "it's a test" },
+    requestBody: { text: 'public=1' }
+  })
+  expect(command).toContain('# ' + note + '\ncurl ')
+  expect(command).toContain("'POST'")
+  expect(command).toContain('Authorization: [REDACTED]')
+  expect(command).toContain('--data-raw')
+  expect(command).toContain("'public=1'")
 })

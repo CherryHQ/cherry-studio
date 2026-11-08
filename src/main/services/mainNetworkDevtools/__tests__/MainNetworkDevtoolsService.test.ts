@@ -1514,7 +1514,7 @@ it.skipIf(process.platform === 'win32').each(['/a/../b', '/a/./b', '/%2e%2e/b'])
 )
 
 it.skipIf(process.platform === 'win32').each(['/a#fragment', 'http://example.invalid/target'])(
-  'keeps a non-representable Node target refused: %s',
+  'keeps an editable command for a special Node target: %s',
   async (path) => {
     const received: string[] = []
     const server = createServer((req, res) => {
@@ -1549,11 +1549,11 @@ it.skipIf(process.platform === 'win32').each(['/a#fragment', 'http://example.inv
       vm.createContext(sandbox)
       vm.runInContext(readFileSync('resources/devtools/main-network/curlExport.js', 'utf8'), sandbox)
       const command = sandbox.buildCurlCommand?.(state.events[0]) as string
-      await promisify(execFile)('/bin/sh', ['-c', command], { timeout: 5000 })
+      // Special targets are editable starting points, not faithful replay promises.
       expect(received).toEqual([path])
       expect(state.events[0].requestReplayError).toBeDefined()
       expect(command.startsWith('#')).toBe(true)
-      expect(command).not.toContain('curl ')
+      expect(command).toContain('curl ')
     } finally {
       await service._doStop()
       await new Promise<void>((resolve) => server.close(() => resolve()))
@@ -1711,7 +1711,7 @@ it.skipIf(process.platform === 'win32')(
 it.each([
   { socketPath: '/tmp/private-network-socket', path: '/' },
   { auth: 'private-user:private-password', hostname: 'localhost', path: '/' }
-])('refuses export for Node-only connection options without retaining private details', (options) => {
+])('exports an editable command for Node-only connection options without retaining private details', (options) => {
   const description = describeHttpRequest('http', [options]) as ReturnType<typeof describeHttpRequest> & {
     requestReplayError?: string
   }
@@ -1722,10 +1722,10 @@ it.each([
   vm.runInContext(readFileSync('resources/devtools/main-network/curlExport.js', 'utf8'), sandbox)
   const command = sandbox.buildCurlCommand?.(description) as string
   expect(command.startsWith('#')).toBe(true)
-  expect(command).not.toContain('curl ')
+  expect(command).toContain('curl ')
 })
 
-it('refuses replay for URL userinfo without retaining the credentials', () => {
+it('keeps URL userinfo redacted for editable export', () => {
   const description = describeHttpRequest('http', ['http://private-user:private-password@localhost/']) as ReturnType<
     typeof describeHttpRequest
   > & { requestReplayError?: string }

@@ -25,7 +25,6 @@ function hasReplayableCurlBody(body) {
 }
 
 function buildCurlCommand(event) {
-  if (event.requestReplayError) return curlComment(event.requestReplayError)
   const parts = ['curl', '--globoff', shellQuoteSingle(event.url)]
   const method = (event.method || 'GET').toUpperCase()
   const body = event.requestBody
@@ -74,7 +73,8 @@ function buildCurlCommand(event) {
   }
 
   const command = parts.join(' \\\n  ')
-  return event.requestReplayWarning ? `${curlComment(event.requestReplayWarning)}\n${command}` : command
+  const notes = [event.requestReplayError, event.requestReplayWarning].filter(Boolean)
+  return [...notes.map(curlComment), command].join('\n')
 }
 
 globalThis.buildCurlCommand = buildCurlCommand
