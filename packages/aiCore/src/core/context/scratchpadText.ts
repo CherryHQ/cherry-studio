@@ -3434,18 +3434,24 @@ function projectedRawLeafLookup(
   if (!masked.includes('`')) return () => undefined
   const positions = new Int32Array(masked.length + 1)
   const chunks: string[] = []
-  const re = /[\uE000-\uF8FF]+(?:CODE_FENCE|INDENTED_CODE)_\d+\uE001/g
+  // Search for the fixed needle first. A leading greedy private-use run would retry
+  // from each character when no placeholder follows, making ordinary literal input quadratic.
+  const re = /(?:CODE_FENCE|INDENTED_CODE)_\d+\uE001/g
   let pos = 0,
     rawLength = 0
   for (const match of masked.matchAll(re)) {
-    const before = masked.slice(pos, match.index!)
+    let start = match.index
+    while (start > pos && masked.charCodeAt(start - 1) >= 0xe000 && masked.charCodeAt(start - 1) <= 0xf8ff) start--
+    if (start === match.index) continue
+    const token = masked.slice(start, match.index + match[0].length)
+    const before = masked.slice(pos, start)
     chunks.push(before)
-    while (pos < match.index!) positions[pos++] = rawLength++
-    const literal = expand(match[0])
-    positions.fill(rawLength, pos, pos + match[0].length)
+    while (pos < start) positions[pos++] = rawLength++
+    const literal = expand(token)
+    positions.fill(rawLength, pos, pos + token.length)
     chunks.push(literal)
     rawLength += literal.length
-    pos += match[0].length
+    pos += token.length
   }
   chunks.push(masked.slice(pos))
   while (pos < masked.length) positions[pos++] = rawLength++
