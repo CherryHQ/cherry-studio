@@ -249,8 +249,15 @@
     {
       "idx": 35,
       "version": "6",
-      "when": 1794072022972,
-      "tag": "0035_exotic_wild_child",
+      "when": 1794057800687,
+      "tag": "0035_agent_session_task_ownership",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1794157583365,
+      "tag": "0036_agent_session_tool_output",
       "breakpoints": true
     }
   ],

@@ -1,8 +1,14 @@
 import { getToastUtilities, type ToastLabels } from '@cherrystudio/ui'
 import i18n from '@renderer/i18n/resolver'
-import { isAbortError, providerErrorText } from '@renderer/utils/error'
+import { cherryCloudQuotaRejectionText, isAbortError, providerErrorText } from '@renderer/utils/error'
 import { classifyError, type ErrorCategory } from '@renderer/utils/errorClassifier'
-import { type ErrorToastAction, errorToastPresentations, serializeToastError } from '@renderer/utils/errorToast'
+import {
+  type ErrorToastAction,
+  type ErrorToastPresentation,
+  errorToastPresentations,
+  serializeToastError
+} from '@renderer/utils/errorToast'
+import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import type { Provider } from '@shared/data/types/provider'
 
 import { openSettingsTab } from './mainWindowNavigation'
@@ -44,9 +50,11 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
   const serialized = serializeToastError(error)
   const classification = classifyError(serialized, context.provider?.id)
   const category = context.category ?? classification.category
-  const presentation = errorToastPresentations[category]
-  const details = providerErrorText(serialized)
   const provider = context.provider
+  // A Cherry AI plan's own rejection names the plan and when to retry; provider settings cannot fix it.
+  const planQuota = provider?.id === CHERRY_CLOUD_PROVIDER_ID && (category === 'quota' || category === 'rate_limit')
+  const presentation: ErrorToastPresentation = planQuota ? { type: 'warning' } : errorToastPresentations[category]
+  const details = planQuota ? cherryCloudQuotaRejectionText(serialized) : providerErrorText(serialized)
   const configure = provider
     ? () => openSettingsTab(`/settings/provider?id=${encodeURIComponent(provider.id)}`)
     : undefined
@@ -66,7 +74,11 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
   let running = false
   const key = notifications[presentation.type]({
     key: context.key,
-    title: category === 'unknown' ? details || i18n.t('error.unknown') : i18n.t(diagnosisKey),
+    title: planQuota
+      ? i18n.t('models.detail.quota_exhausted')
+      : category === 'unknown'
+        ? details || i18n.t('error.unknown')
+        : i18n.t(diagnosisKey),
     description:
       [
         context.mcpServer?.name ?? provider?.name,

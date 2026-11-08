@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "e72bd560-bb9d-445f-92d8-db68b4e62966",
+  "id": "db624c69-6658-4a44-98e8-8e9587be32eb",
   "prevId": "21fa5fe5-e74e-4e5c-94f1-5fae6691f254",
   "tables": {
     "agent": {
@@ -755,6 +755,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "source_task_schedule_id": {
+          "name": "source_task_schedule_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "trace_id": {
           "name": "trace_id",
           "type": "text",
@@ -817,6 +824,13 @@
           "name": "agent_session_order_key_idx",
           "columns": [
             "order_key"
+          ],
+          "isUnique": false
+        },
+        "agent_session_source_task_idx": {
+          "name": "agent_session_source_task_idx",
+          "columns": [
+            "source_task_schedule_id"
           ],
           "isUnique": false
         },
@@ -888,6 +902,19 @@
           "tableTo": "job_schedule",
           "columnsFrom": [
             "task_schedule_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "agent_session_source_task_schedule_id_job_schedule_id_fk": {
+          "name": "agent_session_source_task_schedule_id_job_schedule_id_fk",
+          "tableFrom": "agent_session",
+          "tableTo": "job_schedule",
+          "columnsFrom": [
+            "source_task_schedule_id"
           ],
           "columnsTo": [
             "id"
@@ -1377,108 +1404,6 @@
           "value": "(\"agent_session_message\".\"delivery_status\" = 'delivering' AND \"agent_session_message\".\"delivery_turn_ref\" IS NOT NULL) OR (\"agent_session_message\".\"delivery_status\" != 'delivering' AND \"agent_session_message\".\"delivery_turn_ref\" IS NULL) OR (\"agent_session_message\".\"delivery_status\" IS NULL AND \"agent_session_message\".\"delivery_turn_ref\" IS NULL)"
         }
       }
-    },
-    "agent_session_tool_output": {
-      "name": "agent_session_tool_output",
-      "columns": {
-        "message_id": {
-          "name": "message_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "tool_call_id": {
-          "name": "tool_call_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "session_id": {
-          "name": "session_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "revision": {
-          "name": "revision",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "output": {
-          "name": "output",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "agent_session_tool_output_session_idx": {
-          "name": "agent_session_tool_output_session_idx",
-          "columns": [
-            "session_id"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "agent_session_tool_output_message_id_agent_session_message_id_fk": {
-          "name": "agent_session_tool_output_message_id_agent_session_message_id_fk",
-          "tableFrom": "agent_session_tool_output",
-          "tableTo": "agent_session_message",
-          "columnsFrom": [
-            "message_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "agent_session_tool_output_session_id_agent_session_id_fk": {
-          "name": "agent_session_tool_output_session_id_agent_session_id_fk",
-          "tableFrom": "agent_session_tool_output",
-          "tableTo": "agent_session",
-          "columnsFrom": [
-            "session_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "agent_session_tool_output_message_id_tool_call_id_pk": {
-          "columns": [
-            "message_id",
-            "tool_call_id"
-          ],
-          "name": "agent_session_tool_output_message_id_tool_call_id_pk"
-        }
-      },
-      "uniqueConstraints": {},
-      "checkConstraints": {}
     },
     "agent_skill": {
       "name": "agent_skill",
