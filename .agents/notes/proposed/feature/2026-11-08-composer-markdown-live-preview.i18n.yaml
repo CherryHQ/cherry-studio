@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-08-composer-markdown-live-preview.md
+2026-11-08-composer-markdown-live-preview.md: 537a72bfecfa20cce71e7bbbc9f5c0ee5d068da6
+2026-11-08-composer-markdown-live-preview.zh.md: 4e4f779607fe658a7f56fa9e50a4f6f728985371
