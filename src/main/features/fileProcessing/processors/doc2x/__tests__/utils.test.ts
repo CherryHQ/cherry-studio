@@ -195,6 +195,38 @@ describe('doc2x utils', () => {
     ).toBe('![](https://img.example.com/figure.png)\n\ncaption')
   })
 
+  it('reconstructs empty pages in provider reading order', () => {
+    expect(
+      buildDoc2xMarkdown([
+        {
+          page_idx: 0,
+          layout: {
+            blocks: [
+              {
+                id: 'second',
+                type: 'Text',
+                text: 'second',
+                bbox: [0, 0, 1, 1],
+                reading_order: 2,
+                parent_id: '',
+                src: ''
+              },
+              {
+                id: 'first',
+                type: 'Text',
+                text: 'first',
+                bbox: [0, 0, 1, 1],
+                reading_order: 1,
+                parent_id: '',
+                src: ''
+              }
+            ]
+          }
+        }
+      ])
+    ).toBe('first\n\nsecond')
+  })
+
   it('sends v3 export options and omits v3-only fields for v2', async () => {
     const { triggerExportTask: triggerExportTaskImpl } = await vi.importActual<typeof Doc2xUtils>('../utils')
     fetchMock.mockImplementation(
@@ -285,6 +317,69 @@ describe('doc2x utils', () => {
         apiKey: 'secret',
         stage: 'exporting',
         modelVersion: 'v2'
+      }
+    })
+  })
+
+  it('keeps provider ZIP output when v3 export controls are non-default', async () => {
+    getParseStatusMock.mockResolvedValueOnce({
+      code: 'success',
+      data: {
+        status: 'success',
+        result: {
+          pages: [
+            {
+              page_idx: 0,
+              md: 'provider markdown',
+              layout: {
+                blocks: [
+                  {
+                    id: 'text',
+                    type: 'Text',
+                    text: 'structured text',
+                    bbox: [0, 0, 1, 1],
+                    reading_order: 0,
+                    parent_id: '',
+                    src: ''
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    })
+    triggerExportTaskMock.mockResolvedValueOnce({
+      code: 'success',
+      data: { status: 'processing' }
+    })
+
+    await expect(
+      handleParseStage(
+        'uid-v3',
+        {
+          apiHost: 'https://doc2x.example.com',
+          apiKey: 'secret',
+          stage: 'parsing',
+          modelVersion: 'v3-2026',
+          formulaLevel: 1,
+          mergeCrossPageForms: false
+        },
+        {
+          apiHost: 'https://doc2x.example.com',
+          apiKey: 'secret'
+        }
+      )
+    ).resolves.toEqual({
+      status: 'processing',
+      progress: 99,
+      remoteContext: {
+        apiHost: 'https://doc2x.example.com',
+        apiKey: 'secret',
+        stage: 'exporting',
+        modelVersion: 'v3-2026',
+        formulaLevel: 1,
+        mergeCrossPageForms: false
       }
     })
   })
@@ -414,6 +509,28 @@ describe('doc2x utils', () => {
         kind: 'remote-zip-url',
         downloadUrl: 'https://download.example.com/result.zip',
         configuredApiHost: 'https://doc2x.example.com'
+      }
+    })
+
+    getExportResultMock.mockResolvedValueOnce({
+      code: 'success',
+      data: {
+        status: 'success',
+        url: 'https://download.example.com/result.zip'
+      }
+    })
+
+    await expect(
+      handleExportStage('uid-v3', {
+        apiHost: 'https://doc2x.example.com',
+        apiKey: 'secret',
+        markdownContent: '# structured output'
+      })
+    ).resolves.toEqual({
+      status: 'completed',
+      output: {
+        kind: 'markdown',
+        markdownContent: '# structured output'
       }
     })
   })

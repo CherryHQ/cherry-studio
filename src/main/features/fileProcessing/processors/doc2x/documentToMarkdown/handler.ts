@@ -189,7 +189,10 @@ export async function handleParseStage(
 
   const pages = parseStatus.result?.pages ?? []
   const hasStructuredLayout =
-    queryContext.modelVersion === 'v3-2026' && pages.some((page) => (page.layout?.blocks.length ?? 0) > 0)
+    queryContext.modelVersion === 'v3-2026' &&
+    (queryContext.formulaLevel ?? 0) === 0 &&
+    queryContext.mergeCrossPageForms !== true &&
+    pages.some((page) => (page.layout?.blocks.length ?? 0) > 0)
 
   return {
     status: 'processing',

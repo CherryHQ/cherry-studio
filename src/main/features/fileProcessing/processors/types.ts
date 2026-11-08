@@ -66,7 +66,7 @@ export interface PersistableRemoteState {
   modelVersion?: string
   /** Doc2X v3 export setting selected when the task was started. */
   formulaLevel?: 0 | 1 | 2
-  /** Doc2X v3 cross-page formula setting selected when the task was started. */
+  /** Doc2X v3 cross-page table merging setting selected when the task was started. */
   mergeCrossPageForms?: boolean
 }
 
