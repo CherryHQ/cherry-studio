@@ -3,6 +3,7 @@ import { isHistoryTransaction } from '@tiptap/pm/history'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import { NodeSelection, type Selection, type Transaction } from '@tiptap/pm/state'
 
+import { isComposerMarkdownCodePosition } from './composerMarkdownPreview.prototype'
 import { type ComposerTokenMarkerRule, createComposerTokenMarkerInlineContent } from './composerTokenMarkers'
 import { COMPOSER_TOKEN_NODE_NAME, requestComposerPromptVariableEdit } from './ComposerTokenNode'
 import type { ComposerDraftToken } from './tokens'
@@ -137,7 +138,10 @@ export function tokenizePromptVariablesInEditor(editor: Editor, update: Transact
 
       const from = position + offset
       const to = from + segment.raw.length
-      if (changedRanges.some(({ newRange }) => newRange.from < to && newRange.to > from)) {
+      if (
+        !isComposerMarkdownCodePosition(editor.state, from) &&
+        changedRanges.some(({ newRange }) => newRange.from < to && newRange.to > from)
+      ) {
         replacements.push({
           from,
           to,
