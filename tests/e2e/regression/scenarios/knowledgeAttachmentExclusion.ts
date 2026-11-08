@@ -28,7 +28,7 @@ export async function knowledgeAttachmentExclusion(app: RegressionApp, page: Pag
     pinned: await window.api.preference.get('chat.input.toolbar.pinned_tools')
   }))
   const sourceText =
-    '# Cherry Studio 更新日志\n\n## 2.1.7\n\n2.1.7 版本新增了知识库引用来源预览和 PDF 附件上传功能，修复了聊天消息滚动定位问题。\n\n## 2.1.6\n\n2.1.6 版本新增了主题颜色设置。\n'
+    'Cherry Studio 更新日志\n\n2.1.7\n\n2.1.7 版本新增了知识库引用来源预览和 PDF 附件上传功能，修复了聊天消息滚动定位问题。\n\n2.1.6\n\n2.1.6 版本新增了主题颜色设置。\n'
   const sourcePath = join(app.paths.fixtures, 'sample-chinese.md')
   const pdfPath = join(app.paths.fixtures, 'sample.pdf')
   await writeFile(sourcePath, sourceText)
