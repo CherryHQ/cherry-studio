@@ -345,8 +345,14 @@ function replaceNextMarkdownTable(markdown: string, tableHtml: string): string {
 }
 
 function isMarkdownTableRow(line: string): boolean {
+  if (isMarkdownIndentedCodeLine(line)) return false
+
   const value = line.trim()
   return value.includes('|')
+}
+
+function isMarkdownIndentedCodeLine(line: string): boolean {
+  return /^(?: {4,}|\t)/.test(line)
 }
 
 type MarkdownFence = {
@@ -367,6 +373,8 @@ function parseMarkdownFence(line: string, closing: boolean): MarkdownFence | und
 }
 
 function isMarkdownTableSeparator(line: string): boolean {
+  if (isMarkdownIndentedCodeLine(line)) return false
+
   const cells = line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|')
   return cells.length > 0 && cells.every((cell) => /^\s*:?-{3,}:?\s*$/.test(cell))
 }
