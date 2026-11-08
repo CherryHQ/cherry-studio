@@ -29,6 +29,8 @@ vi.mock('@main/i18n', () => ({
   t: (key: string) => key
 }))
 
+const mockUnsubscribe = vi.fn()
+const mockWsClose = vi.fn()
 const mockConnect = vi.fn()
 const mockDisconnect = vi.fn()
 const mockSend = vi.fn()
@@ -41,6 +43,7 @@ let channelHandlers: Record<string, (...args: any[]) => any> = {}
 let channelOptions: Record<string, any> | undefined
 
 const mockChannel = {
+  rawWsClient: { close: mockWsClose },
   connect: mockConnect,
   disconnect: mockDisconnect,
   send: mockSend,
@@ -50,7 +53,7 @@ const mockChannel = {
   removeReaction: mockRemoveReaction,
   on: vi.fn((handlers: Record<string, (...args: any[]) => any>) => {
     channelHandlers = handlers
-    return vi.fn()
+    return mockUnsubscribe
   })
 }
 
@@ -85,6 +88,8 @@ function incomingMessage(overrides: Partial<NormalizedMessage> = {}): Normalized
 
 describe('FeishuAdapter', () => {
   beforeEach(() => {
+    mockUnsubscribe.mockReset()
+    mockWsClose.mockReset()
     mockConnect.mockReset().mockResolvedValue(undefined)
     mockDisconnect.mockReset().mockResolvedValue(undefined)
     mockSend.mockReset().mockResolvedValue({ messageId: 'msg-out-1' })
@@ -268,6 +273,47 @@ describe('FeishuAdapter', () => {
     await vi.advanceTimersByTimeAsync(60000)
 
     expect(mockConnect).toHaveBeenCalledTimes(1)
+  })
+
+  it('ignores every retired attempt callback after a failed handshake', async () => {
+    vi.useFakeTimers()
+    mockConnect.mockRejectedValue(new Error('late discovery'))
+    const adapter = createAdapter()
+    const messages = vi.fn()
+    const commands = vi.fn()
+    adapter.on('message', messages)
+    adapter.on('command', commands)
+    await adapter.connect()
+    const retired = channelHandlers
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(adapter.connected).toBe(false)
+    const sendCount = mockSend.mock.calls.length
+    retired.reconnected()
+    retired.reconnecting()
+    retired.reject({ chatId: 'oc_123', reason: 'policy' })
+    retired.error(new Error('stale SDK error'))
+    retired.message(incomingMessage())
+    retired.message(incomingMessage({ content: '/help' }))
+    await Promise.resolve()
+    expect(adapter.connected).toBe(false)
+    expect(messages).not.toHaveBeenCalled()
+    expect(commands).not.toHaveBeenCalled()
+    expect(mockSend).toHaveBeenCalledTimes(sendCount)
+    await adapter.disconnect()
+  })
+
+  it('ignores retained callback references after explicit disconnect', async () => {
+    const adapter = createAdapter()
+    const messages = vi.fn()
+    adapter.on('message', messages)
+    await adapter.connect()
+    const retired = channelHandlers
+    await adapter.disconnect()
+    retired.reconnected()
+    retired.message(incomingMessage())
+    await Promise.resolve()
+    expect(adapter.connected).toBe(false)
+    expect(messages).not.toHaveBeenCalled()
   })
 
   it('stops retrying after the reconnect attempt cap (REGRESSION channel-startup-retry)', async () => {
@@ -535,6 +581,57 @@ describe('FeishuAdapter', () => {
     await channelHandlers.message(incomingMessage({ chatId: 'oc_blocked' }))
 
     expect(onMessage).not.toHaveBeenCalled()
+  })
+
+  it('drops a message retired while its actual resource download is in flight', async () => {
+    const adapter = createAdapter()
+    const onMessage = vi.fn()
+    adapter.on('message', onMessage)
+    await adapter.connect()
+    let finishDownload!: () => void
+    const downloading = new Promise<void>((resolve) => {
+      finishDownload = resolve
+    })
+    const handled = vi.spyOn(adapter, 'handleMessage')
+    const streamFinished = vi.fn()
+    mockMessageResourceGet.mockResolvedValueOnce({
+      getReadableStream: async function* () {
+        await downloading
+        yield Buffer.from('%PDF-1.7')
+        streamFinished()
+      }
+    })
+    channelHandlers.message(
+      incomingMessage({ resources: [{ type: 'file', fileKey: 'retired-file', fileName: 'retired.pdf' }] })
+    )
+    await vi.waitFor(() => expect(mockMessageResourceGet).toHaveBeenCalledOnce())
+    await adapter.disconnect()
+    finishDownload()
+    await vi.waitFor(() => expect(streamFinished).toHaveBeenCalledOnce())
+    // Await the real download/MIME/handler continuation, not an arbitrary timeout.
+    await handled.mock.results[0].value
+    expect(onMessage).not.toHaveBeenCalled()
+  })
+
+  it('unsubscribes and force-closes before SDK disconnect on a failed attempt', async () => {
+    mockConnect.mockRejectedValueOnce(new Error('offline'))
+    const adapter = createAdapter()
+    await adapter.connect()
+    expect(mockUnsubscribe).toHaveBeenCalledOnce()
+    expect(mockWsClose).toHaveBeenCalledWith({ force: true })
+    expect(mockUnsubscribe.mock.invocationCallOrder[0]).toBeLessThan(mockWsClose.mock.invocationCallOrder[0])
+    expect(mockWsClose.mock.invocationCallOrder[0]).toBeLessThan(mockDisconnect.mock.invocationCallOrder[0])
+    await adapter.disconnect()
+  })
+
+  it('unsubscribes and force-closes before SDK disconnect on an active channel', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+    await adapter.disconnect()
+    expect(mockUnsubscribe).toHaveBeenCalledOnce()
+    expect(mockWsClose).toHaveBeenCalledWith({ force: true })
+    expect(mockUnsubscribe.mock.invocationCallOrder[0]).toBeLessThan(mockWsClose.mock.invocationCallOrder[0])
+    expect(mockWsClose.mock.invocationCallOrder[0]).toBeLessThan(mockDisconnect.mock.invocationCallOrder[0])
   })
 
   it('downloads normalized image and file resources for the agent', async () => {

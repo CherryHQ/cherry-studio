@@ -151,6 +151,7 @@ class FeishuStreamSession {
 
 class FeishuAdapter extends ChannelAdapter {
   private channel: Lark.LarkChannel | null = null
+  private readonly channelSubscriptions = new Map<Lark.LarkChannel, () => void>()
   private appId: string
   private appSecret: string
   private readonly encryptKey: string
@@ -239,9 +240,12 @@ class FeishuAdapter extends ChannelAdapter {
     })
     this.channel = channel
 
-    channel.on({
+    let active = true
+    const isCurrent = () => active && this.channel === channel && !signal.aborted && !this.shouldStop
+    const unsubscribe = channel.on({
       message: (message) => {
-        void this.handleMessage(message).catch((error) => {
+        if (!isCurrent()) return
+        void this.handleMessage(message, isCurrent).catch((error) => {
           this.log.error('Failed to handle Feishu message', {
             chatId: message.chatId,
             messageId: message.messageId,
@@ -250,27 +254,37 @@ class FeishuAdapter extends ChannelAdapter {
         })
       },
       reconnecting: () => {
+        if (!isCurrent()) return
         this.log.warn('Feishu WebSocket reconnecting')
       },
       reconnected: () => {
+        if (!isCurrent()) return
         this.markConnected()
         this.log.info('Feishu WebSocket reconnected')
       },
       reject: (event) => {
+        if (!isCurrent()) return
         this.log.warn('Feishu message rejected', { chatId: event.chatId, reason: event.reason })
         this.notifyDrop(event.chatId)
       },
       error: (error) => {
+        if (!isCurrent()) return
         this.log.error('Feishu channel error', { error: error.message, code: error.code })
       }
+    })
+
+    this.channelSubscriptions.set(channel, () => {
+      active = false
+      unsubscribe()
     })
 
     try {
       await channel.connect()
     } catch (error) {
+      const wasCurrent = this.channel === channel
+      if (wasCurrent) this.channel = null
       await this.disconnectChannel(channel)
-      if (signal.aborted || this.shouldStop || this.channel !== channel) return
-      this.channel = null
+      if (signal.aborted || this.shouldStop || !wasCurrent || this.channel) return
       const message = `Feishu WebSocket connection failed: ${error instanceof Error ? error.message : String(error)}`
       this.log.error(message)
       this.markDisconnected(message)
@@ -523,7 +537,8 @@ class FeishuAdapter extends ChannelAdapter {
     return true
   }
 
-  private async handleMessage(message: Lark.NormalizedMessage): Promise<void> {
+  private async handleMessage(message: Lark.NormalizedMessage, isCurrent: () => boolean): Promise<void> {
+    if (!isCurrent()) return
     if (this.allowedChatIds.length > 0 && !this.allowedChatIds.includes(message.chatId)) {
       this.log.warn('Dropping message from unauthorized chat', { chatId: message.chatId })
       this.notifyDrop(message.chatId)
@@ -548,6 +563,7 @@ class FeishuAdapter extends ChannelAdapter {
     }
 
     const { images, files } = await this.downloadResources(message)
+    if (!isCurrent()) return
     if (!text && images.length === 0 && files.length === 0) {
       this.log.warn('Dropping message with no text and no resources', { chatId: message.chatId })
       return
@@ -651,8 +667,10 @@ class FeishuAdapter extends ChannelAdapter {
   }
 
   private async disconnectChannel(channel: Lark.LarkChannel): Promise<void> {
-    await channel.disconnect().catch(() => undefined)
+    this.channelSubscriptions.get(channel)?.()
+    this.channelSubscriptions.delete(channel)
     channel.rawWsClient?.close({ force: true })
+    await channel.disconnect().catch(() => undefined)
   }
 }
 

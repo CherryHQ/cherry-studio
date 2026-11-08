@@ -233,6 +233,7 @@ patchedDependencies:
   '@aiden0z/pptx-renderer@1.2.2': cef8fdac29413f0b6e59df97fe5c874f536c1bc064d77aa88f7d5028f78a6329
   '@earendil-works/pi-ai@1.4.0': d101b7c18ea16350bea061981a849e92002fa268e16638902e9d9f73bc215f77
   '@elysia/node@1.4.6': ceae4c188748b0ccfb825739bdbbe02486930f53b0fb1068e21de26527488ad2
+  '@larksuiteoapi/node-sdk@1.73.0': dacfb70d41f69a0d7b682b9270395fb5782898872666519f2d5181bea275bfec
   '@napi-rs/system-ocr@1.2.0': 72d651f33c307945c636ea0a25b97b48018cab99b440ca02d8ea2dac222033d0
   '@openrouter/ai-sdk-provider@2.10.0': fe61d9ff590828fc0fd3f8b3b8b88a4a1b736a99b595a276c8df9e12c9498009
   '@opeoginni/github-copilot-openai-compatible@1.0.0': e0be38439b76d1d8d7966c0f789373ed393adba22bd9b0ff333898c0c8223301
@@ -299,7 +300,7 @@ importers:
         version: 4.2.0(@types/node@24.10.4)
       '@larksuiteoapi/node-sdk':
         specifier: ^1.73.0
-        version: 1.73.0(debug@4.4.3(supports-color@8.1.1))
+        version: 1.73.0(patch_hash=dacfb70d41f69a0d7b682b9270395fb5782898872666519f2d5181bea275bfec)(debug@4.4.3(supports-color@8.1.1))
       '@napi-rs/canvas':
         specifier: 0.1.97
         version: 0.1.97
@@ -18644,7 +18645,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@larksuiteoapi/node-sdk@1.73.0(debug@4.4.3(supports-color@8.1.1))':
+  '@larksuiteoapi/node-sdk@1.73.0(patch_hash=dacfb70d41f69a0d7b682b9270395fb5782898872666519f2d5181bea275bfec)(debug@4.4.3(supports-color@8.1.1))':
     dependencies:
       axios: 1.16.0(debug@4.4.3(supports-color@8.1.1))
       lodash.identity: 3.0.0
