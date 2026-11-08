@@ -109,6 +109,7 @@ vi.mock('../AllArchiveSection', async () => {
               onClick: () =>
                 props.onRequestDelete({
                   items: mocks.allItems,
+                  domains: ['topics', 'files'],
                   fileEntryIds: mocks.allItems
                     .filter((item) => item.id.startsWith('files:'))
                     .map((item) => item.id.slice(6)),
