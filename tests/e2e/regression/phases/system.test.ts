@@ -173,7 +173,59 @@ test(...caseDefinition('MP-127'), async ({ app, mainWindow: page }, testInfo) =>
 
     const textFile = `${app.paths.fixtures}/MP-127-selection.txt`
     await writeFile(textFile, original)
-    const invoke = async () => {
+    const attachToolbarFailure = async (toolbar: Page, action: string) => {
+      const actionButton = toolbar.getByRole('button', { name: action, exact: true })
+      await Promise.allSettled([
+        Promise.race([
+          actionButton.evaluate(
+            (button) =>
+              new Promise((resolve) => {
+                const samples = [button.getBoundingClientRect().toJSON()]
+                let frame = 0
+                const finish = () => {
+                  clearTimeout(timer)
+                  cancelAnimationFrame(frame)
+                  resolve({
+                    hidden: document.hidden,
+                    visibility: document.visibilityState,
+                    focused: document.hasFocus(),
+                    buttonVisible: button.checkVisibility({ visibilityProperty: true }),
+                    buttonDisabled: (button as HTMLButtonElement).disabled,
+                    buttonFocused: document.activeElement === button,
+                    animationFrames: samples.length - 1,
+                    bounds: samples
+                  })
+                }
+                const timer = setTimeout(finish, 500)
+                const sample = () => {
+                  samples.push(button.getBoundingClientRect().toJSON())
+                  if (samples.length === 3) finish()
+                  else frame = requestAnimationFrame(sample)
+                }
+                frame = requestAnimationFrame(sample)
+              }),
+            undefined,
+            { timeout: 2_000 }
+          ),
+          new Promise((resolve) => {
+            const timer = setTimeout(() => resolve({ inspectionTimedOut: true }), 2_000)
+            timer.unref()
+          })
+        ]).then((state) =>
+          testInfo.attach(`MP-127 ${action} toolbar DOM failure state`, {
+            body: JSON.stringify(state),
+            contentType: 'application/json'
+          })
+        ),
+        inspectOwnedWindowsByUrl(app.record, toolbar.url()).then((state) =>
+          testInfo.attach(`MP-127 ${action} toolbar native failure state`, {
+            body: JSON.stringify(state),
+            contentType: 'application/json'
+          })
+        )
+      ])
+    }
+    const invoke = async (action: string) => {
       openExternalText(app.record.platform, app.paths, textFile)
       if (app.record.platform === 'windows') {
         await expect.poll(() => readWindowsExternalText().selectedText).toBe(original)
@@ -211,7 +263,18 @@ test(...caseDefinition('MP-127'), async ({ app, mainWindow: page }, testInfo) =>
       }
       sendSystemHotkey(app.record.platform, [app.record.platform === 'macos' ? 'Meta' : 'Control', 'Alt', 'Shift', 's'])
       const toolbar = await app.window('/windows/selection/toolbar/')
-      await expect(toolbar.getByRole('button', { name: 'Explain', exact: true })).toBeVisible()
+      try {
+        await expect
+          .poll(async () => {
+            const windows = await inspectOwnedWindowsByUrl(app.record, toolbar.url())
+            return windows.some((window) => window.visible) && (await toolbar.evaluate(() => !document.hidden))
+          })
+          .toBe(true)
+        await expect(toolbar.getByRole('button', { name: 'Explain', exact: true })).toBeVisible()
+      } catch (error) {
+        await attachToolbarFailure(toolbar, action).catch(() => undefined)
+        throw error
+      }
       const position = await toolbar.evaluate(() => ({ x: screenX, y: screenY }))
       const bounds =
         app.record.platform === 'windows'
@@ -234,63 +297,15 @@ test(...caseDefinition('MP-127'), async ({ app, mainWindow: page }, testInfo) =>
       return toolbar
     }
     for (const action of ['Explain', 'Translate']) {
-      const toolbar = await invoke()
+      const toolbar = await invoke(action)
       await screenshot(toolbar, `MP-127 native selection toolbar ${action}`)
       const actionButton = toolbar.getByRole('button', { name: action, exact: true })
       try {
-        await actionButton.click()
+        await actionButton.focus()
+        await expect.poll(() => toolbar.evaluate(() => !document.hidden)).toBe(true)
+        await actionButton.press('Enter')
       } catch (error) {
-        if (app.record.platform === 'macos') {
-          await Promise.allSettled([
-            Promise.race([
-              actionButton.evaluate(
-                (button) =>
-                  new Promise((resolve) => {
-                    const samples = [button.getBoundingClientRect().toJSON()]
-                    let frame = 0
-                    const finish = () => {
-                      clearTimeout(timer)
-                      cancelAnimationFrame(frame)
-                      resolve({
-                        hidden: document.hidden,
-                        visibility: document.visibilityState,
-                        focused: document.hasFocus(),
-                        buttonVisible: button.checkVisibility({ visibilityProperty: true }),
-                        buttonDisabled: (button as HTMLButtonElement).disabled,
-                        buttonFocused: document.activeElement === button,
-                        animationFrames: samples.length - 1,
-                        bounds: samples
-                      })
-                    }
-                    const timer = setTimeout(finish, 500)
-                    const sample = () => {
-                      samples.push(button.getBoundingClientRect().toJSON())
-                      if (samples.length === 3) finish()
-                      else frame = requestAnimationFrame(sample)
-                    }
-                    frame = requestAnimationFrame(sample)
-                  }),
-                undefined,
-                { timeout: 2_000 }
-              ),
-              new Promise((resolve) => {
-                const timer = setTimeout(() => resolve({ inspectionTimedOut: true }), 2_000)
-                timer.unref()
-              })
-            ]).then((state) =>
-              testInfo.attach(`MP-127 ${action} toolbar DOM failure state`, {
-                body: JSON.stringify(state),
-                contentType: 'application/json'
-              })
-            ),
-            inspectOwnedWindowsByUrl(app.record, toolbar.url()).then((state) =>
-              testInfo.attach(`MP-127 ${action} toolbar native failure state`, {
-                body: JSON.stringify(state),
-                contentType: 'application/json'
-              })
-            )
-          ])
-        }
+        await attachToolbarFailure(toolbar, action).catch(() => undefined)
         throw error
       }
       let resultWindow: typeof page | undefined
