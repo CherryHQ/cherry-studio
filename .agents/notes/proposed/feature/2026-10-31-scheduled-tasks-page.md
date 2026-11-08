@@ -54,7 +54,7 @@ A task row shows its name, owning Agent, and a short schedule summary, with the 
 Execution state is secondary information; it does not determine the Active or Paused group.
 
 Follow the Agents sidebar's shared surface, spacing, and list styles. Task text and row actions share a single hover and selection surface. Secondary text uses available width according to content, remains on one line, and truncates only when necessary; hovering exposes the full value.
-Both groups have independent collapse controls that preserve the selected conversation. The task header replaces the Agent, model, and workspace controls on this page; message sender information and the composer remain intact.
+All groups have independent collapse controls that preserve the selected conversation. The task header replaces the Agent, model, and workspace controls on this page; message sender information and the composer remain intact.
 The selected global entry uses a filled calendar with contrasting clock details, rather than filling the original overlapping outlines indiscriminately.
 
 ### Entry and selection
@@ -74,7 +74,7 @@ Clear the previous task's displayed data during a switch. A late response must n
 1. Load the shared `TaskFormDialog` on demand when Add scheduled task is clicked, and open it centered in the current window.
 2. Use the required Create scheduled task title and preserve the shared fields, validation, schedule conversion, and session-reuse behavior.
 3. Submit through `useCreateTask`; prevent duplicate submission and reuse its existing error feedback.
-4. On failure, retain the form and entered values. On success, close it, refresh both groups, and select the returned task.
+4. On failure, retain the form and entered values. On success, close it, refresh all groups, and select the returned task.
 5. Do not issue an extra run-now command after creation. The task follows the existing schedule rules.
 
 A new task that has not run shows “Waiting for first execution” (`等待首次执行`) in the right pane.
@@ -89,7 +89,7 @@ If no Agent is available, explain the requirement and offer the existing Agents 
 Expose pause or resume on each task row through `useSetTaskEnabled`, without a separate write path for `enabled`.
 Use a three-dot menu with Continue or Pause, Run now, Edit, and a destructive Delete item, in that order. Only the explicit Run now action starts a manual execution. Reuse `useRunTask`, the shared edit form with `useUpdateTask`, and `useDeleteTask` with a confirmation dialog. Failed deletion keeps the dialog open for retry. Successful deletion clears route selection only when the deleted task was selected.
 Pausing affects future scheduling and does not terminate an execution that has already started, as in `JobManager.pauseJobScheduleById`.
-Block repeated commands while pending. On success, refresh both groups and totals; on failure, retain the previous state and show the error.
+Block repeated commands while pending. On success, refresh all groups and totals; on failure, retain the previous state and show the error.
 Keep the selected task and its conversation when it moves between groups; do not recreate its composer because its category changed.
 If removal from a group leaves its current page out of range, return to that group's last valid page.
 
@@ -99,8 +99,8 @@ If removal from a group leaves its current page out of range, return to that gro
 | --- | --- | --- |
 | `active` | Active | Uses the existing derived state; it does not mean currently executing |
 | `paused` | Paused | Uses the existing derived state; it does not include every disabled task |
-| `completed` | Neither group for now | A one-shot schedule has fired; the existing settings entry remains available |
-| `missed` | Neither group for now | Preserves the existing missed-execution meaning; the settings entry remains available |
+| `completed` | Not listed | A one-shot schedule has fired; this does not imply successful output |
+| `missed` | Not listed | Preserves the existing missed-execution meaning |
 
 `deriveStatus` in `AgentTaskService.ts` gives `missed` precedence, then a fired one-shot `completed`, then `paused / active`.
 Do not classify by `enabled` alone or interpret the schedule's `completed` state as successful execution output.
@@ -112,8 +112,8 @@ Add an optional `status` enum query to `/agent-tasks`, preserving current behavi
 Filter in the main process using the existing derivation before calculating `total` and taking the page slice.
 Do not filter only the current 50 records, transfer every task to the renderer, or join per-Agent queries.
 
-Confirmed: leave `completed / missed` in the existing settings entry instead of adding a third group.
-This destination is subject to Spec review; it is not an additional confirmed product requirement.
+The settings entry and its duplicate page are removed. Only active and paused tasks are listed on this page.
+Completed and missed tasks have no sidebar group. Preserve their stored records and shared APIs. Existing task links and an already-selected conversation remain valid.
 When the selected task reaches an end state, update the list without forcibly closing its already-open conversation.
 
 ### Resolving an associated conversation
@@ -133,7 +133,7 @@ Never use `agentId` alone to open the Agent's most recent session; it may belong
 Use the existing session reads and type checks. Do not bypass deleted, inaccessible, or `background` session boundaries.
 If an explicitly selected historical session is unavailable, show that selection's error rather than silently substitute another run.
 
-`useTaskLogs` exposes page navigation over its existing DataApi endpoint, with at most 50 records per page.
+`useTaskConversation` and the existing conversation resolver page through the log DataApi endpoint, with at most 50 records per page. The obsolete settings-only `useTaskLogs` wrapper is removed; the endpoint remains available.
 The confirmed search budget is at most two automatic pages, or 100 records, followed by an explicit action to search older conversations.
 Each explicit continuation loads at most 50 more records. The historical-run selector also loads pages on demand.
 Only reaching the end of the records establishes that there is no associated conversation; reaching the automatic budget does not.
@@ -154,7 +154,7 @@ The same session in Agents, Scheduled tasks, and another window must retain the 
 
 | Condition | Feedback |
 | --- | --- |
-| Both groups are empty | Keep the add button and explain that a created task can later have a conversation |
+| All groups are empty | Keep the add button and explain that a created task can later have a conversation |
 | One group is empty | Keep its heading and zero total, with a group-specific empty state |
 | Task has never executed | Show “Waiting for first execution”; do not mount an old conversation's composer |
 | Searching older records | Distinguish loading, more records available, and exhausted history |
@@ -194,17 +194,17 @@ Use the existing Preference and seeding version journal; never replace the whole
 ### Shared form and compatible entry points
 
 The current main branch already has `components/ScheduledTask/TaskFormDialog.tsx`, `scheduleForm.ts`, and `TaskRunSummaryLine.tsx` under `src/renderer/`.
-`TasksSettings.tsx` already imports the shared form. Reuse it directly; do not extract another copy or replace its schedule validation.
+The dedicated page uses the existing shared form. Remove the duplicate settings page without extracting another form or replacing schedule validation.
 In creation mode, the form accepts `open`, `agents`, `onOpenChange`, and a boolean-returning async `onCreate`; adapt `useCreateTask` to that contract.
 Use [PR #21849](https://github.com/CherryHQ/cherry-studio/pull/21849) as the reference for opening the form in place, not as a dependency on its entire PR stack.
-The current main branch has no `AgentTaskDashboard`. Preserve the existing settings and Agents entries; if that dashboard lands, keep it compatible too.
-Existing external links remain valid. This page does not remove other task entry points.
+Preserve the existing Agents entry and shared task APIs. Remove the Settings menu entry and old page.
+Old settings list and detail URLs redirect to `/app/scheduled-tasks`, preserving the task ID and replacing browser history. Task tool cards target the dedicated page directly.
 
 ### Data flow and performance budget
 
 Reads stay on DataApi: `/agent-tasks`, `/agent-tasks/:taskId`, and `/agents/:agentId/tasks/:taskId/logs`.
 Create, pause, resume, manual execution, editing, and deletion stay on the existing IpcApi `ai.agent.task.*` commands.
-Reuse successful-command invalidation and task data-change events to refresh both groups, totals, and the selected task.
+Reuse successful-command invalidation and task data-change events to refresh all groups, totals, and the selected task.
 
 - Return at most 50 tasks per group page; read sessions and logs only for the selected task.
 - Return at most 50 run records per page and automatically inspect at most two pages before explicit continuation.
@@ -240,12 +240,12 @@ If repeated group scans cause noticeable stalls, address them within the owning 
 - AC1 — New and upgraded installations have a working sidebar entry; upgrade preserves pinned entries and their order, and a removed entry stays removed after restart. (verification: unit + renderer + Electron; owner: sidebar implementer)
 - AC2 — Add opens the centered Create modal; outside submission, Esc, Cancel, and focus return work; submission blocks dismissal and duplicates, while failure preserves values. (verification: renderer + Electron; owner: renderer implementer)
 - AC3 — Successful creation closes the form and selects the new task without an extra run-now command or navigation to Settings or Agents; a never-run task shows the waiting state. (verification: renderer + Electron; owner: renderer implementer)
-- AC4 — Both groups remain complete with more than 50 tasks, correct totals, and pause/resume movement that preserves selection; completed and missed tasks are not paused, and pausing does not terminate a started run. (verification: unit + renderer; owner: data implementer)
+- AC4 — All groups remain complete with more than 50 tasks, correct totals, and pause/resume movement that preserves selection; completed and missed tasks are not paused, and pausing does not terminate a started run. (verification: unit + renderer; owner: data implementer)
 - AC5 — Empty tasks, missing conversations, and task switches never flash the previous task's messages; late responses cannot overwrite the selected task. (verification: renderer; owner: conversation implementer)
 - AC6 — Reused sessions, latest valid runs, and explicit history resolve in order; records after the first 50 remain reachable within the search budget, and null IDs never open the Agent's unrelated latest session. (verification: unit + renderer; owner: conversation implementer)
 - AC7 — Queued runs without sessions, deleted sessions, and background sessions have accurate feedback; new runs do not steal the active conversation, and users can explicitly switch to the latest one. (verification: renderer + Electron; owner: conversation implementer)
 - AC8 — Continuing a conversation leaves the task prompt and schedule unchanged and preserves busy-state, approval, and same-session multi-view protections, including across windows. (verification: renderer + Electron; owner: conversation implementer)
-- AC9 — Existing Agents, Settings, external links, and any landed task dashboard remain usable; leaving the task page does not stop scheduling or active execution. (verification: renderer + Electron; owner: feature implementer)
+- AC9 — The Settings task entry is absent, old task URLs redirect with selection preserved, and the existing Agents entry remains usable; leaving the task page does not stop scheduling or active execution. (verification: renderer + Electron; owner: feature implementer)
 - AC10 — Light, dark, keyboard, and small-window use remain functional; group and log requests respect their budgets, with no added polling or per-row N+1 work and measured large-data scan costs. (verification: renderer + Electron + performance measurement; owner: feature implementer)
 - AC11 — Groups collapse independently without losing conversation selection; the task header replaces Agent controls only on this page. The row menu exposes Continue/Pause, Run now, Edit, and red Delete; opening it does not execute commands, editing retains existing values, and deletion requires confirmation with retry on failure. (verification: renderer + Electron; owner: feature implementer)
 
@@ -257,5 +257,5 @@ This documentation change runs the docs gates only; none of the product criteria
 
 - Route coupling: `AgentPage` and navigation ownership assume the Agents route. A partial adapter can redirect selection or duplicate a stream; keep the extraction small and verify both views and multiple windows.
 - Scan cost: two filtered groups may repeat the existing task scan, and log totals require counting. Measure those costs instead of describing limited log hydration as constant-cost database work.
-- End-state placement: keeping `completed / missed` in Settings is confirmed. If a later change revises it, update the same Spec and pagination contract; do not silently add a group or close an open conversation.
+- End-state placement: completed and missed tasks are intentionally omitted from the sidebar. Do not close an open conversation when its task changes state.
 - Scheduled execution and user input may share a reused session. Preserve existing concurrency, busy-state, and approval rules; the new page must not bypass them or make pause appear to cancel active work.
