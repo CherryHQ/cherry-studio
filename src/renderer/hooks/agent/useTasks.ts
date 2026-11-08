@@ -7,6 +7,7 @@ import { useDataChange, useInvalidateCache, usePaginatedQuery, useQuery } from '
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import type { ResponseForPath } from '@shared/data/api/paths'
 import type { ScheduledTaskEntity } from '@shared/data/types/agent'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -52,14 +53,20 @@ export const useTasks = (agentId: string | null) => {
 }
 
 /** All scheduled tasks across every agent — backs the settings overview page. */
-export const useAllTasks = () => {
-  const { items, total, page, error, isLoading, hasNext, hasPrev, nextPage, prevPage, refresh } = usePaginatedQuery(
-    '/agent-tasks',
-    {
+export const useAllTasks = (status?: ScheduledTaskEntity['status']) => {
+  const { items, total, page, error, isLoading, hasNext, hasPrev, nextPage, prevPage, refresh, goToPage } =
+    usePaginatedQuery('/agent-tasks', {
       limit: TASKS_PAGE_LIMIT,
-      swrOptions: { keepPreviousData: false }
-    }
-  )
+      query: status ? { status } : {},
+      swrOptions: {
+        keepPreviousData: false,
+        ...(status ? { dedupingInterval: 0 } : {}),
+        onSuccess: (response: ResponseForPath<'/agent-tasks', 'GET'>) => {
+          const lastPage = Math.max(1, Math.ceil(response.total / TASKS_PAGE_LIMIT))
+          if (status && response.page === page && page > lastPage) goToPage(lastPage)
+        }
+      }
+    })
   useDataChange('/agent-tasks', () => refresh())
   return {
     tasks: items,
@@ -213,10 +220,10 @@ export const useDeleteTask = () => {
   return { deleteTask }
 }
 
-export const useTaskLogs = (agentId: string | null, taskId: string | null) => {
+export const useTaskLogs = (agentId: string | null, taskId: string | null, page = 1) => {
   const { data, error, isLoading, refetch } = useQuery('/agents/:agentId/tasks/:taskId/logs', {
     params: { agentId: agentId!, taskId: taskId! },
-    query: { limit: 50 },
+    query: { limit: 50, page },
     enabled: !!(agentId && taskId),
     swrOptions: { keepPreviousData: false }
   })
@@ -226,6 +233,8 @@ export const useTaskLogs = (agentId: string | null, taskId: string | null) => {
   return {
     logs: data?.items ?? [],
     total: data?.total ?? 0,
+    hasNext: page * 50 < (data?.total ?? 0),
+    refetch,
     error,
     isLoading
   }
