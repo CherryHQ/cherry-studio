@@ -17,9 +17,14 @@
   "agent.builtin.cherry_support.diagnostics.prepared": "Cherry Support düzenlenebilir bir açıklama hazırladı. Tanılama verilerini seçip göndermeden önce açıklamayı gözden geçirin.",
   "agent.builtin.cherry_support.diagnostics.review": "Sorun bildirimini gözden geçir",
   "agent.channels.add": "Ekle",
+  "agent.channels.agentTab.description": "Bu kanallardan gelen mesajları yalnızca bu aracı işler.",
+  "agent.channels.agentTab.inactiveHint": "Bağlandı, ancak henüz etkin değil. Bağlanmak için kanal ayarlarından kimlik bilgilerini yapılandırıp etkinleştirin.",
+  "agent.channels.agentTab.openSettings": "Kanal ayarları",
+  "agent.channels.agentTab.title": "Kanallar",
   "agent.channels.bindAgent": "Ajan Bağla",
   "agent.channels.chatIdsAutoTrackHint": "Boş bırakıldığında sistem otomatik olarak izler: Önce platformdaki bota bir mesaj gönderilmesi gerekir; ardından sistem, gelecekteki bildirimler için Sohbet Kimliğini kaydeder.",
   "agent.channels.comingSoon": "Yakında",
+  "agent.channels.connectIm": "Anlık mesajlaşmaya bağlan…",
   "agent.channels.connected": "Bağlandı",
   "agent.channels.createError": "Kanal oluşturulamadı",
   "agent.channels.deleteConfirm": "\"{{name}}\" kanalı silinsin mi?",
@@ -6411,10 +6416,5 @@
   "webview.navigation.invalid_address": "Geçerli bir HTTP, HTTPS veya dosya URL’si girin",
   "webview.navigation.load_failed": "Sayfa yüklenemedi",
   "webview.navigation.open_external": "Harici tarayıcıda aç",
-  "webview.navigation.reload": "Yenile",
-  "agent.channels.agentTab.description": "Bu kanallardan gelen mesajları yalnızca bu aracı işler.",
-  "agent.channels.agentTab.inactiveHint": "Bağlandı, ancak henüz etkin değil. Bağlanmak için kanal ayarlarından kimlik bilgilerini yapılandırıp etkinleştirin.",
-  "agent.channels.agentTab.openSettings": "Kanal ayarları",
-  "agent.channels.agentTab.title": "Kanallar",
-  "agent.channels.connectIm": "Anlık mesajlaşmaya bağlan…"
+  "webview.navigation.reload": "Yenile"
 }

@@ -17,9 +17,14 @@
   "agent.builtin.cherry_support.diagnostics.prepared": "Cherry Support が編集可能な説明を用意しました。診断データを選択して送信する前に確認してください。",
   "agent.builtin.cherry_support.diagnostics.review": "問題報告を確認",
   "agent.channels.add": "追加",
+  "agent.channels.agentTab.description": "これらのチャンネルのメッセージは、このエージェントのみが処理します。",
+  "agent.channels.agentTab.inactiveHint": "紐付け済みですが、まだ有効ではありません。チャンネル設定で認証情報を設定し、有効にしてください。",
+  "agent.channels.agentTab.openSettings": "チャンネル設定",
+  "agent.channels.agentTab.title": "チャンネル",
   "agent.channels.bindAgent": "エージェントを関連付け",
   "agent.channels.chatIdsAutoTrackHint": "空欄のままにしておくと、システムが自動的に追跡します：まずプラットフォーム上でボットにメッセージを送信する必要があり、その後システムがチャットIDを記録して今後の通知に使用します。",
   "agent.channels.comingSoon": "近日公開",
+  "agent.channels.connectIm": "IM に接続…",
   "agent.channels.connected": "接続済み",
   "agent.channels.createError": "チャンネルの作成に失敗しました",
   "agent.channels.deleteConfirm": "チャンネル「{{name}}」を削除しますか？",
@@ -6411,10 +6416,5 @@
   "webview.navigation.invalid_address": "有効な HTTP、HTTPS、またはファイル URL を入力してください",
   "webview.navigation.load_failed": "ページの読み込みに失敗しました",
   "webview.navigation.open_external": "外部ブラウザで開く",
-  "webview.navigation.reload": "再読み込み",
-  "agent.channels.agentTab.description": "これらのチャンネルのメッセージは、このエージェントのみが処理します。",
-  "agent.channels.agentTab.inactiveHint": "紐付け済みですが、まだ有効ではありません。チャンネル設定で認証情報を設定し、有効にしてください。",
-  "agent.channels.agentTab.openSettings": "チャンネル設定",
-  "agent.channels.agentTab.title": "チャンネル",
-  "agent.channels.connectIm": "IM に接続…"
+  "webview.navigation.reload": "再読み込み"
 }

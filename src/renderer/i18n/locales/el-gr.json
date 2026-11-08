@@ -17,9 +17,14 @@
   "agent.builtin.cherry_support.diagnostics.prepared": "Η υποστήριξη Cherry ετοίμασε μια επεξεργάσιμη περιγραφή. Ελέγξτε την πριν επιλέξετε διαγνωστικά δεδομένα και υποβάλετε την αναφορά.",
   "agent.builtin.cherry_support.diagnostics.review": "Έλεγχος αναφοράς προβλήματος",
   "agent.channels.add": "Προσθήκη",
+  "agent.channels.agentTab.description": "Τα μηνύματα από αυτά τα κανάλια τα χειρίζεται μόνο αυτός ο πράκτορας.",
+  "agent.channels.agentTab.inactiveHint": "Συνδεδεμένο, αλλά όχι ακόμη ενεργό. Ρυθμίστε τα διαπιστευτήρια και ενεργοποιήστε το στις ρυθμίσεις καναλιών.",
+  "agent.channels.agentTab.openSettings": "Ρυθμίσεις καναλιών",
+  "agent.channels.agentTab.title": "Κανάλια",
   "agent.channels.bindAgent": "Σύνδεση Πράκτορα",
   "agent.channels.chatIdsAutoTrackHint": "Όταν μείνει κενό, το σύστημα θα παρακολουθεί αυτόματα: πρέπει πρώτα να στείλετε ένα μήνυμα στο Bot στην πλατφόρμα, τότε το σύστημα θα καταγράψει το Chat ID για μελλοντικές ειδοποιήσεις.",
   "agent.channels.comingSoon": "Σύντομα διαθέσιμο",
+  "agent.channels.connectIm": "Σύνδεση με IM…",
   "agent.channels.connected": "Συνδεδεμένος",
   "agent.channels.createError": "Αποτυχία δημιουργίας καναλιού",
   "agent.channels.deleteConfirm": "Διαγραφή καναλιού \"{{name}}\";",
@@ -6411,10 +6416,5 @@
   "webview.navigation.invalid_address": "Εισαγάγετε μια έγκυρη διεύθυνση URL HTTP, HTTPS ή αρχείου",
   "webview.navigation.load_failed": "Αποτυχία φόρτωσης της σελίδας",
   "webview.navigation.open_external": "Άνοιγμα σε εξωτερικό πρόγραμμα περιήγησης",
-  "webview.navigation.reload": "Επαναφόρτωση",
-  "agent.channels.agentTab.description": "Τα μηνύματα από αυτά τα κανάλια τα χειρίζεται μόνο αυτός ο πράκτορας.",
-  "agent.channels.agentTab.inactiveHint": "Συνδεδεμένο, αλλά όχι ακόμη ενεργό. Ρυθμίστε τα διαπιστευτήρια και ενεργοποιήστε το στις ρυθμίσεις καναλιών.",
-  "agent.channels.agentTab.openSettings": "Ρυθμίσεις καναλιών",
-  "agent.channels.agentTab.title": "Κανάλια",
-  "agent.channels.connectIm": "Σύνδεση με IM…"
+  "webview.navigation.reload": "Επαναφόρτωση"
 }

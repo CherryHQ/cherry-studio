@@ -17,9 +17,14 @@
   "agent.builtin.cherry_support.diagnostics.prepared": "Cherry Support hat eine bearbeitbare Beschreibung vorbereitet. Prüfen Sie sie, bevor Sie Diagnosedaten auswählen und den Bericht übermitteln.",
   "agent.builtin.cherry_support.diagnostics.review": "Problemmeldung überprüfen",
   "agent.channels.add": "Hinzufügen",
+  "agent.channels.agentTab.description": "Nachrichten aus diesen Kanälen werden nur von diesem Agenten bearbeitet.",
+  "agent.channels.agentTab.inactiveHint": "Verknüpft, aber noch nicht aktiv. Richten Sie die Zugangsdaten ein und aktivieren Sie den Kanal in den Kanaleinstellungen.",
+  "agent.channels.agentTab.openSettings": "Kanaleinstellungen",
+  "agent.channels.agentTab.title": "Kanäle",
   "agent.channels.bindAgent": "Agenten verknüpfen",
   "agent.channels.chatIdsAutoTrackHint": "Wenn es leer bleibt, verfolgt das System automatisch: Sie müssen dem Bot auf der Plattform zuerst eine Nachricht senden, dann zeichnet das System die Chat-ID für zukünftige Benachrichtigungen auf.",
   "agent.channels.comingSoon": "Demnächst verfügbar",
+  "agent.channels.connectIm": "Mit IM verbinden…",
   "agent.channels.connected": "Verbunden",
   "agent.channels.createError": "Fehler beim Erstellen des Kanals",
   "agent.channels.deleteConfirm": "Kanal „{{name}}“ löschen?",
@@ -6411,10 +6416,5 @@
   "webview.navigation.invalid_address": "Gib eine gültige HTTP-, HTTPS- oder Datei-URL ein",
   "webview.navigation.load_failed": "Seite konnte nicht geladen werden",
   "webview.navigation.open_external": "Im externen Browser öffnen",
-  "webview.navigation.reload": "Neu laden",
-  "agent.channels.agentTab.description": "Nachrichten aus diesen Kanälen werden nur von diesem Agenten bearbeitet.",
-  "agent.channels.agentTab.inactiveHint": "Verknüpft, aber noch nicht aktiv. Richten Sie die Zugangsdaten ein und aktivieren Sie den Kanal in den Kanaleinstellungen.",
-  "agent.channels.agentTab.openSettings": "Kanaleinstellungen",
-  "agent.channels.agentTab.title": "Kanäle",
-  "agent.channels.connectIm": "Mit IM verbinden…"
+  "webview.navigation.reload": "Neu laden"
 }

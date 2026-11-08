@@ -17,9 +17,14 @@
   "agent.builtin.cherry_support.diagnostics.prepared": "L’assistance Cherry a préparé une description modifiable. Vérifiez-la avant de choisir les données de diagnostic et d’envoyer le rapport.",
   "agent.builtin.cherry_support.diagnostics.review": "Examiner le signalement du problème",
   "agent.channels.add": "Ajouter",
+  "agent.channels.agentTab.description": "Seul cet agent traite les messages de ces canaux.",
+  "agent.channels.agentTab.inactiveHint": "Associé, mais pas encore actif. Configurez ses identifiants et activez-le dans les paramètres des canaux.",
+  "agent.channels.agentTab.openSettings": "Paramètres des canaux",
+  "agent.channels.agentTab.title": "Canaux",
   "agent.channels.bindAgent": "Lier l'agent",
   "agent.channels.chatIdsAutoTrackHint": "Lorsqu'il est laissé vide, le système effectuera un suivi automatique : vous devez d'abord envoyer un message au Bot sur la plateforme, puis le système enregistrera l'ID du chat pour les notifications futures.",
   "agent.channels.comingSoon": "Bientôt disponible",
+  "agent.channels.connectIm": "Connecter à une messagerie…",
   "agent.channels.connected": "Connecté",
   "agent.channels.createError": "Échec de la création du canal",
   "agent.channels.deleteConfirm": "Supprimer le canal \"{{name}}\" ?",
@@ -6411,10 +6416,5 @@
   "webview.navigation.invalid_address": "Saisissez une URL HTTP, HTTPS ou de fichier valide",
   "webview.navigation.load_failed": "Échec du chargement de la page",
   "webview.navigation.open_external": "Ouvrir dans le navigateur externe",
-  "webview.navigation.reload": "Recharger",
-  "agent.channels.agentTab.description": "Seul cet agent traite les messages de ces canaux.",
-  "agent.channels.agentTab.inactiveHint": "Associé, mais pas encore actif. Configurez ses identifiants et activez-le dans les paramètres des canaux.",
-  "agent.channels.agentTab.openSettings": "Paramètres des canaux",
-  "agent.channels.agentTab.title": "Canaux",
-  "agent.channels.connectIm": "Connecter à une messagerie…"
+  "webview.navigation.reload": "Recharger"
 }

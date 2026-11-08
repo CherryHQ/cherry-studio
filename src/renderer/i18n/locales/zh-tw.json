@@ -17,9 +17,14 @@
   "agent.builtin.cherry_support.diagnostics.prepared": "Cherry 支援已準備一份可編輯的問題描述。請先檢查內容，再選擇診斷資料並提交。",
   "agent.builtin.cherry_support.diagnostics.review": "查看問題上報",
   "agent.channels.add": "新增",
+  "agent.channels.agentTab.description": "這些頻道的訊息僅由此代理處理。",
+  "agent.channels.agentTab.inactiveHint": "已綁定但尚未啟用。請在頻道設定中配置憑證並啟用以連線。",
+  "agent.channels.agentTab.openSettings": "頻道設定",
+  "agent.channels.agentTab.title": "頻道",
   "agent.channels.bindAgent": "綁定 Agent",
   "agent.channels.chatIdsAutoTrackHint": "若留空，系統將自動追蹤：您需先在平台上向機器人傳送一則訊息，系統才會記錄聊天 ID，以供後續通知使用。",
   "agent.channels.comingSoon": "即將推出",
+  "agent.channels.connectIm": "連接即時通訊…",
   "agent.channels.connected": "已連線",
   "agent.channels.createError": "建立頻道失敗",
   "agent.channels.deleteConfirm": "確定刪除頻道「{{name}}」？",
@@ -6411,10 +6416,5 @@
   "webview.navigation.invalid_address": "請輸入有效的 HTTP、HTTPS 或檔案網址",
   "webview.navigation.load_failed": "頁面載入失敗",
   "webview.navigation.open_external": "在外部瀏覽器開啟",
-  "webview.navigation.reload": "重新載入",
-  "agent.channels.agentTab.description": "這些頻道的訊息僅由此代理處理。",
-  "agent.channels.agentTab.inactiveHint": "已綁定但尚未啟用。請在頻道設定中配置憑證並啟用以連線。",
-  "agent.channels.agentTab.openSettings": "頻道設定",
-  "agent.channels.agentTab.title": "頻道",
-  "agent.channels.connectIm": "連接即時通訊…"
+  "webview.navigation.reload": "重新載入"
 }

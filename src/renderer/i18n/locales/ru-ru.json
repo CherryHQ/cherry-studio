@@ -17,9 +17,14 @@
   "agent.builtin.cherry_support.diagnostics.prepared": "Служба поддержки Cherry подготовила редактируемое описание. Проверьте его, прежде чем выбирать диагностические данные и отправлять отчёт.",
   "agent.builtin.cherry_support.diagnostics.review": "Проверить сообщение о проблеме",
   "agent.channels.add": "Добавить",
+  "agent.channels.agentTab.description": "Сообщения из этих каналов обрабатывает только этот агент.",
+  "agent.channels.agentTab.inactiveHint": "Привязан, но пока не активен. Настройте учётные данные и включите его в настройках каналов.",
+  "agent.channels.agentTab.openSettings": "Настройки каналов",
+  "agent.channels.agentTab.title": "Каналы",
   "agent.channels.bindAgent": "Связать агента",
   "agent.channels.chatIdsAutoTrackHint": "Если оставить пустым, система автоматически отследит: сначала нужно отправить сообщение боту на платформе, затем система запишет Chat ID для будущих уведомлений.",
   "agent.channels.comingSoon": "Скоро",
+  "agent.channels.connectIm": "Подключить мессенджер…",
   "agent.channels.connected": "Подключено",
   "agent.channels.createError": "Не удалось создать канал",
   "agent.channels.deleteConfirm": "Удалить канал \"{{name}}\"?",
@@ -6411,10 +6416,5 @@
   "webview.navigation.invalid_address": "Введите корректный URL HTTP, HTTPS или файла",
   "webview.navigation.load_failed": "Не удалось загрузить страницу",
   "webview.navigation.open_external": "Открыть во внешнем браузере",
-  "webview.navigation.reload": "Перезагрузить",
-  "agent.channels.agentTab.description": "Сообщения из этих каналов обрабатывает только этот агент.",
-  "agent.channels.agentTab.inactiveHint": "Привязан, но пока не активен. Настройте учётные данные и включите его в настройках каналов.",
-  "agent.channels.agentTab.openSettings": "Настройки каналов",
-  "agent.channels.agentTab.title": "Каналы",
-  "agent.channels.connectIm": "Подключить мессенджер…"
+  "webview.navigation.reload": "Перезагрузить"
 }

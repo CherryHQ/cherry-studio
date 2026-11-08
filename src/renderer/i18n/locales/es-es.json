@@ -17,9 +17,14 @@
   "agent.builtin.cherry_support.diagnostics.prepared": "El soporte de Cherry ha preparado una descripción editable. Revísala antes de elegir los datos de diagnóstico y enviar el informe.",
   "agent.builtin.cherry_support.diagnostics.review": "Revisar la notificación del problema",
   "agent.channels.add": "Agregar",
+  "agent.channels.agentTab.description": "Solo este agente gestiona los mensajes de estos canales.",
+  "agent.channels.agentTab.inactiveHint": "Vinculado, pero aún no está activo. Configure sus credenciales y actívelo en los ajustes de canales.",
+  "agent.channels.agentTab.openSettings": "Ajustes de canales",
+  "agent.channels.agentTab.title": "Canales",
   "agent.channels.bindAgent": "Agente vinculante",
   "agent.channels.chatIdsAutoTrackHint": "Cuando se deja vacío, el sistema lo rastreará automáticamente: primero debes enviar un mensaje al Bot en la plataforma, luego el sistema registrará el ID del chat para futuras notificaciones.",
   "agent.channels.comingSoon": "Próximamente",
+  "agent.channels.connectIm": "Conectar con IM…",
   "agent.channels.connected": "Conectado",
   "agent.channels.createError": "Error al crear el canal",
   "agent.channels.deleteConfirm": "¿Eliminar canal \"{{name}}\"?",
@@ -6411,10 +6416,5 @@
   "webview.navigation.invalid_address": "Introduce una URL válida de HTTP, HTTPS o de archivo",
   "webview.navigation.load_failed": "No se pudo cargar la página",
   "webview.navigation.open_external": "Abrir en el navegador externo",
-  "webview.navigation.reload": "Recargar",
-  "agent.channels.agentTab.description": "Solo este agente gestiona los mensajes de estos canales.",
-  "agent.channels.agentTab.inactiveHint": "Vinculado, pero aún no está activo. Configure sus credenciales y actívelo en los ajustes de canales.",
-  "agent.channels.agentTab.openSettings": "Ajustes de canales",
-  "agent.channels.agentTab.title": "Canales",
-  "agent.channels.connectIm": "Conectar con IM…"
+  "webview.navigation.reload": "Recargar"
 }

@@ -17,9 +17,14 @@
   "agent.builtin.cherry_support.diagnostics.prepared": "Serviciul de asistență Cherry a pregătit o descriere editabilă. Verificați-o înainte de a alege datele de diagnosticare și de a trimite raportul.",
   "agent.builtin.cherry_support.diagnostics.review": "Revizuiește raportarea problemei",
   "agent.channels.add": "Adaugă",
+  "agent.channels.agentTab.description": "Doar acest agent gestionează mesajele de pe aceste canale.",
+  "agent.channels.agentTab.inactiveHint": "Asociat, dar încă inactiv. Configurați datele de autentificare și activați-l în setările canalelor.",
+  "agent.channels.agentTab.openSettings": "Setările canalelor",
+  "agent.channels.agentTab.title": "Canale",
   "agent.channels.bindAgent": "Conectează agentul",
   "agent.channels.chatIdsAutoTrackHint": "Când este lăsat gol, sistemul va urmări automat: trebuie să trimiți mai întâi un mesaj Bot-ului pe platformă, apoi sistemul va înregistra ID-ul conversației pentru notificările viitoare.",
   "agent.channels.comingSoon": "În curând",
+  "agent.channels.connectIm": "Conectare la mesagerie…",
   "agent.channels.connected": "Conectat",
   "agent.channels.createError": "Nu s-a reușit crearea canalului",
   "agent.channels.deleteConfirm": "Șterge canalul „{{name}}”?",
@@ -6411,10 +6416,5 @@
   "webview.navigation.invalid_address": "Introduceți un URL valid HTTP, HTTPS sau de fișier",
   "webview.navigation.load_failed": "Încărcarea paginii a eșuat",
   "webview.navigation.open_external": "Deschide în browserul extern",
-  "webview.navigation.reload": "Reîncarcă",
-  "agent.channels.agentTab.description": "Doar acest agent gestionează mesajele de pe aceste canale.",
-  "agent.channels.agentTab.inactiveHint": "Asociat, dar încă inactiv. Configurați datele de autentificare și activați-l în setările canalelor.",
-  "agent.channels.agentTab.openSettings": "Setările canalelor",
-  "agent.channels.agentTab.title": "Canale",
-  "agent.channels.connectIm": "Conectare la mesagerie…"
+  "webview.navigation.reload": "Reîncarcă"
 }
