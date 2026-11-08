@@ -54,7 +54,7 @@ export function AgentChannelsTab({ agentId }: { agentId: string }) {
           <div key={def.type} className="flex flex-col gap-2 rounded-lg border border-border-subtle px-3 py-2.5">
             <div className="flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2">
-                {icon && <img src={icon} className="h-4 w-4 rounded-sm object-contain" />}
+                {icon && <img src={icon} alt="" className="h-4 w-4 rounded-sm object-contain" />}
                 <span className="truncate text-sm">{def.name}</span>
               </div>
               <Switch
@@ -65,9 +65,9 @@ export function AgentChannelsTab({ agentId }: { agentId: string }) {
                 aria-label={def.name}
               />
             </div>
-            {needsSetup ? (
+            {bound.length > 0 ? (
               <div className="flex items-center justify-between gap-3 text-muted-foreground text-xs">
-                <span>{t('agent.channels.agentTab.inactiveHint')}</span>
+                {needsSetup ? <span>{t('agent.channels.agentTab.inactiveHint')}</span> : <span />}
                 <Button variant="ghost" size="sm" onClick={() => openSettingsTab(CHANNEL_SETTINGS_PATH)}>
                   {t('agent.channels.agentTab.openSettings')}
                 </Button>
