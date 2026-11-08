@@ -292,7 +292,9 @@ describe('UserAccountPanel', () => {
 
     expect(request).toHaveBeenCalledWith(
       'system.shell.open_external_website',
-      'https://cloud-dev.cherryai.com/account/plans'
+      expect.stringMatching(
+        /^https:\/\/cloud-dev\.cherryai\.com\/account\/plans\?entry=desktop&entry_source=account_panel&flow_id=/
+      )
     )
   })
 

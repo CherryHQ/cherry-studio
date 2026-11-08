@@ -117,6 +117,70 @@ export type CherryCloudAccountPlans = z.infer<typeof cherryCloudAccountPlansSche
 export type CherryCloudPlanModel = z.infer<typeof cherryCloudPlanModelSchema>
 export type CherryCloudPublicPlanCatalog = z.infer<typeof cherryCloudPublicPlanCatalogSchema>
 
+const subscriptionEntrySourceSchema = z.enum([
+  'selector_locked_row',
+  'selector_header',
+  'account_panel',
+  'settings',
+  'quota_notice',
+  'avatar_dot'
+])
+const quotaModelTypeSchema = z.enum(['free', 'paid'])
+// One id per Subscribe click, also handed to the account portal so web and server events of the same purchase can be joined.
+const subscriptionFlowIdSchema = z.uuid()
+
+/**
+ * Allow-listed subscription usage insights; none carries a price. Names shared with the China subscription web page
+ * and server (`subscription_entry_clicked`, `subscription_entitlement_refresh_result`) follow their contract.
+ */
+export const cherryCloudAnalyticsEventSchema = z.discriminatedUnion('event', [
+  z.strictObject({ event: z.literal('subscription_entry_view'), source: subscriptionEntrySourceSchema }),
+  z.strictObject({
+    event: z.literal('subscription_entry_clicked'),
+    source: subscriptionEntrySourceSchema,
+    flowId: subscriptionFlowIdSchema,
+    signedIn: z.boolean(),
+    modelId: z.string().max(200).optional()
+  }),
+  z.strictObject({
+    event: z.literal('subscription_sign_in_result'),
+    flowId: subscriptionFlowIdSchema,
+    // `not_completed`: the browser sign-in ended without a session (closed, cancelled, expired, or rejected).
+    result: z.enum(['success', 'failed', 'not_completed']),
+    reason: z.enum(['upgrade_required', 'service_unavailable', 'other']).optional()
+  }),
+  z.strictObject({
+    event: z.literal('subscription_portal_open'),
+    source: subscriptionEntrySourceSchema,
+    flowId: subscriptionFlowIdSchema,
+    result: z.enum(['success', 'failed'])
+  }),
+  z.strictObject({
+    event: z.literal('subscription_entitlement_refresh_result'),
+    result: z.literal('succeeded'),
+    planId: z.uuid(),
+    detectedBy: z.enum(['focus_refresh', 'notification']),
+    sinceClick: z.enum(['under_5m', 'under_30m', 'under_24h', 'over_24h', 'none']),
+    flowId: subscriptionFlowIdSchema.optional()
+  }),
+  z.strictObject({
+    event: z.literal('subscription_quota_exhausted_view'),
+    modelType: quotaModelTypeSchema,
+    subscribed: z.boolean()
+  }),
+  z.strictObject({
+    event: z.literal('subscription_quota_action'),
+    action: z.enum(['subscribe', 'view_usage', 'switch_model']),
+    modelType: quotaModelTypeSchema
+  }),
+  z.strictObject({ event: z.literal('subscription_usage_view'), subscribed: z.boolean() }),
+  z.strictObject({ event: z.literal('subscription_manage_click') }),
+  z.strictObject({ event: z.literal('subscription_faq_click'), subscribed: z.boolean() })
+])
+
+export type CherryCloudAnalyticsEvent = z.infer<typeof cherryCloudAnalyticsEventSchema>
+export type SubscriptionEntrySource = z.infer<typeof subscriptionEntrySourceSchema>
+
 export const cherryCloudRequestSchemas = {
   'cherry_cloud.status.get': defineRoute({ input: z.void(), output: cherryCloudStatusSchema }),
   'cherry_cloud.account_origin.get': defineRoute({ input: z.void(), output: z.url() }),
@@ -128,7 +192,8 @@ export const cherryCloudRequestSchemas = {
     output: cherryCloudModelSyncResultSchema
   }),
   'cherry_cloud.account_plans.get': defineRoute({ input: z.void(), output: cherryCloudAccountPlansSchema }),
-  'cherry_cloud.public_plans.get': defineRoute({ input: z.void(), output: cherryCloudPublicPlanCatalogSchema })
+  'cherry_cloud.public_plans.get': defineRoute({ input: z.void(), output: cherryCloudPublicPlanCatalogSchema }),
+  'cherry_cloud.analytics.track': defineRoute({ input: cherryCloudAnalyticsEventSchema, output: z.void() })
 }
 
 export type CherryCloudEventSchemas = {
