@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { toCanvas } from 'html-to-image'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
@@ -74,9 +74,6 @@ beforeAll(() => {
 afterAll(() => {
   vi.unstubAllGlobals()
 })
-afterEach(() => {
-  vi.restoreAllMocks()
-})
 beforeEach(() => {
   vi.mocked(toCanvas)
     .mockReset()
@@ -89,16 +86,7 @@ describe('copy translated output as an image', () => {
     const text = 'First translated line\n' + 'Long translation\n'.repeat(200) + 'Last translated line'
     const view = render(<TranslateOutputPane {...props()} translatedContent={text} />)
     const body = view.container.querySelector<HTMLDivElement>('[data-ui="translate.output-content"]')!
-    // JSDOM does not load the app theme; provide its resolved value at the browser boundary.
-    const getComputedStyle = window.getComputedStyle.bind(window)
-    vi.spyOn(window, 'getComputedStyle').mockImplementation((element, pseudoElement) => {
-      const style = getComputedStyle(element, pseudoElement)
-      if (element === body) {
-        const getPropertyValue = style.getPropertyValue.bind(style)
-        style.getPropertyValue = (name) => (name === '--card' ? 'rgb(24, 24, 24)' : getPropertyValue(name))
-      }
-      return style
-    })
+    body.style.cssText = '--card: rgb(24, 24, 24)'
     Object.defineProperties(body, { scrollWidth: { value: 360 }, scrollHeight: { value: 4096 } })
     fireEvent.click(button())
     await waitFor(() => expect(write).toHaveBeenCalledOnce())
