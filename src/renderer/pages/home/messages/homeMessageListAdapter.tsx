@@ -657,7 +657,15 @@ export function useHomeMessageListProviderValue({
       if (!group || group.length < 2) return null
 
       const activeIndex = group.findIndex((message) => message.id === messageId)
-      return { group, activeIndex: activeIndex >= 0 ? activeIndex : 0 }
+      return {
+        group: group.map((message) => ({
+          id: message.id,
+          preview: getComposerTextFromParts(message.data.parts ?? [])
+            .replace(/\s+/g, ' ')
+            .trim()
+        })),
+        activeIndex: activeIndex >= 0 ? activeIndex : 0
+      }
     },
     [siblingsContext]
   )
