@@ -149,12 +149,35 @@ export class ClaudeProjection {
     if (options.aborted) this.aborted.add(message.uuid)
     const partial = this.aborted.has(message.uuid)
     const content = message.message.content
+    // The SDK carries the original MCP result beside its model-facing blocks.
+    // Bind that sidecar only when this message identifies one result, never to
+    // multiple tool calls whose ownership would otherwise be ambiguous.
+    const rawResult = message.type === 'user' ? message.tool_use_result : undefined
+    const structuredContent =
+      rawResult !== null && typeof rawResult === 'object' && 'structuredContent' in rawResult
+        ? rawResult.structuredContent
+        : undefined
+    const resultBlocks = typeof content === 'string' ? [] : content.filter((block) => block.type === 'tool_result')
+    const project = (block: NativeBlock) => {
+      const projected = projectBlock(block, partial)
+      if (
+        block.type === 'tool_result' &&
+        resultBlocks.length === 1 &&
+        structuredContent !== null &&
+        typeof structuredContent === 'object' &&
+        !Array.isArray(structuredContent) &&
+        projected &&
+        'result' in projected &&
+        !('is_error' in block && block.is_error)
+      ) {
+        projected.result.output = { content: block.content ?? '', structuredContent }
+      }
+      return projected
+    }
     return this.upsertContent(
       message.uuid,
       message.type,
-      typeof content === 'string'
-        ? [projectBlock({ type: 'text', text: content }, partial)]
-        : content.map((block) => projectBlock(block, partial)),
+      typeof content === 'string' ? [projectBlock({ type: 'text', text: content }, partial)] : content.map(project),
       message.type === 'assistant' ? message.message.id : undefined,
       options
     )

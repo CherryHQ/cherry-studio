@@ -157,7 +157,8 @@ async function resolveInputImages(
 export async function generateImageFromPrompt(
   input: GenerateImageToolInput,
   signal?: AbortSignal,
-  configuredModel: ConfiguredPaintingModel | null = resolveConfiguredPaintingModel()
+  configuredModel: ConfiguredPaintingModel | null = resolveConfiguredPaintingModel(),
+  cleanupPolicy: 'manual' | 'delete_when_unreferenced' = 'delete_when_unreferenced'
 ): Promise<PaintingResult> {
   if (!configuredModel) return { error: PAINTING_MODEL_NOT_CONFIGURED_NOTE }
 
@@ -185,7 +186,7 @@ export async function generateImageFromPrompt(
       mode,
       ...(inputImages && { inputImages }),
       paramValues: extractParamValues(input, support, mode),
-      cleanupPolicy: 'delete_when_unreferenced',
+      cleanupPolicy,
       requestOptions: signal ? { signal } : undefined
     })
     return files.map((file) => ({ id: file.id, name: file.name }))

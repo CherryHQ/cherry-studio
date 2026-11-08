@@ -7,6 +7,7 @@ import { and, eq, ne } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { runtimeId } from '@cherrystudio/agent-runtime'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
@@ -23,10 +24,14 @@ import type { AgentSessionDeliveryRoutingError } from '@data/services/AgentSessi
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
+import { fileEntryService } from '@data/services/FileEntryService'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSessionForkOperations'
+import { ClaudeMessageMetadata } from '@main/ai/runtime/claudeCode/ClaudeMessageMetadata'
 import { AgentSessionForkError, type RuntimeForkInput } from '@main/ai/runtime/fork/checkpoint'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
+
+import { ClaudeProjection } from '../../../../../packages/agent-runtime-claude-code/src/projection'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
   notifyDataApiDataChangeMock: vi.fn()
@@ -1293,6 +1298,116 @@ describe('AgentSessionMessageService', () => {
 
     agentSessionMessageService.deleteSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
     expect(await dbh.db.select().from(agentSessionMessageFileRefTable)).toEqual([])
+  })
+
+  it('preserves native Claude structured image ownership through projection and persistence', async () => {
+    const generatedFileId = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d004'
+    await dbh.db
+      .insert(fileEntryTable)
+      .values({
+        id: generatedFileId,
+        origin: 'internal',
+        name: 'landscape',
+        ext: 'png',
+        size: 42,
+        cleanupPolicy: 'delete_when_unreferenced',
+        createdAt: Date.now() - 7200000
+      })
+    const projection = new ClaudeProjection({ backendId: runtimeId('claude'), id: runtimeId('session') }, (error) => {
+      throw error
+    })
+    const call = {
+      type: 'assistant',
+      uuid: ASSISTANT_MESSAGE_ID,
+      session_id: SESSION_ID,
+      parent_tool_use_id: null,
+      message: {
+        id: 'api-message',
+        role: 'assistant',
+        content: [
+          {
+            type: 'tool_use',
+            id: 'native-image',
+            name: 'mcp__cherry-tools__generate_image',
+            input: { prompt: 'a landscape' }
+          }
+        ]
+      }
+    } as Parameters<ClaudeProjection['message']>[0]
+    const result = {
+      type: 'user',
+      uuid: USER_MESSAGE_ID,
+      session_id: SESSION_ID,
+      parent_tool_use_id: null,
+      message: {
+        role: 'user',
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: 'native-image',
+            content: [
+              { type: 'text', text: 'Generated image' },
+              { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'aW1hZ2U=' } }
+            ]
+          }
+        ]
+      },
+      tool_use_result: {
+        content: [{ type: 'text', text: 'Generated image' }],
+        structuredContent: { images: [{ id: generatedFileId, name: 'landscape.png' }] }
+      }
+    } as Parameters<ClaudeProjection['message']>[0]
+    for (const message of [call, result]) projection.publish(projection.message(message))
+    const metadata = new ClaudeMessageMetadata()
+    const message = metadata.decorate(projection.feed.snapshot.messages[0])
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', data: { parts: message.parts } }
+    })
+    expect(await dbh.db.select().from(agentSessionMessageFileRefTable)).toEqual([
+      expect.objectContaining({ fileEntryId: generatedFileId, role: 'generated' })
+    ])
+    expect(
+      fileEntryService.findCleanupCandidates({ graceMs: 3600000, limit: 100 }).map((entry) => entry.id)
+    ).not.toContain(generatedFileId)
+  })
+
+  it('keeps manually retained MCP images safe when Pi codemode has no direct generated ref', async () => {
+    const generatedFileId = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d004'
+    await dbh.db
+      .insert(fileEntryTable)
+      .values({
+        id: generatedFileId,
+        origin: 'internal',
+        name: 'landscape',
+        ext: 'png',
+        size: 42,
+        cleanupPolicy: 'manual',
+        createdAt: Date.now() - 7200000
+      })
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        data: {
+          parts: [
+            {
+              type: 'dynamic-tool',
+              toolName: 'codemode',
+              toolCallId: 'nested-image',
+              state: 'output-available',
+              input: { code: 'text(await tools.mcp__cherry_tools__generate_image({prompt: "landscape"}))' },
+              output: { content: [{ type: 'text', text: generatedFileId }] }
+            }
+          ]
+        }
+      }
+    })
+    expect(await dbh.db.select().from(agentSessionMessageFileRefTable)).toEqual([])
+    expect(
+      fileEntryService.findCleanupCandidates({ graceMs: 3600000, limit: 100 }).map((entry) => entry.id)
+    ).not.toContain(generatedFileId)
   })
 
   it('creates messages with service-owned audit timestamps', async () => {

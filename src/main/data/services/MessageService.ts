@@ -263,7 +263,11 @@ function extractChatMessageFileRefs(data: MessageData | null | undefined): ChatM
       add(readCherryMeta(part)?.fileEntryId, 'attachment')
     } else if (isToolUIPart(part) && part.state === 'output-available' && isPersistedToolOutput(part.output)) {
       for (const blob of blobRefsOf(part.output.$persistedToolOutput)) add(blob.fileEntryId, 'tool_output')
-    } else if (isToolUIPart(part) && part.type === 'tool-generate_image' && part.state === 'output-available') {
+    } else if (
+      isToolUIPart(part) &&
+      (part.type === 'tool-generate_image' || (part.type === 'dynamic-tool' && part.toolName === 'generate_image')) &&
+      part.state === 'output-available'
+    ) {
       const output = generateImageOutputSchema.safeParse(part.output)
       if (output.success) {
         for (const file of output.data) add(file.id, 'generated')

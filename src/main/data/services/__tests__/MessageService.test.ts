@@ -1,10 +1,14 @@
-// Load the sibling so it self-registers in the data-service registry (prod loads it via its DataApi handler).
-import '@data/services/TopicService'
 import { rootRow, setupTestDatabase, withRoot } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+
+// Load the sibling so it self-registers in the data-service registry (prod loads it via its DataApi handler).
+import '@data/services/TopicService'
+import { dynamicTool, readUIMessageStream, streamText, type UIMessage } from 'ai'
+import { convertArrayToReadableStream, MockLanguageModelV3 } from 'ai/test'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import * as z from 'zod'
 
 import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
 import { fileEntryTable } from '@data/db/schemas/file'
@@ -2250,37 +2254,75 @@ describe('MessageService', () => {
       expect(refs.every((ref) => ref.role === 'tool_output')).toBe(true)
     })
 
-    it('registers generated image outputs with the generated role', async () => {
-      const topicId = 'topic-ref-generated-images'
-      const fileIds = ['019606a0-0000-7000-8000-00000000fc01', '019606a0-0000-7000-8000-00000000fc02']
-      await seedTopicWithRoot(topicId)
-      for (const fileId of fileIds) await seedFileEntry(fileId)
+    it.each(['tool-generate_image', 'dynamic-tool'] as const)(
+      'registers %s generated image outputs with the generated role',
+      async (type) => {
+        const topicId = 'topic-ref-generated-images'
+        const fileIds = ['019606a0-0000-7000-8000-00000000fc01', '019606a0-0000-7000-8000-00000000fc02']
+        await seedTopicWithRoot(topicId)
+        for (const fileId of fileIds) await seedFileEntry(fileId)
 
-      const message = messageService.create(topicId, {
-        role: 'assistant',
-        data: {
-          parts: [
-            {
-              type: 'tool-generate_image',
-              toolCallId: 'generate-1',
-              state: 'output-available',
-              input: { prompt: 'a landscape' },
-              output: fileIds.map((id, index) => ({ id, name: `image-${index}.png` }))
+        const output = fileIds.map((id, index) => ({ id, name: `image-${index}.png` }))
+        let parts: MessageData['parts'] = [
+          {
+            type: 'tool-generate_image',
+            toolCallId: 'generate-1',
+            state: 'output-available',
+            input: { prompt: 'a landscape' },
+            output
+          }
+        ] as MessageData['parts']
+        if (type === 'dynamic-tool') {
+          const result = streamText({
+            model: new MockLanguageModelV3({
+              doStream: async () => ({
+                stream: convertArrayToReadableStream([
+                  {
+                    type: 'tool-call',
+                    toolCallId: 'generate-1',
+                    toolName: 'generate_image',
+                    input: JSON.stringify({ prompt: 'a landscape' })
+                  },
+                  {
+                    type: 'finish',
+                    finishReason: { unified: 'tool-calls', raw: 'tool-calls' },
+                    usage: {
+                      inputTokens: { total: 1, noCache: 1, cacheRead: undefined, cacheWrite: undefined },
+                      outputTokens: { total: 1, text: 1, reasoning: undefined }
+                    }
+                  }
+                ])
+              })
+            }),
+            prompt: 'generate an image',
+            tools: {
+              generate_image: dynamicTool({
+                inputSchema: z.object({ prompt: z.string() }),
+                execute: async () => output
+              })
             }
-          ] as MessageData['parts']
-        },
-        status: 'success'
-      })
+          })
+          let streamed: UIMessage | undefined
+          for await (const message of readUIMessageStream({ stream: result.toUIMessageStream() })) streamed = message
+          expect(streamed?.parts).toEqual(
+            expect.arrayContaining([
+              expect.objectContaining({ type: 'dynamic-tool', toolName: 'generate_image', state: 'output-available' })
+            ])
+          )
+          parts = streamed!.parts as MessageData['parts']
+        }
+        const message = messageService.create(topicId, { role: 'assistant', data: { parts }, status: 'success' })
 
-      const refs = await dbh.db
-        .select()
-        .from(chatMessageFileRefTable)
-        .where(eq(chatMessageFileRefTable.sourceId, message.id))
-      expect(refs).toHaveLength(2)
-      expect(refs.map((ref) => [ref.fileEntryId, ref.role]).sort()).toEqual(
-        fileIds.map((fileId) => [fileId, 'generated']).sort()
-      )
-    })
+        const refs = await dbh.db
+          .select()
+          .from(chatMessageFileRefTable)
+          .where(eq(chatMessageFileRefTable.sourceId, message.id))
+        expect(refs).toHaveLength(2)
+        expect(refs.map((ref) => [ref.fileEntryId, ref.role]).sort()).toEqual(
+          fileIds.map((fileId) => [fileId, 'generated']).sort()
+        )
+      }
+    )
 
     it('drops the tool_output ref when the envelope leaves the message data', async () => {
       const topicId = 'topic-ref-tool-output-drop'

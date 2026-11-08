@@ -58,8 +58,11 @@ explicit policy. Business-owned copies and generated/transient artifacts general
 `delete_when_unreferenced`; user-library imports and other independently retained files use
 `manual`. The caller that understands the ownership outcome chooses the policy.
 
-Generated `generate_image` outputs use `delete_when_unreferenced`; `chat_message_file_ref` and
-`agent_session_message_file_ref` rows with role `generated` hold them while their message exists.
+Direct AI SDK `generate_image` outputs use `delete_when_unreferenced`; `chat_message_file_ref`
+rows with role `generated` hold them while their message exists. The MCP bridge uses `manual`
+until every caller preserves ownership across nested execution, including Pi codemode. Claude
+structured image IDs are projected into `agent_session_message_file_ref` rows when available,
+but a missing agent ref must not make an MCP-generated original eligible for automatic cleanup.
 
 ### 4.2 Policy Transitions
 

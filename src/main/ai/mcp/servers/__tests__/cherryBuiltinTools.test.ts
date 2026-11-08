@@ -689,7 +689,7 @@ describe('cherry-tools builtin tools', () => {
 
     expect(result.isError).toBeFalsy()
     expect(generateImage).toHaveBeenCalledWith(
-      expect.objectContaining({ uniqueModelId: 'openai::dall-e-3', prompt: 'a cat' })
+      expect.objectContaining({ uniqueModelId: 'openai::dall-e-3', prompt: 'a cat', cleanupPolicy: 'manual' })
     )
     // Model-facing text summary comes first…
     expect(textOf(result)).toContain('Generated 1 image(s)')

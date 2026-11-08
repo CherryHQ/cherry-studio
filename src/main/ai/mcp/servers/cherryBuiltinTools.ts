@@ -120,7 +120,10 @@ function registerBuiltinTools(server: McpServer): void {
     },
     async (input, ctx) => {
       const signal = ctx.mcpReq.signal
-      const result = await generateImageFromPrompt(input as GenerateImageToolInput, signal, configuredModel)
+      // Pi exposes this tool through codemode, whose outer result cannot yet
+      // establish generated-file ownership. Keep all MCP outputs manual until
+      // every MCP caller carries ownership across nested execution.
+      const result = await generateImageFromPrompt(input as GenerateImageToolInput, signal, configuredModel, 'manual')
       const text = paintingModelOutput(result).value
       // On failure `result` is the model-facing note — text only, no image to attach.
       const images = isPaintingError(result) ? [] : await readGeneratedImages(result, signal)
