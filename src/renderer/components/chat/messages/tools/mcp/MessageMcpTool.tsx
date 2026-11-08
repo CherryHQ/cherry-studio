@@ -9,9 +9,10 @@ import { CircularProgress, Flex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { useToolResult } from '@renderer/hooks/useToolResult'
 import { ipcApi } from '@renderer/ipc'
 import type { McpToolResponse } from '@renderer/types/mcpTool'
-import type { DeferredToolOutput } from '@shared/ai/transport'
+import type { DeferredToolOutput, DeferredToolResultRef } from '@shared/ai/transport'
 
 import {
   useMessageRenderConfig,
@@ -194,7 +195,7 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
 
 type ExtractedContent = {
   text: string
-  images: Array<{ data: string; mimeType: string }>
+  images: Array<{ src: string }>
   links: ToolResultLinkData[]
 }
 
@@ -212,7 +213,7 @@ const extractPreviewContent = (response: unknown): ExtractedContent => {
     if (contents.length === 0) return { text: '', images: [], links: [] }
 
     const textParts: string[] = []
-    const images: Array<{ data: string; mimeType: string }> = []
+    const images: Array<{ src: string }> = []
     const links: ToolResultLinkData[] = []
     for (const content of contents) {
       switch (content.type) {
@@ -233,13 +234,17 @@ const extractPreviewContent = (response: unknown): ExtractedContent => {
           break
         case 'image':
           if (content.data) {
-            images.push({ data: content.data, mimeType: content.mimeType ?? 'image/png' })
+            images.push({ src: `data:${content.mimeType ?? 'image/png'};base64,${content.data}` })
           }
           break
         case 'resource':
           textParts.push(`[Resource: ${content.resource?.uri ?? 'unknown'}]`)
           break
         case 'resource_link': {
+          if (content.mimeType?.startsWith('image/') && content.uri.startsWith('cherry-media://tool-result/')) {
+            images.push({ src: content.uri })
+            break
+          }
           const resourceLinks = getToolResultLinks(content)
           if (resourceLinks) links.push(...resourceLinks)
           else textParts.push(content.uri)
@@ -319,7 +324,31 @@ const ToolResponseContent: FC<{
         isStreaming={isStreaming}
         response={deferredOutput ? undefined : response}
       />
-      {deferredOutput && <DeferredToolDetails resultRef={deferredOutput.$deferredToolResult} />}
+      {deferredOutput && (
+        <>
+          <DeferredMcpMedia resultRef={deferredOutput.$deferredToolResult} />
+          <DeferredToolDetails resultRef={deferredOutput.$deferredToolResult} />
+        </>
+      )}
+    </>
+  )
+}
+
+function DeferredMcpMedia({ resultRef }: { resultRef: DeferredToolResultRef }) {
+  const { t } = useTranslation()
+  const { output, generation } = useToolResult(resultRef, 'preview')
+  const { images, links } = useMemo(() => extractPreviewContent(output), [output])
+  return (
+    <>
+      <ToolResultLinkList links={links} />
+      {images.map((image, index) => (
+        <img
+          key={`${generation}:${index}`}
+          src={image.src}
+          alt={t('message.tools.sections.output')}
+          style={{ maxWidth: 300, borderRadius: 4, marginTop: 8 }}
+        />
+      ))}
     </>
   )
 }
@@ -334,7 +363,7 @@ const ExpandedToolResponseContent: FC<{
   const [showArgs, setShowArgs] = useState(false)
   const [showResponse, setShowResponse] = useState(false)
   const [highlightedResponse, setHighlightedResponse] = useState<string>('')
-  const [responseImages, setResponseImages] = useState<Array<{ data: string; mimeType: string }>>([])
+  const [responseImages, setResponseImages] = useState<Array<{ src: string }>>([])
   const [responseLinks, setResponseLinks] = useState<ToolResultLinkData[]>([])
   const [isTruncated, setIsTruncated] = useState(false)
   const [originalLength, setOriginalLength] = useState(0)
@@ -473,12 +502,7 @@ const ExpandedToolResponseContent: FC<{
             {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
             <ToolResultLinkList links={responseLinks} />
             {responseImages.map((img, idx) => (
-              <img
-                key={idx}
-                src={`data:${img.mimeType};base64,${img.data}`}
-                alt="Tool output"
-                style={{ maxWidth: 300, borderRadius: 4, marginTop: 8 }}
-              />
+              <img key={idx} src={img.src} alt="Tool output" style={{ maxWidth: 300, borderRadius: 4, marginTop: 8 }} />
             ))}
           </ResponseSection>
         )}

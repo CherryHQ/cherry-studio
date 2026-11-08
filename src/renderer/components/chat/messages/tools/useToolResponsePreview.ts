@@ -30,7 +30,7 @@ export function useToolOutputReference(response: unknown, toolCallId?: string): 
   }, [response, scopeMessageId, toolCallId, topicId])
 }
 
-export function useToolResponsePreview(toolResponse: ToolResponseLike) {
+export function useToolResponsePreview<T extends ToolResponseLike>(toolResponse: T) {
   const deferredOutput = useToolOutputReference(toolResponse.response, toolResponse.toolCallId)
   const { output, generation } = useToolResult(deferredOutput?.$deferredToolResult, 'preview')
   const preview = useMemo(() => {
@@ -45,5 +45,5 @@ export function useToolResponsePreview(toolResponse: ToolResponseLike) {
         : undefined
     }
   }, [deferredOutput, output, toolResponse])
-  return { toolResponse: preview, generation }
+  return { toolResponse: preview, deferredOutput, generation }
 }

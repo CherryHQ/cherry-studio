@@ -48,12 +48,12 @@ A deferred result is addressed by `{ topicId, messageId, toolCallId }`. The refe
 | Purpose | Ready response | Limit |
 |---|---|---|
 | `preview` | Structured `output` plus `truncated` | At most 32 KiB for the serialized UTF-8 response; fields and collections may be shortened |
-| `text-range` | Serialized JSON text (or legacy envelope blob text) plus optional `nextCursor` | At most 256 KiB of UTF-8 text per read; `cursor` is a byte offset, defaulting to zero |
+| `text-range` | Serialized JSON text or legacy envelope text plus optional `nextCursor` | At most 256 KiB of UTF-8 text per read; `cursor` is a byte offset, defaulting to zero |
 | `full` | Complete `output` | Explicit full-value consumers such as copy and export; no preview truncation |
 
 `status: 'ready'` carries the requested purpose. The current handler returns `unavailable` when neither the live owner nor persisted output can resolve the identity. The protocol also permits `pending`; consumers retry it on relevant invalidation or reattachment. Neither availability status changes the tool execution state, and `unavailable` is not an execution failure.
 
-Ordinary deferred cards fetch details when opened. Generic readers page serialized text; specialized cards use bounded previews. Copy and export request `full` explicitly. A replacement invalidates the current reader and restarts pagination from byte zero; cursors do not pin historical values.
+Ordinary deferred cards fetch details when opened. Generic readers page serialized text and load bounded media previews; specialized cards use bounded previews. Legacy entity ranges retain the skeleton and inline values, followed by blob bodies labeled with their field paths. Copy and export request `full` explicitly, including meta-tool cards that display bounded previews. A replacement invalidates the current reader and restarts pagination from byte zero; cursors do not pin historical values.
 
 Each renderer shares a latest-value LRU bounded to 16 MiB of serialized UTF-8 responses. It deduplicates active reads and fences obsolete completions locally, without an immutable SWR cache or content-version keys. A full response larger than that budget reaches its explicit mounted consumer but is not retained in the shared cache. Closing the last conversation observer releases that topic's cached and in-flight ownership while preserving other observers. Projection replacement, reattachment and relevant persisted-message changes invalidate retained details; ordered delivery is described in [Execution Overlay](./execution-overlay.md).
 

@@ -37,14 +37,14 @@ Status: implemented
 | 用途 | 响应及上限 |
 | --- | --- |
 | `preview` | 有类型的输出及 `truncated`；序列化 UTF-8 响应不超过 32 KiB。大型图片字节改为所有者提供的 `cherry-media://tool-result/…` 资源。 |
-| `text-range` | 最多 256 KiB UTF-8 文本，可附带经校验的字节游标。已拆分 SQLite 值使用有界 `substr` 读取；旧 blob 信封使用有界 FileManager chunk。旧内联值仍需经过原有完整读取。 |
+| `text-range` | 最多 256 KiB UTF-8 文本，可附带经校验的字节游标。已拆分 SQLite 值使用有界 `substr` 读取；旧 blob 信封使用有界 FileManager chunk。旧实体范围保留骨架和内联值，随后显示按字段路径标注的 blob 正文；内联值仍需经过原有完整读取。 |
 | `full` | 复制、图片导出等明确操作所需的原始类型值。普通通用卡片挂载不请求它。 |
 
 当前 handler 返回 `ready` 或 `unavailable`；协议仍支持 `pending`，消费者在相关失效或重新附着时重试。可用性不改变工具成功、执行中或失败状态。资源读取校验调用身份及受信 renderer 来源，不增加另一份媒体载荷存储，返回最新图片并使用 `no-store`。本地读取代次变化时重新挂载图片展示。全文复制和导出保留原始结果。
 
 ### 详情所有权、失效与发布
 
-已删除提前读取全文的 `useResolvedToolResponse` 入口。通用卡片只在展开时挂载读取者，原始文本分页且每次只展示一页。关闭时分离订阅并隔离迟到完成。专用卡片、引用及活跃且依赖结果的面板使用有界类型化预览；不把详情写回流式消息 parts。
+已删除提前读取全文的 `useResolvedToolResponse` 入口。通用卡片只在展开时挂载读取者，原始文本分页且每次只展示一页。关闭时分离订阅并隔离迟到完成。展开的通用 MCP 卡片也读取有界媒体预览。Meta-tool 卡片保留原始引用用于明确的全文复制。专用卡片、引用及活跃且依赖结果的面板使用有界类型化预览；不把详情写回流式消息 parts。
 
 每个 renderer 只有一份按调用身份及用途/范围寻址、载荷预算为 16 MiB 的 LRU。活跃读取去重；过期请求不能重新填充当前缓存或展示。超过预算的明确全文值可以交付给已挂载请求者，但不保留在共享缓存中。这一预算不限制总 JS 堆、DOM、活跃展示对象或进程 RSS。
 
@@ -79,9 +79,9 @@ Status: implemented
 - AC2 — 数据库层 #23873 通过 12 个明确 Main 文件的 284 测试，包含已有数据前向迁移、紧凑分页/全文读取和级联清理。实现层修改后的最终 `AgentSessionMessageService.test.ts` 通过 89 测试。迁移链检查通过。
 - AC3 — `ToolResultService.test.ts`、`useToolResult.test.ts` 和 `MessageProjectionService.test.ts` 覆盖 A/B 替换、迟到完成、pending/重新附着及所有者/缺口/基线失效；最终子线程缓存所有者回归通过 5 测试。Electron `functional.json` 确认替换使已展开范围失效并重置分页。不提供历史结果读取。
 - AC4 — Renderer `MessageTools.test.tsx`、`MessageMcpTool.test.tsx` 和 `AgentToolRenderer.test.tsx` 覆盖折叠卡片读取、展开关闭及执行状态保留；受影响 UI/导出命令通过 12 文件 282 测试，修改 UI 的重跑通过 4 文件 69 测试。Electron 夹具校验每次展开显示该工具自己的当前正文。
-- AC5 — `toolResultRead.test.ts`、handler 和存储测试覆盖 UTF-8 上限、游标校验、有界 SQLite 读取及旧 blob chunk。最终 API/接纳命令通过 3 文件 70 测试；子线程/范围命令通过 2 文件 23 测试。Electron 记录预览序列化 8,388 字节、单页 262,144 字节且下一游标 524,288，并通过 CSP 显示 32×32 资源图片。
+- AC5 — `toolResultRead.test.ts`、handler 和存储测试覆盖 UTF-8 上限、游标校验、有界 SQLite 读取及旧 blob chunk。最终 API/接纳命令通过 3 文件 70 测试；子线程/范围命令通过 2 文件 23 测试。Electron 记录预览序列化 8,388 字节、单页 262,144 字节且下一游标 524,288，并通过 CSP 显示 32×32 资源图片。 定向 handler/范围命令通过 2 文件 69 测试，包含保留身份、内联值及带字段标注 blob 的 Unicode 安全旧实体分页，不还原全文 blob。
 - AC6 — `ToolResultService.test.ts` 覆盖 16 MiB 序列化字节 LRU、超限全文不保留、关闭/重开隔离及共享所有者释放；子线程所有者回归保留父线程与其他消费者。最终五轮各打开八个会话、关闭夹具标签并 GC 后，renderer 堆 90.0 → 60.3 MiB，Main 堆 147.2 → 147.0 MiB、external 20.9 → 37.0 MiB、RSS 342.8 → 327.2 MiB；DOM Nodes 3779 → 6035。新版同调用 2 MiB 结果第 5–20 次替换，renderer 堆保持 62.8–62.9 MiB，Nodes 为 6346，没有意外关闭后重开卡片。这些有限检查不证明无限时长无泄漏或总内存上限。
-- AC7 — 12 文件 282 测试的 renderer 命令覆盖专用/引用/图片卡片、子线程面板及 markdown 导出；数据库层全文读取覆盖上下文、恢复、分叉和诊断。Electron 验证明确的 16 MiB 全文结果、图片显示及同调用替换。单独真实智能体通过 `deepseek::deepseek-flash` 在 6.820 s 完成：恰好一次 `read` 调用达到 `output-available`，972 字符的回复包含要求的 sentinel。一次提供商/工具运行不能覆盖全部消费者或平台。
+- AC7 — 12 文件 282 测试的 renderer 命令覆盖专用/引用/图片卡片、子线程面板及 markdown 导出；数据库层全文读取覆盖上下文、恢复、分叉和诊断。Electron 验证明确的 16 MiB 全文结果、图片显示及同调用替换。单独真实智能体通过 `deepseek::deepseek-flash` 在 6.820 s 完成：恰好一次 `read` 调用达到 `output-available`，972 字符的回复包含要求的 sentinel。一次提供商/工具运行不能覆盖全部消费者或平台。 定向消费者命令通过 6 文件 41 测试，包含完整复制 64,024 字符的 meta-tool 结果及不可用读取报错。真实 Electron 通用 MCP 卡片通过所属资源 URI 解码 218,558 字节的延迟 PNG，原始尺寸为 1920×1200，并保留原始文本分页。
 - AC8 — Main 根线程/子线程/消息投影、ThreadFeed/原生包及 renderer 投影测试覆盖已接纳稳定 part、有序 patch、重复/缺口恢复、替换和持久化屏障。明确的 Thread/重新附着/catalog 命令通过 3 个 Main 文件 29 测试；子线程 topic 前缀修复后的子线程/范围重跑通过 2 文件 23 测试；子线程 renderer 所有者回归通过 5 测试。最终共享快照 Main 测试通过 5 文件 247 测试。该调整后的 Node 类型、定向 lint 和 production/utility 构建通过；先前 web/类型/文档门禁仍适用于未变化部分。未运行完整本地测试集。
 - AC9 — 两侧 production 产物交替运行五轮；每轮在 30 ms 文本更新下，对 256 KiB、2 MiB、16 MiB 已稳定结果各实际展开关闭二十次。新版各轮 p95 范围依次为 80.0–94.1、78.5–93.6、80.0–88.5 ms，均符合 100 ms。最终矩阵及独立 renderer trace 均未出现 ≥50 ms renderer 任务。16 MiB 下 Main CPU 中位数为 193.4 → 50.4 ms/s，基线 crypto 哈希/序列化热点未出现在最终 profile。单独 DeepSeek 智能体在 6.820 s 完成一次真实 read；最终构建恢复了其持久化输出。中间构建曾记录未归属的 55 ms 任务，不声称其原因已修复。基线已有 defer；Main/renderer 产物分别冻结，外置原生 runtime 包由两侧共享，夹具不经过它们。正文可见时间包含旧挂载/高亮等待；两侧容器 p95 均约 14–16 ms。
 - AC10 — 来源审计确认删除提前读取全文的入口及输出 revision 键，全部内部读取迁移为明确用途。双语 triplet 只在此最终层移动为 implemented；配对、针对已批准 Spec head 的转换、改动文件格式与文档检查通过。性能报告区分固定夹具、真实智能体运行、Main 保留缓冲、较高 DOM 计数及未覆盖平台。

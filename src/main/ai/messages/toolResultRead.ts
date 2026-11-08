@@ -5,7 +5,6 @@ import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSessio
 import { isToolOutputBlobEntry } from '@main/ai/contextBuild/toolOutputStore'
 import {
   blobRefsOf,
-  envelopeDisplayExcerpt,
   isPersistedToolOutput,
   type PersistedToolOutput,
   type AiToolResultRequest,
@@ -77,25 +76,30 @@ export function toolResultPreview(output: unknown): Extract<AiToolResultResponse
 }
 
 async function readPersistedRange(output: PersistedToolOutput, cursor: number): Promise<AiToolResultResponse> {
-  const entries = blobRefsOf(output.$persistedToolOutput).map((ref) => fileEntryService.findById(ref.fileEntryId))
-  if (entries.some((entry) => !entry || !isToolOutputBlobEntry(entry))) {
-    const excerpt = envelopeDisplayExcerpt(output.$persistedToolOutput)
-    return toolResultTextRange(Buffer.from([excerpt.head, '…', excerpt.tail].join('\n')).subarray(cursor), cursor)
-  }
+  const ref = output.$persistedToolOutput
+  const segments = [
+    ...(ref.shape === 'entities' ? [Buffer.from(JSON.stringify(ref.skeleton) + '\n')] : []),
+    ...blobRefsOf(ref).flatMap((blob) => {
+      const entry = fileEntryService.findById(blob.fileEntryId)
+      const body = entry && isToolOutputBlobEntry(entry) ? entry : Buffer.from([blob.head, '…', blob.tail].join('\n'))
+      return ref.shape === 'entities' ? [Buffer.from(`\n[${blob.key}]\n`), body] : [body]
+    })
+  ]
   let offset = cursor
   let remaining = TOOL_RESULT_RANGE_BYTES + 4
   const chunks: Buffer[] = []
   let total = 0
-  for (const entry of entries) {
-    if (!entry || entry.origin !== 'internal') continue
-    total += entry.size
-    if (offset >= entry.size) {
-      offset -= entry.size
+  for (const segment of segments) {
+    const size = Buffer.isBuffer(segment) ? segment.length : segment.size
+    total += size
+    if (offset >= size) {
+      offset -= size
       continue
     }
     if (remaining <= 0) continue
-    const { content } = await application.get('FileManager').readChunk(entry.id, offset, remaining)
-    const bytes = Buffer.from(content)
+    const bytes = Buffer.isBuffer(segment)
+      ? segment.subarray(offset, offset + remaining)
+      : Buffer.from((await application.get('FileManager').readChunk(segment.id, offset, remaining)).content)
     chunks.push(bytes)
     remaining -= bytes.length
     offset = 0

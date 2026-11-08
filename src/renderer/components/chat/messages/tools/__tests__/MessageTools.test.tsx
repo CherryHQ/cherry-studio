@@ -37,15 +37,23 @@ const response: McpToolResponse = {
   response: { $deferredToolResult: ref }
 }
 
+const readPurpose = (input: unknown) =>
+  input && typeof input === 'object' && 'purpose' in input ? input.purpose : undefined
+let releaseTopic: () => void
+
 beforeEach(async () => {
+  releaseTopic = toolResultService.retainTopic(ref.topicId)
   await i18n.changeLanguage('en-US')
   vi.clearAllMocks()
-  vi.mocked(window.api.ipcApi.request).mockImplementation(async () => ({
+  vi.mocked(window.api.ipcApi.request).mockImplementation(async (_route, input) => ({
     ok: true,
-    data: { status: 'ready', purpose: 'text-range', text: 'Bounded result page', nextCursor: 262144 }
+    data:
+      readPurpose(input) === 'preview'
+        ? { status: 'ready', purpose: 'preview', output: {}, truncated: false }
+        : { status: 'ready', purpose: 'text-range', text: 'Bounded result page', nextCursor: 262144 }
   }))
 })
-afterEach(() => toolResultService.invalidateTopic(ref.topicId))
+afterEach(() => releaseTopic())
 
 describe('latest deferred tool disclosure', () => {
   it('reads no collapsed result, loads a bounded range on expansion and releases details on close', async () => {
@@ -77,7 +85,12 @@ describe('latest deferred tool disclosure', () => {
     })
     rerender(tree('streamed sibling text'))
     expect(screen.getByText('Bounded result page')).toBeVisible()
-    expect(window.api.ipcApi.request).toHaveBeenCalledTimes(1)
+    expect(
+      vi.mocked(window.api.ipcApi.request).mock.calls.filter(([, input]) => readPurpose(input) === 'text-range')
+    ).toHaveLength(1)
+    expect(
+      vi.mocked(window.api.ipcApi.request).mock.calls.filter(([, input]) => readPurpose(input) === 'preview')
+    ).toHaveLength(1)
     await user.click(header)
     await waitFor(() => expect(screen.queryByText('Bounded result page')).not.toBeInTheDocument())
     expect(header).toHaveAttribute('aria-expanded', 'false')
@@ -107,6 +120,87 @@ describe('latest deferred tool disclosure', () => {
       )
     )
     expect(window.api.ipcApi.request).toHaveBeenCalledWith('ai.tool.get_result', { ...ref, purpose: 'full' })
+  })
+
+  it('copies the complete meta-tool result rather than its bounded preview', async () => {
+    const output = { text: 'x'.repeat(64_012) + 'COMPLETE_END' }
+    vi.mocked(window.api.ipcApi.request).mockImplementation(async (_route, input) => ({
+      ok: true,
+      data:
+        readPurpose(input) === 'full'
+          ? { status: 'ready', purpose: 'full', output }
+          : { status: 'ready', purpose: 'preview', output: { text: 'x'.repeat(8192) }, truncated: true }
+    }))
+    const user = userEvent.setup()
+    render(
+      <MessageTools
+        toolResponse={{
+          ...response,
+          toolCallId: ref.toolCallId,
+          tool: { id: 'tool_invoke', name: 'tool_invoke', type: 'builtin' },
+          arguments: { name: 'read', params: { path: 'large.txt' } }
+        }}
+      />
+    )
+    await screen.findByRole('button', { name: /tool_invoke/ })
+    expect(vi.mocked(window.api.ipcApi.request).mock.calls.some(([, input]) => readPurpose(input) === 'full')).toBe(
+      false
+    )
+    await user.click(screen.getByRole('button', { name: 'Copy' }))
+    await waitFor(() => expect(copyText).toHaveBeenCalled())
+    expect(JSON.parse(copyText.mock.calls[0][0])).toEqual({
+      args: { name: 'read', params: { path: 'large.txt' } },
+      response: output
+    })
+  })
+
+  it('reports a failed full meta-tool read without copying the preview', async () => {
+    vi.mocked(window.api.ipcApi.request).mockImplementation(async (_route, input) => ({
+      ok: true,
+      data:
+        readPurpose(input) === 'full'
+          ? { status: 'unavailable' }
+          : { status: 'ready', purpose: 'preview', output: { text: 'Only a preview' }, truncated: true }
+    }))
+    const user = userEvent.setup()
+    render(
+      <MessageTools
+        toolResponse={{
+          ...response,
+          toolCallId: ref.toolCallId,
+          tool: { id: 'tool_invoke', name: 'tool_invoke', type: 'builtin' },
+          arguments: { name: 'read' }
+        }}
+      />
+    )
+    await user.click(await screen.findByRole('button', { name: 'Copy' }))
+    await waitFor(() => expect(notifyError).toHaveBeenCalledWith('Copy failed'))
+    expect(copyText).not.toHaveBeenCalled()
+  })
+
+  it('loads an owned image preview only after expanding a deferred MCP result', async () => {
+    const uri = 'cherry-media://tool-result/lazy-topic/lazy-message/lazy-call/0'
+    vi.mocked(window.api.ipcApi.request).mockImplementation(async (_route, input) => ({
+      ok: true,
+      data:
+        readPurpose(input) === 'preview'
+          ? {
+              status: 'ready',
+              purpose: 'preview',
+              output: { content: [{ type: 'resource_link', uri, name: 'image', mimeType: 'image/png' }] },
+              truncated: false
+            }
+          : { status: 'ready', purpose: 'text-range', text: 'Bounded raw image details' }
+    }))
+    const user = userEvent.setup()
+    render(<MessageTools toolResponse={response} />)
+    expect(window.api.ipcApi.request).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: /Server : execute/ }))
+    expect(await screen.findByRole('img')).toHaveAttribute('src', uri)
+    expect(await screen.findByText('Bounded raw image details')).toBeVisible()
+    expect(vi.mocked(window.api.ipcApi.request).mock.calls.some(([, input]) => readPurpose(input) === 'full')).toBe(
+      false
+    )
   })
 
   it('resets a paged viewer when a latest-result invalidation arrives', async () => {
