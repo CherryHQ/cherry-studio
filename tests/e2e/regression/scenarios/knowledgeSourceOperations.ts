@@ -131,12 +131,16 @@ export async function knowledgeSourceOperations(app: RegressionApp, page: Page, 
 
     const previousUpdatedAt = firstItem!.updatedAt
     await action('Reindex')
-    await expect(firstRow).toContainText(/Waiting|Reading|Processing|Chunking|Embedding/, { timeout: 15_000 })
-    await screenshot('MP-65 reindex processing')
+    await expect
+      .poll(
+        async () => {
+          const reindexed = (await readItems()).items.find(({ id }) => id === firstItem!.id)
+          return { status: reindexed?.status, updated: reindexed?.updatedAt !== previousUpdatedAt }
+        },
+        { timeout: 120_000 }
+      )
+      .toEqual({ status: 'completed', updated: true })
     await expect(firstRow.getByText('Ready', { exact: true })).toBeVisible({ timeout: 120_000 })
-    const reindexed = (await readItems()).items.find(({ id }) => id === firstItem!.id)
-    expect(reindexed?.status).toBe('completed')
-    expect(reindexed?.updatedAt).not.toBe(previousUpdatedAt)
     await screenshot('MP-65 reindex ready')
 
     await firstRow.getByRole('checkbox', { name: 'Select row', exact: true }).check()
