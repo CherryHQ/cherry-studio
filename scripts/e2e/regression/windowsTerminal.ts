@@ -102,15 +102,16 @@ public static class OwnedConsole {
       throw;
     } finally { if (handle != new IntPtr(-1)) CloseHandle(handle); FreeConsole(); }
   }
-  public static string Run(uint pid, bool writeInput, string text, ushort key) {
+  public static string Run(uint pid, bool writeInput, string text, ushort? key) {
     IntPtr handle = new IntPtr(-1);
     try {
       handle = Open(pid, writeInput);
       if (writeInput) {
-        Input[] events = new Input[(text.Length + 1) * 2];
-        for (int i = 0; i <= text.Length; i++) {
+        int count = text.Length + (key.HasValue ? 1 : 0);
+        Input[] events = new Input[count * 2];
+        for (int i = 0; i < count; i++) {
           char character = i < text.Length ? text[i] : key == 13 ? '\r' : key == 27 ? '\u001b' : '\0';
-          events[i * 2] = new Input { Type = 1, Down = 1, Repeat = 1, Key = i < text.Length ? (ushort)0 : key, Character = character };
+          events[i * 2] = new Input { Type = 1, Down = 1, Repeat = 1, Key = i < text.Length ? (ushort)0 : key.GetValueOrDefault(), Character = character };
           events[i * 2 + 1] = events[i * 2]; events[i * 2 + 1].Down = 0;
         }
         uint written;
@@ -136,7 +137,12 @@ public static class OwnedConsole {
 }
 `
 
-export function windowsTerminalText(paths: RunPaths, terminal: WindowsTerminal, input?: string, key = 13): string {
+export function windowsTerminalText(
+  paths: RunPaths,
+  terminal: WindowsTerminal,
+  input?: string,
+  key: number | null = 13
+): string {
   if (!Number.isSafeInteger(terminal.pid) || terminal.pid <= 0 || !/^\d+$/.test(terminal.startedAt))
     throw new Error('Invalid owned CLI terminal identity')
   const script = [
@@ -148,7 +154,7 @@ export function windowsTerminalText(paths: RunPaths, terminal: WindowsTerminal, 
       : `$text = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${Buffer.from(input).toString('base64')}'))`,
     terminalCandidates(paths),
     `if (-not ($rows | Where-Object { $_.pid -eq ${terminal.pid} -and $_.startedAt -eq '${terminal.startedAt}' })) { throw 'The owned CLI terminal is no longer running' }`,
-    `$result = [OwnedConsole]::Run(${terminal.pid}, $${input !== undefined}, $text, ${key})`,
+    `$result = [OwnedConsole]::Run(${terminal.pid}, $${input !== undefined}, $text, ${key === null ? '$null' : key})`,
     '$bytes = [Text.Encoding]::UTF8.GetBytes($result)',
     '$output.Write($bytes, 0, $bytes.Length)',
     '$output.Flush()'

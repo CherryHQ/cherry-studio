@@ -82,12 +82,21 @@ function run(argv) {
       const windows = ui.windows()
       if (target.kind === 'browser') {
         const browser = Application(bundle)
-        for (const window of browser.windows()) {
-          if (!window || !window.exists()) continue
-          for (const tab of window.tabs()) {
+        const initialIds = browser.windows.id()
+        for (const windowId of initialIds) {
+          const window = browser.windows.byId(windowId)
+          let tabs
+          try { tabs = window.tabs() } catch (error) {
+            if (!/\(-1728\)|null is not an object \(evaluating 'window\.tabs\(\)'\)/.test(String(error))) throw error
+            const currentIds = browser.windows.id()
+            if (currentIds.indexOf(windowId) >= 0) throw error
+            if (currentIds.some(id => initialIds.indexOf(id) < 0)) throw new Error('Browser windows changed during inspection; refusing incomplete snapshot')
+            continue
+          }
+          for (const tab of tabs) {
             const title = bundle === 'com.apple.Safari' ? tab.name() : tab.title()
             const tabId = value(() => tab.id(), tab.url())
-            const id = prefix + 'tab:' + window.id() + ':' + tabId
+            const id = prefix + 'tab:' + windowId + ':' + tabId
             result.windows.push({ id, pid, matches: title.indexOf(target.title) >= 0 })
             handles[id] = { close: () => tab.close() }
           }

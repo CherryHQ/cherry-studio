@@ -165,12 +165,10 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
         )
       : macTerminalInput(text, keyCode)
   const submitPrompt = async (text: string) => {
-    if (app.record.platform === 'windows') terminalInput(text)
-    else {
-      macTerminalInput(text)
-      await expect.poll(() => terminalText().replace(/\s+/g, ' ')).toContain(text.replace(/\s+/g, ' '))
-      terminalInput('')
-    }
+    if (app.record.platform === 'windows') windowsTerminalText(app.paths, windowsTerminal!, text, null)
+    else macTerminalInput(text)
+    await expect.poll(() => terminalText().replace(/\s+/g, ' ')).toContain(text.replace(/\s+/g, ' '))
+    terminalInput('')
   }
   const codeView = page.locator('[data-ui~="code.view"]:visible').first()
   const providerCard = codeView

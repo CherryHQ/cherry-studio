@@ -25,4 +25,4 @@ A rapid close may retain the icon for the remaining cooldown. Window contributio
 ## Verification
 
 - Regression — 301 tests across `WindowManager.quirks.test.ts`, `WindowManager.test.ts` and `MainWindowService.test.ts` passed. The Dock fixture models native cooldown and asserts actual visibility after rapid close, reopen, delayed show completion, shutdown and service restart; it also checks pooled windows and Dock holds.
-- Regression — before the repair, the owned local MP-111 observer recorded hidden managed windows and hidden Dock intent while native Dock visibility remained true. Real desktop acceptance of the repair remains pending.
+- Regression — before the repair, the owned local MP-111 observer recorded hidden managed windows and hidden Dock intent while native Dock visibility remained true. After the repair, local MP-111 passed in ten seconds within a five-case native run whose owned-runtime cleanup succeeded. Full desktop acceptance remains a separate requirement.

@@ -25,4 +25,4 @@ WindowManager 在最近一次 Dock 显示请求满 1100 毫秒后才隐藏。普
 ## 验证
 
 - Regression — `WindowManager.quirks.test.ts`、`WindowManager.test.ts` 与 `MainWindowService.test.ts` 的 301 项测试通过。Dock 测试模拟原生冷却期，验证快速关闭、重新打开、延迟显示完成、关闭服务与重启服务后的实际可见性，同时检查池化窗口和 Dock hold。
-- Regression — 修复前，所拥有的本机 MP-111 观察程序记录到托管窗口和 Dock 意图均隐藏，但原生 Dock 仍显示。修复后的真实桌面验收仍待完成。
+- Regression — 修复前，所拥有的本机 MP-111 观察程序记录到托管窗口和 Dock 意图均隐藏，但原生 Dock 仍显示。修复后，本机 MP-111 在十秒内通过，所在的五用例原生运行成功清理了所拥有运行资源。完整桌面验收仍需单独完成。

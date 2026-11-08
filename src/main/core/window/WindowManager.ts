@@ -1737,13 +1737,8 @@ export class WindowManager extends BaseService {
   // `wm.behavior.setMacShowInDockByType(type, value)` to express tray-mode
   // intent; `windowContributesToDock` reads the override via the controller.
 
-  /**
-   * Tracks the desired Dock visibility; native hiding may wait for Electron's
-   * post-show cooldown. Initialized to `true` because
-   * macOS Electron apps start with the Dock icon visible; the first
-   * `updateDockVisibility()` will correctly transition to `false` when needed
-   * (e.g. tray-on-launch sets the Main override to `false` before window creation).
-   */
+  // Native Dock hiding may lag this intent during Electron's post-show cooldown.
+  // Electron starts with the Dock visible before any managed windows exist.
   private dockShouldBeVisible = true
   private lastDockShowAt = Number.NEGATIVE_INFINITY
   private dockHideTimer: Disposable | null = null

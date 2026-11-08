@@ -177,7 +177,12 @@ it.skipIf(process.platform !== 'win32').each(['direct', 'shared', 'detached'] as
         .poll(() => windowsTerminalText(paths, terminal), { timeout: 15_000 })
         .toContain('NATIVE_FOOTER_BELOW_CURSOR')
       expect(() => windowsTerminalText(paths, { ...terminal, startedAt: '0' }, 'unowned input')).toThrow()
-      windowsTerminalText(paths, terminal, 'verified native input')
+      windowsTerminalText(paths, terminal, 'verified native input', null)
+      await expect
+        .poll(() => windowsTerminalText(paths, terminal), { timeout: 15_000 })
+        .toContain('verified native input')
+      expect(windowsTerminalText(paths, terminal)).not.toContain('INPUT=verified native input')
+      windowsTerminalText(paths, terminal, '')
       await expect
         .poll(() => windowsTerminalText(paths, terminal), { timeout: 15_000 })
         .toContain('INPUT=verified native input')
@@ -242,7 +247,7 @@ const nativePlatform = process.platform === 'darwin' ? 'macos' : 'windows'
 const dialogModes =
   process.platform === 'darwin'
     ? (['file', 'multiple', 'directory', 'save', 'save-suggested'] as const)
-    : (['file', 'multiple', 'directory', 'save', 'save-suggested', 'print'] as const)
+    : (['file', 'multiple', 'directory', 'save', 'save-suggested', 'print', 'message-box'] as const)
 
 // Verify Electron's returned paths after actual native selection and filename commit.
 it.skipIf(!['darwin', 'win32'].includes(process.platform)).each(dialogModes)(
@@ -265,11 +270,13 @@ it.skipIf(!['darwin', 'win32'].includes(process.platform)).each(dialogModes)(
       const saved = join(paths.private, 'requested output 输入.txt')
       const isSave = mode === 'save' || mode === 'save-suggested'
       const dialogCall =
-        mode === 'print'
-          ? 'await new Promise(resolve => window.webContents.print({}, (success, failureReason) => resolve({ success, failureReason })))'
-          : isSave
-            ? `await dialog.showSaveDialog(${nativePlatform === 'windows' ? 'window, ' : ''}${JSON.stringify({ defaultPath: join(paths.profiles, 'suggested.txt'), ...(mode === 'save' ? { filters: [{ name: 'Text', extensions: ['txt'] }] } : {}) })})`
-            : `await dialog.showOpenDialog(${nativePlatform === 'windows' ? 'window, ' : ''}{ properties: ${JSON.stringify(mode === 'directory' ? ['openDirectory'] : mode === 'multiple' ? ['openFile', 'multiSelections'] : ['openFile'])} })`
+        mode === 'message-box'
+          ? `{ response: dialog.showMessageBoxSync({ type: 'info', title: 'Manual Restart Required', message: 'Owned restart fixture', buttons: ['OK'] }) }`
+          : mode === 'print'
+            ? 'await new Promise(resolve => window.webContents.print({}, (success, failureReason) => resolve({ success, failureReason })))'
+            : isSave
+              ? `await dialog.showSaveDialog(${nativePlatform === 'windows' ? 'window, ' : ''}${JSON.stringify({ defaultPath: join(paths.profiles, 'suggested.txt'), ...(mode === 'save' ? { filters: [{ name: 'Text', extensions: ['txt'] }] } : {}) })})`
+              : `await dialog.showOpenDialog(${nativePlatform === 'windows' ? 'window, ' : ''}{ properties: ${JSON.stringify(mode === 'directory' ? ['openDirectory'] : mode === 'multiple' ? ['openFile', 'multiSelections'] : ['openFile'])} })`
       const resultPath = join(paths.private, 'result.json')
       const readyPath = join(paths.private, 'ready')
       writeFileSync(
@@ -331,10 +338,21 @@ it.skipIf(!['darwin', 'win32'].includes(process.platform)).each(dialogModes)(
       } else if (mode === 'print') {
         await expect.poll(() => readWindowsPrintDialog(paths)).toContain('Cancel')
         await dismissNativeMessageBox(nativePlatform, paths, 'Print', 'Cancel')
+      } else if (mode === 'message-box') {
+        await dismissNativeMessageBox(nativePlatform, paths, 'Manual Restart Required')
       } else chooseNativeFile(nativePlatform, paths, mode === 'directory' ? folder : inputs[0])
       await expect.poll(() => existsSync(resultPath), { timeout: 10_000 }).toBe(true)
       const result = JSON.parse(readFileSync(resultPath, 'utf8'))
-      if (mode === 'print') {
+      if (mode === 'message-box') {
+        expect(result.response).toBe(0)
+        const diagnostic = JSON.parse(readFileSync(join(paths.logs, 'native-message-box.json'), 'utf8'))
+        expect(diagnostic.events).toContainEqual(
+          expect.objectContaining({
+            stage: 'matched',
+            button: expect.objectContaining({ controlType: 'ControlType.Button', name: 'OK', buttonMatches: true })
+          })
+        )
+      } else if (mode === 'print') {
         expect(result.success).toBe(false)
         expect(result.failureReason).toMatch(/cancel/i)
       } else if (isSave) {
