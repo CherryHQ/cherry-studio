@@ -31,7 +31,6 @@ import {
   HoverCardTrigger,
   Tooltip
 } from '@cherrystudio/ui'
-import { Textarea } from '@cherrystudio/ui'
 import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentContextUsageSummary'
 import { KeyedMessageActivityStore } from '@renderer/components/chat/messages/hooks/useMessageActivityState'
 import MessageList from '@renderer/components/chat/messages/MessageList'
@@ -1321,9 +1320,6 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
   const tab = scope.flowTab && getFlowTabValue(scope.flowTab.toolCallId) === panelId ? scope.flowTab : null
   const child = useAgentChildProjection(meta.sessionId ?? '', tab?.toolCallId, active && !!meta.sessionId)
   const contextUsage = useAgentSessionContextUsage(child?.view?.sessionId)
-  const [input, setInput] = useState('')
-  const [sending, setSending] = useState(false)
-  const [inputError, setInputError] = useState<string>()
   const deferredToolResult = useMemo(
     () => findDeferredToolResult(runtime.partsByMessageId, tab?.toolCallId),
     [runtime.partsByMessageId, tab?.toolCallId]
@@ -1428,42 +1424,10 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
           partsByMessageId={flow.partsByMessageId}
         />
       </div>
-      {(child?.error || child?.view?.diagnostic || inputError) && (
+      {(child?.error || child?.view?.diagnostic) && (
         <p role="alert" className="px-4 py-2 text-sm text-error">
-          {inputError ?? child?.error ?? child?.view?.diagnostic}
+          {child?.error ?? child?.view?.diagnostic}
         </p>
-      )}
-      {child?.view?.canSubmit && (
-        <form
-          className="flex shrink-0 gap-2 border-t border-border-subtle p-3"
-          onSubmit={async (event) => {
-            event.preventDefault()
-            if (!input.trim() || sending) return
-            setSending(true)
-            setInputError(undefined)
-            try {
-              await ipcApi.request('ai.agent.child.message', {
-                sessionId: meta.sessionId!,
-                contextId: child.view!.contextId,
-                text: input
-              })
-              setInput('')
-            } catch (error) {
-              setInputError(String(error))
-            } finally {
-              setSending(false)
-            }
-          }}>
-          <Textarea.Input
-            value={input}
-            onValueChange={setInput}
-            aria-label={t('chat.input.placeholder')}
-            className="min-h-10"
-          />
-          <Button type="submit" disabled={sending || !input.trim()}>
-            {t('chat.input.send')}
-          </Button>
-        </form>
       )}
     </div>
   )
