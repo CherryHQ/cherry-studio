@@ -211,6 +211,11 @@ export class CherryCloudService extends BaseService {
     return resolveCherryCloudApiOrigin()
   }
 
+  // The account center must stay on the API origin, where browser sign-in sets its session cookie.
+  public getAccountOrigin(): string {
+    return resolveCherryCloudApiOrigin()
+  }
+
   public async startLogin(): Promise<CherryCloudStatus> {
     if (this.loginPromise) return this.loginPromise
     if (this.authorizationOperation) return this.getStatus()
