@@ -3538,6 +3538,7 @@
   "scheduledTasks.conversation": "Unterhaltung zur Ausführung",
   "scheduledTasks.emptyGroup": "Keine Aufgaben in dieser Gruppe.",
   "scheduledTasks.latest": "Neueste Unterhaltung öffnen",
+  "scheduledTasks.missedTime": "Geplanter Ausführungszeitpunkt verpasst",
   "scheduledTasks.moreHistory": "Weitere Verlaufsdaten sind verfügbar. Suchen Sie nach einer älteren Unterhaltung.",
   "scheduledTasks.noConversation": "Für diese Auswahl ist keine Unterhaltung verfügbar.",
   "scheduledTasks.older": "Ältere Unterhaltungen suchen",

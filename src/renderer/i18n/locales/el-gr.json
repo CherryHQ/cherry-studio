@@ -3538,6 +3538,7 @@
   "scheduledTasks.conversation": "Συνομιλία εκτέλεσης",
   "scheduledTasks.emptyGroup": "Δεν υπάρχουν εργασίες σε αυτή την ομάδα.",
   "scheduledTasks.latest": "Άνοιγμα τελευταίας συνομιλίας",
+  "scheduledTasks.missedTime": "Χάθηκε η προγραμματισμένη ώρα εκτέλεσης",
   "scheduledTasks.moreHistory": "Υπάρχουν παλαιότερες εγγραφές. Συνεχίστε την αναζήτηση συνομιλίας.",
   "scheduledTasks.noConversation": "Δεν υπάρχει διαθέσιμη συνομιλία για αυτή την επιλογή.",
   "scheduledTasks.older": "Εύρεση παλαιότερων συνομιλιών",

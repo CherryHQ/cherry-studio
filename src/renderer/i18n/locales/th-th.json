@@ -3538,6 +3538,7 @@
   "scheduledTasks.conversation": "บทสนทนาของการทำงาน",
   "scheduledTasks.emptyGroup": "ไม่มีงานในกลุ่มนี้",
   "scheduledTasks.latest": "เปิดบทสนทนาล่าสุด",
+  "scheduledTasks.missedTime": "พลาดเวลาที่กำหนดให้ทำงาน",
   "scheduledTasks.moreHistory": "ยังมีประวัติเก่ากว่านี้ สามารถค้นหาบทสนทนาต่อได้",
   "scheduledTasks.noConversation": "ไม่มีบทสนทนาที่พร้อมใช้งานสำหรับรายการที่เลือก",
   "scheduledTasks.older": "ค้นหาบทสนทนาก่อนหน้า",

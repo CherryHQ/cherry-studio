@@ -3538,6 +3538,7 @@
   "scheduledTasks.conversation": "Диалог выполнения",
   "scheduledTasks.emptyGroup": "В этой группе нет задач.",
   "scheduledTasks.latest": "Открыть последний диалог",
+  "scheduledTasks.missedTime": "Пропущено запланированное время запуска",
   "scheduledTasks.moreHistory": "Доступны более ранние записи. Продолжите поиск диалога.",
   "scheduledTasks.noConversation": "Для выбранной записи нет доступного диалога.",
   "scheduledTasks.older": "Найти более ранние диалоги",

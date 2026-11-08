@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { agentHandlers } from '@data/api/handlers/agents'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
-import { jobTable } from '@data/db/schemas/job'
+import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 
@@ -44,6 +44,40 @@ describe('AgentTaskService active-Agent read contract', () => {
     } as never)
     expect(response).toMatchObject({ total: 1, page: 1, items: [{ id: paused, status: 'paused' }] })
     await expect(agentHandlers['/agent-tasks'].GET({ query: { status: 'unknown' } } as never)).rejects.toThrow()
+  })
+
+  it('paginates the paused and missed union with one ordering and total', async () => {
+    seedAgent('owner')
+    const ids: string[] = []
+    for (let i = 0; i < 55; i++) {
+      const id = seedTask(`stopped-${i}`, 'owner')
+      jobScheduleService.update(id, {
+        enabled: false,
+        ...(i % 2 ? { trigger: { kind: 'once', at: 1 }, metadata: { missed: { reason: 'agent_archived' } } } : {})
+      })
+      dbh.db
+        .update(jobScheduleTable)
+        .set({ createdAt: 1000 + i })
+        .where(eq(jobScheduleTable.id, id))
+        .run()
+      ids.unshift(id)
+    }
+    seedTask('active', 'owner')
+    const first = await agentHandlers['/agent-tasks'].GET({ query: { status: ['paused', 'missed'], limit: 50 } })
+    const second = await agentHandlers['/agent-tasks'].GET({
+      query: { status: ['paused', 'missed'], limit: 50, page: 2 }
+    })
+    expect(first).toMatchObject({ total: 55, page: 1 })
+    expect(second).toMatchObject({ total: 55, page: 2 })
+    expect(first).toHaveProperty('items.length', 50)
+    expect(second).toHaveProperty('items.length', 5)
+    expect('items' in first && 'items' in second && [...first.items, ...second.items].map((item) => item.id)).toEqual(
+      ids
+    )
+    await expect(agentHandlers['/agent-tasks'].GET({ query: { status: [] } })).rejects.toThrow()
+    await expect(
+      agentHandlers['/agent-tasks'].GET({ query: { status: ['paused', 'unknown'] } } as never)
+    ).rejects.toThrow()
   })
 
   it('hides tasks owned by trashed or missing Agents from every normal read and shows them after restore', () => {

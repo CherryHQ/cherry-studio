@@ -30,7 +30,7 @@ const TaskFormDialog = lazy(() =>
 )
 
 export interface ScheduledTaskGroupProps {
-  status: ScheduledTaskListItem['status']
+  status: Exclude<ScheduledTaskListItem['status'], 'missed'>
   source: ReturnType<typeof useAllTasks>
   selectedTaskId?: string
   agents: ReadonlyMap<string, string>
@@ -100,6 +100,11 @@ function TaskRow({
               {getTriggerSummary(task.trigger, t)}
             </span>
           </span>
+          {task.status === 'missed' && (
+            <span className="truncate text-xs text-muted-foreground" title={t('scheduledTasks.missedTime')}>
+              {t('scheduledTasks.missedTime')}
+            </span>
+          )}
         </span>
       </Button>
       <DropdownMenu>
@@ -194,8 +199,7 @@ export function ScheduledTaskGroup({
   const statusLabel = {
     active: t('agent.tasks.status.active'),
     paused: t('agent.tasks.status.paused'),
-    completed: t('agent.tasks.status.completed'),
-    missed: t('agent.tasks.status.missed')
+    completed: t('agent.tasks.status.completed')
   }[status]
   const [expanded, setExpanded] = useState(true)
   const contentId = useId()

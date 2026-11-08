@@ -57,11 +57,15 @@ function task(status: ScheduledTaskListItem['status'], index = 0): ScheduledTask
 
 async function openPage(withHistory = true) {
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
-  const tasks = statuses.flatMap((status) => Array.from({ length: 51 }, (_, index) => task(status, index)))
+  const tasks = Array.from({ length: 51 }, (_, index) => statuses.map((status) => task(status, index))).flat()
   vi.spyOn(dataApiService, 'get').mockImplementation(async (path, options) => {
-    const query = options?.query as { status?: string; page?: number; limit?: number; ids?: string[] } | undefined
+    const query = options?.query as
+      | { status?: string | string[]; page?: number; limit?: number; ids?: string[] }
+      | undefined
     if (path === '/agent-tasks') {
-      const items = tasks.filter((item) => item.status === query?.status)
+      const items = tasks.filter((item) =>
+        Array.isArray(query?.status) ? query.status.includes(item.status) : item.status === query?.status
+      )
       const page = query?.page ?? 1
       return { items: items.slice((page - 1) * 50, page * 50), total: items.length, page, limit: 50 } as never
     }
@@ -130,20 +134,26 @@ async function openPage(withHistory = true) {
   return { router, tasks }
 }
 
-it('lists all four states beyond 50 tasks, with independent pages and owner names', async () => {
+it('combines paused and missed tasks into one paginated group while keeping other pages independent', async () => {
   const user = userEvent.setup()
   await openPage()
   const completed = await screen.findByRole('region', { name: 'Completed' })
-  const missed = await screen.findByRole('region', { name: 'Missed' })
-  await within(missed).findByRole('button', { name: /missed task 49 Owner missed-owner-49/ })
+  const paused = await screen.findByRole('region', { name: 'Paused' })
+  await within(completed).findByRole('button', { name: /completed task 49 Owner completed-owner-49/ })
+  expect(screen.queryByRole('region', { name: 'Missed' })).not.toBeInTheDocument()
   expect(within(completed).getByRole('button', { name: 'Completed 51' })).toBeVisible()
-  expect(within(missed).getByRole('button', { name: 'Missed 51' })).toBeVisible()
+  expect(within(paused).getByRole('button', { name: 'Paused 102' })).toBeVisible()
+  expect(within(paused).getByRole('button', { name: /paused task 24 Owner paused-owner-24/ })).toBeVisible()
+  expect(within(paused).getByRole('button', { name: /missed task 24 Owner missed-owner-24/ })).toHaveTextContent(
+    'Missed scheduled time'
+  )
   await user.click(within(completed).getByRole('button', { name: 'Next' }))
   await within(completed).findByRole('button', { name: /completed task 50 Owner completed-owner-50/ })
-  expect(within(completed).queryByRole('button', { name: /completed task 0 / })).not.toBeInTheDocument()
-  expect(within(missed).getByText('1 / 2')).toBeVisible()
-  await user.click(within(missed).getByRole('button', { name: 'Next' }))
-  await within(missed).findByRole('button', { name: /missed task 50 Owner missed-owner-50/ })
+  expect(within(paused).getByText('1 / 3')).toBeVisible()
+  await user.click(within(paused).getByRole('button', { name: 'Next' }))
+  await within(paused).findByRole('button', { name: /missed task 49 Owner missed-owner-49/ })
+  await user.click(within(paused).getByRole('button', { name: 'Next' }))
+  await within(paused).findByRole('button', { name: /missed task 50 Owner missed-owner-50/ })
   expect(within(completed).getByText('2 / 2')).toBeVisible()
 })
 
@@ -161,7 +171,7 @@ it('opens completed history and retains its conversation when the task changes s
   await act(async () => {
     MockDataApiUtils.emitDataChange([{ endpoint: '/agent-tasks', kind: 'projection', entityIds: ['completed-0'] }])
   })
-  await within(screen.getByRole('region', { name: 'Missed' })).findByRole('button', { name: /completed task 0 / })
+  await within(screen.getByRole('region', { name: 'Paused' })).findByRole('button', { name: /completed task 0 / })
   expect(within(completed).queryByRole('button', { name: /completed task 0 / })).not.toBeInTheDocument()
   expect(router.state.location.search).toMatchObject({ taskId: 'completed-0', runId: 'older' })
   expect(screen.getByRole('status', { name: 'Conversation' })).toHaveTextContent('Older report')
@@ -172,7 +182,7 @@ it.each(['completed', 'missed'] as const)(
   async (status) => {
     const user = userEvent.setup()
     const { router } = await openPage(false)
-    const group = await screen.findByRole('region', { name: status === 'completed' ? 'Completed' : 'Missed' })
+    const group = await screen.findByRole('region', { name: status === 'completed' ? 'Completed' : 'Paused' })
     await user.click(await within(group).findByRole('button', { name: new RegExp(`${status} task 0 `) }))
     await screen.findByText('No available conversation for this selection.')
     expect(router.state.location.search).toMatchObject({ taskId: `${status}-0` })

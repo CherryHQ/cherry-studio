@@ -3538,6 +3538,7 @@
   "scheduledTasks.conversation": "Conversazione dell’esecuzione",
   "scheduledTasks.emptyGroup": "Nessuna attività in questo gruppo.",
   "scheduledTasks.latest": "Apri l’ultima conversazione",
+  "scheduledTasks.missedTime": "Orario di esecuzione pianificato mancato",
   "scheduledTasks.moreHistory": "È disponibile altra cronologia. Continua a cercare una conversazione precedente.",
   "scheduledTasks.noConversation": "Nessuna conversazione disponibile per questa selezione.",
   "scheduledTasks.older": "Cerca conversazioni precedenti",

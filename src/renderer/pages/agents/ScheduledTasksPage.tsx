@@ -32,9 +32,8 @@ export default function ScheduledTasksPage() {
   const { taskId, runId, notificationId } = routeApi.useSearch<AppRouter>()
   const navigate = useNavigate()
   const active = useAllTasks('active')
-  const paused = useAllTasks('paused')
+  const paused = useAllTasks(['paused', 'missed'])
   const completed = useAllTasks('completed')
-  const missed = useAllTasks('missed')
   const { task, error: taskError, isLoading: taskLoading, refetch: refreshTask } = useTask(taskId ?? null)
   const selectedTask = task?.id === taskId && !taskError ? task : null
   const { data: notification, error: notificationError } = useQuery('/notifications/:id', {
@@ -70,13 +69,10 @@ export default function ScheduledTasksPage() {
   const triggerRef = useRef<HTMLButtonElement>(null)
   const { createTask } = useCreateTask()
   const ids = useMemo(
-    () =>
-      [
-        ...new Set([...active.tasks, ...paused.tasks, ...completed.tasks, ...missed.tasks].map((item) => item.agentId))
-      ].sort(),
-    [active.tasks, paused.tasks, completed.tasks, missed.tasks]
+    () => [...new Set([...active.tasks, ...paused.tasks, ...completed.tasks].map((item) => item.agentId))].sort(),
+    [active.tasks, paused.tasks, completed.tasks]
   )
-  const { data: owners } = useQuery('/agents', { query: { ids, limit: 4 * TASKS_PAGE_LIMIT }, enabled: ids.length > 0 })
+  const { data: owners } = useQuery('/agents', { query: { ids, limit: 3 * TASKS_PAGE_LIMIT }, enabled: ids.length > 0 })
   const names = useMemo(() => new Map(owners?.items.map((agent) => [agent.id, agent.name])), [owners])
   const {
     data: availableAgents,
@@ -115,8 +111,7 @@ export default function ScheduledTasksPage() {
           [
             ['active', active],
             ['paused', paused],
-            ['completed', completed],
-            ['missed', missed]
+            ['completed', completed]
           ] as const
         ).map(([status, source]) => (
           <ScheduledTaskGroup

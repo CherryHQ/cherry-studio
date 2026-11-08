@@ -201,13 +201,14 @@ it('allows missed execution and editing without a misleading resume action', asy
   request.mockResolvedValue(undefined)
   render(
     <ScheduledTaskGroup
-      status="missed"
+      status="paused"
       source={source({ tasks: [{ ...task, status: 'missed' }] })}
       agents={new Map()}
       onSelect={vi.fn()}
     />
   )
-  const missed = screen.getByRole('region', { name: 'Missed' })
+  const missed = screen.getByRole('region', { name: 'Paused' })
+  expect(within(missed).getByText('Missed scheduled time')).toBeVisible()
   await user.click(within(missed).getByRole('button', { name: 'More Daily report' }))
   expect(screen.getByRole('menuitem', { name: 'Edit' })).toBeVisible()
   expect(screen.queryByRole('menuitem', { name: 'Continue' })).not.toBeInTheDocument()

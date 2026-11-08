@@ -3538,6 +3538,7 @@
   "scheduledTasks.conversation": "実行時の会話",
   "scheduledTasks.emptyGroup": "このグループにはタスクがありません。",
   "scheduledTasks.latest": "最新の会話を開く",
+  "scheduledTasks.missedTime": "予定の実行時刻を過ぎました",
   "scheduledTasks.moreHistory": "さらに古い履歴があります。会話の検索を続けられます。",
   "scheduledTasks.noConversation": "選択した項目に表示できる会話がありません。",
   "scheduledTasks.older": "過去の会話を探す",

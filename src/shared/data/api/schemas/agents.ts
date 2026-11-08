@@ -255,7 +255,9 @@ export const ListQuerySchema = z.strictObject({
 export type ListQuery = z.infer<typeof ListQuerySchema>
 
 export const ListTasksQuerySchema = ListQuerySchema.extend({
-  status: z.enum(['active', 'paused', 'completed', 'missed']).optional()
+  status: z
+    .union([ScheduledTaskEntitySchema.shape.status, z.array(ScheduledTaskEntitySchema.shape.status).min(1)])
+    .optional()
 })
 export type ListTasksQuery = z.infer<typeof ListTasksQuerySchema>
 

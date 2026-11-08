@@ -3538,6 +3538,7 @@
   "scheduledTasks.conversation": "执行对话",
   "scheduledTasks.emptyGroup": "本组暂无任务",
   "scheduledTasks.latest": "查看最新对话",
+  "scheduledTasks.missedTime": "已错过执行时间",
   "scheduledTasks.moreHistory": "还有更早的记录，可以继续查找对话。",
   "scheduledTasks.noConversation": "当前选择没有可用对话。",
   "scheduledTasks.older": "查找更早的对话",

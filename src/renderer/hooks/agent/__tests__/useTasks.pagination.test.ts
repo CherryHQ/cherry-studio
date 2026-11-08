@@ -10,8 +10,15 @@ vi.unmock('@data/hooks/useDataApi')
 
 afterEach(() => vi.restoreAllMocks())
 
-const statuses = ['active', 'paused', 'completed', 'missed'] as const
-it.each(statuses)('revisits the last %s page after shrinking and growing', async (status) => {
+const statuses: NonNullable<Parameters<typeof useAllTasks>[0]>[] = [
+  'active',
+  'paused',
+  'completed',
+  'missed',
+  ['paused', 'missed']
+]
+const cases = statuses.map((status) => [status] as const)
+it.each(cases)('revisits the last %j page after shrinking and growing', async (status) => {
   let total = 51
   let releasePage: (() => void) | undefined
   let delayPage = false
