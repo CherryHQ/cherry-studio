@@ -98,6 +98,14 @@ describe('extractDocumentText — dispatch on entry ext, bytes via FileManager.r
     expect(parseOfficeAsyncMock).toHaveBeenCalledWith(expect.any(Buffer), { tempFilesLocation: '/tmp' })
   })
 
+  it.each(['png', 'mp3', 'mp4'])('does not read or decode %s attachments as text', async (ext) => {
+    getByIdMock.mockResolvedValueOnce({ ext })
+
+    expect(await extractDocumentText('e1')).toBeNull()
+    expect(readMock).not.toHaveBeenCalled()
+    expect(decodeTextMock).not.toHaveBeenCalled()
+  })
+
   it('decodes text/code files with auto encoding', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'md' })
     decodeTextMock.mockReturnValueOnce(' markdown ')

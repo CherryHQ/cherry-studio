@@ -1,3 +1,4 @@
+import { MockUseDataApi } from '@test-mocks/renderer/useDataApi'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -29,6 +30,7 @@ const inputFilePreview: InputFilePreview = {
 describe('MessageAttachments', () => {
   beforeEach(() => {
     getFileView.mockReset()
+    MockUseDataApi.useQuery.mockClear()
     actions.previewFile = vi.fn()
     actions.openFile = vi.fn()
     actions.previewInputFile = undefined
@@ -42,6 +44,18 @@ describe('MessageAttachments', () => {
     expect(screen.getByText('PDF')).toBeVisible()
     // Iconify's network boundary exposes the selected asset through the shared mock.
     expect(screen.getByTestId('iconify-icon')).toHaveAttribute('data-icon', 'material-icon-theme:pdf')
+  })
+
+  it('does not fetch entry metadata when the message already supplies the name and extension', () => {
+    const managedHandle = { kind: 'entry', entryId: '019606a0-0000-7000-8000-000000000001' } as const
+
+    render(<MessageAttachments handle={managedHandle} name="report.pdf" ext=".pdf" />)
+
+    expect(screen.getByRole('button', { name: 'report.pdf' })).toBeEnabled()
+    expect(MockUseDataApi.useQuery).toHaveBeenCalledWith('/files/entries/:id', {
+      params: { id: managedHandle.entryId },
+      enabled: false
+    })
   })
 
   it('retains the handle-based preview when right-pane preview is unavailable', async () => {

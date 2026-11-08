@@ -31,7 +31,7 @@ const MessageAttachments: FC<Props> = ({ handle, inputFilePreview, name, ext, cr
   const entryId = handle && isFileEntryHandle(handle) ? handle.entryId : undefined
   const { data: entry } = useQuery('/files/entries/:id', {
     params: { id: entryId ?? '' },
-    enabled: !!entryId
+    enabled: !!entryId && (!name || !ext)
   })
 
   const displayExt = entry?.ext || ext

@@ -37,6 +37,9 @@ export function noExtractableTextNote(filename: string): string {
 }
 
 async function extract(entryId: FileEntryId, ext: string): Promise<string | null> {
+  const fileType = getFileTypeByExt(ext)
+  if (fileType === FILE_TYPE.IMAGE || fileType === FILE_TYPE.AUDIO || fileType === FILE_TYPE.VIDEO) return null
+
   const { content } = await application.get('FileManager').read(entryId, { encoding: 'binary' })
 
   if (ext === 'pdf') return (await extractPdfText(content)).trim()
@@ -49,7 +52,7 @@ async function extract(entryId: FileEntryId, ext: string): Promise<string | null
     const text = await officeParser.parseOfficeAsync(buffer, { tempFilesLocation: application.getPath('app.temp') })
     return text.trim()
   }
-  if (getFileTypeByExt(ext) === FILE_TYPE.OTHER) {
+  if (fileType === FILE_TYPE.OTHER) {
     return decodeTextBufferIfText(buffer)?.trim() ?? null
   }
   return decodeTextWithAutoEncoding(buffer).trim()
