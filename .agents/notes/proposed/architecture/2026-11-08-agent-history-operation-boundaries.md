@@ -88,6 +88,8 @@ Main retains the existing edit guard for live/queued/background work, approvals 
 
 Main remains authoritative. Reuse the existing Agent message read model to expose only the action availability actually consumed by the renderer: driver support and the relevant persisted checkpoint/branch validity. Do not expose opaque checkpoints to the renderer merely to duplicate native validation. Listing messages must not open native storage or resume a scheduler.
 
+Keep ordinary message pagination in `AgentSessionMessageService` free of runtime callbacks and action policy. `AgentSessionForkService` batch-reads only the requested messages' boundary fields and their parents, including parents outside the page. A stateless module in `agentSession/fork` owns the common eligibility rules, reusing the selected driver's checkpoint validator. `AgentSessionRuntimeService` composes those decisions for the message-list API; edit preparation and fork/edit execution use the same rules. Missing edit parents and delivery inputs are rejected; a root parent permits first-input editing only on a supported driver. Execution retains branch-specific checkpoint mapping, busy/closing guards, version checks, attachment validation and native-history verification.
+
 Use that result in the existing fork action and edit entry. A successful assistant status alone is insufficient. Durable's unsupported desktop actions must be unavailable with a reason; normal copy/export/delete and explicit permission selection remain independent. History missing after listing is still a typed execution-time error, not permission to rebuild it.
 
 ### 6. Retain publication and recovery ownership
@@ -150,6 +152,14 @@ The corrected AC1–AC2 contract was verified on the current checkout after the 
 In the tracked Electron instance, Claude Shift+Tab changed saved mode `default → plan → default` without changing the draft. The root Plan entry toggled the same native setting, and the composer permission submenu omitted Plan. Claude's live SDK catalog exposed Goal; its root entry prefixed an existing draft once without submitting or changing permissions. Pi and Durable exposed Goal independently, preserved the objective and returned their native status after an explicit `/goal` submission. These status checks do not claim a complete autonomous Goal run.
 
 A separate real LongCat-2.5 request in Claude Plan mode returned the exact requested `MODE_BOUNDARY_PLAN_OK` reply and persisted the expected user input with a successful answer. The shortcut then returned the saved mode to `default`. Correction screenshots, logs and results are under `.context/cherry-electron-dev/mode-correction/`; the earlier history acceptance remains separately scoped above.
+
+### 11. History-action ownership correction verification (2026-11-09)
+
+Ordinary message pagination no longer accepts a runtime callback or computes action policy. The fork-domain module shares static eligibility across list projection, edit preparation and execution. Six explicitly selected Main files passed 329 tests; two renderer action/edit consumers passed 22 tests. Coverage includes a predecessor outside the page, first-input editing, missing parents, delivery inputs, session/ID scoping, unsupported Durable execution, consistent legacy/malformed/foreign checkpoint rejection, effective legacy runtime names, and existing branch publication/version/close/recovery guards. Node typecheck, changed-file formatting/Oxlint/ESLint and documentation gates passed.
+
+A restarted, isolated Electron instance read existing real-model histories through the production DataApi, matched one-row page actions with their off-page parents, prepared Pi/Claude edit drafts, and published native Pi/Claude forks. Durable forced fork/edit requests returned their declared unsupported reasons; its real message UI kept history readable, omitted editing and disabled Fork. This correction made no new model request. Evidence is under `.context/cherry-electron-dev/history-policy/`.
+
+One separate limitation was observed: forking the later boundary of the old Claude history spanning multiple `/clear` contexts returned `history_changed` from the unchanged native prefix validator. Forking the earlier single-context boundary succeeded. This correction preserves that execution-time rejection and does not claim cross-context history support.
 
 ## Alternatives considered
 

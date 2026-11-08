@@ -8,15 +8,16 @@ import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as childContexts } from '@data/services/AgentSessionContextService'
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
+import { agentSessionForkService } from '@data/services/AgentSessionForkService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService, type SourceSnapshot } from '@data/services/AiUsageRecordService'
 import { getRetiredAgentSessionMigration } from '@data/services/retiredAgentRuntimeMigration'
 import { loggerService } from '@logger'
-import { AgentSessionForkOperations } from '@main/ai/agentSession/fork'
+import { AgentSessionForkOperations, getEditFailure, resolveForkBoundary } from '@main/ai/agentSession/fork'
 import { ProjectionSubscriptions } from '@main/ai/messages/ProjectionSubscriptions'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
-import { RuntimeForkAnchorSchema, type RuntimeForkAnchor } from '@main/ai/runtime/fork'
+import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
@@ -403,11 +404,18 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  getForkCheckpointValidator(sessionId: string): ((value: unknown) => boolean) | undefined {
+  getHistoryActions(sessionId: string, messageIds: readonly string[]) {
     const session = agentSessionService.getById(sessionId)
     const agent = session.agentId ? agentService.getAgent(session.agentId) : undefined
     const driver = agent ? runtimeDriverRegistry.getAgentSessionDriver(agent.type) : undefined
-    return driver?.fork ? driver.isForkCheckpoint?.bind(driver) : undefined
+    return new Map(
+      agentSessionForkService
+        .readHistoryBoundaries(sessionId, messageIds)
+        .map((row) => [
+          row.id,
+          { fork: resolveForkBoundary(driver, row).reason, edit: getEditFailure(driver, row, row.parent) }
+        ])
+    )
   }
 
   async getEditTarget(sessionId: string, messageId: string): Promise<AgentSessionEditDraft> {
@@ -415,18 +423,8 @@ export class AgentSessionRuntimeService extends BaseService {
     const snapshot = application
       .get('DbService')
       .withWriteTx((tx) => agentSessionMessageService.readEditSnapshotTx(tx, sessionId, messageId))
-    const validateCheckpoint = this.getForkCheckpointValidator(sessionId)
-    const boundary = snapshot.prefix.at(-1)
-    const anchor = RuntimeForkAnchorSchema.safeParse(boundary?.data.runtimeAnchor)
-    if (
-      !validateCheckpoint ||
-      (boundary &&
-        (boundary.role !== 'assistant' ||
-          boundary.status !== 'success' ||
-          !anchor.success ||
-          !validateCheckpoint(anchor.data.checkpoint)))
-    )
-      throw new AgentSessionEditError('checkpoint_unsupported')
+    const actions = this.getHistoryActions(sessionId, [messageId]).get(messageId)
+    if (!actions || actions.edit) throw new AgentSessionEditError(actions?.edit ?? 'checkpoint_unsupported')
     const parts = snapshot.user.data.parts ?? []
     await validateEditedInput(parts)
     return { messageId, version: snapshot.version, parts }

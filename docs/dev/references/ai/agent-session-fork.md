@@ -92,7 +92,8 @@ flowchart TD
 |---|---|
 | `AgentSessionRuntimeService` | Lifecycle and admission: owns the operation coordinator, includes pending forks in drain, and cancels work on shutdown |
 | `AgentSessionForkOperations` | Coordinates message selection, workspace preparation, adapter invocation, artifact publication, database commit, and failed-operation cleanup |
-| `AgentSessionForkService` in `data/services` | Reads a consistent source prefix and commits child session/message rows in a synchronous database transaction |
+| `AgentSessionForkService` in `data/services` | Batch-reads message/parent boundary facts, reads a consistent source prefix, and commits child session/message rows in a synchronous database transaction |
+| `agentSession/fork/historyActions.ts` | Shares static fork/edit eligibility between list projection, edit preparation, and execution using the selected adapter's checkpoint validator |
 | `agentSession/fork/files.ts` and `resources.ts` | Copy/publish files and record the resources owned by an operation |
 | Each runtime adapter | Defines and validates its native checkpoint, reads native history, calls the harness fork API, and maps child resume references |
 | `runtime/fork` | Common request/result envelope, errors, native-file read helpers, and worker waiting; no runtime-specific checkpoint union or worker dispatch |
@@ -129,11 +130,15 @@ are opaque to the host and data layer. Native schemas live in each adapter's
 message reads strip `runtimeAnchor`. The child uses the existing
 `runtimeResumeToken` persistence and normal runtime resume path.
 
-Message listing returns Main-authored `historyActions` alongside the visible rows.
-Main combines driver support with the adapter's synchronous checkpoint-schema validator.
+The message-list API composes Main-authored `historyActions` alongside the visible rows.
+`AgentSessionRuntimeService` obtains current-page boundary facts from `AgentSessionForkService`,
+including parents outside the page, and applies the shared fork-domain rules. Ordinary
+`AgentSessionMessageService.listSessionMessages()` reads neither compute these actions nor
+accept runtime callbacks. Raw anchors stay in Main.
 Fork requires a successful native-backed assistant boundary; editing requires either
 the first input or such a boundary immediately before the input. The renderer
-uses these decisions without receiving the private anchor. Listing opens no native
+uses these decisions without receiving the private anchor. Missing edit parents and
+delivery inputs are ineligible. Listing opens no native
 files or runtime connections. A file removed after listing still causes an explicit
 execution-time failure. Unsupported Durable actions remain unavailable.
 

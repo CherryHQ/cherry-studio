@@ -43,15 +43,15 @@ export const agentSessionMessageHandlers: HandlersFor<AgentSessionMessageSchemas
       agentSessionService.getConversationById(params.sessionId)
       const parsed = AgentSessionMessagesListQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
-      const response = agentSessionMessageService.listSessionMessages(
+      const response = agentSessionMessageService.listSessionMessages(params.sessionId, parsed.data)
+      const actions = application.get('AgentSessionRuntimeService').getHistoryActions(
         params.sessionId,
-        parsed.data,
-        application.get('AgentSessionRuntimeService').getForkCheckpointValidator(params.sessionId)
+        response.items.map((item) => item.id)
       )
-      if (!parsed.data.deferToolOutputs) return response
-
-      const items = response.items.map((item) => projectMessageForRenderer(item, params.sessionId))
-      if (items.every((item, index) => item === response.items[index])) return response
+      const items = response.items.map((item) => ({
+        ...(parsed.data.deferToolOutputs ? projectMessageForRenderer(item, params.sessionId) : item),
+        historyActions: actions.get(item.id)
+      }))
       return { ...response, items }
     }
   },

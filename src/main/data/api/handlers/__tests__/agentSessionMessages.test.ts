@@ -35,7 +35,13 @@ import { agentSessionMessageHandlers } from '../agentSessionMessages'
 describe('agentSessionMessageHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    MockApplicationUtils.setService('AgentSessionRuntimeService', { getForkCheckpointValidator: () => undefined })
+    MockApplicationUtils.setService('AgentSessionRuntimeService', {
+      getHistoryActions: () =>
+        new Map([
+          ['assistant-message', { fork: 'legacy_history', edit: 'invalid_target' }],
+          ['user-message', { fork: 'not_turn_boundary', edit: 'checkpoint_unsupported' }]
+        ])
+    })
     // `getConversationById` is synchronous; scope violations throw inline.
     getConversationByIdMock.mockReturnValue({ id: 'session-1' })
   })
@@ -75,7 +81,8 @@ describe('agentSessionMessageHandlers', () => {
           }
         }
       })
-      expect(result.items[1]).toBe(user)
+      expect(result.items[1]).toMatchObject(user)
+      expect(result.items[0]).toHaveProperty('historyActions', { fork: 'legacy_history', edit: 'invalid_target' })
       expect(assistant.data.parts[1]).toMatchObject({ output })
       const replaced = {
         ...assistant,
@@ -105,7 +112,7 @@ describe('agentSessionMessageHandlers', () => {
         query: { deferToolOutputs: true }
       })) as unknown as { items: unknown[] }
 
-      expect(result.items[0]).toBe(assistant)
+      expect(result.items[0]).toMatchObject(assistant)
     })
 
     it('returns stored tool outputs verbatim unless the caller opts in', async () => {
@@ -125,7 +132,10 @@ describe('agentSessionMessageHandlers', () => {
         agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'].GET({
           params: { sessionId: 'session-1' }
         })
-      ).resolves.toBe(response)
+      ).resolves.toEqual({
+        ...response,
+        items: [{ ...assistant, historyActions: { fork: 'legacy_history', edit: 'invalid_target' } }]
+      })
     })
 
     it('hides the message list of a session outside the conversation scope', async () => {

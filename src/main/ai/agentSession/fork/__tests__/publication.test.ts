@@ -17,6 +17,7 @@ import { appStateTable } from '@data/db/schemas/appState'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import type { RuntimeForkInput, RuntimeForkResult } from '@main/ai/runtime/fork'
+import { PiForkCheckpointSchema } from '@main/ai/runtime/pi/forkCheckpoint'
 import { preparePiBranch, reservePiBranchTx } from '@main/ai/runtime/pi/piContext'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import * as fileUtils from '@main/utils/file'
@@ -75,6 +76,7 @@ describe('Agent fork publication', () => {
     previous = runtimeDriverRegistry.getAgentSessionDriver('pi')
     runtimeDriverRegistry.register({
       type: 'pi',
+      isForkCheckpoint: (value) => PiForkCheckpointSchema.safeParse(value).success,
       validateSession() {},
       async connect() {
         throw new Error('Fork must not start a conversation')
@@ -362,7 +364,7 @@ describe('Agent fork publication', () => {
         async () => {},
         () => {}
       )
-    ).rejects.toMatchObject({ reason: 'legacy_history' })
+    ).rejects.toMatchObject({ reason: 'checkpoint_unsupported' })
     expect(
       agentSessionMessageService
         .listSessionMessages(sessionId)

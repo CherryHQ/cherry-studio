@@ -24,7 +24,9 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSessionForkOperations'
+import { ClaudeForkCheckpointSchema } from '@main/ai/runtime/claudeCode/forkCheckpoint'
 import { AgentSessionForkError, type RuntimeForkInput } from '@main/ai/runtime/fork/checkpoint'
+import { PiForkCheckpointSchema } from '@main/ai/runtime/pi/forkCheckpoint'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 
@@ -86,6 +88,7 @@ describe('AgentSessionMessageService', () => {
   })
 
   afterEach(() => {
+    runtimeDriverRegistry.clearForTest()
     vi.restoreAllMocks()
   })
 
@@ -131,7 +134,9 @@ describe('AgentSessionMessageService', () => {
             type,
             validateSession: vi.fn(),
             connect,
-            fork
+            fork,
+            isForkCheckpoint: (value) =>
+              (type === 'pi' ? PiForkCheckpointSchema : ClaudeForkCheckpointSchema).safeParse(value).success
           })
         }
         try {
@@ -289,6 +294,18 @@ describe('AgentSessionMessageService', () => {
       'reports %s when fork is requested without publishing a session',
       async (_label, runtimeAnchor, reason) => {
         await seedAgent('fork-agent', 'Fork Agent')
+        dbh.db.update(agentTable).set({ type: 'pi' }).where(eq(agentTable.id, 'fork-agent')).run()
+        runtimeDriverRegistry.register({
+          type: 'pi',
+          validateSession() {},
+          isForkCheckpoint: (value) => PiForkCheckpointSchema.safeParse(value).success,
+          async connect() {
+            throw new Error('History validation must not connect')
+          },
+          async fork() {
+            throw new Error('Invalid checkpoints must not reach native preparation')
+          }
+        })
         await seedSession({ id: 'fork-source', agentId: 'fork-agent', name: 'Source', orderKey: 'fork-order' })
         agentSessionMessageService.saveMessage({
           sessionId: 'fork-source',

@@ -1,9 +1,10 @@
-import { eq } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
+import { alias, type AnySQLiteColumn } from 'drizzle-orm/sqlite-core'
 
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
-import type { AgentSessionMessageRow } from '@data/db/schemas/agentSessionMessage'
+import { type AgentSessionMessageRow, agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import type { DbOrTx } from '@data/db/types'
 
@@ -18,6 +19,30 @@ export class AgentSessionForkSourceError extends Error {
 }
 
 export class AgentSessionForkService {
+  readHistoryBoundaries(sessionId: string, messageIds: readonly string[]) {
+    if (!messageIds.length) return []
+    const parent = alias(agentSessionMessageTable, 'parent')
+    const anchor = (data: AnySQLiteColumn) =>
+      sql<unknown>`json_quote(json_extract(${data}, '$.runtimeAnchor'))`.mapWith((value: string): unknown =>
+        JSON.parse(value)
+      )
+    return application
+      .get('DbService')
+      .getDb()
+      .select({
+        id: agentSessionMessageTable.id,
+        role: agentSessionMessageTable.role,
+        status: agentSessionMessageTable.status,
+        delivery: agentSessionMessageTable.delivery,
+        anchor: anchor(agentSessionMessageTable.data),
+        parent: { id: parent.id, role: parent.role, status: parent.status, anchor: anchor(parent.data) }
+      })
+      .from(agentSessionMessageTable)
+      .leftJoin(parent, and(eq(parent.sessionId, sessionId), eq(parent.id, agentSessionMessageTable.parentId)))
+      .where(and(eq(agentSessionMessageTable.sessionId, sessionId), inArray(agentSessionMessageTable.id, messageIds)))
+      .all()
+  }
+
   private readTx(tx: DbOrTx, sourceSessionId: string, messageId: string, excludedIds: readonly string[]) {
     const source = tx
       .select({ session: agentSessionTable, workspace: agentWorkspaceTable, agent: agentTable })
