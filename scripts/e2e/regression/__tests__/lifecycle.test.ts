@@ -222,7 +222,7 @@ describe('owned application lifecycle', () => {
       let escalationProbed = false
       let escalationAt: number | undefined
       const startedAt = Date.now()
-      const signals: { pid: number; signal: NodeJS.Signals | number | undefined }[] = []
+      const signals: { pid: number; signal: Parameters<typeof process.kill>[1] }[] = []
       const releasedPorts = new Set<string>()
       vi.spyOn(process, 'kill').mockImplementation((pid, signal) => {
         if (signal !== 0) {
