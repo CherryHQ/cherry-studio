@@ -17,11 +17,11 @@ English | [中文](scheduled-tasks-page.zh.md)
 
 ## Use the page
 
-Open Scheduled tasks from the global sidebar. Select a task in Active or Paused to read and continue its associated conversation. Each group has its own pagination, total, loading state, and retry action. Completed and missed tasks remain available in Settings.
+Open Scheduled tasks from the global sidebar. Select a task in Active or Paused to read and continue its associated conversation. Each group has its own pagination, total, loading state, and retry action. Settings no longer has a Scheduled tasks entry. Old settings links redirect here and preserve the selected task and notification. An error summary is shown only when the notification matches the selected task.
 
 Add scheduled task opens the shared creation form in the current window. Successful creation selects the returned task without an extra run command. A task with no execution shows a waiting state. Pausing affects future scheduling; it does not cancel an execution already in progress.
 
-Each group can collapse independently without changing the open conversation. The three-dot menu on each task offers Continue or Pause, Run now, Edit, and Delete. Delete uses destructive styling and requires confirmation. The dialog shows a short title and a separate description warning that all associated conversations move to the Recycle Bin. Deletion stops pending runs and archives both reused and per-run conversations. Task deletion and conversation archival commit together; a failed transaction preserves both. Editing opens the shared form with the current task values. Deleting the selected task clears its route selection; deleting another task leaves the current conversation unchanged.
+Each group can collapse independently without changing the open conversation. The three-dot menu on each task offers Continue or Pause, Run now, Edit, and Delete. Completed and missed tasks are not listed. Their stored records and shared APIs remain unchanged. Delete uses destructive styling and requires confirmation. The dialog shows a short title and a separate description warning that all associated conversations move to the Recycle Bin. Deletion stops pending runs and archives both reused and per-run conversations. Task deletion and conversation archival commit together; a failed transaction preserves both. Editing opens the shared form with the current task values. Deleting the selected task clears its route selection; deleting another task leaves the current conversation unchanged.
 
 ## Sidebar and conversation header
 
