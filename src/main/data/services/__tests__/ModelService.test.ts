@@ -967,6 +967,28 @@ describe('ModelService.delete', () => {
 describe('ModelService.list', () => {
   const dbh = setupTestDatabase()
 
+  it('marks migrated saved Vision as explicit without treating inherited Vision as saved', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('openai', 'legacy-vision', {
+        capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION],
+        inputModalities: null,
+        inputModalitiesExplicit: false
+      })
+    )
+    expect(modelService.getByKey('openai', 'legacy-vision')).toMatchObject({
+      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION],
+      inputModalitiesExplicit: true
+    })
+    modelService.update('openai', 'legacy-vision', {
+      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION, MODEL_CAPABILITY.REASONING]
+    })
+    expect(modelService.getByKey('openai', 'legacy-vision')).toMatchObject({
+      capabilities: expect.arrayContaining([MODEL_CAPABILITY.IMAGE_RECOGNITION]),
+      inputModalitiesExplicit: true
+    })
+  })
+
   async function seedMultipleModels() {
     const [openaiOrderKey, anthropicOrderKey] = generateOrderKeySequence(2)
     await dbh.db

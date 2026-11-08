@@ -435,8 +435,26 @@ function assertCompleteCustomModelRow(row: UserModelRow): asserts row is Complet
   }
 }
 
-function hasExplicitInputModalities(row: Pick<UserModelRow, 'inputModalities' | 'inputModalitiesExplicit'>): boolean {
-  return row.inputModalitiesExplicit || (row.inputModalities !== null && row.inputModalities.length > 0)
+function hasExplicitInputModalities(
+  row: Pick<UserModelRow, 'inputModalities' | 'inputModalitiesExplicit' | 'capabilities' | 'presetModelId'>
+): boolean {
+  // Migrated saved Vision/Audio/Video choices can predate the modalities column.
+  // Custom rows store complete user config. Preset capability deltas can also
+  // contain inherited modalities, so they cannot prove saved modality intent.
+  const legacySelection =
+    row.presetModelId === null &&
+    row.inputModalities === null &&
+    row.capabilities?.some(
+      (capability) =>
+        capability === MODEL_CAPABILITY.IMAGE_RECOGNITION ||
+        capability === MODEL_CAPABILITY.AUDIO_RECOGNITION ||
+        capability === MODEL_CAPABILITY.VIDEO_RECOGNITION
+    )
+  return (
+    row.inputModalitiesExplicit ||
+    (row.inputModalities !== null && row.inputModalities.length > 0) ||
+    Boolean(legacySelection)
+  )
 }
 
 function customRowToRuntimeModel(row: UserModelRow): Model {

@@ -159,13 +159,23 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       const nextClassification = overrides?.classification
       const shouldApplyPurpose = mode === 'purpose' && (hasPurposeFieldsOverride || nextClassification != null)
       const effectiveClassification = nextClassification ?? classification
+      const initialClassification = getInitialModelClassification(model)
+      const shouldApplyInputModalities =
+        hasPurposeFieldsOverride ||
+        effectiveClassification.primaryType !== initialClassification.primaryType ||
+        effectiveClassification.inputModalities.size !== initialClassification.inputModalities.size ||
+        [...effectiveClassification.inputModalities].some(
+          (modality) => !initialClassification.inputModalities.has(modality)
+        )
       const classifiedCapabilities =
         shouldApplyPurpose || nextClassification
-          ? buildModelCapabilities(model.capabilities ?? [], effectiveClassification)
+          ? buildModelCapabilities(model.capabilities ?? [], effectiveClassification, !shouldApplyInputModalities)
           : undefined
       const classifiedInputModalities =
         shouldApplyPurpose || nextClassification
-          ? buildModelInputModalities(model.inputModalities ?? [], effectiveClassification)
+          ? shouldApplyInputModalities
+            ? buildModelInputModalities(model.inputModalities ?? [], effectiveClassification)
+            : (model.inputModalities ?? [])
           : undefined
       const resolvedPurposeFields =
         shouldApplyPurpose && classifiedCapabilities && classifiedInputModalities
@@ -173,7 +183,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
               {
                 ...nextPurposeFields,
                 capabilities: classifiedCapabilities,
-                inputModalities: classifiedInputModalities
+                ...(shouldApplyInputModalities ? { inputModalities: classifiedInputModalities } : {})
               },
               inferModelPurpose(nextPurposeFields),
               {
@@ -196,12 +206,12 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         ...(resolvedPurposeFields
           ? {
               capabilities: resolvedPurposeFields.capabilities,
-              inputModalities: resolvedPurposeFields.inputModalities
+              ...(shouldApplyInputModalities ? { inputModalities: resolvedPurposeFields.inputModalities } : {})
             }
           : nextClassification && classifiedCapabilities && classifiedInputModalities
             ? {
                 capabilities: classifiedCapabilities,
-                inputModalities: classifiedInputModalities
+                ...(shouldApplyInputModalities ? { inputModalities: classifiedInputModalities } : {})
               }
             : {}),
         ...(hasPurposeFieldsOverride && resolvedPurposeFields

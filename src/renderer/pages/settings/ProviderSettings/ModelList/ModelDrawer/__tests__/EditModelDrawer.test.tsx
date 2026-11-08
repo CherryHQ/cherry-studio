@@ -230,6 +230,48 @@ describe('EditModelDrawer', () => {
     expect(vision).toHaveAttribute('aria-pressed', 'true')
   })
 
+  it('preserves inherited Vision when only Reasoning is changed', async () => {
+    const user = userEvent.setup()
+    const model = {
+      ...makePricingModel(),
+      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION],
+      inputModalities: [MODALITY.TEXT, MODALITY.IMAGE],
+      inputModalitiesExplicit: false
+    } as Model
+    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={model} />)
+    expect(screen.getByRole('button', { name: 'models.type.vision' })).toHaveAttribute('aria-pressed', 'false')
+    await user.click(screen.getByRole('button', { name: 'models.type.reasoning' }))
+    await waitFor(() => expect(updateModelMock).toHaveBeenCalled())
+    const patch = updateModelMock.mock.lastCall?.[2]
+    expect(patch.capabilities).toEqual(
+      expect.arrayContaining([MODEL_CAPABILITY.IMAGE_RECOGNITION, MODEL_CAPABILITY.REASONING])
+    )
+    expect(patch).not.toHaveProperty('inputModalities')
+  })
+
+  it('keeps a migrated saved Vision choice selected and effective during unrelated edits', async () => {
+    const user = userEvent.setup()
+    const model = {
+      ...makePricingModel(),
+      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION],
+      inputModalities: undefined,
+      inputModalitiesExplicit: true
+    } as Model
+    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={model} />)
+    expect(screen.getByRole('button', { name: 'models.type.vision' })).toHaveAttribute('aria-pressed', 'true')
+    await user.click(screen.getByRole('button', { name: 'models.type.reasoning' }))
+    await waitFor(() => expect(updateModelMock).toHaveBeenCalled())
+    const patch = updateModelMock.mock.lastCall?.[2]
+    expect(patch.capabilities).toEqual(
+      expect.arrayContaining([MODEL_CAPABILITY.IMAGE_RECOGNITION, MODEL_CAPABILITY.REASONING])
+    )
+    expect(patch).not.toHaveProperty('inputModalities')
+    await user.click(screen.getByRole('button', { name: 'models.type.vision' }))
+    await waitFor(() => expect(updateModelMock.mock.lastCall?.[2].inputModalities).toBeDefined())
+    expect(updateModelMock.mock.lastCall?.[2].inputModalities).not.toContain(MODALITY.IMAGE)
+    expect(updateModelMock.mock.lastCall?.[2].capabilities).not.toContain(MODEL_CAPABILITY.IMAGE_RECOGNITION)
+  })
+
   it.each([
     { scenario: 'new', initial: undefined, value: '0.08', expected: 0.08 },
     { scenario: 'updated', initial: 0.02, value: '0.08', expected: 0.08 },

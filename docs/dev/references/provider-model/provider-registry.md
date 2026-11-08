@@ -127,7 +127,10 @@ remain valid overrides.
 The `inputModalitiesExplicit` flag records whether input modalities were
 explicitly supplied; a non-empty stored list is also treated as explicit. The
 runtime model exposes this effective provenance so the model editor does not
-present registry-inherited modalities as saved selections.
+present registry-inherited modalities as saved selections. Custom rows with a legacy
+recognition capability and no stored modality list retain that saved choice as explicit.
+Changing an unrelated classification control does not write input modalities or clear
+untouched recognition capabilities; only an intentional modality/purpose edit does so.
 
 ### User Override Protection
 

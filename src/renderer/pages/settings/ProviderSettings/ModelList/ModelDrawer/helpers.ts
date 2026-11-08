@@ -146,7 +146,8 @@ export function getInitialModelClassification(model?: Model | null): ModelClassi
   for (const modality of [MODALITY.IMAGE, MODALITY.AUDIO, MODALITY.VIDEO] as const) {
     if (
       (model?.inputModalitiesExplicit !== false && model?.inputModalities?.includes(modality)) ||
-      (model?.inputModalitiesExplicit === undefined &&
+      ((model?.inputModalitiesExplicit === undefined ||
+        (model?.inputModalitiesExplicit === true && model?.inputModalities === undefined)) &&
         capabilities.includes(INPUT_MODALITY_TO_LEGACY_CAPABILITY[modality]))
     ) {
       inputModalities.add(modality)
@@ -162,11 +163,12 @@ export function getInitialModelClassification(model?: Model | null): ModelClassi
 
 export function buildModelCapabilities(
   original: readonly ModelCapability[],
-  classification: ModelClassificationState
+  classification: ModelClassificationState,
+  preserveInputModalityCapabilities = false
 ): ModelCapability[] {
   const managedCapabilities = new Set<ModelCapability>([
     ...MODEL_PRIMARY_TYPE_CAPABILITIES,
-    ...LEGACY_INPUT_MODALITY_CAPABILITIES,
+    ...(preserveInputModalityCapabilities ? [] : LEGACY_INPUT_MODALITY_CAPABILITIES),
     ...Object.values(TOGGLE_TO_CAPABILITY)
   ])
   if (classification.primaryType !== null) {
