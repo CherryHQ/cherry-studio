@@ -59,7 +59,7 @@
     },
     {
       "path": "docs/dev/references/ai/chat-attachments.md",
-      "sources": ["src/main/ai/messages/attachmentRouting.ts","src/main/ai/messages/fileProcessor.ts","src/main/ai/tools/adapters/aiSdk/builtin/ReadFileTool.ts","src/renderer/utils/file.ts","src/shared/utils/file/fileExtensions.ts"]
+      "sources": ["src/main/ai/messages/attachmentBudget.ts","src/main/ai/messages/attachmentInlineBudget.ts","src/main/ai/messages/attachmentRouting.ts","src/main/ai/messages/attachmentTextExtraction.ts","src/main/ai/messages/attachmentWorkerClient.ts","src/main/ai/messages/fileProcessor.ts","src/main/ai/tools/adapters/aiSdk/builtin/ReadFileTool.ts","src/renderer/utils/file.ts","src/shared/utils/file/fileExtensions.ts"]
     },
     {
       "path": "docs/dev/references/ai/core-architecture.md",
@@ -388,6 +388,10 @@
     {
       "path": "docs/dev/references/job-and-scheduler/README.md",
       "sources": ["src/main/core/job","src/main/core/scheduler"]
+    },
+    {
+      "path": "docs/dev/references/job-and-scheduler/scheduled-tasks-page.md",
+      "sources": ["src/main/data/db/seeding/seeders/scheduledTasksShortcutSeeder.ts","src/main/data/services/AgentTaskService.ts","src/renderer/components/app/sidebarIcons.tsx","src/renderer/hooks/agent/useTaskConversation.ts","src/renderer/pages/agents/AgentChat.tsx","src/renderer/pages/agents/ScheduledTasksPage.tsx","src/renderer/pages/agents/components/ScheduledTaskSidebar.tsx","src/renderer/services/taskConversation.ts"]
     },
     {
       "path": "docs/dev/references/job-and-scheduler/scheduler-usage.md",

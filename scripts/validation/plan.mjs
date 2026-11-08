@@ -28,6 +28,7 @@ export const checkTasks = {
   skills: { group: 'repository', args: ['skills:check'] },
   knowledge: { group: 'repository', args: ['build:builtin-knowledge:check'] },
   migrations: { group: 'repository', args: ['db:migrations:check'] },
+  theme: { group: 'repository', args: ['--filter', '@cherrystudio/ui', 'theme:check'] },
   lint: { group: 'lint', args: ['lint'] },
   'types-node': { group: 'types', args: ['typecheck:node'] },
   'types-web': { group: 'types', args: ['typecheck:web'] },
@@ -159,6 +160,7 @@ export function createPlan(files, fullReason) {
       continue
     }
     add('knowledge', file)
+    if (file.startsWith('src/renderer/') && /\.(?:tsx?|css)$/.test(file)) add('theme', file)
     const affected = scope === 'preload' ? ['main', 'preload', 'renderer'] : consumers[scope]
     for (const project of affected) projects.add(project)
     if (affected.some((project) => ['main', 'shared', 'scripts', 'provider-registry'].includes(project)))
