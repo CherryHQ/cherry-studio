@@ -88,6 +88,38 @@ it('refuses to read a native editor when no Windows fixture is owned', () => {
   expect(execFileSync).not.toHaveBeenCalled()
 })
 
+it('retains the native read error and publishes only redacted editor diagnostics', () => {
+  const paths = getRunPaths(directory)
+  ensureRunDirectories(paths)
+  const filePath = join(paths.fixtures, 'selection.txt')
+  writeFileSync(filePath, 'Owned text')
+  execFileSync.mockReturnValue('42')
+  automation.openExternalText('windows', paths, filePath)
+  const nativeError = Object.assign(new Error('Owned external editor has no text control'), {
+    stdout: JSON.stringify({
+      processId: 42,
+      nodes: [{ class: 'Bearer diagnostic-secret', bounds: { x: null, y: null, width: 0, height: 0 } }]
+    })
+  })
+  execFileSync.mockImplementation(() => {
+    throw nativeError
+  })
+  let failure: unknown
+  try {
+    automation.readWindowsExternalText()
+  } catch (error) {
+    failure = error
+  }
+  expect(failure).toBe(nativeError)
+  const diagnostic = readFileSync(join(paths.evidence, 'native-diagnostics', 'native-external-text.json'), 'utf8')
+  expect(JSON.parse(diagnostic)).toEqual({
+    processId: 42,
+    nodes: [{ class: 'Bearer [REDACTED]', bounds: { x: null, y: null, width: 0, height: 0 } }]
+  })
+  expect(diagnostic).not.toContain('diagnostic-secret')
+  expect(existsSync(join(paths.logs, 'native-external-text.json'))).toBe(false)
+})
+
 it.each(['macos', 'windows'] as const)(
   'rejects a %s multi-file selection outside the fixture directories',
   (platform) => {

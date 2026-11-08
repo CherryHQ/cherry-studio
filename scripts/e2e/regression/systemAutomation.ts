@@ -13,6 +13,7 @@ import { resolveAllowedPath } from './paths'
 import { assertOwnedProcess, findCdpPid, findListeningPid, isDescendant, MAIN_INSPECTOR_PORT } from './process'
 import { createRedactor } from './redaction'
 import type { Platform } from './types'
+import { WINDOWS_DIAGNOSTIC_RECTANGLE } from './windowsNativeDiagnostics'
 
 const ALLOWED_KEYS = new Set(['Alt', 'Control', 'Enter', 'Escape', 'Meta', 'Shift', 'Space', 'a', 'c', 'e', 'k', 's'])
 
@@ -839,8 +840,8 @@ export function readWindowsExternalText(): {
     `        if ($current.ProcessId -ne ${activeWindowsTextFixturePid}) { continue }`,
     '        $textPattern = $null; $supportsText = $entry.element.TryGetCurrentPattern([Windows.Automation.TextPattern]::Pattern, [ref]$textPattern)',
     '        if ($entry.depth -eq 0 -or $supportsText -or $current.ControlType -in @([Windows.Automation.ControlType]::Edit, [Windows.Automation.ControlType]::Document)) {',
-    '          $bounds = $current.BoundingRectangle',
-    '          $nodes += @{ depth = $entry.depth; processId = $current.ProcessId; class = [string]$current.ClassName; controlType = $current.ControlType.ProgrammaticName; automationId = [string]$current.AutomationId; visible = -not $current.IsOffscreen; supportsTextPattern = $supportsText; bounds = @{ x = $bounds.X; y = $bounds.Y; width = $bounds.Width; height = $bounds.Height } }',
+    '          $rect = $current.BoundingRectangle',
+    `          $nodes += @{ depth = $entry.depth; processId = $current.ProcessId; class = [string]$current.ClassName; controlType = $current.ControlType.ProgrammaticName; automationId = [string]$current.AutomationId; visible = -not $current.IsOffscreen; supportsTextPattern = $supportsText; bounds = ${WINDOWS_DIAGNOSTIC_RECTANGLE} }`,
     '        }',
     '        if ($entry.depth -lt 6 -and $queued -lt 80) {',
     '          $child = $walker.GetFirstChild($entry.element)',
@@ -871,8 +872,10 @@ export function readWindowsExternalText(): {
     if (diagnostic) {
       try {
         const state = createRedactor(getSensitiveConfigValues())(JSON.parse(diagnostic))
+        const directory = join(activeTextResource.paths.evidence, 'native-diagnostics')
+        mkdirSync(directory, { recursive: true })
         writeFileSync(
-          join(activeTextResource.paths.logs, 'native-external-text.json'),
+          join(directory, 'native-external-text.json'),
           JSON.stringify(state, (_key, value) => (typeof value === 'string' ? value.slice(0, 160) : value)),
           { mode: 0o600 }
         )

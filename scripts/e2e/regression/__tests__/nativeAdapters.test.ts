@@ -28,6 +28,7 @@ import {
   setWindowsNotificationCenterOpen
 } from '../systemAutomation'
 import { readWindowsFileOwners } from '../windowsFileOwners'
+import { WINDOWS_DIAGNOSTIC_RECTANGLE } from '../windowsNativeDiagnostics'
 import { listWindowsCodeTerminals, type WindowsTerminal, windowsTerminalText } from '../windowsTerminal'
 
 function saveConsoleFixtureIdentity(identityPath: string): string {
@@ -98,6 +99,30 @@ it('rejects file-owner inspection outside the isolated profile', () => {
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }
+})
+
+it.skipIf(process.platform !== 'win32')('serializes native non-finite rectangles without losing window guards', () => {
+  const script = [
+    '$ErrorActionPreference = "Stop"',
+    '$rect = @{ X = [double]::PositiveInfinity; Y = [double]::NegativeInfinity; Width = [double]::NaN; Height = 24.5 }',
+    `@{ minimized = $true; frontmost = $false; rect = ${WINDOWS_DIAGNOSTIC_RECTANGLE} } | ConvertTo-Json -Depth 3 -Compress`,
+    '$rect = @{ X = -10; Y = 0; Width = 1024; Height = 768 }',
+    `@{ minimized = $false; frontmost = $true; rect = ${WINDOWS_DIAGNOSTIC_RECTANGLE} } | ConvertTo-Json -Depth 3 -Compress`
+  ].join('; ')
+  const output = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+    encoding: 'utf8',
+    windowsHide: true,
+    timeout: 10_000
+  })
+  expect(
+    output
+      .trim()
+      .split(/\r?\n/)
+      .map((line) => JSON.parse(line))
+  ).toEqual([
+    { minimized: true, frontmost: false, rect: { x: null, y: null, width: null, height: 24.5 } },
+    { minimized: false, frontmost: true, rect: { x: -10, y: 0, width: 1024, height: 768 } }
+  ])
 })
 
 it.skipIf(process.platform !== 'win32')('reports the real owner only while its file handle is open', () => {

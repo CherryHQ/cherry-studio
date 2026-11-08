@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { readdir, realpath, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, realpath, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 
@@ -10,6 +10,7 @@ import { createProfileEnvironment } from '../../../../scripts/e2e/regression/lif
 import { findListeningPid, windowsProcessExecutablePath } from '../../../../scripts/e2e/regression/process'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { readWindowsFileOwners } from '../../../../scripts/e2e/regression/windowsFileOwners'
+import { WINDOWS_DIAGNOSTIC_RECTANGLE } from '../../../../scripts/e2e/regression/windowsNativeDiagnostics'
 import { selectSidebarApp } from '../helpers/navigation'
 import type { RegressionApp } from '../RegressionApp'
 
@@ -89,15 +90,17 @@ export async function singleInstanceRelaunch(app: RegressionApp, page: Page, tes
             '[uint32]$foregroundPid = 0',
             '$null = [WindowState]::GetWindowThreadProcessId([WindowState]::GetForegroundWindow(), [ref]$foregroundPid)',
             '$current = $main.Current; $rect = $current.BoundingRectangle',
-            `@{ minimized = [WindowState]::IsIconic([IntPtr]$current.NativeWindowHandle); frontmost = $foregroundPid -eq ${record.electronPid}; diagnostic = @{ ownedPid = ${record.electronPid}; foregroundPid = $foregroundPid; windowClass = $current.ClassName; controlType = $current.ControlType.ProgrammaticName; rect = @{ x = $rect.X; y = $rect.Y; width = $rect.Width; height = $rect.Height } } } | ConvertTo-Json -Depth 4 -Compress`
+            `@{ minimized = [WindowState]::IsIconic([IntPtr]$current.NativeWindowHandle); frontmost = $foregroundPid -eq ${record.electronPid}; diagnostic = @{ ownedPid = ${record.electronPid}; foregroundPid = $foregroundPid; windowClass = $current.ClassName; controlType = $current.ControlType.ProgrammaticName; rect = ${WINDOWS_DIAGNOSTIC_RECTANGLE} } } | ConvertTo-Json -Depth 4 -Compress`
           ].join('; ')
         ],
         { timeout: 10_000, windowsHide: true }
       )
       const { minimized, frontmost, diagnostic } = JSON.parse(stdout)
       if (minimized || !frontmost) {
+        const directory = join(app.paths.evidence, 'native-diagnostics')
+        await mkdir(directory, { recursive: true })
         await writeFile(
-          join(app.paths.logs, 'mp133-native-window.json'),
+          join(directory, 'mp133-native-window.json'),
           JSON.stringify({ at: new Date().toISOString(), ...diagnostic }),
           { mode: 0o600 }
         )

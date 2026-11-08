@@ -1,8 +1,9 @@
 import { execFileSync } from 'node:child_process'
-import { writeFileSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { assertOwnedProcess } from '../../../../scripts/e2e/regression/process'
+import { WINDOWS_DIAGNOSTIC_RECTANGLE } from '../../../../scripts/e2e/regression/windowsNativeDiagnostics'
 import type { RegressionApp } from '../RegressionApp'
 import { inspectStartup } from './startupInspection'
 
@@ -55,7 +56,7 @@ export function windowsTrayMenu(app: RegressionApp, label?: string, expand = fal
     `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class TrayState { [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow(); [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid); }'`,
     '[uint32]$foregroundPid = 0',
     '$null = [TrayState]::GetWindowThreadProcessId([TrayState]::GetForegroundWindow(), [ref]$foregroundPid)',
-    '$windows = @($roots | Select-Object -First 8 | ForEach-Object { $current = $_.Current; $rect = $current.BoundingRectangle; @{ windowClass = $current.ClassName; controlType = $current.ControlType.ProgrammaticName; rect = @{ x = $rect.X; y = $rect.Y; width = $rect.Width; height = $rect.Height } } })',
+    `$windows = @($roots | Select-Object -First 8 | ForEach-Object { $current = $_.Current; $rect = $current.BoundingRectangle; @{ windowClass = $current.ClassName; controlType = $current.ControlType.ProgrammaticName; rect = ${WINDOWS_DIAGNOSTIC_RECTANGLE} } })`,
     `$diagnostic = @{ ownedPid = ${record.electronPid}; foregroundPid = $foregroundPid; windows = $windows }`,
     '}',
     'ConvertTo-Json -InputObject @{ names = $names; diagnostic = $diagnostic } -Depth 5 -Compress'
@@ -68,8 +69,10 @@ export function windowsTrayMenu(app: RegressionApp, label?: string, expand = fal
     })
   )
   if (result.diagnostic) {
+    const directory = join(app.paths.evidence, 'native-diagnostics')
+    mkdirSync(directory, { recursive: true })
     writeFileSync(
-      join(app.paths.logs, `windows-tray-empty-${record.electronPid}.json`),
+      join(directory, `windows-tray-empty-${record.electronPid}.json`),
       JSON.stringify({ at: new Date().toISOString(), ...result.diagnostic }),
       { mode: 0o600 }
     )
