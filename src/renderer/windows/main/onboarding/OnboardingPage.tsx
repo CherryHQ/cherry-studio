@@ -12,7 +12,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Scrollbar,
+  ScrollArea,
   Select,
   SelectContent,
   SelectItem,
@@ -289,11 +289,11 @@ export default function OnboardingPage({
     const expectedStatus = cloudStatus
     void ipcApi
       .request('cherry_cloud.models.sync')
-      .then(({ entitledModelIds, quotaExhaustedModelIds }) => {
+      .then(({ availableModelIds, quotaExhaustedModelIds }) => {
         if (expectedStatus !== cloudStatusRef.current) return
 
         const exhaustedModelIds = new Set(quotaExhaustedModelIds)
-        const agentModelId = entitledModelIds.find((modelId) => !exhaustedModelIds.has(modelId))
+        const agentModelId = availableModelIds.agent.find((modelId) => !exhaustedModelIds.has(modelId))
         if (agentModelId) {
           void completeWithCloudAgentModel(agentModelId, expectedStatus)
         } else {
@@ -532,7 +532,10 @@ export default function OnboardingPage({
                   onBack={() => setStep('provider')}
                   padded
                 />
-                <Scrollbar className="flex min-h-0 flex-1 justify-center border-border border-t px-6 py-8">
+                <ScrollArea
+                  viewportProps={{ className: 'px-6 py-8' }}
+                  contentProps={{ className: 'flex justify-center' }}
+                  className="min-h-0 flex-1 border-border border-t">
                   <div className="my-auto w-full max-w-[440px]">
                     <div className="w-full">
                       <ModelSettings
@@ -563,7 +566,7 @@ export default function OnboardingPage({
                       </div>
                     </div>
                   </div>
-                </Scrollbar>
+                </ScrollArea>
               </div>
             )}
           </div>

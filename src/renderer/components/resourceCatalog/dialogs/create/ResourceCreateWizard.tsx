@@ -2,10 +2,10 @@ import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } fro
 import { useForm, type UseFormReturn, useFormState, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Dialog, DialogContent, DialogTitle, Form, MenuItem, Scrollbar } from '@cherrystudio/ui'
+import { Button, Dialog, DialogContent, DialogTitle, Form, MenuItem, ScrollArea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
-import { useAgentModelDisabled, useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { type ModelSelectorFilter, useIsModelSelectable } from '@renderer/components/ModelSelector'
+import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useDefaultModel, useModels } from '@renderer/hooks/useModel'
 import { useProviderById } from '@renderer/hooks/useProvider'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
@@ -44,12 +44,13 @@ export function getResourceCreateDefaultAvatar(kind: ResourceCreateWizardKind) {
 }
 
 function getDefaultValues(kind: ResourceCreateWizardKind, initialName = ''): ResourceCreateWizardFormValues {
+  const agentType = kind === 'agent' ? 'pi' : 'claude-code'
   return {
     avatar: getResourceCreateDefaultAvatar(kind),
     name: initialName,
     description: '',
-    agentType: 'claude-code',
-    permissionMode: AGENT_RUNTIME_CAPABILITIES['claude-code'].createDefaults.permissionMode,
+    agentType,
+    permissionMode: AGENT_RUNTIME_CAPABILITIES[agentType].createDefaults.permissionMode,
     modelId: null,
     prompt: '',
     knowledgeBaseIds: [],
@@ -137,8 +138,8 @@ export function ResourceCreateWizard({
   const form = useForm<ResourceCreateWizardFormValues>({ defaultValues: getDefaultValues(kind, initialName) })
   const agentType = form.watch('agentType')
   const agentModelFilter = useAgentModelFilter(kind === 'agent' ? agentType : undefined)
-  const isModelDisabled = useAgentModelDisabled(open && kind === 'agent')
   const activeModelFilter = kind === 'agent' ? agentModelFilter : modelFilter
+  const isModelSelectable = useIsModelSelectable({ includeAgentOnlyModels: kind === 'agent', enabled: open })
   const { models: availableModels } = useModels({ enabled: true }, { fetchEnabled: open })
   const { defaultModel } = useDefaultModel({ enabled: open })
   const { provider: defaultModelProvider } = useProviderById(open ? defaultModel?.providerId : undefined)
@@ -148,7 +149,7 @@ export function ResourceCreateWizard({
     availableModels.some((model) => model.id === defaultModel.id) &&
     defaultModelProvider?.isEnabled &&
     (!activeModelFilter || activeModelFilter(defaultModel, defaultModelProvider)) &&
-    !isModelDisabled(defaultModel, defaultModelProvider)
+    isModelSelectable(defaultModel)
       ? defaultModel.id
       : null
   const autoSelectedDefaultModelIdRef = useRef<UniqueModelId | null>(null)
@@ -190,10 +191,20 @@ export function ResourceCreateWizard({
     setStepIndex(0)
   })
 
+  /** Last `(kind, open)` pair this wizard already initialised for. <Activity> destroys the
+   * effects of a hidden tab and re-creates them when the tab is shown again, so a re-show
+   * with an unchanged pair must not be treated as a fresh open — that would wipe the draft
+   * (name / description / prompt) and jump back to step 1. */
+  const lastHandledResetKeyRef = useRef<{ kind: ResourceCreateWizardKind; open: boolean } | null>(null)
+
   useEffect(() => {
+    const previous = lastHandledResetKeyRef.current
+    if (previous?.kind === kind && previous.open === open) return
+
+    lastHandledResetKeyRef.current = { kind, open }
     if (!open) return
+
     resetForOpen()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest initialName; this effect is keyed by the open transition.
   }, [kind, open])
 
   // Preference/model/provider hydration may finish after the dialog opens. Seed only an
@@ -349,14 +360,13 @@ export function ResourceCreateWizard({
               </ol>
 
               {/* Active step */}
-              <Scrollbar className="min-w-0 flex-1 px-6 py-5">
+              <ScrollArea viewportProps={{ className: 'px-6 py-5' }} className="min-w-0 flex-1">
                 {currentStep.id === 'basic' ? (
                   <BasicInfoStep
                     form={form}
                     portalContainer={dialogContentElement}
                     fallbackAvatar={getResourceCreateDefaultAvatar(kind)}
                     modelFilter={activeModelFilter}
-                    isModelDisabled={isModelDisabled}
                     runtimeSelectable={kind === 'agent'}
                     onSettingsNavigate={closeBeforeAction}
                   />
@@ -370,7 +380,7 @@ export function ResourceCreateWizard({
                 {currentStep.id === 'capability' ? (
                   <CapabilityStep form={form} portalContainer={dialogContentElement} />
                 ) : null}
-              </Scrollbar>
+              </ScrollArea>
             </div>
 
             <WizardFooter

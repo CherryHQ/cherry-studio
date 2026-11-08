@@ -112,4 +112,16 @@ describe('BetterSqlite3Driver', () => {
     // A second close (e.g. app shutdown after an explicit deleteStore) is a no-op.
     expect(driver.close()).toBeUndefined()
   })
+
+  it('loads a Linux x64 sqlite-vec build that does not require AVX', ({ skip }) => {
+    skip(
+      process.platform !== 'linux' || process.arch !== 'x64',
+      'Only the Linux x64 artifact is pinned to a baseline build; other platforms load their own binaries'
+    )
+
+    const debug = String(driver.execute('SELECT vec_debug() AS debug').rows[0].debug)
+    const buildFlags = debug.match(/^Build flags:[^\r\n]*$/m)?.[0]
+    expect(buildFlags, 'vec_debug() must expose the extension build flags').toBeDefined()
+    expect(buildFlags, 'the Linux x64 sqlite-vec build must not require AVX/AVX2').not.toMatch(/avx/i)
+  })
 })

@@ -9,6 +9,7 @@ import type {
   AgentInteraction,
   AgentParams,
   AgentMessage,
+  AgentMessageListItem,
   AgentPart,
   AgentSession,
   ContentRef
@@ -29,11 +30,11 @@ import { UniqueModelIdSchema, parseUniqueModelId } from '@shared/data/types/mode
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import type { SerializedError } from '@shared/types/error'
 
+import { DEFAULT_PAGE, pageOf, queryPage } from './agentPagination'
 import { toMessageUsage } from './agentUsage'
 
 /** Text above this many UTF-16 units travels as a content reference so records stay under the wire budget. */
 export const INLINE_TEXT_LIMIT = 4096
-const DEFAULT_PAGE = 20
 
 export const sha256 = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex')
 export const utf8 = (text: string): Uint8Array => new TextEncoder().encode(text)
@@ -78,17 +79,6 @@ export function sliceContent(
   }
 }
 
-export function pageOf<T>(
-  items: readonly T[],
-  cursor: string | undefined,
-  limit: number | undefined
-): { items: T[]; nextCursor: string | null } {
-  const start = cursor === undefined ? 0 : Number(cursor)
-  if (!Number.isSafeInteger(start) || start < 0) throw new RemoteRpcError('NOT_FOUND', 'Invalid page cursor')
-  const end = start + (limit ?? DEFAULT_PAGE)
-  return { items: items.slice(start, end), nextCursor: end < items.length ? String(end) : null }
-}
-
 export function toSessionSummary(session: AgentSessionEntity, activeExecutionId?: string): AgentSession | undefined {
   if (!session.agentId) return undefined
   const historyRevision = revisionOf(session.updatedAt)
@@ -117,9 +107,18 @@ function dataPart(partId: string, revision: string, name: string, value: unknown
 
 /** Persisted parts get index-based IDs; live parts use stream IDs and are tombstoned once history commits. */
 export function projectPersistedParts(message: AgentSessionMessageEntity): ProjectedPart[] {
-  const revision = revisionOf(message.updatedAt)
+  return projectMessageParts(
+    { id: message.id, parts: message.data.parts ?? [], modelId: message.modelId },
+    revisionOf(message.updatedAt)
+  )
+}
+
+export function projectMessageParts(
+  message: { id: string; parts: CherryMessagePart[]; modelId?: string | null },
+  revision: string
+): ProjectedPart[] {
   const projected: ProjectedPart[] = []
-  ;(message.data.parts ?? []).forEach((part: CherryMessagePart, index) => {
+  message.parts.forEach((part: CherryMessagePart, index) => {
     const partId = `${message.id}:${index}`
     if (part.type === 'text' || part.type === 'reasoning') {
       projected.push({
@@ -217,7 +216,7 @@ export function toMessageModel(
   return result.success ? result.data : undefined
 }
 
-export function toMessage(message: AgentSessionMessageEntity): AgentMessage {
+function toMessageMetadata(message: AgentSessionMessageEntity) {
   const usage = toMessageUsage(message.stats)
   const model = toMessageModel(message)
   const error = message.data.parts?.find((part) => part.type === 'data-error')
@@ -227,7 +226,6 @@ export function toMessage(message: AgentSessionMessageEntity): AgentMessage {
     ...(model ? { model } : {}),
     revision: revisionOf(message.updatedAt),
     role: message.role,
-    partIds: projectPersistedParts(message).map(({ part }) => part.partId),
     status: message.status,
     ...(message.status === 'error'
       ? {
@@ -240,19 +238,31 @@ export function toMessage(message: AgentSessionMessageEntity): AgentMessage {
   }
 }
 
+export function toMessage(message: AgentSessionMessageEntity): AgentMessage {
+  return { ...toMessageMetadata(message), partIds: projectPersistedParts(message).map(({ part }) => part.partId) }
+}
+
 export function listMessages(
   sessionId: string,
   historyRevision: string,
   cursor?: string,
-  limit?: number
-): { items: AgentMessage[]; nextCursor: string | null } {
+  limit?: number,
+  partsMode?: 'paged'
+): { items: AgentMessageListItem[]; nextCursor: string | null } {
   const session = getSession(sessionId)
   if (revisionOf(session.updatedAt) !== historyRevision)
     throw new RemoteRpcError('REVISION_EXPIRED', 'History revision expired')
-  const page = notFound(() =>
-    agentSessionMessageService.listSessionMessages(sessionId, { cursor, limit: limit ?? DEFAULT_PAGE })
-  )
-  return { items: page.items.map(toMessage), nextCursor: page.nextCursor ?? null }
+  return queryPage((attemptLimit) => {
+    const page = notFound(() =>
+      agentSessionMessageService.listSessionMessages(sessionId, { cursor, limit: attemptLimit })
+    )
+    return {
+      items: page.items.map((message) =>
+        partsMode === 'paged' ? { ...toMessageMetadata(message), partsMode } : toMessage(message)
+      ),
+      nextCursor: page.nextCursor ?? null
+    }
+  }, limit)
 }
 
 export function listParts(

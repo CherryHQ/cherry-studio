@@ -5,7 +5,11 @@ import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryStudioUI from '@cherrystudio/ui'
+import type * as CommandHooks from '@renderer/hooks/command'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
+
+vi.mock('@cherrystudio/ui', async () => vi.importActual<typeof CherryStudioUI>('@cherrystudio/ui'))
 
 const mocks = vi.hoisted(() => ({
   closeTab: vi.fn(),
@@ -36,13 +40,17 @@ vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
 }))
 
 vi.mock('@renderer/utils/platform', () => ({
+  get platform() {
+    return mocks.platformState.isMac ? 'darwin' : 'win32'
+  },
   get isMac() {
     return mocks.platformState.isMac
   },
   isLinux: false
 }))
 
-vi.mock('@renderer/hooks/command', () => ({
+vi.mock('@renderer/hooks/command', async (importOriginal) => ({
+  ...(await importOriginal<typeof CommandHooks>()),
   useCommandHandler: (command: string, handler: () => void, options?: { enabled?: boolean }) => {
     mocks.commandHandlers.set(command, { handler, options })
   }
@@ -352,6 +360,8 @@ describe('AppShell', () => {
       throw new Error('Expected AppShell to render a root and content column')
     }
 
+    expect(root.matches('[data-ui~="app.shell"]')).toBe(true)
+    expect(container.querySelectorAll('[data-ui~="app.shell"]')).toHaveLength(1)
     expect(sidebar.parentElement).toBe(root)
     expect(contentColumn.parentElement).toBe(root)
     expect(contentColumn).toContainElement(tabBar)
@@ -383,6 +393,8 @@ describe('AppShell', () => {
       throw new Error('Expected AppShell to render macOS left and content columns')
     }
 
+    expect(root.matches('[data-ui~="app.shell"]')).toBe(true)
+    expect(container.querySelectorAll('[data-ui~="app.shell"]')).toHaveLength(1)
     expect(trafficLightDragRegion.parentElement).toBe(root)
     expect(trafficLightDragRegion).toHaveClass('absolute', 'top-0', 'left-0')
     expect(trafficLightDragRegion).toHaveClass('w-[env(titlebar-area-x)]')
@@ -514,14 +526,14 @@ describe('AppShell', () => {
     expect(mocks.closeTab).toHaveBeenCalledWith('tab2')
   })
 
-  it('closes the window from the tab-close shortcut when only the last tab remains', () => {
+  it('closes the last tab from the shortcut instead of the window, landing on the Launchpad fallback', () => {
     render(<AppShell />)
     mocks.commandHandlers.get('tab.close')?.handler()
 
-    // Closing the final tab would strand the shell in the empty Launchpad state;
-    // the shortcut must close the window instead, like the last-tab close in browsers.
-    expect(mocks.ipcRequest).toHaveBeenCalledWith('window.close')
-    expect(mocks.closeTab).not.toHaveBeenCalled()
+    // TabsProvider turns a zero-tab close into the Launchpad fallback tab, so the
+    // shortcut must share the tab bar's close path instead of closing the window.
+    expect(mocks.closeTab).toHaveBeenCalledWith('home')
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('window.close')
   })
 
   it('keeps the last-tab close via the tab bar on the empty-state fallback', () => {

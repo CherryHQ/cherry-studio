@@ -17,6 +17,8 @@ import { getComposerInputLeafText } from './quickPanel'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from './tokens'
 import { normalizeComposerTokenAttrs } from './tokens'
 
+export { COMPOSER_INPUT_MAX_LENGTH } from './composerLimits'
+
 const COMPOSER_MESSAGE_SNAPSHOT_VERSION = 1
 
 type ComposerSerializableSource = Pick<Editor, 'getJSON'> | JSONContent
@@ -163,14 +165,37 @@ export function createComposerDocumentContent(text: string, composer?: ComposerM
   return createComposerContent(text, composer?.tokens ?? [], isComposerMessageTokenKind)
 }
 
-export function createComposerDraftContent(draft: {
-  text: string
-  tokens: readonly ComposerSerializedToken[]
-}): JSONContent {
+export function createComposerDraftContent(
+  draft: { text: string; tokens: readonly ComposerSerializedToken[] },
+  options: { tokenizeVariables?: boolean } = {}
+): JSONContent {
   const inputTokens = draft.tokens.filter((token) => isComposerInputTokenKind(token.kind))
-  if (!inputTokens.length) return createPromptVariableContent(draft.text)
+  if (!inputTokens.length && options.tokenizeVariables !== false) return createPromptVariableContent(draft.text)
 
   return createComposerContent(draft.text, inputTokens, isComposerInputTokenKind)
+}
+
+/**
+ * Tokens for rebuilding editor content from `text`. `draftTokens` is the persisted seed, but it is
+ * only read once at mount, so a rebuilt editor can hold the current text — which already embeds a
+ * live token's folded prompt text — with an empty seed, materializing that prompt text as plain
+ * prose. Live tokens whose prompt text is present in the text fill the gap where it appears.
+ */
+export function resolveComposerRestoreTokens(
+  text: string,
+  draftTokens: readonly ComposerSerializedToken[] | undefined,
+  liveTokens: readonly ComposerDraftToken[]
+): ComposerSerializedToken[] {
+  if (draftTokens?.length) return [...draftTokens]
+
+  const resolved: ComposerSerializedToken[] = []
+  liveTokens.forEach((token) => {
+    if (!token.promptText) return
+    const textOffset = text.indexOf(token.promptText)
+    if (textOffset < 0) return
+    resolved.push({ ...token, index: resolved.length, textOffset })
+  })
+  return resolved
 }
 
 export function serializeComposerDocument(source: ComposerSerializableSource): ComposerSerializedDraft {

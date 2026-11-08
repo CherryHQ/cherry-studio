@@ -13,6 +13,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^qwen3(?:-vl)?-.*thinking', toggle: false },
   { pattern: '^qwen3[.-]8-max-preview', toggle: false },
   { pattern: '^qwen3[.-]8-flash$', effort: ['low', 'medium', 'xhigh'], budget: { min: 0, max: 262144 }, toggle: true },
+  { pattern: '^qwen3[.-]8-flash-next$', effort: ['low', 'medium', 'xhigh'] },
   { pattern: '^qwq|^qvq', toggle: false },
   { pattern: '^qwen', toggle: true, template: true },
   { pattern: 'qwen3-235b-a22b-thinking-2507$', budget: { min: 0, max: 81920 }, template: true },
@@ -206,10 +207,12 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^mercury-2' },
   // meituan
   { pattern: '^longcat-2[.-]0$', toggle: true },
+  { pattern: '^longcat-2[.-]5$', toggle: true },
   // meta
+  { pattern: '^muse-spark-open(?:-|$)', effort: ['low', 'medium', 'high', 'xhigh'], toggle: false },
   { pattern: '^muse-spark' },
   // minimax
-  { pattern: '^minimax-m3[.-]1-flash-preview$', effort: ['low', 'medium', 'high', 'xhigh', 'max'], toggle: false },
+  { pattern: '^minimax-m3[.-]1-flash$', effort: ['low', 'medium', 'high', 'xhigh', 'max'], toggle: false },
   { pattern: 'minimax-m\\d' },
   // mistral
   { pattern: '^mistral-small-2603', effort: ['none', 'high'] },
@@ -217,6 +220,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'mistral-small-2603' },
   { pattern: '^mistral-(?:small|medium)(?!.*instruct)' },
   // moonshot
+  { pattern: '^kimi-k3[.-]1-pro(?:-highspeed)?$', effort: ['low', 'high', 'max'], toggle: false },
   { pattern: '^kimi-k2[.-]7-code', toggle: false },
   { pattern: '^kimi-k3$', effort: ['low', 'high', 'max'], toggle: true },
   { pattern: '^kimi-k3-fast$', effort: ['low', 'high', 'max'] },
@@ -252,6 +256,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^sonar-reasoning|^sonar-deep-research', effort: ['low', 'medium', 'high'] },
   { pattern: 'sonar-deep-research' },
   // stepfun
+  { pattern: '^step-5-preview$', effort: ['low', 'medium', 'high'] },
   { pattern: 'step-3' },
   { pattern: 'step-r1-v-mini' },
   // tencent

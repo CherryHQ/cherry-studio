@@ -2,6 +2,7 @@ import { act, createEvent, fireEvent, render, screen, waitFor } from '@testing-l
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryUi from '@cherrystudio/ui'
 import { TabIdContext } from '@renderer/hooks/tab'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -11,6 +12,17 @@ import type MessageHeaderComponent from '../frame/MessageHeader'
 import type MessageMenuBarComponent from '../frame/MessageMenuBar'
 import type * as ScrollOwnershipContextModule from '../list/ScrollOwnershipContext'
 import type { MessageGroupRuntime, MessageListItem } from '../types'
+
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof CherryUi>()
+  return {
+    ...actual,
+    PopoverContent: ({ children }: { children: ReactNode }) => <div>{children}</div>
+  }
+})
+vi.mock('@renderer/components/SelectionContextMenu', () => ({
+  default: ({ children }: { children: ReactNode }) => <>{children}</>
+}))
 
 const mocks = vi.hoisted(() => ({
   editMessage: vi.fn(),
@@ -617,7 +629,7 @@ describe('MessageGroup', () => {
     expect(container.querySelector('#message-msg-1 .message-content-container')).not.toHaveAttribute('tabindex')
   })
 
-  it('renders sent attachments outside the user bubble', () => {
+  it('renders sent images outside the user bubble without hoisting non-image files', () => {
     mocks.settings.mockReturnValue({
       multiModelMessageStyle: 'fold',
       gridColumns: 2,
@@ -670,16 +682,130 @@ describe('MessageGroup', () => {
 
     const bubble = container.querySelector('#message-msg-1 .message-content-container')
     const imageBlock = screen.getByTestId('hoisted-image-block')
-    const attachment = screen.getByTestId('hoisted-attachment')
     expect(imageBlock).toHaveAttribute('data-images', '["file:///tmp/photo.png"]')
     expect(bubble?.contains(imageBlock)).toBe(false)
-    expect(bubble?.contains(attachment)).toBe(false)
-    // The card is handed a handle, never a path it assembled: Main resolves it, and the
-    // decode happens once so "%20" never reaches fs.
-    expect(attachment).toHaveAttribute(
-      'data-handle',
-      JSON.stringify({ kind: 'path', path: '/tmp/Application Support/report.pdf' })
+    expect(screen.queryByTestId('hoisted-attachment')).toBeNull()
+  })
+
+  it('restores the outside file card when preview or open exists without a right-pane file preview', () => {
+    const previewFile = vi.fn()
+    mocks.messageListActions.mockReturnValue({
+      previewFile,
+      openFile: vi.fn()
+    })
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'fold',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'bubble',
+      showMessageOutline: false
+    })
+    const messages = [{ ...createMessage('msg-1', 0, 'vertical'), role: 'user' as const }]
+
+    const { container } = render(
+      <MessageGroup
+        messages={messages}
+        partsByMessageId={{
+          'msg-1': [
+            {
+              type: 'text',
+              text: 'look at this',
+              providerMetadata: {
+                cherry: {
+                  composer: {
+                    version: 1,
+                    tokens: [
+                      {
+                        id: 'file:doc-1',
+                        kind: 'file',
+                        label: 'report.pdf',
+                        index: 0,
+                        textOffset: 0,
+                        payload: { origin_name: 'report.pdf', ext: '.pdf', size: 2048 }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              type: 'file',
+              url: 'file:///tmp/Application%20Support/report.pdf',
+              mediaType: 'application/pdf',
+              filename: 'report.pdf',
+              providerMetadata: { cherry: { fileTokenSourceId: 'doc-1' } }
+            }
+          ] as CherryMessagePart[]
+        }}
+      />
     )
+
+    const bubble = container.querySelector('#message-msg-1 .message-content-container')
+    const attachment = screen.getByTestId('hoisted-attachment')
+    expect(attachment).toHaveTextContent('report.pdf')
+    expect(attachment.getAttribute('data-handle')).toContain('report.pdf')
+    expect(bubble?.contains(attachment)).toBe(false)
+  })
+
+  it('keeps the file card outside the bubble when right-pane preview is available', () => {
+    mocks.messageListActions.mockReturnValue({
+      previewInputFile: vi.fn()
+    })
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'fold',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'bubble',
+      showMessageOutline: false
+    })
+    const messages = [{ ...createMessage('msg-1', 0, 'vertical'), role: 'user' as const }]
+
+    render(
+      <MessageGroup
+        messages={messages}
+        partsByMessageId={{
+          'msg-1': [
+            {
+              type: 'text',
+              text: 'look at this',
+              providerMetadata: {
+                cherry: {
+                  composer: {
+                    version: 1,
+                    tokens: [
+                      {
+                        id: 'file:doc-1',
+                        kind: 'file',
+                        label: 'report.pdf',
+                        index: 0,
+                        textOffset: 0
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              type: 'file',
+              url: 'file:///tmp/report.pdf',
+              mediaType: 'application/pdf',
+              filename: 'report.pdf',
+              providerMetadata: { cherry: { fileTokenSourceId: 'doc-1' } }
+            }
+          ] as CherryMessagePart[]
+        }}
+      />
+    )
+
+    const attachment = screen.getByTestId('hoisted-attachment')
+    expect(attachment).toHaveTextContent('report.pdf')
+    const bubble = document.querySelector('[data-ui~="part:message-content"]')
+    expect(bubble).not.toBeNull()
+    expect(bubble?.contains(attachment)).toBe(false)
   })
 
   it('renders adapter-owned tail content only after its target assistant message', () => {
@@ -752,12 +878,14 @@ describe('MessageGroup', () => {
     expect(outerWrapper).not.toBeNull()
     expect(getComputedStyle(outerWrapper!).overflowY).toBe('visible')
 
-    const contentContainer = container.querySelector('#message-msg-1 .message-content-container')
+    const contentContainer = container.querySelector(
+      '#message-msg-1 .message-content-container [data-slot=scroll-area-viewport]'
+    )
     expect(contentContainer).not.toBeNull()
     expect(getComputedStyle(contentContainer as HTMLElement).overflowY).toBe('auto')
     expect(contentContainer).toHaveAttribute('tabindex', '0')
 
-    const horizontalGroup = outerWrapper!.parentElement as HTMLElement
+    const horizontalGroup = outerWrapper!.closest('[data-slot=scroll-area-viewport]') as HTMLElement
     expect(getComputedStyle(horizontalGroup).overflowX).toBe('auto')
     expect(getComputedStyle(horizontalGroup).overflowY).toBe('hidden')
   })
@@ -773,8 +901,8 @@ describe('MessageGroup', () => {
     )
 
     const outerWrapper = container.querySelector('#message-msg-1') as HTMLElement
-    const horizontalGroup = outerWrapper.parentElement as HTMLElement
-    const contentContainers = container.querySelectorAll('.message-content-container')
+    const horizontalGroup = outerWrapper.closest('[data-slot=scroll-area-viewport]') as HTMLElement
+    const contentContainers = container.querySelectorAll('.message-content-container [data-slot=scroll-area-viewport]')
 
     expect(horizontalGroup).not.toBeNull()
     expect(contentContainers).toHaveLength(2)
@@ -805,7 +933,7 @@ describe('MessageGroup', () => {
     )
 
     const outerWrapper = container.querySelector('#message-msg-1') as HTMLElement
-    const horizontalGroup = outerWrapper.parentElement as HTMLElement
+    const horizontalGroup = outerWrapper.closest('[data-slot=scroll-area-viewport]') as HTMLElement
     setElementSize(horizontalGroup, {
       clientWidth: 500,
       scrollLeft: 0,
@@ -833,7 +961,9 @@ describe('MessageGroup', () => {
       </div>
     )
 
-    const contentContainer = container.querySelector('#message-msg-1 .message-content-container') as HTMLElement
+    const contentContainer = container.querySelector(
+      '#message-msg-1 .message-content-container [data-slot=scroll-area-viewport]'
+    ) as HTMLElement
     setElementSize(contentContainer, {
       clientHeight: 300,
       scrollHeight: 600,
@@ -855,8 +985,10 @@ describe('MessageGroup', () => {
     const { container } = render(<MessageGroup messages={messages} />)
 
     const outerWrapper = container.querySelector('#message-msg-1') as HTMLElement
-    const horizontalGroup = outerWrapper.parentElement as HTMLElement
-    const contentContainer = container.querySelector('#message-msg-1 .message-content-container') as HTMLElement
+    const horizontalGroup = outerWrapper.closest('[data-slot=scroll-area-viewport]') as HTMLElement
+    const contentContainer = container.querySelector(
+      '#message-msg-1 .message-content-container [data-slot=scroll-area-viewport]'
+    ) as HTMLElement
     setElementSize(horizontalGroup, {
       clientWidth: 500,
       scrollLeft: 0,
@@ -887,7 +1019,9 @@ describe('MessageGroup', () => {
       </div>
     )
 
-    const contentContainer = container.querySelector('#message-msg-1 .message-content-container') as HTMLElement
+    const contentContainer = container.querySelector(
+      '#message-msg-1 .message-content-container [data-slot=scroll-area-viewport]'
+    ) as HTMLElement
     setElementSize(contentContainer, {
       clientHeight: 300,
       scrollHeight: 600,
@@ -907,7 +1041,9 @@ describe('MessageGroup', () => {
 
     const { container } = render(<MessageGroup messages={messages} />)
 
-    const contentContainer = container.querySelector('#message-msg-1 .message-content-container') as HTMLElement
+    const contentContainer = container.querySelector(
+      '#message-msg-1 .message-content-container [data-slot=scroll-area-viewport]'
+    ) as HTMLElement
     setElementSize(contentContainer, {
       clientHeight: 300,
       scrollHeight: 600,
@@ -931,7 +1067,7 @@ describe('MessageGroup', () => {
     const { container } = render(<MessageGroup messages={messages} />)
 
     const outerWrapper = container.querySelector('#message-msg-1') as HTMLElement
-    const horizontalGroup = outerWrapper.parentElement as HTMLElement
+    const horizontalGroup = outerWrapper.closest('[data-slot=scroll-area-viewport]') as HTMLElement
     expect(horizontalGroup).not.toBeNull()
 
     setElementSize(horizontalGroup, {
@@ -957,7 +1093,7 @@ describe('MessageGroup', () => {
     )
 
     const outerWrapper = container.querySelector('#message-msg-1') as HTMLElement
-    const horizontalGroup = outerWrapper.parentElement as HTMLElement
+    const horizontalGroup = outerWrapper.closest('[data-slot=scroll-area-viewport]') as HTMLElement
     setElementSize(horizontalGroup, {
       clientWidth: 500,
       scrollLeft: 500,

@@ -110,18 +110,24 @@ describe('BasicInfoStep', () => {
     ).toBeVisible()
   })
 
-  it('offers Claude and Pi for creation without exposing DeepSeek Harness', () => {
+  it('offers Pi and Pi Durable before Claude for creation without exposing DeepSeek Harness', () => {
     render(<Harness runtimeSelectable />)
 
+    expect(screen.getAllByRole('radio')).toEqual([
+      screen.getByRole('radio', { name: /runtime\.option\.pi\b/ }),
+      screen.getByRole('radio', { name: /runtime\.option\.pi_durable\b/ }),
+      screen.getByRole('radio', { name: /runtime.option.claude_code/ })
+    ])
     expect(screen.getByText('library.config.agent.field.runtime.immutable_hint')).toBeVisible()
     expect(screen.queryByRole('img', { name: /runtime\.immutable_hint/ })).not.toBeInTheDocument()
     expect(screen.getByRole('radio', { name: /runtime.option.claude_code/ })).toBeChecked()
-    expect(screen.getByRole('radio', { name: /runtime.option.pi/ })).not.toBeChecked()
+    expect(screen.getByRole('radio', { name: /runtime\.option\.pi\b/ })).not.toBeChecked()
+    expect(screen.getByRole('radio', { name: /runtime\.option\.pi_durable\b/ })).not.toBeChecked()
     expect(screen.queryByRole('radio', { name: /runtime.option.dsh/ })).not.toBeInTheDocument()
     expect(screen.queryByText('library.config.agent.field.runtime.pi_hint')).not.toBeInTheDocument()
   })
 
-  it('uses smart approval when switching between Claude and Pi', async () => {
+  it.each(['pi', 'pi_durable'])('uses smart approval when switching between Claude and %s', async (runtime) => {
     const user = userEvent.setup()
     render(<Harness runtimeSelectable />)
 
@@ -129,9 +135,10 @@ describe('BasicInfoStep', () => {
       'agent.settings.tooling.permissionMode.auto.title'
     )
 
-    await user.click(screen.getByRole('radio', { name: /runtime.option.pi/ }))
+    const runtimeOption = screen.getByRole('radio', { name: new RegExp(`runtime\\.option\\.${runtime}\\b`) })
+    await user.click(runtimeOption)
 
-    expect(screen.getByRole('radio', { name: /runtime.option.pi/ })).toBeChecked()
+    expect(runtimeOption).toBeChecked()
     expect(screen.getByLabelText('library.config.agent.field.permission_mode.label')).toHaveTextContent(
       'agent.settings.tooling.permissionMode.auto.title'
     )
@@ -146,16 +153,17 @@ describe('BasicInfoStep', () => {
     expect(screen.getByTestId('permission-mode')).toHaveTextContent('auto')
   })
 
-  it('still displays the runtime summary for an existing Pi agent', () => {
+  it.each(['pi', 'claude-code'] as const)('still displays the runtime summary for an existing %s agent', (runtime) => {
     function ExistingAgentRuntime() {
       const { t } = useTranslation()
-      return <AgentRuntimeSummary value="pi" t={t} />
+      return <AgentRuntimeSummary value={runtime} t={t} />
     }
 
     render(<ExistingAgentRuntime />)
 
-    expect(screen.getByText('library.config.agent.field.runtime.option.pi')).toBeVisible()
-    expect(screen.getByText('library.config.agent.field.runtime.option_description.pi')).toBeVisible()
+    const key = runtime === 'pi' ? 'pi' : 'claude_code'
+    expect(screen.getByText(`library.config.agent.field.runtime.option.${key}`)).toBeVisible()
+    expect(screen.getByText(`library.config.agent.field.runtime.option_description.${key}`)).toBeVisible()
     expect(screen.queryByRole('radio')).not.toBeInTheDocument()
   })
 

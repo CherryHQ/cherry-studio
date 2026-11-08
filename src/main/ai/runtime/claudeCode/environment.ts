@@ -164,6 +164,9 @@ export async function buildEnvironment(
     // Umbrella opt-out (telemetry, error reporting, autoupdater, /bug). Not blocked below, so an
     // agent env_var of '' re-enables it. https://code.claude.com/docs/en/env-vars
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+    // On by default since SDK 0.3.284: a mid-conversation system turn per tool batch, which
+    // kills the prefix cache on endpoints that hoist system messages. Not blocked below.
+    CLAUDE_CODE_TOTAL_TOKENS_REMINDER: 'off',
     // ANTHROPIC_API_KEY and ANTHROPIC_BASE_URL are injected by the runtime query builder,
     // not duplicated here.
     ANTHROPIC_MODEL: apiModelId,
@@ -176,7 +179,7 @@ export async function buildEnvironment(
     ENABLE_TOOL_SEARCH: 'auto',
     CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1',
     // The stream adapter's background-work release waits for `session_state_changed: idle`
-    // (streamAdapter.ts), which the CLI only emits when this flag is set.
+    // (ClaudeRuntimeState.ts), which the CLI only emits when this flag is set.
     CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: '1',
     CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT: '1',
     CHERRY_STUDIO_BUN_PATH: bunPath,

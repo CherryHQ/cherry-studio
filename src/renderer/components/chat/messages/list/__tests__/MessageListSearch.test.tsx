@@ -163,6 +163,86 @@ describe('MessageListSearch', () => {
     scope.remove()
   })
 
+  it('navigates and highlights mounted intermediate assistant text when kept inline', async () => {
+    const customHighlights = installCustomHighlightsMock()
+    const scope = document.createElement('div')
+    for (const [index, text] of [
+      [0, 'first apple'],
+      [2, 'second apple'],
+      [4, 'final apple']
+    ] as const) {
+      const partElement = document.createElement('div')
+      partElement.dataset.messagePartId = `a1-part-${index}`
+      partElement.textContent = text
+      scope.appendChild(partElement)
+    }
+    document.body.appendChild(scope)
+
+    const scrollToRange = vi.fn()
+    const view = render(
+      <MessageListSearch
+        messages={[
+          {
+            id: 'a1',
+            role: 'assistant',
+            status: 'success',
+            topicId: 'topic-1',
+            createdAt: '2026-01-01T00:00:00.000Z'
+          }
+        ]}
+        partsByMessageId={{
+          a1: [
+            { type: 'text', text: 'first apple' },
+            { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+            { type: 'text', text: 'second apple' },
+            { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+            { type: 'text', text: 'final apple' }
+          ] as CherryMessagePart[]
+        }}
+        renderUserTextAsMarkdown={false}
+        keepIntermediateAssistantText
+        excludedMessageIds={NO_EXCLUDED_MESSAGE_IDS}
+        isStreaming={false}
+        locateMessage={vi.fn()}
+        scrollToRange={scrollToRange}
+        getOuterScroller={() => scope}
+        scopeRef={{ current: scope }}
+      />
+    )
+
+    try {
+      const user = userEvent.setup()
+      act(() => commandMock.handler?.())
+      await user.type(screen.getByRole('textbox'), 'apple')
+      expect(await screen.findByText('3')).toBeInTheDocument()
+      const next = screen.getByRole('button', { name: 'common.next' })
+
+      await user.click(next)
+      await waitFor(() => expect(scrollToRange).toHaveBeenCalledTimes(1))
+      expect((scrollToRange.mock.calls[0][0] as Range).toString()).toBe('apple')
+      expect(
+        (scrollToRange.mock.calls[0][0] as Range).commonAncestorContainer.parentElement?.dataset.messagePartId
+      ).toBe('a1-part-0')
+      await waitFor(() =>
+        expect(customHighlights.highlights.set).toHaveBeenCalledWith('message-search-current', expect.anything())
+      )
+
+      customHighlights.highlights.set.mockClear()
+      await user.click(next)
+      await waitFor(() => expect(scrollToRange).toHaveBeenCalledTimes(2))
+      expect(
+        (scrollToRange.mock.calls[1][0] as Range).commonAncestorContainer.parentElement?.dataset.messagePartId
+      ).toBe('a1-part-2')
+      await waitFor(() =>
+        expect(customHighlights.highlights.set).toHaveBeenCalledWith('message-search-current', expect.anything())
+      )
+    } finally {
+      view.unmount()
+      scope.remove()
+      customHighlights.restore()
+    }
+  })
+
   it('refreshes highlights only after exact navigation has visually settled', async () => {
     const customHighlights = installCustomHighlightsMock()
     const animationFrames: FrameRequestCallback[] = []

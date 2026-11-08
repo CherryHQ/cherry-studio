@@ -1,3 +1,4 @@
+import { parseAppRouteUrl } from '@renderer/utils/appRouteUrl'
 import {
   createSidebarShortcutId,
   type SidebarFavorite,
@@ -39,11 +40,7 @@ interface SidebarAppDefinition<Id extends SidebarFavorite = SidebarFavorite> {
 }
 
 function getConversationSearchParamFromUrl(url: string, name: string): string | undefined {
-  try {
-    return new URL(url, 'app://x').searchParams.get(name) ?? undefined
-  } catch {
-    return undefined
-  }
+  return parseAppRouteUrl(url)?.searchParams.get(name) ?? undefined
 }
 
 /**
@@ -350,6 +347,17 @@ export function reorderSidebarShortcuts(
 
   let index = 0
   return items.map((item) => (isSidebarShortcutItem(item) ? reordered[index++] : item))
+}
+
+export function getSidebarShortcutResourceIds(
+  shortcuts: readonly SidebarShortcutItem[],
+  providerId: string
+): Set<string> {
+  return new Set(
+    shortcuts.flatMap((shortcut) =>
+      shortcut.target.locator.providerId === providerId ? [shortcut.target.locator.resourceId] : []
+    )
+  )
 }
 
 export function isSidebarShortcutPinned(

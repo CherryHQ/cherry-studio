@@ -1,24 +1,32 @@
 import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
 import { CancellationToken } from 'builder-util-runtime'
+import { eq } from 'drizzle-orm'
 import { app, net } from 'electron'
 import type { Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
 import { AppUpdater, autoUpdater } from 'electron-updater'
+import semver from 'semver'
 
 import { application } from '@application'
+import { appStateTable } from '@data/db/schemas/appState'
 import { loggerService } from '@logger'
 import { computeBackoff } from '@main/core/job/runtime/backoff'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
+import { t } from '@main/i18n'
 import { regionService } from '@main/services/RegionService'
 import { getAppEdition } from '@main/utils/appEdition'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import type { RetryPolicy } from '@shared/data/api/schemas/jobs'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
+import { IpcError, IpcErrorCode } from '@shared/ipc/errors/IpcError'
+import type { AppUpdaterNotAvailablePayload } from '@shared/ipc/schemas/app'
+import type { OutputFor } from '@shared/ipc/types'
 import type { AppEdition } from '@shared/types/appEdition'
 import { APP_NAME } from '@shared/utils/constants'
 import {
   hasMultiLanguageReleaseNotes,
+  isStableReleaseVersion,
   localizeReleaseNotes,
   mergeReleaseHistory,
   parseReleaseHistory,
@@ -88,8 +96,9 @@ const CHECK_RETRY_POLICY: RetryPolicy = {
 
 @Injectable('AppUpdaterService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowManager', 'SchedulerService'])
+@DependsOn(['WindowManager', 'SchedulerService', 'NotificationService'])
 export class AppUpdaterService extends BaseService {
+  private readonly pendingReleaseNotifications = new Set<string>()
   private cancellationToken: CancellationToken = new CancellationToken()
   private updateCheckResult: UpdateCheckResult | null = null
   // Consecutive scheduled-check failures, drives backoff; reset on success.
@@ -142,6 +151,48 @@ export class AppUpdaterService extends BaseService {
     this.scheduleNextUpdateCheck(INITIAL_CHECK_DELAY_MS)
   }
 
+  private async publishReleaseNotification(releaseInfo: UpdateInfo): Promise<void> {
+    if (this.pendingReleaseNotifications.has(releaseInfo.version)) return
+    this.pendingReleaseNotifications.add(releaseInfo.version)
+    try {
+      const db = application.get('DbService').getDb()
+      const key = `appUpdater:notification:${releaseInfo.version}`
+      if (db.select().from(appStateTable).where(eq(appStateTable.key, key)).get()) return
+
+      const releaseNotes =
+        typeof releaseInfo.releaseNotes === 'string'
+          ? releaseInfo.releaseNotes
+          : (releaseInfo.releaseNotes
+              ?.map(({ note }) => note)
+              .filter(Boolean)
+              .join('\n\n') ?? '')
+      const title = t('notification.center.version_available', { version: releaseInfo.version })
+      const summary = releaseNotes
+        .split('\n')
+        .find((line) => line.trim() && !/^\s*#/.test(line))
+        ?.replace(/^\s*[-*>]\s*/, '')
+        .trim()
+        .slice(0, 240)
+      const recorded = await application.get('NotificationService').publish(
+        {
+          eventKey: `release:${releaseInfo.version}`,
+          category: 'official',
+          kind: 'release',
+          title,
+          message: summary || title,
+          createdAt: Date.now(),
+          target: { kind: 'release', version: releaseInfo.version, releaseNotes }
+        },
+        { source: 'update' }
+      )
+      if (recorded) db.insert(appStateTable).values({ key, value: true }).onConflictDoNothing().run()
+    } catch (error) {
+      logger.warn('Failed to publish release notification', error as Error)
+    } finally {
+      this.pendingReleaseNotifications.delete(releaseInfo.version)
+    }
+  }
+
   private registerAutoUpdaterListeners(): void {
     const onError = (error: Error) => {
       logger.error('update error', error)
@@ -153,13 +204,21 @@ export class AppUpdaterService extends BaseService {
     const onUpdateAvailable = (releaseInfo: UpdateInfo) => {
       logger.info('update available', releaseInfo)
       const processedReleaseInfo = this.processReleaseInfo(releaseInfo)
+      void this.publishReleaseNotification(processedReleaseInfo)
       application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.available', processedReleaseInfo)
     }
     autoUpdater.on('update-available', onUpdateAvailable)
     this.registerDisposable(() => autoUpdater.removeListener('update-available', onUpdateAvailable))
 
-    const onUpdateNotAvailable = () => {
-      application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.not_available', undefined)
+    const onUpdateNotAvailable = (updateInfo: UpdateInfo) => {
+      const result = this.resolveNotAvailableResult(updateInfo)
+      if (!result.isCurrent) {
+        logger.warn(
+          `managed feed target ${result.feedVersion} differs from installed ${result.currentVersion} (channel: ${autoUpdater.channel}) — treating as withheld, not current`
+        )
+      }
+      const payload: AppUpdaterNotAvailablePayload = { isCurrent: result.isCurrent }
+      application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.not_available', payload)
     }
     autoUpdater.on('update-not-available', onUpdateNotAvailable)
     this.registerDisposable(() => autoUpdater.removeListener('update-not-available', onUpdateNotAvailable))
@@ -307,6 +366,26 @@ export class AppUpdaterService extends BaseService {
     return latestRelease ? mergeReleaseHistory([latestRelease], history) : history
   }
 
+  public async getUpgradeReleaseNotes(targetVersion: string): Promise<OutputFor<'app.updater.upgrade_notes.get'>> {
+    const fromVersion = app.getVersion()
+    if (
+      !isStableReleaseVersion(fromVersion) ||
+      !isStableReleaseVersion(targetVersion) ||
+      !semver.gt(targetVersion, fromVersion)
+    ) {
+      throw new IpcError(IpcErrorCode.VALIDATION_FAILED, 'Expected a stable upgrade range')
+    }
+    const history = await this.fetchReleaseHistory()
+    return {
+      fromVersion,
+      toVersion: targetVersion,
+      historyStatus: history ? 'available' : 'unavailable',
+      releases: (history ?? [])
+        .filter(({ version }) => semver.gt(version, fromVersion) && semver.lte(version, targetVersion))
+        .sort((left, right) => semver.rcompare(left.version, right.version))
+    }
+  }
+
   public cancelDownload() {
     this.cancellationToken.cancel()
     this.cancellationToken = new CancellationToken()
@@ -411,6 +490,31 @@ export class AppUpdaterService extends BaseService {
   public quitAndInstall() {
     application.markQuitting()
     setImmediate(() => autoUpdater.quitAndInstall(true, true))
+  }
+
+  /**
+   * Feed/install mismatch means withheld (withdrawn/stale/staged). A prerelease install stays
+   * current against an older (e.g. stable) feed, but not when the feed advertises a newer version.
+   * Unparseable versions stay current.
+   */
+  private resolveNotAvailableResult(updateInfo: UpdateInfo | null | undefined): {
+    currentVersion: string
+    feedVersion: string | null
+    isCurrent: boolean
+  } {
+    const currentVersion = app.getVersion()
+    const feedVersion = updateInfo?.version || null
+    let isCurrent = true
+    if (feedVersion) {
+      try {
+        isCurrent =
+          semver.eq(feedVersion, currentVersion) ||
+          (semver.prerelease(currentVersion) !== null && !semver.gt(feedVersion, currentVersion))
+      } catch {
+        // Unparseable versions fail closed to current.
+      }
+    }
+    return { currentVersion, feedVersion, isCurrent }
   }
 
   /**

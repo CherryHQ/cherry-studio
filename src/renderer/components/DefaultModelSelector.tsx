@@ -19,6 +19,7 @@ export interface ModelSelectorTriggerProps extends Omit<ComponentProps<typeof Bu
 export interface DefaultModelSelectorProps extends ModelSelectorTriggerProps {
   filter: ModelSelectorFilter
   isModelDisabled?: ModelSelectorFilter
+  includeAgentOnlyModels?: boolean
   noneOptionLabel?: string
   onSelect: (model: Model | undefined) => void
 }
@@ -71,6 +72,7 @@ export const DefaultModelSelector: FC<DefaultModelSelectorProps> = ({
   compact,
   filter,
   isModelDisabled,
+  includeAgentOnlyModels,
   noneOptionLabel,
   onSelect
 }) => (
@@ -80,6 +82,7 @@ export const DefaultModelSelector: FC<DefaultModelSelectorProps> = ({
     onSelect={onSelect}
     filter={filter}
     isModelDisabled={isModelDisabled}
+    includeAgentOnlyModels={includeAgentOnlyModels}
     noneOptionLabel={noneOptionLabel}
     trigger={
       <ModelSelectorTriggerButton model={model} providers={providers} placeholder={placeholder} compact={compact} />

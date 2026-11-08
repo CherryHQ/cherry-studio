@@ -105,6 +105,8 @@ export interface UseModelSelectorDataOptions {
   maxSelectedCount?: number
   searchText: string
   filter?: ModelSelectorFilter
+  /** Limits visible rows and tags without changing selectable models. */
+  visibilityFilter?: ModelSelectorFilter
   showTagFilter?: boolean
   showPinnedModels?: boolean
   prioritizedProviderIds?: readonly string[]
@@ -112,7 +114,15 @@ export interface UseModelSelectorDataOptions {
 
 export interface UseModelSelectorDataResult {
   availableTags: ModelSelectorTag[]
+  getModelDescription: (model: Model) => string | undefined
+  isModelUnavailable: (model: Model) => boolean
+  /** True once the first Cherry Cloud availability snapshot has arrived. */
+  cloudAvailabilityReady: boolean
+  /** Set when the Cherry Cloud availability sync failed; availability stays unknown. */
+  cloudAvailabilityError?: Error
   isLoading: boolean
+  modelsError?: Error
+  providersError?: Error
   isPinActionDisabled: boolean
   listItems: FlatListItem[]
   modelItems: ModelSelectorModelItem[]

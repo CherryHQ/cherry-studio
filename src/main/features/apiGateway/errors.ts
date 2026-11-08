@@ -1,5 +1,5 @@
 import { JSONRPC_VERSION, ProtocolErrorCode } from '@modelcontextprotocol/server'
-import { ElysiaCustomStatusResponse, type ErrorHandler } from 'elysia'
+import { ElysiaCustomStatusResponse, type ErrorHandler, ValidationError } from 'elysia'
 
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
@@ -78,16 +78,24 @@ function googleStatusName(status: number): string {
 }
 
 /**
- * Best-effort `{ status, message, type }` from any thrown value — a real `Error`,
+ * Best-effort `{ status, message, type, name, code }` from any thrown value — a real `Error`,
  * an OpenAI / AI-SDK error, or a `SerializedError` plain object (carrying
  * `statusCode` / `message`, as produced by `AiStreamManager.onError` and thrown by
- * `processMessage`). Reads only status/message/type; the AI-SDK `APICallError`
+ * `processMessage`). Reads only status/message/type/name/code; the AI-SDK `APICallError`
  * extras (`stack`, `url`, `requestBodyValues`, `responseBody`, `responseHeaders`)
  * are intentionally ignored so they never reach the client.
  */
-function extractError(error: unknown): { status?: number; message?: string; type?: string } {
+function extractError(error: unknown): {
+  status?: number
+  message?: string
+  type?: string
+  name?: string
+  code?: string
+} {
   if (error === null || typeof error !== 'object') return {}
   const e = error as {
+    name?: unknown
+    code?: unknown
     status?: unknown
     statusCode?: unknown
     message?: unknown
@@ -99,7 +107,9 @@ function extractError(error: unknown): { status?: number; message?: string; type
   const message =
     typeof e.error?.message === 'string' ? e.error.message : typeof e.message === 'string' ? e.message : undefined
   const type = typeof e.error?.type === 'string' ? e.error.type : undefined
-  return { status, message, type }
+  const name = typeof e.name === 'string' ? e.name : undefined
+  const code = typeof e.code === 'string' ? e.code : undefined
+  return { status, message, type, name, code }
 }
 
 /**
@@ -113,6 +123,24 @@ function safeMessage(status: number | undefined, message: string | undefined): s
   const fallback = 'Internal server error'
   if (status !== undefined) return message && message.length > 0 ? message : fallback
   return isDev && message && message.length > 0 ? message : fallback
+}
+
+function normalizeProviderError(error: unknown): { statusCode: number; message: string; type?: string } {
+  const { status, message, type, name, code } = extractError(error)
+  if (status !== undefined)
+    return { statusCode: status >= 200 && status < 300 ? 502 : status, message: safeMessage(status, message), type }
+  if (
+    name === 'TimeoutError' ||
+    message === 'Upstream idle timeout exceeded' ||
+    message === 'Stream idle timeout exceeded' ||
+    message === 'Idle timeout exceeded'
+  ) {
+    return { statusCode: 504, message: 'Upstream request timed out', type }
+  }
+  if (name === 'AbortError' || name === 'ResponseAborted' || code === 'ABORT_ERR') {
+    return { statusCode: 504, message: 'Upstream stream aborted', type }
+  }
+  return { statusCode: 500, message: safeMessage(undefined, message), type }
 }
 
 /** Anthropic error `type` for a status (the Anthropic vocabulary uses `api_error` for 5xx). */
@@ -134,8 +162,7 @@ function transformAnthropicError(error: unknown): {
   statusCode: number
   errorResponse: { type: 'error'; error: { type: string; message: string; requestId?: string } }
 } {
-  const { status, message, type } = extractError(error)
-  const statusCode = status ?? 500
+  const { statusCode, message, type } = normalizeProviderError(error)
   const errorType = type ?? anthropicTypeForStatus(statusCode)
   const requestId =
     error !== null && typeof error === 'object' && typeof (error as { request_id?: unknown }).request_id === 'string'
@@ -143,7 +170,7 @@ function transformAnthropicError(error: unknown): {
       : undefined
   return {
     statusCode,
-    errorResponse: { type: 'error', error: { type: errorType, message: safeMessage(status, message), requestId } }
+    errorResponse: { type: 'error', error: { type: errorType, message, requestId } }
   }
 }
 
@@ -167,10 +194,9 @@ function transformOpenAiError(error: unknown): {
   statusCode: number
   errorResponse: { error: { message: string; type: string; code: string } }
 } {
-  const { status, message } = extractError(error)
-  const statusCode = status ?? 500
+  const { statusCode, message } = normalizeProviderError(error)
   const { type, code } = openaiTypeAndCodeForStatus(statusCode)
-  return { statusCode, errorResponse: { error: { message: safeMessage(status, message), type, code } } }
+  return { statusCode, errorResponse: { error: { message, type, code } } }
 }
 
 /**
@@ -183,9 +209,8 @@ function transformGoogleError(error: unknown): {
   statusCode: number
   errorResponse: { error: { code: number; message: string; status: string } }
 } {
-  const { status, message } = extractError(error)
-  const statusCode = status ?? 500
-  return { statusCode, errorResponse: googleEnvelope(statusCode, safeMessage(status, message)) }
+  const { statusCode, message } = normalizeProviderError(error)
+  return { statusCode, errorResponse: googleEnvelope(statusCode, message) }
 }
 
 /**
@@ -222,7 +247,9 @@ export function buildStreamErrorFrame(outputFormat: OutputFormat, error: unknown
  */
 export function anthropicErrorHandler({ code, error, status }: GatewayErrorContext) {
   if (code === 'VALIDATION') {
-    return status(400, anthropicEnvelope('invalid_request_error', messageOf(error, 'Invalid request parameters')))
+    const issue = error instanceof ValidationError ? error.all[0] : undefined
+    const message = issue ? `${issue.path}: ${issue.message}` : 'Invalid request parameters'
+    return status(400, anthropicEnvelope('invalid_request_error', message))
   }
   if (code === 'NOT_FOUND') {
     return status(404, anthropicEnvelope('not_found_error', 'Not found'))
@@ -308,6 +335,23 @@ export function restErrorHandler({ code, error, status }: GatewayErrorContext) {
   }
   if (code === 'PARSE') {
     return status(400, restEnvelope('BAD_REQUEST', 'Malformed request body'))
+  }
+
+  // Preserve classified HTTP status from errors that carry it (e.g. idle timeout → 504).
+  const explicitStatus = (error as { status?: number })?.status
+  if (explicitStatus && explicitStatus >= 500 && explicitStatus !== 500) {
+    const statusCode = explicitStatus
+    return status(
+      statusCode,
+      restEnvelope(
+        statusCode >= 503 ? 'SERVICE_UNAVAILABLE' : 'INTERNAL_SERVER_ERROR',
+        isDev
+          ? messageOf(error, `Server error ${statusCode}`)
+          : statusCode === 504
+            ? 'Upstream idle timeout exceeded'
+            : 'Internal server error'
+      )
+    )
   }
 
   logger.error('API gateway request error', { code, error })

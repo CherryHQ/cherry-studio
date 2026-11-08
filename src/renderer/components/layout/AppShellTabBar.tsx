@@ -11,7 +11,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button, Kbd, Tooltip } from '@cherrystudio/ui'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
 import type { OpenTabOptions, Tab } from '@renderer/hooks/tab'
@@ -26,10 +26,13 @@ import { ShellTabBarActions } from './ShellTabBarActions'
 import { TabIcon } from './TabIcon'
 import { useTabDrag } from './useTabDrag'
 
+import './ShellNavigation.css'
+
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 type AppShellTabBarProps = {
   tabs: Tab[]
+  shortcutHints?: ReadonlyMap<string, string | undefined>
   activeTabId: string
   isFullscreen?: boolean
   isFocusedTab?: boolean
@@ -52,13 +55,6 @@ interface DragItemProps {
   noTransition: boolean
   translateX: number
   onPointerDown: (e: React.PointerEvent) => void
-}
-
-interface TabToneProps {
-  activeClass: string
-  hoverClass: string
-  /** Static equivalent of the hover tint — pins a closing tab's look so it cannot flash. */
-  closingClass: string
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -94,23 +90,23 @@ const Separator = ({ hidden }: { hidden?: boolean }) => (
 
 type PinnedTabButtonProps = {
   tab: Tab
+  shortcutHint?: string
   iconSize: number
   isActive: boolean
   onSelect: () => void
   drag: DragItemProps
   tabRef: (el: HTMLButtonElement | null) => void
-  tone: TabToneProps
   ref?: React.Ref<HTMLButtonElement>
 } & Omit<React.ComponentPropsWithoutRef<'button'>, 'onClick' | 'onPointerDown'>
 
 const PinnedTabButton = ({
   tab,
+  shortcutHint,
   iconSize,
   isActive,
   onSelect,
   drag,
   tabRef,
-  tone,
   ref,
   ...rest
 }: PinnedTabButtonProps) => {
@@ -126,6 +122,7 @@ const PinnedTabButton = ({
           else if (ref) ref.current = el
         }}
         data-tab-id={tab.id}
+        data-active={isActive || undefined}
         type="button"
         onPointerDown={drag.onPointerDown}
         onClick={onSelect}
@@ -134,24 +131,28 @@ const PinnedTabButton = ({
         style={{
           ...rest.style,
           transform: `translateX(${drag.translateX}px)`,
-          transition: drag.isDragging || drag.noTransition ? 'none' : 'transform 200ms ease',
+          transition:
+            drag.isDragging || drag.noTransition ? 'none' : 'transform 200ms ease, var(--app-nav-state-transition)',
           zIndex: drag.isDragging ? 50 : 'auto',
           opacity: drag.isGhost ? 0.3 : 1
         }}
         className={cn(
-          'nodrag flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-150 [-webkit-app-region:no-drag]',
+          'shell-navigation-item nodrag flex h-7 w-7 items-center justify-center rounded-full [-webkit-app-region:no-drag]',
           drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
-          isActive ? tone.activeClass : tone.hoverClass,
           rest.className
         )}>
-        <TabIcon tab={tab} size={iconSize} />
+        {shortcutHint ? (
+          <Kbd className="rounded-full bg-muted px-1 py-0.5 text-[10px] text-muted-foreground">{shortcutHint}</Kbd>
+        ) : (
+          <TabIcon tab={tab} size={iconSize} />
+        )}
       </button>
     </Tooltip>
   )
 }
 
 const MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE =
-  'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px) + 2px))'
+  'max(0px, calc(env(titlebar-area-x, 0px) - max(0.375rem, var(--sidebar-width, 0px)) + 2px))'
 
 type FocusedTabButtonProps = {
   tab: Tab
@@ -201,6 +202,7 @@ const FocusedTabButton = ({ tab, onBack, drag, tabRef, ref, ...rest }: FocusedTa
 
 type NormalTabButtonProps = {
   tab: Tab
+  shortcutHint?: string
   iconSize: number
   isActive: boolean
   onSelect: () => void
@@ -219,12 +221,12 @@ type NormalTabButtonProps = {
   showDivider?: boolean
   drag: DragItemProps
   tabRef: (el: HTMLButtonElement | null) => void
-  tone: TabToneProps
   ref?: React.Ref<HTMLButtonElement>
 } & Omit<React.ComponentPropsWithoutRef<'button'>, 'onClick' | 'onPointerDown' | 'style' | 'className'>
 
 const NormalTabButton = ({
   tab,
+  shortcutHint,
   iconSize,
   isActive,
   onSelect,
@@ -237,7 +239,6 @@ const NormalTabButton = ({
   showDivider = false,
   drag,
   tabRef,
-  tone,
   ref,
   ...rest
 }: NormalTabButtonProps) => {
@@ -276,6 +277,8 @@ const NormalTabButton = ({
       {...rest}
       ref={setRefs}
       data-tab-id={tab.id}
+      data-active={(isClosing ? closingWasActive : isActive) || undefined}
+      data-hovered={(isClosing && !closingWasActive) || undefined}
       type="button"
       // Explicit name: the close button's aria-label must not leak into the
       // tab's accessible name via name-from-content.
@@ -323,28 +326,21 @@ const NormalTabButton = ({
         transition:
           drag.isDragging || drag.noTransition
             ? 'none'
-            : isClosing || isThawing
-              ? isClosing
-                ? 'transform 200ms ease, flex 200ms ease, margin 200ms ease, padding 200ms ease, opacity 40ms linear 140ms'
-                : 'transform 200ms ease, flex 200ms ease, margin 200ms ease, padding 200ms ease, opacity 200ms ease'
-              : 'transform 200ms ease, margin 200ms ease, padding 200ms ease, opacity 200ms ease',
+            : `var(--app-nav-state-transition), ${
+                isClosing || isThawing
+                  ? isClosing
+                    ? 'transform 200ms ease, flex 200ms ease, margin 200ms ease, padding 200ms ease, opacity 40ms linear 140ms'
+                    : 'transform 200ms ease, flex 200ms ease, margin 200ms ease, padding 200ms ease, opacity 200ms ease'
+                  : 'transform 200ms ease, margin 200ms ease, padding 200ms ease, opacity 200ms ease'
+              }`,
         zIndex: drag.isDragging ? 50 : 'auto',
         // Keep the tab opaque through most of the collapse, then fade only near
-        // the end so its surface and outline cannot compress into a vertical line.
+        // the end so its surface cannot compress into a vertical line.
         opacity: drag.isGhost ? 0.3 : isClosing ? 0 : 1
       }}
       className={cn(
-        'nodrag group relative flex h-[30px] min-w-[56px] max-w-[160px] items-center gap-1.5 rounded-[10px] px-2 transition-all duration-150 [-webkit-app-region:no-drag]',
+        'shell-navigation-item nodrag group relative flex h-[30px] min-w-[56px] max-w-[160px] items-center gap-1.5 rounded-[10px] px-2 [-webkit-app-region:no-drag]',
         drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
-        // While closing, pin the tone the tab had when the close started — losing
-        // the active/hover state mid-collapse reads as a white flash.
-        isClosing
-          ? closingWasActive
-            ? tone.activeClass
-            : tone.closingClass
-          : isActive
-            ? tone.activeClass
-            : tone.hoverClass,
         isClosing && 'min-w-0 overflow-hidden px-0'
       )}>
       {/* Chrome-style divider (see TAB_DIVIDER_CLASS), centred in the strip's 4px
@@ -364,49 +360,58 @@ const NormalTabButton = ({
       />
       <TabIcon tab={tab} size={iconSize} className="shrink-0" />
       <span
-        className="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left font-normal text-xs leading-none"
+        className={cn(
+          'min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left text-xs/(--line-height-body-xs)',
+          (isClosing ? closingWasActive : isActive) ? 'font-medium' : 'font-normal'
+        )}
         style={{
           maskImage: 'linear-gradient(to right, black 80%, transparent 100%)',
           WebkitMaskImage: 'linear-gradient(to right, black 80%, transparent 100%)'
         }}>
         {tab.title}
       </span>
-      {canClose && (
-        // Chrome-style right-side X: always visible on the active tab, hover-revealed
-        // elsewhere. Hidden via opacity (not display) so it stays keyboard-focusable;
-        // pointer events stay off until hover/focus so an invisible X never swallows clicks.
-        <div
-          role="button"
-          tabIndex={0}
-          aria-label={t('tab.close')}
-          onClick={(e) => {
-            e.stopPropagation()
-            if (e.detail > 0) closeFromPointer(e)
-            else onClose()
-          }}
-          onDoubleClick={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.stopPropagation()
-              onClose()
-            }
-          }}
-          className={cn(
-            // Width collapses with the opacity so a hidden X frees its space for the
-            // title instead of reserving a blank slot at the tab's right edge.
-            'nodrag ml-auto flex h-[18px] shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-sm transition-all duration-150 hover:bg-foreground/10',
-            // A closing tab keeps its X visible (Chrome-style) — hover no longer
-            // matches once pointer events are off, and the handover cleared isActive.
-            isActive || isClosing
-              ? 'w-[18px] opacity-100'
-              : 'pointer-events-none w-0 opacity-0 focus-visible:pointer-events-auto focus-visible:w-[18px] focus-visible:opacity-100 group-hover:pointer-events-auto group-hover:w-[18px] group-hover:opacity-100'
-          )}>
-          <X size={10} />
-        </div>
+      {shortcutHint && (
+        <Kbd className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+          {shortcutHint}
+        </Kbd>
       )}
+      {canClose &&
+        !shortcutHint && (
+          // Chrome-style right-side X: always visible on the active tab, hover-revealed
+          // elsewhere. Hidden via opacity (not display) so it stays keyboard-focusable;
+          // pointer events stay off until hover/focus so an invisible X never swallows clicks.
+          <div
+            role="button"
+            tabIndex={0}
+            aria-label={t('tab.close')}
+            onClick={(e) => {
+              e.stopPropagation()
+              if (e.detail > 0) closeFromPointer(e)
+              else onClose()
+            }}
+            onDoubleClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.stopPropagation()
+                onClose()
+              }
+            }}
+            className={cn(
+              // Width collapses with the opacity so a hidden X frees its space for the
+              // title instead of reserving a blank slot at the tab's right edge.
+              'nodrag ml-auto flex h-[18px] shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-sm transition-all duration-150 hover:bg-foreground/10',
+              // A closing tab keeps its X visible (Chrome-style) — hover no longer
+              // matches once pointer events are off, and the handover cleared isActive.
+              isActive || isClosing
+                ? 'w-[18px] opacity-100'
+                : 'pointer-events-none w-0 opacity-0 focus-visible:pointer-events-auto focus-visible:w-[18px] focus-visible:opacity-100 group-hover:pointer-events-auto group-hover:w-[18px] group-hover:opacity-100'
+            )}>
+            <X size={10} />
+          </div>
+        )}
     </button>
   )
 }
@@ -593,6 +598,7 @@ const TabRightClickMenu = ({
 
 export const AppShellTabBar = ({
   tabs,
+  shortcutHints,
   activeTabId,
   isFullscreen = false,
   isFocusedTab = false,
@@ -608,27 +614,6 @@ export const AppShellTabBar = ({
   const { t } = useTranslation()
   const isMacTransparentWindow = useMacTransparentWindow()
   const hasLeadingWindowControls = useLeadingWindowControlsOverlay()
-  const tabTone = useMemo<TabToneProps>(
-    () =>
-      isMacTransparentWindow
-        ? {
-            activeClass:
-              'bg-white/78 text-sidebar-foreground shadow-[inset_0_0_0_1px_var(--border)] backdrop-blur-sm dark:bg-white/10 dark:text-sidebar-foreground',
-            // data-[menu-open=true] mirrors hover: TabRightClickMenu sets it while the
-            // tab's right-click menu is open, in both cherry and native menu modes.
-            hoverClass:
-              'text-muted-foreground hover:bg-black/6 hover:text-sidebar-foreground hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)] dark:hover:bg-white/6 dark:hover:text-sidebar-foreground dark:hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)] data-[menu-open=true]:bg-black/6 data-[menu-open=true]:text-sidebar-foreground data-[menu-open=true]:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)] dark:data-[menu-open=true]:bg-white/6 dark:data-[menu-open=true]:text-sidebar-foreground dark:data-[menu-open=true]:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]',
-            closingClass: 'bg-accent text-accent-foreground'
-          }
-        : {
-            activeClass: 'bg-black/8 text-sidebar-foreground dark:bg-sidebar-accent dark:text-sidebar-foreground',
-            hoverClass:
-              'text-muted-foreground hover:bg-white hover:text-sidebar-foreground dark:hover:bg-white/10 dark:hover:text-sidebar-foreground data-[menu-open=true]:bg-white data-[menu-open=true]:text-sidebar-foreground dark:data-[menu-open=true]:bg-white/10 dark:data-[menu-open=true]:text-sidebar-foreground',
-            closingClass: 'bg-popover text-popover-foreground dark:bg-accent dark:text-accent-foreground'
-          },
-    [isMacTransparentWindow]
-  )
-
   // Chrome-style close-in-place: a pointer-initiated close freezes every normal
   // tab at the closed tab's width, so the next tab's X lands under the cursor for
   // repeated closing. Tabs re-flex once the mouse leaves the strip.
@@ -815,7 +800,7 @@ export const AppShellTabBar = ({
   // ─── Action handlers ────────────────────────────────────────────────────────
 
   const handleOpenLaunchpad = () => {
-    openTab('/app/launchpad', { title: t('title.launchpad'), forceNew: true })
+    openTab('/app/launchpad', { title: t('title.launchpad'), forceNew: true, position: 'end' })
   }
 
   // ─── Close-in-place freeze/thaw ─────────────────────────────────────────────
@@ -917,9 +902,17 @@ export const AppShellTabBar = ({
       <header
         ref={tabBarRef}
         data-ui="app.tab-bar"
-        style={isWin ? { minHeight: 'env(titlebar-area-height, 0px)' } : undefined}
+        style={{
+          minHeight: isWin ? 'env(titlebar-area-height, 0px)' : undefined,
+          paddingLeft:
+            (isMac || hasLeadingWindowControls) && !isFullscreen
+              ? isFocusedTab
+                ? 'calc(env(titlebar-area-x, 0px) + 2px)'
+                : MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE
+              : undefined
+        }}
         className={cn(
-          'relative flex h-11 w-full shrink-0 select-none items-center gap-2 [-webkit-app-region:drag]',
+          'shell-navigation relative flex h-11 w-full shrink-0 select-none items-center gap-2 [-webkit-app-region:drag]',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar',
           'pl-0'
         )}>
@@ -927,15 +920,6 @@ export const AppShellTabBar = ({
         <div
           ref={stripRef}
           data-testid="app-shell-tab-strip"
-          style={
-            (isMac || hasLeadingWindowControls) && !isFullscreen
-              ? {
-                  paddingLeft: isFocusedTab
-                    ? 'calc(env(titlebar-area-x, 0px) + 2px)'
-                    : MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE
-                }
-              : undefined
-          }
           onMouseEnter={() => {
             stripPointerInsideRef.current = true
             thawAfterCollapseRef.current = false
@@ -963,10 +947,10 @@ export const AppShellTabBar = ({
                     }>
                     <PinnedTabButton
                       tab={tab}
+                      shortcutHint={shortcutHints?.get(tab.id)}
                       iconSize={getTabIconSize(tab)}
                       isActive={tab.id === activeTabId}
                       onSelect={() => handleSelectTab(tab)}
-                      tone={tabTone}
                       drag={{
                         isDragging: isDragging(tab.id),
                         isGhost: isGhost(tab.id),
@@ -1062,6 +1046,7 @@ export const AppShellTabBar = ({
                 }>
                 <NormalTabButton
                   tab={tab}
+                  shortcutHint={shortcutHints?.get(tab.id)}
                   iconSize={getTabIconSize(tab)}
                   isActive={tab.id === activeTabId}
                   onSelect={() => handleSelectTab(tab)}
@@ -1139,7 +1124,6 @@ export const AppShellTabBar = ({
                   showDivider={showDivider}
                   onMouseEnter={() => setHoveredTabId(tab.id)}
                   onMouseLeave={() => setHoveredTabId((current) => (current === tab.id ? null : current))}
-                  tone={tabTone}
                   drag={{
                     isDragging: isDragging(tab.id),
                     isGhost: isGhost(tab.id),

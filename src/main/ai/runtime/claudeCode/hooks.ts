@@ -11,20 +11,24 @@
  * warm-pooled query's prewarm-baked hooks observe mid-session updates.
  */
 
-import type { HookCallback, HookInput, HookJSONOutput } from '@anthropic-ai/claude-agent-sdk'
+import type { HookCallback, HookJSONOutput } from '@anthropic-ai/claude-agent-sdk'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { wrapSteerReminder } from '@main/ai/steerReminder'
-import { CHERRY_MCP_SERVER, toMcpRuntimeName } from '@main/ai/toolApproval/builtinToolPolicy'
+import {
+  CHERRY_MCP_SERVER,
+  findBuiltinToolPolicy,
+  resolveDelegationApproval,
+  toMcpRuntimeName
+} from '@main/ai/toolApproval/builtinToolPolicy'
 import { evaluateToolGuards } from '@main/ai/toolApproval/toolGuards'
 import { MOVE_TO_TRASH_TOOL_NAME } from '@main/ai/tools/moveToTrash'
 import { SAVE_ATTACHMENT_TOOL_NAME } from '@main/ai/tools/saveAttachment'
 import { rtkRewrite } from '@main/utils/rtk'
 
-import type { AgentRuntimeUserInput } from '../types'
 import { BASH_NO_PROGRESS_HARD_THRESHOLD, BASH_NO_PROGRESS_THRESHOLD, BASH_RUN_BREAK_TOOLS } from './bashNoProgress'
 import { CLAUDE_TOOL_GUARD_RULES } from './guardRules'
+import { createClaudeCodeIdentityHooks } from './identityHooks'
 import { checkSkillRuntimeDependencies, SKILL_TOOL_NAME } from './skillDependencies'
 import type { ClaudeCodeSettings } from './types'
 
@@ -53,15 +57,6 @@ export function surfaceExitPlanModeInput(
   sessionState().peekToolApprovalEmitter(sessionId)?.emitInput?.({ toolCallId, toolName, input })
 }
 
-function extractSteerText(input: AgentRuntimeUserInput): string {
-  return (
-    input.message.data?.parts
-      ?.filter((part): part is { type: 'text'; text: string } => part.type === 'text' && 'text' in part)
-      .map((part) => part.text)
-      .join('\n') ?? ''
-  )
-}
-
 export interface ClaudeCodeHookContext {
   sessionId: string
   cwd: string
@@ -83,13 +78,14 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   // SDK skips canUseTool on auto-approved paths.
   const toolGuardHook: HookCallback = async (input, toolUseId, options): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
-    const toolName = String((input as Record<string, unknown>).tool_name ?? '')
+    const toolName = input.tool_name
     if (!toolName) return {}
-    const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
+    const toolInput = input.tool_input as Record<string, unknown> | undefined
     surfaceExitPlanModeInput(sessionId, toolName, toolInput, toolUseId)
     // Live state by id at fire-time: mode and disabled-set follow mid-session agent updates on warm
     // connections; a missing snapshot means no disabled set yet (canUseTool separately fails closed).
     const snapshot = sessionState().getToolPolicySnapshot(sessionId)
+    const interaction = application.get('AgentSessionRuntimeService').getInteractionState(sessionId)
     const decision = await evaluateToolGuards(CLAUDE_TOOL_GUARD_RULES, {
       toolName,
       input: toolInput,
@@ -101,11 +97,18 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       agentDataPath,
       signal: options?.signal,
       supportsImages: ctx.supportsImages,
-      interaction: application.get('AgentSessionRuntimeService').getInteractionState(sessionId),
+      interaction,
       isDisabled: (name) => snapshot?.isDisabled(name) ?? false,
       bashNoProgressRun: (command) => sessionState().getBashNoProgressRun(sessionId, command, input.agent_id)
     })
     if (!decision) {
+      if (
+        snapshot &&
+        findBuiltinToolPolicy(toolName, ctx.mountedServers)?.approval === 'delegation' &&
+        resolveDelegationApproval(snapshot.getPermissionMode(), interaction) === 'allow'
+      ) {
+        return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow' } }
+      }
       // Soft tier of the bash-repeat-no-progress guard (the hard deny is the guard rule): the
       // first call past the soft threshold is allowed with a one-shot warning so the model can
       // self-correct; exactly-at-threshold fires it once, before the run grows past it.
@@ -139,9 +142,8 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   // instead of substituting unrelated output.
   const skillDependencyAdvisoryHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
-    const event = input as Record<string, unknown>
-    if (String(event.tool_name ?? '') !== SKILL_TOOL_NAME) return {}
-    const skillName = (event.tool_input as Record<string, unknown> | undefined)?.skill
+    if (input.tool_name !== SKILL_TOOL_NAME) return {}
+    const skillName = (input.tool_input as Record<string, unknown> | undefined)?.skill
     if (typeof skillName !== 'string' || !skillName) return {}
 
     const { warning } = await checkSkillRuntimeDependencies(skillName, cwd, ctx.pluginDirectories)
@@ -152,9 +154,9 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
 
   const rtkRewriteHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
-    const toolName = String((input as Record<string, unknown>).tool_name ?? '')
+    const toolName = input.tool_name
     if (toolName !== 'Bash') return {}
-    const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
+    const toolInput = input.tool_input as Record<string, unknown> | undefined
     const command = toolInput?.command
     if (typeof command !== 'string' || !command.trim()) return {}
 
@@ -168,48 +170,6 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     logger.info('rtk rewrote Bash command', { original: command, rewritten })
     return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...toolInput, command: rewritten } } }
   }
-
-  // Real mid-turn steer (the agent SDK has no native steer API): inject steers stashed via
-  // `redirect()` as `additionalContext` at the next tool boundary — PostToolBatch (guaranteed
-  // before the next model request) or PreToolUse; otherwise the turn-end `steer-undelivered`
-  // fallback queues them. The synchronous splice makes the take once-only across both points.
-  const takePendingSteer = (
-    hookEventName: 'PreToolUse' | 'PostToolBatch',
-    input: HookInput | undefined
-  ): HookJSONOutput => {
-    // A subagent boundary (`agent_id` present) must not consume the queue: the steer addresses the
-    // top-level turn, and the driver only rolls `steer-boundary` at a top-level assistant message.
-    if (!input || input.hook_event_name !== hookEventName || input.agent_id) return {}
-    // Resolve the steer holder by id at fire-time — the prewarm-baked hook must read the live
-    // holder the connection wired, not a holder instance captured before this connection existed.
-    const holder = sessionState().getSteerHolder(sessionId)
-    if (holder.pending.length === 0) return {}
-
-    const taken = holder.pending.splice(0)
-    const text = taken
-      .map(extractSteerText)
-      .filter((t) => t.trim())
-      .join('\n\n')
-    if (!text) {
-      holder.pending.unshift(...taken)
-      return {}
-    }
-    logger.info('Injecting steer into the running turn', {
-      sessionId,
-      count: taken.length,
-      hook: hookEventName
-    })
-    // Arm the connection's `steer-boundary` (rolls A1a + A2) — fired only when we actually inject.
-    holder.onInjected?.(taken)
-    return {
-      continue: true,
-      hookSpecificOutput: { hookEventName, additionalContext: wrapSteerReminder(text) }
-    }
-  }
-
-  const steerHook: HookCallback = async (input) => takePendingSteer('PreToolUse', input)
-  const postToolBatchSteerHook: HookCallback = async (input) => takePendingSteer('PostToolBatch', input)
-
   const bashRewriteCleanupHook: HookCallback = async (input) => {
     if (input.hook_event_name !== 'PostToolBatch') return {}
     // Denied calls have no PostToolUse event; consume only this batch's leftovers.
@@ -278,10 +238,9 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     if (!input || (input.hook_event_name !== 'PostToolUse' && input.hook_event_name !== 'PostToolUseFailure')) {
       return {}
     }
-    const event = input as unknown as Record<string, unknown>
-    const toolCallId = event.tool_use_id
-    const toolName = event.tool_name
-    const durationMs = event.duration_ms
+    const toolCallId = input.tool_use_id
+    const toolName = input.tool_name
+    const durationMs = input.duration_ms
     if (
       typeof toolCallId !== 'string' ||
       typeof toolName !== 'string' ||
@@ -300,10 +259,11 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   }
 
   return {
-    PreToolUse: [{ hooks: [toolGuardHook, skillDependencyAdvisoryHook, rtkRewriteHook, steerHook] }],
+    ...createClaudeCodeIdentityHooks(agentDataPath),
+    PreToolUse: [{ hooks: [toolGuardHook, skillDependencyAdvisoryHook, rtkRewriteHook] }],
     PostToolUse: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
     PostToolUseFailure: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
-    PostToolBatch: [{ hooks: [postToolBatchSteerHook, bashRewriteCleanupHook] }],
+    PostToolBatch: [{ hooks: [bashRewriteCleanupHook] }],
     SubagentStop: [{ hooks: [subagentStopHook] }]
   }
 }

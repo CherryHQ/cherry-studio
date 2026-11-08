@@ -22,7 +22,7 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-  Scrollbar,
+  ScrollArea,
   Tabs,
   TabsList,
   TabsTrigger,
@@ -137,9 +137,8 @@ export function setFormValues<TValues extends FieldValues>(form: UseFormReturn<T
  * save is in flight, a single follow-up pass is queued and runs (with the latest
  * `onSave`) once the current save settles — so the last edit is never dropped.
  *
- * Returns a `flush()` that runs/awaits the serialized save immediately; callers
- * (e.g. the close path) await it to persist pending edits before proceeding,
- * reusing the same queue instead of racing a second concurrent save.
+ * Returns `flush()` to save immediately and `getPendingSave()` to await the
+ * current drain before checking whether the form still needs to be saved.
  */
 export function useDebouncedAutoSave({
   enabled,
@@ -151,7 +150,7 @@ export function useDebouncedAutoSave({
   changeKey: string | null
   onSave: () => void | Promise<void>
   delay?: number
-}): () => Promise<void> {
+}): { flush: () => Promise<void>; getPendingSave: () => Promise<void> | undefined } {
   const onSaveRef = useRef(onSave)
   const changeKeyRef = useRef(changeKey)
   const saveTaskRef = useRef(new CoalescingTask())
@@ -179,7 +178,9 @@ export function useDebouncedAutoSave({
     return () => clearTimeout(handle)
   }, [enabled, changeKey, delay, flush])
 
-  return flush
+  const getPendingSave = useCallback(() => saveTaskRef.current.promise, [])
+
+  return { flush, getPendingSave }
 }
 
 const HelpIconButton = ({
@@ -540,9 +541,11 @@ export function EditDialogShell<TValues extends FieldValues>({
               </div>
 
               <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                <Scrollbar ref={scrollContainerRef} className="min-h-0 min-w-0 flex-1 px-6 pt-5 pb-3">
+                <ScrollArea
+                  viewportProps={{ ref: scrollContainerRef, className: 'px-6 pt-5 pb-3' }}
+                  className="min-h-0 min-w-0 flex-1">
                   {children}
-                </Scrollbar>
+                </ScrollArea>
                 {/* Always-present bottom band: insets scrolling lists from the dialog's
                     rounded-3xl corners so content never clips into them mid-scroll, and
                     surfaces the save error inline when present. */}

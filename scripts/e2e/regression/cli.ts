@@ -1,18 +1,17 @@
-import { execFileSync } from 'node:child_process'
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
-import { normalizeRunnerArch, selectReleaseAsset, sha256File } from './artifacts'
 import { probeCapabilities } from './capabilities'
 import { PHASE_IDS, TASK_SELECTIONS } from './cases'
 import { getSensitiveConfigValues, loadTestConfig, REQUIRED_CONFIG } from './config'
 import { createFixtures } from './fixtureFiles'
-import { installReleaseArtifact } from './installation'
+import { prepareRelease } from './installation'
 import { launchApp, stopOwnedApp } from './lifecycle'
+import { assertMockTask, startMockProvider, stopMockProvider, verifyMockProvider } from './mockProvider'
 import { ensureRunDirectories, getRunPaths } from './paths'
 import { runPhase } from './phases'
 import { createRedactor } from './redaction'
-import { parseRemoteRefs, resolveTrustedRef } from './ref'
+import { resolveRepositoryRef } from './ref'
 import { aggregateRuns, renderAggregateMarkdown, writeReports } from './report'
 import { createRun, finalizeRun, getRunVerdict, readRun, setCapabilities, updateRunMetadata, writeRun } from './state'
 import { PLATFORMS, RUN_MODES } from './types'
@@ -74,13 +73,7 @@ function redactLogs(paths: ReturnType<typeof getRunPaths>): void {
 async function resolveRefCommand(): Promise<void> {
   const requested = argument('requested') ?? ''
   const repository = argument('repository') ?? ''
-  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) throw new Error('Invalid GitHub repository slug')
-  const remote = `https://github.com/${repository}.git`
-  const output = execFileSync('git', ['ls-remote', '--heads', '--tags', remote], {
-    encoding: 'utf8',
-    timeout: 60_000
-  })
-  const resolvedRef = resolveTrustedRef(requested, parseRemoteRefs(output))
+  const resolvedRef = resolveRepositoryRef(requested, repository)
   outputLine('mode', resolvedRef.kind)
   outputLine('name', resolvedRef.name)
   outputLine('ref', resolvedRef.ref)
@@ -92,6 +85,8 @@ async function initializeCommand(): Promise<void> {
   const mode = oneOf(argument('mode') ?? '', RUN_MODES, 'mode')
   const platform = oneOf(argument('platform') ?? '', PLATFORMS, 'platform')
   const task = oneOf(argument('task', false) ?? 'all', TASK_SELECTIONS, 'task')
+  const providerMode = oneOf(argument('provider-mode', false) ?? 'real', ['real', 'mock'] as const, 'provider mode')
+  if (providerMode === 'mock') assertMockTask(task)
   const ref = argument('ref') ?? ''
   const sha = argument('sha') ?? ''
   const runner = argument('runner') ?? ''
@@ -103,7 +98,8 @@ async function initializeCommand(): Promise<void> {
     platform,
     ref,
     runner,
-    task
+    task,
+    providerMode
   })
   await createFixtures(paths)
   run = setCapabilities(run, probeCapabilities(platform, paths))
@@ -112,7 +108,12 @@ async function initializeCommand(): Promise<void> {
 
 async function preflightCommand(): Promise<void> {
   const task = oneOf(argument('task', false) ?? 'all', TASK_SELECTIONS, 'task')
-  if (task === 'chat-stream-failure') return
+  const directory = argument('run-dir', false)
+  if (directory && readRun(getRunPaths(directory).runState).metadata.providerMode === 'mock') {
+    assertMockTask(task)
+    await verifyMockProvider(getRunPaths(directory))
+  }
+  if (task === 'chat-stream-failure' || task === 'translation-settings') return
   loadTestConfig()
   const redacted = createRedactor(getSensitiveConfigValues())
   process.stdout.write(`${JSON.stringify(redacted({ configured: REQUIRED_CONFIG }), null, 2)}\n`)
@@ -123,41 +124,13 @@ async function releaseCommand(): Promise<void> {
   let run = readRun(paths.runState)
   if (run.metadata.mode !== 'tag') throw new Error('Release preparation is only valid for a tag run')
   const repository = argument('repository') ?? ''
-  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) throw new Error('Invalid GitHub repository slug')
-  const arch = normalizeRunnerArch(argument('arch') ?? '')
-  const releaseJson = execFileSync(
-    'gh',
-    ['api', `repos/${repository}/releases/tags/${encodeURIComponent(run.metadata.ref)}`],
-    { encoding: 'utf8', timeout: 60_000 }
-  )
-  const release = JSON.parse(releaseJson) as {
-    assets: Array<{ name: string }>
-  }
-  const artifactName = selectReleaseAsset(
-    release.assets.map(({ name }) => name),
-    run.metadata.platform,
-    arch
-  )
-  execFileSync(
-    'gh',
-    [
-      'release',
-      'download',
-      run.metadata.ref,
-      '--repo',
-      repository,
-      '--pattern',
-      artifactName,
-      '--dir',
-      paths.artifacts,
-      '--clobber'
-    ],
-    { stdio: 'inherit', timeout: 300_000 }
-  )
-  const artifactPath = join(paths.artifacts, artifactName)
-  const artifactSha256 = await sha256File(artifactPath)
-  installReleaseArtifact(paths, run.metadata.platform, artifactPath, artifactSha256)
-  run = updateRunMetadata(run, { artifactName, artifactSha256 })
+  const installation = await prepareRelease(paths, {
+    repository,
+    ref: run.metadata.ref,
+    platform: run.metadata.platform,
+    arch: argument('arch') ?? ''
+  })
+  run = updateRunMetadata(run, { artifactName: installation.artifactName, artifactSha256: installation.artifactSha256 })
   writeRun(paths.runState, run)
 }
 
@@ -190,7 +163,7 @@ async function gateCommand(): Promise<void> {
   const paths = runDirectory()
   const verdict = getRunVerdict(readRun(paths.runState))
   process.stdout.write(`Cherry regression verdict: ${verdict}\n`)
-  if (!verdict.endsWith('_pass')) process.exitCode = 1
+  if (!verdict.endsWith('_pass') && !verdict.endsWith('_not_applicable')) process.exitCode = 1
 }
 
 async function aggregateCommand(): Promise<void> {
@@ -198,9 +171,13 @@ async function aggregateCommand(): Promise<void> {
   const output = resolve(argument('output') ?? '')
   const modeValue = argument('mode', false)
   const expectedMode = modeValue ? oneOf(modeValue, RUN_MODES, 'mode') : undefined
+  const providerModeValue = argument('provider-mode', false)
+  const expectedProviderMode = providerModeValue
+    ? oneOf(providerModeValue, ['real', 'mock'] as const, 'provider mode')
+    : undefined
   const resultFiles = findFiles(input, 'results.json')
   const runs = resultFiles.map(readRun)
-  const report = aggregateRuns(runs, expectedMode)
+  const report = aggregateRuns(runs, expectedMode, expectedProviderMode)
   mkdirSync(output, { recursive: true })
   const markdown = renderAggregateMarkdown(report)
   writeFileSync(join(output, 'combined-results.json'), `${JSON.stringify(report, null, 2)}\n`)
@@ -214,7 +191,7 @@ async function aggregateGateCommand(): Promise<void> {
   const report = JSON.parse(readFileSync(reportPath, 'utf8')) as {
     verdict: string
   }
-  if (!report.verdict.endsWith('_pass')) {
+  if (!report.verdict.endsWith('_pass') && !report.verdict.endsWith('_not_applicable')) {
     process.stderr.write(`Cherry aggregate regression failed: ${report.verdict}\n`)
     process.exitCode = 1
   }
@@ -222,12 +199,31 @@ async function aggregateGateCommand(): Promise<void> {
 
 async function cleanupCommand(): Promise<void> {
   const paths = runDirectory()
-  await stopOwnedApp(paths)
+  try {
+    await stopOwnedApp(paths)
+  } finally {
+    await stopMockProvider(paths)
+  }
+}
+
+async function mockStartCommand(): Promise<void> {
+  const record = await startMockProvider(runDirectory())
+  outputLine('base_url', `http://127.0.0.1:${record.port}/v1`)
+  outputLine('anthropic_base_url', `http://127.0.0.1:${record.port}`)
+  outputLine('api_key', 'mock-key-not-checked')
+  outputLine('chat_model', 'mock-chat')
+  outputLine('embedding_model', 'mock-embedding')
 }
 
 async function main(): Promise<void> {
   const command = process.argv[2]
   switch (command) {
+    case 'mock-start':
+      await mockStartCommand()
+      break
+    case 'mock-stop':
+      await stopMockProvider(runDirectory())
+      break
     case 'resolve-ref':
       await resolveRefCommand()
       break

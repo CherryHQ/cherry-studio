@@ -94,6 +94,18 @@ describe('LocalModelsSection', () => {
     MockUsePreferenceUtils.resetMocks()
   })
 
+  it('links model sources without mixing system speech resources into local models', async () => {
+    mockRoutes(() => ({ supported: false }))
+    render(<LocalModelsSection />)
+    expect(await screen.findByRole('link', { name: 'onnx-community/Qwen3-Embedding-0.6B-ONNX' })).toHaveAttribute(
+      'href',
+      'https://huggingface.co/onnx-community/Qwen3-Embedding-0.6B-ONNX'
+    )
+    expect(screen.getAllByRole('link')).toHaveLength(3)
+    expect(mockRequest.mock.calls.every(([route]) => route.startsWith('local_model.'))).toBe(true)
+    expect(screen.queryByText('settings.voice.resources.system')).not.toBeInTheDocument()
+  })
+
   it('shows a supported acceleration switch and persists the user choice', async () => {
     const user = userEvent.setup()
     mockRoutes((route) => {
@@ -280,5 +292,42 @@ describe('LocalModelsSection', () => {
     await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument())
     expect(screen.queryAllByRole('listitem')).toHaveLength(0)
     expect(screen.getByText('settings.dependencies.localModels.title')).toBeInTheDocument()
+  })
+  it('offers an ASR download in Local Models without changing the selected recognizer', async () => {
+    const asr = 'funasr-nano-int8'
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', 'local-voice::apple-system-asr')
+    mockRequest.mockImplementation(async (route) => {
+      if (route === 'local_model.list') return { models: [{ id: asr, capability: 'asr' }] }
+      if (route === 'local_model.download') return { result: 'ready' }
+      if (route === 'ai.voice.models.list') return { models: [] }
+      return undefined
+    })
+    render(<LocalModelsSection />)
+    const card = await screen.findByRole('listitem')
+    expect(within(card).getByText('settings.voice.model.funasr')).toBeInTheDocument()
+    await userEvent
+      .setup()
+      .click(within(card).getByRole('button', { name: 'settings.dependencies.localModels.download' }))
+    expect(mockRequest).toHaveBeenCalledWith('local_model.download', { id: asr })
+    act(() => publishLocalModelStatus(asr, { status: 'ready', percent: 100 }))
+    expect(within(card).getByText('settings.dependencies.localModels.status.ready')).toBeInTheDocument()
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.model_id')).toBe(
+      'local-voice::apple-system-asr'
+    )
+  })
+
+  it('hides unsupported model downloads while retaining the supported ASR card', async () => {
+    mockRequest.mockImplementation(async (route) => {
+      if (route === 'local_model.list')
+        return { models: [...LISTED_MODELS.models, { id: 'funasr-nano-int8', capability: 'asr' }] }
+      if (route === 'ai.voice.models.list') return { models: [] }
+      return undefined
+    })
+    publishLocalModelStatus(EMBEDDING, { status: 'unsupported', percent: 0 })
+    publishLocalModelStatus(OCR, { status: 'unsupported', percent: 0 })
+    publishLocalModelStatus('funasr-nano-int8', { status: 'not_downloaded', percent: 0 })
+    render(<LocalModelsSection />)
+    await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(1))
+    expect(screen.getByText('settings.voice.model.funasr')).toBeInTheDocument()
   })
 })

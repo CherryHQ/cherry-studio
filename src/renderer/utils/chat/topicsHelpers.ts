@@ -47,6 +47,8 @@ export type TopicDisplayGroupOptions = {
 
 export type TopicDisplaySortOptions = {
   assistantRankById?: ReadonlyMap<string, number>
+  /** Time mode only: order rows inside each time group by manual `orderKey` instead of recency. */
+  manualOrder?: boolean
   mode: TopicDisplayMode
   now?: Parameters<typeof getResourceTimeBucket>[1]
 }
@@ -267,6 +269,8 @@ export function sortTopicsForDisplayGroups<T extends Pick<Topic, 'assistantId' |
     getRank: (topic) =>
       topic.pinned === true ? 0 : TOPIC_TIME_BUCKET_RANK[getTopicTimeBucket(topic.lastActivityAt, options.now)],
     isPinned,
-    compareWithinGroup: compareResourceRecency((topic) => topic.lastActivityAt)
+    compareWithinGroup: options.manualOrder
+      ? (a, b) => compareResourceOrderKey(readOptionalOrderKey(a), readOptionalOrderKey(b))
+      : compareResourceRecency((topic) => topic.lastActivityAt)
   })
 }

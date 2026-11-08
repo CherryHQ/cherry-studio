@@ -18,20 +18,20 @@ import { BrowserSessionService } from '@main/features/browser'
 import type * as FileUtils from '@main/utils/file'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 
-const APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({ approval: 'required' }).map(toMcpRuntimeName)
+const APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies()
+  .filter(({ approval }) => approval !== 'auto')
+  .map(toMcpRuntimeName)
 const BYPASSABLE_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
   approval: 'required',
   bypassApproval: 'lift'
 }).map(toMcpRuntimeName)
-const NON_BYPASSABLE_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
-  approval: 'required',
-  bypassApproval: 'enforce'
-}).map(toMcpRuntimeName)
+const DELEGATION_RUNTIME_NAMES = listBuiltinToolPolicies({ approval: 'delegation' }).map(toMcpRuntimeName)
 const NON_HOST_MCP_SERVERS: ReadonlySet<string> = new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager'])
 const NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
-  approval: 'required',
   mountedServers: NON_HOST_MCP_SERVERS
-}).map(toMcpRuntimeName)
+})
+  .filter(({ approval }) => approval !== 'auto')
+  .map(toMcpRuntimeName)
 const ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({ approval: 'required' })
   .filter((entry) => !NON_HOST_MCP_SERVERS.has(entry.serverName))
   .map(toMcpRuntimeName)
@@ -64,6 +64,7 @@ const mocks = vi.hoisted(() => ({
   ensureAgentDataDirectory: vi.fn(),
   ensureAgentStorageDirectory: vi.fn(),
   buildPrompt: vi.fn(),
+  buildMemoriesSection: vi.fn(),
   getAppLanguage: vi.fn(),
   loggerWarn: vi.fn(),
   approvalRegister: vi.fn(),
@@ -138,7 +139,7 @@ vi.mock('@main/ai/agents/prompt', () => ({
   PromptBuilder: vi.fn(function () {
     return {
       buildPromptParts: mocks.buildPrompt,
-      buildMemoriesSection: vi.fn(async () => undefined)
+      buildMemoriesSection: mocks.buildMemoriesSection
     }
   })
 }))
@@ -480,6 +481,23 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings).not.toHaveProperty('fastMode')
     expect(settings.forwardSubagentText).toBe(true)
   })
+
+  it.each([
+    { configuration: undefined, expected: 'default' },
+    { configuration: {}, expected: 'default' },
+    { configuration: { permission_mode: 'auto' }, expected: 'auto' }
+  ])(
+    'keeps the Cherry permission policy when SDK defaults change: $configuration',
+    async ({ configuration, expected }) => {
+      mocks.getAgent.mockReturnValue({ ...mocks.getAgent(), configuration })
+      const settings = await buildClaudeCodeSessionSettings(
+        { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+        {} as never
+      )
+
+      expect(settings.permissionMode).toBe(expected)
+    }
+  )
 
   it('overrides the SDK default 30-day cleanup for Cherry-managed sessions', async () => {
     const settings = await buildClaudeCodeSessionSettings(
@@ -883,12 +901,10 @@ describe('buildClaudeCodeSessionSettings', () => {
         { mcpServerSnapshots: snapshot as never },
         agent
       )
-      expect(settings.mcpServers?.browser).toBeDefined()
+      expect(settings.mcpServers?.automation).toBeDefined()
       expect(settings.mcpServers?.['legacy-browser']).toBeUndefined()
       expect(settings.mcpServers?.['remote-browser']).toBeDefined()
-      expect(settings.allowedTools).toEqual(
-        expect.arrayContaining(['mcp__browser__open', 'mcp__browser__click', 'mcp__browser__execute'])
-      )
+      expect(settings.allowedTools).toEqual(expect.arrayContaining(['mcp__automation__js', 'mcp__automation__reset']))
       expect(settings.allowedTools).not.toContain('mcp__browser__*')
     } finally {
       await service._doStop()
@@ -1588,7 +1604,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
   )
 
-  it('lifts ordinary approvals under bypassPermissions but preserves the delegation ceiling', async () => {
+  it('follows the live permission mode for ordinary interactive delegation in hooks', async () => {
     let permissionMode: string | undefined = undefined
     mocks.createToolPolicySnapshot.mockResolvedValue({
       resolve: vi.fn(),
@@ -1632,18 +1648,79 @@ describe('buildClaudeCodeSessionSettings', () => {
     for (const toolName of requiredTools) {
       await expect(permissionDecisions(toolName)).resolves.toContain('ask')
     }
-    // Full Access lifts ordinary per-call approval, but cross-Session delegation still asks.
+    // Ordinary required tools keep their existing Full Access behavior.
     permissionMode = 'bypassPermissions'
     for (const toolName of BYPASSABLE_APPROVAL_REQUIRED_RUNTIME_NAMES) {
       await expect(permissionDecisions(toolName)).resolves.not.toContain('ask')
     }
-    for (const toolName of NON_BYPASSABLE_APPROVAL_REQUIRED_RUNTIME_NAMES) {
-      await expect(permissionDecisions(toolName)).resolves.toContain('ask')
+    for (const mode of ['auto', 'bypassPermissions']) {
+      permissionMode = mode
+      for (const toolName of DELEGATION_RUNTIME_NAMES) {
+        for (let call = 0; call < 2; call++) {
+          await expect(permissionDecisions(toolName)).resolves.toContain('allow')
+        }
+      }
     }
+    expect(mocks.approvalRegister).not.toHaveBeenCalled()
     permissionMode = undefined
     for (const toolName of ['Bash', 'mcp__assistant__navigate', 'mcp__assistant__product_info']) {
       await expect(permissionDecisions(toolName)).resolves.not.toContain('ask')
     }
+  })
+
+  describe.each(['auto', 'bypassPermissions'])('SDK-forced delegation approval in %s', (permissionMode) => {
+    it.each(
+      DELEGATION_RUNTIME_NAMES.flatMap((toolName) =>
+        [undefined, 'subagent-1'].map((agentID) => ({ toolName, agentID }))
+      )
+    )('waits for the user decision for $toolName (agentID=$agentID)', async ({ toolName, agentID }) => {
+      mocks.createToolPolicySnapshot.mockResolvedValue({
+        resolve: vi.fn(() => ({ approval: 'auto' })),
+        isDisabled: vi.fn(() => false),
+        getPermissionMode: vi.fn(() => permissionMode),
+        update: vi.fn(),
+        setPermissionMode: vi.fn()
+      })
+      const settings = await buildClaudeCodeSessionSettings(
+        {
+          id: 'session-1',
+          agentId: 'agent-1',
+          workspace: { type: 'user', path: '/workspace/project' }
+        } as never,
+        {} as never
+      )
+      const input = { message: 'Delegate this task' }
+      const emit = vi.fn()
+      settings.approvalEmitter!.emit = emit
+
+      for (const matchedAskRule of [undefined, { source: 'projectSettings', toolName }]) {
+        for (const approved of [false, true]) {
+          mocks.approvalRegister.mockClear()
+          emit.mockClear()
+          const pending = settings.canUseTool!(toolName, input, {
+            signal: new AbortController().signal,
+            toolUseID: 'forced-delegation',
+            requestId: 'forced-request',
+            agentID,
+            matchedAskRule
+          })
+          let settled = false
+          void pending.then(() => (settled = true))
+          await Promise.resolve()
+          expect(settled).toBe(false)
+          expect(emit).toHaveBeenCalledWith(
+            expect.objectContaining({ toolName, presentation: agentID ? 'message' : 'stream' })
+          )
+
+          mocks.approvalRegister.mock.lastCall![0].resolve({ approved })
+          await expect(pending).resolves.toEqual(
+            approved
+              ? { behavior: 'allow', updatedInput: input }
+              : { behavior: 'deny', message: 'User denied permission for this tool' }
+          )
+        }
+      }
+    })
   })
 
   it('passes agent disabledTools through to SDK disallowedTools', async () => {
@@ -1940,7 +2017,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       await expect(decide(toolName)).resolves.toEqual({ behavior: 'allow', updatedInput: {} })
     }
     // The delegation ceiling and tools whose whole function is a user-authored answer still deny.
-    for (const toolName of [...NON_BYPASSABLE_APPROVAL_REQUIRED_RUNTIME_NAMES, 'AskUserQuestion', 'EnterPlanMode']) {
+    for (const toolName of [...DELEGATION_RUNTIME_NAMES, 'AskUserQuestion', 'EnterPlanMode']) {
       await expect(decide(toolName)).resolves.toEqual({
         behavior: 'deny',
         message:
@@ -2196,47 +2273,6 @@ describe('buildClaudeCodeSessionSettings', () => {
       expect.objectContaining({
         hookSpecificOutput: expect.objectContaining({ permissionDecision: expect.stringMatching(/ask|deny/) })
       })
-    )
-  })
-
-  it('denies mutating config actions via PreToolUse for the current headless turn', async () => {
-    const getInteractionState = vi.fn(() => ({ currentTurn: 'headless', userResponse: 'unavailable' }))
-    mocks.applicationGet.mockImplementation((name: string) => {
-      if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
-      if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
-      if (name === 'AgentSessionRuntimeService') return { getInteractionState }
-      throw new Error(`Unexpected application.get(${name})`)
-    })
-    const session = {
-      id: 'session-1',
-      agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
-    }
-
-    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-    const runConfigAction = (action: string) =>
-      Promise.all(
-        (settings.hooks?.PreToolUse?.[0]?.hooks ?? []).map((hook) =>
-          hook(
-            {
-              hook_event_name: 'PreToolUse',
-              tool_name: 'mcp__cherry-tools__config',
-              tool_input: { action }
-            } as never,
-            'tool-use-1',
-            {} as never
-          )
-        )
-      )
-
-    for (const action of ['add_channel', 'complete_bootstrap', 'reset_bootstrap']) {
-      await expect(runConfigAction(action)).resolves.toContainEqual(
-        expect.objectContaining({ hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' }) })
-      )
-    }
-
-    await expect(runConfigAction('status')).resolves.not.toContainEqual(
-      expect.objectContaining({ hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' }) })
     )
   })
 
@@ -2787,7 +2823,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
   })
 
-  it('does not inject a Cherry Assistant-only contract on every submitted prompt', async () => {
+  it('refreshes identity through the hooks mounted on a reused Claude connection', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
@@ -2804,45 +2840,20 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-    expect(settings.hooks?.UserPromptSubmit).toBeUndefined()
-  })
-
-  it('wires a PreToolUse steer hook that drains the holder and injects it as additionalContext', async () => {
-    const session = {
-      id: 'session-1',
-      agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
-    }
-
-    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-
-    // The session-scoped steer holder is wired onto the settings — the driver reads it from here and
-    // the connection's redirect() fills `pending`. Without it the whole agent steer is inert.
-    expect(settings.steerHolder).toBeDefined()
-
-    const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
-    const steerHook = preToolUse?.find((hook) => hook.name === 'steerHook') as unknown as (input: {
-      hook_event_name: string
-    }) => Promise<{ continue?: boolean; hookSpecificOutput?: { additionalContext?: string } }>
-    expect(steerHook).toBeDefined()
-
-    // No queued steer → the hook no-ops.
-    expect(await steerHook({ hook_event_name: 'PreToolUse' })).toEqual({})
-
-    // A steer stashed mid-turn is drained and injected as additionalContext (model redirects without
-    // aborting); `onInjected` fires so the connection can arm its steer-boundary.
-    const onInjected = vi.fn()
-    settings.steerHolder!.onInjected = onInjected
-    settings.steerHolder!.pending.push({
-      message: { data: { parts: [{ type: 'text', text: 'change direction now' }] } }
-    } as never)
-
-    const output = await steerHook({ hook_event_name: 'PreToolUse' })
-
-    expect(output.continue).toBe(true)
-    expect(output.hookSpecificOutput?.additionalContext).toContain('change direction now')
-    expect(settings.steerHolder!.pending).toHaveLength(0) // drained in place
-    expect(onInjected).toHaveBeenCalledTimes(1)
+    const hook = settings.hooks!.UserPromptSubmit![0].hooks[0]
+    const submit = () =>
+      hook({ hook_event_name: 'UserPromptSubmit' } as never, undefined, {
+        signal: new AbortController().signal
+      })
+    mocks.buildMemoriesSection.mockResolvedValue('<agent_identity>Persona A</agent_identity>')
+    expect(await submit()).toMatchObject({
+      hookSpecificOutput: { additionalContext: '<agent_identity>Persona A</agent_identity>' }
+    })
+    mocks.buildMemoriesSection.mockResolvedValue('<agent_identity>Persona B</agent_identity>')
+    expect(await submit()).toMatchObject({
+      hookSpecificOutput: { additionalContext: '<agent_identity>Persona B</agent_identity>' }
+    })
+    expect(await submit()).toEqual({})
   })
 
   it('keeps RTK as the only Bash text rewrite', async () => {
@@ -2868,30 +2879,6 @@ describe('buildClaudeCodeSessionSettings', () => {
         updatedInput: { command: 'rtk eslint .' }
       }
     })
-  })
-
-  it('keeps an empty-text steer pending when the PreToolUse hook cannot inject it', async () => {
-    const session = {
-      id: 'session-1',
-      agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
-    }
-
-    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-    const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
-    const steerHook = preToolUse?.find((hook) => hook.name === 'steerHook') as unknown as (input: {
-      hook_event_name: string
-    }) => Promise<{ continue?: boolean; hookSpecificOutput?: { additionalContext?: string } }>
-    expect(steerHook).toBeDefined()
-    const onInjected = vi.fn()
-    settings.steerHolder!.onInjected = onInjected
-    const emptySteer = { message: { data: { parts: [{ type: 'text', text: '   ' }] } } } as never
-    settings.steerHolder!.pending.push(emptySteer)
-
-    await expect(steerHook({ hook_event_name: 'PreToolUse' })).resolves.toEqual({})
-
-    expect(settings.steerHolder!.pending).toEqual([emptySteer])
-    expect(onInjected).not.toHaveBeenCalled()
   })
 
   it('hands the real kb_manage approval exception to the tool-policy snapshot (production gate wiring)', async () => {
@@ -3005,28 +2992,6 @@ describe('buildClaudeCodeSessionSettings', () => {
       expect(out).toContainEqual(
         expect.objectContaining({ hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' }) })
       )
-    })
-
-    it('steers via the live holder after the original is disposed and rebuilt (Bug B)', async () => {
-      const prewarm = await buildClaudeCodeSessionSettings(sessionWith('warm-b'), {} as never)
-      // Simulate the connection that prewarm baked for closing — disposes + evicts the holder.
-      prewarm.steerHolder?.dispose()
-
-      // Reconnect builds a brand-new holder; the host stashes a steer into it via redirect().
-      const reconnect = await buildClaudeCodeSessionSettings(sessionWith('warm-b'), {} as never)
-      const onInjected = vi.fn()
-      reconnect.steerHolder!.onInjected = onInjected
-      reconnect.steerHolder!.pending.push({
-        message: { data: { parts: [{ type: 'text', text: 'go north instead' }] } }
-      } as never)
-
-      // The prewarm-baked steer hook resolves the live holder by id → injects the steer.
-      const out = await runHooks(prewarm, 'Read')
-      const additionalContexts = out.map(
-        (o) => (o as { hookSpecificOutput?: { additionalContext?: string } })?.hookSpecificOutput?.additionalContext
-      )
-      expect(additionalContexts).toContainEqual(expect.stringContaining('go north instead'))
-      expect(onInjected).toHaveBeenCalledTimes(1)
     })
 
     it('approves via the re-bound emitter after the original is disposed and rebuilt (approval)', async () => {

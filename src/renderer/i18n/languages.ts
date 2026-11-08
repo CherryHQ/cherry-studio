@@ -14,8 +14,10 @@ const APP_LANGUAGE_FLAGS: ReadonlyArray<{ value: LanguageVarious; flag: string }
   { value: 'fr-FR', flag: '🇫🇷' },
   { value: 'pt-PT', flag: '🇵🇹' },
   { value: 'ro-RO', flag: '🇷🇴' },
+  { value: 'th-TH', flag: '🇹🇭' },
   { value: 'vi-VN', flag: '🇻🇳' },
-  { value: 'tr-TR', flag: '🇹🇷' }
+  { value: 'tr-TR', flag: '🇹🇷' },
+  { value: 'it-IT', flag: '🇮🇹' }
 ]
 
 export const appLanguageOptions: ReadonlyArray<{

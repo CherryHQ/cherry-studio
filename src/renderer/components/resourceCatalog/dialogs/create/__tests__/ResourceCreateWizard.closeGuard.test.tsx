@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactModule from 'react'
@@ -29,9 +30,12 @@ vi.mock('@renderer/hooks/useModel', () => ({
   useModels: () => ({ models: [] })
 }))
 
+vi.mock('@renderer/components/ModelSelector', () => ({
+  useIsModelSelectable: () => () => true
+}))
+
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
-  useAgentModelFilter: () => () => true,
-  useAgentModelDisabled: () => () => false
+  useAgentModelFilter: () => () => true
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -169,7 +173,7 @@ vi.mock('@cherrystudio/ui', async () => {
         {label}
       </button>
     ),
-    Scrollbar: ({ children }: { children: ReactNode }) => <div>{children}</div>
+    ScrollArea: MockCherrystudioUI.ScrollArea
   }
 })
 

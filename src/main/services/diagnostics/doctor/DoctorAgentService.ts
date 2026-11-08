@@ -80,7 +80,9 @@ export class DoctorAgentService extends BaseService {
   }
 
   async checkModel(modelId: UniqueModelId): Promise<{ latency: number }> {
-    return application.get('AiService').checkModel({ uniqueModelId: modelId, timeout: 15000 }, { chatOnly: true })
+    return application
+      .get('AiService')
+      .checkModel({ uniqueModelId: modelId, timeout: 15000, requestOptions: { maxRetries: 0 } }, { chatOnly: true })
   }
 
   async start(input: {
@@ -337,6 +339,16 @@ export class DoctorAgentService extends BaseService {
           toolCalls.push(chunk.toolName)
           scheduleFlush()
         }
+      },
+      onMessage(message, _model, kind) {
+        if (kind !== 'messages') return
+        text = message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('')
+        toolCalls.splice(
+          0,
+          toolCalls.length,
+          ...message.parts.flatMap((part) => (part.type === 'dynamic-tool' ? [part.toolName] : []))
+        )
+        scheduleFlush()
       },
       onDone: () => settle(this.active.get(key)?.abortTimer ? 'canceled' : 'completed'),
       onPaused: () => settle(this.active.get(key)?.abortTimer ? 'canceled' : 'completed'),

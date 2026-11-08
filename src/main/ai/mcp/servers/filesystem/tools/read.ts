@@ -18,16 +18,7 @@ export const ReadToolSchema = z.object({
 
 // Tool definition with detailed description
 export const readToolDefinition = {
-  description: `Reads a file from the local filesystem.
-
-- Only files within the configured workspace root can be read
-- The file_path parameter must resolve within the configured workspace root
-- By default, reads up to 2000 lines starting from the beginning
-- You can optionally specify a line offset and limit for long files
-- Any lines longer than 2000 characters will be truncated
-- Results are returned with line numbers starting at 1
-- Binary files are detected and rejected with an error
-- Empty files return a warning`,
+  description: `Read a workspace file with line numbers, up to 2000 lines. Use offset and limit for long files.`,
   inputSchema: ReadToolSchema
 }
 

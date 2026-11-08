@@ -476,11 +476,7 @@ export function useHomeMessageListProviderValue({
   )
 
   const openPath = useCallback((path: string) => {
-    return window.api.file.openPath(path)
-  }, [])
-
-  const showInFolder = useCallback((path: string) => {
-    return window.api.file.showInFolder(path)
+    return ipcApi.request('system.shell.open_path', path)
   }, [])
 
   const abortTool = useCallback(
@@ -852,7 +848,6 @@ export function useHomeMessageListProviderValue({
       removeMessageErrorPart,
       openPath,
       openCitationsPanel,
-      showInFolder,
       abortTool,
       ...selectionController.actions,
       updateMessageUiState: messageUiStateCache.updateMessageUiState,
@@ -905,7 +900,6 @@ export function useHomeMessageListProviderValue({
       removeMessageErrorPart,
       saveCodeBlock,
       setActiveBranch,
-      showInFolder,
       startEditing,
       startMessageBranch,
       startNewContext,

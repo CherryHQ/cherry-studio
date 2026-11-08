@@ -41,14 +41,16 @@ import {
   flushMicrotasks,
   waitUntil
 } from '@main/core/utilityProcess/__tests__/memoryProcessAdapter'
+import { defineUtilityProcess } from '@main/core/utilityProcess/defineUtilityProcess'
 import { SERVICE_NAME_PREFIX } from '@main/core/utilityProcess/protocol/constants'
 import type { UtilityProcessHandlers } from '@main/core/utilityProcess/runtime/serveUtilityProcess'
-import type { UtilityProcessDefinition } from '@main/core/utilityProcess/types'
+import type { UtilityProcessStreamMethod, UtilityProcessStreamFrame } from '@main/core/utilityProcess/types'
 import { UtilityProcessManager } from '@main/core/utilityProcess/UtilityProcessManager'
+import type { LocalModelBundleId } from '@shared/data/presets/localModel'
 
-import { embeddingInferenceProcess, ocrInferenceProcess } from '../inferenceProcess'
+import { asrInferenceProcess } from '../../capabilities/asr/AsrInferenceService'
+import { embeddingInferenceProcess, type InferenceProcessDefinition, ocrInferenceProcess } from '../inferenceProcess'
 import { InferenceServiceBase } from '../InferenceServiceBase'
-import type { InferenceInitData } from '../protocol'
 
 /**
  * The base owns three things after the process machinery moved into `core/utilityProcess`:
@@ -65,27 +67,27 @@ const HARDWARE_KEY = 'feature.local_model.hardware_acceleration.enabled'
 
 const initDataSeen: unknown[] = []
 let childStates: EchoChildState[]
-let definition: UtilityProcessDefinition<EchoContract, InferenceInitData>
+let definition: InferenceProcessDefinition<EchoContract>
 
 class TestInferenceService extends InferenceServiceBase<EchoContract> {
   constructor() {
     super(definition, 'embedding')
   }
 
-  ping(signal?: AbortSignal) {
-    return this.run('ping', undefined, { signal })
+  ping(signal?: AbortSignal, modelId: LocalModelBundleId = 'qwen3-embedding-0.6b') {
+    return this.run(modelId, 'ping', () => undefined, { signal })
   }
 
   block(signal?: AbortSignal) {
-    return this.run('wait', undefined, { signal })
+    return this.run('qwen3-embedding-0.6b', 'wait', () => undefined, { signal })
   }
 
   boom() {
-    return this.run('fail', undefined)
+    return this.run('qwen3-embedding-0.6b', 'fail', () => undefined)
   }
 
   nothing() {
-    return this.run('noop', undefined)
+    return this.run('qwen3-embedding-0.6b', 'noop', () => undefined)
   }
 }
 
@@ -122,9 +124,10 @@ beforeEach(() => {
   MockMainPreferenceServiceUtils.resetMocks()
   MockMainPreferenceServiceUtils.setPreferenceValue(HARDWARE_KEY, false)
   initDataSeen.length = 0
-  definition = echoDefinition({
-    createInitData: () => ({ appPath: '/app' })
-  }) as UtilityProcessDefinition<EchoContract, InferenceInitData>
+  definition = {
+    ...echoDefinition({ createInitData: () => ({ appPath: '/app' }) }),
+    resolveRuntimeProfile: embeddingInferenceProcess.resolveRuntimeProfile
+  } as InferenceProcessDefinition<EchoContract>
 })
 
 afterEach(() => {
@@ -134,6 +137,90 @@ afterEach(() => {
 describe('InferenceServiceBase lifecycle', () => {
   it('declares UtilityProcessManager as a dependency so onInit registers against an initialized manager', () => {
     expect(getDependencies(TestInferenceService)).toContain('UtilityProcessManager')
+  })
+})
+
+describe('InferenceServiceBase stream ownership', () => {
+  it('holds the queue through cancellation cleanup and never starts an aborted queued stream', async () => {
+    type StreamingContract = EchoContract & {
+      streams: { audio: UtilityProcessStreamMethod<void, never, UtilityProcessStreamFrame, void> }
+    }
+    const streamDefinition = defineUtilityProcess<StreamingContract>({
+      id: 'test.streaming',
+      entry: 'test-stream',
+      cancellation: 'cooperative'
+    })
+    const cleanup = Promise.withResolvers<void>()
+    const entered = Promise.withResolvers<void>()
+    let streams = 0
+    let ordinaryRequests = 0
+    const adapter = createMemoryProcessAdapter((child) => {
+      const { options } = echoServeOptions((error) => child.triggerFatal(error), { id: streamDefinition.id })
+      child.serve<StreamingContract>({
+        ...options,
+        handlers: {
+          ...options.handlers,
+          ping: () => {
+            ordinaryRequests++
+            return 'pong'
+          }
+        },
+        streams: {
+          audio: async (_, { signal }) => {
+            streams++
+            entered.resolve()
+            await new Promise<void>((resolve) => signal.addEventListener('abort', () => resolve(), { once: true }))
+            await cleanup.promise
+          }
+        }
+      })
+    })
+    const manager = new UtilityProcessManager({
+      adapter,
+      logger: createRecordingLogger(),
+      resolveEntry: () => '/out/test.js',
+      getTempDir: () => '/tmp/cherry-test'
+    })
+    await manager._doInit()
+    utilityProcessManager.current = manager
+    class StreamingService extends InferenceServiceBase<StreamingContract> {
+      constructor() {
+        super(streamDefinition, 'embedding')
+      }
+      stream(signal?: AbortSignal) {
+        const limits = { maxFrameBytes: 128, maxBufferedBytes: 256, maxBufferedFrames: 2, maxPendingWrites: 1 }
+        return this.openStream('qwen3-embedding-0.6b', 'audio', () => undefined, {
+          signal,
+          input: limits,
+          output: limits
+        })
+      }
+      ping() {
+        return this.run('qwen3-embedding-0.6b', 'ping', () => undefined)
+      }
+    }
+    const service = new StreamingService()
+    await service._doInit()
+    try {
+      const first = await service.stream()
+      await entered.promise
+      const controller = new AbortController()
+      const queued = service.stream(controller.signal)
+      const ordinary = service.ping()
+      controller.abort(new Error('cancel queued'))
+      await expect(queued).rejects.toThrow('cancel queued')
+      const cancelled = first.cancel()
+      await expect(first.completed).rejects.toThrow()
+      await flushMicrotasks()
+      expect(ordinaryRequests).toBe(0)
+      cleanup.resolve()
+      await cancelled
+      await expect(ordinary).resolves.toBe('pong')
+      expect(streams).toBe(1)
+    } finally {
+      cleanup.resolve()
+      await manager._doStop()
+    }
   })
 })
 
@@ -156,7 +243,7 @@ describe('InferenceServiceBase dispatch', () => {
     await expect(second).resolves.toBe('pong')
   })
 
-  it.each([embeddingInferenceProcess, ocrInferenceProcess])(
+  it.each([embeddingInferenceProcess, ocrInferenceProcess, asrInferenceProcess])(
     '$id cancellation waits for exit before dispatching the next native operation',
     async (processDefinition) => {
       definition = { ...definition, cancellation: processDefinition.cancellation }
@@ -207,7 +294,7 @@ describe('InferenceServiceBase dispatch', () => {
     }
   )
 
-  it.each([embeddingInferenceProcess, ocrInferenceProcess])(
+  it.each([embeddingInferenceProcess, ocrInferenceProcess, asrInferenceProcess])(
     '$id skips a cancelled queued request without killing the active process',
     async (processDefinition) => {
       definition = { ...definition, cancellation: processDefinition.cancellation }
@@ -282,6 +369,32 @@ describe('InferenceServiceBase runtime staleness', () => {
       await service.terminate()
     }
   })
+
+  it('uses the process definition profile policy for staleness checks', async () => {
+    const profiles = await import('../inferenceAcceleration')
+    const hardwareProfile = profiles.resolveLocalInferenceProfile(true, { platform: 'darwin', arch: 'arm64' })
+    let profile = profiles.CPU_LOCAL_INFERENCE_PROFILE
+    definition = { ...definition, resolveRuntimeProfile: () => profile }
+    const { service, adapter } = await createService()
+
+    await service.ping()
+    profile = hardwareProfile
+    await service.ping()
+
+    expect(adapter.spawns).toHaveLength(2)
+  })
+
+  it('keeps a CPU-only runtime alive when the acceleration preference changes', async () => {
+    const { CPU_LOCAL_INFERENCE_PROFILE } = await import('../inferenceAcceleration')
+    definition = { ...definition, resolveRuntimeProfile: () => CPU_LOCAL_INFERENCE_PROFILE }
+    const { service, adapter } = await createService()
+
+    await service.ping()
+    MockMainPreferenceServiceUtils.setPreferenceValue(HARDWARE_KEY, true)
+    await service.ping()
+
+    expect(adapter.spawns).toHaveLength(1)
+  })
 })
 
 describe('InferenceServiceBase teardown', () => {
@@ -300,7 +413,7 @@ describe('InferenceServiceBase teardown', () => {
 
     let spawnsDuringAfter = 0
     const blocked = rejectionOf(
-      service.terminateThen(async () => {
+      service.removeModelThen('qwen3-embedding-0.6b', async () => {
         spawnsDuringAfter = adapter.spawns.filter((spawn) => !spawn.child.exited).length
         await service.ping()
       })
@@ -308,5 +421,35 @@ describe('InferenceServiceBase teardown', () => {
 
     expect(await blocked).toHaveProperty('code', 'PROCESS_BLOCKED')
     expect(spawnsDuringAfter).toBe(0)
+  })
+})
+
+describe('model-scoped removal', () => {
+  it('removes an unused model without interrupting another model using the same process', async () => {
+    const { service, adapter } = await createService()
+    const active = service.block()
+    await waitUntil(() => childStates[0]?.waitSignals.length === 1, 'active inference')
+    let removed = false
+    await service.removeModelThen('pp-ocrv6-medium', async () => {
+      removed = true
+    })
+    expect(removed).toBe(true)
+    expect(adapter.spawns[0].child.exited).toBe(false)
+    childStates[0].release()
+    await expect(active).resolves.toBe('released')
+    await service.terminate()
+  })
+
+  it('invalidates queued work for a removed model without cancelling active work for another', async () => {
+    const { service, adapter } = await createService()
+    const active = service.block()
+    await waitUntil(() => childStates[0]?.waitSignals.length === 1, 'active inference')
+    const queued = rejectionOf(service.ping(undefined, 'pp-ocrv6-medium'))
+    await service.removeModelThen('pp-ocrv6-medium', async () => {})
+    childStates[0].release()
+    await expect(active).resolves.toBe('released')
+    expect(await queued).toHaveProperty('code', 'PROCESS_BLOCKED')
+    expect(adapter.spawns[0].child.exited).toBe(false)
+    await service.terminate()
   })
 })

@@ -29,7 +29,8 @@ export const FeishuAgentChannelConfigSchema = z.strictObject({
   encrypt_key: z.string(),
   verification_token: z.string(),
   allowed_chat_ids: z.array(z.string()).optional(),
-  domain: FeishuDomainSchema
+  domain: FeishuDomainSchema,
+  mention_only: z.boolean().optional()
 })
 
 export const QQAgentChannelConfigSchema = z.strictObject({

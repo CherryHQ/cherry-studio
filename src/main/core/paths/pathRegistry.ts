@@ -9,6 +9,7 @@
  * Helper constants must be primitives; put helper objects in a separate file.
  */
 
+import { createHash } from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -58,6 +59,7 @@ export function buildPathRegistry() {
   const appExtraResources = process.resourcesPath
   // `resources/` inside asar (bundled assets) — distinct from appExtraResources
   const appRootResources = path.join(app.getAppPath(), 'resources')
+  const voiceHelperFilename = process.platform === 'win32' ? 'cherry-system-speech.exe' : 'cherry-system-speech'
 
   return Object.freeze({
     // -- A. cherry.* — CHERRY_HOME infrastructure --
@@ -99,6 +101,13 @@ export function buildPathRegistry() {
       : path.join(__dirname, '../../migrations/sqlite-drizzle'),
 
     // -- D. feature.* — grouped by feature, physical location is irrelevant --
+    'feature.external_app.native_file': path.join(
+      appRootResources,
+      'binaries',
+      `${process.platform}-${process.arch}`,
+      'external-app.node'
+    ),
+
     'feature.selection.native_panel_file': path.join(
       appRootResources,
       'binaries',
@@ -109,6 +118,14 @@ export function buildPathRegistry() {
     'feature.remote_access.identity_file': path.join(appUserDataRuntime, 'remote-identity.enc'),
     // Plaintext fallback (0600) used only when no OS key store is available
     'feature.remote_access.plain_identity_file': path.join(appUserDataRuntime, 'remote-identity.key'),
+
+    'feature.computer_use.runtime': app.isPackaged
+      ? path.join(
+          appExtraResources,
+          'computer-use',
+          isMac ? 'Cherry Computer Use.app' : isWin ? 'open-computer-use.exe' : 'open-computer-use'
+        )
+      : path.join(app.getAppPath(), '.context', isWin ? 'computer-use-runtime.exe' : 'computer-use-runtime'),
 
     // Provider registry data (models.json, providers.json, etc.)
     'feature.provider_registry.data': app.isPackaged
@@ -131,11 +148,25 @@ export function buildPathRegistry() {
     // use of local embedding or local OCR — see ai/localModel's shared artifacts.
     'feature.onnxruntime.binary': path.join(appUserDataToolchain, 'onnxruntime'),
 
+    // sherpa-onnx native binding and its private onnxruntime, downloaded on demand.
+    'feature.sherpa_onnx.binary': path.join(appUserDataToolchain, 'sherpa-onnx'),
+
+    // ASR model files, downloaded on demand.
+    'feature.asr.qwen3': path.join(appUserDataRuntime, 'models', 'qwen3-asr-1.7b-8bit'),
+    'feature.asr.funasr': path.join(appUserDataRuntime, 'models', 'funasr-nano'),
+    'feature.mlx.binary': path.join(appUserDataToolchain, 'mlx-node'),
+    'feature.tts.qwen3': path.join(appUserDataRuntime, 'models', 'qwen3-tts-0.6b-customvoice-8bit'),
+    'feature.tts.kokoro': path.join(appUserDataRuntime, 'models', 'kokoro-multi-lang-v1.1'),
+
     // BabelDOC runtime cache (layout model, fonts, CMap/tiktoken assets)
     'feature.pdf_translation.babeldoc': path.join(appUserDataRuntime, 'models', 'babeldoc'),
 
-    'feature.pdfjs.cmaps': path.join(app.getAppPath(), 'node_modules', 'pdfjs-dist', 'cmaps'),
-    'feature.pdfjs.standard_fonts': path.join(app.getAppPath(), 'node_modules', 'pdfjs-dist', 'standard_fonts'),
+    'feature.pdfjs.cmaps': app.isPackaged
+      ? path.join(appExtraResources, 'pdfjs', 'cmaps')
+      : path.join(app.getAppPath(), 'node_modules', 'pdfjs-dist', 'cmaps'),
+    'feature.pdfjs.standard_fonts': app.isPackaged
+      ? path.join(appExtraResources, 'pdfjs', 'standard_fonts')
+      : path.join(app.getAppPath(), 'node_modules', 'pdfjs-dist', 'standard_fonts'),
 
     // BinaryManager (tool manager)
     'feature.binary.data': appUserDataToolchainMise,
@@ -143,6 +174,13 @@ export function buildPathRegistry() {
     // naming a Python runtime there is what makes mise fetch its own from
     // GitHub releases (see binaryManager/pythonRuntime.ts).
     'feature.binary.data.uv_python': path.join(appUserDataToolchainMise, 'uv-python'),
+    // Outside feature.binary.data: install XDG_CACHE_HOME inherits macOS userData's space, as do uv's sdist build dirs.
+    'feature.binary.data.uv_cache': path.join(
+      CHERRY_HOME,
+      'cache',
+      'uv',
+      createHash('sha256').update(path.resolve(appUserData)).digest('hex')
+    ),
     // Windows-only: %LOCALAPPDATA%/%APPDATA% relocated into the isolated install
     // home so mise's aqua signature verification resolves its cache/config dirs
     // without reading the user's real values (see getBinaryIsolatedHomeEnv).
@@ -209,7 +247,8 @@ export function buildPathRegistry() {
     // pi resume tokens persist the pi session id, never a filesystem path.
     'feature.agents.pi.root': path.join(appUserDataData, 'Agents', '.pi'), // Cherry-owned pi coding-agent home; passed explicitly as agentDir
     'feature.agents.pi.sessions': path.join(appUserDataData, 'Agents', '.pi', 'sessions'), // Passed explicitly as sessionDir
-    'feature.agents.pi.vcc_file': path.join(app.getAppPath(), 'out', 'main', 'pi-vcc.mjs'),
+    'feature.agents.outputs': path.join(appUserDataData, 'Agents', '.outputs'),
+    'feature.agents.durable.stores': path.join(appUserDataData, 'Agents', '.durable'),
     'feature.agents.data': path.join(appUserDataData, 'Agents'), // per-agent identity + memory data
     'feature.agents.forks': path.join(appUserDataData, 'Agents', '.forks'), // owned fork snapshots; retained for Pi lineage
     'feature.agents.system_workspaces': path.join(appUserDataData, 'Agents', 'system'), // app-owned session workspaces
@@ -277,6 +316,24 @@ export function buildPathRegistry() {
     'feature.preprocess.temp': path.join(appTemp, 'preprocess'),
     'feature.pdf_translation.temp': path.join(appTemp, 'pdf-translation'),
     'feature.files.intakes': path.join(appUserDataData, 'FileIntakes'),
+    'feature.voice.temp': path.join(
+      appTemp,
+      'voice',
+      createHash('sha256').update(path.resolve(appUserData)).digest('hex')
+    ),
+    'feature.voice.helper_file': app.isPackaged
+      ? process.platform === 'darwin'
+        ? path.join(appExtraResources, '..', 'Helpers', voiceHelperFilename)
+        : path.join(appExtraResources, 'system-speech', voiceHelperFilename)
+      : path.join(
+          app.getAppPath(),
+          'native',
+          'system-speech',
+          'dist',
+          'native',
+          `${process.platform}-${process.arch}`,
+          voiceHelperFilename
+        ),
     // FileManager's `withTempCopy` escape hatch parent dir; each call mkdtemps a
     // unique sub-directory under here.
     'feature.files.tempcopy.temp': path.join(appTemp, 'files-tempcopy'),
@@ -288,6 +345,7 @@ export function buildPathRegistry() {
     'v1.agents.claude': path.join(appUserData, '.claude'),
 
     // -- F. external.* — third-party tool paths (Cherry reads/writes, does NOT own) --
+    'external.agents.skills': path.join(sysHome, '.agents', 'skills'),
     'external.claude.config': path.join(sysHome, '.claude'),
     'external.browser.chrome': isMac
       ? path.join(sysHome, 'Library/Application Support/Google/Chrome')
@@ -370,6 +428,8 @@ type NoEnsureEntry = PathKey | `${TopNamespace}.`
  * Type-checked — typos or stale keys fail at compile time.
  */
 const NO_ENSURE = [
+  'feature.agents.pi.sessions',
+  'feature.agents.durable.stores',
   // Namespace prefixes
   'sys.',
   'external.',
@@ -379,6 +439,8 @@ const NO_ENSURE = [
   'app.install',
   'app.exe_file',
   'app.extra_resources',
+  'feature.voice.helper_file',
+  'feature.external_app.native_file',
   'app.root.resources',
   'app.root.resources.scripts',
   'app.root.resources.binaries',
@@ -388,6 +450,7 @@ const NO_ENSURE = [
   'feature.backup.restore.session',
   'app.database.migrations',
   'feature.provider_registry.data',
+  'feature.computer_use.runtime',
   'feature.pdfjs.cmaps',
   'feature.pdfjs.standard_fonts',
   'feature.webview.preload_file',
@@ -395,8 +458,8 @@ const NO_ENSURE = [
   'feature.agents.builtin',
   'feature.agents.assistant.manifest.file',
   'feature.agents.skills.builtin',
-  'feature.agents.pi.vcc_file',
   'feature.mini_app.builtin',
+  'feature.binary.data.uv_cache',
   // AgentSessionService stores this path through DataApi. The runtime creates
   // the concrete session directory later, keeping database writes filesystem-free.
   'feature.agents.system_workspaces',

@@ -6,23 +6,24 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
+import { resolveAutomationAccess } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { buildMcpInstructionsContext } from '@main/ai/mcp/serverInstructions'
-import { gatewayCredentialsFingerprint } from '@main/ai/runtime/agentApiGateway'
 import {
   type McpServerSnapshotMap,
   type NotifyChannel,
   resolveAgentNotificationContext,
   resolveLinkedNotifyChannel
 } from '@main/ai/runtime/agentMcpServers'
+import { isAutomationSkillAvailable } from '@main/ai/skills/automationSkills'
 import { skillService } from '@main/ai/skills/SkillService'
 import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
+import type { Provider } from '@shared/data/types/provider'
 
-import { usesPiGateway } from './modelInjection'
+import { gatewayCredentialsFingerprint } from '../agentApiGateway'
 
 function stableValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stableValue)
@@ -40,7 +41,6 @@ export interface PiConnectionSnapshot {
   session: AgentSessionEntity
   provider: Provider
   model: Model
-  enabledApiKeys: readonly ApiKeyEntry[]
   additionalSkillPaths: readonly string[]
   mcpServerSnapshots: McpServerSnapshotMap
   linkedChannel: NotifyChannel | null
@@ -53,8 +53,8 @@ export class PiInvalidConnectionSnapshotError extends Error {}
 
 /**
  * Capture every reconcilable fact consumed while constructing a Pi connection.
- * Prompt files intentionally remain connection-lifetime snapshots: changing them
- * does not invalidate a warm connection or its provider prompt cache.
+ * Workspace prompt files remain connection-lifetime snapshots. Agent identity
+ * files refresh through the turn hook without invalidating the warm connection.
  * The effective agent language (per-agent `configuration.language` or global
  * `agent.language` preference) is a rebuild fact: changing it invalidates the
  * warm connection so the new language instruction is baked into the next
@@ -83,7 +83,13 @@ export async function capturePiConnectionSnapshot(
     skillService.list({ agentId: agent.id }),
     skillService.listLocalSkillPaths(session.workspace.path)
   ])
-  const enabledSkills = skills.filter((skill) => skill.isEnabled)
+  const linkedChannel = resolveLinkedNotifyChannel(sessionId, agent.id)
+  const access = resolveAutomationAccess(agent, {
+    channelLinked: linkedChannel !== null,
+    browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
+    computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled')
+  })
+  const enabledSkills = skills.filter((skill) => skill.isEnabled && isAutomationSkillAvailable(skill, access))
   const mcpServerSnapshots = new Map<string, ReturnType<typeof mcpServerService.findByIdOrName>>()
   const mcpServers = (agent.mcps ?? []).map((idOrName) => {
     const server = mcpServerService.findByIdOrName(idOrName)
@@ -97,11 +103,9 @@ export async function capturePiConnectionSnapshot(
   const mcpTools = mcpServers.flatMap((server) =>
     'id' in server ? [{ serverId: server.id, tools: catalog.listTools(server.id, { includeDisabled: false }) }] : []
   )
-  const linkedChannel = resolveLinkedNotifyChannel(sessionId, agent.id)
   const notificationContext = resolveAgentNotificationContext(sessionId, agent.id, linkedChannel)
   const apiKeys = providerService.getApiKeys(parsed.providerId, { enabled: true })
   const configuration = { ...agent.configuration, permission_mode: undefined }
-  const gatewayCredentials = usesPiGateway(provider, model) ? gatewayCredentialsFingerprint() : null
   const effectiveLanguage = getEffectiveAgentLanguage(agent)
   const signature = createHash('sha256')
     .update(
@@ -121,9 +125,10 @@ export async function capturePiConnectionSnapshot(
           linkedChannel,
           notificationContext,
           browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
+          computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled'),
           knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
           effectiveLanguage,
-          gatewayCredentials
+          gateway: gatewayCredentialsFingerprint()
         })
       )
     )
@@ -134,7 +139,6 @@ export async function capturePiConnectionSnapshot(
     session,
     provider,
     model,
-    enabledApiKeys: apiKeys,
     effectiveLanguage,
     mcpInstructions,
     additionalSkillPaths: [

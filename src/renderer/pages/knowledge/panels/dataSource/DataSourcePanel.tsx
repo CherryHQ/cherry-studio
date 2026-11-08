@@ -9,9 +9,11 @@ import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import type { KnowledgeItemSort, KnowledgeItemSortBy } from '@shared/data/api/schemas/knowledges'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
-import { LOCAL_MODEL_BUNDLE_BY_CAPABILITY, type LocalModelStatus } from '@shared/data/presets/localModel'
+import { DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY, type LocalModelStatus } from '@shared/data/presets/localModel'
 import type { KnowledgeItem, KnowledgeItemOf, KnowledgeItemType } from '@shared/data/types/knowledge'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { KNOWLEDGE_DATA_SOURCE_TYPES } from '../../components/addKnowledgeItemDialog/constants'
 import KnowledgePanelShell from '../../components/KnowledgePanelShell'
@@ -23,6 +25,8 @@ import { dataSourceTypeDisplayConfig } from './utils/models'
 import { canReindexKnowledgeItem, getItemTitle } from './utils/selectors'
 
 export interface DataSourcePanelProps {
+  sort?: KnowledgeItemSort | null
+  onSortChange?: (sortBy: KnowledgeItemSortBy) => void
   embeddingModelId?: string | null
   items: KnowledgeItem[]
   /** Server-side total across all pages. Defaults to the loaded count when omitted. */
@@ -33,7 +37,7 @@ export interface DataSourcePanelProps {
   isLoadingMore?: boolean
   onLoadMore?: () => void
   updatedAt: string
-  onAdd: (source?: KnowledgeItemType, files?: File[]) => void
+  onAdd: (source?: KnowledgeItemType, files?: File[], directoryPaths?: AbsoluteFilePath[]) => void
   onPreviewFile: (target: KnowledgeFilePreviewTarget) => void
   /** View an item's indexed chunks in-app (the row's context menu). */
   onItemClick?: (itemId: string) => void
@@ -149,6 +153,8 @@ interface DataSourcePanelContentProps extends DataSourcePanelProps {
 }
 
 const DataSourcePanelContent = ({
+  sort = null,
+  onSortChange,
   items,
   total = items.length,
   isLoading,
@@ -186,6 +192,14 @@ const DataSourcePanelContent = ({
       return next.size === prev.size ? prev : next
     })
   }, [items])
+
+  const handleSortChange = useCallback(
+    (sortBy: KnowledgeItemSortBy) => {
+      setSelectedIds(new Set())
+      onSortChange?.(sortBy)
+    },
+    [onSortChange]
+  )
 
   const handleItemClick = (itemId: string) => onItemClick?.(itemId)
 
@@ -288,11 +302,35 @@ const DataSourcePanelContent = ({
   const handleFileDrop = useCallback(
     (event: DragEvent<HTMLDivElement>) => {
       const files = Array.from(event.dataTransfer.files)
-      if (files.length > 0) {
+      const directoryFiles = new Set<File>()
+      const directoryPaths: AbsoluteFilePath[] = []
+      try {
+        for (const item of Array.from(event.dataTransfer.items ?? [])) {
+          if (item.kind !== 'file' || !item.webkitGetAsEntry?.()?.isDirectory) {
+            continue
+          }
+          const file = item.getAsFile()
+          if (!file) {
+            throw new Error('Failed to capture a dropped directory')
+          }
+          directoryPaths.push(AbsoluteFilePathSchema.parse(window.api.file.getPathForFile(file)))
+          directoryFiles.add(file)
+        }
+      } catch (error) {
+        toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.add_dialog.submit.error')))
+        return
+      }
+      if (directoryPaths.length > 0) {
+        onAdd(
+          'file',
+          files.filter((file) => !directoryFiles.has(file)),
+          directoryPaths
+        )
+      } else if (files.length > 0) {
         onAdd('file', files)
       }
     },
-    [onAdd]
+    [onAdd, t]
   )
   const { isDragging, handleDragEnter, handleDragLeave, handleDragOver, handleDrop } =
     useDrag<HTMLDivElement>(handleFileDrop)
@@ -369,6 +407,9 @@ const DataSourcePanelContent = ({
           )
         ) : (
           <KnowledgeItemList
+            key={currentDirectory?.id ?? 'root'}
+            sort={sort}
+            onSortChange={handleSortChange}
             items={items}
             isLoading={isLoading}
             hasMore={hasMore}
@@ -414,7 +455,7 @@ const DataSourcePanelContent = ({
 }
 
 const LocalEmbeddingDataSourcePanel = (props: DataSourcePanelProps) => {
-  const { status, percent } = useLocalModel(LOCAL_MODEL_BUNDLE_BY_CAPABILITY.embedding)
+  const { status, percent } = useLocalModel(DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY.embedding)
 
   return (
     <DataSourcePanelContent {...props} localEmbeddingState={status === 'ready' ? undefined : { status, percent }} />

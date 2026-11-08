@@ -18,7 +18,11 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
-import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
+import {
+  resolveAgentCapabilities,
+  resolveAutomationAccess,
+  resolveMountedMcpServers
+} from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { BUILTIN_AGENT_PLUGIN_NAME } from '@main/ai/agents/builtin/builtinAgentDefinition'
 import {
   getBuiltinAgentPluginDirectory,
@@ -39,10 +43,12 @@ import {
   prepareAgentSessionWorkspaceDirectory
 } from '@main/ai/runtime/agentSessionWorkspace'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
+import { isAutomationSkillAvailable } from '@main/ai/skills/automationSkills'
 import { skillService } from '@main/ai/skills/SkillService'
 import {
   findBuiltinToolPolicy,
   listBuiltinToolPolicies,
+  resolveDelegationApproval,
   toCherryBuiltinRuntimeName,
   toMcpRuntimeName
 } from '@main/ai/toolApproval/builtinToolPolicy'
@@ -176,6 +182,7 @@ export async function buildClaudeCodeSessionSettings(
   const capabilities = resolveAgentCapabilities(agent)
   const mountedServers = resolveMountedMcpServers(agent, {
     browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
+    computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled'),
     channelLinked: linkedChannelSnapshot !== null
   })
 
@@ -210,7 +217,6 @@ export async function buildClaudeCodeSessionSettings(
   // `dispose` drops any approval still pending for this session when the
   // stream exits abnormally.
   const approvalEmitter = sessionState().getToolApprovalEmitterHolder(session.id)
-  const steerHolder = sessionState().getSteerHolder(session.id)
   // The hooks resolve the approval emitter / steer holder by session id at fire-time, so they are
   // not passed in; the holders above are created here only to expose them on `settings`.
   const { canUseTool, hooks, disallowedTools, toolPolicySnapshot } = await buildToolPermissions(
@@ -286,7 +292,7 @@ export async function buildClaudeCodeSessionSettings(
   // 9. Skills — pass the SDK skill-name whitelist (managed skills enabled for this
   // agent + the workspace's own .claude/skills). The CLAUDE_CONFIG_DIR/skills mirror
   // is maintained by SkillService (install/uninstall/startup), not here.
-  const skills = await buildSkillWhitelist(agent, cwd)
+  const skills = await buildSkillWhitelist(agent, cwd, linkedChannelSnapshot !== null)
 
   // 10. Build settings
   const declaredContextWindow = options?.contextWindow
@@ -345,7 +351,7 @@ export async function buildClaudeCodeSessionSettings(
     includePartialMessages: true,
     agentProgressSummaries: true,
     forwardSubagentText: true,
-    permissionMode: agentConfig?.permission_mode,
+    permissionMode: agentConfig?.permission_mode ?? 'default',
     allowedTools: finalAllowedTools,
     disallowedTools,
     plugins,
@@ -353,7 +359,6 @@ export async function buildClaudeCodeSessionSettings(
     canUseTool,
     hooks,
     approvalEmitter,
-    steerHolder,
     toolPolicySnapshot,
     warmQueryKey: session.id,
     ...(mcpToolMetadata ? { mcpToolMetadata } : {}),
@@ -399,8 +404,9 @@ export { buildMcpServers } from './mcpCatalog'
  * startup reconcile, never here — so concurrent session builds never race.
  */
 export async function buildSkillWhitelist(
-  agent: Pick<AgentEntity, 'id' | 'configuration'>,
-  cwd: string
+  agent: Pick<AgentEntity, 'id' | 'configuration' | 'disabledTools'>,
+  cwd: string,
+  channelLinked = false
 ): Promise<string[]> {
   const builtinRole = agent.configuration?.builtin_role as string | undefined
   const bundledNames = builtinRole ? (loadBuiltinAgentDefinition(builtinRole)?.skills ?? []) : []
@@ -410,7 +416,14 @@ export async function buildSkillWhitelist(
       skillService.list({ agentId: agent.id }),
       skillService.listLocalFolderNames(cwd)
     ])
-    const enabledNames = installedSkills.filter((skill) => skill.isEnabled).map((skill) => skill.folderName)
+    const access = resolveAutomationAccess(agent, {
+      channelLinked,
+      browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
+      computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled')
+    })
+    const enabledNames = installedSkills
+      .filter((skill) => skill.isEnabled && isAutomationSkillAvailable(skill, access))
+      .map((skill) => skill.folderName)
     names = [...enabledNames, ...workspaceNames, ...bundledNames]
   }
 
@@ -518,9 +531,19 @@ async function buildToolPermissions(
     // `canUseTool` under bypassPermissions.
     const interactionState = application.get('AgentSessionRuntimeService').getInteractionState(session.id)
     const policy = findBuiltinToolPolicy(toolName, mountedServers)
+    const delegationApproval =
+      policy?.approval === 'delegation'
+        ? resolveDelegationApproval(snapshot.getPermissionMode(), interactionState)
+        : undefined
+    if (delegationApproval === 'deny') {
+      return { behavior: 'deny', message: HEADLESS_INTERACTIVE_TOOL_DENIAL }
+    }
+    // Ordinary delegation is approved by PreToolUse. Reaching this callback means the SDK still
+    // requires a user decision, even when matchedAskRule is absent.
     const approvalHoldsInThisMode =
-      policy?.approval === 'required' &&
-      !(snapshot.getPermissionMode() === 'bypassPermissions' && policy.bypassApproval === 'lift')
+      policy?.approval === 'delegation' ||
+      (policy?.approval === 'required' &&
+        !(snapshot.getPermissionMode() === 'bypassPermissions' && policy.bypassApproval === 'lift'))
     const requiresInteractiveResponder = claudeToolRequiresUserInteraction(toolName) || approvalHoldsInThisMode
     if (requiresInteractiveResponder && interactionState.userResponse === 'unavailable') {
       return { behavior: 'deny', message: HEADLESS_INTERACTIVE_TOOL_DENIAL }

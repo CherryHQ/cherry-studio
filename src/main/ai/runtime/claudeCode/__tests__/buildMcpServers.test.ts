@@ -1,10 +1,5 @@
-/**
- * Regression for agents-jobs-3: the agent prompt/bootstrap drive memory via
- * `mcp__agent-memory__memory`, so every agent must actually get the `agent-memory`
- * server injected into the runtime MCP list AND allow its tools — not just reference the name.
- */
-
 import type * as NodeFs from 'node:fs'
+import { resolve as resolvePath } from 'node:path'
 import path from 'node:path'
 
 import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk'
@@ -13,7 +8,7 @@ import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as KnowledgeLookup from '@main/ai/tools/knowledgeLookup'
-import type { AgentEntity } from '@shared/data/api/schemas/agents'
+import { AGENT_TYPES, type AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 const {
@@ -30,7 +25,7 @@ const {
   mockGetPathStatus: vi.fn(),
   mockMkdir: vi.fn(),
   mockRealpath: vi.fn(),
-  mockGetPath: vi.fn(() => '/tmp/managed-workspaces'),
+  mockGetPath: vi.fn(() => resolvePath('/tmp/managed-workspaces')),
   mockPreferenceGet: vi.fn(() => undefined),
   mockListOrOutlineKnowledge: vi.fn(),
   mockEnsureManagedDirectory: vi.fn()
@@ -127,7 +122,7 @@ const session = {
   workspace: {
     id: 'ws-1',
     name: 'Workspace',
-    path: '/tmp/workspace',
+    path: resolvePath('/tmp/workspace'),
     type: 'user',
     orderKey: 'a0',
     createdAt: '2026-05-20T00:00:00.000Z',
@@ -260,13 +255,22 @@ describe('buildMcpServers', () => {
     mockGetAgent.mockReset()
   })
 
-  it('injects the agent-memory and skills servers for every agent (REGRESSION agents-jobs-3)', async () => {
-    const result = buildMcpServers(session, agent, WITHOUT_HOST_TOOLS, undefined, undefined, '/data/Agents/agent-1')
+  it('serves memory tools and instructions when mounted', async () => {
+    const agentDataDirectory = resolvePath('/data/Agents/agent-1')
+    const result = buildMcpServers(session, agent, WITHOUT_HOST_TOOLS, undefined, undefined, agentDataDirectory)
     expect(Object.keys(result ?? {})).toEqual(expect.arrayContaining(['cherry-tools', 'agent-memory', 'skills']))
     const { instance } = result!['agent-memory'] as McpSdkServerConfigWithInstance
     const client = await connectMcpTestClient(instance)
     expect((await client.listTools()).tools.map((tool) => tool.name)).toEqual(['memory'])
+    expect(client.getInstructions()).toContain(path.join(agentDataDirectory, 'memory', 'FACT.md'))
     await client.close()
+  })
+
+  it.each(AGENT_TYPES)('omits memory entirely for an opted-out %s agent', (type) => {
+    const disabledAgent = { ...agent, type, configuration: {}, disabledTools: ['mcp__agent-memory__memory'] }
+    const mounted = resolveMountedMcpServers(disabledAgent, { channelLinked: false })
+
+    expect(buildMcpServers(session, disabledAgent, mounted)?.['agent-memory']).toBeUndefined()
   })
 
   it('mounts mcp-manager only when the session resolved it, never off the agent role', () => {
@@ -442,7 +446,7 @@ describe('prepareClaudeCodeWorkspaceDirectory', () => {
     mockGetPathStatus.mockResolvedValueOnce({ ok: false, reason: 'missing' })
 
     await expect(
-      prepareClaudeCodeWorkspaceDirectory(makeSession('/tmp/user-workspace', 'user'))
+      prepareClaudeCodeWorkspaceDirectory(makeSession(resolvePath('/tmp/user-workspace'), 'user'))
     ).rejects.toBeInstanceOf(AgentSessionWorkspaceError)
 
     expect(mockMkdir).not.toHaveBeenCalled()
@@ -459,9 +463,9 @@ describe('prepareClaudeCodeWorkspaceDirectory', () => {
   })
 
   it('rejects system workspace paths outside the managed root', async () => {
-    await expect(prepareClaudeCodeWorkspaceDirectory(makeSession('/tmp/outside', 'system'))).rejects.toBeInstanceOf(
-      AgentSessionWorkspaceError
-    )
+    await expect(
+      prepareClaudeCodeWorkspaceDirectory(makeSession(resolvePath('/tmp/outside'), 'system'))
+    ).rejects.toBeInstanceOf(AgentSessionWorkspaceError)
 
     expect(mockGetPathStatus).not.toHaveBeenCalled()
     expect(mockMkdir).not.toHaveBeenCalled()
@@ -486,7 +490,7 @@ describe('prepareClaudeCodeWorkspaceDirectory', () => {
   it('keeps assertClaudeCodeWorkspaceDirectory as pure validation', async () => {
     mockGetPathStatus.mockResolvedValueOnce({ ok: false, reason: 'missing' })
 
-    await expect(assertClaudeCodeWorkspaceDirectory('sess-1', '/tmp/missing')).rejects.toBeInstanceOf(
+    await expect(assertClaudeCodeWorkspaceDirectory('sess-1', resolvePath('/tmp/missing'))).rejects.toBeInstanceOf(
       AgentSessionWorkspaceError
     )
 

@@ -3,7 +3,7 @@ import path from 'node:path'
 import type { BundleFile, ModelBundle } from '../catalog/types'
 import { applyDerivation } from './derivations'
 import { fetchTextVerified, streamToFileVerified, withMirrorFallback, writeFileAtomic } from './downloadEngine'
-import { type ModelSourceId, resolveModelFileUrl } from './modelSource'
+import { type ModelSourceId, orderDownloadUrls, resolveModelFileUrl } from './modelSource'
 
 /**
  * Fetching a bundle: one mirror decision for the whole run, one weighted progress bar
@@ -36,7 +36,15 @@ export async function downloadBundleFiles(
   let doneWeight = 0
 
   for (const file of files) {
-    const urls = sourceOrder.map((id) => resolveModelFileUrl(id, file.repo, file.remoteFile))
+    const urls = file.urls
+      ? orderDownloadUrls(file.urls, sourceOrder[0] === 'modelscope' ? 'china-first' : 'global-first')
+      : file.sources
+        ? sourceOrder.flatMap((id) =>
+            file.sources
+              .filter((source) => source.source === id)
+              .map((source) => resolveModelFileUrl(id, source.repo, source.remoteFile, source.revision))
+          )
+        : sourceOrder.map((id) => resolveModelFileUrl(id, file.repo, file.remoteFile))
     await withMirrorFallback(urls, signal, `${bundle.id}/${file.key}`, (url) =>
       writeBundleFile(file, url, path.join(installDir, file.relPath), signal, (fraction) =>
         onProgress?.((doneWeight + file.weight * fraction) / totalWeight)

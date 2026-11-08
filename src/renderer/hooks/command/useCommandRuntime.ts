@@ -7,14 +7,16 @@ import type { CommandId } from '@shared/utils/command'
 
 const logger = loggerService.withContext('useCommandRuntime')
 
-export type CommandHandler = () => void | Promise<void>
+export type CommandHandler = (args?: unknown) => void | Promise<void>
 
 export interface CommandHandlerOptions {
   enabled?: boolean
+  /** Synchronous keyboard-routing predicate; only consulted for keyboard dispatch. */
+  shouldHandleKeyEvent?: (event: KeyboardEvent) => boolean
 }
 
 export interface CommandRuntime {
-  execute: (command: CommandId) => void
+  execute: (command: CommandId, args?: unknown) => void
   hasHandler: (command: CommandId) => boolean
   registerHandler: (command: CommandId, handler: CommandHandler, options?: CommandHandlerOptions) => () => void
 }
@@ -43,10 +45,15 @@ export function useCommandHandler(command: CommandId, handler: CommandHandler, o
   const runtime = useCommandRuntime()
   const handlerRef = useRef(handler)
   handlerRef.current = handler
+  const predicateRef = useRef(options?.shouldHandleKeyEvent)
+  predicateRef.current = options?.shouldHandleKeyEvent
   const enabled = options?.enabled !== false
 
   useEffect(() => {
-    return runtime.registerHandler(command, () => handlerRef.current(), { enabled })
+    return runtime.registerHandler(command, (args) => handlerRef.current(args), {
+      enabled,
+      shouldHandleKeyEvent: (event) => predicateRef.current?.(event) ?? true
+    })
   }, [command, enabled, runtime])
 }
 

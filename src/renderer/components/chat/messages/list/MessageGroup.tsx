@@ -1,8 +1,9 @@
 import type { ComponentProps, ReactNode } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { Popover, PopoverContent, PopoverTrigger, Scrollbar } from '@cherrystudio/ui'
+import { Popover, PopoverContent, PopoverTrigger, PortalContainerProvider, ScrollArea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useCurrentTabId } from '@renderer/hooks/tab'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { scrollIntoView } from '@renderer/utils/dom'
@@ -360,17 +361,19 @@ const MessageGroup = ({
             key={message.id}
             trigger={gridPopoverTrigger}
             content={
-              <MessageWrapper
-                tabIndex={0}
-                className={classNames([
-                  'in-popover',
-                  {
-                    [multiModelMessageStyle]: message.role === 'assistant' && messages.length > 1,
-                    selected: message.id === selectedMessageId
-                  }
-                ])}>
-                <MessageItem onSelectContext={onSelectContext} {...messageProps} />
-              </MessageWrapper>
+              <SelectionContextMenu openBrowserUrl={actions.openBrowserUrl}>
+                <MessageWrapper
+                  tabIndex={0}
+                  className={classNames([
+                    'in-popover',
+                    {
+                      [multiModelMessageStyle]: message.role === 'assistant' && messages.length > 1,
+                      selected: message.id === selectedMessageId
+                    }
+                  ])}>
+                  <MessageItem onSelectContext={onSelectContext} {...messageProps} />
+                </MessageWrapper>
+              </SelectionContextMenu>
             }
             triggerContent={messageContent}
           />
@@ -380,6 +383,7 @@ const MessageGroup = ({
       return messageContent
     },
     [
+      actions.openBrowserUrl,
       isGrid,
       isGrouped,
       isMultiModelGroup,
@@ -444,7 +448,7 @@ const GridContainer = ({
   $count,
   style,
   ...props
-}: ComponentProps<typeof Scrollbar> & { $count: number }) => {
+}: Omit<ComponentProps<'div'>, 'dir'> & { $count: number }) => {
   const isHorizontal = className?.includes('horizontal')
   const isGrid = className?.includes('grid')
   const isFoldOrVertical = className?.includes('fold') || className?.includes('vertical')
@@ -456,18 +460,27 @@ const GridContainer = ({
         ? 'repeat(1, minmax(0, 1fr))'
         : undefined
 
-  const overflowStyle = isHorizontal ? ({ overflowX: 'auto', overflowY: 'hidden' } as const) : undefined
+  const gridClassName = classNames(
+    '[&.multi-select-mode_.message-content-container]:overflow-y-hidden! [&.multi-select-mode_.message-content-container>[data-slot=scroll-area-viewport]]:overflow-y-hidden! grid w-full gap-4 overflow-y-visible [&.fold]:gap-2 [&.grid]:grid-rows-[auto] [&.multi-select-mode]:gap-2.5 [&.multi-select-mode_.MessageFooter]:hidden [&.multi-select-mode_.grid]:h-auto [&.multi-select-mode_.message-content-container]:pointer-events-none [&.multi-select-mode_.message-content-container]:max-h-[200px] [&.multi-select-mode_.message]:rounded-[10px] [&.multi-select-mode_.message]:border-[0.5px] [&.multi-select-mode_.message]:border-border [&.multi-select-mode_.message]:p-2.5',
+    className
+  )
 
+  if (!isHorizontal) {
+    return <div className={gridClassName} style={{ gridTemplateColumns, ...style }} {...props} />
+  }
+
+  const { children, onWheel, ref, ...rootProps } = props
   return (
-    <Scrollbar
-      showOnHover={isHorizontal}
-      className={classNames(
-        '[&.multi-select-mode_.message-content-container]:overflow-y-hidden! grid w-full gap-4 overflow-y-visible [&.fold]:gap-2 [&.grid]:grid-rows-[auto] [&.horizontal]:overflow-x-auto [&.horizontal]:overflow-y-hidden [&.horizontal]:pb-1 [&.multi-select-mode]:gap-2.5 [&.multi-select-mode_.MessageFooter]:hidden [&.multi-select-mode_.grid]:h-auto [&.multi-select-mode_.message-content-container]:pointer-events-none [&.multi-select-mode_.message-content-container]:max-h-[200px] [&.multi-select-mode_.message]:rounded-[10px] [&.multi-select-mode_.message]:border-[0.5px] [&.multi-select-mode_.message]:border-border [&.multi-select-mode_.message]:p-2.5',
-        className
-      )}
-      style={{ gridTemplateColumns, ...overflowStyle, ...style }}
-      {...props}
-    />
+    <ScrollArea
+      {...rootProps}
+      className={classNames('w-full', className)}
+      style={style}
+      type="hover"
+      orientation="horizontal"
+      viewportProps={{ ref, onWheel, className: 'pb-1', style: { overflowX: 'auto', overflowY: 'hidden' } }}
+      contentProps={{ className: gridClassName, style: { display: 'grid', gridTemplateColumns } }}>
+      {children}
+    </ScrollArea>
   )
 }
 
@@ -498,7 +511,7 @@ const MessageWrapper = ({
       ref={messageId ? setElementRef : undefined}
       data-ui="chat.message"
       className={classNames([
-        '[&.horizontal_.message-content-container]:overflow-y-auto! [&.fold.selected]:inline-block [&.fold]:hidden [&.grid]:block [&.grid]:h-[300px] [&.grid]:cursor-pointer [&.grid]:overflow-y-hidden [&.grid]:rounded-[10px] [&.grid]:border-[0.5px] [&.grid]:border-border [&.grid_.MessageFooter]:mt-0.5 [&.grid_.MessageFooter]:mb-0.5 [&.grid_.MessageFooter]:ml-0 [&.grid_.message-body-column]:h-full [&.grid_.message-body-column]:min-h-0 [&.grid_.message-body-content]:flex [&.grid_.message-body-content]:min-h-0 [&.grid_.message-body-content]:flex-1 [&.grid_.message-content-container]:pointer-events-none [&.grid_.message-content-container]:flex-1 [&.grid_.message-content-container]:overflow-hidden [&.grid_.message-content-container]:pl-0 [&.grid_.message-header]:h-full [&.grid_.message]:h-full [&.grid_.message]:pt-0 [&.horizontal]:overflow-y-visible [&.horizontal]:p-px [&.horizontal_.MessageFooter]:mt-0.5 [&.horizontal_.MessageFooter]:mb-0.5 [&.horizontal_.MessageFooter]:ml-0 [&.horizontal_.message-body-column]:h-full [&.horizontal_.message-body-column]:min-h-0 [&.horizontal_.message-body-content]:flex [&.horizontal_.message-body-content]:min-h-0 [&.horizontal_.message-body-content]:flex-1 [&.horizontal_.message-content-container]:max-h-[calc(100vh-350px)] [&.horizontal_.message-content-container]:flex-1 [&.horizontal_.message-content-container]:pl-0 [&.horizontal_.message-header]:h-full [&.horizontal_.message]:h-full [&.horizontal_.message]:rounded-[10px] [&.horizontal_.message]:border-[0.5px] [&.horizontal_.message]:border-border [&.horizontal_.message]:p-2.5 [&.in-popover]:h-auto [&.in-popover]:max-h-[50vh] [&.in-popover]:cursor-default [&.in-popover]:overflow-y-auto [&.in-popover]:border-none [&.in-popover_.MessageFooter]:ml-0 [&.in-popover_.message-content-container]:pointer-events-auto [&.in-popover_.message-content-container]:pl-0',
+        '[&.fold.selected]:inline-block [&.fold]:hidden [&.grid]:block [&.grid]:h-[300px] [&.grid]:cursor-pointer [&.grid]:overflow-y-hidden [&.grid]:rounded-[10px] [&.grid]:border-[0.5px] [&.grid]:border-border [&.grid_.MessageFooter]:mt-0.5 [&.grid_.MessageFooter]:mb-0.5 [&.grid_.MessageFooter]:ml-0 [&.grid_.message-body-column]:h-full [&.grid_.message-body-column]:min-h-0 [&.grid_.message-body-content]:flex [&.grid_.message-body-content]:min-h-0 [&.grid_.message-body-content]:flex-1 [&.grid_.message-content-container]:pointer-events-none [&.grid_.message-content-container]:flex-1 [&.grid_.message-content-container]:overflow-hidden [&.grid_.message-content-container]:pl-0 [&.grid_.message-header]:h-full [&.grid_.message]:h-full [&.grid_.message]:pt-0 [&.horizontal]:overflow-y-visible [&.horizontal]:p-px [&.horizontal_.MessageFooter]:mt-0.5 [&.horizontal_.MessageFooter]:mb-0.5 [&.horizontal_.MessageFooter]:ml-0 [&.horizontal_.message-body-column]:h-full [&.horizontal_.message-body-column]:min-h-0 [&.horizontal_.message-body-content]:flex [&.horizontal_.message-body-content]:min-h-0 [&.horizontal_.message-body-content]:flex-1 [&.horizontal_.message-content-container]:max-h-[calc(100vh-350px)] [&.horizontal_.message-content-container]:flex-1 [&.horizontal_.message-content-container]:pl-0 [&.horizontal_.message-header]:h-full [&.horizontal_.message]:h-full [&.horizontal_.message]:rounded-[10px] [&.horizontal_.message]:border-[0.5px] [&.horizontal_.message]:border-border [&.horizontal_.message]:p-2.5 [&.in-popover]:h-auto [&.in-popover]:max-h-[50vh] [&.in-popover]:cursor-default [&.in-popover]:overflow-y-auto [&.in-popover]:border-none [&.in-popover_.MessageFooter]:ml-0 [&.in-popover_.message-content-container]:pointer-events-auto [&.in-popover_.message-content-container]:pl-0',
         { 'p-2.5': isGridCard },
         className
       ])}
@@ -518,6 +531,7 @@ const GridMessagePopover = ({
   trigger: 'hover' | 'click'
 }) => {
   const [open, setOpen] = useState(false)
+  const [contentElement, setContentElement] = useState<HTMLDivElement | null>(null)
   const isHover = trigger === 'hover'
 
   return (
@@ -530,12 +544,13 @@ const GridMessagePopover = ({
         </div>
       </PopoverTrigger>
       <PopoverContent
+        ref={setContentElement}
         onMouseEnter={isHover ? () => setOpen(true) : undefined}
         onMouseLeave={isHover ? () => setOpen(false) : undefined}
         className="z-1000 max-h-[60vh] w-auto max-w-[60vw] overflow-y-auto p-4"
         side="top"
         align="center">
-        {content}
+        <PortalContainerProvider container={contentElement}>{content}</PortalContainerProvider>
       </PopoverContent>
     </Popover>
   )
