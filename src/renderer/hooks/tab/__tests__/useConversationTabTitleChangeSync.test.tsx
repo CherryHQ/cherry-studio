@@ -17,7 +17,8 @@ vi.mock('@renderer/data/hooks/useCache', () => ({
     if (key === 'ui.tab.normal_tabs') return [normalTabsValue, vi.fn()]
     if (key === 'ui.tab.active_tab_id') return ['home', vi.fn()]
     return [[], vi.fn()]
-  }
+  },
+  usePersistCacheReader: () => () => []
 }))
 
 vi.mock('@renderer/ipc', () => ({

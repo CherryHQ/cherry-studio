@@ -330,7 +330,7 @@ describe('Tooltip', () => {
       )
 
       const content = getTooltipContentElement('dark-safe')
-      expect(content).toHaveClass('bg-neutral-900', 'text-neutral-50', 'dark:bg-neutral-100', 'dark:text-neutral-900')
+      expect(content).toHaveClass('bg-neutral-100', 'text-neutral-900', 'dark:bg-neutral-900', 'dark:text-neutral-50')
     })
 
     it('does not render tooltip content when isOpen is false', () => {
@@ -351,11 +351,11 @@ describe('Tooltip', () => {
       const arrow = content.querySelector('svg')
       expect(arrow).toBeInTheDocument()
       expect(arrow).toHaveClass(
-        'fill-neutral-900',
-        'stroke-neutral-900',
+        'fill-neutral-100',
+        'stroke-neutral-100',
         'stroke-2',
-        'dark:fill-neutral-100',
-        'dark:stroke-neutral-100'
+        'dark:fill-neutral-900',
+        'dark:stroke-neutral-900'
       )
       expect(arrow).toHaveAttribute('width', '12')
       expect(arrow).toHaveAttribute('height', '6')
