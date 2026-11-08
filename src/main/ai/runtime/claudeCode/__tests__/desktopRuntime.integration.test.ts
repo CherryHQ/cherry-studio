@@ -78,7 +78,14 @@ async function desktop(options: Parameters<typeof fixture>[0] = {}) {
   dbh.db.insert(agentSessionTable).values({ id: sessionId, workspaceId, name: 'Root', orderKey: 'a0' }).run()
   ports.build.mockResolvedValue({
     key: sessionId,
-    options: { ...test.options, env: { ...test.options.env, CLAUDE_CONFIG_DIR: test.configDir } },
+    options: {
+      ...test.options,
+      env: {
+        ...test.options.env,
+        CLAUDE_CONFIG_DIR: test.configDir,
+        CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: '1'
+      }
+    },
     settings: {},
     sdkModelId: 'claude-sonnet-4-6',
     connectionConfig: {
