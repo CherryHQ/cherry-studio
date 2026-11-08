@@ -3,10 +3,10 @@ import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 
 import { ipcApi, useIpcOn } from '@renderer/ipc'
-import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
+import { isManagedCherryAiProviderId, isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 
-const CHERRY_CLOUD_AVAILABILITY_KEY = 'cherry-cloud/model-availability'
+export const CHERRY_CLOUD_AVAILABILITY_KEY = 'cherry-cloud/model-availability'
 const CHERRY_CLOUD_AVAILABILITY_REFRESH_INTERVAL_MS = 60_000
 
 /**
@@ -38,15 +38,23 @@ export function useCherryCloudModelAvailability(enabled = true) {
     const quotaExhaustedModelIds = new Set(cloudAvailability?.quotaExhaustedModelIds)
     const agentModelIds = new Set(cloudAvailability?.availableModelIds.agent)
     const generalModelIds = new Set(cloudAvailability?.availableModelIds.general)
+    const settled = cloudAvailability !== undefined
 
     return {
       /** False until a server snapshot arrives, including after a status reset. */
-      isAvailabilityReady: cloudAvailability !== undefined,
+      isAvailabilityReady: settled,
       availabilityError,
       /** Hidden until the first snapshot arrives, then hidden wherever the server does not enable it. */
       isModelHidden: (model: Model, includeAgentOnlyModels: boolean) =>
         isManagedCherryCloudModel(model.providerId) &&
         !(includeAgentOnlyModels ? agentModelIds : generalModelIds).has(model.id),
+      /** Unusable here per a settled snapshot: signed out, not entitled, or not enabled for this module. */
+      isModelLocked: (model: Model, includeAgentOnlyModels: boolean) =>
+        settled &&
+        isManagedCherryCloudModel(model.providerId) &&
+        !(includeAgentOnlyModels ? agentModelIds : generalModelIds).has(model.id),
+      /** The built-in CherryAI models and Cloud models granted only by a free plan. */
+      isModelFree: (model: Model) => isManagedCherryAiProviderId(model.providerId) || freeModelIds.has(model.id),
       isModelUnavailable: (model: Model) =>
         isManagedCherryCloudModel(model.providerId) && quotaExhaustedModelIds.has(model.id),
       getModelDescription: (model: Model): string | undefined => {

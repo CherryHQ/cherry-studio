@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
 import { ResourceList } from '@renderer/components/chat/resourceList/base'
+import { useConversationListShortcuts } from '@renderer/components/chat/resourceList/useConversationListShortcuts'
 import {
   type AgentSessionDisplayMode,
   isSystemWorkspaceSession,
@@ -65,11 +66,15 @@ export function SessionListBody({
 }: SessionListBodyProps) {
   const { t } = useTranslation()
 
+  const openSession = useCallback((session: SessionListItem) => setActiveSessionId(session.id), [setActiveSessionId])
+  const shortcutHints = useConversationListShortcuts(openSession)
+
   const renderItem = useCallback(
     (session: SessionListItem) => (
       <SessionItem
         key={session.id}
         session={session}
+        shortcutHint={shortcutHints.get(session.id)}
         active={session.id === activeSessionId}
         channelType={channelTypeMap[session.id]}
         pinned={session.pinned}
@@ -110,7 +115,8 @@ export function SessionListBody({
       panePosition,
       sidebarSessionFavoriteIdSet,
       sessionMenuActions,
-      setActiveSessionId
+      setActiveSessionId,
+      shortcutHints
     ]
   )
 

@@ -7,6 +7,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@renderer/data/DataApiService'
+import type * as TabHooks from '@renderer/hooks/tab'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { popup } from '@renderer/services/popup'
 import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
@@ -429,7 +430,8 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgents: agentDataMocks.useAgents
 }))
 
-vi.mock('@renderer/hooks/tab', () => ({
+vi.mock('@renderer/hooks/tab', async (importOriginal) => ({
+  ...(await importOriginal<typeof TabHooks>()),
   useCloseConversationTabs: () => tabsContextMocks.closeConversationTabs,
   useOptionalTabsContext: () => tabsContextMocks,
   useCurrentTabId: () => null
@@ -4775,9 +4777,7 @@ describe('Sessions', () => {
       refetch: dataApiMocks.refetchAgents
     })
     setupSessions({
-      sessions: [
-        createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' })
-      ]
+      sessions: [createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' })]
     })
     let confirm: ((deleteChildren: boolean) => Promise<void>) | undefined
     permanentDeletePopupMocks.show.mockImplementation(

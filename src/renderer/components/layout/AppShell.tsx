@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
-import { useCommandHandler } from '@renderer/hooks/command'
+import { useCommandHandler, useCommandRuntime } from '@renderer/hooks/command'
 import { useTabs } from '@renderer/hooks/tab'
 import { useLeadingWindowControlsOverlay } from '@renderer/hooks/useLeadingWindowControlsOverlay'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useNativeFullscreen } from '@renderer/hooks/useNativeFullscreen'
+import { useNumberShortcutHints } from '@renderer/hooks/useNumberShortcutHints'
 import { ipcApi } from '@renderer/ipc'
+import { TAB_NUMBER_COMMANDS } from '@renderer/utils/numberShortcuts'
 import { isMac } from '@renderer/utils/platform'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
@@ -23,7 +25,7 @@ import { TabRouter } from './TabRouter'
 
 // Routes whose pages stay usable below the global minimum window width.
 const isCompactMinWidthRoute = (url?: string): boolean =>
-  !!url && (url.startsWith('/app/chat') || url.startsWith('/app/agents'))
+  !!url && (url.startsWith('/app/chat') || url.startsWith('/app/agents') || url.startsWith('/app/scheduled-tasks'))
 
 export const AppShell = () => (
   <NotificationCenterProvider>
@@ -110,6 +112,31 @@ const AppShellContent = () => {
     handleCloseTab(activeTabId)
   }, [activeTabId, handleCloseTab])
 
+  const commandRuntime = useCommandRuntime()
+  const tabCommandHints = useNumberShortcutHints(TAB_NUMBER_COMMANDS)
+  const orderedTabs = useMemo(
+    () => [...tabs.filter((tab) => tab.isPinned), ...tabs.filter((tab) => !tab.isPinned)],
+    [tabs]
+  )
+  const tabShortcutHints = new Map(
+    orderedTabs
+      .slice(0, TAB_NUMBER_COMMANDS.length)
+      .map((tab, index) => [tab.id, tabCommandHints.get(TAB_NUMBER_COMMANDS[index])])
+  )
+  useEffect(() => {
+    const disposers = TAB_NUMBER_COMMANDS.map((command, index) => {
+      const tab = orderedTabs[index]
+      return commandRuntime.registerHandler(
+        command,
+        () => {
+          if (tab) setActiveTab(tab.id)
+        },
+        { enabled: !!tab }
+      )
+    })
+    return () => disposers.forEach((dispose) => dispose())
+  }, [commandRuntime, setActiveTab, orderedTabs])
+
   useCommandHandler('app.search', handleOpenGlobalSearch)
   useCommandHandler('tab.close', handleCloseActiveTab, { enabled: canCloseTab })
   useCommandHandler('tab.next', () => cycleTab('next'), { enabled: canCycleTabs })
@@ -170,6 +197,7 @@ const AppShellContent = () => {
   const tabBar = (
     <AppShellTabBar
       tabs={tabBarTabs}
+      shortcutHints={tabShortcutHints}
       activeTabId={activeTabId}
       isFullscreen={isFullscreen}
       isFocusedTab={isSettingsTabActive}
@@ -226,6 +254,7 @@ const AppShellContent = () => {
   if (!isMac && !hasLeadingWindowControls) {
     return (
       <div
+        data-ui="app.shell"
         className={cn(
           'flex h-screen w-screen flex-row overflow-hidden text-foreground',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
@@ -238,6 +267,7 @@ const AppShellContent = () => {
 
   return (
     <div
+      data-ui="app.shell"
       className={cn(
         'relative flex h-screen w-screen flex-row overflow-hidden text-foreground',
         isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'

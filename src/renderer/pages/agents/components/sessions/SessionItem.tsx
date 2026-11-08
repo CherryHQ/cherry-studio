@@ -4,7 +4,7 @@ import type { MouseEvent } from 'react'
 import { memo, useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Tooltip } from '@cherrystudio/ui'
+import { Kbd, Tooltip } from '@cherrystudio/ui'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import type {
   SessionActionContext,
@@ -29,6 +29,7 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 
 interface SessionItemProps {
+  shortcutHint?: string
   active?: boolean
   channelType?: string
   onDelete: (id: string) => void | Promise<void>
@@ -88,7 +89,8 @@ const SessionItem = ({
   reserveLeadingIconSlot = true,
   sidebarPinned = false,
   session,
-  sessionMenuActions
+  sessionMenuActions,
+  shortcutHint
 }: SessionItemProps) => {
   const { t } = useTranslation()
   const rightPanelState = useOptionalRightPanelState()
@@ -341,6 +343,9 @@ const SessionItem = ({
         />
       )}
 
+      {!rowState.renaming && shortcutHint && (
+        <Kbd className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-muted-foreground">{shortcutHint}</Kbd>
+      )}
       <ResourceList.ItemActions pinned={pinned && showPinAction}>
         {showPinAction && (
           <Tooltip title={pinned ? t('agent.session.unpin.title') : t('agent.session.pin.title')} delay={500}>

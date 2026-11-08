@@ -10,11 +10,10 @@ const logger = loggerService.withContext('useCommandRuntime')
 export type CommandHandler = (args?: unknown) => void | Promise<void>
 
 export interface CommandHandlerOptions {
-  /**
-   * Static flag, or a getter read when a keybinding is resolved.
-   * A getter sees focus and other event-time state; a boolean captured at registration can be stale.
-   */
+  /** Read at dispatch time so focus-dependent availability stays current. */
   enabled?: boolean | (() => boolean)
+  /** Synchronous keyboard-routing predicate; only consulted for keyboard dispatch. */
+  shouldHandleKeyEvent?: (event: KeyboardEvent) => boolean
 }
 
 export interface CommandRuntime {
@@ -49,12 +48,15 @@ export function useCommandHandler(command: CommandId, handler: CommandHandler, o
   handlerRef.current = handler
   const enabledRef = useRef(options?.enabled)
   enabledRef.current = options?.enabled
+  const predicateRef = useRef(options?.shouldHandleKeyEvent)
+  predicateRef.current = options?.shouldHandleKeyEvent
 
   useEffect(() => {
     return runtime.registerHandler(command, (args) => handlerRef.current(args), {
       get enabled() {
         return enabledRef.current
-      }
+      },
+      shouldHandleKeyEvent: (event) => predicateRef.current?.(event) ?? true
     })
   }, [command, runtime])
 }

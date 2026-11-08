@@ -235,3 +235,50 @@ describe('CommandProvider', () => {
     expect(loggerMock.warn).toHaveBeenCalledWith('No renderer command handler registered: topic.create')
   })
 })
+
+describe('keyboard routing predicates', () => {
+  function PredicateCommand({ accept, onExecute }: { accept: boolean; onExecute: () => void }) {
+    useCommandHandler('topic.create', onExecute, { shouldHandleKeyEvent: () => accept })
+    return null
+  }
+
+  it('ignores the legacy IME composition key code', () => {
+    const execute = vi.fn()
+    renderProvider(<RegisteredCommand command="topic.create" onExecute={execute} />)
+    const prevented = dispatchShortcut({ keyCode: 229 })
+    expect(execute).not.toHaveBeenCalled()
+    expect(prevented).not.toHaveBeenCalled()
+  })
+
+  it('uses the latest predicate and active registration without falling back', () => {
+    const first = vi.fn()
+    const second = vi.fn()
+    const tree = (accept: boolean, showSecond: boolean) => (
+      <CommandContextKeyProvider>
+        <CommandProvider>
+          <PredicateCommand accept onExecute={first} />
+          {showSecond && <PredicateCommand accept={accept} onExecute={second} />}
+        </CommandProvider>
+      </CommandContextKeyProvider>
+    )
+    const { rerender } = render(tree(false, true))
+    expect(dispatchShortcut({})).not.toHaveBeenCalled()
+    expect(first).not.toHaveBeenCalled()
+    expect(second).not.toHaveBeenCalled()
+    rerender(tree(true, true))
+    expect(dispatchShortcut({})).toHaveBeenCalledOnce()
+    expect(second).toHaveBeenCalledOnce()
+    rerender(tree(false, false))
+    expect(dispatchShortcut({})).toHaveBeenCalledOnce()
+    expect(first).toHaveBeenCalledOnce()
+  })
+
+  it('dispatches a pre-cancelled event when no predicate is provided', () => {
+    const execute = vi.fn()
+    renderProvider(<RegisteredCommand command="topic.create" onExecute={execute} />)
+    const event = new KeyboardEvent('keydown', { key: 'n', code: 'KeyN', ctrlKey: true, cancelable: true })
+    event.preventDefault()
+    window.dispatchEvent(event)
+    expect(execute).toHaveBeenCalledOnce()
+  })
+})

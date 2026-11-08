@@ -147,6 +147,40 @@ describe('useCherryCloudModelAvailability', () => {
     expect(result.current.getModelDescription(regular)).toBeUndefined()
   })
 
+  it('locks a Cloud model only once a snapshot says this module cannot use it', async () => {
+    const workOnly = cloud('work-only')
+    const pending = Promise.withResolvers<CherryCloudModelSyncResult>()
+    mocks.ipcRequest.mockReturnValueOnce(pending.promise)
+    const { result } = renderHook(() => useCherryCloudModelAvailability(), { wrapper: wrapper() })
+
+    expect(result.current.isModelLocked(workOnly, true)).toBe(false)
+    pending.resolve(
+      snapshot({ entitledModelIds: [workOnly.id], availableModelIds: { agent: [workOnly.id], general: [] } })
+    )
+
+    await waitFor(() => expect(result.current.isModelLocked(workOnly, false)).toBe(true))
+    expect(result.current.isModelLocked(workOnly, true)).toBe(false)
+    expect(result.current.isModelLocked(regular, false)).toBe(false)
+  })
+
+  it('does not lock a model while a sign-in still waits for its snapshot', async () => {
+    const shared = cloud('shared')
+    mocks.ipcRequest.mockResolvedValueOnce(snapshot())
+    const { result } = renderHook(() => useCherryCloudModelAvailability(), { wrapper: wrapper() })
+    await waitFor(() => expect(result.current.isModelLocked(shared, true)).toBe(true))
+
+    const signedIn = Promise.withResolvers<CherryCloudModelSyncResult>()
+    mocks.ipcRequest.mockReturnValueOnce(signedIn.promise)
+    act(() => mocks.statusChanged?.())
+
+    await waitFor(() => expect(result.current.isModelLocked(shared, true)).toBe(false))
+    signedIn.resolve(
+      snapshot({ entitledModelIds: [shared.id], availableModelIds: { agent: [shared.id], general: [shared.id] } })
+    )
+    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledTimes(2))
+    expect(result.current.isModelLocked(shared, true)).toBe(false)
+  })
+
   it('does not synchronize while disabled', async () => {
     renderHook(() => useCherryCloudModelAvailability(false), { wrapper: wrapper() })
 

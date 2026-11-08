@@ -14,6 +14,7 @@ import { expect, it, onTestFinished } from 'vitest'
 import { runtimeId, type ObservationPayload, type OperationResult } from '@cherrystudio/agent-runtime'
 
 import { createPiRuntime } from '../src'
+import { createTestBehavior } from './sessionSupport'
 
 function confirmed<T>(result: OperationResult<T>): T {
   expect(result.status).toBe('confirmed')
@@ -68,6 +69,7 @@ async function setup() {
   })
   const handle = confirmed(
     await runtime.create({
+      behavior: createTestBehavior(),
       cwd,
       agentDir: cwd,
       modelRuntime: models,
@@ -76,9 +78,6 @@ async function setup() {
         (pi) => {
           pi.on('message_start', (event) => {
             if (event.message.role === 'assistant') started()
-          })
-          pi.on('session_start', () => {
-            pi.sendUserMessage('Stream a reply')
           })
         }
       ]
@@ -90,6 +89,7 @@ async function setup() {
       events.push(event)
     })
   )
+  await handle.input.submit({ inputId: runtimeId('stream-input'), text: 'Stream a reply', whenBusy: 'reject' })
   await ready
   const updates = () =>
     events.flatMap((event) =>
