@@ -16,7 +16,7 @@ import { loggerService } from '@logger'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork'
 import { ProjectionSubscriptions } from '@main/ai/messages/ProjectionSubscriptions'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
-import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
+import { RuntimeForkAnchorSchema, type RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
@@ -403,11 +403,30 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
+  getForkCheckpointValidator(sessionId: string): ((value: unknown) => boolean) | undefined {
+    const session = agentSessionService.getById(sessionId)
+    const agent = session.agentId ? agentService.getAgent(session.agentId) : undefined
+    const driver = agent ? runtimeDriverRegistry.getAgentSessionDriver(agent.type) : undefined
+    return driver?.fork ? driver.isForkCheckpoint?.bind(driver) : undefined
+  }
+
   async getEditTarget(sessionId: string, messageId: string): Promise<AgentSessionEditDraft> {
     this.assertSessionEditable(sessionId)
     const snapshot = application
       .get('DbService')
       .withWriteTx((tx) => agentSessionMessageService.readEditSnapshotTx(tx, sessionId, messageId))
+    const validateCheckpoint = this.getForkCheckpointValidator(sessionId)
+    const boundary = snapshot.prefix.at(-1)
+    const anchor = RuntimeForkAnchorSchema.safeParse(boundary?.data.runtimeAnchor)
+    if (
+      !validateCheckpoint ||
+      (boundary &&
+        (boundary.role !== 'assistant' ||
+          boundary.status !== 'success' ||
+          !anchor.success ||
+          !validateCheckpoint(anchor.data.checkpoint)))
+    )
+      throw new AgentSessionEditError('checkpoint_unsupported')
     const parts = snapshot.user.data.parts ?? []
     await validateEditedInput(parts)
     return { messageId, version: snapshot.version, parts }

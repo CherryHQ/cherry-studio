@@ -17,7 +17,7 @@ sources:
 
 ## Behavior
 
-Pi and Claude Code support **Fork** on completed assistant messages.
+Pi and Claude Code support **Fork** on successful assistant messages with valid native checkpoints.
 Pi Durable does not yet expose desktop fork checkpoints or **Edit and resend**;
 these operations reject unsupported native history rather than rebuilding it from product messages.
 The operation creates an independent Agent session containing the visible
@@ -50,7 +50,8 @@ that binding and do not overwrite the original prefix rows.
 
 For the first input, an empty prefix records a fresh intended native identity;
 Pi creates that context on dispatch. A nonempty prefix requires a valid native
-checkpoint. Editing is rejected while the session has unsettled work.
+checkpoint immediately before the edited input. Editing is rejected while the session has unsettled work.
+Neither edit/resend nor branch selection restores workspace files.
 
 The sibling navigator selects the chosen sibling's latest descendant. Selection
 only changes the stored view; it does not run the harness. The next send resolves
@@ -127,6 +128,18 @@ are opaque to the host and data layer. Native schemas live in each adapter's
 `forkCheckpoint.ts` and validate capture, fork input, and remapped results. Public
 message reads strip `runtimeAnchor`. The child uses the existing
 `runtimeResumeToken` persistence and normal runtime resume path.
+
+Message listing returns Main-authored `historyActions` alongside the visible rows.
+Main combines driver support with the adapter's synchronous checkpoint-schema validator.
+Fork requires a successful native-backed assistant boundary; editing requires either
+the first input or such a boundary immediately before the input. The renderer
+uses these decisions without receiving the private anchor. Listing opens no native
+files or runtime connections. A file removed after listing still causes an explicit
+execution-time failure. Unsupported Durable actions remain unavailable.
+
+When Claude resets its native session, Main prepares the successor binding from
+the current product head before switching the active handle and context. Old
+session controls and results cannot replace the successor checkpoint.
 
 Fork publication uses existing session/message tables and native context bindings,
 without an `app_state` fork record. Cherry does not

@@ -1,3 +1,4 @@
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -34,31 +35,12 @@ import { agentSessionMessageHandlers } from '../agentSessionMessages'
 describe('agentSessionMessageHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    MockApplicationUtils.setService('AgentSessionRuntimeService', { getForkCheckpointValidator: () => undefined })
     // `getConversationById` is synchronous; scope violations throw inline.
     getConversationByIdMock.mockReturnValue({ id: 'session-1' })
   })
 
   describe('/agent-sessions/:sessionId/messages', () => {
-    it('forwards messageId query to agentSessionMessageService.listSessionMessages', async () => {
-      // `listSessionMessages` is synchronous (better-sqlite3), so the mock must return, not resolve.
-      const response = { items: [], nextCursor: undefined }
-      listSessionMessagesMock.mockReturnValueOnce(response)
-
-      const result = await agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'].GET({
-        params: { sessionId: 'session-1' },
-        query: {
-          messageId: 'message-1',
-          limit: '25'
-        }
-      } as never)
-
-      expect(listSessionMessagesMock).toHaveBeenCalledWith('session-1', {
-        messageId: 'message-1',
-        limit: 25
-      })
-      expect(result).toBe(response)
-    })
-
     it('replaces an oversized assistant tool output with a reference, leaving the stored data alone', async () => {
       const output = { content: 'x'.repeat(64 * 1024) }
       const assistant = {

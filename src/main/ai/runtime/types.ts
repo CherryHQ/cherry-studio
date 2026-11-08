@@ -288,6 +288,7 @@ export interface AgentSessionRuntimeDriver {
   /** Restore persisted runtime history after generic fork, crash and delivery recovery. */
   recoverSessions?(): Promise<void>
   fork?(input: RuntimeForkInput): Promise<RuntimeForkResult>
+  isForkCheckpoint?(value: unknown): boolean
   /**
    * Per-driver session prerequisite check: throws if the session can't be
    * served (e.g. workspace path missing, credentials absent). Hosts call

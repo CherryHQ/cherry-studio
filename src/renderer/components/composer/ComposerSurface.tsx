@@ -399,10 +399,6 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
               onKeyDown={(event) => {
                 if (props.editable === false) return
                 requestRuntime()
-                if (event.key === 'Tab' && event.shiftKey && !event.nativeEvent.isComposing && props.onShiftTab?.()) {
-                  event.preventDefault()
-                  return
-                }
                 if (navigateInputHistory(event)) {
                   event.preventDefault()
                   return

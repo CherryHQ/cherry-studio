@@ -43,6 +43,7 @@ import {
 import { applyApprovalDecisions, type ApprovalDecision } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
+  AgentSessionHistoryActions,
   AgentSessionMessageEntity,
   CreateAgentSessionMessageDto,
   CreateAgentSessionMessagesDto,
@@ -966,7 +967,8 @@ export class AgentSessionMessageService {
    */
   listSessionMessages(
     sessionId: string,
-    options: ListSessionMessagesOptions = {}
+    options: ListSessionMessagesOptions = {},
+    isForkCheckpoint?: (value: unknown) => boolean
   ): CursorPaginationResponse<AgentSessionMessageEntity> {
     const database = application.get('DbService').getDb()
 
@@ -1030,10 +1032,52 @@ export class AgentSessionMessageService {
           .orderBy(asc(sessionMessagesTable.createdAt), asc(sessionMessagesTable.id))
           .all()
       : []
-    const items = pageRows.map((row) => ({
-      ...this.rowToEntity(row),
-      siblings: siblings.filter((sibling) => sibling.parentId === row.parentId).map((sibling) => sibling.id)
-    }))
+    const parentBoundaries = parents.length
+      ? database
+          .select({
+            id: sessionMessagesTable.id,
+            role: sessionMessagesTable.role,
+            status: sessionMessagesTable.status,
+            anchor: sql<string>`json_quote(json_extract(${sessionMessagesTable.data}, '$.runtimeAnchor'))`
+          })
+          .from(sessionMessagesTable)
+          .where(and(eq(sessionMessagesTable.sessionId, sessionId), inArray(sessionMessagesTable.id, parents)))
+          .all()
+      : []
+    const boundaries = new Map(
+      parentBoundaries.map((row) => [
+        row.id,
+        {
+          ...row,
+          anchor: JSON.parse(row.anchor)
+        }
+      ])
+    )
+    const forkReason = (row: {
+      role: string
+      status: string
+      anchor?: unknown
+    }): AgentSessionHistoryActions['fork'] => {
+      if (!isForkCheckpoint) return 'unsupported_checkpoint'
+      if (row.role !== 'assistant' || row.status !== 'success') return 'not_turn_boundary'
+      const anchor = RuntimeForkAnchorSchema.safeParse(row.anchor)
+      if (!anchor.success) return 'legacy_history'
+      return isForkCheckpoint(anchor.data.checkpoint) ? null : 'unsupported_checkpoint'
+    }
+    const items = pageRows.map((row) => {
+      const parent = row.parentId ? boundaries.get(row.parentId) : undefined
+      const edit: AgentSessionHistoryActions['edit'] =
+        row.role !== 'user' || row.delivery
+          ? 'invalid_target'
+          : !isForkCheckpoint || !parent || (parent.role !== 'root' && forkReason(parent) !== null)
+            ? 'checkpoint_unsupported'
+            : null
+      return {
+        ...this.rowToEntity(row),
+        historyActions: { fork: forkReason({ ...row, anchor: row.data.runtimeAnchor }), edit },
+        siblings: siblings.filter((sibling) => sibling.parentId === row.parentId).map((sibling) => sibling.id)
+      }
+    })
     const tail = pageRows[pageRows.length - 1]
     const nextCursor = hasNext && tail ? encodeCursor(tail.createdAt, tail.id) : undefined
 

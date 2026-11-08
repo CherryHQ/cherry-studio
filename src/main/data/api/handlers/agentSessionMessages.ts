@@ -2,6 +2,7 @@
  * Agent session message domain API handlers.
  */
 
+import { application } from '@application'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { projectMessagePartsForRenderer } from '@main/utils/messageOutputProjection'
@@ -42,7 +43,11 @@ export const agentSessionMessageHandlers: HandlersFor<AgentSessionMessageSchemas
       agentSessionService.getConversationById(params.sessionId)
       const parsed = AgentSessionMessagesListQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
-      const response = agentSessionMessageService.listSessionMessages(params.sessionId, parsed.data)
+      const response = agentSessionMessageService.listSessionMessages(
+        params.sessionId,
+        parsed.data,
+        application.get('AgentSessionRuntimeService').getForkCheckpointValidator(params.sessionId)
+      )
       if (!parsed.data.deferToolOutputs) return response
 
       const items = response.items.map((item) => projectMessageForRenderer(item, params.sessionId))
