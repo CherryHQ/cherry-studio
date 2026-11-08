@@ -59,7 +59,8 @@ function logClaudeCodeProcessFailure(diagnostics: ClaudeCodeProcessDiagnostics):
     category: diagnostics.category,
     exitCode: diagnostics.exitCode,
     exitSignal: diagnostics.exitSignal,
-    spawnFailed: diagnostics.spawnFailed
+    spawnFailed: diagnostics.spawnFailed,
+    ...(diagnostics.stderrCaptured !== undefined ? { stderrCaptured: diagnostics.stderrCaptured } : {})
   })
 }
 

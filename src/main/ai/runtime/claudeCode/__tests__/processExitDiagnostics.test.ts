@@ -6,10 +6,42 @@ import {
   createClaudeCodeProcessDiagnostics,
   createClaudeCodeProcessExitError,
   recordClaudeCodeProcessExit,
+  recordClaudeCodeSpawnError,
   resetClaudeCodeProcessDiagnostics
 } from '../processExitDiagnostics'
 
 describe('Claude Code process exit diagnostics', () => {
+  it.each([
+    ['Authentication failed', 'auth', true],
+    ['unexpected failure at /Users/alice/private; sk-ant-private https://private.example/internal', 'unknown', true],
+    ['', 'unknown', false],
+    ['  \t\n', 'unknown', false]
+  ] as const)('records and safely serializes exit 3 capture state for %j', (tail, category, captured) => {
+    const diagnostics = createClaudeCodeProcessDiagnostics('exit-three-ref')
+    recordClaudeCodeProcessExit(diagnostics, 3, null, tail)
+    const serialized = serializeError(createClaudeCodeProcessExitError(new Error('process exited'), diagnostics))
+    expect(serialized).toMatchObject({
+      claudeCodeExitCategory: category,
+      processExitCode: 3,
+      processStderrCaptured: captured
+    })
+    const payload = JSON.stringify(serialized)
+    if (tail.trim()) expect(payload).not.toContain(tail)
+    expect(payload).not.toContain('/Users/alice/private')
+    expect(payload).not.toContain('sk-ant-private')
+    expect(payload).not.toContain('https://private.example/internal')
+    resetClaudeCodeProcessDiagnostics(diagnostics)
+    expect(diagnostics).not.toHaveProperty('stderrCaptured')
+  })
+
+  it('does not claim stderr capture for a spawn failure', () => {
+    const diagnostics = createClaudeCodeProcessDiagnostics('spawn-ref')
+    recordClaudeCodeSpawnError(diagnostics, new Error('spawn failed'))
+    expect(
+      serializeError(createClaudeCodeProcessExitError(new Error('process exited'), diagnostics))
+    ).not.toHaveProperty('processStderrCaptured')
+  })
+
   it('keeps interrupted partial output without hiding unrelated failures', () => {
     expect(canSalvageClaudeOutput(new Error('interrupted'), 0, true)).toBe(true)
     expect(canSalvageClaudeOutput(new SyntaxError('Unterminated string in JSON'), 1024, false)).toBe(true)

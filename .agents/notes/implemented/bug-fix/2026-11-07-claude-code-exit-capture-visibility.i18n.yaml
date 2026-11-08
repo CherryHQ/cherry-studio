@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-07-claude-code-exit-capture-visibility.md
+2026-11-07-claude-code-exit-capture-visibility.md: ba905e4238e846d14398b0ee8bf8b3391a8bf589
+2026-11-07-claude-code-exit-capture-visibility.zh.md: 32b97f1b26a1f1c5e653c03f3107fd95bd988340
