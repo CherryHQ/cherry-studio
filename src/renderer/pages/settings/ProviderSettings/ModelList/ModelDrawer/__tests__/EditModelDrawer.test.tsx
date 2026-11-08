@@ -209,7 +209,7 @@ describe('EditModelDrawer', () => {
     })
   })
 
-  it('starts catalog-suggested modalities unselected until the user saves them', async () => {
+  it('shows effective inherited Vision and saves its removal on the first click', async () => {
     const user = userEvent.setup()
     const model = {
       ...makePricingModel(),
@@ -220,14 +220,14 @@ describe('EditModelDrawer', () => {
     render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={model} />)
 
     const vision = screen.getByRole('button', { name: 'models.type.vision' })
-    expect(vision).toHaveAttribute('aria-pressed', 'false')
+    expect(vision).toHaveAttribute('aria-pressed', 'true')
 
     await user.click(vision)
 
     await waitFor(() => {
-      expect(updateModelMock.mock.lastCall?.[2].inputModalities).toEqual([MODALITY.TEXT, MODALITY.IMAGE])
+      expect(updateModelMock.mock.lastCall?.[2].inputModalities).toEqual([MODALITY.TEXT])
     })
-    expect(vision).toHaveAttribute('aria-pressed', 'true')
+    expect(vision).toHaveAttribute('aria-pressed', 'false')
   })
 
   it('persists Vision off after enabling and saving it in the same drawer', async () => {
@@ -279,7 +279,7 @@ describe('EditModelDrawer', () => {
       inputModalitiesExplicit: false
     } as Model
     render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={model} />)
-    expect(screen.getByRole('button', { name: 'models.type.vision' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: 'models.type.vision' })).toHaveAttribute('aria-pressed', 'true')
     await user.click(screen.getByRole('button', { name: 'models.type.reasoning' }))
     await waitFor(() => expect(updateModelMock).toHaveBeenCalled())
     const patch = updateModelMock.mock.lastCall?.[2]

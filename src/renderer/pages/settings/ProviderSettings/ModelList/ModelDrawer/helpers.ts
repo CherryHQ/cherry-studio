@@ -145,8 +145,8 @@ export function getInitialModelClassification(model?: Model | null): ModelClassi
   const inputModalities = new Set<ModelInputModality>()
   for (const modality of [MODALITY.IMAGE, MODALITY.AUDIO, MODALITY.VIDEO] as const) {
     if (
-      (model?.inputModalitiesExplicit !== false && model?.inputModalities?.includes(modality)) ||
-      ((model?.inputModalitiesExplicit === undefined ||
+      model?.inputModalities?.includes(modality) ||
+      ((model?.inputModalitiesExplicit !== true ||
         (model?.inputModalitiesExplicit === true && model?.inputModalities === undefined)) &&
         capabilities.includes(INPUT_MODALITY_TO_LEGACY_CAPABILITY[modality]))
     ) {
