@@ -1,8 +1,8 @@
 # Pi Durable agent runtime
 
-`createPiDurableRuntime` adapts Pi Durable 1.4.0 to the
+`createPiDurableRuntime` adapts Pi Durable 1.5.0 to the
 [agent runtime contracts](../agent-runtime/README.md). It owns one native `Harness`,
-its storage, committed conversation views, and commit observation. It does not implement
+its storage, conversation views, and commit observation. It does not implement
 another scheduler, submission queue, or agent loop. The
 [desktop driver](../../src/main/ai/runtime/piDurable/README.md) supplies Cherry's
 storage bindings, gateway models and host services.
@@ -52,11 +52,18 @@ map to `aborted`, known model/task failures to `failed`, and other unanswered re
 enable the scheduler.
 
 `durable.observe` captures content, inputs, aliases, live provenance, `backgroundResults` and foreground
-completion from one committed `ConversationView` revision. Retained native entries and tool tasks
+completion from one native `ConversationView` revision. Retained native entries and tool tasks
 supply result origins; continuation records identify the current triggering call. Pending results
 include undelivered reports and unfinished notification generation, including the gap before it starts.
-An unknown origin is reported as unknown, never as confirmed drainage. The existing Pi Durable 1.4.0 dependency patch exports
-`conversationViews` and `ViewObserver` without upgrading the SDK. The public coalesced watch cannot establish that atomic contract. Reopen reads all submission
+An unknown origin is reported as unknown, never as confirmed drainage. The Pi Durable dependency patch retains atomic observer attachment with storage reads,
+and complete active-context views instead of the default bounded
+transcript window. Durable receipts use native `observeCommits`; synchronous view observations supply the
+matching content, while the public coalesced watch is not used for completion. Native 1.5 publishes
+the view before the commit observer microtask and publishes successive stored commits separately.
+Preview delivery follows that receipt microtask and cannot establish completion.
+Deferred in-memory progress is a preview without a durable revision; only stored commits can
+confirm foreground completion. Native progress may remain unpersisted for up to its configured
+`persistWithinMs` interval (1,000 ms by default); archives contain stored entries only. Reopen reads all submission
 facts, including placed native-only inputs. Completion stays pending during admission, unresolved input,
 foreground work or compaction, and carries terminal inputs after their content. Revision and pending state stay private to the projection.
 A confirmed rejection releases only its temporary admission hold; unknown admission remains unresolved.

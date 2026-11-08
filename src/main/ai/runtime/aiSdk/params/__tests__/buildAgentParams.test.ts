@@ -243,6 +243,109 @@ describe('buildAgentParams provider resolution', () => {
     expect(result.options.headers).toBeUndefined()
   })
 
+  // Catch Fast being dropped by SDK namespaces/allowlists or overwritten by saved custom tiers.
+  describe.each([
+    ['openai-compatible', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'doubao', 'doubao-seed-2-0-pro-260215', 'fast'],
+    ['openai', ENDPOINT_TYPE.OPENAI_RESPONSES, 'doubao', 'doubao-seed-2-0-pro-260215', 'fast'],
+    ['openai', ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai-codex', 'gpt-5.4', 'priority']
+  ] as const)('Fast HTTP delivery through %s / %s for %s', (adapter, endpoint, providerId, modelId, fastTier) => {
+    it.each([
+      { fastMode: true, supported: true, transport: 'openai-priority', custom: true, expected: 'fast' },
+      { fastMode: false, supported: true, transport: 'openai-priority', custom: true, expected: 'auto' },
+      { fastMode: true, supported: false, transport: 'openai-priority', custom: false, expected: undefined },
+      { fastMode: true, supported: true, transport: 'claude-code', custom: false, expected: undefined }
+    ] as const)('delivers the selected tier for %j', async ({ fastMode, supported, transport, custom, expected }) => {
+      let sentBody: Record<string, unknown> | undefined
+      resolveProviderAiSdkConfigMock.mockResolvedValue({
+        config: {
+          providerId: adapter,
+          providerSettings: {
+            name: adapter === 'openai-compatible' ? providerId : 'openai',
+            apiKey: 'test-key',
+            baseURL: 'https://fast.test/v1',
+            fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+              sentBody = JSON.parse(String(init?.body))
+              return Response.json(
+                endpoint === ENDPOINT_TYPE.OPENAI_RESPONSES
+                  ? {
+                      id: 'resp_fast',
+                      created_at: 0,
+                      model: modelId,
+                      output: [
+                        {
+                          type: 'message',
+                          id: 'msg_fast',
+                          role: 'assistant',
+                          content: [{ type: 'output_text', text: 'ok', annotations: [] }]
+                        }
+                      ],
+                      usage: { input_tokens: 1, output_tokens: 1 }
+                    }
+                  : {
+                      id: 'chat_fast',
+                      created: 0,
+                      model: modelId,
+                      choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }]
+                    }
+              )
+            }
+          }
+        },
+        credentialReceipt: { attribution: 'unknown' }
+      })
+      const namespace = adapter === 'openai-compatible' ? providerId : 'openai'
+      const result = await buildAgentParams({
+        request: {
+          conversation: CONVERSATION,
+          fastMode,
+          disableTools: true,
+          callOverrides: custom
+            ? { providerOptions: { [namespace]: { serviceTier: 'auto', service_tier: 'auto' } } }
+            : undefined
+        },
+        signal: undefined,
+        provider: makeProvider({
+          id: providerId,
+          fastMode: { transport, serviceTier: fastTier },
+          defaultChatEndpoint: endpoint,
+          endpointConfigs: { [endpoint]: { adapterFamily: adapter, baseUrl: 'https://fast.test/v1' } }
+        }),
+        model: makeModel({
+          id: `${providerId}::${modelId}`,
+          providerId,
+          apiModelId: modelId,
+          endpointTypes: [endpoint],
+          supportsFastMode: supported,
+          maxOutputTokens: 256
+        }),
+        assistant: custom
+          ? makeAssistant({
+              settings: {
+                customParameters: [
+                  { name: 'service_tier', type: 'string', value: 'auto' },
+                  { name: 'route_hint', type: 'string', value: 'preserved' }
+                ]
+              }
+            })
+          : undefined
+      })
+      const generated = await aiCoreGenerateText<AppProviderSettingsMap>(
+        result.sdkConfig.providerId,
+        result.sdkConfig.providerSettings,
+        {
+          ...result.options,
+          model: result.sdkConfig.modelId,
+          prompt: 'Say ok.'
+        }
+      )
+      expect(generated.text).toBe('ok')
+      expect(sentBody?.service_tier).toBe(expected === 'fast' ? fastTier : expected)
+      if (fastMode && supported && transport === 'openai-priority') expect(sentBody).not.toHaveProperty('serviceTier')
+      expect(sentBody?.model).toBe(modelId)
+      if (custom) expect(sentBody?.route_hint).toBe('preserved')
+    })
+  })
+
   it('maps Groq service tiers after assistant custom parameters and before call overrides', async () => {
     resolveProviderAiSdkConfigMock.mockResolvedValue({
       config: { providerId: 'groq', providerSettings: {} },

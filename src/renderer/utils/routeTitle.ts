@@ -1,7 +1,7 @@
 import i18n from '@renderer/i18n/resolver'
+import { parseAppRouteUrl } from '@renderer/utils/appRouteUrl'
 
-/** Base URL for parsing relative route paths */
-const BASE_URL = 'https://www.cherry-ai.com/'
+const pathnameOf = (url: string) => parseAppRouteUrl(url)?.pathname ?? ''
 
 /**
  * Route to i18n key mapping for default tab titles
@@ -9,6 +9,7 @@ const BASE_URL = 'https://www.cherry-ai.com/'
 const routeTitleKeys: Record<string, string> = {
   '/app/chat': 'agent.session.group.conversation',
   '/app/agents': 'title.work',
+  '/app/scheduled-tasks': 'settings.scheduledTasks.title',
   '/app/paintings': 'title.paintings',
   '/app/translate': 'title.translate',
   '/app/launchpad': 'title.launchpad',
@@ -54,7 +55,7 @@ function getBasePath(pathname: string): string {
  * getDefaultRouteTitle('/unknown') // 'unknown'
  */
 export function getDefaultRouteTitle(url: string): string {
-  const sanitizedUrl = new URL(url, BASE_URL).pathname
+  const sanitizedUrl = pathnameOf(url)
 
   // Try exact match first
   const exactKey = routeTitleKeys[sanitizedUrl]
@@ -77,7 +78,7 @@ export function getDefaultRouteTitle(url: string): string {
  * Get the i18n key for a route (without translating)
  */
 export function getRouteTitleKey(url: string): string | undefined {
-  const sanitizedUrl = new URL(url, BASE_URL).pathname
+  const sanitizedUrl = pathnameOf(url)
 
   const exactKey = routeTitleKeys[sanitizedUrl]
   if (exactKey) return exactKey
@@ -90,15 +91,15 @@ export function getRouteTitleKey(url: string): string | undefined {
  * segments). Used to decide whether a tab title should be auto-localized.
  */
 export function isTopLevelRoute(url: string): boolean {
-  const parsedUrl = new URL(url, BASE_URL)
-  return !parsedUrl.search && !parsedUrl.hash && routeTitleKeys[parsedUrl.pathname] !== undefined
+  const parsedUrl = parseAppRouteUrl(url)
+  return !!parsedUrl && !parsedUrl.search && !parsedUrl.hash && routeTitleKeys[parsedUrl.pathname] !== undefined
 }
 
 /** Routes whose tab title + icon are owned by the page (topic / session name + emoji). */
 const PAGE_TITLED_ROUTE_BASE_PATHS = new Set(['/app/chat', '/app/agents'])
 
 export function isPageTitledRoute(url: string): boolean {
-  const pathname = new URL(url, BASE_URL).pathname
+  const pathname = pathnameOf(url)
   return PAGE_TITLED_ROUTE_BASE_PATHS.has(getBasePath(pathname))
 }
 
@@ -107,6 +108,6 @@ export function isPageTitledRoute(url: string): boolean {
  * i18n key after language changes.
  */
 export function shouldAutoLocalizeRouteTitle(url: string): boolean {
-  const pathname = new URL(url, BASE_URL).pathname
+  const pathname = pathnameOf(url)
   return isTopLevelRoute(url) || pathname.startsWith('/settings') || autoLocalizableBasePaths.has(getBasePath(pathname))
 }

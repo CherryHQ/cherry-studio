@@ -327,6 +327,11 @@
           "type": "shortcut"
         },
         {
+          "id": "sidebar-shortcut:core.app:scheduled_tasks",
+          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "scheduled_tasks" } },
+          "type": "shortcut"
+        },
+        {
           "id": "sidebar-shortcut:core.app:translate",
           "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "translate" } },
           "type": "shortcut"
@@ -1443,6 +1448,59 @@
       },
       "status": "classified",
       "description": "Command shortcut: tab.open_9 (numbered tab navigation)"
+    },
+    {
+      "targetKey": "shortcut.agent.workspace.open",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "O"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: agent.workspace.open (unified command system)"
+    },
+    {
+      "targetKey": "agent.details.sections",
+      "type": "PreferenceTypes.AgentDetailsSectionConfig[]",
+      "defaultValue": [
+        {
+          "id": "workspace",
+          "visible": true
+        },
+        {
+          "id": "plan",
+          "visible": true
+        },
+        {
+          "id": "subagents",
+          "visible": true
+        },
+        {
+          "id": "workflows",
+          "visible": true
+        },
+        {
+          "id": "shells",
+          "visible": true
+        },
+        {
+          "id": "other",
+          "visible": true
+        },
+        {
+          "id": "artifacts",
+          "visible": true
+        },
+        {
+          "id": "context",
+          "visible": true
+        }
+      ],
+      "status": "classified",
+      "description": "Ordered session details sections and their visibility"
     }
   ]
 }
