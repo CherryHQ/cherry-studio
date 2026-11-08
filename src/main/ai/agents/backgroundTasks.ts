@@ -1310,9 +1310,11 @@ interface MarkerReadContext {
   accounted: ReadonlySet<number>
 }
 
-function processWorkingDirectory(pid: number): string | null {
+/** `null` is the row holding no cwd; `undefined` is a read that never answered, which is not an answer. */
+function processWorkingDirectory(pid: number): string | null | undefined {
+  let output: string
   try {
-    const output = String(
+    output = String(
       execFileSync('lsof', ['-a', '-p', String(pid), '-d', 'cwd', '-Fn'], {
         encoding: 'utf8',
         timeout: 2_000,
@@ -1321,11 +1323,15 @@ function processWorkingDirectory(pid: number): string | null {
         stdio: ['ignore', 'pipe', 'ignore']
       })
     )
-    const line = output.split('\n').find((entry) => entry.startsWith('n'))
-    return line ? line.slice(1) : null
-  } catch {
-    return null
+  } catch (error) {
+    // Exit 1 is `lsof` reporting nothing to list, which is an answer. A timeout, a signal or a
+    // missing binary is a read that never completed.
+    const failed = error as { status?: number | null; stdout?: string | Buffer }
+    if (failed.status !== 1) return undefined
+    output = String(failed.stdout ?? '')
   }
+  const line = output.split('\n').find((entry) => entry.startsWith('n'))
+  return line ? line.slice(1) : null
 }
 
 function sameDirectory(left: string, right: string): boolean {
@@ -1429,6 +1435,9 @@ function hasUnreadableEnvironmentCandidate(readTable: CandidateTableReader, cont
     const commandLineText = argv.replace(/\s+/g, ' ')
     if (command && commandLineText.includes(command)) return true
     const cwd = processWorkingDirectory(pid)
+    // A directory the read could not print is not a negative match: `false` here certifies a live
+    // survivor as stopped, and its workspace becomes free to be erased underneath it.
+    if (cwd === undefined) return true
     if (cwd !== null && sameDirectory(cwd, context.cwd)) return true
   }
   return false

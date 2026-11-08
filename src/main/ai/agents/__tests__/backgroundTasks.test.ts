@@ -12,8 +12,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // its `ps` readings directly: returning `null` delegates to the real table, and every spawn and
 // signal around it stays real. This is what lets a table like the one a recycled pgid leaves
 // behind — live members this app never started — be reproduced without waiting on pid reuse.
-const { psSteer } = vi.hoisted(() => ({
-  psSteer: { read: null as null | ((args: readonly string[]) => string | null) }
+const { psSteer, lsofSteer } = vi.hoisted(() => ({
+  psSteer: { read: null as null | ((args: readonly string[]) => string | null) },
+  lsofSteer: { read: null as null | (() => 'unreadable' | string) }
 }))
 
 vi.mock('node:child_process', async (importOriginal) => {
@@ -24,6 +25,15 @@ vi.mock('node:child_process', async (importOriginal) => {
       const steer = psSteer.read
       const steered = file === 'ps' && steer ? steer(args ?? []) : null
       if (steered !== null) return steered
+      if (file === 'lsof' && lsofSteer.read) {
+        const answer = lsofSteer.read()
+        // `unreadable` is the timeout a loaded runner hands back: the call never answers, so it
+        // throws the way `execFileSync` does when the child is killed.
+        if (answer === 'unreadable') {
+          throw Object.assign(new Error('steered lsof timeout'), { status: null, signal: 'SIGTERM', stdout: '' })
+        }
+        return answer
+      }
       return actual.execFileSync(file, args ?? [], options)
     }) as typeof actual.execFileSync
   }
@@ -98,6 +108,7 @@ describe('backgroundTasks', () => {
   // A test that fails before its own restore must not hand its steered table to the next one.
   afterEach(() => {
     psSteer.read = null
+    lsofSteer.read = null
     writeHook.onWrite = null
   })
 
@@ -1619,6 +1630,50 @@ describe('backgroundTasks', () => {
         }
       }
     )
+
+    // The cwd tie is the last thing that keeps a marker-less orphan inside the record: its command
+    // line says nothing, so only the directory it runs in ties it to the task. `lsof` carries a
+    // two-second timeout and spends it on a loaded runner, and a directory it never printed was
+    // read as "this row runs elsewhere" — the record settled `stopped` over a live worker and freed
+    // its workspace to be erased underneath it. A read that did not complete settles nothing.
+    it.skipIf(process.platform === 'win32')('keeps an orphan whose working directory could not be read', async () => {
+      const orphan = spawn(process.execPath, ['-e', 'setInterval(() => {}, 60_000)'], { stdio: 'ignore' })
+      orphan.unref()
+      const dead = spawn(process.execPath, ['-e', 'process.exit(0)'], { stdio: 'ignore' })
+      await new Promise((resolve) => dead.once('exit', resolve))
+      try {
+        await vi.waitFor(() => expect(isPidAlive(orphan.pid!)).toBe(true), { timeout: 10_000 })
+        const pid = orphan.pid!
+        const id = 'bt-unreadable-working-directory'
+        const argv = `${process.execPath} -e setInterval`
+        psSteer.read = (args) => {
+          if (args[0] === '-axwwo' && args[1] === 'pid=,ppid=,uid=,state=,etime=') {
+            return `${pid} 1 ${process.getuid?.()} S 00:00\n`
+          }
+          // A visible environment carrying no marker, and a command line that is not the task's.
+          if (args[0] === 'eww' && args[1] === '-o' && args[2] === 'pid=,command=') return `${pid} ${argv} PLATFORM=1\n`
+          if (args[0] === 'ww' && args[1] === '-o') return `${argv}\n`
+          return null
+        }
+        lsofSteer.read = () => 'unreadable'
+        const record: BackgroundTaskRecord = {
+          id,
+          name: id,
+          command: '--not-this-orphan',
+          pid: dead.pid!,
+          cwd: storageDir,
+          startedAt: new Date().toISOString(),
+          logFile: path.join(storageDir, `${id}.log`),
+          status: 'running',
+          exitCode: null,
+          signal: null
+        }
+
+        await expect(hasLiveGroupEvidence(storageDir, record)).resolves.toBe(true)
+      } finally {
+        orphan.kill('SIGKILL')
+      }
+    })
 
     // The initial `ps -p` lookup that stamps the spawned leader is a one-shot call with a
     // one-second timeout, so a loaded runner can fail it. The task is then alive and recorded
