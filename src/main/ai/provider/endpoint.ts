@@ -15,8 +15,8 @@ import { type AppProviderId, appProviderIds } from '../types'
 import { getBaseUrl } from '../utils/provider'
 import { resolveGatewayRoute } from './gatewayRouting'
 
-/** Whether endpoint resolution serves in-app chat or OpenAI-compatible image transport. */
-export type ResolveEndpointIntent = 'chat' | 'image'
+/** Operation selecting the transport; chat defaults must not redirect other modalities. */
+export type ResolveEndpointIntent = 'chat' | 'image' | 'embedding' | 'rerank'
 
 export interface ResolvedEndpoint {
   /** `undefined` when neither model nor provider declares an endpoint. */

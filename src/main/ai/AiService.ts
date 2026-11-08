@@ -70,7 +70,7 @@ import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/c
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
 import { buildVendorProviderOptions } from './provider/custom/wire/buildImageRequest'
 import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
-import { resolveEffectiveEndpoint, resolveWireModelId } from './provider/endpoint'
+import { resolveEffectiveEndpoint, type ResolveEndpointIntent, resolveWireModelId } from './provider/endpoint'
 import { listModels as listModelsFromProvider, probeOllamaModel } from './provider/listModels'
 import { resolveSdkConfig } from './provider/sdkConfig'
 import type { AgentLoopHooks, NativeFileSupport, RequestFeature } from './runtime/aiSdk'
@@ -1270,7 +1270,10 @@ export class AiService extends BaseService {
     logger.info('embedMany started', { assistantId: request.assistantId, count: request.values.length })
     const signal = request.requestOptions?.signal
 
-    const { sdkConfig, credentialReceipt, provider, model, assistant } = await this.resolveTransportFor(request)
+    const { sdkConfig, credentialReceipt, provider, model, assistant } = await this.resolveTransportFor(
+      request,
+      'embedding'
+    )
     const usageContext = createCaptureContext({
       provider,
       model,
@@ -1303,7 +1306,10 @@ export class AiService extends BaseService {
     logger.info('rerank started', { assistantId: request.assistantId, count: request.documents.length })
     const signal = request.requestOptions?.signal
 
-    const { sdkConfig, credentialReceipt, provider, model, assistant } = await this.resolveTransportFor(request)
+    const { sdkConfig, credentialReceipt, provider, model, assistant } = await this.resolveTransportFor(
+      request,
+      'rerank'
+    )
     const usageContext = createCaptureContext({
       provider,
       model,
@@ -1573,7 +1579,7 @@ export class AiService extends BaseService {
   // ── Shared agent parameter resolution ──
 
   /** Transport resolution shared by every modality: provider, model, credential, wire model id. */
-  private async resolveTransportFor(request: AsInProcess<AiRequest>, intent: 'chat' | 'image' = 'chat') {
+  private async resolveTransportFor(request: AsInProcess<AiRequest>, intent: ResolveEndpointIntent = 'chat') {
     const { provider, model, assistant } = this.getProviderAndModel(request)
     const { sdkConfig, credentialReceipt } = await resolveSdkConfig(
       provider,

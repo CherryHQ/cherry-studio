@@ -1580,6 +1580,11 @@ describe('AiService tool approval', () => {
       ]
     })
 
+    expect((service as unknown as AiServicePrivate).resolveTransportFor).toHaveBeenCalledWith(
+      expect.any(Object),
+      'rerank'
+    )
+
     expect(mockRerank).toHaveBeenCalledWith(
       'test-provider',
       {},
@@ -1620,6 +1625,10 @@ describe('AiService tool approval', () => {
     mockEmbedMany.mockResolvedValue({ embeddings: [[0.1]], usage: { tokens: 4 } })
 
     await service.embedMany({ uniqueModelId: 'test-provider::test-embed', values: ['a', 'b'] })
+    expect((service as unknown as AiServicePrivate).resolveTransportFor).toHaveBeenCalledWith(
+      expect.any(Object),
+      'embedding'
+    )
 
     expect(mockEmbedMany).toHaveBeenCalledWith(
       'test-provider',

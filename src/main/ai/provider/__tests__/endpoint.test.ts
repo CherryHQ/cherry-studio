@@ -399,6 +399,25 @@ describe('resolveEffectiveEndpoint', () => {
     }
   )
 
+  it.each([
+    [ENDPOINT_TYPE.JINA_RERANK, 'rerank'],
+    [ENDPOINT_TYPE.OPENAI_EMBEDDINGS, 'embedding']
+  ] as const)('preserves dedicated %s transport instead of the configured chat host', (endpointType, intent) => {
+    const provider = makeProvider({
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [endpointType]: { baseUrl: 'https://ranking.example/v1' },
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://chat.example/v1' }
+      }
+    })
+    const model = makeModel({ endpointTypes: [endpointType, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+    expect(resolveEffectiveEndpoint(provider, model, undefined, intent)).toMatchObject({
+      endpointType,
+      baseUrl: 'https://ranking.example/v1'
+    })
+    expect(resolveEffectiveEndpoint(provider, model).endpointType).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+  })
+
   it('ignores an unconfigured chat default but retains forced SDK and image priority', () => {
     const provider = makeProvider({
       id: 'aionly',
