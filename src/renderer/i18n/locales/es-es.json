@@ -531,6 +531,7 @@
   "agent.tasks.schedule.weekdaysOnly": "Días de la semana",
   "agent.tasks.schedule.weekly": "Semanal",
   "agent.tasks.status.active": "Activo",
+  "agent.tasks.status.completed": "Completado",
   "agent.tasks.status.missed": "Omitida",
   "agent.tasks.status.paused": "Pausado",
   "agent.tasks.timeout.label": "Tiempo máximo de ejecución",

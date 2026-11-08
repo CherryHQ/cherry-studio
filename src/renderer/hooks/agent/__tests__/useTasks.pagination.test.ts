@@ -10,7 +10,8 @@ vi.unmock('@data/hooks/useDataApi')
 
 afterEach(() => vi.restoreAllMocks())
 
-it('can revisit the last grouped page after its task count shrinks and grows again', async () => {
+const statuses = ['active', 'paused', 'completed', 'missed'] as const
+it.each(statuses)('revisits the last %s page after shrinking and growing', async (status) => {
   let total = 51
   let releasePage: (() => void) | undefined
   let delayPage = false
@@ -23,7 +24,7 @@ it('can revisit the last grouped page after its task count shrinks and grows aga
     return { items: page === 2 && total === 51 ? [{ id: 'last-task' }] : [], total, page, limit: 50 }
   }) as never)
   const { Wrapper } = createSWRTestWrapper()
-  const { result } = renderHook(() => useAllTasks('active'), { wrapper: Wrapper })
+  const { result } = renderHook(() => useAllTasks(status), { wrapper: Wrapper })
   await waitFor(() => expect(result.current.total).toBe(51))
   act(() => result.current.nextPage())
   await waitFor(() => expect(result.current.tasks).toEqual([{ id: 'last-task' }]))

@@ -33,6 +33,8 @@ export default function ScheduledTasksPage() {
   const navigate = useNavigate()
   const active = useAllTasks('active')
   const paused = useAllTasks('paused')
+  const completed = useAllTasks('completed')
+  const missed = useAllTasks('missed')
   const { task, error: taskError, isLoading: taskLoading, refetch: refreshTask } = useTask(taskId ?? null)
   const selectedTask = task?.id === taskId && !taskError ? task : null
   const { data: notification, error: notificationError } = useQuery('/notifications/:id', {
@@ -68,10 +70,13 @@ export default function ScheduledTasksPage() {
   const triggerRef = useRef<HTMLButtonElement>(null)
   const { createTask } = useCreateTask()
   const ids = useMemo(
-    () => [...new Set([...active.tasks, ...paused.tasks].map((item) => item.agentId))].sort(),
-    [active.tasks, paused.tasks]
+    () =>
+      [
+        ...new Set([...active.tasks, ...paused.tasks, ...completed.tasks, ...missed.tasks].map((item) => item.agentId))
+      ].sort(),
+    [active.tasks, paused.tasks, completed.tasks, missed.tasks]
   )
-  const { data: owners } = useQuery('/agents', { query: { ids, limit: 2 * TASKS_PAGE_LIMIT }, enabled: ids.length > 0 })
+  const { data: owners } = useQuery('/agents', { query: { ids, limit: 4 * TASKS_PAGE_LIMIT }, enabled: ids.length > 0 })
   const names = useMemo(() => new Map(owners?.items.map((agent) => [agent.id, agent.name])), [owners])
   const {
     data: availableAgents,
@@ -109,7 +114,9 @@ export default function ScheduledTasksPage() {
         {(
           [
             ['active', active],
-            ['paused', paused]
+            ['paused', paused],
+            ['completed', completed],
+            ['missed', missed]
           ] as const
         ).map(([status, source]) => (
           <ScheduledTaskGroup
@@ -167,6 +174,10 @@ export default function ScheduledTasksPage() {
   )
   const pending = taskLoading || conversation.loading || conversation.sessionLoading
   const error = taskError ?? conversation.error
+  const waitingForFirstRun =
+    (selectedTask?.status === 'active' || selectedTask?.status === 'paused') &&
+    !selectedTask.runSummary &&
+    !conversation.result?.total
   const empty = (
     <div
       className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm text-muted-foreground"
@@ -180,7 +191,7 @@ export default function ScheduledTasksPage() {
               ? t('scheduledTasks.select')
               : conversation.hasMore
                 ? t('scheduledTasks.moreHistory')
-                : !selectedTask?.runSummary && !conversation.result?.total
+                : waitingForFirstRun
                   ? t('agent.tasks.reuseSession.pending')
                   : t('scheduledTasks.noConversation')}
       </p>
