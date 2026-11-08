@@ -280,6 +280,62 @@ describe('EditModelDrawer', () => {
     )
   })
 
+  describe.each([
+    ['vision', MODALITY.IMAGE, MODEL_CAPABILITY.IMAGE_RECOGNITION, isVisionModel],
+    ['audio', MODALITY.AUDIO, MODEL_CAPABILITY.AUDIO_RECOGNITION, isAudioModel],
+    ['video', MODALITY.VIDEO, MODEL_CAPABILITY.VIDEO_RECOGNITION, isVideoModel]
+  ] as const)('%s inherited preset recognition', (label, modality, capability, isEnabled) => {
+    it.each([
+      { providerId: 'custom-openai', presetProviderId: 'openai' },
+      { providerId: 'custom-new-api', presetProviderId: 'new-api' }
+    ])(
+      'keeps inherited support consistent for $presetProviderId across edits',
+      async ({ providerId, presetProviderId }) => {
+        const inputs = [MODALITY.TEXT, modality]
+        useProviderMock.mockReturnValue({ provider: { id: providerId, presetProviderId, name: presetProviderId } })
+        const user = userEvent.setup()
+        updateModelMock.mockResolvedValue(undefined)
+        const model = {
+          ...makePricingModel(),
+          id: `${providerId}::claude-4-sonnet`,
+          providerId,
+          capabilities: [capability],
+          inputModalities: inputs,
+          inputModalitiesExplicit: false
+        } as Model
+        render(<EditModelDrawer providerId={providerId} open onClose={vi.fn()} model={model} />)
+        const control = screen.getByRole('button', { name: `models.type.${label}` })
+        expect(isEnabled(model)).toBe(true)
+        expect(control).toHaveAttribute('aria-pressed', String(isEnabled(model)))
+
+        await user.click(screen.getByRole('button', { name: 'models.type.reasoning' }))
+        await waitFor(() => expect(updateModelMock).toHaveBeenCalled())
+        const unrelatedPatch = updateModelMock.mock.lastCall?.[2]
+        expect(unrelatedPatch).not.toHaveProperty('inputModalities')
+        expect(unrelatedPatch.capabilities).toContain(capability)
+        expect(isEnabled({ ...model, ...unrelatedPatch })).toBe(true)
+        expect(control).toHaveAttribute('aria-pressed', 'true')
+
+        updateModelMock.mockClear()
+        await user.click(control)
+        await waitFor(() => expect(updateModelMock).toHaveBeenCalled())
+        const offPatch = updateModelMock.mock.lastCall?.[2]
+        expect(offPatch.inputModalities).toEqual([MODALITY.TEXT])
+        expect(offPatch.capabilities).not.toContain(capability)
+        expect(isEnabled({ ...model, ...offPatch })).toBe(false)
+        expect(control).toHaveAttribute('aria-pressed', 'false')
+
+        updateModelMock.mockClear()
+        await user.click(control)
+        await waitFor(() => expect(updateModelMock).toHaveBeenCalled())
+        const onPatch = updateModelMock.mock.lastCall?.[2]
+        expect(onPatch.inputModalities).toContain(modality)
+        expect(isEnabled({ ...model, ...onPatch })).toBe(true)
+        expect(control).toHaveAttribute('aria-pressed', 'true')
+      }
+    )
+  })
+
   it('persists Vision off after enabling and saving it in the same drawer', async () => {
     const user = userEvent.setup()
     updateModelMock.mockResolvedValue(undefined)
