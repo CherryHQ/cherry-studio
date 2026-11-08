@@ -163,6 +163,33 @@ describe('doc2x utils', () => {
     ).toBe('body\n\n<table><tr><td>value</td></tr></table>')
   })
 
+  it('does not replace a table-shaped example inside a fenced code block', () => {
+    expect(
+      buildDoc2xMarkdown([
+        {
+          page_idx: 0,
+          md: '```md\n| Example | Value |\n| --- | --- |\n| kept | as code |\n```\n\n| Actual | Value |\n| --- | --- |\n| item | 42 |',
+          layout: {
+            blocks: [
+              {
+                id: 'table',
+                type: 'Table',
+                text: '',
+                bbox: [0, 0, 1, 1],
+                reading_order: 0,
+                parent_id: '',
+                src: '',
+                table_data: { html: '<table><tr><td>actual</td></tr></table>' }
+              }
+            ]
+          }
+        }
+      ])
+    ).toBe(
+      '```md\n| Example | Value |\n| --- | --- |\n| kept | as code |\n```\n\n<table><tr><td>actual</td></tr></table>'
+    )
+  })
+
   it('uses structured figure URLs when a v3 page has no Markdown fallback', () => {
     expect(
       buildDoc2xMarkdown([

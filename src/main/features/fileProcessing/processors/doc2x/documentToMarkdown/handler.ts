@@ -303,21 +303,32 @@ function stripDoc2xBoilerplate(markdown: string): string {
 
 function replaceNextMarkdownTable(markdown: string, tableHtml: string): string {
   const lines = markdown.split('\n')
-  const separatorIndex = lines.findIndex(
-    (line, index) => index > 0 && isMarkdownTableRow(lines[index - 1]) && isMarkdownTableSeparator(line)
-  )
+  let inFence = false
+  let separatorIndex = -1
+
+  for (let index = 0; index < lines.length; index += 1) {
+    if (isMarkdownFence(lines[index])) {
+      inFence = !inFence
+      continue
+    }
+
+    if (!inFence && index > 0 && isMarkdownTableRow(lines[index - 1]) && isMarkdownTableSeparator(lines[index])) {
+      separatorIndex = index
+      break
+    }
+  }
 
   if (separatorIndex === -1) {
     return `${markdown.trim()}\n\n${tableHtml}`
   }
 
   let start = separatorIndex - 1
-  while (start > 0 && isMarkdownTableRow(lines[start - 1])) {
+  while (start > 0 && !isMarkdownFence(lines[start - 1]) && isMarkdownTableRow(lines[start - 1])) {
     start -= 1
   }
 
   let end = separatorIndex + 1
-  while (end < lines.length && isMarkdownTableRow(lines[end])) {
+  while (end < lines.length && !isMarkdownFence(lines[end]) && isMarkdownTableRow(lines[end])) {
     end += 1
   }
 
@@ -327,7 +338,11 @@ function replaceNextMarkdownTable(markdown: string, tableHtml: string): string {
 
 function isMarkdownTableRow(line: string): boolean {
   const value = line.trim()
-  return value.includes('|') && !value.startsWith('```')
+  return value.includes('|')
+}
+
+function isMarkdownFence(line: string): boolean {
+  return /^\s*(```+|~~~+)/.test(line)
 }
 
 function isMarkdownTableSeparator(line: string): boolean {
