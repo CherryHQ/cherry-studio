@@ -32,7 +32,8 @@ export default function ScheduledTasksPage() {
   const { taskId, runId, notificationId } = routeApi.useSearch<AppRouter>()
   const navigate = useNavigate()
   const active = useAllTasks('active')
-  const paused = useAllTasks('paused')
+  const paused = useAllTasks(['paused', 'missed'])
+  const completed = useAllTasks('completed')
   const { task, error: taskError, isLoading: taskLoading, refetch: refreshTask } = useTask(taskId ?? null)
   const selectedTask = task?.id === taskId && !taskError ? task : null
   const { data: notification, error: notificationError } = useQuery('/notifications/:id', {
@@ -64,14 +65,15 @@ export default function ScheduledTasksPage() {
   const [paneOpen, setPaneOpen] = usePreference('topic.tab.show')
   const shell = useConversationShellPaneState({ persistedPaneOpen: paneOpen, setPersistedPaneOpen: setPaneOpen })
   useCommandHandler('app.sidebar.toggle', shell.toggleShellPane, { enabled: isActiveTab })
-  const [createOpen, setCreateOpen] = useState(false)
+  // Keep the lazy form mounted after first use so Dialog can finish its exit animation.
+  const [createOpen, setCreateOpen] = useState<boolean>()
   const triggerRef = useRef<HTMLButtonElement>(null)
   const { createTask } = useCreateTask()
   const ids = useMemo(
-    () => [...new Set([...active.tasks, ...paused.tasks].map((item) => item.agentId))].sort(),
-    [active.tasks, paused.tasks]
+    () => [...new Set([...active.tasks, ...paused.tasks, ...completed.tasks].map((item) => item.agentId))].sort(),
+    [active.tasks, paused.tasks, completed.tasks]
   )
-  const { data: owners } = useQuery('/agents', { query: { ids, limit: 2 * TASKS_PAGE_LIMIT }, enabled: ids.length > 0 })
+  const { data: owners } = useQuery('/agents', { query: { ids, limit: 3 * TASKS_PAGE_LIMIT }, enabled: ids.length > 0 })
   const names = useMemo(() => new Map(owners?.items.map((agent) => [agent.id, agent.name])), [owners])
   const {
     data: availableAgents,
@@ -80,7 +82,7 @@ export default function ScheduledTasksPage() {
     refetch: refreshAgents
   } = useQuery('/agents', {
     query: { limit: 500 },
-    enabled: createOpen
+    enabled: createOpen === true
   })
   const selectTask = (id: string) => {
     void navigate({ to: '/app/scheduled-tasks', search: { taskId: id }, replace: true })
@@ -109,7 +111,8 @@ export default function ScheduledTasksPage() {
         {(
           [
             ['active', active],
-            ['paused', paused]
+            ['paused', paused],
+            ['completed', completed]
           ] as const
         ).map(([status, source]) => (
           <ScheduledTaskGroup
@@ -167,6 +170,10 @@ export default function ScheduledTasksPage() {
   )
   const pending = taskLoading || conversation.loading || conversation.sessionLoading
   const error = taskError ?? conversation.error
+  const waitingForFirstRun =
+    (selectedTask?.status === 'active' || selectedTask?.status === 'paused') &&
+    !selectedTask.runSummary &&
+    !conversation.result?.total
   const empty = (
     <div
       className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm text-muted-foreground"
@@ -180,7 +187,7 @@ export default function ScheduledTasksPage() {
               ? t('scheduledTasks.select')
               : conversation.hasMore
                 ? t('scheduledTasks.moreHistory')
-                : !selectedTask?.runSummary && !conversation.result?.total
+                : waitingForFirstRun
                   ? t('agent.tasks.reuseSession.pending')
                   : t('scheduledTasks.noConversation')}
       </p>
@@ -231,7 +238,7 @@ export default function ScheduledTasksPage() {
           </Button>
         </div>
       )}
-      {createOpen && (
+      {createOpen !== undefined && (
         <Suspense fallback={<p role="status">{t('common.loading')}</p>}>
           <TaskFormDialog
             agentNotice={
@@ -253,7 +260,7 @@ export default function ScheduledTasksPage() {
                 </div>
               )
             }
-            open
+            open={createOpen}
             agents={availableAgents?.items ?? []}
             onOpenChange={changeCreateOpen}
             onCreate={async (agentId, form) => {

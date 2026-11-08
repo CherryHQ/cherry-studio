@@ -8,6 +8,7 @@ import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { ResponseForPath } from '@shared/data/api/paths'
+import type { ListTasksQuery } from '@shared/data/api/schemas/agents'
 import type { ScheduledTaskEntity } from '@shared/data/types/agent'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -37,7 +38,7 @@ const taskCommandErrorMessage = (error: unknown, t: TFunction, fallbackPrefix: s
 }
 
 /** All scheduled tasks across every agent, optionally filtered by status. */
-export const useAllTasks = (status?: ScheduledTaskEntity['status']) => {
+export const useAllTasks = (status?: ListTasksQuery['status']) => {
   const { items, total, page, error, isLoading, hasNext, hasPrev, nextPage, prevPage, refresh, goToPage } =
     usePaginatedQuery('/agent-tasks', {
       limit: TASKS_PAGE_LIMIT,

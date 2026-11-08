@@ -17,11 +17,11 @@ English | [中文](scheduled-tasks-page.zh.md)
 
 ## Use the page
 
-Open Scheduled tasks from the global sidebar. Select a task in Active or Paused to read and continue its associated conversation. Each group has its own pagination, total, loading state, and retry action. Settings no longer has a Scheduled tasks entry. Old settings links redirect here and preserve the selected task and notification. An error summary is shown only when the notification matches the selected task.
+Open Scheduled tasks from the global sidebar. Select a task in Active, Paused, or Completed to read and continue its associated conversation. Paused includes missed tasks, identified by “Missed scheduled time” on the row. Each group has its own pagination, total, loading state, and retry action. Settings no longer has a Scheduled tasks entry. Old settings links redirect here and preserve the selected task and notification. An error summary is shown only when the notification matches the selected task.
 
-Add scheduled task opens the shared creation form in the current window. Successful creation selects the returned task without an extra run command. A task with no execution shows a waiting state. Pausing affects future scheduling; it does not cancel an execution already in progress.
+Add scheduled task opens the shared creation form in the current window. Successful creation selects the returned task without an extra run command. An active or ordinary paused task with no execution shows a waiting state. A completed or missed task without an available conversation shows the unavailable-conversation feedback. Pausing affects future scheduling; it does not cancel an execution already in progress.
 
-Each group can collapse independently without changing the open conversation. The three-dot menu on each task offers Continue or Pause, Run now, Edit, and Delete. Completed and missed tasks are not listed. Their stored records and shared APIs remain unchanged. Delete uses destructive styling and requires confirmation. The dialog shows a short title and a separate description warning that all associated conversations move to the Recycle Bin. Deletion stops pending runs and archives both reused and per-run conversations. Task deletion and conversation archival commit together; a failed transaction preserves both. Editing opens the shared form with the current task values. Deleting the selected task clears its route selection; deleting another task leaves the current conversation unchanged.
+Each group can collapse independently without changing the open conversation. The three-dot menu offers actions for the task’s state: active tasks can pause, ordinary paused tasks can continue, and both support Run now, Edit, and Delete. Completed tasks retain history selection, conversation continuation, and Delete. Missed tasks also support Run now and Edit, without a pause/resume control. Completed means the one-shot schedule fired, not that its output succeeded. Stored records and shared APIs remain unchanged. Delete uses destructive styling and requires confirmation. The dialog shows a short title and a separate description warning that all associated conversations move to the Recycle Bin. Deletion stops pending runs and archives both reused and per-run conversations. Task deletion and conversation archival commit together; a failed transaction preserves both. Editing opens the shared form with the current task values. Deleting the selected task clears its route selection; deleting another task leaves the current conversation unchanged.
 
 ## Sidebar and conversation header
 
@@ -44,9 +44,9 @@ Task conversations stay out of ordinary Agent topic lists and recent-topic resto
 
 ## Read and command boundaries
 
-`GET /agent-tasks` accepts optional `status`: `active`, `paused`, `completed`, or `missed`. Omission preserves the existing unfiltered list. The service derives and filters status before counting and slicing; it still scans candidate schedules in the main process.
+`GET /agent-tasks` accepts optional `status`: `active`, `paused`, `completed`, or `missed`, or a non-empty list of those states. Paused requests `['paused', 'missed']` and receives one combined ordering, total, and page. Omission preserves the existing unfiltered list. The service derives and filters status before counting and slicing; it still scans candidate schedules in the main process.
 
-Task lists return at most 50 items per group on this page. Only the selected task loads execution history and conversation messages. Log pages use the existing job service's SQL limit, offset, and count. Run summaries and Agent names use batch reads; the page adds no polling timer.
+Each of the three task groups returns at most 50 items per page, for at most 150 displayed tasks. Group pagination, retries, and collapse are independent; state changes preserve the selected task and conversation. Only the selected task loads execution history and conversation messages. Log pages use the existing job service's SQL limit, offset, and count. Run summaries and Agent names use batch reads; the page adds no polling timer.
 
 Creation, pause, resume, explicit execution, editing, and deletion use the existing `ai.agent.task.*` commands. Opening the menu does not execute a command. Conversation messages do not update the task prompt or schedule.
 

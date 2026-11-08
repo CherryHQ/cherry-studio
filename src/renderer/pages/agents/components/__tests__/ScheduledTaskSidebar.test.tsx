@@ -175,3 +175,44 @@ it('requires delete confirmation and keeps a failed deletion available for retry
   expect(request).toHaveBeenLastCalledWith('ai.agent.task.delete', { agentId: 'agent', taskId: 'task' })
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 })
+
+it('keeps completed history selectable and offers deletion without inapplicable commands', async () => {
+  const user = userEvent.setup()
+  const select = vi.fn()
+  render(
+    <ScheduledTaskGroup
+      status="completed"
+      source={source({ tasks: [{ ...task, status: 'completed' }] })}
+      agents={new Map()}
+      onSelect={select}
+    />
+  )
+  const completed = screen.getByRole('region', { name: 'Completed' })
+  await user.click(within(completed).getByRole('button', { name: /Daily report agent/ }))
+  expect(select).toHaveBeenCalledWith('task')
+  await user.click(within(completed).getByRole('button', { name: 'More Daily report' }))
+  expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeVisible()
+  for (const name of ['Continue', 'Pause', 'Run now', 'Edit'])
+    expect(screen.queryByRole('menuitem', { name })).not.toBeInTheDocument()
+})
+
+it('allows missed execution and editing without a misleading resume action', async () => {
+  const user = userEvent.setup()
+  request.mockResolvedValue(undefined)
+  render(
+    <ScheduledTaskGroup
+      status="paused"
+      source={source({ tasks: [{ ...task, status: 'missed' }] })}
+      agents={new Map()}
+      onSelect={vi.fn()}
+    />
+  )
+  const missed = screen.getByRole('region', { name: 'Paused' })
+  expect(within(missed).getByText('Missed scheduled time')).toBeVisible()
+  await user.click(within(missed).getByRole('button', { name: 'More Daily report' }))
+  expect(screen.getByRole('menuitem', { name: 'Edit' })).toBeVisible()
+  expect(screen.queryByRole('menuitem', { name: 'Continue' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('menuitem', { name: 'Pause' })).not.toBeInTheDocument()
+  await user.click(screen.getByRole('menuitem', { name: 'Run now' }))
+  await waitFor(() => expect(request.mock.calls.map(([name]) => name)).toEqual(['ai.agent.task.run']))
+})

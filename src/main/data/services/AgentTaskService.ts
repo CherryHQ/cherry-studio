@@ -21,6 +21,7 @@ import { jobService } from '@data/services/JobService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
+  ListTasksQuery,
   ScheduledTaskEntity,
   ScheduledTaskListItem,
   TaskRunLogEntity,
@@ -407,7 +408,7 @@ export class AgentTaskService {
   }
 
   /** Cross-agent listing for the settings overview — one scan instead of one per agent. */
-  listAllTasks(options: ListOptions & { includeHeartbeat?: boolean; status?: ScheduledTaskEntity['status'] } = {}): {
+  listAllTasks(options: ListOptions & { includeHeartbeat?: boolean; status?: ListTasksQuery['status'] } = {}): {
     tasks: ScheduledTaskListItem[]
     total: number
   } {
@@ -420,7 +421,7 @@ export class AgentTaskService {
   }
 
   private queryTasks(
-    options: ListOptions & { includeHeartbeat?: boolean; agentId?: string; status?: ScheduledTaskEntity['status'] }
+    options: ListOptions & { includeHeartbeat?: boolean; agentId?: string; status?: ListTasksQuery['status'] }
   ): {
     tasks: ScheduledTaskEntity[]
     total: number
@@ -441,12 +442,13 @@ export class AgentTaskService {
         return template ? [template.agentId] : []
       })
     )
+    const statuses = options.status && (Array.isArray(options.status) ? options.status : [options.status])
     const filtered = candidates.filter((schedule) => {
       const template = normalizeAgentTaskTemplate(schedule.jobInputTemplate)
       return (
         template !== null &&
         activeAgentIds.has(template.agentId) &&
-        (!options.status || deriveStatus(schedule) === options.status)
+        (!statuses || statuses.includes(deriveStatus(schedule)))
       )
     })
 
