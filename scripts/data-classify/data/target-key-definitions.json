@@ -1326,6 +1326,123 @@
       "defaultValue": 80,
       "status": "classified",
       "description": "Daily budget warning percentage as an integer from 1 to 100"
+    },
+    {
+      "targetKey": "shortcut.tab.open_1",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "Alt",
+          "1"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: tab.open_1 (numbered tab navigation)"
+    },
+    {
+      "targetKey": "shortcut.tab.open_2",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "Alt",
+          "2"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: tab.open_2 (numbered tab navigation)"
+    },
+    {
+      "targetKey": "shortcut.tab.open_3",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "Alt",
+          "3"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: tab.open_3 (numbered tab navigation)"
+    },
+    {
+      "targetKey": "shortcut.tab.open_4",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "Alt",
+          "4"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: tab.open_4 (numbered tab navigation)"
+    },
+    {
+      "targetKey": "shortcut.tab.open_5",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "Alt",
+          "5"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: tab.open_5 (numbered tab navigation)"
+    },
+    {
+      "targetKey": "shortcut.tab.open_6",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "Alt",
+          "6"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: tab.open_6 (numbered tab navigation)"
+    },
+    {
+      "targetKey": "shortcut.tab.open_7",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "Alt",
+          "7"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: tab.open_7 (numbered tab navigation)"
+    },
+    {
+      "targetKey": "shortcut.tab.open_8",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "Alt",
+          "8"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: tab.open_8 (numbered tab navigation)"
+    },
+    {
+      "targetKey": "shortcut.tab.open_9",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "Alt",
+          "9"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: tab.open_9 (numbered tab navigation)"
     }
   ]
 }

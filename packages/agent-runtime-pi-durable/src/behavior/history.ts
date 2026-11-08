@@ -1,13 +1,18 @@
 import {
+  AssistantEntry,
+  GenerationTask,
   InboxDoc,
   CompactionEntry,
   LiveDoc,
+  ToolTask,
   type ConversationId,
   type Cursor,
   type EntryRecord,
+  type GenerationInput,
   type Page,
   type TaskRecord,
   type TaskId,
+  type ToolTaskInput,
   type Tx
 } from '@earendil-works/pi-durable'
 
@@ -58,9 +63,9 @@ export function historyOf(
 ): HistoryEntry[] {
   const calls = new Map<string, string>()
   for (const task of tasks) {
-    const input = task.input as { kind?: string; assistant?: number; callId?: string }
-    if (task.kind === 'pi.tool' && input.kind === 'model')
-      calls.set(`${input.assistant}:${input.callId}`, String(task.id))
+    if (task.kind !== ToolTask.definition.name) continue
+    const input = task.input as ToolTaskInput
+    if (input.kind === 'model') calls.set(`${input.assistant}:${input.callId}`, String(task.id))
   }
   const callKeys = new Map<string, string>()
   return entries.flatMap((entry): HistoryEntry[] => {
@@ -75,7 +80,7 @@ export function historyOf(
       .join('\n')
     const decoded = decodeEntry({ id, kind: entry.kind, data: entry.data, text })
     if (decoded) return [decoded]
-    if (entry.kind === 'pi.compaction') {
+    if (CompactionEntry.is(entry)) {
       const accounting = summaryUsage(entry)
       return [...(accounting ? [accounting] : []), { kind: 'compaction', id }]
     }
@@ -162,7 +167,8 @@ export async function readFacts(
     const runUsage = Array.from(ids, () => ({ ...ZERO_USAGE }))
     for (const entry of childEntries) {
       if (entry.conversationId !== childId) continue
-      const runId = (entry.data as { runId?: TaskId })?.runId
+      if (!AssistantEntry.is(entry) && !CompactionEntry.is(entry)) continue
+      const runId = entry.data.runId
       if (runId === undefined) continue
       const run = ids.indexOf(runId)
       if (run < 0) continue
@@ -207,8 +213,9 @@ export async function readFacts(
     )
       keysSeen.add(input.key)
   }
-  const outcome = tasks.filter((task) => task.conversationId === id && task.kind === 'pi.generation').at(-1)
-    ?.state.outcome
+  const outcome = tasks
+    .filter((task) => task.conversationId === id && task.kind === GenerationTask.definition.name)
+    .at(-1)?.state.outcome
   return {
     thread: threadId(id),
     lineage:
@@ -241,7 +248,7 @@ export async function readFacts(
 
 export const ZERO_USAGE = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, costUsd: 0 }
 export function taskRun(task: TaskRecord<JsonValue, JsonValue, JsonValue>): TaskId {
-  return (task.input as { runId?: TaskId }).runId ?? task.id
+  return (task.input as GenerationInput).runId ?? task.id
 }
 export async function runIds(
   tx: Tx,
@@ -261,9 +268,9 @@ export async function runIds(
       reservations.set(input.runId, Math.max(reservations.get(input.runId) ?? 0, data.cherryRun))
   }
   const ids: (TaskId | undefined)[] = []
-  for (const run of [...new Set(tasks.filter((task) => task.kind === 'pi.generation').map(taskRun))].sort(
-    (a, b) => a - b
-  )) {
+  for (const run of [
+    ...new Set(tasks.filter((task) => task.kind === GenerationTask.definition.name).map(taskRun))
+  ].sort((a, b) => a - b)) {
     const number = Math.max(ids.length + 1, reservations.get(run) ?? 0)
     while (ids.length < number - 1) ids.push(undefined)
     ids.push(run)
