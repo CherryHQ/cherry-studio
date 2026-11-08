@@ -1535,6 +1535,7 @@ export function Topics({
   return (
     <>
       <TopicResourceList<Topic>
+        active={dataEnabled}
         key={isRightPanel ? `topic-resource-panel:${assistantIdFilter ?? 'blank'}` : 'topic-resource-left-panel'}
         permanentDelete={{
           isItemEligible: (item) => !item.pinned && !isTopicPermanentDeleteBusy(item.id),

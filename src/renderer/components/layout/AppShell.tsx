@@ -131,16 +131,16 @@ const AppShellContent = () => {
         () => {
           if (tab) setActiveTab(tab.id)
         },
-        { enabled: !!tab }
+        { enabled: !!tab, allowInKeyboardLayer: true }
       )
     })
     return () => disposers.forEach((dispose) => dispose())
   }, [commandRuntime, setActiveTab, orderedTabs])
 
-  useCommandHandler('app.search', handleOpenGlobalSearch)
-  useCommandHandler('tab.close', handleCloseActiveTab, { enabled: canCloseTab })
-  useCommandHandler('tab.next', () => cycleTab('next'), { enabled: canCycleTabs })
-  useCommandHandler('tab.prev', () => cycleTab('prev'), { enabled: canCycleTabs })
+  useCommandHandler('app.search', handleOpenGlobalSearch, { allowInKeyboardLayer: true })
+  useCommandHandler('tab.close', handleCloseActiveTab, { enabled: canCloseTab, allowInKeyboardLayer: true })
+  useCommandHandler('tab.next', () => cycleTab('next'), { enabled: canCycleTabs, allowInKeyboardLayer: true })
+  useCommandHandler('tab.prev', () => cycleTab('prev'), { enabled: canCycleTabs, allowInKeyboardLayer: true })
 
   useEffect(() => {
     if (isSettingsTabActive) {

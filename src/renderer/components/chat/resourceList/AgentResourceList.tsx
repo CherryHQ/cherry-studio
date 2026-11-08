@@ -683,6 +683,7 @@ export function AgentResourceList({
   return (
     <>
       <ResourceEntityRail
+        active={dataEnabled}
         variant="agent"
         items={items}
         selectedId={selectedId}

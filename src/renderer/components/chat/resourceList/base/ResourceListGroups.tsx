@@ -1,12 +1,11 @@
 import { ChevronRight } from 'lucide-react'
-import type { ComponentProps, MouseEvent, ReactNode, Ref, RefObject } from 'react'
+import type { ComponentProps, MouseEvent, ReactNode, Ref } from 'react'
 import { isValidElement, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Tooltip } from '@cherrystudio/ui'
-import { CommandContextMenu } from '@renderer/components/command'
+import { CommandContextMenu, CommandFocusScope } from '@renderer/components/command'
 import { useCommandHandler } from '@renderer/hooks/command'
-import { canRunFocusedResourceCommand } from '@renderer/utils/commandFocus'
 import { cn } from '@renderer/utils/style'
 
 import {
@@ -54,7 +53,7 @@ function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
   if (ref) ref.current = value
 }
 
-function useGroupHeaderPermanentDelete(group: ResourceListGroup, headerRef: RefObject<HTMLDivElement | null>) {
+function GroupHeaderPermanentDelete({ group }: { group: ResourceListGroup }) {
   const meta = useResourceListMeta()
   const store = useResourceListUiStore()
   const pendingRef = useRef(false)
@@ -69,14 +68,7 @@ function useGroupHeaderPermanentDelete(group: ResourceListGroup, headerRef: RefO
     if (pendingRef.current) return false
     const current = groupRef.current
     if (current.synthetic || !deleteRef.current) return false
-    const header = headerRef.current
-    if (!canRunFocusedResourceCommand(header)) return false
     if (store.getUiSnapshot().renamingId) return false
-    const active = document.activeElement
-    if (active instanceof Element) {
-      const option = active.closest('[role="option"]')
-      if (option && header?.contains(option)) return false
-    }
     const eligible = eligibleRef.current
     return !eligible || eligible(current)
   }
@@ -102,6 +94,7 @@ function useGroupHeaderPermanentDelete(group: ResourceListGroup, headerRef: RefO
     },
     { enabled: () => canRunRef.current() }
   )
+  return null
 }
 
 /**
@@ -224,7 +217,6 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
     },
     [ref]
   )
-  useGroupHeaderPermanentDelete(group, headerRef)
   const groupState = useResourceListGroupState(group.id)
   const labelOverflow = useLabelOverflow(group.label)
   const viewGroup = view.groups.find((candidate) => candidate.group.id === group.id)
@@ -436,12 +428,17 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
     </div>
   )
 
-  if (!headerContextMenuItems) return header
-
   return (
-    <CommandContextMenu location="webcontents.context" getExtraItems={resolveHeaderContextMenuItems}>
-      {header}
-    </CommandContextMenu>
+    <CommandFocusScope rootRef={headerRef} context={{ 'resource.focused': true }}>
+      <GroupHeaderPermanentDelete group={group} />
+      {headerContextMenuItems ? (
+        <CommandContextMenu location="webcontents.context" getExtraItems={resolveHeaderContextMenuItems}>
+          {header}
+        </CommandContextMenu>
+      ) : (
+        header
+      )}
+    </CommandFocusScope>
   )
 }
 

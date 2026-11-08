@@ -731,6 +731,7 @@ export function AssistantResourceList({
   return (
     <>
       <ResourceEntityRail
+        active={dataEnabled}
         variant="assistant"
         items={items}
         selectedId={selectedId}

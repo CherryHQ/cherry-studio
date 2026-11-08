@@ -4,6 +4,7 @@ import type * as ReactI18next from 'react-i18next'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
+import type * as CommandComponents from '@renderer/components/command'
 
 import { ResourceEntityRail, type ResourceEntityRailItem } from '../ResourceEntityRail'
 
@@ -16,8 +17,9 @@ vi.mock('react-i18next', async (importOriginal) => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-vi.mock('@renderer/components/command', () => {
+vi.mock('@renderer/components/command', async (importOriginal) => {
   return {
+    ...(await importOriginal<typeof CommandComponents>()),
     CommandContextMenu: ({ children }: { children: ReactNode }) => <>{children}</>,
     CommandPopupMenu: ({ children, extraItems }: { children: ReactNode; extraItems?: readonly any[] }) => (
       <div>

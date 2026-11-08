@@ -1,10 +1,10 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, render, screen } from '@testing-library/react'
-import type { ReactElement, ReactNode } from 'react'
+import { type ReactElement, type ReactNode, useRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
-import { CommandProvider } from '@renderer/components/command'
+import { CommandFocusScope, CommandKeyboardLayer, CommandProvider } from '@renderer/components/command'
 import { useResolvedCommand } from '@renderer/hooks/command'
 import { isMac } from '@renderer/utils/platform'
 
@@ -101,7 +101,7 @@ function renderHistory(
   mode: 'assistant' | 'agent',
   onAction: (id: string, actionId: string) => void | Promise<void>,
   extra?: ReactNode,
-  options?: { renamingId?: string; rows?: Row[] }
+  options?: { renamingId?: string; rows?: Row[]; active?: boolean }
 ) {
   const rows = options?.rows ?? [
     { id: 'alpha', name: 'Alpha' },
@@ -111,18 +111,29 @@ function renderHistory(
     <CommandProvider>
       <ShortcutLabel />
       {extra}
-      <HistoryRecordList
-        descriptor={descriptor(mode, onAction, options)}
-        items={rows}
-        isLoading={false}
-        isSelected={(id) => id === 'alpha'}
-        selectAllState={false}
-        selectionDisabled={false}
-        onToggleSelection={() => undefined}
-        onToggleSelectAll={() => undefined}
-        onTogglePin={async () => undefined}
-      />
+      <RetainedSurface active={options?.active ?? true}>
+        <HistoryRecordList
+          descriptor={descriptor(mode, onAction, options)}
+          items={rows}
+          isLoading={false}
+          isSelected={(id) => id === 'alpha'}
+          selectAllState={false}
+          selectionDisabled={false}
+          onToggleSelection={() => undefined}
+          onToggleSelectAll={() => undefined}
+          onTogglePin={async () => undefined}
+        />
+      </RetainedSurface>
     </CommandProvider>
+  )
+}
+
+function RetainedSurface({ active, children }: { active: boolean; children: ReactNode }) {
+  const rootRef = useRef<HTMLDivElement>(null)
+  return (
+    <CommandFocusScope rootRef={rootRef} active={active}>
+      <div ref={rootRef}>{children}</div>
+    </CommandFocusScope>
   )
 }
 
@@ -253,7 +264,13 @@ describe.each(['assistant', 'agent'] as const)('history %s focused permanent del
 
   it('preserves the shortcut while a dialog is open', () => {
     const onAction = vi.fn()
-    renderHistory(mode, onAction, <div role="dialog">Open</div>)
+    renderHistory(
+      mode,
+      onAction,
+      <CommandKeyboardLayer active element={null}>
+        <div role="dialog">Open</div>
+      </CommandKeyboardLayer>
+    )
     const beta = screen.getByRole('button', { name: 'Beta' })
     act(() => {
       beta.focus()
@@ -262,14 +279,12 @@ describe.each(['assistant', 'agent'] as const)('history %s focused permanent del
     expect(onAction).not.toHaveBeenCalled()
   })
 
-  it('preserves the shortcut for a hidden row', () => {
+  it('preserves the shortcut for an inactive retained history surface', () => {
     const onAction = vi.fn()
-    renderHistory(mode, onAction)
+    renderHistory(mode, onAction, undefined, { active: false })
     const beta = screen.getByRole('button', { name: 'Beta' })
-    const row = beta.closest('[role="row"]') as HTMLElement
     act(() => {
       beta.focus()
-      row.hidden = true
     })
     expect(pressDelete(beta).defaultPrevented).toBe(false)
     expect(onAction).not.toHaveBeenCalled()

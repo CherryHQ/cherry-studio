@@ -21,6 +21,7 @@ import {
 import type * as ArtifactPanePath from '@renderer/components/chat/panes/artifactPanePath'
 import { useRightPanelState } from '@renderer/components/chat/panes/Shell'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
+import type * as CommandComponents from '@renderer/components/command'
 import { useOptionalFilePreviewNavigation } from '@renderer/components/FilePreview/useFilePreviewNavigation'
 import type { WebviewAnnotationSavedPayload } from '@renderer/components/WebviewAnnotationControls'
 import type * as RendererIpc from '@renderer/ipc'
@@ -422,7 +423,8 @@ vi.mock('../AgentBrowserView', () => ({
   }
 }))
 
-vi.mock('@renderer/components/command', () => ({
+vi.mock('@renderer/components/command', async (importOriginal) => ({
+  ...(await importOriginal<typeof CommandComponents>()),
   CommandTooltip: ({ children }: PropsWithChildren) => <>{children}</>
 }))
 

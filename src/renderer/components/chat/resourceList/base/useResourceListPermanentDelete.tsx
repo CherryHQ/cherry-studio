@@ -1,7 +1,6 @@
 import { useRef } from 'react'
 
 import { useCommandHandler } from '@renderer/hooks/command'
-import { canRunFocusedResourceCommand, isElementSuppressed } from '@renderer/utils/commandFocus'
 
 import {
   getResourceListOptionDomId,
@@ -56,7 +55,7 @@ export function useResourceListPermanentDelete<T extends ResourceListItemBase>({
     const marker = markerRef.current
     const frame = marker?.closest('[data-resource-list-variant]')
     const listbox = frame?.querySelector('[role="listbox"]')
-    if (!(listbox instanceof HTMLElement) || !canRunFocusedResourceCommand(listbox)) return null
+    if (!(listbox instanceof HTMLElement)) return null
 
     const active = document.activeElement
     if (!(active instanceof HTMLElement)) return null
@@ -68,7 +67,7 @@ export function useResourceListPermanentDelete<T extends ResourceListItemBase>({
     const option = active === listbox ? null : active.closest('[role="option"]')
     let domId: string | null = null
     if (option instanceof HTMLElement && listbox.contains(option)) {
-      if (isElementSuppressed(option) || !option.id) return null
+      if (!option.id) return null
       domId = option.id
     } else if (active === listbox) {
       domId = listbox.getAttribute('aria-activedescendant')

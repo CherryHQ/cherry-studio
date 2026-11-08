@@ -1,12 +1,20 @@
 'use client'
 
 import * as ContextMenuPrimitive from '@radix-ui/react-context-menu'
+import { useControllableState } from '@radix-ui/react-use-controllable-state'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { CheckIcon, ChevronRightIcon, CircleIcon } from 'lucide-react'
 import * as React from 'react'
 
 import { cn } from '@cherrystudio/ui/lib/utils'
 
+import {
+  KeyboardLayer,
+  KeyboardLayerOpenContext,
+  KeyboardLayerRoot,
+  useKeyboardLayerRef,
+  useKeyboardLayerState
+} from './keyboard-layer'
 import { usePortalContainer } from './portal-container'
 
 /* ─── Style variants ──────────────────────────────────────────────────────── */
@@ -67,6 +75,7 @@ type ContextMenuOpeningPointerUpGuard = {
 const ContextMenuOpeningPointerUpGuardContext = React.createContext<ContextMenuOpeningPointerUpGuard | null>(null)
 
 function ContextMenu({ onOpenChange, ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Root>) {
+  const [open, setOpen] = React.useState(false)
   const shouldStopOpeningPointerUpRef = React.useRef(false)
   const clearOpeningPointerUpListenerRef = React.useRef<(() => void) | null>(null)
   const clearOpeningPointerUpTimerRef = React.useRef<number | null>(null)
@@ -104,6 +113,7 @@ function ContextMenu({ onOpenChange, ...props }: React.ComponentProps<typeof Con
   )
   const handleOpenChange = React.useCallback(
     (open: boolean) => {
+      setOpen(open)
       if (!open) clearOpeningPointerUp()
       onOpenChange?.(open)
     },
@@ -113,9 +123,11 @@ function ContextMenu({ onOpenChange, ...props }: React.ComponentProps<typeof Con
   React.useEffect(() => clearOpeningPointerUp, [clearOpeningPointerUp])
 
   return (
-    <ContextMenuOpeningPointerUpGuardContext value={pointerUpGuard}>
-      <ContextMenuPrimitive.Root data-slot="context-menu" onOpenChange={handleOpenChange} {...props} />
-    </ContextMenuOpeningPointerUpGuardContext>
+    <KeyboardLayerRoot open={open}>
+      <ContextMenuOpeningPointerUpGuardContext value={pointerUpGuard}>
+        <ContextMenuPrimitive.Root data-slot="context-menu" onOpenChange={handleOpenChange} {...props} />
+      </ContextMenuOpeningPointerUpGuardContext>
+    </KeyboardLayerRoot>
   )
 }
 
@@ -156,8 +168,18 @@ function ContextMenuPortal({ container, ...props }: React.ComponentProps<typeof 
   )
 }
 
-function ContextMenuSub({ ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Sub>) {
-  return <ContextMenuPrimitive.Sub data-slot="context-menu-sub" {...props} />
+function ContextMenuSub({
+  open: openProp,
+  defaultOpen = false,
+  onOpenChange,
+  ...props
+}: React.ComponentProps<typeof ContextMenuPrimitive.Sub>) {
+  const [open, setOpen] = useControllableState({ prop: openProp, defaultProp: defaultOpen, onChange: onOpenChange })
+  return (
+    <KeyboardLayerRoot open={open}>
+      <ContextMenuPrimitive.Sub data-slot="context-menu-sub" open={open} onOpenChange={setOpen} {...props} />
+    </KeyboardLayerRoot>
+  )
 }
 
 function ContextMenuRadioGroup({ ...props }: React.ComponentProps<typeof ContextMenuPrimitive.RadioGroup>) {
@@ -199,13 +221,18 @@ function ContextMenuSubTrigger({
 
 function ContextMenuSubContent({
   className,
+  children,
+  ref: forwardedRef,
   onPointerUpCapture,
   ...props
 }: React.ComponentProps<typeof ContextMenuPrimitive.SubContent>) {
+  const { element, ref } = useKeyboardLayerRef(forwardedRef)
+  const open = React.use(KeyboardLayerOpenContext)
   const pointerUpGuard = React.use(ContextMenuOpeningPointerUpGuardContext)
 
   return (
     <ContextMenuPrimitive.SubContent
+      ref={ref}
       data-slot="context-menu-sub-content"
       className={cn(
         menuSubContentStyles,
@@ -217,8 +244,11 @@ function ContextMenuSubContent({
         onPointerUpCapture?.(event)
         stopOpeningPointerUp(event, pointerUpGuard)
       }}
-      {...props}
-    />
+      {...props}>
+      <KeyboardLayer active={open} element={element}>
+        {children}
+      </KeyboardLayer>
+    </ContextMenuPrimitive.SubContent>
   )
 }
 
@@ -226,13 +256,30 @@ type ContextMenuContentProps = React.ComponentProps<typeof ContextMenuPrimitive.
   portalContainer?: React.ComponentProps<typeof ContextMenuPrimitive.Portal>['container']
 }
 
-function ContextMenuContent({ className, onPointerUpCapture, portalContainer, ...props }: ContextMenuContentProps) {
+function ContextMenuContent({
+  className,
+  onPointerUpCapture,
+  portalContainer,
+  children,
+  ref: forwardedRef,
+  onCloseAutoFocus,
+  ...props
+}: ContextMenuContentProps) {
+  const { element, ref } = useKeyboardLayerRef(forwardedRef)
+  const layer = useKeyboardLayerState(props.forceMount)
   const pointerUpGuard = React.use(ContextMenuOpeningPointerUpGuardContext)
   const defaultPortalContainer = usePortalContainer()
 
   return (
-    <ContextMenuPrimitive.Portal container={portalContainer ?? defaultPortalContainer ?? undefined}>
+    <ContextMenuPrimitive.Portal
+      forceMount={props.forceMount}
+      container={portalContainer ?? defaultPortalContainer ?? undefined}>
       <ContextMenuPrimitive.Content
+        ref={ref}
+        onCloseAutoFocus={(event) => {
+          onCloseAutoFocus?.(event)
+          layer.onCloseAutoFocus()
+        }}
         data-slot="context-menu-content"
         className={cn(
           menuContentStyles,
@@ -244,8 +291,14 @@ function ContextMenuContent({ className, onPointerUpCapture, portalContainer, ..
           onPointerUpCapture?.(event)
           stopOpeningPointerUp(event, pointerUpGuard)
         }}
-        {...props}
-      />
+        {...props}>
+        <KeyboardLayer
+          releaseAfterFocusRestore={layer.releaseAfterFocusRestore}
+          active={layer.active}
+          element={element}>
+          {children}
+        </KeyboardLayer>
+      </ContextMenuPrimitive.Content>
     </ContextMenuPrimitive.Portal>
   )
 }

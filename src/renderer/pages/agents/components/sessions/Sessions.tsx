@@ -1568,6 +1568,7 @@ const Sessions = ({
 
   return (
     <SessionResourceList<SessionListItem>
+      active={dataEnabled}
       key={isRightPanel ? `session-resource-panel:${agentIdFilter ?? 'blank'}` : 'session-resource-left-panel'}
       presentation={presentation}
       items={visibleGroupedSessions}
