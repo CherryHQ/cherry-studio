@@ -56,7 +56,8 @@ export const checkTasks = {
 
 const consumers = {
   main: ['main', 'preload'],
-  renderer: ['renderer'],
+  // UI theme contracts scan renderer sources, including colocated tests.
+  renderer: ['renderer', 'ui'],
   shared: testProjects,
   aiCore: ['aiCore', 'main', 'preload', 'renderer'],
   'agent-behavior': ['agent-behavior', 'agent-runtime-pi', 'main'],

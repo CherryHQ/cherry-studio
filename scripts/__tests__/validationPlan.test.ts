@@ -36,6 +36,18 @@ describe('validation selection', () => {
     expect(mixed.tasks).toContain('types-web')
     expect(mixed.projects).not.toContain('main')
   })
+  it.each([
+    'src/renderer/pages/translate/components/TranslateOutputPane.tsx',
+    'src/renderer/pages/translate/components/__tests__/TranslateOutputPane.image.test.tsx',
+    'src/renderer/utils/theme.ts',
+    'src/renderer/assets/styles/tailwind.css'
+  ])('runs UI theme contracts when their renderer input changes: %s', (file) => {
+    const plan = createPlan([file])
+    expect(plan.projects).toEqual(expect.arrayContaining(['renderer', 'ui']))
+    expect(plan.projects).not.toContain('main')
+    expect(selectedGroups(plan).packages).toBe(true)
+    expect(() => verifyResults(plan, { packages: 'skipped' }, ['packages'])).toThrow('packages: expected success')
+  })
   it('keeps a complete translation pair out of code tests', () => {
     const plan = createPlan(['CONTRIBUTING.md', 'CONTRIBUTING.zh.md', 'CONTRIBUTING.i18n.yaml'])
     expect(plan.tasks).toEqual(['format', 'docs'])

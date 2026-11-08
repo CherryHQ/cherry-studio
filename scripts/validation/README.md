@@ -17,7 +17,8 @@ retains full checks. Skill files select the skill gate as well. Unknown inputs,
 root configuration, workflow changes, and the planner itself select all tasks.
 
 Source changes select their project and known consumers. Shared changes select all
-projects. Source changes retain full lint and i18n scans because imports and translation
+projects. Renderer changes also select UI tests because the theme contracts scan renderer
+TypeScript and CSS, including colocated tests. Source changes retain full lint and i18n scans because imports and translation
 references cross file boundaries. Test-only changes omit only scanners that exclude
 those paths: catalog coverage ignores `__tests__` but still reads adjacent main tests;
 hardcoded detection ignores `__tests__` and `.test.ts(x)`, but not adjacent `.spec.ts(x)`.
