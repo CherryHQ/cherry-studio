@@ -268,31 +268,17 @@ export function AgentSessionDetailsSections({
   return (
     <>
       {workspaceLabel && (
-        <div className="space-y-1 border-b border-border-subtle p-3">
-          {workspacePath ? (
-            <OpenTargetButton
-              targetPath={workspacePath}
-              pathKind="directory"
-              tooltip={workspacePath}
-              className="w-full"
-              primaryClassName="min-w-0 flex-1 justify-start text-muted-foreground"
-              primaryContent={
-                <>
-                  <FolderOpen className="size-4 shrink-0" />
-                  <span className="truncate">{workspaceLabel}</span>
-                </>
-              }
-            />
-          ) : (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <FolderOpen className="size-4" />
+        <div className="flex min-w-0 items-center gap-2 px-4 py-3">
+          <FolderOpen className="size-4 shrink-0 text-muted-foreground" />
+          <Tooltip asChild content={workspacePath || workspaceLabel}>
+            <span
+              tabIndex={0}
+              className="min-w-0 flex-1 truncate rounded-sm text-sm font-medium text-foreground focus-visible:bg-accent focus-visible:outline-none">
               {workspaceLabel}
-            </div>
-          )}
+            </span>
+          </Tooltip>
           {workspacePath && (
-            <p className="truncate px-1 text-xs text-muted-foreground" title={workspacePath}>
-              {workspacePath}
-            </p>
+            <OpenTargetButton targetPath={workspacePath} pathKind="directory" className="shrink-0 border-0" />
           )}
         </div>
       )}
