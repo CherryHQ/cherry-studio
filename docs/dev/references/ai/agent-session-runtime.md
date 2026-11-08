@@ -252,6 +252,8 @@ Background notification generations whose native source calls belong to an unfin
 that reply and keep its assistant message ID. Main records intermediate native success but holds
 product completion while that reply has undrained results. Empty display task lists and connection
 release do not settle it; confirmed result drainage, ordered content and final persistence do.
+Before terminal persistence begins, an error or pause replaces held intermediate success;
+later success cannot erase that failure or pause. Events after settlement cannot reopen the reply.
 The model still chooses foreground/background through the native tool arguments. A resident command
 can retain the connection without holding a reply open. A notification without proven ownership
 cannot reopen a settled reply.
