@@ -40,6 +40,7 @@ import { loggerService } from '@logger'
 import { agentDataDirectoryPath, assertAgentStorageDirectory } from '@main/ai/agents/agentDataDirectory'
 import { readHeartbeat } from '@main/ai/agents/heartbeat'
 import { pauseHeartbeatSchedule } from '@main/ai/agents/heartbeatSchedule'
+import { frameScheduledTrigger } from '@main/ai/agents/scheduledTriggerFraming'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
 import type { JobContext } from '@main/core/job/types'
@@ -214,14 +215,9 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       logger.debug('Heartbeat skipped (no heartbeat.md)', { agentId, scheduleId })
       return { kind: 'skipped', result: 'Skipped (no file)' }
     }
-    effectivePrompt = [
-      '[Heartbeat]',
-      'This is a periodic heartbeat. The instructions below are from your heartbeat.md file.',
-      'Process each item, take action where possible, and use the notify tool to alert the user of important results.',
-      '',
-      '---',
-      content
-    ].join('\n')
+    effectivePrompt = frameScheduledTrigger({ kind: 'heartbeat', instruction: content })
+  } else {
+    effectivePrompt = frameScheduledTrigger({ kind: 'task', taskName, instruction: prompt })
   }
 
   const expectedReuseRevision = normalizeTaskSessionReuseRevision(ctx.input.reuseRevision)
