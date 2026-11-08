@@ -3,7 +3,6 @@ import {
   Archive,
   AudioLines,
   Bell,
-  CalendarClock,
   Cloud,
   Command,
   Crop,
@@ -171,12 +170,6 @@ export const settingsMenu: readonly SettingsMenuEntry[] = [
     route: '/settings/device-connections',
     titleKey: 'deviceConnections.title',
     icon: createElement(MonitorSmartphone),
-    groupKey: 'settings.menuGroups.automation'
-  },
-  {
-    route: '/settings/scheduled-tasks',
-    titleKey: 'settings.scheduledTasks.title',
-    icon: createElement(CalendarClock),
     groupKey: 'settings.menuGroups.automation'
   },
   {

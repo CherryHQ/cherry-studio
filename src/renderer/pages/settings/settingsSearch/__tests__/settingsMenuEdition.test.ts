@@ -10,5 +10,6 @@ describe('settings menu edition', () => {
     const { settingsMenu } = await import('@renderer/components/settingsMenu')
 
     expect(settingsMenu.some(({ route }) => route === '/settings/profile')).toBe(true)
+    expect(settingsMenu.some(({ route }) => route === '/settings/scheduled-tasks')).toBe(false)
   })
 })
