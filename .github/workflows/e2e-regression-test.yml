@@ -649,6 +649,34 @@ jobs:
         working-directory: target-app
         run: node -e "require('node:fs').accessSync('out/main/main.js'); require('node:fs').accessSync('out/renderer/windows/main/index.html')"
 
+      - name: Generate regression checkpoint
+        id: regression_checkpoint
+        if: "!cancelled() && steps['smoke-build'].outcome == 'success'"
+        continue-on-error: true
+        shell: bash
+        env:
+          CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}
+          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY }}
+          CHERRY_TEST_CHERRYIN_ACCOUNT: ${{ secrets.CHERRY_TEST_CHERRYIN_ACCOUNT }}
+          CHERRY_TEST_CHERRYIN_PASSWORD: ${{ secrets.CHERRY_TEST_CHERRYIN_PASSWORD }}
+        run: pnpm exec tsx scripts/e2e/regression/cli.ts finalize --run-dir "$RUN_DIR"
+
+      - name: Upload regression checkpoint
+        if: "!cancelled() && steps.regression_checkpoint.outcome == 'success'"
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-evidence-${{ matrix.platform }}
+          overwrite: true
+          if-no-files-found: warn
+          retention-days: 30
+          path: |
+            ${{ runner.temp }}/cherry-regression/report
+            ${{ runner.temp }}/cherry-regression/evidence
+            ${{ runner.temp }}/cherry-regression/agent-workspace
+            ${{ runner.temp }}/cherry-regression/fixtures
+            ${{ runner.temp }}/cherry-regression/release/installation.json
+
       - name: Run standalone smoke suite
         if: always() && steps.smoke-build.outcome == 'success'
         timeout-minutes: 60
@@ -664,6 +692,7 @@ jobs:
             --output "$RUN_DIR/evidence/smoke" --reporter=html,json --retries=0
 
       - name: Generate platform report
+        id: platform_report
         if: always() && steps.controller-dependencies.outcome == 'success'
         shell: bash
         env:
@@ -674,7 +703,7 @@ jobs:
         run: pnpm exec tsx scripts/e2e/regression/cli.ts finalize --run-dir "$RUN_DIR"
 
       - name: Upload platform report and evidence
-        if: always()
+        if: always() && steps.platform_report.outcome == 'success'
         uses: actions/upload-artifact@v7
         with:
           name: test-evidence-${{ matrix.platform }}
