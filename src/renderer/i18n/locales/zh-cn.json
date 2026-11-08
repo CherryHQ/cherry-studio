@@ -1565,6 +1565,8 @@
   "error.originalError": "原错误",
   "error.originalMessage": "原消息",
   "error.parameter": "参数",
+  "error.pi_shell_configuration_invalid": "Pi Shell 配置无效",
+  "error.pi_shell_configuration_invalid_detail": "在 \"{{settingsPath}}\" 中配置的 shellPath \"{{shellPath}}\" 不可用或不是 bash.exe。仅支持 Git Bash 的 bash.exe。请将 shellPath 修改为现有 Git Bash 的 bash.exe 路径，或删除 shellPath 字段以使用自动发现，然后重试。如果尚未安装 Git Bash，请先安装 Git for Windows。",
   "error.prompt": "提示词",
   "error.provider": "提供商",
   "error.providerId": "提供商 ID",

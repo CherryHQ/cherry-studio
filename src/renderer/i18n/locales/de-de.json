@@ -1565,6 +1565,8 @@
   "error.originalError": "Ursprünglicher Fehler",
   "error.originalMessage": "Ursprüngliche Nachricht",
   "error.parameter": "Parameter",
+  "error.pi_shell_configuration_invalid": "Die Pi-Shell-Konfiguration ist ungültig",
+  "error.pi_shell_configuration_invalid_detail": "Der in \"{{settingsPath}}\" konfigurierte shellPath \"{{shellPath}}\" ist nicht verfügbar oder verweist nicht auf bash.exe. Es wird nur eine bash.exe von Git Bash akzeptiert. Ändern Sie shellPath so, dass er auf eine vorhandene bash.exe von Git Bash verweist, oder entfernen Sie das Feld shellPath, um die automatische Erkennung zu verwenden. Versuchen Sie es anschließend erneut. Falls Git Bash nicht installiert ist, installieren Sie zuerst Git for Windows.",
   "error.prompt": "Prompt",
   "error.provider": "Anbieter",
   "error.providerId": "Anbieter-ID",

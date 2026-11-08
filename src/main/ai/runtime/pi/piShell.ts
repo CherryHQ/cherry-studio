@@ -38,7 +38,15 @@ export function resolvePiShellPath(): string | undefined {
   if (!configured) return autoDiscoverGitBash() ?? undefined
 
   const shellPath = validateGitBashPath(configured)
-  if (!shellPath) throw new Error(`Configured Pi shellPath is unavailable or is not bash.exe: ${configured}`)
+  if (!shellPath)
+    throw Object.assign(new Error(`Configured Pi shellPath is unavailable or is not bash.exe: ${configured}`), {
+      i18nKey: 'pi_shell_configuration_invalid',
+      detailI18nKey: 'pi_shell_configuration_invalid_detail',
+      detailI18nValues: {
+        shellPath: configured,
+        settingsPath: application.getPath('external.pi.settings_file')
+      }
+    })
   return shellPath
 }
 

@@ -1565,6 +1565,8 @@
   "error.originalError": "Αρχικό σφάλμα",
   "error.originalMessage": "Αρχικό μήνυμα",
   "error.parameter": "παράμετροι",
+  "error.pi_shell_configuration_invalid": "Η ρύθμιση κελύφους του Pi δεν είναι έγκυρη",
+  "error.pi_shell_configuration_invalid_detail": "Το shellPath \"{{shellPath}}\" που έχει οριστεί στο \"{{settingsPath}}\" δεν είναι διαθέσιμο ή δεν είναι bash.exe. Γίνεται δεκτό μόνο το bash.exe του Git Bash. Αλλάξτε το shellPath ώστε να παραπέμπει σε ένα υπάρχον bash.exe του Git Bash ή αφαιρέστε το πεδίο shellPath για να χρησιμοποιηθεί ο αυτόματος εντοπισμός και δοκιμάστε ξανά. Αν το Git Bash δεν είναι εγκατεστημένο, εγκαταστήστε πρώτα το Git for Windows.",
   "error.prompt": "Προτροπή",
   "error.provider": "πάροχος",
   "error.providerId": "Αναγνωριστικό παρόχου",

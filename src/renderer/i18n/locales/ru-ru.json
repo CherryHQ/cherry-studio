@@ -1565,6 +1565,8 @@
   "error.originalError": "Исходная ошибка",
   "error.originalMessage": "исходное сообщение",
   "error.parameter": "параметр",
+  "error.pi_shell_configuration_invalid": "Некорректная конфигурация оболочки Pi",
+  "error.pi_shell_configuration_invalid_detail": "Путь shellPath \"{{shellPath}}\", указанный в \"{{settingsPath}}\", недоступен или ведёт не к bash.exe. Допускается только bash.exe из Git Bash. Измените shellPath, указав существующий bash.exe из Git Bash, или удалите поле shellPath для автоматического обнаружения, затем повторите попытку. Если Git Bash не установлен, сначала установите Git for Windows.",
   "error.prompt": "Промпт",
   "error.provider": "провайдер",
   "error.providerId": "ID провайдера",
