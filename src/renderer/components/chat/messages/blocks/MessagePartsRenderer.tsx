@@ -96,7 +96,7 @@ import {
   projectCompletedMessageParts,
   projectLiveMessageParts
 } from './messagePartLayouts'
-import { useMessageParts } from './MessagePartsContext'
+import { ToolPartScopeProvider, useMessageParts, useMessagePartsScopeId } from './MessagePartsContext'
 import MessageProcessGroup from './MessageProcessGroup'
 import PlaceholderBlock, { type PlaceholderStatus } from './PlaceholderBlock'
 import RetryStatusBlock from './RetryStatusBlock'
@@ -930,7 +930,7 @@ function getCachedToolProjection(part: CherryMessagePart, partId: string): Cache
   const toolResponse = buildToolResponseFromPart(part, partId)
   const projection: CachedToolProjection = { toolResponse }
   if (toolResponse && canRenderMessageTool(toolResponse)) {
-    projection.renderItem = { id: partId, toolResponse }
+    projection.renderItem = { id: partId, part, toolResponse }
   }
   projectionsById.set(partId, projection)
   return projection
@@ -950,9 +950,14 @@ const ToolPartView = React.memo(function ToolPartView({
   partId: string
   settleActiveTools?: boolean
 }) {
+  const messageId = useMessagePartsScopeId()
   const toolResponse = getCachedToolProjection(part, partId).toolResponse
   if (!toolResponse) return null
-  return <MessageTools toolResponse={settleActiveTools ? settleToolResponse(toolResponse) : toolResponse} />
+  return (
+    <ToolPartScopeProvider messageId={messageId} part={part}>
+      <MessageTools toolResponse={settleActiveTools ? settleToolResponse(toolResponse) : toolResponse} />
+    </ToolPartScopeProvider>
+  )
 })
 
 function renderToolPart(part: CherryMessagePart, partId: string, settleActiveTools?: boolean): React.ReactNode {

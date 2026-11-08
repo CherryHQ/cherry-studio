@@ -26,7 +26,13 @@ export function parseGeneratedImageOutput(response: unknown) {
     inlineUrls:
       mcpOutputParse.success && mcpOutputParse.data.isError !== true
         ? mcpOutputParse.data.content.flatMap((item) =>
-            item.type === 'image' && item.data ? [`data:${item.mimeType ?? 'image/png'};base64,${item.data}`] : []
+            item.type === 'image' && item.data
+              ? [`data:${item.mimeType ?? 'image/png'};base64,${item.data}`]
+              : item.type === 'resource_link' &&
+                  item.mimeType?.startsWith('image/') &&
+                  item.uri.startsWith('cherry-media://tool-result/')
+                ? [item.uri]
+                : []
           )
         : []
   }

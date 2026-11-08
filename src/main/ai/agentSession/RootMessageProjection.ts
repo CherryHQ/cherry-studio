@@ -124,8 +124,12 @@ export class RootMessageProjection {
       const owner = previous?.messageId ?? (live.has(message.id) ? currentMessageId : undefined)
       if (!owner) continue
       if (!this.extras.has(owner)) this.extras.set(owner, [])
-      if (!isDeepStrictEqual(previous?.parts, message.parts)) changed.add(owner)
-      this.sources.set(message.id, { messageId: owner, parts: message.parts })
+      if (
+        previous?.parts.length !== message.parts.length ||
+        message.parts.some((part, index) => part !== previous.parts[index])
+      )
+        changed.add(owner)
+      this.sources.set(message.id, { messageId: owner, parts: message.parts.slice() })
       for (const part of message.parts) {
         if (isToolUIPart(part) && part.state.startsWith('output-')) this.pendingTools.delete(part.toolCallId)
       }

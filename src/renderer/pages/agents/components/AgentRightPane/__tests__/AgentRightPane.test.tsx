@@ -727,7 +727,7 @@ describe('AgentRightPane', () => {
     MockUsePreferenceUtils.setPreferenceValue('feature.agent.file_pane.auto_save', true)
     uiMockState.useRealHoverCard = false
     ipcRequestMock.mockImplementation(async (route: string) => {
-      if (route === 'ai.tool.get_result') return { found: true, output: 'Loaded flow result' }
+      if (route === 'ai.tool.get_result') return { status: 'ready', purpose: 'preview', output: 'Loaded flow result' }
       if (route === 'ai.projection.attach') return null
       return {
         kind: 'file',
@@ -1139,7 +1139,7 @@ describe('AgentRightPane', () => {
       $deferredToolResult: deferredToolResult
     })
     const message = createPreviewMessage('m-existing-deferred', [part])
-    const result = createDeferredPromise<{ found: true; output: string }>()
+    const result = createDeferredPromise<{ status: 'ready'; purpose: 'preview'; output: string }>()
     ipcRequestMock.mockReturnValue(result.promise)
     resolveArtifactPaneFileSelectionMock.mockReturnValue({
       workspacePath: '/workspace',
@@ -1158,8 +1158,12 @@ describe('AgentRightPane', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
-    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', deferredToolResult))
-    await act(async () => result.resolve({ found: true, output: 'Ready at http://localhost:6750/' }))
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', { ...deferredToolResult, purpose: 'preview' })
+    )
+    await act(async () =>
+      result.resolve({ status: 'ready', purpose: 'preview', output: 'Ready at http://localhost:6750/' })
+    )
 
     expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'file:///workspace/artifact.html')
   })
@@ -1173,7 +1177,7 @@ describe('AgentRightPane', () => {
         messageId: `m-${kind}-initial-history`,
         toolCallId: `bash-${kind}-initial-history`
       }
-      const result = createDeferredPromise<{ found: true; output: string }>()
+      const result = createDeferredPromise<{ status: 'ready'; purpose: 'preview'; output: string }>()
       if (kind === 'deferred') ipcRequestMock.mockReturnValue(result.promise)
       resolveArtifactPaneFileSelectionMock.mockReturnValue({
         workspacePath: '/workspace',
@@ -1205,8 +1209,15 @@ describe('AgentRightPane', () => {
       const hydratedMessage = createPreviewMessage(deferredToolResult.messageId, [hydratedPart])
       rerender(renderPane([hydratedMessage], { [hydratedMessage.id]: [hydratedPart] }, false))
       if (kind === 'deferred') {
-        await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', deferredToolResult))
-        await act(async () => result.resolve({ found: true, output: 'Ready at http://localhost:6775/' }))
+        await waitFor(() =>
+          expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', {
+            ...deferredToolResult,
+            purpose: 'preview'
+          })
+        )
+        await act(async () =>
+          result.resolve({ status: 'ready', purpose: 'preview', output: 'Ready at http://localhost:6775/' })
+        )
       }
 
       expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'file:///workspace/artifact.html')
@@ -1343,7 +1354,7 @@ describe('AgentRightPane', () => {
         messageId: `m-older-${kind}`,
         toolCallId: `bash-older-${kind}`
       }
-      const result = createDeferredPromise<{ found: true; output: string }>()
+      const result = createDeferredPromise<{ status: 'ready'; purpose: 'preview'; output: string }>()
       if (kind === 'deferred') ipcRequestMock.mockReturnValue(result.promise)
       resolveArtifactPaneFileSelectionMock.mockReturnValue({
         workspacePath: '/workspace',
@@ -1375,8 +1386,15 @@ describe('AgentRightPane', () => {
         })
       )
       if (kind === 'deferred') {
-        await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', deferredToolResult))
-        await act(async () => result.resolve({ found: true, output: 'Ready at http://localhost:6925/' }))
+        await waitFor(() =>
+          expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', {
+            ...deferredToolResult,
+            purpose: 'preview'
+          })
+        )
+        await act(async () =>
+          result.resolve({ status: 'ready', purpose: 'preview', output: 'Ready at http://localhost:6925/' })
+        )
       }
 
       expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'file:///workspace/artifact.html')
@@ -1458,7 +1476,7 @@ describe('AgentRightPane', () => {
         messageId: '00000000-0000-7000-8000-000000000001',
         toolCallId: `bash-after-delete-${kind}`
       }
-      const deferredResult = createDeferredPromise<{ found: true; output: string }>()
+      const deferredResult = createDeferredPromise<{ status: 'ready'; purpose: 'preview'; output: string }>()
       if (kind === 'deferred') ipcRequestMock.mockReturnValue(deferredResult.promise)
       resolveArtifactPaneFileSelectionMock.mockReturnValue({
         workspacePath: '/workspace',
@@ -1486,8 +1504,12 @@ describe('AgentRightPane', () => {
       const olderMessage = createPreviewMessage(deferredRef.messageId, [olderPart], '2026-01-01T00:00:00.000Z')
       rerender(renderPane([olderMessage], { [olderMessage.id]: [olderPart] }))
       if (kind === 'deferred') {
-        await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', deferredRef))
-        await act(async () => deferredResult.resolve({ found: true, output: 'Ready at http://localhost:7220/' }))
+        await waitFor(() =>
+          expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', { ...deferredRef, purpose: 'preview' })
+        )
+        await act(async () =>
+          deferredResult.resolve({ status: 'ready', purpose: 'preview', output: 'Ready at http://localhost:7220/' })
+        )
       }
 
       expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'file:///workspace/artifact.html')
@@ -1612,7 +1634,11 @@ describe('AgentRightPane', () => {
       }
     })
     const messages = [createPreviewMessage('m1', [part])]
-    ipcRequestMock.mockResolvedValue({ found: true, output: 'Ready at http://localhost:6100/app' })
+    ipcRequestMock.mockResolvedValue({
+      status: 'ready',
+      purpose: 'preview',
+      output: 'Ready at http://localhost:6100/app'
+    })
 
     render(
       <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: [part] }}>
@@ -1622,7 +1648,9 @@ describe('AgentRightPane', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
 
-    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', deferredToolResult))
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', { ...deferredToolResult, purpose: 'preview' })
+    )
     await waitFor(() =>
       expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:6100/app')
     )
@@ -1636,7 +1664,7 @@ describe('AgentRightPane', () => {
     }
     const part = createPreviewToolPart('bash-lazy', 'Bash', { $deferredToolResult: deferredToolResult })
     const messages = [createPreviewMessage('m-lazy', [part])]
-    const result = createDeferredPromise<{ found: true; output: string }>()
+    const result = createDeferredPromise<{ status: 'ready'; purpose: 'preview'; output: string }>()
     ipcRequestMock.mockReturnValue(result.promise)
 
     render(
@@ -1650,8 +1678,12 @@ describe('AgentRightPane', () => {
     expect(ipcRequestMock).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
-    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', deferredToolResult))
-    await act(async () => result.resolve({ found: true, output: 'Ready at http://localhost:6125/' }))
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', { ...deferredToolResult, purpose: 'preview' })
+    )
+    await act(async () =>
+      result.resolve({ status: 'ready', purpose: 'preview', output: 'Ready at http://localhost:6125/' })
+    )
 
     expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:6125/')
   })
@@ -1682,7 +1714,7 @@ describe('AgentRightPane', () => {
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
 
     expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:6150/')
-    expect(ipcRequestMock).not.toHaveBeenCalledWith('ai.tool.get_result', deferredToolResult)
+    expect(ipcRequestMock).not.toHaveBeenCalledWith('ai.tool.get_result', { ...deferredToolResult, purpose: 'preview' })
   })
 
   it('waits for a newer deferred result before falling back to an older preview URL', async () => {
@@ -1696,7 +1728,7 @@ describe('AgentRightPane', () => {
       $deferredToolResult: newerRef,
       excerpt: { head: 'Still compiling', tail: 'No address yet', totalChars: 40_000, totalLines: 2 }
     })
-    const result = createDeferredPromise<{ found: true; output: string }>()
+    const result = createDeferredPromise<{ status: 'ready'; purpose: 'preview'; output: string }>()
     ipcRequestMock.mockReturnValue(result.promise)
 
     render(
@@ -1712,7 +1744,9 @@ describe('AgentRightPane', () => {
 
     expect(screen.getByTestId('webview-browser')).not.toHaveAttribute('data-url')
 
-    await act(async () => result.resolve({ found: true, output: 'Build completed without a preview address' }))
+    await act(async () =>
+      result.resolve({ status: 'ready', purpose: 'preview', output: 'Build completed without a preview address' })
+    )
 
     await waitFor(() =>
       expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:6200/')
@@ -1720,7 +1754,7 @@ describe('AgentRightPane', () => {
   })
 
   it.each([
-    { caseName: 'is unavailable', reply: () => Promise.resolve({ found: false }), suffix: 'missing' },
+    { caseName: 'is unavailable', reply: () => Promise.resolve({ status: 'unavailable' }), suffix: 'missing' },
     { caseName: 'request fails', reply: () => Promise.reject(new Error('result lookup failed')), suffix: 'error' }
   ])('falls back to an older preview URL when the deferred result $caseName', async ({ reply, suffix }) => {
     const olderPart = createPreviewToolPart(`bash-old-${suffix}`, 'Bash', 'Ready at http://localhost:6300/')
@@ -1745,15 +1779,17 @@ describe('AgentRightPane', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
 
-    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', newerRef))
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', { ...newerRef, purpose: 'preview' })
+    )
     await waitFor(() =>
       expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:6300/')
     )
   })
 
   it('does not let a stale deferred result replace the current session preview URL', async () => {
-    const resultA = createDeferredPromise<{ found: true; output: string }>()
-    const resultB = createDeferredPromise<{ found: true; output: string }>()
+    const resultA = createDeferredPromise<{ status: 'ready'; purpose: 'preview'; output: string }>()
+    const resultB = createDeferredPromise<{ status: 'ready'; purpose: 'preview'; output: string }>()
     ipcRequestMock.mockImplementation((_route: string, ref: { topicId: string }) =>
       ref.topicId === 'agent-session:session-a' ? resultA.promise : resultB.promise
     )
@@ -1772,18 +1808,26 @@ describe('AgentRightPane', () => {
     )
     const { rerender } = render(renderPane('session-a', 'm-a', partA))
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
-    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', refA))
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', { ...refA, purpose: 'preview' })
+    )
 
     rerender(renderPane('session-b', 'm-b', partB))
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
-    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', refB))
-    await act(async () => resultB.resolve({ found: true, output: 'Ready at http://localhost:6400/' }))
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', { ...refB, purpose: 'preview' })
+    )
+    await act(async () =>
+      resultB.resolve({ status: 'ready', purpose: 'preview', output: 'Ready at http://localhost:6400/' })
+    )
     await waitFor(() =>
       expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:6400/')
     )
 
-    await act(async () => resultA.resolve({ found: true, output: 'Ready at http://localhost:6500/' }))
+    await act(async () =>
+      resultA.resolve({ status: 'ready', purpose: 'preview', output: 'Ready at http://localhost:6500/' })
+    )
 
     expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:6400/')
   })
@@ -1826,18 +1870,20 @@ describe('AgentRightPane', () => {
       $deferredToolResult: deferredRef
     })
     const newerMessage = createPreviewMessage(deferredRef.messageId, [newerPart])
-    const result = createDeferredPromise<{ found: true; output: string }>()
+    const result = createDeferredPromise<{ status: 'ready'; purpose: 'preview'; output: string }>()
     ipcRequestMock.mockReturnValue(result.promise)
 
     rerender(
       renderPane([olderMessage, newerMessage], { [olderMessage.id]: [olderPart], [newerMessage.id]: [newerPart] })
     )
-    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', deferredRef))
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', { ...deferredRef, purpose: 'preview' })
+    )
     expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'file:///workspace/artifact.html')
 
     await act(async () => {
       if (rejectResult) result.reject(new Error('result lookup failed'))
-      else result.resolve({ found: true, output: 'Build completed without a preview address' })
+      else result.resolve({ status: 'ready', purpose: 'preview', output: 'Build completed without a preview address' })
     })
 
     expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'file:///workspace/artifact.html')
@@ -1859,8 +1905,8 @@ describe('AgentRightPane', () => {
       messageId: `m-source-new-${suffix}`,
       toolCallId: `bash-source-new-${suffix}`
     }
-    const olderResult = createDeferredPromise<{ found: true; output: string }>()
-    const newerResult = createDeferredPromise<{ found: true; output: string }>()
+    const olderResult = createDeferredPromise<{ status: 'ready'; purpose: 'preview'; output: string }>()
+    const newerResult = createDeferredPromise<{ status: 'ready'; purpose: 'preview'; output: string }>()
     ipcRequestMock.mockImplementation((_route: string, ref: { toolCallId: string }) =>
       ref.toolCallId === olderRef.toolCallId ? olderResult.promise : newerResult.promise
     )
@@ -1885,7 +1931,9 @@ describe('AgentRightPane', () => {
     const { rerender } = render(renderPane([olderMessage], { [olderMessage.id]: [olderPart] }))
 
     fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
-    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', olderRef))
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', { ...olderRef, purpose: 'preview' })
+    )
 
     const newerPart = createPreviewToolPart(newerRef.toolCallId, 'TaskOutput', {
       $deferredToolResult: newerRef
@@ -1897,13 +1945,16 @@ describe('AgentRightPane', () => {
         [newerMessage.id]: [newerPart]
       })
     )
-    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', newerRef))
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', { ...newerRef, purpose: 'preview' })
+    )
 
     await act(async () => {
       if (outcome === 'request rejects') newerResult.reject(new Error('newer result lookup failed'))
       else {
         newerResult.resolve({
-          found: true,
+          status: 'ready',
+          purpose: 'preview',
           output: outcome === 'contains a URL' ? 'Ready at http://localhost:7050/' : 'Build completed'
         })
       }
@@ -1916,7 +1967,9 @@ describe('AgentRightPane', () => {
       return
     }
 
-    await act(async () => olderResult.resolve({ found: true, output: 'Ready at http://localhost:7000/' }))
+    await act(async () =>
+      olderResult.resolve({ status: 'ready', purpose: 'preview', output: 'Ready at http://localhost:7000/' })
+    )
     expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'file:///workspace/artifact.html')
   })
 
@@ -1930,7 +1983,7 @@ describe('AgentRightPane', () => {
       messageId: 'm-repeated-new',
       toolCallId: 'bash-repeated-new'
     }
-    const newerResult = createDeferredPromise<{ found: true; output: string }>()
+    const newerResult = createDeferredPromise<{ status: 'ready'; purpose: 'preview'; output: string }>()
     resolveArtifactPaneFileSelectionMock.mockReturnValue({
       workspacePath: '/workspace',
       filePath: 'artifact.html'
@@ -1965,8 +2018,12 @@ describe('AgentRightPane', () => {
         [newerMessage.id]: [newerPart]
       })
     )
-    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', newerRef))
-    await act(async () => newerResult.resolve({ found: true, output: `Ready at ${previewUrl}` }))
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', { ...newerRef, purpose: 'preview' })
+    )
+    await act(async () =>
+      newerResult.resolve({ status: 'ready', purpose: 'preview', output: `Ready at ${previewUrl}` })
+    )
 
     await waitFor(() => expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', previewUrl))
   })
@@ -2364,7 +2421,9 @@ describe('AgentRightPane', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
 
-    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', deferredToolResult))
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', { ...deferredToolResult, purpose: 'preview' })
+    )
     await waitFor(() =>
       expect(buildAgentToolFlowProjectionMock).toHaveBeenLastCalledWith(
         messages,

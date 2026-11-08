@@ -89,9 +89,10 @@ export class ClaudeMessageMetadata {
     return refreshAll
   }
 
-  readonly decorate: MessageDecorator = (message) => ({
+  readonly decorate: MessageDecorator = (message, _source, unchangedParts) => ({
     ...message,
     parts: message.parts.map((part, index) => {
+      if (unchangedParts?.has(index)) return part
       if (part.type === 'dynamic-tool') {
         const native = part.callProviderMetadata?.anthropic
         const type = native?.type === 'mcp_tool_use' || native?.type === 'server_tool_use' ? native.type : 'tool_use'

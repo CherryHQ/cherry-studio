@@ -10,13 +10,16 @@ import { agentSessionMessageService as messages } from '@data/services/AgentSess
 import { readAgentSessionPath } from '@data/services/agentSessionMessageTree'
 import { loggerService } from '@logger'
 import { MessageProjection } from '@main/ai/messages/MessageProjection'
+import { projectMessagePartForRenderer } from '@main/utils/messageOutputProjection'
 import type { AgentChildUpdate, AgentChildView } from '@shared/ai/agentChildProjection'
 import { AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY } from '@shared/ai/agentSessionContextUsage'
 import type { ChildProjectionState } from '@shared/ai/messageProjection'
+import type { DeferredToolResultRef } from '@shared/ai/transport'
 import type { CherryUIMessage, MessageStatus } from '@shared/data/types/message'
 
 import { bindNativeInput } from './nativeSubmission'
 import { ThreadMessageProjection, type MessageDecorator } from './ThreadMessageProjection'
+import { buildAgentSessionTopicId } from './topic'
 
 const logger = loggerService.withContext('ChildThreadProjection')
 type CommittedHistory = {
@@ -77,6 +80,9 @@ export class ChildThreadProjection {
   private canonicalIds = new Map<string, string>()
   private readonly composition: Composition
   private readonly sourceRows = new Map<string, Composition[string]>()
+  private readonly materialized = new Map<string, { source: CherryUIMessage; id: string; rows: CherryUIMessage[] }>()
+  private readonly rendererParts = new WeakMap<CherryUIMessage['parts'][number], CherryUIMessage['parts'][number]>()
+  private rendered = new Map<string, { source: CherryUIMessage; view: CherryUIMessage }>()
 
   constructor(
     readonly context: AgentSessionContextRow,
@@ -336,7 +342,23 @@ export class ChildThreadProjection {
     const order = [...next.keys()].map((id) => (sourceOrder.has(id) ? ordered.next().value! : id))
     next = new Map(order.map((id) => [id, next.get(id)!]))
     this.composeSources(current.messages)
-    const changed = [...next.values()].filter((message) => !isDeepStrictEqual(message, this.saved.get(message.id)))
+    const retainedSources = new Set(
+      [...(this.history?.messages ?? []), ...current.messages].map((message) => this.canonical(message.id))
+    )
+    for (const id of this.materialized.keys())
+      if (!retainedSources.has(id) || this.removed.has(id)) this.materialized.delete(id)
+    const changed = [...next.values()].filter((message) => {
+      const before = this.saved.get(message.id)
+      return (
+        !before ||
+        before.role !== message.role ||
+        !isDeepStrictEqual(before.metadata, message.metadata) ||
+        before.parts.length !== message.parts.length ||
+        message.parts.some(
+          (part, index) => part !== before.parts[index] && (!history || !isDeepStrictEqual(part, before.parts[index]))
+        )
+      )
+    })
     if (
       changed.length ||
       history ||
@@ -347,9 +369,18 @@ export class ChildThreadProjection {
       application.get('DbService').withWriteTx((tx) => {
         for (const message of changed) {
           const at = positions.get(message.id)!
+          const before = this.saved.get(message.id)
+          const unchangedToolCallIds = new Set(
+            message.parts.flatMap((part, index) =>
+              part === before?.parts[index] && part.type === 'dynamic-tool' && part.state === 'output-available'
+                ? [part.toolCallId]
+                : []
+            )
+          )
           messages.saveMessagesTx(tx, {
             sessionId: this.context.sessionId,
             parentId: at === 0 ? this.context.anchorMessageId! : order[at - 1],
+            unchangedToolCallIds: new Map([[message.id, unchangedToolCallIds]]),
             messages: [
               {
                 id: message.id,
@@ -401,6 +432,8 @@ export class ChildThreadProjection {
 
   private materialize(message: CherryUIMessage, id: string): CherryUIMessage[] {
     const nativeId = this.canonical(message.id)
+    const accepted = this.materialized.get(nativeId)
+    if (accepted?.source === message && accepted.id === id) return accepted.rows
     const assignments = new Map<number, string>()
     for (const [old, source] of Object.entries(this.history?.legacy ?? {})) {
       const row = this.nativeIds[old]
@@ -418,7 +451,9 @@ export class ChildThreadProjection {
     })
     if (!rows.size) rows.set(id, { ...message, id })
     this.sourceRows.set(nativeId, [{ messageId: id, parts: [] }, ...fragments])
-    return [...rows.values()]
+    const result = [...rows.values()]
+    this.materialized.set(nativeId, { source: message, id, rows: result })
+    return result
   }
 
   private composeSources(current: readonly CherryUIMessage[]): void {
@@ -450,7 +485,47 @@ export class ChildThreadProjection {
   }
 
   private publish(next: AgentChildView): void {
-    this.delivery.update(next, true)
+    const topicId = buildAgentSessionTopicId(this.context.sessionId)
+    const changedResults: DeferredToolResultRef[] = []
+    const rendered = new Map<string, { source: CherryUIMessage; view: CherryUIMessage }>()
+    const compact = next.messages.map((message) => {
+      const previous = this.rendered.get(message.id)
+      const parts = message.parts.map((part, index) => {
+        let accepted = this.rendererParts.get(part)
+        if (!accepted) {
+          accepted = projectMessagePartForRenderer(part, topicId, message.id)
+          this.rendererParts.set(part, accepted)
+        }
+        if (part.type === 'dynamic-tool' && part.state === 'output-available' && previous?.source.parts[index] !== part)
+          changedResults.push({ topicId, messageId: message.id, toolCallId: part.toolCallId })
+        return accepted
+      })
+      const calls = new Set(
+        message.parts.flatMap((part) =>
+          part.type === 'dynamic-tool' && part.state === 'output-available' ? [part.toolCallId] : []
+        )
+      )
+      for (const part of previous?.source.parts ?? [])
+        if (part.type === 'dynamic-tool' && part.state === 'output-available' && !calls.has(part.toolCallId))
+          changedResults.push({ topicId, messageId: message.id, toolCallId: part.toolCallId })
+      const view =
+        previous &&
+        previous.view.role === message.role &&
+        isDeepStrictEqual(previous.view.metadata, message.metadata) &&
+        previous.view.parts.length === parts.length &&
+        parts.every((part, index) => part === previous.view.parts[index])
+          ? previous.view
+          : { ...message, parts }
+      rendered.set(message.id, { source: message, view })
+      return view
+    })
+    for (const [id, previous] of this.rendered)
+      if (!rendered.has(id))
+        for (const part of previous.source.parts)
+          if (part.type === 'dynamic-tool' && part.state === 'output-available')
+            changedResults.push({ topicId, messageId: id, toolCallId: part.toolCallId })
+    this.rendered = rendered
+    this.delivery.updateAccepted({ ...next, messages: compact }, true, changedResults)
     this.view = this.delivery.snapshot()
   }
 
@@ -465,6 +540,8 @@ export class ChildThreadProjection {
     await this.flush()
     await this.projection.close()
     this.publish({ ...this.view, available: false, canSubmit: false, active: false })
+    this.materialized.clear()
+    this.rendered.clear()
     this.delivery.dispose()
   }
 

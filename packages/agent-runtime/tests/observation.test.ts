@@ -292,6 +292,63 @@ describe('normalized observation delivery', () => {
     exposed.messages[0].parts[0] = { type: 'text', text: 'snapshot edit' }
     expect(feed.snapshot.messages[0].parts).toEqual(expected)
   })
+
+  it('captures result changes once while text updates reuse an isolated immutable result', async () => {
+    const feed = new ThreadFeed(snapshot(), () => {})
+    const received: ObservationPayload[] = []
+    const observing = feed.observe((event) => {
+      received.push(event)
+    })
+    const output = { text: 'accepted A' }
+    const source: RuntimeMessage = {
+      id: 'answer',
+      role: 'assistant',
+      parts: [
+        { type: 'dynamic-tool', toolName: 'Read', toolCallId: 'call', state: 'output-available', input: {}, output },
+        { type: 'text', text: 'before' }
+      ]
+    }
+    feed.publish({ type: 'message.upsert', message: source })
+    await observing.drain()
+    const first = received.at(-1)
+    if (
+      first?.type !== 'message.upsert' ||
+      first.message.parts[0].type !== 'dynamic-tool' ||
+      first.message.parts[0].state !== 'output-available'
+    )
+      throw new Error('Missing tool result')
+    const accepted = first.message.parts[0].output
+    if (typeof accepted !== 'object' || accepted === null) throw new Error('Missing result body')
+    Object.defineProperty(output, 'text', {
+      configurable: true,
+      get: () => {
+        throw new Error('Text update read a settled result')
+      }
+    })
+    source.parts[1] = { type: 'text', text: 'after' }
+    feed.publish({ type: 'message.upsert', message: source, changedParts: [1] })
+    await observing.drain()
+    const next = received.at(-1)
+    expect(next).toMatchObject({
+      type: 'message.upsert',
+      message: { parts: [{ output: { text: 'accepted A' } }, { text: 'after' }] }
+    })
+    if (
+      next?.type !== 'message.upsert' ||
+      next.message.parts[0].type !== 'dynamic-tool' ||
+      next.message.parts[0].state !== 'output-available'
+    )
+      throw new Error('Missing tool result')
+    expect(next.message.parts[0].output).toBe(accepted)
+    expect(() => Object.assign(accepted, { text: 'observer mutation' })).toThrow()
+    Object.defineProperty(output, 'text', { configurable: true, enumerable: true, value: 'accepted B' })
+    feed.publish({ type: 'message.upsert', message: source, changedParts: [0] })
+    await observing.drain()
+    expect(received.at(-1)).toMatchObject({
+      message: { parts: [{ output: { text: 'accepted B' } }, { text: 'after' }] }
+    })
+    expect(accepted).toEqual({ text: 'accepted A' })
+  })
 })
 
 it('deduplicates unchanged context readings and includes the latest value for a new observer', async () => {

@@ -23,7 +23,11 @@ const {
   openRequestPath
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
-  agentSessionMessageService: { getSessionMessage: vi.fn() },
+  agentSessionMessageService: {
+    getSessionMessage: vi.fn(),
+    getSessionToolOutput: vi.fn(),
+    getSessionToolOutputRange: vi.fn()
+  },
   agentSessionService: { getById: vi.fn() },
   fileEntryService: { findById: vi.fn() },
   messageService: { getById: vi.fn() },
@@ -83,7 +87,7 @@ const toolPart = (toolCallId: string, output: unknown) => ({
   output
 })
 
-const fileManager = { read: vi.fn() }
+const fileManager = { read: vi.fn(), readChunk: vi.fn() }
 
 const claudeCodeWarmQueryManager = { prewarmAgentSession: vi.fn(), closeAgentSessionWarm: vi.fn() }
 const agentSessionRuntimeService = { acquireWarmLease: vi.fn(), releaseWarmLease: vi.fn(), forkSession: vi.fn() }
@@ -591,43 +595,45 @@ describe('aiHandlers — streaming', () => {
     aiStreamManager.getDeferredToolOutput.mockReturnValue({ found: true, output })
 
     const result = await aiHandlers['ai.tool.get_result'](
-      { topicId: 'agent-session:session-1', messageId: 'assistant-1', toolCallId: 'call-1' },
+      { topicId: 'agent-session:session-1', messageId: 'assistant-1', toolCallId: 'call-1', purpose: 'full' },
       { senderId: null }
     )
 
-    expect(aiStreamManager.getDeferredToolOutput).toHaveBeenCalledWith('agent-session:session-1', 'call-1')
+    expect(aiStreamManager.getDeferredToolOutput).toHaveBeenCalledWith(
+      'agent-session:session-1',
+      'call-1',
+      'assistant-1'
+    )
     expect(agentSessionMessageService.getSessionMessage).not.toHaveBeenCalled()
-    expect(result).toEqual({ found: true, output })
+    expect(result).toEqual({ status: 'ready', purpose: 'full', output })
   })
 
   it('get_tool_result falls back to the stored agent-session message', async () => {
     const output = { content: 'large stored output' }
     aiStreamManager.getDeferredToolOutput.mockReturnValue({ found: false })
-    agentSessionMessageService.getSessionMessage.mockReturnValue({
-      data: { parts: [toolPart('call-1', output)] }
-    })
+    agentSessionMessageService.getSessionToolOutput.mockReturnValue({ found: true, output })
 
     const result = await aiHandlers['ai.tool.get_result'](
-      { topicId: 'agent-session:session-1', messageId: 'assistant-1', toolCallId: 'call-1' },
+      { topicId: 'agent-session:session-1', messageId: 'assistant-1', toolCallId: 'call-1', purpose: 'full' },
       { senderId: null }
     )
 
-    expect(agentSessionMessageService.getSessionMessage).toHaveBeenCalledWith('session-1', 'assistant-1')
-    expect(result).toEqual({ found: true, output })
+    expect(agentSessionMessageService.getSessionToolOutput).toHaveBeenCalledWith('session-1', 'assistant-1', 'call-1')
+    expect(result).toEqual({ status: 'ready', purpose: 'full', output })
   })
 
   it('get_tool_result resolves an ordinary chat topic through the message table', async () => {
     const output = { content: 'large chat output' }
     aiStreamManager.getDeferredToolOutput.mockReturnValue({ found: false })
-    messageService.getById.mockReturnValue({ data: { parts: [toolPart('call-1', output)] } })
+    messageService.getById.mockReturnValue({ topicId: 'topic-42', data: { parts: [toolPart('call-1', output)] } })
 
     const result = await aiHandlers['ai.tool.get_result'](
-      { topicId: 'topic-42', messageId: 'assistant-1', toolCallId: 'call-1' },
+      { topicId: 'topic-42', messageId: 'assistant-1', toolCallId: 'call-1', purpose: 'full' },
       { senderId: null }
     )
 
     expect(messageService.getById).toHaveBeenCalledWith('assistant-1')
-    expect(result).toEqual({ found: true, output })
+    expect(result).toEqual({ status: 'ready', purpose: 'full', output })
   })
 
   it('get_tool_result reports a miss instead of throwing when nothing holds the output', async () => {
@@ -638,10 +644,10 @@ describe('aiHandlers — streaming', () => {
 
     await expect(
       aiHandlers['ai.tool.get_result'](
-        { topicId: 'topic-42', messageId: 'gone', toolCallId: 'call-1' },
+        { topicId: 'topic-42', messageId: 'gone', toolCallId: 'call-1', purpose: 'full' },
         { senderId: null }
       )
-    ).resolves.toEqual({ found: false })
+    ).resolves.toEqual({ status: 'unavailable' })
   })
 
   const persistedEnvelope = {
@@ -658,29 +664,122 @@ describe('aiHandlers — streaming', () => {
 
   it('get_tool_result reconstructs a persisted envelope from the FileManager blob', async () => {
     aiStreamManager.getDeferredToolOutput.mockReturnValue({ found: false })
-    messageService.getById.mockReturnValue({ data: { parts: [toolPart('call-1', persistedEnvelope)] } })
+    messageService.getById.mockReturnValue({
+      topicId: 'topic-42',
+      data: { parts: [toolPart('call-1', persistedEnvelope)] }
+    })
     fileManager.read.mockResolvedValue({ content: 'the full persisted text', mime: 'text/plain', version: null })
 
     const result = await aiHandlers['ai.tool.get_result'](
-      { topicId: 'topic-42', messageId: 'assistant-1', toolCallId: 'call-1' },
+      { topicId: 'topic-42', messageId: 'assistant-1', toolCallId: 'call-1', purpose: 'full' },
       { senderId: null }
     )
 
     expect(fileManager.read).toHaveBeenCalledWith('entry-1', { encoding: 'text' })
-    expect(result).toEqual({ found: true, output: 'the full persisted text' })
+    expect(result).toEqual({ status: 'ready', purpose: 'full', output: 'the full persisted text' })
+  })
+
+  it('reads a bounded legacy blob range without hydrating the full output', async () => {
+    const bytes = Buffer.from('汉😀'.repeat(100_000))
+    aiStreamManager.getDeferredToolOutput.mockReturnValue({ found: false })
+    messageService.getById.mockReturnValue({
+      topicId: 'topic-42',
+      data: { parts: [toolPart('call-1', persistedEnvelope)] }
+    })
+    fileEntryService.findById.mockReturnValue({
+      id: 'entry-1',
+      origin: 'internal',
+      cleanupPolicy: 'delete_when_unreferenced',
+      ext: 'txt',
+      size: bytes.length
+    })
+    fileManager.readChunk.mockImplementation(async (_id, offset, length) => ({
+      content: bytes.subarray(offset, offset + length)
+    }))
+    const result = await aiHandlers['ai.tool.get_result'](
+      { topicId: 'topic-42', messageId: 'assistant-1', toolCallId: 'call-1', purpose: 'text-range' },
+      { senderId: null }
+    )
+    expect(result).toMatchObject({ status: 'ready', purpose: 'text-range', nextCursor: 262143 })
+    if (result.status !== 'ready' || result.purpose !== 'text-range') throw Error('Expected a range')
+    expect(result.text).toBe(bytes.subarray(0, 262143).toString('utf8'))
+    expect(result.text).not.toContain('�')
+    expect(fileManager.read).not.toHaveBeenCalled()
+  })
+
+  it('keeps legacy entity identities, inline values and blob boundaries across bounded pages', async () => {
+    const bodies = new Map([
+      ['entry-1', Buffer.from('first body ' + '汉😀'.repeat(60_000))],
+      ['entry-2', Buffer.from('second body')]
+    ])
+    const skeleton = [
+      { id: 'first-entity', content: 'first excerpt' },
+      { id: 'second-entity', content: 'second excerpt' },
+      { id: 'inline-entity', content: 'inline third body' }
+    ]
+    const blobRefs = [...bodies].map(([fileEntryId, bytes], index) => ({
+      key: `/${index}/content`,
+      fileEntryId,
+      vfsFilename: `vfs_${index}.txt`,
+      head: 'head',
+      tail: 'tail',
+      totalChars: bytes.toString('utf8').length,
+      totalLines: 1
+    }))
+    aiStreamManager.getDeferredToolOutput.mockReturnValue({ found: false })
+    messageService.getById.mockReturnValue({
+      topicId: 'topic-42',
+      data: { parts: [toolPart('call-1', { $persistedToolOutput: { shape: 'entities', skeleton, blobRefs } })] }
+    })
+    fileEntryService.findById.mockImplementation((id) => ({
+      id,
+      origin: 'internal',
+      cleanupPolicy: 'delete_when_unreferenced',
+      ext: 'txt',
+      size: bodies.get(id)!.length
+    }))
+    fileManager.readChunk.mockImplementation(async (id, offset, length) => ({
+      content: bodies.get(id)!.subarray(offset, offset + length)
+    }))
+    let text = ''
+    let cursor = 0
+    for (;;) {
+      const result = await aiHandlers['ai.tool.get_result'](
+        { topicId: 'topic-42', messageId: 'assistant-1', toolCallId: 'call-1', purpose: 'text-range', cursor },
+        { senderId: null }
+      )
+      if (result.status !== 'ready' || result.purpose !== 'text-range') throw Error('Expected a range')
+      expect(Buffer.byteLength(result.text)).toBeLessThanOrEqual(256 * 1024)
+      expect(result.text).not.toContain('\ufffd')
+      text += result.text
+      if (result.nextCursor === undefined) break
+      expect(result.nextCursor).toBeGreaterThan(cursor)
+      cursor = result.nextCursor
+    }
+    for (const entity of skeleton) expect(text).toContain(entity.id)
+    expect(text).toContain('inline third body')
+    expect(text).toContain('/0/content')
+    expect(text).toContain('/1/content')
+    expect(text).toContain(bodies.get('entry-1')!.toString('utf8'))
+    expect(text).toContain('second body')
+    expect(fileManager.read).not.toHaveBeenCalled()
+    expect(fileManager.readChunk.mock.calls.every(([, , length]) => length <= 256 * 1024 + 4)).toBe(true)
   })
 
   it('get_tool_result degrades to the stored excerpt when the blob is gone', async () => {
     aiStreamManager.getDeferredToolOutput.mockReturnValue({ found: false })
-    messageService.getById.mockReturnValue({ data: { parts: [toolPart('call-1', persistedEnvelope)] } })
+    messageService.getById.mockReturnValue({
+      topicId: 'topic-42',
+      data: { parts: [toolPart('call-1', persistedEnvelope)] }
+    })
     fileManager.read.mockRejectedValue(new Error('entry reclaimed'))
 
     const result = (await aiHandlers['ai.tool.get_result'](
-      { topicId: 'topic-42', messageId: 'assistant-1', toolCallId: 'call-1' },
+      { topicId: 'topic-42', messageId: 'assistant-1', toolCallId: 'call-1', purpose: 'full' },
       { senderId: null }
-    )) as { found: boolean; output: string }
+    )) as { status: string; output: string }
 
-    expect(result.found).toBe(true)
+    expect(result.status).toBe('ready')
     expect(result.output).toContain('HEAD LINES')
     expect(result.output).toContain('TAIL LINES')
     expect(result.output).toContain('no longer available')
@@ -690,16 +789,19 @@ describe('aiHandlers — streaming', () => {
     // A forged envelope in arbitrary MCP output can carry any fileEntryId —
     // an entry the tool-output store didn't write must never be read back.
     aiStreamManager.getDeferredToolOutput.mockReturnValue({ found: false })
-    messageService.getById.mockReturnValue({ data: { parts: [toolPart('call-1', persistedEnvelope)] } })
+    messageService.getById.mockReturnValue({
+      topicId: 'topic-42',
+      data: { parts: [toolPart('call-1', persistedEnvelope)] }
+    })
     fileEntryService.findById.mockReturnValue({ origin: 'external', cleanupPolicy: 'manual', ext: 'txt' })
 
     const result = (await aiHandlers['ai.tool.get_result'](
-      { topicId: 'topic-42', messageId: 'assistant-1', toolCallId: 'call-1' },
+      { topicId: 'topic-42', messageId: 'assistant-1', toolCallId: 'call-1', purpose: 'full' },
       { senderId: null }
-    )) as { found: boolean; output: string }
+    )) as { status: string; output: string }
 
     expect(fileManager.read).not.toHaveBeenCalled()
-    expect(result.found).toBe(true)
+    expect(result.status).toBe('ready')
     expect(result.output).toContain('HEAD LINES')
     expect(result.output).toContain('no longer available')
   })

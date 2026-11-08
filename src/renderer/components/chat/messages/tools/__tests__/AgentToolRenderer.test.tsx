@@ -529,8 +529,8 @@ describe('AgentToolRenderer', () => {
       expect(screen.getByText('View')).toBeInTheDocument()
     })
 
-    it('resolves a deferred output before handing it to the card', async () => {
-      mockGetToolResult.mockResolvedValue({ found: true, output: { content: 'lazy file content' } })
+    it('reads a deferred output only after expanding its card', async () => {
+      mockGetToolResult.mockResolvedValue({ status: 'ready', purpose: 'text-range', text: 'lazy file content' })
       const toolResponse = createToolResponse({
         tool: { id: 'Read', name: 'Read', description: 'Read a file', type: 'provider' },
         status: 'done',
@@ -540,19 +540,22 @@ describe('AgentToolRenderer', () => {
 
       render(<MessageTools toolResponse={toolResponse} />)
 
+      expect(mockGetToolResult).not.toHaveBeenCalled()
+      fireEvent.click(await screen.findByRole('button'))
       await waitFor(() =>
         expect(mockGetToolResult).toHaveBeenCalledWith('ai.tool.get_result', {
           topicId: 'topic-1',
           messageId: 'message-1',
-          toolCallId: 'call-defer-1'
+          toolCallId: 'call-defer-1',
+          purpose: 'text-range',
+          cursor: 0
         })
       )
-      fireEvent.click(await screen.findByRole('button'))
-      expect(await screen.findByTestId('code-viewer')).toHaveTextContent('lazy file content')
+      expect(await screen.findByText('lazy file content')).toBeVisible()
     })
 
-    it('surfaces an error when a deferred output can no longer be resolved', async () => {
-      mockGetToolResult.mockResolvedValue({ found: false })
+    it('shows unavailable details without changing the completed execution state', async () => {
+      mockGetToolResult.mockResolvedValue({ status: 'unavailable' })
       const toolResponse = createToolResponse({
         tool: { id: 'Read', name: 'Read', description: 'Read a file', type: 'provider' },
         status: 'done',
@@ -562,7 +565,9 @@ describe('AgentToolRenderer', () => {
 
       render(<MessageTools toolResponse={toolResponse} />)
 
-      expect(await screen.findByText('Error')).toBeInTheDocument()
+      fireEvent.click(await screen.findByRole('button'))
+      expect(await screen.findByText('message.tools.noData')).toBeVisible()
+      expect(screen.queryByText('Error')).not.toBeInTheDocument()
     })
 
     it('does not treat a small or empty output as deferred', async () => {

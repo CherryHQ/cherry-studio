@@ -328,7 +328,11 @@ describe('hydrateDeferredImageOutputs', () => {
   it('resolves a deferred generate_image ref into the stored output', async () => {
     ipcApiRequest.mockResolvedValueOnce({
       ok: true,
-      data: { found: true, output: { content: [{ type: 'image', data: PNG_1PX_RAW, mimeType: 'image/png' }] } }
+      data: {
+        status: 'ready',
+        purpose: 'full',
+        output: { content: [{ type: 'image', data: PNG_1PX_RAW, mimeType: 'image/png' }] }
+      }
     })
     const message = view([generateImageDeferredPart()], 'assistant')
 
@@ -336,6 +340,7 @@ describe('hydrateDeferredImageOutputs', () => {
 
     expect(unresolvedCount).toBe(0)
     expect(ipcApiRequest).toHaveBeenCalledWith('ai.tool.get_result', {
+      purpose: 'full',
       topicId: 'agent-session:s1',
       messageId: 'm1',
       toolCallId: 'call-1'
@@ -346,7 +351,7 @@ describe('hydrateDeferredImageOutputs', () => {
   })
 
   it('counts an unresolvable ref, keeps the marker part, and leaves other messages untouched', async () => {
-    ipcApiRequest.mockResolvedValueOnce({ ok: true, data: { found: false } })
+    ipcApiRequest.mockResolvedValueOnce({ ok: true, data: { status: 'unavailable' } })
     const deferred = view([generateImageDeferredPart()], 'assistant')
     const plain = view([{ type: 'text', text: 'no tools here' }])
 
@@ -780,7 +785,11 @@ describe('exportMessageAsMarkdown image pipeline', () => {
     fileApi.save.mockResolvedValue('/tmp/x/a.md')
     ipcApiRequest.mockResolvedValueOnce({
       ok: true,
-      data: { found: true, output: { content: [{ type: 'image', data: PNG_1PX_RAW, mimeType: 'image/png' }] } }
+      data: {
+        status: 'ready',
+        purpose: 'full',
+        output: { content: [{ type: 'image', data: PNG_1PX_RAW, mimeType: 'image/png' }] }
+      }
     })
     chooseImageMode.mockResolvedValue('embed')
     const message = view([{ type: 'text', text: 'generated this' }, generateImageDeferredPart()], 'assistant')
@@ -793,7 +802,7 @@ describe('exportMessageAsMarkdown image pipeline', () => {
 
   it('exports text-only with a warning when a deferred output can no longer be resolved', async () => {
     fileApi.save.mockResolvedValue('/tmp/x/a.md')
-    ipcApiRequest.mockResolvedValueOnce({ ok: true, data: { found: false } })
+    ipcApiRequest.mockResolvedValueOnce({ ok: true, data: { status: 'unavailable' } })
     const message = view([generateImageDeferredPart()], 'assistant')
 
     await exportMessageAsMarkdown(message, false, undefined, chooseImageMode)

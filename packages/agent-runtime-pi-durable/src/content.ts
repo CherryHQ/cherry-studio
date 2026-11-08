@@ -1,7 +1,7 @@
 import type { Message } from '@earendil-works/pi-ai'
 import type { EntryRecord } from '@earendil-works/pi-durable'
 
-import { runtimeId, type RuntimeMessage } from '@cherrystudio/agent-runtime'
+import { runtimeId, snapshotToolPart, type RuntimeMessage } from '@cherrystudio/agent-runtime'
 
 /** Stable committed identities; consumers never decode native entry IDs from these keys. */
 export const entryMessageId = (entry: EntryRecord, index: number): string => `entry:${entry.id}:${index}`
@@ -23,6 +23,14 @@ export class ContentProjection {
     return legacy
   }
   private readonly calls = new Map<string, { message: RuntimeMessage; index: number }>()
+
+  fork(): ContentProjection {
+    const copy = new ContentProjection()
+    copy.messages.push(...this.messages)
+    Object.assign(copy.responseIds, this.responseIds)
+    for (const [callId, call] of this.calls) copy.calls.set(callId, call)
+    return copy
+  }
 
   entry(entry: EntryRecord): void {
     for (const [index, message] of (entry.model ?? []).entries()) {
@@ -97,14 +105,19 @@ export class ContentProjection {
       input: part.input,
       callProviderMetadata: part.callProviderMetadata
     }
-    owner.message.parts[owner.index] = error
+    const parts = owner.message.parts.slice()
+    parts[owner.index] = error
       ? {
           ...base,
           state: 'output-error',
           errorText: this.errorText(output),
           resultProviderMetadata: { pi: { result: JSON.parse(JSON.stringify(output)) } }
         }
-      : { ...base, state: 'output-available', output, preliminary }
+      : snapshotToolPart({ ...base, state: 'output-available', output, preliminary })
+    const next = { ...owner.message, parts }
+    this.messages[this.messages.indexOf(owner.message)] = next
+    for (const [id, call] of this.calls)
+      if (call.message === owner.message) this.calls.set(id, { ...call, message: next })
   }
 
   private errorText(output: unknown): string {

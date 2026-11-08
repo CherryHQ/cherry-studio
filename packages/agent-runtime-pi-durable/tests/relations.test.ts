@@ -469,12 +469,10 @@ it.each(['settled', 'shutdown'] as const)('joins admitted relation delivery befo
   await reading.promise
   await expect
     .poll(() =>
-      events.some(
-        (event) =>
-          event.type === 'snapshot' &&
-          event.messages.some((message) =>
-            message.parts.some((part) => part.type === 'text' && part.text === 'parent finished')
-          )
+      events.some((event) =>
+        (event.type === 'snapshot' ? event.messages : event.type === 'message.upsert' ? [event.message] : []).some(
+          (message) => message.parts.some((part) => part.type === 'text' && part.text === 'parent finished')
+        )
       )
     )
     .toBe(true)

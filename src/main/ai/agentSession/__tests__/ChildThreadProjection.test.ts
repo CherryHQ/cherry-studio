@@ -431,6 +431,57 @@ it('updates a committed message with preliminary and final tool output while the
   expect(savedChildView(contexts.context(f.context.id)).messages[0].parts[0]).toMatchObject({ output: 'FIRST\nLAST' })
 })
 
+// Equal compact references still need ordered invalidation when the accepted result changes.
+it('keeps oversized child results out of text batches and invalidates same-preview replacements', async () => {
+  const f = fixture()
+  await f.projection.attach()
+  const source: RuntimeMessage = {
+    id: 'native',
+    role: 'assistant',
+    metadata: { completeness: 'partial' },
+    parts: [
+      {
+        type: 'dynamic-tool',
+        toolName: 'Read',
+        toolCallId: 'call',
+        state: 'output-available',
+        input: {},
+        output: 'A'.repeat(64 * 1024)
+      },
+      { type: 'text', text: 'prefix', state: 'streaming' }
+    ]
+  }
+  await f.send({ type: 'message.upsert', message: source })
+  await f.projection.flush()
+  const baseline = f.projection.snapshot()
+  const id = baseline.messages[0].id
+  const topicId = `agent-session:${f.context.sessionId}`
+  expect(baseline.messages[0].parts[0]).toMatchObject({
+    output: { $deferredToolResult: { topicId, messageId: id, toolCallId: 'call' } }
+  })
+  const updates: AgentChildUpdate[] = []
+  f.projection.subscribe((update) => updates.push(update))
+  source.parts[1] = { type: 'text', text: 'prefix suffix', state: 'streaming' }
+  await f.send({ type: 'message.upsert', message: source, changedParts: [1] })
+  await f.projection.flush()
+  expect(f.projection.snapshot().messages[0].parts[0]).toBe(baseline.messages[0].parts[0])
+  expect(updates[0].patches).toEqual([{ type: 'append', messageId: id, part: 1, text: ' suffix' }])
+  const call = source.parts[0]
+  if (call.type !== 'dynamic-tool' || call.state !== 'output-available') throw new Error('Missing tool result')
+  source.parts[0] = { ...call, output: 'B'.repeat(64 * 1024) }
+  await f.send({ type: 'message.upsert', message: source, changedParts: [0] })
+  await f.projection.flush()
+  expect(updates.at(-1)?.patches).toContainEqual({
+    type: 'tool-result',
+    ref: { topicId, messageId: id, toolCallId: 'call' }
+  })
+  expect(f.projection.snapshot().messages[0].parts[0]).toEqual(baseline.messages[0].parts[0])
+  expect(messages.getSessionToolOutput(f.context.sessionId, id, 'call')).toEqual({
+    found: true,
+    output: 'B'.repeat(64 * 1024)
+  })
+})
+
 // Catches a failed archive read being acknowledged as a settled product view or retried as native work.
 it('keeps the last readable archive on recovery failure and explicitly retries only observation persistence', async () => {
   const f = fixture()

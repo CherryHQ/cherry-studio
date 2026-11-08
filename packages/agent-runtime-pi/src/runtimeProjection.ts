@@ -145,7 +145,11 @@ export class PiProjection {
     this.pending = this.pending
       .then(() => {
         this.backgroundResults = captured
-        this.feed.publish(this.feed.snapshot)
+        const current = this.feed.current
+        this.feed.publish({
+          ...current,
+          messages: current.messages.map((message) => ({ ...message, parts: message.parts.slice() }))
+        })
       })
       .catch((error) => this.report(error))
   }
@@ -289,7 +293,7 @@ export class PiProjection {
   }
 
   recordInput(input: InputState & { readonly inputId: InputId }): void {
-    const previous = this.feed.snapshot.inputs.find((known) => known.inputId === input.inputId)
+    const previous = this.feed.current.inputs.find((known) => known.inputId === input.inputId)
     this.feed.publish({
       type: 'input.changed',
       input: { ...previous, ...input, facts: [...new Set([...(previous?.facts ?? []), ...input.facts])] }
@@ -321,43 +325,49 @@ export class PiProjection {
     return { session: this.ref, id: runtimeId(id) }
   }
 
-  private publish(message: RuntimeMessage, replaces?: readonly ItemRef[]): void {
+  private publish(message: RuntimeMessage, replaces?: readonly ItemRef[], changedParts?: readonly number[]): void {
     if (this.snapshotMessages) {
       const index = this.snapshotMessages.findIndex((item) => item.id === message.id)
       if (index < 0) this.snapshotMessages.push(message)
       else this.snapshotMessages[index] = message
-    } else this.feed.publish({ type: 'message.upsert', message, replaces })
+    } else this.feed.publish({ type: 'message.upsert', message, replaces, changedParts })
   }
 
   private result(callId: string, output: unknown, isError: boolean, preliminary = false): void {
     const id = this.calls.get(callId)
-    const message = (this.snapshotMessages ?? this.feed.snapshot.messages).find((message) => message.id === id)
+    const message = (this.snapshotMessages ?? this.feed.current.messages).find((message) => message.id === id)
     if (!message) return
-    this.publish({
-      ...message,
-      parts: message.parts.map((part) => {
-        if (part.type !== 'dynamic-tool' || part.toolCallId !== callId) return part
-        const base = {
-          type: 'dynamic-tool' as const,
-          toolName: part.toolName,
-          toolCallId: part.toolCallId,
-          input: part.input,
-          callProviderMetadata: part.callProviderMetadata
-        }
-        if (!isError) return { ...base, state: 'output-available', output, preliminary }
-        const content = (output as { content?: { type: string; text?: string }[] }).content
-        return {
-          ...base,
-          state: 'output-error',
-          errorText:
-            content
-              ?.filter((part) => part.type === 'text')
-              .map((part) => part.text)
-              .join('\n') ?? String(output),
-          resultProviderMetadata: { pi: { result: JSON.parse(JSON.stringify(output)) } }
-        }
-      })
-    })
+    this.publish(
+      {
+        ...message,
+        parts: message.parts.map((part) => {
+          if (part.type !== 'dynamic-tool' || part.toolCallId !== callId) return part
+          const base = {
+            type: 'dynamic-tool' as const,
+            toolName: part.toolName,
+            toolCallId: part.toolCallId,
+            input: part.input,
+            callProviderMetadata: part.callProviderMetadata
+          }
+          if (!isError) return { ...base, state: 'output-available', output, preliminary }
+          const content = (output as { content?: { type: string; text?: string }[] }).content
+          return {
+            ...base,
+            state: 'output-error',
+            errorText:
+              content
+                ?.filter((part) => part.type === 'text')
+                .map((part) => part.text)
+                .join('\n') ?? String(output),
+            resultProviderMetadata: { pi: { result: JSON.parse(JSON.stringify(output)) } }
+          }
+        })
+      },
+      undefined,
+      message.parts.flatMap((part, index) =>
+        part.type === 'dynamic-tool' && part.toolCallId === callId ? [index] : []
+      )
+    )
   }
 
   private write(message: PiMessage, id: string, completeness: 'partial' | 'complete'): void {
@@ -391,7 +401,7 @@ export class PiProjection {
       metadata: {
         completeness,
         inputId:
-          this.inputIds.get(message) ?? this.feed.snapshot.messages.find((known) => known.id === id)?.metadata?.inputId
+          this.inputIds.get(message) ?? this.feed.current.messages.find((known) => known.id === id)?.metadata?.inputId
       }
     }
     const state = completeness === 'complete' ? 'done' : 'streaming'
@@ -474,7 +484,19 @@ export class PiProjection {
         const part = parts[index]
         if (part.type === 'text' || part.type === 'reasoning') parts[index] = { ...part, text }
       }
-      if (this.readers.get(id) === stream) this.publish({ ...message, parts })
+      const changedToolCallId = part?.type === 'toolCall' ? part.id : undefined
+      if (this.readers.get(id) === stream)
+        this.publish(
+          { ...message, parts },
+          undefined,
+          parts.flatMap((part, index) =>
+            part.type === 'text' ||
+            part.type === 'reasoning' ||
+            (part.type === 'dynamic-tool' && part.toolCallId === changedToolCallId)
+              ? [index]
+              : []
+          )
+        )
     }
   }
 

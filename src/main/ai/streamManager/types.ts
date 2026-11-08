@@ -2,6 +2,7 @@ import type { Span } from '@opentelemetry/api'
 import type { UIMessageChunk } from 'ai'
 
 import type { ExecutionFailure } from '@cherrystudio/remote-protocol/failure'
+import type { AcceptedToolResults } from '@main/ai/messages/AcceptedToolResults'
 import type { CompactionAnchorData } from '@shared/ai/compaction'
 import type { StreamChunkPayload, TopicStreamStatus } from '@shared/ai/transport'
 import type { CherryUIMessage, MessageRuntimeTiming } from '@shared/data/types/message'
@@ -167,6 +168,7 @@ export interface StreamExecution {
   compactionAnchors?: Array<{ id: string; data: CompactionAnchorData }>
   /** Tool outputs too large to send, by toolCallId. Serves `ai.tool.get_result` until persisted. */
   deferredOutputs?: Map<string, unknown>
+  acceptedToolResults?: AcceptedToolResults
   /** Tool-call ids still awaiting human approval, keyed so a sibling tool's output clears only its
    *  own. Non-empty ⇒ the topic surfaces `awaiting-approval`; drives the `topic.stream.statuses` cache. */
   pendingApprovalToolCallIds?: Set<string>
@@ -249,8 +251,6 @@ export interface AiStreamManagerConfig {
    * observes the same ceiling.
    */
   readonly maxDeltaBytes: number
-  /** Cap on retained oversized tool outputs. Small because each entry is large. */
-  readonly maxDeferredOutputs: number
   /**
    * Idle bound while a tool is awaiting human approval. The normal idle timeout is far too short for
    * a human, so on `tool-approval-request` the watchdog re-arms to this generous value instead of the

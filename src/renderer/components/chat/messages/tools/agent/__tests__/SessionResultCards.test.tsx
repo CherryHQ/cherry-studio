@@ -1,10 +1,11 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { SWRConfig } from 'swr'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ipcApi } from '@renderer/ipc'
+import { toolResultService } from '@renderer/services/aiTransport'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
+import type { AiToolResultResponse } from '@shared/ai/transport'
 
 import { MessagePartsScopeProvider } from '../../../blocks/MessagePartsContext'
 
@@ -44,11 +45,9 @@ function toolResponse(name: string, response: unknown, input?: Record<string, un
 
 function renderCards(toolResponses: NormalToolResponse[]) {
   return render(
-    <SWRConfig value={{ provider: () => new Map() }}>
-      <MessagePartsScopeProvider messageId="message-1" parts={[]}>
-        <SessionResultCards toolResponses={toolResponses} />
-      </MessagePartsScopeProvider>
-    </SWRConfig>
+    <MessagePartsScopeProvider messageId="message-1" parts={[]}>
+      <SessionResultCards toolResponses={toolResponses} />
+    </MessagePartsScopeProvider>
   )
 }
 
@@ -58,6 +57,7 @@ describe('SessionResultCards', () => {
   })
 
   afterEach(() => {
+    toolResultService.invalidateTopic('topic-1')
     vi.restoreAllMocks()
   })
 
@@ -114,7 +114,8 @@ describe('SessionResultCards', () => {
   it('loads persisted search results in the message scope and opens the full result', async () => {
     const user = userEvent.setup()
     const request = vi.spyOn(ipcApi, 'request').mockResolvedValue({
-      found: true,
+      status: 'ready',
+      purpose: 'preview',
       output: {
         metadata: { type: 'mcp', serverId: 'cherry-tools' },
         content: [
@@ -145,19 +146,20 @@ describe('SessionResultCards', () => {
     expect(request).toHaveBeenCalledWith('ai.tool.get_result', {
       topicId: 'topic-1',
       messageId: 'message-1',
-      toolCallId: 'session_search'
+      toolCallId: 'session_search',
+      purpose: 'preview'
     })
     expect(navigateToRoute).toHaveBeenCalledWith({ path: '/app/agents', query: { sessionId: 'saved-session' } })
   })
 
   it('does not turn unavailable deferred output into a navigation target', async () => {
-    const result = Promise.withResolvers<{ found: boolean }>()
+    const result = Promise.withResolvers<AiToolResultResponse>()
     const request = vi.spyOn(ipcApi, 'request').mockReturnValue(result.promise)
     const ref = { topicId: 'topic-1', messageId: 'message-1', toolCallId: 'session_read' }
     renderCards([toolResponse('session_read', { $deferredToolResult: ref }, { session_id: 'missing-session' })])
-    await waitFor(() => expect(request).toHaveBeenCalledWith('ai.tool.get_result', ref))
+    await waitFor(() => expect(request).toHaveBeenCalledWith('ai.tool.get_result', { ...ref, purpose: 'preview' }))
     await act(async () => {
-      result.resolve({ found: false })
+      result.resolve({ status: 'unavailable' })
     })
     expect(screen.queryByRole('button', { name: /Open session/ })).not.toBeInTheDocument()
   })

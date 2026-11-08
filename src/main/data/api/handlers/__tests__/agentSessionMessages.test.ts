@@ -88,8 +88,7 @@ describe('agentSessionMessageHandlers', () => {
           $deferredToolResult: {
             topicId: 'agent-session:session-1',
             messageId: 'assistant-message',
-            toolCallId: 'tool-call-1',
-            revision: expect.any(String)
+            toolCallId: 'tool-call-1'
           }
         }
       })
@@ -105,7 +104,8 @@ describe('agentSessionMessageHandlers', () => {
         query: { deferToolOutputs: true }
       })
       if (!('items' in next)) throw new Error('Expected a message page')
-      expect(next.items[0].data.parts![0]).not.toEqual(result.items[0].data.parts[1])
+      expect(next.items[0].data.parts![0]).toEqual(result.items[0].data.parts[1])
+      expect(replaced.data.parts[0].output.content).toBe('y'.repeat(64 * 1024))
     })
 
     it('leaves a small tool output inline so no round trip is needed to render it', async () => {

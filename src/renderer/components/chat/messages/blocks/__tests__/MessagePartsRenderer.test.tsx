@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ipcApi } from '@renderer/ipc'
 import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
 import { readComposerFileTokenIdSuffix } from '@renderer/utils/message/composerFileTokenSource'
+import type { AiToolResultResponse } from '@shared/ai/transport'
 import { UpdateAgentSessionMessageSchema } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { CherryTextMetaSchema } from '@shared/data/types/uiParts'
@@ -2626,7 +2627,7 @@ describe('MessagePartsRenderer', () => {
     it('opens a read conversation after its deferred history loads without expanding tool details', async () => {
       const user = userEvent.setup()
       const navigateToRoute = vi.fn()
-      const result = Promise.withResolvers<{ found: boolean; output: unknown }>()
+      const result = Promise.withResolvers<AiToolResultResponse>()
       const request = vi.spyOn(ipcApi, 'request').mockReturnValue(result.promise)
       const parts = [
         {
@@ -2652,13 +2653,16 @@ describe('MessagePartsRenderer', () => {
         expect(request).toHaveBeenCalledWith('ai.tool.get_result', {
           topicId: 'agent-session:caller',
           messageId: 'msg-1',
-          toolCallId: 'read-session'
+          toolCallId: 'read-session',
+          purpose: 'preview'
         })
       )
 
       await act(async () => {
         result.resolve({
-          found: true,
+          status: 'ready',
+          purpose: 'preview',
+          truncated: true,
           output: { source: 'topic', sessionId: 'old-topic', messages: [{ text: 'history '.repeat(5000) }] }
         })
       })

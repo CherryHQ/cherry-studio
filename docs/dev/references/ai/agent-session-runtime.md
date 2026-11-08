@@ -928,6 +928,9 @@ Tool results and preliminary progress update the originating tool part, while ac
 and input outcomes remain separate facts within the same captured delivery. Concrete observations
 include aliases and live/history provenance with their content. Delivery modes and Durable commit
 revisions stay internal; consumers receive the captured body, input outcomes and completion facts.
+
+Native `message.upsert` observations may carry `changedParts` indexes. The owner captures those changed parts and preserves accepted untouched parts; without a hint it captures the complete message. Metadata decorators retain those identities, so unrelated text growth does not revisit an accepted tool output. Tool replacements still pass through acceptance even when their stable tool-call identity is unchanged. The resulting compact renderer publication and detail invalidation follow [Execution Overlay](./execution-overlay.md#publication).
+
 Input facts retain native input bindings without duplicating product reply identity. Initial baselines do not replay
 completion or charges; overflow recovery retains unseen control facts after their matching body.
 Main never fetches mutable alias state later or guesses whether a snapshot is live. Claude's

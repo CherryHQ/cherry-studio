@@ -5,8 +5,6 @@ export interface DeferredToolResultRef {
   topicId: string
   messageId: string
   toolCallId: string
-  /** Identifies the projected value so a replacement invalidates renderer caches. */
-  revision?: string
 }
 
 /** Head/tail preview carried alongside a deferred reference so the renderer
@@ -39,7 +37,6 @@ export function isDeferredToolOutput(value: unknown): value is DeferredToolOutpu
     typeof ref.messageId === 'string' &&
     !!ref.messageId &&
     typeof ref.toolCallId === 'string' &&
-    !!ref.toolCallId &&
-    (ref.revision === undefined || typeof ref.revision === 'string')
+    !!ref.toolCallId
   )
 }

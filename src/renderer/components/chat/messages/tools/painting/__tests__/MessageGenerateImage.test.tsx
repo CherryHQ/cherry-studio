@@ -101,6 +101,26 @@ describe('MessageGenerateImageToolTitle', () => {
     expect(getPhysicalPath).not.toHaveBeenCalled()
   })
 
+  it('renders resource-backed image previews without FileEntry or inline base64 reads', () => {
+    const uri = 'cherry-media://tool-result/topic/message/call/0'
+    render(
+      <MessageGenerateImageToolTitle
+        toolResponse={mcpToolResponse({
+          content: [
+            {
+              type: 'resource_link',
+              uri,
+              name: 'image',
+              mimeType: 'image/png'
+            }
+          ]
+        })}
+      />
+    )
+    expect(screen.getByTestId('image-block')).toHaveTextContent(uri)
+    expect(getPhysicalPath).not.toHaveBeenCalled()
+  })
+
   it('shows localized failure copy (not the English MCP text) when no image block was returned', () => {
     render(
       <MessageGenerateImageToolTitle

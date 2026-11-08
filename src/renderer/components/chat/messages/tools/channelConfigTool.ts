@@ -17,7 +17,7 @@ function isChannelConfigTool(toolResponse: ChannelConfigToolResponse): boolean {
   return tool.type === 'mcp' && isCherryTools && CONFIG_TOOL_NAMES.has(tool.name)
 }
 
-function isChannelAuthQrRequest(toolResponse: ChannelConfigToolResponse): boolean {
+export function isChannelAuthQrRequest(toolResponse: ChannelConfigToolResponse): boolean {
   if (!isChannelConfigTool(toolResponse)) return false
 
   const args = toolResponse.arguments
@@ -33,7 +33,13 @@ export function getChannelAuthQrResult(toolResponse: ChannelConfigToolResponse) 
   if (!result.success) return null
 
   const images = result.data.content.flatMap((item) =>
-    item.type === 'image' && item.data ? [`data:${item.mimeType ?? 'image/png'};base64,${item.data}`] : []
+    item.type === 'image' && item.data
+      ? [`data:${item.mimeType ?? 'image/png'};base64,${item.data}`]
+      : item.type === 'resource_link' &&
+          item.mimeType?.startsWith('image/') &&
+          item.uri.startsWith('cherry-media://tool-result/')
+        ? [item.uri]
+        : []
   )
   if (images.length === 0) return null
 
@@ -41,7 +47,9 @@ export function getChannelAuthQrResult(toolResponse: ChannelConfigToolResponse) 
     images,
     responseWithoutImages: {
       ...result.data,
-      content: result.data.content.filter((item) => item.type !== 'image')
+      content: result.data.content.filter(
+        (item) => item.type !== 'image' && !(item.type === 'resource_link' && images.includes(item.uri))
+      )
     }
   }
 }

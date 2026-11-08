@@ -76,7 +76,11 @@ export class ClaudeProjection {
     return { session: this.thread, id: runtimeId(uuid) }
   }
 
-  private upsert(message: RuntimeMessage, replaces?: readonly ItemRef[]): ObservationPayload {
+  private upsert(
+    message: RuntimeMessage,
+    replaces?: readonly ItemRef[],
+    changedParts?: readonly number[]
+  ): ObservationPayload {
     message = {
       ...message,
       parts: message.parts.map((part) =>
@@ -95,7 +99,7 @@ export class ClaudeProjection {
     }
     for (const ref of replaces ?? []) this.messages.delete(ref.id)
     this.messages.set(message.id, message)
-    return { type: 'message.upsert', message, replaces }
+    return { type: 'message.upsert', message, replaces, changedParts }
   }
 
   deny(toolCallId: string): ObservationPayload[] {
@@ -252,12 +256,18 @@ export class ClaudeProjection {
     calls.add(result.toolUseId)
     this.results.set(uuid, calls)
     return [
-      this.upsert({
-        ...owner,
-        parts: owner.parts.map((previous) =>
-          previous.type === 'dynamic-tool' && previous.toolCallId === result.toolUseId ? part : previous
+      this.upsert(
+        {
+          ...owner,
+          parts: owner.parts.map((previous) =>
+            previous.type === 'dynamic-tool' && previous.toolCallId === result.toolUseId ? part : previous
+          )
+        },
+        undefined,
+        owner.parts.flatMap((part, index) =>
+          part.type === 'dynamic-tool' && part.toolCallId === result.toolUseId ? [index] : []
         )
-      })
+      )
     ]
   }
 
@@ -268,7 +278,7 @@ export class ClaudeProjection {
     ])
   }
 
-  private preview(): ObservationPayload[] {
+  private preview(changedPart?: number): ObservationPayload[] {
     if (!this.stream?.message) return []
     const indices = new Set([...this.stream.blocks.values()].filter((block) => !block.bound).map((block) => block.part))
     const parts = this.stream.message.parts.filter((_, index) => indices.has(index))
@@ -276,7 +286,9 @@ export class ClaudeProjection {
     const message = { ...this.stream.message, id: this.stream.id, parts }
     for (const part of parts)
       if (part.type === 'dynamic-tool') this.calls.set(part.toolCallId, { id: message.id, part })
-    return [this.upsert(message)]
+    const changedParts =
+      changedPart === undefined ? undefined : [...indices].flatMap((index, at) => (index === changedPart ? [at] : []))
+    return [this.upsert(message, undefined, changedParts)]
   }
 
   async partial(message: SDKPartialAssistantMessage): Promise<ObservationPayload[]> {
@@ -421,10 +433,18 @@ export class ClaudeProjection {
                 : part
           )
         }
-        return [this.upsert(value)]
+        return [
+          this.upsert(
+            value,
+            undefined,
+            owner.parts.flatMap((part, index) =>
+              part.type === 'dynamic-tool' && part.toolCallId === block.callId ? [index] : []
+            )
+          )
+        ]
       }
     }
-    return this.preview()
+    return this.preview(block.part)
   }
 
   restore(messages: readonly SessionMessage[], entries: readonly SessionStoreEntry[]): ClaudeArchive {
