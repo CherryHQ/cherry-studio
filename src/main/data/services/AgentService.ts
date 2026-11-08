@@ -197,6 +197,10 @@ function rowToAgent(
   mcps: string[],
   knowledgeBaseIds: string[]
 ): AgentEntity {
+  const instructions: unknown = row.instructions
+  if (typeof instructions !== 'string') {
+    throw new Error(t('agent.instructions.invalid_type', { agentId: row.id, actualType: typeof instructions }))
+  }
   const clean = nullsToUndefined(row)
   return {
     ...clean,

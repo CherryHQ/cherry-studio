@@ -32,6 +32,7 @@ import { modelService } from '@data/services/ModelService'
 import { pinService } from '@data/services/PinService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
+import { t } from '@main/i18n'
 import { CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 import { ErrorCode } from '@shared/data/api/errors'
 import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
@@ -198,6 +199,81 @@ describe('AgentService', () => {
       .values({ id, name: id, folderName: folderName ?? id, source, contentHash: `hash-${id}` })
       .onConflictDoNothing()
   }
+
+  describe('instructions read boundary', () => {
+    it.each([
+      [
+        'en-US',
+        'Agent agent-blob-en-US has invalid instructions: expected text, received object. Re-enter the system prompt in the Agent editor and save. If the editor cannot open, send feedback with this error and Agent ID.'
+      ],
+      [
+        'zh-CN',
+        'Agent agent-blob-zh-CN 的 instructions 无效：应为文本，实际类型为 object。请在 Agent 编辑器中重新输入系统提示词并保存；若无法打开编辑器，请反馈此错误并附上 Agent ID。'
+      ]
+    ] as const)('rejects BLOB instructions with actionable guidance in %s', async (language, expectedMessage) => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', language)
+      const { id } = await insertAgent({ id: `agent-blob-${language}` })
+      dbh.sqlite.prepare('UPDATE agent SET instructions = ? WHERE id = ?').run(Buffer.from('fixture-secret'), id)
+      const storageType = dbh.sqlite.prepare('SELECT typeof(instructions) AS type FROM agent WHERE id = ?')
+      expect(storageType.get(id)).toEqual({ type: 'blob' })
+      expect(t('agent.instructions.invalid_type', { agentId: id, actualType: 'object' })).toBe(expectedMessage)
+
+      const error = captureError(() => agentService.getAgent(id))
+
+      expect(error).toBeInstanceOf(Error)
+      expect(error).not.toBeInstanceOf(TypeError)
+      expect((error as Error).message).toBe(expectedMessage)
+      expect((error as Error).message).not.toContain('{{')
+      expect((error as Error).message).not.toContain('fixture-secret')
+      expect(storageType.get(id)).toEqual({ type: 'blob' })
+    })
+
+    it('rejects a list page containing BLOB instructions while the good Agent remains readable', async () => {
+      const good = await insertAgent({ instructions: 'Keep this role unchanged.' })
+      const bad = await insertAgent({ id: 'agent-blob-list' })
+      dbh.sqlite.prepare('UPDATE agent SET instructions = ? WHERE id = ?').run(Buffer.from('fixture-secret'), bad.id)
+
+      const error = captureError(() => agentService.listAgents({ ids: [good.id, bad.id], limit: 2 }))
+
+      expect(error).toBeInstanceOf(Error)
+      expect(error).not.toBeInstanceOf(TypeError)
+      expect((error as Error).message).toContain(`Agent ${bad.id} has invalid instructions`)
+      expect(agentService.getAgent(good.id)?.instructions).toBe('Keep this role unchanged.')
+    })
+
+    it.each(['', ' \n ', '  Role text.  ', '["guidance"]'])(
+      'preserves valid instructions %j verbatim',
+      async (instructions) => {
+        const { id } = await insertAgent({ instructions })
+
+        expect(agentService.getAgent(id)?.instructions).toBe(instructions)
+      }
+    )
+
+    it('recovers BLOB instructions through an explicit update without losing other fields', async () => {
+      const fields = {
+        name: 'Recoverable Agent',
+        description: 'Keep this description.',
+        model: TEST_MODEL_ID,
+        configuration: { avatar: 'R' }
+      }
+      const { id } = await insertAgent(fields)
+      dbh.sqlite.prepare('UPDATE agent SET instructions = ? WHERE id = ?').run(Buffer.from('fixture-secret'), id)
+      const error = captureError(() => agentService.getAgent(id))
+      expect(error).toBeInstanceOf(Error)
+      expect(error).not.toBeInstanceOf(TypeError)
+      expect((error as Error).message).toContain(`Agent ${id} has invalid instructions`)
+
+      expect(agentService.updateAgent(id, { instructions: 'Recovered role.' })).toMatchObject({
+        ...fields,
+        instructions: 'Recovered role.'
+      })
+      expect(agentService.getAgent(id)).toMatchObject({ ...fields, instructions: 'Recovered role.' })
+      expect(dbh.sqlite.prepare('SELECT typeof(instructions) AS type FROM agent WHERE id = ?').get(id)).toEqual({
+        type: 'text'
+      })
+    })
+  })
 
   describe('createAgent', () => {
     it('creates preset and custom provider agents inside database initialization transactions', () => {

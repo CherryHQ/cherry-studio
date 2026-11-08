@@ -5,6 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { userModelTable } from '@data/db/schemas/userModel'
@@ -22,6 +23,7 @@ describe('Agent prompt onboarding', () => {
   let workspacePath: string
 
   beforeEach(async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
     dbh.db.insert(userProviderTable).values({ providerId: 'identity-test', name: 'Test', orderKey: 'a0' }).run()
     dbh.db
       .insert(userModelTable)
@@ -76,6 +78,34 @@ describe('Agent prompt onboarding', () => {
     expect(append).toContain('## Bootstrap Mode')
     expect(append).toContain('**Discover your presentation**')
     expect(append).not.toContain('**Discover the role**')
+  })
+
+  it('rejects persisted BLOB instructions with actionable guidance before building the runtime prompt', async () => {
+    const id = randomUUID()
+    const agentDataPath = await createAgentDataDirectory(root, id)
+    agentService.createAgentWithId(id, {
+      type: 'claude-code',
+      name: 'Invalid role',
+      model,
+      instructions: 'Valid role.'
+    })
+    dbh.sqlite.prepare('UPDATE agent SET instructions = ? WHERE id = ?').run(Buffer.from('fixture-secret'), id)
+    expect(dbh.sqlite.prepare('SELECT typeof(instructions) AS type FROM agent WHERE id = ?').get(id)).toEqual({
+      type: 'blob'
+    })
+
+    const error = await (async () => {
+      const agent = agentService.getAgent(id)!
+      return buildAgentRuntimePrompt({ workspacePath, agentDataPath, agent })
+    })().catch((error: unknown) => error)
+
+    expect(error).toBeInstanceOf(Error)
+    expect(error).not.toBeInstanceOf(TypeError)
+    expect((error as Error).message).toBe(
+      `Agent ${id} has invalid instructions: expected text, received object. Re-enter the system prompt in the Agent editor and save. If the editor cannot open, send feedback with this error and Agent ID.`
+    )
+    expect((error as Error).message).not.toContain('instructions?.trim is not a function')
+    expect((error as Error).message).not.toContain('fixture-secret')
   })
 
   it('loads an established identity from Agent storage without restarting onboarding', async () => {
