@@ -3744,6 +3744,44 @@ describe('AgentComposer', () => {
     expect(mocks.availableSkillsOptions).toHaveBeenLastCalledWith('agent-1', expect.anything(), { enabled: true })
   })
 
+  it('preserves cached skill text while recovery pauses discovery and loads the replacement catalog', async () => {
+    const cachedToken = { ...pdfSkillToken, index: 0, textOffset: 0 }
+    const cachedText = `${pdfSkillToken.promptText} continue`
+    vi.mocked(cacheService.get).mockReturnValue({
+      text: cachedText,
+      tokens: [cachedToken],
+      files: [],
+      knowledgeBaseIds: [],
+      workspaceKey: 'workspace-old\0/old-workspace',
+      agentId: 'agent-1'
+    })
+    mocks.availableSkills = []
+    mocks.availableSkillsLoading = false
+    const props = {
+      agentId: 'agent-1',
+      sessionId: 'session-1',
+      sendMessage: mocks.sendMessage,
+      stop: mocks.stop,
+      isStreaming: false
+    }
+    const view = render(<AgentComposer {...props} resolvedWorkspaceWarning="Unavailable" />)
+    expect(mocks.surfaceProps?.text).toBe(cachedText)
+    expect(mocks.surfaceProps?.draftTokens).toEqual([cachedToken])
+    expect(mocks.replaceDraft).not.toHaveBeenCalled()
+
+    mocks.availableSkillsLoading = true
+    view.rerender(<AgentComposer {...props} resolvedWorkspaceWarning={null} />)
+    expect(mocks.surfaceProps?.text).toBe(cachedText)
+    expect(mocks.surfaceProps?.draftTokens).toEqual([cachedToken])
+    mocks.availableSkills = [pdfSkill]
+    mocks.availableSkillsLoading = false
+    view.rerender(<AgentComposer {...props} resolvedWorkspaceWarning={null} />)
+    await waitFor(() => expect(mocks.surfaceProps?.tokens).toContainEqual(pdfSkillToken))
+    expect(mocks.surfaceProps?.text).toBe(cachedText)
+    expect(mocks.surfaceProps?.draftTokens).toEqual([cachedToken])
+    expect(mocks.replaceDraft).not.toHaveBeenCalled()
+  })
+
   it('waits for the new workspace skill list before removing only unavailable cached skills', async () => {
     const staleSkill = { name: 'stale', filename: 'stale' } satisfies LocalSkill
     const staleSkillPrompt = 'Use the stale skill.'
