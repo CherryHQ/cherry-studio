@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { canOfferPlanMode, hasPlanIntent } from '../planModeHint'
+import { canOfferPlanMode, hasPlanIntent } from '../usePlanModeHint'
 
 describe('hasPlanIntent', () => {
   it.each([
