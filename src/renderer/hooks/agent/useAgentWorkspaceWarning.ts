@@ -8,7 +8,7 @@ import { createFilePathHandle } from '@shared/utils/file'
 
 const logger = loggerService.withContext('useAgentWorkspaceWarning')
 
-export function useAgentWorkspaceWarning(workspacePath: string | undefined, enabled = true) {
+export function useAgentWorkspaceWarning(workspacePath: string | undefined, enabled = true, refreshKey = 0) {
   const { t } = useTranslation()
   const [warning, setWarning] = useState<string | undefined>(undefined)
 
@@ -41,7 +41,7 @@ export function useAgentWorkspaceWarning(workspacePath: string | undefined, enab
     return () => {
       cancelled = true
     }
-  }, [enabled, t, workspacePath])
+  }, [enabled, refreshKey, t, workspacePath])
 
   return warning
 }

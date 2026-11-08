@@ -514,6 +514,17 @@ describe('SkillService', () => {
       }))
     })
 
+    it('finishes missing workspace discovery and finds skills after the directory is restored', async () => {
+      const service = new SkillService()
+      const root = await createTempDir('skill-missing-workdir-')
+      const workdir = path.join(root, 'restored')
+      expect(await service.listLocal(workdir)).toEqual([])
+      const skill = path.join(workdir, '.claude', 'skills', 'restored-skill')
+      await fs.promises.mkdir(skill, { recursive: true })
+      await fs.promises.writeFile(path.join(skill, 'SKILL.md'), '# Restored skill')
+      expect((await service.listLocal(workdir)).map((entry) => entry.filename)).toEqual(['restored-skill'])
+    })
+
     it('lists user-owned local skill directories and symlinked directories', async () => {
       const skillService = new SkillService()
       const workdir = await createTempDir('skill-local-workdir-')

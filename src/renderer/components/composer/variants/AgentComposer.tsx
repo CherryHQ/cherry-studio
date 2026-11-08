@@ -671,7 +671,7 @@ const AgentComposerInner = ({
     loading: isAvailableSkillsLoading,
     error: availableSkillsError,
     refresh: refreshAvailableSkills
-  } = useAvailableSkills(agentId, userWorkspacePath, { enabled: skillsDataEnabled })
+  } = useAvailableSkills(agentId, userWorkspacePath, { enabled: skillsDataEnabled && !workspaceWarning })
   const skillByFilename = useMemo(
     () => new Map(availableSkills.map((skill) => [skill.filename, skill])),
     [availableSkills]

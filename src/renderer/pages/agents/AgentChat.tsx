@@ -215,7 +215,8 @@ const AgentChat = ({
   const { updateSession } = useUpdateSession()
   const agentModelFilter = useAgentModelFilter(activeAgent?.type)
   const workspacePath = visibleWorkspace?.type === 'user' ? visibleWorkspace.path : undefined
-  const workspaceWarning = useAgentWorkspaceWarning(workspacePath)
+  const [workspaceCheckRevision, setWorkspaceCheckRevision] = useState(0)
+  const workspaceWarning = useAgentWorkspaceWarning(workspacePath, true, workspaceCheckRevision)
   const workspaceUnavailable = Boolean(workspaceWarning)
   const citationPanelCitations =
     citationPanelState && citationPanelState.sessionId === currentSessionId ? citationPanelState.citations : null
@@ -321,7 +322,9 @@ const AgentChat = ({
   const handleSessionWorkspaceChange = useCallback(
     (workspaceId: string | null) => {
       runAfterFileNavigation(() => {
-        void onSessionWorkspaceChange?.(workspaceId)
+        void Promise.resolve(onSessionWorkspaceChange?.(workspaceId)).then(() => {
+          setWorkspaceCheckRevision((revision) => revision + 1)
+        })
       })
     },
     [onSessionWorkspaceChange, runAfterFileNavigation]

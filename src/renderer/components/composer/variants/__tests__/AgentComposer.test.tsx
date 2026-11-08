@@ -80,6 +80,7 @@ const mocks = vi.hoisted(() => ({
   availableSkillsLoading: false,
   availableSkillsError: null as string | null,
   availableSkillsRefresh: vi.fn(),
+  availableSkillsOptions: vi.fn(),
   openResourceEditDialog: vi.fn(),
   registeredLaunchers: new Map<string, ComposerToolLauncher[]>(),
   registeredFooterActions: new Map<string, ComposerToolFooterAction[]>(),
@@ -535,12 +536,15 @@ vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
 }))
 
 vi.mock('@renderer/hooks/useSkills', () => ({
-  useAvailableSkills: () => ({
-    skills: mocks.availableSkills,
-    loading: mocks.availableSkillsLoading,
-    error: mocks.availableSkillsError,
-    refresh: mocks.availableSkillsRefresh
-  })
+  useAvailableSkills: (agentId: string, workdir: string, options: { enabled: boolean }) => {
+    mocks.availableSkillsOptions(agentId, workdir, options)
+    return {
+      skills: mocks.availableSkills,
+      loading: mocks.availableSkillsLoading,
+      error: mocks.availableSkillsError,
+      refresh: mocks.availableSkillsRefresh
+    }
+  }
 }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
@@ -3712,6 +3716,32 @@ describe('AgentComposer', () => {
         textOffset: 0
       }
     ])
+  })
+
+  it('pauses skill discovery while its workspace is unavailable and resumes after recovery', () => {
+    mocks.optionalQuickPanel = { isVisible: true, symbol: 'agent-skills', updateList: vi.fn() }
+    const view = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        resolvedWorkspaceWarning="Unavailable"
+      />
+    )
+    expect(mocks.availableSkillsOptions).toHaveBeenLastCalledWith('agent-1', expect.anything(), { enabled: false })
+    view.rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        resolvedWorkspaceWarning={null}
+      />
+    )
+    expect(mocks.availableSkillsOptions).toHaveBeenLastCalledWith('agent-1', expect.anything(), { enabled: true })
   })
 
   it('waits for the new workspace skill list before removing only unavailable cached skills', async () => {

@@ -222,6 +222,22 @@ describe('useInstalledSkills', () => {
     ])
   })
 
+  it('ends missing-directory loading and reloads skills when the workspace changes', async () => {
+    listLocalSkillsMock.mockResolvedValueOnce({ success: true, data: [] })
+    const { result, rerender } = renderHook(({ workdir }) => useAvailableSkills('agent-1', workdir), {
+      initialProps: { workdir: '/missing' }
+    })
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    listLocalSkillsMock.mockResolvedValueOnce({
+      success: true,
+      data: [{ name: 'Recovered', filename: 'recovered' }]
+    })
+    rerender({ workdir: '/recovered' })
+    await waitFor(() => expect(result.current.skills).toEqual([expect.objectContaining({ filename: 'recovered' })]))
+    expect(result.current.loading).toBe(false)
+    expect(listLocalSkillsMock).toHaveBeenLastCalledWith({ workdir: '/recovered' })
+  })
+
   it('reports loading before the first local skill request resolves for a workspace', async () => {
     let resolveLocalSkills!: (value: { success: true; data: [] }) => void
     listLocalSkillsMock.mockReturnValue(
