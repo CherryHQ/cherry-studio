@@ -1,9 +1,10 @@
-import { type CSSProperties, memo, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { type CSSProperties, memo, useEffect, useId, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
 
 import { type MarkdownSource, ScrollArea } from '@cherrystudio/ui'
 
+import { useMessageDisclosureState } from '../hooks/useMessageDisclosureState'
 import { getDistanceToBottom, getRealBottom } from '../list/scrollGeometry'
 import { VERTICAL_SCROLL_OVERFLOW_TOLERANCE_PX } from '../list/ScrollOwnershipContext'
 import ChatMarkdown from '../markdown/ChatMarkdown'
@@ -73,10 +74,11 @@ ThinkingBlockContent.displayName = 'ThinkingBlockContent'
 
 const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePreview = false }) => {
   const { thoughtAutoCollapse } = useMessageRenderConfig()
-  const [isExpanded, setIsExpanded] = useState(!thoughtAutoCollapse)
+  const [isExpanded, setIsExpanded] = useMessageDisclosureState(`reasoning:${id}`, !thoughtAutoCollapse)
   const contentId = useId()
   const contentRef = useRef<HTMLDivElement>(null)
   const followingRef = useRef(true)
+  const previousThoughtAutoCollapse = useRef(thoughtAutoCollapse)
   const hasContent = !!content
 
   useEffect(() => {
@@ -114,8 +116,10 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
   }, [thinkingPreviewScanResult])
 
   useEffect(() => {
+    if (previousThoughtAutoCollapse.current === thoughtAutoCollapse) return
+    previousThoughtAutoCollapse.current = thoughtAutoCollapse
     setIsExpanded(!thoughtAutoCollapse)
-  }, [thoughtAutoCollapse])
+  }, [setIsExpanded, thoughtAutoCollapse])
 
   if (!content) {
     return null

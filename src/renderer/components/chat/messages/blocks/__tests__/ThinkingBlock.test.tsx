@@ -1,6 +1,9 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
+
+import { MessagePartsScopeProvider } from '../MessagePartsContext'
 import ThinkingBlock from '../ThinkingBlock'
 
 // Mock dependencies
@@ -48,6 +51,7 @@ vi.mock('../ThinkingEffect', () => ({
 describe('ThinkingBlock', () => {
   beforeEach(async () => {
     vi.useFakeTimers()
+    invalidateCachedMessageUiStates(['thinking-test-message'])
 
     mockRenderConfig.messageFont = 'sans-serif'
     mockRenderConfig.fontSize = 14
@@ -79,12 +83,14 @@ describe('ThinkingBlock', () => {
 
   const renderThinkingBlock = (block: ThinkingBlockFixture, props: { showTitlePreview?: boolean } = {}) => {
     return render(
-      <ThinkingBlock
-        id={block.id}
-        content={block.content}
-        isStreaming={block.status === 'streaming'}
-        showTitlePreview={props.showTitlePreview}
-      />
+      <MessagePartsScopeProvider messageId="thinking-test-message" parts={[]}>
+        <ThinkingBlock
+          id={block.id}
+          content={block.content}
+          isStreaming={block.status === 'streaming'}
+          showTitlePreview={props.showTitlePreview}
+        />
+      </MessagePartsScopeProvider>
     )
   }
 
@@ -256,6 +262,19 @@ describe('ThinkingBlock', () => {
 
       expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
       expect(getContentContainer()).not.toHaveAttribute('hidden')
+    })
+
+    it('should restore the user-selected disclosure state after remounting', () => {
+      const block = createThinkingBlock()
+      const firstRender = renderThinkingBlock(block)
+
+      fireEvent.click(getToggleButton())
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
+
+      firstRender.unmount()
+      renderThinkingBlock(block)
+
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
     })
 
     it('should render expanded by default when auto-collapse is disabled', () => {
