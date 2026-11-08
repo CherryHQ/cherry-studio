@@ -1763,6 +1763,30 @@ describe('ComposerSurface', () => {
     expect(mocks.chainRun).toHaveBeenCalled()
   })
 
+  it('handles Shift+Tab mode switching without intercepting modified shortcuts or composition', async () => {
+    let mode = 'ordinary'
+    render(
+      <ComposerSurface
+        {...baseProps}
+        onShiftTab={() => {
+          mode = mode === 'ordinary' ? 'plan' : 'ordinary'
+        }}
+      />
+    )
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    const key = { key: 'Tab', shiftKey: true, isComposing: false, preventDefault: vi.fn(), stopPropagation: vi.fn() }
+    const handle = mocks.editorOptions.editorProps.handleKeyDown
+    expect(handle(null, key)).toBe(true)
+    expect(mode).toBe('plan')
+    handle(null, { ...key, repeat: true })
+    expect(mode).toBe('plan')
+    handle(null, { ...key, ctrlKey: true })
+    handle(null, { ...key, isComposing: true })
+    expect(mode).toBe('plan')
+    handle(null, key)
+    expect(mode).toBe('ordinary')
+  })
+
   it('uses Tab to select the next prompt variable token', async () => {
     mocks.docDescendants.mockImplementation((visit: (node: unknown, position: number) => void) => {
       visit(
@@ -4806,6 +4830,49 @@ describe('ComposerSurface', () => {
               }
             },
             { type: 'text', text: ' hello' }
+          ]
+        }
+      ]
+    })
+  })
+
+  it('rebuilds a chip from the live token when the draft seed is empty instead of leaking its prompt text', async () => {
+    // A rebuilt editor keeps the live `text` (which already embeds the token's folded prompt text)
+    // while its token seed was only read once at mount. The chip must come back from the live
+    // token, not materialize the prompt text as plain prose.
+    const promptText = 'The user attached knowledge base "Notes" (id: kb-1).'
+    render(
+      <ComposerSurface
+        {...baseProps}
+        text={`${promptText} `}
+        tokens={[
+          {
+            id: 'knowledge:kb-1',
+            kind: 'knowledge',
+            label: 'Notes',
+            promptText
+          }
+        ]}
+        draftTokens={undefined}
+      />
+    )
+
+    expect(mocks.editorOptions.content).toEqual({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            {
+              type: 'composerToken',
+              attrs: {
+                id: 'knowledge:kb-1',
+                kind: 'knowledge',
+                label: 'Notes',
+                promptText
+              }
+            },
+            { type: 'text', text: ' ' }
           ]
         }
       ]

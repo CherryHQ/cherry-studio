@@ -6,6 +6,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { dataApiService } from '@renderer/data/DataApiService'
+import type * as TabHooks from '@renderer/hooks/tab'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { popup } from '@renderer/services/popup'
 import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
@@ -424,7 +425,8 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgents: agentDataMocks.useAgents
 }))
 
-vi.mock('@renderer/hooks/tab', () => ({
+vi.mock('@renderer/hooks/tab', async (importOriginal) => ({
+  ...(await importOriginal<typeof TabHooks>()),
   useCloseConversationTabs: () => tabsContextMocks.closeConversationTabs,
   useOptionalTabsContext: () => tabsContextMocks,
   useCurrentTabId: () => null
@@ -2711,7 +2713,8 @@ describe('Sessions', () => {
     expect(pinnedRow?.querySelector('[data-resource-list-leading-slot="true"]') ?? null).not.toBeInTheDocument()
   })
 
-  it('hides the inline delete action for pinned sessions', () => {
+  it('allows archiving pinned sessions from the inline actions', async () => {
+    const user = userEvent.setup()
     setupSessions({
       sessions: [
         createSession({ id: 'session-a', name: 'Alpha session', orderKey: 'a' }),
@@ -2727,14 +2730,8 @@ describe('Sessions', () => {
     const unpinButton = within(pinnedRow as HTMLElement).getByLabelText('Unpin task')
     expect(unpinButton).toBeInTheDocument()
     expect(unpinButton).toHaveAttribute('aria-pressed', 'true')
-    expect(unpinButton.closest('[data-resource-list-item-actions="true"]')).toHaveAttribute('data-pinned', 'true')
-    expect(unpinButton.closest('[data-resource-list-item-actions="true"]')).toBeInTheDocument()
-    expect(
-      pinnedRow?.querySelector('[data-resource-list-leading-slot="true"] [aria-label="Unpin task"]') ?? null
-    ).not.toBeInTheDocument()
-    // Pinned rows are lifted out of their workdir group, so they must not keep its icon indent.
-    expect(pinnedRow?.querySelector('[data-resource-list-leading-slot="true"]') ?? null).not.toBeInTheDocument()
-    expect(within(pinnedRow as HTMLElement).queryByLabelText('Delete')).not.toBeInTheDocument()
+    await user.click(within(pinnedRow as HTMLElement).getByRole('button', { name: 'Archive' }))
+    await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-pinned'))
   })
 
   it('keeps the pinned group label when every session is pinned in time mode', () => {

@@ -28,6 +28,20 @@ describe('createComposerInputAdapter', () => {
     return editor
   }
 
+  it('prefixes a native command without replacing a selected draft or its file chips', () => {
+    const editor = createEditor()
+    const adapter = createComposerInputAdapter(editor)
+    adapter.insertToken!({ id: 'file-1', kind: 'file', label: 'attached.txt' }, { insertSeparator: false })
+    adapter.insertText('Review this file', { tokenizeVariables: false })
+    editor.commands.selectAll()
+
+    adapter.insertText('/goal ', { position: 'start' })
+
+    const draft = serializeComposerDocument(editor)
+    expect(draft.text).toBe('/goal Review this file')
+    expect(draft.tokens).toMatchObject([{ id: 'file-1', kind: 'file', textOffset: 6 }])
+  })
+
   it('preserves unselected file chips when replacing text immediately after them', () => {
     const editor = createEditor()
     const adapter = createComposerInputAdapter(editor)

@@ -7,6 +7,8 @@ import { useDataChange, useInvalidateCache, usePaginatedQuery, useQuery } from '
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import type { ResponseForPath } from '@shared/data/api/paths'
+import type { ListTasksQuery } from '@shared/data/api/schemas/agents'
 import type { ScheduledTaskEntity } from '@shared/data/types/agent'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -35,31 +37,21 @@ const taskCommandErrorMessage = (error: unknown, t: TFunction, fallbackPrefix: s
   return formatErrorMessageWithPrefix(error, fallbackPrefix)
 }
 
-export const useTasks = (agentId: string | null) => {
-  const { data, error, isLoading, refetch } = useQuery('/agents/:agentId/tasks', {
-    params: { agentId: agentId! },
-    query: { limit: 200 },
-    enabled: !!agentId,
-    swrOptions: { keepPreviousData: false }
-  })
-  useDataChange('/agents/:agentId/tasks', () => refetch())
-  return {
-    tasks: data?.items ?? [],
-    total: data?.total ?? 0,
-    error,
-    isLoading
-  }
-}
-
-/** All scheduled tasks across every agent — backs the settings overview page. */
-export const useAllTasks = () => {
-  const { items, total, page, error, isLoading, hasNext, hasPrev, nextPage, prevPage, refresh } = usePaginatedQuery(
-    '/agent-tasks',
-    {
+/** All scheduled tasks across every agent, optionally filtered by status. */
+export const useAllTasks = (status?: ListTasksQuery['status']) => {
+  const { items, total, page, error, isLoading, hasNext, hasPrev, nextPage, prevPage, refresh, goToPage } =
+    usePaginatedQuery('/agent-tasks', {
       limit: TASKS_PAGE_LIMIT,
-      swrOptions: { keepPreviousData: false }
-    }
-  )
+      query: status ? { status } : {},
+      swrOptions: {
+        keepPreviousData: false,
+        ...(status ? { dedupingInterval: 0 } : {}),
+        onSuccess: (response: ResponseForPath<'/agent-tasks', 'GET'>) => {
+          const lastPage = Math.max(1, Math.ceil(response.total / TASKS_PAGE_LIMIT))
+          if (status && response.page === page && page > lastPage) goToPage(lastPage)
+        }
+      }
+    })
   useDataChange('/agent-tasks', () => refresh())
   return {
     tasks: items,
@@ -211,22 +203,4 @@ export const useDeleteTask = () => {
     [invalidate, t]
   )
   return { deleteTask }
-}
-
-export const useTaskLogs = (agentId: string | null, taskId: string | null) => {
-  const { data, error, isLoading, refetch } = useQuery('/agents/:agentId/tasks/:taskId/logs', {
-    params: { agentId: agentId!, taskId: taskId! },
-    query: { limit: 50 },
-    enabled: !!(agentId && taskId),
-    swrOptions: { keepPreviousData: false }
-  })
-  useDataChange('/agents/:agentId/tasks/:taskId/logs', () => refetch(), {
-    routeParams: taskId ? { taskId } : undefined
-  })
-  return {
-    logs: data?.items ?? [],
-    total: data?.total ?? 0,
-    error,
-    isLoading
-  }
 }

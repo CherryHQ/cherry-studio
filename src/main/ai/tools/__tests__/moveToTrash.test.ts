@@ -138,7 +138,14 @@ describe('moveWorkspaceItemToTrash', () => {
       'operating-system'
     )
     expect(
-      getProtectedTrashTargetReason('/Users/alice/Library/Application Support', '/Users/alice', context)
+      getProtectedTrashTargetReason('/Users/alice/Library/Keychains/login.keychain', '/Users/alice', context)
+    ).toContain('credential')
+    expect(
+      getProtectedTrashTargetReason(
+        '/Users/alice/Library/Application Support/CherryStudio/Data/cherrystudio.sqlite',
+        '/Users/alice',
+        { ...context, applicationDataDirectory: '/Users/alice/Library/Application Support/CherryStudio' }
+      )
     ).toContain('application-data')
     expect(
       getProtectedTrashTargetReason('/Users/alice/project/.git/config', '/Users/alice/project', context)
@@ -156,6 +163,45 @@ describe('moveWorkspaceItemToTrash', () => {
     expect(
       getProtectedTrashTargetReason('/Users/alice/project/output.txt', '/Users/alice/project', context)
     ).toBeUndefined()
+  })
+
+  it('allows macOS workspace content under ~/Library while keeping Library secrets protected', () => {
+    const workspace = '/Users/alice/Library/Application Support/CherryStudio-Shared-Workspaces/w-default'
+    const context = {
+      platform: 'darwin' as const,
+      homeDirectory: '/Users/alice',
+      applicationDataDirectory: '/Users/alice/Library/Application Support/CherryStudio'
+    }
+
+    expect(getProtectedTrashTargetReason(`${workspace}/tasks/run/tmp.txt`, workspace, context)).toBeUndefined()
+    expect(getProtectedTrashTargetReason(workspace, workspace, context)).toBe('the session workspace root')
+    expect(getProtectedTrashTargetReason('/Users/alice/.ssh/id_rsa', workspace, context)).toContain('credential')
+    expect(
+      getProtectedTrashTargetReason(
+        '/Users/alice/Library/Application Support/CherryStudio/Data/cherrystudio.sqlite',
+        workspace,
+        context
+      )
+    ).toContain('application-data')
+    expect(
+      getProtectedTrashTargetReason('/Users/alice/Library/Keychains/login.keychain', workspace, context)
+    ).toContain('credential')
+  })
+
+  it('refuses a target that contains the protected directories, not just one inside them', () => {
+    const workspace = '/Users/alice/Library'
+    const context = {
+      platform: 'darwin' as const,
+      homeDirectory: '/Users/alice',
+      applicationDataDirectory: '/Users/alice/Library/Application Support/CherryStudio'
+    }
+
+    expect(getProtectedTrashTargetReason('/Users/alice/Library/Application Support', workspace, context)).toContain(
+      'application-data'
+    )
+    expect(getProtectedTrashTargetReason('/Users/alice/Library/Keychains', workspace, context)).toContain('credential')
+    expect(getProtectedTrashTargetReason('/Users/alice/Library', workspace, context)).toBe('the session workspace root')
+    expect(getProtectedTrashTargetReason('/Users/alice/Library/MyStuff', workspace, context)).toBeUndefined()
   })
 
   it('protects paths reached through a `..`-prefixed child or a macOS case variant', () => {
@@ -298,6 +344,39 @@ describe('moveWorkspaceItemToTrash', () => {
         workspaceType: 'system'
       })
     ).toBe('a credential, configuration, or application-data directory')
+  })
+
+  it('moves a user workspace file stored under ~/Library/Application Support', async () => {
+    const fixture = await createTempDirectory('move-to-trash-shared-')
+    const home = path.join(fixture, 'home')
+    const workspace = path.join(home, 'Library', 'Application Support', 'CherryStudio-Shared-Workspaces', 'w-default')
+    const target = path.join(workspace, 'tasks', 'tmp.txt')
+    await mkdir(path.dirname(target), { recursive: true })
+    await writeFile(target, 'draft')
+    const originalGetPath = application.getPath
+    const getPath = vi.spyOn(application, 'getPath').mockImplementation((key, filename) => {
+      switch (key) {
+        case 'sys.home':
+          return home
+        case 'sys.downloads':
+          return path.join(home, 'Downloads')
+        case 'cherry.home':
+          return path.join(home, '.cherrystudio')
+        case 'app.userdata':
+          return path.join(home, 'Library', 'Application Support', 'CherryStudio')
+        default:
+          return originalGetPath(key, filename)
+      }
+    })
+
+    try {
+      await expect(
+        moveWorkspaceItemToTrash(workspace, { path: 'tasks/tmp.txt' }, new AbortController().signal)
+      ).resolves.toEqual({ path: 'tasks/tmp.txt', type: 'file', destination: 'trash' })
+      expect(shell.trashItem).toHaveBeenCalledWith(target)
+    } finally {
+      getPath.mockRestore()
+    }
   })
 
   it('moves real managed workspace files and directories with runtime application-data protection', async () => {
