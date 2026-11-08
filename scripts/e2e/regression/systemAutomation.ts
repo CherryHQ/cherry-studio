@@ -648,8 +648,8 @@ export async function dismissNativeMessageBox(
     `$processCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ProcessIdProperty, ${electronPid})`,
     '$deadline = [DateTime]::UtcNow.AddSeconds(60)',
     `$dialogCondition = [System.Windows.Automation.AndCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "#32770"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, '${escapePowerShell(title)}'))`,
-    // TaskDialog providers need semantic matching; legacy Win32 buttons can appear as UIA panes.
-    '$buttonKindCondition = [System.Windows.Automation.OrCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Button"))',
+    // TaskDialog CCPushButton and legacy Win32 Button controls can both appear as UIA panes.
+    '$buttonKindCondition = [System.Windows.Automation.OrCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button), [System.Windows.Automation.OrCondition]::new([System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "Button"), [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "CCPushButton")))',
     `$buttonCondition = [System.Windows.Automation.AndCondition]::new($processCondition, [System.Windows.Automation.AndCondition]::new($buttonKindCondition, [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, '${escapePowerShell(buttonName)}')))`,
     '$button = $null',
     '$previousState = ""; $stateCount = 0',
@@ -664,9 +664,9 @@ export async function dismissNativeMessageBox(
     'function Read-NativeMetadata($element) {',
     '  $current = $element.Current',
     '  $name = [string]$current.Name; $class = [string]$current.ClassName',
-    '  $isButton = $current.ControlType -eq [System.Windows.Automation.ControlType]::Button -or $class -eq "Button"',
+    '  $isButton = $current.ControlType -eq [System.Windows.Automation.ControlType]::Button -or $class -in @("Button", "CCPushButton")',
     `  if ($class -ne "#32770" -and -not $isButton -and $name -ne '${escapePowerShell(title)}' -and $name -notin @('Cherry Studio', 'CherryStudio')) { $name = '[other window title]' }`,
-    `  return @{ class = $class; controlType = $current.ControlType.ProgrammaticName; name = $name; controlId = [string]$current.AutomationId; enabled = $current.IsEnabled; titleMatches = $current.Name -eq '${escapePowerShell(title)}'; buttonMatches = $isButton -and $current.Name -eq '${escapePowerShell(buttonName)}' -and $current.ProcessId -eq ${electronPid} }`,
+    `  return @{ class = $class; controlType = $current.ControlType.ProgrammaticName; processId = $current.ProcessId; name = $name; controlId = [string]$current.AutomationId; enabled = $current.IsEnabled; titleMatches = $current.Name -eq '${escapePowerShell(title)}'; buttonMatches = $isButton -and $current.Name -eq '${escapePowerShell(buttonName)}' -and $current.ProcessId -eq ${electronPid} }`,
     '}',
     'do {',
     '  $windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $processCondition)',

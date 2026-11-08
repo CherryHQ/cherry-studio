@@ -349,7 +349,7 @@ it.skipIf(!['darwin', 'win32'].includes(process.platform)).each(dialogModes)(
         expect(diagnostic.events).toContainEqual(
           expect.objectContaining({
             stage: 'matched',
-            button: expect.objectContaining({ controlType: 'ControlType.Button', name: 'OK', buttonMatches: true })
+            button: expect.objectContaining({ name: 'OK', processId: child.pid, enabled: true, buttonMatches: true })
           })
         )
       } else if (mode === 'print') {
