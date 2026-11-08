@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "recordedAt": "2026-11-08T17:01:03.074Z",
+  "recordedAt": "2026-11-08T17:16:06.561Z",
   "preservationBaseline": "b22aae1dd46d2cacae5c35dba95412a4420e42ab",
   "synchronization": {
-    "head": "b22aae1dd46d2cacae5c35dba95412a4420e42ab",
-    "reviewedImplementationCommit": null,
-    "state": "uncommitted-worktree",
-    "identity": "SHA-256 of exact source and verification files below; HEAD is the merged baseline, not a refactor commit",
+    "head": "888093e017af5044cea0cb58e457b6fd4a119f05",
+    "reviewedImplementationCommit": "888093e017af5044cea0cb58e457b6fd4a119f05",
+    "state": "committed-source-snapshot",
+    "identity": "SHA-256 of exact source, test and verification files matching reviewedImplementationCommit; this record may be stored in a later metadata commit.",
     "excludedDeletedFiles": ["src/renderer/components/ModelSelector/useIsModelSelectable.ts"]
   },
   "equivalence": "Preserve business and external wire contracts, with enumerated confirmed defect corrections. No claim of arbitrary execution or deployed backend equivalence.",
