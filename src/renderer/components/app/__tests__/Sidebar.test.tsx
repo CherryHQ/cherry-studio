@@ -262,8 +262,17 @@ describe('app Sidebar', () => {
   it('marks the account avatar until a Subscribe touchpoint has been used', async () => {
     mocks.subscribePromptSeen = false
     vi.mocked(window.api.ipcApi.request).mockImplementation(async (route) =>
-      route === 'cherry_cloud.status.get'
-        ? { ok: true, data: { phase: 'signed-out', accountId: null, displayName: null } }
+      route === 'cherry_cloud.account.get'
+        ? {
+            ok: true,
+            data: {
+              status: { phase: 'signed-out', accountId: null, displayName: null, scopeId: 'out', revision: 1 },
+              reason: 'initial',
+              account: { freshness: 'unknown', error: null },
+              models: { freshness: 'unknown', error: null },
+              plans: { freshness: 'unknown', error: null }
+            }
+          }
         : { ok: true, data: undefined }
     )
     const { unmount } = render(<Sidebar />)
@@ -285,8 +294,17 @@ describe('app Sidebar', () => {
     mocks.subscribePromptSeen = false
     mocks.edition = 'global'
     vi.mocked(window.api.ipcApi.request).mockImplementation(async (route) =>
-      route === 'cherry_cloud.status.get'
-        ? { ok: true, data: { phase: 'signed-out', accountId: null, displayName: null } }
+      route === 'cherry_cloud.account.get'
+        ? {
+            ok: true,
+            data: {
+              status: { phase: 'signed-out', accountId: null, displayName: null, scopeId: 'out', revision: 1 },
+              reason: 'initial',
+              account: { freshness: 'unknown', error: null },
+              models: { freshness: 'unknown', error: null },
+              plans: { freshness: 'unknown', error: null }
+            }
+          }
         : { ok: true, data: undefined }
     )
 

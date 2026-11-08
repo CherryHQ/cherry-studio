@@ -27,8 +27,20 @@ const { CherryCloudNotificationService } = await import('../CherryCloudNotificat
 
 type Reply = Response | (() => Response)
 
-const signedIn = (accountId: string): CherryCloudStatus => ({ phase: 'signed-in', accountId, displayName: null })
-const signedOut: CherryCloudStatus = { phase: 'signed-out', accountId: null, displayName: null }
+const signedIn = (accountId: string): CherryCloudStatus => ({
+  phase: 'signed-in',
+  accountId,
+  displayName: null,
+  scopeId: accountId,
+  revision: 1
+})
+const signedOut: CherryCloudStatus = {
+  phase: 'signed-out',
+  accountId: null,
+  displayName: null,
+  scopeId: 'out',
+  revision: 2
+}
 
 /** An open SSE response whose events the test pushes; it never ends on its own. */
 function eventStream() {
@@ -63,12 +75,10 @@ const authenticatedFetch = vi.fn<(path: string, init?: RequestInit) => Promise<R
   if (!reply) return new Promise<Response>(() => {})
   return typeof reply === 'function' ? reply() : reply
 })
-const refreshEntitledModels = vi.fn(async () => undefined)
+const refreshAccount = vi.fn(async () => ({ outcome: 'refreshed' }))
 
 const requestedPaths = () => authenticatedFetch.mock.calls.map(([path]) => path)
-const broadcast = () => vi.mocked(application.get('IpcApiService').broadcast)
-const refreshesAnnounced = () =>
-  broadcast().mock.calls.filter(([event]) => event === 'cherry_cloud.account_refreshed').length
+const refreshesAnnounced = () => refreshAccount.mock.calls.length
 const storedCursors = () => application.get('CacheService').getPersist('cherry_cloud.notification_cursors')
 const storedCursor = () => storedCursors()['account-1'] ?? null
 
@@ -95,7 +105,7 @@ beforeEach(() => {
       return { dispose: () => (statusListener = null) }
     },
     authenticatedFetch,
-    refreshEntitledModels
+    refreshAccount
   })
 })
 
@@ -126,7 +136,7 @@ describe('CherryCloudNotificationService', () => {
     stream.send('ready', { cursor: 'c-0' })
 
     await vi.waitFor(() => expect(refreshesAnnounced()).toBe(1))
-    expect(refreshEntitledModels).toHaveBeenCalledOnce()
+    expect(refreshAccount).toHaveBeenCalledOnce()
     expect(storedCursor()).toBe('c-0')
   })
 
@@ -142,7 +152,7 @@ describe('CherryCloudNotificationService', () => {
     stream.send('notification', notification('n-2', 'c-3', []))
 
     await vi.waitFor(() => expect(storedCursor()).toBe('c-3'))
-    expect(refreshEntitledModels).toHaveBeenCalledTimes(2)
+    expect(refreshAccount).toHaveBeenCalledTimes(2)
     expect(refreshesAnnounced()).toBe(2)
   })
 
@@ -162,7 +172,7 @@ describe('CherryCloudNotificationService', () => {
         '/api/v1/notifications/stream?after=c-8'
       ])
     )
-    expect(refreshEntitledModels).toHaveBeenCalledOnce()
+    expect(refreshAccount).toHaveBeenCalledOnce()
     expect(storedCursor()).toBe('c-8')
   })
 
@@ -223,7 +233,7 @@ describe('CherryCloudNotificationService', () => {
       reply('/api/v1/notifications/stream', stream.response, eventStream().response)
       await start()
       stream.send('ready', { cursor: 'c-0' })
-      await vi.waitFor(() => expect(refreshEntitledModels).toHaveBeenCalledOnce())
+      await vi.waitFor(() => expect(refreshAccount).toHaveBeenCalledOnce())
 
       for (let elapsed = 0; elapsed < 90_000; elapsed += 15_000) {
         stream.heartbeat()
@@ -267,7 +277,7 @@ describe('CherryCloudNotificationService', () => {
       await vi.advanceTimersByTimeAsync(120_000)
 
       expect(requestedPaths()).toHaveLength(1)
-      expect(refreshEntitledModels).not.toHaveBeenCalled()
+      expect(refreshAccount).not.toHaveBeenCalled()
     } finally {
       vi.useRealTimers()
     }
@@ -317,20 +327,106 @@ describe('CherryCloudNotificationService', () => {
       reply('/api/v1/notifications/stream', stream.response)
       await start()
       stream.send('ready', { cursor: 'c-0' })
-      await vi.waitFor(() => expect(refreshEntitledModels).toHaveBeenCalledOnce())
+      await vi.waitFor(() => expect(refreshAccount).toHaveBeenCalledOnce())
 
-      refreshEntitledModels.mockRejectedValueOnce(new Error('offline'))
+      refreshAccount.mockRejectedValueOnce(new Error('offline'))
       reply('/api/v1/notifications', page([notification('n-1', 'c-1')], 'c-1'))
       stream.send('notification', notification('n-1', 'c-1'))
-      await vi.waitFor(() => expect(refreshEntitledModels).toHaveBeenCalledTimes(2))
+      await vi.waitFor(() => expect(refreshAccount).toHaveBeenCalledTimes(2))
       expect(storedCursor()).toBe('c-0')
 
       await vi.advanceTimersByTimeAsync(2_000)
 
-      await vi.waitFor(() => expect(refreshEntitledModels).toHaveBeenCalledTimes(3))
+      await vi.waitFor(() => expect(refreshAccount).toHaveBeenCalledTimes(3))
       expect(requestedPaths()).toContain('/api/v1/notifications?after=c-0&limit=50')
       await vi.waitFor(() => expect(storedCursor()).toBe('c-1'))
     } finally {
+      vi.useRealTimers()
+    }
+  })
+  it('does not acknowledge a ready refresh after the connection is cancelled', async () => {
+    const stream = eventStream()
+    let complete!: (result: { outcome: string }) => void
+    refreshAccount.mockReturnValueOnce(
+      new Promise((resolve) => {
+        complete = resolve
+      })
+    )
+    reply('/api/v1/notifications/stream', stream.response)
+    await start()
+    stream.send('ready', { cursor: 'late' })
+    await vi.waitFor(() => expect(refreshAccount).toHaveBeenCalledOnce())
+    statusListener?.(signedOut)
+    complete({ outcome: 'refreshed' })
+    await Promise.resolve()
+    expect(storedCursor()).toBeNull()
+  })
+
+  it('does not commit ready before the required refresh succeeds', async () => {
+    const stream = eventStream()
+    refreshAccount.mockResolvedValueOnce({ outcome: 'failed' })
+    reply('/api/v1/notifications/stream', stream.response)
+    await start()
+    stream.send('ready', { cursor: 'unprocessed' })
+    await vi.waitFor(() => expect(refreshAccount).toHaveBeenCalledOnce())
+    expect(storedCursor()).toBeNull()
+  })
+
+  it('increases reconnect delays across failed ready refreshes and resets after a successful ready', async () => {
+    vi.useFakeTimers()
+    const jitter = vi.spyOn(Math, 'random').mockReturnValue(0.5)
+    try {
+      const streams = [eventStream(), eventStream(), eventStream(), eventStream()]
+      const attempts: number[] = []
+      reply(
+        '/api/v1/notifications/stream',
+        ...streams.map((stream) => () => {
+          attempts.push(Date.now())
+          return stream.response
+        })
+      )
+      refreshAccount
+        .mockResolvedValueOnce({ outcome: 'failed' })
+        .mockResolvedValueOnce({ outcome: 'failed' })
+        .mockResolvedValueOnce({ outcome: 'refreshed' })
+      await start()
+      const firstFailureAt = Date.now()
+      streams[0].send('ready', { cursor: 'failed-first' })
+      await vi.waitFor(() => expect(refreshesAnnounced()).toBe(1))
+      await vi.advanceTimersByTimeAsync(0)
+      expect(storedCursor()).toBeNull()
+
+      await vi.advanceTimersToNextTimerAsync()
+      expect(attempts).toHaveLength(2)
+      const firstDelay = attempts[1] - firstFailureAt
+      const secondFailureAt = Date.now()
+      streams[1].send('ready', { cursor: 'failed-second' })
+      await vi.waitFor(() => expect(refreshesAnnounced()).toBe(2))
+      await vi.advanceTimersByTimeAsync(0)
+      expect(storedCursor()).toBeNull()
+
+      await vi.advanceTimersToNextTimerAsync()
+      expect(attempts).toHaveLength(3)
+      const secondDelay = attempts[2] - secondFailureAt
+      expect(firstDelay).toBeGreaterThan(0)
+      expect(secondDelay).toBeGreaterThan(firstDelay)
+      streams[2].send('ready', { cursor: 'processed' })
+      await vi.waitFor(() => expect(storedCursor()).toBe('processed'))
+      reply('/api/v1/notifications', page([], 'processed'))
+      const afterSuccessFailureAt = Date.now()
+      streams[2].send('error', { code: 'SERVICE_UNAVAILABLE' })
+      await vi.advanceTimersByTimeAsync(0)
+
+      await vi.advanceTimersToNextTimerAsync()
+      expect(attempts).toHaveLength(4)
+      const resetDelay = attempts[3] - afterSuccessFailureAt
+      expect(resetDelay).toBeGreaterThan(0)
+      expect(resetDelay).toBeLessThanOrEqual(firstDelay)
+      expect(resetDelay).toBeLessThan(secondDelay)
+      expect(storedCursor()).toBe('processed')
+    } finally {
+      statusListener?.(signedOut)
+      jitter.mockRestore()
       vi.useRealTimers()
     }
   })

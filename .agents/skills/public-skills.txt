@@ -13,3 +13,4 @@ docs-governance
 translate-docs
 find-simplifications
 cherry-regression-test
+verify-cherry-cloud

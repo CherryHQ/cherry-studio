@@ -277,11 +277,12 @@ required service tier.`
                 lastError: {
                   name: 'AI_APICallError',
                   statusCode: 429,
+                  providerErrorCategory: 'quota',
                   responseBody: JSON.stringify({ error: { message: planText, type: 'rate_limit_error' } })
                 },
                 errors: []
               }
-            : { name: 'AI_APICallError', message: body, stack: null, statusCode: 429 }
+            : { name: 'AI_APICallError', message: body, stack: null, statusCode: 429, providerErrorCategory: 'quota' }
         }
         message={cloudMessage}
       />
@@ -293,7 +294,7 @@ required service tier.`
     expect(screen.queryByText(GO_TO_SETTINGS_LABEL)).toBeNull()
   })
 
-  it('still describes a Cherry AI plan rejection that carries no wording of its own', () => {
+  it('keeps an unspecified Cloud HTTP 429 as a rate limit', () => {
     const cloudMessage = {
       ...message,
       model: { id: 'qwen3.8-flash', name: 'Qwen 3.8 Flash', provider: 'cherryai-subscription' }
@@ -307,7 +308,8 @@ required service tier.`
       />
     )
 
-    expect(screen.getByText('models.detail.quota_exhausted')).toBeInTheDocument()
+    expect(screen.getByText('error.diagnosis.rate_limit')).toBeInTheDocument()
+    expect(screen.queryByText('models.detail.quota_exhausted')).toBeNull()
     expect(screen.getByText(/HTTP 429/)).toBeInTheDocument()
   })
 

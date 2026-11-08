@@ -30,3 +30,5 @@
 !translate-docs/**
 !vercel-react-best-practices/
 !vercel-react-best-practices/**
+!verify-cherry-cloud/
+!verify-cherry-cloud/**

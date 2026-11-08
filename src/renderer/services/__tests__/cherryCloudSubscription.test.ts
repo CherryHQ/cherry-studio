@@ -1,180 +1,133 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
-import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
-import { cherryCloudErrorCodes } from '@shared/ipc/errors/cherryCloud'
-import type { CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
+import type { CherryCloudLoginResult, CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
 
-import { startCherryCloudSubscription } from '../cherryCloudSubscription'
+import { CherryCloudSubscriptionService } from '../CherryCloudSubscriptionService'
 
 const request = vi.mocked(window.api.ipcApi.request)
-const signedOut: CherryCloudStatus = { phase: 'signed-out', accountId: null, displayName: null }
-const authorizing: CherryCloudStatus = { phase: 'authorizing', accountId: null, displayName: null }
-const signedIn: CherryCloudStatus = { phase: 'signed-in', accountId: 'account-1', displayName: 'Siin' }
-const PORTAL = 'https://cloud.cherryai.com.cn/account/plans'
-
+const signedOut: CherryCloudStatus = {
+  phase: 'signed-out',
+  accountId: null,
+  displayName: null,
+  scopeId: 'out',
+  revision: 1
+}
+const signedIn: CherryCloudStatus = {
+  phase: 'signed-in',
+  accountId: 'a',
+  displayName: null,
+  scopeId: 'in',
+  revision: 2
+}
 let status: CherryCloudStatus
-let publishStatus: (next: CherryCloudStatus) => void
+let login: ReturnType<typeof Promise.withResolvers<CherryCloudLoginResult>>
+const portals = () => request.mock.calls.filter(([route]) => route === 'cherry_cloud.account_portal.open')
+const tracked = () =>
+  request.mock.calls
+    .filter(([route]) => route === 'cherry_cloud.analytics.track')
+    .flatMap(([, input]) => (input && typeof input === 'object' && 'payload' in input ? [input.payload] : []))
 
 beforeEach(() => {
   vi.clearAllMocks()
-  cacheService.setPersist('ui.cherry_cloud.subscribe_prompt_seen', false)
+  status = signedIn
+  login = Promise.withResolvers<CherryCloudLoginResult>()
   request.mockImplementation(async (route) => {
     if (route === 'cherry_cloud.status.get') return { ok: true, data: status }
-    if (route === 'cherry_cloud.login.start') return { ok: true, data: authorizing }
-    if (route === 'cherry_cloud.account_origin.get') return { ok: true, data: 'https://cloud.cherryai.com.cn' }
+    if (route === 'cherry_cloud.login.start') return { ok: true, data: await login.promise }
+    if (route === 'cherry_cloud.account_portal.open') return { ok: true, data: { outcome: 'opened' } }
     return { ok: true, data: undefined }
-  })
-  vi.mocked(window.api.ipcApi.on).mockImplementation((_event, handler) => {
-    let subscribed = true
-    publishStatus = (next) => subscribed && handler(next)
-    return () => {
-      subscribed = false
-    }
   })
 })
 
-const tracked = () =>
-  request.mock.calls.filter(([route]) => route === 'cherry_cloud.analytics.track').map(([, event]) => event)
-
-const portalUrls = () =>
-  request.mock.calls
-    .filter(([route]) => route === 'system.shell.open_external_website')
-    .map(([, url]) => new URL(url as string))
-    .filter((url) => `${url.origin}${url.pathname}` === PORTAL)
-const portalOpened = () => portalUrls().length > 0
-
-describe('startCherryCloudSubscription', () => {
-  it('opens the portal for a signed-in account and dismisses the subscribe prompt', async () => {
-    status = signedIn
-
-    await startCherryCloudSubscription('selector_locked_row', { modelId: 'cherryai-subscription::kimi-k2' })
-
-    expect(portalOpened()).toBe(true)
-    expect(request).not.toHaveBeenCalledWith('cherry_cloud.login.start', undefined)
+describe('CherryCloudSubscriptionService', () => {
+  it('opens a scoped portal and dismisses the Subscribe dot', async () => {
+    const service = new CherryCloudSubscriptionService()
+    await expect(service.start('settings')).resolves.toEqual({ outcome: 'portal_invoked' })
     expect(cacheService.getPersist('ui.cherry_cloud.subscribe_prompt_seen')).toBe(true)
-    const flowId = portalUrls()[0].searchParams.get('flow_id')
-    expect(Object.fromEntries(portalUrls()[0].searchParams)).toEqual({
-      entry: 'desktop',
-      entry_source: 'selector_locked_row',
-      flow_id: expect.stringMatching(/^[0-9a-f-]{36}$/)
-    })
-    expect(tracked()).toEqual([
-      {
-        event: 'subscription_entry_clicked',
-        source: 'selector_locked_row',
-        flowId,
-        signedIn: true,
-        modelId: 'cherryai-subscription::kimi-k2'
-      },
-      { event: 'subscription_portal_open', source: 'selector_locked_row', flowId, result: 'success' }
-    ])
+    expect(portals()[0]?.[1]).toMatchObject({ scopeId: 'in', entrySource: 'settings', flowId: expect.any(String) })
+    expect(request.mock.calls.some(([route]) => route === 'cherry_cloud.login.start')).toBe(false)
   })
-
-  it('starts a new flow for every Subscribe click', async () => {
-    status = signedIn
-
-    await startCherryCloudSubscription('settings')
-    await startCherryCloudSubscription('settings')
-
-    const [first, second] = portalUrls().map((url) => url.searchParams.get('flow_id'))
-    expect(first).not.toBe(second)
-  })
-
-  it('signs in first and opens the portal only once the session arrives', async () => {
+  it('uses the one terminal login result to open a portal once', async () => {
     status = signedOut
-
-    await startCherryCloudSubscription('account_panel')
-
-    expect(request).toHaveBeenCalledWith('cherry_cloud.login.start', undefined)
-    expect(portalOpened()).toBe(false)
-
-    publishStatus(signedIn)
-
-    await vi.waitFor(() => expect(portalOpened()).toBe(true))
-    const flowId = portalUrls()[0].searchParams.get('flow_id')
-    await vi.waitFor(() =>
-      expect(tracked()).toEqual([
-        { event: 'subscription_entry_clicked', source: 'account_panel', flowId, signedIn: false },
-        { event: 'subscription_sign_in_result', flowId, result: 'success' },
-        { event: 'subscription_portal_open', source: 'account_panel', flowId, result: 'success' }
-      ])
-    )
+    const service = new CherryCloudSubscriptionService()
+    const pending = service.start('account_panel')
+    await vi.waitFor(() => expect(request).toHaveBeenCalledWith('cherry_cloud.login.start', undefined))
+    login.resolve({ outcome: 'signed-in', status: signedIn })
+    await expect(pending).resolves.toEqual({ outcome: 'portal_invoked' })
+    expect(portals()).toHaveLength(1)
+    expect(
+      tracked().filter(
+        (event) =>
+          event && typeof event === 'object' && 'event' in event && event.event === 'subscription_sign_in_result'
+      )
+    ).toEqual([{ event: 'subscription_sign_in_result', flowId: expect.any(String), result: 'success' }])
   })
-
-  it('opens the portal once when Subscribe is pressed again while signing in', async () => {
+  it('settles replaced intent immediately and ignores its reversed status reply', async () => {
     status = signedOut
-    const handlers = new Set<(next: CherryCloudStatus) => void>()
-    vi.mocked(window.api.ipcApi.on).mockImplementation((_event, handler) => {
-      handlers.add(handler)
-      return () => handlers.delete(handler)
-    })
-
-    await startCherryCloudSubscription('settings')
-    await startCherryCloudSubscription('settings')
-    handlers.forEach((handler) => handler(signedIn))
-
-    await vi.waitFor(() => expect(portalOpened()).toBe(true))
-    expect(portalUrls()).toHaveLength(1)
+    const delayed = Promise.withResolvers<{ ok: true; data: CherryCloudStatus }>()
+    request.mockReturnValueOnce(delayed.promise)
+    const service = new CherryCloudSubscriptionService()
+    const first = service.start('settings')
+    const second = service.start('selector_header')
+    await expect(first).resolves.toEqual({ outcome: 'not_completed', reason: 'superseded' })
+    await vi.waitFor(() => expect(request).toHaveBeenCalledWith('cherry_cloud.login.start', undefined))
+    delayed.resolve({ ok: true, data: signedOut })
+    login.resolve({ outcome: 'signed-in', status: signedIn })
+    await expect(second).resolves.toEqual({ outcome: 'portal_invoked' })
+    expect(portals()).toHaveLength(1)
+    expect(portals()[0]?.[1]).toHaveProperty('entrySource', 'selector_header')
+    expect(
+      tracked().filter(
+        (event) =>
+          event && typeof event === 'object' && 'event' in event && event.event === 'subscription_entry_clicked'
+      )
+    ).toHaveLength(2)
   })
-
-  it('explains a sign-in rejected because the client must be upgraded', async () => {
+  it('disposes a pending window intent without cancelling shared authentication', async () => {
     status = signedOut
-    request.mockImplementation(async (route) => {
-      if (route === 'cherry_cloud.status.get') return { ok: true, data: status }
-      if (route === 'cherry_cloud.login.start') {
-        return { ok: false, error: { code: cherryCloudErrorCodes.UPGRADE_REQUIRED, message: 'upgrade' } }
+    const service = new CherryCloudSubscriptionService()
+    const pending = service.start('quota_notice')
+    await vi.waitFor(() => expect(request).toHaveBeenCalledWith('cherry_cloud.login.start', undefined))
+    service.dispose()
+    await expect(pending).resolves.toEqual({ outcome: 'not_completed', reason: 'disposed' })
+    login.resolve({ outcome: 'signed-in', status: signedIn })
+    await Promise.resolve()
+    expect(portals()).toHaveLength(0)
+    expect(request.mock.calls.some(([route]) => route === 'cherry_cloud.login.cancel')).toBe(false)
+  })
+  it('settles a submitted portal failure even after a newer click opens its portal', async () => {
+    const failedPortal = Promise.withResolvers<never>()
+    const defaultRequest = request.getMockImplementation()
+    let firstPortal = true
+    request.mockImplementation((route, input) => {
+      if (route === 'cherry_cloud.account_portal.open' && firstPortal) {
+        firstPortal = false
+        return failedPortal.promise
       }
-      return { ok: true, data: undefined }
+      return defaultRequest!(route, input)
     })
-
-    await startCherryCloudSubscription('quota_notice')
-
-    expect(toast.error).toHaveBeenCalledWith(i18n.t('settings.provider.cherry_cloud.upgrade_required'))
-    expect(portalOpened()).toBe(false)
-    expect(tracked()).toContainEqual({
-      event: 'subscription_sign_in_result',
-      flowId: expect.any(String),
-      result: 'failed',
-      reason: 'upgrade_required'
-    })
-  })
-
-  it('reports a portal that fails to open as such, not as a sign-in failure', async () => {
-    status = signedIn
-    request.mockImplementation(async (route) => {
-      if (route === 'cherry_cloud.status.get') return { ok: true, data: status }
-      if (route === 'cherry_cloud.account_origin.get')
-        return { ok: false, error: { code: 'INTERNAL', message: 'down' } }
-      return { ok: true, data: undefined }
-    })
-
-    await startCherryCloudSubscription('settings')
-
-    expect(toast.error).toHaveBeenCalledWith(i18n.t('settings.subscription.open_portal_failed'))
+    const service = new CherryCloudSubscriptionService()
+    const first = service.start('settings')
+    await vi.waitFor(() => expect(portals()).toHaveLength(1))
+    await expect(service.start('selector_header')).resolves.toEqual({ outcome: 'portal_invoked' })
+    failedPortal.reject(new Error('browser failed'))
+    await expect(first).resolves.toEqual({ outcome: 'failed' })
     expect(tracked()).toContainEqual({
       event: 'subscription_portal_open',
       source: 'settings',
       flowId: expect.any(String),
       result: 'failed'
     })
+    expect(toast.error).not.toHaveBeenCalled()
   })
-
-  it('does not open the portal when sign-in is abandoned', async () => {
+  it('does not open a portal for an explicitly cancelled login', async () => {
     status = signedOut
-
-    await startCherryCloudSubscription('selector_header')
-    publishStatus(signedOut)
-    publishStatus(signedIn)
-
-    await new Promise((resolve) => setTimeout(resolve, 0))
-    expect(portalOpened()).toBe(false)
-    expect(tracked()).toContainEqual({
-      event: 'subscription_sign_in_result',
-      flowId: expect.any(String),
-      result: 'not_completed'
-    })
-    expect(tracked().some((event) => (event as { event: string }).event === 'subscription_portal_open')).toBe(false)
+    const pending = new CherryCloudSubscriptionService().start('settings')
+    await vi.waitFor(() => expect(request).toHaveBeenCalledWith('cherry_cloud.login.start', undefined))
+    login.resolve({ outcome: 'cancelled', status: signedOut })
+    await expect(pending).resolves.toEqual({ outcome: 'not_completed', reason: 'cancelled' })
+    expect(portals()).toHaveLength(0)
   })
 })

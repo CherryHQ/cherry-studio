@@ -41,7 +41,8 @@ required service tier.`
       {
         name: 'Error',
         message: `429: ${JSON.stringify({ message: planText, type: 'rate_limit_error' })}`,
-        statusCode: 429
+        statusCode: 429,
+        providerErrorCategory: 'quota'
       },
       { provider: { id: 'cherryai-subscription', name: 'CherryAI' }, modelName: 'DeepSeek V4.1 Flash' }
     )
@@ -52,4 +53,17 @@ required service tier.`
       action: undefined
     })
   })
+})
+
+it('keeps Cloud rate limits retryable even when their text mentions quota', async () => {
+  const retry = vi.fn().mockResolvedValue(false)
+  const key = toast.errorFromException(
+    { name: 'Error', statusCode: 429, message: '额度不足是另一种错误；本次仅为请求频率过高' },
+    { provider: { id: 'cherryai-subscription', name: 'CherryAI' }, actions: { retry } }
+  )
+  const shown = toast.getToastQueue().toasts.find((item) => item.key === key)!
+  expect(shown.title).toBe(enUS['error.diagnosis.rate_limit'])
+  expect(shown.action?.label).toBe(enUS['toast.error.retry'])
+  await shown.action!.onClick()
+  expect(retry).toHaveBeenCalledOnce()
 })

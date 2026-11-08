@@ -7,15 +7,36 @@ import { SWRConfig } from 'swr'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import i18n from '@renderer/i18n/resolver'
-import type { CherryCloudAccountPlans, CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
+import type {
+  CherryCloudAccountPlans,
+  CherryCloudAccountReceipt,
+  CherryCloudStatus
+} from '@shared/ipc/schemas/cherryCloud'
 
 import { UserAccountPanel } from '../UserAccountPanel'
 
 vi.unmock('@cherrystudio/ui')
 
 const request = vi.mocked(window.api.ipcApi.request)
-let session: CherryCloudStatus
+let session: Pick<CherryCloudStatus, 'phase' | 'accountId' | 'displayName'>
 let plans: CherryCloudAccountPlans
+
+let revision = 0
+function receiptFor(status = session, value?: CherryCloudAccountPlans): CherryCloudAccountReceipt {
+  const nextRevision = ++revision
+  return {
+    status: { ...status, scopeId: status.accountId ?? status.phase, revision: nextRevision },
+    reason: 'initial',
+    account: { freshness: 'unknown', error: null },
+    models: { freshness: 'unknown', error: null },
+    plans: value ? { freshness: 'fresh', value, observedRevision: nextRevision } : { freshness: 'unknown', error: null }
+  }
+}
+function publishReceipt(receipt: CherryCloudAccountReceipt) {
+  vi.mocked(window.api.ipcApi.on)
+    .mock.calls.filter(([event]) => event === 'cherry_cloud.account_changed')
+    .forEach(([, listener]) => listener(receipt))
+}
 
 let swrCache = new Map()
 
@@ -88,11 +109,16 @@ beforeEach(async () => {
   session = { phase: 'signed-in', accountId: 'account-1', displayName: 'c***@cherry-ai.com' }
   plans = { measured_at: '2026-09-23T00:00:00Z', entitlements: [], available_plans: [] }
   request.mockImplementation(async (route) => {
-    if (route === 'cherry_cloud.status.get') return { ok: true, data: session }
+    if (route === 'cherry_cloud.status.get') return { ok: true, data: receiptFor().status }
+    if (route === 'cherry_cloud.account.get') return { ok: true, data: receiptFor() }
     if (route === 'cherry_cloud.account_origin.get') return { ok: true, data: 'https://cloud-dev.cherryai.com' }
-    if (route === 'cherry_cloud.account_plans.get') return { ok: true, data: plans }
+    if (route === 'cherry_cloud.account.refresh')
+      return { ok: true, data: { outcome: 'refreshed', receipt: receiptFor(session, plans) } }
+    if (route === 'cherry_cloud.account_portal.open') return { ok: true, data: { outcome: 'opened' } }
     if (route === 'cherry_cloud.login.start') {
-      return { ok: true, data: { phase: 'authorizing', accountId: null, displayName: null } }
+      session = { phase: 'authorizing', accountId: null, displayName: null }
+      publishReceipt(receiptFor())
+      return new Promise(() => undefined)
     }
     return { ok: true, data: undefined }
   })
@@ -102,14 +128,14 @@ afterEach(() => vi.unstubAllEnvs())
 
 describe('UserAccountPanel', () => {
   it('keeps the account entry label while loading and after signing out', async () => {
-    const pendingStatus = deferred<{ ok: true; data: CherryCloudStatus }>()
+    const pendingStatus = deferred<{ ok: true; data: CherryCloudAccountReceipt }>()
     request.mockImplementation(() => pendingStatus.promise)
     renderAccount(<UserAccountPanel />)
 
     const header = screen.getByRole('button', { name: '用户名' })
     expect(within(header).getByText('个人信息')).toBeVisible()
     await act(async () =>
-      pendingStatus.resolve({ ok: true, data: { phase: 'signed-out', accountId: null, displayName: null } })
+      pendingStatus.resolve({ ok: true, data: receiptFor({ phase: 'signed-out', accountId: null, displayName: null }) })
     )
 
     expect(await screen.findByRole('button', { name: /去订阅/ })).toBeEnabled()
@@ -207,7 +233,7 @@ describe('UserAccountPanel', () => {
 
     expect(await screen.findByRole('button', { name: '取消' })).toBeEnabled()
     expect(request).toHaveBeenCalledWith('cherry_cloud.login.start', undefined)
-    expect(request).not.toHaveBeenCalledWith('cherry_cloud.account_plans.get', undefined)
+    expect(request.mock.calls.some(([route]) => route === 'cherry_cloud.account.refresh')).toBe(false)
   })
 
   it('restores CN sign-in after the account signs out', async () => {
@@ -217,9 +243,9 @@ describe('UserAccountPanel', () => {
     expect(screen.queryByRole('button', { name: '登录' })).not.toBeInTheDocument()
     const listener = vi
       .mocked(window.api.ipcApi.on)
-      .mock.calls.find(([event]) => event === 'cherry_cloud.status_changed')![1]
+      .mock.calls.find(([event]) => event === 'cherry_cloud.account_changed')![1]
 
-    act(() => listener({ phase: 'signed-out', accountId: null, displayName: null }))
+    act(() => listener(receiptFor({ phase: 'signed-out', accountId: null, displayName: null })))
 
     expect(await screen.findByRole('button', { name: '登录' })).toBeEnabled()
   })
@@ -261,7 +287,7 @@ describe('UserAccountPanel', () => {
     await user.click(await screen.findByRole('button', { name: /去订阅/ }))
 
     expect(request).toHaveBeenCalledWith('cherry_cloud.login.start', undefined)
-    expect(request).not.toHaveBeenCalledWith('cherry_cloud.account_plans.get', undefined)
+    expect(request.mock.calls.some(([route]) => route === 'cherry_cloud.account.refresh')).toBe(false)
   })
 
   it('opens the subscription page when signed in without a paid plan', async () => {
@@ -291,10 +317,8 @@ describe('UserAccountPanel', () => {
     await user.click(await screen.findByRole('button', { name: /去订阅/ }))
 
     expect(request).toHaveBeenCalledWith(
-      'system.shell.open_external_website',
-      expect.stringMatching(
-        /^https:\/\/cloud-dev\.cherryai\.com\/account\/plans\?entry=desktop&entry_source=account_panel&flow_id=/
-      )
+      'cherry_cloud.account_portal.open',
+      expect.objectContaining({ scopeId: 'account-1' })
     )
   })
 
@@ -367,6 +391,45 @@ describe('UserAccountPanel', () => {
     expect(screen.queryByTestId('subscribe-reminder-dot')).not.toBeInTheDocument()
   })
 
+  it.each(['active', 'upcoming'] as const)(
+    'keeps the last-known %s paid plan when a refresh publishes a 503 failure',
+    async (state) => {
+      plans = paidPlans('Plus')
+      plans.entitlements[0].state = state
+      renderAccount(<UserAccountPanel />)
+      await screen.findByText('Plus')
+
+      const stale = receiptFor(session, plans)
+      stale.reason = 'focus_refresh'
+      stale.plans = { freshness: 'stale', value: plans, observedRevision: revision - 1, error: '503' }
+      act(() => publishReceipt(stale))
+
+      expect(screen.getByText('Plus')).toBeVisible()
+      expect(screen.queryByText('去订阅')).not.toBeInTheDocument()
+      await userEvent.click(screen.getByRole('button', { name: /用量/ }))
+      expect(request).toHaveBeenCalledWith('navigation.open_route_in_main', { path: '/settings/profile' })
+      expect(request.mock.calls.some(([route]) => route === 'cherry_cloud.account_portal.open')).toBe(false)
+    }
+  )
+
+  it('retries a stale unpaid snapshot instead of offering a new subscription', async () => {
+    renderAccount(<UserAccountPanel />)
+    await screen.findByRole('button', { name: /去订阅/ })
+    const stale = receiptFor(session, plans)
+    stale.reason = 'focus_refresh'
+    stale.plans = { freshness: 'stale', value: plans, observedRevision: revision - 1, error: '503' }
+    request.mockClear()
+
+    act(() => publishReceipt(stale))
+
+    expect(await screen.findByRole('button', { name: /重试/ })).toBeEnabled()
+    expect(screen.queryByText('去订阅')).not.toBeInTheDocument()
+    expect(request.mock.calls.some(([route]) => route === 'cherry_cloud.analytics.track')).toBe(false)
+    await userEvent.click(screen.getByRole('button', { name: /重试/ }))
+    expect(await screen.findByRole('button', { name: /去订阅/ })).toBeInTheDocument()
+    expect(request.mock.calls.some(([route]) => route === 'cherry_cloud.account.refresh')).toBe(true)
+  })
+
   it('keeps usage details accessible without inventing a percentage when no quota is configured', async () => {
     plans = paidPlans('Pro')
     plans.entitlements[0].quota_pools = []
@@ -375,73 +438,35 @@ describe('UserAccountPanel', () => {
     expect(await screen.findByRole('button', { name: '用量 未配置额度' })).toBeEnabled()
   })
 
-  it('keeps cached account and plan details visible while reopening refreshes them', async () => {
+  it('keeps cached account and plans visible during snapshot revalidation', async () => {
     plans = paidPlans('Flash')
     const first = renderAccount(<UserAccountPanel />)
     expect(await screen.findByRole('button', { name: '用量 剩余 79.00%' })).toBeEnabled()
     first.unmount()
-
-    const pendingStatus = deferred<{ ok: true; data: CherryCloudStatus }>()
-    const pendingPlans = deferred<{ ok: true; data: CherryCloudAccountPlans }>()
-    request.mockImplementation((route) => {
-      if (route === 'cherry_cloud.status.get') return pendingStatus.promise
-      if (route === 'cherry_cloud.account_plans.get') return pendingPlans.promise
-      return Promise.resolve({ ok: true, data: undefined })
-    })
+    const pending = deferred<{ ok: true; data: CherryCloudAccountReceipt }>()
+    request.mockImplementation(() => pending.promise)
     renderAccount(<UserAccountPanel />)
-
     expect(screen.getByRole('button', { name: '用户名' })).toHaveTextContent('Flash')
-    expect(screen.getByRole('button', { name: '用量 剩余 79.00%' })).toBeEnabled()
-    expect(screen.queryByText('加载中...')).not.toBeInTheDocument()
-    await waitFor(() => expect(request).toHaveBeenCalledWith('cherry_cloud.account_plans.get', undefined))
-    await act(async () => {
-      pendingStatus.resolve({ ok: true, data: session })
-      pendingPlans.resolve({ ok: true, data: paidPlans('Flash Plus') })
-    })
-
+    await act(async () => pending.resolve({ ok: true, data: receiptFor(session, paidPlans('Flash Plus')) }))
     expect(await screen.findByText('Flash Plus')).toBeVisible()
   })
 
-  it('drops a previous account plan immediately and ignores its late response after switching accounts', async () => {
-    const previousPlans = deferred<{ ok: true; data: CherryCloudAccountPlans }>()
-    const nextPlans = deferred<{ ok: true; data: CherryCloudAccountPlans }>()
-    request.mockImplementation((route) => {
-      if (route === 'cherry_cloud.status.get') return Promise.resolve({ ok: true, data: session })
-      if (route === 'cherry_cloud.account_plans.get') return previousPlans.promise
-      return Promise.resolve({ ok: true, data: undefined })
-    })
-    renderAccount(<UserAccountPanel />)
-    await screen.findByText('c***@cherry-ai.com')
-    await waitFor(() => expect(request).toHaveBeenCalledWith('cherry_cloud.account_plans.get', undefined))
-    const listener = vi
-      .mocked(window.api.ipcApi.on)
-      .mock.calls.find(([event]) => event === 'cherry_cloud.status_changed')![1]
-    request.mockImplementation((route) =>
-      route === 'cherry_cloud.account_plans.get' ? nextPlans.promise : Promise.resolve({ ok: true, data: undefined })
-    )
-    act(() => listener({ phase: 'signed-in', accountId: 'account-2', displayName: 'new-account' }))
-    await screen.findByText('new-account')
-    await act(async () => previousPlans.resolve({ ok: true, data: paidPlans('Old Plan') }))
-    expect(screen.queryByText('Old Plan')).not.toBeInTheDocument()
-    await act(async () => nextPlans.resolve({ ok: true, data: paidPlans('New Plan') }))
-    expect(await screen.findByText('New Plan')).toBeVisible()
-  })
-
-  it('does not reuse a cached plan for another account with the same display name', async () => {
+  it('drops a previous account plan and ignores an obsolete receipt', async () => {
     plans = paidPlans('Old Plan')
     renderAccount(<UserAccountPanel />)
     await screen.findByText('Old Plan')
-    const pendingPlans = deferred<{ ok: true; data: CherryCloudAccountPlans }>()
-    request.mockImplementation(() => pendingPlans.promise)
-    const listener = vi
-      .mocked(window.api.ipcApi.on)
-      .mock.calls.find(([event]) => event === 'cherry_cloud.status_changed')![1]
-
-    act(() => listener({ ...session, accountId: 'account-2' }))
+    const old = receiptFor(session, plans)
+    session = { ...session, accountId: 'account-2' }
+    const unknown = receiptFor()
+    const pending = deferred<{ ok: true; data: unknown }>()
+    request.mockImplementation(() => pending.promise)
+    act(() => publishReceipt(unknown))
     expect(screen.queryByText('Old Plan')).not.toBeInTheDocument()
-    await act(async () => pendingPlans.resolve({ ok: true, data: paidPlans('New Plan') }))
-
+    act(() => publishReceipt(old))
+    expect(screen.queryByText('Old Plan')).not.toBeInTheDocument()
+    act(() => publishReceipt(receiptFor(session, paidPlans('New Plan'))))
     expect(await screen.findByText('New Plan')).toBeVisible()
+    await act(async () => pending.resolve({ ok: true, data: { outcome: 'superseded', status: unknown.status } }))
   })
 
   it('shows per-window usage in a hover card that links to the usage page', async () => {
@@ -492,8 +517,8 @@ describe('UserAccountPanel', () => {
     await user.click(screen.getByRole('button', { name: '查看用量详情' }))
     await waitFor(() =>
       expect(request).toHaveBeenCalledWith(
-        'system.shell.open_external_website',
-        expect.stringMatching(/^https:\/\/cloud-dev\.cherryai\.com\/account\/plans(\?|$)/)
+        'cherry_cloud.account_portal.open',
+        expect.objectContaining({ scopeId: 'account-1' })
       )
     )
     expect(request).not.toHaveBeenCalledWith('navigation.open_route_in_main', { path: '/settings/profile' })
@@ -502,11 +527,12 @@ describe('UserAccountPanel', () => {
   it('does not label a failed plan lookup as unsubscribed and lets the user retry', async () => {
     let attempts = 0
     request.mockImplementation(async (route) => {
-      if (route === 'cherry_cloud.status.get') return { ok: true, data: session }
-      if (route === 'cherry_cloud.account_plans.get') {
+      if (route === 'cherry_cloud.status.get') return { ok: true, data: receiptFor().status }
+      if (route === 'cherry_cloud.account.get') return { ok: true, data: receiptFor() }
+      if (route === 'cherry_cloud.account.refresh') {
         return ++attempts === 1
           ? { ok: false, error: { code: 'INTERNAL', message: 'failed' } }
-          : { ok: true, data: plans }
+          : { ok: true, data: { outcome: 'refreshed', receipt: receiptFor(session, plans) } }
       }
       return { ok: true, data: undefined }
     })

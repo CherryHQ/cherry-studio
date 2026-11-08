@@ -42,6 +42,7 @@ import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useCherryCloudQuotaExhaustion } from '@renderer/hooks/useCherryCloudQuotaExhaustion'
+import { useCherryCloudTargetAdvice } from '@renderer/hooks/useCherryCloudTargetAdvice'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useLatest } from '@renderer/hooks/useLatest'
 import { useModelById, useModels } from '@renderer/hooks/useModel'
@@ -51,6 +52,7 @@ import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import { type Topic, TopicType } from '@renderer/types/topic'
+import { hasKnownExhaustedTarget } from '@renderer/utils/cherryCloudTargetAdvice'
 import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
 import { resolveSendShortcut } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
@@ -78,7 +80,7 @@ import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } f
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
-import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
+import { type FollowupDrainResult, type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
 import { useInputHistory } from '../useInputHistory'
 import {
   type ChatComposerControlsRenderer,
@@ -893,6 +895,7 @@ const ChatComposerInner = ({
       ? t('code.model_required')
       : undefined
   const quotaExhaustion = useCherryCloudQuotaExhaustion(effectiveSubmittedModel)
+  const quotaBlocksSend = !!quotaExhaustion && quotaExhaustion.reason !== 'unknown'
   const isModelUnavailable =
     !missingAssistantMessage &&
     !runtimeModelPending &&
@@ -1427,6 +1430,16 @@ const ChatComposerInner = ({
     inputHistoryToolsRef.current = null
   }, [resetHistoryIndex, setFiles, setText])
 
+  const { getAdvice: getQueuedTargetAdvice, wakeupKey: queuedTargetWakeupKey } = useCherryCloudTargetAdvice(true)
+  const drainQueuedPayload = useCallback(
+    async (payload: ComposerQueuedMessagePayload, mode: 'automatic' | 'manual'): Promise<FollowupDrainResult> => {
+      if (mode === 'automatic' && hasKnownExhaustedTarget(getQueuedTargetAdvice(payload.mentionedModels)))
+        return { status: 'deferred' }
+      return { status: (await sendQueuedPayload(payload)) ? 'submitted' : 'failed' }
+    },
+    [getQueuedTargetAdvice, sendQueuedPayload]
+  )
+
   // Queue mode: while a turn streams, follow-ups go here instead of sending; the head auto-drains
   // (normal send) when the topic goes idle, and the dock steers/edits/removes individual items.
   const {
@@ -1443,8 +1456,8 @@ const ChatComposerInner = ({
     scopeKey: selectedKnowledgeBasesScopeKey,
     status: streamStatus,
     lastCompletedAt,
-    onDrain: sendQueuedPayload,
-    blocked: !!quotaExhaustion
+    onDrain: drainQueuedPayload,
+    wakeupKey: queuedTargetWakeupKey
   })
   releaseFollowupEditRef.current = releaseEdit
 
@@ -1452,9 +1465,8 @@ const ChatComposerInner = ({
     (item) => (item.payload.mentionedModels?.length ?? 0) > 0
   )
   const isQueuedFollowupSteerDisabled = useCallback(
-    (item: FollowupQueueItem) =>
-      !!quotaExhaustion || ((isPending || awaitingApproval) && item.payload.chatTarget?.mode === 'reserved-branch'),
-    [awaitingApproval, isPending, quotaExhaustion]
+    (item: FollowupQueueItem) => (isPending || awaitingApproval) && item.payload.chatTarget?.mode === 'reserved-branch',
+    [awaitingApproval, isPending]
   )
   const { models: allModels } = useModels({ enabled: true }, { fetchEnabled: queuedFollowupModelsDataEnabled })
 
@@ -1650,7 +1662,7 @@ const ChatComposerInner = ({
 
       if (editingMessageForCurrentTopic) {
         // Save-only edits stay available out of quota; only the resend is held.
-        if (quotaExhaustion) return
+        if (quotaBlocksSend) return
         await commitEditedMessage(draft, true)
         return
       }
@@ -1711,7 +1723,7 @@ const ChatComposerInner = ({
       loading,
       missingAssistantMessage,
       missingSelectedModelMessage,
-      quotaExhaustion,
+      quotaBlocksSend,
       runtimeModel,
       runtimeModelPending,
       selectedModelForMissingAssistantDefault,
@@ -1863,7 +1875,7 @@ const ChatComposerInner = ({
             !!missingAssistantMessage ||
             !!missingModelMessage ||
             !!missingSelectedModelMessage ||
-            (!!quotaExhaustion && !editingMessageForCurrentTopic)
+            (quotaBlocksSend && !editingMessageForCurrentTopic)
           }
           sendBlockedReason={
             isSavingEdit || isDirectSending || sendDisabled || hasPendingReference

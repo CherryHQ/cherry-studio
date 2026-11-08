@@ -1,20 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const service = vi.hoisted(() => ({
-  startLogin: vi.fn(),
-  getStatus: vi.fn()
-}))
-const analytics = vi.hoisted(() => ({ trackEvent: vi.fn() }))
-
-vi.mock('@application', () => ({
-  application: {
-    get: (name: string) => {
-      if (name === 'CherryCloudService') return service
-      if (name === 'AnalyticsService') return analytics
-      throw new Error(`Unexpected service: ${name}`)
-    }
-  }
-}))
+const service = vi.hoisted(() => ({ startLogin: vi.fn(), openAccountPortal: vi.fn() }))
+const track = vi.hoisted(() => vi.fn())
+vi.mock('@application', () => ({ application: { get: () => service } }))
+vi.mock('@main/services/cherryCloud/subscriptionAnalytics', () => ({ trackCherryCloudAnalyticsEvent: track }))
 
 import {
   CherryCloudLoginUnavailableError,
@@ -27,43 +16,28 @@ import { cherryCloudHandlers } from '../cherryCloud'
 
 describe('cherryCloudHandlers', () => {
   beforeEach(() => vi.clearAllMocks())
-
   it.each([
     [new CherryCloudLoginUnavailableError(), cherryCloudErrorCodes.LOGIN_SERVICE_UNAVAILABLE],
     [new CherryCloudUpgradeRequiredError(), cherryCloudErrorCodes.UPGRADE_REQUIRED]
-  ])('preserves the login error code %s across IPC', async (failure, code) => {
+  ])('preserves typed login failures across IPC: %s', async (failure, code) => {
     service.startLogin.mockRejectedValueOnce(failure)
-
     const error = await cherryCloudHandlers['cherry_cloud.login.start'](undefined, { senderId: 'w1' }).catch(
       (caught: unknown) => caught
     )
-
     expect(error).toBeInstanceOf(IpcError)
     expect(error).toHaveProperty('code', code)
   })
-
-  it('reports a subscription event with snake_case fields under the signed-in account', async () => {
-    service.getStatus.mockResolvedValue({ phase: 'signed-in', accountId: 'account-1', displayName: null })
-    await cherryCloudHandlers['cherry_cloud.analytics.track'](
-      {
-        event: 'subscription_entry_clicked',
-        source: 'selector_locked_row',
-        flowId: '5f0c6c1e-8b1a-4d7e-9f3a-2b6c1d0e4a77',
-        signedIn: true,
-        modelId: 'kimi-k2'
-      },
-      { senderId: 'w1' }
-    )
-
-    expect(analytics.trackEvent).toHaveBeenCalledWith(
-      'subscription_entry_clicked',
-      {
-        source: 'selector_locked_row',
-        flow_id: '5f0c6c1e-8b1a-4d7e-9f3a-2b6c1d0e4a77',
-        signed_in: true,
-        model_id: 'kimi-k2'
-      },
-      'account-1'
-    )
+  it('passes only trusted sender identity to the portal owner', async () => {
+    service.openAccountPortal.mockResolvedValue({ outcome: 'superseded' })
+    const input = { scopeId: 'old', entrySource: 'settings' as const }
+    await expect(cherryCloudHandlers['cherry_cloud.account_portal.open'](input, { senderId: null })).resolves.toEqual({
+      outcome: 'superseded'
+    })
+    expect(service.openAccountPortal).toHaveBeenCalledWith(input, null)
+  })
+  it('retains the expected scope at the Cloud analytics boundary', async () => {
+    const payload = { event: 'subscription_entry_view' as const, source: 'settings' as const }
+    await cherryCloudHandlers['cherry_cloud.analytics.track']({ payload, scopeId: 'scope-1' }, { senderId: 'w1' })
+    expect(track).toHaveBeenCalledWith(payload, 'scope-1')
   })
 })

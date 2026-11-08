@@ -20,10 +20,14 @@ const drainedKeyFor = (scopeKey: string) => `followup-queue-drained.${scopeKey}`
 const pausedKeyFor = (scopeKey: string) => `followup-queue-paused.${scopeKey}`
 const EMPTY_QUEUE: FollowupQueueItem[] = []
 
+export type FollowupDrainResult = { status: 'submitted' } | { status: 'deferred' } | { status: 'failed' }
+export type FollowupDrainMode = 'automatic' | 'manual'
+
 interface CompletionState {
   completedAt: number | undefined
   consumed: boolean
   pendingIds: string[]
+  deferred?: Record<string, string>
 }
 
 const EMPTY_COMPLETION: CompletionState = { completedAt: undefined, consumed: false, pendingIds: [] }
@@ -46,12 +50,12 @@ interface UseFollowupQueueParams {
   /** Stream completion is independent of the conversation list read receipt. */
   status: TopicStreamStatus | undefined
   lastCompletedAt: number | null
-  /** Send a payload (busy → backend steer; idle → normal send). Resolves to whether it was sent. */
-  onDrain: (payload: ComposerQueuedMessagePayload) => Promise<boolean>
+  /** Manual attempts may bypass local advice; the execution owner still authorizes every send. */
+  onDrain: (payload: ComposerQueuedMessagePayload, mode: FollowupDrainMode) => Promise<FollowupDrainResult>
   /** Called when a send fails and leaves the queued draft paused for retry. */
   onDrainFailed?: () => void
-  /** Holds auto-drain without pausing the queue, e.g. while the model is out of quota. */
-  blocked?: boolean
+  /** Changes only when the target or the facts advising a deferred send change. */
+  wakeupKey?: string
 }
 
 export interface FollowupEditOptions {
@@ -66,7 +70,7 @@ export interface FollowupEditOptions {
 export interface FollowupQueueController {
   items: FollowupQueueItem[]
   enqueue: (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => void
-  sendId: (id: string) => Promise<boolean>
+  sendId: (id: string) => Promise<FollowupDrainResult>
   removeId: (id: string) => void
   reorder: (nextItems: FollowupQueueItem[]) => void
   takeForEdit(
@@ -92,7 +96,7 @@ export function useFollowupQueue({
   lastCompletedAt,
   onDrain,
   onDrainFailed,
-  blocked = false
+  wakeupKey = ''
 }: UseFollowupQueueParams): FollowupQueueController {
   const readState = useCallback(
     () => ({
@@ -110,6 +114,8 @@ export function useFollowupQueue({
     slot: number
     precedingIds: string[]
   } | null>(null)
+  const wakeupKeyRef = useRef(wakeupKey)
+  wakeupKeyRef.current = wakeupKey
   const onDrainRef = useRef(onDrain)
   onDrainRef.current = onDrain
   const onDrainFailedRef = useRef(onDrainFailed)
@@ -193,6 +199,18 @@ export function useFollowupQueue({
       const [incoming] = next.splice(slot, 1)
       takenRef.current = { scopeKey, item: incoming, slot, precedingIds: next.slice(0, slot).map((item) => item.id) }
       persist(next)
+      if (taken) {
+        const completion = loadCompletion(scopeKey)
+        if (completion.deferred?.[taken.item.id] !== undefined) {
+          const deferred = { ...completion.deferred }
+          delete deferred[taken.item.id]
+          cacheService.setCasual(
+            drainedKeyFor(scopeKey),
+            { ...completion, deferred },
+            completion.pendingIds.length > 0 ? undefined : QUEUE_TTL
+          )
+        }
+      }
       return incoming
     },
     [persist, reconcileEdit, scopeKey]
@@ -220,44 +238,52 @@ export function useFollowupQueue({
   )
 
   const sendItem = useCallback(
-    async (id: string, completedAt?: number): Promise<boolean> => {
+    async (id: string, mode: FollowupDrainMode, completedAt?: number): Promise<FollowupDrainResult> => {
       const item = loadQueue(scopeKey).find((entry) => entry.id === id)
       const drained = loadCompletion(scopeKey)
-      if (!item || drained.pendingIds.includes(id)) return false
+      if (!item || drained.pendingIds.includes(id)) return { status: 'deferred' }
+      const attemptedWakeupKey = wakeupKeyRef.current
 
       // Every send owns its dispatch-time completion, including peers on the same completed turn.
       // Keep item exclusion and pending sends in one observable record, without an in-flight TTL.
       cacheService.setCasual(drainedKeyFor(scopeKey), {
         completedAt: completedAt ?? drained.completedAt,
         consumed: completedAt == null || completedAt === drained.completedAt ? drained.consumed : false,
-        pendingIds: [...drained.pendingIds, id]
+        pendingIds: [...drained.pendingIds, id],
+        deferred: drained.deferred
       })
       const reportFailure = onDrainFailedRef.current
-      let sent = false
+      let result: FollowupDrainResult = { status: 'failed' }
       try {
         try {
-          sent = await onDrainRef.current(item.payload)
+          result = await onDrainRef.current(item.payload, mode)
         } catch {
           // Both rejected sends and explicit failures retain the draft for retry.
         }
-        if (sent) {
+        if (result.status === 'submitted') {
           removeId(id)
-        } else {
+        } else if (result.status === 'failed') {
           setPaused(true)
           reportFailure?.()
         }
-        return sent
+        return result
       } finally {
         const current = loadCompletion(scopeKey)
         const pendingIds = current.pendingIds.filter((pendingId) => pendingId !== id)
+        const deferred = { ...current.deferred }
+        if (result.status === 'deferred') deferred[id] = attemptedWakeupKey
+        else delete deferred[id]
         // A failure cannot undo a successful peer, and an older send cannot consume a newer turn.
         // Publish settlement even when the queue write was suppressed because the item was removed.
         cacheService.setCasual(
           drainedKeyFor(scopeKey),
           {
             completedAt: current.completedAt,
-            consumed: current.consumed || (sent && completedAt != null && current.completedAt === completedAt),
-            pendingIds
+            consumed:
+              current.consumed ||
+              (result.status === 'submitted' && completedAt != null && current.completedAt === completedAt),
+            pendingIds,
+            deferred
           },
           pendingIds.length > 0 ? undefined : QUEUE_TTL
         )
@@ -266,17 +292,18 @@ export function useFollowupQueue({
     [scopeKey, removeId, setPaused]
   )
   const sendId = useCallback(
-    (id: string) => sendItem(id, status === 'done' ? (lastCompletedAt ?? undefined) : undefined),
+    (id: string) => sendItem(id, 'manual', status === 'done' ? (lastCompletedAt ?? undefined) : undefined),
     [sendItem, status, lastCompletedAt]
   )
 
   useEffect(() => {
-    if (blocked || state.scopeKey !== scopeKey || state.paused || status !== 'done' || lastCompletedAt == null) return
+    if (state.scopeKey !== scopeKey || state.paused || status !== 'done' || lastCompletedAt == null) return
     const head = state.items[0]
     const drained = loadCompletion(scopeKey)
     if (!head || drained.pendingIds.length > 0 || (drained.consumed && drained.completedAt === lastCompletedAt)) return
-    void sendItem(head.id, lastCompletedAt)
-  }, [blocked, scopeKey, status, lastCompletedAt, state, sendItem])
+    if (drained.deferred?.[head.id] === wakeupKey) return
+    void sendItem(head.id, 'automatic', lastCompletedAt)
+  }, [wakeupKey, scopeKey, status, lastCompletedAt, state, sendItem])
 
   return {
     items: state.items,
