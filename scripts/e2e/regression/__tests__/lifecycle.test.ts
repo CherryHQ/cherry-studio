@@ -51,7 +51,7 @@ describe('isolated profile environment', () => {
 
 describe('owned application lifecycle', () => {
   it.each(['drained', 'stuck', 'alive', 'EPERM', 'UNKNOWN'])(
-    'only waits for an unverified macOS group after the runner has exited: %s',
+    'observes an unverified macOS group without signalling its members: %s',
     async (outcome) => {
       vi.useFakeTimers()
       const directory = mkdtempSync(join(tmpdir(), 'cherry-draining-runner-'))
@@ -109,6 +109,86 @@ describe('owned application lifecycle', () => {
           expect(workerAlive).toBe(false)
           expect(releasedPorts).toEqual(new Set(['-iTCP:9222', `-iTCP:${processUtils.MAIN_INSPECTOR_PORT}`]))
         } else expect(workerAlive).toBe(true)
+      } finally {
+        rmSync(directory, { recursive: true, force: true })
+      }
+    }
+  )
+
+  it.each(['natural-exit', 'survivor', 'pid-reused', 'EPERM', 'UNKNOWN', 'after-EPERM', 'after-UNKNOWN'])(
+    'handles a still-visible macOS runner whose command lookup races with exit: %s',
+    async (outcome) => {
+      vi.useFakeTimers()
+      const directory = mkdtempSync(join(tmpdir(), 'cherry-visible-runner-'))
+      const paths = getRunPaths(directory)
+      ensureRunDirectories(paths)
+      const runnerPid = 42_000
+      writeFileSync(
+        paths.appRecord,
+        JSON.stringify({
+          schemaVersion: 1,
+          ownership: 'regression-driver',
+          policy: 'ephemeral',
+          mode: 'branch',
+          platform: 'macos',
+          targetRoot: '/owned/app',
+          runnerPid,
+          cdpPort: 9222,
+          logPath: join(paths.logs, 'electron.log')
+        })
+      )
+      let groupAlive = true
+      let commandLookupFailed = false
+      const signals: number[] = []
+      const releasedPorts = new Set<string>()
+      vi.spyOn(process, 'kill').mockImplementation((pid, signal) => {
+        if (signal !== 0) {
+          signals.push(pid)
+          return true
+        }
+        if (!commandLookupFailed) return true
+        if (outcome === 'EPERM' || outcome === 'UNKNOWN')
+          throw Object.assign(new Error('Runner liveness'), { code: outcome })
+        if (!groupAlive) {
+          if (outcome === 'pid-reused') return true
+          const code = outcome.startsWith('after-') ? outcome.slice('after-'.length) : 'ESRCH'
+          throw Object.assign(new Error('Runner liveness'), { code })
+        }
+        return true
+      })
+      execFileSyncMock.mockImplementation((file: string, args: string[]) => {
+        if (file === 'lsof') {
+          releasedPorts.add(args[1])
+          return ''
+        }
+        if (file === 'ps' && args.includes('command=')) {
+          commandLookupFailed = true
+          return ''
+        }
+        if (file === 'ps' && args.includes('lstart=')) return 'Sun Nov 8 23:57:15 2026'
+        if (file === 'ps' && args.includes('pid=,pgid=,stat=,command='))
+          return groupAlive
+            ? `${runnerPid} ${runnerPid} S node /owned/app/node_modules/dotenv-cli/cli.js\n42001 ${runnerPid} S /usr/bin/transient-worker`
+            : ''
+        if (file === 'ps' && args.includes('pgid=,stat=')) return groupAlive ? `${runnerPid} S` : ''
+        throw new Error('Unexpected process query')
+      })
+      if (['natural-exit', 'pid-reused', 'after-EPERM', 'after-UNKNOWN'].includes(outcome))
+        setTimeout(() => (groupAlive = false), 250)
+      try {
+        const stopped = stopOwnedApp(paths)
+        const assertion =
+          outcome === 'natural-exit'
+            ? expect(stopped).resolves.toBeUndefined()
+            : expect(stopped).rejects.toThrow(
+                outcome === 'pid-reused' ? 'runner no longer owns its process group' : 'command no longer matches'
+              )
+        await Promise.all([assertion, vi.runAllTimersAsync()])
+        expect(commandLookupFailed).toBe(true)
+        expect(signals).toEqual([])
+        expect(releasedPorts).toEqual(
+          outcome === 'natural-exit' ? new Set(['-iTCP:9222', `-iTCP:${processUtils.MAIN_INSPECTOR_PORT}`]) : new Set()
+        )
       } finally {
         rmSync(directory, { recursive: true, force: true })
       }

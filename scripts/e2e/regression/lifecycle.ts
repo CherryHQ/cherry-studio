@@ -429,14 +429,20 @@ async function stopOwnedRecord(record: LaunchRecord): Promise<void> {
     try {
       verifiedMembers = terminateOwnedMacProcessGroup(record)
     } catch (error) {
+      // Observing a still-visible runner grants no authority to signal its unverified group.
       try {
-        if (!processExited(record.runnerPid)) throw error
+        processExited(record.runnerPid)
       } catch {
         throw error
       }
       logLifecycleStage(record, 'unverified-group-drain-start')
       if (!(await waitForMacProcessGroupExit(record.runnerPid))) throw error
       logLifecycleStage(record, 'unverified-group-drain-finished')
+      try {
+        processExited(record.runnerPid)
+      } catch {
+        throw error
+      }
       verifiedMembers = terminateOwnedMacProcessGroup(record)
     }
     if (!(await waitForMacProcessGroupExit(record.runnerPid))) {
