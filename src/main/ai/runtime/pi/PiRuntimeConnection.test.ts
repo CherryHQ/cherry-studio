@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import type { AssistantMessage } from '@earendil-works/pi-ai'
 import { createAssistantMessageEventStream, Type } from '@earendil-works/pi-ai'
 import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
 import { v7 as uuid } from 'uuid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -824,6 +825,30 @@ describe('desktop Pi root connection', () => {
       expect(nativeFiles()).toHaveLength(1)
     }
   )
+
+  it.each(['trashed', 'deleted'] as const)('releases a settled runtime after its session is %s', async (state) => {
+    const { connection, events, consuming } = await connect()
+    const user = message('finish before deletion')
+    await connection.send({ message: user })
+    await done(events)
+    const row = dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, input.sessionId)).get()!
+    if (state === 'deleted') dbh.db.delete(agentSessionTable).where(eq(agentSessionTable.id, input.sessionId)).run()
+    else
+      dbh.db
+        .update(agentSessionTable)
+        .set({ deletedAt: Date.now() })
+        .where(eq(agentSessionTable.id, input.sessionId))
+        .run()
+    try {
+      await expect(connection.close()).resolves.toBeUndefined()
+      await consuming
+      await expect(connection.send({ message: user })).rejects.toThrow('unavailable')
+    } finally {
+      if (state === 'deleted') dbh.db.insert(agentSessionTable).values(row).run()
+      else
+        dbh.db.update(agentSessionTable).set({ deletedAt: null }).where(eq(agentSessionTable.id, input.sessionId)).run()
+    }
+  })
 
   it('reopens the native history without replaying archived content into the live product stream', async () => {
     const first = await connect()

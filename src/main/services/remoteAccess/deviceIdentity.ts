@@ -23,17 +23,21 @@ function decodeIdentity(base64: string): Uint8Array {
   return bytes
 }
 
-export async function loadDesktopIdentity(): Promise<Uint8Array> {
-  const secure =
+function canEncryptIdentity(): boolean {
+  return (
     safeStorage.isEncryptionAvailable() &&
     !(process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text')
+  )
+}
+
+export async function loadDesktopIdentity(): Promise<Uint8Array> {
   const encryptedFile = application.getPath('feature.remote_access.identity_file')
   const plainFile = application.getPath('feature.remote_access.plain_identity_file')
 
   const encrypted = await readIfExists(encryptedFile)
   if (encrypted) {
     // Never replace an existing identity: that would silently unpair every device.
-    if (!secure) throw new Error('OS-protected key storage is unavailable')
+    if (!canEncryptIdentity()) throw new Error('OS-protected key storage is unavailable')
     return decodeIdentity(safeStorage.decryptString(encrypted))
   }
   const plain = await readIfExists(plainFile)
@@ -41,7 +45,7 @@ export async function loadDesktopIdentity(): Promise<Uint8Array> {
 
   const identity = await createDeviceIdentity()
   const base64 = Buffer.from(identity).toString('base64')
-  if (secure) {
+  if (canEncryptIdentity()) {
     await writeFile(encryptedFile, safeStorage.encryptString(base64), { mode: 0o600, flag: 'wx' })
   } else {
     logger.warn('OS-protected key storage is unavailable; storing the remote identity unencrypted')

@@ -17,6 +17,7 @@ type Source = { messageId: string; parts: CherryUIMessage['parts'] }
 
 /** Groups native sources into product replies; selected model context never deletes retained sources. */
 export class RootMessageProjection {
+  private readonly approvals = new Map<string, { id: string; approved: boolean }>()
   private readonly sources = new Map<string, Source>()
   private readonly replySources = new Map<string, Set<string>>()
   private readonly removed = new Set<string>()
@@ -41,6 +42,10 @@ export class RootMessageProjection {
       if (!parts) {
         parts = messages.getSessionMessage(context.sessionId, range.messageId).data.parts ?? []
         bodies.set(range.messageId, parts)
+        for (const part of parts) {
+          if (isToolUIPart(part) && part.approval?.approved !== undefined)
+            this.approvals.set(part.toolCallId, part.approval)
+        }
       }
       this.sources.set(id, { messageId: range.messageId, parts: parts.slice(range.offset, range.offset + range.count) })
       const owned = ranges.get(range.messageId) ?? []
@@ -142,15 +147,17 @@ export class RootMessageProjection {
     for (const [toolCallId, pending] of this.pendingTools) {
       if (pending.messageId !== messageId || !pending.input || !pending.approvalId) continue
       if (sources.some((part) => isToolUIPart(part) && part.toolCallId === toolCallId)) continue
-      parts.push({
-        type: 'dynamic-tool',
-        toolCallId,
-        toolName: pending.input.toolName,
-        input: pending.input.input,
-        providerExecuted: pending.input.providerExecuted,
-        state: 'approval-requested',
-        approval: { id: pending.approvalId }
-      })
+      parts.push(
+        this.decorate({
+          type: 'dynamic-tool',
+          toolCallId,
+          toolName: pending.input.toolName,
+          input: pending.input.input,
+          providerExecuted: pending.input.providerExecuted,
+          state: 'approval-requested',
+          approval: { id: pending.approvalId }
+        })
+      )
     }
     return parts
   }
@@ -177,13 +184,30 @@ export class RootMessageProjection {
     }
   }
 
+  resolveToolApproval(toolCallId: string, approvalId: string, approved: boolean): void {
+    this.approvals.set(toolCallId, { id: approvalId, approved })
+  }
+
   private decorate(part: CherryUIMessage['parts'][number]): CherryUIMessage['parts'][number] {
-    if (
-      !isToolUIPart(part) ||
-      part.state === 'output-available' ||
-      part.state === 'output-error' ||
-      part.state === 'output-denied'
-    )
+    if (!isToolUIPart(part)) return part
+    const approval = this.approvals.get(part.toolCallId)
+    if (approval) {
+      if (!approval.approved) {
+        return {
+          ...part,
+          state: 'output-denied',
+          output: undefined,
+          errorText: undefined,
+          approval: { ...approval, approved: false }
+        }
+      }
+      if (part.state === 'output-denied') return part
+      const allowed = { ...approval, approved: true as const }
+      return part.state === 'output-available' || part.state === 'output-error'
+        ? { ...part, approval: allowed }
+        : { ...part, state: 'approval-responded', approval: allowed }
+    }
+    if (part.state === 'output-available' || part.state === 'output-error' || part.state === 'output-denied')
       return part
     const pending = this.pendingTools.get(part.toolCallId)
     if (!pending?.approvalId) return part
