@@ -253,9 +253,9 @@ export class DurableProjection {
           })
       }
     }
+    for (const input of changed) this.feed.publish({ type: 'input.changed', input })
     this.feed.publish({ type: 'activity.changed', activity: { state: live?.run ? 'active' : 'idle' } })
     this.completion = undefined
-    for (const input of changed) this.feed.publish({ type: 'input.changed', input })
   }
 }
 

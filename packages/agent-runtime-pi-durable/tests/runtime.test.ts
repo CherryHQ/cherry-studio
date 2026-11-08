@@ -22,7 +22,7 @@ import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite
 import { describe, expect, it, onTestFinished } from 'vitest'
 
 import { createScriptedHost } from '@cherrystudio/agent-behavior'
-import { runtimeId, type ObservationPayload, type OperationResult } from '@cherrystudio/agent-runtime'
+import { runtimeId, ThreadFeed, type ObservationPayload, type OperationResult } from '@cherrystudio/agent-runtime'
 
 import {
   createPiDurableRuntime,
@@ -95,7 +95,14 @@ async function observe(access: PiDurableThreadHandle) {
   return events
 }
 function current(events: ObservationPayload[]) {
-  return events.filter((event) => event.type === 'snapshot').at(-1)
+  const baseline = events.findIndex((event) => event.type === 'snapshot')
+  const snapshot = events[baseline]
+  if (snapshot?.type !== 'snapshot') return undefined
+  const feed = new ThreadFeed(snapshot, (error) => {
+    throw error
+  })
+  for (const event of events.slice(baseline + 1)) feed.publish(event)
+  return feed.snapshot
 }
 
 describe('Pi Durable runtime contract', () => {
@@ -131,7 +138,10 @@ describe('Pi Durable runtime contract', () => {
     await expect
       .poll(() =>
         fast.some((batch) =>
-          batch.events.some((event) => event.type === 'snapshot' && event.activity.state === 'active')
+          batch.events.some(
+            (event) =>
+              (event.type === 'snapshot' || event.type === 'activity.changed') && event.activity.state === 'active'
+          )
         )
       )
       .toBe(true)
@@ -143,10 +153,9 @@ describe('Pi Durable runtime contract', () => {
     expect(final.completion).toMatchObject({
       inputs: [{ inputId: 'atomic', outcome: 'unanswered', error: { code: 'output-truncated' } }]
     })
-    expect(final.events).toMatchObject([
-      { type: 'snapshot', inputs: expect.arrayContaining([{ ...final.completion!.inputs[0] }]) }
-    ])
-    const body = final.events.flatMap((event) => (event.type === 'snapshot' ? event.messages : []))
+    const state = current(fast.slice(0, fast.indexOf(final) + 1).flatMap((batch) => [...batch.events]))!
+    expect(state.inputs).toContainEqual(final.completion!.inputs[0])
+    const body = state.messages
     expect(body.flatMap((message) => message.parts)).toContainEqual(
       expect.objectContaining({ type: 'text', text: 'truncated body' })
     )
@@ -202,7 +211,9 @@ describe('Pi Durable runtime contract', () => {
     const committed = archive.messages.find((item) => item.id === response?.id)
     expect(committed).toEqual(response)
     const preview = right
-      .flatMap((event) => (event.type === 'snapshot' ? event.messages : []))
+      .flatMap((event) =>
+        event.type === 'snapshot' ? event.messages : event.type === 'message.upsert' ? [event.message] : []
+      )
       .find((item) => item.role === 'assistant' && item.metadata?.completeness === 'partial')!
     expect(archive.aliases[committed!.id]).toBe(preview.id)
     expect(await first.input.submit(draft('released'))).toMatchObject({ status: 'rejected', error: { code: 'closed' } })

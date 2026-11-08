@@ -266,16 +266,18 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
         if (event.type === 'context.changed') this.events.push({ type: 'context-usage', result: event.result })
         if (event.type === 'snapshot' && event.contextUsage)
           this.events.push({ type: 'context-usage', result: event.contextUsage })
-        if (event.type === 'snapshot') {
+        if (event.type === 'snapshot' || event.type === 'activity.changed') {
           const nowActive = event.activity.state === 'active'
           if (nowActive && !this.sending && !this.closing)
             this.beginAutonomous(
               batch.backgroundResults.status === 'confirmed' ? batch.backgroundResults.value.notification : undefined
             )
-          for (const input of event.inputs) this.captureInput(input)
           this.active = nowActive
-          for (const relation of event.subagents ?? [])
-            if (relation.child) void this.observeChild(relation.child.id).catch((error) => this.fail(error))
+          if (event.type === 'snapshot') {
+            for (const input of event.inputs) this.captureInput(input)
+            for (const relation of event.subagents ?? [])
+              if (relation.child) void this.observeChild(relation.child.id).catch((error) => this.fail(error))
+          }
         } else if (event.type === 'input.changed') this.captureInput(event.input)
         else if (event.type === 'subagent.upsert' && event.subagent.child)
           void this.observeChild(event.subagent.child.id).catch((error) => this.fail(error))

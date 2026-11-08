@@ -569,7 +569,7 @@ describe('VoiceSessionService file and admission contract', () => {
     expect(native.speech).not.toHaveBeenCalled()
     expect(service.getState(other).phase).toBe('idle')
     const next = await speech(a, { trigger: 'auto_read' })
-    expect(outputResponse(next.result.output.id).status).toBe(200)
+    expect((await outputResponse(next.result.output.id)).status).toBe(200)
   })
 
   it('releases playback ownership after preference resolution fails', async () => {
@@ -577,15 +577,15 @@ describe('VoiceSessionService file and admission contract', () => {
     await expect(speech(a, { preferenceResolution: true })).rejects.toMatchObject({ reason: 'voice_unavailable' })
     expect(service.getState(a).phase).toBe('idle')
     const next = await speech(a, { trigger: 'auto_read' })
-    expect(outputResponse(next.result.output.id).status).toBe(200)
+    expect((await outputResponse(next.result.output.id)).status).toBe(200)
   })
-  function outputResponse(id: string): Response {
-    return (media as unknown as { handleRequest(request: Request): Response }).handleRequest(
+  function outputResponse(id: string): Promise<Response> {
+    return (media as unknown as { handleRequest(request: Request): Promise<Response> }).handleRequest(
       new Request(media.getUrl(MediaKind.Audio, id))
     )
   }
   async function outputBytes(id: string) {
-    return new Uint8Array(await outputResponse(id).arrayBuffer())
+    return new Uint8Array(await (await outputResponse(id)).arrayBuffer())
   }
 
   function makeCleanupEligible(id: string) {
@@ -602,7 +602,7 @@ describe('VoiceSessionService file and admission contract', () => {
       service.startRecording(owner(), { sessionId: randomUUID(), requestId: randomUUID(), source: 'settings' })
     ).rejects.toMatchObject({ reason: 'busy' })
     expect(service.getState(a)).toMatchObject({ phase: 'ready', sessionId: playback.input.sessionId })
-    expect(outputResponse(playback.result.output.id).status).toBe(200)
+    expect((await outputResponse(playback.result.output.id)).status).toBe(200)
   })
 
   it.each([{ voice: 'changed' }, { language: 'ja-JP' }, { speed: 1.5 }])(
@@ -918,7 +918,7 @@ describe('VoiceSessionService file and admission contract', () => {
       'ai.voice.session_event',
       expect.objectContaining({ type: 'command', command: 'stop', sessionId: first.input.sessionId })
     )
-    expect(outputResponse(first.result.output.id).status).toBe(404)
+    expect((await outputResponse(first.result.output.id)).status).toBe(404)
     expect(service.getState(a)).toMatchObject({ phase: 'recording', sessionId: recordingSessionId })
 
     const entry = await service.createRecording(a, {
@@ -948,9 +948,9 @@ describe('VoiceSessionService file and admission contract', () => {
     await expect(speech(owner(), { trigger: 'auto_read', source: 'playback' })).rejects.toMatchObject({
       reason: 'busy'
     })
-    expect(outputResponse(manual.result.output.id).status).toBe(200)
+    expect((await outputResponse(manual.result.output.id)).status).toBe(200)
     const replacement = await speech(owner(), { trigger: 'manual' })
-    expect(outputResponse(manual.result.output.id).status).toBe(404)
+    expect((await outputResponse(manual.result.output.id)).status).toBe(404)
     expect(service.getState(a)).toMatchObject({ phase: 'ready', sessionId: replacement.input.sessionId })
   })
 
@@ -961,7 +961,7 @@ describe('VoiceSessionService file and admission contract', () => {
     await expect(displaced).rejects.toMatchObject({ reason: 'aborted' })
     const admitted = await winner
     expect(service.getState(a)).toMatchObject({ phase: 'ready', sessionId: admitted.input.sessionId })
-    expect(outputResponse(admitted.result.output.id).status).toBe(200)
+    expect((await outputResponse(admitted.result.output.id)).status).toBe(200)
     expect(native.speech).toHaveBeenCalledTimes(1)
     expect((a.webContents as unknown as EventEmitter).listenerCount('destroyed')).toBe(0)
   })
@@ -1008,7 +1008,7 @@ describe('VoiceSessionService file and admission contract', () => {
       { reason: 'forbidden_owner' }
     )
     await service.releaseOutput(a, { sessionId, outputId: first.result.output.id })
-    expect(outputResponse(first.result.output.id).status).toBe(404)
+    expect((await outputResponse(first.result.output.id)).status).toBe(404)
     const second = await service.speech(a, {
       sessionId,
       requestId: randomUUID(),
@@ -1029,12 +1029,12 @@ describe('VoiceSessionService file and admission contract', () => {
     const release = { sessionId, outputId: first.result.output.id }
     await service.releaseOutput(a, release)
     await service.releaseOutput(a, release)
-    expect(outputResponse(release.outputId).status).toBe(404)
+    expect((await outputResponse(release.outputId)).status).toBe(404)
     const second = await speech(a, { sessionId, chunkIndex: 1, chunkCount: 2 })
     await expect(service.releaseOutput(a, release)).rejects.toMatchObject({ reason: 'forbidden_owner' })
     expect(await outputBytes(second.result.output.id)).toEqual(new Uint8Array(wav()))
     await service.discard(a, sessionId)
-    expect(outputResponse(second.result.output.id).status).toBe(404)
+    expect((await outputResponse(second.result.output.id)).status).toBe(404)
   })
 
   it('continues an auto-read session after releasing the previous chunk', async () => {
@@ -1142,7 +1142,7 @@ describe('VoiceSessionService file and admission contract', () => {
     await service.controlPlayback(controller, { sessionId: playback.input.sessionId, command: 'stop' })
     await report(a, { sessionId: playback.input.sessionId, phase: 'stopped' })
     expect(service.getState(controller).phase).toBe('idle')
-    expect(outputResponse(playback.result.output.id).status).toBe(404)
+    expect((await outputResponse(playback.result.output.id)).status).toBe(404)
 
     const foreignType = owner()
     managedWindows.get(foreignType.windowId)!.type = WindowType.QuickAssistant
@@ -1197,7 +1197,7 @@ describe('VoiceSessionService file and admission contract', () => {
       await expect(
         service.controlPlayback(foreignOwner, { sessionId: playback.input.sessionId, command: 'stop' })
       ).rejects.toMatchObject({ reason: 'forbidden_owner' })
-      expect(outputResponse(playback.result.output.id).status).toBe(200)
+      expect((await outputResponse(playback.result.output.id)).status).toBe(200)
       await service.controlPlayback(a, { sessionId: playback.input.sessionId, command: 'stop' })
       await report(a, { sessionId: playback.input.sessionId, phase: 'stopped' })
       expect(runtime.send.mock.calls).toContainEqual([
@@ -1205,7 +1205,7 @@ describe('VoiceSessionService file and admission contract', () => {
         'ai.voice.session_event',
         expect.objectContaining({ type: 'state', phase: 'idle' })
       ])
-      expect(outputResponse(playback.result.output.id).status).toBe(404)
+      expect((await outputResponse(playback.result.output.id)).status).toBe(404)
     }
   )
 
@@ -1223,7 +1223,7 @@ describe('VoiceSessionService file and admission contract', () => {
       phase: 'playing',
       sessionId: playback.input.sessionId
     })
-    expect(outputResponse(playback.result.output.id).status).toBe(200)
+    expect((await outputResponse(playback.result.output.id)).status).toBe(200)
     expect(native.speech).toHaveBeenCalledTimes(generationCount)
   })
 
@@ -1256,7 +1256,7 @@ describe('VoiceSessionService file and admission contract', () => {
       phase: 'playing',
       playback: { availableCommands: ['pause', 'stop'] }
     })
-    expect(outputResponse(playback.result.output.id).status).toBe(200)
+    expect((await outputResponse(playback.result.output.id)).status).toBe(200)
   })
 
   it('reports missing control confirmation without releasing still-owned audio', async () => {
@@ -1274,11 +1274,11 @@ describe('VoiceSessionService file and admission contract', () => {
           failure: { stage: 'control' }
         }
       })
-      expect(outputResponse(playback.result.output.id).status).toBe(200)
+      expect((await outputResponse(playback.result.output.id)).status).toBe(200)
       await service.controlPlayback(a, { sessionId: playback.input.sessionId, command: 'stop' })
       await report(a, { sessionId: playback.input.sessionId, phase: 'stopped' })
       expect(service.getState(a).phase).toBe('idle')
-      expect(outputResponse(playback.result.output.id).status).toBe(404)
+      expect((await outputResponse(playback.result.output.id)).status).toBe(404)
     } finally {
       vi.useRealTimers()
     }
@@ -1316,13 +1316,13 @@ describe('VoiceSessionService file and admission contract', () => {
       const contents = a.webContents as unknown as EventEmitter
       contents.emit('did-start-navigation', { isMainFrame: true, isSameDocument: true, url: '#same' })
       contents.emit('did-start-navigation', { isMainFrame: false, isSameDocument: false, url: 'https://frame.test' })
-      expect(outputResponse(playback.result.output.id).status).toBe(200)
+      expect((await outputResponse(playback.result.output.id)).status).toBe(200)
       if (terminalEvent === 'did-start-navigation') {
         contents.emit(terminalEvent, { isMainFrame: true, isSameDocument: false, url: 'file:///new' })
       } else {
         contents.emit(terminalEvent)
       }
-      await vi.waitFor(() => expect(outputResponse(playback.result.output.id).status).toBe(404))
+      await vi.waitFor(async () => expect((await outputResponse(playback.result.output.id)).status).toBe(404))
       expect(service.getState(a).phase).toBe('idle')
       for (const event of ['destroyed', 'render-process-gone', 'did-start-navigation']) {
         expect(contents.listenerCount(event)).toBe(0)
@@ -1375,7 +1375,7 @@ describe('VoiceSessionService file and admission contract', () => {
     const ready = await speech(a)
     powerEvents.emit('suspend')
     await report(a, { sessionId: ready.input.sessionId, phase: 'paused' })
-    expect(outputResponse(ready.result.output.id).status).toBe(200)
+    expect((await outputResponse(ready.result.output.id)).status).toBe(200)
     expect(await outputBytes(ready.result.output.id)).toEqual(new Uint8Array(wav()))
     powerEvents.emit('resume')
     expect(service.getState(a).phase).toBe('paused')
@@ -1537,7 +1537,7 @@ describe('VoiceSessionService file and admission contract', () => {
     if (current.phase !== 'idle') await report(a, { sessionId: current.sessionId, phase: 'paused' })
     expect(runtime.sleepHolds.size).toBe(0)
     expect(service.getState(a)).toMatchObject({ phase: 'paused', sessionId: playback.input.sessionId })
-    expect(outputResponse(playback.result.output.id).status).toBe(200)
+    expect((await outputResponse(playback.result.output.id)).status).toBe(200)
     await service.controlPlayback(a, { sessionId: playback.input.sessionId, command: 'resume' })
     await report(a, { sessionId: playback.input.sessionId, phase: 'playing' })
     expect(runtime.sleepHolds.size).toBe(1)
@@ -1569,7 +1569,7 @@ describe('VoiceSessionService file and admission contract', () => {
     await report(a, { sessionId: playback.input.sessionId, phase: 'paused' })
     expect(service.getState(a).phase).toBe('paused')
     expect(runtime.sleepHolds.size).toBe(0)
-    expect(outputResponse(playback.result.output.id).status).toBe(200)
+    expect((await outputResponse(playback.result.output.id)).status).toBe(200)
   })
 
   it('removes orphan scratch at startup and keeps neighboring managed files intact', async () => {
@@ -1988,7 +1988,7 @@ describe('VoiceSessionService file and admission contract', () => {
     expect(await outputBytes(result.output.id)).toEqual(new Uint8Array(wav()))
     expect(service.listModels().defaultSpeechModelId).toBe(WINDOWS_TTS_MODEL_ID)
     await service.discard(a, input.sessionId)
-    expect(outputResponse(result.output.id).status).toBe(404)
+    expect((await outputResponse(result.output.id)).status).toBe(404)
   })
 
   it('rejects unsupported platform defaults without retaining empty sessions', async () => {
@@ -2054,7 +2054,7 @@ describe('VoiceSessionService file and admission contract', () => {
     expect(JSON.stringify(result)).not.toContain(root)
     expect(await outputBytes(result.output.id)).toEqual(new Uint8Array(wav()))
     await service.discard(a, input.sessionId)
-    expect(outputResponse(result.output.id).status).toBe(404)
+    expect((await outputResponse(result.output.id)).status).toBe(404)
   })
 
   it.each([
@@ -2091,10 +2091,10 @@ describe('VoiceSessionService file and admission contract', () => {
 
     await service.abort(a, input, 'speech')
 
-    expect(outputResponse(result.output.id).status).toBe(200)
+    expect((await outputResponse(result.output.id)).status).toBe(200)
     expect(await outputBytes(result.output.id)).toEqual(new Uint8Array(wav()))
     await service.discard(a, input.sessionId)
-    expect(outputResponse(result.output.id).status).toBe(404)
+    expect((await outputResponse(result.output.id)).status).toBe(404)
   })
 
   it('requires explicit discard before speech can replace a retained recording or output', async () => {
@@ -2328,7 +2328,7 @@ describe('VoiceSessionService file and admission contract', () => {
 
     await service._doDestroy()
 
-    expect(outputResponse(playback.result.output.id).status).toBe(404)
+    expect((await outputResponse(playback.result.output.id)).status).toBe(404)
     expect((a.webContents as unknown as EventEmitter).listenerCount('destroyed')).toBe(0)
     expect(runtime.permissionCheck).toBeNull()
     expect(runtime.permissionRequest).toBeNull()
