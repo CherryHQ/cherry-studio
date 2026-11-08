@@ -21,8 +21,14 @@ const logger = loggerService.withContext('CommandProvider')
 interface CommandHandlerEntry {
   id: number
   handler: CommandHandler
-  enabled: boolean
+  isEnabled: () => boolean
   shouldHandleKeyEvent?: (event: KeyboardEvent) => boolean
+}
+
+function isHandlerEnabled(options?: CommandHandlerOptions): boolean {
+  const enabled = options?.enabled
+  if (typeof enabled === 'function') return enabled() !== false
+  return enabled !== false
 }
 
 interface CommandDispatcherState {
@@ -71,7 +77,7 @@ export function CommandProvider({ children }: { children: React.ReactNode }) {
 
   const getActiveHandler = useCallback((command: CommandId): CommandHandlerEntry | undefined => {
     const handlers = handlersRef.current.get(command)
-    return handlers?.findLast((entry) => entry.enabled)
+    return handlers?.findLast((entry) => entry.isEnabled())
   }, [])
 
   const registerHandler = useCallback(
@@ -79,7 +85,8 @@ export function CommandProvider({ children }: { children: React.ReactNode }) {
       const entry: CommandHandlerEntry = {
         id: nextHandlerIdRef.current++,
         handler,
-        enabled: options?.enabled !== false,
+        // Read `options.enabled` at resolution time so a getter observes the current focus.
+        isEnabled: () => isHandlerEnabled(options),
         shouldHandleKeyEvent: options?.shouldHandleKeyEvent
       }
       const handlers = handlersRef.current.get(command) ?? []
