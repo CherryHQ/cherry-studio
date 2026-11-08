@@ -452,11 +452,12 @@ type ManageKnowledgeInput = {
   url?: string
   content?: string
   title?: string
+  groupId?: string
   conceptIds?: string[]
 }
 
 /** The add-source fields, shared verbatim by the single-source form (top level) and each `items` entry. */
-type ManageAddSource = Pick<ManageKnowledgeInput, 'type' | 'path' | 'url' | 'content' | 'title'>
+type ManageAddSource = Pick<ManageKnowledgeInput, 'type' | 'path' | 'url' | 'content' | 'title' | 'groupId'>
 
 /**
  * Apply a destructive knowledge-base change (add / delete / refresh / create). Like the
@@ -505,7 +506,7 @@ export async function manageKnowledge(
           }
           const built: ValidatedAddInput[] = []
           for (const [index, item] of input.items.entries()) {
-            const result = buildAddInput(item)
+            const result = buildAddInput({ ...item, groupId: item.groupId ?? input.groupId })
             if (!result.ok) return { error: `items[${index}]: ${result.error}` }
             built.push(result)
           }
@@ -591,20 +592,26 @@ function buildAddInput(input: ManageAddSource): AddInputResult {
       // call after PR #19829 made reindex re-acquire from the real source
       // (issue #19954).
       const source = input.path
-      return validateAddInput({ type: 'file', data: { source, path: input.path } }, source)
+      return validateAddInput({ type: 'file', groupId: input.groupId, data: { source, path: input.path } }, source)
     }
     case 'url': {
       if (!input.url) {
         return { ok: false, error: 'kb_manage add with type "url" requires `url`.' }
       }
-      return validateAddInput({ type: 'url', data: { source: input.url, url: input.url } }, input.url)
+      return validateAddInput(
+        { type: 'url', groupId: input.groupId, data: { source: input.url, url: input.url } },
+        input.url
+      )
     }
     case 'note': {
       if (!input.content) {
         return { ok: false, error: 'kb_manage add with type "note" requires `content`.' }
       }
       const source = deriveNoteSource(input.content, input.title)
-      return validateAddInput({ type: 'note', data: { source, content: input.content } }, source)
+      return validateAddInput(
+        { type: 'note', groupId: input.groupId, data: { source, content: input.content } },
+        source
+      )
     }
     default:
       return { ok: false, error: 'kb_manage add requires `type` to be "file", "url", or "note".' }

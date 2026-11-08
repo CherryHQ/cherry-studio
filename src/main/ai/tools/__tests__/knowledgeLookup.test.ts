@@ -143,7 +143,43 @@ describe('manageKnowledge add for file type', () => {
   })
 })
 
-// `create` builds a new BM25-only base by name. It is deliberately NOT run through the
+// `groupId` places new sources inside a folder (a directory item's `itemId` from kb_list). The
+// single-source form and every `items` entry carry it; an entry's own groupId wins over the top level.
+describe('manageKnowledge add into a folder', () => {
+  it('passes the folder id to addItems for a single source', async () => {
+    addItemsMock.mockResolvedValueOnce({ status: 'added' })
+
+    await manageKnowledge(
+      { action: 'add', baseId: 'base-1', type: 'note', content: 'hello', groupId: 'folder-1' },
+      []
+    )
+
+    expect(addItemsMock).toHaveBeenCalledWith('base-1', [expect.objectContaining({ type: 'note', groupId: 'folder-1' })])
+  })
+
+  it('applies the top-level folder to batch items unless an item names its own', async () => {
+    addItemsMock.mockResolvedValueOnce({ status: 'added' })
+
+    await manageKnowledge(
+      {
+        action: 'add',
+        baseId: 'base-1',
+        groupId: 'folder-1',
+        items: [
+          { type: 'note', content: 'a' },
+          { type: 'note', content: 'b', groupId: 'folder-2' }
+        ]
+      },
+      []
+    )
+
+    expect(addItemsMock).toHaveBeenCalledWith('base-1', [
+      expect.objectContaining({ groupId: 'folder-1' }),
+      expect.objectContaining({ groupId: 'folder-2' })
+    ])
+  })
+})
+ It is deliberately NOT run through the
 // `allowedIds` scope check: the ceiling governs which *existing* bases the assistant may
 // reach, and every create is user-approved like the other kb_manage actions.
 describe('manageKnowledge create', () => {

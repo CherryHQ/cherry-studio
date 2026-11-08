@@ -2645,9 +2645,23 @@ describe('KnowledgeService', () => {
       expect(knowledgeItemGetItemsByBaseIdMock).toHaveBeenCalledWith('kb-1')
       expect(tree).toMatchObject({ baseId: 'kb-1', totalItems: 3, truncated: false })
       expect(tree.nodes).toEqual([
-        { depth: 0, title: 'docs', itemType: 'directory', status: 'completed', conceptId: undefined },
-        { depth: 1, title: 'report.pdf', itemType: 'file', status: 'completed', conceptId: 'report.pdf' },
-        { depth: 0, title: expect.any(String), itemType: 'note', status: 'completed', conceptId: undefined }
+        { depth: 0, title: 'docs', itemType: 'directory', status: 'completed', itemId: 'docs', conceptId: undefined },
+        {
+          depth: 1,
+          title: 'report.pdf',
+          itemType: 'file',
+          status: 'completed',
+          itemId: 'f1',
+          conceptId: 'report.pdf'
+        },
+        {
+          depth: 0,
+          title: expect.any(String),
+          itemType: 'note',
+          status: 'completed',
+          itemId: 'root-note',
+          conceptId: undefined
+        }
       ])
     })
 
