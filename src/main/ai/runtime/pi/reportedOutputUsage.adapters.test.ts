@@ -1,11 +1,11 @@
 import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock'
 import { createPerplexity } from '@ai-sdk/perplexity'
+import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
 
 import { collectReportedOutputUsage, type ReportedOutputUsage } from '@main/ai/runtime/pi/reportedOutputUsage'
 import { AiSdkToGeminiSse } from '@main/features/apiGateway/adapters/stream/AiSdkToGeminiSse'
-
-import { providerReportedOutputUsage } from './reportedOutputUsage'
+import { providerReportedOutputUsage } from '@shared/ai/reportedOutputUsage'
 
 const prompt = [{ role: 'user' as const, content: [{ type: 'text' as const, text: 'answer' }] }]
 
@@ -70,10 +70,11 @@ describe('pinned provider count provenance', () => {
         )
     })
     const result = await provider('sonar').doStream({ prompt })
-    const chunks = []
+    const chunks: LanguageModelV3StreamPart[] = []
     for await (const chunk of result.stream) chunks.push(chunk)
     expect(chunks.some((chunk) => chunk.type === 'error')).toBe(false)
-    const finish = chunks.find((chunk) => chunk.type === 'finish')!
+    const finish = chunks.find((chunk) => chunk.type === 'finish')
+    if (!finish) throw new Error('No provider finish event')
     expect(finish.type).toBe('finish')
     const { provenance, counts } = geminiProjection(
       finish.usage.outputTokens.total,
