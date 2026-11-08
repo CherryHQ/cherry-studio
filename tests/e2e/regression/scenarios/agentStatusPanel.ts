@@ -110,6 +110,11 @@ export async function agentStatusPanel(app: RegressionApp, page: Page, testInfo:
       if ((await trigger.getAttribute('aria-expanded')) !== 'true') await trigger.click()
     }
     const messageCards = view.locator('[data-ui~="chat.message"]:visible')
+    for (const group of await messageCards.getByTestId('child-tool-group').all()) {
+      const trigger = group.getByRole('button').first()
+      if ((await trigger.getAttribute('aria-expanded')) !== 'true') await trigger.click()
+      await expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    }
     for (const file of files) {
       await expect.soft(messageCards.getByText(file.name, { exact: true }).first()).toBeVisible({ timeout: 10_000 })
     }
