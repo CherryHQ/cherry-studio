@@ -423,6 +423,7 @@ vi.mock('../AgentBrowserView', () => ({
 }))
 
 vi.mock('@renderer/components/command', () => ({
+  CommandShortcut: () => null,
   CommandTooltip: ({ children }: PropsWithChildren) => <>{children}</>
 }))
 
