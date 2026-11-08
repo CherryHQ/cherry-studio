@@ -18,6 +18,11 @@ export async function findPersistedToolOutput(
   toolCallId: string
 ): Promise<AiToolResultResponse> {
   try {
+    if (isAgentSessionTopic(topicId)) {
+      const sessionId = extractAgentSessionId(topicId)
+      const direct = agentSessionMessageService.getSessionToolOutput?.(sessionId, messageId, toolCallId)
+      if (direct?.found) return direct
+    }
     const parts = isAgentSessionTopic(topicId)
       ? agentSessionMessageService.getSessionMessage(extractAgentSessionId(topicId), messageId).data.parts
       : messageService.getById(messageId).data.parts

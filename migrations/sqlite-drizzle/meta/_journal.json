@@ -252,6 +252,13 @@
       "when": 1794057800687,
       "tag": "0035_agent_session_task_ownership",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1794157764007,
+      "tag": "0036_agent_session_tool_output",
+      "breakpoints": true
     }
   ],
   "version": "7"

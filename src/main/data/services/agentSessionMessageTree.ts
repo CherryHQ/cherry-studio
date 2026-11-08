@@ -1,9 +1,99 @@
+import { isToolUIPart } from 'ai'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 
 import { agentSessionTable as sessions } from '@data/db/schemas/agentSession'
-import { agentSessionMessageTable as messages } from '@data/db/schemas/agentSessionMessage'
+import {
+  type AgentSessionMessageRow,
+  agentSessionMessageTable as messages,
+  agentSessionToolOutputTable as toolOutputs
+} from '@data/db/schemas/agentSessionMessage'
 import type { DbOrTx } from '@data/db/types'
+import { isDeferredToolOutput } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
+
+const SQLITE_INARRAY_CHUNK = 500
+
+export function hydrateAgentSessionMessageDataTx<T extends AgentSessionMessageRow['data']>(
+  db: DbOrTx,
+  messageId: string,
+  data: T
+): T {
+  const parts = data.parts
+  if (!parts?.length) return data
+  if (
+    !parts.some((part) => isToolUIPart(part) && part.state === 'output-available' && isDeferredToolOutput(part.output))
+  ) {
+    return data
+  }
+  const stored = db
+    .select({
+      toolCallId: toolOutputs.toolCallId,
+      output: toolOutputs.output
+    })
+    .from(toolOutputs)
+    .where(eq(toolOutputs.messageId, messageId))
+    .all()
+  if (stored.length === 0) return data
+  const outputsByCallId = new Map(stored.map((item) => [item.toolCallId, item.output]))
+  let hydratedParts: typeof parts | undefined
+  for (let index = 0; index < parts.length; index += 1) {
+    const part = parts[index]
+    if (!isToolUIPart(part) || part.state !== 'output-available' || !isDeferredToolOutput(part.output)) continue
+    if (!outputsByCallId.has(part.toolCallId)) continue
+    hydratedParts ??= [...parts]
+    hydratedParts[index] = { ...part, output: outputsByCallId.get(part.toolCallId) }
+  }
+  return hydratedParts ? { ...data, parts: hydratedParts } : data
+}
+
+export function hydrateAgentSessionMessageRowsTx<T extends { id: string; data: AgentSessionMessageRow['data'] }>(
+  db: DbOrTx,
+  rows: T[]
+): T[] {
+  const deferredMessageIds: string[] = []
+  for (const row of rows) {
+    const parts = row.data.parts
+    if (!parts?.length) continue
+    if (
+      parts.some((part) => isToolUIPart(part) && part.state === 'output-available' && isDeferredToolOutput(part.output))
+    ) {
+      deferredMessageIds.push(row.id)
+    }
+  }
+  if (deferredMessageIds.length === 0) return rows
+
+  const outputsByKey = new Map<string, unknown>()
+  for (let index = 0; index < deferredMessageIds.length; index += SQLITE_INARRAY_CHUNK) {
+    const stored = db
+      .select({
+        messageId: toolOutputs.messageId,
+        toolCallId: toolOutputs.toolCallId,
+        output: toolOutputs.output
+      })
+      .from(toolOutputs)
+      .where(inArray(toolOutputs.messageId, deferredMessageIds.slice(index, index + SQLITE_INARRAY_CHUNK)))
+      .all()
+    for (const item of stored) {
+      outputsByKey.set(`${item.messageId}\0${item.toolCallId}`, item.output)
+    }
+  }
+  if (outputsByKey.size === 0) return rows
+
+  return rows.map((row) => {
+    const parts = row.data.parts
+    if (!parts?.length) return row
+    let hydratedParts: typeof parts | undefined
+    for (let index = 0; index < parts.length; index += 1) {
+      const part = parts[index]
+      if (!isToolUIPart(part) || part.state !== 'output-available' || !isDeferredToolOutput(part.output)) continue
+      const key = `${row.id}\0${part.toolCallId}`
+      if (!outputsByKey.has(key)) continue
+      hydratedParts ??= [...parts]
+      hydratedParts[index] = { ...part, output: outputsByKey.get(key) }
+    }
+    return hydratedParts ? { ...row, data: { ...row.data, parts: hydratedParts } } : row
+  })
+}
 
 export function ensureAgentSessionRootTx(db: DbOrTx, sessionId: string): string {
   const root = db
@@ -53,7 +143,10 @@ export function readAgentSessionPath(db: DbOrTx, sessionId: string, head?: strin
     .from(messages)
     .where(and(eq(messages.sessionId, sessionId), inArray(messages.id, agentSessionPathIds(sessionId, selected))))
     .all()
-  return orderAgentSessionPath(rows, selected).filter((row) => row.role !== 'root')
+  return hydrateAgentSessionMessageRowsTx(
+    db,
+    orderAgentSessionPath(rows, selected).filter((row) => row.role !== 'root')
+  )
 }
 
 export function readAgentSessionAncestry(db: DbOrTx, sessionId: string, head: string) {
