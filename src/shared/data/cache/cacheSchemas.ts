@@ -169,6 +169,7 @@ export type UseCacheSchema = {
 
   // Agent management
   'agent.session.waiting_id_map': Record<string, boolean>
+  'agent.session.details_hidden': string[]
   // Per-session composer draft. Renderer memory only; app restart discards it.
   'agent.composer_draft.${sessionId}': CacheValueTypes.CacheAgentComposerDraft
   // Unsubmitted AskUserQuestion answers. Renderer memory only; cleared on submit/dismiss.
@@ -258,6 +259,7 @@ export const DefaultUseCache: UseCacheSchema = {
 
   // Agent management
   'agent.session.waiting_id_map': {},
+  'agent.session.details_hidden': [],
   'agent.composer_draft.${sessionId}': {
     text: '',
     tokens: [],

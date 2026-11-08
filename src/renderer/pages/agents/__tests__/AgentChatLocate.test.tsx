@@ -193,7 +193,7 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
 
   return {
     ...MockUseCache,
-    useCache: () => [false],
+    useCache: MockUseCache.useCache,
     useSharedCache: () => [null, vi.fn()],
     useSharedCacheValue: () => undefined,
     usePersistCache: () => [undefined, vi.fn()]

@@ -1,6 +1,6 @@
 # Agent Note: Compact Agent session details card
 
-Status: proposed
+Status: implemented
 
 English | [中文](2026-11-08-agent-session-details-card.zh.md)
 
@@ -10,9 +10,9 @@ Agent session status is registered as a full-height right-panel capability. Even
 
 The requested reference is T3 Code's content-height thread details card: compact rows, quiet section dividers, an inline card when space permits, and a toolbar-anchored popup otherwise. Only Agent session details are in scope. Files, Browser, Trace, resources and task execution views retain their existing large panels.
 
-This is a new presentation decision. It preserves the data semantics in [Harness-owned context usage](../architecture/2026-10-30-agent-context-usage.md) and the work-panel identity rules in [Bind right-panel presentation to its instance](../../implemented/bug-fix/2026-10-31-right-panel-presentation-identity.md). It does not claim to complete either proposal's outstanding acceptance work.
+This is a new presentation decision. It preserves the data semantics in [Harness-owned context usage](../../proposed/architecture/2026-10-30-agent-context-usage.md) and the work-panel identity rules in [Bind right-panel presentation to its instance](../../implemented/bug-fix/2026-10-31-right-panel-presentation-identity.md). It does not claim to complete either proposal's outstanding acceptance work.
 
-## Proposal
+## Decision
 
 ### Card and placement
 
@@ -48,9 +48,9 @@ Reuse `AgentContextUsageSummary` and `ContextUsageSummary` unchanged in visual s
 
 The current artifact and task actions continue to open their existing work-panel destinations. Dismiss a popup after navigating to a destination and focus that destination; an inline card may remain only if it still fits. Stopping a task does not navigate or dismiss the card. For a task execution view's Back action, retain nested task navigation; at the root, close the task work panel and explicitly open session details instead of requesting the removed Status capability. This return action is a user open intent, so popup placement is allowed if inline placement cannot fit.
 
-### Component and state plan
+### Component and state ownership
 
-Keep this implementation within the Agent page and its existing `AgentRightPane` integration boundary. The following responsibilities may be split into local files as needed; this is not a new generic panel framework.
+The implementation stays within the Agent page and its existing `AgentRightPane` integration boundary, with the following local owners.
 
 - `AgentSessionDetails.tsx`: the toolbar toggle, shared inline/popup content host and session details composition. One live content tree exists at a time. The card consumes session meta, status and existing actions supplied by the Agent owner; no new main-process API is required.
 - `AgentSessionDetailsSections.tsx`: workspace, plan, Subagent, workflow, shell and artifact section composition. Reuse or move existing row/action components instead of duplicating stop requests, file opening or task navigation. Keep resource-usage detail rendering in its current shared components.
@@ -61,22 +61,6 @@ Keep this implementation within the Agent page and its existing `AgentRightPane`
 
 Subagent row navigation requires the existing flow capability and a real `toolUseId`; otherwise render a non-clickable row. A stop button is separate from row navigation and is offered only where the existing runtime action is available. Disable duplicate stop submissions while pending, retain the row's authoritative state until the runtime confirms the outcome, and restore the control with existing error feedback on failure. A late completion or stop response remains bound to its originating session/task.
 
-### Implementation sequence
-
-1. Establish the details fit/inset function and separate inline/popup intents. Verify threshold boundaries, manual hide, shrink/restore, maximize/restore and session isolation with focused contract tests.
-2. Integrate the content-height inline host and popup with `AgentChat`, sharing message/composer layout space and preserving DOM identity. Verify actual Electron geometry for both reference arrangements: chat with inline details, and a work panel with popup details over the reduced chat area.
-3. Assemble workspace, plan, distinct Subagents, workflows, shell tasks and artifacts from current data/actions; embed the unchanged context-usage component. Verify empty/busy/failed/finished groups, unclassified tasks, inaccessible destinations and stop success/failure without altering runtime state semantics.
-4. Migrate toolbar and root flow Back callers, then delete the obsolete Status capability and hover content. Update locale source keys, synchronize and translate all locales. Verify file editing, browser state, task navigation and existing composer consumers.
-5. Run the affected documentation inspection, focused validation and real Electron acceptance matrix. Update the note with evidence and move its bilingual triplet to implemented only when all ACs pass.
-
-Planned existing regression files are `AgentRightPane.test.tsx`, `agentRightPaneProjection.test.ts`, `AgentChatArtifactPane.test.tsx`, `AgentChatLocate.test.tsx`, `AgentContextUsageSummary.test.tsx`, and the affected Agent composer tests. Add focused details layout/state tests; include `ChatAppShell.test.tsx` and `ConversationShell.test.tsx` only if shared-shell code changes. Use explicit test file filters, not whole-project suites. Inspect `pnpm check --plan` and `pnpm docs:affected --base <verified-parent-ref>`; run scoped lint/format and the affected typecheck. Electron covers light/dark themes, narrow/full-width chat, zoom, resize across the threshold, long paths, many subagents/resources, popup nested menus, keyboard focus and session switching. Planned checks are not acceptance evidence.
-
-### Implementation boundary and delivery
-
-The Agent page owns the card's session-scoped state and data subscriptions. Extract the detail presentation from `AgentRightPane.tsx` only as needed for this boundary; remove the Status capability, its old hover body and the obsolete navigation path together. Keep the shared right-panel registry and presentation provider responsible for the remaining work panels. Reuse the current usage hook, task projections and actions instead of constructing a second data cache or runtime owner. The composer and child-task usage summaries must retain their existing presentations.
-
-After exact-head Spec approval, implement one focused layer covering the card, integration, localization and regression checks. Use renderer tests for open/close, identity, navigation and action contracts. Use real Electron for geometry, focus and scrolling; component tests or screenshots of a mockup do not establish visual acceptance. Keep this note proposed until every acceptance criterion has actual evidence.
-
 ## Alternatives considered
 
 - Only reduce the inspector width or remove its border: leaves full-height allocation and two competing presentations.
@@ -85,21 +69,23 @@ After exact-head Spec approval, implement one focused layer covering the card, i
 - Redesign all right-side capabilities or copy T3's canvas/density system: exceeds the confirmed scope and risks file editing, browser state and execution navigation.
 - Fill the card with new environment or quota features: adds unrelated capabilities without existing data contracts.
 
-## Acceptance criteria
-
-- AC1 — Status opens only the new details surface; the former full-height Status pane and separate hover preview are gone, while all other work-panel destinations remain available. (verification: renderer — AgentRightPane and AgentChat integration tests)
-- AC2 — Inline details reserve horizontal layout space and stay content-height with blank canvas below; messages and composer reflow together without overlap. When the remaining chat area is too narrow, an explicitly opened popup overlays it without changing its geometry. Both work with narrow/full-width preferences and no horizontal overflow. (verification: Electron — light/dark, chat width and work-panel open/close/resize matrix)
-- AC3 — Inline display defaults on and popup display defaults off; shrinking suspends inline visibility without losing its intent or opening a popup, widening restores the remembered inline choice and clears popup state, and popup dismissal never changes inline intent. Toggle, outside click and Escape preserve the specified focus behavior without duplicate live content. (verification: renderer and Electron — separate visibility intents and keyboard/resize transitions)
-- AC4 — Each session restores only its own inline choice; new sessions use the default, popup/disclosure state is cleared on navigation, and pending/unavailable or maximized states never expose stale content or reopen popups automatically. (verification: renderer — session/readiness/maximize transitions; Electron — real session switching)
-- AC5 — Workspace actions and the ordered main-task plan use existing data; Subagents are a separate status-counted group with active/failing tasks first and finished tasks initially collapsed. Other task/artifact groups retain entries, metadata, failures and stop controls; empty groups disappear, unknown task types remain visible, and long content stays navigable. (verification: renderer — workspace/plan/task/artifact contracts and stop failures; Electron — busy groups, long labels and overflow)
-- AC6 — Existing context-usage visual structure and disclosure remain intact; usage preserves valid zero, unknown, compaction, partial/estimated readings, totals, categories and resources, with the same denominator as the composer and no new model work or polling. (verification: renderer — usage-state matrix and affected composer consumers)
-- AC7 — Artifact/task navigation opens the existing destinations, nested Back remains intact, root Back opens details, and file edits/browser identity and auto-open behavior are preserved. (verification: renderer — AgentChatArtifactPane and affected panel consumers; Electron — destination/Back and active file/browser scenarios)
-- AC8 — All changed strings are translated, semantic UI tokens and accessible names work in both themes, and the bilingual proposal passes documentation gates; implementation evidence is recorded before lifecycle transition. (verification: docs gate and Electron — translation/pairing checks and themed keyboard walkthrough)
-
-## Risks
+## Consequences
 
 Available space depends on sidebar state, message width, navigation gutters, work panels, window size and zoom. Derive fit from the remaining conversation area and minimum readable lane width, not the blank space after applying the card's own inset; otherwise measuring and reserving space can oscillate. Keep message/composer bounds aligned and preserve the existing scroll anchor as layout changes.
 
 Task lists and context resources can be large. Progressive disclosure and bounded scrolling must not hide pending actions or remove error information. Popover dismissal must respect nested menus and dialogs owned by task actions. Session-owned presentation must not reset workspace-owned file state or browser runtime resources.
 
-The reference's small footprint depends on available content, not decorative empty space. Actual Cherry fixtures must demonstrate the compact empty state as well as busy sessions; this Spec contains no claim that UI implementation or Electron acceptance has already passed.
+## Verification
+
+Focused renderer validation ran nine explicit test files with 366 passing tests: `AgentSessionDetails.test.tsx`, `AgentSessionDetailsSections.test.tsx`, `AgentRightPane.test.tsx`, `agentRightPaneProjection.test.ts`, `AgentChatArtifactPane.test.tsx`, `AgentChatLocate.test.tsx`, `AgentComposerSlot.test.tsx`, `AgentComposer.test.tsx` and `AgentContextUsageSummary.test.tsx`. Native acceptance used an isolated macOS Electron profile.
+
+- AC1 — `AgentRightPane.test.tsx` and `AgentChatArtifactPane.test.tsx`: the obsolete Status surface is removed and existing work-panel entry points remain available.
+- AC2 — Electron measurements: at 1450 × 900 the 1118px conversation region reserves 324px for details, leaving a 794px lane beside the 280px card; narrow popup placement leaves the 768px lane unchanged. Light/full-width and 125% zoom checks passed without horizontal overflow.
+- AC3 — `AgentSessionDetails.test.tsx` and Electron: hide/shrink/open-popup/widen restores the inline choice; outside click, nested-menu Escape, toggle focus and one live content instance were checked.
+- AC4 — `AgentSessionDetails.test.tsx` and Electron session switching: inline choices remain session-scoped; readiness, identity and maximization clear transient popup state.
+- AC5 — `AgentSessionDetailsSections.test.tsx`, existing task projection tests and Electron fixtures: grouped statuses, finished disclosure, unknown tasks, workspace/plan/artifacts and stop failure/settlement are covered. Forty additional long-label tasks scroll internally to context usage (3971px content inside a 579px viewport).
+- AC6 — `AgentContextUsageSummary.test.tsx` and affected composer tests: existing usage states and denominator semantics pass unchanged. Electron confirms expanded totals, categories and resources remain accessible.
+- AC7 — `AgentRightPane.test.tsx`, `AgentChatArtifactPane.test.tsx`, `AgentChatLocate.test.tsx` and Electron: existing destinations, nested/root Back, file state and browser/details coexistence are preserved.
+- AC8 — `pnpm i18n:check`, `pnpm docs:check`, `pnpm typecheck:web`, `pnpm typecheck:node`, scoped Oxfmt/Oxlint/ESLint and UI theme checks passed. Electron covered both themes and keyboard interaction; ESLint retained four pre-existing warnings.
+
+Task and plan screenshots use DataApi fixtures; conversation/context acceptance uses a local mock provider through the normal Pi runtime. These verify renderer behavior, not external-model task execution. Paid-provider subagent creation/stopping, Windows/Linux native acceptance and release packaging were not rerun. CI is separate from these local checks.

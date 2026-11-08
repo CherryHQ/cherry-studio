@@ -1,6 +1,6 @@
 # Agent Note: 紧凑的智能体会话详情卡片
 
-Status: proposed
+Status: implemented
 
 [English](2026-11-08-agent-session-details-card.md) | 中文
 
@@ -10,9 +10,9 @@ Status: proposed
 
 用户指定的参考是 T3 Code 按内容高度布局的线程详情卡片：紧凑行、弱化的分组分隔线、空间充足时内嵌显示，否则使用工具栏锚定浮层。本次仅改智能体会话详情。文件、浏览器、Trace、资源和任务执行视图保留现有大面板。
 
-这是一项新的展示决策。它保留[Harness 拥有的上下文用量](../architecture/2026-10-30-agent-context-usage.md)的数据语义，以及[将右侧面板展示状态绑定到实例](../../implemented/bug-fix/2026-10-31-right-panel-presentation-identity.md)的工作面板身份规则，不宣称完成相关提案尚未通过的验收工作。
+这是一项新的展示决策。它保留[Harness 拥有的上下文用量](../../proposed/architecture/2026-10-30-agent-context-usage.md)的数据语义，以及[将右侧面板展示状态绑定到实例](../../implemented/bug-fix/2026-10-31-right-panel-presentation-identity.md)的工作面板身份规则，不宣称完成相关提案尚未通过的验收工作。
 
-## 提案
+## 决策
 
 ### 卡片与布局
 
@@ -48,7 +48,7 @@ Status: proposed
 
 现有产物和任务操作继续打开原有工作面板目标。导航到目标后关闭浮层，并将焦点交给目标；内嵌卡片仅在仍能容纳时保留。停止任务不会导航或关闭卡片。任务执行视图的“返回”保留嵌套任务导航；到达根层时关闭任务工作面板并明确打开会话详情，不再请求已移除的状态能力。该返回操作属于用户打开意图，因此内嵌空间不足时允许打开浮层。
 
-### 组件与状态方案
+### 组件与状态归属
 
 实现限制在智能体页面及其现有 `AgentRightPane` 集成边界内。以下职责按需要拆成本地文件，不引入通用面板框架。
 
@@ -61,22 +61,6 @@ Status: proposed
 
 Subagent 行只有在现有执行详情能力可用且具有真实 `toolUseId` 时才能导航，否则显示不可点击的行。停止按钮独立于行导航，仅在现有运行时操作可用时提供。请求等待中禁用重复提交，运行时确认结果前保留该行的权威状态；失败时恢复控件并使用现有错误反馈。延迟的完成或停止响应始终绑定其发起时的会话/任务。
 
-### 实施顺序
-
-1. 建立详情布局适配/让位函数及独立的内嵌/浮层意图。用聚焦契约测试验证阈值边界、手动隐藏、缩窄/恢复、最大化/恢复及会话隔离。
-2. 将内容高度的内嵌宿主和浮层接入 `AgentChat`，统一消息/输入框布局空间并保留 DOM 身份。通过真实 Electron 验证参考图的两种排列：聊天与内嵌详情，以及工作面板打开后在缩小聊天区上方显示浮层详情。
-3. 用现有数据/操作组合工作目录、计划、独立 Subagent、工作流、Shell 和产物，并嵌入未改变的上下文用量组件。验证空/繁忙/失败/已结束分组、未分类任务、不可用目标及停止成功/失败，不改变运行时状态语义。
-4. 迁移工具栏和根层执行视图返回的调用方，再删除旧状态能力与悬停内容。更新语言源键，同步并翻译全部语言。验证文件编辑、浏览器状态、任务导航及现有输入框消费者。
-5. 执行受影响文档审查、聚焦验证及真实 Electron 验收矩阵。以证据更新本记录，仅在全部 AC 通过后将中英三件套移到 implemented。
-
-计划覆盖的现有回归文件包括 `AgentRightPane.test.tsx`、`agentRightPaneProjection.test.ts`、`AgentChatArtifactPane.test.tsx`、`AgentChatLocate.test.tsx`、`AgentContextUsageSummary.test.tsx` 及受影响的智能体输入框测试。新增聚焦的详情布局/状态测试；仅在修改共享外壳代码时包含 `ChatAppShell.test.tsx` 和 `ConversationShell.test.tsx`。使用明确测试文件过滤，不运行整个项目套件。检查 `pnpm check --plan` 和 `pnpm docs:affected --base <verified-parent-ref>`，运行限定范围的 lint/格式检查及受影响的类型检查。Electron 覆盖明暗主题、窄版/全宽聊天、缩放、跨阈值调宽、长路径、大量子智能体/资源、浮层嵌套菜单、键盘焦点及会话切换。计划检查不是已通过的验收证据。
-
-### 实现边界与交付
-
-智能体页面负责卡片的会话级状态和数据订阅。仅按此边界需要从 `AgentRightPane.tsx` 提取详情展示，同时移除状态能力、旧悬停内容和失效导航路径。共享右侧面板注册表与展示 Provider 继续负责其余工作面板。复用现有用量 Hook、任务投影和操作，不构建第二套数据缓存或运行时归属。输入框和子任务的用量摘要保留现有展示。
-
-当前 Spec 提交获得明确批准后，用一个聚焦的实现层交付卡片、集成、本地化和回归检查。渲染层测试验证开关、身份、导航和操作契约。真实 Electron 验证几何布局、焦点和滚动；组件测试或模型图截图不能证明视觉验收通过。每项验收标准都有实际证据前，本记录保持 proposed。
-
 ## 考虑过的替代方案
 
 - 只缩小检查面板宽度或去掉边框：仍然分配全高区域，并保留两套竞争的展示方式。
@@ -85,21 +69,23 @@ Subagent 行只有在现有执行详情能力可用且具有真实 `toolUseId` �
 - 重构所有右侧能力或复制 T3 的画布/密度系统：超出已确认范围，并给文件编辑、浏览器状态和执行导航引入风险。
 - 用新的环境或配额功能填满卡片：引入没有现有数据契约的无关能力。
 
-## 验收标准
-
-- AC1 — 状态入口只打开新的详情表面；原全高状态面板及独立悬停预览已移除，其他工作面板目标仍可访问。 (verification: renderer — AgentRightPane 与 AgentChat 集成测试)
-- AC2 — 内嵌详情预留横向布局空间，保持内容高度且下方为空白画布；消息与输入框一起调整布局，无重叠。剩余聊天区过窄时，明确打开的浮层覆盖聊天且不改变其几何布局。两种模式均适配窄版/全宽偏好，无横向溢出。 (verification: Electron — 明暗主题、聊天宽度及工作面板开关/尺寸切换矩阵)
-- AC3 — 内嵌默认显示，浮层默认关闭；缩窄时暂停内嵌展示但不丢失意图、不打开浮层，变宽时恢复记住的内嵌选择并清除浮层状态，关闭浮层不改变内嵌意图。开关、点击外部和 Escape 保持规定的焦点行为，不重复挂载实时内容。 (verification: renderer and Electron — 独立显隐意图及键盘/尺寸转换)
-- AC4 — 每个会话仅恢复自己的内嵌选择；新会话采用默认值，导航时清除浮层/展开状态，等待/不可用或最大化状态不会暴露陈旧内容或自动重开浮层。 (verification: renderer — 会话/就绪/最大化状态转换；Electron — 真实会话切换)
-- AC5 — 工作目录操作和有序主任务计划使用现有数据；Subagent 是独立的状态计数分组，运行/失败任务优先，已结束任务初始收起。其他任务/产物分组保留条目、元数据、失败信息和停止操作；空分组消失，未知任务类型仍可见，长内容仍可访问。 (verification: renderer — 工作目录/计划/任务/产物契约及停止失败；Electron — 繁忙分组、长标签与溢出)
-- AC6 — 现有上下文用量视觉结构和展开交互保持不变；用量保留有效零值、未知、压缩中、部分/估算读数、总量、分类和资源，与输入框使用同一分母，不新增模型工作或轮询。 (verification: renderer — 用量状态矩阵及受影响的输入框消费者)
-- AC7 — 产物/任务导航打开原有目标，嵌套返回保持可用，根层返回打开详情，文件编辑、浏览器身份及自动打开行为保持原有契约。 (verification: renderer — AgentChatArtifactPane 及受影响的面板消费者；Electron — 目标/返回与活动文件/浏览器场景)
-- AC8 — 所有变更文案已翻译，语义 UI Token 和无障碍名称在两种主题下可用，中英提案通过文档检查；生命周期转换前记录实现证据。 (verification: docs gate and Electron — 翻译/配对检查与主题下的键盘操作验证)
-
-## 风险
+## 后果
 
 可用空间取决于侧栏状态、消息宽度、导航轨道、工作面板、窗口尺寸和缩放。是否放得下应根据剩余会话区域与最小可读聊天列宽度计算，不能依据卡片自身已让位后的空白，否则测量与预留空间可能反复振荡。保持消息/输入框边界对齐，并在布局变化时保留原有滚动锚点。
 
 任务列表和上下文资源可能很多。渐进展开和限高滚动不能隐藏待处理操作或丢失错误信息。浮层关闭必须正确处理任务操作打开的嵌套菜单与对话框。会话级展示不能重置工作区级文件状态或浏览器运行时资源。
 
-参考中的小占地来自实际内容，而不是装饰性空白。真实 Cherry 验证场景既要展示紧凑空状态，也要覆盖繁忙会话；本 Spec 不宣称 UI 实现或 Electron 验收已经通过。
+## 验证
+
+聚焦渲染层验证运行了九个明确指定的测试文件，共 366 项通过：`AgentSessionDetails.test.tsx`、`AgentSessionDetailsSections.test.tsx`、`AgentRightPane.test.tsx`、`agentRightPaneProjection.test.ts`、`AgentChatArtifactPane.test.tsx`、`AgentChatLocate.test.tsx`、`AgentComposerSlot.test.tsx`、`AgentComposer.test.tsx` 和 `AgentContextUsageSummary.test.tsx`。原生验收使用独立的 macOS Electron 资料目录。
+
+- AC1 — `AgentRightPane.test.tsx` 和 `AgentChatArtifactPane.test.tsx`：旧状态表面已移除，现有工作面板入口仍可访问。
+- AC2 — Electron 实测：1450 × 900 窗口中，1118px 会话区域为详情预留 324px，280px 卡片旁保留 794px 聊天列；窄窗口浮层不改变 768px 聊天列。浅色/全宽及 125% 缩放检查通过，无横向溢出。
+- AC3 — `AgentSessionDetails.test.tsx` 和 Electron：隐藏、缩窄、打开浮层、变宽后恢复内嵌选择；验证了点击外部、嵌套菜单 Escape、开关焦点及单个实时内容实例。
+- AC4 — `AgentSessionDetails.test.tsx` 和 Electron 会话切换：内嵌选择按会话隔离；就绪、身份及最大化变化清除临时浮层状态。
+- AC5 — `AgentSessionDetailsSections.test.tsx`、现有任务投影测试和 Electron fixture：覆盖状态分组、已结束展开、未知任务、工作目录/计划/产物及停止失败/确认。额外四十条长标题任务可内部滚动至上下文用量（579px 视口内有 3971px 内容）。
+- AC6 — `AgentContextUsageSummary.test.tsx` 和受影响的输入框测试：现有用量状态及分母语义保持不变并通过测试。Electron 确认展开后的总量、分类和资源仍可访问。
+- AC7 — `AgentRightPane.test.tsx`、`AgentChatArtifactPane.test.tsx`、`AgentChatLocate.test.tsx` 和 Electron：保留现有目标、嵌套/根层返回、文件状态及浏览器与详情共存行为。
+- AC8 — `pnpm i18n:check`、`pnpm docs:check`、`pnpm typecheck:web`、`pnpm typecheck:node`、限定范围 Oxfmt/Oxlint/ESLint 和 UI 主题检查通过。Electron 覆盖明暗主题及键盘操作；ESLint 保留四条已有告警。
+
+任务与计划截图使用 DataApi fixture；对话与上下文验收使用本地 mock provider 经过正常 Pi 运行时。它们验证渲染行为，不代表外部模型执行任务。未重跑付费 provider 的子智能体创建/停止、Windows/Linux 原生验收及发布打包。CI 与这些本地检查分别记录。
