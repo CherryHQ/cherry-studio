@@ -166,6 +166,9 @@ export class CherryCloudService extends BaseService {
   } | null = null
   private sessionGeneration = 0
   private knownActiveEntitlements: { sessionGeneration: number; ids: string } | null = null
+  // The gateway may refuse a request its quota cannot cover while windows still show units left; until a
+  // window grows, a pool it refused stays exhausted. Pools are keyed by their model IDs.
+  private quotaRefusals: { generation: number; models: Set<string>; floors: Map<string, number[]> } | null = null
   private loopbackCallback: CherryCloudLoopbackCallback | null = null
   private pendingExpiryTimer: ReturnType<typeof setTimeout> | null = null
   private sessionExpiryTimer: ReturnType<typeof setTimeout> | null = null
@@ -687,12 +690,23 @@ export class CherryCloudService extends BaseService {
     )
     const models = catalog.data.filter((model) => entitledModelIds.has(model.id))
     const quotaAvailableByModelId = new Map<string, boolean>()
+    const refusals = this.quotaRefusals?.generation === sessionGeneration ? this.quotaRefusals : null
     for (const pool of account.quota_pools) {
-      const poolAvailable = pool.windows.every((window) => window.remaining_units > 0)
+      const remaining = pool.windows.map((window) => window.remaining_units)
+      const poolKey = [...pool.model_ids].sort().join('\n')
+      if (refusals && pool.model_ids.some((modelId) => refusals.models.has(modelId))) {
+        refusals.floors.set(poolKey, remaining)
+      }
+      const floor = refusals?.floors.get(poolKey)
+      const refused =
+        floor !== undefined && floor.length === remaining.length && remaining.every((units, i) => units <= floor[i])
+      if (floor && !refused) refusals?.floors.delete(poolKey)
+      const poolAvailable = !refused && remaining.every((units) => units > 0)
       for (const modelId of pool.model_ids) {
         quotaAvailableByModelId.set(modelId, (quotaAvailableByModelId.get(modelId) ?? false) || poolAvailable)
       }
     }
+    refusals?.models.clear()
     const quotaExhaustedModelIds = [
       ...new Set(
         models
@@ -728,6 +742,20 @@ export class CherryCloudService extends BaseService {
       },
       quotaExhaustedModelIds
     }
+  }
+
+  private recordQuotaRefusal(generation: number, body: string | undefined): void {
+    let modelId: unknown
+    try {
+      modelId = body ? (JSON.parse(body) as { model?: unknown }).model : undefined
+    } catch {
+      return
+    }
+    if (typeof modelId !== 'string') return
+    if (this.quotaRefusals?.generation !== generation) {
+      this.quotaRefusals = { generation, models: new Set(), floors: new Map() }
+    }
+    this.quotaRefusals.models.add(modelId)
   }
 
   private reconcileEntitledModels(
@@ -879,6 +907,7 @@ export class CherryCloudService extends BaseService {
     ) {
       this.modelSyncCache = null
     }
+    if (response.status === 429 && code === 'QUOTA_EXHAUSTED') this.recordQuotaRefusal(generation, init?.body)
     const refreshRequired = response.status === 401 && code === 'AUTH_REQUIRED'
     const replayed = response.status === 409 && code === 'REQUEST_REPLAYED'
     if (!refreshRequired && !replayed) return response
