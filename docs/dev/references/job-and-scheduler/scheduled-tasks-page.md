@@ -17,7 +17,7 @@ English | [中文](scheduled-tasks-page.zh.md)
 
 ## Use the page
 
-Open Scheduled tasks from the global sidebar. Select a task in Active or Paused to read and continue its associated conversation. Each group has its own pagination, total, loading state, and retry action. Settings no longer has a Scheduled tasks entry. Old settings links redirect here and preserve the selected task.
+Open Scheduled tasks from the global sidebar. Select a task in Active or Paused to read and continue its associated conversation. Each group has its own pagination, total, loading state, and retry action. Settings no longer has a Scheduled tasks entry. Old settings links redirect here and preserve the selected task and notification. An error summary is shown only when the notification matches the selected task.
 
 Add scheduled task opens the shared creation form in the current window. Successful creation selects the returned task without an extra run command. A task with no execution shows a waiting state. Pausing affects future scheduling; it does not cancel an execution already in progress.
 

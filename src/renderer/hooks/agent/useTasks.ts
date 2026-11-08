@@ -36,22 +36,6 @@ const taskCommandErrorMessage = (error: unknown, t: TFunction, fallbackPrefix: s
   return formatErrorMessageWithPrefix(error, fallbackPrefix)
 }
 
-export const useTasks = (agentId: string | null) => {
-  const { data, error, isLoading, refetch } = useQuery('/agents/:agentId/tasks', {
-    params: { agentId: agentId! },
-    query: { limit: 200 },
-    enabled: !!agentId,
-    swrOptions: { keepPreviousData: false }
-  })
-  useDataChange('/agents/:agentId/tasks', () => refetch())
-  return {
-    tasks: data?.items ?? [],
-    total: data?.total ?? 0,
-    error,
-    isLoading
-  }
-}
-
 /** All scheduled tasks across every agent, optionally filtered by status. */
 export const useAllTasks = (status?: ScheduledTaskEntity['status']) => {
   const { items, total, page, error, isLoading, hasNext, hasPrev, nextPage, prevPage, refresh, goToPage } =
