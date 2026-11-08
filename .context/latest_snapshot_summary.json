@@ -1,13 +1,15 @@
 {
-  "generated_at": "2026-11-07T17:46:06.950973+00:00",
+  "generated_at": "2026-11-08T18:00:00Z",
   "open_issues": {
-    "count": 1204,
-    "total_in_repo": null
+    "count": 1673,
+    "total_in_repo": 1673,
+    "delta_from_prev_day": "+469"
   },
   "open_prs": {
-    "count": 875,
+    "count": 200,
     "by_base": {
-      "": 875
+      "main": "~91%",
+      "feature_branches": "~9%"
     }
   },
   "closed_issues_30d": 534,
@@ -96,6 +98,13 @@
   ],
   "unlabeled_pct": 1.9,
   "p1_issues": [
+    {
+      "number": 23890,
+      "title": "build: Windows typecheck fails on main (PlanModeHint casing collision + wrong e2e import path)",
+      "labels": ["bug","p1","macos","windows","agent","regression"],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/23890",
+      "note": "NEW today 2026-11-08"
+    },
     {
       "number": 23826,
       "title": "[QA] API gateway enabled on 0.0.0.0 hangs the main process: no window after restart",
