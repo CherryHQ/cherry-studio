@@ -124,13 +124,19 @@ Custom rows store their complete config. This lets catalog changes reach
 existing rows without a data migration. Explicit empty strings and arrays
 remain valid overrides.
 
-The `inputModalitiesExplicit` flag records whether input modalities were
-explicitly supplied; a non-empty stored list is also treated as explicit. The
-runtime model exposes this effective provenance so the model editor does not
-present registry-inherited modalities as saved selections. Custom rows with a legacy
-recognition capability and no stored modality list retain that saved choice as explicit.
-Changing an unrelated classification control does not write input modalities or clear
-untouched recognition capabilities; only an intentional modality/purpose edit does so.
+The model editor displays effective input support: a recognition capability or
+its corresponding input modality enables Vision, Audio or Video, matching the
+runtime predicates. Unrelated Reasoning or chat-protocol edits do not submit
+input modalities or clear untouched recognition capabilities. Intentional
+modality or purpose edits do submit the updated input support, including
+repeated ON/save/OFF changes in the same drawer.
+
+The existing storage-only `inputModalitiesExplicit` column and non-empty stored
+lists protect saved custom input support during registry enrichment. Custom
+rows with a legacy recognition capability and no stored modality list also
+retain that choice instead of acquiring registry input modalities. This PR
+adds that legacy-recognition enrichment guard; it does not expose a runtime
+provenance field or redesign database/catalog ownership.
 
 ### User Override Protection
 

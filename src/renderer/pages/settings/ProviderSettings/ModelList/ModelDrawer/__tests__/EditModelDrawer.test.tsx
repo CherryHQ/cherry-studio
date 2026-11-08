@@ -215,8 +215,7 @@ describe('EditModelDrawer', () => {
     const model = {
       ...makePricingModel(),
       capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION],
-      inputModalities: [MODALITY.TEXT, MODALITY.IMAGE],
-      inputModalitiesExplicit: false
+      inputModalities: [MODALITY.TEXT, MODALITY.IMAGE]
     } as Model
     render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={model} />)
 
@@ -244,8 +243,7 @@ describe('EditModelDrawer', () => {
         const model = {
           ...makePricingModel(),
           capabilities: [capability],
-          inputModalities: inputs,
-          inputModalitiesExplicit: true
+          inputModalities: inputs
         } as Model
         render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={model} />)
         const control = screen.getByRole('button', { name: `models.type.${label}` })
@@ -300,8 +298,7 @@ describe('EditModelDrawer', () => {
           id: `${providerId}::claude-4-sonnet`,
           providerId,
           capabilities: [capability],
-          inputModalities: inputs,
-          inputModalitiesExplicit: false
+          inputModalities: inputs
         } as Model
         render(<EditModelDrawer providerId={providerId} open onClose={vi.fn()} model={model} />)
         const control = screen.getByRole('button', { name: `models.type.${label}` })
@@ -366,7 +363,7 @@ describe('EditModelDrawer', () => {
       providerId: 'custom-provider',
       capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION],
       inputModalities: [MODALITY.TEXT, MODALITY.IMAGE],
-      inputModalitiesExplicit: false,
+
       endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
     } as Model
     render(<EditModelDrawer providerId="custom-provider" open onClose={vi.fn()} model={model} />)
@@ -381,8 +378,7 @@ describe('EditModelDrawer', () => {
     const model = {
       ...makePricingModel(),
       capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION],
-      inputModalities: [MODALITY.TEXT, MODALITY.IMAGE],
-      inputModalitiesExplicit: false
+      inputModalities: [MODALITY.TEXT, MODALITY.IMAGE]
     } as Model
     render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={model} />)
     expect(screen.getByRole('button', { name: 'models.type.vision' })).toHaveAttribute('aria-pressed', 'true')
@@ -400,8 +396,7 @@ describe('EditModelDrawer', () => {
     const model = {
       ...makePricingModel(),
       capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION],
-      inputModalities: undefined,
-      inputModalitiesExplicit: true
+      inputModalities: undefined
     } as Model
     render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={model} />)
     expect(screen.getByRole('button', { name: 'models.type.vision' })).toHaveAttribute('aria-pressed', 'true')

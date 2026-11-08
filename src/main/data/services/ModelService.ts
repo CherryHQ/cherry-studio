@@ -471,7 +471,6 @@ function customRowToRuntimeModel(row: UserModelRow): Model {
     group: row.group ?? undefined,
     capabilities: row.capabilities,
     inputModalities: row.inputModalities ?? undefined,
-    inputModalitiesExplicit: hasExplicitInputModalities(row),
     outputModalities: row.outputModalities ?? undefined,
     contextWindow: row.contextWindow ?? undefined,
     maxInputTokens: row.maxInputTokens ?? undefined,
@@ -500,8 +499,7 @@ function applyStoredModelState(model: Model, row: UserModelRow): Model {
     isEnabled: row.isEnabled,
     isHidden: row.isHidden,
     isDeprecated: row.isDeprecated,
-    notes: row.notes ?? undefined,
-    inputModalitiesExplicit: hasExplicitInputModalities(row)
+    notes: row.notes ?? undefined
   }
 }
 

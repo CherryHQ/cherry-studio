@@ -73,21 +73,18 @@ describe('model drawer classification helpers', () => {
     [MODALITY.AUDIO, MODEL_CAPABILITY.AUDIO_RECOGNITION, isAudioModel],
     [MODALITY.VIDEO, MODEL_CAPABILITY.VIDEO_RECOGNITION, isVideoModel]
   ] as const)('%s editor/runtime parity', (modality, capability, isEnabled) => {
-    for (const explicit of [undefined, false, true]) {
-      for (const inputModalities of [undefined, [], [MODALITY.TEXT], [MODALITY.TEXT, modality]]) {
-        it.each([false, true])(
-          `matches runtime with explicit=${explicit}, inputs=${JSON.stringify(inputModalities)}, recognition=%s`,
-          (recognition) => {
-            const model = makeModel({
-              capabilities: recognition ? [capability] : [],
-              inputModalities,
-              inputModalitiesExplicit: explicit
-            })
-            const classification = getInitialModelClassification(model)
-            expect(classification.inputModalities.has(modality)).toBe(isEnabled(model))
-          }
-        )
-      }
+    for (const inputModalities of [undefined, [], [MODALITY.TEXT], [MODALITY.TEXT, modality]]) {
+      it.each([false, true])(
+        `matches runtime with inputs=${JSON.stringify(inputModalities)}, recognition=%s`,
+        (recognition) => {
+          const model = makeModel({
+            capabilities: recognition ? [capability] : [],
+            inputModalities
+          })
+          const classification = getInitialModelClassification(model)
+          expect(classification.inputModalities.has(modality)).toBe(isEnabled(model))
+        }
+      )
     }
   })
 
