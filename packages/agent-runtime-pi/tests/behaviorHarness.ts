@@ -18,14 +18,8 @@ import { onTestFinished } from 'vitest'
 
 import type { ContractHarness, HarnessPorts, ScriptedReply, UsageFact } from '@cherrystudio/agent-behavior'
 
-import {
-  type AgentRuntimeSession,
-  type AgentRuntimeSessionOptions,
-  type BehaviorSessionRequest,
-  createAgentRuntimeSession,
-  createPiBehavior,
-  type PiBehavior
-} from '../src'
+import { type BehaviorSessionRequest, createPiBehavior, type PiBehavior } from '../src/behavior/harness'
+import { type AgentRuntimeSession, type AgentRuntimeSessionOptions, createAgentRuntimeSession } from '../src/session'
 
 type Script = {
   readonly replies: ScriptedReply[]
