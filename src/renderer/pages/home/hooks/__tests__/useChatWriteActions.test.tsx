@@ -703,7 +703,7 @@ describe('useChatWriteActions — regenerate', () => {
     }
   )
 
-  it.each([true, false])('uses the current model when regenerating an explicitly selected reply: %s', async (hasSibling) => {
+  it.each([true, false])('uses the current model for explicit replies: %s', async (hasSibling) => {
     const replyA = uiMsg('a1', 'assistant', 'u1', false, 'success')
     replyA.metadata.modelId = 'provider::model-a'
     replyA.metadata.modelSelection = 'explicit'
