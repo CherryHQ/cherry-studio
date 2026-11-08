@@ -497,6 +497,23 @@ describe('useChatWriteActions — regenerate', () => {
     })
   })
 
+  it('uses the selected composer model when regenerating from a user message', async () => {
+    const { result, rerender, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot')])
+    rerender({ composerModelId: 'provider::model-b' })
+
+    await result.current.actions.regenerate('u1')
+
+    expect(regenerate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messageId: 'u1',
+        body: expect.objectContaining({
+          parentAnchorId: 'u1',
+          mentionedModels: ['provider::model-b']
+        })
+      })
+    )
+  })
+
   it('retries a failed assistant in place through Main and seeds the fresh attempt identity', async () => {
     const failedAssistant = uiMsg('a1', 'assistant', 'u1', false, 'error')
     failedAssistant.metadata.modelId = 'provider::model-a'
