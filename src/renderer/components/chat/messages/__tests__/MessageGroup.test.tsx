@@ -1260,6 +1260,51 @@ describe('MessageGroup', () => {
     expect(startEditing.mock.calls[0][2].lockedMentionedModels).toHaveLength(2)
   })
 
+  // Catches a single direct assistant model being dropped from the editing snapshot.
+  it('passes a single direct assistant model into the editing snapshot', async () => {
+    const startEditing = vi.fn()
+    let runtime: { startEditing: () => void } | undefined
+    mocks.messageListActions.mockReturnValue({
+      setActiveBranch: vi.fn(),
+      deleteMessageGroup: vi.fn(),
+      editMessage: vi.fn(),
+      startEditing,
+      regenerateMessage: vi.fn(),
+      updateMessageUiState: vi.fn(),
+      bindMessageRuntime: vi.fn((_id, nextRuntime) => {
+        runtime = nextRuntime as { startEditing: () => void }
+        return vi.fn()
+      })
+    })
+    const userMessage = {
+      ...createMessage('user-1', 0, 'vertical'),
+      parentId: 'root',
+      role: 'user'
+    } as MessageListItem & { index: number; multiModelMessageStyle: MultiModelMessageStyle }
+    const directModel = {
+      id: 'provider-a::model-a',
+      name: 'Model A',
+      providerId: 'provider-a',
+      apiModelId: 'model-a',
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    } satisfies Model
+
+    render(
+      <MessageGroup directAssistantModelsByUserId={new Map([['user-1', [directModel]]])} messages={[userMessage]} />
+    )
+    await waitFor(() => expect(runtime).toBeDefined())
+    act(() => runtime?.startEditing())
+
+    expect(startEditing).toHaveBeenCalledWith(
+      userMessage,
+      expect.any(Array),
+      expect.objectContaining({ lockedMentionedModels: [directModel] })
+    )
+  })
+
   it('does not start editing an assistant reply while its translation is active', async () => {
     const startEditing = vi.fn()
     let runtime: { startEditing: () => void } | undefined

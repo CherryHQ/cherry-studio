@@ -806,6 +806,8 @@
   "chat.input.mcp_resources.reader_unavailable": "โมเดลปัจจุบันอ่านรีซอร์สนี้ไม่ได้หลังจากแนบแล้ว",
   "chat.input.mcp_resources.title": "รีซอร์ส MCP",
   "chat.input.new.context": "ล้างคอนเท็กซ์",
+  "chat.input.non_chat_model": "โมเดลปัจจุบันไม่สามารถใช้แชตได้ โปรดเลือกโมเดลอื่น",
+  "chat.input.non_chat_model_locked": "โมเดลในการแก้ไขนี้ไม่สามารถใช้แชตได้ ให้ออกจากการแก้ไขแล้วเลือกโมเดลอื่นหรือส่งข้อความใหม่",
   "chat.input.note_reference.description": "แนบบันทึกจากโน้ต",
   "chat.input.note_reference.empty": "ไม่พบโน้ต",
   "chat.input.note_reference.load_failed": "ไม่สามารถโหลดโน้ต",

@@ -14,6 +14,7 @@ vi.mock('@main/data/services/utils/registryDataPaths', () => ({
 import type * as CustomFetchModule from '@main/ai/utils/customFetch'
 import type * as ProviderRegistryModule from '@main/data/services/ProviderRegistryService'
 import { ENDPOINT_TYPE, type EndpointType, MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { isNonChatModel } from '@shared/utils/model'
 
 import lmStudioModels from '../../__tests__/fixtures/lmstudio-models.json'
 import { makeModel } from '../../__tests__/fixtures/model'
@@ -2065,7 +2066,7 @@ describe('listModels — Poe declared chat endpoints', () => {
     ['claude-sonnet-5.5', ['/v1/chat/completions'], [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]],
     ['claude-opus-4.8', ['/v1/responses', '/v1/chat/completions', '/v1/messages'], claudeEndpoints],
     ['nano-banana-2', ['/v1/responses'], [ENDPOINT_TYPE.OPENAI_RESPONSES]],
-    ['veo-3.1', ['/v1/videos'], undefined],
+    ['opaque-video-bot-23521', ['/v1/videos'], [ENDPOINT_TYPE.OPENAI_VIDEO_GENERATION]],
     ['unknown-path', ['/future/path'], undefined],
     ['claude-opus-4.8', [], claudeEndpoints],
     ['claude-opus-4.8', undefined, claudeEndpoints],
@@ -2089,7 +2090,11 @@ describe('listModels — Poe declared chat endpoints', () => {
       expect(models).toHaveLength(1)
       expect(models[0]).toMatchObject({ apiModelId: id, name: id, ownedBy: 'Example owner' })
       expect(models[0].endpointTypes).toEqual(endpointTypes)
-      expect(models[0].capabilities).toEqual([])
+      if (id === 'opaque-video-bot-23521') {
+        expect(isNonChatModel(makeModel(models[0]))).toBe(true)
+      } else {
+        expect(models[0].capabilities).toEqual([])
+      }
     }
   )
 

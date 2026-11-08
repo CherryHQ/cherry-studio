@@ -1008,7 +1008,7 @@ async function listOpenAICompatibleModels(
   )
 }
 
-function resolvePoeChatEndpointTypes(
+function resolvePoeEndpointTypes(
   supportedEndpoints: readonly string[] | undefined,
   registryEndpointTypes?: readonly EndpointType[]
 ): EndpointType[] | undefined {
@@ -1022,7 +1022,9 @@ function resolvePoeChatEndpointTypes(
     ['/v1/chat/completions', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
   ] as const
   const declared = chatPaths.filter(([path]) => supportedEndpoints.includes(path)).map(([, endpoint]) => endpoint)
-  if (!declared.length) return undefined
+  if (!declared.length) {
+    return supportedEndpoints.includes('/v1/videos') ? [ENDPOINT_TYPE.OPENAI_VIDEO_GENERATION] : undefined
+  }
 
   const preferred = registryEndpointTypes?.filter((endpoint) => declared.some((type) => type === endpoint))
   return preferred?.length ? [...new Set(preferred)] : declared
@@ -1044,7 +1046,7 @@ const poeFetcher: ModelFetcher = {
         return toModel(m.id, provider, {
           name: m.name || m.id,
           ownedBy: m.owned_by,
-          endpointTypes: resolvePoeChatEndpointTypes(m.supported_endpoints, registryOverride?.endpointTypes)
+          endpointTypes: resolvePoeEndpointTypes(m.supported_endpoints, registryOverride?.endpointTypes)
         })
       })
     )

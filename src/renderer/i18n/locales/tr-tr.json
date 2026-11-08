@@ -806,6 +806,8 @@
   "chat.input.mcp_resources.reader_unavailable": "Geçerli model, bu kaynak eklendikten sonra kaynağı geri okuyamaz",
   "chat.input.mcp_resources.title": "MCP Kaynakları",
   "chat.input.new.context": "Bağlamı Temizle",
+  "chat.input.non_chat_model": "Mevcut model sohbette kullanılamaz. Lütfen başka bir model seçin.",
+  "chat.input.non_chat_model_locked": "Bu düzenlemedeki bir model sohbette kullanılamaz. Düzenlemeden çıkıp başka bir model seçin veya yeni bir mesaj gönderin.",
   "chat.input.note_reference.description": "Notlar'dan bir not ekle",
   "chat.input.note_reference.empty": "Not bulunamadı",
   "chat.input.note_reference.load_failed": "Notlar yüklenemedi",

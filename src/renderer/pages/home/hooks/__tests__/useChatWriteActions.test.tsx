@@ -60,18 +60,19 @@ function renderActions(
   cache = makeCache(),
   activeNodeId = uiMessages.at(-1)?.id ?? null,
   startNewContextBlocked = false,
-  stop: () => Promise<void> = vi.fn(async () => {})
+  stop: () => Promise<void> = vi.fn(async () => {}),
+  topic = { id: 't1' } as Topic
 ) {
   const scrollToBottom = vi.fn()
   const regenerate = vi.fn<Parameters<typeof useChatWriteActions>[0]['regenerate']>(async () => {})
   const setMessages = vi.fn()
   const seedReservedMessages = vi.fn(async () => {})
   const { result, rerender } = renderHook(
-    ({ composerModelId }) =>
+    ({ composerModelId, messages = uiMessages, activeId = activeNodeId }) =>
       useChatWriteActions({
-        topic: { id: 't1' } as Topic,
-        uiMessages,
-        activeNodeId,
+        topic,
+        uiMessages: messages,
+        activeNodeId: activeId,
         regenerate,
         setMessages,
         stop,
@@ -82,12 +83,22 @@ function renderActions(
         startNewContextBlocked,
         composerModelId
       }),
-    { initialProps: { composerModelId: undefined as UniqueModelId | undefined } }
+    {
+      initialProps: {
+        composerModelId: undefined as UniqueModelId | undefined,
+        messages: undefined as ReturnType<typeof uiMsg>[] | undefined,
+        activeId: undefined as string | null | undefined
+      }
+    }
   )
   return {
     actions: result.current.actions,
     result,
-    rerender,
+    rerender: rerender as (props: {
+      composerModelId: UniqueModelId | undefined
+      messages?: ReturnType<typeof uiMsg>[]
+      activeId?: string | null
+    }) => void,
     cache,
     scrollToBottom,
     regenerate,
@@ -771,6 +782,28 @@ describe('useChatWriteActions — fork and resend', () => {
     streamOpen.mockReset()
   })
 
+  it('exposes the live direct-reply model ids for a user message', () => {
+    const user = uiMsg('u1', 'user', 'vroot')
+    const firstAssistant = uiMsg('a1', 'assistant', 'u1')
+    firstAssistant.metadata.modelId = 'provider::model-a'
+    const secondAssistant = uiMsg('a2', 'assistant', 'u1')
+    secondAssistant.metadata.modelId = 'provider::model-b'
+    const { result, rerender } = renderActions([user, firstAssistant, secondAssistant])
+
+    expect(new Set(result.current.actions.getDirectAssistantModelIds!('u1'))).toEqual(
+      new Set(['provider::model-a', 'provider::model-b'])
+    )
+    expect(result.current.actions.getDirectAssistantModelIds!('no-replies')).toEqual([])
+
+    rerender({ composerModelId: undefined, messages: [user, firstAssistant], activeId: 'a1' })
+    expect(result.current.actions.getDirectAssistantModelIds!('u1')).toEqual(['provider::model-a'])
+
+    rerender({ composerModelId: undefined, messages: [user, firstAssistant, secondAssistant], activeId: 'a2' })
+    expect(new Set(result.current.actions.getDirectAssistantModelIds!('u1'))).toEqual(
+      new Set(['provider::model-a', 'provider::model-b'])
+    )
+  })
+
   function createForkedUser() {
     return {
       id: 'forked-user',
@@ -827,6 +860,42 @@ describe('useChatWriteActions — fork and resend', () => {
         fastMode: true
       })
     )
+  })
+
+  // Catches a single inherited model overriding the linked assistant default.
+  it('omits the single direct model when the topic has an assistant', async () => {
+    const cache = makeCache()
+    vi.mocked(cache.createSiblingTrigger).mockResolvedValueOnce(createForkedUser() as never)
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    const assistantMessage = uiMsg('a1', 'assistant', 'u1')
+    assistantMessage.metadata.modelId = 'provider::model-a'
+    const { actions } = renderActions(
+      [uiMsg('u1', 'user', 'vroot'), assistantMessage],
+      cache,
+      undefined,
+      false,
+      undefined,
+      { id: 't1', assistantId: 'assistant-1' } as Topic
+    )
+
+    await actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any)
+
+    expect(streamOpen).toHaveBeenCalledOnce()
+    expect(streamOpen.mock.calls[0][0]).not.toHaveProperty('mentionedModelIds')
+  })
+
+  // Catches losing the single direct model when no assistant can provide a default.
+  it('includes the single direct model when the topic has no assistant', async () => {
+    const cache = makeCache()
+    vi.mocked(cache.createSiblingTrigger).mockResolvedValueOnce(createForkedUser() as never)
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    const assistantMessage = uiMsg('a1', 'assistant', 'u1')
+    assistantMessage.metadata.modelId = 'provider::model-a'
+    const { actions } = renderActions([uiMsg('u1', 'user', 'vroot'), assistantMessage], cache)
+
+    await actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any)
+
+    expect(streamOpen).toHaveBeenCalledWith(expect.objectContaining({ mentionedModelIds: ['provider::model-a'] }))
   })
 
   it('rejects edit-and-resend when stream open is blocked', async () => {
