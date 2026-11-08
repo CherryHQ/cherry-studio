@@ -40,6 +40,7 @@ import {
   type AgentSessionDeliveryReplyPolicy,
   type AgentSessionDeliveryStatus
 } from '@shared/ai/agentSessionDelivery'
+import { generateImageOutputSchema } from '@shared/ai/generateImageTool'
 import { applyApprovalDecisions, type ApprovalDecision } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
@@ -259,42 +260,50 @@ function replaceAgentSessionMessageFileRefsTx(
 ): void {
   tx.delete(agentSessionMessageFileRefTable).where(eq(agentSessionMessageFileRefTable.sourceId, messageId)).run()
 
-  const ids = [
-    ...new Set(
-      (data.parts ?? [])
-        .filter((part) => part.type === 'file')
-        .flatMap((part) => [readCherryMeta(part)?.fileEntryId, readCherryMeta(part)?.workingFileEntryId])
-        .filter((id): id is string => Boolean(id))
-    )
-  ]
-  if (ids.length === 0) return
+  const refs = new Map<string, { fileEntryId: string; role: 'attachment' | 'generated' }>()
+  for (const part of data.parts ?? []) {
+    if (part.type === 'file') {
+      for (const id of [readCherryMeta(part)?.fileEntryId, readCherryMeta(part)?.workingFileEntryId]) {
+        if (id) refs.set(`attachment:${id}`, { fileEntryId: id, role: 'attachment' })
+      }
+    } else if (
+      part.type === 'dynamic-tool' &&
+      part.toolName === 'mcp__cherry-tools__generate_image' &&
+      part.state === 'output-available'
+    ) {
+      const output = part.output as { structuredContent?: unknown; content?: unknown } | undefined
+      const images = generateImageOutputSchema.safeParse(
+        (output?.structuredContent as { images?: unknown } | undefined)?.images
+      )
+      if (images.success) {
+        for (const image of images.data) refs.set(`generated:${image.id}`, { fileEntryId: image.id, role: 'generated' })
+      }
+    }
+  }
+  if (refs.size === 0) return
+
+  const fileEntryIds = [...refs.values()].map(({ fileEntryId }) => fileEntryId)
 
   const existingIds = new Set<string>()
-  for (let index = 0; index < ids.length; index += SQLITE_INARRAY_CHUNK) {
+  for (let index = 0; index < fileEntryIds.length; index += SQLITE_INARRAY_CHUNK) {
     const rows = tx
       .select({ id: fileEntryTable.id })
       .from(fileEntryTable)
-      .where(inArray(fileEntryTable.id, ids.slice(index, index + SQLITE_INARRAY_CHUNK)))
+      .where(inArray(fileEntryTable.id, fileEntryIds.slice(index, index + SQLITE_INARRAY_CHUNK)))
       .all()
     rows.forEach((row) => existingIds.add(row.id))
   }
 
   const now = Date.now()
-  const rows = ids
-    .filter((fileEntryId) => existingIds.has(fileEntryId))
-    .map((fileEntryId) => ({
-      fileEntryId,
-      sourceId: messageId,
-      role: 'attachment' as const,
-      createdAt: now,
-      updatedAt: now
-    }))
+  const rows = [...refs.values()]
+    .filter(({ fileEntryId }) => existingIds.has(fileEntryId))
+    .map(({ fileEntryId, role }) => ({ fileEntryId, sourceId: messageId, role, createdAt: now, updatedAt: now }))
 
-  if (rows.length !== ids.length) {
+  if (rows.length !== refs.size) {
     logger.warn('Dropped agent-session message file refs without matching file_entry', {
       messageId,
-      dropped: ids.length - rows.length,
-      total: ids.length
+      dropped: refs.size - rows.length,
+      total: refs.size
     })
   }
 

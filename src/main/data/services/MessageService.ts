@@ -20,6 +20,7 @@ import { topicTable } from '@data/db/schemas/topic'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
+import { generateImageOutputSchema } from '@shared/ai/generateImageTool'
 import { applyApprovalDecisions, type ApprovalDecision, blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
@@ -262,6 +263,11 @@ function extractChatMessageFileRefs(data: MessageData | null | undefined): ChatM
       add(readCherryMeta(part)?.fileEntryId, 'attachment')
     } else if (isToolUIPart(part) && part.state === 'output-available' && isPersistedToolOutput(part.output)) {
       for (const blob of blobRefsOf(part.output.$persistedToolOutput)) add(blob.fileEntryId, 'tool_output')
+    } else if (isToolUIPart(part) && part.type === 'tool-generate_image' && part.state === 'output-available') {
+      const output = generateImageOutputSchema.safeParse(part.output)
+      if (output.success) {
+        for (const file of output.data) add(file.id, 'generated')
+      }
     }
   }
   return refs

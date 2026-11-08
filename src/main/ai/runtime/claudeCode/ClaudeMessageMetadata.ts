@@ -224,8 +224,10 @@ export class ClaudeMessageMetadata {
     rawContent?: unknown
   ): NonNullable<JSONValue> {
     if (state.toolType !== 'mcp') return result
+    const structuredContent = isRecord(result) ? result.structuredContent : undefined
     return {
       content: hasMcpNonTextContent(rawContent) ? normalizeMcpToolContent(rawContent) : result,
+      ...(isRecord(structuredContent) ? { structuredContent } : {}),
       metadata: {
         type: 'mcp',
         name: state.displayName ?? state.name,

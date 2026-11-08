@@ -4,6 +4,11 @@ sources:
   - src/main/services/file/internal/entryCleanup.ts
   - src/main/data/services/FileEntryService.ts
   - src/main/data/services/FileRefService.ts
+  - src/main/data/services/MessageService.ts
+  - src/main/data/services/AgentSessionMessageService.ts
+  - src/main/ai/tools/painting.ts
+  - src/main/ai/mcp/servers/cherryBuiltinTools.ts
+  - src/main/ai/runtime/claudeCode/ClaudeMessageMetadata.ts
   - src/main/data/db/schemas/file.ts
   - src/main/data/db/schemas/fileRelations.ts
 ---
@@ -52,6 +57,9 @@ The database defaults to `manual` as a safe fallback, but TypeScript creation sc
 explicit policy. Business-owned copies and generated/transient artifacts generally use
 `delete_when_unreferenced`; user-library imports and other independently retained files use
 `manual`. The caller that understands the ownership outcome chooses the policy.
+
+Generated `generate_image` outputs use `delete_when_unreferenced`; `chat_message_file_ref` and
+`agent_session_message_file_ref` rows with role `generated` hold them while their message exists.
 
 ### 4.2 Policy Transitions
 

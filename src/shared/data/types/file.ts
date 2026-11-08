@@ -452,7 +452,7 @@ export const createRefSchema = <T extends BusinessRefShape>(shape: T): z.ZodObje
 // ─── chat_message variant ───
 //
 // Links a FileEntry to a message row in the v2 chat subsystem. The owning
-// service writes refs when a message is created with file or image blocks. The
+// service writes refs for file/image parts and generated image tool outputs. The
 // association table has an FK to `message`, so message deletion cascades its
 // refs at the database layer.
 //
@@ -463,10 +463,11 @@ export const createRefSchema = <T extends BusinessRefShape>(shape: T): z.ZodObje
 // - `'tool_output'` — a persisted oversized tool-result blob referenced by a
 //   `$persistedToolOutput` envelope in `message.data` (the blob is the only
 //   full copy; the ref keeps it alive until the message is deleted).
+// - `'generated'` — a file created by a message tool and owned by that message.
 
 export const chatMessageSourceType = 'chat_message' as const
 
-export const chatMessageRoles = ['attachment', 'tool_output'] as const
+export const chatMessageRoles = ['attachment', 'tool_output', 'generated'] as const
 export const chatMessageRoleSchema = z.enum(chatMessageRoles)
 
 export const chatMessageRefFields = {
@@ -479,13 +480,13 @@ export const chatMessageFileRefSchema = createRefSchema(chatMessageRefFields)
 
 // ─── agent_session_message variant ───
 //
-// Agent uploads are internal FileEntries referenced from an agent-session user
-// message's FileUIParts. The ref keeps those bytes alive for exactly as long as
-// the message; runtime delivery (managed path, native image, etc.) is a projection.
+// Agent-session messages own uploaded FileEntries via FileUIParts and generated
+// images via tool output. Both refs keep the bytes alive for the message lifetime;
+// runtime delivery (managed path, native image, etc.) is a projection.
 
 export const agentSessionMessageSourceType = 'agent_session_message' as const
 
-export const agentSessionMessageRoles = ['attachment'] as const
+export const agentSessionMessageRoles = ['attachment', 'generated'] as const
 export const agentSessionMessageRoleSchema = z.enum(agentSessionMessageRoles)
 
 export const agentSessionMessageRefFields = {

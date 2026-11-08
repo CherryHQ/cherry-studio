@@ -2250,6 +2250,38 @@ describe('MessageService', () => {
       expect(refs.every((ref) => ref.role === 'tool_output')).toBe(true)
     })
 
+    it('registers generated image outputs with the generated role', async () => {
+      const topicId = 'topic-ref-generated-images'
+      const fileIds = ['019606a0-0000-7000-8000-00000000fc01', '019606a0-0000-7000-8000-00000000fc02']
+      await seedTopicWithRoot(topicId)
+      for (const fileId of fileIds) await seedFileEntry(fileId)
+
+      const message = messageService.create(topicId, {
+        role: 'assistant',
+        data: {
+          parts: [
+            {
+              type: 'tool-generate_image',
+              toolCallId: 'generate-1',
+              state: 'output-available',
+              input: { prompt: 'a landscape' },
+              output: fileIds.map((id, index) => ({ id, name: `image-${index}.png` }))
+            }
+          ] as MessageData['parts']
+        },
+        status: 'success'
+      })
+
+      const refs = await dbh.db
+        .select()
+        .from(chatMessageFileRefTable)
+        .where(eq(chatMessageFileRefTable.sourceId, message.id))
+      expect(refs).toHaveLength(2)
+      expect(refs.map((ref) => [ref.fileEntryId, ref.role]).sort()).toEqual(
+        fileIds.map((fileId) => [fileId, 'generated']).sort()
+      )
+    })
+
     it('drops the tool_output ref when the envelope leaves the message data', async () => {
       const topicId = 'topic-ref-tool-output-drop'
       const fileId = '019606a0-0000-7000-8000-00000000fa09'

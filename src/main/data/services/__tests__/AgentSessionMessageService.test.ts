@@ -1253,6 +1253,48 @@ describe('AgentSessionMessageService', () => {
     expect(await dbh.db.select().from(agentSessionMessageFileRefTable)).toEqual([])
   })
 
+  it('registers generated images from the Cherry MCP tool output', async () => {
+    const generatedFileId = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d004'
+    await dbh.db.insert(fileEntryTable).values({
+      id: generatedFileId,
+      origin: 'internal',
+      name: 'landscape',
+      ext: 'png',
+      size: 42,
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
+
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        data: {
+          parts: [
+            {
+              type: 'dynamic-tool',
+              toolName: 'mcp__cherry-tools__generate_image',
+              toolCallId: 'toolu_generate',
+              input: { prompt: 'a landscape' },
+              state: 'output-available',
+              output: {
+                content: [{ type: 'text', text: 'Generated 1 image(s): landscape.png (generated-id)' }],
+                structuredContent: { images: [{ id: generatedFileId, name: 'landscape.png' }] }
+              }
+            }
+          ]
+        }
+      }
+    })
+
+    expect(await dbh.db.select().from(agentSessionMessageFileRefTable)).toEqual([
+      expect.objectContaining({ fileEntryId: generatedFileId, sourceId: ASSISTANT_MESSAGE_ID, role: 'generated' })
+    ])
+
+    agentSessionMessageService.deleteSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
+    expect(await dbh.db.select().from(agentSessionMessageFileRefTable)).toEqual([])
+  })
+
   it('creates messages with service-owned audit timestamps', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000)
 

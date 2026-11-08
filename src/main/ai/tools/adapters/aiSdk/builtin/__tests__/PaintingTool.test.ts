@@ -164,7 +164,12 @@ describe('generate_image', () => {
 
     expect(result).toEqual([{ id: 'f1', name: 'image-1.png' }])
     expect(generateImage).toHaveBeenCalledWith(
-      expect.objectContaining({ uniqueModelId: 'openai::dall-e-3', prompt: 'a cat', paramValues: {} })
+      expect.objectContaining({
+        uniqueModelId: 'openai::dall-e-3',
+        prompt: 'a cat',
+        paramValues: {},
+        cleanupPolicy: 'delete_when_unreferenced'
+      })
     )
   })
 

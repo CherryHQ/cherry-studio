@@ -1681,8 +1681,8 @@ describe('FileEntryService', () => {
 
   async function seedChatRef(
     fileEntryId: FileEntryId,
-    role: 'attachment' | 'tool_output' = 'attachment'
-  ): Promise<void> {
+    role: 'attachment' | 'tool_output' | 'generated' = 'attachment'
+  ): Promise<string> {
     const now = Date.now()
     const suffix = fileEntryId.slice(-12)
     const topicId = `topic-${suffix}`
@@ -1705,7 +1705,7 @@ describe('FileEntryService', () => {
         id: messageId,
         parentId: rootId,
         topicId,
-        role: 'user',
+        role: role === 'generated' ? 'assistant' : 'user',
         data: { parts: [{ type: 'text', text: 'hello' }] },
         status: 'success',
         siblingsGroupId: 0,
@@ -1721,6 +1721,7 @@ describe('FileEntryService', () => {
       createdAt: now,
       updatedAt: now
     })
+    return messageId
   }
 
   async function seedProviderLogoRef(fileEntryId: FileEntryId): Promise<void> {
@@ -2056,6 +2057,21 @@ describe('FileEntryService', () => {
 
       const ids = fileEntryService.findCleanupCandidates({ graceMs: HOUR, limit: 100 }).map((e) => e.id)
       expect(ids).toEqual([free])
+    })
+
+    it('reclaims generated images after their chat message is deleted', async () => {
+      const generated = '019606a0-0000-7000-8000-0000000cf003' as FileEntryId
+      await seedEntry(generated, 'delete_when_unreferenced', 2 * HOUR)
+      const messageId = await seedChatRef(generated, 'generated')
+
+      expect(fileEntryService.findCleanupCandidates({ graceMs: HOUR, limit: 100 }).map((e) => e.id)).not.toContain(
+        generated
+      )
+
+      await dbh.db.delete(messageTable).where(eq(messageTable.id, messageId))
+      expect(fileEntryService.findCleanupCandidates({ graceMs: HOUR, limit: 100 }).map((e) => e.id)).toContain(
+        generated
+      )
     })
 
     it('every table with an FK to file_entry is registered in the anti-join (fail-open guard)', () => {

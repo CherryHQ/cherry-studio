@@ -71,7 +71,11 @@ const { CLAUDE_KNOWLEDGE_TOOL_NAMES } = await import('@shared/ai/claudecode/tool
 const { WEB_LOOKUP_ERROR_NOTE } = await import('@main/ai/tools/webLookup')
 
 type KnowledgeAccess = { allKnowledgeBases: boolean; baseIds: readonly string[] }
-type Result = { isError?: boolean; content: Array<{ type: string; text?: string; data?: string; mimeType?: string }> }
+type Result = {
+  isError?: boolean
+  content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>
+  structuredContent?: unknown
+}
 
 const KB_SCOPE = ['b1', 'b2']
 const agentContext = {
@@ -693,6 +697,7 @@ describe('cherry-tools builtin tools', () => {
     // …followed by the base64 image content block the agent renderer shows inline.
     expect(fileRead).toHaveBeenCalledWith('f1', { encoding: 'base64' })
     expect(result.content[1]).toEqual({ type: 'image', data: 'BASE64DATA', mimeType: 'image/png' })
+    expect(result.structuredContent).toEqual({ images: [{ id: 'f1', name: 'image-1.png' }] })
   })
 
   it('advertises provider-accurate generate_image params from the configured model', async () => {

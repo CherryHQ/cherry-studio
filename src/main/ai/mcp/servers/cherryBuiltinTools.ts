@@ -25,6 +25,7 @@
 
 import type { ImageContent } from '@modelcontextprotocol/server'
 import { McpServer } from '@modelcontextprotocol/server'
+import * as z from 'zod'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -47,6 +48,7 @@ import {
 } from '@main/ai/tools/webLookup'
 import {
   GENERATE_IMAGE_TOOL_NAME,
+  generateImageOutputSchema,
   REPORT_ARTIFACTS_DESCRIPTION,
   REPORT_ARTIFACTS_TOOL_NAME,
   reportArtifactsInputSchema,
@@ -63,13 +65,16 @@ import { type KnowledgeToolsContext, registerKnowledgeTools } from './cherryKnow
 export type CherryToolsOptions = AutonomyToolsContext & KnowledgeToolsContext & CherryDocumentContext
 
 const logger = loggerService.withContext('McpServer:CherryBuiltinTools')
+const generateImageMcpOutputSchema = z.object({
+  images: generateImageOutputSchema,
+  error: z.string().optional()
+})
 
 /**
  * Read the just-persisted generated images back as base64 image content blocks. Unlike the AI-SDK
  * builtin (whose renderer resolves the returned FileEntry ids to `file://` URLs), MCP tool results
- * only carry `content[]` to the agent renderer — the structured id array is dropped at the SDK
- * boundary — so the picture must ride along as inline base64. A read failure drops that one image
- * rather than failing the whole generation.
+ * carry the images inline as base64 alongside structured FileEntry ids for message references. A
+ * read failure drops that one image rather than failing the whole generation.
  */
 async function readGeneratedImages(files: { id: string }[], signal: AbortSignal): Promise<ImageContent[]> {
   const fileManager = application.get('FileManager')
@@ -108,14 +113,24 @@ function registerBuiltinTools(server: McpServer): void {
   const configuredModel = resolveConfiguredPaintingModel()
   server.registerTool(
     GENERATE_IMAGE_TOOL_NAME,
-    { description: GENERATE_IMAGE_DESCRIPTION, inputSchema: buildGenerateImageToolSchema(configuredModel?.support) },
+    {
+      description: GENERATE_IMAGE_DESCRIPTION,
+      inputSchema: buildGenerateImageToolSchema(configuredModel?.support),
+      outputSchema: generateImageMcpOutputSchema
+    },
     async (input, ctx) => {
       const signal = ctx.mcpReq.signal
       const result = await generateImageFromPrompt(input as GenerateImageToolInput, signal, configuredModel)
       const text = paintingModelOutput(result).value
       // On failure `result` is the model-facing note — text only, no image to attach.
       const images = isPaintingError(result) ? [] : await readGeneratedImages(result, signal)
-      return { content: [{ type: 'text', text }, ...images] }
+      return {
+        content: [{ type: 'text', text }, ...images],
+        structuredContent: {
+          images: isPaintingError(result) ? [] : result,
+          ...(isPaintingError(result) ? { error: result.error } : {})
+        }
+      }
     }
   )
 }
