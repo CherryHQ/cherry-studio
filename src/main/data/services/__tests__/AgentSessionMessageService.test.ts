@@ -1304,17 +1304,15 @@ describe('AgentSessionMessageService', () => {
 
   it('preserves native Claude structured image ownership through projection and persistence', async () => {
     const generatedFileId = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d004'
-    await dbh.db
-      .insert(fileEntryTable)
-      .values({
-        id: generatedFileId,
-        origin: 'internal',
-        name: 'landscape',
-        ext: 'png',
-        size: 42,
-        cleanupPolicy: 'delete_when_unreferenced',
-        createdAt: Date.now() - 7200000
-      })
+    await dbh.db.insert(fileEntryTable).values({
+      id: generatedFileId,
+      origin: 'internal',
+      name: 'landscape',
+      ext: 'png',
+      size: 42,
+      cleanupPolicy: 'delete_when_unreferenced',
+      createdAt: Date.now() - 7200000
+    })
     const projection = new ClaudeProjection({ backendId: runtimeId('claude'), id: runtimeId('session') }, (error) => {
       throw error
     })
@@ -1401,17 +1399,15 @@ describe('AgentSessionMessageService', () => {
 
   it('keeps manually retained MCP images safe when Pi codemode has no direct generated ref', async () => {
     const generatedFileId = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d004'
-    await dbh.db
-      .insert(fileEntryTable)
-      .values({
-        id: generatedFileId,
-        origin: 'internal',
-        name: 'landscape',
-        ext: 'png',
-        size: 42,
-        cleanupPolicy: 'manual',
-        createdAt: Date.now() - 7200000
-      })
+    await dbh.db.insert(fileEntryTable).values({
+      id: generatedFileId,
+      origin: 'internal',
+      name: 'landscape',
+      ext: 'png',
+      size: 42,
+      cleanupPolicy: 'manual',
+      createdAt: Date.now() - 7200000
+    })
     agentSessionMessageService.saveMessage({
       sessionId: SESSION_ID,
       message: {
