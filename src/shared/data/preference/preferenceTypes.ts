@@ -40,6 +40,8 @@ export type MenuPresentationMode = 'native' | 'cherry'
 /** Side of a wide Agent file pane that holds the file tree. */
 export type AgentFilePaneTreePosition = 'left' | 'right'
 
+export type AgentDetailsSectionConfig = { id: string; visible: boolean }
+
 export type OnboardingProviderSetupStatus = 'pending' | 'completed' | 'skipped'
 
 export type RetryFallbackModelId = UniqueModelId
@@ -141,6 +143,7 @@ export type AgentSessionDisplayMode = 'time' | 'agent' | 'workdir'
 export const SIDEBAR_FAVORITES = [
   'assistants',
   'agents',
+  'scheduled_tasks',
   'paintings',
   'translate',
   'mini_app',
@@ -452,6 +455,8 @@ export type FileProcessorOptions = {
 export type FileProcessorCapabilityOverride = {
   apiHost?: string
   modelId?: string
+  formulaLevel?: 0 | 1 | 2
+  mergeCrossPageForms?: boolean
 }
 
 export type FileProcessorCapabilityOverrides = Partial<Record<FileProcessorFeature, FileProcessorCapabilityOverride>>

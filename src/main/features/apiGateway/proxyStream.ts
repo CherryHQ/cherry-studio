@@ -26,7 +26,6 @@ import { CHERRY_FAST_MODE_HEADER, CHERRY_REASONING_EFFORT_HEADER, CHERRY_SERVICE
 import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
-import { applyFastModeToProviderOptions } from '@main/ai/utils/options'
 import { ENDPOINT_TYPE, ServiceTierSelectionSchema } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
@@ -240,16 +239,9 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const extractedProviderOptions = reasoning.success
     ? {}
     : (converter.extractProviderOptions(provider, model, effectiveParams, streamOptions.maxOutputTokens) ?? {})
-  const fastModeProviderOptions = applyFastModeToProviderOptions(
-    provider,
-    model,
-    extractedProviderOptions,
-    turnOptions.fastMode
-  )
-
   const providerOptions = agentSessionId
-    ? applyAgentPromptCacheKey(provider, model, fastModeProviderOptions, agentSessionId)
-    : fastModeProviderOptions
+    ? applyAgentPromptCacheKey(provider, model, extractedProviderOptions, agentSessionId)
+    : extractedProviderOptions
 
   // 3. Assemble first-class per-request overrides (sampling / tools / provider options).
   const callOverrides: CallOverrides = {

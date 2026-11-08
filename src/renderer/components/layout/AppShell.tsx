@@ -25,7 +25,7 @@ import { TabRouter } from './TabRouter'
 
 // Routes whose pages stay usable below the global minimum window width.
 const isCompactMinWidthRoute = (url?: string): boolean =>
-  !!url && (url.startsWith('/app/chat') || url.startsWith('/app/agents'))
+  !!url && (url.startsWith('/app/chat') || url.startsWith('/app/agents') || url.startsWith('/app/scheduled-tasks'))
 
 export const AppShell = () => (
   <NotificationCenterProvider>

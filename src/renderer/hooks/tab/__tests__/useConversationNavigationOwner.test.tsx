@@ -35,6 +35,27 @@ describe('useConversationNavigationOwner', () => {
     vi.clearAllMocks()
   })
 
+  it('focuses a validated task tab and drops its ownership when the tab closes', () => {
+    const owner = {
+      activeTabId: 'task-tab',
+      tabs: [{ id: 'task-tab', type: 'route', url: '/app/scheduled-tasks?taskId=task', title: 'Task' }] as Tab[],
+      openTab: vi.fn(),
+      setActiveTab: vi.fn()
+    }
+    cacheService.setCasual('scheduled-task.conversation.task-tab', { taskId: 'task', sessionId: 'session-1' })
+    const view = renderHook(({ value }) => useConversationNavigationOwner(value), { initialProps: { value: owner } })
+    emit('navigation.conversation_focus_or_open_requested', { requestId: 'task-focus', target, title: 'Task' })
+    expect(owner.setActiveTab).toHaveBeenCalledWith('task-tab')
+    expect(owner.openTab).not.toHaveBeenCalled()
+    view.rerender({ value: { ...owner, tabs: [] } })
+    expect(cacheService.getCasual('scheduled-task.conversation.task-tab')).toBeUndefined()
+    emit('navigation.conversation_ownership_requested', { requestId: 'closed-task', target })
+    expect(mocks.request).toHaveBeenCalledWith('navigation.report_conversation_ownership', {
+      requestId: 'closed-task',
+      ownsTarget: false
+    })
+  })
+
   it.each([
     ['assistant', '/app/chat?topicId=session-1'],
     ['agent', '/app/agents?sessionId=session-1']
