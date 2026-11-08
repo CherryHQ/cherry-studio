@@ -1,5 +1,5 @@
 import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode, Ref } from 'react'
 import { useEffect, useState } from 'react'
@@ -25,12 +25,7 @@ const mocks = vi.hoisted(() => ({
   scrollToIndex: vi.fn(),
   virtualize: false,
   useModelSelectorData: vi.fn(),
-  startCherryCloudSubscription: vi.fn(),
   displayTags: [] as string[]
-}))
-
-vi.mock('@renderer/services/cherryCloudSubscription', () => ({
-  startCherryCloudSubscription: mocks.startCherryCloudSubscription
 }))
 
 vi.mock('@logger', () => ({
@@ -230,7 +225,7 @@ function makeData(overrides: Partial<UseModelSelectorDataResult> = {}): UseModel
     {
       key: 'provider-openai',
       type: 'group',
-      title: 'OpenAI',
+
       groupKind: 'provider',
       provider,
       canNavigateToSettings: true
@@ -239,13 +234,9 @@ function makeData(overrides: Partial<UseModelSelectorDataResult> = {}): UseModel
     secondItem
   ]
 
-  return {
+  const data = {
     availableTags: [],
-    getModelDescription: () => undefined,
-    isModelFree: () => false,
-    isModelUnavailable: () => false,
-    cloudAvailabilityReady: true,
-    cloudAvailabilityError: undefined,
+    getModelPresentation: () => ({ tags: [] }),
     isLoading: false,
     isPinActionDisabled: false,
     listItems,
@@ -265,9 +256,10 @@ function makeData(overrides: Partial<UseModelSelectorDataResult> = {}): UseModel
     tagSelection: {} as UseModelSelectorDataResult['tagSelection'],
     togglePin: vi.fn(async () => undefined),
     toggleTag: vi.fn(),
-    visibleSelectedModelIdSet: new Set(),
+    visibleSelectedModelIdSet: new Set<UniqueModelId>(),
     ...overrides
   }
+  return { ...data, navigableItems: overrides.navigableItems ?? data.listItems.filter((item) => item.type !== 'group') }
 }
 
 describe('ModelSelector', () => {
@@ -298,7 +290,7 @@ describe('ModelSelector', () => {
       {
         key: 'provider-openai',
         type: 'group',
-        title: 'OpenAI',
+
         groupKind: 'provider',
         provider,
         canNavigateToSettings: true
@@ -321,124 +313,39 @@ describe('ModelSelector', () => {
     expect(screen.queryByText(/OpenAI · gpt-4-variant-a/)).not.toBeInTheDocument()
   })
 
-  describe('CherryAI group', () => {
-    const renderCherryAiGroup = (subscribedPlanName?: string, onSelect = vi.fn()) => {
-      const item = makeModelItem('openai::gpt-4')
-      const locked = { ...makeModelItem('openai::plan-model'), locked: true }
-      const listItems: FlatListItem[] = [
-        { key: 'provider-cherryai', type: 'group', title: 'CherryAI', groupKind: 'provider', isCherryAiGroup: true },
-        item,
-        locked
-      ]
-      mocks.useModelSelectorData.mockReturnValue(
-        makeData({
-          listItems,
-          modelItems: [item, locked],
-          isModelFree: (model) => model.id === item.modelId,
-          subscribedPlanName
-        })
-      )
-      render(<ModelSelector multiple={false} open trigger={<button type="button">Open</button>} onSelect={onSelect} />)
+  it('activates action rows without changing selection or showing pin/checkbox controls', async () => {
+    const onAction = vi.fn()
+    const onSelect = vi.fn()
+    const action = {
+      key: 'upgrade',
+      type: 'action' as const,
+      providerId: 'openai',
+      label: 'Upgrade',
+      identifier: 'upgrade',
+      searchId: 'upgrade',
+      tags: [],
+      onAction
     }
-
-    afterEach(() => {
-      mocks.displayTags = []
-    })
-
-    it('offers a subscribe link and tags free models for an unsubscribed account', async () => {
-      // Entitlement-free Cloud models carry no static free marker; the row still tags them.
-      mocks.displayTags = ['reasoning']
-      renderCherryAiGroup()
-
-      expect(screen.getByTestId('model-tag-free')).toBeInTheDocument()
-      // Locked plan rows keep their capability tags beside the lock.
-      expect(screen.getAllByTestId('model-tag-reasoning')).toHaveLength(2)
-      await userEvent.click(screen.getByRole('button', { name: 'settings.subscription.go_to_subscribe' }))
-      expect(mocks.startCherryCloudSubscription).toHaveBeenCalledOnce()
-    })
-
-    it('starts Subscribe instead of selecting a locked plan model', async () => {
-      const onSelect = vi.fn()
-      renderCherryAiGroup(undefined, onSelect)
-
-      expect(screen.getByText('models.type.subscription')).toBeInTheDocument()
-      await userEvent.click(screen.getByTestId('model-selector-item-openai::plan-model'))
-
-      expect(mocks.startCherryCloudSubscription).toHaveBeenCalledOnce()
-      expect(onSelect).not.toHaveBeenCalled()
-    })
-
-    it('starts Subscribe for every locked plan model', async () => {
-      const onSelect = vi.fn()
-      const firstLocked = { ...makeModelItem('openai::plan-model-1'), locked: true }
-      const secondLocked = { ...makeModelItem('openai::plan-model-2'), locked: true }
-      const listItems: FlatListItem[] = [
-        { key: 'provider-cherryai', type: 'group', title: 'CherryAI', groupKind: 'provider', isCherryAiGroup: true },
-        firstLocked,
-        secondLocked
-      ]
-      mocks.useModelSelectorData.mockReturnValue(
-        makeData({ listItems, modelItems: [firstLocked, secondLocked], subscribedPlanName: undefined })
-      )
-      render(<ModelSelector multiple={false} open trigger={<button type="button">Open</button>} onSelect={onSelect} />)
-
-      await userEvent.click(screen.getByTestId('model-selector-item-openai::plan-model-1'))
-      await userEvent.click(screen.getByTestId('model-selector-item-openai::plan-model-2'))
-
-      expect(mocks.startCherryCloudSubscription).toHaveBeenCalledTimes(2)
-      expect(onSelect).not.toHaveBeenCalled()
-    })
-
-    it('keeps a locked row clickable and unpinnable even when its model is unavailable', async () => {
-      const onSelect = vi.fn()
-      const locked = { ...makeModelItem('openai::plan-model'), locked: true }
-      const listItems: FlatListItem[] = [
-        { key: 'provider-cherryai', type: 'group', title: 'CherryAI', groupKind: 'provider', isCherryAiGroup: true },
-        locked
-      ]
-      // A free agent-only offer of the same model can be out of quota.
-      mocks.useModelSelectorData.mockReturnValue(
-        makeData({ listItems, modelItems: [locked], isModelUnavailable: () => true, subscribedPlanName: undefined })
-      )
-      render(<ModelSelector multiple={false} open trigger={<button type="button">Open</button>} onSelect={onSelect} />)
-
-      const row = screen.getByTestId('model-selector-item-openai::plan-model')
-      expect(within(row).queryByRole('button', { name: /pin/i })).not.toBeInTheDocument()
-      await userEvent.click(row)
-
-      expect(mocks.startCherryCloudSubscription).toHaveBeenCalledOnce()
-      expect(onSelect).not.toHaveBeenCalled()
-    })
-
-    it('offers Subscribe when an unsubscribed picker has nothing to show', async () => {
-      const onSelect = vi.fn()
-      mocks.useModelSelectorData.mockReturnValue(
-        makeData({ listItems: [], modelItems: [], subscribedPlanName: undefined })
-      )
-      render(<ModelSelector multiple={false} open trigger={<button type="button">Open</button>} onSelect={onSelect} />)
-
-      await userEvent.click(
-        within(screen.getByTestId('model-selector-empty')).getByRole('button', {
-          name: 'settings.subscription.go_to_subscribe'
-        })
-      )
-
-      expect(mocks.startCherryCloudSubscription).toHaveBeenCalledOnce()
-    })
-
-    it('draws the subscription tag in the prototype amber', () => {
-      renderCherryAiGroup()
-
-      const subscriptionTag = screen.getByText('models.type.subscription').closest('div')
-      expect(subscriptionTag).toHaveStyle({ color: '#d48806' })
-    })
-
-    it('shows the backend plan name instead of the link once subscribed', () => {
-      renderCherryAiGroup('Plus')
-
-      expect(screen.getByText('Plus')).toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: 'settings.subscription.go_to_subscribe' })).not.toBeInTheDocument()
-    })
+    mocks.useModelSelectorData.mockReturnValue(makeData({ listItems: [action], modelItems: [] }))
+    const user = userEvent.setup()
+    render(
+      <ModelSelector
+        multiple
+        open
+        multiSelectMode
+        value={[]}
+        onSelect={onSelect}
+        trigger={<button type="button">Open</button>}
+      />
+    )
+    await user.click(screen.getByRole('option', { name: 'Upgrade' }))
+    expect(onAction).toHaveBeenCalledTimes(1)
+    expect(onSelect).not.toHaveBeenCalled()
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'models.action.pin' })).not.toBeInTheDocument()
+    await user.keyboard('{Enter}')
+    expect(onAction).toHaveBeenCalledTimes(2)
+    expect(onSelect).not.toHaveBeenCalled()
   })
 
   it('keeps the provider in a pinned row without a provider group', () => {
@@ -489,8 +396,11 @@ describe('ModelSelector', () => {
     const user = userEvent.setup()
     mocks.useModelSelectorData.mockReturnValue(
       makeData({
-        getModelDescription: (model) => (model.name === 'gpt-4' ? 'Limited-time free' : 'Free quota exhausted'),
-        isModelUnavailable: (model) => model.name === 'gpt-3.5'
+        getModelPresentation: (model) => ({
+          tags: [],
+          description: model.name === 'gpt-4' ? 'Available description' : 'Disabled description',
+          disabled: model.name === 'gpt-3.5'
+        })
       })
     )
 
@@ -502,13 +412,13 @@ describe('ModelSelector', () => {
 
     await waitFor(() => expect(searchInput).toHaveAttribute('aria-activedescendant', firstOption.id))
     expect(searchInput).toHaveAttribute('aria-controls', listbox.id)
-    expect(firstOption).toHaveAccessibleDescription('Limited-time free')
+    expect(firstOption).toHaveAccessibleDescription('Available description')
 
     await user.keyboard('{ArrowDown}')
 
     await waitFor(() => expect(searchInput).toHaveAttribute('aria-activedescendant', secondOption.id))
     expect(secondOption).toHaveAttribute('aria-disabled', 'true')
-    expect(secondOption).toHaveAccessibleDescription('Free quota exhausted')
+    expect(secondOption).toHaveAccessibleDescription('Disabled description')
   })
 
   it('keeps the active descendant mounted after page navigation', async () => {

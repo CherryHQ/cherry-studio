@@ -154,7 +154,6 @@ snapshots:
       '@pnpm/exe.linux-x64-musl': 12.6.0
       '@pnpm/exe.win32-arm64': 12.6.0
       '@pnpm/exe.win32-x64': 12.6.0
-
 ---
 lockfileVersion: '9.0'
 
@@ -164,7 +163,7 @@ settings:
 
 overrides:
   '@aiany/sqlite-vec-linux-x64': npm:sqlite-vec-linux-x64@0.1.9
-  '@earendil-works/pi-ai@1.4.0>@google/genai': 2.23.0
+  '@earendil-works/pi-ai@1.5.0>@google/genai': 2.23.0
   picomatch: 4.0.4
   concurrently>shell-quote: 1.8.4
   fast-xml-parser: '>=5.10.1'
@@ -213,10 +212,10 @@ overrides:
   '@img/sharp-win32-x64': 0.35.3
   '@napi-rs/canvas': 0.1.97
   onnxruntime-node: 1.25.1
-  '@ai-sdk/provider': 3.0.18
-  '@ai-sdk/provider-utils': 4.0.58
+  '@ai-sdk/provider': 3.0.19
+  '@ai-sdk/provider-utils': 4.0.64
   '@ai-sdk/google': 3.0.132
-  '@ai-sdk/openai': 3.0.109
+  '@ai-sdk/openai': 3.0.137
   '@ai-sdk/anthropic': 3.0.125
   ai: 6.0.185
 
@@ -229,13 +228,13 @@ patchedDependencies:
   '@ai-sdk/mistral@3.0.30': b4f34e27858ce5529a661a90832aa51ce76eb2e5b3ab1b174a38e1eb36b2c53e
   '@ai-sdk/open-responses@1.0.34': 83f5f29fe22a32569d6255265c8ebd3420fabe87e392c751590c8f4c06dab366
   '@ai-sdk/openai-compatible@2.0.72': c06be46e8512764ce8def5a392570a772f237774598cfff51631f7f6d7b8b771
-  '@ai-sdk/openai@3.0.109': d31cc5a15dd2430793a6816857d7b086c7738e0d5fcb950d0ad806fee113945e
+  '@ai-sdk/openai@3.0.137': 29617bfa692ec1f8146c41092d8d5219e2024d23777689c5e356314a17621db7
   '@aiden0z/pptx-renderer@1.2.2': cef8fdac29413f0b6e59df97fe5c874f536c1bc064d77aa88f7d5028f78a6329
   '@anthropic-ai/claude-agent-sdk@0.3.311': b89b3f4bbaf29e79be6f1de79f027ab65862b7656ce3d1c3ae7481f016093abe
-  '@earendil-works/pi-agent-core@1.4.0': 473b3d3cb72ce126cf7b8e28961f9512776ce4398c30666e0ee6adc18e9ac6ee
-  '@earendil-works/pi-ai@1.4.0': befe89992b8008d838c6f36355dfdcf2a9563df9f2daba4162b53cda5d8b29de
-  '@earendil-works/pi-coding-agent@1.4.0': 3fcb6c2466c3e2e4c8a8f6d4ad160e8b8a8e234108a09d1bd140d4355a6b6dcb
-  '@earendil-works/pi-durable@1.4.0': a3a9d6a09d9ab2f84866541881ba8ea7e6b50583a70a7971964311bfe80ebb8b
+  '@earendil-works/pi-agent-core@1.5.0': 9e02b04880d8355a8d3e447ab68d0fe7a64e97853f7ee4d7af591556b4f54556
+  '@earendil-works/pi-ai@1.5.0': 0c9e7b57509628e0132fdb88cf3397202b0a23ab207a83f728ed6f15f5362e39
+  '@earendil-works/pi-coding-agent@1.5.0': baa38b5834a01fde79895162e19835a59491bfdd656b7e237582d7bbc2e5311e
+  '@earendil-works/pi-durable@1.5.0': d1c485b564bbb6d7024197573d168006f49ff1688b2d941cdff0453296125844
   '@elysia/node@1.4.6': ceae4c188748b0ccfb825739bdbbe02486930f53b0fb1068e21de26527488ad2
   '@napi-rs/system-ocr@1.2.0': 72d651f33c307945c636ea0a25b97b48018cab99b440ca02d8ea2dac222033d0
   '@openrouter/ai-sdk-provider@2.10.0': fe61d9ff590828fc0fd3f8b3b8b88a4a1b736a99b595a276c8df9e12c9498009
@@ -287,22 +286,22 @@ importers:
         version: https://codeload.github.com/CherryHQ/mlx-node/tar.gz/ad3bf3ec3a141ec06fb8f73933685b1420ed09ac#path:distribution/asr
       '@cherrystudio/mlx-tts':
         specifier: github:CherryHQ/mlx-node#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts
-        version: git+https://github.com/CherryHQ/mlx-node.git#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts
+        version: https://codeload.github.com/CherryHQ/mlx-node/tar.gz/f4c21043f557965345b527bc04179ad26d08378f#path:distribution/tts
       '@earendil-works/chord':
-        specifier: 1.4.0
-        version: 1.4.0
+        specifier: 1.5.0
+        version: 1.5.0(esbuild@0.25.12)(ws@8.21.3)
       '@earendil-works/pi-ai':
-        specifier: 1.4.0
-        version: 1.4.0(patch_hash=befe89992b8008d838c6f36355dfdcf2a9563df9f2daba4162b53cda5d8b29de)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)
+        specifier: 1.5.0
+        version: 1.5.0(patch_hash=0c9e7b57509628e0132fdb88cf3397202b0a23ab207a83f728ed6f15f5362e39)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)
       '@earendil-works/pi-codemode':
-        specifier: 1.4.0
-        version: 1.4.0
+        specifier: 1.5.0
+        version: 1.5.0
       '@earendil-works/pi-coding-agent':
-        specifier: 1.4.0
-        version: 1.4.0(patch_hash=3fcb6c2466c3e2e4c8a8f6d4ad160e8b8a8e234108a09d1bd140d4355a6b6dcb)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)
+        specifier: 1.5.0
+        version: 1.5.0(patch_hash=baa38b5834a01fde79895162e19835a59491bfdd656b7e237582d7bbc2e5311e)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)
       '@earendil-works/pi-durable':
-        specifier: 1.4.0
-        version: 1.4.0(patch_hash=a3a9d6a09d9ab2f84866541881ba8ea7e6b50583a70a7971964311bfe80ebb8b)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)
+        specifier: 1.5.0
+        version: 1.5.0(patch_hash=d1c485b564bbb6d7024197573d168006f49ff1688b2d941cdff0453296125844)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(esbuild@0.25.12)(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)
       '@firecrawl/anydoc':
         specifier: 0.2.4
         version: 0.2.4
@@ -443,8 +442,8 @@ importers:
         specifier: 1.0.34
         version: 1.0.34(patch_hash=83f5f29fe22a32569d6255265c8ebd3420fabe87e392c751590c8f4c06dab366)(zod@4.4.3)
       '@ai-sdk/openai':
-        specifier: 3.0.109
-        version: 3.0.109(patch_hash=d31cc5a15dd2430793a6816857d7b086c7738e0d5fcb950d0ad806fee113945e)(zod@4.4.3)
+        specifier: 3.0.137
+        version: 3.0.137(patch_hash=29617bfa692ec1f8146c41092d8d5219e2024d23777689c5e356314a17621db7)(zod@4.4.3)
       '@ai-sdk/openai-compatible':
         specifier: 2.0.72
         version: 2.0.72(patch_hash=c06be46e8512764ce8def5a392570a772f237774598cfff51631f7f6d7b8b771)(zod@4.4.3)
@@ -452,11 +451,11 @@ importers:
         specifier: ^3.0.29
         version: 3.0.29(zod@4.4.3)
       '@ai-sdk/provider':
-        specifier: 3.0.18
-        version: 3.0.18
+        specifier: 3.0.19
+        version: 3.0.19
       '@ai-sdk/provider-utils':
-        specifier: 4.0.58
-        version: 4.0.58(zod@4.4.3)
+        specifier: 4.0.64
+        version: 4.0.64(zod@4.4.3)
       '@ai-sdk/test-server':
         specifier: ^1.0.3
         version: 1.0.3(@types/node@24.10.4)(typescript@5.9.3)
@@ -565,6 +564,9 @@ importers:
       '@e965/xlsx':
         specifier: ^0.20.3
         version: 0.20.3
+      '@earendil-works/pi-schema':
+        specifier: 1.5.0
+        version: 1.5.0
       '@electron-toolkit/eslint-config-ts':
         specifier: ^3.0.0
         version: 3.1.0(eslint@9.39.5(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@5.9.3)
@@ -933,7 +935,7 @@ importers:
         version: 0.4.16
       ai-retry:
         specifier: ^1.11.0
-        version: 1.11.1(@ai-sdk/provider-utils@4.0.58(zod@4.4.3))(@ai-sdk/provider@3.0.18)(@opentelemetry/api@1.9.1)(ai@6.0.185(patch_hash=7ecccde0123dda28e5f7dd47606f9bab2313611310ea7bdb673b71e4939e2775)(zod@4.4.3))(zod@4.4.3)
+        version: 1.11.1(@ai-sdk/provider-utils@4.0.64(zod@4.4.3))(@ai-sdk/provider@3.0.19)(@opentelemetry/api@1.9.1)(ai@6.0.185(patch_hash=7ecccde0123dda28e5f7dd47606f9bab2313611310ea7bdb673b71e4939e2775)(zod@4.4.3))(zod@4.4.3)
       ansi-to-react:
         specifier: ^6.2.6
         version: 6.2.6(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -1429,6 +1431,9 @@ importers:
       tw-animate-css:
         specifier: ^1.3.8
         version: 1.4.0
+      typebox:
+        specifier: 1.3.27
+        version: 1.3.27
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -1750,18 +1755,24 @@ importers:
         specifier: workspace:*
         version: link:../agent-runtime
       '@earendil-works/pi-ai':
-        specifier: 1.4.0
-        version: 1.4.0(patch_hash=befe89992b8008d838c6f36355dfdcf2a9563df9f2daba4162b53cda5d8b29de)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)
+        specifier: 1.5.0
+        version: 1.5.0(patch_hash=0c9e7b57509628e0132fdb88cf3397202b0a23ab207a83f728ed6f15f5362e39)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)
       '@earendil-works/pi-coding-agent':
-        specifier: 1.4.0
-        version: 1.4.0(patch_hash=3fcb6c2466c3e2e4c8a8f6d4ad160e8b8a8e234108a09d1bd140d4355a6b6dcb)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)
+        specifier: 1.5.0
+        version: 1.5.0(patch_hash=baa38b5834a01fde79895162e19835a59491bfdd656b7e237582d7bbc2e5311e)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)
     devDependencies:
+      '@earendil-works/pi-schema':
+        specifier: 1.5.0
+        version: 1.5.0
       '@types/node':
         specifier: ^24.10.4
         version: 24.10.4
       tsdown:
         specifier: ^0.22.14
         version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typebox:
+        specifier: 1.3.27
+        version: 1.3.27
       typescript:
         specifier: npm:@typescript/typescript6@6.0.2
         version: '@typescript/typescript6@6.0.2'
@@ -1778,15 +1789,18 @@ importers:
         specifier: workspace:*
         version: link:../agent-runtime
       '@earendil-works/chord':
-        specifier: 1.4.0
-        version: 1.4.0
+        specifier: 1.5.0
+        version: 1.5.0(esbuild@0.25.12)(ws@8.21.3)
     devDependencies:
       '@earendil-works/pi-ai':
-        specifier: 1.4.0
-        version: 1.4.0(patch_hash=befe89992b8008d838c6f36355dfdcf2a9563df9f2daba4162b53cda5d8b29de)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)
+        specifier: 1.5.0
+        version: 1.5.0(patch_hash=0c9e7b57509628e0132fdb88cf3397202b0a23ab207a83f728ed6f15f5362e39)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)
       '@earendil-works/pi-durable':
-        specifier: 1.4.0
-        version: 1.4.0(patch_hash=a3a9d6a09d9ab2f84866541881ba8ea7e6b50583a70a7971964311bfe80ebb8b)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)
+        specifier: 1.5.0
+        version: 1.5.0(patch_hash=d1c485b564bbb6d7024197573d168006f49ff1688b2d941cdff0453296125844)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(esbuild@0.25.12)(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)
+      '@earendil-works/pi-schema':
+        specifier: 1.5.0
+        version: 1.5.0
       '@types/node':
         specifier: ^24.10.4
         version: 24.10.4
@@ -1809,17 +1823,17 @@ importers:
         specifier: 3.0.132
         version: 3.0.132(patch_hash=0f7a4832e8029104102bcfd399e7f889c9f272f6a6812f752749b4688f749821)(zod@4.4.3)
       '@ai-sdk/openai':
-        specifier: 3.0.109
-        version: 3.0.109(patch_hash=d31cc5a15dd2430793a6816857d7b086c7738e0d5fcb950d0ad806fee113945e)(zod@4.4.3)
+        specifier: 3.0.137
+        version: 3.0.137(patch_hash=29617bfa692ec1f8146c41092d8d5219e2024d23777689c5e356314a17621db7)(zod@4.4.3)
       '@ai-sdk/openai-compatible':
         specifier: ^2.0.72
         version: 2.0.72(patch_hash=c06be46e8512764ce8def5a392570a772f237774598cfff51631f7f6d7b8b771)(zod@4.4.3)
       '@ai-sdk/provider':
-        specifier: 3.0.18
-        version: 3.0.18
+        specifier: 3.0.19
+        version: 3.0.19
       '@ai-sdk/provider-utils':
-        specifier: 4.0.58
-        version: 4.0.58(zod@4.4.3)
+        specifier: 4.0.64
+        version: 4.0.64(zod@4.4.3)
     devDependencies:
       tsdown:
         specifier: ^0.22.14
@@ -1846,14 +1860,14 @@ importers:
         specifier: 3.0.132
         version: 3.0.132(patch_hash=0f7a4832e8029104102bcfd399e7f889c9f272f6a6812f752749b4688f749821)(zod@4.4.3)
       '@ai-sdk/openai':
-        specifier: 3.0.109
-        version: 3.0.109(patch_hash=d31cc5a15dd2430793a6816857d7b086c7738e0d5fcb950d0ad806fee113945e)(zod@4.4.3)
+        specifier: 3.0.137
+        version: 3.0.137(patch_hash=29617bfa692ec1f8146c41092d8d5219e2024d23777689c5e356314a17621db7)(zod@4.4.3)
       '@ai-sdk/openai-compatible':
         specifier: ^2.0.72
         version: 2.0.72(patch_hash=c06be46e8512764ce8def5a392570a772f237774598cfff51631f7f6d7b8b771)(zod@4.4.3)
       '@ai-sdk/provider':
-        specifier: 3.0.18
-        version: 3.0.18
+        specifier: 3.0.19
+        version: 3.0.19
       '@ai-sdk/xai':
         specifier: ^3.0.126
         version: 3.0.126(zod@4.4.3)
@@ -2002,8 +2016,8 @@ importers:
         version: 7.7.1
     devDependencies:
       '@ai-sdk/provider-utils':
-        specifier: 4.0.58
-        version: 4.0.58(zod@4.4.3)
+        specifier: 4.0.64
+        version: 4.0.64(zod@4.4.3)
       '@types/node':
         specifier: ^24.10.2
         version: 24.10.4
@@ -2137,7 +2151,7 @@ importers:
         version: 0.2.0
       '@radix-ui/primitive':
         specifier: ^1.1.3
-        version: 1.1.5
+        version: 1.2.0
       '@radix-ui/react-accordion':
         specifier: ^1.2.12
         version: 1.2.12(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -2478,8 +2492,8 @@ packages:
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
-  '@ai-sdk/openai@3.0.109':
-    resolution: {integrity: sha512-5mxPiRS83KaOtu04fz79dhZ9J5u/aUb7ekNcdiNUPioziORFnjcw7dJSfKS/yj8sj+IfSnp8eDZfTSBRBgvXAQ==}
+  '@ai-sdk/openai@3.0.137':
+    resolution: {integrity: sha512-H9QMn7iEJJ3/VZxPnb/qroKUZKl3iu33IvfMwlRvfx5Olguwrbk2UBBl2ca/Wfg1PlZK+JWBI8YinpyTtYrpaA==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -2490,14 +2504,14 @@ packages:
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
-  '@ai-sdk/provider-utils@4.0.58':
-    resolution: {integrity: sha512-3YtZ9GmBNVLaiO6RSc/xrb5wY1RF0UYfCg6AQfdSaDWljX8EaSEC5s8PEch6mKXzOoM76v1yHK7CxYMJY2C1CA==}
+  '@ai-sdk/provider-utils@4.0.64':
+    resolution: {integrity: sha512-NQp/xAFHZbnWLHNjm8EjwUILgEpURsQnE416aO/PS3XrZ/PGfghEcXEcHXkXmIvB5Jem/9SPQxXnm/0wu7Emsg==}
     engines: {node: '>=18.17'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
-  '@ai-sdk/provider@3.0.18':
-    resolution: {integrity: sha512-IpefF5ssZVOZCD4Wu7zxt6PwZoGT2HLVjxpJ10Bjx6EAmRfLYJPjyrfxb0RYDlwvXnDb9nkQ7Do/oJVDuRFzew==}
+  '@ai-sdk/provider@3.0.19':
+    resolution: {integrity: sha512-5lWq7zSfRaU5ylDESn3sDQjgGl2AI1vjZKO/6JY3aFW70ct4zcP1kN+ZUYOuTXr28fVsYbyu2YFhddLdIgQFZQ==}
     engines: {node: '>=18'}
 
   '@ai-sdk/test-server@1.0.3':
@@ -3132,8 +3146,8 @@ packages:
     resolution: {gitHosted: true, integrity: sha512-oUswcywFB8j5sfDyKfn+QICE4ax0mwE/VgsN22if1ipkd8nsQ2FOyq3C3kzlZjMUjqgUgyPktyhCsceWhLaaKA==, path: distribution/asr, tarball: https://codeload.github.com/CherryHQ/mlx-node/tar.gz/ad3bf3ec3a141ec06fb8f73933685b1420ed09ac}
     version: 0.0.16-cherry.1
 
-  '@cherrystudio/mlx-tts@git+https://github.com/CherryHQ/mlx-node.git#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts':
-    resolution: {commit: f4c21043f557965345b527bc04179ad26d08378f, path: distribution/tts, repo: https://github.com/CherryHQ/mlx-node.git, type: git}
+  '@cherrystudio/mlx-tts@https://codeload.github.com/CherryHQ/mlx-node/tar.gz/f4c21043f557965345b527bc04179ad26d08378f#path:distribution/tts':
+    resolution: {gitHosted: true, integrity: sha512-5d0uEhagGMP3xQaML3xsNzOXEsQR8OK4NYsFuUDSzmxbenvl079rahSvxACOqfBP0ssIXJhbzsYY9B5WS15NPg==, path: distribution/tts, tarball: https://codeload.github.com/CherryHQ/mlx-node/tar.gz/f4c21043f557965345b527bc04179ad26d08378f}
     version: 0.0.16-cherry.1
 
   '@cherrystudio/openai@6.15.0':
@@ -3394,42 +3408,54 @@ packages:
     engines: {node: '>=0.8'}
     hasBin: true
 
-  '@earendil-works/chord@1.4.0':
-    resolution: {integrity: sha512-dTbgyz4xgDS5KAUFx1bFENqj0Cr1N3tYxJJOYStc6g6HS78FSBZydyoCwLoddiQRF+VgRS0fpgAi+iKxjZ3BQA==}
+  '@earendil-works/chord@1.5.0':
+    resolution: {integrity: sha512-jf555zbCM21E03DVBDPD/Tuae0lz64YjaHx/athUxNZ/H7phVVb0dWfZsaYnxaXPQ1odW8iHEoVLOlE/prvUPg==}
+    engines: {node: '>=22.19.0'}
+    peerDependencies:
+      esbuild: ^0.25.0
+      ws: 8.21.0
+    peerDependenciesMeta:
+      esbuild:
+        optional: true
+      ws:
+        optional: true
+
+  '@earendil-works/pi-agent-core@1.5.0':
+    resolution: {integrity: sha512-FOj+jXj48DbzMycR/ghNa2KcsqWmvOln24e0FnQOVgnd8vn5H79g335WdHaZUVdRo+zCeogb40/qPPlCWFuvmA==}
     engines: {node: '>=22.19.0'}
 
-  '@earendil-works/pi-agent-core@1.4.0':
-    resolution: {integrity: sha512-PoKY84SKUwnt7S5QBZaGUqfNO1kjP3KHpHUA9QpFTj4cOjaVWMYIcBPJ6FDRCdE8Zen9OSECQUd0uUfVgtSmgA==}
-    engines: {node: '>=22.19.0'}
-
-  '@earendil-works/pi-ai@1.4.0':
-    resolution: {integrity: sha512-hQM/C4+1w8rHYACzDDf+0vQMnEnpzIop1tptIERVgR3ZeT/hHSzBNG8PaWPgxWQjqSeKCyBZSyp8uTT6eKK1pQ==}
+  '@earendil-works/pi-ai@1.5.0':
+    resolution: {integrity: sha512-VeWxNqTHSqRCf8AcY/6kvNwh+neRL6MPxZPePVztIQy6qqK9MR/YoCSN/ZgDnIyCD3pqEXgRyQbzk4KV4uvjbg==}
     engines: {node: '>=22.19.0'}
     hasBin: true
 
-  '@earendil-works/pi-codemode@1.4.0':
-    resolution: {integrity: sha512-23CNAXpS9DuLzPMyYuvrXVVio46x4YhffCgCqaWmF7F5H8PooqjrQvX4ucF6M0BhUd+x2tV6r1J0dv8cCME4Cg==}
+  '@earendil-works/pi-codemode@1.5.0':
+    resolution: {integrity: sha512-PLBJZ17AEWGzOlAAcFuOkw3PxkOti0JlFuZQyeF2GRTqbpuYo4k9t8YqUV2uOQVzrUnKdxahwaFUqc1eNS1WAg==}
     engines: {node: '>=22.19.0'}
 
-  '@earendil-works/pi-coding-agent@1.4.0':
-    resolution: {integrity: sha512-Z41LpZ3yYHSC/UUps6Mr39UMFPwH8elhJBG9DY1P7kuzsE5qSK/6eMj2EHzO5evJRQWLbKSqUMw+4nCNtIyiQg==}
+  '@earendil-works/pi-coding-agent@1.5.0':
+    resolution: {integrity: sha512-xNDZ5kqowO6Z03FS2gwAkPEGk1ssxVcYKQ6qZId84mFEvwACvvyc2l0vAMOS+c5zvxLRMLBE9r4y44IGYkMJaQ==}
     engines: {node: '>=22.19.0'}
     hasBin: true
 
-  '@earendil-works/pi-durable@1.4.0':
-    resolution: {integrity: sha512-EtIyXH1MBSXdJSkodmy+CYXuwfve3gPrD4GNCZ0XmuRWLPupwRlNQ7fdaXjRcLoKb6SWkT/yEzK+sMmrqvYK+Q==}
+  '@earendil-works/pi-durable@1.5.0':
+    resolution: {integrity: sha512-xeBP2vIo5NvsCMQ4Y/V+Z164xQEi9JWiBWHdjn4Z15EnFqV3c0FxJAX26FqyyyintrYyk+Enre94GNcvRlBA5g==}
     engines: {node: '>=22.19.0'}
 
-  '@earendil-works/pi-mcp@1.4.0':
-    resolution: {integrity: sha512-92aZmmGsUpHHknYuKXZHRINQfahntw5hU9If0I0ZM49GojOaFHpkl5/GF3/aatqpt7v7GjZbBfpfSygGKW+pnw==}
+  '@earendil-works/pi-mcp@1.5.0':
+    resolution: {integrity: sha512-DURw3IwHCTMHV8CzUJWVp9css27NowsCWfXt4xg2r09IZ+P1O/Uq58hp0hb9WJO0dbkaKGXKBIkV4LVXcu2nlg==}
     engines: {node: '>=22.19.0'}
 
-  '@earendil-works/pi-telemetry@1.4.0':
-    resolution: {integrity: sha512-MLIfowwUYIY65jSjMX82paZOrX/NTvLk6D08h+3Jq42a99RzUOewzuCR0zOlPul3D6UBfddat76VT6LvsHEs1w==}
+  '@earendil-works/pi-schema@1.5.0':
+    resolution: {integrity: sha512-RW0MbT2tR65OY6xMsgB/yVBb7m/RTNwA+9hurSN1vVXfHZRVmVnXbruBPrx/PzbrQnW5yLVlMRWxErGDQtF1Hg==}
     engines: {node: '>=22.19.0'}
 
-  '@earendil-works/pi-tui@1.4.0':
-    resolution: {integrity: sha512-4obPOjgOD7g4mGSlngIvxyujC1UPdmyI9zdVthbr8GufacFEX+Ce0+scPgHg++k2xj5+QjESM2d5TxvIuzCVmg==}
+  '@earendil-works/pi-telemetry@1.5.0':
+    resolution: {integrity: sha512-VW3tcVdnNfl/Vk8wHPTzZdKkxcsCOM12ppiO4DXnd9wMxUCmOfLt/wvUnWeKWbTVlVSRg0uqKtnnhE2UCsG2Bw==}
+    engines: {node: '>=22.19.0'}
+
+  '@earendil-works/pi-tui@1.5.0':
+    resolution: {integrity: sha512-56KqrDVeLF18k+syppVbT35Ai1opbM44ot+sL7O3K40CaWwXCiwOpqEFugDBAILtAhseZh6uYIuYxPPOJHLFAA==}
     engines: {node: '>=22.19.0'}
 
   '@electron-internal/extract-zip@1.0.3':
@@ -4289,6 +4315,9 @@ packages:
     resolution: {integrity: sha512-wgm9Ehl2jpeqP3zw/7mo3kRHFp5MEDhqAdwy1fTGkHAwnkGOVsgpvQhL8B5n1qlb01jV3n/bI0ZfZp5lWA1k4w==}
     engines: {node: '>=18.0.0'}
 
+  '@isaacs/nonrecursive-glob-match@1.1.0':
+    resolution: {integrity: sha512-GPm/Dbvk5RLmhRnxXIa7nTpK0xtl4E0wj0MslsuNiJ1FIROU+2+9lgUC/dgF7Ey4QCWhfEsgxilMRMCdHPfDfw==}
+
   '@j178/prek@0.3.4':
     resolution: {integrity: sha512-r0HU31ydtVfFcpfDZp054iHvZvPafTHfeRLjFxbO/QbU+yJ4muD5X1fgwojFHakqPW2rSNmFJrKpdCw/fia1DQ==}
     engines: {node: '>=14', npm: '>=6'}
@@ -4948,24 +4977,28 @@ packages:
   '@opentelemetry/sdk-trace-base@2.0.0':
     resolution: {integrity: sha512-qQnYdX+ZCkonM7tA5iU4fSRsVxbFGml8jbxOgipRGMFHKaXKHQ30js03rTobYjKjIfnOsZSbHKWF0/0v0OQGfw==}
     engines: {node: ^18.19.0 || >=20.6.0}
+    deprecated: Use @opentelemetry/sdk-trace package
     peerDependencies:
       '@opentelemetry/api': '>=1.3.0 <1.10.0'
 
   '@opentelemetry/sdk-trace-base@2.11.0':
     resolution: {integrity: sha512-H19x/TX/LZdqiYOjM7fqtSxwlplC5pgelavqbQdHbhdq0q/AI/TGkM2dfGuuynTXmJPeF2HoZVoPDu+TGoW78A==}
     engines: {node: ^18.19.0 || >=20.6.0}
+    deprecated: Use @opentelemetry/sdk-trace package
     peerDependencies:
       '@opentelemetry/api': '>=1.3.0 <1.10.0'
 
   '@opentelemetry/sdk-trace-base@2.2.0':
     resolution: {integrity: sha512-xWQgL0Bmctsalg6PaXExmzdedSp3gyKV8mQBwK/j9VGdCDu2fmXIb2gAehBKbkXCpJ4HPkgv3QfoJWRT4dHWbw==}
     engines: {node: ^18.19.0 || >=20.6.0}
+    deprecated: Use @opentelemetry/sdk-trace package
     peerDependencies:
       '@opentelemetry/api': '>=1.3.0 <1.10.0'
 
   '@opentelemetry/sdk-trace-node@2.2.0':
     resolution: {integrity: sha512-+OaRja3f0IqGG2kptVeYsrZQK9nKRSpfFrKtRBq4uh6nIB8bTBgaGvYQrQoRrQWQMA5dK5yLhDMDc0dvYvCOIQ==}
     engines: {node: ^18.19.0 || >=20.6.0}
+    deprecated: Use @opentelemetry/sdk-trace package
     peerDependencies:
       '@opentelemetry/api': '>=1.0.0 <1.10.0'
 
@@ -7006,6 +7039,9 @@ packages:
   '@smithy/core@3.35.0':
     resolution: {integrity: sha512-zRMhfkByhT2snNdr1si24vJitU6Cr9ix2MikUfWmkAgp4jrNP0GcKSP5YvwQ+TlI8AZXER5QOGJn3JsVtSD9/A==}
     engines: {node: '>=18.0.0'}
+    deprecated: |-
+      Deprecated due to a bug in custom logger data redaction. Upgrade to the latest version. If you used a custom logger with this
+        version, review your logs and rotate any credentials or other secrets. See https://github.com/aws/aws-sdk-js-v3/issues/8393.
 
   '@smithy/credential-provider-imds@4.2.10':
     resolution: {integrity: sha512-3bsMLJJLTZGZqVGGeBVFfLzuRulVsGTj12BzRKODTHqUABpIr0jMN1vN3+u6r2OfyhAQ2pXaMZWX/swBK5I6PQ==}
@@ -7154,6 +7190,9 @@ packages:
   '@smithy/smithy-client@4.12.0':
     resolution: {integrity: sha512-R8bQ9K3lCcXyZmBnQqUZJF4ChZmtWT5NLi6x5kgWx5D+/j0KorXcA0YcFg/X5TOgnTCy1tbKc6z2g2y4amFupQ==}
     engines: {node: '>=18.0.0'}
+    deprecated: |-
+      Deprecated due to a bug in custom logger data redaction. Upgrade to the latest version. If you used a custom logger with
+        this version, review your logs and rotate any credentials or other secrets. See https://github.com/aws/aws-sdk-js-v3/issues/8393.
 
   '@smithy/types@4.7.1':
     resolution: {integrity: sha512-WwP7vzoDyzvIFLzF5UhLQ6AsEx/PvSObzlNtJNW3lLy+BaSvTqCU628QKVvcJI/dydlAS1mSHQP7anKcxDcOxA==}
@@ -8149,6 +8188,9 @@ packages:
   '@types/hast@3.0.4':
     resolution: {integrity: sha512-WPs+bbQw5aCj+x6laNGWLH3wviHtoCv/P3+otBhbOhJgG8qtpdAMlTCxLtsTWA7LH1Oh/bFCHsBn0TPS5m30EQ==}
 
+  '@types/hast@3.0.5':
+    resolution: {integrity: sha512-rp/ezSWaD1m44dPKICGhiskI13nVr7qTloFwDa/IYkhhf5nzwP+zIQcIJh3WIFSBOy/H1PzB40jPjMDksN4F+g==}
+
   '@types/html-to-text@9.0.4':
     resolution: {integrity: sha512-pUY3cKH/Nm2yYrEmDlPR1mR7yszjGx4DrwPjQ702C4/D5CwHuZTgZdIdwPkRbcuhs7BAh2L5rg3CL5cbRiGTCQ==}
 
@@ -9090,8 +9132,8 @@ packages:
   ai-retry@1.11.1:
     resolution: {integrity: sha512-J/nffw5v1cISfNAvZQSW4v6p1BMsSqvsP0PpwjUsnumRRVLfW3N5wls9ASIhaZAx1faMdvhMi9qh2oUTxCMc2A==}
     peerDependencies:
-      '@ai-sdk/provider': 3.0.18
-      '@ai-sdk/provider-utils': 4.0.58
+      '@ai-sdk/provider': 3.0.19
+      '@ai-sdk/provider-utils': 4.0.64
       '@opentelemetry/api': ^1.9.0
       ai: 6.0.185
       zod: ^4.0.0
@@ -12918,6 +12960,10 @@ packages:
     resolution: {integrity: sha512-vpLQEs+VLCr1nU0BXS07maYoFwlDAH0gngQuuttxIwutDFEMHq2blX+8vpgxDdK3J1PwjCJiep77OitTZ4Ll1A==}
     engines: {node: 18 || 20 || >=22}
 
+  minimatch@11.0.3:
+    resolution: {integrity: sha512-iny/40PEGkNJQ5/Pv6z3nm6FbRAby32GeZRjCUJk2WnNDbgPSTcdI+DDvLqsgBdD4cD5sMtMheqPPnehCCa8Nw==}
+    engines: {node: 18 || 20 || >=22}
+
   minimatch@3.1.5:
     resolution: {integrity: sha512-VgjWUsnnT6n+NUk6eZq77zeFdpW2LWDzP6zFGrCbHXiYNul5Dzqk2HHQ5uFH2DNW5Xbp8+jVzaeNt94ssEEl4w==}
 
@@ -15361,6 +15407,10 @@ packages:
     resolution: {integrity: sha512-/y4/bH9YNU5hi9NIrpOuvGXFcxrj3CMrV+/AYpowAYTpHn8gX/XPFjNy766FPoYY0miQhdW977JFWKGNhBdwyQ==}
     engines: {node: '>=22.19.0'}
 
+  undici@8.12.3:
+    resolution: {integrity: sha512-+fdndUTwBP86cVjihTp21hZHo7d6oj1c/47XPA3lL8mM0XHs+C4EkcjmgRsFnFk2f/UONGDy9ItBItmXsLOQHw==}
+    engines: {node: '>=22.19.0'}
+
   unicorn-magic@0.3.0:
     resolution: {integrity: sha512-+QBBXBCvifc56fsbuxZQ6Sic3wqqc3WWaqxs58gvJrcOuN83HGTCwz3oS5phzU9LthRNE9VrJCFCLUgHeeFnfA==}
     engines: {node: '>=18'}
@@ -16068,8 +16118,8 @@ snapshots:
   '@ai-sdk/amazon-bedrock@4.0.96(patch_hash=7f2fa5c38067d9e6a9f575a279b30ca54ee5bfc4984d97ad2f13a7c2662d85ee)(zod@4.4.3)':
     dependencies:
       '@ai-sdk/anthropic': 3.0.125(patch_hash=cc908f295d7011f21ee5a0781ace85c81fb9e11041ceb406b26152bfa495118c)(zod@4.4.3)
-      '@ai-sdk/provider': 3.0.18
-      '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
+      '@ai-sdk/provider': 3.0.19
+      '@ai-sdk/provider-utils': 4.0.64(zod@4.4.3)
       '@smithy/eventstream-codec': 4.2.14
       '@smithy/util-utf8': 4.2.2
       aws4fetch: 1.0.20
@@ -16077,53 +16127,53 @@ snapshots:
 
   '@ai-sdk/anthropic@3.0.125(patch_hash=cc908f295d7011f21ee5a0781ace85c81fb9e11041ceb406b26152bfa495118c)(zod@4.4.3)':
     dependencies:
-      '@ai-sdk/provider': 3.0.18
-      '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
+      '@ai-sdk/provider': 3.0.19
+      '@ai-sdk/provider-utils': 4.0.64(zod@4.4.3)
       zod: 4.4.3
 
   '@ai-sdk/azure@3.0.116(zod@4.4.3)':
     dependencies:
       '@ai-sdk/deepseek': 2.0.62(zod@4.4.3)
-      '@ai-sdk/openai': 3.0.109(patch_hash=d31cc5a15dd2430793a6816857d7b086c7738e0d5fcb950d0ad806fee113945e)(zod@4.4.3)
-      '@ai-sdk/provider': 3.0.18
-      '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
+      '@ai-sdk/openai': 3.0.137(patch_hash=29617bfa692ec1f8146c41092d8d5219e2024d23777689c5e356314a17621db7)(zod@4.4.3)
+      '@ai-sdk/provider': 3.0.19
+      '@ai-sdk/provider-utils': 4.0.64(zod@4.4.3)
       zod: 4.4.3
 
   '@ai-sdk/bytedance@1.0.29(zod@4.4.3)':
     dependencies:
-      '@ai-sdk/provider': 3.0.18
-      '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
+      '@ai-sdk/provider': 3.0.19
+      '@ai-sdk/provider-utils': 4.0.64(zod@4.4.3)
       zod: 4.4.3
 
   '@ai-sdk/cerebras@2.0.78(zod@4.4.3)':
     dependencies:
       '@ai-sdk/openai-compatible': 2.0.72(patch_hash=c06be46e8512764ce8def5a392570a772f237774598cfff51631f7f6d7b8b771)(zod@4.4.3)
-      '@ai-sdk/provider': 3.0.18
-      '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
+      '@ai-sdk/provider': 3.0.19
+      '@ai-sdk/provider-utils': 4.0.64(zod@4.4.3)
       zod: 4.4.3
 
   '@ai-sdk/cohere@3.0.30(zod@4.4.3)':
     dependencies:
-      '@ai-sdk/provider': 3.0.18
-      '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
+      '@ai-sdk/provider': 3.0.19
+      '@ai-sdk/provider-utils': 4.0.64(zod@4.4.3)
       zod: 4.4.3
 
   '@ai-sdk/deepseek@2.0.62(zod@4.4.3)':
     dependencies:
-      '@ai-sdk/provider': 3.0.18
-      '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
+      '@ai-sdk/provider': 3.0.19
+      '@ai-sdk/provider-utils': 4.0.64(zod@4.4.3)
       zod: 4.4.3
 
   '@ai-sdk/devtools@0.0.17':
     dependencies:
-      '@ai-sdk/provider': 3.0.18
+      '@ai-sdk/provider': 3.0.19
       '@hono/node-server': 1.19.10(hono@4.12.25)
       hono: 4.12.25
 
   '@ai-sdk/gateway@3.0.116(zod@4.4.3)':
     dependencies:
-      '@ai-sdk/provider': 3.0.18
-      '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
+      '@ai-sdk/provider': 3.0.19
+      '@ai-sdk/provider-utils': 4.0.64(zod@4.4.3)
       '@vercel/oidc': 3.2.0
       zod: 4.4.3
 
@@ -16132,8 +16182,8 @@ snapshots:
       '@ai-sdk/anthropic': 3.0.125(patch_hash=cc908f295d7011f21ee5a0781ace85c81fb9e11041ceb406b26152bfa495118c)(zod@4.4.3)
       '@ai-sdk/google': 3.0.132(patch_hash=0f7a4832e8029104102bcfd399e7f889c9f272f6a6812f752749b4688f749821)(zod@4.4.3)
       '@ai-sdk/openai-compatible': 2.0.72(patch_hash=c06be46e8512764ce8def5a392570a772f237774598cfff51631f7f6d7b8b771)(zod@4.4.3)
-      '@ai-sdk/provider': 3.0.18
-      '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
+      '@ai-sdk/provider': 3.0.19
+      '@ai-sdk/provider-utils': 4.0.64(zod@4.4.3)
       google-auth-library: 10.6.2(supports-color@8.1.1)
       zod: 4.4.3
     transitivePeerDependencies:
@@ -16141,62 +16191,62 @@ snapshots:
 
   '@ai-sdk/google@3.0.132(patch_hash=0f7a4832e8029104102bcfd399e7f889c9f272f6a6812f752749b4688f749821)(zod@4.4.3)':
     dependencies:
-      '@ai-sdk/provider': 3.0.18
-      '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
+      '@ai-sdk/provider': 3.0.19
+      '@ai-sdk/provider-utils': 4.0.64(zod@4.4.3)
       zod: 4.4.3
 
   '@ai-sdk/groq@3.0.35(zod@4.4.3)':
     dependencies:
-      '@ai-sdk/provider': 3.0.18
-      '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
+      '@ai-sdk/provider': 3.0.19
+      '@ai-sdk/provider-utils': 4.0.64(zod@4.4.3)
       zod: 4.4.3
 
   '@ai-sdk/huggingface@1.0.74(zod@4.4.3)':
     dependencies:
       '@ai-sdk/openai-compatible': 2.0.72(patch_hash=c06be46e8512764ce8def5a392570a772f237774598cfff51631f7f6d7b8b771)(zod@4.4.3)
-      '@ai-sdk/provider': 3.0.18
-      '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
+      '@ai-sdk/provider': 3.0.19
+      '@ai-sdk/provider-utils': 4.0.64(zod@4.4.3)
       zod: 4.4.3
 
   '@ai-sdk/mistral@3.0.30(patch_hash=b4f34e27858ce5529a661a90832aa51ce76eb2e5b3ab1b174a38e1eb36b2c53e)(zod@4.4.3)':
     dependencies:
-      '@ai-sdk/provider': 3.0.18
-      '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
+      '@ai-sdk/provider': 3.0.19
+      '@ai-sdk/provider-utils': 4.0.64(zod@4.4.3)
       zod: 4.4.3
 
   '@ai-sdk/open-responses@1.0.34(patch_hash=83f5f29fe22a32569d6255265c8ebd3420fabe87e392c751590c8f4c06dab366)(zod@4.4.3)':
     dependencies:
-      '@ai-sdk/provider': 3.0.18
-      '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
+      '@ai-sdk/provider': 3.0.19
+      '@ai-sdk/provider-utils': 4.0.64(zod@4.4.3)
       zod: 4.4.3
 
   '@ai-sdk/openai-compatible@2.0.72(patch_hash=c06be46e8512764ce8def5a392570a772f237774598cfff51631f7f6d7b8b771)(zod@4.4.3)':
     dependencies:
-      '@ai-sdk/provider': 3.0.18
-      '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
+      '@ai-sdk/provider': 3.0.19
+      '@ai-sdk/provider-utils': 4.0.64(zod@4.4.3)
       zod: 4.4.3
 
-  '@ai-sdk/openai@3.0.109(patch_hash=d31cc5a15dd2430793a6816857d7b086c7738e0d5fcb950d0ad806fee113945e)(zod@4.4.3)':
+  '@ai-sdk/openai@3.0.137(patch_hash=29617bfa692ec1f8146c41092d8d5219e2024d23777689c5e356314a17621db7)(zod@4.4.3)':
     dependencies:
-      '@ai-sdk/provider': 3.0.18
-      '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
+      '@ai-sdk/provider': 3.0.19
+      '@ai-sdk/provider-utils': 4.0.64(zod@4.4.3)
       zod: 4.4.3
 
   '@ai-sdk/perplexity@3.0.29(zod@4.4.3)':
     dependencies:
-      '@ai-sdk/provider': 3.0.18
-      '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
+      '@ai-sdk/provider': 3.0.19
+      '@ai-sdk/provider-utils': 4.0.64(zod@4.4.3)
       zod: 4.4.3
 
-  '@ai-sdk/provider-utils@4.0.58(zod@4.4.3)':
+  '@ai-sdk/provider-utils@4.0.64(zod@4.4.3)':
     dependencies:
-      '@ai-sdk/provider': 3.0.18
+      '@ai-sdk/provider': 3.0.19
       '@standard-schema/spec': 1.1.0
       eventsource-parser: 3.1.1
       undici: 6.28.0
       zod: 4.4.3
 
-  '@ai-sdk/provider@3.0.18':
+  '@ai-sdk/provider@3.0.19':
     dependencies:
       json-schema: 0.4.0
 
@@ -16210,15 +16260,15 @@ snapshots:
   '@ai-sdk/togetherai@2.0.78(zod@4.4.3)':
     dependencies:
       '@ai-sdk/openai-compatible': 2.0.72(patch_hash=c06be46e8512764ce8def5a392570a772f237774598cfff51631f7f6d7b8b771)(zod@4.4.3)
-      '@ai-sdk/provider': 3.0.18
-      '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
+      '@ai-sdk/provider': 3.0.19
+      '@ai-sdk/provider-utils': 4.0.64(zod@4.4.3)
       zod: 4.4.3
 
   '@ai-sdk/xai@3.0.126(zod@4.4.3)':
     dependencies:
       '@ai-sdk/openai-compatible': 2.0.72(patch_hash=c06be46e8512764ce8def5a392570a772f237774598cfff51631f7f6d7b8b771)(zod@4.4.3)
-      '@ai-sdk/provider': 3.0.18
-      '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
+      '@ai-sdk/provider': 3.0.19
+      '@ai-sdk/provider-utils': 4.0.64(zod@4.4.3)
       zod: 4.4.3
 
   '@aiany/sqlite-vec-darwin-arm64@0.1.10-alpha.4.aiany.2':
@@ -17312,7 +17362,7 @@ snapshots:
 
   '@cherrystudio/mlx-asr@https://codeload.github.com/CherryHQ/mlx-node/tar.gz/ad3bf3ec3a141ec06fb8f73933685b1420ed09ac#path:distribution/asr': {}
 
-  '@cherrystudio/mlx-tts@git+https://github.com/CherryHQ/mlx-node.git#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts': {}
+  '@cherrystudio/mlx-tts@https://codeload.github.com/CherryHQ/mlx-node/tar.gz/f4c21043f557965345b527bc04179ad26d08378f#path:distribution/tts': {}
 
   '@cherrystudio/openai@6.15.0(ws@8.21.3)(zod@4.4.3)':
     optionalDependencies:
@@ -17706,15 +17756,18 @@ snapshots:
 
   '@e965/xlsx@0.20.3': {}
 
-  '@earendil-works/chord@1.4.0':
+  '@earendil-works/chord@1.5.0(esbuild@0.25.12)(ws@8.21.3)':
     dependencies:
-      '@earendil-works/pi-telemetry': 1.4.0
-      typebox: 1.3.27
+      '@earendil-works/pi-schema': 1.5.0
+      '@earendil-works/pi-telemetry': 1.5.0
+    optionalDependencies:
+      esbuild: 0.25.12
+      ws: 8.21.3
 
-  '@earendil-works/pi-agent-core@1.4.0(patch_hash=473b3d3cb72ce126cf7b8e28961f9512776ce4398c30666e0ee6adc18e9ac6ee)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)':
+  '@earendil-works/pi-agent-core@1.5.0(patch_hash=9e02b04880d8355a8d3e447ab68d0fe7a64e97853f7ee4d7af591556b4f54556)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)':
     dependencies:
-      '@earendil-works/pi-ai': 1.4.0(patch_hash=befe89992b8008d838c6f36355dfdcf2a9563df9f2daba4162b53cda5d8b29de)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)
-      typebox: 1.3.27
+      '@earendil-works/pi-ai': 1.5.0(patch_hash=0c9e7b57509628e0132fdb88cf3397202b0a23ab207a83f728ed6f15f5362e39)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)
+      '@earendil-works/pi-schema': 1.5.0
     transitivePeerDependencies:
       - '@modelcontextprotocol/sdk'
       - bufferutil
@@ -17724,10 +17777,10 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-agent-core@1.4.0(patch_hash=473b3d3cb72ce126cf7b8e28961f9512776ce4398c30666e0ee6adc18e9ac6ee)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)':
+  '@earendil-works/pi-agent-core@1.5.0(patch_hash=9e02b04880d8355a8d3e447ab68d0fe7a64e97853f7ee4d7af591556b4f54556)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)':
     dependencies:
-      '@earendil-works/pi-ai': 1.4.0(patch_hash=befe89992b8008d838c6f36355dfdcf2a9563df9f2daba4162b53cda5d8b29de)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)
-      typebox: 1.3.27
+      '@earendil-works/pi-ai': 1.5.0(patch_hash=0c9e7b57509628e0132fdb88cf3397202b0a23ab207a83f728ed6f15f5362e39)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)
+      '@earendil-works/pi-schema': 1.5.0
     transitivePeerDependencies:
       - '@modelcontextprotocol/sdk'
       - bufferutil
@@ -17737,18 +17790,18 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-ai@1.4.0(patch_hash=befe89992b8008d838c6f36355dfdcf2a9563df9f2daba4162b53cda5d8b29de)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)':
+  '@earendil-works/pi-ai@1.5.0(patch_hash=0c9e7b57509628e0132fdb88cf3397202b0a23ab207a83f728ed6f15f5362e39)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)':
     dependencies:
       '@anthropic-ai/sdk': 0.129.0(zod@4.4.3)
       '@aws-sdk/client-bedrock-runtime': 3.1127.0
-      '@earendil-works/pi-telemetry': 1.4.0
+      '@earendil-works/pi-schema': 1.5.0
+      '@earendil-works/pi-telemetry': 1.5.0
       '@google/genai': 2.23.0(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)
       '@smithy/node-http-handler': 4.12.1
       http-proxy-agent: 9.1.0(supports-color@10.2.2)
       https-proxy-agent: 9.1.0(supports-color@10.2.2)
       openai: '@cherrystudio/openai@6.15.0(ws@8.21.3)(zod@4.4.3)'
       partial-json: 0.1.7
-      typebox: 1.3.27
     transitivePeerDependencies:
       - '@modelcontextprotocol/sdk'
       - bufferutil
@@ -17758,18 +17811,18 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-ai@1.4.0(patch_hash=befe89992b8008d838c6f36355dfdcf2a9563df9f2daba4162b53cda5d8b29de)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)':
+  '@earendil-works/pi-ai@1.5.0(patch_hash=0c9e7b57509628e0132fdb88cf3397202b0a23ab207a83f728ed6f15f5362e39)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)':
     dependencies:
       '@anthropic-ai/sdk': 0.129.0(zod@4.4.3)
       '@aws-sdk/client-bedrock-runtime': 3.1127.0
-      '@earendil-works/pi-telemetry': 1.4.0
+      '@earendil-works/pi-schema': 1.5.0
+      '@earendil-works/pi-telemetry': 1.5.0
       '@google/genai': 2.23.0(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)
       '@smithy/node-http-handler': 4.12.1
       http-proxy-agent: 9.1.0(supports-color@8.1.1)
       https-proxy-agent: 9.1.0(supports-color@8.1.1)
       openai: '@cherrystudio/openai@6.15.0(ws@8.21.3)(zod@4.4.3)'
       partial-json: 0.1.7
-      typebox: 1.3.27
     transitivePeerDependencies:
       - '@modelcontextprotocol/sdk'
       - bufferutil
@@ -17779,17 +17832,17 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-codemode@1.4.0':
+  '@earendil-works/pi-codemode@1.5.0':
     dependencies:
       quickjs-wasi: 3.6.2
 
-  '@earendil-works/pi-coding-agent@1.4.0(patch_hash=3fcb6c2466c3e2e4c8a8f6d4ad160e8b8a8e234108a09d1bd140d4355a6b6dcb)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)':
+  '@earendil-works/pi-coding-agent@1.5.0(patch_hash=baa38b5834a01fde79895162e19835a59491bfdd656b7e237582d7bbc2e5311e)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)':
     dependencies:
-      '@earendil-works/pi-agent-core': 1.4.0(patch_hash=473b3d3cb72ce126cf7b8e28961f9512776ce4398c30666e0ee6adc18e9ac6ee)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)
-      '@earendil-works/pi-ai': 1.4.0(patch_hash=befe89992b8008d838c6f36355dfdcf2a9563df9f2daba4162b53cda5d8b29de)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)
-      '@earendil-works/pi-codemode': 1.4.0
-      '@earendil-works/pi-mcp': 1.4.0
-      '@earendil-works/pi-tui': 1.4.0
+      '@earendil-works/pi-agent-core': 1.5.0(patch_hash=9e02b04880d8355a8d3e447ab68d0fe7a64e97853f7ee4d7af591556b4f54556)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)
+      '@earendil-works/pi-ai': 1.5.0(patch_hash=0c9e7b57509628e0132fdb88cf3397202b0a23ab207a83f728ed6f15f5362e39)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)
+      '@earendil-works/pi-codemode': 1.5.0
+      '@earendil-works/pi-mcp': 1.5.0
+      '@earendil-works/pi-tui': 1.5.0
       '@silvia-odwyer/photon-node': 0.3.4
       brace-expansion: 5.0.12
       chalk: 6.0.0
@@ -17800,12 +17853,12 @@ snapshots:
       hosted-git-info: 9.0.3
       ignore: 7.0.8
       jiti: 2.7.0
-      minimatch: 10.2.6
+      minimatch: 11.0.3
       proper-lockfile: 4.1.2
       quickjs-wasi: 3.6.2
       semver: 7.8.5
       typebox: 1.3.27
-      undici: 8.10.2
+      undici: 8.12.3
       yaml: 2.8.2
     transitivePeerDependencies:
       - '@modelcontextprotocol/sdk'
@@ -17816,13 +17869,13 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-coding-agent@1.4.0(patch_hash=3fcb6c2466c3e2e4c8a8f6d4ad160e8b8a8e234108a09d1bd140d4355a6b6dcb)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)':
+  '@earendil-works/pi-coding-agent@1.5.0(patch_hash=baa38b5834a01fde79895162e19835a59491bfdd656b7e237582d7bbc2e5311e)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)':
     dependencies:
-      '@earendil-works/pi-agent-core': 1.4.0(patch_hash=473b3d3cb72ce126cf7b8e28961f9512776ce4398c30666e0ee6adc18e9ac6ee)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)
-      '@earendil-works/pi-ai': 1.4.0(patch_hash=befe89992b8008d838c6f36355dfdcf2a9563df9f2daba4162b53cda5d8b29de)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)
-      '@earendil-works/pi-codemode': 1.4.0
-      '@earendil-works/pi-mcp': 1.4.0
-      '@earendil-works/pi-tui': 1.4.0
+      '@earendil-works/pi-agent-core': 1.5.0(patch_hash=9e02b04880d8355a8d3e447ab68d0fe7a64e97853f7ee4d7af591556b4f54556)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)
+      '@earendil-works/pi-ai': 1.5.0(patch_hash=0c9e7b57509628e0132fdb88cf3397202b0a23ab207a83f728ed6f15f5362e39)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)
+      '@earendil-works/pi-codemode': 1.5.0
+      '@earendil-works/pi-mcp': 1.5.0
+      '@earendil-works/pi-tui': 1.5.0
       '@silvia-odwyer/photon-node': 0.3.4
       brace-expansion: 5.0.12
       chalk: 6.0.0
@@ -17833,12 +17886,12 @@ snapshots:
       hosted-git-info: 9.0.3
       ignore: 7.0.8
       jiti: 2.7.0
-      minimatch: 10.2.6
+      minimatch: 11.0.3
       proper-lockfile: 4.1.2
       quickjs-wasi: 3.6.2
       semver: 7.8.5
       typebox: 1.3.27
-      undici: 8.10.2
+      undici: 8.12.3
       yaml: 2.8.2
     transitivePeerDependencies:
       - '@modelcontextprotocol/sdk'
@@ -17849,49 +17902,53 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-durable@1.4.0(patch_hash=a3a9d6a09d9ab2f84866541881ba8ea7e6b50583a70a7971964311bfe80ebb8b)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)':
+  '@earendil-works/pi-durable@1.5.0(patch_hash=d1c485b564bbb6d7024197573d168006f49ff1688b2d941cdff0453296125844)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(esbuild@0.25.12)(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)':
     dependencies:
-      '@earendil-works/chord': 1.4.0
-      '@earendil-works/pi-ai': 1.4.0(patch_hash=befe89992b8008d838c6f36355dfdcf2a9563df9f2daba4162b53cda5d8b29de)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)
-      '@earendil-works/pi-codemode': 1.4.0
-      '@earendil-works/pi-telemetry': 1.4.0
+      '@earendil-works/chord': 1.5.0(esbuild@0.25.12)(ws@8.21.3)
+      '@earendil-works/pi-ai': 1.5.0(patch_hash=0c9e7b57509628e0132fdb88cf3397202b0a23ab207a83f728ed6f15f5362e39)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(supports-color@10.2.2)(ws@8.21.3)(zod@4.4.3)
+      '@earendil-works/pi-codemode': 1.5.0
+      '@earendil-works/pi-schema': 1.5.0
+      '@earendil-works/pi-telemetry': 1.5.0
       '@silvia-odwyer/photon': 0.3.3
       diff: 8.0.4
-      typebox: 1.3.27
     transitivePeerDependencies:
       - '@modelcontextprotocol/sdk'
       - bufferutil
+      - esbuild
       - kerberos
       - supports-color
       - utf-8-validate
       - ws
       - zod
 
-  '@earendil-works/pi-durable@1.4.0(patch_hash=a3a9d6a09d9ab2f84866541881ba8ea7e6b50583a70a7971964311bfe80ebb8b)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)':
+  '@earendil-works/pi-durable@1.5.0(patch_hash=d1c485b564bbb6d7024197573d168006f49ff1688b2d941cdff0453296125844)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(esbuild@0.25.12)(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)':
     dependencies:
-      '@earendil-works/chord': 1.4.0
-      '@earendil-works/pi-ai': 1.4.0(patch_hash=befe89992b8008d838c6f36355dfdcf2a9563df9f2daba4162b53cda5d8b29de)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)
-      '@earendil-works/pi-codemode': 1.4.0
-      '@earendil-works/pi-telemetry': 1.4.0
+      '@earendil-works/chord': 1.5.0(esbuild@0.25.12)(ws@8.21.3)
+      '@earendil-works/pi-ai': 1.5.0(patch_hash=0c9e7b57509628e0132fdb88cf3397202b0a23ab207a83f728ed6f15f5362e39)(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(supports-color@8.1.1)(ws@8.21.3)(zod@4.4.3)
+      '@earendil-works/pi-codemode': 1.5.0
+      '@earendil-works/pi-schema': 1.5.0
+      '@earendil-works/pi-telemetry': 1.5.0
       '@silvia-odwyer/photon': 0.3.3
       diff: 8.0.4
-      typebox: 1.3.27
     transitivePeerDependencies:
       - '@modelcontextprotocol/sdk'
       - bufferutil
+      - esbuild
       - kerberos
       - supports-color
       - utf-8-validate
       - ws
       - zod
 
-  '@earendil-works/pi-mcp@1.4.0':
+  '@earendil-works/pi-mcp@1.5.0':
     dependencies:
       cross-spawn: 7.0.6
 
-  '@earendil-works/pi-telemetry@1.4.0': {}
+  '@earendil-works/pi-schema@1.5.0': {}
 
-  '@earendil-works/pi-tui@1.4.0':
+  '@earendil-works/pi-telemetry@1.5.0': {}
+
+  '@earendil-works/pi-tui@1.5.0':
     dependencies:
       get-east-asian-width: 1.6.0
       marked: 18.0.11
@@ -18789,6 +18846,8 @@ snapshots:
     dependencies:
       minipass: 7.1.3
 
+  '@isaacs/nonrecursive-glob-match@1.1.0': {}
+
   '@j178/prek@0.3.4(debug@4.4.3(supports-color@8.1.1))':
     dependencies:
       axios: 1.16.0(debug@4.4.3(supports-color@8.1.1))
@@ -18838,6 +18897,21 @@ snapshots:
     transitivePeerDependencies:
       - bufferutil
       - debug
+      - utf-8-validate
+
+  '@larksuiteoapi/node-sdk@1.73.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)':
+    dependencies:
+      axios: 1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      lodash.identity: 3.0.0
+      lodash.merge: 4.6.2
+      lodash.pickby: 4.6.0
+      protobufjs: 7.6.2
+      qs: 6.15.0
+      ws: 8.21.3
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
       - utf-8-validate
 
   '@leichtgewicht/ip-codec@2.0.5': {}
@@ -19628,8 +19702,8 @@ snapshots:
   '@opeoginni/github-copilot-openai-compatible@1.0.0(patch_hash=e0be38439b76d1d8d7966c0f789373ed393adba22bd9b0ff333898c0c8223301)(zod@4.4.3)':
     dependencies:
       '@ai-sdk/openai-compatible': 2.0.72(patch_hash=c06be46e8512764ce8def5a392570a772f237774598cfff51631f7f6d7b8b771)(zod@4.4.3)
-      '@ai-sdk/provider': 3.0.18
-      '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
+      '@ai-sdk/provider': 3.0.19
+      '@ai-sdk/provider-utils': 4.0.64(zod@4.4.3)
     transitivePeerDependencies:
       - zod
 
@@ -21157,7 +21231,7 @@ snapshots:
       '@shikijs/primitive': 4.5.0
       '@shikijs/types': 4.5.0
       '@shikijs/vscode-textmate': 10.0.2
-      '@types/hast': 3.0.4
+      '@types/hast': 3.0.5
       hast-util-to-html: 9.0.5
 
   '@shikijs/engine-javascript@4.5.0':
@@ -21179,7 +21253,7 @@ snapshots:
     dependencies:
       '@shikijs/types': 4.5.0
       '@shikijs/vscode-textmate': 10.0.2
-      '@types/hast': 3.0.4
+      '@types/hast': 3.0.5
 
   '@shikijs/themes@4.5.0':
     dependencies:
@@ -21188,7 +21262,7 @@ snapshots:
   '@shikijs/types@4.5.0':
     dependencies:
       '@shikijs/vscode-textmate': 10.0.2
-      '@types/hast': 3.0.4
+      '@types/hast': 3.0.5
 
   '@shikijs/vscode-textmate@10.0.2': {}
 
@@ -22554,6 +22628,10 @@ snapshots:
     dependencies:
       '@types/unist': 3.0.3
 
+  '@types/hast@3.0.5':
+    dependencies:
+      '@types/unist': 3.0.3
+
   '@types/html-to-text@9.0.4': {}
 
   '@types/http-cache-semantics@4.2.0': {}
@@ -22691,7 +22769,7 @@ snapshots:
       '@typescript-eslint/utils': 8.51.0(eslint@9.39.5(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@5.9.3)
       '@typescript-eslint/visitor-keys': 8.51.0
       eslint: 9.39.5(jiti@2.7.0)(supports-color@8.1.1)
-      ignore: 7.0.6
+      ignore: 7.0.8
       natural-compare: 1.4.0
       ts-api-utils: 2.5.0(typescript@5.9.3)
       typescript: 5.9.3
@@ -23343,6 +23421,42 @@ snapshots:
       '@rolldown/pluginutils': 1.0.1
       vite: 8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2)
 
+  '@vitest/browser@5.0.1(msw@2.12.7(@types/node@22.20.4)(@typescript/typescript6@6.0.2))(vite@8.2.2(@types/node@22.20.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))(vitest@5.0.1)':
+    dependencies:
+      '@blazediff/core': 1.10.0
+      '@vitest/mocker': 5.0.1(msw@2.12.7(@types/node@22.20.4)(@typescript/typescript6@6.0.2))(vite@8.2.2(@types/node@22.20.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))
+      '@vitest/ui': 5.0.1(vitest@5.0.1)
+      '@vitest/utils': 5.0.1
+      magic-string: 1.2.3
+      pngjs: 7.0.0
+      sirv: 3.0.2
+      tinyrainbow: 3.1.1
+      vitest: 5.0.1(@opentelemetry/api@1.9.1)(@types/node@22.20.4)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(jsdom@26.1.0(supports-color@8.1.1))(msw@2.12.7(@types/node@22.20.4)(@typescript/typescript6@6.0.2))(vite@8.2.2(@types/node@22.20.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))
+      ws: 8.21.3
+    transitivePeerDependencies:
+      - bufferutil
+      - msw
+      - utf-8-validate
+      - vite
+
+  '@vitest/browser@5.0.1(msw@2.12.7(@types/node@24.10.4)(@typescript/typescript6@6.0.2))(vite@8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))(vitest@5.0.1)':
+    dependencies:
+      '@blazediff/core': 1.10.0
+      '@vitest/mocker': 5.0.1(msw@2.12.7(@types/node@24.10.4)(@typescript/typescript6@6.0.2))(vite@8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))
+      '@vitest/ui': 5.0.1(vitest@5.0.1)
+      '@vitest/utils': 5.0.1
+      magic-string: 1.2.3
+      pngjs: 7.0.0
+      sirv: 3.0.2
+      tinyrainbow: 3.1.1
+      vitest: 5.0.1(@opentelemetry/api@1.9.1)(@types/node@24.10.4)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(jsdom@26.1.0(supports-color@10.2.2))(msw@2.12.7(@types/node@24.10.4)(@typescript/typescript6@6.0.2))(vite@8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))
+      ws: 8.21.3
+    transitivePeerDependencies:
+      - bufferutil
+      - msw
+      - utf-8-validate
+      - vite
+
   '@vitest/browser@5.0.1(msw@2.12.7(@types/node@24.10.4)(typescript@5.9.3))(vite@8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))(vitest@5.0.1)':
     dependencies:
       '@blazediff/core': 1.10.0
@@ -23639,10 +23753,10 @@ snapshots:
 
   agent-base@9.0.0: {}
 
-  ai-retry@1.11.1(@ai-sdk/provider-utils@4.0.58(zod@4.4.3))(@ai-sdk/provider@3.0.18)(@opentelemetry/api@1.9.1)(ai@6.0.185(patch_hash=7ecccde0123dda28e5f7dd47606f9bab2313611310ea7bdb673b71e4939e2775)(zod@4.4.3))(zod@4.4.3):
+  ai-retry@1.11.1(@ai-sdk/provider-utils@4.0.64(zod@4.4.3))(@ai-sdk/provider@3.0.19)(@opentelemetry/api@1.9.1)(ai@6.0.185(patch_hash=7ecccde0123dda28e5f7dd47606f9bab2313611310ea7bdb673b71e4939e2775)(zod@4.4.3))(zod@4.4.3):
     dependencies:
-      '@ai-sdk/provider': 3.0.18
-      '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
+      '@ai-sdk/provider': 3.0.19
+      '@ai-sdk/provider-utils': 4.0.64(zod@4.4.3)
       ai: 6.0.185(patch_hash=7ecccde0123dda28e5f7dd47606f9bab2313611310ea7bdb673b71e4939e2775)(zod@4.4.3)
       zod: 4.4.3
     optionalDependencies:
@@ -23651,8 +23765,8 @@ snapshots:
   ai@6.0.185(patch_hash=7ecccde0123dda28e5f7dd47606f9bab2313611310ea7bdb673b71e4939e2775)(zod@4.4.3):
     dependencies:
       '@ai-sdk/gateway': 3.0.116(zod@4.4.3)
-      '@ai-sdk/provider': 3.0.18
-      '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
+      '@ai-sdk/provider': 3.0.19
+      '@ai-sdk/provider-utils': 4.0.64(zod@4.4.3)
       '@opentelemetry/api': 1.9.1
       zod: 4.4.3
 
@@ -25385,7 +25499,7 @@ snapshots:
       es-errors: 1.3.0
       get-intrinsic: 1.3.0
       has-tostringtag: 1.0.2
-      hasown: 2.0.3
+      hasown: 2.0.4
 
   es-toolkit@1.49.0: {}
 
@@ -28310,6 +28424,11 @@ snapshots:
     dependencies:
       brace-expansion: 5.0.9
 
+  minimatch@11.0.3:
+    dependencies:
+      '@isaacs/nonrecursive-glob-match': 1.1.0
+      brace-expansion: 5.0.12
+
   minimatch@3.1.5:
     dependencies:
       brace-expansion: 1.1.18
@@ -28682,8 +28801,8 @@ snapshots:
 
   ollama-ai-provider-v2@3.3.1(patch_hash=cdb5584635d0af18825b289f32f904dd939cca73d2a799115ee5737e651e1ff2)(ai@6.0.185(patch_hash=7ecccde0123dda28e5f7dd47606f9bab2313611310ea7bdb673b71e4939e2775)(zod@4.4.3))(zod@4.4.3):
     dependencies:
-      '@ai-sdk/provider': 3.0.18
-      '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
+      '@ai-sdk/provider': 3.0.19
+      '@ai-sdk/provider-utils': 4.0.64(zod@4.4.3)
       ai: 6.0.185(patch_hash=7ecccde0123dda28e5f7dd47606f9bab2313611310ea7bdb673b71e4939e2775)(zod@4.4.3)
       zod: 4.4.3
 
@@ -30336,7 +30455,7 @@ snapshots:
       '@shikijs/themes': 4.5.0
       '@shikijs/types': 4.5.0
       '@shikijs/vscode-textmate': 10.0.2
-      '@types/hast': 3.0.4
+      '@types/hast': 3.0.5
 
   side-channel-list@1.0.0:
     dependencies:
@@ -31177,6 +31296,8 @@ snapshots:
 
   undici@8.10.2: {}
 
+  undici@8.12.3: {}
+
   unicorn-magic@0.3.0: {}
 
   unified@11.0.5:
@@ -31598,8 +31719,8 @@ snapshots:
 
   voyage-ai-provider@3.0.0(zod@4.4.3):
     dependencies:
-      '@ai-sdk/provider': 3.0.18
-      '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
+      '@ai-sdk/provider': 3.0.19
+      '@ai-sdk/provider-utils': 4.0.64(zod@4.4.3)
     optionalDependencies:
       zod: 4.4.3
 

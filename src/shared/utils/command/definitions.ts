@@ -211,6 +211,16 @@ export const COMMAND_DEFINITIONS = [
     }
   }),
   defineCommand({
+    id: 'agent.workspace.open',
+    titleKey: 'settings.shortcuts.open_workspace',
+    categoryKey: 'settings.shortcuts.chat',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'O'],
+      when: '!webview.focused'
+    }
+  }),
+  defineCommand({
     id: 'chat.input.focus',
     titleKey: 'settings.shortcuts.focus_input',
     categoryKey: 'settings.shortcuts.chat',

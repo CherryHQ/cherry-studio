@@ -539,6 +539,7 @@ const AgentComposerInner = ({
 }: InnerProps) => {
   const { updateAgent, updateModel } = useUpdateAgent()
   const quotaExhaustion = useCherryCloudQuotaExhaustion(model, true)
+  const quotaBlocksSend = !!quotaExhaustion && quotaExhaustion.reason !== 'unknown'
   const { updateSession } = useUpdateSession()
   const scope = TopicType.Session
   const config = getComposerToolConfig(scope)
@@ -1381,8 +1382,7 @@ const AgentComposerInner = ({
     scopeKey: launchOptions?.editing ? `${sessionTopicId}:edit:${launchOptions.editing.messageId}` : sessionTopicId,
     status: sendDisabled || launchOptions?.editing ? undefined : sessionStatus,
     lastCompletedAt,
-    onDrain: sendQueuedPayload,
-    blocked: !!quotaExhaustion
+    onDrain: sendQueuedPayload
   })
   releaseFollowupEditRef.current = releaseEdit
 
@@ -1644,7 +1644,7 @@ const AgentComposerInner = ({
             hasPendingReference ||
             modelPending ||
             !!missingModelMessage ||
-            !!quotaExhaustion ||
+            quotaBlocksSend ||
             (text.trim().length === 0 && files.length === 0 && selectedSkills.length === 0)
           }
           sendBlockedReason={
@@ -1687,7 +1687,6 @@ const AgentComposerInner = ({
                   }}
                   onRemove={removeFollowup}
                   onReorder={reorderFollowups}
-                  isSteerDisabled={quotaExhaustion ? () => true : undefined}
                 />
               ) : undefined}
             </>

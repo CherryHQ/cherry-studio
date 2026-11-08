@@ -75,7 +75,7 @@ export class ComputerUseControlError extends Error {
         USER_STOPPED:
           'The user stopped desktop control. Only the user can allow it again through Cherry Studio desktop controls. Do not retry or bypass the stop.',
         CLEANUP_UNCONFIRMED:
-          'Desktop runtime cleanup could not be confirmed. Control remains blocked; this is not a user-stop decision. Do not retry, reset or rebind to bypass it.',
+          'Desktop runtime cleanup could not be confirmed. Control stays blocked until the user allows desktop control again; this is not a user-stop decision. Do not retry, reset or rebind to bypass it, and ask the user to acknowledge it in desktop controls.',
         APP_BUSY: 'Another control task owns this application. Do not bypass its ownership.',
         TASK_CLOSED: 'This control task has ended. Its application sessions and snapshots are no longer usable.',
         UNKNOWN_APP_SESSION: 'This application session does not belong to the current control task.'
@@ -344,17 +344,27 @@ export class ComputerUseService extends BaseService {
   allowControl(ownerId: string, appId?: string): void {
     const owner = this.owners.get(ownerId)
     if (!owner) return
-    if (
-      [...this.tasks.values()].some(
-        (task) =>
-          task.context.ownerId === ownerId &&
-          (task.closing ||
-            [...task.apps.values()].some(
-              (app) => (!appId || app.app.id === appId) && (app.status === 'stopping' || app.status === 'unconfirmed')
-            ))
-      )
+    // `unconfirmed` is terminal: such a task never changes state on its own, so treating it like the
+    // transient `stopping` status makes the user's acknowledgement a no-op and leaves control blocked
+    // until the whole application restarts. A failed cleanup also leaves a settled `closing` promise
+    // behind, which must not be mistaken for work still in flight.
+    const stillClosing = [...this.tasks.values()].some(
+      (task) =>
+        task.context.ownerId === ownerId &&
+        !task.cleanupUnconfirmed &&
+        (task.closing ||
+          [...task.apps.values()].some((app) => (!appId || app.app.id === appId) && app.status === 'stopping'))
     )
-      return
+    if (stillClosing) return
+    // The user takes responsibility for a runtime whose cleanup could not be confirmed. Drop those tasks so
+    // that their applications stop being reserved by a session that no longer exists.
+    for (const task of [...this.tasks.values()]) {
+      if (task.context.ownerId !== ownerId || !task.cleanupUnconfirmed) continue
+      if (appId && !task.apps.has(appId)) continue
+      for (const id of [...task.apps.keys()]) this.releaseApp(task, id)
+      this.tasks.delete(task.context.id)
+      logger.warn('Computer Use control released after unconfirmed cleanup', { ownerId, appId })
+    }
     if (appId) owner.blockedApps.delete(appId)
     else {
       owner.stopped = false

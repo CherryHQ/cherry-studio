@@ -1,6 +1,5 @@
 import { copyJson, type JsonRepresentation, type JsonValue as NativeJson } from '@earendil-works/chord'
 import { BACKGROUND_CONTEXT, awaitWithContext, withAbortSignal, type Context } from '@earendil-works/chord/context'
-import { Type } from '@earendil-works/pi-ai'
 import {
   AssistantEntry,
   CompactionEntry,
@@ -187,7 +186,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
       const update = new Promise<void>((resolve) => {
         changed = resolve
       })
-      const off = harness.subscribeCommits(changed)
+      const off = harness.observeCommits({ advance: changed, end: changed }).detach
       const signal = callContext.abortSignal
       const cancel = () => changed()
       signal?.addEventListener('abort', cancel, { once: true })
@@ -713,7 +712,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
       defineTool({
         name: tool.name,
         description: tool.description,
-        parameters: Type.Unsafe(tool.schema as Record<string, unknown>),
+        parameters: tool.schema as object,
         replay: tool.replay,
         executionMode: tool.executionMode,
         callers: ['model'],
@@ -875,15 +874,18 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
         await withCall(thread, (ports) => lifecycle?.onOpen(thread, { reopened: true }, ports) ?? Promise.resolve())
       }
       recovering = false
-      unsubscribe = harness.subscribeCommits((publication) => {
-        for (const change of publication.changes) {
-          if (change.type !== 'entry' || !CompactionEntry.is(change.value)) continue
-          const thread = threadId(change.value.conversationId)
-          void withCall(thread, (ports) => lifecycle?.onCompacted(thread, ports) ?? Promise.resolve()).catch(
-            options.onError ?? (() => {})
-          )
-        }
-      })
+      unsubscribe = harness.observeCommits({
+        advance(publication) {
+          for (const change of publication.changes) {
+            if (change.type !== 'entry' || !CompactionEntry.is(change.value)) continue
+            const thread = threadId(change.value.conversationId)
+            void withCall(thread, (ports) => lifecycle?.onCompacted(thread, ports) ?? Promise.resolve()).catch(
+              options.onError ?? (() => {})
+            )
+          }
+        },
+        end() {}
+      }).detach
     },
     async open(thread: ThreadId) {
       await withCall(thread, (ports) => lifecycle?.onOpen(thread, { reopened: false }, ports) ?? Promise.resolve())

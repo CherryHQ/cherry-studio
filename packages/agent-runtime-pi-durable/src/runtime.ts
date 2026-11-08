@@ -294,57 +294,60 @@ export async function createPiDurableRuntime(
     const children = await pages((cursor) => tx.scanConversations({ ownerConversationId: parent }, 256, cursor))
     return (await Promise.all(children.map((child) => readRelation(tx, child)))).filter((child) => child !== undefined)
   }
-  const unsubscribe = native.subscribeCommits((publication) => {
-    const changed = new Set<number>()
-    for (const change of publication.changes) {
-      if (change.type === 'entry' && (change.value.model || change.value.head || change.value.edits))
-        changed.add(change.value.conversationId)
-      if (
-        (change.type === 'document' || change.type === 'document.copy') &&
-        change.record.kind === 'pi.agent' &&
-        change.conversationId !== undefined
-      )
-        changed.add(change.conversationId)
-      if (change.type === 'submission' && change.value.type === 'input') {
-        const record = change.value
-        if (record.status === 'placed' && inputs.get(record.id)?.status !== 'placed') {
-          const placed = publication.changes.find((item) => item.type === 'entry' && item.value.id === record.entry)
-          const id =
-            logicalIds.get(record.id) ??
-            (placed?.type === 'entry' ? (placed.value.data as { cherryInputId?: string })?.cherryInputId : undefined)
-          if (id) logicalIds.set(record.id, runtimeId(id))
-          try {
-            options.onInputPlaced?.(id ? runtimeId(id) : undefined)
-          } catch (cause) {
-            report(cause)
+  const unsubscribe = native.observeCommits({
+    advance(publication) {
+      const changed = new Set<number>()
+      for (const change of publication.changes) {
+        if (change.type === 'entry' && (change.value.model || change.value.head || change.value.edits))
+          changed.add(change.value.conversationId)
+        if (
+          (change.type === 'document' || change.type === 'document.copy') &&
+          change.record.kind === 'pi.agent' &&
+          change.conversationId !== undefined
+        )
+          changed.add(change.conversationId)
+        if (change.type === 'submission' && change.value.type === 'input') {
+          const record = change.value
+          if (record.status === 'placed' && inputs.get(record.id)?.status !== 'placed') {
+            const placed = publication.changes.find((item) => item.type === 'entry' && item.value.id === record.entry)
+            const id =
+              logicalIds.get(record.id) ??
+              (placed?.type === 'entry' ? (placed.value.data as { cherryInputId?: string })?.cherryInputId : undefined)
+            if (id) logicalIds.set(record.id, runtimeId(id))
+            try {
+              options.onInputPlaced?.(id ? runtimeId(id) : undefined)
+            } catch (cause) {
+              report(cause)
+            }
           }
+          inputs.set(record.id, record)
         }
-        inputs.set(record.id, record)
+        if (change.type === 'conversation' && change.value.owner) {
+          const parent = change.value.owner.conversationId
+          const entry = live.get(parent)
+          if (entry)
+            void track(
+              readRelation(relationRecords, change.value).then((subagent) => {
+                if (subagent && live.get(parent) === entry)
+                  entry.projection.feed.publish({ type: 'subagent.upsert', subagent })
+              })
+            ).catch(report)
+        }
       }
-      if (change.type === 'conversation' && change.value.owner) {
-        const parent = change.value.owner.conversationId
-        const entry = live.get(parent)
-        if (entry)
-          void track(
-            readRelation(relationRecords, change.value).then((subagent) => {
-              if (subagent && live.get(parent) === entry)
-                entry.projection.feed.publish({ type: 'subagent.upsert', subagent })
-            })
-          ).catch(report)
+      for (const id of changed) {
+        const entry = live.get(id)
+        if (entry) {
+          entry.contextEpoch++
+          entry.projection.feed.publish({
+            type: 'context.changed',
+            result: { status: 'unknown', error: error('contextUsage', 'context-changed') }
+          })
+          refreshContext(entry)
+        }
       }
-    }
-    for (const id of changed) {
-      const entry = live.get(id)
-      if (entry) {
-        entry.contextEpoch++
-        entry.projection.feed.publish({
-          type: 'context.changed',
-          result: { status: 'unknown', error: error('contextUsage', 'context-changed') }
-        })
-        refreshContext(entry)
-      }
-    }
-  })
+    },
+    end() {}
+  }).detach
   void native.closed.then(() => {
     closing = true
     closingAccess.abort()
@@ -390,9 +393,11 @@ export async function createPiDurableRuntime(
     const loading = (async (): Promise<OperationResult<Entry>> => {
       const projection = new DurableProjection(refFor(conversation.id), report)
       let detach: (() => void) | undefined
+      let detachCommits: (() => void) | undefined
       try {
         const attached = await conversationViews(native).attach(
           conversation.id,
+          { active: true },
           async (view, _release, committed) => {
             const retained = await pages((cursor) =>
               committed.scanEntries({ conversationId: conversation.id, order: 'ascending' }, 256, cursor, context)
@@ -432,8 +437,11 @@ export async function createPiDurableRuntime(
               cursor = page.next
             } while (cursor)
             projection.update(view, undefined, states, history())
-            return {
-              publication(_before, after, _ops, publication) {
+            let currentView = view
+            let publishedView = view
+            detachCommits = native.observeCommits({
+              advance(publication) {
+                const after = currentView
                 const changed: InputState[] = []
                 const records = publication.changes.flatMap((change) => (change.type === 'entry' ? [change.value] : []))
                 for (const change of publication.changes) {
@@ -464,10 +472,25 @@ export async function createPiDurableRuntime(
                       : undefined
                   changed.push(submissionState(refFor(conversation.id), record, answer, logicalIds.get(record.id)))
                 }
+                publishedView = after
                 projection.update(after, publication.seq, changed, history())
               },
-              closeSession(failure) {
-                if (failure) report(failure.error)
+              end() {}
+            }).detach
+            return {
+              advance(call) {
+                if (call.kind !== 'value') return
+                currentView = call.value
+                // Stored commits notify hosts before this preview microtask; deferred progress has no receipt.
+                queueMicrotask(() => {
+                  if (!closing && currentView === call.value && publishedView !== call.value) {
+                    publishedView = call.value
+                    projection.update(call.value, undefined, [], history())
+                  }
+                })
+              },
+              end(end) {
+                if (end.kind === 'failed' && !closing) report(end.error)
               }
             } satisfies ViewObserver
           },
@@ -487,6 +510,7 @@ export async function createPiDurableRuntime(
           entry.projection.feed.publish({ type: 'subagent.upsert', subagent })
         return { status: 'confirmed', value: entry }
       } catch (cause) {
+        detachCommits?.()
         detach?.()
         if (live.get(conversation.id)?.projection === projection) live.delete(conversation.id)
         projection.feed.close('source-lost')

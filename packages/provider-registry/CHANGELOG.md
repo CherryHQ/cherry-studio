@@ -1,5 +1,11 @@
 # @cherrystudio/provider-registry
 
+## 0.4.0
+
+### Minor Changes
+
+- [#23684](https://github.com/CherryHQ/cherry-studio/pull/23684) [`7a3bb0b`](https://github.com/CherryHQ/cherry-studio/commit/7a3bb0b7af2ebe9a2a468edab2c018ebbbeba65f) Thanks [@ousugo](https://github.com/ousugo)! - Add GPT Image 2.6 scene complexity and animated GIF generation parameters, with a new catalog publication stream for compatible Desktop clients.
+
 ## 0.3.6
 
 ### Patch Changes
