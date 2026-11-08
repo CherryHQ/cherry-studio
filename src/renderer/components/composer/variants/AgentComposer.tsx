@@ -57,6 +57,7 @@ import { useAgentSessionSlashCommands } from '@renderer/hooks/agent/useAgentSess
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
+import { useCherryCloudQuotaExhaustion } from '@renderer/hooks/useCherryCloudQuotaExhaustion'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useLatest } from '@renderer/hooks/useLatest'
 import { useAvailableSkills } from '@renderer/hooks/useSkills'
@@ -86,6 +87,7 @@ import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/da
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
 
+import { CherryCloudQuotaNotice } from '../CherryCloudQuotaNotice'
 import { useComposerLayerActive } from '../ComposerContext'
 import { excludeComposerDraftTokens } from '../composerDraft'
 import type { ComposerInputFilePreviewAction } from '../filePreview'
@@ -119,8 +121,8 @@ import {
 } from './agent/agentDraftCache'
 import { buildAgentFilePartsForAttachments, toAccessiblePaths } from './agent/agentFileParts'
 import { PlanModeHint } from './agent/PlanModeHint'
-import { usePlanModeHint } from './agent/planModeHint'
 import { createAttachmentFromPath, useAgentResourceMentionSource } from './agent/useAgentResourceMentionSource'
+import { usePlanModeHint } from './agent/usePlanModeHint'
 import {
   AGENT_MANAGED_TOKEN_KINDS,
   AGENT_MANAGED_TOKEN_KINDS_BEFORE_KNOWLEDGE_RESTORE,
@@ -537,6 +539,7 @@ const AgentComposerInner = ({
   resolvedWorkspaceWarning
 }: InnerProps) => {
   const { updateAgent, updateModel } = useUpdateAgent()
+  const quotaExhaustion = useCherryCloudQuotaExhaustion(model, true)
   const { updateSession } = useUpdateSession()
   const scope = TopicType.Session
   const config = getComposerToolConfig(scope)
@@ -1375,7 +1378,8 @@ const AgentComposerInner = ({
     scopeKey: launchOptions?.editing ? `${sessionTopicId}:edit:${launchOptions.editing.messageId}` : sessionTopicId,
     status: sendDisabled || launchOptions?.editing ? undefined : sessionStatus,
     lastCompletedAt,
-    onDrain: sendQueuedPayload
+    onDrain: sendQueuedPayload,
+    blocked: !!quotaExhaustion
   })
   releaseFollowupEditRef.current = releaseEdit
 
@@ -1637,6 +1641,7 @@ const AgentComposerInner = ({
             hasPendingReference ||
             modelPending ||
             !!missingModelMessage ||
+            !!quotaExhaustion ||
             (text.trim().length === 0 && files.length === 0 && selectedSkills.length === 0)
           }
           sendBlockedReason={
@@ -1655,6 +1660,7 @@ const AgentComposerInner = ({
           }}
           queueContent={
             <>
+              {quotaExhaustion ? <CherryCloudQuotaNotice exhaustion={quotaExhaustion} /> : null}
               {planHint.visible && <PlanModeHint onAccept={planHint.accept} onDismiss={planHint.dismiss} />}
               {compaction.status === 'failed' && (
                 <Alert
@@ -1683,6 +1689,7 @@ const AgentComposerInner = ({
                   }}
                   onRemove={removeFollowup}
                   onReorder={reorderFollowups}
+                  isSteerDisabled={quotaExhaustion ? () => true : undefined}
                 />
               ) : undefined}
             </>

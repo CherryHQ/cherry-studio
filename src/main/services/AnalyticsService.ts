@@ -1,4 +1,5 @@
 import { app } from 'electron'
+import type { PostHog } from 'posthog-node'
 
 import { application } from '@application'
 import type { AnalyticsClient, TokenUsageData } from '@cherrystudio/analytics-client'
@@ -8,9 +9,30 @@ import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '
 import { getAppEdition } from '@main/utils/appEdition'
 import { isDataCollectionConsented } from '@main/utils/privacyConsent'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
+import type { AppEdition } from '@shared/types/appEdition'
 import { APP_NAME } from '@shared/utils/constants'
 
 const logger = loggerService.withContext('AnalyticsService')
+
+// Public, write-only keys of the PostHog projects that keep usage insights, like the Sentry DSN.
+// The China edition shares its project with the China subscription web page.
+const POSTHOG_PROJECT_KEYS = {
+  cn: 'phc_vwsf7qr54Vk2ff23Nj2B4PEYtSkkpheKrb8VcdfDujna',
+  global: 'phc_G0omsYajA6A9BY5c0rnU04ZaZck25xpR0DqKhwfF39n'
+} as const satisfies Record<AppEdition, string>
+const POSTHOG_HOST = 'https://us.i.posthog.com'
+
+// Development builds record usage insights only in a project set through MAIN_VITE_POSTHOG_KEY.
+function resolvePostHogKey(): string {
+  const override = import.meta.env.MAIN_VITE_POSTHOG_KEY?.trim()
+  if (override) return override
+  return import.meta.env.DEV ? '' : POSTHOG_PROJECT_KEYS[getAppEdition()]
+}
+
+// A build pointed at a non-production Cherry Cloud backend reports as that backend's test traffic, so the two join.
+function isTestTraffic(): boolean {
+  return import.meta.env.DEV || !!import.meta.env.MAIN_VITE_CHERRY_CLOUD_API_ORIGIN?.trim()
+}
 
 // Distinct name so the SDK retry classifier treats it as non-retriable.
 class ConsentRevokedError extends Error {
@@ -38,6 +60,7 @@ function linkSignals(first: AbortSignal, second?: AbortSignal | null): AbortSign
 @ServicePhase(Phase.WhenReady)
 export class AnalyticsService extends BaseService implements Activatable {
   private client: AnalyticsClient | null = null
+  private posthog: PostHog | null = null
   private revokeController: AbortController | null = null
   private hasTrackedAppLaunch = false
   /** Latest desired running state — requires both data collection and current policy consent. */
@@ -124,6 +147,17 @@ export class AnalyticsService extends BaseService implements Activatable {
       }
     })
 
+    const posthogKey = resolvePostHogKey()
+    if (posthogKey) {
+      const { PostHog } = await import('posthog-node')
+      this.posthog = new PostHog(posthogKey, {
+        host: POSTHOG_HOST,
+        disableGeoip: true,
+        enableExceptionAutocapture: false,
+        fetch: (url, options) => revokedFetch(url, options)
+      })
+    }
+
     if (!this.hasTrackedAppLaunch) {
       this.client.trackAppLaunch({
         version: app.getVersion(),
@@ -136,6 +170,14 @@ export class AnalyticsService extends BaseService implements Activatable {
   }
 
   async onDeactivate(): Promise<void> {
+    if (this.posthog) {
+      // After a revocation the shared revoke signal fails every request, so the queue is dropped
+      // without waiting out PostHog's retries.
+      const revoked = !this.desiredEnabled
+      if (revoked) this.revokeController?.abort()
+      await this.posthog.shutdown(revoked ? 1_000 : undefined)
+      this.posthog = null
+    }
     if (this.client) {
       if (!this.desiredEnabled) {
         this.revokeController?.abort()
@@ -158,6 +200,46 @@ export class AnalyticsService extends BaseService implements Activatable {
   public trackTokenUsage(data: TokenUsageData): void {
     if (!this.isActivated || !this.desiredEnabled || (data.input_tokens === 0 && data.output_tokens === 0)) return
     this.client!.trackTokenUsage(data)
+  }
+
+  /**
+   * Records a usage insight in PostHog; dropped unless data collection is consented under the current policy and a
+   * project key is configured. In the China edition a signed-in Cherry Account is identified the way the China
+   * subscription web page and server identify it, so the purchase funnel joins by account; otherwise the event stays
+   * on the anonymous client id without a person profile.
+   */
+  public trackEvent(
+    eventType: string,
+    data: Record<string, string | number | boolean>,
+    accountId?: string | null
+  ): void {
+    if (!this.isActivated || !this.desiredEnabled || !this.posthog) return
+    const testTraffic = isTestTraffic()
+    const environment = testTraffic ? 'development' : 'production'
+    const accountDistinctId =
+      accountId && getAppEdition() === 'cn' ? `cloud-api:cn:${environment}:account:${accountId}` : null
+    this.posthog.capture({
+      distinctId: accountDistinctId ?? getClientId(),
+      event: eventType,
+      properties: {
+        ...data,
+        app_version: app.getVersion(),
+        app_edition: getAppEdition(),
+        os: process.platform,
+        // Same envelope as the subscription web page and server events in the shared project.
+        product: 'cloud-api',
+        producer: 'client',
+        surface: 'desktop',
+        entry: 'desktop',
+        region: getAppEdition(),
+        environment,
+        test: testTraffic,
+        schema_version: 1,
+        // Pinned so PostHog does not record the sender's address in place of a missing one.
+        $ip: '0.0.0.0',
+        $process_person_profile: accountDistinctId !== null
+      }
+    })
   }
 
   public async trackAppUpdate(): Promise<void> {
