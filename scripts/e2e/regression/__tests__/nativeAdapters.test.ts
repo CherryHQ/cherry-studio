@@ -275,7 +275,7 @@ it.skipIf(!['darwin', 'win32'].includes(process.platform)).each(dialogModes)(
           : mode === 'print'
             ? 'await new Promise(resolve => window.webContents.print({}, (success, failureReason) => resolve({ success, failureReason })))'
             : isSave
-              ? `await dialog.showSaveDialog(${nativePlatform === 'windows' ? 'window, ' : ''}${JSON.stringify({ defaultPath: join(paths.profiles, 'suggested.txt'), ...(mode === 'save' ? { filters: [{ name: 'Text', extensions: ['txt'] }] } : {}) })})`
+              ? `await dialog.showSaveDialog(${nativePlatform === 'windows' ? 'window, ' : ''}${JSON.stringify({ defaultPath: join(paths.profiles, 'suggested.txt'), ...(mode === 'save' || mode === 'save-hidden' ? { filters: [{ name: 'Text', extensions: ['txt'] }] } : {}) })})`
               : `await dialog.showOpenDialog(${nativePlatform === 'windows' ? 'window, ' : ''}{ properties: ${JSON.stringify(mode === 'directory' ? ['openDirectory'] : mode === 'multiple' ? ['openFile', 'multiSelections'] : ['openFile'])} })`
       const resultPath = join(paths.private, 'result.json')
       const readyPath = join(paths.private, 'ready')
