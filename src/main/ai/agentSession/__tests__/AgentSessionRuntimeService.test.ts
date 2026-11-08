@@ -4187,7 +4187,6 @@ describe('AgentSessionRuntimeService', () => {
       ...baseTurnInput,
       userMessage: { ...userMessage('user-1'), data: { parts: [{ type: 'text', text: '/compact' }] } }
     })
-    const ordinaryTurn = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
 
     const compactResult: StreamDoneResult = { status: 'success', isTopicDone: true }
     await persistenceListener(compactTurn).onDone(compactResult)
@@ -4197,6 +4196,14 @@ describe('AgentSessionRuntimeService', () => {
       expect.anything()
     )
 
+    // A second turn cannot begin on a session that is already active, so the ordinary request runs
+    // in its own session: what this covers is the exemption, not two turns sharing one session.
+    const ordinaryTurn = service.beginTurn({
+      ...baseTurnInput,
+      sessionId: 'session-2',
+      topicId: 'agent-session:session-2',
+      userMessage: userMessage('user-1')
+    })
     const ordinaryResult: StreamDoneResult = { status: 'success', isTopicDone: true }
     await persistenceListener(ordinaryTurn).onDone(ordinaryResult)
     expect(ordinaryResult.emptyTurn?.name).toBe('no-parts')
@@ -4306,7 +4313,7 @@ describe('AgentSessionRuntimeService', () => {
     mocks.startRuntimeTurn.mockClear()
     ;(service as any).handleRuntimeEvent(entry, {
       type: 'steer-boundary',
-      inputs: [{ message: compactSteer, systemReminder: true }]
+      inputIds: [compactSteer.id]
     })
     service.markTurnTerminal('session-1', 'success', sourceTurnId)
     await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalled())

@@ -74,19 +74,6 @@ export class PersistenceListener implements StreamListener {
 
   async onDone(result: StreamDoneResult): Promise<void> {
     if (!this.owns(result.modelId)) return
-    // A turn that settled clean but produced nothing is a failure, not an empty
-    // answer: the provider was paid and the user was given no reply. Classify it
-    // before it lands as a contentless `success` row.
-    const emptyTurn = diagnoseEmptySuccessTurn(result.finalMessage, this.opts.explicitCompaction === true)
-    if (emptyTurn) {
-      result.finalMessage = classifyEmptyTurn(
-        result.finalMessage,
-        emptyTurn,
-        this.opts.modelId,
-        result.anchorMessageId ?? this.opts.backend.assistantMessageId
-      )
-      result.emptyTurn = emptyTurn
-    }
     return this.persistAssistant(result.finalMessage, 'success', result.runtimeTiming, result)
   }
 
@@ -122,10 +109,37 @@ export class PersistenceListener implements StreamListener {
     runtimeTiming: MessageRuntimeTiming | undefined,
     result: StreamDoneResult | StreamPausedResult | StreamErrorResult
   ): Promise<void> {
-    // `onDone` classifies before persisting, so a successful turn always carries
-    // a finalMessage here; only paused/error can legitimately arrive without one.
+    let finalMessageForPersistence = finalMessage
+      ? (this.opts.prepareMessage?.(finalMessage, status) ?? {
+          ...finalMessage,
+          parts: finalizeInterruptedParts(dropEmptyContentParts(stripTransientStatusParts(finalMessage.parts)), status)
+        })
+      : finalMessage
+    // A turn that settled clean but produced nothing is a failure, not an empty answer: the
+    // provider was paid and the user got no reply. The projector runs first — a reply the host
+    // supplies through `prepareMessage` is only provably absent once it has been normalized.
+    if (result.status === 'success') {
+      let emptyTurn = diagnoseEmptySuccessTurn(finalMessageForPersistence, this.opts.explicitCompaction === true)
+      // The normalized message decides whether the turn is empty at all; the raw snapshot decides
+      // which defect it is, because normalization drops the blank parts that separate the two.
+      const rawTurn = finalMessage
+        ? diagnoseEmptySuccessTurn(finalMessage, this.opts.explicitCompaction === true)
+        : undefined
+      if (emptyTurn && rawTurn?.name === 'blank-content') emptyTurn = rawTurn
+      if (emptyTurn) {
+        finalMessageForPersistence = classifyEmptyTurn(
+          finalMessageForPersistence,
+          emptyTurn,
+          this.opts.modelId,
+          result.anchorMessageId ?? this.opts.backend.assistantMessageId
+        )
+        result.emptyTurn = emptyTurn
+      }
+    }
+    // Classification may be the only writer of a message for an empty success, so the guard
+    // runs after it: what reaches here without one is a terminal event with nothing to store.
     const canPersistEmpty = this.opts.backend.canPersistEmptyTerminal
-    if (!finalMessage && !canPersistEmpty) {
+    if (!finalMessageForPersistence && !canPersistEmpty) {
       logger.warn('Terminal event without finalMessage, skipping persistence', {
         backend: this.opts.backend.kind,
         topicId: this.opts.topicId,
@@ -134,12 +148,6 @@ export class PersistenceListener implements StreamListener {
       return
     }
 
-    const finalMessageForPersistence = finalMessage
-      ? (this.opts.prepareMessage?.(finalMessage, status) ?? {
-          ...finalMessage,
-          parts: finalizeInterruptedParts(dropEmptyContentParts(stripTransientStatusParts(finalMessage.parts)), status)
-        })
-      : finalMessage
     const contextTokens = finalMessageForPersistence?.metadata?.stats?.contextTokens
     result.finalMessage = finalMessageForPersistence
     const runtimeStats: MessageRuntimeStatsInput = {
