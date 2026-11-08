@@ -293,9 +293,11 @@ window.addEventListener('pageshow', () => navigator.sendBeacon('http://127.0.0.1
         let connected = button.isConnected
         const record = (event: Event) => {
           if (events.length >= 12) return
+          if (event instanceof KeyboardEvent && event.key !== 'Enter') return
           events.push({
             at: performance.now() - started,
             type: event.type,
+            key: event instanceof KeyboardEvent ? 'Enter' : null,
             trusted: event.isTrusted,
             reachedButton: event.composedPath().includes(button),
             targetTag: event.target instanceof Element ? event.target.tagName : null,
@@ -320,7 +322,7 @@ window.addEventListener('pageshow', () => navigator.sendBeacon('http://127.0.0.1
           attributes: true,
           attributeFilter: ['aria-pressed']
         })
-        const eventTypes = ['pointerdown', 'pointerup', 'click']
+        const eventTypes = ['pointerdown', 'pointerup', 'click', 'keydown', 'keyup']
         for (const type of eventTypes) document.addEventListener(type, record, true)
         owner.__mp41CodeClick = {
           read: () => ({ initial, events, states, final: snapshot() }),
@@ -330,7 +332,9 @@ window.addEventListener('pageshow', () => navigator.sendBeacon('http://127.0.0.1
           }
         }
       })
-      await artifact.getByRole('button', { name: 'Code', exact: true }).click()
+      const codeButton = artifact.getByRole('button', { name: 'Code', exact: true })
+      await codeButton.focus()
+      await codeButton.press('Enter')
       await expect(artifact.getByRole('button', { name: 'Preview', exact: true })).toHaveAttribute(
         'aria-pressed',
         'true'
@@ -400,7 +404,9 @@ window.addEventListener('pageshow', () => navigator.sendBeacon('http://127.0.0.1
     }
     await attachScreenshot('MP-41 code view preserves generated HTML')
     await artifact.hover()
-    await artifact.getByRole('button', { name: 'Preview', exact: true }).click()
+    const previewButton = artifact.getByRole('button', { name: 'Preview', exact: true })
+    await previewButton.focus()
+    await previewButton.press('Enter')
     await expect(guest).toBeVisible()
     await expect.poll(() => readGuest("document.querySelector('h1')?.textContent")).toBe(title)
     await expect.poll(() => readGuest("document.getElementById('increment').textContent")).toBe('Count: 1')
