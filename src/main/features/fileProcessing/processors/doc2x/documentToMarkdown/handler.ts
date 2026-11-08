@@ -328,5 +328,9 @@ function replaceNextMarkdownTable(markdown: string, tableHtml: string): string {
     return `${markdown.trim()}\n\n${tableHtml}`
   }
 
-  return `${markdown.slice(0, tableStart)}${tableHtml}${markdown.slice(tableEnd)}`.trim()
+  const lineStart = markdown.lastIndexOf('\n', tableStart - 1) + 1
+  const containerPrefix = markdown.slice(lineStart, tableStart)
+  const prefixedTableHtml = tableHtml.replace(/\n/g, `\n${containerPrefix}`)
+
+  return `${markdown.slice(0, tableStart)}${prefixedTableHtml}${markdown.slice(tableEnd)}`.trim()
 }

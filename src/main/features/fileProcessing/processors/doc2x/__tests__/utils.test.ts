@@ -323,13 +323,38 @@ describe('doc2x utils', () => {
                 reading_order: 0,
                 parent_id: '',
                 src: '',
-                table_data: { html: '<table><tr><td>nested</td></tr></table>' }
+                table_data: { html: '<table>\n<tr><td>nested</td></tr>\n</table>' }
               }
             ]
           }
         }
       ])
-    ).toBe('- Item\n\n    <table><tr><td>nested</td></tr></table>\n\n  Following paragraph.')
+    ).toBe('- Item\n\n    <table>\n    <tr><td>nested</td></tr>\n    </table>\n\n  Following paragraph.')
+  })
+
+  it('keeps multiline table HTML inside blockquotes', () => {
+    expect(
+      buildDoc2xMarkdown([
+        {
+          page_idx: 0,
+          md: '> | Nested | Value |\n> | --- | --- |\n> | kept | as quote |',
+          layout: {
+            blocks: [
+              {
+                id: 'table',
+                type: 'Table',
+                text: '',
+                bbox: [0, 0, 1, 1],
+                reading_order: 0,
+                parent_id: '',
+                src: '',
+                table_data: { html: '<table>\n<tr><td>quoted</td></tr>\n</table>' }
+              }
+            ]
+          }
+        }
+      ])
+    ).toBe('> <table>\n> <tr><td>quoted</td></tr>\n> </table>')
   })
 
   it('uses structured figure URLs when a v3 page has no Markdown fallback', () => {
