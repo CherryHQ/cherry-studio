@@ -303,16 +303,24 @@ function stripDoc2xBoilerplate(markdown: string): string {
 
 function replaceNextMarkdownTable(markdown: string, tableHtml: string): string {
   const lines = markdown.split('\n')
-  let inFence = false
+  let fence: MarkdownFence | undefined
   let separatorIndex = -1
 
   for (let index = 0; index < lines.length; index += 1) {
-    if (isMarkdownFence(lines[index])) {
-      inFence = !inFence
+    const marker = parseMarkdownFence(lines[index])
+    if (fence) {
+      if (marker?.character === fence.character && marker.length >= fence.length) {
+        fence = undefined
+      }
       continue
     }
 
-    if (!inFence && index > 0 && isMarkdownTableRow(lines[index - 1]) && isMarkdownTableSeparator(lines[index])) {
+    if (marker) {
+      fence = marker
+      continue
+    }
+
+    if (index > 0 && isMarkdownTableRow(lines[index - 1]) && isMarkdownTableSeparator(lines[index])) {
       separatorIndex = index
       break
     }
@@ -323,12 +331,12 @@ function replaceNextMarkdownTable(markdown: string, tableHtml: string): string {
   }
 
   let start = separatorIndex - 1
-  while (start > 0 && !isMarkdownFence(lines[start - 1]) && isMarkdownTableRow(lines[start - 1])) {
+  while (start > 0 && !parseMarkdownFence(lines[start - 1]) && isMarkdownTableRow(lines[start - 1])) {
     start -= 1
   }
 
   let end = separatorIndex + 1
-  while (end < lines.length && !isMarkdownFence(lines[end]) && isMarkdownTableRow(lines[end])) {
+  while (end < lines.length && !parseMarkdownFence(lines[end]) && isMarkdownTableRow(lines[end])) {
     end += 1
   }
 
@@ -341,8 +349,19 @@ function isMarkdownTableRow(line: string): boolean {
   return value.includes('|')
 }
 
-function isMarkdownFence(line: string): boolean {
-  return /^\s*(```+|~~~+)/.test(line)
+type MarkdownFence = {
+  character: '`' | '~'
+  length: number
+}
+
+function parseMarkdownFence(line: string): MarkdownFence | undefined {
+  const marker = /^\s*(`{3,}|~{3,})/.exec(line)?.[1]
+  if (!marker) return undefined
+
+  return {
+    character: marker[0] as '`' | '~',
+    length: marker.length
+  }
 }
 
 function isMarkdownTableSeparator(line: string): boolean {

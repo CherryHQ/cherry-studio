@@ -190,6 +190,51 @@ describe('doc2x utils', () => {
     )
   })
 
+  it('matches fence characters and lengths before replacing tables', () => {
+    expect(
+      buildDoc2xMarkdown([
+        {
+          page_idx: 0,
+          md: '````md\n```md\n| Nested | Value |\n| --- | --- |\n| kept | as code |\n```\n````\n\n| Actual | Value |\n| --- | --- |\n| item | 42 |',
+          layout: {
+            blocks: [
+              {
+                id: 'backtick-table',
+                type: 'Table',
+                text: '',
+                bbox: [0, 0, 1, 1],
+                reading_order: 0,
+                parent_id: '',
+                src: '',
+                table_data: { html: '<table><tr><td>backtick</td></tr></table>' }
+              }
+            ]
+          }
+        },
+        {
+          page_idx: 1,
+          md: '```md\n~~~md\n| Nested | Value |\n| --- | --- |\n| kept | as code |\n~~~\n```\n\n| Actual | Value |\n| --- | --- |\n| item | 42 |',
+          layout: {
+            blocks: [
+              {
+                id: 'tilde-table',
+                type: 'Table',
+                text: '',
+                bbox: [0, 0, 1, 1],
+                reading_order: 0,
+                parent_id: '',
+                src: '',
+                table_data: { html: '<table><tr><td>tilde</td></tr></table>' }
+              }
+            ]
+          }
+        }
+      ])
+    ).toBe(
+      '````md\n```md\n| Nested | Value |\n| --- | --- |\n| kept | as code |\n```\n````\n\n<table><tr><td>backtick</td></tr></table>\n\n```md\n~~~md\n| Nested | Value |\n| --- | --- |\n| kept | as code |\n~~~\n```\n\n<table><tr><td>tilde</td></tr></table>'
+    )
+  })
+
   it('uses structured figure URLs when a v3 page has no Markdown fallback', () => {
     expect(
       buildDoc2xMarkdown([
