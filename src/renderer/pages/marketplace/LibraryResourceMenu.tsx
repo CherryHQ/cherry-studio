@@ -5,7 +5,7 @@ import { ResourceDeleteConfirmDialog } from '@renderer/components/resourceCatalo
 import { PromptEditDialogHost } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
-import { useAssistantMutations, usePromptMutations } from '@renderer/hooks/resourceCatalog'
+import { useDuplicateAssistantMutation, usePromptMutations } from '@renderer/hooks/resourceCatalog'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import { serializeAssistantForExport } from '@renderer/utils/assistantTransfer'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
@@ -19,7 +19,7 @@ export type LibraryItem = Extract<ResourceItem, { type: 'assistant' | 'prompt' |
 
 export function LibraryResourceMenu({ resource, manager }: { resource: LibraryItem; manager: SkillLibraryTagManager }) {
   const { t } = useTranslation()
-  const { duplicateAssistant } = useAssistantMutations()
+  const { duplicateAssistant } = useDuplicateAssistantMutation()
   const { duplicatePrompt } = usePromptMutations()
   const [editingPrompt, setEditingPrompt] = useState<Prompt | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
