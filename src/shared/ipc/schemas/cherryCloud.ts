@@ -230,6 +230,14 @@ export const cherryCloudRequestSchemas = {
   'cherry_cloud.status.get': defineRoute({ input: z.void(), output: cherryCloudStatusSchema }),
   'cherry_cloud.account_origin.get': defineRoute({ input: z.void(), output: z.url() }),
   'cherry_cloud.login.start': defineRoute({ input: z.void(), output: cherryCloudLoginResultSchema }),
+  'cherry_cloud.subscription.start': defineRoute({
+    input: z.strictObject({
+      source: subscriptionEntrySourceSchema,
+      flowId: subscriptionFlowIdSchema,
+      modelId: z.string().max(200).optional()
+    }),
+    output: z.void()
+  }),
   'cherry_cloud.login.cancel': defineRoute({ input: z.void(), output: cherryCloudStatusSchema }),
   'cherry_cloud.session.revoke': defineRoute({ input: z.void(), output: cherryCloudStatusSchema }),
   'cherry_cloud.models.sync': defineRoute({

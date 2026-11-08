@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-11-08-cherry-cloud-ownership-convergence.md
-2026-11-08-cherry-cloud-ownership-convergence.md: d9206f29f4c7bda45337eb01400b1a85418f9a27
-2026-11-08-cherry-cloud-ownership-convergence.zh.md: 62c7bfe35cd798734f56fbd0c97df78ab922dd1f
+2026-11-08-cherry-cloud-ownership-convergence.md: cab4cfbf6a3c9aa1527e0a7a16eb9081a6075bf2
+2026-11-08-cherry-cloud-ownership-convergence.zh.md: 1ed0c1d7693507a9023fa147e90df72e139e9fba

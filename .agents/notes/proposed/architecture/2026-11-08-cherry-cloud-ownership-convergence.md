@@ -14,7 +14,7 @@ The user authorized implementation of the previously discussed architecture and 
 
 ### Owners and dependencies
 
-Keep `CherryCloudService` as the main-process owner of credentials, authorization completion, account generations, HTTP facts and refresh publication. Each renderer window owns its latest unsubmitted subscription intent; a component unmount does not cancel it, and replacing an intent never cancels another window's authentication. Main validates the current account scope and managed sender immediately before opening the trusted account portal.
+Keep `CherryCloudService` as the main-process owner of credentials, authorization completion, account generations, HTTP facts, refresh publication and the subscription operation. Renderer sends one subscription command. Concurrent clicks across windows share the existing in-flight operation; the first admitted request supplies portal attribution and sender until it settles. Sign-out releases the operation so a new account need not wait for an old browser call; late completion cannot release its replacement. Each click retains its own analytics event. Main validates the current account scope and managed sender immediately before opening the trusted account portal. Closing that sender prevents the portal without cancelling authentication shared with other callers.
 
 Serialize full account refreshes with the existing `Sequencer`. Each caller receives its own typed outcome. Publish one scoped, locally sequenced receipt with explicit endpoint freshness and reason. Lightweight provider authorization remains separate from sales-plan refresh. Notification cursors advance only after successful refresh for the same connection and scope. Renderer hooks project the receipt instead of refetching independent mirrors or guessing notification provenance from elapsed time.
 
@@ -28,7 +28,7 @@ The portable Claude adapter owns validated live and archived native rejection fa
 
 Preserve PKCE/state/loopback validation, signed requests, credential persistence before session publication, token-refresh single flight, waiter cancellation, local-first logout, retry/idempotency rules and quota-refusal floors. Preserve HTTP methods, paths, query/body fields and response parsing; public and account plan DTOs remain distinct. Preserve existing model row identity, active/upcoming semantics, edition behavior, six subscription sources, flow parameters, consent and coarse attribution.
 
-Deliberate corrections are one terminal login/intent result, latest-click precedence, no stale-account portal or receipt, retryable failed notification refresh, queued-payload target evaluation, distinct quota and ordinary rate limits, accurate dynamic Free filtering, and no fabricated unsubscribed state while plans are unknown. These corrections must have code-backed counterexamples and contract tests. They do not authorize new checkout behavior or new analytics event values.
+Deliberate corrections are one terminal login result, one in-flight subscription operation across windows, no stale-account portal or receipt, retryable failed notification refresh, queued-payload target evaluation, distinct quota and ordinary rate limits, accurate dynamic Free filtering, and no fabricated unsubscribed state while plans are unknown. These corrections must have code-backed counterexamples and contract tests. They do not authorize new checkout behavior or new analytics event values.
 
 ### Verification boundary
 
@@ -45,7 +45,7 @@ Offline endpoint fixtures and native SDK tests do not establish live backend com
 ## Acceptance criteria
 
 - AC1 — Authentication has one terminal outcome for every waiter across callback, cancellation, expiry and shutdown; browser-open races cannot contradict a persisted successful session. (verification: scheduled main-service tests; owner: main Cloud)
-- AC2 — Only the latest unsubmitted window intent may open a portal; supersession, window disposal and stale account scopes prevent late side effects without cancelling shared login. (verification: exhaustive bounded schedules and IPC boundary tests; owner: renderer Cloud/main IPC)
+- AC2 — Concurrent subscription commands across windows share one login/portal operation; the first admitted request supplies portal attribution, invalid senders and stale account scopes prevent late side effects, and closing a sender never cancels shared authentication. (verification: concurrent main-service and IPC boundary tests; owner: main Cloud)
 - AC3 — Every admitted refresh settles independently, failed predecessors do not discard successors, and stale account results cannot publish. Receipt freshness and source are explicit. (verification: main-service concurrency and renderer projection tests; owner: main/renderer Cloud)
 - AC4 — Notification ready/live/catch-up failure and cancellation retain retryability and never acknowledge an unprocessed account change. (verification: offline SSE scripts; owner: Cloud notifications)
 - AC5 — Generic selector code has no Cloud policy imports; offers are action rows excluded from model selection and pinning, with keyboard/filter behavior preserved. (verification: dependency and selector consumer checks; owner: renderer selector)

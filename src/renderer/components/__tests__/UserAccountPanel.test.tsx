@@ -286,7 +286,10 @@ describe('UserAccountPanel', () => {
     expect(screen.queryByRole('button', { name: '登录' })).not.toBeInTheDocument()
     await user.click(await screen.findByRole('button', { name: /去订阅/ }))
 
-    expect(request).toHaveBeenCalledWith('cherry_cloud.login.start', undefined)
+    expect(request).toHaveBeenCalledWith(
+      'cherry_cloud.subscription.start',
+      expect.objectContaining({ source: 'account_panel', flowId: expect.any(String) })
+    )
     expect(request.mock.calls.some(([route]) => route === 'cherry_cloud.account.refresh')).toBe(false)
   })
 
@@ -317,8 +320,8 @@ describe('UserAccountPanel', () => {
     await user.click(await screen.findByRole('button', { name: /去订阅/ }))
 
     expect(request).toHaveBeenCalledWith(
-      'cherry_cloud.account_portal.open',
-      expect.objectContaining({ scopeId: 'account-1' })
+      'cherry_cloud.subscription.start',
+      expect.objectContaining({ source: 'account_panel', flowId: expect.any(String) })
     )
   })
 

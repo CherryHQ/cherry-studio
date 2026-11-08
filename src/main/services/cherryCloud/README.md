@@ -20,12 +20,17 @@ and account changes or shutdown prevent old work from publishing. Notifications
 commit refresh-dependent cursors and reset reconnect backoff only after the
 corresponding full refresh succeeds in the same connection and account scope.
 
-Each renderer window owns its latest unsubmitted Subscribe intent. Replacement
-or unload settles that continuation without cancelling shared authentication.
-The scoped portal command checks the managed sender and current signed-in scope
-immediately before opening the trusted account URL. A submitted browser action
-is not replayed after an uncertain result. `subscriptionAnalytics.ts` formats the
-Cloud event envelope and identity; generic analytics retains consent and transport.
+`CherryCloudService` also owns one in-flight Subscribe operation. Renderers send
+one command; concurrent clicks across windows share its login and portal opening.
+The first admitted request supplies the portal's source, flow and sender until
+that operation settles. Sign-out releases it so a new account need not wait for
+an old browser call; late completion cannot release the replacement operation.
+Every click retains its own analytics event. Main checks
+the managed sender and signed-in scope immediately before opening the trusted
+account URL. Closing that sender prevents the portal without cancelling shared
+authentication. A submitted browser action is not replayed after an uncertain
+result. `subscriptionAnalytics.ts` formats the Cloud event envelope and identity;
+generic analytics retains consent and transport.
 
 The [ownership Spec](../../../../.agents/notes/proposed/architecture/2026-11-08-cherry-cloud-ownership-convergence.md)
 records the preservation boundary, deliberate fixes and offline verification limits.

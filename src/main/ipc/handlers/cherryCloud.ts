@@ -1,6 +1,7 @@
 import { application } from '@application'
 import {
   CherryCloudLoginUnavailableError,
+  CherryCloudPortalOpenError,
   CherryCloudUpgradeRequiredError
 } from '@main/services/cherryCloud/CherryCloudService'
 import { trackCherryCloudAnalyticsEvent } from '@main/services/cherryCloud/subscriptionAnalytics'
@@ -9,15 +10,18 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { cherryCloudRequestSchemas } from '@shared/ipc/schemas/cherryCloud'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
-async function startLogin() {
+async function runCloudCommand<T>(command: () => Promise<T>): Promise<T> {
   try {
-    return await application.get('CherryCloudService').startLogin()
+    return await command()
   } catch (error) {
     if (error instanceof CherryCloudUpgradeRequiredError) {
       throw new IpcError(cherryCloudErrorCodes.UPGRADE_REQUIRED, error.message)
     }
     if (error instanceof CherryCloudLoginUnavailableError) {
       throw new IpcError(cherryCloudErrorCodes.LOGIN_SERVICE_UNAVAILABLE, error.message)
+    }
+    if (error instanceof CherryCloudPortalOpenError) {
+      throw new IpcError(cherryCloudErrorCodes.PORTAL_OPEN_FAILED, error.message)
     }
     throw error
   }
@@ -26,7 +30,9 @@ async function startLogin() {
 export const cherryCloudHandlers: IpcHandlersFor<typeof cherryCloudRequestSchemas> = {
   'cherry_cloud.status.get': async () => application.get('CherryCloudService').getStatus(),
   'cherry_cloud.account_origin.get': async () => application.get('CherryCloudService').getAccountOrigin(),
-  'cherry_cloud.login.start': startLogin,
+  'cherry_cloud.login.start': async () => runCloudCommand(() => application.get('CherryCloudService').startLogin()),
+  'cherry_cloud.subscription.start': async (input, ctx) =>
+    runCloudCommand(() => application.get('CherryCloudService').startSubscription(input, ctx.senderId)),
   'cherry_cloud.login.cancel': async () => application.get('CherryCloudService').cancelLogin(),
   'cherry_cloud.session.revoke': async () => application.get('CherryCloudService').revokeCurrentSession(),
   'cherry_cloud.models.sync': async () => application.get('CherryCloudService').syncEntitledModelsIfStale(),

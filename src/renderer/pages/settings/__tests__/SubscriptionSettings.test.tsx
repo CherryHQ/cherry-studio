@@ -206,7 +206,7 @@ describe('SubscriptionSettings', () => {
     ])
   })
 
-  it('opens the production account center on the cloud origin', async () => {
+  it('delegates an unsubscribed account to the Main subscription command', async () => {
     vi.stubEnv('DEV', false)
     requestMock.mockImplementation((route: string) => {
       if (route === 'cherry_cloud.status.get') return Promise.resolve(session.status)
@@ -223,8 +223,8 @@ describe('SubscriptionSettings', () => {
     await userEvent.click(screen.getByRole('button', { name: 'settings.subscription.subscribe' }))
 
     expect(requestMock).toHaveBeenCalledWith(
-      'cherry_cloud.account_portal.open',
-      expect.objectContaining({ scopeId: 'account-1', entrySource: 'settings' })
+      'cherry_cloud.subscription.start',
+      expect.objectContaining({ source: 'settings', flowId: expect.any(String) })
     )
   })
 

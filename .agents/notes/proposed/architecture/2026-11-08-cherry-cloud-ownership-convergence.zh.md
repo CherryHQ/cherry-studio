@@ -14,7 +14,7 @@ Status: proposed
 
 ### 所有者与依赖
 
-保留 `CherryCloudService` 作为主进程凭证、登录终局、账号代次、HTTP 事实与刷新发布的所有者。每个渲染窗口拥有最新的未提交订阅意图；组件卸载不取消该意图，替换意图也不取消其他窗口的登录。主进程在打开受信任账户门户前立即校验当前账号作用域和受管发送窗口。
+保留 `CherryCloudService` 作为主进程凭证、登录终局、账号代次、HTTP 事实、刷新发布和订阅操作的所有者。渲染进程只发送一个订阅命令。跨窗口的并发点击复用已有的进行中操作；首次获准的请求决定该操作结算前的门户归因和发送窗口。登出时释放该操作，使新账号无需等待旧浏览器调用；旧操作的迟到完成不能释放替代它的新操作。每次点击仍保留自己的 analytics 事件。主进程在打开受信任账户门户前立即校验当前账号作用域和受管发送窗口。关闭该发送窗口会阻止门户打开，但不取消其他调用者共享的登录。
 
 使用已有 `Sequencer` 串行执行完整账户刷新，每个调用者获得自己的类型化结果。发布一份包含作用域、本地序号、各端点新鲜度和来源的收据。轻量 provider 授权独立于销售套餐刷新。通知仅在同连接、同作用域的刷新成功后推进 cursor。渲染 hooks 投影收据，不再重新请求独立镜像，也不按经过时间猜测通知来源。
 
@@ -28,7 +28,7 @@ Chat 按各排队 payload 的模型评估。排队的新 Agent turn 在启动时
 
 保留 PKCE/state/loopback 校验、请求签名、先持久化凭证再发布 session、token-refresh single flight、waiter 取消、本地优先登出、重试/idempotency 规则及 quota-refusal floors。保留 HTTP 方法、路径、query/body 字段与响应解析；公共套餐和账户套餐 DTO 仍保持区分。保留模型行身份、active/upcoming 语义、版本差异、六种订阅来源、flow 参数、consent 和粗粒度归因。
 
-有意修正包括登录/意图只结算一次、最新点击优先、阻止过期账号门户和收据、通知刷新失败可重试、按排队 payload 目标判断、区分 quota 与普通限流、动态 Free 过滤准确，以及套餐未知时不伪造未订阅。这些修正必须有代码反例和合同测试；不授权新增结账行为或 analytics 事件值。
+有意修正包括登录只结算一次、跨窗口只有一个进行中的订阅操作、阻止过期账号门户和收据、通知刷新失败可重试、按排队 payload 目标判断、区分 quota 与普通限流、动态 Free 过滤准确，以及套餐未知时不伪造未订阅。这些修正必须有代码反例和合同测试；不授权新增结账行为或 analytics 事件值。
 
 ### 验证边界
 
@@ -45,7 +45,7 @@ Chat 按各排队 payload 的模型评估。排队的新 Agent turn 在启动时
 ## 验收标准
 
 - AC1 — callback、取消、过期和关闭下，每个登录 waiter 都有唯一终局；浏览器打开竞态不能与已持久化的成功 session 矛盾。(verification: scheduled main-service tests; owner: main Cloud)
-- AC2 — 仅窗口最新未提交意图可打开门户；替换、窗口释放和过期账号作用域阻止迟到副作用，且不取消共享登录。(verification: exhaustive bounded schedules and IPC boundary tests; owner: renderer Cloud/main IPC)
+- AC2 — 跨窗口的并发订阅命令共享一次登录和门户操作；首次获准的请求决定门户归因，无效发送窗口和过期账号作用域阻止迟到副作用，关闭发送窗口不会取消共享登录。(verification: concurrent main-service and IPC boundary tests; owner: main Cloud)
 - AC3 — 每次获准刷新独立结算，前次失败不丢弃后续请求，过期账号结果不能发布。收据明确新鲜度与来源。(verification: main-service concurrency and renderer projection tests; owner: main/renderer Cloud)
 - AC4 — 通知 ready/live/catch-up 失败和取消仍可重试，不确认尚未处理的账号变化。(verification: offline SSE scripts; owner: Cloud notifications)
 - AC5 — 通用选择器无 Cloud 策略导入；销售项是独立动作行，不参与模型选择和置顶，并保留键盘/过滤行为。(verification: dependency and selector consumer checks; owner: renderer selector)

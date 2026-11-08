@@ -1,5 +1,6 @@
 import { createHmac } from 'node:crypto'
 
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Model } from '@shared/data/types/model'
@@ -8,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   appEdition: 'global' as 'cn' | 'global',
   appIsPackaged: false,
   broadcast: vi.fn(),
+  trackEvent: vi.fn(),
   gatewayStart: vi.fn(),
   loopbackOpen: vi.fn(),
   loopbackReceiver: {
@@ -26,7 +28,7 @@ const mocks = vi.hoisted(() => ({
   sessionClear: vi.fn(),
   sessionReplace: vi.fn(),
   showMainWindow: vi.fn(),
-  windowLookup: vi.fn(() => ({ isDestroyed: () => false }))
+  windowLookup: vi.fn(() => ({ isDestroyed: (): boolean => false }))
 }))
 
 vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
@@ -82,7 +84,8 @@ vi.mock('@application', async () => {
     ApiGatewayService: { start: mocks.gatewayStart },
     IpcApiService: { broadcast: mocks.broadcast },
     MainWindowService: { showMainWindow: mocks.showMainWindow },
-    WindowManager: { getWindow: mocks.windowLookup }
+    WindowManager: { getWindow: mocks.windowLookup },
+    AnalyticsService: { trackEvent: mocks.trackEvent }
   }
   return mockApplicationFactory(overrides)
 })
@@ -111,7 +114,7 @@ import { uuid } from 'systeminformation'
 import { application } from '@application'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 
-import { CherryCloudLoginUnavailableError, CherryCloudService } from '../CherryCloudService'
+import { CherryCloudLoginUnavailableError, CherryCloudPortalOpenError, CherryCloudService } from '../CherryCloudService'
 
 const resolveRegistryModels = vi.spyOn(providerRegistryService, 'resolveModels')
 
@@ -296,6 +299,7 @@ function mockModelSync(account: unknown = accountSnapshot, catalog: unknown = cl
 
 async function createService(): Promise<CherryCloudService> {
   const service = new CherryCloudService()
+  MockApplicationUtils.setService('CherryCloudService', service)
   await service._doInit()
   return service
 }
@@ -366,6 +370,7 @@ describe('CherryCloudService', () => {
     resolveRegistryModels.mockReturnValue([])
     mocks.gatewayStart.mockResolvedValue(undefined)
     mocks.openExternal.mockResolvedValue(undefined)
+    mocks.windowLookup.mockImplementation(() => ({ isDestroyed: () => false }))
     mocks.loopbackOpen.mockResolvedValue(mocks.loopbackReceiver)
   })
 
@@ -1683,6 +1688,232 @@ describe('CherryCloudService', () => {
     expect(mocks.openExternal).toHaveBeenCalledWith(
       'https://cloud.cherryai.com/account/plans?entry=desktop&entry_source=settings&flow_id=00000000-0000-4000-8000-000000000001'
     )
+  })
+
+  it.each([2, 3])('coalesces %s windows through one portal and admits a later operation', async (clicks) => {
+    const service = await createSignedInService()
+    mocks.openExternal.mockClear()
+    const opened = Promise.withResolvers<void>()
+    mocks.openExternal.mockReturnValueOnce(opened.promise)
+    const firstInput = { source: 'settings' as const, flowId: authorizationId }
+    const requests = [service.startSubscription(firstInput, 'w1')]
+    await vi.waitFor(() => expect(mocks.openExternal).toHaveBeenCalledOnce())
+    for (let index = 1; index < clicks; index++)
+      requests.push(service.startSubscription({ source: 'account_panel', flowId: sessionId }, `w${index + 1}`))
+    await vi.waitFor(() =>
+      expect(mocks.trackEvent.mock.calls.filter(([event]) => event === 'subscription_entry_clicked')).toHaveLength(
+        clicks
+      )
+    )
+    expect(mocks.openExternal.mock.calls.map(([url]) => url)).toEqual([
+      `https://cloud.cherryai.com/account/plans?entry=desktop&entry_source=settings&flow_id=${authorizationId}`
+    ])
+    opened.resolve()
+    await Promise.all(requests)
+
+    await service.startSubscription({ source: 'quota_notice', flowId: deviceId }, 'w3')
+    expect(mocks.openExternal.mock.calls.map(([url]) => url)).toEqual([
+      `https://cloud.cherryai.com/account/plans?entry=desktop&entry_source=settings&flow_id=${authorizationId}`,
+      `https://cloud.cherryai.com/account/plans?entry=desktop&entry_source=quota_notice&flow_id=${deviceId}`
+    ])
+    await service._doStop()
+  })
+
+  it('shares authentication and the portal across windows while retaining each click event', async () => {
+    mockAuthorizationFlow()
+    mockModelSync({ ...accountSnapshot, entitlements: [] }, { data: [] })
+    const service = await createService()
+    const first = service.startSubscription({ source: 'settings', flowId: authorizationId }, 'w1')
+    const second = service.startSubscription({ source: 'account_panel', flowId: sessionId }, 'w2')
+    await vi.waitFor(async () => expect((await service.getStatus()).phase).toBe('authorizing'))
+    const login = service.startLogin()
+    await loopbackCallback()(
+      new URL(
+        `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${authorizationRequestBody().state}`
+      )
+    )
+    await Promise.all([first, second])
+    await expect(login).resolves.toMatchObject({ outcome: 'signed-in' })
+    expect(requestCalls('/api/v1/desktop/authorizations')).toHaveLength(1)
+    expect(mocks.openExternal.mock.calls.map(([url]) => url)).toEqual([
+      `http://localhost:8084/desktop/authorize?authorization_id=${authorizationId}`,
+      `https://cloud.cherryai.com/account/plans?entry=desktop&entry_source=settings&flow_id=${authorizationId}`
+    ])
+    await vi.waitFor(() => {
+      const events = mocks.trackEvent.mock.calls.map(([event, properties]) => ({ event, ...properties }))
+      expect(events.filter(({ event }) => event === 'subscription_entry_clicked')).toEqual([
+        expect.objectContaining({ flow_id: authorizationId, source: 'settings', signed_in: false }),
+        expect.objectContaining({ flow_id: sessionId, source: 'account_panel', signed_in: false })
+      ])
+      expect(events.filter(({ event }) => event === 'subscription_sign_in_result')).toEqual([
+        expect.objectContaining({ flow_id: authorizationId, result: 'success' })
+      ])
+      expect(events.filter(({ event }) => event === 'subscription_portal_open')).toEqual([
+        expect.objectContaining({ flow_id: authorizationId, source: 'settings', result: 'success' })
+      ])
+    })
+    await service._doStop()
+  })
+
+  it('does not open a portal after its originating window closes or cancel another login caller', async () => {
+    mockAuthorizationFlow()
+    mockModelSync({ ...accountSnapshot, entitlements: [] }, { data: [] })
+    const service = await createService()
+    const pending = service.startSubscription({ source: 'settings', flowId: authorizationId }, 'w1')
+    await vi.waitFor(async () => expect((await service.getStatus()).phase).toBe('authorizing'))
+    const login = service.startLogin()
+    mocks.windowLookup.mockReturnValue({ isDestroyed: () => true })
+    await loopbackCallback()(
+      new URL(
+        `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${authorizationRequestBody().state}`
+      )
+    )
+    await pending
+    await expect(login).resolves.toMatchObject({ outcome: 'signed-in' })
+    expect(mocks.openExternal.mock.calls.map(([url]) => url)).toEqual([
+      `http://localhost:8084/desktop/authorize?authorization_id=${authorizationId}`
+    ])
+    expect((await service.getStatus()).phase).toBe('signed-in')
+    mocks.windowLookup.mockReturnValue({ isDestroyed: () => false })
+    await service.startSubscription({ source: 'account_panel', flowId: sessionId }, 'w2')
+    expect(mocks.openExternal.mock.calls.at(-1)?.[0]).toBe(
+      `https://cloud.cherryai.com/account/plans?entry=desktop&entry_source=account_panel&flow_id=${sessionId}`
+    )
+    await service._doStop()
+  })
+
+  it.each(['cancel', 'stop'] as const)(
+    'settles every subscription waiter on %s without opening a portal',
+    async (end) => {
+      mockAuthorizationFlow()
+      const service = await createService()
+      const first = service.startSubscription({ source: 'settings', flowId: authorizationId }, 'w1')
+      const second = service.startSubscription({ source: 'account_panel', flowId: sessionId }, 'w2')
+      await vi.waitFor(async () => expect((await service.getStatus()).phase).toBe('authorizing'))
+      if (end === 'cancel') await service.cancelLogin()
+      else await service._doStop()
+      await Promise.all([first, second])
+      expect(mocks.openExternal.mock.calls.map(([url]) => url)).toEqual([
+        `http://localhost:8084/desktop/authorize?authorization_id=${authorizationId}`
+      ])
+      if (end === 'cancel') await service._doStop()
+    }
+  )
+
+  it('releases a failed portal operation so a later click can retry', async () => {
+    const service = await createSignedInService()
+    mocks.openExternal.mockClear()
+    const opened = Promise.withResolvers<void>()
+    mocks.openExternal.mockReturnValueOnce(opened.promise)
+    const first = service.startSubscription({ source: 'settings', flowId: authorizationId }, 'w1')
+    await vi.waitFor(() => expect(mocks.openExternal).toHaveBeenCalledOnce())
+    const second = service.startSubscription({ source: 'account_panel', flowId: sessionId }, 'w2')
+    const settled = Promise.allSettled([first, second])
+    await vi.waitFor(() =>
+      expect(mocks.trackEvent.mock.calls.filter(([event]) => event === 'subscription_entry_clicked')).toHaveLength(2)
+    )
+    opened.reject(new Error('browser unavailable'))
+    const results = await settled
+    for (const result of results) {
+      expect(result.status).toBe('rejected')
+      if (result.status === 'rejected') expect(result.reason).toBeInstanceOf(CherryCloudPortalOpenError)
+    }
+    await service.startSubscription({ source: 'quota_notice', flowId: deviceId }, 'w3')
+    expect(mocks.openExternal).toHaveBeenCalledTimes(2)
+    await service._doStop()
+  })
+
+  it('releases failed authentication so a later subscription can retry', async () => {
+    vi.stubEnv('MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET', '')
+    const service = await createService()
+    await expect(
+      service.startSubscription({ source: 'settings', flowId: authorizationId }, 'w1')
+    ).rejects.toBeInstanceOf(CherryCloudLoginUnavailableError)
+    expect(mocks.openExternal).not.toHaveBeenCalled()
+    vi.stubEnv('MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET', 'cloud-login-test-secret')
+    mockAuthorizationFlow()
+    const retry = service.startSubscription({ source: 'account_panel', flowId: sessionId }, 'w2')
+    await vi.waitFor(async () => expect((await service.getStatus()).phase).toBe('authorizing'))
+    await service.cancelLogin()
+    await retry
+    expect(requestCalls('/api/v1/desktop/authorizations')).toHaveLength(1)
+    expect(mocks.openExternal.mock.calls.map(([url]) => url)).toEqual([
+      `http://localhost:8084/desktop/authorize?authorization_id=${authorizationId}`
+    ])
+    await service._doStop()
+  })
+
+  it('does not let an old portal completion release a new operation after service restart', async () => {
+    const service = await createSignedInService()
+    mocks.openExternal.mockClear()
+    const oldBrowser = Promise.withResolvers<void>()
+    mocks.openExternal.mockReturnValueOnce(oldBrowser.promise)
+    const old = service.startSubscription({ source: 'settings', flowId: authorizationId }, 'w1')
+    await vi.waitFor(() => expect(mocks.openExternal).toHaveBeenCalledOnce())
+    await service._doStop()
+    await service._doInit()
+    const newBrowser = Promise.withResolvers<void>()
+    mocks.openExternal.mockReturnValueOnce(newBrowser.promise)
+    const next = service.startSubscription({ source: 'account_panel', flowId: sessionId }, 'w2')
+    await vi.waitFor(() => expect(mocks.openExternal).toHaveBeenCalledTimes(2))
+    oldBrowser.resolve()
+    await old
+    const joined = service.startSubscription({ source: 'quota_notice', flowId: deviceId }, 'w3')
+    await vi.waitFor(() =>
+      expect(mocks.trackEvent.mock.calls.filter(([event]) => event === 'subscription_entry_clicked')).toHaveLength(3)
+    )
+    expect(mocks.openExternal.mock.calls.map(([url]) => url)).toEqual([
+      `https://cloud.cherryai.com/account/plans?entry=desktop&entry_source=settings&flow_id=${authorizationId}`,
+      `https://cloud.cherryai.com/account/plans?entry=desktop&entry_source=account_panel&flow_id=${sessionId}`
+    ])
+    newBrowser.resolve()
+    await Promise.all([next, joined])
+    await service._doStop()
+  })
+
+  it('does not make a new account wait for the previous account portal operation', async () => {
+    const service = await createSignedInService()
+    mocks.openExternal.mockClear()
+    const oldBrowser = Promise.withResolvers<void>()
+    mocks.openExternal.mockReturnValueOnce(oldBrowser.promise)
+    const old = service.startSubscription({ source: 'settings', flowId: authorizationId }, 'w1')
+    await vi.waitFor(() => expect(mocks.openExternal).toHaveBeenCalledOnce())
+    mockCloudRoute('/api/v1/product-sessions/current', new Response(null, { status: 204 }))
+    await service.revokeCurrentSession()
+    const nextAccountId = '00000000-0000-4000-8000-000000000021'
+    const exchanged = exchangeResponse()
+    exchanged.account.account.id = nextAccountId
+    mockAuthorizationFlow(authorizationResponse(), exchanged)
+    mockModelSync({ ...accountSnapshot, account: { id: nextAccountId }, entitlements: [] }, { data: [] })
+    await startAuthorization(service)
+    await loopbackCallback()(
+      new URL(
+        `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${authorizationRequestBody().state}`
+      )
+    )
+    const next = service.startSubscription({ source: 'account_panel', flowId: sessionId }, 'w2')
+    try {
+      await vi.waitFor(() => expect(mocks.openExternal).toHaveBeenCalledTimes(3))
+      await next
+      expect((await service.getStatus()).accountId).toBe(nextAccountId)
+      expect(mocks.openExternal.mock.calls.at(-1)?.[0]).toBe(
+        `https://cloud.cherryai.com/account/plans?entry=desktop&entry_source=account_panel&flow_id=${sessionId}`
+      )
+    } finally {
+      oldBrowser.resolve()
+      await Promise.all([old, next])
+      await service._doStop()
+    }
+  })
+
+  it('does not start authentication for an absent or destroyed sender', async () => {
+    const service = await createService()
+    await service.startSubscription({ source: 'settings', flowId: authorizationId }, null)
+    mocks.windowLookup.mockReturnValue({ isDestroyed: () => true })
+    await service.startSubscription({ source: 'settings', flowId: sessionId }, 'w1')
+    expect(mocks.netFetch).not.toHaveBeenCalled()
+    expect(mocks.openExternal).not.toHaveBeenCalled()
+    await service._doStop()
   })
 
   it('bounds model sync requests without clearing the retriable Session', async () => {

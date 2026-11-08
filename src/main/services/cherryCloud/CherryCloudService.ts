@@ -37,7 +37,7 @@ import {
   cherryCloudPublicPlanCatalogSchema,
   type CherryCloudStatus
 } from '@shared/ipc/schemas/cherryCloud'
-import type { WindowId } from '@shared/ipc/types'
+import type { InputFor, WindowId } from '@shared/ipc/types'
 import { Sequencer } from '@shared/utils/async'
 
 import { cherryAccountCredentialStore } from './CherryAccountCredentialStore'
@@ -52,6 +52,7 @@ import {
 } from './contracts'
 import { createAuthorizationSecrets, createDeviceKeyPair, createDeviceSignature, createIdempotencyKey } from './crypto'
 import { getMachineCode } from './machineCode'
+import { trackCherryCloudAnalyticsEvent } from './subscriptionAnalytics'
 
 const logger = loggerService.withContext('CherryCloudService')
 const PRODUCTION_API_ORIGINS = {
@@ -134,6 +135,13 @@ export class CherryCloudUpgradeRequiredError extends Error {
   }
 }
 
+export class CherryCloudPortalOpenError extends Error {
+  constructor(cause: unknown) {
+    super('Cherry Cloud account portal could not be opened', { cause })
+    this.name = 'CherryCloudPortalOpenError'
+  }
+}
+
 class CherryCloudSessionRequiredError extends Error {
   constructor() {
     super('Cherry Cloud account is not signed in')
@@ -183,7 +191,7 @@ function abortable<T>(promise: Promise<T>, signal?: AbortSignal | null): Promise
 
 @Injectable('CherryCloudService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['PowerService'])
+@DependsOn(['PowerService', 'AnalyticsService'])
 export class CherryCloudService extends BaseService {
   private readonly _onStatusChanged = new Emitter<CherryCloudStatus>()
   public readonly onStatusChanged: Event<CherryCloudStatus> = this._onStatusChanged.event
@@ -192,6 +200,7 @@ export class CherryCloudService extends BaseService {
   private lifecycleGeneration = 0
   private authorizationOperation: AuthorizationOperation | null = null
   private loginPromise: { operation: AuthorizationOperation; promise: Promise<CherryCloudLoginResult> } | null = null
+  private subscriptionPromise: Promise<void> | null = null
   private revision = 0
   private readonly accountRefreshQueue = new Sequencer()
   private readonly accountRefreshes = new Set<AbortController>()
@@ -263,6 +272,7 @@ export class CherryCloudService extends BaseService {
     }
     this.authorizationOperation = null
     this.loginPromise = null
+    this.subscriptionPromise = null
   }
 
   protected async onDestroy(): Promise<void> {
@@ -804,6 +814,86 @@ export class CherryCloudService extends BaseService {
       throw error
     } finally {
       this.accountRefreshes.delete(controller)
+    }
+  }
+
+  public async startSubscription(
+    input: InputFor<'cherry_cloud.subscription.start'>,
+    senderId: WindowId | null
+  ): Promise<void> {
+    const generation = this.lifecycleGeneration
+    const status = await this.getStatus()
+    void trackCherryCloudAnalyticsEvent(
+      { event: 'subscription_entry_clicked', ...input, signedIn: status.phase === 'signed-in' },
+      status.scopeId
+    ).catch(() => undefined)
+    const sender = senderId ? application.get('WindowManager').getWindow(senderId) : undefined
+    if (
+      !sender ||
+      sender.isDestroyed() ||
+      generation !== this.lifecycleGeneration ||
+      !this.isCurrentScope(status.scopeId)
+    )
+      return
+    if (!this.subscriptionPromise) {
+      const subscription = this.startSubscriptionOnce(input, senderId, status).finally(() => {
+        if (this.subscriptionPromise === subscription) this.subscriptionPromise = null
+      })
+      this.subscriptionPromise = subscription
+    }
+    return this.subscriptionPromise
+  }
+
+  private async startSubscriptionOnce(
+    { source, flowId }: InputFor<'cherry_cloud.subscription.start'>,
+    senderId: WindowId | null,
+    status: CherryCloudStatus
+  ): Promise<void> {
+    if (status.phase !== 'signed-in') {
+      let result: CherryCloudLoginResult
+      try {
+        result = await this.startLogin()
+      } catch (error) {
+        void trackCherryCloudAnalyticsEvent(
+          {
+            event: 'subscription_sign_in_result',
+            flowId,
+            result: 'failed',
+            reason:
+              error instanceof CherryCloudUpgradeRequiredError
+                ? 'upgrade_required'
+                : error instanceof CherryCloudLoginUnavailableError
+                  ? 'service_unavailable'
+                  : 'other'
+          },
+          status.scopeId
+        ).catch(() => undefined)
+        throw error
+      }
+      void trackCherryCloudAnalyticsEvent(
+        {
+          event: 'subscription_sign_in_result',
+          flowId,
+          result: result.outcome === 'signed-in' ? 'success' : 'not_completed'
+        },
+        result.status.scopeId
+      ).catch(() => undefined)
+      if (result.outcome !== 'signed-in') return
+      status = result.status
+    }
+    try {
+      const result = await this.openAccountPortal({ scopeId: status.scopeId, entrySource: source, flowId }, senderId)
+      if (result.outcome === 'opened')
+        void trackCherryCloudAnalyticsEvent(
+          { event: 'subscription_portal_open', source, flowId, result: 'success' },
+          status.scopeId
+        ).catch(() => undefined)
+    } catch (error) {
+      void trackCherryCloudAnalyticsEvent(
+        { event: 'subscription_portal_open', source, flowId, result: 'failed' },
+        status.scopeId
+      ).catch(() => undefined)
+      throw new CherryCloudPortalOpenError(error)
     }
   }
 
@@ -1367,6 +1457,7 @@ export class CherryCloudService extends BaseService {
     this.invalidateModelSync()
     this.cloudState = { ...this.cloudState, session: null }
     this.sessionGeneration += 1
+    this.subscriptionPromise = null
     this.invalidateAccountRefreshes()
     this.resetAccountFacts()
     this.clearSessionExpiryTimer()
