@@ -302,7 +302,7 @@ describe('UserAccountPanel', () => {
 
     renderAccount(<UserAccountPanel />)
 
-    const usage = await screen.findByRole('button', { name: '用量 剩余 79%' })
+    const usage = await screen.findByRole('button', { name: '用量 剩余 79.00%' })
     expect(within(screen.getByRole('button', { name: '用户名' })).getByText('API Plan 2026')).toBeVisible()
     expect(screen.queryByText(session.displayName!)).not.toBeInTheDocument()
     await user.click(usage)
@@ -314,7 +314,7 @@ describe('UserAccountPanel', () => {
     )
   })
 
-  it('shows the tightest remaining limit instead of adding overlapping quota windows', async () => {
+  it('shows the tightest remaining limit, from settled usage, instead of adding overlapping quota windows', async () => {
     plans = paidPlans('Pro')
     plans.entitlements[0].quota_pools[0].windows.push({
       window_type: 'calendar_day',
@@ -326,15 +326,43 @@ describe('UserAccountPanel', () => {
     })
     renderAccount(<UserAccountPanel />)
 
-    expect(await screen.findByRole('button', { name: '用量 剩余 25%' })).toBeEnabled()
+    // 13 of 20 settled; the 2 reserved by a running request are not counted yet.
+    expect(await screen.findByRole('button', { name: '用量 剩余 35.00%' })).toBeEnabled()
   })
 
   it('shows zero remaining when a quota window is exhausted', async () => {
     plans = paidPlans('Pro')
-    plans.entitlements[0].quota_pools[0].windows[0].remaining_units = 0
+    Object.assign(plans.entitlements[0].quota_pools[0].windows[0], { used_units: 100, remaining_units: 0 })
     renderAccount(<UserAccountPanel />)
 
-    expect(await screen.findByRole('button', { name: '用量 剩余 0%' })).toBeEnabled()
+    expect(await screen.findByRole('button', { name: '用量 剩余 0.00%' })).toBeEnabled()
+  })
+
+  it.each([
+    [39_969_732, '99.92'],
+    [39_999_999, '99.99']
+  ])('shows %i of 40M units left as %s%%, never rounding a used window up to full', async (remaining, percent) => {
+    plans = paidPlans('Plus')
+    Object.assign(plans.entitlements[0].quota_pools[0].windows[0], {
+      limit_units: 40_000_000,
+      used_units: 40_000_000 - remaining,
+      remaining_units: remaining
+    })
+    renderAccount(<UserAccountPanel />)
+
+    expect(await screen.findByRole('button', { name: `用量 剩余 ${percent}%` })).toBeEnabled()
+  })
+
+  it('shows a bought plan that has not started yet without the subscribe prompt or reminder dot', async () => {
+    vi.stubGlobal('__APP_EDITION__', 'cn')
+    MockUseCacheUtils.setPersistCacheValue('ui.cherry_cloud.subscribe_prompt_seen', false)
+    plans = paidPlans('Plus')
+    plans.entitlements[0].state = 'upcoming'
+    renderAccount(<UserAccountPanel />)
+
+    expect(await screen.findByRole('button', { name: '用量 即将生效' })).toBeEnabled()
+    expect(screen.queryByText('去订阅')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('subscribe-reminder-dot')).not.toBeInTheDocument()
   })
 
   it('keeps usage details accessible without inventing a percentage when no quota is configured', async () => {
@@ -348,7 +376,7 @@ describe('UserAccountPanel', () => {
   it('keeps cached account and plan details visible while reopening refreshes them', async () => {
     plans = paidPlans('Flash')
     const first = renderAccount(<UserAccountPanel />)
-    expect(await screen.findByRole('button', { name: '用量 剩余 79%' })).toBeEnabled()
+    expect(await screen.findByRole('button', { name: '用量 剩余 79.00%' })).toBeEnabled()
     first.unmount()
 
     const pendingStatus = deferred<{ ok: true; data: CherryCloudStatus }>()
@@ -361,7 +389,7 @@ describe('UserAccountPanel', () => {
     renderAccount(<UserAccountPanel />)
 
     expect(screen.getByRole('button', { name: '用户名' })).toHaveTextContent('Flash')
-    expect(screen.getByRole('button', { name: '用量 剩余 79%' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: '用量 剩余 79.00%' })).toBeEnabled()
     expect(screen.queryByText('加载中...')).not.toBeInTheDocument()
     await waitFor(() => expect(request).toHaveBeenCalledWith('cherry_cloud.account_plans.get', undefined))
     await act(async () => {
@@ -412,6 +440,61 @@ describe('UserAccountPanel', () => {
     await act(async () => pendingPlans.resolve({ ok: true, data: paidPlans('New Plan') }))
 
     expect(await screen.findByText('New Plan')).toBeVisible()
+  })
+
+  it('shows per-window usage in a hover card that links to the usage page', async () => {
+    const window_ = (durationSeconds: number, remaining: number) => ({
+      window_type: 'rolling' as const,
+      duration_seconds: durationSeconds,
+      limit_units: 100,
+      used_units: 100 - remaining,
+      active_reserved_units: 0,
+      remaining_units: remaining,
+      next_recovery_at: '2026-10-01T00:00:00Z'
+    })
+    plans.entitlements = [
+      {
+        id: '11111111-1111-4111-8111-111111111111',
+        source: 'stripe',
+        plan: {
+          id: '22222222-2222-4222-8222-222222222222',
+          display_name: 'Plus',
+          is_free: false,
+          default_for_new_accounts: false,
+          quota_pool_count: 1,
+          model_count: 3,
+          purchase_available: true
+        },
+        state: 'active',
+        starts_at: '2026-09-01T00:00:00Z',
+        quota_pools: [
+          {
+            allocation_id: '33333333-3333-4333-8333-333333333333',
+            display_name: 'Plus quota',
+            measurement_kind: 'money',
+            currency: 'CNY',
+            model_ids: [],
+            windows: [window_(30 * 24 * 60 * 60, 92), window_(5 * 60 * 60, 40)]
+          }
+        ]
+      }
+    ]
+    const user = userEvent.setup()
+
+    renderAccount(<UserAccountPanel />)
+
+    const row = await screen.findByRole('button', { name: '用量 剩余 40.00%' })
+    await user.hover(row)
+
+    expect(await screen.findByRole('progressbar', { name: '30 天额度' })).toHaveAttribute('aria-valuenow', '92')
+    await user.click(screen.getByRole('button', { name: '查看用量详情' }))
+    await waitFor(() =>
+      expect(request).toHaveBeenCalledWith(
+        'system.shell.open_external_website',
+        expect.stringMatching(/^https:\/\/cloud-dev\.cherryai\.com\/account\/plans(\?|$)/)
+      )
+    )
+    expect(request).not.toHaveBeenCalledWith('navigation.open_route_in_main', { path: '/settings/profile' })
   })
 
   it('does not label a failed plan lookup as unsubscribed and lets the user retry', async () => {

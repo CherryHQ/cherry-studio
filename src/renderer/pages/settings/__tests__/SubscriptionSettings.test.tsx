@@ -52,6 +52,7 @@ function paidPlans(displayName: string): CherryCloudAccountPlans {
           default_for_new_accounts: false,
           quota_pool_count: 0,
           model_count: 1,
+          subscription_price: { product_name: displayName, currency: 'cny', interval: 'month', unit_amount: 1990 },
           purchase_available: true
         },
         state: 'active',
@@ -86,6 +87,31 @@ afterEach(() => {
 session.status = signedIn('account-1')
 
 describe('SubscriptionSettings', () => {
+  it.each([
+    ['signed out', { phase: 'signed-out', accountId: null, displayName: null }],
+    ['signed in', signedIn('account-1')]
+  ] satisfies [string, CherryCloudStatus][])(
+    'opens the FAQ from the section title while %s',
+    async (_state, status) => {
+      session.status = status
+      requestMock.mockImplementation((route: string) => {
+        if (route === 'cherry_cloud.account_origin.get') return Promise.resolve('https://cloud.cherryai.com.cn')
+        if (route === 'cherry_cloud.account_plans.get') {
+          return Promise.resolve({ measured_at: '2026-09-21T00:00:00Z', entitlements: [], available_plans: [] })
+        }
+        return Promise.resolve()
+      })
+      renderSettings()
+
+      await userEvent.click(screen.getByRole('button', { name: 'settings.subscription.faq' }))
+
+      expect(requestMock).toHaveBeenCalledWith(
+        'system.shell.open_external_website',
+        'https://cloud.cherryai.com.cn/account/faq'
+      )
+    }
+  )
+
   it('opens the production account center on the cloud origin', async () => {
     vi.stubEnv('DEV', false)
     requestMock.mockImplementation((route: string) => {
@@ -108,7 +134,7 @@ describe('SubscriptionSettings', () => {
     )
   })
 
-  it('describes quota windows without exposing backend pool names or a total summary', async () => {
+  it('labels a 30-day rolling window by its length, as the web account page does, without backend pool names', async () => {
     requestMock.mockResolvedValue({
       measured_at: '2026-09-21T00:00:00Z',
       entitlements: [
@@ -155,7 +181,8 @@ describe('SubscriptionSettings', () => {
 
     expect(await screen.findByText('30-day limit')).toBeInTheDocument()
     expect(screen.queryByText('Flash quota')).not.toBeInTheDocument()
-    expect(screen.getByText('100% remaining')).toBeInTheDocument()
+    expect(screen.getByText('100.00% remaining')).toBeInTheDocument()
+    expect(screen.getByText('settings.subscription.next_recovery')).toBeInTheDocument()
     expect(screen.getByRole('progressbar', { name: '30-day limit' })).toHaveAttribute('aria-valuenow', '100')
     expect(screen.queryByText('US$8.00')).not.toBeInTheDocument()
   })
@@ -195,6 +222,62 @@ describe('SubscriptionSettings', () => {
     expect(screen.getByRole('button', { name: 'settings.provider.cherry_cloud.signing_in' })).toBeDisabled()
     await userEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
     expect(session.cancelLogin).toHaveBeenCalledTimes(1)
+  })
+
+  it('words a paid subscription month as ending with the period rather than recovering', async () => {
+    const plans = paidPlans('国内订阅')
+    plans.entitlements[0].quota_pools = [
+      {
+        allocation_id: '44444444-4444-4444-8444-444444444444',
+        display_name: '国内订阅',
+        measurement_kind: 'requests',
+        model_ids: ['cn-model'],
+        windows: [
+          {
+            window_type: 'subscription_month',
+            duration_seconds: 2_678_400,
+            limit_units: 100,
+            used_units: 25,
+            active_reserved_units: 0,
+            remaining_units: 75,
+            period_start: '2026-10-28T07:25:26Z',
+            period_end: '2026-11-28T07:25:26Z'
+          }
+        ]
+      }
+    ]
+    requestMock.mockResolvedValue(plans)
+
+    renderSettings()
+
+    expect(
+      await screen.findByRole('progressbar', { name: 'settings.subscription.limit_subscription_month' })
+    ).toHaveAttribute('aria-valuenow', '75')
+    expect(screen.getByText('settings.subscription.subscription_month_ends')).toBeInTheDocument()
+    expect(screen.queryByText('settings.subscription.next_recovery')).not.toBeInTheDocument()
+  })
+
+  it('manages a bought plan that has not started yet instead of offering Subscribe', async () => {
+    const plans = paidPlans('Cherry Plus')
+    plans.entitlements[0].state = 'upcoming'
+    requestMock.mockResolvedValue(plans)
+
+    renderSettings()
+
+    expect(await screen.findByText('settings.subscription.upcoming')).toBeInTheDocument()
+    expect(screen.getByText('Cherry Plus')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'settings.subscription.manage' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'settings.subscription.subscribe' })).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.subscription.no_plan')).not.toBeInTheDocument()
+  })
+
+  it('shows the backend plan name without a price or renewal interval', async () => {
+    requestMock.mockResolvedValue(paidPlans('Plus'))
+
+    renderSettings()
+
+    expect(await screen.findByText('Plus')).toBeInTheDocument()
+    expect(screen.queryByText(/19\.9|CNY|month/)).not.toBeInTheDocument()
   })
 
   it("keeps the current account's plan when a previous account's response arrives late", async () => {
