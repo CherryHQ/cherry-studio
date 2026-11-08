@@ -196,6 +196,7 @@ describe('QuickAssistantService', () => {
       isMinimized: () => false,
       setOpacity: vi.fn(),
       show: vi.fn(),
+      setShape: vi.fn(),
       setHasShadow: vi.fn()
     }
     appGetMock.mockImplementation((name: string) => {
@@ -255,6 +256,7 @@ describe('QuickAssistantService', () => {
       isDestroyed: vi.fn(() => false),
       getBounds: vi.fn(() => ({ x: 480, y: 354, width: 680, height: 580 })),
       setBounds: vi.fn(),
+      setShape: vi.fn(),
       setHasShadow: vi.fn()
     }
     appGetMock.mockImplementation((name: string) => {
@@ -283,6 +285,7 @@ describe('QuickAssistantService', () => {
       setBounds: vi.fn((next: typeof bounds) => {
         bounds = next
       }),
+      setShape: vi.fn(),
       setHasShadow: vi.fn()
     })
     appGetMock.mockImplementation((name: string) => {
@@ -299,6 +302,26 @@ describe('QuickAssistantService', () => {
       }
     }
   }
+
+  it('keeps Linux picker transitions stationary and restores click-through headroom', () => {
+    platform.isLinux = true
+    platform.isWin = false
+    Object.assign(screen, {
+      getDisplayMatching: () => ({ workArea: { x: 0, y: 0, width: 1920, height: 1080 } })
+    })
+    const { window } = createResizableWindow(560)
+    const service = new QuickAssistantService()
+    ;(service as unknown as { windowId: string }).windowId = 'quick-assistant-window'
+    const bounds = { ...window.getBounds() }
+    service.setView({ view: 'bar', contentHeight: 135, animate: false })
+    expect(window.setShape).toHaveBeenLastCalledWith([{ x: 0, y: 425, width: 680, height: 135 }])
+    service.setView({ view: 'quick-panel', contentHeight: 560, animate: false })
+    expect(window.setShape).toHaveBeenLastCalledWith([])
+    service.setView({ view: 'bar', contentHeight: 135, animate: false })
+    expect(window.setShape).toHaveBeenLastCalledWith([{ x: 0, y: 425, width: 680, height: 135 }])
+    expect(window.getBounds()).toEqual(bounds)
+    expect(window.setBounds).not.toHaveBeenCalled()
+  })
 
   it('limits the Windows hand cursor to bar views even when native bounds stay unchanged', () => {
     Object.assign(screen, {

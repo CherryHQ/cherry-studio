@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-09-quick-assistant-linux-picker.md
+2026-11-09-quick-assistant-linux-picker.md: f5caf43ebada41c613b4c0ed486a3ceb2cc5a22b
+2026-11-09-quick-assistant-linux-picker.zh.md: f767a278aa8504a4f5e12c9b2649a5a43fda71a8

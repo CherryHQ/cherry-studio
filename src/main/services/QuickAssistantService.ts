@@ -107,6 +107,7 @@ const POST_UNPIN_FOCUS_POLL_INTERVAL_MS = 200
 // cross the work-area bottom) in the same frame as the resize.
 // ponytail: timer tween, not a native animation. If Windows drops frames, branch
 // to `setBounds(bounds, true)` on macOS and keep this loop for the rest.
+const LINUX_OVERLAY_HEIGHT_PX = 560
 const VIEW_TWEEN_DURATION_MS = 200
 const VIEW_TWEEN_INTERVAL_MS = 16
 /** Below this the tween is imperceptible and costs a dozen setBounds calls. */
@@ -384,7 +385,9 @@ export class QuickAssistantService extends BaseService implements Activatable {
     }
     // Linux has no `resized`, and its `resize` also reports our own setBounds.
     const onResized = () => {
-      if (this.viewTweenTimer || this.view === 'quick-panel' || window.isDestroyed()) return
+      if (window.isDestroyed()) return
+      this.updateLinuxShape(window)
+      if (this.viewTweenTimer || this.view === 'quick-panel') return
       const { height } = window.getBounds()
       if (height !== this.requestedHeight) this.preferredHeight = height
     }
@@ -442,7 +445,8 @@ export class QuickAssistantService extends BaseService implements Activatable {
         ? Math.max(contentHeight, this.preferredHeight ?? 0)
         : (this.preferredHeight ?? contentHeight)
     const from = window.getBounds()
-    const to = this.resolveBoundsForHeight(window, requested)
+    const to = this.resolveBoundsForHeight(window, isLinux ? Math.max(LINUX_OVERLAY_HEIGHT_PX, requested) : requested)
+    this.updateLinuxShape(window, to)
     this.requestedHeight = to.height
 
     if (from.x === to.x && from.y === to.y && from.width === to.width && from.height === to.height) {
@@ -456,6 +460,13 @@ export class QuickAssistantService extends BaseService implements Activatable {
       return
     }
     this.startViewTween(window, from, to)
+  }
+
+  private updateLinuxShape(window: BrowserWindow, bounds = window.getBounds()): void {
+    if (!isLinux) return
+    const height = Math.min(this.barHeight ?? bounds.height, bounds.height)
+    // Keep overlay headroom without intercepting clicks above the collapsed composer.
+    window.setShape(this.view === 'bar' ? [{ x: 0, y: bounds.height - height, width: bounds.width, height }] : [])
   }
 
   /** Let clicks on the bar's transparent headroom fall through, while still receiving hover. */
@@ -488,6 +499,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
         width: to.width,
         height: Math.round(from.height + (to.height - from.height) * eased)
       })
+      this.updateLinuxShape(window)
       if (progress >= 1) this.stopViewTween()
     }, VIEW_TWEEN_INTERVAL_MS)
   }
@@ -504,7 +516,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
     this.view = 'bar'
     const window = this.getQuickAssistant()
     if (!window || this.barHeight === null) return
-    window.setBounds(this.resolveBoundsForHeight(window, this.preferredHeight ?? this.barHeight))
+    this.setView({ view: 'bar', contentHeight: this.barHeight, animate: false })
   }
 
   /** Returns the live quick window or null if not created / already destroyed. */
