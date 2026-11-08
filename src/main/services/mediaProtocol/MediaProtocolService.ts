@@ -4,7 +4,6 @@ import { protocol, session } from 'electron'
 import parseRange from 'range-parser'
 
 import { loggerService } from '@logger'
-import { parseToolResultImageUrl, readToolResultImage } from '@main/ai/messages/toolResultImageResources'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
 
@@ -92,6 +91,8 @@ export class MediaProtocolService extends BaseService {
     const url = new URL(request.url)
     const kind = url.hostname
     if (kind === 'tool-result') {
+      const { parseToolResultImageUrl, readToolResultImage } =
+        await import('@main/ai/messages/toolResultImageResources')
       const identity = parseToolResultImageUrl(url)
       if (!identity) return new Response('Invalid tool result image', { status: 400 })
       const image = await readToolResultImage(identity, identity.imageIndex)

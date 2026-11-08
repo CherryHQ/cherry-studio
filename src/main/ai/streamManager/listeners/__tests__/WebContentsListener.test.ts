@@ -228,8 +228,7 @@ describe('WebContentsListener coalescing', () => {
           $deferredToolResult: {
             topicId: 'agent-session:session-1',
             messageId: 'assistant-1',
-            toolCallId: 'call-1',
-            revision: expect.any(String)
+            toolCallId: 'call-1'
           }
         }
       }
@@ -244,8 +243,7 @@ describe('WebContentsListener coalescing', () => {
       'assistant-1'
     )
     const replacement = wc.send.mock.calls[2][2].chunk.output.$deferredToolResult
-    expect(replacement).toEqual({ ...first, revision: expect.any(String) })
-    expect(replacement.revision).not.toBe(first.revision)
+    expect(replacement).toEqual(first)
   })
 
   it('sends a small tool output through untouched', () => {
