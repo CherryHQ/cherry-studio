@@ -28,6 +28,7 @@ const mocks = vi.hoisted(() => ({
   showMainWindow: vi.fn()
 }))
 
+vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 vi.mock('systeminformation', () => ({
   uuid: vi.fn(async () => ({ os: 'abcdef12123456789abc1234567890ab', hardware: '', macs: [] }))
 }))
@@ -1450,6 +1451,25 @@ describe('CherryCloudService', () => {
     }
   })
 
+  it('lets an availability check in flight finish when a refresh starts, then reads again', async () => {
+    const service = await createSignedInService()
+    const accountRequest = deferred<Response>()
+    const catalogRequest = deferred<Response>()
+    mockCloudRoute('/api/v1/account', accountRequest.promise)
+    mockCloudRoute('/v1/models?limit=1000', catalogRequest.promise)
+    const waiting = service['syncEntitledModels']()
+    await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(2))
+
+    mockModelSync()
+    const refresh = service.refreshEntitledModels()
+    accountRequest.resolve(jsonResponse(accountSnapshot))
+    catalogRequest.resolve(jsonResponse(cloudModelCatalog))
+
+    await expect(waiting).resolves.toHaveProperty('entitledModelIds')
+    await expect(refresh).resolves.toHaveProperty('entitledModelIds')
+    expect(requestCalls('/v1/models?limit=1000')).toHaveLength(2)
+  })
+
   it('refreshes the model snapshot once account plans show a new active entitlement', async () => {
     const service = await createSignedInService()
     const plansWith = accountPlansWith
@@ -1979,6 +1999,92 @@ describe('CherryCloudService', () => {
 
     expect(await service.getStatus()).toEqual({ phase: 'signed-in', accountId, displayName: 'Sora' })
     expect(mocks.savedSession).not.toBeNull()
+  })
+
+  it.each([
+    ['REAUTH_REQUIRED', 'notification.cherry_cloud.signed_out_title'],
+    ['SESSION_EXPIRED', 'notification.cherry_cloud.session_expired_title']
+  ])('tells the user why the server ended the session (%s)', async (code, title) => {
+    const service = await createSignedInService()
+    const publish = vi.mocked(application.get('NotificationService').publish)
+    publish.mockClear()
+    mockCloudRoute('/v1/messages', cloudErrorResponse(401, code))
+
+    await service.authenticatedFetch('/v1/messages', { method: 'POST', body: '{"model":"deepseek-go","messages":[]}' })
+
+    expect((await service.getStatus()).phase).toBe('signed-out')
+    expect(publish).toHaveBeenCalledWith(expect.objectContaining({ category: 'usage', title }))
+  })
+
+  it('tells the user when the sign-in expires while the app is running', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2030-01-02T03:00:00Z'))
+      const service = await createSignedInService()
+      const publish = vi.mocked(application.get('NotificationService').publish)
+      publish.mockClear()
+
+      await vi.advanceTimersByTimeAsync(31 * 24 * 60 * 60 * 1000)
+
+      expect((await service.getStatus()).phase).toBe('signed-out')
+      expect(publish).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'notification.cherry_cloud.session_expired_title' })
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('tells the user at startup when the sign-in expired while the app was closed', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2030-01-02T03:00:00Z'))
+      const service = await createSignedInService()
+      await service._doStop()
+      const publish = vi.mocked(application.get('NotificationService').publish)
+      publish.mockClear()
+      vi.setSystemTime(new Date('2030-02-02T00:00:00Z'))
+
+      CherryCloudService.resetInstances()
+      const restarted = await createService()
+
+      expect((await restarted.getStatus()).phase).toBe('signed-out')
+      expect(publish).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'notification.cherry_cloud.session_expired_title' })
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not tell the user about a sign-out they asked for', async () => {
+    const service = await createSignedInService()
+    const publish = vi.mocked(application.get('NotificationService').publish)
+    publish.mockClear()
+    mockCloudRoute('/api/v1/product-sessions/current', new Response(null, { status: 204 }))
+
+    await service.revokeCurrentSession()
+
+    expect((await service.getStatus()).phase).toBe('signed-out')
+    expect(publish).not.toHaveBeenCalled()
+  })
+
+  it('signs out and tells the user when the server reports the account disabled', async () => {
+    const service = await createSignedInService()
+    const publish = vi.mocked(application.get('NotificationService').publish)
+    publish.mockClear()
+    mockCloudRoute('/v1/messages', cloudErrorResponse(403, 'ACCOUNT_DISABLED'))
+
+    await service.authenticatedFetch('/v1/messages', { method: 'POST', body: '{"model":"deepseek-go","messages":[]}' })
+
+    expect((await service.getStatus()).phase).toBe('signed-out')
+    expect(publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'cherry-cloud-account',
+        title: 'notification.cherry_cloud.account_disabled_title',
+        message: 'notification.cherry_cloud.account_disabled_message'
+      })
+    )
   })
 
   it.each([401, 503])('clears the local login when remote revocation returns %s', async (status) => {

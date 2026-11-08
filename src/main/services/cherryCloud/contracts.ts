@@ -124,3 +124,23 @@ export const cloudModelListSchema = z.looseObject({
     })
   )
 })
+
+// The fields of the CN client notification protocol (cloud-api `api/control-cn/notifications.yaml`) the client relies on.
+export const notificationReadySchema = z.looseObject({ cursor: z.string().min(1) })
+
+export const cloudNotificationSchema = z.looseObject({
+  id: z.string().min(1),
+  cursor: z.string().min(1),
+  refresh: z.array(z.string()).optional()
+})
+
+export const cloudNotificationPageSchema = z.looseObject({
+  items: z.array(cloudNotificationSchema),
+  next_cursor: z.string().min(1),
+  has_more: z.boolean()
+})
+
+// Stream error frames carry the code at the top level, unlike the JSON error bodies of HTTP responses.
+export const notificationErrorFrameSchema = z.looseObject({ code: z.string() })
+
+export type CloudNotification = z.infer<typeof cloudNotificationSchema>

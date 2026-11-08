@@ -4,12 +4,14 @@ import { useSWRConfig } from 'swr'
 
 import { CHERRY_CLOUD_AVAILABILITY_KEY } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { useCherryCloudPlans } from '@renderer/hooks/useCherryCloudPlans'
+import { useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 
 /**
  * Show one light toast when the signed-in account gains a paid entitlement it did not have, e.g.
  * after a web checkout. Plans refetch when the window regains focus on return from the browser, and
  * any paid entitlement change refetches model availability so the plan's models unlock right away.
+ * A China-edition subscription notification refetches both as soon as main has refreshed the account.
  * Main-only, mounted once from `MainWindowRuntime`.
  */
 export function useCherryCloudSubscriptionReminder(): void {
@@ -21,6 +23,11 @@ export function useCherryCloudSubscriptionReminder(): void {
   // After a sign-out the plans cached for the account predate it; the next baseline waits until a
   // revalidation has started and finished, so a purchase made while signed out is not announced.
   const freshPlansRef = useRef<'ready' | 'awaiting' | 'revalidating'>('ready')
+
+  useIpcOn('cherry_cloud.account_refreshed', () => {
+    void plansQuery.mutate()
+    void mutate(CHERRY_CLOUD_AVAILABILITY_KEY)
+  })
 
   useEffect(() => {
     if (!accountId) {
