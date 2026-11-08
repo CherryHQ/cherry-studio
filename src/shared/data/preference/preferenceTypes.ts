@@ -145,6 +145,7 @@ export const SIDEBAR_FAVORITES = [
   'agents',
   'scheduled_tasks',
   'paintings',
+  'marketplace',
   'translate',
   'mini_app',
   'knowledge',
@@ -489,6 +490,8 @@ export type CustomToolDefinition = {
   tool: string
   requestedVersion?: string
 }
+
+export type { SkillSubscriptionSource } from '@shared/types/skillMarketplace'
 
 export type AdvertisedRemoteEndpoint = DirectEndpoint & {
   /** Original validated input for display; transport endpoints omit this field. */
