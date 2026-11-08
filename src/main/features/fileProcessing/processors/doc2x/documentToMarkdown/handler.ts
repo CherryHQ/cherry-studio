@@ -355,10 +355,10 @@ type MarkdownFence = {
 }
 
 function parseMarkdownFence(line: string, closing: boolean): MarkdownFence | undefined {
-  const match = /^\s*(`{3,}|~{3,})(.*)$/.exec(line)
-  if (!match || (closing && match[2].trim().length > 0)) return undefined
+  const match = /^( {0,3})(`{3,}|~{3,})(.*)$/.exec(line)
+  if (!match || (closing && match[3].trim().length > 0)) return undefined
 
-  const marker = match[1]
+  const marker = match[2]
 
   return {
     character: marker[0] as '`' | '~',

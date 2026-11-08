@@ -253,6 +253,33 @@ describe('doc2x utils', () => {
     )
   })
 
+  it('preserves table-shaped code after an indented fence marker', () => {
+    expect(
+      buildDoc2xMarkdown([
+        {
+          page_idx: 0,
+          md: '~~~~md\n    ~~~~\n| Nested | Value |\n| --- | --- |\n| kept | as code |\n~~~~\n\n| Actual | Value |\n| --- | --- |\n| item | 42 |',
+          layout: {
+            blocks: [
+              {
+                id: 'table',
+                type: 'Table',
+                text: '',
+                bbox: [0, 0, 1, 1],
+                reading_order: 0,
+                parent_id: '',
+                src: '',
+                table_data: { html: '<table><tr><td>actual</td></tr></table>' }
+              }
+            ]
+          }
+        }
+      ])
+    ).toBe(
+      '~~~~md\n    ~~~~\n| Nested | Value |\n| --- | --- |\n| kept | as code |\n~~~~\n\n<table><tr><td>actual</td></tr></table>'
+    )
+  })
+
   it('uses structured figure URLs when a v3 page has no Markdown fallback', () => {
     expect(
       buildDoc2xMarkdown([
