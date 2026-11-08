@@ -8,13 +8,14 @@ import { loggerService } from '@logger'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getHttpMessageLabelKey, getProviderLabelKey } from '@renderer/i18n/label'
 import type { SerializedError } from '@renderer/types/error'
-import { formatErrorMessageWithPrefix, providerErrorText } from '@renderer/utils/error'
+import { cherryCloudQuotaRejectionText, formatErrorMessageWithPrefix, providerErrorText } from '@renderer/utils/error'
 import {
   classifyError,
   getClaudeCodeExitCategory,
   getClaudeCodeExitInfo,
   getLocalModelResolutionFailure
 } from '@renderer/utils/errorClassifier'
+import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { isErrorStage } from '@shared/utils/errorCategory'
 
 import { useMessageListActions } from '../MessageListProvider'
@@ -165,12 +166,21 @@ const MessageErrorInfo: React.FC<{
   const providerId = getMessageListItemModel(message)?.provider ?? errorProviderId
   const classification = useMemo(() => classifyError(error, providerId), [error, providerId])
   const localModelFailure = useMemo(() => getLocalModelResolutionFailure(error), [error])
+  // A Cherry AI subscription plan's own rejection says which plan ran out and when to retry; settings cannot fix it.
+  const cherryCloudQuotaRejection =
+    providerId === CHERRY_CLOUD_PROVIDER_ID &&
+    (classification.category === 'rate_limit' || classification.category === 'quota')
+  const cherryCloudQuotaText = useMemo(
+    () => (cherryCloudQuotaRejection && error ? cherryCloudQuotaRejectionText(error) : ''),
+    [cherryCloudQuotaRejection, error]
+  )
   // An app-owned i18nKey is the throwing code's own display text — prefer it over a
   // pattern-matched category heading, which can name the wrong subsystem entirely (an
   // OCR-fallback failure must not present as a chat-provider auth error). Keys that
   // interpolate <provider> still go through the classification branch: plain `t()`
   // would render the raw tags, and the provider branch needs the <Trans> link form.
   const localizedErrorMessage = useMemo(() => {
+    if (cherryCloudQuotaRejection) return t('models.detail.quota_exhausted')
     if (hasAppOwnedI18nKey && !providerId) return t(appOwnedErrorKey)
     if (localModelFailure) {
       const { providerId: failedProviderId, modelId } = localModelFailure
@@ -180,7 +190,15 @@ const MessageErrorInfo: React.FC<{
       })
     }
     return t(classification.i18nKey, providerId ? { provider: t(getProviderLabelKey(providerId)) } : undefined)
-  }, [hasAppOwnedI18nKey, appOwnedErrorKey, classification.i18nKey, localModelFailure, providerId, t])
+  }, [
+    cherryCloudQuotaRejection,
+    hasAppOwnedI18nKey,
+    appOwnedErrorKey,
+    classification.i18nKey,
+    localModelFailure,
+    providerId,
+    t
+  ])
 
   useEffect(() => {
     if (
@@ -258,7 +276,7 @@ const MessageErrorInfo: React.FC<{
 
   const canOpenDetail = !!openErrorDetail
   const canRemoveErrorPart = !!removeMessageErrorPart && !synthetic
-  const canNavigate = !!classification.navTarget && !!navigateErrorTarget
+  const canNavigate = !!classification.navTarget && !!navigateErrorTarget && !cherryCloudQuotaRejection
 
   return (
     <div
@@ -291,7 +309,7 @@ const MessageErrorInfo: React.FC<{
       <div
         className="ml-5.75 line-clamp-3 text-xs leading-normal [overflow-wrap:anywhere] [&_a]:text-link"
         style={{ color: ERROR_DESCRIPTION_COLOR }}>
-        <ErrorMessage error={error} />
+        {cherryCloudQuotaText || <ErrorMessage error={error} />}
       </div>
 
       {/* Footer */}

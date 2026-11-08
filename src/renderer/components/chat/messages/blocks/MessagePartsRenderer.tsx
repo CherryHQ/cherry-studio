@@ -1495,7 +1495,7 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
           collapseHistory
             ? {
                 ...completedRenderOptions,
-                reasoningDisplay: 'content',
+                reasoningDisplay: 'disclosure',
                 toolDisplay: 'disclosure'
               }
             : {
