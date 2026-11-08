@@ -2285,7 +2285,7 @@
   "library.import_dialog.url.button": "Preia și importă",
   "library.import_dialog.url.hint": "Importă dintr-un Gist GitHub, un repo GitHub sau orice URL public",
   "library.import_dialog.url.supports": "Sunt acceptate URL-urile fișierelor brute",
-  "library.import_skill_dialog.local.drop_hint": "Trage aici o arhivă ZIP sau un director ori fă clic pentru a alege o arhivă ZIP",
+  "library.import_skill_dialog.local.drop_hint": "Trage aici o arhivă ZIP de skill sau un director care conține SKILL.md ori fă clic pentru a răsfoi",
   "library.import_skill_dialog.local.formats": "Acceptă fișiere .zip și directoare care conțin SKILL.md",
   "library.import_skill_dialog.subtitle": "Instalează o abilitate dintr-un fișier ZIP sau dintr-un director",
   "library.import_skill_dialog.title": "Importați abilitate",

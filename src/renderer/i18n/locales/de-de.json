@@ -2285,7 +2285,7 @@
   "library.import_dialog.url.button": "Abrufen und importieren",
   "library.import_dialog.url.hint": "Import aus einem GitHub Gist, GitHub-Repo oder einer beliebigen öffentlichen URL",
   "library.import_dialog.url.supports": "Rohdatei-URLs werden unterstützt",
-  "library.import_skill_dialog.local.drop_hint": "ZIP-Datei oder Ordner hier ablegen oder klicken, um eine ZIP-Datei auszuwählen",
+  "library.import_skill_dialog.local.drop_hint": "Skill-ZIP-Datei oder Ordner mit SKILL.md hier ablegen oder klicken, um zu durchsuchen",
   "library.import_skill_dialog.local.formats": "Unterstützt .zip-Dateien und Verzeichnisse, die SKILL.md enthalten",
   "library.import_skill_dialog.subtitle": "Installieren Sie eine Fähigkeit aus einer ZIP-Datei oder einem Verzeichnis",
   "library.import_skill_dialog.title": "Import-Fähigkeit",

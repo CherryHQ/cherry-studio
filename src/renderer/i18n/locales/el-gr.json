@@ -2285,7 +2285,7 @@
   "library.import_dialog.url.button": "Ανάκτηση και εισαγωγή",
   "library.import_dialog.url.hint": "Εισαγωγή από ένα GitHub Gist, αποθετήριο GitHub ή οποιοδήποτε δημόσιο URL",
   "library.import_dialog.url.supports": "Υποστηρίζονται οι διευθύνσεις URL ακατέργαστων αρχείων",
-  "library.import_skill_dialog.local.drop_hint": "Αφήστε εδώ ένα αρχείο ZIP ή έναν φάκελο εδώ, ή κάντε κλικ για να επιλέξετε ένα ZIP",
+  "library.import_skill_dialog.local.drop_hint": "Αποθέστε εδώ ένα αρχείο ZIP skill ή έναν φάκελο που περιέχει SKILL.md, ή κάντε κλικ για περιήγηση",
   "library.import_skill_dialog.local.formats": "Υποστηρίζει αρχεία .zip και καταλόγους που περιέχουν το SKILL.md",
   "library.import_skill_dialog.subtitle": "Εγκαταστήστε μια δεξιότητα από αρχείο ZIP ή κατάλογο",
   "library.import_skill_dialog.title": "Εισαγωγή δεξιότητας",
