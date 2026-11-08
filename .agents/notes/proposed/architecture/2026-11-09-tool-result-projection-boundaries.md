@@ -16,7 +16,7 @@ At the inspected baseline `c9426d07704407106e23f03ee6aca9e3938df8ef`:
 - `useToolResult` keys its immutable cache by output revision, but `ai.tool.get_result` omits that revision from its request. The handler can therefore read a replacement value for a request associated with an older cache key.
 - Completed-state immutability is not an established producer contract. Pi preserves preliminary results, and existing projection and hook regressions explicitly support replacement output under the same message and tool call.
 
-This note specializes the payload and consumer boundaries of the [runtime contract](2026-10-17-agent-runtime-contract.md). It preserves native execution, archive ownership, and ordered projection delivery. [PR #23873](https://github.com/CherryHQ/cherry-studio/pull/23873) is the separate storage repair under review, not shipped evidence or approval of this proposal.
+This note specializes the payload and consumer boundaries of the [runtime contract](2026-10-17-agent-runtime-contract.md). It preserves native execution, archive ownership, and ordered projection delivery. [PR #23873](https://github.com/CherryHQ/cherry-studio/pull/23873) is the first storage implementation layer above this Spec in the same stack. Its implementation and verification do not imply completion of the remaining layers.
 
 ## Proposal
 
@@ -42,7 +42,7 @@ Actual result updates replace the current value and invalidate its detail consum
 
 Live and persisted copies identify the same call across handoff. Atomically save the latest result, compact reference, and preview, replacing any previous result under that call key. Release the live copy only after durable handoff or an explicit unavailable outcome. A failed archive write remains a persistence failure and does not repeat the tool operation. Shutdown drains accepted writes under the existing runtime barriers.
 
-Reuse the separate-result-table boundary from #23873 if it lands, or carry its narrowly scoped storage repair as the first implementation layer. Store one current output per message and tool call, without its content-revision column or hash-based write predicate. If that column has already shipped, remove it through a generated appended migration. Regenerate migrations against the implementation base; the proposal does not reserve that PR's migration number or modify its branch. Keep legacy inline rows readable. Split them when written, without a startup backfill.
+The first implementation layer, #23873, provides the separate result table. Store one current output per message and tool call, without its content-revision column or hash-based write predicate. If that column has already shipped, remove it through a generated appended migration. Regenerate migrations against the implementation base; the proposal does not reserve that PR's migration number or modify its branch. Keep legacy inline rows readable. Split them when written, without a startup backfill.
 
 Compact message paging does not read the result table for split rows. Full model context, resume, fork, diagnostics, and explicit full-content consumers hydrate only when their contract requires it. Existence checks and projection bookkeeping must not accidentally select or hydrate result bodies.
 
@@ -94,7 +94,7 @@ Renderer keeps stable structure for pure text updates. Text consumers subscribe 
 
 ### Delivery order and verification owners
 
-1. Storage and accepted results. Integrate the storage repair and centralize latest-result writes, serialization, and previews at actual change boundaries. Main data and runtime maintainers verify compact paging, populated-database migration, handoff, and replacement behavior.
+1. Storage and accepted results in #23873. Integrate the storage repair and centralize latest-result writes, serialization, and previews at actual change boundaries. Main data and runtime maintainers verify compact paging, populated-database migration, handoff, and replacement behavior.
 2. Latest-value reads and bounded detail state. Migrate every route caller and remove the eager full-result gate in the same layer. IPC and renderer maintainers verify invalidation, late responses, disclosure, specialized previews, export, and cache release.
 3. Incremental publication and subscriptions. Change root and child producers together with affected renderer subscriptions. Runtime and renderer maintainers verify publication gaps, source replacement, stable consumers, and scroll ownership.
 4. Electron acceptance and final documentation. The implementation owner records actual interaction traces, focused checks, remaining platform gaps, and AC evidence. Only this final layer moves the bilingual note to implemented.
