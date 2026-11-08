@@ -494,7 +494,9 @@ function collectTopicPromptCandidates(
     if (topicId === undefined || topicId.trim().length === 0) {
       const topicName =
         isRecord(entry) && typeof entry.topicName === 'string' && entry.topicName.trim() ? entry.topicName : undefined
-      const label = topicName !== undefined ? `entry ${index + 1}, topic "${topicName}"` : `entry ${index + 1}`
+      const sourceLabel =
+        isRecord(entry) && typeof entry.sourceLabel === 'string' ? entry.sourceLabel : `entry ${index + 1}`
+      const label = topicName !== undefined ? `${sourceLabel}, topic "${topicName}"` : sourceLabel
       warnings.push(
         `A topic prompt without a topic id (${label}) was not migrated. Copy it manually from the V1 backup to keep using it.`
       )

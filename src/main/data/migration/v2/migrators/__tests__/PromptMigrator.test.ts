@@ -8,7 +8,7 @@ import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { PROMPT_CONTENT_MAX, PROMPT_TITLE_MAX, PromptIdSchema } from '@shared/data/types/prompt'
 
 import type { MigrationContext } from '../../core/MigrationContext'
-import { TOPIC_PROMPT_CANDIDATES_KEY } from '../ChatMigrator'
+import { ChatMigrator, TOPIC_PROMPT_CANDIDATES_KEY } from '../ChatMigrator'
 import { PromptMigrator } from '../PromptMigrator'
 
 /** Helper: build a minimal MigrationContext mock */
@@ -1200,4 +1200,95 @@ describe('PromptMigrator SQLite integration', () => {
       targetId: assistantId
     })
   })
+
+  it.each([
+    [true, false],
+    [false, false],
+    [true, true],
+    [false, true]
+  ])(
+    'reports malformed Redux topic prompts through the producer path (topics export: %s, existing target: %s)',
+    async (topicsExist, populated) => {
+      const assistantId = makeUuid(51)
+      await dbh.db.insert(assistantTable).values({
+        id: assistantId,
+        name: 'Fixture assistant',
+        emoji: '',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a0'
+      })
+      const existingId = makeUuid(52)
+      if (populated)
+        await dbh.db.insert(promptTable).values({
+          id: existingId,
+          title: 'Existing V2 prompt',
+          content: 'Do not overwrite.',
+          visibility: 'global',
+          orderKey: 'a0'
+        })
+      const ctx = createMockContext({
+        tableExists: topicsExist,
+        tableData: [],
+        assistantState: {
+          assistants: [
+            {
+              id: assistantId,
+              topics: [
+                { id: 'fixture-topic', name: 'Preserved topic', prompt: 'Keep this prompt.' },
+                { name: 'Missing ID', prompt: 'Recover missing ID.' },
+                { id: '', name: 'Empty ID', prompt: 'Recover empty ID.' },
+                { name: 'Blank prompt', prompt: '   ' }
+              ]
+            }
+          ],
+          defaultAssistant: {
+            id: 'default',
+            topics: [{ id: '  ', name: 'Whitespace ID', prompt: 'Recover default slot.' }]
+          }
+        }
+      })
+      ctx.db = dbh.db
+      ctx.sharedData.set('assistantIds', new Set([assistantId]))
+      ctx.sharedData.set('legacyAssistantIdRemap', new Map([['default', assistantId]]))
+      vi.mocked(ctx.sources.dexieExport.createStreamReader).mockReturnValue({
+        count: vi.fn().mockResolvedValue(0),
+        readSample: vi.fn().mockResolvedValue([])
+      } as any)
+      const producer = new ChatMigrator()
+      expect((await producer.prepare(ctx)).success).toBe(true)
+      expect(await producer.execute(ctx)).toMatchObject({ success: true, processedCount: 0 })
+      const consumer = new PromptMigrator()
+      const prepared = await consumer.prepare(ctx)
+      expect(prepared).toMatchObject({ success: true, itemCount: 1 })
+      expect(prepared.warnings?.join('\n')).toContain('assistants[0].topics[1], topic "Missing ID"')
+      expect(prepared.warnings?.join('\n')).toContain('assistants[0].topics[2], topic "Empty ID"')
+      expect(prepared.warnings?.join('\n')).toContain('defaultAssistant.topics[0], topic "Whitespace ID"')
+      expect(prepared.warnings?.join('\n')).toContain('Copy it manually from the V1 backup')
+      expect(prepared.warnings?.join('\n')).not.toContain('Blank prompt')
+      expect(await consumer.execute(ctx)).toMatchObject({ success: true, processedCount: 1 })
+      // Migration validation expects a fresh target; this extra row tests non-overwrite, not a supported full upgrade.
+      expect(await consumer.validate(ctx)).toMatchObject({
+        success: !populated,
+        errors: populated ? [expect.objectContaining({ key: 'prompt_count_mismatch', expected: 1, actual: 2 })] : [],
+        stats: { sourceCount: 4, skippedCount: 3 }
+      })
+      const prompts = await dbh.db.select().from(promptTable)
+      expect(prompts).toHaveLength(populated ? 2 : 1)
+      if (populated)
+        expect(prompts.find((prompt) => prompt.id === existingId)).toMatchObject({
+          title: 'Existing V2 prompt',
+          content: 'Do not overwrite.'
+        })
+      const recovered = prompts.find((prompt) => prompt.title === 'Preserved topic')!
+      expect(recovered).toMatchObject({ content: 'Keep this prompt.', visibility: 'restricted' })
+      expect(await dbh.db.select().from(promptBindingTable)).toEqual([
+        expect.objectContaining({ promptId: recovered.id, targetType: 'assistant', targetId: assistantId })
+      ])
+      producer.reset()
+      vi.mocked(ctx.sources.reduxState.getCategory).mockReturnValue({ assistants: [] })
+      await producer.prepare(ctx)
+      await producer.execute(ctx)
+      expect(ctx.sharedData.get(TOPIC_PROMPT_CANDIDATES_KEY)).toEqual([])
+    }
+  )
 })

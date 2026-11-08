@@ -205,6 +205,8 @@ export const TOPIC_PROMPT_CANDIDATES_KEY = 'topicPromptCandidates'
  */
 export interface TopicPromptCandidate {
   topicId: string
+  /** Original Redux slot when the topic id is malformed, for recovery diagnostics. */
+  sourceLabel?: string
   topicName: string
   prompt: string
   assistantId: string
@@ -268,6 +270,7 @@ export class ChatMigrator extends BaseMigrator {
   // sharedData for PromptMigrator at the end of execute. Keyed by topic id so
   // each topic contributes exactly one candidate.
   private collectedTopicPrompts: Map<string, TopicPromptCandidate> = new Map()
+  private invalidTopicPrompts: TopicPromptCandidate[] = []
   // Topics whose staged prompt already carries merged (Dexie + Redux) metadata.
   // A Redux-only seed is replaced once its topic transforms; a duplicate Dexie row is not.
   private mergedTopicPromptIds: Set<string> = new Set()
@@ -295,6 +298,7 @@ export class ChatMigrator extends BaseMigrator {
     this.fileRefInsertCount = 0
     this.reservedMessageIds = new Set()
     this.collectedTopicPrompts = new Map()
+    this.invalidTopicPrompts = []
     this.mergedTopicPromptIds = new Set()
   }
 
@@ -402,7 +406,7 @@ export class ChatMigrator extends BaseMigrator {
       const remapAssistantId = (raw: string): string => this.legacyAssistantIdRemap.get(raw) ?? raw
 
       if (allAssistants.length > 0) {
-        for (const assistant of allAssistants) {
+        for (const [assistantIndex, assistant] of allAssistants.entries()) {
           const remappedId = remapAssistantId(assistant.id)
           this.assistantLookup.set(remappedId, assistant)
 
@@ -413,7 +417,25 @@ export class ChatMigrator extends BaseMigrator {
           // the same topic.id appears under defaultAssistant — mirrors AssistantMigrator's
           // primary-wins merge contract.
           if (assistant.topics && Array.isArray(assistant.topics)) {
-            for (const topic of assistant.topics) {
+            for (const [topicIndex, topic] of assistant.topics.entries()) {
+              if (typeof topic.id !== 'string' || !topic.id.trim()) {
+                if (typeof topic.prompt === 'string' && topic.prompt.trim()) {
+                  const slot =
+                    assistantIndex < (assistantState?.assistants?.length ?? 0)
+                      ? `assistants[${assistantIndex}]`
+                      : 'defaultAssistant'
+                  this.invalidTopicPrompts.push({
+                    topicId: '',
+                    sourceLabel: `${slot}.topics[${topicIndex}]`,
+                    topicName: topic.name,
+                    prompt: topic.prompt,
+                    assistantId: remappedId,
+                    createdAt: parseDateToMillis(topic.createdAt),
+                    updatedAt: parseDateToMillis(topic.updatedAt)
+                  })
+                }
+                continue
+              }
               if (topic.id && !this.topicMetaLookup.has(topic.id)) {
                 this.topicMetaLookup.set(topic.id, topic)
                 this.topicAssistantLookup.set(topic.id, remappedId)
@@ -528,8 +550,12 @@ export class ChatMigrator extends BaseMigrator {
     if (this.topicCount === 0) {
       logger.info('No topics to migrate')
       // Still publish: Redux-only prompts were seeded in prepare with no Dexie rows.
-      ctx.sharedData.set(TOPIC_PROMPT_CANDIDATES_KEY, [...this.collectedTopicPrompts.values()])
+      ctx.sharedData.set(TOPIC_PROMPT_CANDIDATES_KEY, [
+        ...this.collectedTopicPrompts.values(),
+        ...this.invalidTopicPrompts
+      ])
       this.collectedTopicPrompts.clear()
+      this.invalidTopicPrompts = []
       return { success: true, processedCount: 0 }
     }
 
@@ -598,9 +624,13 @@ export class ChatMigrator extends BaseMigrator {
 
       // Publish merged topic prompts for PromptMigrator (runs after ChatMigrator).
       // The handoff array is canonical from here; drop the map so it can be freed.
-      const topicPromptCount = this.collectedTopicPrompts.size
-      ctx.sharedData.set(TOPIC_PROMPT_CANDIDATES_KEY, [...this.collectedTopicPrompts.values()])
+      const topicPromptCount = this.collectedTopicPrompts.size + this.invalidTopicPrompts.length
+      ctx.sharedData.set(TOPIC_PROMPT_CANDIDATES_KEY, [
+        ...this.collectedTopicPrompts.values(),
+        ...this.invalidTopicPrompts
+      ])
       this.collectedTopicPrompts.clear()
+      this.invalidTopicPrompts = []
       logger.info('Collected topic prompts for prompt migration', { count: topicPromptCount })
 
       const insertResult = this.insertStagedTopics(ctx)
