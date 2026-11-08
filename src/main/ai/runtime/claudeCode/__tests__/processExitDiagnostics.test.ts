@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { serializeError } from '../../../utils/serializeError'
 import {
   canSalvageClaudeOutput,
+  withClaudeCodeSdkFailure,
   createClaudeCodeProcessDiagnostics,
   createClaudeCodeProcessExitError,
   recordClaudeCodeProcessExit,
@@ -207,6 +208,7 @@ it.each([
   const detail = serializeError(
     createClaudeCodeProcessExitError(new Error('SDK closed'), diagnostics)
   ).processExitDetail
+  if (typeof detail !== 'string') throw new Error('Expected diagnostic text')
   expect(detail.length).toBeLessThanOrEqual(1000)
   expect(performance.now() - start).toBeLessThan(500)
 })
@@ -233,4 +235,35 @@ it.each(['2 / 3', 'yes / no'])('conservatively redacts a spaced slash: %s', (out
     createClaudeCodeProcessExitError(new Error('SDK closed'), diagnostics)
   ).processExitDetail
   expect(detail).toMatch(/<redacted-path>$/)
+})
+
+it('retains sanitized SDK result text with process detail in one bounded error', () => {
+  const diagnostics = createClaudeCodeProcessDiagnostics('sdk-ref')
+  recordClaudeCodeProcessExit(diagnostics, 7, null, 'native loader failed')
+  const processError = createClaudeCodeProcessExitError(new Error('closed'), diagnostics)
+  const result = withClaudeCodeSdkFailure(
+    processError,
+    new Error(
+      'API Error: 429 rate_limit_error; api_key=sk-ant-private https://private.example/x /Users/alice/Secret Project/x'
+    )
+  )
+  expect(result).toBe(processError)
+  const serialized = serializeError(result)
+  expect(serialized.processExitDetail).toContain('native loader failed')
+  expect(serialized.processExitDetail).toContain('429 rate_limit_error')
+  expect(JSON.stringify(serialized)).not.toMatch(/sk-ant-private|private.example|alice|Secret|Project/)
+  expect(serialized.processExitCode).toBe(7)
+})
+
+it('reserves bounded space for both process and SDK error text', () => {
+  const diagnostics = createClaudeCodeProcessDiagnostics('long-sdk-ref')
+  recordClaudeCodeProcessExit(diagnostics, 7, null, 'p'.repeat(2000))
+  const result = withClaudeCodeSdkFailure(
+    createClaudeCodeProcessExitError(new Error('closed'), diagnostics),
+    new Error('SDK reason ' + 's'.repeat(2000))
+  )
+  const detail = serializeError(result).processExitDetail
+  if (typeof detail !== 'string') throw new Error('Expected diagnostic text')
+  expect(detail).toContain('SDK reason')
+  expect(detail.length).toBeLessThanOrEqual(1000)
 })

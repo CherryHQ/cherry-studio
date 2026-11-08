@@ -67,7 +67,7 @@ import { forkClaudeSession } from './claudeFork'
 import { ClaudeMessageMetadata } from './ClaudeMessageMetadata'
 import { claudeControlEvents, ClaudeCodeResultError } from './ClaudeRuntimeState'
 import { ClaudeForkCheckpointSchema } from './forkCheckpoint'
-import { canSalvageClaudeOutput } from './processExitDiagnostics'
+import { canSalvageClaudeOutput, withClaudeCodeSdkFailure } from './processExitDiagnostics'
 import { type ClaudeCodeProcessDiagnostics } from './processExitDiagnostics'
 import { ProcessFailureReporter } from './ProcessFailureReporter'
 import { resolveClaudeConfigDirectory } from './queryOptions'
@@ -632,6 +632,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         const terminal = await this.acceptRoot(batch, projection, contextId)
         publish()
         for (const event of terminal) {
+          if (this.pendingProcessFailure && event.type === 'error') {
+            this.pendingProcessFailure.error = withClaudeCodeSdkFailure(this.pendingProcessFailure.error, event.error)
+          }
           if (!this.pendingProcessFailure || (event.type !== 'turn-complete' && event.type !== 'error'))
             this.eventQueue.push(event)
         }

@@ -100,6 +100,17 @@ function safeProcessOutput(output: string): string {
   return redactSecretTokens(redactSecretText(text)).slice(0, 1000)
 }
 
+/** Retain the queued SDK result as bounded diagnostic data, never a second terminal. */
+export function withClaudeCodeSdkFailure(processError: unknown, sdkError: unknown): unknown {
+  if (!(processError instanceof Error) || !(sdkError instanceof Error)) return processError
+  const detail = (processError as Error & { processExitDetail?: string }).processExitDetail ?? ''
+  return Object.assign(processError, {
+    processExitDetail: [detail.slice(0, 480), `SDK: ${safeProcessOutput(sdkError.message).slice(0, 500)}`]
+      .filter(Boolean)
+      .join('\n')
+  })
+}
+
 export function createClaudeCodeProcessExitError(
   originalError: Error,
   diagnostics: ClaudeCodeProcessDiagnostics
