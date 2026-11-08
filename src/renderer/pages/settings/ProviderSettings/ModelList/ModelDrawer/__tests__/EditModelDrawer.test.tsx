@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { CURRENCY, MODALITY, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { CURRENCY, ENDPOINT_TYPE, MODALITY, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import EditModelDrawer from '../EditModelDrawer'
 import { buildModelImagePricing } from '../modelPricing'
@@ -228,6 +228,32 @@ describe('EditModelDrawer', () => {
       expect(updateModelMock.mock.lastCall?.[2].inputModalities).toEqual([MODALITY.TEXT, MODALITY.IMAGE])
     })
     expect(vision).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('persists Vision off after enabling and saving it in the same drawer', async () => {
+    const user = userEvent.setup()
+    updateModelMock.mockResolvedValue(undefined)
+    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={makePricingModel()} />)
+    const vision = screen.getByRole('button', { name: 'models.type.vision' })
+    await user.click(vision)
+    await waitFor(() => expect(updateModelMock.mock.lastCall?.[2].inputModalities).toContain(MODALITY.IMAGE))
+    await user.click(vision)
+    await waitFor(() => {
+      expect(updateModelMock.mock.lastCall?.[2].inputModalities).toBeDefined()
+      expect(updateModelMock.mock.lastCall?.[2].inputModalities).not.toContain(MODALITY.IMAGE)
+    })
+  })
+
+  it('preserves inherited Vision when only the chat protocol changes', async () => {
+    const user = userEvent.setup()
+    updateModelMock.mockResolvedValue(undefined)
+    useProviderMock.mockReturnValue({ provider: { id: 'custom-provider', name: 'Custom', defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: {} } } })
+    const model = { ...makePricingModel(), providerId: 'custom-provider', capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION], inputModalities: [MODALITY.TEXT, MODALITY.IMAGE], inputModalitiesExplicit: false, endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] } as Model
+    render(<EditModelDrawer providerId="custom-provider" open onClose={vi.fn()} model={model} />)
+    await user.click(screen.getByRole('button', { name: 'currency-openai-responses' }))
+    await waitFor(() => expect(updateModelMock).toHaveBeenCalled())
+    expect(updateModelMock.mock.lastCall?.[2]).not.toHaveProperty('inputModalities')
+    expect(updateModelMock.mock.lastCall?.[2].capabilities).toContain(MODEL_CAPABILITY.IMAGE_RECOGNITION)
   })
 
   it('preserves inherited Vision when only Reasoning is changed', async () => {
