@@ -243,6 +243,40 @@ describe('FeishuAdapter', () => {
     expect(mockConnect).not.toHaveBeenCalled()
   })
 
+  it.each(['confirmed', 'error', 'disconnect', 'expiry'] as const)(
+    'replays only a live pending QR and clears it on %s',
+    async (outcome) => {
+      let finishPoll!: (result: { appId: string; appSecret: string }) => void
+      let failPoll!: (error: Error) => void
+      registrationMocks.begin.mockResolvedValue({
+        deviceCode: 'code',
+        verificationUri: 'https://accounts.feishu.cn/device/qr',
+        interval: 1,
+        expiresIn: 600
+      })
+      registrationMocks.poll.mockReturnValue(
+        new Promise((resolve, reject) => {
+          finishPoll = resolve
+          failPoll = reject
+        })
+      )
+      const adapter = createAdapter({ app_id: '', app_secret: '' })
+      await adapter.connect()
+      await vi.waitFor(() => expect(registrationMocks.poll).toHaveBeenCalledOnce())
+      expect(adapter.getPendingQrLogin()).toEqual({
+        url: 'https://accounts.feishu.cn/device/qr',
+        expiresAt: expect.any(Number)
+      })
+      if (outcome === 'confirmed') finishPoll({ appId: 'new-app', appSecret: 'new-secret' })
+      if (outcome === 'error') failPoll(new Error('Registration failed'))
+      if (outcome === 'disconnect') await adapter.disconnect()
+      if (outcome === 'expiry') vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 601_000)
+      await vi.waitFor(() => expect(adapter.getPendingQrLogin()).toBeNull())
+      vi.restoreAllMocks()
+      await adapter.disconnect()
+    }
+  )
+
   it('does not finish QR registration after disconnect', async () => {
     let finishPoll!: (result: { appId: string; appSecret: string }) => void
     registrationMocks.begin.mockResolvedValue({

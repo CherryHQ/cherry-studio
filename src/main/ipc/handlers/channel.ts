@@ -56,5 +56,9 @@ export const channelHandlers: IpcHandlersFor<typeof channelRequestSchemas> = {
       return { exists: false }
     }
   },
+  'channel.feishu.pending_qr': async (channelId) => {
+    const adapter = application.get('ChannelManager').getAdapter(channelId)
+    return adapter?.channelType === 'feishu' ? adapter.getPendingQrLogin() : null
+  },
   'channel.get_logs': async (channelId) => application.get('ChannelManager').getChannelLogs(channelId)
 }

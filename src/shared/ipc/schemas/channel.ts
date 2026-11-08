@@ -50,6 +50,10 @@ export const channelRequestSchemas = {
     input: z.string(),
     output: z.object({ exists: z.boolean(), userId: z.string().optional() })
   }),
+  'channel.feishu.pending_qr': defineRoute({
+    input: z.string().min(1),
+    output: z.object({ url: z.url(), expiresAt: z.number() }).nullable()
+  }),
   'channel.get_logs': defineRoute({ input: z.string(), output: z.array(channelLogEntry) })
 }
 
