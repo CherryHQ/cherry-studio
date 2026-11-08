@@ -264,6 +264,8 @@
   "agent.preview_pane.tree_error.invalid_path.title": "Geçersiz çalışma alanı yolu",
   "agent.preview_pane.tree_error.load_error.description": "Çalışma dizininin hâlâ var ve erişilebilir olduğundan emin olup yeniden deneyin.",
   "agent.preview_pane.tree_error.load_error.title": "Çalışma alanı dosyaları yüklenemedi",
+  "agent.right_pane.details.customize": "Bölümleri özelleştir",
+  "agent.right_pane.details.drag_instructions": "Bir bölümü seçmek için Boşluk veya Enter tuşuna basın, ok tuşlarıyla taşıyın, bırakmak için tekrar Boşluk veya Enter, iptal etmek için Escape tuşuna basın.",
   "agent.right_pane.flow.child_subtasks": "İç içe alt görevler",
   "agent.right_pane.flow.main_task": "Ana görev",
   "agent.right_pane.flow.no_messages.description": "Bu araç çağrısı için yakalanmış bir alt ileti akışı yok.",

@@ -264,6 +264,8 @@
   "agent.preview_pane.tree_error.invalid_path.title": "Đường dẫn không gian làm việc không hợp lệ",
   "agent.preview_pane.tree_error.load_error.description": "Hãy đảm bảo thư mục làm việc vẫn tồn tại và có thể truy cập được, sau đó thử lại.",
   "agent.preview_pane.tree_error.load_error.title": "Không thể tải các tệp không gian làm việc",
+  "agent.right_pane.details.customize": "Tùy chỉnh các mục",
+  "agent.right_pane.details.drag_instructions": "Nhấn Space hoặc Enter để chọn một mục, dùng phím mũi tên để di chuyển, rồi nhấn Space hoặc Enter để thả, hoặc Escape để hủy.",
   "agent.right_pane.flow.child_subtasks": "Tác vụ con cấp dưới",
   "agent.right_pane.flow.main_task": "Tác vụ chính",
   "agent.right_pane.flow.no_messages.description": "Cuộc gọi công cụ này không có luồng thông báo con nào được ghi lại.",

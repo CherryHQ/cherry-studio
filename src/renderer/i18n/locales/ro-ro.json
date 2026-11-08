@@ -264,6 +264,8 @@
   "agent.preview_pane.tree_error.invalid_path.title": "Calea spațiului de lucru este invalidă",
   "agent.preview_pane.tree_error.load_error.description": "Asigură-te că directorul de lucru există și este accesibil, apoi încearcă din nou.",
   "agent.preview_pane.tree_error.load_error.title": "Nu s-au putut încărca fișierele spațiului de lucru",
+  "agent.right_pane.details.customize": "Personalizează secțiunile",
+  "agent.right_pane.details.drag_instructions": "Apasă Spațiu sau Enter pentru a selecta o secțiune, folosește săgețile pentru a o muta, apoi Spațiu sau Enter pentru a o plasa, sau Escape pentru a anula.",
   "agent.right_pane.flow.child_subtasks": "Subsarcini de nivel inferior",
   "agent.right_pane.flow.main_task": "Sarcina principală",
   "agent.right_pane.flow.no_messages.description": "Acest apel de instrument nu are niciun flux de mesaje copil capturat.",

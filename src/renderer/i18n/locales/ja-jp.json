@@ -264,6 +264,8 @@
   "agent.preview_pane.tree_error.invalid_path.title": "無効なワークスペースパス",
   "agent.preview_pane.tree_error.load_error.description": "作業フォルダーが存在し、アクセス可能であることを確認してから、もう一度お試しください。",
   "agent.preview_pane.tree_error.load_error.title": "ワークスペースファイルを読み込めませんでした",
+  "agent.right_pane.details.customize": "セクションをカスタマイズ",
+  "agent.right_pane.details.drag_instructions": "Space または Enter でセクションを選択し、矢印キーで移動します。再度 Space または Enter で配置するか、Escape でキャンセルします。",
   "agent.right_pane.flow.child_subtasks": "下位サブタスク",
   "agent.right_pane.flow.main_task": "メインタスク",
   "agent.right_pane.flow.no_messages.description": "このツール呼び出しにはキャプチャされた子メッセージフローがありません。",

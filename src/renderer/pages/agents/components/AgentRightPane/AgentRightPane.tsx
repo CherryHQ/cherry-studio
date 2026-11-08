@@ -1660,6 +1660,13 @@ function AgentDetailsContent() {
   return (
     <div key={meta.sessionId}>
       <AgentSessionDetailsSections
+        contextUsage={
+          <AgentContextUsageSummary
+            usage={usage}
+            percentage={percentage}
+            isCompacting={compaction.status === 'compacting'}
+          />
+        }
         status={status}
         sessionId={meta.sessionId}
         workspacePath={meta.workspacePath}
@@ -1682,13 +1689,6 @@ function AgentDetailsContent() {
             : undefined
         }
       />
-      <div className="border-t border-border-subtle p-3 first:border-t-0">
-        <AgentContextUsageSummary
-          usage={usage}
-          percentage={percentage}
-          isCompacting={compaction.status === 'compacting'}
-        />
-      </div>
     </div>
   )
 }

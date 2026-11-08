@@ -3,6 +3,7 @@ import {
   CheckCircle,
   Circle,
   CircleStop,
+  Gauge,
   FileText,
   FolderOpen,
   ListChecks,
@@ -11,17 +12,21 @@ import {
   Terminal,
   Workflow
 } from 'lucide-react'
-import { createContext, type ReactNode, use, useRef, useState } from 'react'
+import { createContext, Fragment, type ReactNode, use, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { OpenTargetButton } from '@renderer/components/OpenTarget'
+import { usePreference } from '@renderer/data/hooks/usePreference'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import type { AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
+import type { AgentDetailsSectionConfig } from '@shared/data/preference/preferenceTypes'
+import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
 
+import { AgentDetailsCustomize } from './AgentDetailsCustomize'
 import type {
   AgentRightPaneStatus,
   AgentRunTask,
@@ -260,8 +265,10 @@ export function AgentSessionDetailsSections({
   workspaceName,
   workspaceType,
   onOpenFlow,
-  onOpenArtifact
+  onOpenArtifact,
+  contextUsage
 }: {
+  contextUsage?: ReactNode
   status: AgentRightPaneStatus
   sessionId?: string
   workspacePath?: string
@@ -282,102 +289,154 @@ export function AgentSessionDetailsSections({
   const currentTask = status.tasks.find((task) => task.status === 'in_progress')
   const workspaceLabel =
     workspaceType === 'system' ? t('agent.session.workspace_selector.no_project') : workspaceName || workspacePath
+  const [preferences, persistSections] = usePreference('agent.details.sections')
+  const defaults = getDefaultValue('agent.details.sections')
+  const knownIds = new Set(defaults.map(({ id }) => id))
+  const seen = new Set<string>()
+  const sections = [...preferences, ...defaults].filter(({ id }) => {
+    if (!knownIds.has(id) || seen.has(id)) return false
+    seen.add(id)
+    return true
+  })
+  const saveSections = (next: AgentDetailsSectionConfig[]) => {
+    void persistSections(next).catch(() => toast.error(t('common.error')))
+  }
+  const labels: Record<string, { label: string; icon: ReactNode }> = {
+    workspace: { label: t('code.adv.permission_modes.workspace'), icon: <FolderOpen className="size-4" /> },
+    plan: { label: t('agent.right_pane.info.plan'), icon: <ListChecks className="size-4" /> },
+    subagents: { label: t('agent.right_pane.info.subagents'), icon: <Bot className="size-4" /> },
+    workflows: { label: t('agent.right_pane.info.workflows'), icon: <Workflow className="size-4" /> },
+    shells: { label: t('agent.right_pane.info.shell_tasks'), icon: <Terminal className="size-4" /> },
+    other: { label: t('agent.right_pane.info.other_tasks'), icon: <ListChecks className="size-4" /> },
+    artifacts: { label: t('agent.right_pane.info.artifacts'), icon: <Package className="size-4" /> },
+    context: { label: t('agent.right_pane.info.context'), icon: <Gauge className="size-4" /> }
+  }
+  const content: Record<string, ReactNode> = {
+    workspace: workspaceLabel && (
+      <div className="flex min-w-0 items-center gap-2 px-4 py-3">
+        <FolderOpen className="size-4 shrink-0 text-muted-foreground" />
+        <Tooltip asChild content={workspacePath || workspaceLabel}>
+          <span
+            tabIndex={0}
+            className="min-w-0 flex-1 truncate rounded-sm text-sm font-medium text-foreground focus-visible:bg-accent focus-visible:outline-none">
+            {workspaceLabel}
+          </span>
+        </Tooltip>
+        {workspacePath && (
+          <OpenTargetButton
+            targetPath={workspacePath}
+            pathKind="directory"
+            className="shrink-0 border-0"
+            menuAction="select"
+            menuContentProps={{ className: 'w-70 max-w-[calc(100vw_-_24px)]', alignOffset: -16 }}
+          />
+        )}
+      </div>
+    ),
+    plan: status.tasks.length > 0 && (
+      <DetailsSection
+        id="plan"
+        title={t('agent.right_pane.info.plan')}
+        icon={<ListChecks className="size-4" />}
+        subtitle={currentTask?.activeText || currentTask?.title}
+        summary={t('agent.right_pane.status.task_count', {
+          completed: status.completedTaskCount,
+          total: status.totalTaskCount
+        })}>
+        <ol className="space-y-1">
+          {status.tasks.map((task) => (
+            <li key={task.id} className="flex gap-2 text-xs">
+              <TaskStatusIcon status={task.status} />
+              <span>{task.title}</span>
+            </li>
+          ))}
+        </ol>
+      </DetailsSection>
+    ),
+    subagents: (
+      <RunSection
+        id="subagents"
+        title={t('agent.right_pane.info.subagents')}
+        icon={<Bot className="size-4" />}
+        tasks={subagents}
+        sessionId={sessionId}
+        onOpenFlow={onOpenFlow}
+      />
+    ),
+    workflows: (
+      <RunSection
+        id="workflows"
+        title={t('agent.right_pane.info.workflows')}
+        icon={<Workflow className="size-4" />}
+        tasks={workflows}
+        sessionId={sessionId}
+      />
+    ),
+    shells: (
+      <RunSection
+        id="shells"
+        title={t('agent.right_pane.info.shell_tasks')}
+        icon={<Terminal className="size-4" />}
+        tasks={shells}
+        sessionId={sessionId}
+      />
+    ),
+    other: (
+      <RunSection
+        id="other"
+        title={t('agent.right_pane.info.other_tasks')}
+        icon={<ListChecks className="size-4" />}
+        tasks={others}
+        sessionId={sessionId}
+      />
+    ),
+    artifacts: onOpenArtifact && status.artifacts.length > 0 && (
+      <DetailsSection
+        id="artifacts"
+        title={t('agent.right_pane.info.artifacts')}
+        icon={<Package className="size-4" />}
+        summary={status.artifacts.length}>
+        <ul>
+          {status.artifacts.map((artifact) => (
+            <li key={`${artifact.toolCallId}-${artifact.path}`}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full min-w-0 justify-start text-xs"
+                title={artifact.path}
+                onClick={() => onOpenArtifact(artifact.path)}>
+                <FileText className="size-4 shrink-0" />
+                <span className="truncate">{artifact.name}</span>
+              </Button>
+            </li>
+          ))}
+        </ul>
+      </DetailsSection>
+    ),
+    context: contextUsage && <div className="border-t border-border-subtle p-3">{contextUsage}</div>
+  }
   return (
     <>
-      {workspaceLabel && (
-        <div className="flex min-w-0 items-center gap-2 px-4 py-3">
-          <FolderOpen className="size-4 shrink-0 text-muted-foreground" />
-          <Tooltip asChild content={workspacePath || workspaceLabel}>
-            <span
-              tabIndex={0}
-              className="min-w-0 flex-1 truncate rounded-sm text-sm font-medium text-foreground focus-visible:bg-accent focus-visible:outline-none">
-              {workspaceLabel}
-            </span>
-          </Tooltip>
-          {workspacePath && (
-            <OpenTargetButton
-              targetPath={workspacePath}
-              pathKind="directory"
-              className="shrink-0 border-0"
-              menuAction="select"
-              menuContentProps={{ className: 'w-70 max-w-[calc(100vw_-_24px)]', alignOffset: -16 }}
-            />
-          )}
-        </div>
-      )}
-      <Accordion type="multiple" className="px-3">
-        {status.tasks.length > 0 && (
-          <DetailsSection
-            id="plan"
-            title={t('agent.right_pane.info.plan')}
-            icon={<ListChecks className="size-4" />}
-            subtitle={currentTask?.activeText || currentTask?.title}
-            summary={t('agent.right_pane.status.task_count', {
-              completed: status.completedTaskCount,
-              total: status.totalTaskCount
-            })}>
-            <ol className="space-y-1">
-              {status.tasks.map((task) => (
-                <li key={task.id} className="flex gap-2 text-xs">
-                  <TaskStatusIcon status={task.status} />
-                  <span>{task.title}</span>
-                </li>
-              ))}
-            </ol>
-          </DetailsSection>
-        )}
-        <RunSection
-          id="subagents"
-          title={t('agent.right_pane.info.subagents')}
-          icon={<Bot className="size-4" />}
-          tasks={subagents}
-          sessionId={sessionId}
-          onOpenFlow={onOpenFlow}
+      <div className="flex items-center justify-between gap-2 px-4 pt-2">
+        <span className="text-xs text-muted-foreground">{t('agent.right_pane.tabs.details')}</span>
+        <AgentDetailsCustomize
+          items={sections.map((section) => ({ ...section, ...labels[section.id] }))}
+          onChange={saveSections}
+          onReset={() => saveSections(defaults)}
+          isDefault={
+            sections.length === defaults.length &&
+            sections.every(
+              (section, index) => section.id === defaults[index].id && section.visible === defaults[index].visible
+            )
+          }
         />
-        <RunSection
-          id="workflows"
-          title={t('agent.right_pane.info.workflows')}
-          icon={<Workflow className="size-4" />}
-          tasks={workflows}
-          sessionId={sessionId}
-        />
-        <RunSection
-          id="shells"
-          title={t('agent.right_pane.info.shell_tasks')}
-          icon={<Terminal className="size-4" />}
-          tasks={shells}
-          sessionId={sessionId}
-        />
-        <RunSection
-          id="other"
-          title={t('agent.right_pane.info.other_tasks')}
-          icon={<ListChecks className="size-4" />}
-          tasks={others}
-          sessionId={sessionId}
-        />
-        {onOpenArtifact && status.artifacts.length > 0 && (
-          <DetailsSection
-            id="artifacts"
-            title={t('agent.right_pane.info.artifacts')}
-            icon={<Package className="size-4" />}
-            summary={status.artifacts.length}>
-            <ul>
-              {status.artifacts.map((artifact) => (
-                <li key={`${artifact.toolCallId}-${artifact.path}`}>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full min-w-0 justify-start text-xs"
-                    title={artifact.path}
-                    onClick={() => onOpenArtifact(artifact.path)}>
-                    <FileText className="size-4 shrink-0" />
-                    <span className="truncate">{artifact.name}</span>
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          </DetailsSection>
-        )}
+      </div>
+      <Accordion type="multiple">
+        {sections
+          .filter(({ visible }) => visible)
+          .map(({ id }) => (
+            <Fragment key={id}>{content[id]}</Fragment>
+          ))}
       </Accordion>
     </>
   )
@@ -399,7 +458,7 @@ function DetailsSection({
   children: ReactNode
 }) {
   return (
-    <AccordionItem value={id} className="border-border-subtle last:border-0">
+    <AccordionItem value={id} className="mx-3 border-border-subtle last:border-0">
       <AccordionTrigger className="gap-2 py-3 text-xs font-normal">
         <span className="min-w-0 flex-1">
           <span className="flex min-w-0 items-center gap-2 text-muted-foreground [&>svg]:shrink-0">

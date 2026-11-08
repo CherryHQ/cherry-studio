@@ -264,6 +264,8 @@
   "agent.preview_pane.tree_error.invalid_path.title": "Недопустимый путь рабочей области",
   "agent.preview_pane.tree_error.load_error.description": "Убедитесь, что рабочий каталог всё ещё существует и доступен, затем попробуйте снова.",
   "agent.preview_pane.tree_error.load_error.title": "Не удалось загрузить файлы рабочего пространства",
+  "agent.right_pane.details.customize": "Настроить разделы",
+  "agent.right_pane.details.drag_instructions": "Нажмите Пробел или Enter, чтобы выбрать раздел, перемещайте его стрелками и нажмите Пробел или Enter, чтобы отпустить, либо Escape для отмены.",
   "agent.right_pane.flow.child_subtasks": "Вложенные подзадачи",
   "agent.right_pane.flow.main_task": "Основная задача",
   "agent.right_pane.flow.no_messages.description": "У этого вызова инструмента нет захваченного дочернего потока сообщений.",
