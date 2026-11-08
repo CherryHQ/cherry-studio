@@ -125,6 +125,10 @@ Status: proposed
 每次执行通常创建新会话，启用 `reuseSession` 时则使用绑定会话。
 任务提供 `reuseSessionId`，执行记录提供 `TaskRunLogEntity.sessionId`，执行过程写入 `job.metadata.sessionId`。
 
+一对多归属只存于 `agent_session.taskId`，外键指向 `job_schedule.id`。`isTaskReuseTarget` 从所属会话中选择每个任务至多一个复用目标，由部分唯一索引保证；CHECK 拒绝没有所属任务的复用目标。清除复用标记保留任务归属，仍不进入普通话题列表。删除 Agent 任务时，通过 `AgentTaskService` 在同一事务中先清除复用标记，再删除计划。通用的 `JobScheduleService` 不依赖会话业务。恢复对话时清除这两个字段。不采用两个任务外键，因为它们重复存储归属标识且可能不一致；一对多归属也不需要单独的关联表。
+
+尚未发布的迁移 `0035_agent_session_task_ownership` 将旧的唯一绑定转换为归属和复用标记，并从保留的 job metadata/output 回填其他会话的归属。重建表必须保留消息、子会话和时间戳。历史执行的日志和绑定都已不存在时，此迁移无法识别其归属。
+
 按以下顺序解析右侧内容：
 
 1. 明确选择的历史执行优先：先校验它属于当前任务，再读取对应会话。
