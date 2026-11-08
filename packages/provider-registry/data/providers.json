@@ -3192,16 +3192,16 @@
       "endpointConfigs": {
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://pool.linkrra.com/v1"
+          "baseUrl": "https://synap402.com/v1"
         }
       },
       "id": "synap",
       "metadata": {
         "website": {
-          "apiKey": "https://synap.linkrra.com",
-          "docs": "https://synap.linkrra.com/pricing",
-          "models": "https://pool.linkrra.com/v1/models",
-          "official": "https://synap.linkrra.com"
+          "apiKey": "https://synap402.com",
+          "docs": "https://synap402.com/pricing",
+          "models": "https://synap402.com/v1/models",
+          "official": "https://synap402.com"
         }
       },
       "name": "Synap"

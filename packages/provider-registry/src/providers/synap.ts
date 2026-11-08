@@ -3,18 +3,18 @@ import { openaiCompatible } from './types'
 /**
  * Synap serves its 6 self-hosted fleet models exclusively on Linkrra-operated GPUs (refused with
  * a 503 rather than routed to any third-party backend if no fleet node is online). The pricing
- * and context windows below mirror the live feed at pool.linkrra.com/v1/models.
+ * and context windows below mirror the live feed at synap402.com/v1/models.
  */
 export default openaiCompatible({
   id: 'synap',
   name: 'Synap',
   availableInEditions: ['global'],
-  baseUrl: 'https://pool.linkrra.com/v1',
+  baseUrl: 'https://synap402.com/v1',
   website: {
-    apiKey: 'https://synap.linkrra.com',
-    docs: 'https://synap.linkrra.com/pricing',
-    models: 'https://pool.linkrra.com/v1/models',
-    official: 'https://synap.linkrra.com'
+    apiKey: 'https://synap402.com',
+    docs: 'https://synap402.com/pricing',
+    models: 'https://synap402.com/v1/models',
+    official: 'https://synap402.com'
   },
   overrides: [
     {
