@@ -178,10 +178,11 @@ suggestions (`permission_suggestions` / `permissionSuggestions`) are unused.
 The MCP portion of the pre-approved tool list contains built-in tool policies
 only; user-defined MCP tools are excluded (`src/main/ai/runtime/claudeCode/settingsBuilder.ts:507`,
 `src/main/ai/runtime/claudeCode/settingsBuilder.ts:715`, `src/main/ai/toolApproval/builtinToolPolicy.ts:40`).
-The complete `allowedTools` list also includes `TaskCreate`, `TaskGet`,
-`TaskUpdate`, and `TaskList`, filtered by `disallowedTools`
-(`src/main/ai/runtime/claudeCode/settingsBuilder.ts:288`,
-`src/main/ai/runtime/claudeCode/settingsBuilder.ts:356`).
+The SDK `allowedTools` list includes the Agent's persisted per-tool auto-approval
+entries, the eligible built-in MCP policies, and `TaskCreate`, `TaskGet`,
+`TaskUpdate`, and `TaskList`. Entries matched by `disallowedTools` are omitted
+(`src/main/ai/runtime/claudeCode/settingsBuilder.ts:287`,
+`src/main/ai/runtime/claudeCode/settingsBuilder.ts:358`).
 
 ### Boundaries
 

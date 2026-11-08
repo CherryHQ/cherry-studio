@@ -162,7 +162,7 @@ remain excluded for as long as v1 downgrade support exists.
 | `agents.id` | `agent.id` | Deterministic UUID remap for legacy IDs |
 | `sessions.agent_id` | `agent_session.agent_id` | Updated with Agent remap |
 | `sessions.accessible_paths[0]` | `agent_workspace.path` | Falls back to Agent path, then managed default |
-| `agents.allowed_tools` | `agent.disabled_tools` | Starts empty; the concepts are not equivalent |
+| `agents.allowed_tools` | `agent.allowed_tools` | Preserves per-tool auto-approval preferences; `agent.disabled_tools` starts empty |
 | `agents.mcps[]` | `agent_mcp_server` | IDs remapped through the MCP migrator |
 | `session_messages.agent_session_id` | `agent_session_message.runtime_resume_token` | Preserves runtime resume state |
 | `session_messages.created_at` / `updated_at` + `role` / source status | `agent_session.last_activity_at` | Maximum user creation / terminal assistant completion time; transient assistant rows use creation time; empty Sessions use Session creation |

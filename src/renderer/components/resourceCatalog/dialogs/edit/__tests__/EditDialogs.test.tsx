@@ -503,6 +503,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'settings.mcp.runtimeStatus.connected': 'Connected',
           'settings.mcp.runtimeStatus.connecting': 'Connecting',
           'settings.mcp.runtimeStatus.unavailable': 'Unavailable',
+          'settings.mcp.tools.autoApprove.label': 'Auto Approve',
           'settings.prompts.add': 'Add prompt',
           'settings.prompts.binding.bind': 'Bind prompt',
           'settings.prompts.binding.noLinked': 'No prompts linked',
@@ -2111,6 +2112,32 @@ describe('edit dialogs', () => {
 
     selectTab('技能')
     expect(screen.getByText('Skill One')).toBeInTheDocument()
+  })
+
+  it('keeps auto-approval independent and disables it when a tool is unavailable', async () => {
+    const user = userEvent.setup()
+    render(<AgentEditDialog open resource={{ ...AGENT, allowedTools: [] }} onOpenChange={vi.fn()} />)
+    await user.click(screen.getByRole('tab', { name: 'Built-in tools' }))
+
+    const enableSwitch = screen.getByRole('switch', { name: 'Enable Bash' })
+    const autoApproveSwitch = screen.getByRole('switch', { name: 'Auto Approve Bash' })
+    expect(enableSwitch).toBeChecked()
+    expect(autoApproveSwitch).not.toBeChecked()
+
+    await user.click(autoApproveSwitch)
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenLastCalledWith({
+        body: expect.objectContaining({ allowedTools: ['Bash'] })
+      })
+    )
+
+    await user.click(enableSwitch)
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenLastCalledWith({
+        body: expect.objectContaining({ disabledTools: ['Bash'], allowedTools: [] })
+      })
+    )
+    expect(screen.getByRole('switch', { name: 'Auto Approve Bash' })).toBeDisabled()
   })
 
   it('projects pi capabilities without exposing Claude-only fields', async () => {

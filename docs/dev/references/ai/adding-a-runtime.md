@@ -2,8 +2,11 @@
 description: Operational checklist for adding an agent runtime via a capability descriptor and a main-process driver package
 sources:
   - src/shared/ai/agentRuntimeCapabilities.ts
+  - src/shared/data/api/schemas/agents.ts
   - src/main/ai/runtime/types.ts
   - src/main/ai/runtime/registerDrivers.ts
+  - src/main/ai/runtime/claudeCode/settingsBuilder.ts
+  - src/renderer/components/resourceCatalog/dialogs/edit/AgentEditDialog.tsx
 ---
 
 # Adding an Agent Runtime
@@ -191,8 +194,9 @@ These are the choices nothing enforces:
   built-in Agent resolution, channel security, citation/artifact guidance, or response language.
   Add common policy in the materializer and test that each driver carries it.
 - **Runtime-native tool identity.** Keep the runtime's own tool names and
-  casing everywhere (catalog ids, `disabledTools` write-back, approval
-  lookups). Renaming to another runtime's convention corrupts policy lookups.
+  casing across catalog IDs, persisted tool-policy lists (`disabledTools` for
+  availability and `allowedTools` for auto-approval where supported), and
+  approval lookups. Renaming to another runtime's convention corrupts policy lookups.
 - **Approval defaults live with the tool descriptor.** One table carrying
   name + category + approval; a side lookup with a `?? 'auto'` fallback means
   a newly added tool silently becomes auto-approved (fail-open).

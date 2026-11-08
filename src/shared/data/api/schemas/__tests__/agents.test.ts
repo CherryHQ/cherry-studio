@@ -33,6 +33,10 @@ describe('AgentEntitySchema', () => {
     expect(UpdateAgentSchema.parse({ disabledTools: ['Read', 'Read'] }).disabledTools).toEqual(['Read'])
   })
 
+  it('deduplicates allowedTools at the API parse boundary', () => {
+    expect(UpdateAgentSchema.parse({ allowedTools: ['Bash', 'Bash'] }).allowedTools).toEqual(['Bash'])
+  })
+
   it('does not accept create-only skillIds on update', () => {
     expect(UpdateAgentSchema.safeParse({ skillIds: ['skill-b'] }).success).toBe(false)
   })

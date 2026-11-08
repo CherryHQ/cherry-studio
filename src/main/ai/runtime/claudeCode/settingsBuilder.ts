@@ -282,11 +282,14 @@ export async function buildClaudeCodeSessionSettings(
       })
   }
 
-  // 8. Auto-approve allowlist for injected built-in MCP servers
+  // 8. Auto-approve allowlist for agent-selected tools and injected built-in MCP servers.
   // Newer models omit task tracking from the SDK's default tool surface.
   const finalAllowedTools = [
-    ...['TaskCreate', 'TaskGet', 'TaskUpdate', 'TaskList'].filter((name) => !disallowedTools.includes(name)),
-    ...adjustAllowedToolsForMcp(mountedServers, disallowedTools)
+    ...new Set([
+      ...(agent.allowedTools ?? []).filter((name) => !isToolDisallowed(name, disallowedTools)),
+      ...['TaskCreate', 'TaskGet', 'TaskUpdate', 'TaskList'].filter((name) => !disallowedTools.includes(name)),
+      ...adjustAllowedToolsForMcp(mountedServers, disallowedTools)
+    ])
   ]
 
   // 9. Skills — pass the SDK skill-name whitelist (managed skills enabled for this
