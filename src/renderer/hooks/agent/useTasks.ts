@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next'
-import { useCallback, useEffect } from 'react'
+import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
@@ -7,6 +7,7 @@ import { useDataChange, useInvalidateCache, usePaginatedQuery, useQuery } from '
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import type { ResponseForPath } from '@shared/data/api/paths'
 import type { ScheduledTaskEntity } from '@shared/data/types/agent'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -57,14 +58,16 @@ export const useAllTasks = (status?: ScheduledTaskEntity['status']) => {
     usePaginatedQuery('/agent-tasks', {
       limit: TASKS_PAGE_LIMIT,
       query: status ? { status } : {},
-      swrOptions: { keepPreviousData: false }
+      swrOptions: {
+        keepPreviousData: false,
+        ...(status ? { dedupingInterval: 0 } : {}),
+        onSuccess: (response: ResponseForPath<'/agent-tasks', 'GET'>) => {
+          const lastPage = Math.max(1, Math.ceil(response.total / TASKS_PAGE_LIMIT))
+          if (status && response.page === page && page > lastPage) goToPage(lastPage)
+        }
+      }
     })
   useDataChange('/agent-tasks', () => refresh())
-  useEffect(() => {
-    if (status && !isLoading && !error && page > Math.max(1, Math.ceil(total / TASKS_PAGE_LIMIT))) {
-      goToPage(Math.max(1, Math.ceil(total / TASKS_PAGE_LIMIT)))
-    }
-  }, [status, isLoading, error, page, total, goToPage])
   return {
     tasks: items,
     total,
