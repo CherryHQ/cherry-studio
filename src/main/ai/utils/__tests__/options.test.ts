@@ -7,6 +7,8 @@ import type { ResolvedServiceTierControl } from '@data/services/ProviderRegistry
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
+import { makeModel, makeProvider } from '../../__tests__/fixtures'
+import { addAnthropicHeaders } from '../anthropicHeaders'
 import {
   applyFastModeToProviderOptions,
   applyServiceTierToProviderOptions,
@@ -345,6 +347,51 @@ describe('OpenAI-compatible reasoning normalization', () => {
 })
 
 describe('buildCapabilityProviderOptions', () => {
+  it.each(['iam-aws', 'api-key-aws'] as const)(
+    'excludes interleaved thinking on Bedrock with %s auth while preserving reasoning',
+    (authType) => {
+      const result = buildCapabilityProviderOptions(
+        makeModel({
+          id: 'custom-aws::claude-sonnet-4-5-20250929',
+          apiModelId: 'claude-sonnet-4-5-20250929',
+          providerId: 'custom-aws',
+          capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL]
+        }),
+        makeProvider({ id: 'custom-aws', authType }),
+        { enableReasoning: true, enableWebSearch: false, enableGenerateImage: false },
+        {
+          aiSdkProviderId: 'bedrock',
+          runtimeProviderId: 'bedrock',
+          providerOptionsKey: 'bedrock',
+          endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+          reasoning: {
+            kind: 'budget',
+            selection: 'high',
+            budgetTokens: 4096,
+            emissions: [
+              { target: 'reasoningConfig.type', value: 'enabled' },
+              { target: 'reasoningConfig.budgetTokens', value: 4096 }
+            ]
+          }
+        }
+      )
+
+      expect(result.bedrock).toMatchObject({ reasoningConfig: { type: 'enabled', budgetTokens: 4096 } })
+      expect(result.bedrock.anthropicBeta ?? []).not.toContain('interleaved-thinking-2025-05-14')
+    }
+  )
+
+  it('still generates interleaved thinking for direct Anthropic Claude 4.5', () => {
+    const model = makeModel({
+      id: 'anthropic::claude-sonnet-4-5-20250929',
+      providerId: 'anthropic',
+      capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL]
+    })
+    const provider = makeProvider({ id: 'anthropic' })
+
+    expect(addAnthropicHeaders(model, provider)).toContain('interleaved-thinking-2025-05-14')
+  })
+
   it('places resolved OpenAI reasoning emissions in the native namespace', () => {
     const model = {
       id: 'openai::gpt-5',
