@@ -1,11 +1,15 @@
+import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { createOpenAI } from '@ai-sdk/openai'
-import type { LanguageModelV3FunctionTool } from '@ai-sdk/provider'
+import type { LanguageModelV3FunctionTool, LanguageModelV3Prompt } from '@ai-sdk/provider'
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
-import { asSchema, type ToolSet, type UIMessageChunk } from 'ai'
+import { asSchema, convertToModelMessages, type ToolSet, type UIMessageChunk } from 'ai'
+import { convertToLanguageModelPrompt } from 'ai/internal'
 import { status } from 'elysia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { makeModel, makeProvider } from '@main/ai/__tests__/fixtures'
+import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import type { StreamListener } from '@main/ai/streamManager/types'
 import { serializeError } from '@main/ai/utils/serializeError'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -114,6 +118,7 @@ import { AnthropicMessageConverter } from '../adapters/converters/AnthropicMessa
 import { gatewayErrorHandler } from '../errors'
 import { processMessage } from '../proxyStream'
 import { AGENT_CONTINUATION_TEXT } from '../utils/agentContinuation'
+import { MID_CONVERSATION_SYSTEM_BETA } from '../utils/inlineSystemMessages'
 
 function convertMockAnthropicMessages(params: MessageCreateParams): CherryUIMessage[] {
   const messages: CherryUIMessage[] = []
@@ -315,6 +320,130 @@ describe('processMessage (Anthropic client tools)', () => {
         expect(wireTool.name).toBe('get_weather')
         if (endpoint === ENDPOINT_TYPE.OPENAI_RESPONSES) expect(wireTool.strict).toBe(false)
         else expect(wireTool).not.toHaveProperty('strict')
+      }
+    }
+  )
+})
+
+describe('processMessage (Bedrock inline systems)', () => {
+  it.each([true, false].flatMap((stream) => [true, false].map((negotiated) => ({ stream, negotiated }))))(
+    'positions for the selected Bedrock adapter (stream=$stream, negotiated=$negotiated)',
+    async ({ stream, negotiated }) => {
+      const provider = makeProvider({
+        id: 'custom-cloud',
+        authType: 'api-key-aws',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai', baseUrl: 'https://default.invalid/v1' },
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'aws-bedrock', baseUrl: 'https://selected.invalid' }
+        }
+      })
+      const model = makeModel({
+        id: createUniqueModelId(provider.id, 'claude-sonnet-4-5'),
+        apiModelId: 'claude-sonnet-4-5',
+        providerId: provider.id,
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+      })
+      mockGetProvider.mockReturnValue(provider)
+      mockListModels.mockReturnValue([model])
+      mockIsInternalAgentRequest.mockReturnValue(true)
+      const converter = new AnthropicMessageConverter()
+      mockToUIMessages.mockImplementation((params) => converter.toUIMessages(params))
+
+      const selected = resolveEffectiveEndpoint(provider, model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
+      expect(selected.endpointType).toBe(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
+      expect(resolveAiSdkProviderId(provider, selected.endpointType)).toBe('bedrock')
+      expect(resolveEffectiveEndpoint(provider, model).endpointType).toBe(ENDPOINT_TYPE.OPENAI_RESPONSES)
+      expect(resolveAiSdkProviderId(provider, provider.defaultChatEndpoint)).toBe('openai')
+
+      const dispatched: LanguageModelV3Prompt[] = []
+      const wireBodies: { system: { text: string }[]; messages: { role: string; content: { text: string }[] }[] }[] = []
+      const transport = vi.fn<typeof globalThis.fetch>(async (_input, init) => {
+        wireBodies.push(JSON.parse(String(init?.body)))
+        return new Response(JSON.stringify({ message: 'captured Bedrock request' }), {
+          status: 400,
+          headers: { 'content-type': 'application/json' }
+        })
+      })
+      const bedrock = createAmazonBedrock({ apiKey: 'test-key', region: 'us-east-1', fetch: transport })(
+        model.apiModelId!
+      )
+      mockStreamPrompt.mockImplementation(
+        async (opts: {
+          messages: CherryUIMessage[]
+          resolvedModel: { model: typeof model }
+          listener: StreamListener
+        }) => {
+          try {
+            expect(opts.resolvedModel.model.endpointTypes).toEqual([ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
+            const prompt = await convertToLanguageModelPrompt({
+              prompt: { messages: await convertToModelMessages(opts.messages) },
+              supportedUrls: {},
+              download: undefined
+            })
+            dispatched.push(prompt)
+            if (stream) await bedrock.doStream({ prompt })
+            else await bedrock.doGenerate({ prompt })
+          } catch (error) {
+            await opts.listener.onError({ status: 'error', error: serializeError(error) } as any)
+          }
+        }
+      )
+      const params = {
+        ...createAnthropicParams(
+          model.apiModelId!,
+          [
+            { role: 'user', content: 'go' },
+            { role: 'system', content: 'MCP connecting.' }
+          ] as unknown as MessageCreateParams['messages'],
+          stream,
+          provider.id
+        ),
+        system: 'Base.'
+      }
+      const headers = new Headers({ 'x-api-key': 'internal-agent-key' })
+      if (negotiated) headers.set('anthropic-beta', `other-beta, ${MID_CONVERSATION_SYSTEM_BETA} `)
+      const mapped = await processMessage({
+        params,
+        inputFormat: 'anthropic',
+        outputFormat: 'anthropic',
+        requestHeaders: headers
+      }).then(
+        () => {
+          throw new Error('The sentinel transport must reject')
+        },
+        (error: unknown) =>
+          gatewayErrorHandler({
+            request: new Request('http://fixture/v1/messages'),
+            code: 'UNKNOWN',
+            error,
+            status
+          } as Parameters<typeof gatewayErrorHandler>[0])
+      )
+
+      expect(mapped.code).toBe(400)
+      if (negotiated) {
+        expect(mapped.response).toMatchObject({
+          type: 'error',
+          error: { type: 'invalid_request_error', message: expect.stringContaining('anthropic-beta') }
+        })
+        expect(mapped.response.error.message).toContain(MID_CONVERSATION_SYSTEM_BETA)
+        expect(mockStreamPrompt).not.toHaveBeenCalled()
+        expect(dispatched).toEqual([])
+        expect(transport).not.toHaveBeenCalled()
+      } else {
+        expect(dispatched).toEqual([
+          [
+            { role: 'system', content: 'Base.\n\nMCP connecting.' },
+            { role: 'user', content: [{ type: 'text', text: 'go' }] }
+          ]
+        ])
+        expect(wireBodies).toEqual([
+          expect.objectContaining({
+            system: [{ text: 'Base.\n\nMCP connecting.' }],
+            messages: [{ role: 'user', content: [{ text: 'go' }] }]
+          })
+        ])
       }
     }
   )

@@ -23,7 +23,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { CHERRY_FAST_MODE_HEADER, CHERRY_REASONING_EFFORT_HEADER, CHERRY_SERVICE_TIER_HEADER } from '@main/ai/constants'
-import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
+import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
 import { applyFastModeToProviderOptions } from '@main/ai/utils/options'
@@ -225,9 +225,11 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const convertedMessages = converter.toUIMessages(effectiveParams)
   // Leaving inline system messages in place is what keeps the prompt prefix cacheable
   // across turns; targets that reject them get a downgrade 400 or a fold.
+  const aiSdkProviderId = resolveAiSdkProviderId(provider, endpoint.endpointType)
   const positionedMessages = positionInlineSystemMessages(
     convertedMessages,
     endpoint.endpointType,
+    aiSdkProviderId,
     config.requestHeaders
   )
   const messages = isInternalAnthropicAgentRequest
