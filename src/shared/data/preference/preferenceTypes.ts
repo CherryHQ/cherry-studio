@@ -40,6 +40,8 @@ export type MenuPresentationMode = 'native' | 'cherry'
 /** Side of a wide Agent file pane that holds the file tree. */
 export type AgentFilePaneTreePosition = 'left' | 'right'
 
+export type AgentDetailsSectionConfig = { id: string; visible: boolean }
+
 export type OnboardingProviderSetupStatus = 'pending' | 'completed' | 'skipped'
 
 export type RetryFallbackModelId = UniqueModelId
