@@ -17,7 +17,6 @@ import { getAutomationReplKind } from './automation/automationRepl'
 import { isChannelAuthQrRequest, isChannelAuthQrToolResponse } from './channelConfigTool'
 import MessageMcpTool from './mcp/MessageMcpTool'
 import MessageTool, { canRenderMessageToolResponse } from './MessageTool'
-import { isMetaToolName } from './meta/metaToolNames'
 import { isGenerateImageToolName } from './painting/generateImageTool'
 import { AgentToolsType, isAskUserQuestionToolName } from './shared/agentToolTypes'
 import { useToolResponsePreview } from './useToolResponsePreview'
@@ -59,7 +58,6 @@ export default function MessageTools({ toolResponse }: Props) {
     name === AgentToolsType.WebFetch ||
     name === AgentToolsType.ToolSearch ||
     isGenerateImageToolName(name) ||
-    isMetaToolName(name) ||
     name === KB_SEARCH_TOOL_NAME ||
     name === WEB_SEARCH_TOOL_NAME ||
     name === PROVIDER_WEB_SEARCH_TOOL_NAME ||

@@ -707,6 +707,65 @@ describe('aiHandlers — streaming', () => {
     expect(fileManager.read).not.toHaveBeenCalled()
   })
 
+  it('keeps legacy entity identities, inline values and blob boundaries across bounded pages', async () => {
+    const bodies = new Map([
+      ['entry-1', Buffer.from('first body ' + '汉😀'.repeat(60_000))],
+      ['entry-2', Buffer.from('second body')]
+    ])
+    const skeleton = [
+      { id: 'first-entity', content: 'first excerpt' },
+      { id: 'second-entity', content: 'second excerpt' },
+      { id: 'inline-entity', content: 'inline third body' }
+    ]
+    const blobRefs = [...bodies].map(([fileEntryId, bytes], index) => ({
+      key: `/${index}/content`,
+      fileEntryId,
+      vfsFilename: `vfs_${index}.txt`,
+      head: 'head',
+      tail: 'tail',
+      totalChars: bytes.toString('utf8').length,
+      totalLines: 1
+    }))
+    aiStreamManager.getDeferredToolOutput.mockReturnValue({ found: false })
+    messageService.getById.mockReturnValue({
+      topicId: 'topic-42',
+      data: { parts: [toolPart('call-1', { $persistedToolOutput: { shape: 'entities', skeleton, blobRefs } })] }
+    })
+    fileEntryService.findById.mockImplementation((id) => ({
+      id,
+      origin: 'internal',
+      cleanupPolicy: 'delete_when_unreferenced',
+      ext: 'txt',
+      size: bodies.get(id)!.length
+    }))
+    fileManager.readChunk.mockImplementation(async (id, offset, length) => ({
+      content: bodies.get(id)!.subarray(offset, offset + length)
+    }))
+    let text = ''
+    let cursor = 0
+    for (;;) {
+      const result = await aiHandlers['ai.tool.get_result'](
+        { topicId: 'topic-42', messageId: 'assistant-1', toolCallId: 'call-1', purpose: 'text-range', cursor },
+        { senderId: null }
+      )
+      if (result.status !== 'ready' || result.purpose !== 'text-range') throw Error('Expected a range')
+      expect(Buffer.byteLength(result.text)).toBeLessThanOrEqual(256 * 1024)
+      expect(result.text).not.toContain('\ufffd')
+      text += result.text
+      if (result.nextCursor === undefined) break
+      expect(result.nextCursor).toBeGreaterThan(cursor)
+      cursor = result.nextCursor
+    }
+    for (const entity of skeleton) expect(text).toContain(entity.id)
+    expect(text).toContain('inline third body')
+    expect(text).toContain('/0/content')
+    expect(text).toContain('/1/content')
+    expect(text).toContain(bodies.get('entry-1')!.toString('utf8'))
+    expect(text).toContain('second body')
+    expect(fileManager.read).not.toHaveBeenCalled()
+    expect(fileManager.readChunk.mock.calls.every(([, , length]) => length <= 256 * 1024 + 4)).toBe(true)
+  })
+
   it('get_tool_result degrades to the stored excerpt when the blob is gone', async () => {
     aiStreamManager.getDeferredToolOutput.mockReturnValue({ found: false })
     messageService.getById.mockReturnValue({
