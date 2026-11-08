@@ -57,6 +57,7 @@ import { useAgentSessionSlashCommands } from '@renderer/hooks/agent/useAgentSess
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
+import { useCherryCloudQuotaExhaustion } from '@renderer/hooks/useCherryCloudQuotaExhaustion'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useLatest } from '@renderer/hooks/useLatest'
 import { useAvailableSkills } from '@renderer/hooks/useSkills'
@@ -86,6 +87,7 @@ import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/da
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
 
+import { CherryCloudQuotaNotice } from '../CherryCloudQuotaNotice'
 import { useComposerLayerActive } from '../ComposerContext'
 import { excludeComposerDraftTokens } from '../composerDraft'
 import type { ComposerInputFilePreviewAction } from '../filePreview'
@@ -119,8 +121,8 @@ import {
 } from './agent/agentDraftCache'
 import { buildAgentFilePartsForAttachments, toAccessiblePaths } from './agent/agentFileParts'
 import { PlanModeHint } from './agent/PlanModeHint'
-import { usePlanModeHint } from './agent/planModeHint'
 import { createAttachmentFromPath, useAgentResourceMentionSource } from './agent/useAgentResourceMentionSource'
+import { usePlanModeHint } from './agent/usePlanModeHint'
 import {
   AGENT_MANAGED_TOKEN_KINDS,
   AGENT_MANAGED_TOKEN_KINDS_BEFORE_KNOWLEDGE_RESTORE,
@@ -537,6 +539,8 @@ const AgentComposerInner = ({
   resolvedWorkspaceWarning
 }: InnerProps) => {
   const { updateAgent, updateModel } = useUpdateAgent()
+  const quotaExhaustion = useCherryCloudQuotaExhaustion(model, true)
+  const quotaBlocksSend = !!quotaExhaustion && quotaExhaustion.reason !== 'unknown'
   const { updateSession } = useUpdateSession()
   const scope = TopicType.Session
   const config = getComposerToolConfig(scope)
@@ -628,7 +632,12 @@ const AgentComposerInner = ({
     if (agent)
       void updateAgent({ id: agent.id, configuration: { permission_mode: 'plan' } }, { showSuccessToast: false })
   }, [agent, updateAgent])
-  const planHint = usePlanModeHint({ agent, text, enablePlanMode })
+  const {
+    visible: planHintVisible,
+    accept: acceptPlanHint,
+    dismiss: dismissPlanHint,
+    resetDraft: resetPlanHintDraft
+  } = usePlanModeHint({ agent, text, enablePlanMode })
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
   const releaseFollowupEditRef = useRef<() => void>(() => {})
@@ -1322,7 +1331,7 @@ const AgentComposerInner = ({
 
   const clearCurrentDraft = useCallback(() => {
     releaseFollowupEditRef.current()
-    planHint.resetDraft()
+    resetPlanHintDraft()
     setText('')
     setFiles([])
     setSelectedSkills([])
@@ -1351,7 +1360,7 @@ const AgentComposerInner = ({
     draftCacheKey,
     draftPersistenceEnabled,
     knowledgeBaseIdsRef,
-    planHint.resetDraft,
+    resetPlanHintDraft,
     resetHistoryIndex,
     setFiles,
     setText,
@@ -1637,6 +1646,7 @@ const AgentComposerInner = ({
             hasPendingReference ||
             modelPending ||
             !!missingModelMessage ||
+            quotaBlocksSend ||
             (text.trim().length === 0 && files.length === 0 && selectedSkills.length === 0)
           }
           sendBlockedReason={
@@ -1649,13 +1659,14 @@ const AgentComposerInner = ({
           }
           onPause={abortAgentSession}
           onShiftTab={() => {
-            if (!planHint.visible) return false
-            planHint.accept()
+            if (!planHintVisible) return false
+            acceptPlanHint()
             return true
           }}
           queueContent={
             <>
-              {planHint.visible && <PlanModeHint onAccept={planHint.accept} onDismiss={planHint.dismiss} />}
+              {quotaExhaustion ? <CherryCloudQuotaNotice exhaustion={quotaExhaustion} /> : null}
+              {planHintVisible && <PlanModeHint onAccept={acceptPlanHint} onDismiss={dismissPlanHint} />}
               {compaction.status === 'failed' && (
                 <Alert
                   type="warning"

@@ -6,7 +6,7 @@ const prompt: LanguageModelV3CallOptions['prompt'] = [
   { role: 'user', content: [{ type: 'text', text: 'Think before answering.' }] }
 ]
 
-// Guards patches/@ai-sdk__openai@3.0.109.patch. DeepSeek's Responses API emits
+// Guards patches/@ai-sdk__openai@3.0.137.patch. DeepSeek's Responses API emits
 // response.reasoning_text.delta rather than OpenAI's reasoning summary delta event.
 describe('patched @ai-sdk/openai Responses model capabilities', () => {
   it('does not send the Codex-only ultra effort to standard OpenAI Astra', async () => {

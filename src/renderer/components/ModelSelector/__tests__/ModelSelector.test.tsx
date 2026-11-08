@@ -24,7 +24,8 @@ const mocks = vi.hoisted(() => ({
   shellEvents: [] as string[],
   scrollToIndex: vi.fn(),
   virtualize: false,
-  useModelSelectorData: vi.fn()
+  useModelSelectorData: vi.fn(),
+  displayTags: [] as string[]
 }))
 
 vi.mock('@logger', () => ({
@@ -65,8 +66,8 @@ vi.mock('@renderer/utils/model', async (importOriginal) => ({
 
 vi.mock('@renderer/components/tags/Model', async (importOriginal) => ({
   ...(await importOriginal<typeof ModelTags>()),
-  getModelDisplayTags: () => [],
-  ModelTag: () => null
+  getModelDisplayTags: () => mocks.displayTags,
+  ModelTag: ({ tag }: { tag: string }) => <span data-testid={`model-tag-${tag}`} />
 }))
 
 vi.mock('../ModelSelectorDetailCard', () => ({
@@ -224,7 +225,7 @@ function makeData(overrides: Partial<UseModelSelectorDataResult> = {}): UseModel
     {
       key: 'provider-openai',
       type: 'group',
-      title: 'OpenAI',
+
       groupKind: 'provider',
       provider,
       canNavigateToSettings: true
@@ -233,12 +234,9 @@ function makeData(overrides: Partial<UseModelSelectorDataResult> = {}): UseModel
     secondItem
   ]
 
-  return {
+  const data = {
     availableTags: [],
-    getModelDescription: () => undefined,
-    isModelUnavailable: () => false,
-    cloudAvailabilityReady: true,
-    cloudAvailabilityError: undefined,
+    getModelPresentation: () => ({ tags: [] }),
     isLoading: false,
     isPinActionDisabled: false,
     listItems,
@@ -258,9 +256,10 @@ function makeData(overrides: Partial<UseModelSelectorDataResult> = {}): UseModel
     tagSelection: {} as UseModelSelectorDataResult['tagSelection'],
     togglePin: vi.fn(async () => undefined),
     toggleTag: vi.fn(),
-    visibleSelectedModelIdSet: new Set(),
+    visibleSelectedModelIdSet: new Set<UniqueModelId>(),
     ...overrides
   }
+  return { ...data, navigableItems: overrides.navigableItems ?? data.listItems.filter((item) => item.type !== 'group') }
 }
 
 describe('ModelSelector', () => {
@@ -291,7 +290,7 @@ describe('ModelSelector', () => {
       {
         key: 'provider-openai',
         type: 'group',
-        title: 'OpenAI',
+
         groupKind: 'provider',
         provider,
         canNavigateToSettings: true
@@ -312,6 +311,41 @@ describe('ModelSelector', () => {
 
     expect(screen.getByText('| gpt-4-variant-a')).toBeInTheDocument()
     expect(screen.queryByText(/OpenAI · gpt-4-variant-a/)).not.toBeInTheDocument()
+  })
+
+  it('activates action rows without changing selection or showing pin/checkbox controls', async () => {
+    const onAction = vi.fn()
+    const onSelect = vi.fn()
+    const action = {
+      key: 'upgrade',
+      type: 'action' as const,
+      providerId: 'openai',
+      label: 'Upgrade',
+      identifier: 'upgrade',
+      searchId: 'upgrade',
+      tags: [],
+      onAction
+    }
+    mocks.useModelSelectorData.mockReturnValue(makeData({ listItems: [action], modelItems: [] }))
+    const user = userEvent.setup()
+    render(
+      <ModelSelector
+        multiple
+        open
+        multiSelectMode
+        value={[]}
+        onSelect={onSelect}
+        trigger={<button type="button">Open</button>}
+      />
+    )
+    await user.click(screen.getByRole('option', { name: 'Upgrade' }))
+    expect(onAction).toHaveBeenCalledTimes(1)
+    expect(onSelect).not.toHaveBeenCalled()
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'models.action.pin' })).not.toBeInTheDocument()
+    await user.keyboard('{Enter}')
+    expect(onAction).toHaveBeenCalledTimes(2)
+    expect(onSelect).not.toHaveBeenCalled()
   })
 
   it('keeps the provider in a pinned row without a provider group', () => {
@@ -362,8 +396,11 @@ describe('ModelSelector', () => {
     const user = userEvent.setup()
     mocks.useModelSelectorData.mockReturnValue(
       makeData({
-        getModelDescription: (model) => (model.name === 'gpt-4' ? 'Limited-time free' : 'Free quota exhausted'),
-        isModelUnavailable: (model) => model.name === 'gpt-3.5'
+        getModelPresentation: (model) => ({
+          tags: [],
+          description: model.name === 'gpt-4' ? 'Available description' : 'Disabled description',
+          disabled: model.name === 'gpt-3.5'
+        })
       })
     )
 
@@ -375,13 +412,13 @@ describe('ModelSelector', () => {
 
     await waitFor(() => expect(searchInput).toHaveAttribute('aria-activedescendant', firstOption.id))
     expect(searchInput).toHaveAttribute('aria-controls', listbox.id)
-    expect(firstOption).toHaveAccessibleDescription('Limited-time free')
+    expect(firstOption).toHaveAccessibleDescription('Available description')
 
     await user.keyboard('{ArrowDown}')
 
     await waitFor(() => expect(searchInput).toHaveAttribute('aria-activedescendant', secondOption.id))
     expect(secondOption).toHaveAttribute('aria-disabled', 'true')
-    expect(secondOption).toHaveAccessibleDescription('Free quota exhausted')
+    expect(secondOption).toHaveAccessibleDescription('Disabled description')
   })
 
   it('keeps the active descendant mounted after page navigation', async () => {

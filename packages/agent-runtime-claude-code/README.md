@@ -115,6 +115,12 @@ the adapter validates this field, omitted from the pinned SDK status declaration
 `ClaudeControlState` owns native lifecycle, task receipts, autonomous work and compaction semantics.
 Control payloads reuse SDK message types; only interpreted state, task/tool correlation and observation
 timestamps are adapter-owned fields. Main maps native payloads to product labels and display fields.
+The adapter exposes `isApiErrorMessage: true` on typed native evidence only when
+proved by a live SDK rejection or the matching archived assistant UUID's native
+boolean marker. The SDK's normalized history omits that marker, so recovery reads
+it from the already imported raw native records. Baseline and overflow recovery
+retain the fact. Main owns rejection wording; ordinary text quoting an API error
+is not rejection evidence.
 `ClaudeInvocations` aggregates SDK usage by native response identity before fanout, retaining SDK
 usage fields and types. A task notification finalizes only the completed response on its
 `tool_use_id` lane; a task update without that correlation cannot finalize an invocation.
