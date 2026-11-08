@@ -79,15 +79,21 @@ function toCitationGrepMatches(matches: KbGrepMatch[]): KbGrepMatch[] {
 
 /** Keep only the schema-valid fields and bounded snippets needed to render citations. */
 function toCitationPayloadSkeleton(output: unknown): unknown | undefined {
-  const web = webSearchOutputSchema.safeParse(output)
-  if (web.success) {
-    return web.data.map((item) => ({ ...item, content: toCitationSnippet(item.content) }))
+  if (Array.isArray(output)) {
+    const web = webSearchOutputSchema.safeParse(output)
+    if (web.success) {
+      return web.data.map((item) => ({ ...item, content: toCitationSnippet(item.content) }))
+    }
+
+    const knowledgeSearch = kbSearchOutputSchema.safeParse(output)
+    if (knowledgeSearch.success) {
+      return knowledgeSearch.data.map((item) => ({ ...item, content: toCitationSnippet(item.content) }))
+    }
+
+    return undefined
   }
 
-  const knowledgeSearch = kbSearchOutputSchema.safeParse(output)
-  if (knowledgeSearch.success) {
-    return knowledgeSearch.data.map((item) => ({ ...item, content: toCitationSnippet(item.content) }))
-  }
+  if (!isRecord(output) || typeof output.conceptId !== 'string') return undefined
 
   const knowledgeRead = kbReadOutputSchema.safeParse(output)
   if (knowledgeRead.success) {
@@ -148,6 +154,11 @@ function serializeOversizedToolOutput(output: unknown): string | undefined {
   } catch {
     return undefined
   }
+}
+
+/** Whether a serialized payload exceeds the renderer transport budget. */
+function exceedsToolOutputTransportLimit(output: unknown): boolean {
+  return serializeOversizedToolOutput(output) !== undefined
 }
 
 export function shouldDeferToolOutput(output: unknown): boolean {
