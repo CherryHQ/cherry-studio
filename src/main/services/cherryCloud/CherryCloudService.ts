@@ -16,10 +16,12 @@ import {
   type ModelCapability,
   parseUniqueModelId
 } from '@shared/data/types/model'
-import type {
-  CherryCloudAccountPlans,
-  CherryCloudModelSyncResult,
-  CherryCloudStatus
+import {
+  type CherryCloudAccountPlans,
+  type CherryCloudModelSyncResult,
+  type CherryCloudPublicPlanCatalog,
+  cherryCloudPublicPlanCatalogSchema,
+  type CherryCloudStatus
 } from '@shared/ipc/schemas/cherryCloud'
 
 import { cherryAccountCredentialStore } from './CherryAccountCredentialStore'
@@ -611,6 +613,16 @@ export class CherryCloudService extends BaseService {
       return cached.result
     }
     return this.syncEntitledModels()
+  }
+
+  /** The plan catalog needs no session, so the model picker can offer paid models before sign-in. */
+  public async getPublicPlans(): Promise<CherryCloudPublicPlanCatalog> {
+    const response = await net.fetch(`${resolveCherryCloudApiOrigin()}/api/v1/public/plans`, {
+      redirect: 'error',
+      signal: AbortSignal.timeout(CLOUD_CONTROL_REQUEST_TIMEOUT_MS)
+    })
+    if (!response.ok) throw new Error(`Cherry Cloud plan catalog request failed (${response.status})`)
+    return cherryCloudPublicPlanCatalogSchema.parse(await response.json())
   }
 
   public async getAccountPlans(): Promise<CherryCloudAccountPlans> {
