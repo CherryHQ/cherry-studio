@@ -486,7 +486,7 @@ describe('desktop Pi root connection', () => {
     expect(child).toBe(firstChild)
   })
 
-  it.each(['en-US', 'ja-JP'])(
+  it.each(['en-US', 'ja-JP'] as const)(
     'emits localized truncation diagnostics through the real native gateway path (%s)',
     async (language) => {
       const server = createServer(async (req, res) => {
@@ -532,7 +532,7 @@ describe('desktop Pi root connection', () => {
       snapshot.model = ModelSchema.parse({ ...snapshot.model, maxOutputTokens: 8192 })
       const actual = await vi.importActual<typeof GatewayModelBinding>('./gatewayModelBinding')
       mocks.binding.mockImplementation(() =>
-        actual.createPiGatewayModelBinding(input, snapshot.provider!, snapshot.model!)
+        actual.createPiGatewayModelBinding(input, snapshot.provider, snapshot.model)
       )
       MockMainPreferenceServiceUtils.setPreferenceValue('app.language', language)
       try {
