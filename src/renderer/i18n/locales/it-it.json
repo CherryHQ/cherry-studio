@@ -2285,7 +2285,7 @@
   "library.import_dialog.url.button": "Recupera e importa",
   "library.import_dialog.url.hint": "Importa da un Gist GitHub, un repository GitHub o un qualsiasi URL pubblico",
   "library.import_dialog.url.supports": "Sono supportati URL diretti ai file raw",
-  "library.import_skill_dialog.local.drop_hint": "Trascina qui un file ZIP o una cartella, oppure fai clic per scegliere uno ZIP",
+  "library.import_skill_dialog.local.drop_hint": "Trascina qui un file ZIP di skill o una cartella contenente SKILL.md, oppure fai clic per sfogliare",
   "library.import_skill_dialog.local.formats": "Supporta file .zip e cartelle contenenti SKILL.md",
   "library.import_skill_dialog.subtitle": "Installa una competenza da un file ZIP o da una cartella",
   "library.import_skill_dialog.title": "Importa competenza",

@@ -2285,7 +2285,7 @@
   "library.import_dialog.url.button": "ดึงข้อมูลและนำเข้า",
   "library.import_dialog.url.hint": "นำเข้าจาก GitHub Gist, GitHub repo หรือ URL สาธารณะใด ๆ",
   "library.import_dialog.url.supports": "รองรับ URL ไฟล์โดยตรง",
-  "library.import_skill_dialog.local.drop_hint": "วาง ZIP หรือไดเรกทอรีที่นี่ หรือคลิกเพื่อเลือก ZIP",
+  "library.import_skill_dialog.local.drop_hint": "วางไฟล์ ZIP ของสกิลหรือโฟลเดอร์ที่มี SKILL.md ที่นี่ หรือคลิกเพื่อเรียกดู",
   "library.import_skill_dialog.local.formats": "รองรับไฟล์ .zip และไดเรกทอรีที่มี SKILL.md",
   "library.import_skill_dialog.subtitle": "ติดตั้งสกิลจากไฟล์ ZIP หรือไดเรกทอรี",
   "library.import_skill_dialog.title": "นำเข้าสกิล",

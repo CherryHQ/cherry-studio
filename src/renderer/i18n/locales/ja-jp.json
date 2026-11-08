@@ -2285,7 +2285,7 @@
   "library.import_dialog.url.button": "フェッチしてインポート",
   "library.import_dialog.url.hint": "GitHub Gist、GitHubリポジトリ、または任意の公開URLからインポート",
   "library.import_dialog.url.supports": "生ファイルURLもサポートされています",
-  "library.import_skill_dialog.local.drop_hint": "ここにZIPファイルまたはフォルダーをドロップするか、クリックしてZIPを選択してください",
+  "library.import_skill_dialog.local.drop_hint": "スキルZIPファイルまたはSKILL.mdを含むフォルダーをここにドロップするか、クリックして選択してください",
   "library.import_skill_dialog.local.formats": ".zip ファイルおよび SKILL.md を含むフォルダーに対応しています",
   "library.import_skill_dialog.subtitle": "ZIPファイルまたはフォルダーからスキルをインストールする",
   "library.import_skill_dialog.title": "スキルをインポート",

@@ -2285,7 +2285,7 @@
   "library.import_dialog.url.button": "Lấy và nhập",
   "library.import_dialog.url.hint": "Nhập từ GitHub Gist, kho lưu trữ GitHub hoặc bất kỳ URL công khai nào",
   "library.import_dialog.url.supports": "Các URL tệp gốc được hỗ trợ",
-  "library.import_skill_dialog.local.drop_hint": "Thả một tệp ZIP hoặc thư mục vào đây, hoặc nhấp để chọn một tệp ZIP",
+  "library.import_skill_dialog.local.drop_hint": "Thả tệp ZIP kỹ năng hoặc thư mục chứa SKILL.md vào đây, hoặc nhấp để duyệt",
   "library.import_skill_dialog.local.formats": "Hỗ trợ các tệp .zip và thư mục chứa SKILL.md",
   "library.import_skill_dialog.subtitle": "Cài đặt một kỹ năng từ tệp ZIP hoặc thư mục",
   "library.import_skill_dialog.title": "Nhập kỹ năng",
