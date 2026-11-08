@@ -4448,6 +4448,7 @@
   "settings.dependencies.localModels.notice.downloadFailed": "Tải xuống thất bại. Kiểm tra kết nối của bạn và thử lại.",
   "settings.dependencies.localModels.notice.inUse": "Vẫn được sử dụng bởi một cơ sở tri thức; các trọng số đã được giữ lại.",
   "settings.dependencies.localModels.notice.incompleteCache": "Các tệp mô hình không đầy đủ. Thử tải xuống lại để sửa chữa chúng.",
+  "settings.dependencies.localModels.notice.missingRuntime": "Các tệp mô hình đã có nhưng thiếu môi trường chạy dùng chung cần thiết để sử dụng chúng. Hãy tải xuống để cài đặt.",
   "settings.dependencies.localModels.notice.removeFailed": "Xóa không thành công. Kiểm tra nhật ký để biết chi tiết.",
   "settings.dependencies.localModels.ocr.name": "OCR cục bộ",
   "settings.dependencies.localModels.ocr.subtitle": "PaddleOCR PP-OCRv6 · ~140 MB",

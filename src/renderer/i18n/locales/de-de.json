@@ -4448,6 +4448,7 @@
   "settings.dependencies.localModels.notice.downloadFailed": "Download fehlgeschlagen. Überprüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
   "settings.dependencies.localModels.notice.inUse": "Wird weiterhin von einer Wissensdatenbank verwendet; die Gewichte wurden beibehalten.",
   "settings.dependencies.localModels.notice.incompleteCache": "Modelldateien sind unvollständig. Starten Sie den Download erneut, um sie zu reparieren.",
+  "settings.dependencies.localModels.notice.missingRuntime": "Die Modelldateien sind vorhanden, aber die benötigte gemeinsame Laufzeitumgebung fehlt. Lade sie herunter, um sie zu installieren.",
   "settings.dependencies.localModels.notice.removeFailed": "Entfernen fehlgeschlagen. Überprüfen Sie die Protokolle für Details.",
   "settings.dependencies.localModels.ocr.name": "Lokale OCR",
   "settings.dependencies.localModels.ocr.subtitle": "PaddleOCR PP-OCRv6 · ~140 MB",

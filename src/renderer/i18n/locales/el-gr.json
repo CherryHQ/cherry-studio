@@ -4448,6 +4448,7 @@
   "settings.dependencies.localModels.notice.downloadFailed": "Η λήψη απέτυχε. Ελέγξτε τη σύνδεσή σας και προσπαθήστε ξανά.",
   "settings.dependencies.localModels.notice.inUse": "Ακόμα χρησιμοποιείται από μια βάση γνώσης· τα βάρη διατηρήθηκαν.",
   "settings.dependencies.localModels.notice.incompleteCache": "Τα αρχεία μοντέλου είναι ελλιπή. Επαναλάβετε τη λήψη για να τα επιδιορθώσετε.",
+  "settings.dependencies.localModels.notice.missingRuntime": "Τα αρχεία του μοντέλου υπάρχουν, αλλά λείπει το κοινό περιβάλλον εκτέλεσης που απαιτείται για τη χρήση τους. Κατεβάστε το για να εγκατασταθεί.",
   "settings.dependencies.localModels.notice.removeFailed": "Η αφαίρεση απέτυχε. Ελέγξτε τα αρχεία καταγραφής για λεπτομέρειες.",
   "settings.dependencies.localModels.ocr.name": "Τοπικό OCR",
   "settings.dependencies.localModels.ocr.subtitle": "PaddleOCR PP-OCRv6 · περίπου 140 MB",
