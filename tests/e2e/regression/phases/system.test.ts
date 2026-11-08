@@ -459,7 +459,13 @@ test(...caseDefinition('MP-128'), async ({ app, mainWindow: page }, testInfo) =>
     assistantId = AssistantSchema.parse(assistant.data).id
     await page.reload()
     await selectSidebarApp(page, 'Chat')
-    const assistantRow = page.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
+    const chat = page.locator('[data-ui~="chat.view"]:visible')
+    const topics = chat.locator('[data-ui~="chat.topic-list"]:visible').first()
+    const showSidebar = chat.getByRole('button', { name: 'Show Sidebar', exact: true })
+    await expect(topics.or(showSidebar).first()).toBeVisible({ timeout: 20_000 })
+    if (!(await topics.isVisible())) await showSidebar.click()
+    await expect(topics).toBeVisible({ timeout: 20_000 })
+    const assistantRow = chat.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
     await assistantRow.hover()
     await assistantRow.getByRole('button', { name: 'New Chat', exact: true }).click()
     await expect(
