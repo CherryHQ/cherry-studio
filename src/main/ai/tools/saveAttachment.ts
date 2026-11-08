@@ -23,11 +23,16 @@ const logger = loggerService.withContext('SaveAttachment')
 export const SAVE_ATTACHMENT_TOOL_NAME = 'save_attachment'
 export const SAVE_ATTACHMENT_DESCRIPTION =
   'Copy the original bytes of a file explicitly attached to this conversation into a new file in the current session workspace. ' +
-  'Use the attachment handle shown in the conversation, pass a workspace-relative destination, and never overwrite an existing file. ' +
+  'Use the attachment handle or its filename as shown in the conversation, pass a workspace-relative destination, and never overwrite an existing file. ' +
   'This action requires user approval.'
 
 export const saveAttachmentInputSchema = z.object({
-  filename: z.string().trim().min(1).max(512).describe('Attachment handle exactly as shown in the conversation.'),
+  filename: z
+    .string()
+    .trim()
+    .min(1)
+    .max(512)
+    .describe('Attachment handle or filename exactly as shown in the conversation.'),
   output_path: z
     .string()
     .trim()
@@ -49,6 +54,24 @@ export const saveAttachmentInputSchema = z.object({
 
 export type SaveAttachmentInput = z.infer<typeof saveAttachmentInputSchema>
 
+/**
+ * Handles are unique, filenames are not: a unique display name is a valid alias, while a duplicate
+ * must ask for the handle instead of guessing which attachment the model meant.
+ */
+function resolveAttachment(
+  attachments: ReadonlyArray<FileAttachmentRef>,
+  reference: string
+): FileAttachmentRef | undefined {
+  const byHandle = attachments.find(({ handle }) => handle === reference)
+  if (byHandle) return byHandle
+  const byFilename = attachments.filter(({ displayName }) => displayName === reference)
+  if (byFilename.length > 1) {
+    const candidates = byFilename.map(({ handle, displayName }) => `${handle} (${displayName})`).join(', ')
+    throw new Error(`Multiple attached files are named "${reference}". Use an attachment handle: ${candidates}`)
+  }
+  return byFilename[0]
+}
+
 export async function saveAttachmentToWorkspace(
   workspacePath: string,
   input: SaveAttachmentInput,
@@ -57,9 +80,9 @@ export async function saveAttachmentToWorkspace(
 ): Promise<{ path: string }> {
   signal.throwIfAborted()
   const validatedInput = saveAttachmentInputSchema.parse(input)
-  const attachment = attachments.find(({ handle }) => handle === validatedInput.filename)
+  const attachment = resolveAttachment(attachments, validatedInput.filename)
   if (!attachment) {
-    const available = attachments.map(({ handle }) => handle).join(', ') || '(none)'
+    const available = attachments.map(({ handle, displayName }) => `${handle} (${displayName})`).join(', ') || '(none)'
     throw new Error(`No attached file named "${validatedInput.filename}". Available: ${available}`)
   }
 

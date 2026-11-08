@@ -1,6 +1,6 @@
 import type { ReasoningWireProfile } from '../schemas/reasoningWire'
 import { defineProvider } from './types'
-import { modeWire } from './wires'
+import { modeWire, openaiResponsesSummaryWire } from './wires'
 
 const thinkingWire: ReasoningWireProfile = modeWire('thinking.type', {
   off: 'disabled',
@@ -15,6 +15,11 @@ export default defineProvider({
   defaultChatEndpoint: 'openai-chat-completions',
   modelListSource: 'registry',
   endpointConfigs: {
+    'openai-responses': {
+      adapterFamily: 'openai',
+      baseUrl: 'https://api.longcat.chat/openai',
+      reasoningFormat: { type: 'openai-responses', wire: openaiResponsesSummaryWire }
+    },
     'openai-chat-completions': {
       adapterFamily: 'openai-compatible',
       baseUrl: 'https://api.longcat.chat/openai',
@@ -35,6 +40,17 @@ export default defineProvider({
     }
   },
   overrides: [
+    {
+      modelId: 'longcat-2-5',
+      apiModelId: 'LongCat-2.5',
+      endpointTypes: ['openai-chat-completions', 'anthropic-messages', 'openai-responses'],
+      parameterSupport: { temperature: { supported: false } },
+      reasoningContracts: {
+        'openai-responses': {
+          support: { controls: [{ kind: 'effort', values: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'] }] }
+        }
+      }
+    },
     {
       modelId: 'longcat-2-0',
       apiModelId: 'LongCat-2.0',

@@ -89,7 +89,7 @@ function defaultWarmup(cfg: PoolConfig): 'eager' | 'lazy' {
  * which fires synchronously BEFORE content is loaded — guaranteeing that all
  * event listeners are attached before `ready-to-show` can fire.
  *
- * @see docs/references/window-manager/README.md for architecture overview, usage guide, and API reference
+ * @see docs/dev/references/window-manager/README.md for architecture overview, usage guide, and API reference
  */
 @Injectable('WindowManager')
 @ServicePhase(Phase.WhenReady)
@@ -1763,13 +1763,17 @@ export class WindowManager extends BaseService {
    *   - window creation (in `createWindow`)
    *   - window destruction (in the 'closed' listener)
    *   - per-type override changes (in `wm.behavior.setMacShowInDockByType`)
+   *   - a Dock hold taken or released (`wm.behavior.hideMacDockWhileShown`)
    *
    * NOT triggered by show/hide/minimize/restore — see `setupWindowListeners` comment.
+   * The one exception is the hide that releases a Dock hold.
    */
   private updateDockVisibility(): void {
     if (!isMac) return
 
-    const shouldShow = Array.from(this.windows.values()).some((managed) => this.windowContributesToDock(managed))
+    const shouldShow =
+      !this.behavior.isHidingMacDock() &&
+      Array.from(this.windows.values()).some((managed) => this.windowContributesToDock(managed))
 
     if (shouldShow && !this.dockShouldBeVisible) {
       this.dockShouldBeVisible = true

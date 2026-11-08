@@ -4,7 +4,7 @@ This directory contains the v2 data migration implementation.
 
 ## Documentation
 
-- **Migration Guide**: [docs/references/data/v2-migration-guide.md](../../../../../docs/references/data/v2-migration-guide.md)
+- **Migration Guide**: [docs/dev/references/data/v2-migration-guide.md](../../../../../docs/dev/references/data/v2-migration-guide.md)
 
 ## Directory Structure
 
@@ -137,4 +137,4 @@ for the whole migration with no per-transaction replay. **Migrators must NOT tog
 themselves.** Verify integrity with `this.assertOwnedForeignKeys(ctx.db, [...])` at the end of
 `execute()` (own, fully-resolved tables only — exclude cross-domain-deferred and shared polymorphic
 tables); the engine runs a final whole-database `foreign_key_check` as backstop. See the
-[migration guide](../../../../../docs/references/data/v2-migration-guide.md) for details.
+[migration guide](../../../../../docs/dev/references/data/v2-migration-guide.md) for details.
