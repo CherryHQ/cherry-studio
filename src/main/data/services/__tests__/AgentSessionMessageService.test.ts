@@ -1229,6 +1229,118 @@ describe('AgentSessionMessageService', () => {
     now.mockRestore()
   })
 
+  it('retires a parked approval card so it stops offering a decision the host no longer holds', () => {
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'success',
+        data: {
+          parts: [
+            {
+              type: 'tool-AskUserQuestion',
+              toolCallId: 'tool-call-1',
+              state: 'approval-requested',
+              input: { questions: [] },
+              approval: { id: 'approval-1' }
+            }
+          ]
+        }
+      }
+    })
+
+    expect(agentSessionMessageService.retireAbandonedApproval(SESSION_ID, 'approval-1', 'connection closed')).toBe(true)
+
+    const saved = agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
+    expect(saved.data.parts?.[0]).toMatchObject({ state: 'output-error', errorText: 'connection closed' })
+    // A second sweep (another abort, or shutdown after the same teardown) must not rewrite the row.
+    expect(agentSessionMessageService.retireAbandonedApproval(SESSION_ID, 'approval-1', 'connection closed')).toBe(
+      false
+    )
+  })
+
+  it('records a late answer on a retired card exactly once', () => {
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'success',
+        data: {
+          parts: [
+            {
+              type: 'tool-AskUserQuestion',
+              toolCallId: 'tool-call-1',
+              state: 'approval-requested',
+              input: { questions: [] },
+              approval: { id: 'approval-1' }
+            }
+          ]
+        }
+      }
+    })
+    agentSessionMessageService.retireAbandonedApproval(SESSION_ID, 'approval-1', 'connection closed')
+    const decision = {
+      approvalId: 'approval-1',
+      approved: true,
+      updatedInput: { questions: [], answers: { Choice: 'SQLite' } }
+    }
+
+    expect(agentSessionMessageService.applyToolApprovalDecision(SESSION_ID, ASSISTANT_MESSAGE_ID, decision)).toBe(true)
+    expect(agentSessionMessageService.applyToolApprovalDecision(SESSION_ID, ASSISTANT_MESSAGE_ID, decision)).toBe(false)
+    expect(
+      agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).data.parts?.[0]
+    ).toMatchObject({
+      state: 'approval-responded',
+      input: decision.updatedInput,
+      approval: { id: 'approval-1', approved: true }
+    })
+  })
+
+  it('leaves an answered approval card and other sessions untouched when retiring an abandoned one', async () => {
+    await seedSession({ id: 'session-2', name: 'Other', orderKey: 'a1' })
+    const answered = {
+      type: 'tool-AskUserQuestion' as const,
+      toolCallId: 'tool-call-answered',
+      state: 'approval-requested' as const,
+      input: { questions: [] },
+      approval: { id: 'approval-answered' }
+    }
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'success', data: { parts: [answered] } }
+    })
+    agentSessionMessageService.saveMessage({
+      sessionId: 'session-2',
+      message: {
+        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d099',
+        role: 'assistant',
+        status: 'success',
+        data: { parts: [{ ...answered, approval: { id: 'approval-other' } }] }
+      }
+    })
+    agentSessionMessageService.applyToolApprovalDecision(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+      approvalId: 'approval-answered',
+      approved: true,
+      updatedInput: { questions: [], answers: { Choice: 'SQLite' } }
+    })
+
+    expect(
+      agentSessionMessageService.retireAbandonedApproval(SESSION_ID, 'approval-answered', 'connection closed')
+    ).toBe(false)
+    expect(agentSessionMessageService.retireAbandonedApproval('session-2', 'approval-other', 'connection closed')).toBe(
+      true
+    )
+
+    expect(
+      agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).data.parts?.[0]
+    ).toMatchObject({ state: 'approval-responded', approval: { id: 'approval-answered', approved: true } })
+    expect(
+      agentSessionMessageService.getSessionMessage('session-2', '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d099').data.parts?.[0]
+    ).toMatchObject({ state: 'output-error' })
+  })
+
   it('keeps attachment refs in sync with agent-session message history', async () => {
     await dbh.db.insert(fileEntryTable).values({
       id: FILE_ENTRY_ID,
