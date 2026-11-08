@@ -2,6 +2,7 @@ import { mkdtemp, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import type { SDKAssistantMessage } from '@anthropic-ai/claude-agent-sdk'
 import { setupTestDatabase } from '@test-helpers/db'
 import { and, eq, ne } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -1324,6 +1325,25 @@ describe('AgentSessionMessageService', () => {
       message: {
         id: 'api-message',
         role: 'assistant',
+        type: 'message',
+        model: 'test',
+        container: null,
+        context_management: null,
+        stop_details: null,
+        stop_reason: 'tool_use',
+        stop_sequence: null,
+        usage: {
+          input_tokens: 1,
+          output_tokens: 1,
+          cache_creation: null,
+          cache_creation_input_tokens: null,
+          cache_read_input_tokens: null,
+          inference_geo: null,
+          iterations: null,
+          server_tool_use: null,
+          service_tier: null,
+          speed: null
+        },
         content: [
           {
             type: 'tool_use',
@@ -1333,7 +1353,7 @@ describe('AgentSessionMessageService', () => {
           }
         ]
       }
-    } as Parameters<ClaudeProjection['message']>[0]
+    } satisfies SDKAssistantMessage
     const result = {
       type: 'user',
       uuid: USER_MESSAGE_ID,
@@ -1359,7 +1379,7 @@ describe('AgentSessionMessageService', () => {
     } as Parameters<ClaudeProjection['message']>[0]
     for (const message of [call, result]) projection.publish(projection.message(message))
     const metadata = new ClaudeMessageMetadata()
-    const message = metadata.decorate(projection.feed.snapshot.messages[0])
+    const message = metadata.decorate(projection.feed.snapshot.messages[0], projection.feed.snapshot.messages[0])
     agentSessionMessageService.saveMessage({
       sessionId: SESSION_ID,
       message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', data: { parts: message.parts } }
