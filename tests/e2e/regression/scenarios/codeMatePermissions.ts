@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { realpathSync } from 'node:fs'
+import { appendFileSync, realpathSync } from 'node:fs'
 import { readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
@@ -49,6 +49,7 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
   let terminalWindow: string | undefined
+  let terminalTty: string | undefined
   let windowsTerminal: WindowsTerminal | undefined
   let terminalResource: string | undefined
   const windowContents = (id: string) =>
@@ -139,22 +140,69 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
       throw error
     }
   }
-  const macTerminalInput = (text: string, keyCode?: number) =>
-    appleScript(
-      `on run argv
+  const macTerminalInput = (text: string, keyCode?: number) => {
+    if (!terminalWindow || !terminalTty) throw new Error('No owned Terminal window and tty are recorded')
+    const diagnostic = {
+      time: new Date().toISOString(),
+      windowId: terminalWindow,
+      tty: terminalTty,
+      keyCode: keyCode ?? null
+    }
+    let result: string
+    try {
+      result = appleScript(
+        `on run argv
+    set expectedId to item 1 of argv as integer
+    set expectedTty to item 2 of argv
     tell application "Terminal"
-      set index of window id (item 1 of argv as integer) to 1
+      if (tty of selected tab of window id expectedId) is not expectedTty then error "Owned Terminal tab changed" number -2700
+      set index of window id expectedId to 1
       activate
     end tell
-    tell application "System Events"
-      tell process "Terminal"
-        keystroke (item 2 of argv)
-        if (item 3 of argv) is not "" then key code (item 3 of argv as integer)
+    set deadline to (current date) + 5
+    repeat
+      tell application "System Events" to tell process "Terminal"
+        set hasFocus to frontmost
+        set terminalPid to unix id
       end tell
-    end tell
+      tell application "Terminal"
+        set observedId to id of front window
+        set observedTty to tty of selected tab of front window
+      end tell
+      set observed to (hasFocus as text) & tab & (terminalPid as text) & tab & (observedId as text) & tab & observedTty
+      if hasFocus and observedId is expectedId and observedTty is expectedTty then
+        tell application "System Events" to tell process "Terminal"
+          if (item 3 of argv) is not "" then keystroke (item 3 of argv)
+          if (item 4 of argv) is not "" then key code (item 4 of argv as integer)
+        end tell
+        return "sent" & tab & observed
+      end if
+      if (current date) > deadline then return "timeout" & tab & observed
+      delay 0.1
+    end repeat
   end run`,
-      [terminalWindow!, text, keyCode === undefined ? '' : String(keyCode)]
+        [terminalWindow, terminalTty, text, keyCode === undefined ? '' : String(keyCode)]
+      )
+    } catch (error) {
+      const failure = error as { status?: number; stderr?: string }
+      appendFileSync(
+        join(app.paths.logs, 'mp97-terminal-input.jsonl'),
+        JSON.stringify({
+          ...diagnostic,
+          status: 'script-error',
+          exitCode: failure.status ?? null,
+          errorNumber: String(failure.stderr ?? '').match(/\((-?\d+)\)\s*$/m)?.[1] ?? null
+        }) + '\n'
+      )
+      throw new Error('Owned Terminal input failed; see its safe input diagnostic')
+    }
+    const [status, frontmost, pid, windowId, tty] = result.split('\t')
+    appendFileSync(
+      join(app.paths.logs, 'mp97-terminal-input.jsonl'),
+      JSON.stringify({ ...diagnostic, status, frontmost, pid, observedWindowId: windowId, observedTty: tty }) + '\n'
     )
+    if (status !== 'sent') throw new Error('Owned Terminal input timed out waiting for its window and tty to own focus')
+  }
   const terminalInput = (text: string, keyCode = 36) =>
     app.record.platform === 'windows'
       ? windowsTerminalText(
@@ -245,6 +293,7 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
           .filter((w) => w.buffer || w.cwd)
           .sort((a, b) => Number(b.id === front) - Number(a.id === front))[0]
         terminalWindow = owned?.id
+        terminalTty = owned?.tty
         if (!terminalWindow) await new Promise((resolve) => setTimeout(resolve, 500))
       }
       if (!terminalWindow) {
@@ -294,6 +343,7 @@ export async function verifyCodeMatePermissions(app: RegressionApp, page: Page, 
     cleanupExternalResources(app.paths, [terminalResource])
     terminalResource = undefined
     terminalWindow = undefined
+    terminalTty = undefined
     windowsTerminal = undefined
   }
   try {
