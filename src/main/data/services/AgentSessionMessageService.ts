@@ -2528,12 +2528,18 @@ export class AgentSessionMessageService {
       if (!existingRow) return false
 
       const existing = this.rowToEntity(existingRow)
-      const parts = existing.data.parts ?? []
+      const parts = (existing.data.parts ?? []).map((part): CherryMessagePart => {
+        if (
+          !isToolUIPart(part) ||
+          part.state !== 'output-error' ||
+          part.approval?.id !== decision.approvalId ||
+          part.approval.approved !== undefined
+        )
+          return part
+        return { ...part, errorText: undefined, state: 'approval-requested', approval: { id: decision.approvalId } }
+      })
       const hasPendingApproval = parts.some(
-        (part) =>
-          isToolUIPart(part) &&
-          part.state === 'approval-requested' &&
-          (part as { approval?: { id?: string } }).approval?.id === decision.approvalId
+        (part) => isToolUIPart(part) && part.state === 'approval-requested' && part.approval.id === decision.approvalId
       )
       if (!hasPendingApproval) return false
 

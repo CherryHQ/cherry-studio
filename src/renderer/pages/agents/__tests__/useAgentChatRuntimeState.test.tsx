@@ -12,6 +12,7 @@ import {
 import type * as AgentSessionPartsModule from '@renderer/hooks/useAgentSessionParts'
 import { useConversationErrorToasts } from '@renderer/hooks/useConversationErrorToasts'
 import type * as TurnControllerModule from '@renderer/hooks/useConversationTurnController'
+import { takeAgentDraftHandoffs } from '@renderer/services/agentDraftHandoff'
 import { toast } from '@renderer/services/toast'
 import type * as ToastServiceModule from '@renderer/services/toast'
 import { AutoReadService } from '@renderer/services/voice/AutoReadService'
@@ -1228,7 +1229,7 @@ describe('useAgentChatRuntimeState', () => {
   })
 
   it('re-sends an answer the dead card cannot deliver as the session message', async () => {
-    mocks.respondToolApproval.mockResolvedValueOnce({ ok: false })
+    mocks.respondToolApproval.mockResolvedValueOnce({ ok: false, reason: 'undelivered' })
     const part = makeAskUserQuestionPart()
     const { result } = renderHook(() =>
       useAgentChatRuntimeState({
@@ -1254,8 +1255,43 @@ describe('useAgentChatRuntimeState', () => {
     expect(result.current.optimisticAskUserQuestionInputsByToolCallId).toEqual({})
   })
 
+  it('does not replay an approval already answered in another window', async () => {
+    mocks.respondToolApproval.mockResolvedValueOnce({ ok: false, reason: 'rejected' })
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+    )
+
+    await act(async () => {
+      await expect(
+        result.current.respondToolApproval(makeAskUserQuestionApproval(makeAskUserQuestionPart()))
+      ).rejects.toThrow('Tool approval response was not accepted')
+    })
+
+    expect(mocks.sendTurn).not.toHaveBeenCalled()
+  })
+
+  it.each(['blocked', 'error'])('keeps an undelivered answer as a composer draft after %s', async (failure) => {
+    takeAgentDraftHandoffs('session-1')
+    mocks.respondToolApproval.mockResolvedValueOnce({ ok: false, reason: 'undelivered' })
+    if (failure === 'blocked') mocks.sendTurn.mockResolvedValueOnce(false)
+    else mocks.sendTurn.mockRejectedValueOnce(new Error('stream unavailable'))
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+    )
+
+    await act(async () => {
+      await expect(
+        result.current.respondToolApproval(makeAskUserQuestionApproval(makeAskUserQuestionPart()))
+      ).rejects.toThrow()
+    })
+
+    expect(takeAgentDraftHandoffs('session-1')).toEqual([
+      { text: 'Choose logger\nWinston', tokens: [], files: [], knowledgeBaseIds: [] }
+    ])
+  })
+
   it('sends nothing when a dead card was dismissed rather than answered', async () => {
-    mocks.respondToolApproval.mockResolvedValueOnce({ ok: false })
+    mocks.respondToolApproval.mockResolvedValueOnce({ ok: false, reason: 'undelivered' })
     const part = makeAskUserQuestionPart()
     const { result } = renderHook(() =>
       useAgentChatRuntimeState({

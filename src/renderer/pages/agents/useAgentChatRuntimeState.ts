@@ -32,6 +32,7 @@ import {
 import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useTopicOverlayHandoffOnTerminal, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi } from '@renderer/ipc'
+import { handOffAgentDraft } from '@renderer/services/agentDraftHandoff'
 import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
 import { toast } from '@renderer/services/toast'
 import { autoReadService } from '@renderer/services/voice'
@@ -435,19 +436,24 @@ export function useAgentChatRuntimeState({
 
       if (!result.ok) {
         if (optimisticToolCallId) removeOptimisticAskUserQuestionInput(optimisticToolCallId)
-        // Main settles the card with this decision but cannot hand it to a runtime that is already
-        // gone. A submitted answer becomes the session's next message instead of being dropped;
-        // either way the refresh clears the card out of its unanswerable state.
+        if (result.reason !== 'undelivered') throw new Error('Tool approval response was not accepted')
         const answerText = isAskUserQuestionApprovalResponse(input)
           ? formatAskUserQuestionAnswerMessage(input.updatedInput)
           : undefined
-        if (answerText) await sendMessage({ text: answerText })
+        if (answerText) {
+          try {
+            if (!(await sendMessage({ text: answerText }))) throw new Error('Answer message was not accepted')
+          } catch (error) {
+            handOffAgentDraft(sessionId, { text: answerText, tokens: [], files: [], knowledgeBaseIds: [] })
+            throw error
+          }
+        }
         await refresh()
         return
       }
       await refresh()
     },
-    [refresh, removeOptimisticAskUserQuestionInput, sendMessage, sessionTopicId]
+    [refresh, removeOptimisticAskUserQuestionInput, sendMessage, sessionId, sessionTopicId]
   )
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
     partsByMessageId,

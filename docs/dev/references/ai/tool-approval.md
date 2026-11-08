@@ -68,10 +68,13 @@ question nothing can receive.
      **early-returns — no DB read happens** (and `topicId` / `anchorId`
      are not required). When no live entry matches — the connection was torn
      down, or the app restarted — the card is settled with the decision the
-     user actually made and the response reports `{ ok: false }`; an
-     agent-session topic never reaches the MCP path, whose anchor lookup lives
-     in the chat message table. On that undelivered answer the renderer re-sends
-     it as the session's next user message instead of dropping it.
+     user actually made. Only the first decision recorded on a pending or retired,
+     unanswered card returns `{ ok: false, reason: 'undelivered' }`. Already-answered,
+     missing, or mismatched cards return `{ ok: false, reason: 'rejected' }` and are
+     never replayed. An agent-session topic never reaches the MCP chat-table lookup.
+     The renderer sends an undelivered answer as the session's next user message.
+     If sending fails or admission is blocked, it hands the answer to that session's
+     normal composer, appending to any existing draft so the user can retry.
    - **MCP path** (reached only when no live entry matched; requires
      `topicId` + `anchorId`): reads the anchor message's current `parts`
      from DB, applies the decision, and **writes only when the target

@@ -465,7 +465,7 @@ export class AiService extends BaseService {
   ): Promise<AiToolApprovalRespondResponse> {
     // Claude-Agent path: the runtime settles any persisted interaction card, then unblocks
     // the exact `canUseTool` invocation that issued this approval id.
-    const dispatched = application.get('AgentSessionRuntimeService').respondToolApproval(
+    const result = application.get('AgentSessionRuntimeService').respondToolApproval(
       payload.approvalId,
       {
         approved: payload.approved,
@@ -475,19 +475,17 @@ export class AiService extends BaseService {
       payload.anchorId,
       payload.topicId
     )
-    if (dispatched) return { ok: true }
+    if (result.ok) return result
 
-    // An agent-session card is never resolvable through the chat message table — the runtime path
-    // above owns it, and settles it when it cannot deliver the decision. Looking for its anchor in
-    // the chat table only produces a misleading "anchor is missing" warning.
-    if (payload.topicId && isAgentSessionTopic(payload.topicId)) return { ok: false }
+    // Agent-session anchors belong to the runtime path, never the chat message table.
+    if (payload.topicId && isAgentSessionTopic(payload.topicId)) return result
 
     // MCP path: write decisions to DB, then dispatch continue-conversation when nothing is pending.
     if (!payload.topicId || !payload.anchorId) {
       logger.warn('Tool-approval response had no live registry entry and no anchor context', {
         approvalId: payload.approvalId
       })
-      return { ok: false }
+      return { ok: false, reason: 'rejected' }
     }
 
     // The approval card is clickable the moment the `tool-approval-request` chunk arrives (the live
@@ -508,7 +506,7 @@ export class AiService extends BaseService {
           topicId: payload.topicId
         }
       )
-      return { ok: false }
+      return { ok: false, reason: 'rejected' }
     }
 
     // Main is the single authority for the approval mutation: the
@@ -538,7 +536,7 @@ export class AiService extends BaseService {
         approvalId: payload.approvalId,
         anchorId: payload.anchorId
       })
-      return { ok: false }
+      return { ok: false, reason: 'rejected' }
     }
     const { parts: committedParts, appliedApprovalIds, alreadySettledApprovalIds } = approvalResult
     if (appliedApprovalIds.length === 0 && alreadySettledApprovalIds.includes(decision.approvalId)) {
@@ -560,7 +558,7 @@ export class AiService extends BaseService {
     // surface it on, so resolve through the result shape instead of dispatching into the void.
     if (!senderWc) {
       logger.warn('Tool-approval continuation skipped: no caller window', { approvalId: payload.approvalId })
-      return { ok: false }
+      return { ok: false, reason: 'rejected' }
     }
 
     const aiStreamManager = application.get('AiStreamManager')
@@ -582,7 +580,7 @@ export class AiService extends BaseService {
         topicId: payload.topicId,
         error: error instanceof Error ? error.message : String(error)
       })
-      return { ok: false }
+      return { ok: false, reason: 'rejected' }
     }
     return { ok: true }
   }

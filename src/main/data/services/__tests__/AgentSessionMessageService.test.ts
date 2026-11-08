@@ -1260,6 +1260,44 @@ describe('AgentSessionMessageService', () => {
     )
   })
 
+  it('records a late answer on a retired card exactly once', () => {
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'success',
+        data: {
+          parts: [
+            {
+              type: 'tool-AskUserQuestion',
+              toolCallId: 'tool-call-1',
+              state: 'approval-requested',
+              input: { questions: [] },
+              approval: { id: 'approval-1' }
+            }
+          ]
+        }
+      }
+    })
+    agentSessionMessageService.retireAbandonedApproval(SESSION_ID, 'approval-1', 'connection closed')
+    const decision = {
+      approvalId: 'approval-1',
+      approved: true,
+      updatedInput: { questions: [], answers: { Choice: 'SQLite' } }
+    }
+
+    expect(agentSessionMessageService.applyToolApprovalDecision(SESSION_ID, ASSISTANT_MESSAGE_ID, decision)).toBe(true)
+    expect(agentSessionMessageService.applyToolApprovalDecision(SESSION_ID, ASSISTANT_MESSAGE_ID, decision)).toBe(false)
+    expect(
+      agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).data.parts?.[0]
+    ).toMatchObject({
+      state: 'approval-responded',
+      input: decision.updatedInput,
+      approval: { id: 'approval-1', approved: true }
+    })
+  })
+
   it('leaves an answered approval card and other sessions untouched when retiring an abandoned one', async () => {
     await seedSession({ id: 'session-2', name: 'Other', orderKey: 'a1' })
     const answered = {

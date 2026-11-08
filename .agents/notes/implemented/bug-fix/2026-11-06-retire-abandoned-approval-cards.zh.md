@@ -16,7 +16,7 @@ Status: implemented
 
 点击仍可能落到一个活得比请求更久的卡片上——本修复之前存下的，或连接在用户作答途中断开的。`AgentSessionRuntimeService.respondToolApproval` 现在用在线路径同一个 `applyToolApprovalDecision` 把该决定记录到卡片上，同时仍报告为未送达，因此卡片不再被当作可答，也不会假装运行环境收到了任何东西。`AiService` 不再把 agent 会话的响应送进那条永远匹配不到其锚点的聊天表查找。
 
-渲染端把未送达的答案变成会话的下一条用户消息——每个已答问题、所选选项，以及旁边输入的备注——而不是丢弃它；关闭操作没有内容可重投，只做刷新。发起方消失后，会话正是仅剩的通道，答案由此到达继续该会话的一方。
+渲染端把未送达的答案变成会话的下一条用户消息——每个已答问题、所选选项，以及旁边输入的备注——而不是丢弃它；关闭操作没有内容可重投，只做刷新。发起方消失后，会话正是仅剩的通道，答案由此到达继续该会话的一方。主进程只有在事务中首次记录待答卡片或已收回但尚未回答的卡片上的决定时，才返回 `reason: 'undelivered'`；过期或重复响应会被拒绝，不会重投。如果替代消息发送失败或被准入规则阻止，渲染端会将文本交回该会话的普通输入框，追加到现有草稿后，供用户明确重试。
 
 ## Alternatives considered
 
@@ -34,6 +34,6 @@ Status: implemented
 
 ## Verification
 
-- Regression — `pnpm exec vitest run src/main/ai/agentSession/__tests__/AgentSessionRuntimeService.test.ts src/main/ai/toolApproval/__tests__/ToolApprovalRegistry.test.ts src/main/data/services/__tests__/AgentSessionMessageService.test.ts src/main/ai/__tests__/AiService.test.ts`：401 项测试通过，覆盖 abort 时的收回、幂等重复，以及注册表条目已消失的卡片上记录的决定。首个收回测试在修复前失败于 `expected "vi.fn()" to be called with arguments: [ 'session-1', 'approval-bg', …(1) ]`——abort 只解决了等待中的 promise，什么也没收回。
-- Regression — `pnpm exec vitest run --project renderer src/renderer/pages/agents/__tests__/useAgentChatRuntimeState.test.tsx`：54 项测试通过，含把未送达答案重投为消息，以及关闭操作不发送任何内容。改动前被拒响应直接抛错，这两个用例根本无法到达。
+- Regression — `pnpm exec vitest run --project main src/main/ai/agentSession/__tests__/AgentSessionRuntimeService.test.ts src/main/ai/__tests__/AiService.test.ts src/main/data/services/__tests__/AgentSessionMessageService.test.ts src/main/ipc/handlers/__tests__/ai.test.ts src/main/ai/messages/__tests__/attachmentWorkerClient.test.ts`：458 项测试通过，包含首次决定的重投准入，以及在已收回卡片上只记录一次迟到答案。修正前，后者因已收回卡片拒绝首次回答而失败。
+- Regression — `pnpm test:renderer src/renderer/pages/agents/__tests__/useAgentChatRuntimeState.test.tsx src/renderer/components/composer/variants/__tests__/AgentComposer.test.tsx src/renderer/components/composer/variants/__tests__/AskUserQuestionComposer.test.tsx`：240 项测试通过。新增的重复响应和发送失败后保留草稿用例在修正前失败；已有输入框测试验证交接文本会追加到当前草稿。
 - Regression — 在已发布的 2.1.10 版本上复现：会话 `3fb71b0d` 出现 `Aborted pending approvals … reason "stream-ended"` 之后，卡片仍保留 `approval-requested` part，28 次回答尝试均被以 `Tool-approval response anchor is missing or deleted` 拒绝。

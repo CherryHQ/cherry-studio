@@ -58,6 +58,7 @@ import {
 } from '@shared/ai/agentSessionSlashCommands'
 import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY, type AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type { MessageProjectionUpdate, MessageProjectionView } from '@shared/ai/messageProjection'
+import type { AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
@@ -1667,29 +1668,34 @@ export class AgentSessionRuntimeService extends BaseService {
   /**
    * Resolve a Claude `canUseTool` approval registered against this runtime session. Persisted
    * interaction messages are settled before their SDK promise; live overlays are cleared after it.
-   * Returns `false` if no registry entry matches so the caller can fall back to the MCP path.
+   * Only an atomically recorded, undelivered decision may be replayed as a user message.
    */
-  respondToolApproval(approvalId: string, decision: DispatchDecision, anchorId?: string, topicId?: string): boolean {
+  respondToolApproval(
+    approvalId: string,
+    decision: DispatchDecision,
+    anchorId?: string,
+    topicId?: string
+  ): AiToolApprovalRespondResponse {
     const pending = toolApprovalRegistry.peek(approvalId)
     if (!pending) {
-      // The requesting runtime is gone (connection torn down, app restart), so this decision can
-      // never reach it. Settle the card with the decision the user actually made so it stops being
-      // offered; the renderer re-delivers a submitted answer as the session's next message.
+      // Only the first decision recorded on an abandoned card may become a new user message.
+      // A missing registry entry alone also covers decisions already delivered in another window.
       if (anchorId && topicId && isAgentSessionTopic(topicId)) {
-        agentSessionMessageService.applyToolApprovalDecision(extractAgentSessionId(topicId), anchorId, {
+        const applied = agentSessionMessageService.applyToolApprovalDecision(extractAgentSessionId(topicId), anchorId, {
           approvalId,
           approved: decision.approved,
           ...(decision.reason !== undefined && { reason: decision.reason }),
           ...(decision.updatedInput !== undefined && { updatedInput: decision.updatedInput })
         })
+        return { ok: false, reason: applied ? 'undelivered' : 'rejected' }
       }
-      return false
+      return { ok: false, reason: 'rejected' }
     }
 
     if (pending.presentation === 'message') {
       if (!anchorId) {
         logger.warn('Persisted tool approval response is missing its anchor message', { approvalId })
-        return false
+        return { ok: false, reason: 'rejected' }
       }
       const applied = agentSessionMessageService.applyToolApprovalDecision(pending.sessionId, anchorId, {
         approvalId,
@@ -1702,7 +1708,7 @@ export class AgentSessionRuntimeService extends BaseService {
           approvalId,
           anchorId
         })
-        return false
+        return { ok: false, reason: 'rejected' }
       }
     }
 
@@ -1712,14 +1718,14 @@ export class AgentSessionRuntimeService extends BaseService {
       approvalId,
       decision.approved ? decision : { ...decision, reasonSource: 'user' }
     )
-    if (!dispatched) return false
+    if (!dispatched) return { ok: false, reason: 'rejected' }
 
     if (dispatched.presentation === 'stream') {
       application
         .get('AiStreamManager')
         .resolveToolApproval(buildAgentSessionTopicId(dispatched.sessionId), dispatched.toolCallId, decision.approved)
     }
-    return true
+    return { ok: true }
   }
 
   /**

@@ -732,7 +732,7 @@ describe('AgentSessionRuntimeService', () => {
       })
 
       const service = new AgentSessionRuntimeService()
-      expect(service.respondToolApproval('approval-1', { approved: true })).toBe(true)
+      expect(service.respondToolApproval('approval-1', { approved: true })).toEqual({ ok: true })
       expect(resolve).toHaveBeenCalledWith({ approved: true })
       expect(mocks.resolveToolApproval).toHaveBeenCalledWith('agent-session:session-1', 'tool-call-1', true)
     })
@@ -751,9 +751,9 @@ describe('AgentSessionRuntimeService', () => {
       const updatedInput = { questions: [], answers: { Choice: 'SQLite' } }
 
       const service = new AgentSessionRuntimeService()
-      expect(service.respondToolApproval('approval-bg', { approved: true, updatedInput }, 'approval-message-1')).toBe(
-        true
-      )
+      expect(
+        service.respondToolApproval('approval-bg', { approved: true, updatedInput }, 'approval-message-1')
+      ).toEqual({ ok: true })
 
       expect(mocks.applyToolApprovalDecision).toHaveBeenCalledWith('session-1', 'approval-message-1', {
         approvalId: 'approval-bg',
@@ -778,14 +778,17 @@ describe('AgentSessionRuntimeService', () => {
       })
 
       const service = new AgentSessionRuntimeService()
-      expect(service.respondToolApproval('approval-bg', { approved: true }, 'wrong-message')).toBe(false)
+      expect(service.respondToolApproval('approval-bg', { approved: true }, 'wrong-message')).toEqual({
+        ok: false,
+        reason: 'rejected'
+      })
       expect(resolve).not.toHaveBeenCalled()
       expect(toolApprovalRegistry.peek('approval-bg')).toBeDefined()
     })
 
     it('leaves stream status untouched for an unknown approval', () => {
       const service = new AgentSessionRuntimeService()
-      expect(service.respondToolApproval('missing', { approved: true })).toBe(false)
+      expect(service.respondToolApproval('missing', { approved: true })).toEqual({ ok: false, reason: 'rejected' })
       expect(mocks.resolveToolApproval).not.toHaveBeenCalled()
     })
 
@@ -800,13 +803,26 @@ describe('AgentSessionRuntimeService', () => {
           'approval-message-1',
           'agent-session:session-1'
         )
-      ).toBe(false)
+      ).toEqual({ ok: false, reason: 'undelivered' })
 
       expect(mocks.applyToolApprovalDecision).toHaveBeenCalledWith('session-1', 'approval-message-1', {
         approvalId: 'approval-gone',
         approved: true,
         updatedInput
       })
+    })
+    it('does not offer a second replay after another window settled the card', () => {
+      mocks.applyToolApprovalDecision.mockReturnValueOnce(true).mockReturnValueOnce(false)
+      const service = new AgentSessionRuntimeService()
+      const respond = () =>
+        service.respondToolApproval(
+          'approval-gone',
+          { approved: true, updatedInput: { answers: { Choice: 'SQLite' } } },
+          'approval-message-1',
+          'agent-session:session-1'
+        )
+      expect(respond()).toEqual({ ok: false, reason: 'undelivered' })
+      expect(respond()).toEqual({ ok: false, reason: 'rejected' })
     })
   })
 
