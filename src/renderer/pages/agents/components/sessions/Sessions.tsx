@@ -1025,6 +1025,9 @@ const Sessions = ({
   const openAgentEditor = useCallback((agentId: string) => {
     setEditDialogTarget({ kind: 'agent', id: agentId })
   }, [])
+  const openAgentChannelsEditor = useCallback((agentId: string) => {
+    setEditDialogTarget({ kind: 'agent', id: agentId, initialTab: 'channels' })
+  }, [])
   const openSessionInNewTab = useCallback(
     (session: AgentSessionEntity) => {
       conversationNav.openConversationTab(session.id, session.name || t('common.unnamed'), { forceNew: true })
@@ -1093,6 +1096,7 @@ const Sessions = ({
                 pinDisabled={isAgentPinActionDisabled}
                 pinned={agentPinnedIdSet.has(agentGroupId)}
                 onArchiveSessions={handleArchiveSessions}
+                onConnectIm={openAgentChannelsEditor}
                 onDeleteAgent={handleDeleteAgent}
                 onEdit={openAgentEditor}
                 onSetAgentIconType={setAssistantIconType}
@@ -1154,6 +1158,7 @@ const Sessions = ({
       isAgentPinActionDisabled,
       isUpdatingWorkspace,
       openAgentEditor,
+      openAgentChannelsEditor,
       onCreateSession,
       onShowMissingAgentSelection,
       requestCreateSessionFromSeed,
@@ -1264,6 +1269,7 @@ const Sessions = ({
           onArchiveSessions: handleArchiveSessions,
           onDeleteAgent: handleDeleteAgent,
           onEdit: openAgentEditor,
+          onConnectIm: openAgentChannelsEditor,
           onSetAgentIconType: setAssistantIconType,
           onTogglePin: handleToggleAgentPin,
           onToggleSidebar: handleToggleAgentSidebar,
@@ -1319,6 +1325,7 @@ const Sessions = ({
       isAgentPinActionDisabled,
       isUpdatingWorkspace,
       openAgentEditor,
+      openAgentChannelsEditor,
       setAssistantIconType,
       sidebarAgentFavoriteIdSet,
       t,

@@ -87,6 +87,7 @@ import {
 import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
 import { PromptBindingTab } from '../components/PromptBindingTab'
 import { PromptPolishActions } from '../components/PromptPolishActions'
+import { AgentChannelsTab } from './AgentChannelsTab'
 import { AgentMemoryPanel, type AgentMemoryPanelHandle } from './AgentMemoryPanel'
 import { HeartbeatEditorDialog } from './HeartbeatEditorDialog'
 
@@ -371,6 +372,7 @@ function AgentEditDialogContent({
             : [])
         ]
       },
+      { id: 'channels', label: t('agent.channels.agentTab.title') },
       { id: 'advanced', label: t('library.config.dialogs.edit.advanced_tab') }
     ],
     [caps.knowledgeBases, caps.mcp, caps.skills, sealedSkills, t]
@@ -627,6 +629,11 @@ function AgentEditDialogContent({
         {open && activeTab === 'memory' ? (
           <TabsContent value="memory" className="m-0">
             <AgentMemoryPanel key={resource.id} ref={memoryPanelRef} agent={resource} />
+          </TabsContent>
+        ) : null}
+        {open && activeTab === 'channels' ? (
+          <TabsContent value="channels" className="m-0">
+            <AgentChannelsTab agentId={resource.id} />
           </TabsContent>
         ) : null}
         <TabsContent value="advanced" forceMount hidden={activeTab !== 'advanced'} className="m-0">
