@@ -1,8 +1,27 @@
-import { describe, expect, it } from 'vitest'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { afterEach, describe, expect, it } from 'vitest'
+
+import { SUPPORTED_LANGUAGES, t } from '@main/i18n'
 
 import { formatPiOutputLimitDiagnostic } from './outputLimitDiagnostic'
 
 describe('Pi output-limit diagnostics', () => {
+  afterEach(() => MockMainPreferenceServiceUtils.resetMocks())
+  it.each(SUPPORTED_LANGUAGES)('localizes counts and guidance in %s', (language) => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.language', language)
+    const text = formatPiOutputLimitDiagnostic({ configuredMaxTokens: 8192, reasoningTokens: 0 })
+    expect(text).toContain('8192')
+    expect(text).toContain(t('agent.session.pi.output_limit_unknown'))
+    expect(text).toContain(t('agent.session.pi.output_limit_reasoning', { count: 0 }))
+    expect(text).not.toMatch(/\{\{|to be translated|agent\.session\.pi\./)
+    if (language !== 'en-US') {
+      expect(text).not.toContain('Configured maximum output')
+      expect(text).not.toContain('No output limit was increased automatically')
+      expect(text).not.toContain('unknown')
+    }
+    const noReasoning = formatPiOutputLimitDiagnostic({ configuredMaxTokens: 8192, outputTokens: 0 })
+    expect(noReasoning).not.toContain(t('agent.session.pi.output_limit_reasoning', { count: 0 }))
+  })
   it('reports the configured cap and measured provider counts without changing a budget', () => {
     const text = formatPiOutputLimitDiagnostic({ configuredMaxTokens: 8192, outputTokens: 8192, reasoningTokens: 7000 })
     expect(text).toContain('Configured maximum output: 8192 tokens')

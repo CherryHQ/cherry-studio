@@ -1255,6 +1255,38 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.prompt).not.toHaveBeenCalled()
   })
 
+  it('localizes the emitted truncation error using the app language', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'ja-JP')
+    const injection = await mocks.resolveInjection()
+    injection.providerConfig.models = [{ id: 'm', maxTokens: 8192 }]
+    mocks.resolveInjection.mockResolvedValue(injection)
+    const conn = await new PiRuntimeConnection(input).start()
+    // Counts come from pre-normalization wire presence, not the SDK's default-filled message.
+    mocks.registerProvider.mock.calls[0][1].streamSimple({}, {}, {})
+    await mocks.providerStreamSimple.mock.calls
+      .at(-1)![2]
+      .onProviderStreamEvent(
+        { usage: { completion_tokens: 8192, completion_tokens_details: { reasoning_tokens: 7000 } } },
+        {}
+      )
+    mocks.subscribeCb!({
+      type: 'turn_end',
+      message: { role: 'assistant', stopReason: 'length', usage: { output: 8192, reasoning: 7000 } },
+      toolResults: []
+    } as unknown as AgentSessionEvent)
+    mocks.subscribeCb!({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+    const events = await collectUntilTerminal(conn.events)
+    const failure = events.find(
+      (event): event is Extract<AgentRuntimeEvent, { type: 'error' }> => event.type === 'error'
+    )
+    expect(String(failure?.error)).toContain('設定された最大出力: 8192 トークン')
+    expect(String(failure?.error)).toContain('プロバイダーが報告した出力トークン数: 8192')
+    expect(String(failure?.error)).toContain('プロバイダーが報告した推論トークン数: 7000')
+    expect(String(failure?.error)).not.toContain('Configured maximum output')
+    expect(mocks.prompt).not.toHaveBeenCalled()
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
+  })
+
   it('does not label SDK default zeros as reported usage', async () => {
     const conn = await new PiRuntimeConnection(input).start()
     mocks.subscribeCb!({
