@@ -942,6 +942,7 @@
   "chat.message.token_details.waiting_first_token": "待機",
   "chat.message.useful.label": "上下文として設定する",
   "chat.message.useful.tip": "このメッセージは、このメッセージセットの中でコンテキストに含まれるために選択されます",
+  "chat.message.waiting_to_continue": "続行を待っています…",
   "chat.multiple.select.empty": "メッセージが選択されていません",
   "chat.multiple.select.label": "選択",
   "chat.navigation.anchor.jump_to_turn": "ターン {{number}} にジャンプ",

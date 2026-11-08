@@ -240,6 +240,9 @@ export const useOptionalMessageListTopicId = (): string | undefined => {
   return use(MessageListDataContext)?.topic.id
 }
 
+export const useMessageHeldParts = (messageId: string): CherryMessagePart[] | undefined =>
+  use(MessageListDataContext)?.streamingLayers?.heldPartsByMessageId?.[messageId]
+
 /**
  * Back-compat hook: returns the merged static + selectors UI value. Subscribes
  * to BOTH underlying contexts, so it re-renders on either update — fine for

@@ -942,6 +942,7 @@
   "chat.message.token_details.waiting_first_token": "A aguardar",
   "chat.message.useful.label": "Definido como contexto",
   "chat.message.useful.tip": "Neste conjunto de mensagens, esta mensagem será selecionada para ingressar no contexto",
+  "chat.message.waiting_to_continue": "A aguardar continuação…",
   "chat.multiple.select.empty": "Nenhuma mensagem selecionada",
   "chat.multiple.select.label": "Seleção Múltipla",
   "chat.navigation.anchor.jump_to_turn": "Ir para a jogada {{number}}",

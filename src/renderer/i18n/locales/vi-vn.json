@@ -942,6 +942,7 @@
   "chat.message.token_details.waiting_first_token": "Đang chờ",
   "chat.message.useful.label": "Đặt làm ngữ cảnh",
   "chat.message.useful.tip": "Trong nhóm tin nhắn này, tin nhắn này sẽ được chọn để tham gia vào ngữ cảnh",
+  "chat.message.waiting_to_continue": "Đang chờ tiếp tục…",
   "chat.multiple.select.empty": "Không có tin nhắn nào được chọn",
   "chat.multiple.select.label": "Chọn nhiều",
   "chat.navigation.anchor.jump_to_turn": "Nhảy đến lượt {{number}}",

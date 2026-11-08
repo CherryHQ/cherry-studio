@@ -942,6 +942,7 @@
   "chat.message.token_details.waiting_first_token": "กำลังรอ",
   "chat.message.useful.label": "ใช้เป็นคอนเท็กซ์",
   "chat.message.useful.tip": "ในกลุ่มข้อความนี้ ข้อความนี้จะถูกเลือกให้เข้าร่วมคอนเท็กซ์",
+  "chat.message.waiting_to_continue": "กำลังรอดำเนินการต่อ…",
   "chat.multiple.select.empty": "ไม่มีการเลือกข้อความ",
   "chat.multiple.select.label": "เลือกหลายรายการ",
   "chat.navigation.anchor.jump_to_turn": "ข้ามไปยังรอบที่ {{number}}",

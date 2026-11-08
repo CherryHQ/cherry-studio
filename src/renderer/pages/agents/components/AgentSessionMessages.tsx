@@ -1,5 +1,7 @@
 import { memo, useEffect, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 
+import { Flex } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
@@ -10,9 +12,11 @@ import type {
   MessageListSelectAllPagination,
   MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
+import LoadingIcon from '@renderer/components/icons/LoadingIcon'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useSession } from '@renderer/hooks/agent/useSession'
 import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
+import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi } from '@renderer/ipc'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import { type Topic, TopicType } from '@renderer/types/topic'
@@ -88,8 +92,11 @@ const AgentSessionMessages = ({
   respondToolApproval,
   navigateToForkSource
 }: Props) => {
+  const { t } = useTranslation()
   const { session } = useSession(sessionId)
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
+  const { isPending } = useTopicStreamStatus(sessionTopicId)
+  const waitingForSteer = isPending && messages.at(-1)?.role === 'user'
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
 
   const sessionAssistantId = session?.agentId ?? agentId
@@ -144,8 +151,18 @@ const AgentSessionMessages = ({
 
   const messageIds = useStableStringArray(messages.map((message) => message.id))
   const afterMessages = useMemo(
-    () => <AgentPendingAttachments key={sessionId} sessionId={sessionId} messageIds={messageIds} />,
-    [messageIds, sessionId]
+    () => (
+      <>
+        {waitingForSteer && (
+          <Flex role="status" className="items-center gap-2 px-4 py-3 text-sm text-muted-foreground">
+            <LoadingIcon size={14} />
+            {t('chat.message.waiting_to_continue')}
+          </Flex>
+        )}
+        <AgentPendingAttachments key={sessionId} sessionId={sessionId} messageIds={messageIds} />
+      </>
+    ),
+    [messageIds, sessionId, t, waitingForSteer]
   )
   const messageList = useAgentMessageListProviderValue({
     topic: derivedTopic,

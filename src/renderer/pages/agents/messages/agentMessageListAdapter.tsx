@@ -27,6 +27,7 @@ import { dispatchLocateMessage } from '@renderer/components/chat/messages/utils/
 import { bindCaptureMessageImageRuntime } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { getMessageListItemModel, toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import type { DiagnosticReportConfig } from '@renderer/components/ErrorDetailModal'
+import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
@@ -49,6 +50,7 @@ import {
   rejectPendingAgentSessionImageActions,
   settleAgentSessionImageActionRequest
 } from './agentSessionImageActionBus'
+import { useAgentSteerPresentation } from './useAgentSteerPresentation'
 
 const exportToObsidian: ExportMessagesToObsidian = async (title, messages) => {
   const { default: popup } = await import('@renderer/components/ObsidianExportPopup')
@@ -207,6 +209,11 @@ export function useAgentMessageListProviderValue({
   afterMessages
 }: AgentMessageListParams): MessageListProviderValue {
   const { t } = useTranslation()
+  const latestMessage = messages.at(-1)
+  const latestUserMessageId = latestMessage?.role === 'user' ? latestMessage.id : undefined
+  useEffect(() => {
+    if (scrollToBottomOnSend && latestUserMessageId) agentMessageListRuntimes.get(topic.id)?.scrollToBottom()
+  }, [latestUserMessageId, scrollToBottomOnSend, topic.id])
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
   const sessionId = useMemo(() => extractAgentSessionIdFromTopicId(topic.id), [topic.id])
   const resolvedAgentId = assistantId ?? topic.assistantId
@@ -224,18 +231,30 @@ export function useAgentMessageListProviderValue({
     () => withTerminalErrorFallback(messages, partsByMessageId, t('error.no_response')),
     [messages, partsByMessageId, t]
   )
+  const { activeExecutions } = useTopicStreamStatus(topic.id)
+  const heldPartsByMessageId = useAgentSteerPresentation({
+    topicId: topic.id,
+    messages,
+    partsByMessageId: displayPartsByMessageId,
+    activeExecutions
+  })
+  const historyPartsByMessageId = useMemo(
+    () =>
+      streamingLayers
+        ? withTerminalErrorFallback(messages, streamingLayers.historyPartsByMessageId, t('error.no_response'))
+        : undefined,
+    [messages, streamingLayers, t]
+  )
   const displayStreamingLayers = useMemo(() => {
-    if (!streamingLayers) return undefined
-
-    const historyPartsByMessageId = withTerminalErrorFallback(
-      messages,
-      streamingLayers.historyPartsByMessageId,
-      t('error.no_response')
+    if (!streamingLayers || !historyPartsByMessageId) return undefined
+    if (
+      historyPartsByMessageId === streamingLayers.historyPartsByMessageId &&
+      Object.keys(heldPartsByMessageId).length === 0
     )
-    if (historyPartsByMessageId === streamingLayers.historyPartsByMessageId) return streamingLayers
+      return streamingLayers
 
-    return { ...streamingLayers, historyPartsByMessageId }
-  }, [messages, streamingLayers, t])
+    return { ...streamingLayers, historyPartsByMessageId, heldPartsByMessageId }
+  }, [heldPartsByMessageId, historyPartsByMessageId, streamingLayers])
   const visibleMessages = useMemo(
     () =>
       messages.filter((message) => {

@@ -202,6 +202,7 @@ interface Props {
   message: MessageListItem
   /** File attachments are rendered outside this subtree (see `getHoistedAttachments`). */
   hoistAttachments?: boolean
+  activity?: 'live' | 'held'
 }
 
 // ============================================================================
@@ -1910,7 +1911,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   )
 })
 
-const MessagePartsRenderer: React.FC<Props> = ({ message, hoistAttachments }) => {
+const MessagePartsRenderer: React.FC<Props> = ({ message, hoistAttachments, activity = 'live' }) => {
   const messageParts = useMessageParts(message.id)
   const { isActiveTurnProcessing, isStreamLive } = useMessageListItemActivityState(message)
   const priorCitationParts = useMessagePriorCitationParts(message.id)
@@ -1921,8 +1922,8 @@ const MessagePartsRenderer: React.FC<Props> = ({ message, hoistAttachments }) =>
       collapseCompletedToolHistory={collapseCompletedToolHistory}
       keepIntermediateAssistantText={keepIntermediateAssistantText}
       hoistAttachments={hoistAttachments}
-      isActiveTurnProcessing={isActiveTurnProcessing}
-      isStreamLive={isStreamLive}
+      isActiveTurnProcessing={activity === 'live' && isActiveTurnProcessing}
+      isStreamLive={activity === 'live' && isStreamLive}
       message={message}
       messageParts={messageParts}
       priorCitationParts={priorCitationParts}

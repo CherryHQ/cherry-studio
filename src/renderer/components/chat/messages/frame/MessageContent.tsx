@@ -4,7 +4,9 @@ import React from 'react'
 import { Flex } from '@cherrystudio/ui'
 import { createUniqueModelId } from '@shared/data/types/model'
 
+import { MessagePartsScopeProvider } from '../blocks/MessagePartsContext'
 import MessagePartsRenderer from '../blocks/MessagePartsRenderer'
+import { useMessageHeldParts } from '../MessageListProvider'
 import type { MessageListItem } from '../types'
 
 interface Props {
@@ -13,6 +15,7 @@ interface Props {
 }
 
 const MessageContent: React.FC<Props> = ({ message, hoistAttachments }) => {
+  const heldParts = useMessageHeldParts(message.id)
   return (
     <>
       {!isEmpty(message.mentions) && (
@@ -24,7 +27,13 @@ const MessageContent: React.FC<Props> = ({ message, hoistAttachments }) => {
           ))}
         </Flex>
       )}
-      <MessagePartsRenderer message={message} hoistAttachments={hoistAttachments} />
+      {heldParts ? (
+        <MessagePartsScopeProvider messageId={message.id} parts={heldParts}>
+          <MessagePartsRenderer message={message} hoistAttachments={hoistAttachments} activity="held" />
+        </MessagePartsScopeProvider>
+      ) : (
+        <MessagePartsRenderer message={message} hoistAttachments={hoistAttachments} />
+      )}
     </>
   )
 }

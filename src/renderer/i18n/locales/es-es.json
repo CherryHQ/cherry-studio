@@ -942,6 +942,7 @@
   "chat.message.token_details.waiting_first_token": "Esperando",
   "chat.message.useful.label": "establecer como contexto",
   "chat.message.useful.tip": "En este grupo de mensajes, este mensaje se seleccionará para unirse al contexto",
+  "chat.message.waiting_to_continue": "Esperando para continuar…",
   "chat.multiple.select.empty": "No se ha seleccionado ningún mensaje",
   "chat.multiple.select.label": "Selección múltiple",
   "chat.navigation.anchor.jump_to_turn": "Saltar al turno {{number}}",
