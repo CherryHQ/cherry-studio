@@ -1268,7 +1268,9 @@ const ompAdapter: CliConfigAdapter = {
     const filteredInput = rawInput.filter((v): v is 'image' | 'text' => v === 'image' || v === 'text')
     const input: Array<'image' | 'text'> = filteredInput.length > 0 ? [...new Set(filteredInput)] : ['text']
     const rawHeaders = asRecord(existingProvider?.headers)
-    const headers = Object.fromEntries(Object.entries(rawHeaders).filter(([, v]): v is string => typeof v === 'string'))
+    const headers = Object.fromEntries(
+      Object.entries(rawHeaders).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+    )
     const contextWindow =
       typeof currentModel.contextWindow === 'number' && Number.isFinite(currentModel.contextWindow)
         ? currentModel.contextWindow

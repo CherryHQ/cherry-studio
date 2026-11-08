@@ -296,4 +296,82 @@ describe('readCliConfigFiles', () => {
 
     await expect(readCliConfigFiles(['claude-settings'])).rejects.toThrow()
   })
+
+  describe('OMP .yaml fallback', () => {
+    const ompModelsYml = () => path.join(home, '.omp', 'agent', 'models.yml')
+    const ompModelsYaml = () => path.join(home, '.omp', 'agent', 'models.yaml')
+    const ompConfigYml = () => path.join(home, '.omp', 'agent', 'config.yml')
+    const ompConfigYaml = () => path.join(home, '.omp', 'agent', 'config.yaml')
+
+    it('reads the config.yaml variant when config.yml is missing', async () => {
+      await mkdir(path.dirname(ompConfigYaml()), { recursive: true })
+      await writeFile(ompConfigYaml(), 'modelRoles: {}\n')
+
+      await expect(readCliConfigFiles(['omp-config'])).resolves.toEqual([
+        { target: 'omp-config', path: ompConfigYaml(), content: 'modelRoles: {}\n' }
+      ])
+    })
+
+    it('prefers config.yml when both variants exist', async () => {
+      await mkdir(path.dirname(ompConfigYml()), { recursive: true })
+      await writeFile(ompConfigYml(), 'modelRoles: {yml: true}\n')
+      await writeFile(ompConfigYaml(), 'modelRoles: {yaml: true}\n')
+
+      await expect(readCliConfigFiles(['omp-config'])).resolves.toEqual([
+        { target: 'omp-config', path: ompConfigYml(), content: 'modelRoles: {yml: true}\n' }
+      ])
+    })
+
+    it('writes to the existing config.yaml instead of creating a shadowing config.yml', async () => {
+      await mkdir(path.dirname(ompConfigYaml()), { recursive: true })
+      await writeFile(ompConfigYaml(), 'modelRoles: {}\n')
+
+      await writeCliConfigFiles(CodeCli.OMP, [{ target: 'omp-config', content: 'modelRoles: {a: 1}\n' }])
+
+      expect(await readFile(ompConfigYaml(), 'utf-8')).toBe('modelRoles: {a: 1}\n')
+      await expect(stat(ompConfigYml())).rejects.toThrow()
+    })
+
+    it('creates config.yml when neither variant exists', async () => {
+      await writeCliConfigFiles(CodeCli.OMP, [{ target: 'omp-config', content: 'modelRoles: {}\n' }])
+
+      expect(await readFile(ompConfigYml(), 'utf-8')).toBe('modelRoles: {}\n')
+      await expect(stat(ompConfigYaml())).rejects.toThrow()
+    })
+
+    it('maps a missing OMP config to content null with the .yml path', async () => {
+      await expect(readCliConfigFiles(['omp-config'])).resolves.toEqual([
+        { target: 'omp-config', path: ompConfigYml(), content: null }
+      ])
+    })
+
+    it('ignores a lone models.yaml: OMP only reads models.yml', async () => {
+      await mkdir(path.dirname(ompModelsYaml()), { recursive: true })
+      await writeFile(ompModelsYaml(), 'providers: {}\n')
+
+      await expect(readCliConfigFiles(['omp-models'])).resolves.toEqual([
+        { target: 'omp-models', path: ompModelsYml(), content: null }
+      ])
+
+      await writeCliConfigFiles(CodeCli.OMP, [{ target: 'omp-models', content: 'providers: {a: 1}\n' }])
+
+      expect(await readFile(ompModelsYml(), 'utf-8')).toBe('providers: {a: 1}\n')
+      expect(await readFile(ompModelsYaml(), 'utf-8')).toBe('providers: {}\n')
+    })
+
+    it('rejects when the .yml path is a directory even if .yaml exists', async () => {
+      await mkdir(path.dirname(ompConfigYml()), { recursive: true })
+      await mkdir(ompConfigYml())
+      await writeFile(ompConfigYaml(), 'modelRoles: {}\n')
+
+      await expect(readCliConfigFiles(['omp-config'])).rejects.toThrow()
+    })
+
+    it('rejects when the fallback .yaml path is a directory and .yml is missing', async () => {
+      await mkdir(path.dirname(ompConfigYaml()), { recursive: true })
+      await mkdir(ompConfigYaml())
+
+      await expect(readCliConfigFiles(['omp-config'])).rejects.toThrow()
+    })
+  })
 })

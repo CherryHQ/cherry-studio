@@ -1222,6 +1222,7 @@
         "qoder-cli",
         "github-copilot-cli",
         "pi",
+        "omp",
         "hermes",
         "minimax-code"
       ]
