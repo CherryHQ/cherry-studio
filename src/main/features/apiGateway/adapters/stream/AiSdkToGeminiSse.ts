@@ -193,6 +193,11 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
     // Preserve count absence in its standard fields as well as the extension.
     if (this.reportedOutputUsage) {
       if (this.reportedOutputUsage.outputTokens === null) delete usage.candidatesTokenCount
+      else
+        usage.candidatesTokenCount = Math.max(
+          0,
+          this.reportedOutputUsage.outputTokens - (this.reportedOutputUsage.reasoningTokens ?? 0)
+        )
       if (this.reportedOutputUsage.reasoningTokens === null) delete usage.thoughtsTokenCount
       else usage.thoughtsTokenCount = this.reportedOutputUsage.reasoningTokens
     }

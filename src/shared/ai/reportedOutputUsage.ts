@@ -33,7 +33,12 @@ export function providerReportedOutputUsage(usage: {
     outputTokens:
       count(wire.completion_tokens) ??
       count(wire.output_tokens) ??
+      count(wire.outputTokens) ??
       (candidates === null ? null : candidates + (thoughts ?? 0)),
-    reasoningTokens: count(breakdown?.reasoning_tokens) ?? count(breakdown?.thinking_tokens) ?? thoughts
+    reasoningTokens:
+      count(breakdown?.reasoning_tokens) ??
+      count(breakdown?.thinking_tokens) ??
+      count(wire.reasoning_tokens) ??
+      thoughts
   }
 }
