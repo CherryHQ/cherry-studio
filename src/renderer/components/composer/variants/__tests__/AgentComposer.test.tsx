@@ -6173,7 +6173,7 @@ describe('AgentComposer', () => {
     })
   })
   it.each([false, true])(
-    'advises a queued Agent turn against its latest configured target (latest exhausted=%s)',
+    'submits a queued Agent turn for launch without client quota advice (latest exhausted=%s)',
     async (latestExhausted) => {
       const a = { ...model, id: 'cherryai-subscription::a', providerId: 'cherryai-subscription' } satisfies Model
       const b = { ...model, id: 'cherryai-subscription::b', providerId: 'cherryai-subscription' } satisfies Model
@@ -6199,16 +6199,11 @@ describe('AgentComposer', () => {
       mocks.exhaustedTargets.add(latestExhausted ? b.id : a.id)
       mocks.topicFulfilled = true
       await act(async () => view.rerender(component(false)))
-      if (latestExhausted) {
-        expect(mocks.sendMessage).not.toHaveBeenCalled()
-        await act(async () => {
-          await getQueueDock().props.onSteer(getQueueDock().props.items[0].id)
-        })
-      }
       expect(mocks.sendMessage).toHaveBeenCalledWith(
         { text: 'latest target' },
         expect.objectContaining({ body: expect.objectContaining({ agentId: 'agent-1', sessionId: 'session-1' }) })
       )
+      expect(getQueueDock()?.props.items ?? []).toEqual([])
     }
   )
 })

@@ -58,7 +58,6 @@ import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useCherryCloudQuotaExhaustion } from '@renderer/hooks/useCherryCloudQuotaExhaustion'
-import { useCherryCloudTargetAdvice } from '@renderer/hooks/useCherryCloudTargetAdvice'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useLatest } from '@renderer/hooks/useLatest'
 import { useAvailableSkills } from '@renderer/hooks/useSkills'
@@ -71,7 +70,6 @@ import { toast } from '@renderer/services/toast'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { hasKnownExhaustedTarget } from '@renderer/utils/cherryCloudTargetAdvice'
 import {
   getComposerShortcutLabel,
   resolveNewlineShortcut,
@@ -97,7 +95,7 @@ import { createComposerFolderToken } from '../folderToken'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
-import { type FollowupDrainResult, type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
+import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
 import { useInputHistory } from '../useInputHistory'
 import { getPathComparisonKey } from './agent/accessiblePath'
 import {
@@ -1370,20 +1368,6 @@ const AgentComposerInner = ({
     workspaceKey
   ])
 
-  const { getAdvice: getQueuedTargetAdvice, wakeupKey: queuedTargetWakeupKey } = useCherryCloudTargetAdvice(true)
-  const queuedTargetId = model?.id
-  const drainQueuedPayload = useCallback(
-    async (payload: ComposerQueuedMessagePayload, mode: 'automatic' | 'manual'): Promise<FollowupDrainResult> => {
-      if (
-        mode === 'automatic' &&
-        hasKnownExhaustedTarget(getQueuedTargetAdvice(queuedTargetId ? [queuedTargetId] : undefined))
-      )
-        return { status: 'deferred' }
-      return { status: (await sendQueuedPayload(payload)) ? 'submitted' : 'failed' }
-    },
-    [queuedTargetId, getQueuedTargetAdvice, sendQueuedPayload]
-  )
-
   // Queue mode (same as chat): while the session streams, follow-ups queue here and auto-drain on idle.
   const { status: sessionStatus, lastCompletedAt } = useTopicStreamStatus(sessionTopicId)
   const {
@@ -1400,8 +1384,7 @@ const AgentComposerInner = ({
     scopeKey: launchOptions?.editing ? `${sessionTopicId}:edit:${launchOptions.editing.messageId}` : sessionTopicId,
     status: sendDisabled || launchOptions?.editing ? undefined : sessionStatus,
     lastCompletedAt,
-    onDrain: drainQueuedPayload,
-    wakeupKey: `${queuedTargetWakeupKey}:${queuedTargetId ?? 'unknown'}`
+    onDrain: sendQueuedPayload
   })
   releaseFollowupEditRef.current = releaseEdit
 

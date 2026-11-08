@@ -20,7 +20,7 @@ Serialize full account refreshes with the existing `Sequencer`. Each caller rece
 
 Keep the generic model selector unaware of Cloud plans, authentication and analytics. Cloud composition supplies real-model presentation and distinct action rows. Offers cannot be selected, pinned or submitted as models. Preserve filtering, keyboard navigation, virtualization and general/agent differences.
 
-Chat evaluates the models in each queued payload. A queued new Agent turn resolves the latest Agent configuration at launch; an active turn keeps its captured target. Deferred items remain queued without a drain loop. Unknown or stale availability is not evidence of exhaustion. Existing provider entitlement checks and the server's quota decision remain authoritative.
+The follow-up queue owns drafts, ordering and submission handoff, without quota advice or account-change wakeups. Chat submits the targets captured in each queued payload. A queued new Agent turn resolves the latest Agent configuration at launch; an active turn keeps its captured target. Unaccepted submissions retain their drafts; accepted submissions leave the queue and subsequent execution failures belong to the conversation. Existing provider entitlement checks and the server's request-time quota decision remain authoritative. Quota recovery does not trigger automatic resubmission. A future recovery feature must use an explicitly registered scheduled task that enters the existing submission path; no such task is introduced here.
 
 The portable Claude adapter owns validated live and archived native rejection facts. Product code decorates those facts without inferring errors from message text. Generic analytics owns consent and transport; a Cloud formatter owns Cloud identity and event properties. No global subscription manager, second session owner, durable flow ledger or new database table is introduced.
 
@@ -28,7 +28,7 @@ The portable Claude adapter owns validated live and archived native rejection fa
 
 Preserve PKCE/state/loopback validation, signed requests, credential persistence before session publication, token-refresh single flight, waiter cancellation, local-first logout, retry/idempotency rules and quota-refusal floors. Preserve HTTP methods, paths, query/body fields and response parsing; public and account plan DTOs remain distinct. Preserve existing model row identity, active/upcoming semantics, edition behavior, six subscription sources, flow parameters, consent and coarse attribution.
 
-Deliberate corrections are one terminal login result, one in-flight subscription operation across windows, no stale-account portal or receipt, retryable failed notification refresh, queued-payload target evaluation, distinct quota and ordinary rate limits, accurate dynamic Free filtering, and no fabricated unsubscribed state while plans are unknown. These corrections must have code-backed counterexamples and contract tests. They do not authorize new checkout behavior or new analytics event values.
+Deliberate corrections are one terminal login result, one in-flight subscription operation across windows, no stale-account portal or receipt, retryable failed notification refresh, queued submission independent of the editor's quota state, distinct quota and ordinary rate limits, accurate dynamic Free filtering, and no fabricated unsubscribed state while plans are unknown. These corrections must have code-backed counterexamples and contract tests. They do not authorize new checkout behavior or new analytics event values.
 
 ### Verification boundary
 
@@ -40,6 +40,7 @@ Offline endpoint fixtures and native SDK tests do not establish live backend com
 
 - Centralize subscription, model policy and runtime execution in one manager: introduces a second owner across independent lifecycles. Retain existing owners and narrow contracts.
 - Keep status listeners and independent SWR fetches with more guards: preserves duplicate completion and freshness writers. Make operation completion and refresh receipts explicit.
+- Defer queued drafts using client quota snapshots and wake them on account refresh: couples submission scheduling to cached business advice and duplicates the request owner's target resolution. Submit through the existing path and leave execution refusals with the conversation; scheduled quota-recovery retries remain out of scope.
 - Require exact buggy trace equivalence: would retain known races. Preserve business and external contracts with enumerated, verified corrections instead.
 
 ## Acceptance criteria
@@ -49,7 +50,7 @@ Offline endpoint fixtures and native SDK tests do not establish live backend com
 - AC3 — Every admitted refresh settles independently, failed predecessors do not discard successors, and stale account results cannot publish. Receipt freshness and source are explicit. (verification: main-service concurrency and renderer projection tests; owner: main/renderer Cloud)
 - AC4 — Notification ready/live/catch-up failure and cancellation retain retryability and never acknowledge an unprocessed account change. (verification: offline SSE scripts; owner: Cloud notifications)
 - AC5 — Generic selector code has no Cloud policy imports; offers are action rows excluded from model selection and pinning, with keyboard/filter behavior preserved. (verification: dependency and selector consumer checks; owner: renderer selector)
-- AC6 — Chat queue advice follows captured targets, Agent launch follows its existing configuration lifetime, and deferred drain wakes only on meaningful changes. Unknown facts do not create a quota decision. (verification: queue and affected composer tests; owner: conversation runtimes)
+- AC6 — Queued Chat submissions retain captured targets, Agent launch retains its configuration lifetime, and queue delivery does not depend on client quota snapshots. Unaccepted drafts remain queued, execution errors stop automatic advancement, and quota recovery alone never resubmits input. (verification: queue, submission-controller and affected composer tests; owner: conversation runtimes)
 - AC7 — Trusted quota, rate-limit, authentication and entitlement failures remain distinct; native live and cold replay expose equivalent validated rejection facts. (verification: error contract and actual SDK/local-endpoint tests; owner: runtime adapters/product decoration)
 - AC8 — Cloud analytics formatting leaves generic transport while preserving consent, source/flow contracts and account isolation; no event claims purchase causality. (verification: analytics formatter/consent tests; owner: analytics/Cloud)
 - AC9 — Preserved security and HTTP contracts pass focused baseline/after checks; every verification property detects a deliberate real-code break. Bounds and backend limitations are documented. (verification: focused test files and recorded baseline/mutation evidence; owner: implementation coordinator)
@@ -59,5 +60,6 @@ Offline endpoint fixtures and native SDK tests do not establish live backend com
 
 - No live backend environment is available. Private ready-frame and analytics assumptions must remain explicit; local contract checks cannot certify server deployment behavior.
 - Account, plans and models are separate observations. Failed reads preserve stale facts rather than manufacturing a current combined snapshot.
+- An accepted submission may become a failed conversation message when the server refuses quota; it is not restored to the draft queue or automatically retried when quota recovers.
 - Native archive metadata must be demonstrated from the pinned SDK's real producer and stored records before exposing a portable fact.
 - Broad UI consumers make partial migration unsafe. Migrate each caller and delete obsolete paths within this change; keep unrelated behavior and files outside scope.

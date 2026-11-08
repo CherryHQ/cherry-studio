@@ -7,7 +7,7 @@ import { cacheService } from '@data/CacheService'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import type { TopicStreamStatus } from '@shared/ai/transport'
 
-import { type FollowupDrainResult, useFollowupQueue } from '../useFollowupQueue'
+import { useFollowupQueue } from '../useFollowupQueue'
 
 vi.unmock('@renderer/data/hooks/useCache')
 
@@ -29,7 +29,7 @@ it.each<TopicStreamStatus>(['pending', 'streaming', 'awaiting-approval', 'error'
         ...useTopicStreamStatus('topic'),
         onDrain: async ({ text }) => {
           delivered.push(text)
-          return { status: 'submitted' as const }
+          return true
         }
       })
     )
@@ -40,7 +40,7 @@ it.each<TopicStreamStatus>(['pending', 'streaming', 'awaiting-approval', 'error'
 )
 
 it('keeps an in-flight send exclusive across remounts and removes it from the remounted dock', async () => {
-  let finish!: (result: FollowupDrainResult) => void
+  let finish!: (sent: boolean) => void
   const delivered: string[] = []
   const useQueue = () =>
     useFollowupQueue({
@@ -48,7 +48,7 @@ it('keeps an in-flight send exclusive across remounts and removes it from the re
       ...useTopicStreamStatus('topic'),
       onDrain: async ({ text }) => {
         delivered.push(text)
-        return new Promise<FollowupDrainResult>((resolve) => {
+        return new Promise<boolean>((resolve) => {
           finish = resolve
         })
       }
@@ -65,7 +65,7 @@ it('keeps an in-flight send exclusive across remounts and removes it from the re
   )
   first.unmount()
   const second = renderHook(useQueue)
-  await act(async () => finish({ status: 'submitted' }))
+  await act(async () => finish(true))
   expect(delivered).toEqual(['next'])
   expect(second.result.current.items).toEqual([])
 })
@@ -79,7 +79,7 @@ it('sends a queued follow-up when completion has already been marked read', asyn
   const delivered: string[] = []
   const onDrain = async (payload: { text: string }) => {
     delivered.push(payload.text)
-    return { status: 'submitted' as const }
+    return true
   }
   const { result } = renderHook(() => {
     const stream = useTopicStreamStatus('topic')
@@ -99,6 +99,50 @@ it('sends a queued follow-up when completion has already been marked read', asyn
   expect(result.current.items).toEqual([])
 })
 
+it('keeps an accepted input out of the draft queue and stops advancing after execution fails', async () => {
+  const delivered: string[] = []
+  const useQueue = () =>
+    useFollowupQueue({
+      scopeKey: 'topic',
+      ...useTopicStreamStatus('topic'),
+      onDrain: async ({ text }) => {
+        delivered.push(text)
+        return true
+      }
+    })
+  const first = renderHook(useQueue)
+  act(() => {
+    first.result.current.enqueue({ text: 'accepted', tokens: [] }, { text: 'accepted', userMessageParts: [] })
+    first.result.current.enqueue({ text: 'next', tokens: [] }, { text: 'next', userMessageParts: [] })
+  })
+  await act(async () => {
+    cacheService.setShared('topic.stream.statuses.topic', {
+      status: 'done',
+      activeExecutions: [],
+      awaitingApprovalAnchors: [],
+      lastCompletedAt: 100
+    })
+  })
+  expect(delivered).toEqual(['accepted'])
+  expect(first.result.current.items.map(({ payload }) => payload.text)).toEqual(['next'])
+  await act(async () => {
+    cacheService.setShared('topic.stream.statuses.topic', {
+      status: 'error',
+      activeExecutions: [],
+      awaitingApprovalAnchors: [],
+      lastCompletedAt: 100
+    })
+  })
+  first.unmount()
+  const next = renderHook(useQueue)
+  next.rerender()
+  expect(delivered).toEqual(['accepted'])
+  expect(next.result.current.items.map(({ payload }) => payload.text)).toEqual(['next'])
+  await act(async () => next.result.current.sendId(next.result.current.items[0].id))
+  expect(delivered).toEqual(['accepted', 'next'])
+  expect(next.result.current.items).toEqual([])
+})
+
 it('resumes a paused queue after the current conversation was marked read', async () => {
   const delivered: string[] = []
   const { result } = renderHook(() =>
@@ -107,7 +151,7 @@ it('resumes a paused queue after the current conversation was marked read', asyn
       ...useTopicStreamStatus('topic'),
       onDrain: async ({ text }) => {
         delivered.push(text)
-        return { status: 'submitted' as const }
+        return true
       }
     })
   )
@@ -138,9 +182,9 @@ it('preserves a failed draft and lets resume retry without another model complet
       scopeKey: 'topic',
       ...useTopicStreamStatus('topic'),
       onDrain: async ({ text }) => {
-        if (!canSend) return { status: 'failed' as const }
+        if (!canSend) return false
         delivered.push(text)
-        return { status: 'submitted' as const }
+        return true
       }
     })
   )
@@ -169,7 +213,7 @@ it('sends once per completion even across remounts, then sends the next FIFO ite
       ...useTopicStreamStatus('topic'),
       onDrain: async ({ text }) => {
         delivered.push(text)
-        return { status: 'submitted' as const }
+        return true
       }
     })
   const first = renderHook(useQueue, { wrapper: StrictMode })
@@ -202,11 +246,11 @@ it('sends once per completion even across remounts, then sends the next FIFO ite
 })
 
 it('settles a pending send in its original queue after switching conversations', async () => {
-  let finish!: (result: FollowupDrainResult) => void
+  let finish!: (sent: boolean) => void
   const delivered: string[] = []
   const onDrain = async ({ text }: { text: string }) => {
     delivered.push(text)
-    return new Promise<FollowupDrainResult>((resolve) => {
+    return new Promise<boolean>((resolve) => {
       finish = resolve
     })
   }
@@ -230,7 +274,7 @@ it('settles a pending send in its original queue after switching conversations',
   )
   rerender({ scopeKey: 'two' })
   act(() => result.current.enqueue({ text: 'second', tokens: [] }, { text: 'second', userMessageParts: [] }))
-  await act(async () => finish({ status: 'submitted' }))
+  await act(async () => finish(true))
   expect(result.current.items.map(({ payload }) => payload.text)).toEqual(['second'])
   rerender({ scopeKey: 'one' })
   expect(result.current.items).toEqual([])
@@ -240,7 +284,7 @@ it('settles a pending send in its original queue after switching conversations',
 it.each(['automatic', 'manual'] as const)(
   'delivers a queued item once when %s sending races with steer and remounts',
   async (firstSender) => {
-    let finish!: (result: FollowupDrainResult) => void
+    let finish!: (sent: boolean) => void
     const delivered: string[] = []
     const useQueue = () =>
       useFollowupQueue({
@@ -248,7 +292,7 @@ it.each(['automatic', 'manual'] as const)(
         ...useTopicStreamStatus('topic'),
         onDrain: async ({ text }) => {
           delivered.push(text)
-          return new Promise<FollowupDrainResult>((resolve) => {
+          return new Promise<boolean>((resolve) => {
             finish = resolve
           })
         }
@@ -270,19 +314,19 @@ it.each(['automatic', 'manual'] as const)(
       })
     })
     await act(async () => {
-      expect(await first.result.current.sendId(id)).toEqual({ status: 'deferred' })
+      expect(await first.result.current.sendId(id)).toBe(false)
     })
     first.unmount()
     const second = renderHook(useQueue, { wrapper: StrictMode })
     await act(async () => {
-      expect(await second.result.current.sendId(id)).toEqual({ status: 'deferred' })
+      expect(await second.result.current.sendId(id)).toBe(false)
     })
     expect(delivered).toEqual(['next'])
     expect(second.result.current.items.map(({ payload }) => payload.text)).toEqual(['next'])
-    await act(async () => finish({ status: 'submitted' }))
+    await act(async () => finish(true))
     expect(second.result.current.items).toEqual([])
     await act(async () => {
-      expect(await second.result.current.sendId(id)).toEqual({ status: 'deferred' })
+      expect(await second.result.current.sendId(id)).toBe(false)
     })
     expect(delivered).toEqual(['next'])
   }
@@ -298,7 +342,7 @@ it('consumes an idle completion when manually sending from a paused queue', asyn
         lastCompletedAt,
         onDrain: async ({ text }) => {
           delivered.push(text)
-          return { status: 'submitted' as const }
+          return true
         }
       }),
     { initialProps: { lastCompletedAt: 100 } }
@@ -309,7 +353,7 @@ it('consumes an idle completion when manually sending from a paused queue', asyn
     result.current.enqueue({ text: 'two', tokens: [] }, { text: 'two', userMessageParts: [] })
   })
   await act(async () => {
-    expect(await result.current.sendId(result.current.items[0].id)).toEqual({ status: 'submitted' })
+    expect(await result.current.sendId(result.current.items[0].id)).toBe(true)
   })
   await act(async () => result.current.setPaused(false))
   expect(delivered).toEqual(['one'])
@@ -322,7 +366,7 @@ it('consumes an idle completion when manually sending from a paused queue', asyn
 it.each<TopicStreamStatus>(['streaming', 'done'])(
   'preserves a new completion after a manual send starts while %s and settles unmounted',
   async (initialStatus) => {
-    let finish!: (result: FollowupDrainResult) => void
+    let finish!: (sent: boolean) => void
     const delivered: string[] = []
     const setStatus = (status: TopicStreamStatus, lastCompletedAt: number) =>
       cacheService.setShared('topic.stream.statuses.topic', {
@@ -339,10 +383,10 @@ it.each<TopicStreamStatus>(['streaming', 'done'])(
         onDrain: async ({ text }) => {
           delivered.push(text)
           return text === 'one'
-            ? new Promise<FollowupDrainResult>((resolve) => {
+            ? new Promise<boolean>((resolve) => {
                 finish = resolve
               })
-            : { status: 'submitted' as const }
+            : true
         }
       })
     const first = renderHook(useQueue)
@@ -356,7 +400,7 @@ it.each<TopicStreamStatus>(['streaming', 'done'])(
     })
     first.unmount()
     await act(async () => setStatus('done', 200))
-    await act(async () => finish({ status: 'submitted' }))
+    await act(async () => finish(true))
     const second = renderHook(useQueue, { wrapper: StrictMode })
     expect(delivered).toEqual(['one'])
     await act(async () => second.result.current.setPaused(false))
@@ -368,7 +412,7 @@ it.each<TopicStreamStatus>(['streaming', 'done'])(
 it.each(['pending', 'settled'] as const)(
   'does not release another manual send completion claim when it is %s',
   async (firstState) => {
-    let finish!: (result: FollowupDrainResult) => void
+    let finish!: (sent: boolean) => void
     const attempted: string[] = []
     const { result, rerender } = renderHook(
       ({ lastCompletedAt }) =>
@@ -379,10 +423,10 @@ it.each(['pending', 'settled'] as const)(
           onDrain: async ({ text }) => {
             attempted.push(text)
             return text === 'one'
-              ? new Promise<FollowupDrainResult>((resolve) => {
+              ? new Promise<boolean>((resolve) => {
                   finish = resolve
                 })
-              : { status: 'failed' as const }
+              : false
           }
         }),
       { initialProps: { lastCompletedAt: 100 } }
@@ -396,12 +440,12 @@ it.each(['pending', 'settled'] as const)(
     act(() => {
       void result.current.sendId(first.id)
     })
-    if (firstState === 'settled') await act(async () => finish({ status: 'submitted' }))
+    if (firstState === 'settled') await act(async () => finish(true))
     await act(async () => {
-      expect(await result.current.sendId(second.id)).toEqual({ status: 'failed' })
+      expect(await result.current.sendId(second.id)).toBe(false)
     })
     await act(async () => result.current.setPaused(false))
-    if (firstState === 'pending') await act(async () => finish({ status: 'submitted' }))
+    if (firstState === 'pending') await act(async () => finish(true))
     expect(attempted).toEqual(['one', 'two'])
     expect(result.current.items.map(({ payload }) => payload.text)).toEqual(['two'])
     await act(async () => rerender({ lastCompletedAt: 200 }))
@@ -411,9 +455,9 @@ it.each(['pending', 'settled'] as const)(
 )
 
 it.each([
-  { failure: 'failed', completes: false },
+  { failure: 'false', completes: false },
   { failure: 'reject', completes: false },
-  { failure: 'failed', completes: true },
+  { failure: 'false', completes: true },
   { failure: 'reject', completes: true }
 ])(
   'releases a failed manual claim ($failure, completion=$completes) so its preserved draft can be retried',
@@ -430,12 +474,12 @@ it.each([
           onDrain: async ({ text }) => {
             attempts += 1
             if (attempts === 1) {
-              return new Promise<FollowupDrainResult>((resolve, reject) => {
-                finish = () => (failure === 'reject' ? reject(new Error('send failed')) : resolve({ status: 'failed' }))
+              return new Promise<boolean>((resolve, reject) => {
+                finish = () => (failure === 'reject' ? reject(new Error('send failed')) : resolve(false))
               })
             }
             delivered.push(text)
-            return { status: 'submitted' as const }
+            return true
           }
         }),
       { initialProps: { status: (completes ? 'done' : 'streaming') as TopicStreamStatus } }
@@ -445,14 +489,14 @@ it.each([
       result.current.enqueue({ text: 'retry me', tokens: [] }, { text: 'retry me', userMessageParts: [] })
     })
     const id = result.current.items[0].id
-    let pending!: Promise<FollowupDrainResult>
+    let pending!: Promise<boolean>
     act(() => {
       pending = result.current.sendId(id)
     })
     await act(async () => {
-      expect(await result.current.sendId(id)).toEqual({ status: 'deferred' })
+      expect(await result.current.sendId(id)).toBe(false)
       finish()
-      expect(await pending).toEqual({ status: 'failed' })
+      expect(await pending).toBe(false)
     })
     expect(attempts).toBe(1)
     expect(result.current.items.map(({ draft }) => draft.text)).toEqual(['retry me'])
@@ -461,7 +505,7 @@ it.each([
         expect(result.current.paused).toBe(true)
         result.current.setPaused(false)
       } else {
-        expect(await result.current.sendId(id)).toEqual({ status: 'submitted' })
+        expect(await result.current.sendId(id)).toBe(true)
       }
     })
     expect(delivered).toEqual(['retry me'])

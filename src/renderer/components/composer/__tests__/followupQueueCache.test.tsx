@@ -1,13 +1,9 @@
 import { act, renderHook } from '@testing-library/react'
 import { expect, it, vi } from 'vitest'
 
-import { getCherryCloudTargetAdvice, hasKnownExhaustedTarget } from '@renderer/utils/cherryCloudTargetAdvice'
-import type { ComposerQueuedMessagePayload, TopicStreamStatus } from '@shared/ai/transport'
+import type { TopicStreamStatus } from '@shared/ai/transport'
 
-import type { ComposerSerializedDraft } from '../tokens'
-import { type FollowupDrainResult, type FollowupEditOptions, useFollowupQueue } from '../useFollowupQueue'
-
-const drainResult = (sent: boolean): FollowupDrainResult => ({ status: sent ? 'submitted' : 'failed' })
+import { useFollowupQueue } from '../useFollowupQueue'
 
 // Exercise production deep-equality suppression, rather than the always-notifying cache mock.
 vi.unmock('@data/CacheService')
@@ -23,7 +19,7 @@ function setup() {
       lastCompletedAt,
       onDrain: ({ text }) => {
         attempts.push(text)
-        return new Promise<boolean>((resolve) => finishes.set(text, resolve)).then(drainResult)
+        return new Promise<boolean>((resolve) => finishes.set(text, resolve))
       }
     })
   const hook = renderHook(useQueue, { initialProps: { lastCompletedAt: 100 } })
@@ -145,9 +141,7 @@ it.each([false, true])('settles a manual send that started before completion (su
         lastCompletedAt: status === 'done' ? 200 : null,
         onDrain: ({ text }) => {
           attempts.push(text)
-          return attempts.length === 1
-            ? new Promise<boolean>((resolve) => (finish = resolve)).then(drainResult)
-            : Promise.resolve(drainResult(true))
+          return attempts.length === 1 ? new Promise<boolean>((resolve) => (finish = resolve)) : Promise.resolve(true)
         }
       }),
     { initialProps: { status: 'streaming' as TopicStreamStatus } }
@@ -175,7 +169,7 @@ it('preserves the edited draft position when another mounted sender settles afte
       scopeKey,
       status: 'streaming',
       lastCompletedAt: null,
-      onDrain: () => new Promise<boolean>((resolve) => (finish = resolve)).then(drainResult)
+      onDrain: () => new Promise<boolean>((resolve) => (finish = resolve))
     })
   const sender = renderHook(useQueue)
   act(() => {
@@ -199,76 +193,4 @@ it('preserves the edited draft position when another mounted sender settles afte
     }))
   })
   expect(editor.result.current.items.map(({ draft }) => draft.text)).toEqual(['B edited', 'C'])
-})
-
-it('resumes an edited deferred draft with its new target after switching to another queued draft', async () => {
-  const scopeKey = crypto.randomUUID()
-  const exhaustedTarget = 'cherryai-subscription::exhausted'
-  const healthyTarget = 'openai::healthy'
-  const attempts: ComposerQueuedMessagePayload[] = []
-  const submitted: ComposerQueuedMessagePayload[] = []
-  const useQueue = ({ status }: { status: TopicStreamStatus }) =>
-    useFollowupQueue({
-      scopeKey,
-      status,
-      lastCompletedAt: 100,
-      wakeupKey: 'account:1:fresh',
-      onDrain: async (payload): Promise<FollowupDrainResult> => {
-        attempts.push(payload)
-        const advice = getCherryCloudTargetAdvice(payload.mentionedModels, {
-          freshness: 'fresh',
-          isModelUnavailable: (model) => model.id === exhaustedTarget
-        })
-        if (hasKnownExhaustedTarget(advice)) return { status: 'deferred' }
-        submitted.push(payload)
-        return { status: 'submitted' }
-      }
-    })
-  const queue = renderHook(useQueue, { initialProps: { status: 'streaming' as TopicStreamStatus } })
-  act(() => {
-    for (const text of ['A', 'B', 'C']) {
-      queue.result.current.enqueue(
-        { text, tokens: [] },
-        { text, userMessageParts: [], mentionedModels: [text === 'A' ? exhaustedTarget : healthyTarget] }
-      )
-    }
-  })
-  const [a, b, c] = queue.result.current.items
-  await act(async () => queue.rerender({ status: 'done' }))
-  expect(attempts.map(({ text }) => text)).toEqual(['A'])
-  expect(submitted).toEqual([])
-
-  let editorDraft: ComposerSerializedDraft = { text: '', tokens: [] }
-  let editorTargets: ComposerQueuedMessagePayload['mentionedModels']
-  const editor: FollowupEditOptions = {
-    editingMessage: false,
-    getDraft: () => editorDraft,
-    buildPayload: (draft) => ({ text: draft.text, userMessageParts: [], mentionedModels: editorTargets }),
-    hasFiles: false,
-    restore: (item) => {
-      editorDraft = item.draft
-      editorTargets = item.payload.mentionedModels
-    }
-  }
-  act(() => queue.result.current.setPaused(true))
-  act(() => queue.result.current.editItem(a.id, editor))
-  editorDraft = { text: 'A edited', tokens: [] }
-  editorTargets = [healthyTarget]
-  act(() => queue.result.current.editItem(b.id, editor))
-  expect(editorDraft.text).toBe('B')
-  expect(queue.result.current.items.map(({ id }) => id)).toEqual([a.id, c.id])
-  expect(queue.result.current.items[0].payload.mentionedModels).toEqual([healthyTarget])
-  expect(submitted).toEqual([])
-
-  queue.unmount()
-  const resumed = renderHook(useQueue, { initialProps: { status: 'done' as TopicStreamStatus } })
-  expect(resumed.result.current.paused).toBe(true)
-  await act(async () => resumed.result.current.setPaused(false))
-  expect(submitted.map(({ text, mentionedModels }) => ({ text, mentionedModels }))).toEqual([
-    { text: 'A edited', mentionedModels: [healthyTarget] }
-  ])
-  expect(attempts.map(({ text }) => text)).toEqual(['A', 'A edited'])
-  expect(resumed.result.current.items.map(({ id }) => id)).toEqual([c.id])
-  resumed.rerender({ status: 'done' })
-  expect(attempts.map(({ text }) => text)).toEqual(['A', 'A edited'])
 })

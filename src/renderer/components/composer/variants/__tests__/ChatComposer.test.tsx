@@ -5954,9 +5954,8 @@ describe('ChatComposer', () => {
       }
     )
   })
-  // These cases catch advice accidentally consulting the editor instead of the captured payload.
   it.each([false, true])(
-    'dispatches captured targets independently of current model quota (captured exhausted=%s)',
+    'submits captured targets without deciding quota in the queue (captured exhausted=%s)',
     async (capturedExhausted) => {
       const a = { ...model, id: createUniqueModelId('cherryai-subscription', 'a'), providerId: 'cherryai-subscription' }
       const b = {
@@ -5981,19 +5980,14 @@ describe('ChatComposer', () => {
       mocks.topicPending = false
       mocks.topicFulfilled = true
       await act(async () => view.rerender(<ChatComposer topic={topic} onSend={onSend} />))
-      if (capturedExhausted) {
-        expect(onSend).not.toHaveBeenCalled()
-        view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
-        expect(onSend).not.toHaveBeenCalled()
-        await act(async () => {
-          await dock()!.props.onSteer(dock()!.props.items[0].id)
-        })
-      }
       expect(onSend).toHaveBeenCalledWith('captured target', expect.objectContaining({ mentionedModels: [a.id] }))
+      expect(dock()?.props.items ?? []).toEqual([])
+      await act(async () => view.rerender(<ChatComposer topic={topic} onSend={onSend} />))
+      expect(onSend).toHaveBeenCalledTimes(1)
     }
   )
 
-  it('defers a multi-model item as a whole and lets an explicit manual retry reach every captured target', async () => {
+  it('submits every captured target without blocking healthy models on another target quota', async () => {
     const a = { ...model, id: createUniqueModelId('cherryai-subscription', 'a'), providerId: 'cherryai-subscription' }
     mocks.topicPending = true
     mocks.mentionedModels = [a, modelB]
@@ -6006,12 +6000,40 @@ describe('ChatComposer', () => {
     mocks.topicPending = false
     mocks.topicFulfilled = true
     await act(async () => view.rerender(<ChatComposer topic={topic} onSend={onSend} />))
-    expect(onSend).not.toHaveBeenCalled()
-    const dock = getCapturedQueueDock()!
-    await act(async () => {
-      await dock.props.onSteer(dock.props.items[0].id)
-    })
     expect(onSend).toHaveBeenCalledWith('all targets', expect.objectContaining({ mentionedModels: [a.id, modelB.id] }))
+    expect(getCapturedQueueDock()?.props.items ?? []).toEqual([])
+  })
+
+  it('keeps an unaccepted draft paused when quota recovers until an explicit retry', async () => {
+    const a = { ...model, id: createUniqueModelId('cherryai-subscription', 'a'), providerId: 'cherryai-subscription' }
+    mocks.topicPending = true
+    mocks.mentionedModels = [a]
+    const onSend = vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true)
+    const view = render(<ChatComposer topic={topic} onSend={onSend} />)
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'retry explicitly', tokens: [] })
+    })
+    mocks.exhaustedTargets.add(a.id)
+    mocks.topicPending = false
+    mocks.topicFulfilled = true
+    await act(async () => view.rerender(<ChatComposer topic={topic} onSend={onSend} />))
+    const dock = getCapturedQueueDock
+    expect(onSend).toHaveBeenCalledTimes(1)
+    expect(dock()?.props.items).toEqual([
+      expect.objectContaining({ payload: expect.objectContaining({ text: 'retry explicitly' }) })
+    ])
+
+    mocks.exhaustedTargets.clear()
+    mocks.availabilityRevision++
+    await act(async () => view.rerender(<ChatComposer topic={topic} onSend={onSend} />))
+    expect(onSend).toHaveBeenCalledTimes(1)
+    expect(dock()?.props.items).toHaveLength(1)
+
+    await act(async () => {
+      await dock()!.props.onSteer(dock()!.props.items[0].id)
+    })
+    expect(onSend).toHaveBeenCalledTimes(2)
+    expect(dock()?.props.items ?? []).toEqual([])
   })
 })
 
