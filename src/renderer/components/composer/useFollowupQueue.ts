@@ -50,6 +50,8 @@ interface UseFollowupQueueParams {
   onDrain: (payload: ComposerQueuedMessagePayload) => Promise<boolean>
   /** Called when a send fails and leaves the queued draft paused for retry. */
   onDrainFailed?: () => void
+  /** Holds auto-drain without pausing the queue, e.g. while the model is out of quota. */
+  blocked?: boolean
 }
 
 export interface FollowupEditOptions {
@@ -89,7 +91,8 @@ export function useFollowupQueue({
   status,
   lastCompletedAt,
   onDrain,
-  onDrainFailed
+  onDrainFailed,
+  blocked = false
 }: UseFollowupQueueParams): FollowupQueueController {
   const readState = useCallback(
     () => ({
@@ -268,12 +271,12 @@ export function useFollowupQueue({
   )
 
   useEffect(() => {
-    if (state.scopeKey !== scopeKey || state.paused || status !== 'done' || lastCompletedAt == null) return
+    if (blocked || state.scopeKey !== scopeKey || state.paused || status !== 'done' || lastCompletedAt == null) return
     const head = state.items[0]
     const drained = loadCompletion(scopeKey)
     if (!head || drained.pendingIds.length > 0 || (drained.consumed && drained.completedAt === lastCompletedAt)) return
     void sendItem(head.id, lastCompletedAt)
-  }, [scopeKey, status, lastCompletedAt, state, sendItem])
+  }, [blocked, scopeKey, status, lastCompletedAt, state, sendItem])
 
   return {
     items: state.items,

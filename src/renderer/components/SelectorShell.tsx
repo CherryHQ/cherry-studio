@@ -222,6 +222,7 @@ export function SelectorShell({
   const [localPortalContainer] = useState(createLocalPortalContainer)
   const [availableListHeight, setAvailableListHeight] = useState<number | undefined>(undefined)
   const [hasOpened, setHasOpened] = useState(open)
+  const openedAtRef = useRef(0)
   const pagePortalContainer = usePortalContainer()
   const hasSearch = Boolean(search)
   const hasFilterContent = Boolean(filterContent)
@@ -417,6 +418,10 @@ export function SelectorShell({
     }
   }, [])
 
+  useLayoutEffect(() => {
+    if (open) openedAtRef.current = performance.now()
+  }, [open])
+
   const shouldRenderContent = mountStrategy === 'lazy-keep' ? open || hasOpened : true
   const shouldForceMount = mountStrategy === 'lazy-keep' || forceMount ? true : undefined
   const resolvedPortalContainer = portalContainer ?? pagePortalContainer ?? localPortalContainer ?? undefined
@@ -449,8 +454,13 @@ export function SelectorShell({
               ...style
             }}
             onInteractOutside={(event) => {
-              const originalTarget = (event.detail?.originalEvent?.target ?? event.target) as Element | null
+              const originalEvent = event.detail?.originalEvent
+              const originalTarget = (originalEvent?.target ?? event.target) as Element | null
               if (originalTarget?.closest?.('[data-entity-context-menu-root]')) {
+                event.preventDefault()
+              }
+              // Kept-mounted content defers dismissal to the click, so a press that opened it from outside must not close it.
+              if (originalEvent && originalEvent.timeStamp < openedAtRef.current) {
                 event.preventDefault()
               }
               onInteractOutside?.(event)
