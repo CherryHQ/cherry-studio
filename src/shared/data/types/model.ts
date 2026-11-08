@@ -391,6 +391,8 @@ export const ModelSchema = z.object({
   capabilities: z.array(z.enum(objectValues(MODEL_CAPABILITY))),
   /** Supported input modalities */
   inputModalities: z.array(z.enum(objectValues(MODALITY))).optional(),
+  /** Whether input modalities are explicitly saved rather than inherited from the registry */
+  inputModalitiesExplicit: z.boolean().optional(),
   /** Supported output modalities */
   outputModalities: z.array(z.enum(objectValues(MODALITY))).optional(),
 

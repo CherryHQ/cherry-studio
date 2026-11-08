@@ -435,6 +435,10 @@ function assertCompleteCustomModelRow(row: UserModelRow): asserts row is Complet
   }
 }
 
+function hasExplicitInputModalities(row: Pick<UserModelRow, 'inputModalities' | 'inputModalitiesExplicit'>): boolean {
+  return row.inputModalitiesExplicit || (row.inputModalities !== null && row.inputModalities.length > 0)
+}
+
 function customRowToRuntimeModel(row: UserModelRow): Model {
   assertCompleteCustomModelRow(row)
   const reasoning = row.reasoning ? ReasoningConfigSchema.parse(row.reasoning) : undefined
@@ -449,6 +453,7 @@ function customRowToRuntimeModel(row: UserModelRow): Model {
     group: row.group ?? undefined,
     capabilities: row.capabilities,
     inputModalities: row.inputModalities ?? undefined,
+    inputModalitiesExplicit: hasExplicitInputModalities(row),
     outputModalities: row.outputModalities ?? undefined,
     contextWindow: row.contextWindow ?? undefined,
     maxInputTokens: row.maxInputTokens ?? undefined,
@@ -477,7 +482,8 @@ function applyStoredModelState(model: Model, row: UserModelRow): Model {
     isEnabled: row.isEnabled,
     isHidden: row.isHidden,
     isDeprecated: row.isDeprecated,
-    notes: row.notes ?? undefined
+    notes: row.notes ?? undefined,
+    inputModalitiesExplicit: hasExplicitInputModalities(row)
   }
 }
 
@@ -786,9 +792,7 @@ class ModelService {
         if (model.description === undefined && registryModel?.description !== undefined) {
           updates.description = registryModel.description
         }
-        const hasExplicitInputModalities =
-          row.inputModalitiesExplicit || (row.inputModalities !== null && row.inputModalities.length > 0)
-        if (!hasExplicitInputModalities && registryModel?.inputModalities !== undefined) {
+        if (!hasExplicitInputModalities(row) && registryModel?.inputModalities !== undefined) {
           updates.inputModalities = registryModel.inputModalities
         }
         if (model.outputModalities === undefined && registryModel?.outputModalities !== undefined) {

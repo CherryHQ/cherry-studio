@@ -124,6 +124,11 @@ Custom rows store their complete config. This lets catalog changes reach
 existing rows without a data migration. Explicit empty strings and arrays
 remain valid overrides.
 
+The `inputModalitiesExplicit` flag records whether input modalities were
+explicitly supplied; a non-empty stored list is also treated as explicit. The
+runtime model exposes this effective provenance so the model editor does not
+present registry-inherited modalities as saved selections.
+
 ### User Override Protection
 
 When a user changes a registry-enrichable field (for example `name`), the value
@@ -231,6 +236,7 @@ Implemented in `normalizeModelId()` (`packages/provider-registry/src/utils/norma
 | `presetModelId` | Links to models.json entry (null = custom model) |
 | `name` / `capabilities` / `supportsStreaming` | Required for custom rows; nullable preset deltas |
 | `inputModalities` / `outputModalities` | Complete custom config or nullable preset deltas |
+| `inputModalitiesExplicit` | Provenance flag for explicit input-modality values |
 | `contextWindow` / `maxOutputTokens` | Complete custom config or nullable preset deltas |
 | `reasoning` | Custom-model intrinsic controls/token limits; preset rows resolve it from the registry |
 | `pricing` | Complete custom config or nullable preset delta |

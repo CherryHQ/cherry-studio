@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { CURRENCY, type Model } from '@shared/data/types/model'
+import { CURRENCY, MODALITY, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import EditModelDrawer from '../EditModelDrawer'
 import { buildModelImagePricing } from '../modelPricing'
@@ -207,6 +207,27 @@ describe('EditModelDrawer', () => {
         perImage: { price: 0.04, unit: 'image' }
       })
     })
+  })
+
+  it('starts catalog-suggested modalities unselected until the user saves them', async () => {
+    const user = userEvent.setup()
+    const model = {
+      ...makePricingModel(),
+      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION],
+      inputModalities: [MODALITY.TEXT, MODALITY.IMAGE],
+      inputModalitiesExplicit: false
+    } as Model
+    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={model} />)
+
+    const vision = screen.getByRole('button', { name: 'models.type.vision' })
+    expect(vision).toHaveAttribute('aria-pressed', 'false')
+
+    await user.click(vision)
+
+    await waitFor(() => {
+      expect(updateModelMock.mock.lastCall?.[2].inputModalities).toEqual([MODALITY.TEXT, MODALITY.IMAGE])
+    })
+    expect(vision).toHaveAttribute('aria-pressed', 'true')
   })
 
   it.each([
