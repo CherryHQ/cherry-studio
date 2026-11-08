@@ -1,5 +1,3 @@
-import { randomUUID } from 'node:crypto'
-
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -10,7 +8,6 @@ import { agentSessionMessageTable as messages } from '@data/db/schemas/agentSess
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { AgentSessionMessageTreeSeeder } from '@data/db/seeding/seeders/AgentSessionMessageTreeSeeder'
 import { agentSessionMessageService as service } from '@data/services/AgentSessionMessageService'
-import { readAgentSessionPath } from '@data/services/agentSessionMessageTree'
 
 // Catch lost branches, orphaned descendants, and output retargeted by a later UI selection.
 describe('Agent message tree', () => {
@@ -39,37 +36,6 @@ describe('Agent message tree', () => {
       .items.toReversed()
       .map((row) => row.id)
   }
-
-  it('migrates flat history deterministically without changing message facts and never resets a later selection', () => {
-    const ids = [randomUUID(), randomUUID()].sort()
-    for (const id of ids) {
-      dbh.db
-        .insert(messages)
-        .values({
-          id,
-          sessionId,
-          role: 'user',
-          status: 'success',
-          createdAt: 100,
-          updatedAt: 200,
-          data: { parts: [{ type: 'text', text: id }], nativeSessionId: 'native' },
-          runtimeResumeToken: 'native',
-          deliveryStatus: 'accepted'
-        })
-        .run()
-    }
-    const before = dbh.db.select().from(messages).all()
-    new AgentSessionMessageTreeSeeder().run(dbh.db)
-    expect(visibleIds()).toEqual(ids)
-    const migrated = readAgentSessionPath(dbh.db, sessionId)
-    expect(migrated).toEqual(before.map((row) => ({ ...row, parentId: expect.any(String) })))
-    const rootId = migrated[0].parentId!
-    dbh.db.update(sessions).set({ activeNodeId: rootId }).where(eq(sessions.id, sessionId)).run()
-    const alternate = append('Alternative', rootId)
-    new AgentSessionMessageTreeSeeder().run(dbh.db)
-    expect(visibleIds()).toEqual([alternate.id])
-    expect(dbh.db.select().from(messages).where(eq(messages.id, ids[1])).get()?.deliveryStatus).toBe('accepted')
-  })
 
   it('keeps both sibling paths and routes late output to the captured parent without changing selection', () => {
     const prefix = append('Common prefix')
@@ -195,7 +161,11 @@ describe('Agent message tree', () => {
       replyPolicy: 'completion'
     })
     expect(request.data).not.toHaveProperty('deliveryReplyAnchor')
-    service.updateSessionMessage('receiver', request.id, { data: { parts: [{ type: 'text', text: 'Work updated' }] } })
+    expect(() =>
+      service.updateSessionMessage('receiver', request.id, {
+        data: { parts: [{ type: 'text', text: 'Work updated' }] }
+      })
+    ).toThrow(expect.objectContaining({ code: 'RESOURCE_LOCKED' }))
     dbh.db.update(sessions).set({ activeNodeId: prefix.id }).where(eq(sessions.id, sessionId)).run()
     const alternate = append('Alternate branch', prefix.id)
     const response = service.saveMessage({
@@ -221,5 +191,80 @@ describe('Agent message tree', () => {
     service.selectBranch(sessionId, senderHead.id)
     expect(visibleIds()).toEqual([prefix.id, senderHead.id, result.id])
     expect(result.data.parts).toEqual([{ type: 'text', text: 'Completed result' }])
+  })
+
+  it('selects the newest immediate child at each fork, rather than the newest leaf in the subtree', () => {
+    const rootId = service.captureHead(sessionId)
+    dbh.db
+      .insert(messages)
+      .values([
+        {
+          id: 'older',
+          sessionId,
+          parentId: rootId,
+          role: 'user',
+          status: 'success',
+          data: { parts: [] },
+          createdAt: 1
+        },
+        {
+          id: 'newer-a',
+          sessionId,
+          parentId: rootId,
+          role: 'user',
+          status: 'success',
+          data: { parts: [] },
+          createdAt: 2
+        },
+        {
+          id: 'newer-b',
+          sessionId,
+          parentId: rootId,
+          role: 'user',
+          status: 'success',
+          data: { parts: [] },
+          createdAt: 2
+        },
+        {
+          id: 'old-branch-late-reply',
+          sessionId,
+          parentId: 'older',
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [] },
+          createdAt: 100
+        },
+        {
+          id: 'chosen-reply',
+          sessionId,
+          parentId: 'newer-b',
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [] },
+          createdAt: 3
+        }
+      ])
+      .run()
+    expect(service.branchTip(sessionId, rootId)).toBe('chosen-reply')
+    expect(service.branchTip(sessionId, 'older')).toBe('old-branch-late-reply')
+    expect(service.branchTip(sessionId, 'newer-a')).toBe('newer-a')
+    service.selectBranch(sessionId, rootId)
+    expect(visibleIds()).toEqual(['newer-b', 'chosen-reply'])
+    expect(service.listSessionMessages(sessionId).items.find((row) => row.id === 'newer-b')?.siblings).toEqual([
+      'older',
+      'newer-a',
+      'newer-b'
+    ])
+  })
+
+  it('seeds empty sessions without resetting their timestamps or an existing branch selection', () => {
+    dbh.db.update(sessions).set({ updatedAt: 123 }).where(eq(sessions.id, sessionId)).run()
+    new AgentSessionMessageTreeSeeder().run(dbh.db)
+    const session = dbh.db.select().from(sessions).where(eq(sessions.id, sessionId)).get()!
+    expect(session.updatedAt).toBe(123)
+    expect(dbh.db.select().from(messages).where(eq(messages.id, session.activeNodeId!)).get()?.role).toBe('root')
+    expect(visibleIds()).toEqual([])
+    new AgentSessionMessageTreeSeeder().run(dbh.db)
+    expect(dbh.db.select().from(sessions).where(eq(sessions.id, sessionId)).get()).toEqual(session)
   })
 })

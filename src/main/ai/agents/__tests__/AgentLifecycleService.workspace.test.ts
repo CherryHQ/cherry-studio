@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rename, rm, symlink, utimes, writeFile } from
 import os from 'node:os'
 import path from 'node:path'
 
-import { setupTestDatabase } from '@test-helpers/db'
+import { setupTestDatabase, seedSessionRoot } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -164,6 +164,7 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     dbh.db
       .insert(agentSessionMessageTable)
       .values({
+        parentId: seedSessionRoot(dbh.db, id),
         id: `${id}-result`,
         sessionId: id,
         role: 'assistant',

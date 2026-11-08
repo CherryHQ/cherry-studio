@@ -2,6 +2,7 @@ import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSy
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { seedSessionRoot } from '@test-helpers/db'
 import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
@@ -489,7 +490,9 @@ describe('applyMigrations over a populated database', () => {
         is_active: 0
       }
     ])
-    expect(sqlite.prepare('SELECT count(*) AS count FROM agent_session_message').get()).toEqual({ count: 2 })
+    expect(sqlite.prepare("SELECT count(*) AS count FROM agent_session_message WHERE role != 'root'").get()).toEqual({
+      count: 2
+    })
   })
 
   it('preserves every file_entry row and its references across the cleanup_policy recreate', () => {
@@ -805,11 +808,12 @@ describe('applyMigrations over a populated database', () => {
       filename: 'missing.pdf',
       providerMetadata: { cherry: { fileEntryId: '99999999-9999-7999-8999-999999999999' } }
     }
+    seedSessionRoot(db, 'session-attachment-migrate')
     sqlite
       .prepare(
         `INSERT INTO agent_session_message
-          (id, session_id, role, data, searchable_text, status, created_at, updated_at)
-         VALUES (?, 'session-attachment-migrate', 'user', ?, '', 'success', ?, ?)`
+          (id, session_id, parent_id, role, data, searchable_text, status, created_at, updated_at)
+         VALUES (?, 'session-attachment-migrate', (SELECT id FROM agent_session_message WHERE session_id = 'session-attachment-migrate' AND role = 'root'), 'user', ?, '', 'success', ?, ?)`
       )
       .run(messageId, JSON.stringify({ parts: [filePart, filePart, missingPart] }), now, now)
 
@@ -868,11 +872,12 @@ describe('applyMigrations over a populated database', () => {
          VALUES ('session-agent-updated', 'Session', 'workspace-agent-updated', 'a0', ?, ?, ?)`
       )
       .run(now, now, now)
+    seedSessionRoot(db, 'session-agent-updated')
     sqlite
       .prepare(
         `INSERT INTO agent_session_message
-          (id, session_id, role, data, searchable_text, status, created_at, updated_at)
-         VALUES (?, 'session-agent-updated', 'user', ?, '', 'success', ?, ?)`
+          (id, session_id, parent_id, role, data, searchable_text, status, created_at, updated_at)
+         VALUES (?, 'session-agent-updated', (SELECT id FROM agent_session_message WHERE session_id = 'session-agent-updated' AND role = 'root'), 'user', ?, '', 'success', ?, ?)`
       )
       .run(
         messageId,
@@ -927,11 +932,12 @@ describe('applyMigrations over a populated database', () => {
          VALUES ('session-agent-existing-ref', 'Session', 'workspace-agent-existing-ref', 'a0', ?, ?, ?)`
       )
       .run(completedAt + 10, completedAt + 10, completedAt + 10)
+    seedSessionRoot(db, 'session-agent-existing-ref')
     sqlite
       .prepare(
         `INSERT INTO agent_session_message
-          (id, session_id, role, data, searchable_text, status, created_at, updated_at)
-         VALUES (?, 'session-agent-existing-ref', 'user', ?, '', 'success', ?, ?)`
+          (id, session_id, parent_id, role, data, searchable_text, status, created_at, updated_at)
+         VALUES (?, 'session-agent-existing-ref', (SELECT id FROM agent_session_message WHERE session_id = 'session-agent-existing-ref' AND role = 'root'), 'user', ?, '', 'success', ?, ?)`
       )
       .run(messageId, JSON.stringify({ parts: [] }), completedAt + 10, completedAt + 10)
     sqlite
@@ -984,11 +990,12 @@ describe('applyMigrations over a populated database', () => {
          VALUES ('session-cleanup-rollback', 'Session', 'workspace-cleanup-rollback', 'a0', ?, ?, ?)`
       )
       .run(now, now, now)
+    seedSessionRoot(db, 'session-cleanup-rollback')
     sqlite
       .prepare(
         `INSERT INTO agent_session_message
-          (id, session_id, role, data, searchable_text, status, created_at, updated_at)
-         VALUES (?, 'session-cleanup-rollback', 'user', ?, '', 'success', ?, ?)`
+          (id, session_id, parent_id, role, data, searchable_text, status, created_at, updated_at)
+         VALUES (?, 'session-cleanup-rollback', (SELECT id FROM agent_session_message WHERE session_id = 'session-cleanup-rollback' AND role = 'root'), 'user', ?, '', 'success', ?, ?)`
       )
       .run(
         messageId,
@@ -1341,7 +1348,11 @@ describe('applyMigrations over a populated database', () => {
       count: 6
     })
     expect(
-      sqlite.prepare(`SELECT count(*) AS count FROM agent_session_message WHERE session_id = 'session-activity'`).get()
+      sqlite
+        .prepare(
+          `SELECT count(*) AS count FROM agent_session_message WHERE session_id = 'session-activity' AND role != 'root'`
+        )
+        .get()
     ).toEqual({ count: 4 })
     expect(sqlite.pragma('foreign_key_check')).toEqual([])
     expect(String(sqlite.pragma('integrity_check', { simple: true }))).toBe('ok')
