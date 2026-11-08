@@ -1,3 +1,4 @@
+import { parseAppRouteUrl } from '@renderer/utils/appRouteUrl'
 import {
   createSidebarShortcutId,
   type SidebarFavorite,
@@ -39,11 +40,7 @@ interface SidebarAppDefinition<Id extends SidebarFavorite = SidebarFavorite> {
 }
 
 function getConversationSearchParamFromUrl(url: string, name: string): string | undefined {
-  try {
-    return new URL(url, 'app://x').searchParams.get(name) ?? undefined
-  } catch {
-    return undefined
-  }
+  return parseAppRouteUrl(url)?.searchParams.get(name) ?? undefined
 }
 
 /**

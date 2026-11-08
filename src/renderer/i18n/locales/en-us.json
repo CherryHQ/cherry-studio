@@ -2285,7 +2285,7 @@
   "library.import_dialog.url.button": "Fetch and import",
   "library.import_dialog.url.hint": "Import from a GitHub Gist, GitHub repo, or any public URL",
   "library.import_dialog.url.supports": "Raw file URLs are supported",
-  "library.import_skill_dialog.local.drop_hint": "Drop a ZIP or directory here, or click to choose a ZIP",
+  "library.import_skill_dialog.local.drop_hint": "Drop a skill ZIP file or folder containing SKILL.md here, or click to browse",
   "library.import_skill_dialog.local.formats": "Supports .zip files and directories containing SKILL.md",
   "library.import_skill_dialog.subtitle": "Install a skill from a ZIP file or directory",
   "library.import_skill_dialog.title": "Import skill",

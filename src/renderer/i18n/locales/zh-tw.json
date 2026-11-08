@@ -2285,7 +2285,7 @@
   "library.import_dialog.url.button": "擷取並匯入",
   "library.import_dialog.url.hint": "從 GitHub Gist、GitHub 儲存庫或任何公開網址匯入",
   "library.import_dialog.url.supports": "支援原始檔案網址",
-  "library.import_skill_dialog.local.drop_hint": "將 ZIP 或資料夾拖曳至此處，或點選選擇 ZIP",
+  "library.import_skill_dialog.local.drop_hint": "將技能 ZIP 檔案或包含 SKILL.md 的資料夾拖曳至此處，或點選瀏覽選擇",
   "library.import_skill_dialog.local.formats": "支援 .zip 檔案與包含 SKILL.md 的目錄",
   "library.import_skill_dialog.subtitle": "從 ZIP 檔案或目錄安裝技能",
   "library.import_skill_dialog.title": "匯入技能",
