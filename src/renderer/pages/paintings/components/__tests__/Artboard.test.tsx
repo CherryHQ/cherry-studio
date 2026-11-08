@@ -3,6 +3,7 @@ import type { ImgHTMLAttributes, ReactNode } from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUI from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import type { FileMetadata } from '@renderer/types/file'
 
 import type { PaintingData } from '../../model/types/paintingData'
@@ -167,6 +168,74 @@ describe('Artboard', () => {
     mockUsePaintingSizeInfo.mockReset()
     mockUsePaintingSizeInfo.mockReturnValue({ ratio: null, sizeLabel: undefined })
     Object.assign(navigator, { clipboard: { writeText: mockWriteText } })
+  })
+
+  it('keeps the original SVG blob alive through reveal, image load and lightbox consumption', async () => {
+    const bytes = new Uint8Array([60, 115, 118, 103, 62, 13, 10, 0, 255])
+    const createObjectURL = vi.fn<(blob: Blob) => string>(() => 'blob:artboard-svg')
+    const revokeObjectURL = vi.fn()
+    const browserUrl = URL
+    vi.stubGlobal(
+      'URL',
+      class extends browserUrl {
+        static createObjectURL = createObjectURL
+        static revokeObjectURL = revokeObjectURL
+      }
+    )
+    vi.mocked(window.api.ipcApi.request).mockResolvedValue({ ok: true, data: { content: bytes } })
+    mockComputeImageNaturalSize.mockResolvedValue({ naturalWidth: 512, naturalHeight: 512 })
+    const file = { ...makeFile('svg-1'), path: '/tmp/generated.svg', ext: '.svg' }
+    const { rerender, unmount } = render(<Artboard painting={makePainting({ files: [] })} isLoading={true} />)
+    try {
+      rerender(<Artboard painting={makePainting({ files: [file] })} isLoading={false} />)
+      await waitFor(() =>
+        expect(screen.getByTestId('painting-image-skeleton')).not.toHaveAttribute('data-image-url', '')
+      )
+      fireEvent.click(screen.getByTestId('painting-image-skeleton'))
+      const image = document.querySelector('img')!
+      expect(image).toHaveAttribute('src', 'blob:artboard-svg')
+      const blob = createObjectURL.mock.calls[0][0]
+      expect(blob.type).toBe('image/svg+xml')
+      const stored = await new Promise<ArrayBuffer>((resolve) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as ArrayBuffer)
+        reader.readAsArrayBuffer(blob)
+      })
+      expect(new Uint8Array(stored)).toEqual(bytes)
+      fireEvent.load(image)
+      fireEvent.click(image)
+      expect(screen.getByRole('dialog', { name: 'preview.label' })).toBeInTheDocument()
+      expect(revokeObjectURL).not.toHaveBeenCalled()
+      unmount()
+      expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:artboard-svg')
+    } finally {
+      unmount()
+      vi.stubGlobal('URL', browserUrl)
+    }
+  })
+
+  it('leaves the awaiting reveal for the existing placeholder when the SVG entry read fails', async () => {
+    let rejectRead!: (error: Error) => void
+    const pendingRead = new Promise((_, reject) => {
+      rejectRead = reject
+    })
+    void pendingRead.catch(() => {})
+    vi.mocked(window.api.ipcApi.request).mockReturnValue(pendingRead)
+    mockComputeImageNaturalSize.mockReturnValue(new Promise(() => {}))
+    const warn = vi.spyOn(loggerService, 'warn').mockImplementation(() => {})
+    const { rerender } = render(<Artboard painting={makePainting({ files: [] })} isLoading={true} />)
+    const file = { ...makeFile('svg-1'), path: '/tmp/generated.svg', ext: 'svg' }
+    rerender(<Artboard painting={makePainting({ files: [file] })} isLoading={false} />)
+    expect(screen.getByTestId('painting-image-skeleton')).toBeInTheDocument()
+    await act(async () => rejectRead(new Error('entry missing')))
+    expect(screen.getByRole('img', { name: 'paintings.image_placeholder' })).toBeInTheDocument()
+    expect(screen.queryByTestId('painting-image-skeleton')).not.toBeInTheDocument()
+    expect(document.querySelector('img')).toBeNull()
+    // A later file must not inherit the failed source's awaiting reveal.
+    rerender(<Artboard painting={makePainting({ files: [makeFile('later')] })} isLoading={false} />)
+    expect(document.querySelector('img')).toHaveAttribute('src', 'file:///tmp/later.png')
+    expect(screen.queryByTestId('painting-image-skeleton')).not.toBeInTheDocument()
+    warn.mockRestore()
   })
 
   it('renders the shimmer skeleton while generating', () => {

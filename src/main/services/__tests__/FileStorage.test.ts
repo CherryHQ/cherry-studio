@@ -85,6 +85,22 @@ describe('FileStorage', () => {
       expect(dialog.showSaveDialog).toHaveBeenCalledWith(expect.objectContaining({ defaultPath: '测试-笔记-note.md' }))
     })
 
+    it('writes Uint8Array content as exact binary bytes alongside string saves', async () => {
+      const tmpFile = path.join(os.tmpdir(), `filestorage-svg-${uniqueId()}.svg`)
+      const bytes = new Uint8Array([239, 187, 191, 60, 115, 118, 103, 62, 13, 10, 0, 255])
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile })
+      try {
+        await expect(
+          fileStorage.save(event, 'original.svg', bytes, {
+            filters: [{ name: 'image', extensions: ['svg'] }]
+          })
+        ).resolves.toBe(tmpFile)
+        expect(new Uint8Array(fs.readFileSync(tmpFile))).toEqual(bytes)
+      } finally {
+        fs.rmSync(tmpFile, { force: true })
+      }
+    })
+
     // The native dialog itself is mocked, but the confirmed path runs the real
     // Win32 filesystem write — on a Windows host this round-trips a CJK file
     // name end to end through the save branch.

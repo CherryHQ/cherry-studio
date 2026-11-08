@@ -143,6 +143,17 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
     async (item: ImagePreviewItem, context: ImagePreviewActionContext) => {
       try {
         const blob = await getImageBlobFromSource(item.src)
+        if (blob.type === 'image/svg+xml') {
+          const saved = await window.api.file.save(
+            `${getImageSaveName(item)}.svg`,
+            new Uint8Array(await blob.arrayBuffer()),
+            { filters: [{ name: t('files.image'), extensions: ['svg'] }] }
+          )
+          if (saved) {
+            toast.success(t('common.saved'))
+          }
+          return
+        }
         const { flipX, flipY, rotation } = context.transform
         const pngBlob =
           rotation % 360 !== 0 || flipX || flipY
