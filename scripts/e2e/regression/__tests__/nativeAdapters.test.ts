@@ -14,6 +14,7 @@ import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { macNativeFixtureExecutable } from '../macRuntime'
 import { ensureRunDirectories, getRunPaths, type RunPaths } from '../paths'
 import { CDP_PORT, isAlive, processCommand, waitForExit } from '../process'
 import {
@@ -311,7 +312,12 @@ it.skipIf(!['darwin', 'win32'].includes(process.platform)).each(dialogModes)(
       const environment = { ...process.env }
       delete environment.ELECTRON_RUN_AS_NODE
       logHandle = openSync(join(paths.logs, 'fixture.log'), 'w')
-      child = spawn(createRequire(import.meta.url)('electron') as string, [script], {
+      const downloadedElectron = createRequire(import.meta.url)('electron') as string
+      const executable =
+        process.platform === 'darwin'
+          ? macNativeFixtureExecutable(process.env.CHERRY_TEST_RUN_DIR, downloadedElectron)
+          : downloadedElectron
+      child = spawn(executable, [script], {
         env: environment,
         stdio: ['pipe', logHandle, logHandle],
         windowsHide: false

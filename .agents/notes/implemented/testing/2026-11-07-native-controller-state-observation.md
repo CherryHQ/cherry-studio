@@ -53,6 +53,8 @@ Cold Vite dependency optimization reloaded hosted renderers during cases. Phase 
 - Hide PowerShell probe consoles during tray actions, external-text inspection and foreground checks. Empty-menu and foreground failures retain only owned PID, foreground PID, window type and geometry. Missing Notepad text controls record bounded owned-PID UIA metadata without reading text; failed macOS selection-toolbar clicks retain bounded DOM/frame and owned native-window state before cleanup. These observations do not replace the existing interaction or result assertions.
 - MP-17 uses Playwright's `noWaitAfter` option for Send, then verifies actual error details, Retry and recovery outcomes. MP-92 preserves model-picker state and a masked screenshot before failed-case cleanup removes the provider.
 
+- Prepare the isolated macOS runtime before native adapters in both branch and tag runs. Give its main bundle and four Electron helpers workspace-specific names and IDs before signing; keep the downloaded runtime unchanged. Native fixtures with a configured run must use that prepared executable and reject a missing copy. Tag business tests still launch the installed release. Save the signed bundle identity manifest for permission diagnostics; a generic Electron prompt remains unapproved without requester attribution.
+
 ## Alternatives considered
 
 - Larger timeouts alone do not fix wrong-window input, oversized command lines or ownership races.
@@ -93,3 +95,5 @@ Adapters remain platform specific and fail when native state cannot be confirmed
 - Regression — 28 debug-bridge tests passed, including stale Electron identities and foreign, remote or wrong-port inspector rejection for the read-only shortcut check. Physical confirmation of the dedicated screenshot binding is tracked separately from these ownership contracts.
 
 - Regression — 53 debug-bridge and system-automation checks passed with Node/E2E types. The Windows tray, relaunch and editor-provider paths still require native CI confirmation; the macOS toolbar diagnostics preserve the unresolved click failure.
+
+- Regression — 43 focused runtime/workflow contracts pass, including real temporary helper plists, workspace identity separation, missing-runtime refusal and branch/tag ordering. Node/E2E types and scoped lint pass. Actual signed native-dialog execution and hosted permission attribution remain separate checks.

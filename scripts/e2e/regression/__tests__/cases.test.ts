@@ -11,6 +11,41 @@ import { parse } from 'yaml'
 import { getCase, missingCapabilities, PHASE_IDS, selectCases, supportsPlatform, TASK_SELECTIONS } from '../cases'
 
 describe('regression execution plan', () => {
+  it('prepares the isolated runtime before native fixtures can start any Electron instance', () => {
+    const workflow = parse(readFileSync(resolve('.github/workflows/e2e-regression-test.yml'), 'utf8'))
+    const steps = workflow.jobs.test.steps as Array<{ run?: string }>
+    const sign = steps.findIndex((step) => step.run?.includes('cli.ts prepare-mac-runtime'))
+    const native = steps.findIndex((step) => step.run?.includes('nativeAdapters.test.ts'))
+    const launch = steps.findIndex((step) => step.run?.includes('cli.ts launch'))
+    expect(sign).toBeGreaterThan(-1)
+    expect(native).toBeGreaterThan(sign)
+    expect(launch).toBeGreaterThan(native)
+  })
+
+  it.each(['branch', 'tag'])(
+    'signs macOS fixture runtime from the correct dependency tree for %s without replacing release installation',
+    (mode) => {
+      const workflow = parse(readFileSync(resolve('.github/workflows/e2e-regression-test.yml'), 'utf8'))
+      const sign = workflow.jobs.test.steps.find((step: { run?: string }) =>
+        step.run?.includes('cli.ts prepare-mac-runtime')
+      )
+      for (const platform of ['macos', 'windows']) {
+        const context = {
+          needs: { resolve: { outputs: { mode } } },
+          matrix: { platform },
+          env: { TARGET_DIR: '/owned/application' },
+          github: { workspace: '/owned/controller' }
+        }
+        expect(runInNewContext(sign.if, context)).toBe(platform === 'macos')
+        const source = sign.env.MAC_RUNTIME_TARGET_DIR.replace(/^\$\{\{\s*|\s*\}\}$/g, '')
+        expect(runInNewContext(source, context)).toBe(mode === 'branch' ? '/owned/application' : '/owned/controller')
+      }
+      expect(sign.run).toContain('--target-root "$MAC_RUNTIME_TARGET_DIR"')
+      const release = workflow.jobs.test.steps.find((step: { run?: string }) => step.run?.includes('cli.ts release'))
+      expect(runInNewContext(release.if, { needs: { resolve: { outputs: { mode } } } })).toBe(mode === 'tag')
+    }
+  )
+
   it('offers every supported task in the workflow dropdown with full regression as the default', () => {
     const workflow = parse(readFileSync(resolve('.github/workflows/e2e-regression-test.yml'), 'utf8'))
     const task = workflow.on.workflow_dispatch.inputs.task

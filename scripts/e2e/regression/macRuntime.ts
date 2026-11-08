@@ -1,15 +1,23 @@
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { constants, cpSync, existsSync, mkdirSync, realpathSync, rmSync } from 'node:fs'
+import { constants, cpSync, existsSync, mkdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 
 import { signAsync } from '@electron/osx-sign'
 
-import type { RunPaths } from './paths'
+import { getRunPaths, type RunPaths } from './paths'
 
 export function macRuntimeExecutable(paths: RunPaths): string {
   return join(paths.installed, 'signed-runtime', 'Electron.app', 'Contents', 'MacOS', 'Electron')
+}
+
+export function macNativeFixtureExecutable(runDirectory: string | undefined, fallback: string): string {
+  if (runDirectory === undefined) return fallback
+  if (!runDirectory.trim()) throw new Error('Configured macOS run directory is empty')
+  const executable = macRuntimeExecutable(getRunPaths(runDirectory))
+  if (!existsSync(executable)) throw new Error('Prepared macOS runtime is missing')
+  return executable
 }
 
 // UNUserNotificationCenter rejects the ad-hoc signed Electron download. Sign an isolated copy;
@@ -81,14 +89,24 @@ export async function prepareMacRuntime(paths: RunPaths, targetRoot: string): Pr
     cpSync(source, app, { recursive: true, verbatimSymlinks: true, mode: constants.COPYFILE_FICLONE })
     const workspaceId = createHash('sha256').update(realpathSync(targetRoot)).digest('hex').slice(0, 12)
     const name = `Cherry Studio E2E ${workspaceId}`
-    for (const [key, value] of Object.entries({
-      CFBundleIdentifier: `com.cherrystudio.e2e.${workspaceId}`,
-      CFBundleName: name,
-      CFBundleDisplayName: name
-    })) {
-      execFileSync('/usr/bin/plutil', ['-replace', key, '-string', value, join(app, 'Contents', 'Info.plist')], {
-        stdio: 'ignore'
-      })
+    const identifier = `com.cherrystudio.e2e.${workspaceId}`
+    const bundleIdentities = [
+      { path: join(app, 'Contents', 'Info.plist'), identifier, name, displayName: name },
+      ...['', ' (Renderer)', ' (GPU)', ' (Plugin)'].map((suffix) => ({
+        path: join(app, 'Contents', 'Frameworks', `Electron Helper${suffix}.app`, 'Contents', 'Info.plist'),
+        identifier: `${identifier}.helper`,
+        name: suffix ? `${name} Helper${suffix}` : name,
+        displayName: `${name} Helper${suffix}`
+      }))
+    ]
+    for (const bundle of bundleIdentities) {
+      for (const [key, value] of Object.entries({
+        CFBundleIdentifier: bundle.identifier,
+        CFBundleName: bundle.name,
+        CFBundleDisplayName: bundle.displayName
+      })) {
+        execFileSync('/usr/bin/plutil', ['-replace', key, '-string', value, bundle.path], { stdio: 'ignore' })
+      }
     }
     await signAsync({
       app,
@@ -102,6 +120,14 @@ export async function prepareMacRuntime(paths: RunPaths, targetRoot: string): Pr
     })
     execFileSync('codesign', ['--verify', '--deep', '--strict', app], { stdio: 'ignore' })
     if (!existsSync(executable)) throw new Error('Signed Electron executable is missing')
+    mkdirSync(paths.logs, { recursive: true })
+    writeFileSync(
+      join(paths.logs, 'mac-runtime-identity.json'),
+      JSON.stringify({ executable, bundles: bundleIdentities }),
+      {
+        mode: 0o600
+      }
+    )
   } catch (error) {
     rmSync(runtimeRoot, { recursive: true, force: true })
     throw error

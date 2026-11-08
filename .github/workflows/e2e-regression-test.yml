@@ -247,15 +247,6 @@ jobs:
           sleep 1
           kill -0 "$(cat "$RUN_DIR/state/ci-native-permissions.pid")"
 
-      - name: Validate native controller adapters
-        shell: bash
-        run: >-
-          pnpm test:scripts
-          scripts/e2e/regression/__tests__/externalAppSyntax.test.ts
-          scripts/e2e/regression/__tests__/nativeAdapters.test.ts
-          --reporter=default --reporter=json
-          --outputFile.json="$RUN_DIR/report/native-controller-results.json"
-
       - name: Cache code tool downloads
         uses: actions/cache@v6
         with:
@@ -335,14 +326,24 @@ jobs:
         run: pnpm exec dotenv -v CHERRY_EDITION=global -- electron-vite build
 
       - name: Sign isolated macOS notification runtime
-        if: needs.resolve.outputs.mode == 'branch' && matrix.platform == 'macos'
+        if: matrix.platform == 'macos'
         shell: bash
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          MAC_RUNTIME_TARGET_DIR: ${{ needs.resolve.outputs.mode == 'branch' && env.TARGET_DIR || github.workspace }}
         run: >-
           pnpm exec tsx scripts/e2e/regression/cli.ts prepare-mac-runtime
-          --run-dir "$RUN_DIR" --target-root "$TARGET_DIR"
+          --run-dir "$RUN_DIR" --target-root "$MAC_RUNTIME_TARGET_DIR"
+
+      - name: Validate native controller adapters
+        shell: bash
+        run: >-
+          pnpm test:scripts
+          scripts/e2e/regression/__tests__/externalAppSyntax.test.ts
+          scripts/e2e/regression/__tests__/nativeAdapters.test.ts
+          --reporter=default --reporter=json
+          --outputFile.json="$RUN_DIR/report/native-controller-results.json"
 
       - name: Download and install release
         if: needs.resolve.outputs.mode == 'tag'

@@ -53,6 +53,8 @@ macOS 的 HTTPS 与本地 HTML 文件可以使用不同默认应用。若以 HTT
 - 托盘操作、外部文本检查和前台检查的 PowerShell 探针隐藏控制台。空菜单及前台失败仅保留归属 PID、前台 PID、窗口类型与几何。Notepad 缺少文本控件时，记录有界、限定归属 PID 的 UIA 元数据，不读取正文；macOS 划词工具栏点击失败时，在清理前保留有界 DOM／帧状态及所拥有原生窗口状态。这些观测不替代原交互或结果断言。
 - MP-17 的 Send 使用 Playwright 的 `noWaitAfter` 选项，随后验证实际错误详情、Retry 和恢复结果。MP-92 在失败清理删除 provider 前保留模型选择器状态与遮罩截图。
 
+- branch 和 tag 运行均在原生适配器之前准备隔离的 macOS runtime。签名前为主 bundle 和四个 Electron helper 设置按 workspace 区分的名称及 ID，保持下载的原 runtime 不变。配置运行目录的原生 fixture 必须使用该准备好的可执行文件，副本缺失时拒绝回退；tag 业务测试仍启动已安装的发布包。保存签名 bundle 身份清单用于权限诊断；没有 requester 归属证据时仍不批准通用 Electron 弹窗。
+
 ## 考虑过的替代方案
 
 - 单纯增加超时无法修复错误窗口输入、超长命令行或进程归属竞态。
@@ -93,3 +95,5 @@ macOS 的 HTTPS 与本地 HTML 文件可以使用不同默认应用。若以 HTT
 - Regression — 28 项 debug bridge 测试通过，包括只读快捷键检查对过期 Electron 身份、外来 inspector、远程地址及错误端口的拒绝。专用截图绑定的真实触发验证与这些归属契约单独记录。
 
 - Regression — 53 项 debug bridge 与系统自动化检查、Node/E2E 类型检查通过。Windows 托盘、重复启动及编辑器 provider 路径仍需原生 CI 验证；macOS 工具栏诊断保留尚未解决的点击失败。
+
+- Regression — 43 项定向 runtime/workflow 合同通过，包含真实临时 helper plist、workspace 身份隔离、缺失 runtime 拒绝和 branch/tag 顺序。Node/E2E 类型检查及定向 lint 通过。真实签名原生对话框执行及托管权限归属仍需单独验证。

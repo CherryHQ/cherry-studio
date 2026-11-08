@@ -18,13 +18,14 @@ const { exec, sign } = vi.hoisted(() => ({ exec: vi.fn(), sign: vi.fn() }))
 vi.mock('node:child_process', () => ({ execFileSync: exec }))
 vi.mock('@electron/osx-sign', () => ({ signAsync: sign }))
 
-import { macRuntimeExecutable, prepareMacRuntime } from '../macRuntime'
+import { macNativeFixtureExecutable, macRuntimeExecutable, prepareMacRuntime } from '../macRuntime'
 import { getRunPaths } from '../paths'
 
 let directory: string
 let target: string
 let source: string
 const identity = 'Developer ID Application: Regression Fixture (TESTTEAM)'
+const helperSuffixes = ['', ' (Renderer)', ' (GPU)', ' (Plugin)']
 const hostPlatform = process.platform
 beforeEach(() => {
   vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
@@ -42,6 +43,15 @@ beforeEach(() => {
     join(source, 'Contents', 'Info.plist'),
     '<?xml version="1.0"?><plist version="1.0"><dict><key>CFBundleIdentifier</key><string>com.github.Electron</string><key>CFBundleName</key><string>Electron</string><key>CFBundleDisplayName</key><string>Electron</string></dict></plist>'
   )
+  for (const suffix of helperSuffixes) {
+    const helper = join(source, 'Contents', 'Frameworks', `Electron Helper${suffix}.app`, 'Contents')
+    mkdirSync(join(helper, 'MacOS'), { recursive: true })
+    writeFileSync(join(helper, 'MacOS', `Electron Helper${suffix}`), 'original helper')
+    writeFileSync(
+      join(helper, 'Info.plist'),
+      `<?xml version="1.0"?><plist version="1.0"><dict><key>CFBundleIdentifier</key><string>com.github.Electron.helper</string><key>CFBundleName</key><string>Electron Helper${suffix}</string></dict></plist>`
+    )
+  }
   symlinkSync('MacOS', join(source, 'Contents', 'Current'))
   exec.mockImplementation((command: string) =>
     command === 'security' ? `1) ${'A'.repeat(40)} "${identity}"\n 1 valid identities found` : ''
@@ -56,6 +66,26 @@ afterEach(() => {
 })
 
 describe('isolated signed macOS runtime', () => {
+  it('selects the configured run copy without using the original Electron download', () => {
+    const paths = getRunPaths(join(directory, 'configured-run'))
+    const executable = macRuntimeExecutable(paths)
+    mkdirSync(dirname(executable), { recursive: true })
+    writeFileSync(executable, 'prepared owned runtime')
+    const original = join(source, 'Contents', 'MacOS', 'Electron')
+    expect(macNativeFixtureExecutable(paths.root, original)).toBe(executable)
+    expect(readFileSync(macNativeFixtureExecutable(paths.root, original), 'utf8')).toBe('prepared owned runtime')
+    expect(macNativeFixtureExecutable(undefined, original)).toBe(original)
+  })
+
+  it('refuses a configured run without its prepared runtime instead of falling back to a working download', () => {
+    const original = join(source, 'Contents', 'MacOS', 'Electron')
+    expect(existsSync(original)).toBe(true)
+    expect(() => macNativeFixtureExecutable(join(directory, 'missing-run'), original)).toThrow(
+      'Prepared macOS runtime is missing'
+    )
+    expect(() => macNativeFixtureExecutable('', original)).toThrow('Configured macOS run directory is empty')
+  })
+
   it.skipIf(hostPlatform !== 'darwin')(
     'keeps a distinct workspace identity across profile and run copies',
     async () => {
@@ -68,6 +98,29 @@ describe('isolated signed macOS runtime', () => {
             : ''
       )
       const originalInfo = readFileSync(join(source, 'Contents', 'Info.plist'), 'utf8')
+      const helperSources = helperSuffixes.map((suffix) =>
+        join(source, 'Contents', 'Frameworks', `Electron Helper${suffix}.app`, 'Contents', 'Info.plist')
+      )
+      const originalHelpers = helperSources.map((path) => readFileSync(path, 'utf8'))
+      const signedIdentities: Array<{ id: string; name: string }> = []
+      sign.mockImplementation(async ({ app }: { app: string }) => {
+        const read = (plist: string, key: string) =>
+          execFileSync('/usr/bin/plutil', ['-extract', key, 'raw', '-o', '-', plist], { encoding: 'utf8' }).trim()
+        const main = join(app, 'Contents', 'Info.plist')
+        const id = read(main, 'CFBundleIdentifier')
+        const name = read(main, 'CFBundleDisplayName')
+        expect(id).toMatch(/^com\.cherrystudio\.e2e\.[a-f0-9]{12}$/)
+        expect(name).toMatch(/^Cherry Studio E2E [a-f0-9]{12}$/)
+        for (const suffix of helperSuffixes) {
+          const helper = join(app, 'Contents', 'Frameworks', `Electron Helper${suffix}.app`, 'Contents')
+          const plist = join(helper, 'Info.plist')
+          expect(read(plist, 'CFBundleIdentifier')).toBe(`${id}.helper`)
+          expect(read(plist, 'CFBundleName')).toBe(suffix ? `${name} Helper${suffix}` : name)
+          expect(read(plist, 'CFBundleDisplayName')).toBe(`${name} Helper${suffix}`)
+          expect(readFileSync(join(helper, 'MacOS', `Electron Helper${suffix}`), 'utf8')).toBe('original helper')
+        }
+        signedIdentities.push({ id, name })
+      })
       const runs = [getRunPaths(join(directory, 'run-a')), getRunPaths(join(directory, 'run-b'))]
       for (const paths of runs) await prepareMacRuntime(paths, target)
       const otherTarget = join(directory, 'other-target')
@@ -90,6 +143,10 @@ describe('isolated signed macOS runtime', () => {
       expect(firstName).not.toBe('Electron')
       expect(readIdentity(otherRun, 'CFBundleName')).not.toBe(firstName)
       expect(readFileSync(join(source, 'Contents', 'Info.plist'), 'utf8')).toBe(originalInfo)
+      expect(helperSources.map((path) => readFileSync(path, 'utf8'))).toEqual(originalHelpers)
+      expect(signedIdentities[1]).toEqual(signedIdentities[0])
+      expect(signedIdentities[2].id).not.toBe(signedIdentities[0].id)
+      expect(signedIdentities[2].name).not.toBe(signedIdentities[0].name)
     }
   )
 
