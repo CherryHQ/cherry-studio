@@ -90,6 +90,33 @@ describe('permissionModeTool submenu', () => {
     expect(mocks.registerLaunchers.mock.calls.at(-1)?.[0][0]?.tooltip).toBe('Permission Mode · Full Access')
   })
 
+  it('offers planning as a root toggle instead of a permission submenu choice', () => {
+    renderLauncher()
+    const launchers = mocks.registerLaunchers.mock.calls.at(-1)?.[0] ?? []
+    const permission = launchers.find((item) => item.id === 'permission-mode')
+    const plan = launchers.find((item) => item.id === 'plan-mode')
+    expect(permission?.submenu?.some((item) => item.id === 'permission-mode-plan')).toBe(false)
+    expect(plan?.sources).toEqual(['popover', 'root-panel'])
+    expect(plan?.active).toBe(false)
+    plan?.action?.({} as any)
+    expect(mocks.updateAgent).toHaveBeenCalledWith(
+      { id: 'agent-1', configuration: { permission_mode: 'plan' } },
+      { showSuccessToast: false }
+    )
+  })
+
+  it('returns to ordinary approval when the active root plan toggle is selected', () => {
+    mocks.permissionMode = 'plan'
+    renderLauncher()
+    const plan = mocks.registerLaunchers.mock.calls.at(-1)?.[0].find((item) => item.id === 'plan-mode')
+    expect(plan?.active).toBe(true)
+    plan?.action?.({} as any)
+    expect(mocks.updateAgent).toHaveBeenCalledWith(
+      { id: 'agent-1', configuration: { permission_mode: 'default' } },
+      { showSuccessToast: false }
+    )
+  })
+
   // The quick panel row is a fixed-height single line: a stacked warning under the title
   // overflows it and collides with the neighbouring rows.
   it('keeps the caveat out of permanent copy and exposes it as row metadata', () => {

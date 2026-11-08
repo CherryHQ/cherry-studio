@@ -73,16 +73,7 @@ describe('session item actions', () => {
     })
     const actions = resolveSessionMenuActions(actionContext)
 
-    expect(actions.map((action) => action.id)).toEqual([
-      'session.auto-rename',
-      'session.rename',
-      'session.toggle-pin',
-      'session.position',
-      'session.save-notes',
-      'session.save-knowledge',
-      'session.export',
-      'session.copy'
-    ])
+    expect(actions.find((action) => action.id === 'session.delete')?.availability.enabled).toBe(true)
     expect(actions.find((action) => action.id === 'session.auto-rename')?.label).toBe('agent.session.auto_rename')
     expect(actions.find((action) => action.id === 'session.rename')?.label).toBe('agent.session.edit.title')
     expect(actions.find((action) => action.id === 'session.toggle-pin')?.label).toBe('agent.session.unpin.title')

@@ -629,11 +629,8 @@ export class AgentSessionMessageService {
 
   getNativeSessionId(sessionId: string, messageId?: string): string | undefined {
     const rows = this.nativePath(sessionId, messageId).toReversed()
-    return (
-      rows.find((row) => row.nativeSessionId)?.nativeSessionId ??
-      rows.find((row) => row.runtimeResumeToken)?.runtimeResumeToken ??
-      undefined
-    )
+    const row = rows.find((row) => row.nativeSessionId || row.runtimeResumeToken)
+    return row?.nativeSessionId ?? row?.runtimeResumeToken ?? undefined
   }
 
   /** Main-only native fork read. API callers must never receive these raw rows. */
@@ -660,12 +657,17 @@ export class AgentSessionMessageService {
     messageId: string,
     rows: SessionMessageRow[]
   ): SessionMessageRow[] {
-    const mapping = agentSessionContextService.branchTx(tx, sessionId, messageId)?.checkpointMapping?.fork
+    const context = agentSessionContextService.branchTx(tx, sessionId, messageId)
+    const mapping = context?.checkpointMapping?.fork
     return rows.map((row) => {
       const anchor = RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor)
       const checkpoint = mapping?.[row.id]
-      return checkpoint && anchor.success
-        ? { ...row, data: { ...row.data, runtimeAnchor: { ...anchor.data, checkpoint } } }
+      return checkpoint && anchor.success && context
+        ? {
+            ...row,
+            runtimeResumeToken: context.nativeThreadId,
+            data: { ...row.data, runtimeAnchor: { ...anchor.data, checkpoint } }
+          }
         : row
     })
   }

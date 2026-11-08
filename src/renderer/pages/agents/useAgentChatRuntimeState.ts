@@ -146,6 +146,7 @@ export interface AgentChatRuntimeState {
   getMessageSiblings: ReturnType<typeof useAgentSessionParts>['getMessageSiblings']
   setActiveBranch: ReturnType<typeof useAgentSessionParts>['setActiveBranch']
   uiMessages: CherryUIMessage[]
+  historyActions: ReturnType<typeof useAgentSessionParts>['historyActions']
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers: MessageStreamingLayers
   optimisticAskUserQuestionInputsByToolCallId: Record<string, unknown>
@@ -222,6 +223,7 @@ export function useAgentChatRuntimeState({
   const sessionTopicId = useMemo(() => (sessionId ? buildAgentSessionTopicId(sessionId) : ''), [sessionId])
   const {
     messages: uiMessages,
+    historyActions,
     getMessageSiblings,
     setActiveBranch,
     persistedPartsByMessageId,
@@ -528,6 +530,7 @@ export function useAgentChatRuntimeState({
   return {
     sessionId,
     uiMessages: displayMessages,
+    historyActions,
     getMessageSiblings,
     setActiveBranch,
     partsByMessageId,

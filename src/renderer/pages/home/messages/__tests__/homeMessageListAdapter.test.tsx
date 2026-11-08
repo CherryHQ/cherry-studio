@@ -300,6 +300,7 @@ function MessageListAdapterHarness({
   messages = [],
   onBindRuntime,
   onStartBranchDraft,
+  addGeneratedImageToComposer,
   onValue,
   partsByMessageId = {},
   topic
@@ -309,6 +310,7 @@ function MessageListAdapterHarness({
   messages?: CherryUIMessage[]
   onBindRuntime?: MessageListProviderValue['actions']['bindRuntime']
   onStartBranchDraft?: MessageListProviderValue['actions']['startMessageBranch']
+  addGeneratedImageToComposer?: MessageListProviderValue['actions']['addGeneratedImageToComposer']
   onValue?: (value: MessageListProviderValue) => void
   partsByMessageId?: Record<string, CherryMessagePart[]>
   topic: Topic
@@ -321,7 +323,8 @@ function MessageListAdapterHarness({
     streamingLayers,
     imageActionConsumer,
     onBindRuntime,
-    onStartBranchDraft
+    onStartBranchDraft,
+    addGeneratedImageToComposer
   })
 
   useEffect(() => {
@@ -352,6 +355,32 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
         }
       }
     })
+  })
+
+  it('exposes generated image reference actions only to normal message interactions', () => {
+    const addGeneratedImageToComposer = vi.fn()
+    let value: MessageListProviderValue | undefined
+    const onValue = (nextValue: MessageListProviderValue) => (value = nextValue)
+    const { rerender } = render(
+      <MessageListAdapterHarness
+        addGeneratedImageToComposer={addGeneratedImageToComposer}
+        topic={createTopic('topic-a')}
+        onValue={onValue}
+      />
+    )
+
+    expect(value?.actions.addGeneratedImageToComposer).toBe(addGeneratedImageToComposer)
+
+    rerender(
+      <MessageListAdapterHarness
+        imageActionConsumer="capture"
+        addGeneratedImageToComposer={addGeneratedImageToComposer}
+        topic={createTopic('topic-a')}
+        onValue={onValue}
+      />
+    )
+
+    expect(value?.actions.addGeneratedImageToComposer).toBeUndefined()
   })
 
   it('loads translation languages only after the message menu requests them', async () => {

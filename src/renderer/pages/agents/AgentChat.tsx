@@ -663,6 +663,7 @@ const AgentChatSessionCenter = ({
       sessionId={runtime.sessionId}
       workspacePath={session.workspace?.path}
       messages={runtime.uiMessages}
+      historyActions={runtime.historyActions}
       activeAgent={activeAgent}
       partsByMessageId={runtime.partsByMessageId}
       streamingLayers={runtime.streamingLayers}
