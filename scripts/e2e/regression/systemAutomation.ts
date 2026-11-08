@@ -1268,6 +1268,11 @@ export async function saveNativeFileKeepingName(
     import ApplicationServices
     let pid: pid_t = ${electronPid}
     let application = AXUIElementCreateApplication(pid)
+    var panel: AXUIElement?
+    var activationAttempted = false
+    var activationAccepted = false
+    var frontmostStatus: Int32 = -1
+    var raiseStatus: Int32 = -1
     func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
       var value: CFTypeRef?
       AXUIElementCopyAttributeValue(element, name as CFString, &value)
@@ -1279,7 +1284,26 @@ export async function saveNativeFileKeepingName(
       return [element] + children.filter { !skipping.contains(attribute($0, "AXRole") as? String ?? "") }
         .flatMap { elements($0, depth + 1, skipping: skipping) }
     }
-    func fail(_ message: String) -> Never { fputs(message + "\\n", stderr); exit(1) }
+    func fail(_ message: String) -> Never {
+      var panelPid: pid_t = 0
+      let panelPidStatus = panel.map { AXUIElementGetPid($0, &panelPid).rawValue } ?? -1
+      let foreground = NSWorkspace.shared.frontmostApplication
+      let state: [String: Any] = [
+        "time": ISO8601DateFormatter().string(from: Date()), "error": message,
+        "requestedPid": pid, "panelPid": panelPid, "panelPidStatus": panelPidStatus,
+        "panelRole": panel.flatMap { attribute($0, "AXRole") as? String } ?? "",
+        "foregroundPid": foreground?.processIdentifier ?? 0,
+        "foregroundBundle": foreground?.bundleIdentifier ?? "",
+        "foregroundStartedAt": foreground?.launchDate?.timeIntervalSince1970 ?? 0,
+        "activationAttempted": activationAttempted, "activationAccepted": activationAccepted,
+        "frontmostStatus": frontmostStatus, "raiseStatus": raiseStatus
+      ]
+      if let data = try? JSONSerialization.data(withJSONObject: state, options: [.sortedKeys]) {
+        try? data.write(to: URL(fileURLWithPath: ${JSON.stringify(join(paths.logs, 'native-save-panel.json'))}))
+      }
+      fputs(message + "\\n", stderr)
+      exit(1)
+    }
     func wait(_ label: String, _ condition: () -> Bool) {
       let deadline = Date().addingTimeInterval(10)
       while !condition() {
@@ -1299,7 +1323,6 @@ export async function saveNativeFileKeepingName(
       guard AXUIElementSetAttributeValue(field, "AXValue" as CFString, value as CFString) == .success,
         attribute(field, "AXValue") as? String == value else { fail("Native save input readback mismatch") }
     }
-    var panel: AXUIElement?
     wait("panel") {
       let windows = attribute(application, "AXWindows") as? [AXUIElement] ?? []
       panel = windows.flatMap { elements($0) }.first { element in
@@ -1312,12 +1335,13 @@ export async function saveNativeFileKeepingName(
       return panel != nil
     }
     let owner = panel!
-    NSRunningApplication(processIdentifier: pid)?.activate(options: [])
-    AXUIElementPerformAction(owner, kAXRaiseAction as CFString)
+    activationAttempted = true
+    activationAccepted = NSRunningApplication(processIdentifier: pid)?.activate(options: []) ?? false
+    raiseStatus = AXUIElementPerformAction(owner, kAXRaiseAction as CFString).rawValue
     wait("foreground ownership") {
       if NSWorkspace.shared.frontmostApplication?.processIdentifier == pid { return true }
-      AXUIElementSetAttributeValue(application, "AXFrontmost" as CFString, kCFBooleanTrue)
-      AXUIElementPerformAction(owner, kAXRaiseAction as CFString)
+      frontmostStatus = AXUIElementSetAttributeValue(application, "AXFrontmost" as CFString, kCFBooleanTrue).rawValue
+      raiseStatus = AXUIElementPerformAction(owner, kAXRaiseAction as CFString).rawValue
       return false
     }
     var names: [AXUIElement] = []

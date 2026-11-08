@@ -246,7 +246,7 @@ it.skipIf(process.platform !== 'win32')(
 const nativePlatform = process.platform === 'darwin' ? 'macos' : 'windows'
 const dialogModes =
   process.platform === 'darwin'
-    ? (['file', 'multiple', 'directory', 'save', 'save-suggested'] as const)
+    ? (['file', 'multiple', 'directory', 'save', 'save-suggested', 'save-hidden'] as const)
     : (['file', 'multiple', 'directory', 'save', 'save-suggested', 'print', 'message-box'] as const)
 
 // Verify Electron's returned paths after actual native selection and filename commit.
@@ -268,7 +268,7 @@ it.skipIf(!['darwin', 'win32'].includes(process.platform)).each(dialogModes)(
       const folder = join(paths.fixtures, 'chosen folder')
       mkdirSync(folder)
       const saved = join(paths.private, 'requested output 输入.txt')
-      const isSave = mode === 'save' || mode === 'save-suggested'
+      const isSave = mode === 'save' || mode === 'save-suggested' || mode === 'save-hidden'
       const dialogCall =
         mode === 'message-box'
           ? `{ response: dialog.showMessageBoxSync({ type: 'info', title: 'Manual Restart Required', message: 'Owned restart fixture', buttons: ['OK'] }) }`
@@ -294,6 +294,10 @@ it.skipIf(!['darwin', 'win32'].includes(process.platform)).each(dialogModes)(
         await window.loadURL('data:text/html,<title>Owned native dialog fixture</title>')
         window.show()
         app.focus({ steal: true })
+        if (${mode === 'save-hidden'}) {
+          window.hide()
+          app.focus({ steal: true })
+        }
         fs.writeFileSync(${JSON.stringify(readyPath)}, 'ready')
         const result = ${dialogCall}
         if (result.filePath && !result.canceled) {
@@ -330,7 +334,7 @@ it.skipIf(!['darwin', 'win32'].includes(process.platform)).each(dialogModes)(
         })
       )
       if (mode === 'multiple') chooseNativeFiles(nativePlatform, paths, inputs)
-      else if (mode === 'save')
+      else if (mode === 'save' || mode === 'save-hidden')
         expect(realpathSync.native(await saveNativeFile(nativePlatform, paths, saved))).toBe(realpathSync.native(saved))
       else if (mode === 'save-suggested') {
         const outcome = await saveNativeFileKeepingName(nativePlatform, paths, saved, true)
@@ -466,8 +470,10 @@ it.skipIf(!['darwin', 'win32'].includes(process.platform)).each(dialogModes)(
       const result = join(paths.private, 'result.json')
       const log = join(paths.logs, 'fixture.log')
       const logTail = existsSync(log) ? readFileSync(log, 'utf8').slice(-5000) : ''
+      const saveStatePath = join(paths.logs, 'native-save-panel.json')
+      const saveState = existsSync(saveStatePath) ? readFileSync(saveStatePath, 'utf8').slice(0, 4096) : 'unavailable'
       throw new Error(
-        `${nativePlatform} ${mode} dialog failed: ${String(error)}. Result: ${existsSync(result) ? readFileSync(result, 'utf8') : 'pending'}. Owned controls:\n${controls}\nFixture log:\n${logTail}`,
+        `${nativePlatform} ${mode} dialog failed: ${String(error)}. Result: ${existsSync(result) ? readFileSync(result, 'utf8') : 'pending'}. Owned controls:\n${controls}\nNative save state: ${saveState}\nFixture log:\n${logTail}`,
         { cause: error }
       )
     } finally {
