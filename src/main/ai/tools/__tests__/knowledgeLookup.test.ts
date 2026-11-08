@@ -305,7 +305,7 @@ describe('kb_list folder identity', () => {
         }
       ]
     })
-    const result = await listOrOutlineKnowledge({ baseId: 'base-1' }, [])
+    const result = await listOrOutlineKnowledge({ baseId: 'base-1', limit: 100 }, [])
     expect(kbTreeOutputSchema.safeParse(result).success).toBe(true)
     expect(result).toMatchObject({ nodes: [{ itemId: '019a4000-0000-7000-8000-000000000001' }] })
   })

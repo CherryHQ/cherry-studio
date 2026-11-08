@@ -630,9 +630,9 @@ describe('reindex-subtree job handler', () => {
     const secondChild = createExpandedFile('note-2', 'dir-2')
     knowledgeItemGetSubtreeItemsMock.mockImplementation(
       (_baseId: string, rootIds: string[], options: { includeRoots?: boolean; leafOnly?: boolean } = {}) => {
-        if (options.leafOnly) return [firstChild, secondChild].filter((child) => rootIds.includes(child.groupId!))
+        if (options.leafOnly) return [firstChild, secondChild].filter((child) => rootIds.includes(child.groupId))
         if (options.includeRoots) return [firstRoot, firstChild, secondRoot, secondChild]
-        return [firstChild, secondChild].filter((child) => rootIds.includes(child.groupId!))
+        return [firstChild, secondChild].filter((child) => rootIds.includes(child.groupId))
       }
     )
     scheduleItemMock.mockResolvedValueOnce({ id: 'job-dir-1' }).mockRejectedValueOnce(new Error('enqueue failed'))
