@@ -45,10 +45,12 @@ const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) 
   const selectedText = action.selectedText
 
   const [language] = usePreference('app.language')
+  const [autoDetectionMethod] = usePreference('feature.translate.auto_detection_method')
   const { languages, getLanguage } = useLanguages()
   const isLanguagesLoaded = languages !== undefined
   const detectLanguage = useDetectLang()
   const { quickModel } = useDefaultModel()
+  const detectionModelId = autoDetectionMethod === 'franc' ? undefined : quickModel?.id
   // Read once, not subscribed: the pair is session-local, so saves from other windows must not retarget it.
   const [savedLangCodes, setSavedLangCodes] = useState<{
     preferred: TranslateLangCode
@@ -248,7 +250,7 @@ const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) 
   })
   useEffect(() => {
     translateSelection()
-  }, [selectedText, initialized, targetLanguage.langCode, alterLanguage.langCode, quickModel?.id])
+  }, [selectedText, initialized, targetLanguage.langCode, alterLanguage.langCode, detectionModelId])
 
   const handleChangeLanguage = useCallback(
     (newTargetLanguage: TranslateLanguage, newAlterLanguage: TranslateLanguage) => {

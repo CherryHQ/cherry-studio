@@ -235,6 +235,41 @@ describe('ActionTranslate', () => {
     expect(screen.queryByText('首次翻译完成')).not.toBeInTheDocument()
   })
 
+  it('keeps an offline-detected translation active when the quick model finishes loading', async () => {
+    state.useRealDetection = true
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.auto_detection_method': 'franc',
+      'feature.translate.model_id': 'regression::translate'
+    })
+    MockUseDataApiUtils.mockQueryResult('/translate/languages', {
+      data: state.languages.map((language) => ({
+        ...language,
+        langCode: parsePersistedLangCode(language.langCode),
+        createdAt: '2026-11-08T00:00:00.000Z',
+        updatedAt: '2026-11-08T00:00:00.000Z'
+      }))
+    })
+    const pending: Array<(text: string) => void> = []
+    state.translate.mockImplementation(() => new Promise<string>((resolve) => pending.push(resolve)))
+    const action = createAction({
+      selectedText: 'The early bird catches the worm. Preparation and timely action improve the chances of success.'
+    })
+    const view = render(
+      <ActionTranslate sourceEntityId="test-session" action={action} scrollToBottom={state.scrollToBottom} />
+    )
+    await waitFor(() => expect(pending).toHaveLength(1))
+    expect(screen.getByRole('combobox')).toBeDisabled()
+
+    state.quickModel = { id: 'regression::quick', modelId: 'quick' }
+    view.rerender(
+      <ActionTranslate sourceEntityId="test-session" action={action} scrollToBottom={state.scrollToBottom} />
+    )
+    await act(async () => pending[0]('早起的鸟儿有虫吃。'))
+
+    expect(await screen.findByText('早起的鸟儿有虫吃。')).toBeVisible()
+    expect(screen.getByRole('combobox')).toBeEnabled()
+  })
+
   it('corrects the fallback target when the quick model finishes loading', async () => {
     state.useRealDetection = true
     MockUsePreferenceUtils.setPreferenceValue('feature.translate.auto_detection_method', 'llm')
