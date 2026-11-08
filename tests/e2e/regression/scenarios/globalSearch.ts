@@ -245,8 +245,92 @@ export async function globalSearch(app: RegressionApp, page: Page, testInfo: Tes
     const messageResult = search.getByRole('option').filter({ hasText: marker })
     await expect(messageResult).toHaveCount(1)
     await screenshot('MP-129 message content search')
-    await messageResult.hover()
-    await messageResult.getByRole('button', { name: 'Jump to message', exact: true }).click()
+    const jumpDiagnostic = await messageResult
+      .evaluateHandle((originalRow) => {
+        const rowId = originalRow.id
+        const events: { type: string; connected: boolean; sameNode: boolean }[] = []
+        let previousRow: HTMLElement | null = document.getElementById(rowId)
+        const record = (type: string) => {
+          if (events.length < 8)
+            events.push({
+              type,
+              connected: originalRow.isConnected,
+              sameNode: document.getElementById(rowId) === originalRow
+            })
+        }
+        const onMouse = (event: Event) => {
+          if (event.target instanceof Element && event.target.id === rowId) record(event.type)
+        }
+        document.addEventListener('mouseenter', onMouse, true)
+        document.addEventListener('mouseleave', onMouse, true)
+        const observer = new MutationObserver(() => {
+          const currentRow = document.getElementById(rowId)
+          if (currentRow !== previousRow) {
+            record(currentRow ? 'mounted' : 'removed')
+            previousRow = currentRow
+          }
+        })
+        observer.observe(document, { childList: true, subtree: true })
+        const describe = (element: Element | null) =>
+          element ? { tag: element.tagName, role: element.getAttribute('role') } : null
+        const readState = () => {
+          const row = document.getElementById(rowId)
+          const bounds = row?.getBoundingClientRect()
+          return {
+            connected: originalRow.isConnected,
+            sameNode: row === originalRow,
+            rowPresent: Boolean(row),
+            hovered: row?.matches(':hover'),
+            bounds: bounds && { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height },
+            documentFocused: document.hasFocus(),
+            activeElement: describe(document.activeElement),
+            centerHit: bounds
+              ? describe(document.elementFromPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2))
+              : null,
+            buttonCount: row?.querySelectorAll('button').length ?? 0,
+            buttons: Array.from(row?.querySelectorAll('button') ?? [])
+              .slice(0, 2)
+              .map((button) => {
+                const style = getComputedStyle(button)
+                return {
+                  ariaHidden: button.getAttribute('aria-hidden'),
+                  tabIndex: button.tabIndex,
+                  disabled: button.disabled,
+                  opacity: style.opacity,
+                  pointerEvents: style.pointerEvents
+                }
+              })
+          }
+        }
+        const before = readState()
+        return {
+          read: () => ({ before, after: readState(), events }),
+          dispose: () => {
+            observer.disconnect()
+            document.removeEventListener('mouseenter', onMouse, true)
+            document.removeEventListener('mouseleave', onMouse, true)
+          }
+        }
+      })
+      .catch(() => undefined)
+    try {
+      await messageResult.hover()
+      await messageResult.getByRole('button', { name: 'Jump to message', exact: true }).click()
+    } catch (error) {
+      await jumpDiagnostic
+        ?.evaluate((diagnostic) => diagnostic.read())
+        .then((state) =>
+          testInfo.attach('MP-129 jump hover diagnostics', {
+            body: JSON.stringify(state),
+            contentType: 'application/json'
+          })
+        )
+        .catch(() => {})
+      throw error
+    } finally {
+      await jumpDiagnostic?.evaluate((diagnostic) => diagnostic.dispose()).catch(() => {})
+      await jumpDiagnostic?.dispose().catch(() => {})
+    }
     await expect(search).toBeHidden()
     const target = chat.locator(`[data-ui~="chat.message"][data-message-id="${messageId}"]`)
     await expect(target).toContainText(marker)
