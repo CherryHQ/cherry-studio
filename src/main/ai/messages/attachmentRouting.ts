@@ -10,9 +10,9 @@
  *     inlined and capped. Over the cap, the head is inlined + a `read_file`
  *     pointer. A non-vision image whose OCR yields no text (or whose OCR is
  *     unconfigured/failed) stops before the provider call with a user-facing
- *     error. Unusable or failed audio/video analysis stops the same way and
- *     points at Voice and Model settings. A completed analysis that only found
- *     silence stays an inline note.
+ *     error. Unusable or failed audio/video analysis on the turn being sent
+ *     stops the same way and points at Voice and Model settings; on an earlier
+ *     message it degrades to a note. Analysis that only found silence stays inline.
  *
  * Content is always inlined, so visibility never depends on the model choosing
  * to call `read_file` — weak and non-tool models see it too. Other failures
@@ -215,6 +215,7 @@ async function extractNonNativeText(
   entryId: string,
   fileType: FileType,
   handle: string,
+  stopOnMediaFailure: boolean,
   signal?: AbortSignal
 ): Promise<{ text: string; continuation: 'full' | 'prefix' }> {
   if (fileType === FILE_TYPE.AUDIO || fileType === FILE_TYPE.VIDEO) {
@@ -226,7 +227,9 @@ async function extractNonNativeText(
     } catch (error) {
       if (signal?.aborted || isAbortError(error)) throw error
       logger.warn('Media analysis unavailable for a non-native attachment', { error, entryId, handle, fileType })
-      throw new NonNativeMediaAnalysisError()
+      // Only the turn being sent stops; an earlier message must not block every later turn.
+      if (stopOnMediaFailure) throw new NonNativeMediaAnalysisError()
+      return { text: `Could not analyze the attached ${fileType} file "${handle}".`, continuation: 'prefix' }
     }
   }
   if (fileType === FILE_TYPE.DOCUMENT || fileType === FILE_TYPE.TEXT || fileType === FILE_TYPE.OTHER) {
@@ -278,7 +281,8 @@ function rejectedMediaKind(mediaType: string, ns: NativeFileSupport): 'image' | 
 async function prepareChatMessage<T extends UIMessage>(
   message: T,
   ctx: PrepareChatContext,
-  pending: PendingInline[]
+  pending: PendingInline[],
+  isCurrentTurn: boolean
 ): Promise<T> {
   if (!message.parts?.length) return message
 
@@ -394,7 +398,7 @@ async function prepareChatMessage<T extends UIMessage>(
       }
 
       // Non-native first-party attachment → inline its (capped) text.
-      const extracted = await extractNonNativeText(fileEntryId, fileType, handle, ctx.signal)
+      const extracted = await extractNonNativeText(fileEntryId, fileType, handle, isCurrentTurn, ctx.signal)
       defer(kept, pending, handle, extracted.text, extracted.continuation)
     } catch (error) {
       if (ctx.signal?.aborted || isAbortError(error)) throw error
@@ -417,7 +421,10 @@ export async function prepareChatMessages<T extends UIMessage = UIMessage>(
   ctx: PrepareChatContext
 ): Promise<T[]> {
   const pending: PendingInline[] = []
-  const prepared = await Promise.all(messages.map((message) => prepareChatMessage(message, ctx, pending)))
+  const currentTurn = messages.findLast((message) => message.role === 'user')
+  const prepared = await Promise.all(
+    messages.map((message) => prepareChatMessage(message, ctx, pending, message === currentTurn))
+  )
   await applyInlineCaps(pending, ctx)
   return prepared
 }

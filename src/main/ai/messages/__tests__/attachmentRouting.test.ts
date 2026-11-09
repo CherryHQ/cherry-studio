@@ -320,6 +320,25 @@ describe('prepareChatMessages — routing', () => {
     }
   )
 
+  it('keeps a later turn sendable when media analysis fails for an earlier message', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'mp4' })
+    mediaAnalysisMock.mockRejectedValueOnce(new Error('provider unavailable'))
+    const messages = [
+      { id: 'u1', role: 'user', parts: [fileWithEntry('e1', 'media.mp4', 'video/mp4')] },
+      { id: 'a1', role: 'assistant', parts: [{ type: 'text', text: 'It shows a cat.' }] },
+      { id: 'u2', role: 'user', parts: [{ type: 'text', text: 'Thanks' }] }
+    ] as UIMessage[]
+
+    const [history, , current] = await prepareChatMessages(messages, {
+      attachments: collectFileAttachments(messages),
+      nativeSupport: NONE,
+      isToolCapable: true
+    })
+
+    expect(textOf(history.parts)[0]).toContain('Could not analyze the attached video file "media.mp4"')
+    expect(textOf(current.parts)).toEqual(['Thanks'])
+  })
+
   it('rethrows cancellation from media analysis', async () => {
     const controller = new AbortController()
     getByIdMock.mockResolvedValueOnce({ ext: 'mp4' })

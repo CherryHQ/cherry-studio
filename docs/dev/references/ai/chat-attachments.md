@@ -74,8 +74,10 @@ Decided per file part in `prepareChatMessages`
   degrades to a `[could not read this file].` note rather than dropping the
   file or failing the request.
 - A failed probe degrades to the unreadable-file note. Failed non-native
-  audio/video analysis stops before the provider request with a localized
-  error; cancellation continues to abort the request.
+  audio/video analysis on the latest user message stops before the provider
+  request with a localized error; on an earlier message it degrades to a
+  model-visible note so history cannot block later turns. Cancellation
+  continues to abort the request.
 - **Non-native** → the file part is replaced by its extracted text (see the
   cap below). The internal `fileEntryId` is never written into the prompt.
 
