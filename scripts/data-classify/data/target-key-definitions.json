@@ -1491,6 +1491,10 @@
           "visible": true
         },
         {
+          "id": "desktop_control",
+          "visible": true
+        },
+        {
           "id": "plan",
           "visible": true
         },
