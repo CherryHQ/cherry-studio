@@ -19,14 +19,14 @@ A throwaway prototype answered the riskiest questions in headless Chromium: care
 | Area | Included |
 | --- | --- |
 | Inline | Bold, italic, strikethrough, inline code, links |
-| Blocks | Headings, bullet and ordered lists, block quotes, fenced code, horizontal rules |
+| Blocks | Headings, block quotes, fenced code, horizontal rules |
 | Editing | Bold and italic shortcuts and backtick inline code on a selection, bracket pairing inside fenced code |
 
 Out of scope:
 
 - Tables, images, and task checkboxes stay literal source.
 - LaTeX formulas, including `$...$` and `$$` blocks, get no rendering and stay literal source.
-- The newline shortcut inserts a plain line; lists do not continue automatically.
+- Bullet and ordered lists get no live rendering. Their markers stay visible as source with only a muted color and a hanging indent, and the newline shortcut inserts a plain line instead of continuing the list.
 - Code blocks get no language-aware indentation, and the indent unit stays two spaces.
 - Selection formatting covers bold, italic, and inline code only.
 - Indented code (four leading spaces) is not a code block here. Those lines stay ordinary text.
@@ -124,7 +124,7 @@ Styles join the `.composer-tiptap` rules in `richtext.css` and use design tokens
 ## Acceptance criteria
 
 - AC1 — On a live-preview surface, the serialized `text` and token `textOffset` values for any draft, including escape-prone input such as `2 * 3 * 4` and `Array<string>`, are byte-identical to the same editing sequence with live preview off. (verification: renderer)
-- AC2 — Bold, italic, strikethrough, inline code, links, headings, bullet and ordered lists, and block quotes render styled, with their syntax markers hidden when the selection does not touch them. (verification: renderer)
+- AC2 — Bold, italic, strikethrough, inline code, links, headings, and block quotes render styled, with their syntax markers hidden when the selection does not touch them, while bullet and ordered list markers stay visible as source. (verification: renderer)
 - AC3 — Moving the selection into a styled span, heading, or quote reveals its markers and moving out hides them, and the left and right arrow keys step through the same positions as an undecorated document. (verification: Electron)
 - AC4 — A mouse click lands on the character under the pointer with no marker reveal until release, and a mouse drag selects the expected source range across hidden markers. (verification: Electron)
 - AC5 — With a real macOS Chinese input method, composing at the start, middle, and end of styled spans and inside highlighted code commits exactly once without breaking composition. (verification: Electron)
