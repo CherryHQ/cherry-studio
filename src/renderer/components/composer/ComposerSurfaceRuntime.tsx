@@ -29,7 +29,6 @@ import { QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useRichTextEditorKernel } from '@renderer/components/RichEditor/useRichTextEditorKernel'
 import SendMessageButton from '@renderer/components/SendMessageButton'
 import { usePreference } from '@renderer/data/hooks/usePreference'
-import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { toast } from '@renderer/services/toast'
 import { isPastedTextFileMetadata } from '@renderer/types/file'
@@ -58,9 +57,7 @@ import {
   insertComposerTokenAtCursor,
   updateComposerToken
 } from './composerInputAdapter'
-import { handleComposerMarkdownCodeKey, isComposerMarkdownCodePosition } from './composerMarkdownPreview.prototype'
 import {
-  createComposerPlainTextPasteContent,
   getComposerClipboardPasteOverride,
   getComposerPlainTextPasteOverride,
   PASTED_TEXT_FILE_EXTENSION
@@ -626,7 +623,6 @@ export default function ComposerSurfaceRuntime({
   deferredIntent,
   showAiDisclaimer = false
 }: ComposerSurfaceProps) {
-  const { codeBlockStyle } = useCodeStyle()
   const [editorReady, setEditorReady] = useState(!deferQuickPanel)
   const quickPanelReady = !deferQuickPanel || editorReady
   const [preferredSendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
@@ -1638,12 +1634,6 @@ export default function ComposerSurfaceRuntime({
           return true
         }
 
-        if (handleComposerMarkdownCodeKey(view, event)) {
-          event.preventDefault()
-          event.stopPropagation()
-          return true
-        }
-
         if (event.key === 'Tab' && !event.isComposing && !quickPanelRef.current.isVisible) {
           const targetToken = editorRef.current
             ? selectPromptVariableToken(editorRef.current, event.shiftKey ? -1 : 1)
@@ -1814,13 +1804,6 @@ export default function ComposerSurfaceRuntime({
       if (shouldDelegateLongTextPaste) {
         event.preventDefault()
         void handlePaste(event)
-        return true
-      }
-
-      // Pasted code stays literal: no prompt-variable, link, skill, or knowledge-base tokens.
-      if (editor && pastedText && isComposerMarkdownCodePosition(editor.state, editor.state.selection.from)) {
-        event.preventDefault()
-        insertComposerPastedContent(editor, createComposerPlainTextPasteContent(pastedText))
         return true
       }
 
@@ -2459,7 +2442,7 @@ export default function ComposerSurfaceRuntime({
               'min-w-0 flex-1 [-webkit-app-region:no-drag]',
               isCompact && '[&>[data-slot=scroll-area-scrollbar]]:hidden'
             )}
-            style={{ ...codeBlockStyle, ...(isCompact ? compactEditorContentStyle : editorContentStyle) }}
+            style={isCompact ? compactEditorContentStyle : editorContentStyle}
             viewportProps={{ style: isCompact ? { overflowY: 'hidden' } : undefined }}
             contentProps={{ className: 'grid min-h-full' }}>
             <EditorContent

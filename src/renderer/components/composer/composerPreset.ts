@@ -2,7 +2,6 @@ import type { EditorOptions } from '@tiptap/core'
 
 import { Placeholder, type PlaceholderOptions } from '@renderer/components/RichEditor/extensions/placeholder'
 
-import { ComposerMarkdownPreviewPrototype } from './composerMarkdownPreview.prototype'
 import {
   ComposerDocument,
   ComposerHardBreak,
@@ -32,17 +31,12 @@ export function createComposerEditorPreset({
     ComposerText,
     ComposerHardBreak,
     Placeholder.configure({
-      // One paragraph per line would otherwise show the hint on every empty line the caret visits.
-      placeholder: (props) => {
-        if (!props.editor.isEmpty) return ''
-        return typeof placeholder === 'function' ? placeholder(props) : (placeholder ?? '')
-      },
+      placeholder,
       showOnlyWhenEditable: true,
       showOnlyCurrent: true,
       includeChildren: false
     }),
     ComposerTokenNode.configure({ renderToken }),
-    ComposerMarkdownPreviewPrototype,
     ...(suggestionSources.length > 0 ? [createComposerSuggestionExtension(suggestionSources)] : []),
     ...(enableUndoRedo ? [ComposerUndoRedo] : [])
   ]
