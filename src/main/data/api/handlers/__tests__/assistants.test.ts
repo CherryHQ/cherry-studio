@@ -167,7 +167,7 @@ describe('assistantHandlers', () => {
         })
       ).resolves.toMatchObject({ id: ASSISTANT_ID })
 
-      expect(updateMock).toHaveBeenCalledWith(ASSISTANT_ID, { groupId: GROUP_ID })
+      expect(updateMock).toHaveBeenCalledWith(ASSISTANT_ID, { groupId: GROUP_ID }, undefined)
     })
 
     it('should forward relation-only PATCH bodies without defaulted column fields', async () => {
@@ -180,10 +180,14 @@ describe('assistantHandlers', () => {
         })
       ).resolves.toMatchObject({ id: ASSISTANT_ID })
 
-      expect(updateMock).toHaveBeenCalledWith(ASSISTANT_ID, {
-        mcpServerIds: ['srv-1'],
-        knowledgeBaseIds: ['kb-1']
-      })
+      expect(updateMock).toHaveBeenCalledWith(
+        ASSISTANT_ID,
+        {
+          mcpServerIds: ['srv-1'],
+          knowledgeBaseIds: ['kb-1']
+        },
+        undefined
+      )
     })
 
     it('should forward empty PATCH bodies without injecting create defaults', async () => {
@@ -196,7 +200,7 @@ describe('assistantHandlers', () => {
         })
       ).resolves.toMatchObject({ id: ASSISTANT_ID })
 
-      expect(updateMock).toHaveBeenCalledWith(ASSISTANT_ID, {})
+      expect(updateMock).toHaveBeenCalledWith(ASSISTANT_ID, {}, undefined)
     })
 
     it('should forward partial settings updates without injecting unrelated defaults', async () => {
@@ -209,7 +213,7 @@ describe('assistantHandlers', () => {
         })
       ).resolves.toMatchObject({ id: ASSISTANT_ID })
 
-      expect(updateMock).toHaveBeenCalledWith(ASSISTANT_ID, { settings: { maxTokens: 8192 } })
+      expect(updateMock).toHaveBeenCalledWith(ASSISTANT_ID, { settings: { maxTokens: 8192 } }, undefined)
     })
 
     it('should reject unsafe max tokens before calling the service', async () => {

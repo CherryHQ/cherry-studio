@@ -25,6 +25,7 @@ import type {
   UpdateAssistantDto
 } from '@shared/data/api/schemas/assistants'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
+import type { DataApiCallContext } from '@shared/data/api/types'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { UniqueModelId } from '@shared/data/types/model'
 
@@ -37,6 +38,14 @@ import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:AssistantService')
+
+type McpArmingDelta = {
+  assistantId: string
+  beforeIds: string[]
+  afterIds: string[]
+  addedIds: string[]
+  removedIds: string[]
+}
 
 type AssistantRow = typeof assistantTable.$inferSelect
 
@@ -506,7 +515,7 @@ export class AssistantDataService {
    * roll back — the client can never observe a "saved successfully" response
    * on an already-deleted row.
    */
-  update(id: string, dto: UpdateAssistantDto): Assistant {
+  update(id: string, dto: UpdateAssistantDto, context?: DataApiCallContext): Assistant {
     const current = this.getById(id)
 
     if (dto.name !== undefined) {
@@ -535,7 +544,7 @@ export class AssistantDataService {
 
     const aliveFilter = and(eq(assistantTable.id, id), isNull(assistantTable.deletedAt))
 
-    const { row, modelName } = application.get('DbService').withWriteTx((tx) => {
+    const { row, modelName, mcpArmingDelta } = application.get('DbService').withWriteTx((tx) => {
       // Pre-validate the new FK target before any write — same reasoning as
       // in `create`. Skipped when the caller is unbinding (null) or leaving
       // the existing modelId untouched (undefined/empty).
@@ -568,15 +577,27 @@ export class AssistantDataService {
       }
 
       // Sync junction table rows if relation fields are provided
-      this.syncRelationsTx(tx, id, { mcpServerIds, knowledgeBaseIds })
+      const mcpArmingDelta = this.syncRelationsTx(tx, id, { mcpServerIds, knowledgeBaseIds })
 
       const nextModelName =
         dto.modelId !== undefined && dto.modelId !== current.modelId
           ? this.getModelNameById(tx, next.modelId)
           : current.modelName
 
-      return { row: next, modelName: nextModelName }
+      return { row: next, modelName: nextModelName, mcpArmingDelta }
     })
+
+    if (mcpArmingDelta && mcpArmingDelta.addedIds.length + mcpArmingDelta.removedIds.length > 0) {
+      logger.info('MCP arming changed', {
+        event: 'assistant.mcp-arming.changed',
+        ...mcpArmingDelta,
+        reason: 'update',
+        source: context?.source ?? 'unknown',
+        actor: context?.actor ?? { kind: 'unknown' },
+        operationId: context?.operationId ?? null,
+        requestId: context?.requestId ?? null
+      })
+    }
 
     logger.info('Updated assistant', { id, changes: Object.keys(dto) })
 
@@ -743,7 +764,8 @@ export class AssistantDataService {
     tx: Pick<DbType, 'delete' | 'insert' | 'select'>,
     assistantId: string,
     dto: { mcpServerIds?: string[]; knowledgeBaseIds?: string[] }
-  ): void {
+  ): McpArmingDelta | undefined {
+    let mcpArmingDelta: McpArmingDelta | undefined
     if (dto.mcpServerIds !== undefined) {
       const existing = tx
         .select({ mcpServerId: assistantMcpServerTable.mcpServerId })
@@ -755,6 +777,16 @@ export class AssistantDataService {
 
       const removeIds = existing.filter((r) => !desiredIds.has(r.mcpServerId)).map((r) => r.mcpServerId)
       const toAdd = [...desiredIds].filter((id) => !existingIds.has(id))
+
+      if (removeIds.length + toAdd.length > 0) {
+        mcpArmingDelta = {
+          assistantId,
+          beforeIds: [...existingIds].sort(),
+          afterIds: [...desiredIds].sort(),
+          addedIds: [...toAdd].sort(),
+          removedIds: [...removeIds].sort()
+        }
+      }
 
       if (removeIds.length > 0) {
         tx.delete(assistantMcpServerTable)
@@ -801,6 +833,7 @@ export class AssistantDataService {
           .run()
       }
     }
+    return mcpArmingDelta
   }
 
   private validateName(name: string): void {

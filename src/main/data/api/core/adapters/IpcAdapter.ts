@@ -1,10 +1,11 @@
 import { ipcMain, type IpcMainInvokeEvent } from 'electron'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import type { Disposable } from '@main/core/lifecycle'
 import { validateSender } from '@main/core/security/validateSender'
 import { DataApiError, ErrorCode, toDataApiError } from '@shared/data/api/errors'
-import type { DataRequest, DataResponse } from '@shared/data/api/types'
+import type { DataApiCallContext, DataRequest, DataResponse } from '@shared/data/api/types'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import type { ApiServer } from '../ApiServer'
@@ -63,7 +64,20 @@ export class IpcAdapter implements Disposable {
       }
 
       try {
-        const response = await this.apiServer.handleRequest(request)
+        const windowId = application.get('WindowManager').getWindowIdByWebContents(event.sender)
+        const source = request.metadata?.source
+        const operationId = request.metadata?.operationId
+        const context: DataApiCallContext = {
+          requestId: request.id ?? null,
+          operationId:
+            typeof operationId === 'string' &&
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(operationId)
+              ? operationId
+              : null,
+          source: typeof source === 'string' && /^[a-z0-9._-]{1,128}$/.test(source) ? source : 'unknown',
+          actor: windowId ? { kind: 'renderer', webContentsId: event.sender.id, windowId } : { kind: 'unknown' }
+        }
+        const response = await this.apiServer.handleRequest(request, context)
 
         return response
       } catch (error) {

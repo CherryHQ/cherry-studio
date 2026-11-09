@@ -355,12 +355,19 @@ export class DataApiService implements ApiClient {
       body?: BodyForPath<TPath, 'PATCH'>
       query?: QueryParamsForPath<TPath, 'PATCH'>
       headers?: Record<string, string>
+      metadata?: { source?: string; operationId?: string }
     }
   ): Promise<ResponseForPath<TPath, 'PATCH'>> {
+    const metadata = options.metadata
+    const callMetadata =
+      metadata?.source !== undefined && metadata.operationId === undefined
+        ? { ...metadata, operationId: crypto.randomUUID() }
+        : metadata
     return this.makeRequest<ResponseForPath<TPath, 'PATCH'>>('PATCH', path, {
       params: options.query,
       body: options.body,
-      headers: options.headers
+      headers: options.headers,
+      ...(callMetadata ? { metadata: callMetadata } : {})
     })
   }
 

@@ -242,3 +242,45 @@ describe('DataApiService devtools instrumentation', () => {
     expect(window.__CHERRY_DATA_API_DEVTOOLS__).toBeUndefined()
   })
 })
+
+describe('PATCH provenance', () => {
+  it('keeps one generated operation id across retries while request ids change', async () => {
+    const service = await createService()
+    service.configureRetry({ maxRetries: 1, retryDelay: 0 })
+    const failure = DataApiErrorFactory.timeout('/assistants/A', 3000)
+    request.mockImplementationOnce(async (req) => ({ id: req.id, status: failure.status, error: failure.toJSON() }))
+    request.mockImplementationOnce(async (req) => ({ id: req.id, status: 200, data: { id: 'A', mcpServerIds: ['T'] } }))
+
+    await expect(
+      service.patch('/assistants/A', {
+        body: { mcpServerIds: ['T'] },
+        metadata: { source: 'composer.mcp-toggle' }
+      })
+    ).resolves.toEqual({ id: 'A', mcpServerIds: ['T'] })
+
+    const attempts = request.mock.calls.map(([req]) => req)
+    expect(attempts).toHaveLength(2)
+    expect(attempts[0].metadata).toMatchObject({
+      source: 'composer.mcp-toggle',
+      operationId: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
+    })
+    expect(attempts[1].metadata).toEqual(attempts[0].metadata)
+    expect(attempts[1].id).not.toBe(attempts[0].id)
+    expect(attempts.map((req) => req.body)).toEqual([{ mcpServerIds: ['T'] }, { mcpServerIds: ['T'] }])
+  })
+
+  it('preserves explicit correlation and generates a distinct id for each new sourced call', async () => {
+    const service = await createService()
+    request.mockImplementation(async (req) => ({ id: req.id, status: 200, data: { id: 'A' } }))
+    const operationId = '24065000-0000-4000-8000-000000000001'
+    await service.patch('/assistants/A', { body: {}, metadata: { source: 'assistant-edit.save', operationId } })
+    await service.patch('/assistants/A', { body: {}, metadata: { source: 'assistant-edit.save' } })
+    await service.patch('/assistants/A', { body: {}, metadata: { source: 'assistant-edit.save' } })
+    await service.patch('/assistants/A', { body: {} })
+    const metadata = request.mock.calls.map(([req]) => req.metadata)
+    expect(metadata[0]).toMatchObject({ source: 'assistant-edit.save', operationId })
+    expect(metadata[1].operationId).toEqual(expect.any(String))
+    expect(metadata[2].operationId).not.toBe(metadata[1].operationId)
+    expect(metadata[3]).toEqual({ timestamp: expect.any(Number) })
+  })
+})

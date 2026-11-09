@@ -1,5 +1,4 @@
-import { pathToFileURL } from 'node:url'
-
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { ipcMain } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -26,17 +25,17 @@ type IpcHandler = (event: any, payload: any) => Promise<any>
 
 // The unified application mock resolves getPath('app.root') to '/mock/app.root'.
 const trustedEvent = {
-  sender: { getType: () => 'window' },
-  senderFrame: { url: pathToFileURL('/mock/app.root/index.html').href, parent: null }
+  sender: { id: 7, getType: () => 'window' },
+  senderFrame: { url: 'file:///mock/app.root/index.html', parent: null }
 } as any
 const untrustedEvents = {
   webview: {
     sender: { getType: () => 'webview' },
-    senderFrame: { url: pathToFileURL('/mock/app.root/index.html').href, parent: null }
+    senderFrame: { url: 'file:///mock/app.root/index.html', parent: null }
   },
   'sub-frame': {
     sender: { getType: () => 'window' },
-    senderFrame: { url: pathToFileURL('/mock/app.root/index.html').href, parent: {} }
+    senderFrame: { url: 'file:///mock/app.root/index.html', parent: {} }
   },
   'remote origin': {
     sender: { getType: () => 'window' },
@@ -53,6 +52,7 @@ describe('IpcAdapter', () => {
   let requestHandler: IpcHandler
 
   beforeEach(() => {
+    MockApplicationUtils.resetServices()
     vi.mocked(ipcMain.handle).mockClear()
     handleRequest = vi.fn(async (request) => ({
       id: request.id,
@@ -71,8 +71,60 @@ describe('IpcAdapter', () => {
     const request = { id: 'req-1', method: 'GET', path: '/topics' }
     const response = await requestHandler(trustedEvent, request)
 
-    expect(handleRequest).toHaveBeenCalledWith(request)
+    expect(handleRequest).toHaveBeenCalledWith(request, {
+      requestId: 'req-1',
+      operationId: null,
+      source: 'unknown',
+      actor: { kind: 'unknown' }
+    })
     expect(response).toMatchObject({ id: 'req-1', status: 200, data: { ok: true } })
+  })
+
+  it('uses the verified sender for identity and sanitizes only diagnostic metadata', async () => {
+    MockApplicationUtils.setService('WindowManager', {
+      getWindowIdByWebContents: (sender: unknown) => (sender === trustedEvent.sender ? 'main-1' : undefined)
+    })
+    const operationId = '24065000-0000-4000-8000-000000000001'
+    const request = {
+      id: 'req-2',
+      method: 'PATCH',
+      path: '/assistants/A',
+      metadata: {
+        source: 'assistant-edit.save',
+        operationId,
+        actor: { kind: 'main', source: 'forged' }
+      }
+    }
+    const response = await requestHandler(trustedEvent, request)
+    expect(response).toMatchObject({ status: 200, data: { ok: true } })
+    expect(handleRequest.mock.calls[0][1]).toEqual({
+      requestId: 'req-2',
+      operationId,
+      source: 'assistant-edit.save',
+      actor: { kind: 'renderer', webContentsId: 7, windowId: 'main-1' }
+    })
+  })
+
+  it.each([
+    { source: '', operationId: 'invalid' },
+    { source: 'Bad Source', operationId: 123 },
+    { source: 'x'.repeat(129), operationId: null },
+    { source: 42 },
+    {}
+  ])('accepts requests with invalid or absent diagnostics: %j', async (metadata) => {
+    const response = await requestHandler(trustedEvent, {
+      id: 'req-3',
+      method: 'PATCH',
+      path: '/assistants/A',
+      metadata
+    })
+    expect(response).toMatchObject({ status: 200, data: { ok: true } })
+    expect(handleRequest.mock.calls[0][1]).toEqual({
+      requestId: 'req-3',
+      operationId: null,
+      source: 'unknown',
+      actor: { kind: 'unknown' }
+    })
   })
 
   it('rejects untrusted request senders with 403 before ApiServer is reached', async () => {

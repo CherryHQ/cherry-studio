@@ -3,14 +3,19 @@ import { DIAGNOSTICS_ENABLED, SLOW_THRESHOLD_MS } from '@main/core/diagnostics'
 import { isDev } from '@main/core/platform'
 import type { RequestContext as ErrorRequestContext } from '@shared/data/api/errors'
 import { DataApiError, DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
-import type { ApiImplementation } from '@shared/data/api/types'
+import type { ApiImplementation, DataApiCallContext } from '@shared/data/api/types'
 import type { DataRequest, DataResponse, HttpMethod, RequestContext, SuccessStatusCode } from '@shared/data/api/types'
 import { isCustomStatusResult, SuccessStatus } from '@shared/data/api/types'
 
 import { MiddlewareEngine } from './MiddlewareEngine'
 
 // Handler function type
-type HandlerFunction = (params: { params?: Record<string, string>; query?: any; body?: any }) => Promise<any>
+type HandlerFunction = (params: {
+  params?: Record<string, string>
+  query?: any
+  body?: any
+  context?: DataApiCallContext
+}) => Promise<any>
 
 const logger = loggerService.withContext('DataApi:Server')
 const DATA_API_TIMING_ENABLED = isDev || DIAGNOSTICS_ENABLED
@@ -61,7 +66,7 @@ export class ApiServer {
   /**
    * Main request handler - direct handler lookup
    */
-  async handleRequest(request: DataRequest): Promise<DataResponse> {
+  async handleRequest(request: DataRequest, context?: DataApiCallContext): Promise<DataResponse> {
     const { method, path } = request
     const startTime = Date.now()
     // DevTools and CS_DIAGNOSTICS both need monotonic request timings.
@@ -85,7 +90,7 @@ export class ApiServer {
       }
 
       // Create request context
-      const requestContext = this.createRequestContext(request, path, method)
+      const requestContext = this.createRequestContext(request, path, method, context)
 
       // Execute middleware chain
       await this.middlewareEngine.executeMiddlewares(requestContext)
@@ -248,7 +253,12 @@ export class ApiServer {
   /**
    * Create request context
    */
-  private createRequestContext(request: DataRequest, path: string, method: HttpMethod): RequestContext {
+  private createRequestContext(
+    request: DataRequest,
+    path: string,
+    method: HttpMethod,
+    context?: DataApiCallContext
+  ): RequestContext {
     const response: DataResponse = {
       id: request.id,
       status: 200
@@ -259,7 +269,8 @@ export class ApiServer {
       response,
       path,
       method,
-      data: new Map()
+      data: new Map(),
+      context
     }
   }
 
@@ -278,7 +289,8 @@ export class ApiServer {
       const handlerParams = {
         params,
         query: request.params, // URL query parameters
-        body: request.body
+        body: request.body,
+        context: context.context
       }
 
       // Execute handler

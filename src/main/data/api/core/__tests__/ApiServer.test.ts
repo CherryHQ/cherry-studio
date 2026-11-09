@@ -319,3 +319,36 @@ describe('ApiServer devtools timing metadata', () => {
     expect(response.metadata?.handlerDuration).toBeUndefined()
   })
 })
+
+describe('ApiServer caller context', () => {
+  it('stores transport context and passes it to the handler alongside partial PATCH data', async () => {
+    const context = {
+      requestId: 'req-24065',
+      operationId: '24065000-0000-4000-8000-000000000001',
+      source: 'assistant-edit.save',
+      actor: { kind: 'renderer' as const, webContentsId: 7, windowId: 'main-1' }
+    }
+    const server = new (ApiServer as any)({
+      '/assistants/:id': { PATCH: async (input: unknown) => input }
+    }) as ApiServer
+    const middleware = vi.spyOn((server as any).middlewareEngine, 'executeMiddlewares')
+    const response = await server.handleRequest(
+      {
+        id: 'req-24065',
+        method: 'PATCH',
+        path: '/assistants/A',
+        body: { mcpServerIds: ['T'] }
+      },
+      context
+    )
+    expect(response).toMatchObject({
+      status: 200,
+      data: {
+        params: { id: 'A' },
+        body: { mcpServerIds: ['T'] },
+        context
+      }
+    })
+    expect(middleware.mock.calls[0][0]).toMatchObject({ context })
+  })
+})

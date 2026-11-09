@@ -142,7 +142,20 @@ export interface DataRequest<T = any> {
     timestamp: number
     /** OpenTelemetry span context for tracing */
     spanContext?: any
+    source?: string
+    operationId?: string
   }
+}
+
+export interface DataApiCallContext {
+  requestId: string | null
+  operationId: string | null
+  /** Sanitized caller-declared source, or 'unknown'. Never trusted for identity. */
+  source: string
+  actor:
+    | { kind: 'renderer'; webContentsId?: number; windowId: string | null }
+    | { kind: 'main'; source: string }
+    | { kind: 'unknown' }
 }
 
 /**
@@ -318,6 +331,7 @@ export interface Middleware {
  * Request context passed through middleware chain
  */
 export interface RequestContext {
+  context?: DataApiCallContext
   /** Original request */
   request: DataRequest
   /** Response being built */
@@ -455,6 +469,7 @@ export interface ApiClient {
       body?: BodyForPath<TPath, 'PATCH'>
       query?: QueryParamsForPath<TPath, 'PATCH'>
       headers?: Record<string, string>
+      metadata?: { source?: string; operationId?: string }
     }
   ): Promise<ResponseForPath<TPath, 'PATCH'>>
 }
@@ -502,7 +517,11 @@ export type ApiHandler<Path extends ApiPaths, Method extends ApiMethods<Path>> =
     (HasRequiredQuery<Path, Method> extends true
       ? { query: ApiQuery<Path, Method> }
       : { query?: ApiQuery<Path, Method> }) &
-    (HasRequiredBody<Path, Method> extends true ? { body: ApiBody<Path, Method> } : { body?: ApiBody<Path, Method> })
+    (HasRequiredBody<Path, Method> extends true
+      ? { body: ApiBody<Path, Method> }
+      : { body?: ApiBody<Path, Method> }) & {
+      context?: DataApiCallContext
+    }
 ) => Promise<HandlerResult<ApiResponse<Path, Method>>>
 
 /**

@@ -710,7 +710,8 @@ beforeEach(() => {
     }
     if (method === 'PATCH' && path.startsWith('/assistants/')) {
       return {
-        trigger: ({ body }: { body: unknown }) => updateAssistantMock({ body }),
+        trigger: ({ body, metadata }: { body: unknown; metadata?: { source?: string; operationId?: string } }) =>
+          updateAssistantMock({ body, ...(metadata ? { metadata } : {}) }),
         isLoading: false,
         error: undefined
       }
@@ -928,6 +929,7 @@ describe('edit dialogs', () => {
         await act(async () => firstSave.resolve({ ...resource, description: 'Temporary description' }))
         await waitFor(() =>
           expect(update).toHaveBeenLastCalledWith({
+            ...(type === 'assistant' ? { metadata: { source: 'assistant-edit.save' } } : {}),
             body: expect.objectContaining({ description: resource.description })
           })
         )
@@ -952,6 +954,7 @@ describe('edit dialogs', () => {
           await user.click(screen.getByRole('tab', { name: 'Prompts' }))
           await user.click(screen.getByRole('button', { name: 'Manage Global Prompts' }))
           expect(update).toHaveBeenLastCalledWith({
+            ...(type === 'assistant' ? { metadata: { source: 'assistant-edit.save' } } : {}),
             body: expect.objectContaining({ description: 'Recovered description' })
           })
         } else {
@@ -999,6 +1002,7 @@ describe('edit dialogs', () => {
       await act(async () => firstSave.resolve(resource))
       await waitFor(() =>
         expect(updateAssistantMock).toHaveBeenLastCalledWith({
+          metadata: { source: 'assistant-edit.save' },
           body: { settings: { customParameters: resource.settings.customParameters } }
         })
       )
@@ -1062,6 +1066,7 @@ describe('edit dialogs', () => {
         await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
         frames.flushAllFrames()
         expect(update).toHaveBeenLastCalledWith({
+          ...(type === 'assistant' ? { metadata: { source: 'assistant-edit.save' } } : {}),
           body: expect.objectContaining({ name: nextName || 'Corrected name', description: 'Newer description' })
         })
         expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/prompts')
@@ -1116,7 +1121,10 @@ describe('edit dialogs', () => {
         await user.click(screen.getByRole('button', { name: 'Manage Global Prompts' }))
         await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
         frames.flushAllFrames()
-        expect(update).toHaveBeenLastCalledWith({ body: expect.objectContaining({ name: 'Corrected edit' }) })
+        expect(update).toHaveBeenLastCalledWith({
+          ...(type === 'assistant' ? { metadata: { source: 'assistant-edit.save' } } : {}),
+          body: expect.objectContaining({ name: 'Corrected edit' })
+        })
         expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/prompts')
       } finally {
         frames.restore()
@@ -1343,6 +1351,7 @@ describe('edit dialogs', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
     await waitFor(() =>
       expect(updateAssistantMock).toHaveBeenCalledWith({
+        metadata: { source: 'assistant-edit.save' },
         body: expect.objectContaining({
           name: 'Updated Assistant',
           description: 'Updated assistant description',
@@ -1363,6 +1372,7 @@ describe('edit dialogs', () => {
     fireEvent.click(clearButton)
     await waitFor(() =>
       expect(updateAssistantMock).toHaveBeenCalledWith({
+        metadata: { source: 'assistant-edit.save' },
         body: expect.objectContaining({
           modelId: null
         })
@@ -1377,6 +1387,7 @@ describe('edit dialogs', () => {
     fireEvent.click(await screen.findByRole('option', { name: 'personal' }))
     await waitFor(() =>
       expect(updateAssistantMock).toHaveBeenCalledWith({
+        metadata: { source: 'assistant-edit.save' },
         body: expect.objectContaining({
           groupId: 'group-personal'
         })
@@ -1397,6 +1408,7 @@ describe('edit dialogs', () => {
     await waitFor(() => expect(createGroupMock).toHaveBeenCalledWith('created'))
     await waitFor(() =>
       expect(updateAssistantMock).toHaveBeenCalledWith({
+        metadata: { source: 'assistant-edit.save' },
         body: expect.objectContaining({
           groupId: 'group-created'
         })
@@ -1411,6 +1423,7 @@ describe('edit dialogs', () => {
     fireEvent.click(clearButton)
     await waitFor(() =>
       expect(updateAssistantMock).toHaveBeenCalledWith({
+        metadata: { source: 'assistant-edit.save' },
         body: expect.objectContaining({
           groupId: null
         })
@@ -1787,6 +1800,7 @@ describe('edit dialogs', () => {
     fireEvent.click(screen.getByRole('switch', { name: 'Temperature' }))
     await waitFor(() =>
       expect(updateAssistantMock).toHaveBeenCalledWith({
+        metadata: { source: 'assistant-edit.save' },
         body: expect.objectContaining({
           knowledgeBaseIds: ['kb-1'],
           mcpServerIds: ['mcp-1'],
@@ -1935,6 +1949,7 @@ describe('edit dialogs', () => {
 
     await waitFor(() =>
       expect(updateAssistantMock).toHaveBeenCalledWith({
+        metadata: { source: 'assistant-edit.save' },
         body: {
           settings: {
             maxTokens: 4096,
@@ -1967,6 +1982,7 @@ describe('edit dialogs', () => {
     expect(maxTokensInput).toHaveValue(String(Number.MAX_SAFE_INTEGER))
     await waitFor(() =>
       expect(updateAssistantMock).toHaveBeenCalledWith({
+        metadata: { source: 'assistant-edit.save' },
         body: { settings: { maxTokens: Number.MAX_SAFE_INTEGER } }
       })
     )
@@ -2008,6 +2024,7 @@ describe('edit dialogs', () => {
     expect(maxToolCallsInput).toHaveValue('1000')
     await waitFor(() =>
       expect(updateAssistantMock).toHaveBeenCalledWith({
+        metadata: { source: 'assistant-edit.save' },
         body: expect.objectContaining({
           settings: expect.objectContaining({
             enableMaxToolCalls: true,
@@ -2535,6 +2552,7 @@ describe('edit dialogs', () => {
 
     await waitFor(() =>
       expect(updateAssistantMock).toHaveBeenCalledWith({
+        metadata: { source: 'assistant-edit.save' },
         body: expect.objectContaining({ name: 'Updated Assistant' })
       })
     )
@@ -2556,6 +2574,7 @@ describe('edit dialogs', () => {
     fireEvent.change(nameInput, { target: { value: 'First Edit' } })
     await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
     expect(updateAssistantMock).toHaveBeenNthCalledWith(1, {
+      metadata: { source: 'assistant-edit.save' },
       body: expect.objectContaining({ name: 'First Edit' })
     })
 
@@ -2568,6 +2587,7 @@ describe('edit dialogs', () => {
     resolveFirstSave?.()
     await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(2))
     expect(updateAssistantMock).toHaveBeenNthCalledWith(2, {
+      metadata: { source: 'assistant-edit.save' },
       body: expect.objectContaining({ name: 'Second Edit' })
     })
   })
@@ -2615,6 +2635,7 @@ describe('edit dialogs', () => {
 
     await waitFor(() => expect(updateAssistantMock.mock.calls.length).toBeGreaterThan(saveAttemptsAfterFailure))
     expect(updateAssistantMock).toHaveBeenLastCalledWith({
+      metadata: { source: 'assistant-edit.save' },
       body: expect.objectContaining({ name: 'Retry Closing Edit' })
     })
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
@@ -2648,6 +2669,7 @@ describe('edit dialogs', () => {
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
     expect(updateAssistantMock.mock.calls.length).toBeGreaterThan(saveAttemptsBeforeRetry)
     expect(updateAssistantMock).toHaveBeenLastCalledWith({
+      metadata: { source: 'assistant-edit.save' },
       body: expect.objectContaining({ name: 'Repro Edit' })
     })
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
