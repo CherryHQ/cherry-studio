@@ -161,10 +161,12 @@ const PaintingParamsButton: FC<{
   onGenerateRandomSeed?: (key: string) => void
 }> = ({ painting, onConfigChange, onGenerateRandomSeed }) => {
   const { t } = useTranslation()
+  const { files } = useComposerToolState()
+  const imageCount = files.filter((file) => file.type === FILE_TYPE.IMAGE).length
   const registrySupport = useImageGenerationSupport(painting.providerId, painting.model)
   const configItems = useMemo(
-    () => imageGenerationToFields(registrySupport, { mode: tabToImageGenerationMode(painting.mode) }),
-    [registrySupport, painting.mode]
+    () => imageGenerationToFields(registrySupport, { mode: tabToImageGenerationMode(painting.mode, imageCount) }),
+    [registrySupport, painting.mode, imageCount]
   )
   const summary = useMemo(() => paramsSummary(painting.params, configItems, t), [painting.params, configItems, t])
 
@@ -193,6 +195,7 @@ const PaintingParamsButton: FC<{
         <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto pr-1">
           <PaintingSettings
             painting={painting}
+            inputImageCount={imageCount}
             onConfigChange={onConfigChange}
             onGenerateRandomSeed={onGenerateRandomSeed}
           />

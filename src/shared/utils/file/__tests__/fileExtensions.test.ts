@@ -36,10 +36,9 @@ describe('knowledge file-extension source-of-truth invariants', () => {
     expect(processing.has('.xls')).toBe(false)
   })
 
-  it('leaves OpenDocument formats unsupported by the knowledge base even though they are documents', () => {
-    for (const ext of ['.odt', '.odp', '.ods']) {
-      expect(document.has(ext)).toBe(true)
-      expect(supported.has(ext)).toBe(false)
+  it('accepts OpenDocument and RTF formats through AnydocReader, not a processor', () => {
+    for (const ext of ['.odt', '.odp', '.ods', '.rtf']) {
+      expect(supported.has(ext)).toBe(true)
       expect(processing.has(ext)).toBe(false)
     }
   })

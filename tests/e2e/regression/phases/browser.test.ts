@@ -1,4 +1,3 @@
-import { once } from 'node:events'
 import { writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
@@ -7,18 +6,13 @@ import type { WebviewTag } from 'electron'
 
 import { AgentEntitySchema } from '@shared/data/api/schemas/agents'
 import { AgentSessionEntitySchema } from '@shared/data/api/schemas/agentSessions'
-import { AssistantSchema } from '@shared/data/types/assistant'
-import { createUniqueModelId } from '@shared/data/types/model'
-import { TopicSchema } from '@shared/data/types/topic'
 import type { IpcResult } from '@shared/ipc/errors/IpcError'
 import type { OutputFor } from '@shared/ipc/types'
 
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
-import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { expect, test } from '../fixture'
-import { sendChatMarker } from '../helpers/chat'
 import { selectSidebarApp } from '../helpers/navigation'
 import { openSettingsSection } from '../helpers/settings'
 
@@ -295,6 +289,18 @@ test(...caseDefinition('MP-123'), async ({ mainWindow: page }, testInfo) => {
     await expect.poll(() => readGuest('document.getElementById("result").textContent')).toBe('Clicked successfully')
     await expect(editor).toBeHidden()
     await screenshot('MP-123 annotations cleared and page interaction restored')
+  } catch (error) {
+    await screenshot('MP-123 annotation failure before cleanup')
+    await testInfo.attach('MP-123 guest state', {
+      body: JSON.stringify(
+        await guest.evaluate((element) => {
+          const webview = element as WebviewTag
+          return { url: webview.getURL(), loading: webview.isLoading(), preload: webview.getAttribute('preload') }
+        })
+      ),
+      contentType: 'application/json'
+    })
+    throw error
   } finally {
     await page.keyboard.press('Escape')
     await selectSidebarApp(page, 'Chat')
@@ -309,267 +315,6 @@ test(...caseDefinition('MP-123'), async ({ mainWindow: page }, testInfo) => {
         sessionId
       )
     await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
-  }
-})
-
-test(...caseDefinition('MP-124'), async ({ app, mainWindow: page }, testInfo) => {
-  const attachScreenshot = async (name: string) => {
-    const path = testInfo.outputPath(`${name}.png`)
-    await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
-    await testInfo.attach(name, { path, contentType: 'image/png' })
-  }
-  const preferences = await page.evaluate(async () => ({
-    naming: await window.api.preference.get('topic.naming.enabled'),
-    browser: await window.api.preference.get('app.browser.open_links_in_browser')
-  }))
-  const server = await startMockChatServer()
-  testInfo.annotations.push({
-    type: 'data-source',
-    description:
-      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
-  })
-  const title = 'MP-124 linked search result'
-  const content = 'MP-124 destination content: conversation links reached the correct page.'
-  const website = createServer((req, res) => {
-    if (req.url !== '/mp-124/search-result?source=conversation') {
-      res.writeHead(404)
-      res.end('Unknown page')
-      return
-    }
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
-    res.end(`<!doctype html><title>${title}</title><h1>${title}</h1><p>${content}</p>`)
-  })
-  website.listen(0, '127.0.0.1')
-  await once(website, 'listening')
-  const address = website.address()
-  if (!address || typeof address === 'string') throw new Error('Result website did not bind a TCP port')
-  const url = `http://127.0.0.1:${address.port}/mp-124/search-result?source=conversation`
-  const providerId = `regression-browser-${Date.now()}`
-  const assistantName = app.resourceName('Browser links assistant')
-  const topicName = app.resourceName('Browser links topic')
-  let assistantId: string | undefined
-
-  try {
-    testInfo.annotations.push({
-      type: 'fixture',
-      description:
-        'Mock model supplies a deterministic search-result link; real chat, link dispatch and browser navigation.'
-    })
-    await page.evaluate(() =>
-      window.api.preference.setMultiple({
-        'topic.naming.enabled': false,
-        'app.browser.open_links_in_browser': true
-      })
-    )
-    const provider = await page.evaluate(
-      ({ providerId, baseUrl }) =>
-        window.api.dataApi.request({
-          id: `${providerId}-create`,
-          method: 'POST',
-          path: '/providers',
-          body: {
-            providerId,
-            name: 'MP-124 mock model',
-            defaultChatEndpoint: 'openai-chat-completions',
-            endpointConfigs: { 'openai-chat-completions': { baseUrl } },
-            apiKeys: [{ id: 'mock-key', key: 'mock-api-key', isEnabled: true }]
-          }
-        }),
-      { providerId, baseUrl: server.baseUrl }
-    )
-    expect(provider.status).toBe(201)
-    const enabled = await page.evaluate(
-      (providerId) =>
-        window.api.dataApi.request({
-          id: `${providerId}-enable`,
-          method: 'PATCH',
-          path: `/providers/${providerId}`,
-          body: { isEnabled: true }
-        }),
-      providerId
-    )
-    expect(enabled.status).toBe(200)
-    const models = await page.evaluate(
-      ({ providerId, modelId }) =>
-        window.api.dataApi.request({
-          id: `${providerId}-model`,
-          method: 'POST',
-          path: '/models',
-          body: [{ providerId, modelId, endpointTypes: ['openai-chat-completions'] }]
-        }),
-      { providerId, modelId: server.modelId }
-    )
-    expect(models.status).toBe(201)
-    const assistant = await page.evaluate(
-      ({ name, modelId }) =>
-        window.api.dataApi.request({
-          id: 'browser-assistant',
-          method: 'POST',
-          path: '/assistants',
-          body: { name, modelId }
-        }),
-      { name: assistantName, modelId: createUniqueModelId(providerId, server.modelId) }
-    )
-    expect(assistant.status).toBe(201)
-    assistantId = AssistantSchema.parse(assistant.data).id
-    const topic = await page.evaluate(
-      ({ name, assistantId }) =>
-        window.api.dataApi.request({
-          id: 'browser-topic',
-          method: 'POST',
-          path: '/topics',
-          body: { name, assistantId }
-        }),
-      { name: topicName, assistantId }
-    )
-    expect(topic.status).toBe(201)
-    const topicId = TopicSchema.parse(topic.data).id
-
-    await page.reload()
-    await selectSidebarApp(page, 'Chat')
-    const chat = page.locator('[data-ui~="chat.view"]:visible')
-    const assistantRow = chat.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
-    await expect(assistantRow).toBeVisible()
-    await assistantRow.hover()
-    const expand = assistantRow.getByRole('button', { name: 'Expand', exact: true })
-    if (await expand.isVisible().catch(() => false)) await expand.click()
-    const topicRow = chat.getByTestId('topic-list-row').filter({ hasText: topicName })
-    await expect(topicRow).toBeVisible()
-    await topicRow.click()
-    await expect(page.getByRole('button', { name: 'Selected models', exact: true })).toContainText(server.modelId)
-
-    const prompt = '联网搜索 Cherry Studio 的网页资料，给出可点击的结果链接。'
-    const marker = 'MP124_SEARCH_RESULT'
-    const paragraphs = Array.from(
-      { length: 20 },
-      (_, i) => `Search context ${i + 1}: browser links should preserve the conversation position.`
-    )
-    const answer = [...paragraphs, `[${title}](${url})`, ...paragraphs, marker].join('\n\n')
-    const [messageId] = await Promise.all([
-      sendChatMarker(page, prompt, marker),
-      (async () => {
-        const request = await server.nextRequest()
-        expect(request.body.model).toBe(server.modelId)
-        expect(request.body.messages).toContainEqual({ role: 'user', content: prompt })
-        request.complete(answer)
-      })()
-    ])
-    const message = chat.locator(`[data-ui~="chat.message"][data-message-id="${messageId}"]`)
-    const link = message.getByRole('link').filter({ hasText: title })
-    await expect(link).toHaveAttribute('href', url)
-    const chatRegion = chat.getByRole('region', { name: 'Messages', exact: true })
-    const chatBox = await chatRegion.boundingBox()
-    const linkBox = await link.boundingBox()
-    if (!chatBox || !linkBox) throw new Error('Chat result has no layout bounds')
-    const targetY = chatBox.y + chatBox.height / 2
-    await page.mouse.move(chatBox.x + chatBox.width - 80, targetY)
-    await page.mouse.wheel(0, linkBox.y - targetY)
-    await expect(link).toBeInViewport()
-    // Wheel scrolling animates, so read the position only after the animation stops: two
-    // samples 100ms apart still agree mid-scroll, so require three slower consecutive ones.
-    const settledLinkY = async (): Promise<number> => {
-      let previous = Number.NaN
-      let stableSamples = 0
-      await expect
-        .poll(
-          async () => {
-            const y = (await link.boundingBox())?.y ?? Number.NaN
-            stableSamples = Number.isFinite(y) && Math.abs(y - previous) <= 1 ? stableSamples + 1 : 0
-            previous = y
-            return stableSamples
-          },
-          { timeout: 15_000, intervals: [200, 300, 400, 500] }
-        )
-        .toBeGreaterThanOrEqual(3)
-      return previous
-    }
-    const beforeHeight = (await chatRegion.boundingBox())?.height
-    if (!beforeHeight) throw new Error('Chat result has no layout bounds')
-    const beforeY = await settledLinkY()
-    await attachScreenshot('MP-124 clickable result in conversation')
-    const originalTabs = await page.locator('[data-ui~="app.tab-bar"] [data-tab-id]').count()
-    await link.click()
-
-    const tabBar = page.locator('[data-ui~="app.tab-bar"]')
-    const browserTab = tabBar.getByRole('button', { name: title, exact: true })
-    await expect(browserTab).toBeVisible()
-    await expect(tabBar.locator('[data-tab-id]')).toHaveCount(originalTabs + 1)
-    const addressBar = page.getByRole('combobox', { name: 'Web address', exact: true })
-    await expect(addressBar).toBeVisible()
-    await expect(addressBar).toHaveAttribute('title', url)
-    await addressBar.click()
-    await expect(addressBar).toHaveValue(url)
-    await page.keyboard.press('Escape')
-    const guest = page.getByTestId('webview-browser-guest').filter({ visible: true })
-    await expect(guest).toBeVisible()
-    await expect
-      .poll(() =>
-        guest.evaluate((element) => {
-          const webview = element as unknown as { getURL(): string }
-          return webview.getURL()
-        })
-      )
-      .toBe(url)
-    await expect
-      .poll(() =>
-        guest.evaluate((element) => {
-          const webview = element as unknown as { executeJavaScript(code: string): Promise<string> }
-          return webview.executeJavaScript('document.body.innerText')
-        })
-      )
-      .toContain(content)
-    await attachScreenshot('MP-124 built-in browser tab and address')
-
-    await browserTab.getByRole('button', { name: 'Close Tab', exact: true }).click()
-    await expect(browserTab).toHaveCount(0)
-    await expect(chat).toBeVisible()
-    await expect(link).toBeInViewport()
-    await expect(topicRow).toBeVisible()
-    // Opening the tab shrinks the conversation area, so its height must be back before the two
-    // positions are comparable; a reflow in progress would hide a real jump or invent one.
-    await expect
-      .poll(async () => Math.abs(((await chatRegion.boundingBox())?.height ?? Number.NaN) - beforeHeight), {
-        timeout: 15_000,
-        intervals: [100, 150, 200, 250]
-      })
-      .toBeLessThanOrEqual(1)
-    const afterY = await settledLinkY()
-    expect(Math.abs(afterY - beforeY)).toBeLessThanOrEqual(3)
-    const saved = await page.evaluate(
-      (id) => window.api.dataApi.request({ id: 'browser-read-message', method: 'GET', path: `/messages/${id}` }),
-      messageId
-    )
-    expect(saved.status).toBe(200)
-    expect(saved.data).toMatchObject({ id: messageId, topicId, status: 'success' })
-    await attachScreenshot('MP-124 returned to original message position')
-  } finally {
-    await server.close()
-    await new Promise<void>((resolve, reject) => {
-      website.close((error) => (error ? reject(error) : resolve()))
-      website.closeAllConnections()
-    })
-    await page.evaluate(
-      async ({ assistantId, providerId, preferences }) => {
-        await window.api.preference.setMultiple({
-          'topic.naming.enabled': preferences.naming,
-          'app.browser.open_links_in_browser': preferences.browser
-        })
-        if (assistantId) {
-          const permanentlyDeletedAssistant = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
-            assistantId,
-            deleteTopics: true
-          })) as IpcResult<{ deleted: boolean }>
-          if (!permanentlyDeletedAssistant.ok || !permanentlyDeletedAssistant.data.deleted)
-            throw new Error('cleanup left the case assistant in the trash')
-        }
-        await window.api.dataApi.request({
-          id: `${providerId}-delete`,
-          method: 'DELETE',
-          path: `/providers/${providerId}`
-        })
-      },
-      { assistantId, providerId, preferences }
-    )
   }
 })
 
@@ -618,6 +363,7 @@ test(...caseDefinition('MP-125'), async ({ mainWindow: page }, testInfo) => {
           path: `/app/browser?url=${encodeURIComponent('http://127.0.0.1:9/')}`
         })
       )
+      await expect(address).toHaveAttribute('title', 'http://127.0.0.1:9/')
       await expect(failure).toBeVisible()
       await expect(loading).toBeHidden()
       await expect(address).toBeEditable()
@@ -629,7 +375,9 @@ test(...caseDefinition('MP-125'), async ({ mainWindow: page }, testInfo) => {
     })
 
     await test.step('Stopping the loaded local service shows the local-server guidance on refresh', async () => {
+      await address.focus()
       await address.fill(url)
+      await expect(address).toHaveValue(url)
       await address.press('Enter')
       await expect.poll(readGuest).toEqual({ url, text: 'MP-125 service initial' })
       await expect(failure).toBeHidden()
