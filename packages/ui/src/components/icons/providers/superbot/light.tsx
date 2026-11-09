@@ -1,0 +1,16 @@
+import type { SVGProps } from 'react'
+
+import type { IconComponent } from '../../types'
+const SuperbotLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    fill="#000"
+    viewBox="0 0 100 100"
+    width="1em"
+    height="1em"
+    {...props}>
+    <path d="M29 32H71A15 15 0 0 1 86 47V71A15 15 0 0 1 71 86H29A15 15 0 0 1 14 71V47A15 15 0 0 1 29 32ZM14 46V28Q14 20 21 21Q28 24 36 32ZM86 46L64 32Q72 24 79 21Q86 20 86 28ZM27 58A8 11 0 1 0 43 58A8 11 0 1 0 27 58ZM57 58A8 11 0 1 0 73 58A8 11 0 1 0 57 58Z" />
+  </svg>
+)
+export { SuperbotLight }
+export default SuperbotLight
