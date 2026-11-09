@@ -259,6 +259,10 @@
   text-indent: -1.4em;
 }
 
+.composer-tiptap.tiptap p.composer-md-horizontal-rule:has(.composer-md-syntax-hidden) {
+  background: linear-gradient(var(--border), var(--border)) center / 100% 1px no-repeat;
+}
+
 .tiptap img:not([data-file-token-icon-thumbnail]) {
   max-width: 800px;
   width: 100%;

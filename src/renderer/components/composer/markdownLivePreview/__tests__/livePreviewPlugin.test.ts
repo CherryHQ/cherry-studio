@@ -224,6 +224,46 @@ describe('Markdown live preview', () => {
     })
   })
 
+  describe('horizontal rules', () => {
+    const ruleClass = 'composer-md-horizontal-rule'
+
+    it.each(['---', '***', '___', '- - -'])('hides %s behind a divider while the caret is elsewhere', (rule) => {
+      const text = `caret\n\n${rule}\n\nend`
+      const editor = createEditor(text)
+      caretAt(editor, 0)
+
+      expect(lineElement(editor, 2).classList.contains(ruleClass)).toBe(true)
+      expect(hiddenMarkers(editor)).toEqual([rule])
+      expect(serializeComposerDocument(editor).text).toBe(text)
+    })
+
+    it('shows the source while the caret is on the line and hides it again afterwards', () => {
+      const editor = createEditor('caret\n\n---\n\nend')
+
+      caretAt(editor, 2, 1)
+      expect(hiddenMarkers(editor)).toEqual([])
+
+      caretAt(editor, 4)
+      expect(hiddenMarkers(editor)).toEqual(['---'])
+    })
+
+    it('reveals a rule with leading spaces when the caret is at the line start', () => {
+      const editor = createEditor('caret\n\n  ---')
+
+      caretAt(editor, 2)
+
+      expect(hiddenMarkers(editor)).toEqual([])
+    })
+
+    it('treats --- directly under text as a heading underline', () => {
+      const editor = createEditor('Title\n---\nend')
+      caretAt(editor, 2)
+
+      expect(editor.view.dom.querySelector(`.${ruleClass}`)).toBeNull()
+      expect(textsOf(editor, '.composer-md-heading')).toEqual(['Title'])
+    })
+  })
+
   describe('composition', () => {
     const compose = (editor: Editor, type: 'compositionstart' | 'compositionend') =>
       editor.view.dom.dispatchEvent(new CompositionEvent(type, { bubbles: true }))

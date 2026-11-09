@@ -116,6 +116,11 @@ function collectMarkup({ text, lines, tree }: MarkdownSession): LineMarkup[] {
       markup[index].blockClasses.push('composer-md-quote-line')
     }
   }
+  const addHorizontalRule = (node: SyntaxNode) => {
+    const index = findSourceLineIndex(lines, node.from)
+    addMarker(node.from, node.to, { from: lines[index].textFrom, to: lines[index].textTo })
+    markup[index].blockClasses.push('composer-md-horizontal-rule')
+  }
   const addQuoteMark = (node: SyntaxNode) => {
     const line = lines[findSourceLineIndex(lines, node.from)]
     addMarker(node.from, node.to + (text[node.to] === ' ' ? 1 : 0), { from: line.textFrom, to: line.textTo })
@@ -131,6 +136,7 @@ function collectMarkup({ text, lines, tree }: MarkdownSession): LineMarkup[] {
       else if (name === 'Link') addLink(ref.node)
       else if (name === 'Blockquote') addQuote(ref.node)
       else if (name === 'QuoteMark') addQuoteMark(ref.node)
+      else if (name === 'HorizontalRule') addHorizontalRule(ref.node)
       else if (name === 'ListMark') addSpan(ref.from, ref.to, 'composer-md-list-marker')
       else if (name === 'ListItem')
         markup[findSourceLineIndex(lines, ref.from)].blockClasses.push('composer-md-list-line')
