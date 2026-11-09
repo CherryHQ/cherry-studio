@@ -134,8 +134,14 @@ vi.mock('@cherrystudio/ui', async () => {
         <span>{description}</span>
       </div>
     ),
-    Scrollbar: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'div'>>) => (
-      <div {...props}>{children}</div>
+    ScrollArea: ({
+      children,
+      viewportProps,
+      ...props
+    }: React.ComponentProps<'div'> & { viewportProps?: React.ComponentProps<'div'> }) => (
+      <div {...props} {...viewportProps}>
+        {children}
+      </div>
     ),
     Tooltip: ({ children }: PropsWithChildren<{ content?: string; delay?: number }>) => <>{children}</>,
     Tabs: ({

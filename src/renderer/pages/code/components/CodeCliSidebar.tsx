@@ -2,7 +2,7 @@ import { Loader2, MoreHorizontal } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Scrollbar, Tooltip } from '@cherrystudio/ui'
+import { Button, ScrollArea, Tooltip } from '@cherrystudio/ui'
 import { CommandContextMenu, type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/components/command'
 import { CliIcon } from '@renderer/components/icons/CliIcon'
 import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
@@ -65,7 +65,7 @@ export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({
 
   return (
     <div data-ui="code.navigation" className="flex h-full min-h-0 w-66 shrink-0 flex-col border-border-subtle border-r">
-      <Scrollbar className="min-h-0 flex-1 overflow-x-hidden p-2.5">
+      <ScrollArea viewportProps={{ className: 'overflow-x-hidden p-2.5' }} className="min-h-0 flex-1">
         {tools.length === 0 ? (
           <div className="py-8 text-center text-foreground-tertiary text-xs">{t('code.no_tools')}</div>
         ) : (
@@ -142,7 +142,7 @@ export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({
             })}
           </div>
         )}
-      </Scrollbar>
+      </ScrollArea>
     </div>
   )
 }
