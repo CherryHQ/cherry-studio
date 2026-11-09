@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events'
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -85,7 +85,7 @@ it('never replaces an existing or in-flight workspace file with a managed downlo
   })
 })
 
-it('releases the reserved placeholder when a managed download does not complete', () => {
+it('does not delete an unrelated empty file replacing a cancelled reservation', () => {
   const a = createGuest()
   const session = new GuestSession(a.guest, 'managed')
   sessions.push(session)
@@ -93,9 +93,32 @@ it('releases the reserved placeholder when a managed download does not complete'
 
   a.mock.session.emit('will-download', {}, item, a.guest)
   expect(existsSync(path.join(workspace, 'report.txt'))).toBe(true)
+  renameSync(path.join(workspace, 'report.txt'), path.join(workspace, 'moved.txt'))
+  writeFileSync(path.join(workspace, 'report.txt'), '')
   item.emit('done', {}, 'cancelled')
 
-  expect(existsSync(path.join(workspace, 'report.txt'))).toBe(false)
+  expect(existsSync(path.join(workspace, 'report.txt'))).toBe(true)
+})
+
+it('does not retain a progressing download when cancellation emits done synchronously', () => {
+  const a = createGuest()
+  const session = new GuestSession(a.guest, 'managed')
+  sessions.push(session)
+  const filename = 'x'.repeat(300) + '.txt'
+  const item = Object.assign(new EventEmitter(), {
+    getFilename: () => filename,
+    setSavePath: vi.fn(),
+    cancel: vi.fn(() => item.emit('done', {}, 'cancelled'))
+  })
+
+  a.mock.session.emit('will-download', {}, item, a.guest)
+
+  expect(item.cancel).toHaveBeenCalledOnce()
+  expect(item.setSavePath).not.toHaveBeenCalled()
+  expect(session.busy).toBe(false)
+  expect(session.takeEvents()).toEqual({ downloads: [{ filename, state: 'cancelled' }] })
+  expect(item.listenerCount('done')).toBe(0)
+  expect(item.listenerCount('updated')).toBe(0)
 })
 
 it('does not redirect borrowed guest downloads to the MCP workspace', async () => {

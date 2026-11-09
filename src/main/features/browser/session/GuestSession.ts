@@ -1,4 +1,4 @@
-import { closeSync, mkdirSync, openSync, statSync, unlinkSync } from 'node:fs'
+import { closeSync, mkdirSync, openSync } from 'node:fs'
 import path from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 
@@ -56,15 +56,6 @@ function reserveManagedDownload(suggested: string): { savePath: string; filename
     }
   }
   throw new Error('No free managed download filename')
-}
-
-/** Remove the placeholder of a download that never produced a file. */
-function releaseManagedDownload(savePath: string) {
-  try {
-    if (statSync(savePath).size === 0) unlinkSync(savePath)
-  } catch {
-    // Nothing to release.
-  }
 }
 
 export class GuestSession implements Disposable {
@@ -434,20 +425,6 @@ export class GuestSession implements Disposable {
   private readonly onDownload = (_event: Electron.Event, item: DownloadItem, guest: Electron.WebContents) => {
     if (guest !== this.guest) return
     let filename = item.getFilename()
-    let reserved: string | undefined
-    if (this.ownership === 'managed') {
-      try {
-        const slot = reserveManagedDownload(filename)
-        filename = slot.filename
-        reserved = slot.savePath
-        item.setSavePath(slot.savePath)
-      } catch (error) {
-        logger.warn('Failed to reserve a managed download destination', { error })
-        item.cancel()
-        filename = path.basename(filename) || 'download'
-      }
-    }
-
     const record = (state: string) => {
       this.downloadUpdates.set(item, { filename, state })
       if (this.downloadUpdates.size > 200) this.downloadUpdates.delete(this.downloadUpdates.keys().next().value!)
@@ -455,7 +432,6 @@ export class GuestSession implements Disposable {
     const updated = (_event: Electron.Event, state: string) => record(state)
     const done = (_event: Electron.Event, state: string) => {
       record(state)
-      if (reserved && state !== 'completed') releaseManagedDownload(reserved)
       cleanup()
       this.downloadItems.delete(item)
     }
@@ -466,6 +442,19 @@ export class GuestSession implements Disposable {
     this.downloadItems.set(item, cleanup)
     item.on('updated', updated)
     item.once('done', done)
+    if (this.ownership === 'managed') {
+      try {
+        const slot = reserveManagedDownload(filename)
+        filename = slot.filename
+        item.setSavePath(slot.savePath)
+      } catch (error) {
+        logger.warn('Failed to reserve a managed download destination', { error })
+        filename = path.basename(filename) || 'download'
+        done({} as Electron.Event, 'cancelled')
+        item.cancel()
+        return
+      }
+    }
     record('progressing')
   }
 
