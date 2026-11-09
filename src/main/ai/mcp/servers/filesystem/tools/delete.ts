@@ -1,5 +1,4 @@
 import fs from 'fs/promises'
-import path from 'path'
 
 import type { CallToolResult } from '@modelcontextprotocol/server'
 import * as z from 'zod'
