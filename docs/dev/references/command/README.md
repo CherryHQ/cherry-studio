@@ -134,8 +134,10 @@ command enablement and user shortcut enable switches still apply.
 `keydown` → event path's nearest registered focus scope → scoped context and
 shortcut normalization → matching command and declared target → captured handler.
 
-`RENDERER_COMMAND_TARGETS` in `src/renderer/utils/command.ts` declares every
-renderer command's target. Focused commands search the origin's parent chain;
+Each command in `src/shared/utils/command/definitions.ts` declares its target in
+`renderer.target`. Commands with `scope: 'renderer' | 'both'` must provide it;
+main-only commands cannot. `findCommandDefinition()` preserves this metadata for
+the renderer dispatcher; there is no separately maintained target catalog. Focused commands search the origin's parent chain;
 a nearer registration with no enabled handler blocks ancestor fallback. Conversation
 number commands select owners in the active tab, even from a nested composer.
 Window search, tab switching/closing and fullscreen exit use window owners.

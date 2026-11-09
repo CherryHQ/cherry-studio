@@ -1,8 +1,7 @@
 import { createContext } from 'react'
 
-import { RENDERER_COMMAND_TARGETS } from '@renderer/utils/command'
 import type { ContextReader, ContextValue } from '@shared/types/command'
-import type { CommandId } from '@shared/utils/command'
+import { type CommandId, findCommandDefinition } from '@shared/utils/command'
 
 import type { CommandHandler, CommandHandlerOptions, CommandHandlerSource, CommandRuntime } from './useCommandRuntime'
 
@@ -140,7 +139,7 @@ export class CommandFocusRegistry {
     trigger: 'keyboard' | 'explicit' = 'explicit'
   ): CommandInvocation | undefined {
     if (!origin.isActive()) return undefined
-    const policy = RENDERER_COMMAND_TARGETS.get(command)
+    const policy = findCommandDefinition(command)?.renderer?.target
     if (!policy) return undefined
     let owners: CommandFocusScopeState[] = []
     if (policy === 'focused') {

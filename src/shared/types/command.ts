@@ -47,23 +47,27 @@ export interface KeybindingRule<TCommand extends string = string> {
 
 export type CommandKeybindingContribution = Omit<KeybindingRule<string>, 'command' | 'scope'>
 
-export interface CommandDefinition<TCommand extends string = string> {
+type CommandExecution =
+  | { scope: 'main'; renderer?: never }
+  | { scope: 'renderer' | 'both'; renderer: { target: 'focused' | 'active-tab' | 'window' } }
+
+export type CommandDefinition<TCommand extends string = string> = {
   id: TCommand
   titleKey: string
   categoryKey: string
-  scope: CommandScope
   iconKey?: string
   enablement?: ContextExprSource
   keybinding?: CommandKeybindingContribution
-}
+} & CommandExecution
 
-export interface RegisteredCommandDefinition<TCommand extends string = string> extends Omit<
+export type RegisteredCommandDefinition<TCommand extends string = string> = Omit<
   CommandDefinition<TCommand>,
-  'enablement' | 'keybinding'
-> {
-  enablement?: ContextExpr
-  enablementSource?: ContextExprSource
-}
+  'enablement' | 'keybinding' | 'scope' | 'renderer'
+> &
+  CommandExecution & {
+    enablement?: ContextExpr
+    enablementSource?: ContextExprSource
+  }
 
 export interface RegisteredKeybindingRule<TCommand extends string = string> extends Omit<
   KeybindingRule<TCommand>,

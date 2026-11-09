@@ -18,13 +18,15 @@ Status: implemented
 
 参考模型是 VS Code 的职责分离；Cherry 的组件 handler 链是本地适配。在 [VS Code 提交 864824b432e6fb153a3b4dfa1e0f96744ebcf6a4](https://github.com/microsoft/vscode/tree/864824b432e6fb153a3b4dfa1e0f96744ebcf6a4) 中，[ContextKeyService](https://github.com/microsoft/vscode/blob/864824b432e6fb153a3b4dfa1e0f96744ebcf6a4/src/vs/platform/contextkey/browser/contextKeyService.ts) 解析目标局部上下文并继承父值；[KeybindingResolver](https://github.com/microsoft/vscode/blob/864824b432e6fb153a3b4dfa1e0f96744ebcf6a4/src/vs/platform/keybinding/common/keybindingResolver.ts) 匹配有序规则及其 `when` 条件；[CommandService](https://github.com/microsoft/vscode/blob/864824b432e6fb153a3b4dfa1e0f96744ebcf6a4/src/vs/workbench/services/commands/common/commandService.ts) 执行已注册命令。[编辑器导航](https://github.com/microsoft/vscode/blob/864824b432e6fb153a3b4dfa1e0f96744ebcf6a4/src/vs/workbench/browser/parts/editor/editorActions.ts) 从所属服务取得活动编辑器组。局部上下文不要求所有 handler 都属于当前获得焦点的 DOM 组件。
 
-Cherry 保留现有命令 ID、快捷键偏好和表达式求值器。Renderer 命令贡献集中声明目标语义；可变拥有者注册仍留在 renderer。现有共享 `CommandScope` 继续表示进程范围（`main`、`renderer`、`both`），不表示 UI 目标范围。Renderer 服务或可变注册表不进入 `src/shared` 或 `packages/ui`。
+Cherry 保留现有命令 ID、快捷键偏好和表达式求值器。命令定义在共享目录中携带静态 `renderer.target` 元数据；可变拥有者注册仍留在 renderer。现有共享 `CommandScope` 继续表示进程范围（`main`、`renderer`、`both`），不表示 UI 目标范围。Renderer 服务或可变注册表不进入 `src/shared` 或 `packages/ui`。
+
+共享目录还服务于原生菜单命令校验、快捷键设置和迁移。`CommandDefinition` 与 `RegisteredCommandDefinition` 要求 renderer/both 范围必须声明 `renderer.target`，并禁止 main-only 命令携带该字段。现有命令查找保留这些元数据；renderer 解析实际拥有者。[共享层例外](../../../../docs/dev/references/architecture/shared-layer.md#112-carve-out-command-execution-metadata) 仅限静态命令执行描述。这替代了最初的 renderer 专属目标 map，以及原 Spec 中不改变共享定义的约束，维护者已在实现过程中批准该调整；命令 ID 与运行时路由行为保持不变。
 
 ### 触发条件与目标选择
 
 键盘分发读取事件所属的已注册 ContextKey 作用域，包括继承值及事件局部的可编辑/IME 状态。对于每条匹配的绑定，`when` 判断触发资格，renderer 独立检查声明目标上是否存在已启用的 handler。保留符合条件的绑定之间的既有优先顺序。拥有者缺失、禁用或有歧义时，该命令对此次事件不可用，不能借用其他拥有者的 handler。选定候选项后，若随后被拒绝，不再尝试其他绑定。仅增加一个组件作用域，不应压制 tab/窗口命令。
 
-目标策略在 `RENDERER_COMMAND_TARGETS` 中声明，仅覆盖现有需要：焦点拥有者、活动 tab 拥有者和窗口拥有者。这是 Cherry 的适配，不代表 VS Code 提供这三种策略。拥有者通过共享 renderer 命令机制注册业务回调；分发器按声明策略选择，而非要求各消费者另取 runtime。分发器中没有命令名、路由名或 Chat/智能体分支。同一命令/目标有多个符合条件的拥有者属于冲突，不通过注册顺序选举。
+目标策略与命令一起在 `src/shared/utils/command/definitions.ts` 中声明，仅覆盖现有需要：焦点拥有者、活动 tab 拥有者和窗口拥有者。这是 Cherry 的适配，不代表 VS Code 提供这三种策略。拥有者通过共享 renderer 命令机制注册业务回调；分发器按声明策略选择，而非要求各消费者另取 runtime。分发器中没有命令名、路由名或 Chat/智能体分支。同一命令/目标有多个符合条件的拥有者属于冲突，不通过注册顺序选举。
 
 | 命令类别 | 键盘触发条件 | 目标 |
 | --- | --- | --- |
@@ -49,6 +51,8 @@ Cherry 保留现有命令 ID、快捷键偏好和表达式求值器。Renderer �
 - 保留消费者自行选择 runtime：维持当前修复，但在调用处重复目标选择，使较宽范围的快捷键易受组件嵌套变化影响。
 - 将所有命令全局化，或为 Chat/智能体快捷键建立白名单：丢失破坏性操作的焦点目标归属，或将业务例外编码进分发器。
 - 让最近组件或注册顺序决定所有命令：混淆上下文、触发条件与目标选择；兄弟输入框无法可靠访问 tab 导航。
+- 维护单独的目标 map：重复命令 ID，即使有穷尽检查，新增命令仍需修改两处。
+- 按进程拆分目录并生成共享定义：为了保留原生菜单校验及快捷键消费者而增加生成流程和依赖调整，却没有改善这里的静态元数据契约。
 - 复制整套 VS Code 命令基础设施：超出所需改动。复用 Cherry 的注册表、条件和偏好，采用职责分离。
 
 ## 影响
@@ -65,5 +69,5 @@ Cherry 保留现有命令 ID、快捷键偏好和表达式求值器。Renderer �
 - AC3 — `ResourceListPermanentDelete.test.tsx`、`ResourceListGroupPermanentDelete.test.tsx`、`HistoryRecordList.permanentDelete.test.tsx` 和 `CommandFocusScope.test.tsx` 覆盖焦点/选中项身份、可编辑/重命名/受保护/缺失项及非活动作用域。Electron 输入框焦点未触发删除；获得焦点但未选中的行打开了该行的确认框，取消后保留原选中会话。
 - AC4 — 真实 `CommandFocusLayers.test.tsx` 和 UI `keyboard-layer.test.tsx` 保持对话框/菜单隔离、允许的窗口命令及嵌套/兄弟 Activity 优先级。Electron 删除确认框阻断了背景数字导航；输入框中仍可打开全局搜索。
 - AC5 — `CommandMenus.test.tsx`、`CommandTargetRouting.test.tsx` 和 `CommandProvider.test.tsx` 覆盖捕获的回调、替换/销毁、tab 变化及仅限键盘的谓词。使用生产 `CommandPopupMenu` 和真实原生 IPC 的 Electron fixture 在焦点变化后保留原拥有者，在其 tab 停用后拒绝结果，并在键盘谓词拒绝的情况下执行显式操作。
-- AC6 — CommandControls、CommandContextKeyProvider、useCommandShortcuts、useNumberShortcutHints、command 工具、AppShell、SubWindowAppShell、TabRouter 和全屏测试结合 renderer 类型检查覆盖展示、重新绑定、窗口行为及 IME。共享定义、偏好 schema 和 IPC 未改变。
+- AC6 — CommandControls、CommandContextKeyProvider、useCommandShortcuts、useNumberShortcutHints、command 工具、AppShell、SubWindowAppShell、TabRouter 和全屏测试结合 renderer 类型检查覆盖展示、重新绑定、窗口行为及 IME。`command.types.test.ts` 结合 main/renderer 类型检查验证目标字段与进程范围的约束；原生菜单、主进程命令、快捷键服务和迁移测试验证共享目录的消费者。共享定义现在携带静态目标元数据；偏好 schema 和 IPC 未改变。
 - AC7 — 显式基线改动范围、源码检查、受影响文档审阅、变更文件 lint/格式、文档/配对及 Agent Note 状态迁移检查验证集中目标声明、消费者 runtime 移除、参考文档更新及本次双语部分接替。

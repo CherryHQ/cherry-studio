@@ -38,7 +38,7 @@ useCommandHandler('topic.create', handleCreateTopic, { enabled: canCreateTopic }
 ```
 
 Handlers register in the nearest focus scope; callers without a local scope use
-the window root. `RENDERER_COMMAND_TARGETS` declares whether dispatch selects the
+the window root. The command definition's `renderer.target` declares whether dispatch selects the
 focused owner, active-tab owner or window owner. Consumers use the same registration
 API for all three. Multiple eligible registrations for one command/target are a
 conflict, not a last-registration override. Focused commands keep the nearest
@@ -56,6 +56,28 @@ predicate keep the same behavior; programmatic `execute()` never consults it.
 
 Keep the handler with the business surface that owns the behavior. Do not move
 business state into the command runtime merely to make the action triggerable.
+
+Declare the target alongside the command's title and keybinding in
+`src/shared/utils/command/definitions.ts`:
+
+```ts
+defineCommand({
+  id: 'app.sidebar.open_1',
+  titleKey: 'settings.shortcuts.open_sidebar_item_1',
+  categoryKey: 'settings.shortcuts.general',
+  scope: 'renderer',
+  renderer: { target: 'active-tab' },
+  keybinding: {
+    defaultBinding: ['CommandOrControl', '1'],
+    when: '!webview.focused'
+  }
+})
+```
+
+`scope: 'renderer' | 'both'` requires `renderer.target`; `scope: 'main'` forbids
+renderer metadata. Choose `focused`, `active-tab`, or `window` explicitly. The
+shared catalog stores this static description; the renderer owns target resolution
+and handler lifetimes.
 
 ## Focus scopes and lifecycle
 
