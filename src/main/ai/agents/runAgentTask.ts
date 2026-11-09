@@ -166,13 +166,14 @@ const LEGACY_SKIP_MARKERS = new Set([
  * skip was only ever text written to the job's `output` - the runner returned
  * before (or at) session admission, so no transcript message exists. A genuine
  * run persists its assistant reply in the session the job links via
- * `metadata.sessionId`, inside its [startedAt, finishedAt] window. A matching
+ * `metadata.sessionId` (or legacy `output.sessionId`), inside its [startedAt, finishedAt] window. A matching
  * assistant message therefore proves the stored text is real prose, not a
  * skip marker. Any missing link, window, or transcript means "no evidence",
  * never "proven skip".
  */
 function hasLegacyTranscriptEvidence(last: JobSnapshot, result: string): boolean {
-  const sessionId = last.metadata?.sessionId
+  const output = last.output as { sessionId?: unknown } | null
+  const sessionId = last.metadata?.sessionId ?? output?.sessionId
   if (typeof sessionId !== 'string' || !last.startedAt || !last.finishedAt) return false
   const fromMs = Date.parse(last.startedAt)
   const toMs = Date.parse(last.finishedAt)

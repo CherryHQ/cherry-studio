@@ -516,29 +516,54 @@ describe('runAgentTask', () => {
       await expect(promise).resolves.toBeDefined()
     })
 
-    it('runs when a legacy exact-marker reply is backed by session transcript evidence', async () => {
+    it.each(['metadata', 'output'])(
+      'runs when a legacy exact-marker reply links its transcript through %s',
+      async (link) => {
+        const finishedMs = Date.now()
+        const startedMs = finishedMs - 30_000
+        arm({ taskId: 'dep' }, [
+          {
+            status: 'completed',
+            startedAt: new Date(startedMs).toISOString(),
+            finishedAt: new Date(finishedMs).toISOString(),
+            metadata: link === 'metadata' ? { sessionId: 'dep-session' } : {},
+            output: { result: 'Skipped (session busy)', ...(link === 'output' && { sessionId: 'dep-session' }) }
+          }
+        ] as never)
+        vi.mocked(agentSessionMessageService.hasAssistantMessageWithTextInWindow).mockReturnValue(true)
+        const promise = runTask()
+        await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+        captured.listeners[0].onDone({ status: 'completed' })
+        await expect(promise).resolves.toBeDefined()
+        expect(agentSessionMessageService.hasAssistantMessageWithTextInWindow).toHaveBeenCalledWith(
+          'dep-session',
+          'Skipped (session busy)',
+          startedMs,
+          finishedMs
+        )
+      }
+    )
+
+    it('prefers the metadata session link over an output link for legacy evidence', async () => {
       const finishedMs = Date.now()
-      const startedMs = finishedMs - 30_000
       arm({ taskId: 'dep' }, [
         {
           status: 'completed',
-          startedAt: new Date(startedMs).toISOString(),
+          startedAt: new Date(finishedMs - 30000).toISOString(),
           finishedAt: new Date(finishedMs).toISOString(),
-          metadata: { sessionId: 'dep-session' },
-          output: { result: 'Skipped (session busy)' }
+          metadata: { sessionId: 'authoritative' },
+          output: { result: 'Skipped (session busy)', sessionId: 'legacy' }
         }
       ] as never)
-      vi.mocked(agentSessionMessageService.hasAssistantMessageWithTextInWindow).mockReturnValue(true)
-      const promise = runTask()
-      await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
-      captured.listeners[0].onDone({ status: 'completed' })
-      await expect(promise).resolves.toBeDefined()
+      vi.mocked(agentSessionMessageService.hasAssistantMessageWithTextInWindow).mockReturnValue(false)
+      await expect(runTask()).resolves.toEqual({ kind: 'skipped', result: 'Skipped (dependency failed)' })
       expect(agentSessionMessageService.hasAssistantMessageWithTextInWindow).toHaveBeenCalledWith(
-        'dep-session',
+        'authoritative',
         'Skipped (session busy)',
-        startedMs,
+        finishedMs - 30000,
         finishedMs
       )
+      expect(mockStartRun).not.toHaveBeenCalled()
     })
 
     it('blocks when a legacy exact-marker row has no transcript evidence', async () => {
