@@ -986,7 +986,10 @@ export class AgentSessionService {
         if (typeOf.get(previousAgentId) !== typeOf.get(patch.agentId as string)) {
           patch.model = null
         }
-      } else if (typeOf.get(patch.agentId as string) === 'pi' && !isPiServableUniqueModel(current.model)) {
+      } else if (
+        ['pi', 'pi-durable'].includes(typeOf.get(patch.agentId as string) ?? '') &&
+        !isPiServableUniqueModel(current.model)
+      ) {
         // Orphan recovery: the previous agent was permanently deleted and
         // SQLite nulled the reference, so the old runtime's type is
         // unrecoverable and the comparison above cannot run. Validate the

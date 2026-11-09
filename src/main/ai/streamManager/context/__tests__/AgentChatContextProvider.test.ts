@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   runtimeEditSession: vi.fn(),
   runtimeValidateSession: vi.fn(),
   setEditRuntimeTx: vi.fn(),
+  reserveDurableBranchTx: vi.fn(),
   getModelNames: vi.fn(() => new Map<string, string>())
 }))
 
@@ -35,6 +36,7 @@ vi.mock('@data/services/AgentSessionService', () => ({
 vi.mock('@data/services/agentSessionMessageTree', () => ({ getAgentSessionHead: () => mocks.captureHead() }))
 vi.mock('@main/ai/runtime/claudeCode', () => ({ reserveClaudeBranchTx: vi.fn() }))
 vi.mock('@main/ai/runtime/pi/piContext', () => ({ reservePiBranchTx: vi.fn() }))
+vi.mock('@main/ai/runtime/piDurable/durableContext', () => ({ reserveDurableBranchTx: mocks.reserveDurableBranchTx }))
 
 vi.mock('@data/services/AgentService', () => ({
   agentService: { getAgent: mocks.getAgent }
@@ -528,6 +530,53 @@ describe('AgentChatContextProvider', () => {
       type: 'claude-code'
     })
   })
+
+  it.each([undefined, 'context-1'])(
+    'preserves durable edit reservation and model-default guard (context: %s)',
+    async (nativeContextId) => {
+      runtimeDriverRegistry.register({
+        type: 'pi-durable',
+        connect: vi.fn(),
+        validateSession: mocks.runtimeValidateSession
+      })
+      mocks.getSession.mockReturnValue({
+        id: 'session-1',
+        agentId: 'agent-1',
+        model: 'anthropic::claude-opus',
+        workspace: { path: '/tmp' }
+      })
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        name: 'My Agent',
+        type: 'pi-durable',
+        model: 'anthropic::claude-sonnet',
+        updatedAt: '2026-01-01T00:00:00.000Z'
+      })
+      mocks.runtimeEditSession.mockImplementation(async (_sessionId, _target, fn) =>
+        fn({}, 'native-session', nativeContextId)
+      )
+      await provider.prepareDispatch(makeSubscriber(), {
+        ...openReq({ userMessageParts: [{ type: 'text', text: 'edited' }] }),
+        trigger: 'edit-agent-message',
+        editTarget: { messageId: 'msg-1', version: 'v1' }
+      } as MainDispatchRequest)
+      expect(mocks.saveMessagesTx).toHaveBeenCalledWith(
+        {},
+        expect.anything(),
+        expect.objectContaining({ model: 'anthropic::claude-sonnet', type: 'pi-durable' })
+      )
+      expect(mocks.reserveDurableBranchTx).toHaveBeenCalledWith(
+        {},
+        'session-1',
+        expect.any(String),
+        'native-session',
+        nativeContextId
+      )
+      if (nativeContextId)
+        expect(mocks.setEditRuntimeTx).toHaveBeenCalledWith({}, 'session-1', expect.any(String), 'native-session')
+      else expect(mocks.setEditRuntimeTx).not.toHaveBeenCalled()
+    }
+  )
 
   it('keeps headless scheduled runs on the agent default model', async () => {
     mocks.getSession.mockReturnValue({

@@ -243,6 +243,12 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       model: 'provider-1::model-2',
       workspace: { type: 'user', path: '/workspace/project' }
     })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      planModel: 'provider-1::model-plan',
+      smallModel: 'provider-1::model-small'
+    })
     mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
       id: modelId,
       apiModelId: modelId,
@@ -253,7 +259,12 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     const agentDefaultRequest = await buildClaudeCodeQueryRequestForAgentSession(
       'session-1',
       undefined,
-      'provider-1::model-1'
+      'provider-1::model-1',
+      'default',
+      false,
+      [],
+      'standard',
+      true
     )
     const overrideRequest = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 

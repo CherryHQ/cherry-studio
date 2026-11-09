@@ -8,6 +8,7 @@ import type {
   SubmitResult,
   ThreadContextUsage
 } from '@cherrystudio/agent-runtime'
+import type { AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
 import type { AiUsageCredentialReceipt, SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import type { AgentChildUpdate, AgentChildView } from '@shared/ai/agentChildProjection'
@@ -241,10 +242,10 @@ export interface AgentRuntimeConnection {
   redirect?(input: AgentRuntimeCommand): boolean
   /**
    * Re-derive the session's desired config and reconcile the running connection against it.
-   * Live-appliable tool-policy facts are patched in place before the rebuild verdict, except for
-   * permission-mode changes: those stay frozen for an active turn and apply at the next turn
-   * boundary. Serialized per connection, concurrent push/pull reconciles queue instead of
-   * interleaving SDK and snapshot writes.
+   * Live-appliable tool-policy facts, permission mode included, are patched in place before the
+   * rebuild verdict, even during an active turn: the change governs the turn's next tool call.
+   * Serialized per connection, concurrent push/pull reconciles queue instead of interleaving SDK
+   * and snapshot writes.
    *
    * The input is the config the connection should serve right now (a live turn's frozen model,
    * reasoning, and knowledge selection, or the agent's latest model with defaults) — the same
@@ -293,7 +294,8 @@ export interface AgentSessionRuntimeDriver {
   /** Restore persisted runtime history after generic fork, crash and delivery recovery. */
   recoverSessions?(): Promise<void>
   fork?(input: RuntimeForkInput): Promise<RuntimeForkResult>
-  isForkCheckpoint?(value: unknown): boolean
+  /** Validate the opaque checkpoint and its claimed product binding when supplied. */
+  isForkCheckpoint?(value: unknown, binding?: Pick<AgentSessionContextRow, 'backendId' | 'nativeThreadId'>): boolean
   /**
    * Per-driver session prerequisite check: throws if the session can't be
    * served (e.g. workspace path missing, credentials absent). Hosts call

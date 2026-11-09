@@ -60,7 +60,6 @@ import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
-import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import { AsyncEventQueue } from '@shared/utils/async'
 
 import { resolveApiGatewayRuntime } from '../agentApiGateway'
@@ -79,6 +78,7 @@ import { createPiGatewayModelBinding } from './gatewayModelBinding'
 import { createPiIdentityExtension } from './identityExtension'
 import { legacyDisabledToolId, assertLegacyDisabledToolsResolved } from './legacyToolPolicy'
 import { createPiBehaviorHost } from './piBehaviorHost'
+import { PiChildTasks } from './PiChildTasks'
 import {
   capturePiConnectionSnapshot,
   type PiConnectionSnapshot,
@@ -88,6 +88,7 @@ import { buildPiMcpToolName, createPiMcpExtension } from './piMcpExtension'
 import { PiMessageMetadata, resolvePiMcpToolMetadata } from './PiMessageMetadata'
 import { loadPiSdk } from './piSdk'
 import { buildPiLoginPathPrefix, mergePiBashExecutionEnv, resolvePiShellPath } from './piShell'
+import { PiTurnUsage } from './PiTurnUsage'
 
 const logger = loggerService.withContext('PiRuntimeConnection')
 
@@ -119,7 +120,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private manualCompactInFlight = false
   private autonomous = false
   private nextOrigin: AutonomousTurnOrigin = { kind: 'background-work' }
-  private readonly childTaskStates = new Map<string, AgentTaskEventPartData>()
+  private readonly childTasks = new PiChildTasks(
+    (id) => this.childOrigin(id),
+    (event) => this.eventQueue.push(event)
+  )
   private readonly children = new Map<
     string,
     | { state: 'opening'; pending: Promise<PiChildResource | undefined> }
@@ -136,8 +140,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private readonly toolSpans = new Map<string, Span>()
   private readonly toolNames = new Map<string, string>()
   private checkpoint?: string
-  private reasoningTokens: number | undefined
-  private usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
+  private readonly turnUsage = new PiTurnUsage()
   private readonly adapter = new PiMessageMetadata((name) => this.resolveMcpToolMetadata(name))
   private projection?: ThreadProjection
   private readonly completedTools = new Set<string>()
@@ -385,8 +388,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     if (this.sending) throw new Error('Pi already has an active submission')
     this.sending = true
     this.failure = undefined
-    this.usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
-    this.reasoningTokens = undefined
+    this.turnUsage.reset()
     const content = buildAgentUserContent(input.message)
     const command = input.systemReminder ? undefined : parseManualCompactCommand(content)
     if (command) {
@@ -472,6 +474,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
             this.autonomous = true
             this.sending = true
             this.failure = undefined
+            this.turnUsage.reset()
             this.eventQueue.push({
               type: 'autonomous-turn-state',
               state: 'started',
@@ -505,7 +508,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       }
       for (const child of batch.children)
         void this.observeChild(child.thread.id).then(() =>
-          this.publishChildTask(child.thread.id, childTaskStatus(child.outcome))
+          this.childTasks.publish(child.thread.id, childTaskStatus(child.outcome))
         )
       if (batch.settled && this.sending && !this.manualCompactInFlight) this.finishTurn()
     } catch (error) {
@@ -546,49 +549,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     if (event.type === 'goal-round') this.nextOrigin = { kind: 'goal-round', round: event.round.round }
     else if (event.type === 'goal-notice') {
       this.projection?.notice(event.notice.text)
-    } else if (event.type === 'subagents') {
-      for (const view of event.views) {
-        this.publishChildTask(
-          view.sessionId,
-          view.status === 'finished' ? childTaskStatus(view.outcome) : 'in_progress',
-          true
-        )
-      }
-      const running = event.views.filter((view) => view.status !== 'finished')
-      this.eventQueue.push({
-        type: 'background-tasks',
-        tasks: running.map((view) => ({
-          id: view.sessionId,
-          type: 'subagent',
-          description: view.description,
-          toolCallId: this.childOrigin(view.sessionId)?.toolCallId
-        }))
-      })
-    }
-  }
-
-  private publishChildTask(id: string, status: AgentTaskEventPartData['status'], background?: boolean): void {
-    const origin = this.childOrigin(id)
-    const previous = this.childTaskStates.get(id)
-    const isBackgrounded = background ?? previous?.isBackgrounded ?? false
-    if (
-      previous &&
-      previous.status === status &&
-      previous.isBackgrounded === isBackgrounded &&
-      previous.toolUseId === origin?.toolCallId
-    )
-      return
-    const data: AgentTaskEventPartData = {
-      event: !previous ? 'started' : status === 'in_progress' ? 'updated' : 'notification',
-      taskId: id,
-      toolUseId: origin?.toolCallId,
-      taskType: 'subagent',
-      title: origin?.description ?? previous?.title,
-      status,
-      isBackgrounded
-    }
-    this.childTaskStates.set(id, data)
-    this.eventQueue.push({ type: 'background-task-event', data })
+    } else if (event.type === 'subagents') this.childTasks.showSubagents(event.views, true)
   }
 
   private childKey(id: string): string {
@@ -666,7 +627,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         resource = { relation, handle: access, projection }
         await projection.attach()
         this.children.set(key, { state: 'attached', resource })
-        this.publishChildTask(id, this.childTaskStates.get(id)?.status ?? 'in_progress')
+        this.childTasks.publish(id, this.childTasks.status(id) ?? 'in_progress')
         return resource
       })
       .catch(async (error) => {
@@ -854,24 +815,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private recordUsage(usage: Usage): void {
-    if (usage.reasoning !== undefined) this.reasoningTokens = (this.reasoningTokens ?? 0) + usage.reasoning
-    this.usage.inputTokens += usage.input + usage.cacheRead + usage.cacheWrite
-    this.usage.outputTokens += usage.output
-    this.usage.totalTokens += usage.totalTokens
     this.eventQueue.push({
       type: 'chunk',
-      chunk: {
-        type: 'message-metadata',
-        messageMetadata: {
-          totalTokens: this.usage.totalTokens,
-          stats: {
-            ...this.usage,
-            ...(this.reasoningTokens === undefined
-              ? {}
-              : { outputTokenDetails: { reasoningTokens: this.reasoningTokens } })
-          }
-        }
-      }
+      chunk: { type: 'message-metadata', messageMetadata: this.turnUsage.record(usage) }
     })
   }
 
@@ -910,9 +856,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       if (error instanceof PiInvalidConnectionSnapshotError) return 'invalid'
       throw error
     }
-    const nextPermissionMode = this.active
-      ? this.permissionMode
-      : (snapshot.agent.configuration?.permission_mode ?? 'default')
+    // The approval gate reads the mode per tool call, so a change applies mid-turn from the next call.
+    const nextPermissionMode = snapshot.agent.configuration?.permission_mode ?? 'default'
     const nextDisabled = normalizeDisabledTools(snapshot.agent.disabledTools, snapshot)
     const disabled = this.active ? new Set([...this.disabledTools, ...nextDisabled]) : nextDisabled
     const changed = nextPermissionMode !== this.permissionMode || !setsEqual(disabled, this.disabledTools)

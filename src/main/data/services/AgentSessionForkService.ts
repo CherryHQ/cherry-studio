@@ -121,7 +121,9 @@ export class AgentSessionForkService {
       excludedIds: readonly string[]
       messageId: string
       messages: AgentSessionMessageRow[]
-      contexts: Array<Pick<AgentSessionContextRow, 'backendId' | 'anchorMessageId'> & { nativeThreadId: string }>
+      contexts: Array<
+        Pick<AgentSessionContextRow, 'backendId' | 'anchorMessageId'> & { id?: string; nativeThreadId: string }
+      >
     }
   ): void {
     const { source } = input
@@ -176,6 +178,7 @@ export class AgentSessionForkService {
     for (const binding of input.contexts) {
       const anchor = binding.anchorMessageId ?? ensureAgentSessionRootTx(tx, input.targetSessionId)
       const context = agentSessionContextService.reserveBranchTx(tx, {
+        id: binding.id,
         sessionId: input.targetSessionId,
         backendId: binding.backendId,
         nativeThreadId: binding.nativeThreadId,
