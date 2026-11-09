@@ -42,6 +42,7 @@ import {
   finalizeLegacyV1Cleanup,
   mergeLegacyV1CleanupResults
 } from './legacyV1BrowserData'
+import ModelSettingsConflictPopup from './ModelSettingsConflictPopup'
 import RestorePopup from './RestorePopup'
 import V1RemigrationPopup from './V1RemigrationPopup'
 
@@ -302,6 +303,50 @@ const BasicDataSettings: React.FC = () => {
     }
   }
 
+  const handleExportModelSettings = async () => {
+    const confirmed = await popup.confirm({
+      title: t('settings.data.model_settings.export_title'),
+      content: t('settings.data.model_settings.export_warning'),
+      okText: t('settings.data.model_settings.export_button'),
+      cancelText: t('common.cancel'),
+      centered: true
+    })
+    if (!confirmed) return
+
+    try {
+      const { filePath } = await ipcApi.request('model_settings.export')
+      if (filePath) toast.success(t('settings.data.model_settings.export_success'))
+    } catch (error) {
+      toast.error(t('settings.data.model_settings.export_error'))
+    }
+  }
+
+  const handleImportModelSettings = async () => {
+    try {
+      const preview = await ipcApi.request('model_settings.import_preview')
+      if (!preview) return
+
+      const decisions =
+        preview.conflicts.length > 0 ? await ModelSettingsConflictPopup.show({ conflicts: preview.conflicts }) : {}
+      if (decisions === null) return
+
+      const result = await ipcApi.request('model_settings.import_apply', { document: preview.document, decisions })
+      if (result.failed.length > 0) {
+        toast.warning(t('settings.data.model_settings.import_partial', { count: result.failed.length }))
+      } else {
+        toast.success(
+          t('settings.data.model_settings.import_success', {
+            created: result.created,
+            replaced: result.replaced,
+            skipped: result.skipped
+          })
+        )
+      }
+    } catch (error) {
+      toast.error(t('settings.data.model_settings.import_error'))
+    }
+  }
+
   return (
     <>
       <SettingGroup theme={theme}>
@@ -321,6 +366,23 @@ const BasicDataSettings: React.FC = () => {
           </RowFlex>
         </SettingRow>
         <SettingDivider />
+        <SettingRow id="setting-data-data-model-settings" className="scroll-mt-6">
+          <SettingRowTitle>{t('settings.data.model_settings.title')}</SettingRowTitle>
+          <RowFlex className="justify-between gap-1.25">
+            <Button onClick={handleExportModelSettings} variant="outline">
+              <SaveIcon size={14} />
+              {t('settings.data.model_settings.export_button')}
+            </Button>
+            <Button onClick={handleImportModelSettings} variant="outline">
+              <FolderOpen size={14} />
+              {t('settings.data.model_settings.import_button')}
+            </Button>
+          </RowFlex>
+        </SettingRow>
+        <SettingRow>
+          <SettingHelpText>{t('settings.data.model_settings.description')}</SettingHelpText>
+        </SettingRow>
+
         <SettingRow id="setting-data-data-skip-file-data" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
           <Switch checked={skipBackupFile} onCheckedChange={(value) => void setSkipBackupFile(value)} />
