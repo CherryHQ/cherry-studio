@@ -82,6 +82,7 @@ import { SelectionAgentWindowService } from '@main/services/selection/SelectionA
 import { SelectionService } from '@main/services/selection/SelectionService'
 import { SentryLogService } from '@main/services/SentryLogService'
 import { ShortcutService } from '@main/services/ShortcutService'
+import { SideChatRuntimeService } from '@main/services/SideChatRuntimeService'
 import { StorageMonitorService } from '@main/services/StorageMonitorService'
 import { SubWindowService } from '@main/services/SubWindowService'
 import { ThemeService } from '@main/services/ThemeService'
@@ -198,6 +199,7 @@ export const services = {
   ClaudeCodeWarmQueryManager,
   ClaudeCodeSessionStateService,
   AiStreamManager,
+  SideChatRuntimeService,
   AsrInferenceService,
   TtsInferenceService,
   EmbeddingInferenceService,

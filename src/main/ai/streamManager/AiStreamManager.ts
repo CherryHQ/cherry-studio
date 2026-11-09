@@ -1026,6 +1026,8 @@ export class AiStreamManager extends BaseService {
     callOverrides?: CallOverrides
     /** Which layer owns history shaping; omitted means Cherry-managed. */
     contextOwner?: ContextOwner
+    /** Trusted text-only callers can exclude all tool execution and tool-output storage. */
+    disableTools?: boolean
     /** Explicit reasoning selection; 'none' disables thinking when the model's wire profile supports off. */
     reasoningEffort?: ReasoningEffortOption
     serviceTier?: ServiceTierSelection
@@ -1057,6 +1059,7 @@ export class AiStreamManager extends BaseService {
       messages,
       callOverrides: input.callOverrides,
       contextOwner: input.contextOwner,
+      disableTools: input.disableTools,
       reasoningEffort: input.reasoningEffort,
       serviceTier: input.serviceTier,
       fastMode: input.fastMode,

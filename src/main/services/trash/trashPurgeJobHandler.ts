@@ -50,6 +50,7 @@ const PURGE_DOMAINS: ReadonlyArray<{
       const purgedIds = application
         .get('DbService')
         .withWriteTx((tx) => topicService.purgeExpiredTx(tx, cutoffMs, limit))
+      application.get('SideChatRuntimeService').discardSources(purgedIds)
       // Associated side chats can expand a full candidate page beyond the limit.
       return completedPurgeBatch(purgedIds, purgedIds.length >= limit, () => topicService.notifyPurged(purgedIds))
     }

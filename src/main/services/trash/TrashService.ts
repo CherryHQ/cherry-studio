@@ -32,7 +32,7 @@ export class TopicArchiveBusyError extends Error {
  */
 @Injectable('TrashService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['JobManager', 'FileManager', 'AiStreamManager', 'AgentLifecycleService'])
+@DependsOn(['JobManager', 'FileManager', 'AiStreamManager', 'AgentLifecycleService', 'SideChatRuntimeService'])
 export class TrashService extends BaseService {
   protected onInit(): void {
     // Register in onInit (NOT onReady) so JobManager's startup recovery sweep
@@ -105,10 +105,14 @@ export class TrashService extends BaseService {
 
   async deleteActiveTopicsPermanently(topicIds: string[]): Promise<DeleteTopicsResult> {
     const ids = [...new Set(topicIds)].sort()
-    return this.withTopicLocks(ids, () => {
-      this.assertTopicsSettled(ids)
-      return topicService.deleteByIds(ids, { permanent: true, targetState: 'active' })
-    })
+    return this.withTopicLocks(
+      ids,
+      () => {
+        this.assertTopicsSettled(ids)
+        return topicService.deleteByIds(ids, { permanent: true, targetState: 'active' })
+      },
+      true
+    )
   }
 
   async archiveAssistantTopics(assistantId: string): Promise<DeleteTopicsResult> {
@@ -124,30 +128,46 @@ export class TrashService extends BaseService {
   }
 
   async deleteActiveAssistantPermanently(assistantId: string, deleteTopics: boolean): Promise<DeleteAssistantResult> {
-    return this.withStableAssistantTopics(assistantId, () =>
-      assistantDataService.delete(assistantId, { permanent: true, targetState: 'active', deleteTopics })
+    return this.withStableAssistantTopics(
+      assistantId,
+      () => assistantDataService.delete(assistantId, { permanent: true, targetState: 'active', deleteTopics }),
+      deleteTopics
     )
   }
 
-  private async withStableAssistantTopics<T>(assistantId: string, archive: () => T): Promise<T> {
+  private async withStableAssistantTopics<T>(assistantId: string, archive: () => T, permanent = false): Promise<T> {
     for (;;) {
       const topicIds = topicService.listActiveIdsByAssistant(assistantId)
-      const result = await this.withTopicLocks(topicIds, async () => {
-        const currentTopicIds = topicService.listActiveIdsByAssistant(assistantId)
-        if (!this.sameIds(topicIds, currentTopicIds)) return RETRY_ASSISTANT_ARCHIVE
+      const result = await this.withTopicLocks(
+        topicIds,
+        async () => {
+          const currentTopicIds = topicService.listActiveIdsByAssistant(assistantId)
+          if (!this.sameIds(topicIds, currentTopicIds)) return RETRY_ASSISTANT_ARCHIVE
 
-        this.assertTopicsSettled(topicIds)
-        return archive()
-      })
+          this.assertTopicsSettled(topicIds)
+          const archived = archive()
+          if (permanent) application.get('SideChatRuntimeService').discardSources(topicIds)
+          return archived
+        },
+        false
+      )
       if (result !== RETRY_ASSISTANT_ARCHIVE) return result
     }
   }
 
-  private withTopicLocks<T>(topicIds: string[], operation: () => T | Promise<T>): Promise<T> {
+  private withTopicLocks<T>(topicIds: string[], operation: () => T | Promise<T>, permanent = false): Promise<T> {
     const streamManager = application.get('AiStreamManager')
     const acquire = (index: number): Promise<T> => {
       const topicId = topicIds[index]
-      if (!topicId) return Promise.resolve(operation())
+      if (!topicId)
+        return application
+          .get('SideChatRuntimeService')
+          .beforeSourceRemoval(topicIds, false)
+          .then(async () => {
+            const result = await operation()
+            if (permanent) application.get('SideChatRuntimeService').discardSources(topicIds)
+            return result
+          })
       return streamManager.withDispatchLock(topicId, () => acquire(index + 1))
     }
     return acquire(0)

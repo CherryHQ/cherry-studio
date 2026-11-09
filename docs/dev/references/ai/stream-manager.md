@@ -20,6 +20,13 @@ The renderer no longer holds a direct reference to the stream. Closing a
 window does not abort the stream; it continues on Main and persists
 normally. Returning desktop views attach to the current message projection. Raw-stream clients may still attach to bounded chunk replay.
 
+Side chats use `SideChatRuntimeService` and the same `streamPrompt` execution path.
+The coordinator owns saved versus window-local memory state, source snapshots,
+context limits, retry, and deletion. It sends text-only requests with tools disabled
+and caller-owned context. Temporary runs consume the full stream inside
+`withoutDiagnostics`; closing their owning window invalidates callbacks and aborts
+the run. Side-chat IPC events replace ordinary chat projection subscriptions.
+
 **Key: `topicId`.** A topic has at most one active stream at a time;
 "streaming" is one phase of a topic, and every subscriber on a topic is
 equal — there is no "owner" window.
@@ -452,6 +459,7 @@ class AiStreamManager {
     listener: StreamListener | StreamListener[]
     reasoningEffort?: ReasoningEffortOption
     callOverrides?: CallOverrides                          // the only sampling channel here
+    disableTools?: boolean                                // trusted text-only callers
   }): SendResult
 
   // ── Subscription management ───────────────────────────────────────
@@ -661,7 +669,7 @@ AiStreamManager specifics:
 |---|---|
 | Gate = dispatch admission | Checked inside the `withDispatchLock` callback (post-mutex re-check), BEFORE `prepareDispatch` writes the user/pending-assistant rows. `dispatch()` returns `{ mode: 'blocked', reason: 'paused' }`; `startAgentSessionRun` throws. Unlike JobManager, the AI gate rejects by design — a new turn is an execution start, not data at rest. |
 | Steer continuations suppressed, not rejected | `startNextChatTurn` returns before consuming the steer queue and records the topic; the last hold's disposal re-kicks it. The `steer-continuation` trigger is exempt from the `dispatch()` gate (it only originates from the gated `startNextChatTurn`; a grandfathered launch is drained via `inFlightChatContinuations`). |
-| Not gated | `send()` / `startRuntimeTurn()` (a continuation past its upstream gate must reach them), `streamPrompt()` (renderer-driven callers are covered by the restore UI block; chunks-only prompt streams write nothing), and `AiService.embedMany` (never routes through this manager) — knowledge indexing keeps working while quiesced. |
+| Not gated | `send()` / `startRuntimeTurn()` (a continuation past its upstream gate must reach them), `streamPrompt()` (side-chat commands check `isWriteQuiesced` under admission locks before reserving messages; renderer-driven callers are covered by the restore UI block; chunks-only prompt streams write nothing), and `AiService.embedMany` (never routes through this manager) — knowledge indexing keeps working while quiesced. |
 | Drain wait-set | Gate-admitted `dispatchStreamRequest` promises until `manager.send()` hands them off to the stream registry; this covers async `prepareDispatch` work such as agent-session `validateSession()`. Then executions of streams carrying a `persistence:*` listener — listener-derived, not lifecycle-derived; chunks-only prompt streams (API gateway and translate) are excluded. Plus in-flight steer-continuation launches and `TopicNamingService.inFlightWrites()` — the summary renames are spawned detached (`void backend.afterPersist(...)`), so a loopPromise settles before their DB write lands; the registry closes that gap. The set can grow while draining (an admission opens a stream, a settling loop spawns a naming write, or a grandfathered continuation opens a stream), so the drain is a fixed point over promise identities, bounded by `timeoutMs`. |
 | Timeout | Never rejects; stragglers are not aborted (the orchestrator decides — see the job overview for why an abort would poison the snapshot). |
 
