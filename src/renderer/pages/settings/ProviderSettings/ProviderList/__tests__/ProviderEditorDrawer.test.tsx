@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -138,11 +139,7 @@ vi.mock('@cherrystudio/ui', async () => {
     Popover: ({ children }: any) => <div>{children}</div>,
     PopoverContent: ({ children }: any) => <div>{children}</div>,
     PopoverTrigger: ({ children }: any) => <div>{children}</div>,
-    Scrollbar: ({ children, ...props }: any) => (
-      <div data-slot="scrollbar" {...props}>
-        {children}
-      </div>
-    ),
+    ScrollArea: MockCherrystudioUI.ScrollArea,
     Separator: (props: any) => {
       const domProps = { ...props }
       delete domProps.decorative
@@ -397,7 +394,7 @@ describe('ProviderEditorDrawer', () => {
 
     expect(screen.getByTestId('provider-editor-dialog')).toBeInTheDocument()
     expect(screen.getByTestId('provider-editor-dialog')).toHaveAttribute('data-size', 'lg')
-    expect(screen.getByTestId('provider-editor-scrollbar')).toHaveAttribute('data-slot', 'scrollbar')
+    expect(screen.getByTestId('provider-editor-scrollbar')).toHaveAttribute('data-slot', 'scroll-area-viewport')
     expect(screen.queryByTestId('provider-editor-drawer')).not.toBeInTheDocument()
 
     const source = {
