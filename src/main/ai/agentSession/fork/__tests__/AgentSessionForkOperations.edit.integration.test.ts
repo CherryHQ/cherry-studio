@@ -41,6 +41,7 @@ describe('AgentSessionForkOperations edit persist contract (real database)', () 
       connect: vi.fn(),
       validateSession: vi.fn(),
       listAvailableTools: vi.fn().mockResolvedValue([]),
+      isForkCheckpoint: () => true,
       fork: vi.fn()
     })
     await dbh.db.insert(agentTable).values({
@@ -90,7 +91,7 @@ describe('AgentSessionForkOperations edit persist contract (real database)', () 
       SESSION_ID,
       targetFor(USER_MESSAGE_ID),
       async () => {},
-      (_tx, nativeSessionId, storedUserParts) => {
+      (_tx, nativeSessionId, _nativeContextId, storedUserParts) => {
         seen.storedUserParts = storedUserParts
         expect(nativeSessionId).toBeTruthy()
         return 'persisted'
@@ -101,23 +102,11 @@ describe('AgentSessionForkOperations edit persist contract (real database)', () 
     // The capture comes from the stored row, so the hidden context survives even though the
     // renderer's resent parts never carry it.
     expect(seen.storedUserParts).toEqual([{ type: 'text', text: 'original' }, storedContext])
-    // Sibling-branch model: the edit target stays in history; the head moves to its parent.
+    // Main replaces the edited tail, after capturing its authoritative hidden context.
     const db = application.get('DbService').getDb()
-    const target = db
-      .select({ parentId: agentSessionMessageTable.parentId })
-      .from(agentSessionMessageTable)
-      .where(eq(agentSessionMessageTable.id, USER_MESSAGE_ID))
-      .get()
-    const session = db
-      .select({ activeNodeId: agentSessionTable.activeNodeId })
-      .from(agentSessionTable)
-      .where(eq(agentSessionTable.id, SESSION_ID))
-      .get()
-    expect(session?.activeNodeId ?? null).toBe(target?.parentId ?? null)
-    expect(agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID).data.parts).toEqual([
-      { type: 'text', text: 'original' },
-      storedContext
-    ])
+    expect(
+      db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, USER_MESSAGE_ID)).get()
+    ).toBeUndefined()
   })
 
   it('passes ordinary non-channel parts through unchanged and restores nothing', async () => {
@@ -136,7 +125,7 @@ describe('AgentSessionForkOperations edit persist contract (real database)', () 
       SESSION_ID,
       targetFor(USER_MESSAGE_ID),
       async () => {},
-      (_tx, _native, parts) => {
+      (_tx, _native, _nativeContextId, parts) => {
         storedUserParts = parts
       }
     )
@@ -168,7 +157,7 @@ describe('AgentSessionForkOperations edit persist contract (real database)', () 
       SESSION_ID,
       targetFor(USER_MESSAGE_ID),
       async () => {},
-      (_tx, _native, storedUserParts) => {
+      (_tx, _native, _nativeContextId, storedUserParts) => {
         persistedParts = restoreStoredChannelContext(rendererParts, storedUserParts)
       }
     )
@@ -201,7 +190,7 @@ describe('AgentSessionForkOperations edit persist contract (real database)', () 
       SESSION_ID,
       targetFor(USER_MESSAGE_ID),
       async () => {},
-      (_tx, _native, storedUserParts) => {
+      (_tx, _native, _nativeContextId, storedUserParts) => {
         persistedParts = restoreStoredChannelContext(
           stripChannelContextParts([{ type: 'text', text: 're-sent' } as never]),
           storedUserParts

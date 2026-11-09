@@ -488,6 +488,23 @@ describe('MessagePartsRenderer', () => {
     mockMessageToolsRender.mockClear()
   })
 
+  it('keeps source-chat metadata invisible without changing the user text layout', () => {
+    const parts: CherryMessagePart[] = [
+      { type: 'data-channel-context', data: { channel: 'feishu', chatId: 'oc_private_chat', chatType: 'group' } },
+      { type: 'text', text: 'Please summarize this conversation.' }
+    ]
+    const withContext = renderParts(parts, msg({ role: 'user' }))
+    const html = withContext.container.innerHTML
+    expect(withContext.container.textContent).toContain('Please summarize this conversation.')
+    expect(html).not.toContain('oc_private_chat')
+    expect(html).not.toContain('channel-context')
+    withContext.unmount()
+    const plain = renderParts(parts.slice(1), msg({ role: 'user' }))
+    const layoutHtml = (value: string) =>
+      value.replace(/data-message-part-id="[^"]*"/g, '').replace(/id="_r_[^"]*"/g, '')
+    expect(layoutHtml(plain.container.innerHTML)).toBe(layoutHtml(html))
+  })
+
   afterEach(() => {
     vi.unstubAllGlobals()
     vi.restoreAllMocks()

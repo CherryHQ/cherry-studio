@@ -32,6 +32,7 @@ const mocks = vi.hoisted(() => ({
   notifyDataApiDataChange: vi.fn()
 }))
 
+vi.mock('../../../runtime/claudeCode/claudeContext', () => ({ reserveClaudeBranchTx: vi.fn() }))
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: { getById: mocks.getSession, ensureTraceIdTx: mocks.ensureTraceIdTx }
 }))
@@ -114,10 +115,8 @@ describe('AgentChatContextProvider', () => {
     runtimeDriverRegistry.clearForTest()
     runtimeDriverRegistry.register({
       type: 'claude-code',
-      capabilities: ['agent-session'],
       connect: vi.fn(),
-      validateSession: mocks.runtimeValidateSession,
-      listAvailableTools: vi.fn().mockResolvedValue([])
+      validateSession: mocks.runtimeValidateSession
     })
     mocks.getSession.mockReturnValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/tmp' } })
     mocks.ensureTraceIdTx.mockReturnValue('a'.repeat(32))
@@ -185,7 +184,7 @@ describe('AgentChatContextProvider', () => {
     mocks.runtimeIsSessionBusy.mockReturnValue(false)
     storedEditParts = []
     mocks.runtimeEditSession.mockImplementation((_sessionId, _target, persist) =>
-      persist({}, 'native-session-1', storedEditParts)
+      persist({}, 'native-session-1', undefined, storedEditParts)
     )
   })
 
