@@ -45,8 +45,21 @@ function ScopeProvider({
     active: boolean
     context: Readonly<Record<string, ContextValue>>
   } | null>(null)
+  const attachmentRef = useRef<{ element: HTMLElement | null; dispose: () => void } | null>(null)
 
-  useLayoutEffect(() => registry?.attach(scope))
+  useLayoutEffect(() => {
+    const element = options.element()
+    if (attachmentRef.current?.element === element) return
+    attachmentRef.current?.dispose()
+    attachmentRef.current = registry ? { element, dispose: registry.attach(scope) } : null
+  })
+  useLayoutEffect(
+    () => () => {
+      attachmentRef.current?.dispose()
+      attachmentRef.current = null
+    },
+    [registry, scope]
+  )
   useLayoutEffect(() => {
     const next = { element: options.element(), active: options.active(), context: { ...options.context() } }
     const previous = publishedOptionsRef.current

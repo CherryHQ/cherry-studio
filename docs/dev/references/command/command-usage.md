@@ -79,7 +79,9 @@ Changing focus does not require a React state update before the next keypress.
 The scope provider notifies subscribers when its root element, activation or
 context values change. Passing a new context object with the same values does
 not publish another version. Handler and context-key registrations notify
-subscribers independently.
+subscribers independently. Registry attachment remains stable across ordinary
+rerenders, follows root-element replacement, and is released on unmount or
+Activity concealment.
 
 The surface owner must pass `active={false}` when keeping hidden content mounted.
 `TabRouter` disables its scope for inactive or transitioning tabs; resource-list

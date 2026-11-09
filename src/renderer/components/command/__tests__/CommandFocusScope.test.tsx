@@ -97,6 +97,36 @@ describe('CommandFocusScope', () => {
 
   afterEach(cleanup)
 
+  it('keeps local command routing attached during descendant layout effects on rerender', () => {
+    function LayoutShortcut({ revision }: { revision: number }) {
+      const targetRef = useRef<HTMLButtonElement>(null)
+      useLayoutEffect(() => {
+        if (revision > 0) {
+          targetRef.current?.dispatchEvent(
+            new KeyboardEvent('keydown', { key: 'n', code: 'KeyN', ctrlKey: true, bubbles: true, cancelable: true })
+          )
+        }
+      }, [revision])
+      return (
+        <button type="button" ref={targetRef}>
+          Layout command target
+        </button>
+      )
+    }
+    const tree = (revision: number) => (
+      <Providers>
+        <CommandCounter name="root" />
+        <Surface name="local">
+          <LayoutShortcut revision={revision} />
+        </Surface>
+      </Providers>
+    )
+    const { rerender } = render(tree(0))
+    rerender(tree(1))
+    expect(screen.getByLabelText('local actions')).toHaveTextContent('1')
+    expect(screen.getByLabelText('root actions')).toHaveTextContent('0')
+  })
+
   it('settles a scope consumer that reports context to its parent and still publishes changed values', () => {
     function ContextReporter({ onContext }: { onContext: (value: Readonly<Record<string, ContextValue>>) => void }) {
       const scope = use(CommandFocusScopeContext)!
@@ -122,6 +152,32 @@ describe('CommandFocusScope', () => {
     expect(screen.getByLabelText('Reported context')).toHaveTextContent('true')
     rerender(<ContextOwner active={false} />)
     expect(screen.getByLabelText('Reported context')).toHaveTextContent('false')
+  })
+
+  it('routes commands through the replacement root after its DOM element changes', () => {
+    function ReplacedRoot({ revision }: { revision: number }) {
+      const rootRef = useRef<HTMLDivElement>(null)
+      return (
+        <CommandFocusScope rootRef={rootRef}>
+          <div key={revision} ref={rootRef}>
+            <button type="button">Focus replacement</button>
+            <CommandCounter name="replacement" />
+          </div>
+        </CommandFocusScope>
+      )
+    }
+    const tree = (revision: number) => (
+      <Providers>
+        <CommandCounter name="root" />
+        <ReplacedRoot revision={revision} />
+      </Providers>
+    )
+    const { rerender } = render(tree(0))
+    expect(pressShortcut(screen.getByRole('button', { name: 'Focus replacement' }))).toBe(true)
+    rerender(tree(1))
+    expect(pressShortcut(screen.getByRole('button', { name: 'Focus replacement' }))).toBe(true)
+    expect(screen.getByLabelText('replacement actions')).toHaveTextContent('1')
+    expect(screen.getByLabelText('root actions')).toHaveTextContent('0')
   })
 
   it.each([false, true])('routes sibling commands by keyboard target with reversed order %s', (reverse) => {

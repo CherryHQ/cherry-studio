@@ -18,7 +18,7 @@ Renderer 持有附着于 DOM 的 `CommandFocusScope` 实例及其上下文/handl
 
 上下文和 handler 值同步读取；局部订阅更新展示，不另设权威焦点注册表。在事件路径上识别 input/textarea/select 及继承的 contenteditable，包括明确声明的不可编辑区域。`resource.focused && !input.focused` 控制永久删除按键资格；目标就绪、重命名、固定/忙碌保护、待处理确认和实际删除仍由资源消费者负责。选中会话绝不替代缺失的焦点目标。
 
-Provider 仅在附着元素、激活状态或上下文值变化时发布选项更新。若每次 React 提交都发布新版本，订阅者向祖先回传上下文时就会形成反馈循环：即使作用域选项等价，祖先也会再次渲染 provider。因此，新分配但值相同的上下文对象不会再次触发发布。Handler 和上下文注册项保留各自的通知。
+Provider 仅在附着元素、激活状态或上下文值变化时发布选项更新。若每次 React 提交都发布新版本，订阅者向祖先回传上下文时就会形成反馈循环：即使作用域选项等价，祖先也会再次渲染 provider。因此，新分配但值相同的上下文对象不会再次触发发布。Handler 和上下文注册项保留各自的通知。DOM 元素和注册表不变时保留原有绑定；每次提交都解绑，会使子组件执行布局 effect 时路由短暂失效。提交后处理元素替换，在卸载或 Activity 隐藏时释放绑定。
 
 `TabRouter` 在 React Activity 外提供明确的 Tab/切换激活状态。保留挂载的列表面板将现有 `dataEnabled` 可见性状态传给列表作用域。布局清理、DOM 附着和激活状态阻止隐藏/已释放拥有者执行。三类删除消费者共用该路由；移除 `commandFocus.ts` 及仅针对扫描的旧测试。
 
@@ -57,6 +57,7 @@ Renderer 根 handler 只有显式声明 `allowInKeyboardLayer` 才能跨键盘�
 
 ## 验证
 
+- Regression — `CommandFocusScope.test.tsx` 验证重渲染时子组件布局 effect 内的局部路由、DOM 根节点替换后的重新绑定，以及未激活/已释放作用域；`CommandFocusLayers.test.tsx` 继续覆盖 Activity 恢复。
 - Regression — `CommandFocusScope.test.tsx` 使用向父组件回传上下文的作用域订阅者，复现更新深度超限。值相同的上下文对象不会触发渲染错误，值变化时仍会传达给消费者。
 
 - AC1 — `CommandFocusScope.test.tsx` 验证兄弟注册顺序、事件即时焦点、嵌套上下文/handler 归属和禁用作用域回退屏障；Electron 夹具计数验证独立拥有者。
