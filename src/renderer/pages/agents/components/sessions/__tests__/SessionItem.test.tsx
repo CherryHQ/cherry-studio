@@ -177,6 +177,9 @@ describe('SessionItem', () => {
           <SessionItem
             session={session}
             sessionMenuActions={sessionMenuActions}
+            isSelected={false}
+            isSelectionMode={false}
+            onToggleSelection={vi.fn()}
             shortcutHint={shortcutHint}
             onDelete={vi.fn()}
             onOpenRenameDialog={vi.fn()}
@@ -209,6 +212,9 @@ describe('SessionItem', () => {
             pinned={pinned}
             session={session}
             sessionMenuActions={sessionMenuActions}
+            isSelected={false}
+            isSelectionMode={false}
+            onToggleSelection={vi.fn()}
             onDelete={onDelete}
             onOpenRenameDialog={vi.fn()}
             onPress={vi.fn()}
@@ -236,6 +242,9 @@ describe('SessionItem', () => {
           <SessionItem
             session={session}
             sessionMenuActions={sessionMenuActions}
+            isSelected={false}
+            isSelectionMode={false}
+            onToggleSelection={vi.fn()}
             onDelete={onDelete}
             onDeletePermanently={onDeletePermanently}
             permanentDeleteShortcut="Ctrl+Backspace"
@@ -268,6 +277,9 @@ describe('SessionItem', () => {
           <SessionItem
             session={session}
             sessionMenuActions={sessionMenuActions}
+            isSelected={false}
+            isSelectionMode={false}
+            onToggleSelection={vi.fn()}
             pinned
             onDelete={onDelete}
             onDeletePermanently={onDeletePermanently}
@@ -288,6 +300,9 @@ describe('SessionItem', () => {
           <SessionItem
             session={session}
             sessionMenuActions={sessionMenuActions}
+            isSelected={false}
+            isSelectionMode={false}
+            onToggleSelection={vi.fn()}
             isDeleting
             onDelete={onDelete}
             onDeletePermanently={onDeletePermanently}

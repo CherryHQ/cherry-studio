@@ -8,15 +8,15 @@ vi.unmock('@cherrystudio/ui')
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 it('selects only eligible filtered items and keeps archive/cancel actions reachable', async () => {
   const items = [
-    { id: 'a', pinned: false },
-    { id: 'b', pinned: true }
+    { id: 'a', name: 'A', pinned: false },
+    { id: 'b', name: 'B', pinned: true }
   ]
   const onSelectAll = vi.fn(),
     onArchive = vi.fn(),
     onCancel = vi.fn()
   render(
     <ResourceList.Provider items={items}>
-      <ConversationListSelectionToolbar
+      <ConversationListSelectionToolbar<(typeof items)[number]>
         canSelectAll
         canSelectItem={(item) => !item.pinned}
         onArchive={onArchive}
