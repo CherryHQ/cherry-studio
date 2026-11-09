@@ -798,6 +798,7 @@ export class MainWindowService extends BaseService {
         mainWindow.restore()
         if (isWin) mainWindow.show()
         mainWindow.focus()
+        if (isMac) app.focus({ steal: true })
         this.pushMainWindowInitData(initData)
         return
       }
@@ -844,6 +845,7 @@ export class MainWindowService extends BaseService {
 
       mainWindow.show()
       mainWindow.focus()
+      if (isMac) app.focus({ steal: true })
       if (isWin) {
         mainWindow.setVisibleOnAllWorkspaces(false)
       }

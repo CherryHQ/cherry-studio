@@ -1722,6 +1722,14 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!dispatched) return { ok: false, reason: 'rejected' }
 
     if (dispatched.presentation === 'stream') {
+      const entry = this.entries.get(dispatched.sessionId)
+      if (entry) {
+        getAgentSessionRuntimeNativeTurn(entry.runtimeState)?.projection?.resolveToolApproval(
+          dispatched.toolCallId,
+          approvalId,
+          decision.approved
+        )
+      }
       application
         .get('AiStreamManager')
         .resolveToolApproval(buildAgentSessionTopicId(dispatched.sessionId), dispatched.toolCallId, decision.approved)
