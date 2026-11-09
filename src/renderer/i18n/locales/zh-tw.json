@@ -6206,8 +6206,6 @@
   "settings.usage.export.png": "匯出為 PNG",
   "settings.usage.export.progress": "正在讀取用量記錄（{{count}} / {{total}}）…",
   "settings.usage.export.range": "{{from}} – {{to}}（{{timezone}}）",
-  "settings.usage.export.sheets.metadata": "中繼資料",
-  "settings.usage.export.sheets.usage": "用量",
   "settings.usage.export.success": "用量匯出成功",
   "settings.usage.export.title": "匯出",
   "settings.usage.export.xlsx": "匯出為 XLSX",

@@ -6206,8 +6206,6 @@
   "settings.usage.export.png": "Als PNG exportieren",
   "settings.usage.export.progress": "Nutzungsdatensätze werden gelesen ({{count}} von {{total}})…",
   "settings.usage.export.range": "{{from}} – {{to}} ({{timezone}})",
-  "settings.usage.export.sheets.metadata": "Metadaten",
-  "settings.usage.export.sheets.usage": "Nutzung",
   "settings.usage.export.success": "Nutzung erfolgreich exportiert",
   "settings.usage.export.title": "Exportieren",
   "settings.usage.export.xlsx": "Als XLSX exportieren",
