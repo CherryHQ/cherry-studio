@@ -140,7 +140,7 @@ src/renderer/components/composer/markdownLivePreview/
 - AC15 — token 原子节点在样式范围和标题内保持原有的渲染、选择和删除行为，并在原来的 `textOffset` 处完成往返。 (verification: renderer)
 - AC16 — Chat、Agent 和划词智能体输入条显示实时预览，绘画提示词和网页批注输入保持纯文本。 (verification: renderer)
 - AC17 — 复制和剪切导出选中的源文本（包括其中隐藏的标记），并保留 token。 (verification: renderer)
-- AC18 — 在基准机器 MacBook Pro M5 上的生产构建中，对 40,000 字符的草稿，实时预览让每次按键和移动光标的更新中位数不超过 16 ms。 (verification: packaged artifact)
+- AC18 — 在基准机器 MacBook Pro M5 上的生产构建中，与同一时段、同一份不开实时预览的草稿对照，实时预览让每次按键或移动光标时主线程最长单个任务的中位数最多增加 33 ms；草稿包括 40,000 字符的长段落草稿（约 340 行）和 40,000 字符、每行都很短且带格式的最坏情况草稿（约 2,400 行）。 (verification: production build)
 - AC19 — 表格、图片和 LaTeX 公式保持源码原样，没有专门的渲染，并逐字发送。 (verification: renderer)
 - AC20 — 仅靠四空格缩进构成代码的行渲染为普通文本，没有代码区域，回车按配置的快捷键工作，QuickPanel 触发和 `${name}` 的 token 转换与其他行相同。 (verification: renderer)
 - AC21 — 分割线（`---`、`***` 或 `___`）在选区不在该行时画成一条线，选区在该行时显示源码；紧贴文字下方的 `---` 或 `===` 构成标题，其下划线所在行在选区离开标题时收起，选区碰到标题时显示；发送的文本保持原样。 (verification: renderer)
@@ -159,3 +159,4 @@ src/renderer/components/composer/markdownLivePreview/
 - 显示标记会让光标所在行的文字发生位移。这是这一模型固有的特性。
 - 行模型会改变所有 Composer 界面，现有测试也固定了硬换行的文档结构。AC1 和 AC6 保护这些行为。
 - 手写的代码块按键只做到缩进。如果事实证明不够用，内嵌 CodeMirror 是需要重新考虑的路径。
+- 预览的开销增长得比行数快。在基准机器上，338 行时每次按键约多 1 ms，2,366 行带格式的短行时约多 25 ms，所以较慢的机器粘贴几千行时可能感觉得到。低配硬件没有实测；AC18 采用相对值，是因为不开预览的 Composer 在最坏情况草稿上本身就要约 17 ms。
