@@ -156,7 +156,8 @@ export function MarketplaceMcp({
                       onClick={(event) => {
                         trigger.current = event.currentTarget
                         onProviderChange(provider.key)
-                      }}>
+                      }}
+                      className="text-muted-foreground">
                       <Settings2 className="size-4" />
                     </Button>
                   }
@@ -189,7 +190,8 @@ export function MarketplaceMcp({
                         size="icon-sm"
                         variant="ghost"
                         aria-label={t('marketplace.open_website') + ': ' + market.name}
-                        onClick={() => openExternalWebsite(market.url)}>
+                        onClick={() => openExternalWebsite(market.url)}
+                        className="text-muted-foreground">
                         <ExternalLink className="size-4" />
                       </Button>
                     }
