@@ -4109,6 +4109,20 @@ describe('AgentSessionRuntimeService', () => {
     await expect(closing).resolves.toBeUndefined()
   })
 
+  it('releases the session when a pending connection attempt fails during close', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const connectionAttempt = createDeferred<boolean>()
+    ;(service as any).connectionAttempts.set('session-1', { promise: connectionAttempt.promise })
+
+    const closing = service.closeSession('session-1')
+    connectionAttempt.reject(new Error('spawn failed'))
+
+    await expect(closing).resolves.toBeUndefined()
+    expect(service.isSessionBusy('session-1')).toBe(false)
+    expect(() => service.beginTurn({ ...baseTurnInput, assistantMessageId: 'assistant-2' })).not.toThrow()
+  })
+
   it('rejects new input until the closing reply releases its owner', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)

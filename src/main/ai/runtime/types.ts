@@ -8,6 +8,7 @@ import type {
   SubmitResult,
   ThreadContextUsage
 } from '@cherrystudio/agent-runtime'
+import type { AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
 import type { AiUsageCredentialReceipt, SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import type { AgentChildUpdate, AgentChildView } from '@shared/ai/agentChildProjection'
@@ -288,7 +289,8 @@ export interface AgentSessionRuntimeDriver {
   /** Restore persisted runtime history after generic fork, crash and delivery recovery. */
   recoverSessions?(): Promise<void>
   fork?(input: RuntimeForkInput): Promise<RuntimeForkResult>
-  isForkCheckpoint?(value: unknown): boolean
+  /** Validate the opaque checkpoint and its claimed product binding when supplied. */
+  isForkCheckpoint?(value: unknown, binding?: Pick<AgentSessionContextRow, 'backendId' | 'nativeThreadId'>): boolean
   /**
    * Per-driver session prerequisite check: throws if the session can't be
    * served (e.g. workspace path missing, credentials absent). Hosts call

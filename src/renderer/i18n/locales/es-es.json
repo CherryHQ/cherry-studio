@@ -1891,7 +1891,7 @@
   "knowledge.data_source.add_dialog.unsupported_files_skipped": "Se omitieron {{count}} archivo(s) no admitido(s)",
   "knowledge.data_source.add_dialog.url.description": "Introduce una URL de página web:",
   "knowledge.data_source.add_dialog.url.help": "El texto de la página se obtendrá, se dividirá en fragmentos y se indexará automáticamente.",
-  "knowledge.data_source.add_dialog.url.placeholder": "https://docs.cherry-ai.com/",
+  "knowledge.data_source.add_dialog.url.placeholder": "https://cherryai.com/docs",
   "knowledge.data_source.back_to_parent": "Atrás",
   "knowledge.data_source.bulk.delete": "Eliminar",
   "knowledge.data_source.bulk.delete_confirm_description": "¿Eliminar {{count}} fuentes de datos seleccionadas? Esta acción no se puede deshacer.",

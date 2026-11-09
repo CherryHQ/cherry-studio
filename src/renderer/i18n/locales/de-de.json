@@ -1891,7 +1891,7 @@
   "knowledge.data_source.add_dialog.unsupported_files_skipped": "{{count}} nicht unterstützte Datei(en) übersprungen",
   "knowledge.data_source.add_dialog.url.description": "Geben Sie die URL einer Webseite ein:",
   "knowledge.data_source.add_dialog.url.help": "Der Seitentext wird automatisch abgerufen, in Blöcke unterteilt und indiziert.",
-  "knowledge.data_source.add_dialog.url.placeholder": "https://docs.cherry-ai.com/",
+  "knowledge.data_source.add_dialog.url.placeholder": "https://cherryai.com/docs",
   "knowledge.data_source.back_to_parent": "Zurück",
   "knowledge.data_source.bulk.delete": "Löschen",
   "knowledge.data_source.bulk.delete_confirm_description": "{{count}} ausgewählte Datenquellen löschen? Dies kann nicht rückgängig gemacht werden.",

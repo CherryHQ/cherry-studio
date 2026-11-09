@@ -43,6 +43,7 @@ import {
   type ThreadHandle,
   type ThreadInput,
   type Thread,
+  type ThreadId,
   type Subagent,
   type SubmitResult
 } from '@cherrystudio/agent-runtime'
@@ -61,12 +62,14 @@ export interface PiDurableRuntimeOptions {
   readonly harness: HarnessOptions
   readonly behavior?: PiDurableRuntimeBehavior
   /** Synchronous placement notification before the scheduler can issue the next model request. */
-  readonly onInputPlaced?: (inputId: InputId | undefined) => void
+  readonly onInputPlaced?: (inputId: InputId | undefined, thread: ThreadId) => void
   readonly onError?: (error: unknown) => void
 }
 export interface PiDurableRuntimeBehavior {
   readonly host: HostPorts
-  configureChild(child: { thread: Thread; modelKey: string }): AgentChange | Promise<AgentChange>
+  configureChild(child: { thread: Thread; parent: Thread; modelKey: string }): AgentChange | Promise<AgentChange>
+  readonly owns?: (thread: ThreadId) => boolean
+  configureRoot?(thread: ThreadId): AgentChange | Promise<AgentChange>
 }
 export type PiDurableSessionOptions = ConversationCreateOptions
 export interface PiDurableThreadHandle extends ThreadHandle {
@@ -101,6 +104,8 @@ export interface PiDurableArchive {
   readonly aliases: Readonly<Record<string, string>>
 }
 export interface PiDurableRuntime extends AgentRuntime {
+  /** Native transactions share this owner's mutation line; callers must retain their backend access. */
+  readonly durable: Pick<Harness, 'commit'>
   create(options: PiDurableSessionOptions): Promise<OperationResult<PiDurableThreadHandle>>
   open(ref: Thread): Promise<OperationResult<PiDurableThreadHandle>>
   resume(): Promise<OperationResult<void>>
@@ -148,8 +153,16 @@ export async function createPiDurableRuntime(
       install: (ports) => {
         behaviorEntries = install(ports, config.host).entries
       },
-      configureChild: (child, _parent, origin) =>
-        config.configureChild({ thread: refFor(Number(child)), modelKey: origin.modelKey }),
+      configureChild: async (child, parent, origin) =>
+        withBehavior(
+          await config.configureChild({
+            thread: refFor(Number(child)),
+            parent: refFor(Number(parent)),
+            modelKey: origin.modelKey
+          })
+        ),
+      configureRoot: config.configureRoot && (async (thread) => withBehavior(await config.configureRoot!(thread))),
+      owns: config.owns,
       onError: report
     })
     const registry = createRegistry()
@@ -167,6 +180,11 @@ export async function createPiDurableRuntime(
       registry,
       models: typeof models === 'function' ? () => meteredModels(models(), meter) : meteredModels(models, meter)
     }
+  }
+  function withBehavior(change: AgentChange): AgentChange {
+    return Array.isArray(change.extensions) && behavior
+      ? { ...change, extensions: [...change.extensions, behavior.extension] }
+      : change
   }
   const live = new Map<number, Entry>()
   const pending = new Set<Promise<unknown>>()
@@ -272,7 +290,8 @@ export async function createPiDurableRuntime(
     const history = behavior
       ? historyOf(
           await pages((cursor) => tx.scanEntries({ conversationId: record.id, order: 'ascending' }, 256, cursor)),
-          []
+          [],
+          record.id
         )
       : []
     const origin = history.findLast((entry) => entry.kind === 'record' && entry.record.type === 'subagent-origin')
@@ -315,7 +334,7 @@ export async function createPiDurableRuntime(
               (placed?.type === 'entry' ? (placed.value.data as { cherryInputId?: string })?.cherryInputId : undefined)
             if (id) logicalIds.set(record.id, runtimeId(id))
             try {
-              options.onInputPlaced?.(id ? runtimeId(id) : undefined)
+              options.onInputPlaced?.(id ? runtimeId(id) : undefined, refFor(record.conversationId).id)
             } catch (cause) {
               report(cause)
             }
@@ -425,7 +444,8 @@ export async function createPiDurableRuntime(
             const history = () =>
               historyOf(
                 [...historyEntries.values()].sort((a, b) => a.id - b.id),
-                [...toolTasks.values()]
+                [...toolTasks.values()],
+                conversation.id
               )
             const states: InputState[] = []
             let cursor: Cursor | undefined
@@ -643,7 +663,7 @@ export async function createPiDurableRuntime(
         },
         async configure(change) {
           if (unavailable()) throw new Error('Durable access is closed')
-          await native.commit((tx) => configure(tx, entry.conversation.id, change), context)
+          await native.commit((tx) => configure(tx, entry.conversation.id, withBehavior(change)), context)
         },
         async compact(instructions) {
           if (unavailable()) return rejected('compact', 'closed')
@@ -844,12 +864,16 @@ export async function createPiDurableRuntime(
     }
   }
   const runtime: PiDurableRuntime = {
+    durable: native,
     create(config) {
       if (closing) return Promise.resolve(rejected('create', 'closed'))
       return track(
         (async () => {
           try {
-            const conversation = await native.createConversation(config, context)
+            const conversation = await native.createConversation(
+              { ...config, agent: config.agent && withBehavior(config.agent) },
+              context
+            )
             await behavior?.open(refFor(conversation.id).id)
             const result = await load(conversation)
             if (result.status !== 'confirmed') return result

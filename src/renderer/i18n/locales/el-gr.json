@@ -1891,7 +1891,7 @@
   "knowledge.data_source.add_dialog.unsupported_files_skipped": "Παραλείφθηκαν {{count}} μη υποστηριζόμενα αρχεία",
   "knowledge.data_source.add_dialog.url.description": "Εισάγετε διεύθυνση ιστοσελίδας:",
   "knowledge.data_source.add_dialog.url.help": "Το κείμενο της σελίδας θα ανακτηθεί, θα τεμαχιστεί και θα ευρετηριαστεί αυτόματα",
-  "knowledge.data_source.add_dialog.url.placeholder": "https://docs.cherry-ai.com/",
+  "knowledge.data_source.add_dialog.url.placeholder": "https://cherryai.com/docs",
   "knowledge.data_source.back_to_parent": "Πίσω",
   "knowledge.data_source.bulk.delete": "Διαγραφή",
   "knowledge.data_source.bulk.delete_confirm_description": "Διαγραφή {{count}} επιλεγμένων πηγών δεδομένων; Αυτή η ενέργεια δεν μπορεί να αναιρεθεί.",
