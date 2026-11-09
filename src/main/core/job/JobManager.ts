@@ -858,9 +858,16 @@ export class JobManager extends BaseService {
     // 4. Persist SchedulerService's post-pause calendar for armed recurring schedules;
     //    intervals advanced while gated and resumed crons skipped missed fires.
     for (const id of this.scheduleDisposables.keys()) {
-      const snapshot = jobScheduleService.getById(id)
-      if (!snapshot?.enabled || snapshot.trigger.kind === 'once') continue
-      this.syncPersistedNextRun(id, 'after pause release')
+      try {
+        const snapshot = jobScheduleService.getById(id)
+        if (!snapshot?.enabled || snapshot.trigger.kind === 'once') continue
+        this.syncPersistedNextRun(id, 'after pause release')
+      } catch (err) {
+        logger.warn('Failed to persist nextRun after pause release', {
+          scheduleId: id,
+          err: (err as Error).message
+        })
+      }
     }
   }
 
