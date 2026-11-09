@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, realpathSync } from
 import { join } from 'node:path'
 
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
-import { createAssistantMessageEventStream, type AssistantMessage } from '@earendil-works/pi-ai'
+import { createAssistantMessageEventStream, type AssistantMessage, type Usage } from '@earendil-works/pi-ai'
 import { AgentDoc, configure, createSession, type ConversationId } from '@earendil-works/pi-durable'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
@@ -1029,6 +1029,41 @@ describe('desktop Pi Durable connection', () => {
     expect(text(second.events)).toBe('second answer')
     expect(prepareDurableBranch(input.sessionId).nativeThreadId).toBe(context.nativeThreadId)
     expect(JSON.stringify(script.calls[0].messages)).toContain('first streaming answer')
+  })
+
+  // Catches Durable dropping provider-reported reasoning tokens from the root turn's usage metadata.
+  it('reports reasoning tokens in the root turn usage metadata', async () => {
+    const root: { providerSessionId?: string } = {}
+    const usage: Usage = {
+      input: 5,
+      output: 7,
+      cacheRead: 0,
+      cacheWrite: 0,
+      reasoning: 3,
+      totalTokens: 12,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
+    }
+    mocks.binding.mockImplementation(async (_input, _provider, _model, onUsage) =>
+      createTestBinding({
+        model: MODEL,
+        stream: (model, context, options) => {
+          onUsage(usage, root.providerSessionId)
+          return script.model(model, context, options)
+        }
+      })
+    )
+    const { connection, events, handle } = await connect()
+    root.providerSessionId = await handle.durable.providerSessionId()
+    await connection.send({ message: message('hello') })
+    await done(events)
+
+    const metadata = events.flatMap((event) =>
+      event.type === 'chunk' && event.chunk.type === 'message-metadata' ? [event.chunk.messageMetadata] : []
+    )
+    expect(metadata.at(-1)).toEqual({
+      totalTokens: 12,
+      stats: { inputTokens: 5, outputTokens: 7, totalTokens: 12, outputTokenDetails: { reasoningTokens: 3 } }
+    })
   })
 
   it('places a late steer as the next input before its model call and records both outcomes', async () => {
