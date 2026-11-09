@@ -285,7 +285,7 @@ describe('desktop Pi Durable connection', () => {
     expect(messages.readEditSnapshotTx(dbh.db, input.sessionId, edited.id).user.data.nativeSessionId).toBeUndefined()
     expect(script.calls).toHaveLength(calls)
     expect(messages.listSessionMessages(input.sessionId).items.map((row) => row.id)).toEqual([edited.id])
-    expect(messages.getSessionMessage(input.sessionId, old.id).data.parts).toEqual(old.data.parts)
+    expect(() => messages.getSessionMessage(input.sessionId, old.id)).toThrow()
     input = { ...input, branchHead: edited.id }
     const fresh = await connect()
     expect(fresh.connection.contextId).toBe(target.id)
@@ -308,7 +308,7 @@ describe('desktop Pi Durable connection', () => {
   })
 
   // A second edit must use the first edit's remapped prefix without changing shared product rows.
-  it('edits a committed prefix repeatedly and retains independent old and new branches', async () => {
+  it('replaces a committed tail repeatedly and reopens only the edited context', async () => {
     sharedHosts()
     const parent = await connect()
     await parent.connection.send({ message: message('shared first input') })
@@ -318,7 +318,7 @@ describe('desktop Pi Durable connection', () => {
     parent.events.length = 0
     setScript([assistantReply('original later answer')])
     await parent.connection.send({ message: old })
-    const oldAnswer = await savedAnswer(parent)
+    await savedAnswer(parent)
     const before = messages.getSessionMessage(input.sessionId, shared.id)
     const edited = await editInput(old.id, 'edited later question')
     input = { ...input, branchHead: edited.id }
@@ -346,15 +346,16 @@ describe('desktop Pi Durable connection', () => {
     expect(messages.listSessionMessages(fork).items).toHaveLength(4)
     expect(script.calls).toHaveLength(calls)
     await second.connection.close()
-    messages.selectBranch(input.sessionId, old.id)
-    input = { ...input, branchHead: oldAnswer.id }
+    expect(() => messages.getSessionMessage(input.sessionId, old.id)).toThrow()
+    expect(() => messages.getSessionMessage(input.sessionId, edited.id)).toThrow()
+    input = { ...input, branchHead: final.id }
     const reopened = await connect()
-    expect(reopened.handle.thread.id).toBe(original.nativeThreadId)
-    setScript([assistantReply('original branch continued')])
-    await reopened.connection.send({ message: message('continue original') })
+    expect(reopened.handle.thread.id).toBe(second.handle.thread.id)
+    setScript([assistantReply('edited branch continued')])
+    await reopened.connection.send({ message: message('continue edited context') })
     await savedAnswer(reopened)
-    expect(JSON.stringify(script.calls[0].messages)).toContain('original later question')
-    expect(JSON.stringify(script.calls[0].messages)).not.toContain('second edited question')
+    expect(JSON.stringify(script.calls[0].messages)).not.toContain('original later question')
+    expect(JSON.stringify(script.calls[0].messages)).toContain('second edited question')
   })
 
   // Prepared native forks must stay inert when close, publication, or receipt delivery fails.
