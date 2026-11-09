@@ -233,3 +233,130 @@ describe('selection formatting keys', () => {
     expect(source(editor)).toBe('word')
   })
 })
+
+describe('selection inline code', () => {
+  const pressBacktick = (editor: Editor, init: KeyboardEventInit = {}) => press(editor, '`', init)
+
+  it('wraps the selection and keeps it on the text', () => {
+    const editor = createSelected('hello world', 6, 11)
+
+    expect(pressBacktick(editor)).toBe(true)
+
+    expect(source(editor)).toBe('hello `world`')
+    expect(selectedText(editor)).toBe('world')
+  })
+
+  it('removes the style on a second backtick', () => {
+    const editor = createSelected('hello world', 6, 11)
+    pressBacktick(editor)
+
+    expect(pressBacktick(editor)).toBe(true)
+
+    expect(source(editor)).toBe('hello world')
+    expect(selectedText(editor)).toBe('world')
+  })
+
+  it('treats a selection that includes its backticks as styled', () => {
+    const editor = createSelected('`abc`', 0, 5)
+
+    pressBacktick(editor)
+
+    expect(source(editor)).toBe('abc')
+  })
+
+  it('does not read the backticks of two separate runs as one style', () => {
+    const editor = createSelected('`a` and `b`', 0, 11)
+
+    pressBacktick(editor)
+
+    expect(source(editor)).toContain('`a` and `b`')
+  })
+
+  it('combines with bold around the same text', () => {
+    const editor = createSelected('**a**', 2, 3)
+
+    pressBacktick(editor)
+
+    expect(source(editor)).toBe('**`a`**')
+  })
+
+  it('keeps asterisks a selection includes inside the code', () => {
+    const editor = createSelected('**a**', 0, 5)
+
+    pressBacktick(editor)
+
+    expect(source(editor)).toBe('`**a**`')
+  })
+
+  it('keeps block prefixes and edge whitespace outside the backticks', () => {
+    const editor = createEditor('# Title\n- a  ')
+    select(editor, [0, 0], [1, 5])
+
+    pressBacktick(editor)
+
+    expect(source(editor)).toBe('# `Title`\n- `a`  ')
+  })
+
+  it('handles each selected line and removes them together', () => {
+    const editor = createEditor('one\n\ntwo')
+    select(editor, [0, 0], [2, 3])
+
+    pressBacktick(editor)
+    expect(source(editor)).toBe('`one`\n\n`two`')
+
+    pressBacktick(editor)
+    expect(source(editor)).toBe('one\n\ntwo')
+  })
+
+  it('skips fenced code inside a wider selection', () => {
+    const editor = createEditor('plain\n```\ncode\n```\nafter')
+    select(editor, [0, 0], [4, 5])
+
+    pressBacktick(editor)
+
+    expect(source(editor)).toBe('`plain`\n```\ncode\n```\n`after`')
+  })
+
+  it('accepts a layout that types the backtick with Shift', () => {
+    const editor = createSelected('word', 0, 4)
+
+    expect(pressBacktick(editor, { shiftKey: true })).toBe(true)
+  })
+
+  it.each([
+    ['an empty selection', () => createSelected('word', 2, 2)],
+    [
+      'a selection inside fenced code',
+      () => {
+        const editor = createEditor('```\ncode\n```')
+        select(editor, [1, 0], [1, 4])
+        return editor
+      }
+    ]
+  ])('leaves the backtick as ordinary input for %s', (_name, create) => {
+    const editor = create()
+    const before = source(editor)
+
+    expect(pressBacktick(editor)).toBe(false)
+    expect(source(editor)).toBe(before)
+  })
+
+  it('leaves the backtick to the default input for a selected token', () => {
+    const editor = createEditor('aATTACHED', [token])
+    editor.view.dispatch(editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, 2)))
+
+    expect(pressBacktick(editor)).toBe(false)
+  })
+
+  it.each([
+    ['Cmd', { metaKey: true }],
+    ['Ctrl', { ctrlKey: true }],
+    ['Alt', { altKey: true }],
+    ['composition', { isComposing: true }]
+  ])('ignores the backtick with %s', (_name, init) => {
+    const editor = createSelected('word', 0, 4)
+
+    expect(pressBacktick(editor, init)).toBe(false)
+    expect(source(editor)).toBe('word')
+  })
+})
