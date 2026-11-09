@@ -8,6 +8,8 @@
  * Not every target accepts that shape, so `SYSTEM_IN_PLACE_ENDPOINTS` allowlists the
  * ones whose AI SDK converter was verified to emit a non-leading system message rather
  * than throw.
+ * The resolved adapter filters this allowlist because Bedrock shares the Anthropic
+ * Messages endpoint type but its converter throws on non-leading system messages.
  *
  * For the rest there are two outcomes. A client that negotiated
  * `mid-conversation-system-2026-04-07` gets a 400 naming the beta and downgrades itself
@@ -15,6 +17,7 @@
  * nothing is lost. A client that did not negotiate it has no downgrade path, so its
  * messages are folded instead: correct output, at the cost of the prefix cache.
  */
+import type { AppProviderId } from '@main/ai/types'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 
@@ -41,9 +44,15 @@ const SYSTEM_IN_PLACE_ENDPOINTS: ReadonlySet<EndpointType> = new Set([
   ENDPOINT_TYPE.OPENAI_RESPONSES
 ])
 
-/** Whether `endpointType` keeps a non-leading system message in place instead of rejecting it. */
-export function keepsSystemMessagesInPlace(endpointType: EndpointType | undefined): boolean {
-  return endpointType !== undefined && SYSTEM_IN_PLACE_ENDPOINTS.has(endpointType)
+/**
+ * Whether `endpointType` and resolved adapter id `aiSdkProviderId` allow non-leading system messages.
+ * Bedrock is excluded because its converter throws when a system message follows a user/assistant message.
+ */
+export function keepsSystemMessagesInPlace(
+  endpointType: EndpointType | undefined,
+  aiSdkProviderId: AppProviderId
+): boolean {
+  return endpointType !== undefined && SYSTEM_IN_PLACE_ENDPOINTS.has(endpointType) && aiSdkProviderId !== 'bedrock'
 }
 
 const systemText = (message: CherryUIMessage): string =>
@@ -105,9 +114,10 @@ function midConversationSystemUnsupported(): Error & { status: number } {
 export function positionInlineSystemMessages(
   messages: CherryUIMessage[],
   endpointType: EndpointType | undefined,
+  aiSdkProviderId: AppProviderId,
   requestHeaders: Headers | undefined
 ): CherryUIMessage[] {
-  if (keepsSystemMessagesInPlace(endpointType)) return messages
+  if (keepsSystemMessagesInPlace(endpointType, aiSdkProviderId)) return messages
   if (!hasNonLeadingSystemMessage(messages)) return messages
   if (negotiatedMidConversationSystem(requestHeaders)) throw midConversationSystemUnsupported()
   return hoistSystemMessages(messages)

@@ -141,7 +141,7 @@ export function buildCapabilityProviderOptions(
       providerSpecificOptions = buildXAIProviderOptions(reasoningOptions.options)
       break
     case 'bedrock':
-      providerSpecificOptions = buildBedrockProviderOptions(model, reasoningOptions.options)
+      providerSpecificOptions = buildBedrockProviderOptions(model, actualProvider, reasoningOptions.options)
       break
     case SystemProviderIds.ollama:
       providerSpecificOptions = buildOllamaProviderOptions(model, reasoningOptions.options)
@@ -385,10 +385,11 @@ function buildXAIProviderOptions(
 
 function buildBedrockProviderOptions(
   model: Model,
+  provider: Provider,
   reasoningOptions: Record<string, unknown>
 ): Record<string, BedrockProviderOptions> {
   const providerOptions = { ...reasoningOptions } as BedrockProviderOptions
-  const betaHeaders = addAnthropicHeaders(model)
+  const betaHeaders = addAnthropicHeaders(model, provider)
   if (betaHeaders.length > 0) {
     providerOptions.anthropicBeta = betaHeaders
   }

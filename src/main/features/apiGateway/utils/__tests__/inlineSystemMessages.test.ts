@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import type { AppProviderId } from '@main/ai/types'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 
@@ -23,15 +24,21 @@ const sdkAcceptsAsDowngradeSignal = (status: number, message: string): boolean =
     (message.includes('Unexpected role') && message.includes('input message role')) ||
     (message.includes('not supported') && /role .{0,2}system/i.test(message)))
 
-/** Every endpoint the gateway can resolve for a chat request. */
-const ENDPOINT_CHAT_TARGETS: EndpointType[] = [
-  ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
-  ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
-  ENDPOINT_TYPE.OLLAMA_CHAT,
-  ENDPOINT_TYPE.OLLAMA_GENERATE,
-  ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-  ENDPOINT_TYPE.OPENAI_RESPONSES,
-  ENDPOINT_TYPE.OPENAI_TEXT_COMPLETIONS
+const targets: { endpointType: EndpointType | undefined; aiSdkProviderId: AppProviderId; expected: boolean }[] = [
+  { endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES, aiSdkProviderId: 'anthropic', expected: true },
+  { endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES, aiSdkProviderId: 'bedrock', expected: false },
+  { endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES, aiSdkProviderId: 'google-vertex-anthropic', expected: true },
+  { endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES, aiSdkProviderId: 'aihubmix', expected: true },
+  { endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES, aiSdkProviderId: 'openai', expected: true },
+  { endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES, aiSdkProviderId: 'open-responses', expected: true },
+  { endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES, aiSdkProviderId: 'azure-responses', expected: true },
+  { endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, aiSdkProviderId: 'google', expected: false },
+  { endpointType: ENDPOINT_TYPE.OLLAMA_CHAT, aiSdkProviderId: 'ollama', expected: false },
+  { endpointType: ENDPOINT_TYPE.OLLAMA_GENERATE, aiSdkProviderId: 'ollama', expected: false },
+  { endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, aiSdkProviderId: 'openai-chat', expected: false },
+  { endpointType: ENDPOINT_TYPE.OPENAI_TEXT_COMPLETIONS, aiSdkProviderId: 'openai', expected: false },
+  { endpointType: undefined, aiSdkProviderId: 'anthropic', expected: false },
+  { endpointType: 'some-endpoint-added-later' as EndpointType, aiSdkProviderId: 'anthropic', expected: false }
 ]
 
 const msg = (role: CherryUIMessage['role'], text: string, id: string = role): CherryUIMessage => ({
@@ -81,32 +88,21 @@ describe('hoistSystemMessages', () => {
 })
 
 describe('keepsSystemMessagesInPlace', () => {
-  it('allows the chat endpoints whose converters were verified to pass a non-leading system through', () => {
-    expect(ENDPOINT_CHAT_TARGETS.filter(keepsSystemMessagesInPlace)).toEqual([
-      ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
-      ENDPOINT_TYPE.OPENAI_RESPONSES
-    ])
-  })
-
-  it('folds for Gemini and for the completion endpoints whose converters throw', () => {
-    expect(keepsSystemMessagesInPlace(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)).toBe(false)
-    expect(keepsSystemMessagesInPlace(ENDPOINT_TYPE.OPENAI_TEXT_COMPLETIONS)).toBe(false)
-    expect(keepsSystemMessagesInPlace(ENDPOINT_TYPE.OLLAMA_GENERATE)).toBe(false)
-  })
-
-  it('folds when the endpoint is unknown, so a new endpoint cannot 500', () => {
-    expect(keepsSystemMessagesInPlace(undefined)).toBe(false)
-    expect(keepsSystemMessagesInPlace('some-endpoint-added-later' as EndpointType)).toBe(false)
-  })
+  it.each(targets)(
+    '$endpointType + $aiSdkProviderId keeps in place: $expected',
+    ({ endpointType, aiSdkProviderId, expected }) => {
+      expect(keepsSystemMessagesInPlace(endpointType, aiSdkProviderId)).toBe(expected)
+    }
+  )
 })
 
 describe('positionInlineSystemMessages', () => {
   const inline = [msg('system', 'Base.', 's0'), msg('user', 'go'), msg('system', 'MCP connecting.', 's1')]
 
   it('leaves them in place for a target that accepts them', () => {
-    expect(positionInlineSystemMessages(inline, ENDPOINT_TYPE.OPENAI_RESPONSES, betaHeaders(AGENT_SDK_BETAS))).toBe(
-      inline
-    )
+    expect(
+      positionInlineSystemMessages(inline, ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai', betaHeaders(AGENT_SDK_BETAS))
+    ).toBe(inline)
   })
 
   // An OpenAI-compatible backend whose chat template requires `system` at messages[0]
@@ -115,7 +111,12 @@ describe('positionInlineSystemMessages', () => {
   it('lets the Agent SDK downgrade before sending them to an OpenAI-compatible backend', () => {
     let thrown: unknown
     try {
-      positionInlineSystemMessages(inline, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, betaHeaders(AGENT_SDK_BETAS))
+      positionInlineSystemMessages(
+        inline,
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        'openai-chat',
+        betaHeaders(AGENT_SDK_BETAS)
+      )
     } catch (error) {
       thrown = error
     }
@@ -126,16 +127,20 @@ describe('positionInlineSystemMessages', () => {
   })
 
   it('folds OpenAI-compatible inline system messages when the client cannot downgrade', () => {
-    expect(positionInlineSystemMessages(inline, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, undefined)).toEqual([
-      { ...inline[0], parts: [{ type: 'text', text: 'Base.\n\nMCP connecting.' }] },
-      inline[1]
-    ])
+    expect(
+      positionInlineSystemMessages(inline, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'openai-chat', undefined)
+    ).toEqual([{ ...inline[0], parts: [{ type: 'text', text: 'Base.\n\nMCP connecting.' }] }, inline[1]])
   })
 
   it('rejects with a 400 the Agent SDK downgrades from when the client negotiated the beta', () => {
     let thrown: unknown
     try {
-      positionInlineSystemMessages(inline, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, betaHeaders(AGENT_SDK_BETAS))
+      positionInlineSystemMessages(
+        inline,
+        ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+        'google',
+        betaHeaders(AGENT_SDK_BETAS)
+      )
     } catch (error) {
       thrown = error
     }
@@ -148,7 +153,7 @@ describe('positionInlineSystemMessages', () => {
   it('lets the Agent SDK downgrade inline system messages before sending them to Ollama', () => {
     let thrown: unknown
     try {
-      positionInlineSystemMessages(inline, ENDPOINT_TYPE.OLLAMA_CHAT, betaHeaders(AGENT_SDK_BETAS))
+      positionInlineSystemMessages(inline, ENDPOINT_TYPE.OLLAMA_CHAT, 'ollama', betaHeaders(AGENT_SDK_BETAS))
     } catch (error) {
       thrown = error
     }
@@ -160,16 +165,23 @@ describe('positionInlineSystemMessages', () => {
 
   it('folds instead of rejecting when the client cannot downgrade', () => {
     expect(
-      positionInlineSystemMessages(inline, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, betaHeaders('claude-code-20250219'))
+      positionInlineSystemMessages(
+        inline,
+        ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+        'google',
+        betaHeaders('claude-code-20250219')
+      )
     ).toEqual([{ ...inline[0], parts: [{ type: 'text', text: 'Base.\n\nMCP connecting.' }] }, inline[1]])
   })
 
   it('folds when there is no anthropic-beta header at all', () => {
-    expect(positionInlineSystemMessages(inline, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, undefined)).toHaveLength(2)
+    expect(
+      positionInlineSystemMessages(inline, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, 'google', undefined)
+    ).toHaveLength(2)
   })
 
   it('folds Ollama inline system messages when the client cannot downgrade', () => {
-    expect(positionInlineSystemMessages(inline, ENDPOINT_TYPE.OLLAMA_CHAT, undefined)).toEqual([
+    expect(positionInlineSystemMessages(inline, ENDPOINT_TYPE.OLLAMA_CHAT, 'ollama', undefined)).toEqual([
       { ...inline[0], parts: [{ type: 'text', text: 'Base.\n\nMCP connecting.' }] },
       inline[1]
     ])
@@ -178,7 +190,64 @@ describe('positionInlineSystemMessages', () => {
   it('never rejects a request that carries no inline system message', () => {
     const plain = [msg('system', 'Base.'), msg('user', 'go')]
     expect(
-      positionInlineSystemMessages(plain, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, betaHeaders(AGENT_SDK_BETAS))
+      positionInlineSystemMessages(plain, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, 'google', betaHeaders(AGENT_SDK_BETAS))
     ).toBe(plain)
+  })
+
+  it('preserves the inline array reference for the Anthropic adapter', () => {
+    expect(
+      positionInlineSystemMessages(inline, ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'anthropic', betaHeaders(AGENT_SDK_BETAS))
+    ).toBe(inline)
+  })
+
+  it.each([AGENT_SDK_BETAS, `other-beta,  ${MID_CONVERSATION_SYSTEM_BETA}  ,prompt-caching-scope-2026-01-05`])(
+    'rejects negotiated Bedrock inline systems (%s)',
+    (betas) => {
+      expect(() =>
+        positionInlineSystemMessages(inline, ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'bedrock', betaHeaders(betas))
+      ).toThrow(
+        expect.objectContaining({
+          status: 400,
+          message: expect.stringContaining('anthropic-beta')
+        })
+      )
+      expect(() =>
+        positionInlineSystemMessages(inline, ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'bedrock', betaHeaders(betas))
+      ).toThrow(MID_CONVERSATION_SYSTEM_BETA)
+    }
+  )
+
+  it.each([
+    undefined,
+    '',
+    'unrelated-beta',
+    'prompt-caching-scope-2026-01-05',
+    'mid-conversation-system-2026-04-08',
+    `prefix-${MID_CONVERSATION_SYSTEM_BETA}`
+  ])('folds unnegotiated Bedrock inline systems (%s)', (betas) => {
+    const output = positionInlineSystemMessages(
+      inline,
+      ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      'bedrock',
+      betas === undefined ? undefined : betaHeaders(betas)
+    )
+    expect(output.map((message) => message.role)).toEqual(['system', 'user'])
+    expect(output[0].parts).toEqual([{ type: 'text', text: 'Base.\n\nMCP connecting.' }])
+    expect(output[1]).toBe(inline[1])
+    expect(output[1].parts).toEqual([{ type: 'text', text: 'go' }])
+  })
+
+  it.each([
+    { name: 'empty', messages: [] },
+    { name: 'leading system only', messages: [msg('system', 'Base.'), msg('user', 'go')] },
+    {
+      name: 'leading system prefix',
+      messages: [msg('system', 'Base.'), msg('system', 'More context.'), msg('user', 'go')]
+    },
+    { name: 'no system', messages: [msg('user', 'go')] }
+  ])('does not reject Bedrock when the advertised beta is unused ($name)', ({ messages }) => {
+    expect(
+      positionInlineSystemMessages(messages, ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'bedrock', betaHeaders(AGENT_SDK_BETAS))
+    ).toBe(messages)
   })
 })
