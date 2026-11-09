@@ -155,6 +155,26 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     expect(parts.some((part) => part.type === 'data-retry')).toBe(false)
   })
 
+  it.each(['success', 'paused', 'error'] as const)('never persists prompt progress parts after %s', async (status) => {
+    const listener = makeListener()
+    const finalMessage = {
+      id: 'progress-message',
+      role: 'assistant',
+      parts: [
+        { type: 'data-prompt-progress', id: 'prompt-progress', data: { percent: 62, etaMs: 9047 } },
+        { type: 'data-prompt-progress', id: 'prompt-progress', data: null },
+        { type: 'text', text: 'answer' }
+      ]
+    } as unknown as CherryUIMessage
+    if (status === 'success') await listener.onDone({ finalMessage, status })
+    else if (status === 'paused') await listener.onPaused({ finalMessage, status })
+    else await listener.onError({ finalMessage, status, error: { name: 'Error', message: 'boom', stack: null } })
+
+    const parts = appendAssistantMessageMock.mock.calls[0][1].data.parts as Array<{ type: string; text?: string }>
+    expect(parts.some((part) => part.type === 'data-prompt-progress')).toBe(false)
+    expect(parts).toContainEqual({ type: 'text', text: 'answer' })
+  })
+
   it('strips empty text/reasoning parts before the backend write', async () => {
     const listener = makeListener('openai::gpt-4o')
 

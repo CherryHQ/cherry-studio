@@ -2656,6 +2656,7 @@
   "message.tools.placeholder.elapsed.seconds": "{{seconds}}s",
   "message.tools.placeholder.generating": "A escrever resposta",
   "message.tools.placeholder.preparing": "A preparar resposta",
+  "message.tools.placeholder.prompt_progress": "A ler a conversa… {{percent}} (faltam ~{{eta}})",
   "message.tools.placeholder.thinking": "A pensar",
   "message.tools.placeholder.usingTools": "A executar na tarefa",
   "message.tools.processed": "Processado",

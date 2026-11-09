@@ -2656,6 +2656,7 @@
   "message.tools.placeholder.elapsed.seconds": "{{seconds}}秒",
   "message.tools.placeholder.generating": "撰寫回應",
   "message.tools.placeholder.preparing": "準備回應",
+  "message.tools.placeholder.prompt_progress": "正在讀取對話… {{percent}}（還需約 {{eta}}）",
   "message.tools.placeholder.thinking": "思考",
   "message.tools.placeholder.usingTools": "正在處理任務",
   "message.tools.processed": "已處理",

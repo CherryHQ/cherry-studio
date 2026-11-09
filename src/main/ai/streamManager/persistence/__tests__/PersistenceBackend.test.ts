@@ -272,6 +272,11 @@ describe('stripTransientStatusParts', () => {
     expect(result).toEqual([text])
   })
 
+  it.each([null, { percent: 62, etaMs: 6129 }])('does not persist progress status %s', (data) => {
+    const progress = { type: 'data-prompt-progress', id: 'prompt-progress', data } as unknown as CherryMessagePart
+    expect(stripTransientStatusParts([progress, textPart('answer')])).toEqual([textPart('answer')])
+  })
+
   it('returns the same array reference when there is nothing to strip', () => {
     const parts: CherryMessagePart[] = [textPart('hi')]
 

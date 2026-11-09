@@ -2656,6 +2656,7 @@
   "message.tools.placeholder.elapsed.seconds": "{{seconds}} giây",
   "message.tools.placeholder.generating": "Viết phản hồi",
   "message.tools.placeholder.preparing": "Chuẩn bị phản hồi",
+  "message.tools.placeholder.prompt_progress": "Đang đọc cuộc trò chuyện… {{percent}} (còn khoảng {{eta}})",
   "message.tools.placeholder.thinking": "Suy nghĩ",
   "message.tools.placeholder.usingTools": "Đang làm việc trên nhiệm vụ",
   "message.tools.processed": "Đã xử lý",

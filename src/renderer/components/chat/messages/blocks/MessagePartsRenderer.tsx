@@ -1642,6 +1642,18 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     [messageParts]
   )
   const placeholderStatus = useMemo(() => getProcessingPlaceholderStatus(partEntries), [partEntries])
+  const progressPart = messageParts.findLast((part) => part.type === 'data-prompt-progress')
+  const hasSemanticOutput = messageParts.some((part) => {
+    if (part.type === 'text' || part.type === 'reasoning') return Boolean(part.text?.trim())
+    return (
+      part.type === 'file' ||
+      part.type === 'data-video' ||
+      part.type.startsWith('tool-') ||
+      part.type === 'dynamic-tool'
+    )
+  })
+  const promptProgress =
+    !hasSemanticOutput && progressPart?.type === 'data-prompt-progress' ? (progressPart.data ?? undefined) : undefined
   const nextReportArtifactToolResponses = useMemo(
     () => getReportArtifactToolResponses(partEntries, message.id),
     [partEntries, message.id]
@@ -1799,7 +1811,12 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     if (isActiveTurnProcessing) {
       const placeholder = (
         <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
-          <PlaceholderBlock isProcessing={true} createdAt={message.createdAt} status={placeholderStatus} />
+          <PlaceholderBlock
+            isProcessing={true}
+            createdAt={message.createdAt}
+            status={placeholderStatus}
+            progress={promptProgress}
+          />
         </AnimatedBlockWrapper>
       )
       // The status renderer replaces the placeholder while active (e.g. an api-retry line) and falls

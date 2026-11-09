@@ -31,7 +31,7 @@ function isToolPart(part: CherryMessagePart): boolean {
  * Returns the same array reference when nothing was removed.
  */
 export function stripTransientStatusParts(parts: CherryMessagePart[]): CherryMessagePart[] {
-  const filtered = parts.filter((part) => part.type !== 'data-retry')
+  const filtered = parts.filter((part) => part.type !== 'data-retry' && part.type !== 'data-prompt-progress')
   return filtered.length === parts.length ? parts : filtered
 }
 

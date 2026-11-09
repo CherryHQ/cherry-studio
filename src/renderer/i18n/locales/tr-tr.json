@@ -2656,6 +2656,7 @@
   "message.tools.placeholder.elapsed.seconds": "{{seconds}} sn",
   "message.tools.placeholder.generating": "Yanıt yazılıyor",
   "message.tools.placeholder.preparing": "Yanıt hazırlanıyor",
+  "message.tools.placeholder.prompt_progress": "Konuşma okunuyor… {{percent}} (yaklaşık {{eta}} kaldı)",
   "message.tools.placeholder.thinking": "Üzerinde düşünülüyor",
   "message.tools.placeholder.usingTools": "İlerleme kaydediliyor",
   "message.tools.processed": "İşlendi",

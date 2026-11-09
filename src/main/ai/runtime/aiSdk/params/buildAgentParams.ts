@@ -86,6 +86,7 @@ import type { RequestFeature } from './feature'
 import { hasAnchorRow } from './features/contextBuild'
 import { INTERNAL_FEATURES } from './features/internalFeatures'
 import { type NativeFileSupport, resolveNativeFileSupport } from './nativeFileSupport'
+import { createPromptProgressFetch, type PromptProgressSink } from './promptProgressFetch'
 import type { RequestScope, SdkConfig } from './scope'
 
 const logger = loggerService.withContext('buildAgentParams')
@@ -98,6 +99,7 @@ const CITABLE_BUILTIN_TOOL_NAMES: ReadonlySet<string> = new Set([
 const NO_WEB_TOOL_ROUTES: WebToolRoutes = { webSearch: 'none', webFetch: 'none' }
 
 export interface BuildAgentParamsInput {
+  promptProgressSink?: PromptProgressSink
   request: AiChatRequest & {
     system?: string
     messageId?: string
@@ -146,6 +148,12 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     topicId: request.conversation.topicId,
     modelName: model.name ?? model.id
   })
+  if (input.promptProgressSink) {
+    sdkConfig.providerSettings.fetch = createPromptProgressFetch(
+      sdkConfig.providerSettings.fetch ?? globalThis.fetch,
+      input.promptProgressSink
+    )
+  }
   // Prefer the request-carried retained context: the persistent chat provider
   // computes it from the RAW message path, so attachments and persisted tool
   // outputs folded away by durable compaction stay readable via read_file /

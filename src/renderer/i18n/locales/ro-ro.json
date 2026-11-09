@@ -2656,6 +2656,7 @@
   "message.tools.placeholder.elapsed.seconds": "{{seconds}}s",
   "message.tools.placeholder.generating": "Redactarea răspunsului",
   "message.tools.placeholder.preparing": "Pregătirea răspunsului",
+  "message.tools.placeholder.prompt_progress": "Se citește conversația… {{percent}} (aprox. {{eta}} rămase)",
   "message.tools.placeholder.thinking": "Mă gândesc",
   "message.tools.placeholder.usingTools": "Lucrând la sarcină",
   "message.tools.processed": "Procesat",

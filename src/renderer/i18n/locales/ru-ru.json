@@ -2656,6 +2656,7 @@
   "message.tools.placeholder.elapsed.seconds": "{{seconds}}с",
   "message.tools.placeholder.generating": "Написание ответа",
   "message.tools.placeholder.preparing": "Подготовка ответа",
+  "message.tools.placeholder.prompt_progress": "Чтение разговора… {{percent}} (осталось около {{eta}})",
   "message.tools.placeholder.thinking": "Размышление",
   "message.tools.placeholder.usingTools": "Работа над задачей",
   "message.tools.processed": "Обработано",

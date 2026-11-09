@@ -17,6 +17,8 @@ export interface MockChatRequest {
   readonly closed: Promise<void>
   /** Sends one text delta. Only valid for streaming requests. */
   sendText(text: string): void
+  /** Sends a prompt-prefill progress-only SSE event. */
+  sendProgress(progress: { total: number; processed: number; cache: number; time_ms: number }): void
   /** Sends optional final text and completes the JSON or SSE response normally. */
   complete(text?: string): void
   /** Finishes with a model-requested function call; the application executes the tool. */
@@ -73,6 +75,11 @@ function createChatRequest(
     method,
     body,
     closed,
+    sendProgress(progress) {
+      assertOpen()
+      if (!body.stream) throw new Error('sendProgress requires a streaming request')
+      sendEvent({ prompt_progress: progress })
+    },
     sendText(text) {
       assertOpen()
       if (!body.stream) throw new Error('sendText requires a streaming request')
@@ -134,7 +141,9 @@ function createChatRequest(
 }
 
 /** Real loopback OpenAI-compatible HTTP server shared by Node tests and Electron E2E. */
-export async function startMockChatServer(options: { rejectOwnStore?: boolean } = {}): Promise<MockChatServer> {
+export async function startMockChatServer(
+  options: { rejectOwnStore?: boolean; rejectReturnProgress?: boolean } = {}
+): Promise<MockChatServer> {
   const modelId = 'mock-chat'
   const requests: MockChatRequest[] = []
   /** Requests that reached the server but not the chat route, for diagnosing wrong base URLs. */
@@ -161,7 +170,9 @@ export async function startMockChatServer(options: { rejectOwnStore?: boolean } 
       for await (const chunk of req) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
       const body = chatRequestSchema.parse(JSON.parse(Buffer.concat(chunks).toString('utf8')))
       if (closing || res.destroyed) return
-      const rejected = options.rejectOwnStore && Object.hasOwn(body, 'store')
+      const rejected =
+        (options.rejectOwnStore && Object.hasOwn(body, 'store')) ||
+        (options.rejectReturnProgress && Object.hasOwn(body, 'return_progress'))
       let request: MockChatRequest
       if (rejected) {
         const closed = new Promise<void>((resolve) => res.once('close', resolve))
@@ -174,6 +185,7 @@ export async function startMockChatServer(options: { rejectOwnStore?: boolean } 
           body,
           closed,
           sendText: rejectStream,
+          sendProgress: rejectStream,
           complete: rejectStream,
           completeToolCall: rejectStream,
           fail: rejectStream,
@@ -182,7 +194,9 @@ export async function startMockChatServer(options: { rejectOwnStore?: boolean } 
         sendJson(res, 400, {
           error: {
             message:
-              "fixture: [{'type': 'extra_forbidden', 'loc': ('body', 'store'), 'msg': 'Extra inputs are not permitted', 'input': false}]",
+              options.rejectReturnProgress && Object.hasOwn(body, 'return_progress')
+                ? 'fixture: return_progress is not supported'
+                : "fixture: [{'type': 'extra_forbidden', 'loc': ('body', 'store'), 'msg': 'Extra inputs are not permitted', 'input': false}]",
             type: 'invalid_request_error'
           }
         })
