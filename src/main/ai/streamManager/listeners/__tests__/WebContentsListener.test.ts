@@ -228,12 +228,24 @@ describe('WebContentsListener coalescing', () => {
           $deferredToolResult: {
             topicId: 'agent-session:session-1',
             messageId: 'assistant-1',
-            toolCallId: 'call-1'
+            toolCallId: 'call-1',
+            revision: expect.any(String)
           }
         }
       }
     })
     expect(toolChunk).toMatchObject({ output })
+    const first = wc.send.mock.calls[0][2].chunk.output.$deferredToolResult
+    l.onChunk(toolChunk, undefined, 'assistant-1')
+    expect(wc.send.mock.calls[1][2].chunk.output.$deferredToolResult).toEqual(first)
+    l.onChunk(
+      chunk('tool-output-available', { toolCallId: 'call-1', output: { content: 'y'.repeat(64 * 1024) } }),
+      undefined,
+      'assistant-1'
+    )
+    const replacement = wc.send.mock.calls[2][2].chunk.output.$deferredToolResult
+    expect(replacement).toEqual({ ...first, revision: expect.any(String) })
+    expect(replacement.revision).not.toBe(first.revision)
   })
 
   it('sends a small tool output through untouched', () => {

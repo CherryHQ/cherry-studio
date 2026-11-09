@@ -308,8 +308,8 @@ export function useChatWriteActions(params: Params): Result {
         target?.role === 'assistant' &&
         targetStatus !== 'pending' &&
         (targetStatus === 'error' || targetStatus === 'paused' || (target.parts?.length ?? 0) === 0)
-      // Composer selection only overrides failed retries.
-      const regenerateModelId = options?.modelId ?? (isFailedAssistant ? composerModelId : undefined)
+      // Pending replies are not a regeneration target; otherwise use the current composer selection.
+      const regenerateModelId = options?.modelId ?? (targetStatus === 'pending' ? undefined : composerModelId)
       const retryModelId =
         target?.role === 'assistant'
           ? (regenerateModelId ?? (target.metadata?.modelId as UniqueModelId | undefined))
@@ -432,8 +432,18 @@ export function useChatWriteActions(params: Params): Result {
         activeExecutions: ack.activeExecutions,
         preserveActiveNode: ack.preserveActiveNode
       })
+      scrollToBottom()
     },
-    [createSiblingTrigger, seedReservedMessages, refresh, setMessages, topic.id, topic.assistantId, uiMessages]
+    [
+      createSiblingTrigger,
+      seedReservedMessages,
+      scrollToBottom,
+      refresh,
+      setMessages,
+      topic.id,
+      topic.assistantId,
+      uiMessages
+    ]
   )
 
   const handleResend = useCallback<ChatWriteActions['resend']>(
@@ -468,8 +478,9 @@ export function useChatWriteActions(params: Params): Result {
         activeExecutions: ack.activeExecutions,
         preserveActiveNode: ack.preserveActiveNode
       })
+      scrollToBottom()
     },
-    [regenerateWithCapabilities, seedReservedMessages, topic.id, uiMessages]
+    [regenerateWithCapabilities, seedReservedMessages, scrollToBottom, topic.id, uiMessages]
   )
 
   const handleSetActiveNode = useCallback<ChatWriteActions['setActiveNode']>(

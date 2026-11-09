@@ -94,6 +94,7 @@ vi.mock('../adapters', () => ({
   },
   StreamAdapterFactory: {
     createAdapter: () => ({
+      getMessageId: () => 'gateway-response',
       transformChunk: (chunk: UIMessageChunk) => {
         if (chunk.type === 'tool-input-error') throw new Error(chunk.errorText)
         return [chunk]
@@ -460,6 +461,53 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     expect(params).toEqual(snapshot)
   })
 
+  it('appends after a settled local tool followed by text without mutating config params', async () => {
+    useGatewayModel('claude-opus-5')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    const converter = new AnthropicMessageConverter()
+    mockToUIMessages.mockImplementationOnce((params) => converter.toUIMessages(params))
+    const params = createAnthropicParams('claude-opus-5', [
+      { role: 'user', content: 'Continue task' },
+      {
+        role: 'assistant',
+        content: [
+          { type: 'tool_use', id: 'call_1', name: 'Bash', input: {} },
+          { type: 'text', text: 'Working' }
+        ]
+      },
+      {
+        role: 'user',
+        content: [{ type: 'tool_result', tool_use_id: 'call_1', content: 'Tool failed', is_error: true }]
+      }
+    ])
+    const snapshot = structuredClone(params)
+
+    const messages = await processAndCaptureStreamMessages(params)
+
+    expect(mockToUIMessages).toHaveBeenCalledWith(params)
+    const converted = mockToUIMessages.mock.results[0].value
+    expect(messages).toEqual([
+      { id: converted[0].id, role: 'user', parts: [{ type: 'text', text: 'Continue task' }] },
+      {
+        id: converted[1].id,
+        role: 'assistant',
+        parts: [
+          {
+            type: 'dynamic-tool',
+            toolName: 'Bash',
+            toolCallId: 'call_1',
+            state: 'output-available',
+            input: {},
+            output: 'Tool failed'
+          },
+          { type: 'text', text: 'Working' }
+        ]
+      },
+      { id: 'no-prefill-continuation', role: 'user', parts: [{ type: 'text', text: AGENT_CONTINUATION_TEXT }] }
+    ])
+    expect(params).toEqual(snapshot)
+  })
+
   it('appends after conversion when a trailing empty user message is dropped', async () => {
     useGatewayModel('claude-opus-5')
     mockIsInternalAgentRequest.mockReturnValue(true)
@@ -665,7 +713,7 @@ describe('processMessage (streaming)', () => {
     })
     await vi.waitFor(() => expect(captured.listener).toBeDefined())
 
-    expect(mockResolveAgentSessionUsage).toHaveBeenCalledWith(requestHeaders)
+    expect(mockResolveAgentSessionUsage).toHaveBeenCalledWith(requestHeaders, 'gateway-response')
     expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ tokenUsageSource: 'agent', usageContext }))
 
     commit(captured.listener!)

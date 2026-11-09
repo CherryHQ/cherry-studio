@@ -33,6 +33,8 @@
   "question-contact/version-switching.md": "cherry-studio/installation/upgrade-downgrade.md",
   "advanced-basic/cherry-agent-shi-yong-jiao-cheng.md": "advanced-basic/agent.md",
   "advanced-basic/code-tools-shi-yong-jiao-cheng.md": "advanced-basic/developer-tools/code-cli.md",
+  "cherrystudio/preview/code-cli.md": "advanced-basic/developer-tools/code-cli.md",
+  "advanced-basic/knowledge-content/knowledge-base.md": "knowledge-base/knowledge-base.md",
   "advanced-basic/diao-yong-lian-shi-yong-shuo-ming.md": "advanced-basic/developer-tools/trace.md",
   "advanced-basic/mcp/README.md": "advanced-basic/extensions/mcp/README.md",
   "advanced-basic/mcp/auto-install.md": "advanced-basic/extensions/mcp/README.md",

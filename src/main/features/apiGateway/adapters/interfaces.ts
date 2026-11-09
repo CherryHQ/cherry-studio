@@ -100,7 +100,7 @@ export interface IStreamAdapter<TOutputEvent = unknown> {
   buildNonStreamingResponse(): unknown
 
   /**
-   * Get the message ID for this adapter instance
+   * Get the response ID serialized on the provider-compatible wire
    */
   getMessageId(): string
 
@@ -191,7 +191,7 @@ export interface ISseFormatter<TEvent = unknown> {
  * Content block state for tracking streaming content
  */
 export interface ContentBlockState {
-  type: 'text' | 'tool_use' | 'thinking'
+  type: 'text' | 'tool_use' | 'thinking' | 'redacted_thinking'
   index: number
   started: boolean
   content: string

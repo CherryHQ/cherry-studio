@@ -26,7 +26,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, NormalTooltip, Popover, PopoverContent, PopoverTrigger, Scrollbar } from '@cherrystudio/ui'
+import { Button, NormalTooltip, Popover, PopoverContent, PopoverTrigger, ScrollArea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import {
   getQuoteTooltipContent,
@@ -461,11 +461,13 @@ function PastedTextTokenPreviewCard({
 
   return (
     <div className="w-80 overflow-hidden text-left">
-      <Scrollbar className="max-h-44 min-h-24 overflow-x-hidden bg-muted/50" data-file-token-text-scrollbar="">
+      <ScrollArea
+        viewportProps={{ className: 'overflow-x-hidden', 'data-file-token-text-scrollbar': '' }}
+        className="max-h-44 min-h-24 bg-muted/50">
         <pre className="m-0 p-3 font-[inherit] text-xs leading-5 break-words whitespace-pre-wrap text-popover-foreground">
           {previewText}
         </pre>
-      </Scrollbar>
+      </ScrollArea>
       {secondaryAction && (
         <div className="flex justify-end border-t border-border-subtle p-2" data-file-token-actions="">
           {secondaryAction}
