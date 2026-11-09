@@ -49,11 +49,12 @@ class AgentSessionContextService {
       .run()
   }
 
-  removeRootMessageTx(tx: DbOrTx, sessionId: string, messageId: string): void {
+  removeRootMessagesTx(tx: DbOrTx, sessionId: string, messageIds: readonly string[]): void {
+    const removedMessages = new Set(messageIds)
     for (const context of tx.select().from(contexts).where(eq(contexts.sessionId, sessionId)).all()) {
       const root = context.checkpointMapping?.root
       if (!root) continue
-      const deleted = Object.keys(root.sources).filter((id) => root.sources[id].messageId === messageId)
+      const deleted = Object.keys(root.sources).filter((id) => removedMessages.has(root.sources[id].messageId))
       if (!deleted.length) continue
       this.saveRootProjectionTx(tx, sessionId, {
         contextId: context.id,

@@ -169,7 +169,7 @@ export class AgentSessionForkOperations {
           JSON.stringify(bindings)
         )
           throw new AgentSessionEditError('history_changed')
-        agentSessionMessageService.selectEditParentTx(tx, sessionId, target)
+        agentSessionMessageService.replaceEditBranchTx(tx, sessionId, target)
         const result = persist(tx, nativeSessionId, nativeContextId)
         if (resources) {
           const checkpointMapping = Object.fromEntries(
