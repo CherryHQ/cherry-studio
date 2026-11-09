@@ -4625,8 +4625,7 @@ describe('AgentSessionRuntimeService', () => {
       runtimeDriverRegistry.register({
         type: 'test-runtime',
         connect,
-        validateSession: vi.fn(),
-        listAvailableTools: vi.fn().mockResolvedValue([])
+        validateSession: vi.fn()
       })
       mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
       mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
@@ -4647,8 +4646,7 @@ describe('AgentSessionRuntimeService', () => {
       runtimeDriverRegistry.register({
         type: 'test-runtime',
         connect,
-        validateSession: vi.fn(),
-        listAvailableTools: vi.fn().mockResolvedValue([])
+        validateSession: vi.fn()
       })
       mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
       mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
@@ -4668,8 +4666,7 @@ describe('AgentSessionRuntimeService', () => {
       runtimeDriverRegistry.register({
         type: 'test-runtime',
         connect,
-        validateSession: vi.fn(),
-        listAvailableTools: vi.fn().mockResolvedValue([])
+        validateSession: vi.fn()
       })
       mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
       mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
@@ -4691,8 +4688,7 @@ describe('AgentSessionRuntimeService', () => {
       runtimeDriverRegistry.register({
         type: 'test-runtime',
         connect: vi.fn(() => new Promise<never>(() => {})),
-        validateSession: vi.fn(),
-        listAvailableTools: vi.fn().mockResolvedValue([])
+        validateSession: vi.fn()
       })
       mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
       mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
