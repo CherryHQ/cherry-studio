@@ -1,4 +1,4 @@
-import { setupTestDatabase } from '@test-helpers/db'
+import { insertAgentSessionMessages, setupTestDatabase } from '@test-helpers/db'
 import { sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 
@@ -75,7 +75,7 @@ describe('remapAgentPrefixIds', () => {
     const sessionId = 'session_snapshot_abc'
     await insertAgent(dbh.db, agentId)
     await insertSession(dbh.db, sessionId, agentId)
-    await dbh.db.insert(agentSessionMessageTable).values({
+    insertAgentSessionMessages(dbh.db, {
       sessionId,
       status: 'success',
       role: 'assistant',
@@ -117,7 +117,7 @@ describe('remapAgentPrefixIds', () => {
     const sessionId = 'session_2345678901_bcd234'
     await insertAgent(dbh.db, agentId)
     await insertSession(dbh.db, sessionId, agentId)
-    await dbh.db.insert(agentSessionMessageTable).values({
+    insertAgentSessionMessages(dbh.db, {
       sessionId,
       status: 'success',
       role: 'user',
@@ -161,7 +161,7 @@ describe('remapAgentPrefixIds', () => {
       const sessionId = sessionIds[index]
       await insertAgent(dbh.db, agentId)
       await insertSession(dbh.db, sessionId, agentId)
-      await dbh.db.insert(agentSessionMessageTable).values({
+      insertAgentSessionMessages(dbh.db, {
         sessionId,
         status: 'success',
         role: 'assistant',

@@ -3,11 +3,11 @@ import { eq } from 'drizzle-orm'
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
-import type { AgentSessionMessageRow } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import type { DbOrTx } from '@data/db/types'
 
 import { agentSessionMessageService } from './AgentSessionMessageService'
+import type { AgentSessionMessageRecord } from './agentSessionMessageTree'
 import { agentSessionService } from './AgentSessionService'
 
 export class AgentSessionForkSourceError extends Error {
@@ -60,7 +60,7 @@ export class AgentSessionForkService {
       source: ReturnType<AgentSessionForkService['read']>
       excludedIds: readonly string[]
       messageId: string
-      messages: AgentSessionMessageRow[]
+      messages: AgentSessionMessageRecord[]
     }
   ): void {
     const { source } = input

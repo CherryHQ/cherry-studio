@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import { setupTestDatabase } from '@test-helpers/db'
+import { insertAgentSessionMessages, setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 
@@ -10,7 +10,7 @@ import { agentSessionMessageTable as messages } from '@data/db/schemas/agentSess
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { AgentSessionMessageTreeSeeder } from '@data/db/seeding/seeders/AgentSessionMessageTreeSeeder'
 import { agentSessionMessageService as service } from '@data/services/AgentSessionMessageService'
-import { readAgentSessionPath } from '@data/services/agentSessionMessageTree'
+import { attachAgentSessionMessagePartsTx, readAgentSessionPath } from '@data/services/agentSessionMessageTree'
 
 // Catch lost branches, orphaned descendants, and output retargeted by a later UI selection.
 describe('Agent message tree', () => {
@@ -43,22 +43,19 @@ describe('Agent message tree', () => {
   it('migrates flat history deterministically without changing message facts and never resets a later selection', () => {
     const ids = [randomUUID(), randomUUID()].sort()
     for (const id of ids) {
-      dbh.db
-        .insert(messages)
-        .values({
-          id,
-          sessionId,
-          role: 'user',
-          status: 'success',
-          createdAt: 100,
-          updatedAt: 200,
-          data: { parts: [{ type: 'text', text: id }], nativeSessionId: 'native' },
-          runtimeResumeToken: 'native',
-          deliveryStatus: 'accepted'
-        })
-        .run()
+      insertAgentSessionMessages(dbh.db, {
+        id,
+        sessionId,
+        role: 'user',
+        status: 'success',
+        createdAt: 100,
+        updatedAt: 200,
+        data: { parts: [{ type: 'text', text: id }], nativeSessionId: 'native' },
+        runtimeResumeToken: 'native',
+        deliveryStatus: 'accepted'
+      })
     }
-    const before = dbh.db.select().from(messages).all()
+    const before = attachAgentSessionMessagePartsTx(dbh.db, dbh.db.select().from(messages).all())
     new AgentSessionMessageTreeSeeder().run(dbh.db)
     expect(visibleIds()).toEqual(ids)
     const migrated = readAgentSessionPath(dbh.db, sessionId)

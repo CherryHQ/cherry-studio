@@ -1,4 +1,4 @@
-import { setupTestDatabase } from '@test-helpers/db'
+import { insertAgentSessionMessages, setupTestDatabase } from '@test-helpers/db'
 import { eq, sql } from 'drizzle-orm'
 import { validate as isUuid } from 'uuid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -12,6 +12,7 @@ import {
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { attachAgentSessionMessagePartsTx } from '@data/services/agentSessionMessageTree'
 
 import { importLegacySessionMessages } from '../AgentsMigrator'
 import { createEmptyAgentsSchemaInfo } from '../mappings/AgentsDbMappings'
@@ -165,10 +166,10 @@ describe('importLegacySessionMessages', () => {
     ])
 
     expect(imported).toBe(1)
-    const [row] = await dbh.db
-      .select()
-      .from(agentSessionMessageTable)
-      .where(eq(agentSessionMessageTable.sessionId, 's-legacy'))
+    const [row] = attachAgentSessionMessagePartsTx(
+      dbh.db,
+      await dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.sessionId, 's-legacy'))
+    )
     expect(row.id).not.toBe('1')
     expect(isUuid(row.id)).toBe(true)
     expect(row.data).toEqual({ parts: [{ type: 'text', text: 'hello' }] })
@@ -237,10 +238,10 @@ describe('importLegacySessionMessages', () => {
       }
     ])
 
-    const [row] = await dbh.db
-      .select()
-      .from(agentSessionMessageTable)
-      .where(eq(agentSessionMessageTable.sessionId, 's-blocks'))
+    const [row] = attachAgentSessionMessagePartsTx(
+      dbh.db,
+      await dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.sessionId, 's-blocks'))
+    )
     expect(row.status).toBe('error')
     expect(row.searchableText).toBe('hello world')
     expect(row.data.parts?.[0]).toMatchObject({ type: 'text', text: 'hello world', state: 'done' })
@@ -411,10 +412,10 @@ describe('importLegacySessionMessages', () => {
       }
     ])
 
-    const [row] = await dbh.db
-      .select()
-      .from(agentSessionMessageTable)
-      .where(eq(agentSessionMessageTable.sessionId, 's-modern'))
+    const [row] = attachAgentSessionMessagePartsTx(
+      dbh.db,
+      await dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.sessionId, 's-modern'))
+    )
     expect(row.role).toBe('user')
     expect(row.data).toEqual({ parts: [{ type: 'text', text: 'hi' }] })
     expect(row.searchableText).toBe('hi')
@@ -522,7 +523,7 @@ describe('importLegacySessionMessages', () => {
       )
     ).toEqual([])
 
-    await dbh.db.insert(agentSessionMessageTable).values({
+    insertAgentSessionMessages(dbh.db, {
       sessionId: 's-rollback',
       status: 'success',
       role: 'user',

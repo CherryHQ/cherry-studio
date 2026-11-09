@@ -254,8 +254,11 @@ describe('applyMigrations over a populated database', () => {
     ])
     expect(sqlite.prepare('SELECT session_id, data FROM agent_session_message').get()).toEqual({
       session_id: 'heartbeat',
-      data: JSON.stringify({ parts: [{ type: 'text', text: 'kept result' }] })
+      data: '{}'
     })
+    expect(sqlite.prepare('SELECT session_id, payload FROM agent_session_message_part').all()).toEqual([
+      { session_id: 'heartbeat', payload: JSON.stringify({ type: 'text', text: 'kept result' }) }
+    ])
     sqlite.prepare('DELETE FROM job').run()
     applyMigrations(db, resolveMigrationsPath())
     expect(sqlite.prepare("SELECT type FROM agent_session WHERE id = 'heartbeat'").get()).toEqual({

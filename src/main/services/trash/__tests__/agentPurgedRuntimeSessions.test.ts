@@ -4,13 +4,12 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync }
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { setupTestDatabase } from '@test-helpers/db'
+import { insertAgentSessionMessages, setupTestDatabase } from '@test-helpers/db'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
-import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { AgentLifecycleService } from '@main/ai/agents/AgentLifecycleService'
 import { registerRuntimeDrivers } from '@main/ai/runtime/registerDrivers'
@@ -88,18 +87,15 @@ describe('permanent Agent Session transcript reclaim', () => {
         deletedAt: options.archived ? Date.now() - 1000 : null
       })
       .run()
-    dbh.db
-      .insert(agentSessionMessageTable)
-      .values({
-        id: `msg-${id}`,
-        sessionId: id,
-        role: 'user',
-        data: { parts: [{ type: 'text', text: 'hi' }] },
-        searchableText: 'hi',
-        status: 'success',
-        runtimeResumeToken: token
-      })
-      .run()
+    insertAgentSessionMessages(dbh.db, {
+      id: `msg-${id}`,
+      sessionId: id,
+      role: 'user',
+      data: { parts: [{ type: 'text', text: 'hi' }] },
+      searchableText: 'hi',
+      status: 'success',
+      runtimeResumeToken: token
+    })
   }
 
   function seedTranscript(token: string) {

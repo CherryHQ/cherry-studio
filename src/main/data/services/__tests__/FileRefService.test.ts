@@ -1,4 +1,4 @@
-import { setupTestDatabase, withRoot } from '@test-helpers/db'
+import { insertAgentSessionMessages, setupTestDatabase, withRoot } from '@test-helpers/db'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { v4 as uuidv4 } from 'uuid'
@@ -6,7 +6,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
-import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { fileEntryTable } from '@data/db/schemas/file'
 import {
@@ -100,7 +99,7 @@ describe('FileRefService', () => {
       orderKey: workspaceId
     })
     await dbh.db.insert(agentSessionTable).values({ id: sessionId, name: sessionId, workspaceId, orderKey: sessionId })
-    await dbh.db.insert(agentSessionMessageTable).values({
+    insertAgentSessionMessages(dbh.db, {
       id: messageId,
       sessionId,
       role: 'user',
