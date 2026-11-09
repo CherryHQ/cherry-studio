@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
+import { BulkUpdateModelsSchema } from '@shared/data/api/schemas/models'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import { useProviderModelPullReconcile } from '../useProviderModelPullReconcile'
@@ -148,6 +149,55 @@ describe('useProviderModelPullReconcile', () => {
     ])
     expect(createModelsMock).not.toHaveBeenCalled()
     expect(deleteModelsMock).not.toHaveBeenCalled()
+  })
+
+  it('persists 1001 discovered reasoning refreshes within the real bulk schema limit', async () => {
+    const reasoning = {
+      controls: [{ kind: 'toggle', defaultValue: true }],
+      selectableEfforts: ['none', 'auto'],
+      defaultEffort: 'auto'
+    }
+    const rows = Array.from({ length: 1001 }, (_, i) => ({
+      ...localModel,
+      id: `ollama::alias-${i}`,
+      providerId: 'ollama'
+    }))
+    useModelsMock.mockReturnValue({ models: rows })
+    fetchResolvedProviderModelsMock.mockResolvedValueOnce({
+      models: rows,
+      discoveredReasoning: rows.map((row) => ({ id: row.id, reasoning, capabilities: [MODEL_CAPABILITY.REASONING] }))
+    })
+    const persisted = new Set<string>()
+    updateModelsMock.mockImplementation(async (patches) => {
+      BulkUpdateModelsSchema.parse(patches)
+      patches.forEach((p: any) => persisted.add(p.uniqueModelId))
+      return []
+    })
+    const { result } = renderHook(() => useProviderModelPullReconcile('ollama'))
+    let loaded: any
+    await act(async () => {
+      loaded = await result.current.reloadModels()
+    })
+    expect(persisted.size).toBe(1001)
+    expect(updateModelsMock.mock.calls.map(([rows]) => rows.length)).toEqual([1000, 1])
+    expect(loaded.error).toBeNull()
+  })
+
+  it('surfaces native reasoning refresh persistence failures instead of claiming a clean load', async () => {
+    const failure = new Error('reasoning refresh failed')
+    const reasoning = { selectableEfforts: ['none', 'auto'], defaultEffort: 'auto' }
+    fetchResolvedProviderModelsMock.mockResolvedValueOnce({
+      models: [localModel],
+      discoveredReasoning: [{ id: localModel.id, reasoning, capabilities: [MODEL_CAPABILITY.REASONING] }]
+    })
+    updateModelsMock.mockRejectedValueOnce(failure)
+    const { result } = renderHook(() => useProviderModelPullReconcile('ollama'))
+    let loaded: any
+    await act(async () => {
+      loaded = await result.current.reloadModels()
+    })
+    expect(loaded.error).toBe(failure)
+    expect(result.current.loadErrorMessage).not.toBeNull()
   })
 
   it('does not revive a locally disabled capability when refreshing native reasoning', async () => {

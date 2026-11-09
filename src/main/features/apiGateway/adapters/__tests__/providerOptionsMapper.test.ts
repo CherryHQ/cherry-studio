@@ -536,6 +536,23 @@ describe('ollama think guard (#18695)', () => {
     })
   })
 
+  it('uses native Ollama controls for Gemini auto, off, levels and unknown controls', () => {
+    const native = {
+      ...ollamaNativeLevelsModel,
+      reasoning: { ...ollamaNativeLevelsModel.reasoning, defaultEffort: 'xhigh' }
+    } as Model
+    expect(mapGeminiThinkingToProviderOptions(ollamaTarget, native, { thinkingBudget: -1 })).toEqual({
+      ollama: { think: 'xhigh' }
+    })
+    expect(mapGeminiThinkingToProviderOptions(ollamaTarget, native, { thinkingBudget: 0 })).toEqual({
+      ollama: { think: false }
+    })
+    expect(mapGeminiThinkingToProviderOptions(ollamaTarget, native, { thinkingLevel: 'high' })).toEqual({
+      ollama: { think: 'xhigh' }
+    })
+    expect(mapGeminiThinkingToProviderOptions(ollamaTarget, ollamaUnknownModel, { thinkingBudget: -1 })).toBeUndefined()
+  })
+
   it('uses the reported default level for auto on a levels-only model instead of think:true', () => {
     expect(mapAnthropicThinkingToProviderOptions(ollamaTarget, ollamaNativeLevelsModel, undefined, 'auto')).toEqual({
       ollama: { think: 'medium' }

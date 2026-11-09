@@ -15,7 +15,7 @@ import { enableProviderWhenModelsAvailable } from '@renderer/pages/settings/Prov
 import { toast } from '@renderer/services/toast'
 import { serializeHealthCheckError } from '@renderer/utils/error'
 import { classifyError } from '@renderer/utils/errorClassifier'
-import { MODELS_BATCH_MAX_ITEMS } from '@shared/data/api/schemas/models'
+import { MODELS_BATCH_MAX_ITEMS, MODELS_BULK_UPDATE_MAX_ITEMS } from '@shared/data/api/schemas/models'
 import type { Model, ReasoningConfig, UniqueModelId } from '@shared/data/types/model'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 
@@ -167,16 +167,11 @@ export function useProviderModelPullReconcile(providerId: string) {
           ? []
           : [{ uniqueModelId: id, patch: { reasoning, capabilities: patchCapabilities } }]
       })
-      if (reasoningPatches.length > 0) {
-        try {
-          await updateModels(reasoningPatches)
-        } catch (error) {
-          logger.error('Failed to refresh natively reported reasoning controls', {
-            providerId,
-            count: reasoningPatches.length,
-            error
-          })
-        }
+      // Bulk updates have their own schema limit. A persistence error must
+      // reach the load error path, not report a clean fetch with stale controls.
+      for (const batch of chunkArray(reasoningPatches, MODELS_BULK_UPDATE_MAX_ITEMS)) {
+        if (!isLatestLoad()) return null
+        await updateModels(batch)
       }
       setFetchedModels(fetched)
       setHasLoadedCompleteRemoteModels(true)

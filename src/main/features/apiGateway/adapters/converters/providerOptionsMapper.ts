@@ -234,11 +234,11 @@ export function mapGeminiThinkingToProviderOptions(
   else if (includeThoughts === false) effort = 'none'
 
   if (effort === undefined) return undefined
-  return buildProviderOptions(
-    context ?? resolveProviderReasoningContext(provider, model, resolvedEndpoint),
-    effort,
-    maxTokens
-  )
+  const targetContext = context ?? resolveProviderReasoningContext(provider, model, resolvedEndpoint)
+  if (endpointType === ENDPOINT_TYPE.OLLAMA_CHAT) {
+    return buildOllamaThinkingOptions(targetContext, effort, maxTokens)
+  }
+  return buildProviderOptions(targetContext, effort, maxTokens)
 }
 
 /** Map OpenAI-style reasoning_effort to the resolved model's target dialect. */
