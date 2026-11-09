@@ -5,6 +5,8 @@ import type { Schema } from '@earendil-works/pi-schema'
 import { Client, InMemoryTransport } from '@modelcontextprotocol/client'
 
 import { MCP_FORWARDING_TIMEOUT_MS } from '@main/ai/mcp/mcpRequestOptions'
+import { buildMcpToolWireId } from '@main/ai/mcp/mcpToolId'
+import { isMcpAutoApprovalEnforcedBySource, isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
 
 import type { AgentMcpServer } from '../agentMcpServers'
 import { buildPiMcpToolName } from '../pi/piMcpExtension'
@@ -14,6 +16,8 @@ export async function createDurableMcp(servers: Record<string, AgentMcpServer>) 
   const { defineTool, defineExtension } = await import('@earendil-works/pi-durable')
   const clients: Client[] = []
   const metadata = new Map<string, { type: 'mcp'; name: string; serverId: string; serverName: string }>()
+  const approvalRequiredTools = new Set<string>()
+  const nonBypassableApprovalTools = new Set<string>()
   const close = () => Promise.all(clients.map((client) => client.close())).then(() => undefined)
   const tools: ToolRegistration[] = []
   try {
@@ -38,6 +42,20 @@ export async function createDurableMcp(servers: Record<string, AgentMcpServer>) 
       for (const tool of catalog) {
         const raw = buildPiMcpToolName(serverId, tool.name)
         const name = buildPiMcpToolName(serverId, tool.name, names.indexOf(raw) !== names.lastIndexOf(raw))
+        const policyTool = server.source
+          ? {
+              name: tool.name,
+              id: buildMcpToolWireId({
+                serverId: server.source.id,
+                serverName: server.source.name,
+                toolName: tool.name
+              })
+            }
+          : tool
+        if (server.source && isMcpToolForcePromptBySource(server.source, policyTool)) {
+          approvalRequiredTools.add(name)
+          if (isMcpAutoApprovalEnforcedBySource(server.source)) nonBypassableApprovalTools.add(name)
+        }
         metadata.set(name, { type: 'mcp', name: tool.name, serverId, serverName: server.name })
         const parameters: Schema<Record<string, unknown>> = tool.inputSchema
         tools.push(
@@ -78,7 +96,13 @@ export async function createDurableMcp(servers: Record<string, AgentMcpServer>) 
         )
       }
     }
-    return { extension: defineExtension({ name: 'cherry.mcp', tools }), metadata, close }
+    return {
+      extension: defineExtension({ name: 'cherry.mcp', tools }),
+      metadata,
+      approvalRequiredTools,
+      nonBypassableApprovalTools,
+      close
+    }
   } catch (error) {
     await close()
     throw error

@@ -1,6 +1,6 @@
 # Agent Note: ACP v1 运行时适配器
 
-Status: proposed
+Status: implemented
 
 [English](2026-11-09-agent-runtime-acp-v1.md) | 中文
 
@@ -8,11 +8,11 @@ Status: proposed
 
 Cherry 已有公共[运行时契约](../../../../packages/agent-runtime/README.md)和原生 Pi、Pi Durable、Claude Code 适配器，但 `main` 的 `27a61a606566` 尚无可移植的 ACP 适配器。ACP 是 harness 的客户端协议，不是执行引擎。连接智能体并不意味着 Cherry 接管其模型循环、存储、工具或子智能体。
 
-本次目标是通用的 `@cherrystudio/agent-runtime-acp/v1` 适配器，首批兼容性样本为 Claude ACP 和 Gemini CLI。本文细化 [harness 边界](2026-10-17-agent-harness-boundaries.md)，不修改公共契约。此前的[五样本证据](../testing/2026-10-17-agent-harness-evidence.md)仍是各自固定版本上的历史证据。
+本次目标是通用的 `@cherrystudio/agent-runtime-acp/v1` 适配器，首批兼容性样本为 Claude ACP 和 Gemini CLI。本文细化 [harness 边界](../../proposed/architecture/2026-10-17-agent-harness-boundaries.md)，不修改公共契约。此前的[五样本证据](../../proposed/testing/2026-10-17-agent-harness-evidence.md)仍是各自固定版本上的历史证据。
 
 相关的 [PR #21221](https://github.com/CherryHQ/cherry-studio/pull/21221) 在本次检查的 `909ce14a6882` 已包含桌面端 `localAgent/AcpConnection.ts`，同时负责启动、认证、文件系统／终端回调和产品用量。该实现尚未合并，是接入参考，不是当前分支的代码。可移植包不能与它并列成为第二个生产连接所有者；桌面采用新包时，需要单独限定范围，迁移当前连接所有者。
 
-## Proposal
+## Decision
 
 ### 调研基线
 
@@ -40,13 +40,13 @@ Cherry 已有公共[运行时契约](../../../../packages/agent-runtime/README.m
 
 ### 包与资源所有权
 
-新增 `packages/agent-runtime-acp`，显式导出 `/v1`。依赖 `@cherrystudio/agent-runtime` 和固定的 `@agentclientprotocol/sdk@2.4.0`，经公共包复用现有 SDK 内容协议。包内不引入 Electron、产品数据库、智能体安装器、凭证管理器或原生 harness 依赖。公共运行时不需要新增公开类型。
+`packages/agent-runtime-acp` 显式导出 `/v1`。依赖 `@cherrystudio/agent-runtime` 和固定的 `@agentclientprotocol/sdk@2.4.0`，经公共包复用现有 SDK 内容协议。包内不引入 Electron、产品数据库、智能体安装器、凭证管理器或原生 harness 依赖。公共运行时不需要新增公开类型。
 
 `createAcpRuntime` 拥有一个已配置的 backend 命名空间及其 ACP 连接。宿主提供独占的传输租约及 close-and-join 操作、原生会话配置查询、诊断入口和支持的客户端回调。SDK 负责分帧、JSON-RPC 关联、入站方法参数校验和连接请求。适配器负责初始化、会话路由、输入记录、标准化 feed 和访问生命周期。宿主继续负责可执行文件解析、进程启动、凭证、路径策略，以及关闭时等待自有进程退出。仅关闭 SDK 连接不能证明进程已退出。
 
 初始化之前注册回调，并要求协议版本为 1。使用具有显式连接生命周期的 `ClientApp.connect`；若通过 `connectWith` 回调返回 runtime，回调结束就会关闭传输。可选操作必须核对协商能力与返回的会话配置。已声明的扩展仍是原生元数据，不能据此调用稳定入口中不存在的方法。
 
-`create` 使用原生 `session/new`。`open` 验证 backend，优先复用已有会话所有者，再考虑 `session/load`。冷加载所需的 `cwd` 和 MCP 配置由宿主提供；展示消息绝不转成原生上下文。捕获 new/load 响应之前的初始化更新，包括新会话 ID 返回之前的更新。临时路由必须有界，溢出时明确失败，不能悄悄丢失历史或将其归入另一会话。可以在连接边界串行创建新会话以避免临时路由歧义，但不串行执行独立会话的 prompt。
+`create` 使用原生 `session/new`。`open` 验证 backend，优先复用已有会话所有者，再考虑 `session/load`。冷加载所需的 `cwd` 和 MCP 配置由宿主提供；展示消息绝不转成原生上下文。捕获 new/load 响应之前的初始化更新，包括新会话 ID 返回之前的更新。临时路由必须有界，溢出时明确失败，不能悄悄丢失历史或将其归入另一会话。在连接边界串行创建新会话以避免临时路由歧义，但不串行执行独立会话的 prompt。
 
 每个活跃会话只有一个投影生产者，handle 可独立释放。`observe`、`Observation.stop` 和 `release` 不会提交 prompt、重载、取消或关闭原生会话。Runtime shutdown 关闭输入接纳，结束未完成的权限回调，请求受支持的原生终止，等待传输租约退出，排空已发布观察，再结束 feed。无法确认来源已终止时返回 `unknown`，不能删除所有者或声称关闭成功。任何操作都不删除原生历史。
 
@@ -70,13 +70,13 @@ Cherry 已有公共[运行时契约](../../../../packages/agent-runtime/README.m
 
 上下文读取保持被动。确认公共上下文读数需要原生容量／占用证据和已确定的模型身份；否则返回 `unknown` 或 `unsupported`，并保留原始 ACP usage update。不能猜模型，不能用计费计数代替上下文占用，也不能对重放的累计费用再次记账。稳定 v1 不启用公共子智能体访问。现有直接 Claude Code 集成继续负责该 SDK 特有的能力。
 
-### 验证与实施分层
+### 实现与原生证据
 
-已执行的调研使用发布版 SDK 2.4.0，通过真实 NDJSON 流连接脚本化协议端：初始化／新会话、prompt 等待期间的输出与权限请求、取消权限后在 prompt 响应前保留工具尾部更新、load 响应前重放，以及连接丢失时拒绝未完成请求，均已通过。这证明传输行为，不证明 Cherry 适配器或原生模型循环。
+[Spec PR #23916](https://github.com/CherryHQ/cherry-studio/pull/23916) 已合并至 `724130665f2e`，用户在任务对话中明确授权开始实现。本包完成适配器与原生验收层。此前调研探针只证明传输行为和隔离初始化，没有声称已验证 Cherry 适配器或原生模型循环。旧版 Gemini 0.19.4 的初始化超时仍不属于已接受基线。
 
-发布版 Claude ACP 0.101.0 和 Gemini CLI 0.67.0 的隔离子进程初始化也已通过。两者均协商 v1，并声明历史加载、图像输入、嵌入上下文及 HTTP/SSE MCP；Gemini 还声明音频。Claude 声明额外会话能力与扩展元数据。本机较旧的 Gemini 0.19.4 初始化超时，不列入已验收基线。这些探针使用临时 home／工作目录，没有认证或模型请求，不能证明任一真实 harness 的 prompt、工具、取消、恢复或桌面接入。
+实现复用 SDK 稳定客户端、`ThreadFeed` 和 `RuntimeMessageStream`。协议测试通过真实 SDK 传输与自有子进程调用适配器公共接口。原生测试运行已发布的 Claude ACP 和 Gemini 进程，使用隔离存储与受控模型端点，验证实际文件工具副作用，并在新进程中通过 ACP 重载历史。桌面接入、安装、账号界面、提供商路由及实验性 v1/v2 控制仍属独立范围。
 
-Spec 是最底层。批准之后，包实现层通过显式测试文件路径，使用真实 SDK 和子进程夹具验证公开适配器调用。原生验收层使用受控模型端点和隔离存储，驱动 Claude、Gemini 进程。记录准确包版本与场景，不能用模拟 RPC 回应代替原生循环验收。只有累计证据覆盖全部 AC 后，本文才移至 implemented。桌面采用、服务安装、账号 UI、提供商路由和实验 v1/v2 功能需要另定范围。
+协议版本常量、标准回调错误、入站用量校验和空 load 响应规范化均来自 SDK。停止结果通过 SDK 的 `StopReason` 类型做穷尽映射；格式异常的 prompt 响应仍使结果保持未知，并停止接纳新输入。模型身份和正数上下文容量仍由适配器要求。未知会话的宿主回调返回 SDK 的会话不存在错误，并携带请求中的会话 ID。
 
 ## Alternatives considered
 
@@ -85,17 +85,25 @@ Spec 是最底层。批准之后，包实现层通过显式测试文件路径，
 - 根据工具名或方法名统一排队、子智能体和持久身份：不采用，源码证据与这些保证相矛盾。
 - 将桌面连接整体搬入包：不采用，启动、凭证、产品用量和宿主文件系统策略属于桌面宿主；消费者迁移放入另行批准的接入变更。
 
-## Acceptance criteria
+## Consequences
 
-- AC1 — `/v1` 可针对固定稳定 SDK 2.4.0 构建并通过类型检查，不引入 Electron、产品数据、原生 SDK 依赖，也不修改公共运行时契约；拒绝不兼容的协议版本。 (verification: unit — 包类型检查与初始化集成测试)
-- AC2 — 并发打开共享一个活跃所有者；冷加载捕获响应前的重放；能力缺失、历史丢失和初始化缓冲溢出均明确失败，不新建替代会话、不串入其他会话内容。 (verification: unit — 基于 SDK 传输的公开 runtime 生命周期测试)
-- AC3 — Submit 在轮次结束前仅凭派发证据返回；busy 或重复输入不会发送；不支持的策略、远端错误、限制／拒绝及来源丢失保留规定结果，不自动重试。 (verification: unit — 公开输入集成测试)
-- AC4 — 权限选择仅使用给出的 ID；中断取消 pending 权限、保留尾部更新，并仅确认所捕获的原生 prompt 边界；过期响应和传输失败不能授予权限或声称取消成功。 (verification: unit — 双向 SDK 取消测试)
-- AC5 — 文本、推理、工具局部更新、丰富原生内容和元数据更新在观察及重放后保留，并明确身份限制；慢消费者、溢出和 release 不影响执行或其他观察者。 (verification: unit — 投影与观察集成测试)
-- AC6 — 可选控制和宿主回调必须确有支持；上下文读取保持被动，未知模型／上下文数据保持未知；累计费用和实验子智能体元数据不能编造计费或公共控制。 (verification: unit — 能力与回调集成测试)
-- AC7 — Shutdown 等待自有传输／进程及已发布交付结束；终止失败保持未知，单个访问释放不影响其他访问与原生工作，也不删除历史。 (verification: unit — 子进程生命周期集成测试)
-- AC8 — 固定版本的 Claude ACP 和 Gemini 进程各自完成脚本化模型对话、工具权限往返、取消及原生历史重载；证据区分这些测试、仅握手探针和 Electron 验收。 (verification: unit — 使用受控模型端点的原生子进程集成测试)
+SDK 和协议 schema 独立演进；扩展元数据不会启用未支持的控制。文本和资源链接是基础 prompt 输入；只有内嵌资源要求 `embeddedContext`。原生 ID 仍按会话和内容种类限定范围，缺失 ID 时仅使用投影本地身份。Prompt 完成不代表整个 harness 已静止。公共上下文用量要求稳定模型配置和原生占用证据。模型身份变化后，公共读数失效，直到收到新的用量更新；原始原生用量、旧模型扩展与累计计费保留为原生事实。可执行文件、凭证、文件系统和终端策略归宿主负责。
 
-## Risks
+初始化缓冲限制为 256 个更新或 8 MiB。取消和关闭等待采用 10 秒截止时间，无法确认时保留未知结果。终端支持要求提供全部终端回调。Elicitation 仅声明按会话限定的表单支持，不支持 URL 或请求范围的 elicitation。
 
-SDK 与协议 schema 独立演进，智能体即使面对稳定客户端也可能发送扩展字段。需要类型化保留原生事实，同时不能假定支持。可选消息 ID 限制持久展示对账。部分智能体会继续自主工作，或接受其他客户端控制，因此 prompt 完成不等于整个 harness 静止。宿主回调和原生关闭行为需要取消测试，不能只检查成功路径 API 调用。相关桌面 PR 可能先于包接入落地，届时必须刷新实际所有者，避免重复 reader 或进程管理器。
+发布版 Gemini 0.67.0 启动历史重放后，未等待重放结束就从 `session/load` 返回；调研中的更新源码已等待重放。适配器保留后续更新，原生验收等待预期历史实际到达。该二进制的 load 成功响应不证明重放已完整结束。Claude 验收选择已声明的 `default` 权限模式，因为其初始模式可能允许编辑；模型夹具另行处理标题生成请求。原生验收需显式启用并检查版本，缺少二进制文件或在 Windows 上均明确跳过，不计为通过。
+
+## Verification
+
+以下命令在 macOS、Node 24.21.0 和 pnpm 12.6.0 上实际运行。协议测试使用 SDK 2.4.0 和真实 NDJSON 流；原生测试启动隔离子进程，连接受控的 loopback 模型端点。原生可执行文件是外部测试输入，不是包依赖。复现命令及环境变量见[包 README](../../../../packages/agent-runtime-acp/README.md)。
+
+- AC1 — 包的 `build`、`typecheck` 及 `runtime.test.ts`：`/v1` 入口基于稳定 SDK 2.4.0 构建，拒绝不兼容的初始化，公共运行时契约保持不变。
+- AC2 — `runtime.test.ts` 和 `lifecycle.test.ts`：并发打开共享所有者；new/load 重放按会话路由；历史缺失、load 不受支持、backend 不匹配和有界初始化缓冲溢出时均失败，不创建替代会话。
+- AC3 — `runtime.test.ts`：仅证明派发的回执、同步占用 busy 槽位、本地重复 ID 拒绝、独立会话、未支持的策略、准确终态、远端失败及断线后不重试。
+- AC4 — `runtime.test.ts` 和 `lifecycle.test.ts`：原生候选权限 ID、取消未完成权限请求、拒绝过期回复、保留尾部输出、完成与取消竞争、来源丢失，以及取消超时后保留 busy 槽位。
+- AC5 — `runtime.test.ts` 和 `lifecycle.test.ts`：文本／推理及文本／文件／文本顺序、合并工具局部更新、保留资源／差异／元数据、按会话限定 ID、观察者隔离、溢出恢复，以及仅关闭超载的观察者。
+- AC6 — `runtime.test.ts` 和 `lifecycle.test.ts`：没有可选能力时仍支持基础资源链接、内容／MCP／配置能力门控、按会话限定的文件系统及完整终端回调、表单 elicitation、被动上下文证据、响应或通知改变模型时使读数失效、保留原生用量／累计费用，以及不提供公共子智能体控制。
+- AC7 — `lifecycle.test.ts`：真实子进程退出、join 失败及重试、延迟获取传输、排空投递及保留原生历史；释放一个 handle 不影响另一个访问。
+- AC8 — `native.test.ts`：Claude ACP 0.101.0 搭配 Claude Agent SDK 0.3.318，以及 Gemini CLI 0.67.0，分别完成对话、真实文件工具权限往返、进行中取消，以及新进程中的历史重载。实际提供了两个可执行文件变量，两个原生用例均未跳过。
+
+变更后的验证计划器也通过 `scripts/__tests__/validationPlan.test.ts`。以上证据不包含 Electron 接入、真实提供商计费、Windows 原生验收或打包。

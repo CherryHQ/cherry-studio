@@ -7,9 +7,55 @@ import { serveStdio } from '@modelcontextprotocol/server/stdio'
 import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
+import { buildMcpToolWireId } from '@main/ai/mcp/mcpToolId'
+import { buildMcpWireWildcard, buildMcpWireToolId } from '@shared/ai/tools/mcpSourcePolicy'
+import { McpServerSchema } from '@shared/data/types/mcpServer'
+
+import { buildPiMcpToolName } from '../pi/piMcpExtension'
 import { createDurableMcp } from './durableMcp'
 
 describe('Durable desktop MCP', () => {
+  it.each(['raw', 'legacy', 'catalog', 'wildcard', 'unmatched'] as const)(
+    'resolves %s source approval rules against native tool identities',
+    async (rule) => {
+      const source = McpServerSchema.parse({
+        id: '12345678-1234-4234-8234-123456789abc',
+        name: 'speaker-server',
+        isActive: true
+      })
+      const values = {
+        raw: 'play',
+        legacy: buildMcpWireToolId(source.name, 'play'),
+        catalog: buildMcpToolWireId({ serverId: source.id, serverName: source.name, toolName: 'play' }),
+        wildcard: buildMcpWireWildcard(source.name),
+        unmatched: 'mcp__other__*'
+      }
+      source.disabledAutoApproveTools = [values[rule]]
+      const bridge = await createDurableMcp({
+        [source.id]: {
+          id: source.id,
+          name: source.id,
+          source,
+          async connect(transport) {
+            const server = new McpServer({ name: 'speaker', version: '1' })
+            server.registerTool('play', { inputSchema: z.object({}) }, async () => ({ content: [] }))
+            server.registerTool('pause', { inputSchema: z.object({}) }, async () => ({ content: [] }))
+            return serveStdio(() => server, { transport })
+          }
+        }
+      })
+      try {
+        expect(bridge.approvalRequiredTools.has(buildPiMcpToolName(source.id, 'play'))).toBe(rule !== 'unmatched')
+        expect(bridge.approvalRequiredTools.has(buildPiMcpToolName(source.id, 'pause'))).toBe(rule === 'wildcard')
+        expect([...bridge.nonBypassableApprovalTools]).toEqual(
+          rule === 'wildcard' ? [buildPiMcpToolName(source.id, 'play'), buildPiMcpToolName(source.id, 'pause')] : []
+        )
+      } finally {
+        await bridge.close()
+      }
+    }
+  )
+
   // Catches transport-only registration that lists a tool but cannot return its result through the native loop.
   it('executes registered MCP tools and preserves result details and tool replay policy', async () => {
     const bridge = await createDurableMcp({
