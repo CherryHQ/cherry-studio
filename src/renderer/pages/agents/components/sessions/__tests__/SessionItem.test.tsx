@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { ResourceList } from '@renderer/components/chat/resourceList/base'
 import { SessionHoverPreviewGroup } from '@renderer/components/chat/resourceList/SessionHoverPreview'
+import * as topicStreamStatus from '@renderer/hooks/useTopicStreamStatus'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import SessionItem, { type SessionItemMenuActions } from '../SessionItem'
@@ -54,6 +55,7 @@ vi.mock('@renderer/components/chat/panes/Shell', () => ({
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   useTopicStreamStatus: () => ({
     status: undefined,
+    activeExecutions: [],
     awaitingApprovalAnchors: [],
     isFulfilled: false,
     isPending: false,
@@ -127,6 +129,44 @@ sessionMenuActions.exportMenuOptions = {
 }
 
 describe('SessionItem', () => {
+  it('shows the number shortcut in place of the stream status until the hint clears', () => {
+    using statusSpy = vi.spyOn(topicStreamStatus, 'useTopicStreamStatus')
+    statusSpy.mockReturnValue({
+      status: 'error',
+      activeExecutions: [],
+      awaitingApprovalAnchors: [],
+      isFulfilled: false,
+      isPending: false,
+      lastCompletedAt: null,
+      markSeen: vi.fn()
+    })
+    const Provider = ResourceList.Provider<AgentSessionEntity>
+    const row = (shortcutHint?: string) => (
+      <Provider items={[session]} selectedId={session.id}>
+        <SessionHoverPreviewGroup>
+          <SessionItem
+            session={session}
+            sessionMenuActions={sessionMenuActions}
+            shortcutHint={shortcutHint}
+            onDelete={vi.fn()}
+            onOpenRenameDialog={vi.fn()}
+            onPress={vi.fn()}
+          />
+        </SessionHoverPreviewGroup>
+      </Provider>
+    )
+
+    const { rerender } = render(row())
+    expect(screen.getByRole('img', { name: 'message.tools.status.error' })).toBeInTheDocument()
+
+    rerender(row('⌘3'))
+    expect(screen.getByText('⌘3')).toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: 'message.tools.status.error' })).not.toBeInTheDocument()
+
+    rerender(row())
+    expect(screen.getByRole('img', { name: 'message.tools.status.error' })).toBeInTheDocument()
+  })
+
   it.each([false, true])('archives through the hover action without permanent deletion (pinned=%s)', async (pinned) => {
     const user = userEvent.setup()
     const onDelete = vi.fn()
