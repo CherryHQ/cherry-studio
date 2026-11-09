@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CommandSharedPreferencesContext } from '@renderer/hooks/command'
 import '@renderer/services/ExportService'
-import { addNote } from '@renderer/services/NotesService'
+import { addNote, resolveNotesPath } from '@renderer/services/NotesService'
 import { toast } from '@renderer/services/toast'
 
 import SelectionContextMenu from '../SelectionContextMenu'
@@ -14,7 +14,10 @@ import SelectionContextMenu from '../SelectionContextMenu'
 vi.unmock('@cherrystudio/ui')
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 vi.mock('@renderer/i18n/resolver', () => ({ default: { t: (key: string) => key } }))
-vi.mock('@renderer/services/NotesService', () => ({ addNote: vi.fn() }))
+vi.mock('@renderer/services/NotesService', () => ({
+  addNote: vi.fn(),
+  resolveNotesPath: vi.fn()
+}))
 
 function renderContent(
   content = 'Ignore this.\nKeep this excerpt.\nIgnore that.',
@@ -51,6 +54,7 @@ beforeEach(() => {
     configurable: true,
     value: () => new DOMRect(100, 100, 180, 20)
   })
+  vi.mocked(resolveNotesPath).mockResolvedValue({ path: '/synthetic-notes', isFallback: false })
   vi.mocked(addNote).mockResolvedValue({ path: '/synthetic-notes/Excerpt (1).md', name: 'Excerpt (1)' })
 })
 

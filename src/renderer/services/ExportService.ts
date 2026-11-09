@@ -10,7 +10,6 @@ import { visit } from 'unist-util-visit'
 
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import { runStructuralNotesFilesystemWrite } from '@renderer/hooks/notesFileEditFlush'
 // Known same-tier soft-edge (inherited from the former utils/export):
 // `getTopicMessages` is a non-React data accessor that happens to live in the
 // `useTopic` hook module, so this is a service -> hook import. Sinking the
@@ -20,6 +19,7 @@ import { getProviderLabelKey } from '@renderer/i18n/label'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
+import { runStructuralNotesFilesystemWrite } from '@renderer/services/notesEditCoordination'
 import { addNote, resolveNotesPath } from '@renderer/services/NotesService'
 import { toast } from '@renderer/services/toast'
 import type {

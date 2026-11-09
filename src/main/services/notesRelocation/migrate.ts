@@ -231,6 +231,32 @@ export async function migrateNotesDirectory(
   targetPath: string,
   options: { merge: boolean }
 ): Promise<NotesRelocationResult> {
+  // Bind the selected directory before any asynchronous inspection. Writes use
+  // the canonical path, and each boundary checks that the selected alias still
+  // names the same directory. This is not an identity-bound filesystem API.
+  const selectedTarget = path.resolve(targetPath)
+  let canonicalTarget: string
+  let targetIdentity: fs.Stats
+  try {
+    canonicalTarget = fs.realpathSync(selectedTarget)
+    targetIdentity = fs.statSync(canonicalTarget)
+  } catch {
+    throw new IpcError(notesRelocationErrorCodes.NOTES_RELOCATION_INVALID, 'invalid_target')
+  }
+  const assertTargetUnchanged = async (): Promise<void> => {
+    await assertMigrationTargetRootIsDirectory(selectedTarget)
+    const current = fs.statSync(canonicalTarget)
+    if (
+      fs.realpathSync(selectedTarget) !== canonicalTarget ||
+      current.dev !== targetIdentity.dev ||
+      current.ino !== targetIdentity.ino
+    ) {
+      throw new IpcError(
+        notesRelocationErrorCodes.NOTES_RELOCATION_INVALID,
+        'target directory changed during migration'
+      )
+    }
+  }
   const inspection = await inspectNotesRelocation(sourcePath, targetPath)
   if (!inspection.valid) {
     throw new IpcError(notesRelocationErrorCodes.NOTES_RELOCATION_INVALID, inspection.reason)
@@ -248,7 +274,7 @@ export async function migrateNotesDirectory(
   const source = inspection.source
 
   const resolvedSource = path.resolve(sourcePath)
-  const resolvedTarget = path.resolve(targetPath)
+  const resolvedTarget = canonicalTarget
   const entries = await fs.promises.readdir(resolvedSource, { withFileTypes: true })
 
   if (options.merge) {
@@ -268,9 +294,9 @@ export async function migrateNotesDirectory(
   }
 
   try {
-    await assertMigrationTargetRootIsDirectory(resolvedTarget)
+    await assertTargetUnchanged()
     for (const entry of entries) {
-      await assertMigrationTargetRootIsDirectory(resolvedTarget)
+      await assertTargetUnchanged()
       if (entry.isSymbolicLink()) {
         continue
       }
@@ -328,7 +354,7 @@ export async function migrateNotesDirectory(
       }
     }
 
-    await assertMigrationTargetRootIsDirectory(resolvedTarget)
+    await assertTargetUnchanged()
     await verifySourceCopied(resolvedSource, resolvedTarget)
     const targetAfter = await scanNotesDirectory(resolvedTarget)
 

@@ -113,6 +113,37 @@ describe('notesRelocation', () => {
     lstatSpy.mockRestore()
   })
 
+  it('rejects an ancestor retarget before copying into the substituted destination', async () => {
+    if (process.platform === 'win32') return
+    const source = path.join(tempRoot, 'source-ancestor')
+    const inspected = path.join(tempRoot, 'inspected')
+    const substituted = path.join(tempRoot, 'substituted')
+    const alias = path.join(tempRoot, 'alias')
+    for (const dir of [source, path.join(inspected, 'notes'), path.join(substituted, 'notes')])
+      fs.mkdirSync(dir, { recursive: true })
+    fs.symlinkSync(inspected, alias, 'dir')
+    fs.writeFileSync(path.join(source, 'note.md'), '# Note')
+    const target = path.join(alias, 'notes')
+    const realLstat = fs.promises.lstat.bind(fs.promises)
+    let checks = 0
+    const spy = vi.spyOn(fs.promises, 'lstat').mockImplementation(async (entryPath) => {
+      if (String(entryPath) === target && ++checks === 2) {
+        fs.unlinkSync(alias)
+        fs.symlinkSync(substituted, alias, 'dir')
+      }
+      return realLstat(entryPath)
+    })
+    try {
+      await expect(migrateWithPreferenceSource(source, target, { merge: false })).rejects.toMatchObject({
+        code: 'NOTES_RELOCATION_INVALID'
+      })
+      expect(fs.existsSync(path.join(substituted, 'notes', 'note.md'))).toBe(false)
+      expect(fs.existsSync(path.join(inspected, 'notes', 'note.md'))).toBe(false)
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
   it('copies into a target that only contains an empty folder without merge', async () => {
     const source = path.join(tempRoot, 'source-notes-empty-folder')
     const target = path.join(tempRoot, 'target-notes-empty-folder')

@@ -9,23 +9,19 @@ import { ipcApi } from '@renderer/ipc'
 import { resolveNotesPath } from '@renderer/services/NotesService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { isWin } from '@renderer/utils/platform'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { notesRelocationErrorCodes } from '@shared/ipc/errors/notesRelocation'
 import type { NotesRelocationValidationReason } from '@shared/types/notesRelocation'
 
 const logger = loggerService.withContext('NotesDirectoryMigration')
 
-/**
- * Lexical normalization for comparing the saved notes source with the one main returns. For the absolute
- * path forms the UI produces (POSIX absolute, Windows drive and UNC paths) it agrees with `node:path.resolve`
- * used by `resolveNotesRelocationSourcePathFromPreference` and `migrateNotesDirectory`: duplicate and trailing
- * separators, `.` and `..` segments are collapsed and the root is preserved. Backslashes are separators only
- * for Windows-style paths, because POSIX treats them as ordinary filename characters. Relative,
- * drive-relative and POSIX `//` inputs are not resolved against cwd or the platform, so they can only
- * produce a mismatch (source_changed), never a false match. No realpath, case folding or symlink handling.
+/** Lexical comparison of absolute source paths using the host's separator rules.
+ * POSIX collapses leading slashes, while Windows preserves UNC share roots.
+ * No case folding or symlink resolution; main remains the source authority.
  */
-export function normalizeMigrationSourcePath(value: string): string {
-  const isWindowsStyle = /^[A-Za-z]:/.test(value) || /^[\\/]{2}[^\\/]/.test(value)
+export function normalizeMigrationSourcePath(value: string, windowsHost = isWin): string {
+  const isWindowsStyle = windowsHost && (/^[A-Za-z]:/.test(value) || /^[\\/]{2}[^\\/]/.test(value))
   const text = isWindowsStyle ? value.replace(/\\/g, '/') : value
 
   let root = ''

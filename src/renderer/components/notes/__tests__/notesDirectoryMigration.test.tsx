@@ -19,9 +19,19 @@ const t = ((key: string) => key) as never
 
 describe('normalizeMigrationSourcePath', () => {
   // Main compares with node:path.resolve; the renderer helper must agree lexically on absolute paths.
-  const posixCases = ['/work/notes', '/work/notes/', '/work/notes//', '/work//notes/./sub/../', '/', '//', '/a\\b/']
+  const posixCases = [
+    '/work/notes',
+    '//work/notes',
+    '///work//notes/',
+    '/work/notes/',
+    '/work/notes//',
+    '/work//notes/./sub/../',
+    '/',
+    '//',
+    '/a\\b/'
+  ]
   it.each(posixCases)('matches posix path.resolve for %s', (input) => {
-    expect(normalizeMigrationSourcePath(input)).toBe(path.posix.resolve(input))
+    expect(normalizeMigrationSourcePath(input, false)).toBe(path.posix.resolve(input))
   })
 
   const winCases = [
@@ -34,12 +44,12 @@ describe('normalizeMigrationSourcePath', () => {
     'c:\\Notes\\..\\x\\'
   ]
   it.each(winCases)('matches win32 path.resolve for %s modulo separator style', (input) => {
-    expect(normalizeMigrationSourcePath(input)).toBe(path.win32.resolve(input).replace(/\\/g, '/'))
+    expect(normalizeMigrationSourcePath(input, true)).toBe(path.win32.resolve(input).replace(/\\/g, '/'))
   })
 
   it('treats UNC roots like win32 and keeps the share root', () => {
-    expect(normalizeMigrationSourcePath('\\\\server\\share\\notes\\')).toBe('//server/share/notes')
-    expect(normalizeMigrationSourcePath('\\\\server\\share\\')).toBe('//server/share/')
+    expect(normalizeMigrationSourcePath('\\\\server\\share\\notes\\', true)).toBe('//server/share/notes')
+    expect(normalizeMigrationSourcePath('\\\\server\\share\\', true)).toBe('//server/share/')
   })
 
   it('does not fold case, follow symlinks or equate different paths', () => {
@@ -81,6 +91,21 @@ describe('migrateNotesDirectoryWithUi source comparison', () => {
     const onSuccess = vi.fn()
 
     await migrateNotesDirectoryWithUi({ t, sourcePath: '/work/notes/', targetPath, onSuccess })
+
+    expect(toastErrorMock).not.toHaveBeenCalled()
+    expect(requestMock).toHaveBeenCalledWith('app.notes_relocation.migrate', {
+      sourcePath: '/work/notes',
+      targetPath,
+      merge: false,
+      sessionEpoch: 1
+    })
+    expect(onSuccess).toHaveBeenCalledWith(targetPath)
+  })
+  it('migrates a saved source with POSIX leading double slashes that main returns normalized', async () => {
+    mockIpc('/work/notes')
+    const onSuccess = vi.fn()
+
+    await migrateNotesDirectoryWithUi({ t, sourcePath: '//work/notes', targetPath, onSuccess })
 
     expect(toastErrorMock).not.toHaveBeenCalled()
     expect(requestMock).toHaveBeenCalledWith('app.notes_relocation.migrate', {
