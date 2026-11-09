@@ -6206,8 +6206,6 @@
   "settings.usage.export.png": "PNG olarak dışa aktar",
   "settings.usage.export.progress": "Kullanım kayıtları okunuyor ({{count}} / {{total}})…",
   "settings.usage.export.range": "{{from}} – {{to}} ({{timezone}})",
-  "settings.usage.export.sheets.metadata": "Meta veriler",
-  "settings.usage.export.sheets.usage": "Kullanım",
   "settings.usage.export.success": "Kullanım başarıyla dışa aktarıldı",
   "settings.usage.export.title": "Dışa aktar",
   "settings.usage.export.xlsx": "XLSX olarak dışa aktar",
