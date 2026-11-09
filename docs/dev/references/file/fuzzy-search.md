@@ -34,18 +34,11 @@ and result-limit options. Returned paths use forward slashes on every platform.
 
 ## Fuzzy Matching
 
-For files, the query is first converted to a ripgrep glob that preserves
-subsequence order:
-
-```text
-Query: updater
-Glob:  *u*p*d*a*t*e*r*
-```
-
-Ripgrep provides a fast candidate set. JavaScript then applies the same
-case-insensitive subsequence rule used for directories. If the pre-filter
-produces no valid match, the implementation scans the remaining eligible files
-and applies that same rule; there is no separate greedy matcher.
+Ripgrep enumerates eligible files with its native ignore discovery, including
+nested `.gitignore` exceptions even outside a Git repository. JavaScript then
+applies the same case-insensitive subsequence rule used for directories and
+scores every match. Search queries are not passed as positive ripgrep globs,
+which would override ignore rules.
 
 Directories are traversed directly, so a directory-only query does not depend
 on ripgrep. File and directory candidates are merged before sorting and before
@@ -111,8 +104,8 @@ Common generated or dependency directories such as `node_modules`, `.git`,
 Hidden entries are excluded unless `includeHidden` is true.
 Exclusions apply inside the requested root, so a root below `build` or `.cache`
 still lists its own eligible entries. File results are resolved to absolute paths
-after scanning from that root. Fuzzy candidates also pass through the shared
-ignore predicate so a positive glob cannot reintroduce excluded children.
+after scanning from that root. Ripgrep applies the shared default exclusion
+globs before JavaScript fuzzy matching.
 
 Ripgrep exit codes `0` and `1` are normal. For exit codes `2` and above, usable
 stdout is kept as partial results and the traversal error is logged; the search

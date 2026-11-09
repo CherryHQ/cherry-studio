@@ -222,21 +222,35 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (search mode, fuzzy + maxEntri
     await rm(tmp, { recursive: true, force: true })
   })
 
-  it.each([false, true])(
-    'finds files below an excluded ancestor during fuzzy search (fallback=%s)',
-    async (fallback) => {
-      const root = path.join(tmp, '.cache', 'notes')
-      await mkdir(path.join(root, 'build'), { recursive: true })
-      await writeFile(path.join(root, 'target-note.md'), 'saved note')
-      await writeFile(path.join(root, '.hidden-target-note.md'), 'hidden note')
-      await writeFile(path.join(root, 'build', 'target-generated.md'), 'generated')
-      if (fallback) mockRipgrepResultOnce({ exitCode: 1 })
+  it.each([
+    { searchPattern: 'README', git: false },
+    { searchPattern: 'README', git: true },
+    { searchPattern: 'dR', git: false },
+    { searchPattern: 'dR', git: true }
+  ])('honors nested gitignore exceptions for $searchPattern (git=$git)', async ({ searchPattern, git }) => {
+    if (git) await mkdir(path.join(tmp, '.git'))
+    await mkdir(path.join(tmp, 'docs'))
+    await writeFile(path.join(tmp, '.gitignore'), '*.md\n')
+    await writeFile(path.join(tmp, 'docs', '.gitignore'), '!README.md\n')
+    await writeFile(path.join(tmp, 'README.md'), 'ignored')
+    await writeFile(path.join(tmp, 'docs', 'DRAFT.md'), 'ignored')
+    await writeFile(path.join(tmp, 'docs', 'README.md'), 'included')
 
-      expect(await listDirectory(root, { includeDirectories: false, searchPattern: 'trgtn' })).toEqual([
-        path.join(root, 'target-note.md').replace(/\\/g, '/')
-      ])
-    }
-  )
+    expect(await listDirectory(tmp, { includeDirectories: false, searchPattern })).toEqual([
+      path.join(tmp, 'docs', 'README.md').replace(/\\/g, '/')
+    ])
+  })
+
+  it('finds files below an excluded ancestor during fuzzy search', async () => {
+    const root = path.join(tmp, '.cache', 'notes')
+    await mkdir(path.join(root, 'build'), { recursive: true })
+    await writeFile(path.join(root, 'target-note.md'), 'saved note')
+    await writeFile(path.join(root, '.hidden-target-note.md'), 'hidden note')
+    await writeFile(path.join(root, 'build', 'target-generated.md'), 'generated')
+    expect(await listDirectory(root, { includeDirectories: false, searchPattern: 'trgtn' })).toEqual([
+      path.join(root, 'target-note.md').replace(/\\/g, '/')
+    ])
+  })
 
   it('allows hidden fuzzy candidates only when explicitly requested', async () => {
     const root = path.join(tmp, '.cache', 'notes')
@@ -330,7 +344,7 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (search mode, fuzzy + maxEntri
     ])
   })
 
-  it('falls back to scanning all files when the ripgrep glob misses a cross-segment fuzzy match', async () => {
+  it('finds fuzzy matches across path segments', async () => {
     await mkdir(path.join(tmp, 'alpha'))
     await writeFile(path.join(tmp, 'alpha', 'beta.md'), 'match across path segments')
 
@@ -543,11 +557,9 @@ describe('listDirectory (error paths)', () => {
     await expect(listDirectory(tmp as AbsoluteFilePath)).rejects.toThrow(/Ripgrep binary not available/)
   })
 
-  it('propagates a ripgrep fallback failure after the glob returns no matches', async () => {
+  it('propagates a ripgrep failure during fuzzy search', async () => {
     mockExistsSync.mockReturnValue(true)
-    mockSpawn
-      .mockImplementationOnce(() => createMockRipgrepChild(1))
-      .mockImplementationOnce(() => createMockRipgrepChild(2, { stderr: 'fallback failed' }))
+    mockSpawn.mockImplementationOnce(() => createMockRipgrepChild(2, { stderr: 'search failed' }))
 
     await expect(
       listDirectory(tmp as AbsoluteFilePath, {
@@ -555,7 +567,7 @@ describe('listDirectory (error paths)', () => {
         includeDirectories: false,
         searchPattern: 'ab'
       })
-    ).rejects.toThrow('Ripgrep failed with exit code 2: fallback failed')
+    ).rejects.toThrow('Ripgrep failed with exit code 2: search failed')
   })
 
   it('throws when the root path is not readable (EACCES from fs.promises.stat)', async () => {
