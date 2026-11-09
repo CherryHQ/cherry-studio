@@ -8,8 +8,8 @@ const runtimeProvenanceSchema = z.object({
   executablePath: z.string().optional(),
   version: z.string().optional(),
   configHome: z.string(),
-  pluginRoots: z.array(z.string()),
-  reloadRequirement: z.literal('restart_session')
+  pluginRoots: z.array(z.string()).nullable(),
+  reloadRequirement: z.enum(['restart_session', 'runtime_dependent'])
 })
 
 export const runtimeProvenanceRequestSchemas = {

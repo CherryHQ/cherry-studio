@@ -308,14 +308,17 @@ const RuntimeProvenanceDetails: FC<{ provenance: RuntimeProvenance }> = ({ prove
       <div className="flex gap-2">
         <dt className="w-28 shrink-0 text-muted-foreground">{t('code.runtime_provenance.plugin_roots')}</dt>
         <dd className="min-w-0 space-y-0.5">
-          {provenance.pluginRoots.map((root) => (
+          {provenance.pluginRoots === null && <span className="text-muted-foreground">{t('common.unknown')}</span>}
+          {provenance.pluginRoots?.map((root) => (
             <div key={root} className="break-all font-mono text-foreground">
               {root}
             </div>
           ))}
         </dd>
       </div>
-      <p className="text-muted-foreground">{t('code.runtime_provenance.reload_hint')}</p>
+      {provenance.reloadRequirement === 'restart_session' && (
+        <p className="text-muted-foreground">{t('code.runtime_provenance.reload_hint')}</p>
+      )}
     </dl>
   )
 }

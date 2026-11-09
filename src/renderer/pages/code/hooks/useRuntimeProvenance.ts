@@ -40,5 +40,5 @@ export function useRuntimeProvenance(tool: CodeCli, revision: string): RuntimePr
     }
   }, [provenanceTool, revision])
 
-  return provenance
+  return provenance?.tool === provenanceTool ? provenance : undefined
 }

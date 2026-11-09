@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { application } from '@application'
 import type { RuntimeProvenance, RuntimeProvenanceTool } from '@shared/types/runtimeProvenance'
 
@@ -25,7 +27,9 @@ export async function getRuntimeProvenance(tool: RuntimeProvenanceTool): Promise
     ...(availability.source !== 'none' ? { executablePath: availability.path } : {}),
     ...(version ? { version } : {}),
     configHome,
-    pluginRoots: [configHome],
-    reloadRequirement: 'restart_session'
+    // Hermes documents user plugins beneath its home. DSH packages depend on
+    // the installation/profile, so the config home is not a verified plugin root.
+    pluginRoots: tool === 'hermes' ? [path.join(configHome, 'plugins')] : null,
+    reloadRequirement: tool === 'hermes' ? 'restart_session' : 'runtime_dependent'
   }
 }

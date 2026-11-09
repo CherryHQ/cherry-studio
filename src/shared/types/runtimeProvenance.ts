@@ -16,8 +16,8 @@ export type RuntimeProvenance = {
   version?: string
   /** Config home the runtime reads and that Cherry writes to. */
   configHome: string
-  /** Directories the runtime discovers local plugins and skills from. */
-  pluginRoots: string[]
-  /** Local config or plugin edits take effect only after the running session restarts. */
-  reloadRequirement: 'restart_session'
+  /** User plugin directories, or null when runtime-specific discovery is not known. */
+  pluginRoots: string[] | null
+  /** DSH reload behavior depends on the edit and runtime version (including HMR). */
+  reloadRequirement: 'restart_session' | 'runtime_dependent'
 }

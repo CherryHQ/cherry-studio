@@ -13,6 +13,44 @@ vi.mock('@renderer/components/icons/CliIcon', () => ({
 }))
 
 describe('VersionStatusCard', () => {
+  it('shows unknown DSH plugin roots without an unconditional restart reminder', () => {
+    render(
+      <VersionStatusCard
+        toolId="deepseek-harness"
+        toolName="DSH"
+        status={{ source: 'system', installed: true, canUpgrade: false }}
+        provenance={{
+          tool: 'dsh',
+          binarySource: 'system',
+          configHome: '/dsh/home',
+          pluginRoots: null,
+          reloadRequirement: 'runtime_dependent'
+        }}
+      />
+    )
+    expect(screen.getByText('common.unknown')).toBeInTheDocument()
+    expect(screen.queryByText('code.runtime_provenance.reload_hint')).not.toBeInTheDocument()
+  })
+
+  it('shows verified Hermes plugin roots with the session restart reminder', () => {
+    render(
+      <VersionStatusCard
+        toolId="hermes"
+        toolName="Hermes"
+        status={{ source: 'system', installed: true, canUpgrade: false }}
+        provenance={{
+          tool: 'hermes',
+          binarySource: 'system',
+          configHome: '/hermes/home',
+          pluginRoots: ['/hermes/home/plugins'],
+          reloadRequirement: 'restart_session'
+        }}
+      />
+    )
+    expect(screen.getByText('/hermes/home/plugins')).toBeInTheDocument()
+    expect(screen.getByText('code.runtime_provenance.reload_hint')).toBeInTheDocument()
+  })
+
   it('keeps the install action but omits the not-installed title badge', () => {
     render(
       <VersionStatusCard
