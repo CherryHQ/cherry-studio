@@ -158,7 +158,7 @@ export default defineProvider({
       },
       {
         modelId: 'claude-opus-5-5',
-        apiModelId: 'anthropic.claude-opus-5-5',
+        apiModelId: 'global.anthropic.claude-opus-5-5',
         pricing: {
           input: { currency: 'USD', perMillionTokens: 4 },
           output: { currency: 'USD', perMillionTokens: 20 },

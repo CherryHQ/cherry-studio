@@ -2492,7 +2492,7 @@
       }
     },
     {
-      "apiModelId": "anthropic.claude-opus-5-5",
+      "apiModelId": "global.anthropic.claude-opus-5-5",
       "modelId": "claude-opus-5-5",
       "pricing": {
         "cacheRead": {
@@ -44716,5 +44716,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "0fa8c1bc6e90c79d"
+  "version": "c0831692783fc80d"
 }
