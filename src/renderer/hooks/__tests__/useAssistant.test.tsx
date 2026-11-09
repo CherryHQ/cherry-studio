@@ -338,7 +338,8 @@ describe('useAssistant', () => {
       const { hook, trigger } = setup(remembered, [...ids], total)
       await act(async () => {
         await hook.result.current.setModel({
-          ...modelB,
+          name: 'Gemini 2.5 Pro',
+          capabilities: ['function-call'],
           id: 'gemini::gemini-2.5-pro',
           providerId: 'gemini',
           apiModelId: 'gemini-2.5-pro'
