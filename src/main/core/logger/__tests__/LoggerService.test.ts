@@ -60,6 +60,30 @@ describe('LoggerService file output', () => {
     flags.dev = false
   })
 
+  it('suppresses async temporary diagnostics without muting concurrent ordinary logs', async () => {
+    const { loggerService, lines } = await loadLogger()
+    const { withoutDiagnostics } = await import('../diagnosticScope')
+    const logger = loggerService.withContext('PrivacyTest')
+    await Promise.all([
+      withoutDiagnostics(async () => {
+        logger.info('private prompt')
+        await new Promise((resolve) => setImmediate(resolve))
+        logger.error('private completion', new Error('private provider echo'))
+        await withoutDiagnostics(async () => logger.warn('nested private body'))
+      }),
+      (async () => {
+        await new Promise((resolve) => setImmediate(resolve))
+        logger.info('ordinary request')
+      })()
+    ])
+    logger.info('after temporary request')
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(lines).toHaveLength(2)
+    expect(lines.join('')).not.toContain('private')
+    expect(lines.join('')).toContain('ordinary request')
+    expect(lines.join('')).toContain('after temporary request')
+  })
+
   it('keeps module/process when the call carries data arguments', async () => {
     const { loggerService, lines, readLine } = await loadLogger()
     const error = Object.assign(new Error('io fail'), { code: 'EFAKE' })

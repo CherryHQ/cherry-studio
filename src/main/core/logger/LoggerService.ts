@@ -15,6 +15,8 @@ import type { LogContextData, LogLevel, LogSourceWithContext } from '@shared/typ
 import { LEVEL, LEVEL_MAP, MAX_LOG_RETENTION_DAYS } from '@shared/types/logger'
 import { redactSecretText } from '@shared/utils/redaction'
 
+import { areDiagnosticsSuppressed } from './diagnosticScope'
+
 const ANSICOLORS = {
   RED: '\x1b[31m',
   GREEN: '\x1b[32m',
@@ -231,6 +233,7 @@ export class LoggerService {
    * @param meta - Additional metadata to log
    */
   private processLog(source: LogSourceWithContext, level: LogLevel, message: string, meta: any[]): void {
+    if (areDiagnosticsSuppressed()) return
     if (DEV_LOGGING) {
       // skip if env level is set and current level is less than env level
       if (this.envLevel !== LEVEL.NONE && LEVEL_MAP[level] < LEVEL_MAP[this.envLevel]) {

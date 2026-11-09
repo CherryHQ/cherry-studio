@@ -2,6 +2,8 @@ import 'reflect-metadata'
 import { SpanStatusCode, trace } from '@opentelemetry/api'
 import { context as traceContext } from '@opentelemetry/api'
 
+import { areDiagnosticsSuppressed } from '@main/core/logger/diagnosticScope'
+
 import { defaultConfig } from '../traceConfig'
 
 export interface SpanDecoratorOptions {
@@ -24,7 +26,8 @@ export function TraceMethod(traced: SpanDecoratorOptions) {
     const traceName = traced.traceName || defaultConfig.defaultTracerName || 'default'
     const tracer = trace.getTracer(traceName)
 
-    descriptor.value = function (...args: any[]) {
+    descriptor.value = async function (...args: any[]) {
+      if (areDiagnosticsSuppressed()) return originalMethod.apply(this, args)
       const name = traced.spanName || propertyKey
       return tracer.startActiveSpan(name, async (span) => {
         try {
@@ -57,6 +60,7 @@ export function withSpanFunc<F extends (...args: any[]) => any>(
   fn: F,
   args: Parameters<F>
 ): ReturnType<F> {
+  if (areDiagnosticsSuppressed()) return fn(...args)
   const traceName = defaultConfig.defaultTracerName || 'default'
   const tracer = trace.getTracer(traceName)
   const _name = name || fn.name || 'anonymousFunction'

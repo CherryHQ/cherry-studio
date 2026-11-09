@@ -3,7 +3,9 @@ import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { applyHttpTrace } from '../httpTraceFetch'
+import { withoutDiagnostics } from '@main/core/logger/diagnosticScope'
+
+import { applyHttpTrace, createHttpTraceFetch } from '../httpTraceFetch'
 
 afterEach(() => {
   MockMainPreferenceServiceUtils.resetMocks()
@@ -11,6 +13,34 @@ afterEach(() => {
 })
 
 describe('applyHttpTrace', () => {
+  it('bypasses body capture even when the fetch was wrapped before the temporary request', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.developer_mode.enabled', true)
+    const exporter = new InMemorySpanExporter()
+    const provider = new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] })
+    const sent: unknown[] = []
+    const fetch: FetchFunction = async (_input, init) => {
+      sent.push(init?.body)
+      return new Response('response')
+    }
+    const opts = { tracer: provider.getTracer('test') }
+    const wrapped = createHttpTraceFetch(fetch, opts)
+    try {
+      await withoutDiagnostics(async () => {
+        const settings = { fetch }
+        applyHttpTrace(settings, opts)
+        expect(settings.fetch).toBe(fetch)
+        expect(await (await wrapped('https://provider.test', { body: 'private prompt' })).text()).toBe('response')
+      })
+      expect(sent).toEqual(['private prompt'])
+      expect(exporter.getFinishedSpans()).toEqual([])
+      await wrapped('https://provider.test', { body: 'ordinary prompt' })
+      await new Promise((resolve) => setImmediate(resolve))
+      expect(exporter.getFinishedSpans()).toHaveLength(1)
+    } finally {
+      await provider.shutdown()
+    }
+  })
+
   it.each([false, true])(
     'records the chat topic with developer mode enabled, using global fetch when needed: %s',
     async (custom) => {

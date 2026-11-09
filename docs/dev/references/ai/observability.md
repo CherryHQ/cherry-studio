@@ -36,6 +36,15 @@ The main-process observability boundary is `src/main/ai/observability`:
 - `storage/` keeps the in-memory span projection and JSONL-compatible history.
 - `sinks/` defines the extension point for local and future external export.
 
+## Temporary request diagnostics
+
+Temporary chat dispatch and stream consumption run inside an async diagnostic-suppression scope.
+The scope disables main-process logging, SDK telemetry, and HTTP body capture. The application
+tracer also refuses to record spans in that scope, even under a sampled parent. Concurrent ordinary
+requests keep their existing diagnostics. Stream completion, errors, and abort callbacks retain
+suppression after the temporary topic is removed. This boundary does not change provider retention
+or guarantee that renderer code, tools, or independent processes never persist content.
+
 ## Local history flush
 
 The container `traceId` is persisted on the topic / agent-session row (one trace

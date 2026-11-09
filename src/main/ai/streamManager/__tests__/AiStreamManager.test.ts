@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AiService } from '@main/ai/AiService'
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import { areDiagnosticsSuppressed } from '@main/core/logger/diagnosticScope'
 import { diagnose } from '@main/services/diagnostics/scan/engine'
 import { applyMessageProjectionUpdate, type MessageProjectionView } from '@shared/ai/messageProjection'
 import { aiStreamAdmissionReasons, type StreamChunkPayload } from '@shared/ai/transport'
@@ -181,6 +182,7 @@ vi.mock('@application', async () => {
 
 // ── Import after mocks ──────────────────────────────────────────────
 
+const { temporaryChatService } = await import('@main/data/services/TemporaryChatService')
 const { AiStreamManager } = await import('../AiStreamManager')
 const pipeStreamLoopModule = await import('../pipeStreamLoop')
 const { PersistenceListener, TerminalPersistenceError } = await import('../listeners/PersistenceListener')
@@ -596,6 +598,69 @@ describe('AiStreamManager', () => {
   // ── send (start path) ──────────────────────────────────────────────
 
   describe('send (start)', () => {
+    it('keeps temporary stream failures private after topic removal without muting a concurrent chat', async () => {
+      useWatchdogTimers()
+      const temporary = vi.spyOn(temporaryChatService, 'hasTopic').mockImplementation((id) => id === 'temporary')
+      const observed = new Map<string, boolean>()
+      const feeds = { temporary: controlledStream(), ordinary: controlledStream() }
+      const listeners = { temporary: new FakeListener('temporary'), ordinary: new FakeListener('ordinary') }
+      mockStreamText.mockImplementation(async (request) => {
+        await Promise.resolve()
+        const id = request.conversation.topicId as keyof typeof feeds
+        observed.set(id, areDiagnosticsSuppressed())
+        return feeds[id].stream
+      })
+      const terminal: boolean[] = []
+      listeners.temporary.onErrorImpl = () => {
+        terminal.push(areDiagnosticsSuppressed())
+      }
+      try {
+        for (const id of ['temporary', 'ordinary'] as const) {
+          startSingle(mgr, { topicId: id, modelId: 'provider::model', request: req(id), listeners: [listeners[id]] })
+        }
+        await flushUntil(() => observed.size === 2)
+        temporary.mockReturnValue(false)
+        feeds.temporary.error(new Error('private provider echo'))
+        feeds.ordinary.close()
+        await flushUntil(() => terminal.length === 1 && listeners.ordinary.doneResults.length === 1)
+        expect(observed).toEqual(
+          new Map([
+            ['temporary', true],
+            ['ordinary', false]
+          ])
+        )
+        expect(terminal).toEqual([true])
+        expect(areDiagnosticsSuppressed()).toBe(false)
+      } finally {
+        temporary.mockRestore()
+      }
+    })
+
+    it('suppresses synchronous abort callbacks even after removing the temporary topic', async () => {
+      const temporary = vi.spyOn(temporaryChatService, 'hasTopic').mockReturnValue(true)
+      const controller = new AbortController()
+      let privateAbort = false
+      controller.signal.addEventListener('abort', () => {
+        privateAbort = areDiagnosticsSuppressed()
+      })
+      try {
+        startSingle(mgr, {
+          topicId: 'temporary-abort',
+          modelId: 'provider::model',
+          request: req('temporary-abort'),
+          listeners: [],
+          abortController: controller
+        })
+        temporary.mockReturnValue(false)
+        mgr.abort('temporary-abort', 'close')
+        expect(privateAbort).toBe(true)
+        expect(areDiagnosticsSuppressed()).toBe(false)
+        await flushMicrotasksUntil(() => !mgr.hasUnsettledTopicWork('temporary-abort'))
+      } finally {
+        temporary.mockRestore()
+      }
+    })
+
     it('creates an active stream and launches an execution loop against AiService.streamText', () => {
       const snap = startSingle(mgr, {
         topicId: 'a',

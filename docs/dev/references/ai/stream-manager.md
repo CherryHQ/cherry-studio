@@ -941,6 +941,10 @@ type MainDispatchRequest = AiStreamOpenRequest | MainContinueConversationRequest
 Order: Agent → Temporary → Persistent (first `canHandle === true`
 wins).
 
+Temporary dispatch and execution loops run under `withoutDiagnostics`. The manager retains
+that decision for abort callbacks after the topic leaves the temporary map. This suppresses
+main-process logs and tracing without changing global developer settings or ordinary streams.
+
 ### Persistence path comparison
 
 | | Persistent | Temporary | Agent |
