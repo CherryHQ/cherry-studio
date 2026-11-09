@@ -25,13 +25,21 @@ const source: PreviewSource = {
 function Harness() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [hidden, setHidden] = useState(false)
+  const [selections, setSelections] = useState<unknown[]>([])
   return (
     <>
       <div style={{ width: 600, height: 450 }}>
         <Activity mode={hidden ? 'hidden' : 'visible'}>
-          <Preview source={source} refreshKey={refreshKey} />
+          <Preview
+            source={source}
+            refreshKey={refreshKey}
+            onSelection={(selection) => setSelections((items) => [...items, selection])}
+          />
         </Activity>
       </div>
+      <pre data-testid="pptx-selection-log" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+        {JSON.stringify(selections, null, 2)}
+      </pre>
       <div style={{ position: 'fixed', right: 0, top: 0 }}>
         <button type="button" onClick={() => setRefreshKey((key) => key + 1)}>
           Refresh

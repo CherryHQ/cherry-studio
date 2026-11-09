@@ -222,8 +222,8 @@ composer insertion. Commenting does not grant edit access or write to the file.
 coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixel coordinates.
 
 - A plugin that owns a view → structure inverse mapping declares `supportsSelectionReference` and, while
-  the callback is present, lets the user pick one addressable unit (docx body paragraph, pptx slide, pdf page,
-  xlsx cell range) and reports it; it reports `null` when the pick is cleared, and the pdf producer
+  the callback is present, lets the user pick one addressable unit (docx body paragraph, pptx slide or text shape, pdf page,
+  xlsx cell range) and reports it; a PPTX pick reports the `nodeId` of the top-level text shape under the pointer, falling back to the slide for anything else. It reports `null` when the pick is cleared, and the pdf producer
   reports `null` again the moment a new page pick starts, before that page's text has arrived. The callback's
   presence is the capture switch: the embedding surface passes it only while its picker is on, so a plugin never needs a
   separate mode flag. Plugins without such a mapping ignore the prop entirely.

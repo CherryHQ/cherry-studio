@@ -55,7 +55,7 @@ history. Hosts must clear any held selection when requesting a refresh.
 
 `onSelection` reports `{ sourceId, revision, anchor, excerpt }`, or `null` when a
 pick is cleared. Anchors use worksheet A1 ranges, body paragraph ordinals, PDF pages
-and PPTX slides. The host owns held selections across refreshes and file switches.
+and PPTX slides or text shapes. A PPTX pick resolves the top-level text shape under the pointer and reports its `nodeId`, falling back to the slide for anything else. The host owns held selections across refreshes and file switches.
 `revision` is opaque to the package and only distinguishes document versions. Hosts
 map selections back to their own file identity; the package never parses it.
 Excerpts use NFC normalization, collapse the shared JavaScript/Python whitespace set
