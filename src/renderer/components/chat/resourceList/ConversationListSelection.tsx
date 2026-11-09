@@ -39,12 +39,12 @@ export function ConversationListSelectionToolbar<T extends ResourceListItemBase>
   const selectableItems = items.filter(canSelectItem)
 
   return (
-    <div className="flex shrink-0 items-center gap-1.5 px-2 py-1">
+    <div className="flex shrink-0 flex-wrap items-center gap-1.5 px-2 py-1">
       <Button
         type="button"
         variant="ghost"
         size="sm"
-        className="h-7 px-2 text-xs"
+        className="h-auto min-h-7 max-w-full whitespace-normal px-2 text-xs"
         disabled={!canSelectAll || selectableItems.length === 0}
         onClick={() => onSelectAll(selectableItems)}>
         {t('common.select_all_filtered')}
@@ -52,7 +52,7 @@ export function ConversationListSelectionToolbar<T extends ResourceListItemBase>
       <span className="text-muted-foreground text-xs" aria-live="polite">
         {t('common.selectedItems', { count: selectedCount })}
       </span>
-      <div className="min-w-0 flex-1" />
+      <div className="min-w-0 flex-1 basis-full" />
       <Button
         type="button"
         variant="outline"

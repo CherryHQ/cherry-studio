@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import { useEffect } from 'react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
@@ -213,7 +213,7 @@ it('lets a real dialog consume Escape before the fullscreen command', async () =
   key({}, button)
   expect(screen.queryByText('inside')).toBeNull()
   expect(exits()).toHaveLength(0)
-  expect(key().defaultPrevented).toBe(true)
+  await waitFor(() => expect(key().defaultPrevented).toBe(true))
   expect(exits()).toHaveLength(1)
 })
 

@@ -72,8 +72,8 @@ describe('main i18n', () => {
 
     it('localizes Agent Session admission errors', () => {
       MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-CN')
-      expect(t('agent.session.run_status.busy')).toBe('Agent 会话正忙，请稍后重试。')
-      expect(t('agent.session.run_status.unavailable')).toBe('Agent 会话已不可用。')
+      expect(t('agent.session.run_status.busy')).toBe('智能体会话正忙，请稍后重试。')
+      expect(t('agent.session.run_status.unavailable')).toBe('智能体会话已不可用。')
     })
 
     it('interpolates {{var}} placeholders', () => {

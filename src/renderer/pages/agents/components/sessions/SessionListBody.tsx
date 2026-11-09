@@ -32,6 +32,9 @@ interface SessionListBodyProps {
   onCancelSelection: () => void
   onSelectAllFiltered: (sessions: readonly SessionListItem[]) => void
   onToggleSelection: (sessionId: string, selected: boolean) => void
+  onDeletePermanently: (id: string) => Promise<void>
+  permanentDeleteShortcut: string
+  deletingSessionId: string | null
   onOpenInNewTab?: (session: AgentSessionEntity) => void
   onOpenInNewWindow?: (session: AgentSessionEntity) => void
   onOpenRenameDialog: (session: AgentSessionEntity) => void
@@ -62,6 +65,9 @@ export function SessionListBody({
   onCancelSelection,
   onSelectAllFiltered,
   onToggleSelection,
+  onDeletePermanently,
+  permanentDeleteShortcut,
+  deletingSessionId,
   onOpenInNewTab,
   onOpenInNewWindow,
   onOpenRenameDialog,
@@ -99,6 +105,9 @@ export function SessionListBody({
         onToggleSidebar={onToggleSidebar}
         onDelete={onDeleteSession}
         onToggleSelection={onToggleSelection}
+        onDeletePermanently={onDeletePermanently}
+        permanentDeleteShortcut={permanentDeleteShortcut}
+        isDeleting={deletingSessionId === session.id}
         onOpenInNewTab={onOpenInNewTab}
         onOpenInNewWindow={onOpenInNewWindow}
         onOpenRenameDialog={onOpenRenameDialog}
@@ -112,10 +121,13 @@ export function SessionListBody({
     [
       activeSessionId,
       channelTypeMap,
+      deletingSessionId,
       displayMode,
       isSelectionMode,
       onDeleteSession,
       onToggleSelection,
+      onDeletePermanently,
+      permanentDeleteShortcut,
       onOpenInNewTab,
       onOpenInNewWindow,
       onOpenRenameDialog,

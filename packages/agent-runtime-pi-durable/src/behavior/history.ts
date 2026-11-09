@@ -59,7 +59,8 @@ function summaryUsage(entry: EntryRecord) {
 
 export function historyOf(
   entries: readonly EntryRecord[],
-  tasks: readonly TaskRecord<JsonValue, JsonValue, JsonValue>[]
+  tasks: readonly TaskRecord<JsonValue, JsonValue, JsonValue>[],
+  owner: ConversationId
 ): HistoryEntry[] {
   const calls = new Map<string, string>()
   for (const task of tasks) {
@@ -79,9 +80,10 @@ export function historyOf(
       )
       .join('\n')
     const decoded = decodeEntry({ id, kind: entry.kind, data: entry.data, text })
+    if (decoded?.kind === 'record' && entry.conversationId !== owner) return []
     if (decoded) return [decoded]
     if (CompactionEntry.is(entry)) {
-      const accounting = summaryUsage(entry)
+      const accounting = entry.conversationId === owner ? summaryUsage(entry) : undefined
       return [...(accounting ? [accounting] : []), { kind: 'compaction', id }]
     }
     return model.flatMap((message): HistoryEntry[] => {
@@ -144,7 +146,7 @@ export async function readFacts(
       )
     )
   ).flat()
-  const history = historyOf(entries, tasks)
+  const history = historyOf(entries, tasks, id)
   const live = await tx.doc(LiveDoc, id)
   const inbox = await tx.doc(InboxDoc, id)
   const record = (await tx.conversation(id))!
@@ -203,6 +205,7 @@ export async function readFacts(
   }
   const keysSeen = new Set(history.flatMap((entry) => ('key' in entry && entry.key ? [entry.key] : [])))
   for (const task of tasks) {
+    if (task.conversationId !== id) continue
     const input = task.input as { key?: string }
     if (
       task.kind === 'cherry.behavior-job' &&

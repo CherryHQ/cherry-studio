@@ -29,6 +29,7 @@ import { dataApiService } from '@renderer/data/DataApiService'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { ARCHIVE_DOMAINS, type ArchiveDomain } from '@shared/data/api/schemas/archives'
 import { type FileEntryRefCount, REF_COUNTS_MAX_ENTRY_IDS } from '@shared/data/api/schemas/files'
 import type { FileRef } from '@shared/data/types/file'
 
@@ -57,6 +58,30 @@ const CATEGORIES: { id: ArchiveCategory; labelKey: string }[] = [
   { id: 'paintings', labelKey: 'settings.data.trash.domain.paintings' },
   { id: 'files', labelKey: 'settings.data.trash.domain.files' }
 ]
+
+const DELETE_SCOPE_KEYS: Record<ArchiveDomain, string> = {
+  topics: 'settings.data.trash.permanent_delete.scope.topics',
+  sessions: 'settings.data.trash.permanent_delete.scope.sessions',
+  assistants: 'settings.data.trash.permanent_delete.scope.assistants',
+  agents: 'settings.data.trash.permanent_delete.scope.agents',
+  paintings: 'settings.data.trash.permanent_delete.scope.paintings',
+  files: 'settings.data.trash.permanent_delete.scope.files'
+}
+
+const DeleteScope: FC<{ domains: readonly ArchiveDomain[] }> = ({ domains }) => {
+  const { t } = useTranslation()
+  if (domains.length === 0) return null
+  return (
+    <ul className="list-disc space-y-1 pl-5 text-muted-foreground text-xs">
+      {domains.map((domain) => (
+        <li key={domain}>
+          <span className="font-medium text-foreground">{t(`settings.data.trash.domain.${domain}`)}</span>{' '}
+          {t(DELETE_SCOPE_KEYS[domain])}
+        </li>
+      ))}
+    </ul>
+  )
+}
 
 const SECTION_BY_CATEGORY: Record<ArchiveCategory, FC<ArchiveDomainSectionProps>> = {
   all: AllArchiveSection,
@@ -346,7 +371,12 @@ const ArchiveSettings: FC = () => {
           <span>{t('settings.data.trash.title')}</span>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon-sm" aria-label={t('common.more')} title={t('common.more')}>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t('common.more')}
+                title={t('common.more')}
+                className="text-muted-foreground">
                 <MoreHorizontal size={16} />
               </Button>
             </DropdownMenuTrigger>
@@ -422,10 +452,17 @@ const ArchiveSettings: FC = () => {
         title={
           pendingDelete && pendingDelete.items.length > 1
             ? t('settings.data.trash.permanent_delete.batch_confirm_title', { count: pendingDelete.items.length })
-            : t('settings.data.trash.permanent_delete.confirm_title')
+            : t('settings.data.trash.permanent_delete.confirm_title', {
+                name: pendingDelete?.items[0]?.name.trim() || t('common.unnamed')
+              })
         }
         description={t('settings.data.trash.permanent_delete.confirm_content')}
-        content={fileReferenceContent}
+        content={
+          <div className="space-y-3">
+            <DeleteScope domains={pendingDelete?.domains ?? []} />
+            {fileReferenceContent}
+          </div>
+        }
         confirmText={t('settings.data.trash.permanent_delete.label')}
         cancelText={t('common.cancel')}
         confirmLoading={isDeleting}
@@ -440,6 +477,7 @@ const ArchiveSettings: FC = () => {
         destructive
         title={t('settings.data.trash.empty_trash.confirm_title')}
         description={t('settings.data.trash.empty_trash.confirm_content')}
+        content={<DeleteScope domains={ARCHIVE_DOMAINS} />}
         confirmText={t('settings.data.trash.empty_trash.button')}
         cancelText={t('common.cancel')}
         confirmLoading={isEmptying}

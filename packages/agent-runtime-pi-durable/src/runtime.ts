@@ -43,6 +43,7 @@ import {
   type ThreadHandle,
   type ThreadInput,
   type Thread,
+  type ThreadId,
   type Subagent,
   type SubmitResult
 } from '@cherrystudio/agent-runtime'
@@ -61,12 +62,14 @@ export interface PiDurableRuntimeOptions {
   readonly harness: HarnessOptions
   readonly behavior?: PiDurableRuntimeBehavior
   /** Synchronous placement notification before the scheduler can issue the next model request. */
-  readonly onInputPlaced?: (inputId: InputId | undefined) => void
+  readonly onInputPlaced?: (inputId: InputId | undefined, thread: ThreadId) => void
   readonly onError?: (error: unknown) => void
 }
 export interface PiDurableRuntimeBehavior {
   readonly host: HostPorts
-  configureChild(child: { thread: Thread; modelKey: string }): AgentChange | Promise<AgentChange>
+  configureChild(child: { thread: Thread; parent: Thread; modelKey: string }): AgentChange | Promise<AgentChange>
+  readonly owns?: (thread: ThreadId) => boolean
+  configureRoot?(thread: ThreadId): AgentChange | Promise<AgentChange>
 }
 export type PiDurableSessionOptions = ConversationCreateOptions
 export interface PiDurableThreadHandle extends ThreadHandle {
@@ -101,6 +104,8 @@ export interface PiDurableArchive {
   readonly aliases: Readonly<Record<string, string>>
 }
 export interface PiDurableRuntime extends AgentRuntime {
+  /** Native transactions share this owner's mutation line; callers must retain their backend access. */
+  readonly durable: Pick<Harness, 'commit'>
   create(options: PiDurableSessionOptions): Promise<OperationResult<PiDurableThreadHandle>>
   open(ref: Thread): Promise<OperationResult<PiDurableThreadHandle>>
   resume(): Promise<OperationResult<void>>
@@ -148,8 +153,16 @@ export async function createPiDurableRuntime(
       install: (ports) => {
         behaviorEntries = install(ports, config.host).entries
       },
-      configureChild: (child, _parent, origin) =>
-        config.configureChild({ thread: refFor(Number(child)), modelKey: origin.modelKey }),
+      configureChild: async (child, parent, origin) =>
+        withBehavior(
+          await config.configureChild({
+            thread: refFor(Number(child)),
+            parent: refFor(Number(parent)),
+            modelKey: origin.modelKey
+          })
+        ),
+      configureRoot: config.configureRoot && (async (thread) => withBehavior(await config.configureRoot!(thread))),
+      owns: config.owns,
       onError: report
     })
     const registry = createRegistry()
@@ -167,6 +180,11 @@ export async function createPiDurableRuntime(
       registry,
       models: typeof models === 'function' ? () => meteredModels(models(), meter) : meteredModels(models, meter)
     }
+  }
+  function withBehavior(change: AgentChange): AgentChange {
+    return Array.isArray(change.extensions) && behavior
+      ? { ...change, extensions: [...change.extensions, behavior.extension] }
+      : change
   }
   const live = new Map<number, Entry>()
   const pending = new Set<Promise<unknown>>()
@@ -272,7 +290,8 @@ export async function createPiDurableRuntime(
     const history = behavior
       ? historyOf(
           await pages((cursor) => tx.scanEntries({ conversationId: record.id, order: 'ascending' }, 256, cursor)),
-          []
+          [],
+          record.id
         )
       : []
     const origin = history.findLast((entry) => entry.kind === 'record' && entry.record.type === 'subagent-origin')
@@ -294,63 +313,74 @@ export async function createPiDurableRuntime(
     const children = await pages((cursor) => tx.scanConversations({ ownerConversationId: parent }, 256, cursor))
     return (await Promise.all(children.map((child) => readRelation(tx, child)))).filter((child) => child !== undefined)
   }
-  const unsubscribe = native.subscribeCommits((publication) => {
-    const changed = new Set<number>()
-    for (const change of publication.changes) {
-      if (change.type === 'entry' && (change.value.model || change.value.head || change.value.edits))
-        changed.add(change.value.conversationId)
-      if (
-        (change.type === 'document' || change.type === 'document.copy') &&
-        change.record.kind === 'pi.agent' &&
-        change.conversationId !== undefined
-      )
-        changed.add(change.conversationId)
-      if (change.type === 'submission' && change.value.type === 'input') {
-        const record = change.value
-        if (record.status === 'placed' && inputs.get(record.id)?.status !== 'placed') {
-          const placed = publication.changes.find((item) => item.type === 'entry' && item.value.id === record.entry)
-          const id =
-            logicalIds.get(record.id) ??
-            (placed?.type === 'entry' ? (placed.value.data as { cherryInputId?: string })?.cherryInputId : undefined)
-          if (id) logicalIds.set(record.id, runtimeId(id))
-          try {
-            options.onInputPlaced?.(id ? runtimeId(id) : undefined)
-          } catch (cause) {
-            report(cause)
+  const unsubscribe = native.observeCommits({
+    advance(publication) {
+      const changed = new Set<number>()
+      for (const change of publication.changes) {
+        if (change.type === 'entry' && (change.value.model || change.value.head || change.value.edits))
+          changed.add(change.value.conversationId)
+        if (
+          (change.type === 'document' || change.type === 'document.copy') &&
+          change.record.kind === 'pi.agent' &&
+          change.conversationId !== undefined
+        )
+          changed.add(change.conversationId)
+        if (change.type === 'submission' && change.value.type === 'input') {
+          const record = change.value
+          if (record.status === 'placed' && inputs.get(record.id)?.status !== 'placed') {
+            const placed = publication.changes.find((item) => item.type === 'entry' && item.value.id === record.entry)
+            const id =
+              logicalIds.get(record.id) ??
+              (placed?.type === 'entry' ? (placed.value.data as { cherryInputId?: string })?.cherryInputId : undefined)
+            if (id) logicalIds.set(record.id, runtimeId(id))
+            try {
+              options.onInputPlaced?.(id ? runtimeId(id) : undefined, refFor(record.conversationId).id)
+            } catch (cause) {
+              report(cause)
+            }
           }
+          inputs.set(record.id, record)
         }
-        inputs.set(record.id, record)
+        if (change.type === 'conversation' && change.value.owner) {
+          const parent = change.value.owner.conversationId
+          const entry = live.get(parent)
+          if (entry)
+            void track(
+              readRelation(relationRecords, change.value).then((subagent) => {
+                if (subagent && live.get(parent) === entry)
+                  entry.projection.feed.publish({ type: 'subagent.upsert', subagent })
+              })
+            ).catch(report)
+        }
       }
-      if (change.type === 'conversation' && change.value.owner) {
-        const parent = change.value.owner.conversationId
-        const entry = live.get(parent)
-        if (entry)
-          void track(
-            readRelation(relationRecords, change.value).then((subagent) => {
-              if (subagent && live.get(parent) === entry)
-                entry.projection.feed.publish({ type: 'subagent.upsert', subagent })
-            })
-          ).catch(report)
+      for (const id of changed) {
+        const entry = live.get(id)
+        if (entry) {
+          entry.contextEpoch++
+          entry.projection.feed.publish({
+            type: 'context.changed',
+            result: { status: 'unknown', error: error('contextUsage', 'context-changed') }
+          })
+          refreshContext(entry)
+        }
       }
-    }
-    for (const id of changed) {
-      const entry = live.get(id)
-      if (entry) {
-        entry.contextEpoch++
-        entry.projection.feed.publish({
-          type: 'context.changed',
-          result: { status: 'unknown', error: error('contextUsage', 'context-changed') }
-        })
-        refreshContext(entry)
-      }
-    }
+    },
+    end() {}
+  }).detach
+  const unsubscribeClose = native.subscribeClose(() => {
+    if (!shutdown) closeAccesses('source-lost')
   })
   void native.closed.then(() => {
+    unsubscribeClose()
+    unsubscribe()
+    closeAccesses(shutdown ? 'shutdown' : 'source-lost')
+  })
+
+  function closeAccesses(reason: 'shutdown' | 'source-lost'): void {
     closing = true
     closingAccess.abort()
-    unsubscribe()
-    for (const entry of live.values()) entry.projection.feed.close(shutdown ? 'shutdown' : 'source-lost')
-  })
+    for (const entry of live.values()) entry.projection.feed.close(reason)
+  }
 
   function track<T>(operation: Promise<T>): Promise<T> {
     pending.add(operation)
@@ -390,9 +420,11 @@ export async function createPiDurableRuntime(
     const loading = (async (): Promise<OperationResult<Entry>> => {
       const projection = new DurableProjection(refFor(conversation.id), report)
       let detach: (() => void) | undefined
+      let detachCommits: (() => void) | undefined
       try {
         const attached = await conversationViews(native).attach(
           conversation.id,
+          { active: true },
           async (view, _release, committed) => {
             const retained = await pages((cursor) =>
               committed.scanEntries({ conversationId: conversation.id, order: 'ascending' }, 256, cursor, context)
@@ -412,7 +444,8 @@ export async function createPiDurableRuntime(
             const history = () =>
               historyOf(
                 [...historyEntries.values()].sort((a, b) => a.id - b.id),
-                [...toolTasks.values()]
+                [...toolTasks.values()],
+                conversation.id
               )
             const states: InputState[] = []
             let cursor: Cursor | undefined
@@ -432,8 +465,11 @@ export async function createPiDurableRuntime(
               cursor = page.next
             } while (cursor)
             projection.update(view, undefined, states, history())
-            return {
-              publication(_before, after, _ops, publication) {
+            let currentView = view
+            let publishedView = view
+            detachCommits = native.observeCommits({
+              advance(publication) {
+                const after = currentView
                 const changed: InputState[] = []
                 const records = publication.changes.flatMap((change) => (change.type === 'entry' ? [change.value] : []))
                 for (const change of publication.changes) {
@@ -464,10 +500,25 @@ export async function createPiDurableRuntime(
                       : undefined
                   changed.push(submissionState(refFor(conversation.id), record, answer, logicalIds.get(record.id)))
                 }
+                publishedView = after
                 projection.update(after, publication.seq, changed, history())
               },
-              closeSession(failure) {
-                if (failure) report(failure.error)
+              end() {}
+            }).detach
+            return {
+              advance(call) {
+                if (call.kind !== 'value') return
+                currentView = call.value
+                // Stored commits notify hosts before this preview microtask; deferred progress has no receipt.
+                queueMicrotask(() => {
+                  if (!closing && currentView === call.value && publishedView !== call.value) {
+                    publishedView = call.value
+                    projection.update(call.value, undefined, [], history())
+                  }
+                })
+              },
+              end(end) {
+                if (end.kind === 'failed' && !closing) report(end.error)
               }
             } satisfies ViewObserver
           },
@@ -487,6 +538,7 @@ export async function createPiDurableRuntime(
           entry.projection.feed.publish({ type: 'subagent.upsert', subagent })
         return { status: 'confirmed', value: entry }
       } catch (cause) {
+        detachCommits?.()
         detach?.()
         if (live.get(conversation.id)?.projection === projection) live.delete(conversation.id)
         projection.feed.close('source-lost')
@@ -611,7 +663,7 @@ export async function createPiDurableRuntime(
         },
         async configure(change) {
           if (unavailable()) throw new Error('Durable access is closed')
-          await native.commit((tx) => configure(tx, entry.conversation.id, change), context)
+          await native.commit((tx) => configure(tx, entry.conversation.id, withBehavior(change)), context)
         },
         async compact(instructions) {
           if (unavailable()) return rejected('compact', 'closed')
@@ -766,11 +818,11 @@ export async function createPiDurableRuntime(
                 facts: state.facts
               }
             } catch (cause) {
-              report(cause)
+              if (!closing) report(cause)
               return {
                 status: cause instanceof ConversationBusy ? 'rejected' : 'unknown',
                 inputId: input.inputId,
-                error: error('submit', cause instanceof ConversationBusy ? 'busy' : 'native-error')
+                error: error('submit', closing ? 'closed' : cause instanceof ConversationBusy ? 'busy' : 'native-error')
               }
             }
           })
@@ -812,12 +864,16 @@ export async function createPiDurableRuntime(
     }
   }
   const runtime: PiDurableRuntime = {
+    durable: native,
     create(config) {
       if (closing) return Promise.resolve(rejected('create', 'closed'))
       return track(
         (async () => {
           try {
-            const conversation = await native.createConversation(config, context)
+            const conversation = await native.createConversation(
+              { ...config, agent: config.agent && withBehavior(config.agent) },
+              context
+            )
             await behavior?.open(refFor(conversation.id).id)
             const result = await load(conversation)
             if (result.status !== 'confirmed') return result
