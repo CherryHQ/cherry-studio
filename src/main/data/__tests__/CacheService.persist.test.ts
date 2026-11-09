@@ -51,15 +51,6 @@ vi.mock('@main/core/lifecycle', () => ({
   Phase: { BeforeReady: 'BeforeReady', WhenReady: 'WhenReady' }
 }))
 
-// Test-controllable BrowserWindow so we can assert the persist path never broadcasts.
-vi.mock('electron', async () => {
-  const actual = await vi.importActual<any>('electron')
-  const fakeBrowserWindow: any = vi.fn()
-  fakeBrowserWindow.getAllWindows = vi.fn(() => [] as any[])
-  fakeBrowserWindow.fromWebContents = vi.fn(() => null)
-  return { ...actual, BrowserWindow: fakeBrowserWindow }
-})
-
 const PROBE = 'internal.persist_probe' as const
 
 describe('CacheService persist tier', () => {
@@ -68,6 +59,10 @@ describe('CacheService persist tier', () => {
   let cacheFile: string
 
   const initService = async () => {
+    const { BrowserWindow } = (await import('electron')) as any
+    BrowserWindow.getAllWindows = vi.fn(() => [])
+    BrowserWindow.fromWebContents = vi.fn(() => null)
+
     const { CacheService } = await import('../CacheService')
     service = new CacheService()
     await service.onInit()

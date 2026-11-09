@@ -223,7 +223,6 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
       unsubscribe()
       void ipcApi.request('mcp.request.cancel', { requestId }).catch(() => undefined)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Effect events read current values without resubscribing.
   }, [serverId, server.isActive])
 
   useEffect(() => {
@@ -418,7 +417,6 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     })
 
     autoEnableProtocolServer()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest server and toggle handler without resubscribing.
   }, [navigate, search.autoEnable, server])
 
   // Handle toggling a tool on/off
@@ -602,7 +600,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
           onValueChange={(value) => setActiveTab(value as TabKey)}
           variant="line"
           className="flex min-h-0 flex-1 flex-col bg-transparent">
-          <div className="shrink-0 px-6 pt-2">
+          <div className="shrink-0 px-6 pt-4">
             <div className="mx-auto w-full max-w-3xl">
               <SettingTitle className="min-w-0 flex-wrap gap-2">
                 <Flex className="min-w-0 flex-1 flex-wrap items-center gap-2">

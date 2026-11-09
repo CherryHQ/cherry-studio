@@ -154,7 +154,7 @@ export interface ClaudeAgentToolPolicySnapshot {
   isDisabled(runtimeName: string): boolean
   getPermissionMode(): AgentPermissionMode | undefined
   setPermissionMode(permissionMode: AgentPermissionMode | undefined): void
-  update(agent: Pick<AgentEntity, 'mcps' | 'disabledTools' | 'configuration'>): Promise<void>
+  update(agent: Pick<AgentEntity, 'mcps' | 'disabledTools'>): Promise<void>
 }
 
 export async function createClaudeAgentToolPolicySnapshot(
@@ -169,11 +169,11 @@ export async function createClaudeAgentToolPolicySnapshot(
   } = {}
 ): Promise<ClaudeAgentToolPolicySnapshot> {
   let descriptors: ClaudeToolDescriptor[] = []
-  let policy: ClaudeToolPolicy = {}
+  let policy = buildClaudeToolPolicy(agent)
   let disallowed = new Set<string>()
   let rebuildSequence = 0
 
-  const rebuild = async (nextAgent: Pick<AgentEntity, 'mcps' | 'disabledTools' | 'configuration'>) => {
+  const rebuild = async (nextAgent: Pick<AgentEntity, 'mcps' | 'disabledTools'>) => {
     // `update()` is fire-and-forget and unserialized, so two rebuilds can overlap. Guard with a
     // sequence so an older slow rebuild that resolves AFTER a newer one can't clobber the newer
     // policy's `disallowed`/`descriptors` (which would re-enable a just-disabled tool).
@@ -194,7 +194,6 @@ export async function createClaudeAgentToolPolicySnapshot(
       }
     }
     descriptors = nextDescriptors
-    policy = buildClaudeToolPolicy(nextAgent)
     // Same derivation as the build-time SDK `disallowedTools`, recomputed on every live update so a
     // mid-session disable is honored by `canUseTool` on the warm connection (registry exposure +
     // user opt-out + dependency cascade).

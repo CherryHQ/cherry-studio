@@ -238,6 +238,16 @@ Always cite primary sources.`
     expect(result).not.toContain('## Autonomy Tools')
   })
 
+  it('reports only the identity file fragments included in the rendered snapshot', async () => {
+    setupFiles({ [posix('/workspace/USER.md')]: 'Name: V' })
+    const snapshot = await builder.buildMemoriesContext(posix('/workspace'))
+    expect(snapshot.resources).toEqual([
+      { id: posix('/workspace/USER.md'), name: 'USER.md', source: posix('/workspace/USER.md'), characters: 22 }
+    ])
+    expect(snapshot.text).toContain('<user>\nName: V\n</user>')
+    expect(snapshot.text).toContain('<soul>\n\n</soul>')
+  })
+
   it('keeps system.md as the base while building memories as Cherry context', async () => {
     setupFiles({
       [posix('/workspace/system.md')]: 'You are CustomBot.',
