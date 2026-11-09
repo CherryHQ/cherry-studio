@@ -1,15 +1,28 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { createInstance } from 'i18next'
+import type { ReactNode } from 'react'
+import { I18nextProvider } from 'react-i18next'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ModelListSchema } from '@cherrystudio/provider-registry'
+import en from '@renderer/i18n/locales/en-us.json'
+
+import catalog from '../../../../../../packages/provider-registry/data/models.json'
+import { useImageGenerationSupport } from '../../hooks/useImageGenerationSupport'
 import type { PaintingData } from '../../model/types/paintingData'
 import PaintingSettings from '../PaintingSettings'
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
-}))
+const i18n = createInstance()
+beforeAll(async () => {
+  await i18n.init({ lng: 'en', resources: { en: { translation: en } }, keySeparator: false })
+})
+const renderWithI18n = (ui: ReactNode) =>
+  render(ui, { wrapper: ({ children }) => <I18nextProvider i18n={i18n}>{children}</I18nextProvider> })
+
+vi.unmock('react-i18next')
 
 vi.mock('../../hooks/useImageGenerationSupport', () => ({
-  useImageGenerationSupport: () => undefined
+  useImageGenerationSupport: vi.fn()
 }))
 
 const painting = {
@@ -22,9 +35,11 @@ const painting = {
 
 function renderSettings(overrides: Partial<PaintingData> = {}) {
   const onConfigChange = vi.fn()
-  render(<PaintingSettings painting={{ ...painting, ...overrides }} onConfigChange={onConfigChange} />)
-  return { onConfigChange, input: screen.getByLabelText('paintings.request_timeout') }
+  renderWithI18n(<PaintingSettings painting={{ ...painting, ...overrides }} onConfigChange={onConfigChange} />)
+  return { onConfigChange, input: screen.getByLabelText('Request timeout (seconds)') }
 }
+
+beforeEach(() => vi.mocked(useImageGenerationSupport).mockReturnValue(undefined))
 
 describe('PaintingSettings request timeout', () => {
   it('commits the entered seconds as milliseconds', () => {
@@ -38,9 +53,9 @@ describe('PaintingSettings request timeout', () => {
   })
 
   it('hides the override where the transport does not apply it', () => {
-    render(<PaintingSettings painting={{ ...painting, providerId: 'dmxapi' }} onConfigChange={vi.fn()} />)
+    renderWithI18n(<PaintingSettings painting={{ ...painting, providerId: 'dmxapi' }} onConfigChange={vi.fn()} />)
 
-    expect(screen.queryByLabelText('paintings.request_timeout')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Request timeout (seconds)')).not.toBeInTheDocument()
   })
 
   it('clears the override when the field is emptied', () => {
@@ -51,5 +66,59 @@ describe('PaintingSettings request timeout', () => {
     fireEvent.blur(input)
 
     expect(onConfigChange).toHaveBeenCalledWith({ requestTimeoutMs: undefined })
+  })
+})
+
+it('hides animation settings when reference images change generation into editing', () => {
+  const support = ModelListSchema.parse(catalog).models.find(
+    (model) => model.id === 'gpt-image-2-6-flare'
+  )?.imageGeneration
+  if (!support?.modes.edit) throw new Error('Missing edit support')
+  support.modes.edit.supports = {
+    complexity: { type: 'enum', options: ['low', 'medium', 'high'] },
+    outputFormat: { type: 'enum', options: ['png', 'jpeg', 'webp'] }
+  }
+  vi.mocked(useImageGenerationSupport).mockReturnValue(support)
+  const draft = { ...painting, params: { outputFormat: 'gif' } }
+  const { rerender } = renderWithI18n(
+    <PaintingSettings painting={draft} inputImageCount={0} onConfigChange={vi.fn()} />
+  )
+  expect(screen.getByRole('spinbutton', { name: 'Frame count' })).toBeInTheDocument()
+  rerender(<PaintingSettings painting={draft} inputImageCount={1} onConfigChange={vi.fn()} />)
+  expect(screen.queryByRole('spinbutton', { name: 'Frame count' })).not.toBeInTheDocument()
+  expect(screen.getByLabelText('Scene complexity')).toBeInTheDocument()
+})
+
+describe('PaintingSettings output format note', () => {
+  it('does not show a format claim without registry support', () => {
+    renderSettings()
+    expect(screen.queryByTestId('painting-output-format-note')).not.toBeInTheDocument()
+  })
+
+  it('lists the model output format options', () => {
+    const support = ModelListSchema.parse(catalog).models.find(
+      (model) => model.id === 'gpt-image-2-6-flare'
+    )?.imageGeneration
+    if (!support) throw new Error('Missing generation support')
+    support.modes.generate.supports = { outputFormat: { type: 'enum', options: ['png', 'jpeg', 'webp'] } }
+    vi.mocked(useImageGenerationSupport).mockReturnValue(support)
+    renderSettings()
+    expect(screen.getByTestId('painting-output-format-note')).toHaveTextContent(
+      'Supported output formats: PNG, JPEG, WEBP.'
+    )
+  })
+
+  it('explains provider-selected output when no format control exists', () => {
+    const support = ModelListSchema.parse(catalog).models.find(
+      (model) => model.id === 'gpt-image-2-6-flare'
+    )?.imageGeneration
+    if (!support) throw new Error('Missing generation support')
+    support.modes.generate.supports = {}
+    vi.mocked(useImageGenerationSupport).mockReturnValue(support)
+    renderSettings()
+    expect(screen.getByTestId('painting-output-format-note')).toHaveTextContent(
+      'Output format is chosen by the provider'
+    )
+    expect(screen.getByTestId('painting-output-format-note')).not.toHaveTextContent('Supported output formats:')
   })
 })

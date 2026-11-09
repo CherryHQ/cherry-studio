@@ -6,13 +6,13 @@ import { useTranslation } from 'react-i18next'
 import { Button, Flex, InfoTooltip, Input, InputNumber, Switch } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
+import { CherryCloudModelSelector as ModelSelector } from '@renderer/components/cherryCloud/CherryCloudModelSelector'
+import { useCherryCloudModelSelectorData } from '@renderer/components/cherryCloud/useCherryCloudModelSelectorData'
 import CopyButton from '@renderer/components/CopyButton'
 import {
   countStaleSelectedModelIds,
   hasStaleSelectedModelIds,
-  ModelSelector,
-  type ModelSelectorFilter,
-  useModelSelectorData
+  type ModelSelectorFilter
 } from '@renderer/components/ModelSelector'
 import { AgentLanguageField } from '@renderer/components/resourceCatalog/dialogs/components/AgentLanguageField'
 import Selector from '@renderer/components/Selector'
@@ -123,7 +123,7 @@ const GeneralSettings: FC = () => {
     providersError: fallbackProvidersCatalogError,
     cloudAvailabilityReady: fallbackCloudAvailabilityReady,
     cloudAvailabilityError: fallbackCloudAvailabilityError
-  } = useModelSelectorData({
+  } = useCherryCloudModelSelectorData({
     filter: chatModelFilter,
     selectedModelIds: configuredRetryFallbackModelIds,
     searchText: '',

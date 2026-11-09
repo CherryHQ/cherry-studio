@@ -200,6 +200,13 @@ installed with the filtered body parameters; capturing them earlier would let
 body passthrough bypass the final capability check. Service tier values override
 custom body values, and SDK-produced fields override both.
 
+For an eligible HTTP Fast request, the final builder removes conflicting tier
+options from the selected SDK namespace and sends the provider-declared
+`service_tier` through the same body-passthrough path. This avoids adapter
+namespace differences and OpenAI model-name checks on third-party Responses
+models. Disabling Fast preserves the ordinary service-tier/custom-parameter
+precedence; native CLI Fast stays with the CLI SDK.
+
 The wrapper applies the filtered parameters after the
 AI SDK serializes its JSON POST body. This preserves provider-defined wire names
 such as `snake_case` keys that an adapter schema does not recognize. Provider

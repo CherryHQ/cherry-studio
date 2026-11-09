@@ -65,7 +65,7 @@ describe('fileHandlers (DataApi)', () => {
         seedEntry('019606a0-0000-7000-8000-000000000a03', { deletedAt: Date.now() })
       ])
 
-      const result = (await fileHandlers['/files/entries'].GET({ query: {} } as never)) as {
+      const result = (await fileHandlers['/files/entries'].GET({ query: {} })) as {
         items: unknown[]
         total: number
         nextCursor?: string
@@ -111,14 +111,14 @@ describe('fileHandlers (DataApi)', () => {
     it('rejects limit above the MAX cap with ZodError', async () => {
       // Without a `.max()` on the query schema, a caller could ask for an
       // unbounded cursor page (DoS surface against the SELECT). Pin the upper bound.
-      await expect(fileHandlers['/files/entries'].GET({ query: { limit: 999 } } as never)).rejects.toHaveProperty(
+      await expect(fileHandlers['/files/entries'].GET({ query: { limit: 999 } })).rejects.toHaveProperty(
         'name',
         'ZodError'
       )
     })
 
     it('rejects non-positive limit and unknown page with ZodError', async () => {
-      await expect(fileHandlers['/files/entries'].GET({ query: { limit: 0 } } as never)).rejects.toHaveProperty(
+      await expect(fileHandlers['/files/entries'].GET({ query: { limit: 0 } })).rejects.toHaveProperty(
         'name',
         'ZodError'
       )
