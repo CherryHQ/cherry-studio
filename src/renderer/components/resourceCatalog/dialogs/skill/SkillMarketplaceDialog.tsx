@@ -21,7 +21,6 @@ import {
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useSkillInstall, useSkillSearch } from '@renderer/hooks/useSkills'
-import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { toast } from '@renderer/services/toast'
 import type { SkillSearchResult, SkillSearchSource } from '@shared/types/skill'
 import { buildGithubSkillResult } from '@shared/utils/skillMarketplace'
@@ -150,10 +149,11 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
         const { skill, error: installError } = await install(result.installSource)
         if (!skill) {
           const message = t('settings.skills.installFailed', { name: result.name })
-          toastAppError(message, installError, {
-            source: 'skills',
-            operation: 'skill.install',
-            recordId: result.installSource
+          toast.error({
+            title: message,
+            description: installError,
+            cause: installError,
+            data: { source: 'skills', operation: 'skill.install', recordId: result.installSource }
           })
           return
         }

@@ -5,6 +5,7 @@ import type * as ReactHookForm from 'react-hook-form'
 import { useWatch } from 'react-hook-form'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentType } from '@shared/data/types/agent'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -542,7 +543,22 @@ describe('ResourceCreateWizard', () => {
     )
   })
 
-  it('surfaces the actionable submit error and leaves the dialog closable after failure', async () => {
+  it('shows why the request was rejected, without a fault Details action', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn().mockRejectedValue(DataApiErrorFactory.conflict('An assistant named My Resource exists'))
+
+    render(<ResourceCreateWizard kind="assistant" open onOpenChange={vi.fn()} onSubmit={onSubmit} />)
+    await user.click(screen.getByRole('button', { name: 'fill basic' }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: CREATE }))
+
+    expect(await screen.findByText('An assistant named My Resource exists')).toBeInTheDocument()
+    expect(screen.queryByText('library.config.dialogs.create.submit_failed')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'error.details' })).not.toBeInTheDocument()
+  })
+
+  it('reports an unexpected submit fault with Details and leaves the dialog closable', async () => {
     const user = userEvent.setup()
     const onOpenChange = vi.fn()
     const cause = new Error('Selected skill no longer exists')
