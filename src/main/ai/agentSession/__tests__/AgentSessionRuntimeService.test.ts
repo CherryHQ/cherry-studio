@@ -4528,6 +4528,7 @@ describe('AgentSessionRuntimeService', () => {
       await vi.waitFor(() => expect(entry.contextUsageRefresh).toBeUndefined())
       expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', {
         modelId: baseTurnInput.modelId,
+        sessionId: 'session-1',
         result: unavailable
       })
     })
