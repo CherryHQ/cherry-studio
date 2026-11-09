@@ -60,7 +60,11 @@ async function createSession(excludeTools?: string[]) {
 }
 
 describe('Pi managed Bash SDK contract', () => {
-  it.each([false, true])('forks at the exact leaf (older duplicate: %s)', async (duplicate) => {
+  it.each([
+    { duplicate: false, compacted: false },
+    { duplicate: true, compacted: false },
+    { duplicate: false, compacted: true }
+  ])('forks at the exact leaf ($duplicate duplicate, $compacted compacted)', async ({ duplicate, compacted }) => {
     const directory = await mkdtemp(path.join(tmpdir(), 'cherry-pi-native-fork-'))
     directories.push(directory)
     const sessions = path.join(directory, 'sessions')
@@ -93,6 +97,7 @@ describe('Pi managed Bash SDK contract', () => {
       stopReason: 'stop',
       timestamp: 2
     })
+    if (compacted) manager.appendCompaction('RETAINED_SUMMARY', null, 1000)
     const checkpoint = {
       runtime: 'pi' as const,
       runtimeSessionId: manager.getSessionId(),
@@ -115,7 +120,9 @@ describe('Pi managed Bash SDK contract', () => {
       })
       await copyFile(result.publish[0].source, result.publish[0].target)
       const child = SessionManager.open(result.publish[0].target, sessions, directory)
-      expect(JSON.stringify(child.buildSessionContext().messages)).toContain('PAST_ONLY')
+      expect(JSON.stringify(child.buildSessionContext().messages)).toContain(
+        compacted ? 'RETAINED_SUMMARY' : 'PAST_ONLY'
+      )
       expect(JSON.stringify(child.buildSessionContext().messages)).not.toContain('FUTURE_SECRET')
       expect({ id: manager.getSessionId(), file: manager.getSessionFile(), leaf: manager.getLeafId() }).toEqual(
         sourceIdentity

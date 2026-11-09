@@ -4,7 +4,7 @@ import type { CSSProperties, FC, MouseEvent } from 'react'
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { MenuDivider, MenuItem, MenuList, PageHeader, Scrollbar } from '@cherrystudio/ui'
+import { MenuDivider, MenuItem, MenuList, PageHeader, ScrollArea } from '@cherrystudio/ui'
 import { settingsMenu } from '@renderer/components/settingsMenu'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import SettingsFocusScroll from '@renderer/pages/settings/settingsSearch/SettingsFocusScroll'
@@ -25,6 +25,11 @@ const SettingsPage: FC = () => {
   const location = useLocation()
   const navigate = useNavigate()
   const { pathname } = location
+  const standaloneRequested = String(location.search?.mcpStandalone) === 'true'
+  const [keepMcpStandalone, setKeepMcpStandalone] = useState(standaloneRequested)
+  useEffect(() => {
+    if (standaloneRequested) setKeepMcpStandalone(true)
+  }, [standaloneRequested])
   const { t } = useTranslation()
   const isMacTransparentWindow = useMacTransparentWindow()
   // Anchor-lookup scope for SettingsFocusScroll (this tab's content column)
@@ -37,7 +42,11 @@ const SettingsPage: FC = () => {
   }, [pathname])
 
   const isActive = (path: string) => pathname === path || pathname.startsWith(`${path}/`)
-  const go = (path: string) => navigate({ to: path })
+  const go = (path: string) =>
+    navigate({
+      to: path,
+      ...(path.startsWith('/settings/mcp') ? { search: { mcpStandalone: keepMcpStandalone ? 'true' : undefined } } : {})
+    })
 
   const openExternalLink = (event: MouseEvent<HTMLDivElement>) => {
     if (event.type === 'auxclick' && event.button !== 1) return
@@ -85,7 +94,7 @@ const SettingsPage: FC = () => {
                 }
               />
             )}
-            <Scrollbar className="min-h-0 flex-1 select-none">
+            <ScrollArea className="min-h-0 flex-1 select-none">
               <MenuList className={settingsSubmenuListClassName}>
                 {settingsMenu.map((item, index) => {
                   const startsNewGroup = index > 0 && item.groupKey !== settingsMenu[index - 1].groupKey
@@ -111,7 +120,7 @@ const SettingsPage: FC = () => {
                   )
                 })}
               </MenuList>
-            </Scrollbar>
+            </ScrollArea>
           </div>
           <div className="flex h-full min-h-0 min-w-0 flex-1">
             <div

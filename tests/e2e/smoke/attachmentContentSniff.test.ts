@@ -1,12 +1,13 @@
 import { createHash } from 'node:crypto'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import iconv from 'iconv-lite'
+import sharp from 'sharp'
 
 import { createUniqueModelId } from '../../../src/shared/data/types/model'
 import { type MockChatRequest, startMockChatServer } from '../../helpers/http/mockChatServer'
-import { selectSidebarApp } from '../regression/navigation'
+import { selectSidebarApp } from '../regression/helpers/navigation'
 import { expect, test } from './fixtures/electron.fixture'
 import { uiLocator } from './utils/uiLocator'
 
@@ -234,6 +235,174 @@ test('normal Chat content-sniffs unknown text attachments and rejects unknown bi
     await page.screenshot({ path: screenshot })
     await testInfo.attach('attachment-content-sniff-failure', { path: screenshot, contentType: 'image/png' })
     throw error
+  } finally {
+    try {
+      await electronApp.evaluate(({ dialog }, original) => {
+        dialog.showOpenDialog = original
+      }, originalDialog)
+    } finally {
+      await server.close()
+      await originalDialog.dispose()
+    }
+  }
+})
+
+test('normal Chat pads a thin image before provider dispatch', async ({ electronApp, mainWindow: page }, testInfo) => {
+  test.setTimeout(180_000)
+  const server = await startMockChatServer()
+  const providerId = `thin-image-${Date.now()}`
+  const originalDialog = await electronApp.evaluateHandle(({ dialog }) => dialog.showOpenDialog)
+  try {
+    expect(process.env.CS_DEV_PROFILE_ROOT).toBeTruthy()
+    const fixturePath = testInfo.outputPath('thin.png')
+    const original = await sharp({ create: { width: 1000, height: 4, channels: 3, background: '#123456' } })
+      .png()
+      .toBuffer()
+    await writeFile(fixturePath, original)
+    const languageSelect = page.locator('[data-onboarding-language-select]')
+    await expect(uiLocator(page, 'chat.composer').or(languageSelect).filter({ visible: true }).first()).toBeVisible()
+    if (await languageSelect.isVisible()) {
+      await languageSelect.getByRole('combobox').click()
+      await page.getByRole('option', { name: 'English', exact: false }).click()
+      await page.getByRole('button', { name: 'Set up later', exact: true }).click()
+    }
+    await page.getByRole('button', { name: 'Chat', exact: true }).first().click()
+    await expect(uiLocator(page, 'chat.composer').filter({ visible: true }).first()).toBeVisible()
+    await page.evaluate(() => window.api.preference.set('topic.naming.enabled', false))
+    const provider = await page.evaluate(
+      ({ providerId, baseUrl }) =>
+        window.api.dataApi.request({
+          id: `${providerId}-create`,
+          method: 'POST',
+          path: '/providers',
+          body: {
+            providerId,
+            name: 'Attachment smoke mock',
+            defaultChatEndpoint: 'openai-chat-completions',
+            endpointConfigs: { 'openai-chat-completions': { baseUrl } },
+            apiKeys: [{ id: 'mock-key', key: 'mock-key', isEnabled: true }]
+          }
+        }),
+      { providerId, baseUrl: server.baseUrl }
+    )
+    expect(provider.status).toBe(201)
+    const enabled = await page.evaluate(
+      (providerId) =>
+        window.api.dataApi.request({
+          id: `${providerId}-enable`,
+          method: 'PATCH',
+          path: `/providers/${providerId}`,
+          body: { isEnabled: true }
+        }),
+      providerId
+    )
+    expect(enabled.status).toBe(200)
+    const models = await page.evaluate(
+      ({ providerId, modelId }) =>
+        window.api.dataApi.request({
+          id: `${providerId}-model`,
+          method: 'POST',
+          path: '/models',
+          body: [
+            { providerId, modelId, endpointTypes: ['openai-chat-completions'], inputModalities: ['text', 'image'] }
+          ]
+        }),
+      { providerId, modelId: server.modelId }
+    )
+    expect(models.status).toBe(201)
+    const assistantName = `Attachment smoke ${providerId}`
+    const assistant = await page.evaluate(
+      ({ name, modelId }) =>
+        window.api.dataApi.request({
+          id: 'attachment-smoke-assistant',
+          method: 'POST',
+          path: '/assistants',
+          body: { name, modelId }
+        }),
+      { name: assistantName, modelId: createUniqueModelId(providerId, server.modelId) }
+    )
+    expect(assistant.status).toBe(201)
+    await page.reload()
+    const chatView = page.locator('[data-ui~="chat.view"]:visible')
+    await expect(chatView).toBeVisible()
+    const assistantRow = chatView.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
+    await assistantRow.hover()
+    await assistantRow.getByRole('button', { name: 'New Chat', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Selected models', exact: true })).toContainText(server.modelId)
+
+    const composer = uiLocator(page, 'chat.composer').filter({ visible: true }).first()
+    const editor = composer.locator('[contenteditable="true"]').first()
+
+    const prompt = `Thin image ${providerId}`
+    await editor.fill(prompt)
+    await electronApp.evaluate(({ dialog }, filePath) => {
+      dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filePath] })
+    }, fixturePath)
+    const launcher = composer.getByRole('button', { name: 'Upload attachment', exact: true })
+    if (await launcher.isVisible()) await launcher.click()
+    else {
+      await composer.getByRole('button', { name: 'Input Quick Panel', exact: true }).click()
+      await page.getByRole('button', { name: /^Upload attachment\b/ }).click()
+    }
+    await expect(composer.getByText('thin.png', { exact: true })).toBeVisible()
+    await page.bringToFront()
+    await page.waitForTimeout(250)
+    await testInfo.attach('composer-with-thin-image', { body: await page.screenshot(), contentType: 'image/png' })
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
+    let matched: MockChatRequest | undefined
+    const deadline = Date.now() + 30_000
+    while (!matched && Date.now() < deadline) {
+      const request = await server.nextRequest(Math.max(1, deadline - Date.now()))
+      const last = request.body.messages.filter((message) => (message as { role?: string }).role === 'user').at(-1) as
+        | { content?: unknown }
+        | undefined
+      if (request.body.model === server.modelId && JSON.stringify(last?.content).includes(prompt)) matched = request
+      else request.complete('Background request complete')
+    }
+    expect(matched).toBeDefined()
+    const last = matched!.body.messages.filter((message) => (message as { role?: string }).role === 'user').at(-1) as {
+      content: Array<{ type: string; image_url?: { url: string } }>
+    }
+    const images = last.content.filter((part) => part.type === 'image_url')
+    expect(images).toHaveLength(1)
+    const output = Buffer.from(images[0].image_url!.url.split(',')[1], 'base64')
+    const dimensions = await sharp(output).metadata()
+    await testInfo.attach('request', { body: JSON.stringify(matched!.body, null, 2), contentType: 'application/json' })
+    await testInfo.attach('dimensions', {
+      body: JSON.stringify({ width: dimensions.width, height: dimensions.height }),
+      contentType: 'application/json'
+    })
+    expect(dimensions).toMatchObject({ width: 1000, height: 15 })
+    expect(await sharp(output).extract({ left: 0, top: 5, width: 1000, height: 4 }).raw().toBuffer()).toEqual(
+      await sharp(original).raw().toBuffer()
+    )
+    expect([...(await sharp(output).extract({ left: 0, top: 0, width: 1, height: 1 }).raw().toBuffer())]).toEqual([
+      255, 255, 255
+    ])
+    const marker = `THIN_OK_${providerId}`
+    matched!.complete(marker)
+    await expect(uiLocator(page, 'chat.message').filter({ hasText: marker })).toBeVisible({ timeout: 30_000 })
+    await expect(page.locator('[data-ui~="chat.composer.action.pause"]')).toBeHidden()
+    await page.bringToFront()
+    await page.waitForTimeout(250)
+    await testInfo.attach('thin-image-turn-completed', { body: await page.screenshot(), contentType: 'image/png' })
+    expect(await readFile(fixturePath)).toEqual(original)
+    const messageId = await uiLocator(page, 'chat.message').filter({ hasText: prompt }).getAttribute('data-message-id')
+    expect(messageId).toBeTruthy()
+    const message = await page.evaluate(
+      (id) => window.api.dataApi.request({ id: 'thin-message', method: 'GET', path: `/messages/${id}` }),
+      messageId
+    )
+    expect(message.status).toBe(200)
+    const parts = (
+      message.data as {
+        data: { parts: Array<{ type: string; providerMetadata?: { cherry?: { fileEntryId?: string } } }> }
+      }
+    ).data.parts
+    const fileEntryId = parts.find((part) => part.type === 'file')?.providerMetadata?.cherry?.fileEntryId
+    expect(fileEntryId).toBeTruthy()
+    const managedPath = await page.evaluate((id) => window.api.file.getPhysicalPath({ id }), fileEntryId!)
+    expect(await readFile(managedPath)).toEqual(original)
   } finally {
     try {
       await electronApp.evaluate(({ dialog }, original) => {

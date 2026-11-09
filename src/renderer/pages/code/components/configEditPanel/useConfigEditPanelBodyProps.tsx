@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { resolveProviderIconRef, useIcon } from '@cherrystudio/ui/icons'
-import { ModelSelector } from '@renderer/components/ModelSelector'
+import { CherryCloudModelSelector as ModelSelector } from '@renderer/components/cherryCloud/CherryCloudModelSelector'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { getProviderDisplayName, useProviderApiKeys } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
@@ -85,6 +85,7 @@ export function useConfigEditPanelBodyProps({
       {unknownCliConfigModelHint}
       {unknownCliConfigModelHint && <div className="h-2" />}
       <ModelSelector
+        showSubscriptionOffers={false}
         multiple={false}
         selectionType="id"
         value={draft.modelId}
@@ -92,7 +93,13 @@ export function useConfigEditPanelBodyProps({
         filter={modelFilter}
         showTagFilter
         onSettingsNavigate={onSettingsNavigate}
-        trigger={<ModelSelectorTrigger value={draft.modelId} placeholder={t('settings.models.empty')} />}
+        trigger={
+          <ModelSelectorTrigger
+            aria-label={t('code.model_selection')}
+            value={draft.modelId}
+            placeholder={t('settings.models.empty')}
+          />
+        }
       />
     </>
   )
