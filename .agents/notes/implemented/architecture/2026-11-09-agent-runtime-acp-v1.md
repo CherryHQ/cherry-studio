@@ -85,7 +85,7 @@ The implemented package uses the SDK's stable client, `ThreadFeed` and `RuntimeM
 
 ## Consequences
 
-SDK and protocol schemas evolve independently; extension metadata does not enable unsupported controls. Native IDs remain session/content-kind scoped, and absent IDs remain projection-local. Prompt completion is not whole-harness quiescence. Stable model configuration plus native occupancy is required for common context usage; legacy model extensions and cumulative billing remain native facts. The host owns executable, credential, filesystem and terminal policy.
+SDK and protocol schemas evolve independently; extension metadata does not enable unsupported controls. Text and resource links are baseline prompt inputs; only embedded resources require `embeddedContext`. Native IDs remain session/content-kind scoped, and absent IDs remain projection-local. Prompt completion is not whole-harness quiescence. Stable model configuration plus native occupancy is required for common context usage. A model identity change invalidates the common reading until fresh usage arrives; raw native usage, legacy model extensions and cumulative billing remain native facts. The host owns executable, credential, filesystem and terminal policy.
 
 Setup buffering is bounded to 256 updates or 8 MiB. Cancellation and shutdown waits use 10-second deadlines and retain unknown outcomes when confirmation fails. Terminal support requires every terminal callback. Elicitation advertises session-scoped forms only; URL and request-scoped elicitation are not supported.
 
@@ -100,7 +100,7 @@ The commands below ran on macOS with Node 24.21.0 and pnpm 12.6.0. The protocol 
 - AC3 — `runtime.test.ts`: dispatch-only acknowledgement, synchronous busy reservation, local duplicate rejection, independent sessions, unsupported policies, exact stop outcomes, remote failure and disconnect without retry.
 - AC4 — `runtime.test.ts` and `lifecycle.test.ts`: offered permission IDs, cancelled pending permission, stale reply rejection, trailing output, completion racing cancellation, source loss and cancellation deadline retaining the busy slot.
 - AC5 — `runtime.test.ts` and `lifecycle.test.ts`: text/reasoning and text/file/text order, merged tool patches, retained resources/diffs/metadata, session-scoped IDs, observer isolation, overflow recovery and closure of only the overloaded observer.
-- AC6 — `runtime.test.ts` and `lifecycle.test.ts`: capability-gated content/MCP/configuration, scoped filesystem and full terminal callbacks, form elicitation, passive context evidence, preserved cumulative cost and absent common child controls.
+- AC6 — `runtime.test.ts` and `lifecycle.test.ts`: baseline resource links without optional capabilities, capability-gated content/MCP/configuration, scoped filesystem and full terminal callbacks, form elicitation, passive context evidence, invalidation on model changes through responses and notifications, preserved native usage/cumulative cost and absent common child controls.
 - AC7 — `lifecycle.test.ts`: real child-process exit, failed join and retry, late transport acquisition, delivery drain and native-history preservation; handle release leaves another access alive.
 - AC8 — `native.test.ts`: Claude ACP 0.101.0 with Claude Agent SDK 0.3.318 and Gemini CLI 0.67.0 each complete conversation, real file-tool permission, in-flight cancellation and history reload in a fresh process. Both executable variables were supplied; neither native case was skipped.
 

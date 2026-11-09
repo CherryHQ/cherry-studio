@@ -1,4 +1,10 @@
-import { methods, RequestError, type SessionUpdate, type RequestPermissionResponse } from '@agentclientprotocol/sdk'
+import {
+  methods,
+  RequestError,
+  type SessionConfigOption,
+  type SessionUpdate,
+  type RequestPermissionResponse
+} from '@agentclientprotocol/sdk'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { runtimeId, type ObservationPayload, type ThreadSnapshot } from '@cherrystudio/agent-runtime'
@@ -185,6 +191,35 @@ describe('input, permission and cancellation', () => {
     expect(left.messages[0].parts).toMatchObject([{ text: a.thread.id }])
     expect(right.messages[0].parts).toMatchObject([{ text: b.thread.id }])
   })
+  it.each([undefined, {}, { embeddedContext: false }])(
+    'accepts baseline resource links with prompt capabilities %j while rejecting embedded resources',
+    async (promptCapabilities) => {
+      const { runtime } = setup({
+        initialize: () => ({ protocolVersion: 1, agentCapabilities: { promptCapabilities }, authMethods: [] }),
+        'session/prompt': async ({ client, params }) => {
+          await client.notify(methods.client.session.update, {
+            sessionId: params.sessionId,
+            update: { sessionUpdate: 'user_message_chunk', content: params.prompt[0] }
+          })
+          return { stopReason: 'end_turn' }
+        }
+      })
+      const handle = confirmed(await runtime.create(configuration))
+      expect(
+        await handle.acp.submit({
+          ...input('embedded'),
+          content: [{ type: 'resource', resource: { uri: 'file:///context', text: 'embedded context' } }]
+        })
+      ).toMatchObject({ status: 'unsupported', error: { code: 'unsupported-prompt-content' } })
+      const reference = { type: 'resource_link' as const, uri: 'file:///context', name: 'Context' }
+      expect(await handle.acp.submit({ ...input('reference'), content: [reference] })).toMatchObject({
+        status: 'acknowledged'
+      })
+      await finished(handle, 'reference')
+      expect(handle.acp.state().messages).toMatchObject([{ chunks: [{ content: reference }] }])
+    }
+  )
+
   it('acknowledges only dispatch and prevents concurrent, duplicate and unsupported inputs', async () => {
     const end = deferred<void>()
     let prompts = 0
@@ -494,6 +529,80 @@ describe('projection and observation', () => {
     expect(baseline.messages[0].parts).toMatchObject([{ text: '.'.repeat(120) }])
     expect(await a.input!.submit(input('after-release'))).toMatchObject({ status: 'rejected' })
   })
+
+  it.each(['response', 'notification'] as const)(
+    'invalidates context measurements on model changes via %s until fresh usage arrives',
+    async (source) => {
+      const modelOptions = (currentValue: string): SessionConfigOption[] => [
+        {
+          id: 'model',
+          name: 'Model',
+          type: 'select',
+          category: 'model',
+          currentValue,
+          options: [
+            { value: 'small', name: 'Small' },
+            { value: 'large', name: 'Large' }
+          ]
+        }
+      ]
+      const { runtime, peer } = setup({
+        'session/new': () => ({ sessionId: 'context', configOptions: modelOptions('small') }),
+        'session/set_config_option': ({ params }) => {
+          if (typeof params.value !== 'string') throw new Error('Expected model ID')
+          return { configOptions: modelOptions(params.value) }
+        }
+      })
+      const handle = confirmed(await runtime.create(configuration))
+      const { events, observer } = await collect(handle)
+      const changeModel = async (model: string) => {
+        if (source === 'response') confirmed(await handle.acp.setConfigOption('model', model))
+        else {
+          await peer.client.notify(methods.client.session.update, {
+            sessionId: handle.thread.id,
+            update: { sessionUpdate: 'config_option_update', configOptions: modelOptions(model) }
+          })
+          await expect
+            .poll(() => handle.acp.state().metadata)
+            .toContainEqual({
+              sessionUpdate: 'config_option_update',
+              configOptions: modelOptions(model)
+            })
+        }
+        await observer.drain()
+      }
+      const usage = { sessionUpdate: 'usage_update' as const, used: 80, size: 100 }
+      await peer.client.notify(methods.client.session.update, { sessionId: handle.thread.id, update: usage })
+      await expect.poll(async () => (await handle.contextUsage()).status).toBe('confirmed')
+      await changeModel('small')
+      expect(await handle.contextUsage()).toMatchObject({
+        status: 'confirmed',
+        value: { model: 'small', contextWindow: 100, used: { tokens: 80 } }
+      })
+
+      await changeModel('large')
+      expect(await handle.contextUsage()).toMatchObject({ status: 'unknown' })
+      expect(events.at(-1)).toMatchObject({ type: 'snapshot', contextUsage: { status: 'unknown' } })
+      expect(handle.acp.state().metadata).toContainEqual(usage)
+      await changeModel('small')
+      expect(await handle.contextUsage()).toMatchObject({ status: 'unknown' })
+
+      await changeModel('large')
+      await peer.client.notify(methods.client.session.update, {
+        sessionId: handle.thread.id,
+        update: { sessionUpdate: 'usage_update', used: 120, size: 2000 }
+      })
+      await expect.poll(async () => (await handle.contextUsage()).status).toBe('confirmed')
+      await observer.drain()
+      expect(events.at(-1)).toMatchObject({
+        type: 'snapshot',
+        contextUsage: {
+          status: 'confirmed',
+          value: { model: 'large', contextWindow: 2000, used: { tokens: 120 } }
+        }
+      })
+    }
+  )
 
   it('reads context passively only with native model and capacity evidence', async () => {
     let prompts = 0

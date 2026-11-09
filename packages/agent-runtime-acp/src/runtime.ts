@@ -254,7 +254,7 @@ export function createAcpRuntime(options: AcpRuntimeOptions): AcpRuntime {
         (part) =>
           (part.type === 'image' && !capabilities?.image) ||
           (part.type === 'audio' && !capabilities?.audio) ||
-          ((part.type === 'resource' || part.type === 'resource_link') && !capabilities?.embeddedContext)
+          (part.type === 'resource' && !capabilities?.embeddedContext)
       )
     )
       return reject('unsupported-prompt-content', 'unsupported')

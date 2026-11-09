@@ -56,13 +56,23 @@ export class Projection {
   }
 
   configure(value: AcpSessionState['configuration']): void {
-    this.configuration = { ...this.configuration, ...value }
+    this.updateConfiguration(value)
     this.publish({ ...this.feed.snapshot, contextUsage: this.contextUsage() })
   }
 
-  contextUsage(): OperationResult<ThreadContextUsage> {
+  private get model(): string | undefined {
     const option = this.configuration.configOptions?.find((item) => item.category === 'model' && item.type === 'select')
-    const model = option?.type === 'select' ? option.currentValue : undefined
+    return option?.type === 'select' ? option.currentValue : undefined
+  }
+
+  private updateConfiguration(value: AcpSessionState['configuration']): void {
+    const model = this.model
+    this.configuration = { ...this.configuration, ...value }
+    if (this.model !== model) this.usage = undefined
+  }
+
+  contextUsage(): OperationResult<ThreadContextUsage> {
+    const model = this.model
     if (!this.usage || !model) return unavailable('contextUsage', 'missing-native-context-or-model')
     if (
       !Number.isFinite(this.usage.size) ||
@@ -200,7 +210,8 @@ export class Projection {
       event = { type: 'message.upsert', message: await this.stream(id).stream.append(chunks, 'partial') }
     } else {
       this.metadata.set(update.sessionUpdate, update)
-      if (update.sessionUpdate === 'config_option_update') this.configuration.configOptions = update.configOptions
+      if (update.sessionUpdate === 'config_option_update')
+        this.updateConfiguration({ configOptions: update.configOptions })
       if (update.sessionUpdate === 'current_mode_update' && this.configuration.modes)
         this.configuration.modes.currentModeId = update.currentModeId
       if (update.sessionUpdate === 'usage_update') this.usage = update
