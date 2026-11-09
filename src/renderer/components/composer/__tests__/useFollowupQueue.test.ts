@@ -762,3 +762,69 @@ describe('retry admission recovery boundaries', () => {
     expect(onDrain).toHaveBeenCalledTimes(2)
   })
 })
+
+describe('Blob-backed followup attachments', () => {
+  beforeEach(() => MockCacheUtils.resetMocks())
+
+  it.each([true, false])('keeps generated-image bytes through queueing and drain acceptance=%s', async (accepted) => {
+    const blob = new Blob([new Uint8Array([137, 80, 78, 71])], { type: 'image/png' })
+    const queued = {
+      ...payload('follow up'),
+      attachments: [
+        {
+          blob,
+          name: 'generated',
+          origin_name: 'generated.png',
+          ext: '.png',
+          type: 'image',
+          size: blob.size,
+          fileTokenSourceId: 'generated-1'
+        }
+      ]
+    }
+    const onDrain = vi.fn().mockResolvedValue(accepted)
+    const onDrainFailed = vi.fn()
+    const { result, rerender } = renderHook(
+      ({ done }) =>
+        useFollowupQueue({
+          scopeKey: 'blob',
+          status: done ? 'done' : 'streaming',
+          lastCompletedAt: done ? 100 : null,
+          onDrain,
+          onDrainFailed
+        }),
+      { initialProps: { done: false } }
+    )
+    act(() => {
+      expect(result.current.enqueue(draft('follow up'), queued)).toBe('ok')
+    })
+    expect(result.current.items).toHaveLength(1)
+    expect(result.current.items[0].payload.attachments?.[0].blob).toBe(blob)
+    expect(onDrain).not.toHaveBeenCalled()
+    await act(async () => {
+      rerender({ done: true })
+    })
+    expect(onDrain).toHaveBeenCalledExactlyOnceWith(queued)
+    if (accepted) {
+      expect(result.current.items).toEqual([])
+      expect(onDrainFailed).not.toHaveBeenCalled()
+    } else {
+      expect(result.current.items).toHaveLength(1)
+      expect(result.current.items[0].payload.attachments?.[0].blob).toBe(blob)
+      expect(result.current.paused).toBe(true)
+      expect(onDrainFailed).toHaveBeenCalledOnce()
+    }
+  })
+
+  it('rejects pathless attachment objects that only imitate a Blob', () => {
+    const invalid = {
+      ...item('invalid', 'bad'),
+      payload: { ...payload('bad'), attachments: [{ blob: { size: 3, type: 'image/png' } }] }
+    }
+    cacheService.setCasual('followup-queue.blob', [invalid])
+    const { result } = renderHook(() =>
+      useFollowupQueue({ scopeKey: 'blob', status: 'streaming', lastCompletedAt: null, onDrain: vi.fn() })
+    )
+    expect(result.current.items).toEqual([])
+  })
+})

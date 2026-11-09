@@ -99,17 +99,18 @@ class FollowupQueueValidationService {
       // Null elements throw on property access downstream (`part.type` in the
       // knowledge-base extractor, `attachment.path` in file-part building), and
       // a text part without string text throws in history-text extraction.
-      // Attachments additionally need a non-empty string path: the send path
-      // throws for missing or empty paths before the first IPC, so such an
-      // entry could never send and would only fail visibly on every drain.
+      // The queue lives in the per-window memory cache, so owned Blobs survive
+      // enqueue/reload just like composer drafts. The send-time file bridge
+      // accepts either a path or a Blob (generated-image references have no
+      // path). Reject only attachments with neither supported backing source.
       const isObjectList = (value: unknown): value is object[] =>
         Array.isArray(value) &&
         value.every((element) => element !== null && typeof element === 'object' && !Array.isArray(element))
       const isAttachmentList = (value: unknown): value is object[] =>
         isObjectList(value) &&
         value.every((element) => {
-          const path = (element as { path?: unknown }).path
-          return typeof path === 'string' && path.length > 0
+          const { path, blob } = element as { path?: unknown; blob?: unknown }
+          return (typeof path === 'string' && path.length > 0) || blob instanceof Blob
         })
       const isPartList = (value: unknown): value is object[] =>
         isObjectList(value) &&
