@@ -2,6 +2,11 @@ import '@testing-library/jest-dom/vitest'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
+vi.mock('@cherrystudio/ui', async () => {
+  const { Alert } = await import('@cherrystudio/ui/components/primitives/alert')
+  return { Alert }
+})
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, values: { names: string }) => `${key}:${values.names}`
@@ -14,6 +19,7 @@ describe('AttachmentNoticeBlock', () => {
   it('names every image that was sent as OCR text', () => {
     render(<AttachmentNoticeBlock data={{ kind: 'image-ocr', fileNames: ['a.png', 'b.jpg'] }} />)
 
+    expect(screen.getByRole('note')).toHaveAttribute('data-slot', 'alert')
     expect(screen.getByRole('note')).toHaveTextContent('message.attachment_notice.image_ocr:a.png, b.jpg')
   })
 

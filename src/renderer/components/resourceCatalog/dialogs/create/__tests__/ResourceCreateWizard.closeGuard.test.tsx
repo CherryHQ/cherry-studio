@@ -1,3 +1,14 @@
+vi.mock('@renderer/hooks/cherryCloud/useIsCherryCloudModelSelectable', () => ({
+  useIsCherryCloudModelSelectable: () => () => true
+}))
+vi.mock('@renderer/components/cherryCloud/CherryCloudModelSelector', async () => {
+  const selector = await import('@renderer/components/ModelSelector')
+  return {
+    CherryCloudModelSelector: selector.ModelSelector
+  }
+})
+
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactModule from 'react'
@@ -172,7 +183,7 @@ vi.mock('@cherrystudio/ui', async () => {
         {label}
       </button>
     ),
-    Scrollbar: ({ children }: { children: ReactNode }) => <div>{children}</div>
+    ScrollArea: MockCherrystudioUI.ScrollArea
   }
 })
 

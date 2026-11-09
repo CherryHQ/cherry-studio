@@ -475,12 +475,13 @@ export const ToastViewport = ({
   const viewportRef = useRef<HTMLDivElement>(null)
   const [hovered, setHovered] = useState(false)
   const [focused, setFocused] = useState(false)
-  const expanded = hovered || focused
+  const interacting = hovered || focused
+  const expanded = interacting && toasts.length > 1
 
   useEffect(() => {
-    store.setPaused(expanded && toasts.length > 0)
+    store.setPaused(interacting && toasts.length > 0)
     return () => store.setPaused(false)
-  }, [expanded, store, toasts.length])
+  }, [interacting, store, toasts.length])
 
   useEffect(() => {
     setFocused(viewportRef.current?.contains(document.activeElement) ?? false)

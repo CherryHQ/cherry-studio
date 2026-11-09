@@ -1,7 +1,7 @@
-import { Info } from 'lucide-react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Alert } from '@cherrystudio/ui'
 import type { AttachmentNoticePartData } from '@shared/data/types/uiParts'
 
 /**
@@ -13,12 +13,9 @@ const AttachmentNoticeBlock: React.FC<{ data: AttachmentNoticePartData }> = ({ d
   if (data.kind !== 'image-ocr' || data.fileNames.length === 0) return null
 
   return (
-    <div
-      className="my-2 flex items-start gap-2 rounded-md border border-border-subtle px-3 py-2 text-muted-foreground text-xs"
-      role="note">
-      <Info className="mt-px size-3.5 shrink-0" aria-hidden />
-      <span>{t('message.attachment_notice.image_ocr', { names: data.fileNames.join(', ') })}</span>
-    </div>
+    <Alert className="my-2" type="info" role="note" showIcon>
+      {t('message.attachment_notice.image_ocr', { names: data.fileNames.join(', ') })}
+    </Alert>
   )
 }
 

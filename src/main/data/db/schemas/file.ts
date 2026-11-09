@@ -46,7 +46,7 @@ export const fileEntryTable = sqliteTable(
 
     // ─── Cleanup policy ───
     /**
-     * Cleanup intent stored as data (docs/references/file/file-entry-cleanup.md §4).
+     * Cleanup intent stored as data (docs/dev/references/file/file-entry-cleanup.md §4).
      * 'manual' = keep at zero refs; 'delete_when_unreferenced' = the cleanup
      * pass may reclaim once zero persistent refs + past grace.
      * DB default 'manual' is the safe backstop; TS creation surfaces require
