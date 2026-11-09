@@ -1,6 +1,9 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
+
+import { MessagePartsScopeProvider } from '../MessagePartsContext'
 import ThinkingBlock from '../ThinkingBlock'
 
 // Mock dependencies
@@ -48,6 +51,7 @@ vi.mock('../ThinkingEffect', () => ({
 describe('ThinkingBlock', () => {
   beforeEach(async () => {
     vi.useFakeTimers()
+    invalidateCachedMessageUiStates(['thinking-test-message'])
 
     mockRenderConfig.messageFont = 'sans-serif'
     mockRenderConfig.fontSize = 14
@@ -84,7 +88,14 @@ describe('ThinkingBlock', () => {
         content={block.content}
         isStreaming={block.status === 'streaming'}
         showTitlePreview={props.showTitlePreview}
-      />
+      />,
+      {
+        wrapper: ({ children }) => (
+          <MessagePartsScopeProvider messageId="thinking-test-message" parts={[]}>
+            {children}
+          </MessagePartsScopeProvider>
+        )
+      }
     )
   }
 
@@ -256,6 +267,43 @@ describe('ThinkingBlock', () => {
 
       expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
       expect(getContentContainer()).not.toHaveAttribute('hidden')
+    })
+
+    it('should restore the user-selected disclosure state after remounting', () => {
+      const block = createThinkingBlock()
+      const firstRender = renderThinkingBlock(block)
+
+      fireEvent.click(getToggleButton())
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
+
+      firstRender.unmount()
+      renderThinkingBlock(block)
+
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
+    })
+
+    it.each([true, false])('reconciles a preference changed while unmounted: %s', (initial) => {
+      mockRenderConfig.thoughtAutoCollapse = initial
+      const block = createThinkingBlock()
+      const first = renderThinkingBlock(block)
+      mockRenderConfig.thoughtAutoCollapse = !initial
+      first.rerender(<ThinkingBlock id={block.id} content={block.content} isStreaming={false} />)
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', String(initial))
+      first.unmount()
+      mockRenderConfig.thoughtAutoCollapse = initial
+      renderThinkingBlock(block)
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', String(!initial))
+    })
+
+    it.each([true, false])('preserves a manual choice with unchanged preference: %s', (initial) => {
+      mockRenderConfig.thoughtAutoCollapse = initial
+      const block = createThinkingBlock()
+      const first = renderThinkingBlock(block)
+      fireEvent.click(getToggleButton())
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', String(initial))
+      first.unmount()
+      renderThinkingBlock(block)
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', String(initial))
     })
 
     it('should render expanded by default when auto-collapse is disabled', () => {

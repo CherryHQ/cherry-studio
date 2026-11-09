@@ -7,6 +7,7 @@ import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, RefObject } 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherrystudioUI from '@cherrystudio/ui'
+import type * as Platform from '@renderer/utils/platform'
 import type { MiniApp } from '@shared/data/types/miniApp'
 
 import MinimalToolbar from '../MinimalToolbar'
@@ -40,7 +41,10 @@ vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: (_route: string, url: string) => mocks.openWebsite(url) }
 }))
 vi.mock('@renderer/services/toast', () => ({ toast: { error: mocks.toastError } }))
-vi.mock('@renderer/utils/platform', () => ({ isDev: false }))
+vi.mock('@renderer/utils/platform', async (importOriginal) => ({
+  ...(await importOriginal<typeof Platform>()),
+  isDev: false
+}))
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) =>

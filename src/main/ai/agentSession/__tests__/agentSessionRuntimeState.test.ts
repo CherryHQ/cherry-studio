@@ -114,6 +114,19 @@ describe('reply ownership and delivery', () => {
     expect(getAgentSessionRuntimeOccupancy(m.state)?.background).toBeDefined()
   })
 
+  it.each(['error', 'paused'] as const)('replaces held foreground success with %s before settlement', (status) => {
+    const m = machine()
+    m.connect()
+    m.open(first)
+    m.send({ type: 'reply-results', turn: first, toolCallIds: ['spawn'] })
+    expect(m.finish(first)).toEqual([])
+    expect(m.send({ type: 'runtime-terminal', turn: first, outcome: { status } })).toEqual([
+      { type: 'settle-turn', turn: first, outcome: { status } }
+    ])
+    expect(m.send({ type: 'reply-results', turn: first, toolCallIds: [] })).toEqual([])
+    expect(m.finish(first)).toEqual([])
+  })
+
   it('does not treat unknown result attribution as success before the reply stream opens', () => {
     const m = machine()
     m.send({ type: 'reply-results', turn: first, toolCallIds: undefined })
