@@ -148,28 +148,6 @@ describe('regression execution plan', () => {
     for (const task of TASK_SELECTIONS) expect(task).not.toMatch(/^\d/)
   })
 
-  it('starts agents-and-later at Agent runtimes and includes every remaining phase', () => {
-    const selected = selectCases('agents-and-later')
-    expect([...new Set(selected.map(({ phase }) => phase))]).toEqual([
-      'agentRuntimes',
-      'topics',
-      'chatCore',
-      'notes',
-      'translation',
-      'settings',
-      'assistants',
-      'files',
-      'dataManagement',
-      'browser',
-      'system'
-    ])
-    expect(selected[0].id).toBe('A-01')
-    expect(selected.at(-1)?.id).toBe('MP-141')
-    expect(selectCases('agents-and-later', 'images')).toEqual([])
-    expect(selectCases('agents-and-later', 'basicFeatures')).toEqual([])
-    expect(selectCases('agents-and-later', 'agentRuntimes').map(({ id }) => id)).toContain('MP-58')
-  })
-
   it('prepares the MCP server package for both the module and focused MCP tasks', () => {
     const workflow = parse(readFileSync(resolve('.github/workflows/e2e-regression-test.yml'), 'utf8'))
     const step = workflow.jobs.test.steps.find(
@@ -213,7 +191,7 @@ describe('regression execution plan', () => {
   })
 })
 
-it.each(['all', 'notes', 'notes-smoke', 'knowledge', 'code-tools', 'native-recovery', 'agents-and-later'] as const)(
+it.each(['all', 'notes', 'notes-smoke', 'knowledge', 'code-tools', 'native-recovery'] as const)(
   'discovers the selected %s cases through Playwright without matching another task prefix',
   (task) => {
     const directory = mkdtempSync(join(tmpdir(), 'cherry-regression-enumeration-'))

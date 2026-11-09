@@ -134,9 +134,6 @@ task names and outcomes.
 `native-settings` selects native notification verification. The complete Settings phase allows 40 minutes on hosted runners.
 `native-recovery` groups notifications and backup-restore relaunch in one prepared
 runner per platform, preserving their normal manifest and phase order.
-`agents-and-later` selects Agent Runtimes and every subsequent phase in manifest
-order, including scheduled tasks. Earlier phases are not selected; this task does
-not run the standalone smoke suite or count as full regression acceptance.
 
 `run.json` schema version 2 records both cases and phases. The parent marks a phase running before starting Playwright; the reporter records test results and executor errors; a nonzero child exit also fails the phase.
 A phase left pending/running becomes blocked during finalization. Passing cases cannot hide a failed or unfinished phase. Missing platform reports block the aggregate gate.
