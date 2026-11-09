@@ -16,11 +16,6 @@ const mocks = vi.hoisted(() => ({
   toastError: vi.fn()
 }))
 
-vi.mock('@renderer/components/ErrorDetailModal', () => ({
-  isErrorDetailHostMounted: () => mocks.hostMounted(),
-  showErrorDetailPopup: (...args: unknown[]) => mocks.show(...args)
-}))
-
 vi.mock('../DegradedFaultHostService', () => ({
   degradedFaultHostService: {
     presentDegradedFault: (error: unknown) => mocks.degraded(error)
@@ -47,6 +42,11 @@ describe('openAppErrorDetail', () => {
     vi.resetModules()
     ;({ buildInlineErrorDetailRequest, presentHandedOffError, presentUncaught, toastAppError, appErrorDetailService } =
       await import('../AppErrorDetailService'))
+    const { registerErrorDetailPopup } = await import('../errorDetailPopup')
+    registerErrorDetailPopup(async () => ({
+      isErrorDetailHostMounted: () => mocks.hostMounted(),
+      showErrorDetailPopup: (params) => mocks.show(params)
+    }))
 
     mocks.show.mockReset()
     mocks.toastError.mockReset()
@@ -148,6 +148,15 @@ describe('openAppErrorDetail', () => {
     )
   })
 
+  it('falls back to a local retry when this window registered no detail popup', async () => {
+    vi.resetModules()
+    ;({ appErrorDetailService } = await import('../AppErrorDetailService'))
+
+    await expect(appErrorDetailService.openAppErrorDetail({ context })).resolves.toBe('failed')
+    expect(mocks.show).not.toHaveBeenCalled()
+    expect(mocks.toastError).toHaveBeenCalledWith(expect.objectContaining({ title: 'error.detail_open_failed' }))
+  })
+
   it('keeps an explicit explanation when the context message is the raw cause', async () => {
     const request = buildInlineErrorDetailRequest({
       error: new Error('disk full'),
@@ -224,6 +233,15 @@ describe('openAppErrorDetail', () => {
       })
     )
     expect(mocks.toastError.mock.calls[0]?.[0].data.suppressDetail).toBeUndefined()
+  })
+
+  it('replaces the previous sticky uncaught toast instead of stacking one per fault', () => {
+    presentUncaught(new Error('first'), 'window.error', 'local')
+    presentUncaught(new Error('second'), 'window.unhandledrejection', 'local')
+
+    const keys = mocks.toastError.mock.calls.map(([notice]) => notice.key)
+    expect(keys).toHaveLength(2)
+    expect(keys[1]).toBe(keys[0])
   })
 
   it('labels an unhandled rejection without rewriting the handed-off context', () => {

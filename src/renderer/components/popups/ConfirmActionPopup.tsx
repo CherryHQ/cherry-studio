@@ -88,8 +88,7 @@ const PopupContainer: React.FC<Props> = ({
       <DialogContent
         showCloseButton={false}
         closeOnOverlayClick={!loading}
-        overlayClassName="z-[90]"
-        className={cn('confirm-popup z-[90] gap-5 sm:max-w-lg')}
+        className={cn('confirm-popup gap-5 sm:max-w-lg')}
         onInteractOutside={(event) => {
           if (loading) {
             event.preventDefault()

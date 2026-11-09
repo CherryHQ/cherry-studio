@@ -1,8 +1,7 @@
 import { loggerService } from '@logger'
-import type { DiagnosticReportConfig } from '@renderer/components/ErrorDetailModal'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
-import type { SerializedError } from '@renderer/types/error'
+import type { DiagnosticReportConfig, SerializedError } from '@renderer/types/error'
 import type { DiagnosisContext } from '@renderer/utils/errorDiagnosis'
 import type { AppErrorContext } from '@shared/types/appError'
 import type { DoctorSubjectRef } from '@shared/types/doctor'
@@ -17,15 +16,12 @@ import {
   operationSubject
 } from './AppErrorContextService'
 import { degradedFaultHostService } from './DegradedFaultHostService'
+import { loadErrorDetailPopup } from './errorDetailPopup'
 import { toast } from './toast'
 
 const logger = loggerService.withContext('AppErrorDetailService')
-
-/** Chromium emits this when layout observers deliver late. It is not an application fault. */
-function isResizeObserverNoise(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : typeof error === 'string' ? error : ''
-  return message.includes('ResizeObserver loop')
-}
+/** One slot for uncaught faults: a new one replaces the last instead of stacking sticky toasts. */
+const UNCAUGHT_TOAST_KEY = 'app-error-uncaught'
 
 export interface InlineErrorDetailInput {
   readonly error: unknown
@@ -149,14 +145,14 @@ class AppErrorDetailService {
     if (this.detailReserved) return 'busy'
     this.detailReserved = true
     try {
-      const { isErrorDetailHostMounted, showErrorDetailPopup } = await import('@renderer/components/ErrorDetailModal')
-      if (!isErrorDetailHostMounted()) {
+      const popup = await loadErrorDetailPopup()
+      if (!popup?.isErrorDetailHostMounted()) {
         this.detailReserved = false
         if (degradedFaultHostService.presentDegradedFault(degradedFaultText(request))) return 'opened'
         this.showDetailOpenRetry(request)
         return 'failed'
       }
-      const pending = showErrorDetailPopup({
+      const pending = popup.showErrorDetailPopup({
         errorContext: request.context,
         subject: request.subject ?? operationSubject(request.context),
         incident: request.incident ?? operationIncident(request.context),
@@ -231,7 +227,7 @@ export function presentUncaught(
   source: 'window.error' | 'window.unhandledrejection',
   delivery: 'local' | 'handoff'
 ): void {
-  if (isResizeObserverNoise(error) || !appErrorContextService.rememberUncaught(error)) return
+  if (!appErrorContextService.rememberUncaught(error)) return
   const summary = faultSummary(source)
   const context = contextFromUnknown(error, { source, operation: source })
   if (delivery === 'handoff') {
@@ -253,7 +249,7 @@ export function presentUncaught(
       localizedErrorMessage: summary,
       ...(serializedError ? { serializedError } : {})
     },
-    key: context.id,
+    key: UNCAUGHT_TOAST_KEY,
     timeout: 0
   })
 }

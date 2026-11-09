@@ -77,6 +77,25 @@ describe('AppErrorRuntime', () => {
     expect(witnessed).toEqual([lateError, lateReason])
   })
 
+  it('ignores aborted and permission-denied rejections but still reports real faults', () => {
+    const seen: unknown[] = []
+    degradedFaultHostService.setDegradedFaultHandler((error) => {
+      seen.push(error)
+    })
+    const real = new Error('database locked')
+    const { unmount } = render(<AppErrorRuntime mode="degraded" />)
+
+    act(() => {
+      dispatchRejection(new DOMException('Document is not focused.', 'NotAllowedError'))
+      dispatchRejection(new DOMException('The operation was aborted.', 'AbortError'))
+      dispatchRejection(Object.assign(new Error('aborted'), { name: 'AbortError' }))
+      dispatchRejection(real)
+    })
+
+    expect(seen).toEqual([real])
+    unmount()
+  })
+
   it('keeps local and handoff windows off the main handoff channel', async () => {
     const bridge = attachIpcBridge()
     const localError = new Error('local boom')

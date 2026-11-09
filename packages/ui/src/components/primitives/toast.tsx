@@ -415,7 +415,7 @@ const ToastItem = ({
           {toast.title && (
             <div
               title={typeof toast.title === 'string' ? toast.title : undefined}
-              className="py-1 text-sm leading-5 font-medium break-words">
+              className="line-clamp-3 py-1 text-sm leading-5 font-medium break-words">
               {toast.title}
             </div>
           )}

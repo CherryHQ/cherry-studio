@@ -6,13 +6,13 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import enUs from '@renderer/i18n/locales/en-us.json'
+import { toast } from '@renderer/services/toast'
 
 const mocks = vi.hoisted(() => ({
   ipcRequest: vi.fn(),
   loggerError: vi.fn(),
   openRoute: vi.fn(),
-  showDoctor: vi.fn(),
-  toastError: vi.fn()
+  showDoctor: vi.fn()
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
@@ -33,10 +33,6 @@ vi.mock('@renderer/components/doctor', () => ({
 
 vi.mock('@renderer/services/mainWindowNavigation', () => ({
   openRoute: (...args: unknown[]) => mocks.openRoute(...args)
-}))
-
-vi.mock('@renderer/services/toast', () => ({
-  toast: { error: (...args: unknown[]) => mocks.toastError(...args) }
 }))
 
 vi.mock('react-i18next', () => ({
@@ -125,7 +121,13 @@ describe('FeedbackDialog', () => {
 
     await userEvent.setup().click(screen.getByRole('button', { name: /Feedback assistant/ }))
 
-    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledWith(enUs['settings.about.feedback.agent_error']))
+    // A feedback failure must not offer another Details -> Report entry.
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith({
+        title: enUs['settings.about.feedback.agent_error'],
+        data: { suppressDetail: true }
+      })
+    )
     expect(mocks.openRoute).not.toHaveBeenCalled()
   })
 
@@ -154,6 +156,9 @@ describe('FeedbackDialog', () => {
     await waitFor(() =>
       expect(mocks.loggerError).toHaveBeenCalledWith('Failed to open GitHub issue chooser', expect.any(Error))
     )
-    expect(mocks.toastError).toHaveBeenCalledWith(enUs['settings.about.feedback.github.error'])
+    expect(toast.error).toHaveBeenCalledWith({
+      title: enUs['settings.about.feedback.github.error'],
+      data: { suppressDetail: true }
+    })
   })
 })

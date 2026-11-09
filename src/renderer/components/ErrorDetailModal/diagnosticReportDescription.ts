@@ -1,13 +1,11 @@
-import type { SerializedError } from '@renderer/types/error'
+import type { DiagnosticReportConfig, SerializedError } from '@renderer/types/error'
 import type { DiagnosisContext } from '@renderer/utils/errorDiagnosis'
 import type { AppErrorContext } from '@shared/types/appError'
 import { normalizeDiagnosticDescription } from '@shared/utils/diagnostics'
 
 export const DIAGNOSTIC_REPORT_PREFILL_MAX_BYTES = 2_048
 
-export interface DiagnosticReportConfig {
-  location: string
-}
+export type { DiagnosticReportConfig }
 
 const AGENT_LOCATION_LABELS = new Set(['agent', 'Agent 对话', 'Agent 對話'])
 
