@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-02-claude-code-linux-session-bus.md
+2026-11-02-claude-code-linux-session-bus.md: f59fb85adfed9cd8ddad123c57fc719afc9ed840
+2026-11-02-claude-code-linux-session-bus.zh.md: 9892d6393976b78fa47eb7fb80e0127e5374fc61
