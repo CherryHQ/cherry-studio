@@ -384,11 +384,11 @@ test('stdio drop and recovery preserve assistant MCP arming and retained timesta
       )
       if (topicId)
         await cleanup('delete topic', async () => {
-          const result = await data({ method: 'DELETE', path: `/topics/${topicId}`, query: { permanent: true } })
-          expect(result.status, JSON.stringify(result)).toBe(200)
+          const result = await data({ method: 'DELETE', path: `/topics/${topicId}`, params: { permanent: true } })
+          expect(result.status, JSON.stringify(result)).toBe(204)
         })
       await cleanup('delete assistant', async () => {
-        const result = await data({ method: 'DELETE', path: `/assistants/${assistantId}`, query: { permanent: true } })
+        const result = await data({ method: 'DELETE', path: `/assistants/${assistantId}`, params: { permanent: true } })
         expect(result.status, JSON.stringify(result)).toBe(200)
       })
     }
