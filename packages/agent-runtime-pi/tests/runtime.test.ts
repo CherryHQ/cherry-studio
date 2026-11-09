@@ -7,10 +7,10 @@ import {
   fauxProvider,
   fauxToolCall,
   InMemoryCredentialStore,
-  Type,
   type FauxResponseStep
 } from '@earendil-works/pi-ai'
 import { defineTool, ModelRuntime, SessionManager } from '@earendil-works/pi-coding-agent'
+import { obj } from '@earendil-works/pi-schema'
 import { expect, it, onTestFinished } from 'vitest'
 
 import {
@@ -353,7 +353,7 @@ it('attributes a final answer to the original input and steering delivered after
           name: 'hold',
           label: 'Hold',
           description: 'Hold the tool boundary',
-          parameters: Type.Object({}),
+          parameters: obj({}),
           execute: async () => {
             executing.resolve()
             await finish.promise
@@ -716,7 +716,7 @@ it('streams interleaved content and preliminary tool output in the same native m
           name: 'progress',
           label: 'Progress',
           description: 'Report progress',
-          parameters: Type.Object({}),
+          parameters: obj({}),
           execute: async (_id, _args, _signal, update) => {
             update?.({ content: [{ type: 'text', text: 'FIRST' }], details: { stage: 1 } })
             await finish.promise
@@ -799,7 +799,7 @@ it.each(['deferred', 'codemode'] as const)(
             name: 'direct_lookup',
             label: 'Direct',
             description: 'Loaded external schema',
-            parameters: Type.Object({}),
+            parameters: obj({}),
             contextSource: { kind: 'mcp-tools', source: 'direct-server' },
             execute: async () => ({ content: [{ type: 'text' as const, text: 'ok' }], details: {} })
           }),
@@ -807,7 +807,7 @@ it.each(['deferred', 'codemode'] as const)(
             name: 'external_lookup',
             label: 'External',
             description: 'Deferred external schema',
-            parameters: Type.Object({}),
+            parameters: obj({}),
             exposure,
             contextSource: { kind: 'mcp-tools', source: 'test-server' },
             execute: async () => ({ content: [{ type: 'text' as const, text: 'ok' }], details: {} })
