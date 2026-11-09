@@ -12,7 +12,7 @@ import type {
   LanguageModelV3StreamPart,
   LanguageModelV3StreamResult
 } from '@ai-sdk/provider'
-import { APICallError, AISDKError } from 'ai'
+import { APICallError, AISDKError, RetryError } from 'ai'
 
 import { isAbortError } from '@main/utils/error'
 
@@ -31,6 +31,9 @@ export interface StreamContinuationOptions {
 
 function isResumableError(error: unknown, signal?: AbortSignal): boolean {
   if (signal?.aborted || isAbortError(error)) return false
+  // ai-retry aggregates failures once more than one attempt has run. The
+  // last failure still decides whether an interrupted accepted body can resume.
+  if (RetryError.isInstance(error)) return isResumableError(error.lastError, signal)
   if (APICallError.isInstance(error)) {
     if (error.isRetryable) return true
     // An accepted response can fail while its body is read; a permanent HTTP rejection cannot.

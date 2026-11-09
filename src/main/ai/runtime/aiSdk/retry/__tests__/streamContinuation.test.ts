@@ -1,5 +1,5 @@
 import type { LanguageModelV3, LanguageModelV3StreamPart } from '@ai-sdk/provider'
-import { APICallError } from 'ai'
+import { APICallError, RetryError } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
 import { withStreamContinuation } from '../streamContinuation'
@@ -279,3 +279,36 @@ it.each([400, 401, 429, 500])(
     expect(doStream).toHaveBeenCalledOnce()
   }
 )
+
+it.each([
+  [
+    'permanent response',
+    new APICallError({
+      message: 'invalid',
+      url: 'https://test',
+      requestBodyValues: {},
+      statusCode: 400,
+      isRetryable: false,
+      cause: new Error('connection reset')
+    })
+  ],
+  ['abort', new DOMException('aborted', 'AbortError')]
+])('does not resume a wrapped %s after partial text', async (_name, lastError) => {
+  const wrapped = new RetryError({
+    message: 'failed',
+    reason: 'maxRetriesExceeded',
+    errors: [new Error('earlier'), lastError]
+  })
+  const { model, doStream } = scripted([
+    {
+      parts: [
+        { type: 'text-start', id: 'a' },
+        { type: 'text-delta', id: 'a', delta: 'partial' },
+        { type: 'error', error: wrapped }
+      ]
+    }
+  ])
+  const result = await withStreamContinuation(model, opts).doStream(callOptions)
+  expect(await collect(result.stream)).toContainEqual({ type: 'error', error: wrapped })
+  expect(doStream).toHaveBeenCalledOnce()
+})

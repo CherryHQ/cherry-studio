@@ -1,3 +1,4 @@
+import { createOpenAI } from '@ai-sdk/openai'
 import type { LanguageModelV3 } from '@ai-sdk/provider'
 import { APICallError } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
@@ -488,6 +489,56 @@ it('charges pre-content failures of a resumed request against the same budget', 
     await vi.runAllTimersAsync()
     expect(await consuming).toBeInstanceOf(Error)
     expect(doStream).toHaveBeenCalledTimes(3)
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+it('resumes the locked OpenAI adapter after a 503 and an interrupted successful body', async () => {
+  vi.useFakeTimers()
+  try {
+    const requests: unknown[] = []
+    const fetch = vi.fn(async (_url: unknown, init?: RequestInit) => {
+      requests.push(JSON.parse(String(init?.body)))
+      if (requests.length === 1) return new Response(JSON.stringify({ error: { message: 'busy' } }), { status: 503 })
+      const text = requests.length === 2 ? 'Hello ' : 'world'
+      const chunk = (delta: object, finish_reason: string | null = null) =>
+        `data: ${JSON.stringify({ id: 'response', object: 'chat.completion.chunk', created: 1, model: 'test', choices: [{ index: 0, delta, finish_reason }] })}\n\n`
+      const body = chunk({ role: 'assistant', content: text })
+      let sent = false
+      return new Response(
+        new ReadableStream({
+          pull(controller) {
+            if (!sent) {
+              sent = true
+              controller.enqueue(new TextEncoder().encode(body))
+            } else if (text === 'Hello ') controller.error(new Error('terminated'))
+            else {
+              controller.enqueue(new TextEncoder().encode(chunk({}, 'stop') + 'data: [DONE]\n\n'))
+              controller.close()
+            }
+          }
+        }),
+        { headers: { 'content-type': 'text/event-stream' } }
+      )
+    })
+    const adapter = createOpenAI({ apiKey: 'test-only', fetch }).chat('test')
+    const model = createRetryableWrap({ fallbacks: [], retryPolicy: policy({ maxAttempts: 2 }) })!(adapter)
+    const resultPromise = model.doStream({ prompt: [] })
+    await vi.runAllTimersAsync()
+    const result = await resultPromise
+    const collecting = collectStream(result.stream)
+    await vi.runAllTimersAsync()
+    const parts = await collecting
+    expect(fetch).toHaveBeenCalledTimes(3)
+    expect(
+      parts
+        .filter((part: any) => part.type === 'text-delta')
+        .map((part: any) => part.delta)
+        .join('')
+    ).toBe('Hello world')
+    expect(parts).not.toContainEqual(expect.objectContaining({ type: 'error' }))
+    expect(requests[2]).toMatchObject({ messages: [{ role: 'assistant', content: 'Hello ' }] })
   } finally {
     vi.useRealTimers()
   }
