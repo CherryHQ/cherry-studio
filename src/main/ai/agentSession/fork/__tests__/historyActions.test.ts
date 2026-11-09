@@ -233,8 +233,8 @@ it('rejects delivery edits and keeps boundary reads scoped to the requested sess
   expect(runtime.getHistoryActions(sessionId, []).size).toBe(0)
 })
 
-// Fork support alone must not promise Durable's unimplemented in-place edit publication contract.
-it('enables Durable fork boundaries while keeping first and later input edits unavailable', async () => {
+// Durable edits need either a fresh first-input context or a valid predecessor checkpoint.
+it('enables Durable edits at first inputs and committed predecessor boundaries', async () => {
   dbh.db.update(agentTable).set({ type: 'pi-durable' }).where(eq(agentTable.id, agentId)).run()
   runtimeDriverRegistry.register(new PiDurableRuntimeDriver())
   const first = user('First Durable input')
@@ -246,8 +246,8 @@ it('enables Durable fork boundaries while keeping first and later input edits un
   expect(actions.get(completed.id)?.fork).toBeNull()
   expect(actions.get(malformed.id)?.fork).toBe('unsupported_checkpoint')
   expect(actions.get(legacy.id)?.fork).toBe('legacy_history')
-  expect(actions.get(first.id)?.edit).toBe('checkpoint_unsupported')
-  expect(actions.get(later.id)?.edit).toBe('checkpoint_unsupported')
-  await expect(runtime.getEditTarget(sessionId, first.id)).rejects.toThrow('checkpoint_unsupported')
-  await expect(runtime.getEditTarget(sessionId, later.id)).rejects.toThrow('checkpoint_unsupported')
+  expect(actions.get(first.id)?.edit).toBeNull()
+  expect(actions.get(later.id)?.edit).toBeNull()
+  expect((await runtime.getEditTarget(sessionId, first.id)).parts).toEqual(first.data.parts)
+  expect((await runtime.getEditTarget(sessionId, later.id)).parts).toEqual(later.data.parts)
 })

@@ -178,7 +178,7 @@ Declared differences in the shared contract suite:
 - A completed foreground child still belongs to its original native tool task. Independent
   background continuation is rejected before writing run records or report jobs. One
   foreground-continuation case is skipped; there is no implicit fork or id forwarding.
-- Desktop Fork uses same-storage ownerless native forks. Edit and resend, file rewind and `vcc_recall` remain unavailable.
+- Desktop Fork and noninitial Edit and resend use same-storage ownerless native forks. First-input edits start a fresh context. File rewind and `vcc_recall` remain unavailable.
 
 ## Validation
 
