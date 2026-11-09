@@ -27,7 +27,11 @@ import { buildPiLoginPathPrefix, mergePiBashExecutionEnv, resolvePiShellPath } f
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
 import { createDurableMcp } from './durableMcp'
 
-export async function prepareDurableDesktop(input: AgentRuntimeConnectInput, emit: (event: AgentRuntimeEvent) => void) {
+export async function prepareDurableDesktop(
+  input: AgentRuntimeConnectInput,
+  emit: (event: AgentRuntimeEvent) => void,
+  namespace?: string
+) {
   const discovery = await capturePiConnectionSnapshot(
     input.sessionId,
     input.agentId,
@@ -169,12 +173,19 @@ export async function prepareDurableDesktop(input: AgentRuntimeConnectInput, emi
         ]
       })
     )
+    if (namespace) {
+      for (const extension of registry.snapshot().installed()) {
+        registry.uninstall(extension)
+        registry.install(native.defineExtension({ ...extension, name: `${namespace}/${extension.name}` }))
+      }
+    }
     const environment = new NodeExecutionEnv({
       cwd,
       shellPath: resolvePiShellPath(),
       shellEnv: mergePiBashExecutionEnv(env)
     })
     const agentConfig: AgentChange = {
+      ...(namespace && { extensions: registry.snapshot().installed() }),
       tools: {
         remove: registry
           .snapshot()

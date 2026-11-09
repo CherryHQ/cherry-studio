@@ -1891,7 +1891,7 @@
   "knowledge.data_source.add_dialog.unsupported_files_skipped": "{{count}} fichier(s) non pris en charge ignoré(s)",
   "knowledge.data_source.add_dialog.url.description": "Entrez une URL de page web :",
   "knowledge.data_source.add_dialog.url.help": "Le texte de la page sera récupéré, segmenté et indexé automatiquement",
-  "knowledge.data_source.add_dialog.url.placeholder": "https://docs.cherry-ai.com/",
+  "knowledge.data_source.add_dialog.url.placeholder": "https://cherryai.com/docs",
   "knowledge.data_source.back_to_parent": "Retour",
   "knowledge.data_source.bulk.delete": "Supprimer",
   "knowledge.data_source.bulk.delete_confirm_description": "Supprimer {{count}} sources de données sélectionnées ? Cette action est irréversible.",
