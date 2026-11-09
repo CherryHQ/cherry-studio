@@ -7,10 +7,29 @@ export function useAgentDesktopControls() {
   const [controls, setControls] = useState<ComputerUseControl[]>()
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
-  const pendingRef = useRef(new Set<string>())
+  const pendingRef = useRef(new Map<string, 'inflight' | 'settled'>())
   const [pending, setPending] = useState<ReadonlySet<string>>(new Set())
   const generation = useRef(0)
   const mounted = useRef(false)
+
+  const publishPending = useCallback(() => setPending(new Set(pendingRef.current.keys())), [])
+  const reconcilePending = useCallback(
+    (snapshot: ComputerUseControl[], resumed: boolean) => {
+      for (const [key, state] of pendingRef.current) {
+        if (
+          (resumed && state === 'settled') ||
+          !snapshot.some(
+            (row) =>
+              JSON.stringify([row.ownerId, row.appId]) === key && (row.status === 'opening' || row.status === 'active')
+          )
+        ) {
+          pendingRef.current.delete(key)
+        }
+      }
+      publishPending()
+    },
+    [publishPending]
+  )
 
   useIpcOn('computer_use.controls_changed', (snapshot) => {
     if (!mounted.current) return
@@ -18,17 +37,7 @@ export function useAgentDesktopControls() {
     setControls(snapshot)
     setLoading(false)
     setFailed(false)
-    for (const key of pendingRef.current) {
-      if (
-        !snapshot.some(
-          (row) =>
-            JSON.stringify([row.ownerId, row.appId]) === key && (row.status === 'opening' || row.status === 'active')
-        )
-      ) {
-        pendingRef.current.delete(key)
-      }
-    }
-    setPending(new Set(pendingRef.current))
+    reconcilePending(snapshot, false)
   })
 
   useEffect(() => {
@@ -38,6 +47,7 @@ export function useAgentDesktopControls() {
     void ipcApi.request('computer_use.get_controls').then(
       (snapshot) => {
         if (!alive || generation.current !== start) return
+        reconcilePending(snapshot, true)
         setControls(snapshot)
         setLoading(false)
       },
@@ -51,24 +61,28 @@ export function useAgentDesktopControls() {
       alive = false
       mounted.current = false
     }
-  }, [])
+  }, [reconcilePending])
 
   // Rejects on command failure so the presentation can report it.
-  const stopApp = useCallback(async (control: ComputerUseControl) => {
-    const { ownerId, appId } = control
-    if (!appId) return
-    const key = JSON.stringify([ownerId, appId])
-    if (pendingRef.current.has(key)) return
-    pendingRef.current.add(key)
-    setPending(new Set(pendingRef.current))
-    try {
-      await ipcApi.request('computer_use.stop_app', { ownerId, appId })
-    } catch (error) {
-      pendingRef.current.delete(key)
-      if (mounted.current) setPending(new Set(pendingRef.current))
-      throw error
-    }
-  }, [])
+  const stopApp = useCallback(
+    async (control: ComputerUseControl) => {
+      const { ownerId, appId } = control
+      if (!appId) return
+      const key = JSON.stringify([ownerId, appId])
+      if (pendingRef.current.has(key)) return
+      pendingRef.current.set(key, 'inflight')
+      if (mounted.current) publishPending()
+      try {
+        await ipcApi.request('computer_use.stop_app', { ownerId, appId })
+        if (pendingRef.current.has(key)) pendingRef.current.set(key, 'settled')
+      } catch (error) {
+        pendingRef.current.delete(key)
+        if (mounted.current) publishPending()
+        throw error
+      }
+    },
+    [publishPending]
+  )
 
   return { controls, loading, failed, pending, stopApp }
 }

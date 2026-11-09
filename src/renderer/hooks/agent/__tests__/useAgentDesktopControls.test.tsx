@@ -1,4 +1,5 @@
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
+import { Activity } from 'react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 import { ipcApi } from '@renderer/ipc'
@@ -33,6 +34,19 @@ function deferred<T>() {
     reject = no
   })
   return { promise, resolve, reject }
+}
+function renderActivityHook() {
+  let visible = true
+  const hook = renderHook(useAgentDesktopControls, {
+    wrapper: ({ children }) => <Activity mode={visible ? 'visible' : 'hidden'}>{children}</Activity>
+  })
+  return {
+    ...hook,
+    setVisible(value: boolean) {
+      visible = value
+      hook.rerender()
+    }
+  }
 }
 beforeEach(() => {
   vi.clearAllMocks()
@@ -101,4 +115,67 @@ it('does not change the status when stop resolves', async () => {
   await waitFor(() => expect(result.current.controls).toEqual([row]))
   await act(async () => result.current.stopApp(row))
   expect(result.current.controls).toEqual([row])
+})
+
+it.each([
+  { name: 'row gone', snapshot: [] },
+  { name: 'row active again (tray Allow)', snapshot: [row] }
+])('reconciles a stop settled while hidden on Activity resume: $name', async ({ snapshot }) => {
+  const stop = deferred<void>()
+  boundary.request.mockResolvedValueOnce([row]).mockReturnValueOnce(stop.promise).mockResolvedValueOnce(snapshot)
+  const { result, setVisible } = renderActivityHook()
+  await waitFor(() => expect(result.current.controls).toEqual([row]))
+  let request: Promise<void> = Promise.resolve()
+  act(() => {
+    request = result.current.stopApp(row)
+  })
+  expect(result.current.pending.has(JSON.stringify([row.ownerId, row.appId]))).toBe(true)
+  setVisible(false)
+  expect(boundary.handler).toBeUndefined()
+  await act(async () => {
+    stop.resolve()
+    await request
+  })
+  act(() => boundary.handler?.(snapshot))
+  setVisible(true)
+  await waitFor(() => expect(result.current.pending.size).toBe(0))
+  expect(result.current.controls).toEqual(snapshot)
+})
+
+it('reconciles a stop rejected while hidden on Activity resume', async () => {
+  const stop = deferred<void>()
+  boundary.request.mockResolvedValueOnce([row]).mockReturnValueOnce(stop.promise).mockResolvedValueOnce([row])
+  const { result, setVisible } = renderActivityHook()
+  await waitFor(() => expect(result.current.controls).toEqual([row]))
+  let request: Promise<void> = Promise.resolve()
+  act(() => {
+    request = result.current.stopApp(row)
+  })
+  expect(result.current.pending.has(JSON.stringify([row.ownerId, row.appId]))).toBe(true)
+  setVisible(false)
+  expect(boundary.handler).toBeUndefined()
+  await act(async () => {
+    stop.reject(new Error('failed'))
+    await expect(request).rejects.toThrow('failed')
+  })
+  setVisible(true)
+  await waitFor(() => expect(result.current.pending.size).toBe(0))
+  expect(result.current.controls).toEqual([row])
+})
+
+it('retains an inflight stop for a still-opening row on Activity resume', async () => {
+  const stop = deferred<void>()
+  const opening: ComputerUseControl = { ...row, status: 'opening' }
+  boundary.request.mockResolvedValueOnce([row]).mockReturnValueOnce(stop.promise).mockResolvedValueOnce([opening])
+  const { result, setVisible } = renderActivityHook()
+  await waitFor(() => expect(result.current.controls).toEqual([row]))
+  act(() => {
+    void result.current.stopApp(row)
+  })
+  expect(result.current.pending.has(JSON.stringify([row.ownerId, row.appId]))).toBe(true)
+  setVisible(false)
+  expect(boundary.handler).toBeUndefined()
+  setVisible(true)
+  await waitFor(() => expect(result.current.controls).toEqual([opening]))
+  expect(result.current.pending.has(JSON.stringify([row.ownerId, row.appId]))).toBe(true)
 })
