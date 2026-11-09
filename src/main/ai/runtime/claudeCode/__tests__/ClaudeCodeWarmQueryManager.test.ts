@@ -146,13 +146,12 @@ describe('ClaudeCodeWarmQueryManager', () => {
     startupMock.mockResolvedValueOnce(warmQuery())
     const lookup = vi
       .spyOn(application, 'getExisting')
-      .mockImplementation(
-        (name) =>
-          (name === 'ClaudeCodeProcessManager'
-            ? processManager
-            : name === 'ClaudeCodeWarmQueryManager'
-              ? manager
-              : undefined) as never
+      .mockImplementation((name) =>
+        name === 'ClaudeCodeProcessManager'
+          ? processManager
+          : name === 'ClaudeCodeWarmQueryManager'
+            ? manager
+            : undefined
       )
     vi.spyOn(processManager, 'getActiveProcessCount').mockReturnValue(6)
     vi.spyOn(processManager, 'getCapSlotProcessCount').mockReturnValue(5)
@@ -164,7 +163,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
 
     // Five children hold cap slots and the sixth is an evicted child still exiting: the park must
     // be refused, not evict other parks whose slots would not free before their children exit.
-    const seam = startupMock.mock.calls[0][0].options.spawnClaudeCodeProcess as (options: unknown) => unknown
+    const seam = startupMock.mock.calls[0][0].options.spawnClaudeCodeProcess
     try {
       expect(() => seam({ env: {} })).toThrow('Claude Code CLI process cap reached')
     } finally {
@@ -446,7 +445,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
   })
 
   it('discards a warm query when the enabled key set changed between park and consume', async () => {
-    const { releaseWarmQueryProcess } = mockProcessManagerWithRelease()
+    mockProcessManagerWithRelease()
     const manager = new ClaudeCodeWarmQueryManager()
     const warm = warmQuery()
     startupMock.mockResolvedValueOnce(warm)

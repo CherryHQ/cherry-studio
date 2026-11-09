@@ -1864,7 +1864,6 @@ describe('AgentSessionRuntimeService', () => {
       const onSessionIdleWithoutWarmLease = vi.fn()
       const driver: AgentSessionRuntimeDriver = {
         type: 'test-runtime',
-        capabilities: ['agent-session'],
         connect: vi.fn().mockResolvedValue({
           events: [],
           send: vi.fn(),
@@ -5041,7 +5040,6 @@ describe('AgentSessionRuntimeService', () => {
     )
     runtimeDriverRegistry.register({
       type: 'test-runtime',
-      capabilities: ['agent-session'],
       connect,
       validateSession: vi.fn(),
       listAvailableTools: vi.fn().mockResolvedValue([])
@@ -6888,7 +6886,6 @@ describe('AgentSessionRuntimeService', () => {
       onSessionIdleWithoutWarmLease = vi.fn()
       const driver: AgentSessionRuntimeDriver = {
         type: 'test-runtime',
-        capabilities: ['agent-session'],
         connect: vi.fn().mockResolvedValue({
           events: [],
           send: vi.fn(),

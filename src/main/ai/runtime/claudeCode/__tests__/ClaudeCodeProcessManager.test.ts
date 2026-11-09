@@ -16,12 +16,17 @@ import {
   ServiceContainer,
   ServicePhase
 } from '@main/core/lifecycle'
+import { killProcessTree } from '@main/utils/processRunner'
 
 import {
   ClaudeCodeProcessManager,
   createClaudeCodeProcessDiagnostics,
   type SpawnProcess
 } from '../ClaudeCodeProcessManager'
+
+vi.mock('@main/utils/processRunner', () => ({
+  killProcessTree: vi.fn((child) => child.kill('SIGTERM'))
+}))
 
 /** The production class takes no constructor args (container contract); tests swap the seam here. */
 class TestProcessManager extends ClaudeCodeProcessManager {
@@ -126,6 +131,31 @@ describe('ClaudeCodeProcessManager', () => {
     12_000
   )
 
+  it.each(['linux', 'win32'] as const)('routes warm termination through the %s process path', async (platform) => {
+    const original = Object.getOwnPropertyDescriptor(process, 'platform')!
+    vi.useFakeTimers()
+    vi.mocked(killProcessTree).mockClear()
+    try {
+      Object.defineProperty(process, 'platform', { value: platform })
+      const child = createFakeChild()
+      const manager = new TestProcessManager(() => child.process)
+      const diagnostics = createClaudeCodeProcessDiagnostics()
+      manager.spawn(spawnOptions, diagnostics)
+      manager.releaseWarmQueryProcess(diagnostics.reference)
+      if (platform === 'win32') expect(killProcessTree).toHaveBeenCalledExactlyOnceWith(child.process)
+      else expect(killProcessTree).not.toHaveBeenCalled()
+      expect(child.kill).toHaveBeenCalledWith('SIGTERM')
+      await vi.advanceTimersByTimeAsync(7000)
+      if (platform === 'win32') expect(killProcessTree).toHaveBeenCalledTimes(2)
+      else expect(child.kill).toHaveBeenLastCalledWith('SIGKILL')
+      child.stderr.end()
+      child.emitExit()
+    } finally {
+      Object.defineProperty(process, 'platform', original)
+      vi.useRealTimers()
+    }
+  })
+
   it.each([false, true])('escalates an evicted child only if still alive (exited: %s)', async (exited) => {
     vi.useFakeTimers()
     try {
@@ -144,7 +174,8 @@ describe('ClaudeCodeProcessManager', () => {
       await vi.advanceTimersByTimeAsync(7_000)
       expect(child.kill).toHaveBeenCalledTimes(exited ? 1 : 2)
       if (!exited) {
-        expect(child.kill).toHaveBeenLastCalledWith('SIGKILL')
+        if (process.platform === 'win32') expect(killProcessTree).toHaveBeenCalledWith(child.process)
+        else expect(child.kill).toHaveBeenLastCalledWith('SIGKILL')
         expect(manager.getActiveProcessCount()).toBe(1)
         child.stderr.end()
         child.emitExit(null, 'SIGKILL')
