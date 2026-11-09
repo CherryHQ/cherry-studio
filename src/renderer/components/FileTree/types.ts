@@ -55,6 +55,8 @@ export interface FileTreeProps {
 
   /** Optional trailing slot per row - e.g. ContextMenu trigger, action buttons, badges. */
   renderRowExtras?: (node: FileTreeNode) => React.ReactNode
+  /** Optional block rendered below a row, outside its click target - e.g. search match lines. */
+  renderRowDetail?: (node: FileTreeNode) => React.ReactNode
   /** Optional command-system context menu items for the whole row (Cherry/Native presentation). */
   getMenuItems?: (node: FileTreeNode) => MaybePromise<readonly CommandContextMenuExtraItem[]>
 

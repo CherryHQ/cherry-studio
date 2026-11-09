@@ -1,5 +1,5 @@
 /**
- * Claude Code subprocess environment: env-var assembly (model pins, config dir, proxy, user
+ * Claude Code subprocess environment: env-var assembly (config dir, proxy, user
  * overrides with a blocked list, external-CLI login handling) plus the token-budget math that
  * derives the auto-compact window and per-request output cap from the model catalog.
  */
@@ -9,7 +9,6 @@ import path from 'node:path'
 import { app } from 'electron'
 
 import { application } from '@application'
-import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { isLinux, isMac, isWin } from '@main/core/platform'
 import {
@@ -23,7 +22,6 @@ import { getBinaryPath } from '@main/utils/binaryResolver'
 import { autoDiscoverGitBash } from '@main/utils/commandResolver'
 import { getShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
-import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isExternalCliProvider } from '@shared/utils/provider'
 
@@ -143,29 +141,6 @@ export async function buildEnvironment(
   // API key and base URL are injected by the agent-session runtime query builder.
   // This function only builds agent-specific env vars.
 
-  // agent.model is UniqueModelId ("providerId::modelId"). DB lookup for
-  // apiModelId, fall back to raw if missing.
-  if (!agent.model) {
-    throw new Error(`buildEnvironment: agent ${agent.id} has no model`)
-  }
-  const { providerId, modelId: rawModelId } = parseUniqueModelId(agent.model)
-  const { providerId: sonnetProviderId, modelId: sonnetModelId } = parseUniqueModelId(agent?.planModel ?? agent.model)
-  const { providerId: haikuProviderId, modelId: haikuModelId } = parseUniqueModelId(agent?.smallModel ?? agent.model)
-  // Resolve each model id independently: one model missing from the table must not force the others
-  // to fall back, and each falls back to its OWN raw id (not the main model's). Common for
-  // agent-specific models that aren't in the model table.
-  const resolveApiModelId = (providerKey: string, modelKey: string): string => {
-    try {
-      const model = modelService.getByKey(providerKey, modelKey)
-      return model.apiModelId ?? modelKey
-    } catch {
-      return modelKey
-    }
-  }
-  const apiModelId = resolveApiModelId(providerId, rawModelId)
-  const sonnetApiModelId = resolveApiModelId(sonnetProviderId, sonnetModelId)
-  const haikuApiModelId = resolveApiModelId(haikuProviderId, haikuModelId)
-
   const env: Record<string, string | undefined> = {
     ...loginShellEnv,
     ...proxyEnvironment,
@@ -177,19 +152,13 @@ export async function buildEnvironment(
     // On by default since SDK 0.3.284: a mid-conversation system turn per tool batch, which
     // kills the prefix cache on endpoints that hoist system messages. Not blocked below.
     CLAUDE_CODE_TOTAL_TOKENS_REMINDER: 'off',
-    // ANTHROPIC_API_KEY and ANTHROPIC_BASE_URL are injected by the runtime query builder,
-    // not duplicated here.
-    ANTHROPIC_MODEL: apiModelId,
-    ANTHROPIC_DEFAULT_OPUS_MODEL: apiModelId,
-    ANTHROPIC_DEFAULT_SONNET_MODEL: sonnetApiModelId,
-    ANTHROPIC_DEFAULT_HAIKU_MODEL: haikuApiModelId,
     ELECTRON_RUN_AS_NODE: '1',
     ELECTRON_NO_ATTACH_CONSOLE: '1',
     CLAUDE_CONFIG_DIR: application.getPath('feature.agents.claude.root'),
     ENABLE_TOOL_SEARCH: 'auto',
     CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1',
     // The stream adapter's background-work release waits for `session_state_changed: idle`
-    // (streamAdapter.ts), which the CLI only emits when this flag is set.
+    // (ClaudeRuntimeState.ts), which the CLI only emits when this flag is set.
     CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: '1',
     CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT: '1',
     CHERRY_STUDIO_BUN_PATH: bunPath,

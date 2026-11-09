@@ -1,8 +1,9 @@
 import type { ThreadId } from '@cherrystudio/agent-runtime'
 
 import type { SubagentView } from '../decisions'
-import type { ConversationFacts, HistoryEntry, SubagentRunRecord } from '../facts'
+import type { ConversationFacts, DeliveredRun, HistoryEntry, SubagentRunRecord } from '../facts'
 import type { ApprovalOutcome } from '../hostFacts'
+import { keys } from '../keys'
 import { startsTurn } from '../turns'
 
 /** One child as the parent's records show it (Y1–Y3); records are entries, so rebuilding is reading (R6). */
@@ -90,6 +91,75 @@ export function pendingResults(history: readonly HistoryEntry[]): PendingResult[
   return [...ended].flatMap(([key, record]) => (delivered.has(key) ? [] : [record]))
 }
 
+export interface SubagentResults {
+  readonly active: boolean
+  readonly pending: readonly string[]
+  readonly notification: readonly string[]
+}
+
+/** Native result origins; undefined means provenance is missing, not that results drained. */
+export function subagentResults(
+  history: readonly HistoryEntry[],
+  active: boolean,
+  notification?: readonly DeliveredRun[]
+): SubagentResults | undefined {
+  if (history.some((entry) => entry.kind === 'record' && entry.record.type === 'subagent-origin'))
+    return { active: false, pending: [], notification: [] }
+  const calls = history.flatMap((entry) => (entry.kind === 'assistant' ? entry.toolCalls : []))
+  const triggers = new Map<string, string>(
+    calls.flatMap((call) => [
+      [keys.subagentSpawn(call.callKey), call.callId],
+      [keys.subagentContinue(call.callKey), call.callId]
+    ])
+  )
+  const runKey = (child: ThreadId, run: number) => JSON.stringify([child, run])
+  const sources = new Map<string, string | undefined>()
+  const delivered = new Set<string>()
+  let latest: readonly DeliveredRun[] = []
+  let answered = false
+  for (const entry of history) {
+    if (startsTurn(entry)) {
+      latest = entry.kind === 'marker' && entry.marker.type === 'subagent-notification' ? entry.marker.runs : []
+      answered = false
+    }
+    if (entry.kind === 'assistant' && entry.stop !== 'toolUse') answered = true
+    if (entry.kind === 'marker' && entry.marker.type === 'subagent-notification')
+      for (const run of entry.marker.runs) delivered.add(runKey(run.sessionId, run.run))
+    const record = runRecordOf(entry)
+    if (!record) continue
+    const key = runKey(record.sessionId, record.run)
+    if (entry.kind === 'record' && entry.key?.startsWith('subagent-continue:host-message:')) {
+      sources.set(key, undefined)
+      continue
+    }
+    const source =
+      (entry.kind === 'record' && entry.key ? triggers.get(entry.key) : undefined) ??
+      (record.run === 1 ? calls.find((call) => call.callKey === record.parentToolCallId)?.callId : undefined)
+    if (source && !sources.has(key)) sources.set(key, source)
+  }
+  const notified = (notification ?? latest).map((run) => runKey(run.sessionId, run.run))
+  const pending = readSubagents(history).flatMap(({ runs }) =>
+    [...runs.values()].flatMap((record) => {
+      const key = runKey(record.sessionId, record.run)
+      return record.background && !record.modelStopped && (record.status === 'running' || !delivered.has(key))
+        ? [key]
+        : []
+    })
+  )
+  if (active || !answered) pending.push(...notified)
+  const resolve = (ids: readonly string[]) =>
+    ids.flatMap((id) => {
+      const call = sources.get(id)
+      return call ? [call] : []
+    })
+  if (pending.some((id) => !sources.has(id))) return undefined
+  return {
+    active: pending.length > 0,
+    pending: [...new Set(resolve(pending))],
+    notification: [...new Set(resolve(notified))]
+  }
+}
+
 /**
  * After a stop (a person's, a `/goal` command's, a reopen's or a started round's withdrawal) nothing wakes the
  * conversation until a run starts (R5).
@@ -116,7 +186,7 @@ export function interruptRoute(facts: Facts, child: ThreadId): 'stop-subagent' |
   return ledger.latest.background ? 'stop-subagent' : 'stop-parent-turn'
 }
 
-/** What `Delegation.status` of agent-runtime holds; adapters set it from `delegationStatus` (guardrail 4, D40). */
+/** This package's own completion status of a child run; agent-runtime's `Subagent` carries none. */
 export type DelegationStatus = 'active' | 'completed' | 'unknown'
 /** One child run maps to one delegation: active while its record says running, completed once it ended. */
 export const delegationStatus = (record: SubagentRunRecord): DelegationStatus =>

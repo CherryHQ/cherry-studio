@@ -48,6 +48,19 @@ Supplying a model implementation, tool, storage facility, or approval UI does no
 
 The common package does not install CLIs, manage logins or business tables, or promise lossless migration across harnesses. Typed adapter configuration owns model, tool, storage, and extension integration until a real shared consumer establishes equivalent semantics.
 
+### Require evidence before adding a public abstraction
+
+Every new type, identity, operation, status, and capability in `agent-runtime` needs a concrete host use case and a comparison against Pi, Pi Durable, DSH, Codex, and ACP. These are research samples, not a requirement to implement five adapters before making progress. Pi and Pi Durable remain separate execution systems; ACP evidence describes a protocol boundary, and a model-facing tool does not establish a host-callable API.
+
+Record the comparison in the [harness evidence note](../testing/2026-10-17-agent-harness-evidence.md), including:
+
+1. The consumer's required behavior and the native entry point available to that consumer.
+2. The target's identity, lifetime, owner, and persistence scope, including counterexamples from the other samples.
+3. The smallest shared guarantee, optional operations, and unsupported or unknown outcomes. Similar names are insufficient; missing behavior must not be simulated by changing the target.
+4. Observable acceptance scenarios covering reuse, cancellation races, delivery, and recovery where relevant. Separate source inspection from execution through the public adapter.
+
+Keep a behavior in typed adapter configuration when the evidence does not justify a public contract. Sharing pure implementation rules also requires matching semantics and actual consumers; it does not justify moving a native queue, registry, or recovery loop into the common package. The [subagent proposal](2026-10-18-agent-runtime-subagent-control.md) applies this rule to the difference between a child relationship and one assignment.
+
 ### Keep child observation separate from Lane projection
 
 Child streaming is harness observability. A Lane is a proposed host projection that organizes content, history relationships, and subscriptions by source; it is neither an execution scheduler nor a synonym for a panel or connection.
@@ -83,15 +96,17 @@ Current Pi uses native `SessionManager` for files and branches, with an in-memor
 | [agent-runtime](../../../../packages/agent-runtime/README.md) | Common contracts, opaque IDs, and `ThreadFeed` observation delivery. No execution loop, SDK, Electron, AI SDK, or product entities. |
 | [agent-runtime-pi](../../../../packages/agent-runtime-pi/README.md) | Pi coding-agent access and our Pi-specific goal, tools, and subagent extensions, using native sessions and storage. |
 | [agent-runtime-pi-durable](../../../../packages/agent-runtime-pi-durable/README.md) | Independent integration with Pi Durable's `Harness`, conversation and task APIs, scheduler, and storage. |
-| [Cherry model bridge](../../../../src/main/ai/runtime/pi/README.md) | Host model selection and native Pi provider registration against the internal gateway. Pi retains protocol streaming, replay and the tool loop; Cherry retains credentials and provider-call billing. |
+| [Cherry native provider binding](../../../../src/main/ai/runtime/pi/README.md) | Host model selection and native Pi provider registration against the internal gateway. Pi retains protocol streaming, replay and the tool loop; Cherry retains credentials and provider-call billing. |
 
 Pi Durable is a separate execution system, not a persistence switch on coding-agent. Both adapters depend on the common package and do not depend on each other. Pi's session owns request retries; the native HTTP client and internal gateway do not add retries or execute Pi's tools. Native compaction, verifier context, and child continuation use native messages and managers, not reconstruction from public display items.
 
-The desktop services still use their existing runtime path. The [runtime contract](2026-10-17-agent-runtime-contract.md) records the implemented access protocol and its limitations; the [harness evidence note](../testing/2026-10-17-agent-harness-evidence.md) separates five native samples, historical probes, source coverage, and remaining acceptance. The [goal note](../feature/2026-10-11-agent-runtime-goal.md) and [background subagent note](../feature/2026-10-14-agent-runtime-background-subagent.md) own the Pi-specific decisions.
+Cherry's desktop Pi root uses the common runtime; independent child projection and Durable desktop wiring remain separate work. The [runtime contract](2026-10-17-agent-runtime-contract.md) records the implemented access protocol and its limitations; the [harness evidence note](../testing/2026-10-17-agent-harness-evidence.md) separates five native samples, historical probes, source coverage, and remaining acceptance. The [goal note](../feature/2026-10-11-agent-runtime-goal.md) and [background subagent note](../feature/2026-10-14-agent-runtime-background-subagent.md) own the Pi-specific decisions.
 
 ### Use native Pi providers through the internal gateway
 
-The approved deletion removes the host `ModelCallPort`, custom AI SDK stream protocol, metadata codec and binding-enforced session settings. The host registers a native Pi provider against the existing internal gateway. Gateway execution owns provider credentials and billing; native session events own display usage. This change does not redesign the gateway pipeline. Preserve tool ownership, native history, compaction, abort and retry behavior with HTTP integration tests, then verify the desktop cutover in its owning layer.
+The approved deletion removes the host `ModelCallPort`, custom AI SDK stream protocol, metadata codec and binding-enforced session settings. The host registers a native Pi provider against the existing internal gateway. Gateway execution owns provider credentials and billing; native response usage feeds display and context accounting. This change does not redesign the gateway pipeline. Preserve tool ownership, native history, compaction, abort and retry behavior with HTTP integration tests, then verify the desktop cutover in its owning layer.
+
+Pi and Pi Durable share that gateway-only desktop binding. Model pickers, child catalogs and binding validation use the same gateway routability rule, excluding external CLI authentication. The binding retains native protocol selection, model metadata and observation of native usage; upstream credentials, OAuth refresh and request patches belong to Cherry's provider execution. Remove the obsolete direct-provider resolver, transport adapters and direct-stream compatibility wrappers instead of retaining a second path for tests. Native protocol tests exercise the gateway configuration, while provider execution tests own upstream authentication and request compatibility.
 
 ## Alternatives considered
 
@@ -109,6 +124,7 @@ Existing package boundaries are source evidence, not completion of the remaining
 - AC3 — Reopening native context uses its native storage and explicit product relationship, without recreating it from display history or treating missing storage as a new context. (verification: unit — adapter storage and host relationship tests)
 - AC4 — Native and host-owned delegations each have one result-delivery owner, with no duplicate delivery caused by observing completion. (verification: unit — adapter and host orchestration tests)
 - AC5 — Integration documentation distinguishes package source coverage, native recovery guarantees, and actual desktop acceptance. (verification: docs gate — runtime notes and module READMEs)
+- AC6 — Each added public abstraction records its host use case, comparisons across the five samples, counterexamples, supported scope, and adapter acceptance scenarios before implementation. (verification: docs gate — harness evidence and the owning proposed note)
 
 ## Risks
 

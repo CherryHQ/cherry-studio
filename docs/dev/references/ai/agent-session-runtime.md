@@ -13,9 +13,12 @@ sources:
   - src/main/ai/runtime/types.ts
   - src/main/ai/runtime/claudeCode
   - src/main/ai/runtime/pi
+  - src/main/ai/runtime/piDurable
+  - src/main/ai/agentSession/durableNativeContext.ts
   - src/shared/ai/piBuiltinTools.ts
-  - patches/@sting8k__pi-vcc@0.8.1.patch
-  - scripts/piVccBundle.ts
+  - packages/agent-behavior/src
+  - packages/agent-runtime-pi/src
+  - packages/agent-runtime-pi-durable/src
   - src/main/ai/runtime/agentPrompt.ts
   - src/main/ai/toolApproval/userDataSqliteGuard.ts
   - src/main/ai/messages/readConversation.ts
@@ -36,7 +39,7 @@ The boundary is:
 - `AgentSessionRuntimeService` owns Cherry's UI/session lifecycle.
 - `AgentSessionRuntimeDriver` owns the concrete agent-session runtime lifecycle.
 
-The built-in drivers are Claude Code and Pi. Their
+The built-in drivers are Claude Code, Pi and Pi Durable. Their
 query/session transports, tool surfaces, approval gates, and resume formats are
 driver internals behind the same host contract.
 
@@ -47,13 +50,33 @@ driver internals behind the same host contract.
 | `AgentChatContextProvider` | Validates the agent session, persists the user row (plus a pending assistant row on a fresh turn), and either starts a turn or enqueues a follow-up through the runtime. |
 | `AgentSessionDeliveryService` | Owns durable cross-Session delivery admission, FIFO scheduling, recovery, finalization, and delivery quiescing. |
 | `AgentLifecycleService` | Coordinates archive, restore, purge, workspace deletion, and Agent-side backup quiescing; see [Agent Lifecycle](./agent-lifecycle.md). |
-| `AgentSessionRuntimeService` | Owns one runtime entry per session: current UI turn, pending UI queue, runtime connection, latest resume token, terminal listeners, persistence, and idle timer. |
+| `AgentSessionRuntimeService` | Owns one runtime entry per session: current UI turn, pending UI queue, original input contexts across connection replacement, runtime connection, latest resume token, terminal listeners, persistence, and idle timer. |
 | `AgentSessionRuntimeDriver` | Connects to one concrete agent implementation and exposes `send`, serialized `reconcile`, optional `redirect` (mid-turn steer), `close`, and an event stream. |
 | `AiStreamManager` | Keeps the normal topic stream contract: start a turn, attach a follow-up subscriber to a live turn, pause the current runtime turn, and start the next runtime turn. |
 | `AiService.streamText()` | Routes `request.runtime.kind === 'agent-session'` to `AgentSessionRuntimeService.openTurnStream()` and rejects agent-session topics that do not carry runtime metadata. |
-| Runtime drivers | Convert runtime-native events into the common event stream and map opaque resume tokens back into their SDK/session transport. |
-| Usage capture | Each driver exposes provider-invocation capture according to its transport; gateway-backed calls use AiService middleware rather than a runtime aggregate. |
+| Runtime packages | Interpret native input, task, completion, content and invocation evidence once, and publish captured typed batches. |
+| Runtime drivers | Map typed native facts into product events, bind product/native identities, and own one access/projection resource record per child. |
+| Usage capture | Each driver exposes provider-invocation capture according to its transport. Pi uses native providers through the internal gateway and one gateway-owned billing path; native totals serve context/UI statistics only. Gateway-backed calls use AiService middleware. |
 | Runtime timing | `AiStreamManager` owns the message clock. Drivers contribute provider/tool timing when their SDK exposes it; approval waits are captured independently from approval request to decision/abort. |
+
+## Context usage
+
+Each runtime package implements passive `ThreadHandle.contextUsage()` and publishes the same
+result through `context.changed` and snapshots. Main forwards the common result into a
+thread-scoped cache; renderer code does not parse native SDK categories or infer model capacity.
+Connection replacement, model changes and compaction invalidate cached readings. Late reads
+from an old connection cannot overwrite the new context, and child caches use child handles.
+
+The full model window is distinct from input limits and compaction thresholds. Counts state
+whether they are reported or estimated. Partial breakdowns are not rescaled to match a total,
+and deferred resources do not occupy current context. Unknown reserves or free capacity stay
+absent. Context reads neither submit input nor add billable usage records.
+
+Pi and Pi Durable record section and tool provenance while preparing native context. Their
+adapters expose individual memory-file fragments, skill catalog entries and tool schemas;
+MCP classification uses explicit origin metadata. Codemode-only tools are deferred, and skill
+bodies subsequently loaded through tools count as messages. Reads use committed provenance,
+not a new filesystem scan or prompt render. Older unannotated sections remain prompt estimates.
 
 ## Heartbeat execution deadline
 
@@ -70,7 +93,9 @@ use the heartbeat toggle off/on to reset that pause explicitly.
 
 `agent_session.type` distinguishes `conversation` from `background`. Heartbeat
 runs create background sessions, including replacements after failed admission;
-ordinary scheduled tasks retain their conversation behavior. The type is internal
+owned child archives also use this classification and an `ownerSessionId` pointing
+to the root product session. Ordinary scheduled tasks retain their conversation
+behavior. The type is internal
 to Main and is not a renderer-controlled visibility flag.
 
 Conversation lists (including pins), latest-session selection, discovery search,
@@ -81,7 +106,13 @@ interactive conversation and a known background id is not addressable from the
 renderer surface. Runtime lookups retain access to all sessions through the
 internal `getById` method and service methods. Background activity publishes
 detail/message changes without invalidating the conversation navigation read
-models.
+models. Child output uses owner-scoped IPC attachment/control; it cannot open as
+an independent root. Parent trash/restore includes its child archives, hard deletion
+cascades their rows, and native-file retention includes their context identities.
+
+Each child archive is identified by `(parentContextId, nativeThreadId)` and inherits
+its backend from that parent context. The spawn tool-call ID records provenance;
+continuing the same native Thread reuses its archive.
 
 The appended migration classifies existing sessions only when retained job
 records identify heartbeat execution — the fire ran on a schedule whose
@@ -147,7 +178,7 @@ Do not add Cherry policy directly to one driver. Extend the common materializer,
    - a trace flush listener for `agent-session:${sessionId}` history files;
    - a `turnId`.
    Follow-up messages are not queued here — they live on the session
-   entry's `pendingTurns`, appended by `enqueueUserMessage()`.
+   entry's `runtimeState.queue`, appended by `enqueueUserMessage()`.
 6. The prepared model request includes:
    - `runtime: { kind: 'agent-session', sessionId, turnId }`;
    - `messageId` set to the pending assistant row;
@@ -159,6 +190,25 @@ Do not add Cherry policy directly to one driver. Extend the common materializer,
    the turn by calling `connection.send({ message })`.
 
 ## Live follow-up
+
+### Message branches and execution targets
+
+Agent archives have one hidden root and `parentId` links. `agent_session.activeNodeId`
+selects the displayed path; it is separate from a runtime entry's captured execution
+head. The shared sibling navigator chooses the latest descendant of a sibling.
+Selection is a SQLite operation and never opens or resumes a harness.
+
+Dispatch captures its parent before asynchronous validation. If the parent has
+already advanced, a fresh send is rejected; merely viewing another branch does
+not retarget it. Before sending to another branch, the runtime closes an idle
+connection or rejects the send if work remains unsettled. Pending placeholders,
+queued turns and late output retain their originating branch.
+
+Renderer acknowledgements refresh the selected path from Main. Live assistant
+overlays apply only to messages on that path, so a late acknowledgement or stream
+chunk cannot insert another branch's answer into the current view.
+
+### Follow-up admission
 
 If the same topic already has a live stream, `AgentChatContextProvider`
 does **not** create a new assistant placeholder and does **not** call
@@ -175,21 +225,43 @@ Stop is now the only abort source). `enqueueUserMessage()`:
 
 1. **Open normal user turn + a driver that can steer** — calls
    `connection.redirect({ message, systemReminder: true })`. The driver
-   stashes the steer and injects it into the running turn (Claude Code
-   does this via a `PreToolUse` hook, as `additionalContext` before the
-   next tool runs). The message is folded into the current turn — no new
-   turn, no queue entry. If the turn ends before the steer is injected
-   (it called no tool after the steer arrived), the connection emits
-   `steer-undelivered` and the host queues it as the next turn.
+   submits the immutable input to the native queue. Claude Code uses SDK
+   `priority: 'next'`: native admission either folds it into the running turn
+   or starts a later turn. The host does not resend an accepted input. Its
+   `steer-boundary` carries input IDs from evidenced native request/response
+   membership, even if the preceding product turn has already settled. Claude's
+   correlated `requesting` status establishes this boundary before streamed content;
+   `started` alone is not placement evidence.
+   Pi consumes its own queue: unplaced inputs remaining after stop/error
+   receive native aborted evidence and are not automatically resent.
 2. **No redirect-eligible open normal turn, or a driver that cannot steer** —
-   appends the message to the session entry's `pendingTurns` (recording its id in
-   `steerMessageIds` so the next turn wraps it in a steer system-reminder)
+   appends the message and its `steer` flag to the session entry's `runtimeState.queue`
+   so the next turn can wrap it in a steer system-reminder
    and schedules it once runtime ownership returns to `idle`.
 
-A receive-only autonomous generation never accepts a redirect. Follow-ups
-remain in `pendingTurns` until terminal persistence releases runtime ownership.
+Before dispatch, Main stores each pending steer's original message, snapshot and headless
+policy on the session entry. Drivers receive the native command and return input IDs. Pi and
+Durable placement callbacks reserve the reply synchronously before the next provider request.
+The later boundary transfers the complete input context once. Unknown admission survives
+disconnect on this entry; its successor looks up the recorded native context/binding without
+resending. Connection generations fence stale callbacks, not the lifetime of unresolved input.
+Unavailable native evidence keeps the context unresolved. This retention covers a living
+process; the persisted native binding alone cannot recreate snapshot/headless attributes.
+
+Background notification generations whose native source calls belong to an unfinished reply resume
+that reply and keep its assistant message ID. Main records intermediate native success but holds
+product completion while that reply has undrained results. Empty display task lists and connection
+release do not settle it; confirmed result drainage, ordered content and final persistence do.
+Before terminal persistence begins, an error or pause replaces held intermediate success;
+later success cannot erase that failure or pause. Events after settlement cannot reopen the reply.
+The model still chooses foreground/background through the native tool arguments. A resident command
+can retain the connection without holding a reply open. A notification without proven ownership
+cannot reopen a settled reply.
+
+An independent receive-only autonomous generation never accepts a redirect. Follow-ups
+remain in `runtimeState.queue` until terminal persistence releases runtime ownership.
 The runtime's `autonomous-turn-state: started` event names why it opened the turn
-(`AutonomousTurnOrigin`: Claude Code waking after background work). `startReceiveOnlyTurn` publishes it to the shared
+(`AutonomousTurnOrigin`: Claude Code waking after background work). The shared reply preparation path publishes it to the shared
 cache under `agent.session.turn_origin.${sessionId}.${messageId}` — live session
 status like the api-retry state, not conversation content — so the transcript can
 label a turn that has no user message above it while the session is open.
@@ -197,8 +269,8 @@ If a user turn is live when the runtime starts its own — even an admitted one 
 is deferred: its stream is suspended, the receive-only turn takes the connection, and
 the user turn is relaunched afterwards with its admission preserved (no re-send).
 Content the runtime produces for the deferred turn before its stream reopens is
-buffered on the execution and replayed by `flush-transition`.
-A normal turn whose stream is still `unopened` is queued for the same reason;
+retained by that exact reply and delivered when its stream reopens.
+A normal turn whose stream is not yet open queues follow-ups for the same reason;
 steering is only valid after that turn's stream is `open`. Redirect also requires
 both the current turn and incoming input to be interactive. Delivery, channel,
 scheduled, and other headless-owned work cannot absorb or be absorbed by a steer;
@@ -302,7 +374,8 @@ Session name metadata and does not create a delivery or start a target turn.
 
 `session_read` shares this caller authorization boundary. It reads current source data, without a
 cutoff or snapshot. Topic queries retain branch and sibling options; Agent Session queries
-retain their existing pagination. Temporary conversations retain their in-memory lifetime and list
+page the selected path, or the prefix ending at an explicit message anchor.
+Temporary conversations retain their in-memory lifetime and list
 semantics. Exact message reads check conversation membership. A `tool_call_id` with `message_id`
 uses the same persisted tool-output reconstruction as the renderer, including its explicit fallback
 when an offloaded blob is missing. Reading history does not grant filesystem attachment access.
@@ -313,6 +386,10 @@ The target Session id remains the message row's existing `sessionId`. Trusted se
 reply policy, optional display snapshots, result provenance, outcome, error, and status
 timestamp live in the Main-authored `delivery` JSON. Names are display-only snapshots and never
 participate in routing or authorization.
+
+Completion requests also retain a Main-private `deliveryReplyAnchor` in message
+data. Results and failure replies append to that sending branch's tip even if the
+caller later selects another branch. Public message reads omit this routing field.
 
 Only state used by queries, indexes, compare-and-set transitions, or constraints is promoted to a
 regular column:
@@ -469,30 +546,48 @@ boundary prevents model text that imitates an envelope from changing trusted rou
 
 ## Starting the next runtime turn
 
-A queued successor may start only after the current execution reaches
-`turn-terminal` and persistence returns the runtime to `idle`.
-`startNextTurn()` rechecks that ownership before reading or shifting the queue,
-so a premature launch has no queue, database, or stream-manager side effects.
+`agentSessionRuntimeState` decides when a queued input or reserved reply can start.
+A queued successor waits for the current reply's terminal persistence. A steer successor
+waits for its source row to persist; a deferred user reply waits for both the autonomous
+reply's persistence and the native ownership release. Suspension must finish before a
+replacement stream opens. Async launch completion only releases its captured launch target;
+it cannot choose another reply or settle a newer one.
 
-When a completed runtime turn still has queued follow-ups (or a
-`steer-undelivered` requeue), `AgentSessionRuntimeService.startNextTurn()`:
+Before asynchronous preparation, each reply has a `turnId`, assistant message ID, input,
+frozen model/author/headless context, and its own delivery, admission, control buffer and
+native terminal facts. `prepareReply()` handles queued, steer, autonomous and resumed replies:
 
-1. shifts the next user message off the session entry's `pendingTurns`;
-2. saves a new pending assistant row;
-3. creates a fresh `turnId`;
-4. calls `AiStreamManager.startRuntimeTurn(...)` with:
-   - the same topic id and model id;
-   - `runtime: { kind: 'agent-session', sessionId, turnId }`;
-   - seed messages containing the user row and empty assistant row.
+1. save a reserved assistant placeholder with its preallocated ID;
+2. refresh trace context, then recheck the captured reply and session;
+3. open `AiStreamManager.startRuntimeTurn()` with that reply's seed messages and listeners;
+4. publish its projection and buffered controls; send input only if it has not been admitted.
 
-The runtime connection may stay on the entry. What that means is driver
-specific: Claude Code keeps its SDK query/input queue, while another
-driver could keep a websocket or reconnect per turn.
+The runtime connection may stay on the entry. What that means is driver specific:
+Claude Code retains its SDK Query/input queue, while another driver may reconnect per turn.
 
-If a queued successor or steer continuation cannot save its assistant
-placeholder, the host explicitly terminates the held topic stream with
-`terminateHeldTopicStream()`. Broadcasting an error alone is insufficient:
-it does not run terminal lifecycle or evict the held stream.
+A failure before native admission settles the queued work and terminates the held topic
+stream; the saved user row remains available for resend. An admitted reply retains its
+projection, controls, input context and usage associations after preparation or terminal
+persistence fails. Preparation failure is not native completion. Native completion/release
+can retry preparation for that same identity; repeated failure does not start a retry loop.
+An explicit close retries final persistence. A failed reply never lends its facts to the
+waiting user reply, and admitted input is never resent by these retries.
+
+`RootMessageProjection` owns content and display additions before a stream opens. Its
+checkpoint excludes other replies whose bodies have not committed. Response IDs bind usage
+to the reserved reply immediately, while the message foreign key waits for the row to exist;
+usage itself is recorded at once. Opening a stream does not infer content or accounting ownership.
+Compaction completion anchors use this same projection/control delivery path, including when
+the stream has not opened. A direct stream enqueue would omit the anchor from the final saved
+message and leave a successful compaction looking like an empty response after reload.
+
+Background generation reuses an existing assistant message; it never creates a standalone
+background-continuation row or header badge. A new execution reopens the message's stream while
+retaining its existing body, native projection, author snapshot and billing identity. Running
+commands may remain detached without blocking Send. Once a new user input is admitted, its reply
+owns subsequent generation. Before admission, native call ownership or the last projected reply
+keeps an older notification out of the reserved user's reply. Goal rounds retain their separate
+turns and labels. Background origin metadata remains internal to automatic read-aloud eligibility.
 
 ## Resume token persistence
 
@@ -511,13 +606,33 @@ This also covers error turns: if a driver emitted a resume token and then
 failed, the assistant error row still records that token so the next
 connection can recover from the newest driver-known state.
 
-User rows do not need a resume token. The durable recovery anchor is the
-latest assistant row with `runtimeResumeToken`.
+User rows do not need a resume token. Resume lookup follows the captured branch,
+not the globally newest assistant row. An edited Pi input carries its intended
+native identity and resolves through its branch binding, without falling back to
+the shared prefix's original context. Confirmed native progress marks the
+binding as `bound`; the product message tree owns the published branch head.
+
+For Pi, root execution uses the common Runtime's `create/open/observe/input.submit` path.
+Main keeps two private identities on the user message: the captured `inputContextId` and the
+evidenced `nativeInputId`. Connections consume native receipts and outcomes; response projection
+persists content and its source mapping. Explicit non-admission releases an unconfirmed binding,
+while an unknown result retains it without automatic resubmission. Observation snapshots establish the live
+projection baseline and never replace or replay the product archive. Lost observations fail closed.
+A bound or previously submitted context requires exactly one existing native file with the expected
+ID. A missing or ambiguous file is an error, not permission to recreate from display history.
+Only a never-submitted intent can stay unflushed; local commands persist their native state before
+acknowledgement, even without a model prompt. Resume tokens are published after native persistence.
+On startup, the runtime owner terminalizes abandoned Pi product placeholders without clearing native
+identities or replaying their inputs. Rows owned by persisted delivery turns remain with delivery recovery.
 
 For Claude Code, the resume token is the SDK `session_id`. The driver
 maps it to `options.resume`. This is separate from the SDK's file
 checkpointing / `rewindFiles()` feature, which uses user-message UUIDs
-to restore files.
+to restore files and is not integrated into desktop history actions. Fork and
+edit/resend preserve the current file state. After `/clear`, the driver prepares
+a successor context at the current product head before switching the active
+native handle/context; results from the retired native session cannot overwrite
+the successor checkpoint.
 
 ## Native user-data SQLite guard
 
@@ -561,9 +676,55 @@ The builder uses the first available value:
    `agentSessionMessageService.getLastRuntimeResumeToken(session.id)`;
 3. no resume id for a brand-new SDK session.
 
-The query may come from `ClaudeCodeWarmQueryManager.consume(...)` if a
-prewarmed query is available. Otherwise the driver starts a new SDK
-query with `createClaudeQuery({ prompt: driverSdkInputQueue, options })`.
+The driver uses `@cherrystudio/agent-runtime-claude-code`. The package owns
+one SDK Query and input queue per native root. A prewarmed Query transfers
+from `ClaudeCodeWarmQueryManager.consume(...)` to that owner with its captured
+credentials and process-exit barrier; otherwise the package starts it.
+The desktop reserves or restores a Claude backend/context before dispatch.
+It consumes paired native/common observations without a second Query iterator.
+
+Cherry-managed models always use the internal gateway, including Anthropic
+models and same-provider background model slots. The subprocess receives only
+the gateway credential and provider-prefixed model IDs. Provider execution owns
+upstream credentials, headers, key rotation and billing; editing those upstream
+settings does not invalidate a warm Query's gateway identity. Explicit external
+CLI subscription login retains native authentication. See the gateway's
+[internal endpoint policy](../api-gateway/README.md#internal-listener-for-cherry-consumers).
+
+Root content passes through `ThreadMessageProjection` and `RootMessageProjection`.
+Native replacements retain product ownership across steer boundaries; explicit
+retractions persist with the context checkpoint. The runtime adapter preserves ordered
+AI SDK message parts, including tool output, reasoning signatures, files and citations.
+Deleting a product reply removes its root source ownership and records native-source
+tombstones in the same database transaction. Cached checkpoints cannot overwrite those
+tombstones; live projections and reconnect recovery exclude deleted owners, including
+older dangling checkpoints, so replay cannot attach deleted content to a later reply.
+Main adds Cherry display metadata before publishing `CherryUIMessage`.
+All Agent drivers use the `messages` source for the entire execution. `RootMessageProjection`
+owns host approval and data-part display; `pipeMessageStream` forwards its body with
+execution metadata and never accumulates a second text/tool body. Publishing, listeners and persistence receive the same
+`CherryUIMessage`. The package's `ClaudeControlState` owns native lifecycle interpretation;
+Main's `ClaudeRuntimeState` only maps typed facts to product events. `ClaudeMessageMetadata`
+decorates normalized SDK messages without retaining content or constructing an archive. No Claude chunk adapter remains.
+Child attachment reads the native archive once to recover its actual prompt, which the live SDK
+feed omits. Subsequent content follows the observer; there is no transcript polling loop.
+
+Each child uses its own `ChildThreadProjection`, context and archive, including
+nested children under their immediate parent. Parent completion and window detach
+do not stop child persistence. Claude no longer writes child bodies into the
+parent's background-flow parts; saved historical flows remain readable.
+After a failed cold attachment, Claude retries the saved session-scoped native binding
+when it belongs to the current backend. The root's native creation lookup need not retain
+a nested or historical child's origin; retrying that existing access never resubmits its task.
+Root and child views both use `ai.projection.*`, without a renderer runtime allowlist.
+The child view's `canSubmit` comes from native `ThreadHandle.input` availability.
+Claude children remain observation-only; parent Agent/SendMessage tools own their continuation.
+Root projection also retains compact task lifecycle state on the spawning tool's
+message, so completion can update a settled parent without copying the child report.
+
+The settings builder explicitly passes `permissionMode: 'default'` when the Agent
+has no configured mode, preserving manual approval independently of SDK defaults.
+An explicitly configured mode, including `auto`, takes precedence.
 
 On Linux, the final subprocess environment must contain a non-empty
 `DBUS_SESSION_BUS_ADDRESS`. If it does not, environment construction returns
@@ -576,39 +737,32 @@ their tools. That listing is **cache-only** — it never connects to an upstream
 MCP server — so a dead or slow server cannot block startup. See
 [Tool Registry → Tool catalog reads never block on MCP](./tool-registry.md#tool-catalog-reads-never-block-on-mcp).
 
-The driver converts Claude SDK messages into runtime events:
+The package interprets Claude SDK frames once and delivers typed control facts beside content:
 
-- `stream_event` / assistant/user messages -> `chunk`;
-- direct/external `stream_event` messages establish one invocation per
-  message id and provide terminal usage plus per-request timing; complete
-  `assistant` messages are a whole-snapshot usage candidate when the terminal
-  delta omits usage. Gateway-owned connections do not emit this record input;
-- `system/init` -> `resume-token`;
-- a top-level `message_start` -> a live `context-usage` projected from the
-  request's input usage (the occupancy at that provider call), so the usage
-  indicator advances mid-turn; the host's post-turn `getContextUsage()` pull
-  stays the authoritative reading;
-- a successful `result` -> flush pending per-request usage, then `resume-token`, a
-  cumulative usage metadata `chunk` for live UI, `context-usage`, and `turn-complete`;
-- a `result` stamped `origin.kind === 'task-notification'` -> resume token only, never
-  turn settlement. A resumed CLI replays pending background-task notifications as their
-  own zero-turn query before it pulls the host's input
-  ([claude-agent-sdk#383](https://github.com/anthropics/claude-agent-sdk-typescript/issues/383)),
-  so that result belongs to the task, not to the open turn, which keeps waiting for the
-  user query's own result (a CLI death in between surfaces through the normal error path);
-- a failed `result` -> preserve its final usage and resume token, then emit `error` and
-  tear down the connection. This includes SDK envelopes whose subtype is `success` but
-  whose `is_error`, `terminal_reason: 'api_error'`, or `api_error_status` fields report
-  an API failure;
-- a `PreToolUse` steer injection (armed by `redirect()`) -> `steer-boundary`
-  before the post-steer assistant message; a steer the turn never injected
-  -> `steer-undelivered`;
-- `system/status status: 'compacting'` -> `compaction-start`;
-  `system/compact_boundary` -> `compaction-complete` (with anchor);
-  `system/status compact_result: 'success'` with no boundary ->
-  `compaction-complete` (no anchor, idempotent settle);
-  `compact_result: 'failed'` / `compact_error` -> `compaction-error`;
-- thrown errors -> `error` (or a salvaged `turn-complete` for a truncated stream).
+- `response-start` carries native response identity for attribution; content projection remains
+  replacement-aware and each child keeps an independent body writer.
+- `invocations` contains completed per-response SDK usage/timing evidence. Main applies frozen
+  pricing and product attribution only for external-CLI subscription capture; Gateway has its
+  own single billing writer. The initial baseline emits no historical invocations.
+  A task notification finalizes only its correlated, completed response. Unscoped task
+  updates do not finalize usage, and a root result leaves active child responses pending.
+- `session` updates the native binding and opaque resume token, including before failure.
+- Top-level input usage is published by the package as a common `context.changed` reading
+  marked `last-request`, excluding output and cumulative billing. The host's post-turn
+  `getContextUsage()` pull replaces it with the native current-context estimate.
+- `result` carries cumulative display usage, native identity and a typed failure when present.
+  Main publishes the corresponding body before ending the product turn. A replayed
+  task-notification result cannot settle a user turn; a result belonging to an active
+  autonomous wake can settle that wake.
+- `input-boundary` carries input IDs joined from command and response membership. Command
+  admission alone does not prove placement, and several inputs may share one response.
+- Compaction, retries, background task membership and task progress are already normalized
+  native facts. The initial baseline includes current background occupancy. A slow observer
+  receives unseen terminal/control facts after their body, or an explicit unrecoverable gap.
+- Permission denial and explicit retractions are applied by the native projection. Main's
+  metadata decorator handles display-only MCP metadata, reminders and thinking timing.
+  Each reasoning block stops its timer at the block's end, independently of later answer
+  generation; native message replacement preserves the completed block timings.
 
 The settings builder also installs `PostToolUse` and
 `PostToolUseFailure` hooks. Their SDK-reported `duration_ms` is forwarded to
@@ -617,18 +771,18 @@ from assistant/user chunks and it excludes the permission prompt. A hook that
 fires with no active UI turn is not attached to the last message.
 
 The result's cumulative `modelUsage`, duration, and total cost are
-reconciliation-only and are never divided across requests. For direct/external
+reconciliation-only and are never divided across requests. For external-CLI subscription
 calls, `SDKPartialAssistantMessage.ttft_ms` supplies per-request TTFT.
 Completion is TTFT plus the monotonic interval from `message_start` to the
 terminal delta/stop; reasoning duration is measured between reasoning and the
 first non-reasoning output. If a step omits `ttft_ms`, TTFT and completion stay
 null rather than treating stream-only duration as the whole provider call.
-Before a steer boundary the driver flushes pending usage, so the host binds
-that invocation to the pre-steer assistant row; the next invocation binds to
-the continuation row. Gateway-backed connections additionally reserve the
-continuation message id synchronously at injection time, before the SDK can
-issue that invocation through the local gateway; A2 later reuses the reserved
-id when the boundary arrives. See
+Both native subscription and gateway invocations join to product messages through the
+native API response ID. The gateway freezes credentials, prices and source at
+request start, but waits for native response ownership before recording its
+message association. Usage and ownership may arrive in either order. If the
+connection closes without ownership evidence, usage is retained without a
+message association. See
 [AI Usage Records](./ai-usage-records.md#agent-runtime-ownership).
 
 Tool timing and provider usage have separate owners: the post-tool hooks never
@@ -667,8 +821,8 @@ Allowed in v1:
   These files are a **connection-lifetime snapshot**: editing them deliberately
   does not invalidate a warm connection or its provider prompt cache. Changes
   apply when that connection is naturally rebuilt or the session is reopened.
-- Inline Cherry-owned extensions required for the integration: provider
-  injection and tool approval/policy enforcement.
+- A native Pi provider bound to the internal gateway for model requests, plus inline Cherry-owned
+  extensions for tool approval/policy enforcement.
 - The complete runtime-neutral result of `buildAgentMcpServers()` — Cherry
   knowledge, memory, skills, assistant/autonomy tools, plus the agent's selected
   MCP servers — converted uniformly to pi `customTools` through an in-memory MCP
@@ -743,11 +897,11 @@ user directory exists, preventing missing system directories from aborting start
 
 Connection startup uses an optimistic materialization snapshot. Cherry warms
 the MCP catalog, captures every reconcilable database/catalog fact, constructs
-the runtime from that captured provider, model, enabled-key set, skill paths,
+the runtime from that captured provider, model, skill paths,
 MCP rows, and linked channel, then captures those facts again before publishing
 the connection.
-If the signatures differ, startup fails closed and cleans up the connection's
-generation-scoped provider registration. Prompt-file content is deliberately
+If the signatures differ, startup fails closed before publishing the connection.
+The internal gateway resolves upstream credentials for each native Pi request through Cherry's provider path. Prompt-file content is deliberately
 outside this signature because it follows the connection-lifetime cache
 contract above.
 
@@ -761,94 +915,105 @@ after any applicable live tightening has landed.
 
 ### Pi conversation compaction
 
-Cherry bundles `@sting8k/pi-vcc` and explicitly loads it for every Pi session.
-Users do not need to install the npm package or enable disk extension discovery.
-The main-process build compiles the extension into `out/main/pi-vcc.mjs`.
-`loadPiVccExtension` imports that ESM bundle and registers it through
-`DefaultResourceLoader.extensionFactories`; `noExtensions` remains enabled to
-prevent discovery of unrelated executable extensions. The source package is a
-build-time dependency; no TypeScript extension sources ship in `node_modules`.
-The separate ESM bundle preserves Pi SDK's import-only entry point while
-Cherry's main bundle remains CommonJS.
+The desktop Pi connection installs `agent-behavior` through the Runtime adapter.
+The shared context handlers request a summary from `piBehaviorHost.ts`, which makes
+one native model request through Cherry's gateway without starting another agent
+loop. Automatic compaction and `/compact` use this same path; text following
+`/compact` becomes summary instructions, never another user turn. An empty or
+failed summary cancels compaction without a second native fallback.
 
-#### User-visible behavior
+Pi retains its native JSONL history and writes the compaction boundary. Product
+messages remain a display projection. The shared `vcc_recall` tool searches the
+current conversation history, including after reopening; it cannot select an
+arbitrary session file. Recall is allowed as a metadata tool, unless explicitly
+disabled. Disabling recall does not disable compaction.
 
-With the default pi-vcc configuration, compaction works as follows:
+The previous pi-vcc dependency, patch, ESM bundle and configuration override are
+removed. There is no `/pi-vcc` command or separate compaction toggle. Tests in
+`PiRuntimeConnection.test.ts` cover instruction forwarding and product input
+boundaries, while the package behavior tests cover declined summaries and
+reopening native compaction history. Electron acceptance is checked separately.
 
-| Input | Compaction behavior |
-|---|---|
-| Automatic compaction or bare `/compact` | pi-vcc extracts transcript content algorithmically instead of asking an LLM to generate a summary. |
-| `/compact Focus on the API decisions` | Pi's native LLM summarizer receives `Focus on the API decisions` as summary instructions. |
-| `/compact keep:3` | Pi's native LLM summarizer receives `keep:3` as summary instructions; this does not select pi-vcc's keep-three-turns behavior. |
-| `/pi-vcc` or `/pi-vcc-recall` | These extension commands are not registered in Cherry. Use `/compact` to compact; the model can call `vcc_recall` to retrieve history. |
+### Pi behavior host
 
-Compaction reduces the model's active context; it does not erase the persisted
-session transcript. The `vcc_recall` tool searches the current session's raw
-JSONL history, so the model can retrieve details omitted from the compacted
-context, including after reopening that session. It cannot choose another
-session file or an arbitrary filesystem path.
+`piBehaviorHost.ts` implements the existing `HostPorts` using Cherry services.
+Approvals and questions use existing cards; approval outcomes stay in message
+parts. Environment facts (disabled tools, protected paths, delegation attendance
+and shell classification) come from `piApprovalFacts.ts`; shared behavior decides
+whether to run, ask or block. No new approval table is required.
 
-Cherry lists recall in the agent's tool settings. It is auto-approved in default
-and acceptEdits permission modes, including unattended turns, because it reads
-only the current session history. Explicitly disabling it still blocks access;
-disabling recall does not disable compaction.
+Runtime content uses whole native SDK messages. Pi and Claude decode deltas once at
+the adapter source; Durable materializes committed native view revisions directly.
+Tool results and preliminary progress update the originating tool part, while activity
+and input outcomes remain separate facts within the same captured delivery. Concrete observations
+include aliases and live/history provenance with their content. Delivery modes and Durable commit
+revisions stay internal; consumers receive the captured body, input outcomes and completion facts.
+Input facts retain native input bindings without duplicating product reply identity. Initial baselines do not replay
+completion or charges; overflow recovery retains unseen control facts after their matching body.
+Main never fetches mutable alias state later or guesses whether a snapshot is live. Claude's
+package also owns permission denial, native archives and SDK invocation aggregation; its Main
+decorator retains only display metadata. Main still freezes pricing and owns usage attribution.
+Local `/goal` answers publish complete host message projections. They remain visible
+outside native model history, including when no model turn starts.
 
-#### Why the bundled dependency is patched
+Child reply composition belongs to Main: only observed user-message placement starts
+a new reply boundary. Queued inputs do not split the current reply. Existing split
+archive rows retain their IDs and branch edges; a versioned checkpoint composes them
+using native-proven part mappings. Missing native evidence leaves saved rows readable.
+Renderer and reopened views consume the same composition through shared projection.
 
-The version-pinned
-[pnpm patch](../../../../patches/@sting8k__pi-vcc@0.8.1.patch) changes two integration
-behaviors. pnpm applies it during installation; there is no runtime source rewrite.
+The Pi facet resolves behavior call keys to native tool ids. Each child has one
+Main observation owner and an independent product archive. Its panel receives a
+snapshot and ordered message/part patches through IpcApi and uses the shared message
+renderer. Parent parts retain task metadata and the navigation entry; they no longer
+carry child output. Foreground completion can continue the same child in the background.
+User stop still observes the shared ownership rules; closing a panel only detaches its subscriber.
 
-First, unpatched pi-vcc does not interpret `/compact` text the same way as Pi's
-native summarizer. For `/compact Focus on the API decisions`, the call chain is:
+Child attachment waits for the shared root connection, then calls the concrete
+`openChild(toolCallId, signal?)`. The package owns pending creation and returns its stable creation
+origin, actual parent and access together. Main joins concurrent attachment through one child
+resource record. Failed creation or owner closure ends the wait; parent reply completion does not
+close independently running children. Failed attachment releases its lease and can retry, while
+failed final persistence retains the resource and its unflushed output. A detached or
+destroyed window cannot install a late subscription. Archive reconciliation preserves product IDs
+and orders evidenced rows by committed native history followed by live content, correcting saved
+parent links when necessary; rows outside current native/live coverage remain retained in place.
 
-1. Cherry passes the text unchanged to `session.compact(customInstructions)`.
-2. pi-vcc intercepts the compaction and treats that text as a follow-up user
-   message, rather than instructions for the summary.
-3. Its `session_compact` handler calls `pi.sendUserMessage` with that text.
-4. Pi emits this event before clearing its manual-compaction state, so the
-   resulting prompt is rejected because compaction is still in progress. The
-   text neither guides the summary nor reaches the model as a follow-up.
+`PiRuntimeConnection` remains responsible for product branch bindings, input
+persistence, product message views and configuration reconciliation. It can retire after
+`AgentSessionRuntimeService` consumes the common Runtime directly; enabling
+shared behavior does not by itself replace those responsibilities. A reopened root
+restores identity-checked child files without starting execution. Saved output remains
+readable when native access cannot be restored. A child's native initialization failure is isolated
+from the parent and healthy siblings and leaves completed task results unchanged. Successful root
+opening clears startup failure state while keeping diagnostics in the log. Child input goes through that owner;
+its archive cannot open as an independent writable root. Public projection code consumes
+`ThreadHandle`; Pi history reads and input dispatch stay in the Pi connection.
 
-This failure occurs between pi-vcc and the Pi SDK; Cherry does not discard or
-rewrite the instructions. A thin wrapper that makes the same SDK call encounters
-the same failure. The patch makes pi-vcc defer to native compaction when ordinary
-nonempty custom instructions are present. Bare `/compact` and automatic
-compaction still use VCC. Merely delaying the follow-up would not preserve the
-original contract: summary instructions would still become a new user turn.
+### Pi Durable behavior host
 
-Second, the patch removes registration of `/pi-vcc` and `/pi-vcc-recall`, while
-retaining the compaction hook and recall tool. Cherry tracks `/compact` as a
-manual compaction turn and closes that turn from compaction events. An extension
-command invoked through `session.prompt()` can return before its work completes,
-causing Cherry to finish the turn before the later compaction events arrive.
-Removing these command entry points keeps operations on the existing tracked
-paths without adding another command lifecycle to Cherry.
+`PiDurableRuntimeConnection` installs the same `agent-behavior` rules and host ports
+through `agent-runtime-pi-durable`. It reuses gateway model routing, approval facts,
+question cards and tool rendering. Native SQLite owns execution history and task state;
+the existing backend/context tables bind it to product sessions. Strict identity checks
+prevent a missing store from silently becoming a fresh conversation.
 
-The patch does not implement compaction or recall in Cherry. Pi and pi-vcc still
-own those operations; Cherry owns loading, permissions, and UI turn completion.
-Recall's tool-catalog entry and auto-approval are Cherry code, separate from the
-dependency patch. Remove the corresponding patch changes when an upstream
-version preserves native instruction semantics and offers a way to omit these
-commands, after verifying the same integration contracts.
+Children use the same independent projection/archive and `ai.projection.*` transport.
+Background occupancy retains the native owner. Attributed background-result facts keep the owning
+Main reply open through child reports and parent summarization; notifications without a new input
+boundary append to that same reply. A continuation uses its current triggering call, not the child's
+immutable creation call. Historical input snapshots update saved facts without reassigning old responses.
+`durable.observe` carries content, input outcomes, background-result facts and foreground completion
+from the same native commit revision. Unresolved accepted/native-only input, admission, foreground work or compaction
+keeps settlement pending. Main has no pending-input polling loop and never derives completion
+from idle activity or an empty product-input map.
 
-#### Configuration and verification
-
-All Cherry Pi sessions share
-`application.getPath('feature.agents.pi.root', 'pi-vcc-config.json')`, supplied to
-pi-vcc through `PI_VCC_CONFIG_PATH`. This is isolated from standalone Pi's
-configuration. Setting `overrideDefaultCompaction` to `false` restores native
-LLM compaction for bare `/compact` and automatic compaction; instruction-bearing
-`/compact` already uses native compaction. No separate compaction toggle is added
-to Cherry's UI.
-
-The real-SDK integration tests in
-[piVcc.test.ts](../../../../src/main/ai/runtime/pi/piVcc.test.ts) cover default
-compaction without an LLM call, native instruction-guided compaction, recall
-after reopening, unattended approval, explicit disabling, command exclusion,
-and production file filtering. They build and load the real ESM artifact,
-including a native Node import with source-package resolution blocked.
-These checks do not replace a full installed Electron/asar smoke test.
+Native submission and assistant metadata carry the consuming run's stable identity.
+Ordinary steer may start a later run after normal completion; it has no run-only constraint.
+Background continuation keeps the child identity. Independent continuation of a completed
+foreground child is rejected because native tool ownership is immutable. Desktop native
+fork/edit checkpoints and `vcc_recall` are not exposed. See the
+[driver README](../../../../src/main/ai/runtime/piDurable/README.md) for storage and recovery boundaries.
 
 ### Pi code mode
 
@@ -914,7 +1079,8 @@ The seeder records each affected session in `app_state` and leaves native tokens
 Fork recovery retires already-published retired-runtime journals without deleting their files.
 After fork recovery and crash-message reconciliation, `retiredSessionHistory` imports the
 persisted Cherry transcript through Pi's `SessionManager`, validates the generated file,
-and transactionally replaces resume tokens, fork checkpoints, and edited native identities.
+and transactionally replaces resume tokens, fork checkpoints, and edited native identities
+while binding the imported native context to the product root branch.
 Tools appear as historical text and are never executed during import. Attachments retain
 managed file paths. Native DSH goals and child-process state are not carried over.
 
@@ -923,19 +1089,20 @@ for other sessions; validation, connection, editing, and forking retry the impor
 using that session. No failed conversion silently starts an empty context. The original DSH
 files remain untouched. Restoring an older backup repeats the same conversion.
 
-Pi retains direct transport for supported models. Other gateway-routable chat models use
-the existing local Gateway's OpenAI-compatible route, preserving model identity, consent,
-credential invalidation, and provider-owned usage capture.
+Pi model calls use native Pi protocols against Cherry's internal gateway. The gateway resolves
+the configured provider/model and owns credentials, request options and billing through Cherry's
+provider execution path. Pi remains the sole tool executor and loop owner. Its session retry policy
+owns retries; the native HTTP client and gateway do not retry the same request independently.
 
 ## Internal Agent continuation normalization
 
-When a Cherry-internal Agent Session request enters the API gateway in Anthropic Messages format and its converted UIMessage list ends with an assistant attachment whose parts are all `text` or `reasoning`, the gateway appends an ephemeral user continuation after conversion, including for reasoning-only attachments. Eligibility depends on part types, not text length; empty text or reasoning and an empty parts array do not prevent continuation. Attachments containing tool parts or any other part type do not receive this continuation. This normalization expresses sampling intent and does not validate provider-specific content requirements, including the handling of empty or redacted-only assistant content.
+When a Cherry-internal Agent Session request enters the API gateway in Anthropic Messages format, the gateway appends an ephemeral user continuation after conversion if the final assistant attachment has an empty parts array, or contains only text, reasoning, and terminal local tool parts and ends in text or reasoning. A terminal local tool has `providerExecuted !== true` and state `output-error`, `output-denied`, or `output-available` with `preliminary !== true`. Eligibility depends on part types and order, not text length; empty text or reasoning does not prevent continuation. Attachments ending in a tool, or containing pending, preliminary, or provider-executed tools, data parts, files, sources, step markers, or other unsupported parts, do not receive this continuation. This normalization expresses sampling intent and does not validate provider-specific content requirements, including the handling of empty or redacted-only assistant content.
 The Agent request itself proves that Claude Code's standard loop intends another
 sample, so this normalization is independent of the target provider, endpoint,
 and model. The original assistant attachment is preserved and the caller's params
 are not mutated. The continuation is never written to the database, the SDK
-transcript's user-visible history, or the renderer. Direct Anthropic requests do
-not enter the gateway, and external gateway requests remain unchanged so their
+transcript's user-visible history, or the renderer. Native subscription requests
+bypass the gateway, and external gateway requests remain unchanged so their
 callers can intentionally use assistant prefill.
 
 ## Native resume failures
@@ -957,24 +1124,35 @@ For a short idle window it keeps:
 
 - the runtime connection, if it is still alive;
 - `lastResumeToken`;
-- the session entry's `pendingTurns`.
+- the session entry's `runtimeState.queue`.
 
 If a new turn arrives during that window, `beginTurn()` reuses the same
 entry and only swaps the current UI turn plus the UI pending queue.
 
-When the idle timer expires, the runtime closes the entry:
+Pi and Pi Durable declare `retainWhileIdle`: their in-process owners remain available beyond the idle TTL.
+Explicit close, branch replacement, configuration rebuild, and service shutdown still retire it.
+For other connections, when the idle timer expires, the runtime closes the entry:
 
-- clears `pendingTurns`;
+- clears `runtimeState.queue`;
 - closes the runtime connection;
 - prewarms Claude Code when a latest resume token is known.
 
-Service stop and destroy close all runtime entries.
-Repeated `closeSession()` calls join the in-flight close; if a replacement entry was created meanwhile,
-its close is chained behind the prior one so callers wait for every connection generation to settle.
-An immediate retry may create its entry while that close is still draining, but it cannot connect until
-the predecessor has closed. Teardown also joins an in-flight `driver.connect()` and closes any stale
-connection it produces before releasing the successor; the predecessor's observed resume token is handed
-to that successor directly.
+Service stop and destroy close all runtime entries. User Stop additionally invokes an
+optional connection `interrupt()` before closing. Durable shutdown preserves ordinary
+unfinished root tasks; explicit interruption cancels them. Reopen applies shared behavior's
+`onOpen` before native resume, disarming goals and stopping interrupted background children.
+Repeated `closeSession()` calls join the in-flight close. A closing session rejects new
+input and replacement turns until the old reply releases ownership. Teardown joins a pending
+`driver.connect()` and closes a late connection before completing. It keeps the current
+connection's fact consumer alive through native observation drain, waits for the captured
+stream persistence loops, then flushes each owned projection. Only after that flush does it
+clear the entry. No projection write may follow the final flush.
+
+Failed native close or final persistence retains the owner and blocks archive/backup safety.
+A later close retries retained data without another send. Late successful native teardown
+retries the remaining close work. Unknown-admission input contexts remain on the session even
+after a successful close, for lookup on reconnect. These are process-lifetime guarantees;
+unsaved product context is not reconstructed from the native binding after a process crash.
 
 `ClaudeCodeProcessManager` owns every CLI handle this app spawns. Every SDK `Options` object routes
 through its host spawn wrapper, which fixes the stdio contract and records each `ChildProcess`,
@@ -1002,17 +1180,26 @@ For backup restore (#16849) the runtime and delivery owner expose `pause(reason?
 `drainInFlight({ timeoutMs }) → { stragglerIds }` + `listActiveWork()`, the same
 contract as `AiStreamManager` and `JobManager` (see
 [stream-manager.md](./stream-manager.md#write-quiesce-pause--draininflight) for the
-contract and the orchestration order). This service's autonomous write surface is the
-assistant-placeholder `saveMessage` in `startNextTurn` / `startContinuationTurn`; both
-are gated at entry, BEFORE consuming `pendingTurns` / `rollSteerInputs` — a suppressed
-start stays queued (`isSessionBusy` holds, so concurrent dispatches keep enqueueing) and
-the last hold's disposal re-kicks it. New-turn admission through `prepareDispatch` /
+contract and the orchestration order). A single reducer-scheduled launch gate covers queue
+consumption and all reply preparation before placeholder writes. Suppression retains the exact
+queued input or reply; the last pause hold resumes it once. In-flight preparation is drained
+through its stream-manager handoff. New-turn admission through `prepareDispatch` /
 `beginTurn` is gated upstream by `AiStreamManager`. The drain awaits
 `inFlightTurnStarts` — launches admitted before the pause, through their placeholder
-write and `startRuntimeTurn` handoff — plus detached-flow finalizers that may still persist message
-parts and runtime close barriers that may still flush external state after their entry is removed.
-The resulting stream writes belong to `AiStreamManager`'s drain. This is distinct from the BaseService
-lifecycle pause and never touches service state.
+write and `startRuntimeTurn` handoff — plus runtime close barriers that may still flush external state
+after their entry is removed. Native projection refreshes replace saved bodies synchronously; root
+terminal writes belong to `AiStreamManager`'s drain. Child input is rejected while paused or shutting
+down and is registered before dispatch. The runtime drain waits for admitted child input, then asks
+the owning connection to settle native work, await queued observation delivery and in-flight callbacks,
+then read committed archives and perform the final flush, including work continuing after an
+input acknowledgement. No projection writer may run after that flush until resume. Closing
+also detaches observation and releases access last; `Observation.stop()` alone is not a drain. Timeouts and failed archive flushes report the root as a straggler;
+a later drain can retry. Retained root delivery failures and unsuccessful session closes also report
+the session as a straggler rather than a successful drain. This is distinct from the BaseService lifecycle pause and never touches service state.
+The repository's Claude Agent SDK 0.3.311 patch forwards the existing host-only native idle event
+after background work. The adapter needs that authoritative fact to release background occupancy;
+missing idle evidence remains a straggler instead of allowing backup. The patch changes only the
+JavaScript iterator filter, preserving SDK state bookkeeping and the CLI executable.
 `AgentSessionDeliveryService` suppresses accepted-row kicks while a
 hold is live, tracks validation/claim/send handoffs in its drain set,
 rechecks the hold and target busy/live state after asynchronous validation before any transaction, then re-kicks
@@ -1035,7 +1222,8 @@ Focused tests:
 - `src/main/ai/agentSession/__tests__/AgentSessionDeliveryService.test.ts`
 - `src/main/ai/runtime/claudeCode/__tests__/ClaudeCodeRuntimeDriver.test.ts`
 - `src/main/ai/__tests__/AiService.test.ts`
-- `src/main/ai/runtime/claudeCode/__tests__/streamAdapter.test.ts`
+- `src/main/ai/runtime/claudeCode/__tests__/ClaudeRuntimeState.test.ts`
+- `src/main/ai/runtime/claudeCode/__tests__/transcriptReplay.test.ts`
 - `src/main/ai/runtime/claudeCode/__tests__/ClaudeCodeWarmQueryManager.test.ts`
 - `src/main/ai/runtime/pi/PiRuntimeConnection.test.ts`
 

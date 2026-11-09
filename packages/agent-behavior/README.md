@@ -7,6 +7,10 @@ its harness behaves as the ports promise. The decisions behind it are in the
 [Agent Note](../../.agents/notes/proposed/architecture/2026-10-18-agent-behavior-package.md); this README is the
 contract documentation adapters follow.
 
+When a committed child's native session fails to open, the adapter reports `onChildOpenFailed` before
+starting that commit's jobs. Behavior records the first run as failed through the normal run-end decision,
+freeing background capacity and allowing the idle driver to continue. Successful siblings retain their work.
+
 ## What this package is
 
 ```text
@@ -14,7 +18,7 @@ Cherry host -> adapters (coding-agent, Durable, fake) -> agent-behavior -> agent
 ```
 
 Dependencies point one way. The package imports no adapter, Pi, Node, Electron, AI SDK, logger or host code, and from
-[`@cherrystudio/agent-runtime`](../agent-runtime/README.md) only types: ids, `JsonValue` and `ContentPart`. That is
+[`@cherrystudio/agent-runtime`](../agent-runtime/README.md) only types: ids and `JsonValue`. That is
 its only declared dependency, used only for types. The emitted JavaScript import graph has no external executable dependency; the common runtime may itself implement AI SDK readers. The fake is the third harness implementation and ships here. Each layer under `src/` has
 one job:
 
@@ -27,13 +31,16 @@ one job:
 | `contract/`      | `harnessContract` and the `ContractHarness` an adapter implements                                                                                                                       | The cases every harness must pass.                                                                                                                             |
 
 The rule functions live in `core/`: each topic folder maps facts to a `Step` or a plain result, synchronously and
-without I/O, and none of them is exported ([The rule core](#the-rule-core)). `orchestration/` runs them over the ports,
-and `install` is its only runtime export ([Installing the package](#installing-the-package)). Until PR-2 moves
-agent-runtime-pi onto this package, goal and subagent semantics stay in the
-[agent-runtime-pi README](../agent-runtime-pi/README.md). Three pure projections and three constants are exported for
-adapters and the host: `delegationStatus(record)` gives `Delegation.status` for a run record,
+without I/O ([The rule core](#the-rule-core)). `orchestration/` runs them over the ports,
+and `install` wires them into a harness ([Installing the package](#installing-the-package)). Pi and Pi Durable
+both use these shared rules. Four pure projections and three constants are exported for
+adapters and the host: `delegationStatus(record)` gives a run record's active or completed status,
 `turnOrigin(history, item)` names who started the turn an entry belongs to (a person, a goal round or a notification),
-`subagentViews(facts, approvals)` lists the background children as the host shows them, `DEFAULT_MAX_BACKGROUND` is
+`subagentViews(facts, approvals)` lists the background children as the host shows them,
+`subagentResults(history, active, notification?)` derives pending results and current notification origins
+from run records and native triggering calls, including continuations. Only confirmed empty pending results
+prove drainage; missing provenance stays unknown. A host-initiated continuation retains native work without
+assigning its result to the original model call. `DEFAULT_MAX_BACKGROUND` is
 the default of the host's `Settings.maxBackground()`, and `FORK_PLACEHOLDER_RESULT` and `INTERRUPTED_CALL_RESULT` are
 the texts of the results an adapter gives a child's open tool calls ([Applying a step](#applying-a-step)).
 
@@ -306,9 +313,9 @@ only, so neither messaging nor stopping redirects to another child with the same
 a separate operation that creates a new child. The shared contract tests continuation history and run identity,
 stale stops and parent cancellation on both the fake and Pi. A child absent from the harness's facts is refused before
 writing a continuation record or report job; a stored parent record alone does not establish an available context.
-Durable's behavior adapter is not implemented; its
-immutable conversation ownership remains a limitation to resolve or reject before writing the continuation's run
-record and report job, without silently forking.
+The [Durable adapter](../agent-runtime-pi-durable/README.md#shared-behavior) implements these ports. Its immutable
+conversation ownership still prevents independent continuation of a completed foreground child; the adapter rejects
+that continuation before writing its run record or report job, without silently forking.
 
 `vcc_recall` reads the full active lineage, including compaction-folded messages and the running turn.
 `#N` numbers user, assistant, tool-result and marker messages; records and compaction entries do not consume a number.
@@ -366,8 +373,6 @@ Beyond [What the adapters provide](#what-the-adapters-provide), each adapter mus
 
 - Call `install` at open and after every restart, and forward every child thread's `interrupt()` to
   `entries.stopSubagent`.
-- Set `Delegation.status` to `delegationStatus(record)` from the latest record of each child run, one run being one
-  `DelegationId`.
 - Ask `onCompacting` before every compaction, under the key the `CompactionRequest.key` TSDoc names for the harness, and
   pass the verdict through; meter a compaction during a run as one of its requests. Supply the full branch captured before summarization in `CompactionRequest.history`. If the host returns real usage with its summary, retain the verdict's `accounting` as a history record exactly once by its key (including in child run usage); the goal owner is captured before awaiting the host. Persist it with the summary or its durable memo so replay cannot lose or double-count it. Text-only summaries carry no invented usage. Never call `Summarizer` itself.
 - Pass each tool call's turn abort signal to `GateHandlers.before` as `call.signal`. Cancellation withdraws pending
@@ -421,9 +426,10 @@ needs (tools, jobs, tool gate, context filter, request meter, lifecycle). The ha
 | `restart()`               | Lose everything in memory and reopen from storage: install runs again, `abandon` jobs are dropped, `onOpen(thread, { reopened: true }, ports)` runs for every conversation, then runs and `resume` jobs continue.     |
 | `close()`                 | Call `onClose` for every conversation, then shut down.                                                                                                                                                                  |
 
-A harness may skip only the cases whose `needs` it lacks, and `needs` has two values:
+A harness may skip only the cases whose `needs` it lacks:
 
 - `restart`: coding-agent skips these, because its runs do not resume.
+- `foreground-continuation`: Durable skips this because a completed foreground child's native owner cannot be detached.
 - `context-filter`: Durable skips this, because it never consults `ContextFilter` (H10, a declared difference: a round
   withdrawn after it started, or cut by a restart before its admission, stays visible to later model requests there).
 

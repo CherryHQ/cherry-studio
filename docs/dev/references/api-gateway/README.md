@@ -30,6 +30,13 @@ tools or substitutes an empty argument object for invalid input.
 Authenticated internal requests can carry Cherry reasoning, service-tier and Fast selections;
 external callers cannot override these through internal headers.
 
+Responses reasoning preserves provider-issued item IDs and encrypted content in both streaming and
+non-streaming output and on subsequent input, including items with no readable summary. The gateway
+uses AI SDK provider metadata for this round trip; it does not decrypt or synthesize the encrypted state.
+Anthropic redacted thinking retains its ciphertext as `redacted_thinking`. Gemini text and thought
+parts retain their signatures, including metadata-only deltas. The pinned AI SDK patch forwards empty
+text deltas carrying provider metadata so those updates reach both native replay and accumulated output.
+
 > **Naming.** React components and the lifecycle service use `apiGateway`;
 > IpcApi routes use `api_gateway.*`; Preference and Shared Cache keys use
 > `feature.api_gateway.*`. The retired `csaas` alias is not part of the current
@@ -45,7 +52,7 @@ to enable it. It is disabled by default.
 | Use case | When the gateway is needed |
 |---|---|
 | Another local app uses Cherry Studio's models | Start it and give the app the gateway URL and API key. The gateway translates supported API protocols for the configured provider. |
-| An Agent needs a model bridge | Agent traffic uses the internal loopback listener, started on demand independently of the public gateway setting. Pi registers its native providers against this listener. |
+| An Agent uses a Cherry-managed model | Pi, Pi Durable and Claude Code use the internal loopback listener, started on demand independently of the public gateway setting. |
 | PDF translation | Cherry Studio starts the gateway temporarily for the translation task and releases it afterward. You do not need to enable it manually. |
 | A paired device connects to Cherry Studio | Start it, then allow network access in **Settings → Device Connections** and approve pairing. See [LAN exposure](#lan-exposure-is-confined-to-the-remote-access-upgrade) for the access boundary. |
 
@@ -248,6 +255,13 @@ internal requests; which Cloud models a feature may use is decided where the
 model is chosen, not here. Gateway requests run without Cherry's retries or
 fallback models, so a request is served only by the model it named.
 
+Internal Anthropic requests prefer Anthropic Messages when the model declares
+that endpoint and the provider configures it. This preserves native thinking
+signatures and tool replay for multi-protocol models. Otherwise normal endpoint
+resolution applies; public requests keep their configured default. Conversion
+and execution share the selected provider/model snapshot without changing the
+stored model catalog.
+
 ## Request flow (generation routes)
 
 The OpenAI, Anthropic, and Gemini generation routes call
@@ -282,7 +296,7 @@ The OpenAI, Anthropic, and Gemini generation routes call
    turns `UIMessageChunk`s into dialect events) and the `ISseFormatter` (event →
    SSE string).
 6. **Drive the stream.** With `streamId = "gateway-<uuid>"`, call
-   `AiStreamManager.streamPrompt({ streamId, uniqueModelId, messages, listener,
+   `AiStreamManager.streamPrompt({ streamId, uniqueModelId, resolvedModel, messages, listener,
    callOverrides, contextOwner: 'caller', idleTimeoutMs })`. Caller ownership
    keeps externally managed history out of Cherry's context-build and in-loop
    compaction middleware. This uses the **`promptStreamLifecycle`** — no status
@@ -354,6 +368,10 @@ Two independent dialect axes, chosen by `inputFormat` / `outputFormat`:
 
 The output formats are **`anthropic`**, **`openai`**, **`openai-responses`**, and **`gemini`**
 — the full `OutputFormat` union, each registered in `StreamAdapterFactory`.
+
+The terminal Gemini SSE frame and complete JSON response carry `responseId` equal to the
+adapter's billing identity. Native clients retain this ID so usage can bind to the root
+or child message after delivery, without guessing the active product reply.
 
 Adapters consume the AI SDK **`UIMessageChunk`** stream (not `fullStream`):
 

@@ -9,7 +9,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Scrollbar
+  ScrollArea
 } from '@cherrystudio/ui'
 import { getMcpTypeLabelKey } from '@renderer/i18n/label'
 import type { ProtocolMcpServerInstall } from '@shared/data/types/mcpProtocolInstall'
@@ -42,7 +42,7 @@ const McpProtocolInstallDialog = ({ servers, onClose, onInstall }: McpProtocolIn
           <DialogTitle>{t('settings.mcp.protocolInstall.title')}</DialogTitle>
         </DialogHeader>
 
-        <Scrollbar className="min-h-0 flex-1">
+        <ScrollArea className="min-h-0 flex-1">
           <div className="flex flex-col gap-3">
             {servers.map((server, index) => {
               const serverType = server.type ?? ('baseUrl' in server ? 'sse' : 'stdio')
@@ -62,7 +62,7 @@ const McpProtocolInstallDialog = ({ servers, onClose, onInstall }: McpProtocolIn
               )
             })}
           </div>
-        </Scrollbar>
+        </ScrollArea>
 
         <DialogFooter>
           <Button type="button" variant="outline" disabled={installing} onClick={onClose}>

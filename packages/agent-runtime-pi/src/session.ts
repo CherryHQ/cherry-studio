@@ -13,10 +13,7 @@ import {
 } from '@earendil-works/pi-coding-agent'
 
 import { type AgentRuntimeCompaction, compactionSummaryExtension } from './compaction'
-import { type ToolOutputOffload, toolOutputOffloadExtension } from './offload'
-import { recallExtension } from './recall'
 import { type AgentRuntimeEvent, SessionEvents } from './sessionEvents'
-import { createSubagentExtension, type SubagentPort } from './subagent'
 
 export type AgentRuntimeModel = Model<Api>
 
@@ -43,20 +40,16 @@ export interface AgentRuntimeSessionOptions {
   /** Native entry observations and turn events; never used to restore the session. Must not throw. */
   onEvent?: (event: AgentRuntimeEvent) => void
   compaction?: AgentRuntimeCompaction
-  offload?: ToolOutputOffload
-  recall?: boolean
-  subagents?: SubagentPort
   tools?: ToolDefinition[]
   /** Pi built-in tools to enable, e.g. `read`, `bash`. None by default. */
   builtinTools?: string[]
+  /** Tools unavailable to this session, including extension and restored tool loadouts. */
+  excludeTools?: string[]
   extensionFactories?: ExtensionFactory[]
   settings?: AgentRuntimeSettings
   /** Native Pi thinking level (default `off`). */
   thinkingLevel?: CreateAgentSessionOptions['thinkingLevel']
 }
-
-/** Pi event-bus channel: the host's `abort()` is stopping the running run for the user. */
-export const USER_ABORT = 'cherry.user-abort'
 
 export interface AgentRuntimeSession {
   session: AgentSession
@@ -73,18 +66,8 @@ export interface AgentRuntimeSession {
   prompt(text: string, options?: Parameters<AgentSession['prompt']>[1]): Promise<void>
   /** `session.compact`, for every manual compaction the host starts, for the same reason. */
   compact(customInstructions?: string): Promise<void>
-  /**
-   * `session.abort()`, for every stop the user makes (the host's stop button): it counts as the
-   * user's even when it lands in a run the runtime is ending itself (a goal withdrawing a round).
-   */
+  /** Aborts the active native run; behavior rules own user-stop attribution. */
   abort(): Promise<void>
-  /** The user stops a background subagent (the host's stop button); false when it is not running. */
-  stopSubagent(sessionId: string): boolean
-  /**
-   * The user moves a running foreground subagent to the background: its call returns at once and
-   * the same run goes on, ending in a notification. False for any other subagent.
-   */
-  backgroundSubagent(sessionId: string): boolean
 }
 
 /**
@@ -93,14 +76,6 @@ export interface AgentRuntimeSession {
  */
 export async function createAgentRuntimeSession(
   options: AgentRuntimeSessionOptions,
-  beforeStart?: (session: AgentSession) => void
-): Promise<AgentRuntimeSession> {
-  return buildSession(options, undefined, beforeStart)
-}
-
-async function buildSession(
-  options: AgentRuntimeSessionOptions,
-  beforeModelRequest?: () => void,
   beforeStart?: (session: AgentSession) => void
 ): Promise<AgentRuntimeSession> {
   const { cwd, agentDir } = options
@@ -118,55 +93,25 @@ async function buildSession(
 
   const { compaction } = options
   const summarize = compaction?.summarize
-    ? (request: Parameters<NonNullable<AgentRuntimeCompaction['summarize']>>[0]) => {
-        beforeModelRequest?.()
-        return compaction.summarize!(request)
-      }
-    : undefined
-
-  const subagents =
-    options.subagents &&
-    createSubagentExtension({
-      port: options.subagents,
-      // A fork keeps `subagent` so its tools match the parent's; a fresh subagent has none.
-      createSession: ({ fork, beforeModelRequest: beforeChildRequest, beforeStart: beforeChildStart, ...overrides }) =>
-        buildSession(
-          {
-            ...options,
-            ...overrides,
-            modelRuntime: overrides.modelRuntime ?? options.modelRuntime,
-            subagents: fork ? options.subagents : undefined
-          },
-          beforeChildRequest,
-          beforeChildStart
-        ),
-      parentSession: sessionManager,
-      parentModel: options.model,
-      emit: (event) => options.onEvent?.(event),
-      offload: options.offload
-    })
   const extensionFactories = [
     // First, so the watch covers every other extension's agent_settled handler.
     settleWatch,
-    ...(options.recall ? [recallExtension(() => sessionManager.getBranch())] : []),
-    ...(subagents ? [subagents.extension] : []),
     ...(options.extensionFactories ?? []),
-    ...(summarize ? [compactionSummaryExtension(summarize, (message) => (events.summaryFailure = message))] : []),
-    // Last, so it sees what other `tool_result` handlers made of the output.
-    ...(options.offload ? [toolOutputOffloadExtension(options.offload)] : [])
+    ...(summarize ? [compactionSummaryExtension(summarize, (message) => (events.summaryFailure = message))] : [])
   ]
-  const settingsManager = SettingsManager.inMemory({
-    ...options.settings,
-    // Pi's cache warmer requests bypass `agent.streamFunction`, where a subagent's requests are counted.
-    ...(beforeModelRequest && { cacheWarming: 'off' as const }),
-    ...(compaction && {
-      compaction: {
-        enabled: compaction.enabled ?? true,
-        reserveTokens: compaction.reserveTokens,
-        keepRecentTokens: compaction.keepRecentTokens
-      }
-    })
-  })
+  const settingsManager = SettingsManager.inMemory(
+    {
+      ...options.settings,
+      ...(compaction && {
+        compaction: {
+          enabled: compaction.enabled ?? true,
+          reserveTokens: compaction.reserveTokens,
+          keepRecentTokens: compaction.keepRecentTokens
+        }
+      })
+    },
+    { projectTrusted: options.contextFiles === true }
+  )
   const eventBus = createEventBus()
   const resourceLoader = new DefaultResourceLoader({
     eventBus,
@@ -198,15 +143,9 @@ async function buildSession(
     noTools: 'builtin',
     // `+name` entries add to the (empty) built-in selection without restricting custom/extension tools.
     tools: options.builtinTools?.length ? options.builtinTools.map((name) => `+${name}`) : undefined,
-    customTools: options.tools ?? []
+    customTools: options.tools ?? [],
+    excludeTools: options.excludeTools
   })
-  if (beforeModelRequest) {
-    const stream = session.agent.streamFunction
-    session.agent.streamFunction = (model, context, options) => {
-      beforeModelRequest()
-      return stream(model, context, options)
-    }
-  }
   session.subscribe((event) => {
     events.handle(event)
     if (event.type !== 'agent_settled') return
@@ -215,33 +154,19 @@ async function buildSession(
   })
 
   const held = async (run: () => Promise<unknown>) => {
-    const release = subagents?.controls.hold() ?? (() => {})
-    try {
-      if (settling) {
-        await settling.over
-        // A run Pi deferred during the settle (a notification) goes first, as Pi would order them.
-        await session.waitForIdle()
-      }
-      await run()
-    } finally {
-      release()
+    if (settling) {
+      await settling.over
+      // A run Pi deferred during the settle goes first, preserving native ordering.
+      await session.waitForIdle()
     }
+    await run()
   }
   const owner: AgentRuntimeSession = {
     session,
     compactionSummarizer: compaction?.summarize,
     prompt: (text, promptOptions) => held(() => session.prompt(text, promptOptions)),
     compact: (customInstructions) => held(() => session.compact(customInstructions)),
-    abort() {
-      // Pi reports a run aborted only when one is active; that run's abort is the user's.
-      if (session.isStreaming) {
-        eventBus.emit(USER_ABORT, undefined)
-        subagents?.controls.userAbort()
-      }
-      return session.abort()
-    },
-    stopSubagent: (sessionId) => subagents?.controls.stopSubagent(sessionId) ?? false,
-    backgroundSubagent: (sessionId) => subagents?.controls.backgroundSubagent(sessionId) ?? false,
+    abort: () => session.abort(),
     async dispose() {
       try {
         await session.abort()

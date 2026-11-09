@@ -1,23 +1,91 @@
-import { describe, expect, expectTypeOf, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
-import type { Delegation } from '@cherrystudio/agent-runtime'
-
+import { callKeyOf } from '../../../src/core/facts'
+import { keys } from '../../../src/core/keys'
 import {
   delegationStatus,
-  type DelegationStatus,
   pendingResults,
   readSubagents,
   resolveChild,
   runningBackground,
+  subagentResults,
   subagentViews,
   suppressed
 } from '../../../src/core/subagents/subagentLedger'
-import { facts, marker, run, runEntry, thread, turnStop, user, usage } from '../history'
+import { assistant, callTo, facts, marker, run, runEntry, thread, turnStop, user, usage } from '../history'
 
 const finished = (child: string, patch = {}) =>
   runEntry(run(child, { status: 'finished', outcome: 'completed', ...patch }))
 
 describe('subagent ledger', () => {
+  it('keeps a result pending through report delivery and the parent notification run', () => {
+    const call = callTo('subagent', { background: true }, 'spawn')
+    const record = run('child', { parentToolCallId: call.callKey })
+    const history = [user(), assistant('', { calls: [call] }), runEntry(record, keys.subagentSpawn(call.callKey))]
+    const expected = { active: true, pending: ['spawn'], notification: [] }
+    expect(subagentResults(history, false)).toEqual(expected)
+    history.push(runEntry({ ...record, status: 'finished', outcome: 'completed' }))
+    expect(subagentResults(history, false)).toEqual(expected)
+    history.push(
+      marker({
+        type: 'subagent-notification',
+        runs: [{ sessionId: thread('child'), run: 1, outcome: 'completed' }],
+        quiet: false
+      })
+    )
+    expect(subagentResults(history, false)).toEqual({ active: true, pending: ['spawn'], notification: ['spawn'] })
+    expect(subagentResults(history, true)).toEqual({ active: true, pending: ['spawn'], notification: ['spawn'] })
+    history.push(assistant('Final report'))
+    expect(subagentResults(history, false)).toEqual({ active: false, pending: [], notification: ['spawn'] })
+  })
+
+  it('attributes a continued child to the continuation call and does not wake for quiet delivery', () => {
+    const spawn = callTo('subagent', { background: true }, 'spawn')
+    const next = callTo('message_subagent', { id: 'child', message: 'Continue' }, 'continue')
+    const record = run('child', { parentToolCallId: spawn.callKey })
+    const history = [
+      user(),
+      assistant('', { calls: [spawn] }),
+      runEntry(record, keys.subagentSpawn(spawn.callKey)),
+      runEntry({ ...record, status: 'finished', modelStopped: true }),
+      user(),
+      assistant('', { calls: [next] }),
+      runEntry({ ...record, run: 2 }, keys.subagentContinue(next.callKey))
+    ]
+    expect(subagentResults(history, false)).toEqual({ active: true, pending: ['continue'], notification: [] })
+    history.push(
+      runEntry({ ...record, run: 2, status: 'finished', outcome: 'stopped' }),
+      marker({
+        type: 'subagent-notification',
+        runs: [{ sessionId: thread('child'), run: 2, outcome: 'stopped' }],
+        quiet: true
+      })
+    )
+    expect(subagentResults(history, false)).toEqual({ active: false, pending: [], notification: [] })
+  })
+
+  it('does not report missing continuation provenance as drained or reuse the creation call', () => {
+    const call = callTo('subagent', {}, 'spawn')
+    expect(
+      subagentResults(
+        [assistant('', { calls: [call] }), runEntry(run('child', { parentToolCallId: call.callKey, run: 2 }))],
+        false
+      )
+    ).toBeUndefined()
+  })
+
+  it('retains a child-panel continuation without assigning it to the original parent reply', () => {
+    const call = callTo('subagent', {}, 'spawn')
+    const history = [
+      assistant('', { calls: [call] }),
+      runEntry(
+        run('child', { parentToolCallId: call.callKey, run: 2 }),
+        keys.subagentContinue(callKeyOf('host-message:["parent","input"]'))
+      )
+    ]
+    expect(subagentResults(history, false)).toEqual({ active: true, pending: [], notification: [] })
+  })
+
   // Catches the slot count skipping children spawned in this batch whose report job has not started them yet:
   // parallel spawns would pass the cap (fixture 9). A run that ended unrecorded frees its slot; foreground takes none.
   it('counts spawned-but-unstarted background children as running', () => {
@@ -75,9 +143,8 @@ describe('subagent ledger', () => {
     ])
   })
 
-  // Catches the projection drifting from agent-runtime's `Delegation.status`, which adapters assign it to (D40).
+  // Catches a running record projected as completed, or a finished one still reported active.
   it('projects a run record onto the delegation status', () => {
-    expectTypeOf<DelegationStatus>().toEqualTypeOf<Delegation['status']>()
     expect([delegationStatus(run('a')), delegationStatus(run('a', { status: 'finished' }))]).toEqual([
       'active',
       'completed'
