@@ -354,7 +354,7 @@ it.each([false, true])('retains approval=%s through native results, persistence 
   onTestFinished(() => {
     toolApprovalRegistry.clear()
   })
-  expect(f.service.respondToolApproval(approvalId, { approved })).toBe(true)
+  expect(f.service.respondToolApproval(approvalId, { approved })).toEqual({ ok: true })
   expect(await decision.promise).toMatchObject({ approved })
   const native: CherryUIMessage = {
     id: 'native-write',
