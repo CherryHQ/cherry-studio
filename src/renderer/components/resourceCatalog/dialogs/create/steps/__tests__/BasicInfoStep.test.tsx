@@ -54,10 +54,10 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/components/EditDialogShare
 
 function Harness({
   modelId = null,
-  runtimeSelectable = false
+  showAgentFields = false
 }: {
   modelId?: UniqueModelId | null
-  runtimeSelectable?: boolean
+  showAgentFields?: boolean
 }) {
   const form = useForm<ResourceCreateWizardFormValues>({
     defaultValues: {
@@ -75,7 +75,7 @@ function Harness({
 
   return (
     <Form {...form}>
-      <BasicInfoStep form={form} portalContainer={null} fallbackAvatar="💬" runtimeSelectable={runtimeSelectable} />
+      <BasicInfoStep form={form} portalContainer={null} fallbackAvatar="💬" showAgentFields={showAgentFields} />
       <output data-testid="permission-mode">{form.watch('permissionMode')}</output>
     </Form>
   )
@@ -116,15 +116,13 @@ describe('BasicInfoStep', () => {
     ).toBeVisible()
   })
 
-  it('only offers Pi Durable for creation with smart approval', () => {
-    render(<Harness runtimeSelectable />)
+  it('hides runtime configuration while keeping smart approval for new agents', () => {
+    render(<Harness showAgentFields />)
 
-    const runtimeOption = screen.getByRole('radio', { name: /runtime\.option\.pi_durable\b/ })
-    expect(screen.getAllByRole('radio')).toEqual([runtimeOption])
-    expect(runtimeOption).toBeChecked()
-    expect(screen.queryByText('library.config.agent.field.runtime.option.pi')).not.toBeInTheDocument()
-    expect(screen.queryByText('library.config.agent.field.runtime.option.claude_code')).not.toBeInTheDocument()
-    expect(screen.getByText('library.config.agent.field.runtime.immutable_hint')).toBeVisible()
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument()
+    expect(screen.queryByText('library.config.agent.field.runtime.label')).not.toBeInTheDocument()
+    expect(screen.queryByText('library.config.agent.field.runtime.immutable_hint')).not.toBeInTheDocument()
+    expect(screen.queryByText('library.config.agent.field.runtime.option.pi_durable')).not.toBeInTheDocument()
     expect(screen.getByLabelText('library.config.agent.field.permission_mode.label')).toHaveTextContent(
       'agent.settings.tooling.permissionMode.auto.title'
     )

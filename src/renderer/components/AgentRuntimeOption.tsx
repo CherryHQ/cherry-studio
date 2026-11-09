@@ -1,31 +1,11 @@
 import type { TFunction } from 'i18next'
-import { Check } from 'lucide-react'
-import { useId } from 'react'
 
-import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemDescription,
-  ItemMedia,
-  ItemTitle,
-  Label,
-  RadioGroup,
-  RadioGroupItem
-} from '@cherrystudio/ui'
+import { Item, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@cherrystudio/ui'
 import { type IconComponent, PiCli } from '@cherrystudio/ui/icons'
 import { ClaudeCode } from '@cherrystudio/ui/icons/providers'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentType } from '@shared/data/types/agent'
-
-/**
- * Shared presentation for the agent runtimes.
- *
- * The runtime is picked once and never again, so both surfaces render the same card: the create
- * wizard makes them selectable, the editor shows the chosen one as a plain summary. Keeping them
- * here means the two never drift into looking like different decisions.
- */
 
 const RUNTIME_ICONS = {
   'claude-code': ClaudeCode,
@@ -48,7 +28,6 @@ const RUNTIME_DESCRIPTION_KEYS: Record<AgentType, string> = {
   'pi-durable': 'library.config.agent.field.runtime.option_description.pi_durable'
 }
 
-const RUNTIMES = ['pi-durable'] as const satisfies readonly AgentType[]
 const RUNTIME_CARD_CLASS_NAME = 'w-full items-center gap-2 rounded-lg px-3 py-1.5 font-normal'
 
 function RuntimeCardBody({ runtime, t, compact = false }: { runtime: AgentType; t: TFunction; compact?: boolean }) {
@@ -75,57 +54,6 @@ function RuntimeCardBody({ runtime, t, compact = false }: { runtime: AgentType; 
         </ItemDescription>
       </ItemContent>
     </>
-  )
-}
-
-export function AgentRuntimeTiles({
-  value,
-  onValueChange,
-  ariaLabel,
-  t
-}: {
-  value: AgentType
-  onValueChange: (value: AgentType) => void
-  ariaLabel: string
-  t: TFunction
-}) {
-  const uid = useId()
-
-  // Radix owns the radio semantics (roving tabindex, arrow-key navigation); the visual is a card, so
-  // the radio control itself is hidden and the card carries the selected and focus states.
-  return (
-    <RadioGroup
-      aria-label={ariaLabel}
-      className="grid-cols-1 gap-2"
-      value={value}
-      onValueChange={(next) => onValueChange(next as AgentType)}>
-      {RUNTIMES.map((runtime) => {
-        const optionId = `${uid}-${runtime}`
-        const selected = runtime === value
-        return (
-          <Item
-            key={runtime}
-            asChild
-            size="sm"
-            variant="outline"
-            className={cn(
-              RUNTIME_CARD_CLASS_NAME,
-              'cursor-pointer hover:bg-accent/50',
-              // Keep keyboard focus visible while selection is indicated by the checkmark alone.
-              'has-[[data-slot=radio-group-item]:focus-visible]:bg-accent',
-              'has-[[data-slot=radio-group-item]:focus-visible]:ring-1 has-[[data-slot=radio-group-item]:focus-visible]:ring-ring has-[[data-slot=radio-group-item]:focus-visible]:ring-inset'
-            )}>
-            <Label htmlFor={optionId}>
-              <RadioGroupItem id={optionId} value={runtime} className="sr-only" />
-              <RuntimeCardBody runtime={runtime} t={t} compact />
-              <ItemActions className="size-4 shrink-0">
-                {selected ? <Check className="size-4 text-primary" /> : null}
-              </ItemActions>
-            </Label>
-          </Item>
-        )
-      })}
-    </RadioGroup>
   )
 }
 

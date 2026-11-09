@@ -368,7 +368,7 @@ export function ResourceCreateWizard({
                     portalContainer={dialogContentElement}
                     fallbackAvatar={getResourceCreateDefaultAvatar(kind)}
                     modelFilter={activeModelFilter}
-                    runtimeSelectable={kind === 'agent'}
+                    showAgentFields={kind === 'agent'}
                     onSettingsNavigate={closeBeforeAction}
                   />
                 ) : null}
