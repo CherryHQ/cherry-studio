@@ -1,9 +1,15 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, render, screen } from '@testing-library/react'
-import { type ReactNode, useRef, useState } from 'react'
+import { type ReactNode, use, useRef, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useCommandContextKey, useCommandContextReader, useCommandHandler } from '@renderer/hooks/command'
+import {
+  CommandFocusScopeContext,
+  type CommandFocusScopeState,
+  useCommandContextKey,
+  useCommandContextReader,
+  useCommandHandler
+} from '@renderer/hooks/command'
 import type { RendererCommandContextKey } from '@renderer/hooks/command'
 import type { ContextValue } from '@shared/types/command'
 import type { CommandId } from '@shared/utils/command'
@@ -91,6 +97,48 @@ describe('CommandFocusScope', () => {
   })
 
   afterEach(cleanup)
+
+  it('keeps the external-store snapshot stable when inline scope options have not changed', () => {
+    let scope: CommandFocusScopeState | null = null
+    function ObserveScope() {
+      scope = use(CommandFocusScopeContext)
+      return <ContextIndicator name="observed" />
+    }
+    const tree = () => (
+      <Providers>
+        <Surface name="observed" context={{ 'chat.active': true }}>
+          <ObserveScope />
+        </Surface>
+      </Providers>
+    )
+    const { rerender } = render(tree())
+    const snapshot = scope!.getVersion()
+    rerender(tree())
+    // useSyncExternalStore must not see a new snapshot for unchanged scope state.
+    expect(scope!.getVersion()).toBe(snapshot)
+    expect(screen.getByLabelText('observed chat context')).toHaveTextContent('true')
+  })
+
+  it('refreshes inline scope context and restores inherited keys when an override is removed', () => {
+    const tree = (context: Partial<Record<RendererCommandContextKey, ContextValue>>) => (
+      <Providers>
+        <Surface name="parent" context={{ 'chat.active': false }}>
+          <Surface name="child" context={context}>
+            <ContextIndicator name="child" />
+          </Surface>
+        </Surface>
+      </Providers>
+    )
+    const { rerender } = render(tree({ 'chat.active': true }))
+    expect(screen.getByLabelText('child chat context')).toHaveTextContent('true')
+
+    rerender(tree({ 'chat.active': false }))
+    expect(screen.getByLabelText('child chat context')).toHaveTextContent('false')
+    rerender(tree({ 'chat.active': true }))
+    expect(screen.getByLabelText('child chat context')).toHaveTextContent('true')
+    rerender(tree({}))
+    expect(screen.getByLabelText('child chat context')).toHaveTextContent('false')
+  })
 
   it.each([false, true])('routes sibling commands by keyboard target with reversed order %s', (reverse) => {
     const names = reverse ? ['B', 'A'] : ['A', 'B']
