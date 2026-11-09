@@ -124,22 +124,18 @@ export class ChildThreadProjection {
       if (this.stopped || this.source !== source) return
       if (event.type === 'context.changed') {
         this.contextVersion++
-        application
-          .get('CacheService')
-          .setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(this.context.sessionId), {
-            sessionId: this.context.sessionId,
-            result: event.result
-          })
+        application.get('CacheService').setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(this.context.sessionId), {
+          sessionId: this.context.sessionId,
+          result: event.result
+        })
         return
       }
       if (event.type === 'snapshot' && event.contextUsage) {
         this.contextVersion++
-        application
-          .get('CacheService')
-          .setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(this.context.sessionId), {
-            sessionId: this.context.sessionId,
-            result: event.contextUsage
-          })
+        application.get('CacheService').setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(this.context.sessionId), {
+          sessionId: this.context.sessionId,
+          result: event.contextUsage
+        })
       }
       if (event.type === 'message.remove') this.removed.add(event.ref.id)
       if (event.type === 'message.upsert') {
@@ -179,12 +175,10 @@ export class ChildThreadProjection {
     const contextVersion = this.contextVersion
     const usage = await this.handle.contextUsage()
     if (!this.stopped && this.source === source && contextVersion === this.contextVersion)
-      application
-        .get('CacheService')
-        .setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(this.context.sessionId), {
-          sessionId: this.context.sessionId,
-          result: usage
-        })
+      application.get('CacheService').setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(this.context.sessionId), {
+        sessionId: this.context.sessionId,
+        result: usage
+      })
     await this.flush()
   }
 

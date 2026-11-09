@@ -58,9 +58,7 @@ describe('useAgentSessionContextUsage', () => {
       }
     })
 
-    const { result } = renderHook(() =>
-      useAgentSessionContextUsage(SESSION_ID, model('openai::small-model', 500_000))
-    )
+    const { result } = renderHook(() => useAgentSessionContextUsage(SESSION_ID, model('openai::small-model', 500_000)))
 
     expect(result.current.usage).toBeNull()
     expect(result.current.percentage).toBeNull()
