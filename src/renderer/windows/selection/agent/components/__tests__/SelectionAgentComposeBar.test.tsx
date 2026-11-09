@@ -88,6 +88,12 @@ describe('SelectionAgentComposeBar', () => {
     mocks.surface = null
   })
 
+  it('renders Markdown in place', () => {
+    renderBar()
+
+    expect(mocks.surface?.markdownLivePreview).toBe(true)
+  })
+
   it('sends the selection as a leading quote ahead of the instruction, adding nothing else', () => {
     const { onSend } = renderBar()
     const link = { id: 'l', kind: 'link' as const, label: 'docs', promptText: 'https://x.dev', index: 0, textOffset: 4 }

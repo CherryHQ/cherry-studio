@@ -1614,6 +1614,7 @@ const AgentComposerInner = ({
       <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedLauncherIds}>
         <ComposerSurface
+          markdownLivePreview
           showAiDisclaimer
           voiceTarget={{ targetId: `composer:session:${sessionId}`, sourceEntityId: sessionId }}
           text={text}

@@ -899,6 +899,12 @@ describe('ChatComposer', () => {
     globalThis.ResizeObserver = originalResizeObserver
   })
 
+  it('renders Markdown in place', () => {
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(mocks.surfaceProps?.markdownLivePreview).toBe(true)
+  })
+
   it('blocks sending and shows the quota notice while the current model is out of quota', () => {
     mocks.quotaExhaustion = { reason: 'quota_exhausted', isFreeModel: true, isSubscribed: false }
 

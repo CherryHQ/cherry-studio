@@ -1892,6 +1892,7 @@ const ChatComposerInner = ({
       <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedToolIds}>
         <ComposerSurface
+          markdownLivePreview
           showAiDisclaimer
           voiceTarget={{ targetId: `composer:chat:${streamScopeKey}`, sourceEntityId: streamScopeKey }}
           text={text}

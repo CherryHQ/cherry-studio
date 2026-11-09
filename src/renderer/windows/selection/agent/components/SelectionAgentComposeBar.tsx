@@ -177,6 +177,7 @@ export const SelectionAgentComposeBar: FC<SelectionAgentComposeBarProps> = ({
         </div>
         {binary.blocked && <ClaudeCodeDownloadStatus status={binary.status} onRetry={binary.retry} />}
         <ComposerSurface
+          markdownLivePreview
           text={text}
           onTextChange={onTextChange}
           tokens={[]}

@@ -11,11 +11,13 @@ import {
   ComposerUndoRedo
 } from './composerSchema'
 import { ComposerTokenNode, type ComposerTokenRenderer } from './ComposerTokenNode'
+import { ComposerMarkdownLivePreview } from './markdownLivePreview/livePreviewPlugin'
 import { type ComposerSuggestionSource, createComposerSuggestionExtension } from './quickPanel'
 
 export interface ComposerEditorPresetOptions {
   placeholder?: PlaceholderOptions['placeholder']
   enableUndoRedo?: boolean
+  markdownLivePreview?: boolean
   renderToken?: ComposerTokenRenderer
   suggestionSources?: readonly ComposerSuggestionSource[]
 }
@@ -32,6 +34,7 @@ function showOnBlankDocument(placeholder: PlaceholderOptions['placeholder']): Pl
 export function createComposerEditorPreset({
   placeholder,
   enableUndoRedo = true,
+  markdownLivePreview = false,
   renderToken,
   suggestionSources = []
 }: ComposerEditorPresetOptions = {}): EditorOptions['extensions'] {
@@ -49,6 +52,7 @@ export function createComposerEditorPreset({
     }),
     ComposerTokenNode.configure({ renderToken }),
     ...(suggestionSources.length > 0 ? [createComposerSuggestionExtension(suggestionSources)] : []),
-    ...(enableUndoRedo ? [ComposerUndoRedo] : [])
+    ...(enableUndoRedo ? [ComposerUndoRedo] : []),
+    ...(markdownLivePreview ? [ComposerMarkdownLivePreview] : [])
   ]
 }

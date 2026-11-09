@@ -631,9 +631,15 @@ importers:
       '@larksuiteoapi/node-sdk':
         specifier: ^1.73.0
         version: 1.73.0(debug@4.4.3(supports-color@8.1.1))
+      '@lezer/common':
+        specifier: 1.5.1
+        version: 1.5.1
       '@lezer/highlight':
         specifier: 1.2.3
         version: 1.2.3
+      '@lezer/markdown':
+        specifier: 1.6.3
+        version: 1.6.3
       '@mistralai/mistralai':
         specifier: ^1.7.5
         version: 1.11.0

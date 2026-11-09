@@ -981,6 +981,20 @@ describe('AgentComposer', () => {
     restoreRequestAnimationFrame = undefined
   })
 
+  it('renders Markdown in place', () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.surfaceProps?.markdownLivePreview).toBe(true)
+  })
+
   it('blocks sending and shows the quota notice while the current model is out of quota', () => {
     mocks.quotaExhaustion = { reason: 'quota_exhausted', isFreeModel: true, isSubscribed: false }
 

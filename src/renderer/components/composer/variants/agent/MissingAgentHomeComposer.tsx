@@ -93,6 +93,7 @@ const MissingAgentHomeComposerInner = ({
   return (
     <ComposerToolDerivedStateProvider couldAddImageFile={false} extensions={[]}>
       <ComposerSurface
+        markdownLivePreview
         showAiDisclaimer
         text={text}
         onTextChange={setText}
