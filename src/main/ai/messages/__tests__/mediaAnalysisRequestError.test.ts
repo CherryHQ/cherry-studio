@@ -1,5 +1,6 @@
-import { classifyErrorCategory } from '@shared/utils/errorCategory'
 import { describe, expect, it } from 'vitest'
+
+import { classifyErrorCategory } from '@shared/utils/errorCategory'
 
 import { serializeError } from '../../utils/serializeError'
 import { NonNativeMediaAnalysisError } from '../mediaAnalysisRequestError'
