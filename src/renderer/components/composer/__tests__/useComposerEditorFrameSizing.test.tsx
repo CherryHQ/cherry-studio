@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -122,16 +123,70 @@ describe('composer available height', () => {
     expect(handle).toHaveAttribute('aria-valuenow', '220')
   })
 
-  it.each(['manual', 'expanded'])('restores automatic content height on paste from %s sizing', (mode) => {
+  it('preserves manual height when fitting pasted content', async () => {
+    const user = userEvent.setup()
     render(<Harness />)
-    if (mode === 'manual') {
-      fireEvent.keyDown(screen.getByRole('separator', { name: 'Resize input' }), { key: 'ArrowUp' })
-    } else {
-      fireEvent.click(screen.getByRole('button', { name: 'Expand' }))
+    const handle = screen.getByRole('separator', { name: 'Resize input' })
+    handle.focus()
+    await user.keyboard('{ArrowUp}')
+    expect(handle).toHaveAttribute('aria-valuenow', '96')
+
+    await user.click(screen.getByRole('button', { name: 'Fit pasted content' }))
+    expect(screen.getByLabelText('Sizing mode')).toHaveTextContent('fixed')
+    expect(handle).toHaveAttribute('aria-valuenow', '96')
+  })
+
+  it('preserves each successive manual adjustment when fitting pasted content', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    const handle = screen.getByRole('separator', { name: 'Resize input' })
+
+    for (const height of [96, 112]) {
+      handle.focus()
+      await user.keyboard('{ArrowUp}')
+      expect(handle).toHaveAttribute('aria-valuenow', String(height))
+
+      await user.click(screen.getByRole('button', { name: 'Fit pasted content' }))
+      expect(screen.getByLabelText('Sizing mode')).toHaveTextContent('fixed')
+      expect(handle).toHaveAttribute('aria-valuenow', String(height))
     }
+  })
+
+  it('preserves the manual maximum height when fitting pasted content', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    const handle = screen.getByRole('separator', { name: 'Resize input' })
+    handle.focus()
+    await user.keyboard('{End}')
+    expect(handle).toHaveAttribute('aria-valuenow', '600')
+
+    await user.click(screen.getByRole('button', { name: 'Fit pasted content' }))
+    expect(screen.getByLabelText('Sizing mode')).toHaveTextContent('fixed')
+    expect(handle).toHaveAttribute('aria-valuenow', '600')
+  })
+
+  it('restores automatic content height on paste from expanded sizing', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Expand' }))
     expect(screen.getByLabelText('Sizing mode')).toHaveTextContent('fixed')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Fit pasted content' }))
+    await user.click(screen.getByRole('button', { name: 'Fit pasted content' }))
+    expect(screen.getByLabelText('Sizing mode')).toHaveTextContent('auto')
+    expect(screen.getByRole('separator', { name: 'Resize input' })).toHaveAttribute('aria-valuemax', '600')
+  })
+
+  it('restores automatic height on paste after expanding a manually sized editor', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    const handle = screen.getByRole('separator', { name: 'Resize input' })
+    handle.focus()
+    await user.keyboard('{ArrowUp}')
+    expect(handle).toHaveAttribute('aria-valuenow', '96')
+    await user.click(screen.getByRole('button', { name: 'Expand' }))
+    expect(handle).toHaveAttribute('aria-valuenow', '600')
+
+    await user.click(screen.getByRole('button', { name: 'Fit pasted content' }))
     expect(screen.getByLabelText('Sizing mode')).toHaveTextContent('auto')
     expect(screen.getByRole('separator', { name: 'Resize input' })).toHaveAttribute('aria-valuemax', '600')
   })
