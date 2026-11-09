@@ -41,9 +41,9 @@ command definition ──┬── optional keybinding ──▶ main or rendere
   process scope, optional enablement expression, and optional keybinding.
 - `KEYBINDING_RULES` and the registered command/keybinding lookups are derived
   from those definitions.
-- A renderer surface registers behavior with `useCommandHandler`. Main-process
-  handlers live in `CommandService` and delegate to the service that owns the
-  behavior.
+- A renderer surface registers behavior with `useCommandHandler` in its nearest
+  `CommandFocusScope`. Main-process handlers live in `CommandService` and delegate
+  to the service that owns the behavior.
 - `MENU_CONTRIBUTIONS` is a separate static declaration keyed by `CommandId`.
   Renderer menus can also carry surface-local custom items that do not become
   commands.
@@ -94,8 +94,9 @@ These modules are pure shared code: they import neither Electron nor React.
 | Path | Responsibility |
 | --- | --- |
 | `src/renderer/components/command/` | Providers, command-aware controls, context menus, and popup menus |
-| `src/renderer/hooks/command/` | Handler registration, context keys, resolved command/menu state, and shortcut settings data |
+| `src/renderer/hooks/command/` | Focus scope registry, handler registration, context keys, resolved command/menu state, and shortcut settings data |
 | `src/renderer/utils/command.ts` | Pure renderer display-state and shortcut-label helpers |
+| `packages/ui/src/components/primitives/keyboard-layer.tsx` | Generic UI interaction-layer lifecycle adapted to renderer command boundaries |
 
 `CommandContextKeyProvider` and `CommandProvider` are mounted by the main and
 subwindow roots. Other renderer windows do not currently host the renderer command
@@ -106,7 +107,7 @@ runtime.
 `CommandScope` supports `main`, `renderer`, and `both`:
 
 - Renderer bindings are handled by the window-level `CommandProvider`. A command
-  resolves only when an enabled handler is mounted.
+  resolves only when its event's active focus scope can find an enabled handler.
 - Non-global main bindings are handled through `before-input-event` on the main
   window and attached webviews.
 - Main bindings marked `global: true` are registered with Electron's
@@ -114,25 +115,46 @@ runtime.
 
 `enablement` gates the command itself; a keybinding's `when` expression gates that
 trigger. Context expressions are evaluated against process-appropriate context:
-Preference-backed feature flags in main, and a window-local context-key stack in
-the renderer.
+Preference-backed feature flags in main, and the event scope's local, inherited
+and window-root values in the renderer. `CommandFocusScope` is a renderer focus
+boundary, distinct from the process-level `CommandScope`.
 
 Each keybinding resolves its `shortcut.<commandId>` Preference and can fall back
 to its declared default. Platform-specific defaults and `additionalBindings` come
-from the command definition. Settings lists resolved bindings and treats rules
-with `editable: false` as fixed.
+from the command definition. Settings lists configured bindings and treats rules
+with `editable: false` as fixed. A keyboard-only `when` condition does not hide a
+configured shortcut from settings or its label from a menu. Platform support,
+command enablement and user shortcut enable switches still apply.
 
 ## Dispatch flows
 
 ### Renderer keyboard
 
-`keydown` → `CommandProvider` → shortcut normalization →
-`resolveCommandByKeybinding({ scope: 'renderer', canExecuteCommand: hasHandler })`
-→ active handler.
+`keydown` → event path's nearest registered focus scope → scoped context and
+shortcut normalization → matching command and scoped handler → that same handler.
 
-No-modifier shortcuts are ignored while an input, textarea, or contenteditable
-target has focus. Modified shortcuts can still resolve. The event is prevented
-only after an executable command matches.
+Sibling scopes never compete by registration order. A scope that owns a command
+but has no enabled handler blocks fallback to an ancestor registration for that
+command. Inactive or detached scopes cannot execute. Unclaimed commands may
+resolve through parent scopes to the window root.
+
+No-modifier shortcuts are ignored inside input, textarea, select, or inherited
+contenteditable surfaces. Modified shortcuts can still resolve, with
+`input.focused` available to their `when` conditions. Resource deletion excludes
+editable focus. The event is prevented only after one executable candidate and
+its event predicate accept it.
+
+Dialogs and menus register keyboard layers through their actual open/close
+lifecycle, including focus restoration. Their scope inherits window-root context
+rather than the invoking list's context. A layer does not inherit root handlers
+unless those handlers opt in with `allowInKeyboardLayer: true`. Its own scoped
+commands remain available. Nested layers release independently. Native popups
+use the same boundary policy without requiring a DOM node.
+
+Component programmatic calls use their bound runtime scope; window-root calls
+stay root-scoped. They do not apply keyboard-only `when` or event predicates. See
+[focus scopes and lifecycle](./command-usage.md#focus-scopes-and-lifecycle) for
+surface integration and retained-tab activation.
 
 ### Main keyboard
 
@@ -151,6 +173,10 @@ only after an executable command matches.
   renderer menus. `app.menu` and `tray.menu` always resolve to native mode.
 - For a native popup, main-process commands execute in `CommandService`;
   renderer commands and custom item IDs are returned to the renderer caller.
+  Renderer adapters retain the invoking scope, target element and renderer
+  handler across the asynchronous popup. They refuse a detached/inactive origin,
+  a disabled handler or a changed/disposed registration rather than selecting
+  whichever list has focus when the popup closes.
 
 The `MenuLocation` type includes reserved locations. A location existing in the
 type or in `MENU_CONTRIBUTIONS` does not by itself prove that a product surface

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import { measureSystemContext } from '@earendil-works/pi-ai/utils/context-usage'
-import { estimateMessageTokens } from '@earendil-works/pi-ai/utils/estimate'
+import { estimateMessageTokens, estimateSystemCharacters } from '@earendil-works/pi-ai/utils/estimate'
 import { getCurrentSystemMessage } from '@earendil-works/pi-ai/utils/transcript'
 import type { Conversation } from '@earendil-works/pi-durable'
 
@@ -49,7 +49,7 @@ export async function readContextUsage(conversation: Conversation): Promise<Oper
           source: resource.source,
           state: 'loaded',
           count: {
-            tokens: estimateMessageTokens({ role: 'system', content: ' '.repeat(resource.characters), timestamp: 0 }),
+            tokens: estimateSystemCharacters(resource.characters, 0),
             precision: 'estimated'
           }
         })

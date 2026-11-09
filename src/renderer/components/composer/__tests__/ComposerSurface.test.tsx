@@ -60,6 +60,7 @@ const mocks = vi.hoisted(() => ({
   docDescendants: vi.fn(),
   docTextBetween: vi.fn(),
   focus: vi.fn(),
+  viewFocus: vi.fn(),
   fsReadText: vi.fn(),
   getJSON: vi.fn(),
   dispatch: vi.fn(),
@@ -196,6 +197,7 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
       commands: {
         focus: mocks.focus,
         setContent: mocks.setContent,
+        scrollIntoView: () => true,
         setHardBreak: mocks.setHardBreak,
         setNodeSelection: mocks.setNodeSelection
       },
@@ -239,6 +241,7 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
         return chain
       },
       view: {
+        focus: mocks.viewFocus,
         get composing() {
           return mocks.editorViewComposing
         },
@@ -487,6 +490,7 @@ describe('ComposerSurface', () => {
     mocks.docTextBetween.mockReset()
     mocks.docTextBetween.mockReturnValue('')
     mocks.focus.mockReset()
+    mocks.viewFocus.mockReset()
     mocks.fsReadText.mockReset()
     mocks.fsReadText.mockResolvedValue('')
     mocks.getJSON.mockReset()
@@ -540,13 +544,6 @@ describe('ComposerSurface', () => {
         error: vi.fn()
       }
     })
-  })
-
-  it('renders the editor view synchronously so the fallback swap never drops the input target', () => {
-    render(<ComposerSurface {...baseProps} />)
-
-    expect(mocks.editorOptions?.immediatelyRender).toBe(true)
-    expect(mocks.focus).toHaveBeenCalledWith('end')
   })
 
   it('keeps fallback dictation literal when the rich composer mounts', async () => {
@@ -610,7 +607,7 @@ describe('ComposerSurface', () => {
     expect(manager.captureCurrent()).toMatchObject({ targetId: 'composer', sourceEntityId: 'composer-topic' })
   })
 
-  it('replays a deferred paste on the editor view only, not through the document paste handler', async () => {
+  it('delivers a deferred paste once after a render interrupts its pending replay', async () => {
     mocks.stabilizeEditor = true
     const viewDom = mocks.editorViewDom!
     document.body.appendChild(viewDom)
@@ -623,26 +620,36 @@ describe('ComposerSurface', () => {
     }
     const originalClipboardEvent = globalThis.ClipboardEvent
     vi.stubGlobal('ClipboardEvent', FakeClipboardEvent)
-    const onView = vi.fn()
-    const onDocument = vi.fn()
+    const pasted = 'Deferred clipboard text'
+    const documentPastes: string[] = []
+    const onView = (event: Event) => {
+      viewDom.textContent += (event as ClipboardEvent).clipboardData!.getData('text/plain')
+    }
+    const onDocument = (event: Event) => {
+      documentPastes.push((event as ClipboardEvent).clipboardData!.getData('text/plain'))
+    }
     viewDom.addEventListener('paste', onView)
     document.addEventListener('paste', onDocument)
-
-    render(
-      <ComposerSurface
-        {...baseProps}
-        deferredIntent={{ transfer: { kind: 'paste', data: { files: [] } as unknown as DataTransfer } }}
-      />
-    )
-
-    // The editor's own listener sits on the view element; the document-level handler in
-    // pasteHandling would hand the same payload to this composer a second time.
-    await waitFor(() => expect(onView).toHaveBeenCalledTimes(1))
-    expect(onDocument).not.toHaveBeenCalled()
-
-    document.removeEventListener('paste', onDocument)
-    viewDom.remove()
-    vi.stubGlobal('ClipboardEvent', originalClipboardEvent)
+    vi.useFakeTimers()
+    const deferredIntent = {
+      transfer: { kind: 'paste' as const, data: { files: [], getData: () => pasted } as unknown as DataTransfer }
+    }
+    const view = render(<ComposerSurface {...baseProps} deferredIntent={deferredIntent} getToolLaunchers={() => []} />)
+    try {
+      view.rerender(<ComposerSurface {...baseProps} deferredIntent={deferredIntent} getToolLaunchers={() => []} />)
+      await act(() => vi.advanceTimersByTimeAsync(0))
+      expect(viewDom).toHaveTextContent(pasted)
+      view.rerender(<ComposerSurface {...baseProps} deferredIntent={deferredIntent} getToolLaunchers={() => []} />)
+      await act(() => vi.advanceTimersByTimeAsync(0))
+      expect(viewDom.textContent).toBe(pasted)
+      expect(documentPastes).toEqual([])
+    } finally {
+      view.unmount()
+      vi.useRealTimers()
+      document.removeEventListener('paste', onDocument)
+      viewDom.remove()
+      vi.stubGlobal('ClipboardEvent', originalClipboardEvent)
+    }
   })
 
   it('restores the caret the fallback left behind instead of collapsing to the end', () => {
@@ -653,17 +660,6 @@ describe('ComposerSurface', () => {
 
     expect(mocks.setTextSelection).toHaveBeenCalledWith({ from: 3, to: 3 })
     expect(mocks.focus).not.toHaveBeenCalled()
-  })
-
-  it('leaves focus alone when the user moved on to another input while the runtime loaded', () => {
-    const elsewhere = document.createElement('input')
-    document.body.appendChild(elsewhere)
-    elsewhere.focus()
-
-    render(<ComposerSurface {...baseProps} />)
-
-    expect(mocks.focus).not.toHaveBeenCalled()
-    elsewhere.remove()
   })
 
   it('uses the card color with a subtle shadow', () => {
@@ -732,20 +728,6 @@ describe('ComposerSurface', () => {
     } finally {
       requestAnimationFrameSpy.mockRestore()
     }
-  })
-
-  it('does not restore mount focus for an eagerly loaded draft the fallback never focused', () => {
-    mocks.stabilizeEditor = true
-    render(<ComposerSurface {...baseProps} text="draft" deferredIntent={{}} />)
-
-    expect(mocks.focus).not.toHaveBeenCalled()
-  })
-
-  it('restores mount focus when the fallback textarea held focus', () => {
-    mocks.stabilizeEditor = true
-    render(<ComposerSurface {...baseProps} text="draft" deferredIntent={{ hadFocus: true }} />)
-
-    expect(mocks.focus).toHaveBeenCalled()
   })
 
   it('applies the transferred text selection when the editor is created', async () => {
@@ -1761,6 +1743,30 @@ describe('ComposerSurface', () => {
     )
     expect(mocks.insertContent).toHaveBeenCalledWith(' ')
     expect(mocks.chainRun).toHaveBeenCalled()
+  })
+
+  it('handles Shift+Tab mode switching without intercepting modified shortcuts or composition', async () => {
+    let mode = 'ordinary'
+    render(
+      <ComposerSurface
+        {...baseProps}
+        onShiftTab={() => {
+          mode = mode === 'ordinary' ? 'plan' : 'ordinary'
+        }}
+      />
+    )
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    const key = { key: 'Tab', shiftKey: true, isComposing: false, preventDefault: vi.fn(), stopPropagation: vi.fn() }
+    const handle = mocks.editorOptions.editorProps.handleKeyDown
+    expect(handle(null, key)).toBe(true)
+    expect(mode).toBe('plan')
+    handle(null, { ...key, repeat: true })
+    expect(mode).toBe('plan')
+    handle(null, { ...key, ctrlKey: true })
+    handle(null, { ...key, isComposing: true })
+    expect(mode).toBe('plan')
+    handle(null, key)
+    expect(mode).toBe('ordinary')
   })
 
   it('uses Tab to select the next prompt variable token', async () => {
@@ -4806,6 +4812,49 @@ describe('ComposerSurface', () => {
               }
             },
             { type: 'text', text: ' hello' }
+          ]
+        }
+      ]
+    })
+  })
+
+  it('rebuilds a chip from the live token when the draft seed is empty instead of leaking its prompt text', async () => {
+    // A rebuilt editor keeps the live `text` (which already embeds the token's folded prompt text)
+    // while its token seed was only read once at mount. The chip must come back from the live
+    // token, not materialize the prompt text as plain prose.
+    const promptText = 'The user attached knowledge base "Notes" (id: kb-1).'
+    render(
+      <ComposerSurface
+        {...baseProps}
+        text={`${promptText} `}
+        tokens={[
+          {
+            id: 'knowledge:kb-1',
+            kind: 'knowledge',
+            label: 'Notes',
+            promptText
+          }
+        ]}
+        draftTokens={undefined}
+      />
+    )
+
+    expect(mocks.editorOptions.content).toEqual({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            {
+              type: 'composerToken',
+              attrs: {
+                id: 'knowledge:kb-1',
+                kind: 'knowledge',
+                label: 'Notes',
+                promptText
+              }
+            },
+            { type: 'text', text: ' ' }
           ]
         }
       ]

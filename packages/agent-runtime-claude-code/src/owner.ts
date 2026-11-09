@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto'
 import {
   query,
   type Query,
+  type SDKAssistantMessage,
   type SDKMessage,
   type SDKUserMessage,
   type SessionStoreEntry
@@ -63,12 +64,14 @@ export class ClaudeOwner {
   private wake?: () => void
   private readonly contextWindows = new Map<string, number>()
   private contextEpoch = 0
+  private contextRead = 0
   private contextModel?: string
-  private liveInputUsage: {
-    input_tokens?: number
-    cache_read_input_tokens?: number | null
-    cache_creation_input_tokens?: number | null
-  } = {}
+  private liveInputUsage: Partial<
+    Pick<
+      SDKAssistantMessage['message']['usage'],
+      'input_tokens' | 'cache_read_input_tokens' | 'cache_creation_input_tokens'
+    >
+  > = {}
   private sdk?: Query
   private pump?: Promise<void>
   private exited = false
@@ -171,25 +174,30 @@ export class ClaudeOwner {
       return rejected('contextUsage', 'closed')
     if (!this.sdk) return { status: 'unknown', error: runtimeError('contextUsage', 'not-connected') }
     const epoch = this.contextEpoch
+    const read = ++this.contextRead
+    let result: OperationResult<ThreadContextUsage>
     try {
       const native = await this.sdk.getContextUsage()
-      if (this.closing || this.lost || this.resetFrom) return rejected('contextUsage', 'closed')
-      if (epoch !== this.contextEpoch || projection.thread.id !== this.activeSession)
-        return { status: 'unknown', error: runtimeError('contextUsage', 'context-changed') }
       const window = this.contextWindow(native.model)
-      if (!window) return { status: 'unknown', error: runtimeError('contextUsage', 'unknown-window') }
-      const value = normalizeContextUsage(native, window)
-      const result = {
-        status: 'confirmed' as const,
-        value: { ...value, revision: `${this.activeSession}:${epoch}:${value.revision}` }
+      if (window) {
+        const value = normalizeContextUsage(native, window)
+        result = {
+          status: 'confirmed',
+          value: { ...value, revision: `${this.activeSession}:${epoch}:${value.revision}` }
+        }
+      } else {
+        result = { status: 'unknown', error: runtimeError('contextUsage', 'unknown-window') }
       }
-      if (JSON.stringify(projection.feed.snapshot.contextUsage) !== JSON.stringify(result))
-        projection.publish([{ type: 'context.changed', result }])
-      return result
     } catch (error) {
       this.report(error)
-      return { status: 'unknown', error: runtimeError('contextUsage', 'native-error') }
+      result = { status: 'unknown', error: runtimeError('contextUsage', 'native-error') }
     }
+    if (this.closing || this.lost || this.resetFrom) return rejected('contextUsage', 'closed')
+    if (epoch !== this.contextEpoch || read !== this.contextRead || projection.thread.id !== this.activeSession)
+      return { status: 'unknown', error: runtimeError('contextUsage', 'context-changed') }
+    if (JSON.stringify(projection.feed.snapshot.contextUsage) !== JSON.stringify(result))
+      projection.publish([{ type: 'context.changed', result }])
+    return result
   }
 
   private start(warm?: Parameters<ClaudeThreadHandle['claude']['start']>[0]): void {
@@ -501,12 +509,7 @@ export class ClaudeOwner {
       const event = message.event
       const usage =
         event.type === 'message_start' ? event.message.usage : event.type === 'message_delta' ? event.usage : undefined
-      const model =
-        event.type === 'message_start'
-          ? event.message.model
-          : projection.feed.snapshot.contextUsage?.status === 'confirmed'
-            ? projection.feed.snapshot.contextUsage.value.model
-            : this.config.model
+      const model = this.contextModel ?? this.config.model
       const window = model ? this.contextWindow(model) : undefined
       if (event.type === 'message_start') this.liveInputUsage = {}
       if (usage) {

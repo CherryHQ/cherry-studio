@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AiService } from '@main/ai/AiService'
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import { diagnose } from '@main/services/diagnostics/scan/engine'
 import { applyMessageProjectionUpdate, type MessageProjectionView } from '@shared/ai/messageProjection'
 import { aiStreamAdmissionReasons, type StreamChunkPayload } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -181,9 +182,11 @@ vi.mock('@application', async () => {
 // ── Import after mocks ──────────────────────────────────────────────
 
 const { AiStreamManager } = await import('../AiStreamManager')
+const pipeStreamLoopModule = await import('../pipeStreamLoop')
 const { PersistenceListener, TerminalPersistenceError } = await import('../listeners/PersistenceListener')
 const { TraceFlushListener } = await import('../listeners/TraceFlushListener')
 const { WebContentsListener } = await import('../listeners/WebContentsListener')
+const { parseErrorLogLine } = await import('@main/services/diagnostics/scan/logFileSource')
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -353,6 +356,40 @@ describe('AiStreamManager', () => {
     )
     expect(view?.messages[0].parts[0]).toMatchObject({ text: 'visible before completion' })
     if (failWrite) expect(view?.messages[0].parts.at(-1)).toMatchObject({ type: 'data-error' })
+    mgr.detachProjection(sender, 'subscription')
+    sender.emit('destroyed')
+  })
+
+  it.each([false, true])('preserves approval=%s when the runtime later reports a tool error', async (approved) => {
+    const feed = controlledStream()
+    mockStreamText.mockResolvedValueOnce(feed.stream)
+    const listener = new FakeListener('denial-result')
+    const sender = Object.assign(new EventEmitter(), { isDestroyed: () => false }) as unknown as Electron.WebContents
+    let view: MessageProjectionView | null = null
+    view = await mgr.attachProjection(sender, 'denied-projection', 'subscription', (update) => {
+      if (view) view = applyMessageProjectionUpdate(view, update)!
+    })
+    startSingle(mgr, {
+      topicId: 'denied-projection',
+      modelId: 'p::m',
+      request: req('denied-projection'),
+      listeners: [listener]
+    })
+    feed.enqueue({ type: 'start', messageId: 'answer' })
+    feed.enqueue({ type: 'tool-input-available', toolCallId: 'write', toolName: 'Write', input: { path: 'file.txt' } })
+    feed.enqueue({ type: 'tool-approval-request', toolCallId: 'write', approvalId: 'approval-write' })
+    await vi.waitFor(() => expect(view?.messages[0]?.parts[0]).toMatchObject({ state: 'approval-requested' }))
+    expect(mgr.resolveToolApproval('denied-projection', 'write', approved)).toBe(true)
+    feed.enqueue({ type: 'tool-output-error', toolCallId: 'write', errorText: 'The user denied this write.' })
+    feed.enqueue({ type: 'finish' })
+    feed.close()
+    await vi.waitFor(() => expect(listener.doneResults).toHaveLength(1))
+    const expected = {
+      state: approved ? 'output-error' : 'output-denied',
+      approval: { id: 'approval-write', ...(approved ? {} : { approved: false }) }
+    }
+    expect(listener.doneResults[0].finalMessage?.parts[0]).toMatchObject(expected)
+    expect(view?.messages[0]?.parts[0]).toMatchObject(expected)
     mgr.detachProjection(sender, 'subscription')
     sender.emit('destroyed')
   })
@@ -3762,6 +3799,230 @@ describe('AiStreamManager', () => {
   // chunk text translated via `errorFromStreamChunk` (name: 'StreamError').
 
   describe('stream errors', () => {
+    it.each(['reason', 'abort-error', 'real-error'] as const)(
+      'keeps abort-shaped stream rejections low-noise after Stop: %s',
+      async (kind) => {
+        vi.useRealTimers()
+        mockStreamText.mockImplementationOnce(async (request) => {
+          const signal = (request.requestOptions as { signal: AbortSignal }).signal
+          return new ReadableStream<UIMessageChunk>({
+            start(controller) {
+              signal.addEventListener(
+                'abort',
+                () =>
+                  controller.error(
+                    kind === 'reason'
+                      ? signal.reason
+                      : kind === 'abort-error'
+                        ? new DOMException('Stream cancelled', 'AbortError')
+                        : new Error('Provider unavailable')
+                  ),
+                { once: true }
+              )
+            }
+          })
+        })
+        // Isolate the manager's retained-throw contract; the real pipe suppresses forwarding abort rejections.
+        const pipe = vi.spyOn(pipeStreamLoopModule, 'pipeStreamLoop').mockImplementationOnce(async (stream) => {
+          try {
+            await stream.pipeTo(new WritableStream<UIMessageChunk>())
+            throw new Error('Expected stream rejection')
+          } catch (error) {
+            return { threw: { error }, broadcastCompletedAt: performance.now() }
+          }
+        })
+        try {
+          const listener = new FakeListener('l:a')
+          startSingle(mgr, {
+            topicId: 'a',
+            modelId: 'provider-a::model-a',
+            request: req('a'),
+            listeners: [listener]
+          })
+          await flushUntil(() => pipe.mock.calls.length === 1)
+          mgr.abort('a', 'user-requested')
+          await flushUntil(() => listener.errorResults.length === 1)
+
+          expect(listener.errorResults[0].status).toBe('error')
+          expect(listener.pausedResults).toEqual([])
+          expect(listener.doneResults).toEqual([])
+          if (kind === 'real-error') {
+            expect(listener.errorResults[0].error).toMatchObject({
+              message: 'Provider unavailable',
+              streamStage: 'response-stream'
+            })
+            expect(mockMainLoggerService.error).toHaveBeenCalledWith(
+              'AI stream error',
+              expect.objectContaining({
+                topicId: 'a',
+                modelId: 'provider-a::model-a',
+                stage: 'response-stream',
+                origin: 'throw',
+                cause: expect.objectContaining({ errorMessage: 'Provider unavailable' })
+              })
+            )
+          } else {
+            expect(listener.errorResults[0].error).not.toHaveProperty('streamStage')
+            expect(mockMainLoggerService.error.mock.calls.filter(([message]) => message === 'AI stream error')).toEqual(
+              []
+            )
+            expect(mockMainLoggerService.debug).toHaveBeenCalledWith('Execution aborted', {
+              topicId: 'a',
+              modelId: 'provider-a::model-a',
+              reason: 'user-requested'
+            })
+          }
+        } finally {
+          pipe.mockRestore()
+        }
+      }
+    )
+
+    it('keeps a clean Stop on the paused path without an error record', async () => {
+      vi.useRealTimers()
+      const listener = new FakeListener('l:a')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [listener]
+      })
+      mgr.abort('a', 'user-requested')
+      await flushUntil(() => listener.pausedResults.length === 1)
+
+      expect(listener.pausedResults[0].status).toBe('paused')
+      expect(listener.errorResults).toEqual([])
+      expect(listener.doneResults).toEqual([])
+      expect(mockMainLoggerService.error).not.toHaveBeenCalled()
+    })
+
+    it.each(['', 'Provider unavailable'])(
+      'retains partial text and correlated diagnostics for a chunk-only failure (%j)',
+      async (errorText) => {
+        vi.useRealTimers()
+        const controlled = controlledStream()
+        mockStreamText.mockResolvedValueOnce(controlled.stream)
+        const listener = new FakeListener('l:a')
+        const writes: PersistAssistantInput[] = []
+        const persistence = new PersistenceListener({
+          topicId: 'a',
+          backend: {
+            kind: 'test',
+            persistAssistant: (input) => {
+              writes.push(input)
+            }
+          },
+          onPersistFailed: (error) => {
+            throw new Error(error.message ?? 'Persistence failed')
+          }
+        })
+        const sender = Object.assign(new EventEmitter(), {
+          isDestroyed: () => false
+        }) as unknown as Electron.WebContents
+        let view: MessageProjectionView | null = null
+        view = await mgr.attachProjection(sender, 'a', 'subscription', (update) => {
+          if (view) view = applyMessageProjectionUpdate(view, update)!
+        })
+        const started = startSingle(mgr, {
+          topicId: 'a',
+          modelId: 'provider-a::model-a',
+          request: req('a'),
+          listeners: [listener, persistence]
+        })
+        controlled.enqueue({ type: 'start', messageId: 'reply' })
+        controlled.enqueue({ type: 'text-start', id: 't1' })
+        controlled.enqueue({ type: 'text-delta', id: 't1', delta: 'Partial answer' })
+        controlled.enqueue({ type: 'error', errorText })
+        controlled.close()
+
+        await vi.waitFor(() => expect(view?.kind === 'topic' && view.executions[0].status).toBe('error'))
+
+        expect(listener.errorResults).toHaveLength(1)
+        expect(listener.doneResults).toEqual([])
+        expect(listener.pausedResults).toEqual([])
+        const terminal = listener.errorResults[0]
+        expect(terminal.error).toEqual({
+          name: 'StreamError',
+          message: errorText,
+          stack: null,
+          streamStage: 'response-stream'
+        })
+        expect(terminal.finalMessage?.parts).toContainEqual(
+          expect.objectContaining({ type: 'text', text: 'Partial answer', state: 'done' })
+        )
+        expect(writes).toHaveLength(1)
+        expect(writes[0].status).toBe('error')
+        const persisted = writes[0].finalMessage?.parts.filter((part) => part.type === 'data-error')
+        expect(persisted).toEqual([
+          { type: 'data-error', data: { ...terminal.error, executionFailure: terminal.failure } }
+        ])
+        expect(terminal.failure).toMatchObject({
+          retryable: false,
+          failure: { reasonCode: 'unknown', source: { layer: 'runtime' } }
+        })
+        expect(view?.messages[0].parts).toEqual(writes[0].finalMessage?.parts)
+        expect(mockMainLoggerService.error.mock.calls).toEqual([
+          [
+            'AI stream error',
+            {
+              topicId: 'a',
+              modelId: 'provider-a::model-a',
+              attemptId: started.executions[0].attemptId,
+              stage: 'response-stream',
+              origin: 'error-chunk',
+              cause: { errorName: 'StreamError', errorMessage: errorText || '<string:0>' }
+            }
+          ]
+        ])
+        expect(JSON.stringify(mockMainLoggerService.error.mock.calls)).not.toMatch(/statusCode|responseBody|url/)
+        const [message, detail] = mockMainLoggerService.error.mock.calls[0]
+        const record = parseErrorLogLine(
+          JSON.stringify({ timestamp: '2026-11-06 00:00:00.000', level: 'error', message, ...detail })
+        )
+        expect(record).toBeDefined()
+        expect(diagnose([record!])).toContainEqual(expect.objectContaining({ ruleId: 'chat-stream-error', count: 1 }))
+        mgr.detachProjection(sender, 'subscription')
+        sender.emit('destroyed')
+      }
+    )
+
+    it('keeps app-owned guidance when lossy chunk text precedes a typed rejection', async () => {
+      vi.useRealTimers()
+      const typedError = Object.assign(new Error('Missing finish reason'), {
+        name: 'MissingFinishReasonError',
+        i18nKey: 'missing_finish_reason',
+        providerId: 'provider-a',
+        modelId: 'model-a'
+      })
+      let pulls = 0
+      mockStreamText.mockResolvedValueOnce(
+        new ReadableStream({
+          pull(controller) {
+            if (pulls++ === 0) controller.enqueue({ type: 'error', errorText: 'lossy chunk text' })
+            else controller.error(typedError)
+          }
+        })
+      )
+      const listener = new FakeListener('l:a')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [listener]
+      })
+
+      await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
+
+      expect(listener.errorResults[0].error).toMatchObject({
+        name: 'MissingFinishReasonError',
+        message: 'Missing finish reason',
+        i18nKey: 'missing_finish_reason',
+        providerId: 'provider-a',
+        modelId: 'model-a',
+        streamStage: 'response-stream'
+      })
+    })
+
     it.each(['clean', 'provider-error', 'source-error', 'abort'] as const)(
       'retains partial content after an accumulation failure and selects the correct terminal outcome (%s)',
       async (ending) => {
@@ -3937,13 +4198,17 @@ describe('AiStreamManager', () => {
       expect(listener.errorResults[0].error).toEqual({
         name: null,
         message: 'You have no credits remaining.',
-        stack: null
+        stack: null,
+        streamStage: 'response-stream'
       })
       expect(JSON.stringify(listener.errorResults[0].error)).not.toMatch(/object-secret|private prompt/)
-      expect(mockMainLoggerService.error).toHaveBeenCalledWith('Execution loop error', {
+      expect(mockMainLoggerService.error).toHaveBeenCalledWith('AI stream error', {
         topicId: 'a',
         modelId: 'provider-a::model-a',
-        err: { errorMessage: 'You have no credits remaining.' }
+        attemptId: listener.errorResults[0].attemptId,
+        stage: 'response-stream',
+        origin: 'throw',
+        cause: { errorMessage: 'You have no credits remaining.' }
       })
       expect(JSON.stringify(mockMainLoggerService.error.mock.calls)).not.toMatch(/object-secret|private prompt/)
       expect(mgr.inspect('a')!.status).toBe('error')
@@ -3973,8 +4238,12 @@ describe('AiStreamManager', () => {
       // Let the tee → broadcast → terminal chain drain.
       await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
 
-      // `errorFromStreamChunk('boom')` → { name: 'StreamError', message: 'boom', stack: null }.
-      expect(listener.errorResults[0].error).toEqual({ name: 'StreamError', message: 'boom', stack: null })
+      expect(listener.errorResults[0].error).toEqual({
+        name: 'StreamError',
+        message: 'boom',
+        stack: null,
+        streamStage: 'response-stream'
+      })
       expect(listener.errorResults[0].status).toBe('error')
       expect(mgr.inspect('a')!.status).toBe('error')
     })
@@ -3986,8 +4255,8 @@ describe('AiStreamManager', () => {
 
       const apiError = new APICallError({
         message: 'Forbidden',
-        url: 'https://llm.example.com/v1/chat/completions',
-        requestBodyValues: {},
+        url: 'https://llm.example.com/v1/chat/completions?api_key=fixture-secret',
+        requestBodyValues: { messages: [{ role: 'user', content: 'private prompt' }] },
         statusCode: 403,
         responseHeaders: {},
         responseBody: '{"detail":"no access to this model"}',
@@ -4028,8 +4297,34 @@ describe('AiStreamManager', () => {
         responseHeaders: null,
         responseBody: null,
         isRetryable: false,
-        data: null
+        data: null,
+        streamStage: 'response-stream'
       })
+      expect(mockMainLoggerService.error.mock.calls).toHaveLength(1)
+      expect(mockMainLoggerService.error.mock.calls[0]).toEqual([
+        'AI stream error',
+        {
+          topicId: 'a',
+          modelId: 'provider-a::model-a',
+          attemptId: listener.errorResults[0].attemptId,
+          stage: 'response-stream',
+          origin: 'throw',
+          cause: {
+            errorName: 'AI_APICallError',
+            errorMessage: '<string:9>',
+            statusCode: 403,
+            isRetryable: false,
+            url: 'https://llm.example.com/v1/chat/completions?api_key=%3Credacted%3E',
+            requestShape: { messages: [{ role: 'user', content: '<string:14>' }] },
+            responseHeaders: {},
+            responseBody: { detail: '<string:23>' }
+          },
+          chunk: { errorMessage: 'Forbidden' }
+        }
+      ])
+      expect(JSON.stringify([listener.errorResults[0].error, mockMainLoggerService.error.mock.calls])).not.toMatch(
+        /fixture-secret|private prompt/
+      )
     })
   })
 

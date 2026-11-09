@@ -1,5 +1,5 @@
 import type { FC } from 'react'
-import { useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { MessageEditingProvider } from '@renderer/components/chat/editing/MessageEditingContext'
@@ -16,6 +16,7 @@ import type {
 import { ChatWriteProvider } from '@renderer/hooks/chat/ChatWriteContext'
 import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -155,6 +156,7 @@ const ChatContentInner: FC<InnerProps> = ({
   messagesCacheMutate
 }) => {
   const { t } = useTranslation()
+  const [supportsImageInput, setSupportsImageInput] = useState(false)
   const { reserveBranch } = useTopicBranchActions(topic.id)
   const assistant = assistantContext?.assistant
   const locateLoadRequestRef = useRef<string | undefined>(undefined)
@@ -171,6 +173,21 @@ const ChatContentInner: FC<InnerProps> = ({
     onBranchLiveStateChange
   })
   const locateRuntimeMessage = runtime.locateMessage
+  const handleConversationControlsChange = useCallback<ChatConversationControlsChangeHandler>(
+    (snapshot) => {
+      setSupportsImageInput(snapshot?.supportsImageInput ?? false)
+      onConversationControlsChange?.(snapshot)
+    },
+    [onConversationControlsChange]
+  )
+  const addGeneratedImageToComposer = useCallback<NonNullable<MessageListActions['addGeneratedImageToComposer']>>(
+    (image) =>
+      EventEmitter.emit(EVENT_NAMES.ADD_CHAT_COMPOSER_IMAGE_REFERENCE, {
+        topicId: topic.id,
+        ...image
+      }),
+    [topic.id]
+  )
   const siblingsContextValue = useMemo(() => ({ siblingsMap, activeNodeId }), [siblingsMap, activeNodeId])
   const contextUsage = useMemo<ChatContextUsageSource | null>(() => {
     if (isHistoryStale) return null
@@ -238,6 +255,7 @@ const ChatContentInner: FC<InnerProps> = ({
         hasOlder={hasOlder}
         selectAllPagination={selectAllPagination}
         openCitationsPanel={onOpenCitationsPanel}
+        addGeneratedImageToComposer={supportsImageInput ? addGeneratedImageToComposer : undefined}
         onStartBranchDraft={reserveBranch}
       />
     </div>
@@ -253,7 +271,7 @@ const ChatContentInner: FC<InnerProps> = ({
       composerContext={runtime.composerContext}
       assistantContext={assistantContext}
       providers={providers}
-      onConversationControlsChange={onConversationControlsChange}
+      onConversationControlsChange={handleConversationControlsChange}
     />
   ) : (
     <ChatComposerSlot
@@ -268,7 +286,7 @@ const ChatContentInner: FC<InnerProps> = ({
       composerContext={runtime.composerContext}
       assistantContext={assistantContext}
       providers={providers}
-      onConversationControlsChange={onConversationControlsChange}
+      onConversationControlsChange={handleConversationControlsChange}
     />
   )
   const placement = runtime.shouldRenderHomeComposer ? 'home' : 'docked'

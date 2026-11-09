@@ -54,7 +54,7 @@ export function readContextUsage(session: AgentSession): OperationResult<ThreadC
           source: resource.source,
           state: 'loaded',
           count: {
-            tokens: estimateTokens({ role: 'system', content: ' '.repeat(resource.characters), timestamp: 0 }),
+            tokens: estimateSystemCharacters(resource.characters, 0),
             precision: 'estimated'
           }
         })
