@@ -267,17 +267,22 @@ describe('CherryCloudNotificationService', () => {
     }
   })
 
-  it('stops without retrying when the notification endpoints are not available', async () => {
+  it('connects once the notification endpoints go live after a 404, without fast retries', async () => {
     vi.useFakeTimers()
     try {
-      reply('/api/v1/notifications/stream', new Response(null, { status: 404 }))
+      const stream = eventStream()
+      reply('/api/v1/notifications/stream', new Response(null, { status: 404 }), stream.response)
       await start()
       await vi.waitFor(() => expect(requestedPaths()).toHaveLength(1))
 
-      await vi.advanceTimersByTimeAsync(120_000)
-
+      await vi.advanceTimersByTimeAsync(4 * 60_000)
       expect(requestedPaths()).toHaveLength(1)
-      expect(refreshAccount).not.toHaveBeenCalled()
+
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(requestedPaths()).toHaveLength(2)
+      stream.send('ready', { cursor: 'c-0' })
+      await vi.waitFor(() => expect(refreshAccount).toHaveBeenCalledOnce())
+      expect(storedCursor()).toBe('c-0')
     } finally {
       vi.useRealTimers()
     }
