@@ -476,3 +476,97 @@ it.each(['Let me inspect', '  Let me inspect'])('preserves full fallback after s
   ).toEqual([complete])
   await projection.close()
 })
+
+for (const split of [false, true]) {
+  it(`preserves parented child text equal to reasoning (split=${split}) in live and archive projections`, () => {
+    const sessionId = randomUUID()
+    const thread = claudeThread(runtimeId('backend'), sessionId, 'child')
+    const blocks: SDKAssistantMessage['message']['content'] = [
+      { type: 'thinking', thinking: '42', signature: 'signed' },
+      { type: 'text', text: '42', citations: null }
+    ]
+    const snapshots = (split ? blocks.map((block) => [block]) : [blocks]).map((content) => ({
+      ...assistantMessage(sessionId, content, { parent_tool_use_id: 'spawn-child' }),
+      agent_id: 'child'
+    }))
+    const live = new ClaudeProjection(thread, (error) => {
+      throw error
+    })
+    for (const snapshot of snapshots) live.publish(live.message(snapshot))
+    expect(
+      live.feed.snapshot.messages
+        .flatMap((m) => m.parts)
+        .filter((p) => p.type === 'text')
+        .map((p) => p.text)
+    ).toEqual(['42'])
+    for (const parent_agent_id of [null, 'parent-agent']) {
+      const archived = new ClaudeProjection(thread, (error) => {
+        throw error
+      })
+      expect(
+        archived
+          .restore(
+            snapshots.map((m) => ({ ...m, parent_agent_id })),
+            []
+          )
+          .content.flatMap((m) => m.parts)
+          .filter((p) => p.type === 'text')
+          .map((p) => p.text)
+      ).toEqual(['42'])
+    }
+  })
+}
+
+it.each([null, 'parent-agent'])(
+  'preserves archived child answers independently of live projection (parent=%s)',
+  (parent_agent_id) => {
+    const sessionId = randomUUID()
+    const snapshot = assistantMessage(
+      sessionId,
+      [
+        { type: 'thinking', thinking: '42', signature: 'signed' },
+        { type: 'text', text: '42', citations: null }
+      ],
+      { parent_tool_use_id: 'spawn-child' }
+    )
+    const archived = new ClaudeProjection(claudeThread(runtimeId('backend'), sessionId, 'child'), (error) => {
+      throw error
+    })
+    expect(
+      archived
+        .restore([{ ...snapshot, parent_agent_id }], [])
+        .content.flatMap((m) => m.parts)
+        .filter((p) => p.type === 'text')
+        .map((p) => p.text)
+    ).toEqual(['42'])
+  }
+)
+
+it('preserves a known child answer even if a producer omits its parent-tool link', () => {
+  const sessionId = randomUUID()
+  const snapshot = assistantMessage(sessionId, [
+    { type: 'thinking', thinking: '42', signature: 'signed' },
+    { type: 'text', text: '42', citations: null }
+  ])
+  const thread = claudeThread(runtimeId('backend'), sessionId, 'child')
+  const live = new ClaudeProjection(thread, (error) => {
+    throw error
+  })
+  live.publish(live.message(snapshot))
+  expect(
+    live.feed.snapshot.messages
+      .flatMap((m) => m.parts)
+      .filter((p) => p.type === 'text')
+      .map((p) => p.text)
+  ).toEqual(['42'])
+  const archived = new ClaudeProjection(thread, (error) => {
+    throw error
+  })
+  expect(
+    archived
+      .restore([{ ...snapshot, parent_agent_id: null }], [])
+      .content.flatMap((m) => m.parts)
+      .filter((p) => p.type === 'text')
+      .map((p) => p.text)
+  ).toEqual(['42'])
+})

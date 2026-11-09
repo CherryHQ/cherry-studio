@@ -28,6 +28,7 @@ import {
   type ToolResult
 } from './content'
 import { ClaudeControlState, type ClaudeControl } from './control'
+import { nativeIdentity } from './identity'
 import { ClaudeInvocations } from './invocations'
 import { ClaudeFeed } from './observation'
 import type { ClaudeArchive, ClaudeNativeMessage } from './types'
@@ -157,7 +158,7 @@ export class ClaudeProjection {
         ? [projectBlock({ type: 'text', text: content }, partial)]
         : content.map((block) => projectBlock(block, partial)),
       message.type === 'assistant' ? message.message.id : undefined,
-      options
+      { ...options, parentless: message.parent_tool_use_id == null }
     )
   }
 
@@ -166,7 +167,7 @@ export class ClaudeProjection {
     role: RuntimeMessage['role'],
     content: (ProjectedBlock | undefined)[],
     apiId?: string,
-    options: { inputId?: InputId; live?: boolean } = {}
+    options: { inputId?: InputId; live?: boolean; parentless?: boolean } = {}
   ): ObservationPayload[] {
     if (this.retracted.has(uuid)) return []
     const events: ObservationPayload[] = []
@@ -177,8 +178,9 @@ export class ClaudeProjection {
       metadata: { completeness: this.aborted.has(uuid) ? 'partial' : 'complete', inputId: options.inputId }
     }
     const bound: number[] = []
-    const reasoning = new Set(apiId ? this.reasoningByApiId.get(apiId) : undefined)
-    if (role === 'assistant') {
+    const parentless = options.parentless && nativeIdentity(this.thread).agentId === undefined
+    const reasoning = new Set(parentless && apiId ? this.reasoningByApiId.get(apiId) : undefined)
+    if (parentless && role === 'assistant') {
       for (const block of content) {
         if (block && !('result' in block) && block.part.type === 'reasoning') {
           const text = block.part.text.trim()
@@ -215,7 +217,7 @@ export class ClaudeProjection {
             state: 'input-streaming'
           }
       }
-      if (role === 'assistant' && part.type === 'text' && reasoning.has(part.text.trim())) continue
+      if (parentless && role === 'assistant' && part.type === 'text' && reasoning.has(part.text.trim())) continue
       if (part.type === 'dynamic-tool') {
         const callId = part.toolCallId
         const previous = this.messages
@@ -227,7 +229,7 @@ export class ClaudeProjection {
       this.legacy[`${uuid}:${index}`] = { messageId: uuid, parts: [value.parts.length] }
       value.parts.push(part)
     }
-    if (apiId && role === 'assistant') this.reasoningByApiId.set(apiId, reasoning)
+    if (parentless && apiId && role === 'assistant') this.reasoningByApiId.set(apiId, reasoning)
     this.sources.add(uuid)
     // An entirely suppressed snapshot must retract its provisional copy without
     // committing an empty assistant message, which the UI treats as no response.
@@ -463,7 +465,8 @@ export class ClaudeProjection {
       if (decoded)
         events.push(
           ...this.upsertContent(message.uuid, message.type, decoded.blocks, decoded.id, {
-            inputId: inputs.get(runtimeId<'native-input'>(message.uuid))
+            inputId: inputs.get(runtimeId<'native-input'>(message.uuid)),
+            parentless: message.parent_tool_use_id == null && message.parent_agent_id == null
           })
         )
     }

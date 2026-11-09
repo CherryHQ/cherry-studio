@@ -599,3 +599,49 @@ it('retains validated rejection identity for a late subscriber and overflow reco
   await lateObservation.stop()
   await observation.stop()
 })
+
+it('routes parented child text equal to thinking through the real SDK wire', async () => {
+  const test = await wireFixture()
+  try {
+    test.send({
+      type: 'system',
+      subtype: 'task_started',
+      uuid: randomUUID(),
+      session_id: test.sessionId,
+      task_id: 'child',
+      run_id: '001',
+      task_type: 'local_agent',
+      description: 'Child',
+      spawn_depth: 1
+    })
+    await expect.poll(() => test.view.snapshot.subagents?.length).toBe(1)
+    const child = confirmed(await test.runtime.open(claudeThread(test.root.thread.backendId, test.sessionId, 'child')))
+    const view = await observe(child)
+    const snapshots = [
+      assistantMessage(test.sessionId, [{ type: 'thinking', thinking: '42', signature: 'signed' }], {
+        parent_tool_use_id: 'spawn-child'
+      }),
+      assistantMessage(test.sessionId, [{ type: 'text', text: '42', citations: null }], {
+        parent_tool_use_id: 'spawn-child'
+      })
+    ]
+    for (const snapshot of snapshots) test.send({ ...snapshot, agent_id: 'child' })
+    await expect
+      .poll(() =>
+        view.snapshot.messages
+          .flatMap((m) => m.parts)
+          .filter((p) => p.type === 'text')
+          .map((p) => p.text)
+      )
+      .toEqual(['42'])
+    expect(
+      view.snapshot.messages
+        .flatMap((m) => m.parts)
+        .filter((p) => p.type === 'text')
+        .map((p) => p.text)
+    ).toEqual(['42'])
+    expect(test.view.snapshot.messages.flatMap((m) => m.parts).filter((p) => p.type === 'text')).toHaveLength(0)
+  } finally {
+    await test.close()
+  }
+})
