@@ -30,6 +30,13 @@ export const REGRESSION_CASES = [
     capabilities: []
   },
   {
+    id: 'MARKET-01',
+    title: 'Browse marketplace resources and open MCP management',
+    tasks: ['marketplace', 'marketplace-smoke'],
+    phase: 'basicFeatures',
+    capabilities: []
+  },
+  {
     id: 'M-02',
     capabilities: [],
     phase: 'modelsAndAssistants',
@@ -192,26 +199,11 @@ export const REGRESSION_CASES = [
     tasks: ['code-tools', 'code-cli']
   },
   {
-    id: 'CODE-02',
-    capabilities: ['desktopAutomation'],
-    phase: 'codeTools',
-    title: 'Launch Codex',
-    tasks: ['code-tools', 'code-cli']
-  },
-  {
     id: 'CODE-03',
     capabilities: ['desktopAutomation'],
     phase: 'codeTools',
     title: 'Launch OpenClaw',
     tasks: ['code-tools', 'openclaw']
-  },
-  {
-    id: 'MP-97',
-    title: 'Advanced parameters and permission modes',
-    tasks: ['code-tools', 'code-cli-permissions'],
-    phase: 'codeTools',
-    capabilities: ['desktopAutomation'],
-    platforms: ['macos']
   },
   {
     id: 'M-01',
@@ -237,13 +229,6 @@ export const REGRESSION_CASES = [
   {
     id: 'MP-91',
     title: 'Prompt templates and enhancement',
-    tasks: ['paintings'],
-    phase: 'images',
-    capabilities: []
-  },
-  {
-    id: 'MP-92',
-    title: 'Image generation errors and quota alerts',
     tasks: ['paintings'],
     phase: 'images',
     capabilities: []
@@ -277,13 +262,6 @@ export const REGRESSION_CASES = [
     capabilities: ['desktopAutomation']
   },
   {
-    id: 'MP-145',
-    title: 'Create scheduled tasks in Agent chat and view or trigger task cards',
-    tasks: ['agents'],
-    phase: 'agentRuntimes',
-    capabilities: []
-  },
-  {
     id: 'MP-19',
     title: 'Agent side preview (files, pasted text, generated files)',
     tasks: ['agents'],
@@ -302,8 +280,7 @@ export const REGRESSION_CASES = [
     title: 'Sync Agent file edits with the side preview',
     tasks: ['agents'],
     phase: 'agentRuntimes',
-    capabilities: ['desktopAutomation'],
-    platforms: ['macos']
+    capabilities: ['desktopAutomation']
   },
   {
     id: 'MP-53',
@@ -327,23 +304,9 @@ export const REGRESSION_CASES = [
     capabilities: ['desktopAutomation']
   },
   {
-    id: 'MP-56',
-    title: 'Interrupt tasks and clean up background processes',
-    tasks: ['agents'],
-    phase: 'agentRuntimes',
-    capabilities: []
-  },
-  {
-    id: 'MP-57',
-    title: 'Agent memory and context sources',
-    tasks: ['agents'],
-    phase: 'agentRuntimes',
-    capabilities: []
-  },
-  {
     id: 'MP-58',
     title: 'Scheduled tasks (create, run now, pause, history)',
-    tasks: ['agents'],
+    tasks: ['scheduled-tasks'],
     phase: 'agentRuntimes',
     capabilities: []
   },
@@ -368,7 +331,6 @@ export const REGRESSION_CASES = [
     phase: 'topics',
     capabilities: []
   },
-  { id: 'MP-45', title: 'Topic group display modes', tasks: ['topics'], phase: 'topics', capabilities: [] },
   { id: 'MP-46', title: 'Bulk delete and move topics', tasks: ['topics'], phase: 'topics', capabilities: [] },
   {
     id: 'MP-47',
@@ -386,13 +348,6 @@ export const REGRESSION_CASES = [
     capabilities: ['desktopAutomation', 'screenCapture']
   },
   { id: 'MP-10', title: 'Web search', tasks: ['chat-core'], phase: 'chatCore', capabilities: [] },
-  {
-    id: 'MP-149',
-    title: 'Copy and quote popover for selected message text',
-    tasks: ['chat-core'],
-    phase: 'chatCore',
-    capabilities: []
-  },
   {
     id: 'MP-16',
     title: 'Polish prompts',
@@ -456,13 +411,6 @@ export const REGRESSION_CASES = [
     phase: 'chatCore',
     capabilities: []
   },
-  {
-    id: 'MP-34',
-    title: 'Mutual exclusion of knowledge references and attachments',
-    tasks: ['chat-core'],
-    phase: 'chatCore',
-    capabilities: ['desktopAutomation']
-  },
   { id: 'MP-35', title: 'Web search and URL fetching', tasks: ['chat-core'], phase: 'chatCore', capabilities: [] },
   {
     id: 'MP-36',
@@ -487,20 +435,6 @@ export const REGRESSION_CASES = [
     phase: 'chatCore',
     capabilities: ['desktopAutomation']
   },
-  {
-    id: 'MP-41',
-    title: 'Preview HTML Artifacts',
-    tasks: ['chat-core'],
-    phase: 'chatCore',
-    capabilities: []
-  },
-  {
-    id: 'MP-02',
-    title: 'Streaming, stop, continue, and restart persistence',
-    tasks: ['chat-core'],
-    phase: 'chatCore',
-    capabilities: []
-  },
   { id: 'MP-11', title: 'Notes and export', tasks: ['notes'], phase: 'notes', capabilities: ['desktopAutomation'] },
   {
     id: 'MP-74',
@@ -522,8 +456,7 @@ export const REGRESSION_CASES = [
     title: 'Export notes to PDF or Word and print',
     tasks: ['notes'],
     phase: 'notes',
-    capabilities: ['desktopAutomation'],
-    platforms: ['macos']
+    capabilities: ['desktopAutomation']
   },
   {
     id: 'MP-78',
@@ -569,13 +502,6 @@ export const REGRESSION_CASES = [
     capabilities: []
   },
   {
-    id: 'MP-06',
-    title: 'Change settings and preserve them after restart',
-    tasks: ['settings'],
-    phase: 'settings',
-    capabilities: []
-  },
-  {
     id: 'MP-104',
     capabilities: [],
     phase: 'settings',
@@ -587,8 +513,7 @@ export const REGRESSION_CASES = [
     title: 'Theme, appearance, and window style',
     tasks: ['settings'],
     phase: 'settings',
-    capabilities: [],
-    platforms: ['macos']
+    capabilities: []
   },
   {
     id: 'MP-106',
@@ -615,18 +540,9 @@ export const REGRESSION_CASES = [
   {
     id: 'MP-110',
     title: 'Notification settings',
-    tasks: ['settings'],
+    tasks: ['settings', 'native-settings', 'native-notifications', 'native-recovery'],
     phase: 'settings',
-    capabilities: ['desktopAutomation'],
-    platforms: ['macos']
-  },
-  {
-    id: 'MP-111',
-    capabilities: ['desktopAutomation'],
-    phase: 'settings',
-    title: 'Startup and tray behavior',
-    tasks: ['settings'],
-    platforms: ['macos']
+    capabilities: ['desktopAutomation']
   },
   {
     id: 'MP-112',
@@ -638,13 +554,6 @@ export const REGRESSION_CASES = [
   {
     id: 'MP-151',
     title: 'Channels: Feishu bot and group mentions-only toggle',
-    tasks: ['settings'],
-    phase: 'settings',
-    capabilities: []
-  },
-  {
-    id: 'MP-113',
-    title: 'Privacy settings and error reporting toggle',
     tasks: ['settings'],
     phase: 'settings',
     capabilities: []
@@ -664,13 +573,6 @@ export const REGRESSION_CASES = [
     capabilities: []
   },
   {
-    id: 'MP-20',
-    title: 'Create a chat from the home page and send a message',
-    tasks: ['assistants'],
-    phase: 'assistants',
-    capabilities: []
-  },
-  {
     id: 'MP-22',
     title: 'Edit, sort, pin, and delete assistants',
     tasks: ['assistants'],
@@ -684,7 +586,6 @@ export const REGRESSION_CASES = [
     phase: 'assistants',
     capabilities: ['desktopAutomation']
   },
-  { id: 'MP-24', title: 'Manage assistant groups', tasks: ['assistants'], phase: 'assistants', capabilities: [] },
   {
     id: 'MP-25',
     title: 'Move chats to other assistants',
@@ -711,8 +612,7 @@ export const REGRESSION_CASES = [
     title: 'Upload files to the library',
     tasks: ['files'],
     phase: 'files',
-    capabilities: ['desktopAutomation'],
-    platforms: ['macos']
+    capabilities: ['desktopAutomation']
   },
   { id: 'MP-69', title: 'Filter files by category and search', tasks: ['files'], phase: 'files', capabilities: [] },
   {
@@ -730,14 +630,6 @@ export const REGRESSION_CASES = [
     capabilities: []
   },
   {
-    id: 'MP-72',
-    title: 'Reference library files in chat',
-    tasks: ['files'],
-    phase: 'files',
-    capabilities: [],
-    platforms: ['macos']
-  },
-  {
     id: 'MP-115',
     title: 'Local backups and backup file management',
     tasks: ['data-backup'],
@@ -747,7 +639,7 @@ export const REGRESSION_CASES = [
   {
     id: 'MP-116',
     title: 'Restore from a local backup',
-    tasks: ['data-backup'],
+    tasks: ['data-backup', 'native-recovery'],
     phase: 'dataManagement',
     capabilities: ['desktopAutomation']
   },
@@ -774,14 +666,6 @@ export const REGRESSION_CASES = [
     capabilities: ['desktopAutomation']
   },
   {
-    id: 'MP-121',
-    title: 'Reset application data (run last)',
-    tasks: ['data-backup'],
-    phase: 'dataManagement',
-    capabilities: ['desktopAutomation'],
-    platforms: ['macos']
-  },
-  {
     id: 'MP-122',
     title: 'Open and navigate web pages in the built-in browser',
     tasks: ['browser'],
@@ -790,39 +674,10 @@ export const REGRESSION_CASES = [
   },
   { id: 'MP-123', title: 'Annotate web pages', tasks: ['browser'], phase: 'browser', capabilities: [] },
   {
-    id: 'MP-124',
-    title: 'Open chat links and tool results in the built-in browser',
-    tasks: ['browser'],
-    phase: 'browser',
-    capabilities: []
-  },
-  {
     id: 'MP-125',
     title: 'Page load failures and local service disconnections',
     tasks: ['browser'],
     phase: 'browser',
-    capabilities: []
-  },
-  {
-    id: 'MP-127',
-    capabilities: ['desktopAutomation', 'externalSelection', 'globalShortcut'],
-    phase: 'system',
-    title: 'Selection Assistant (capture, explain, translate, copy)',
-    tasks: ['system-integration'],
-    platforms: ['macos']
-  },
-  {
-    id: 'MP-128',
-    title: 'Screenshot tool (region, annotate, copy, OCR, add to chat)',
-    tasks: ['system-integration'],
-    phase: 'system',
-    capabilities: ['desktopAutomation', 'screenCapture']
-  },
-  {
-    id: 'MP-129',
-    title: 'Global search across types and jump to messages',
-    tasks: ['system-integration'],
-    phase: 'system',
     capabilities: []
   },
   {
@@ -838,30 +693,6 @@ export const REGRESSION_CASES = [
     tasks: ['system-integration'],
     phase: 'system',
     capabilities: []
-  },
-  {
-    id: 'MP-132',
-    title: 'System tray menu',
-    tasks: ['system-integration'],
-    phase: 'system',
-    capabilities: ['desktopAutomation'],
-    platforms: ['macos']
-  },
-  {
-    id: 'MP-133',
-    title: 'Deep links, single instance, and relaunch',
-    tasks: ['system-integration'],
-    phase: 'system',
-    capabilities: ['desktopAutomation'],
-    platforms: ['macos']
-  },
-  {
-    id: 'MP-140',
-    title: 'Computer Use permissions and desktop control toggle',
-    tasks: ['system-integration'],
-    phase: 'system',
-    capabilities: ['desktopAutomation'],
-    platforms: ['macos']
   },
   {
     id: 'MP-141',

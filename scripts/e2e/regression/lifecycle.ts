@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import { execFileSync, spawn } from 'node:child_process'
 import {
   appendFileSync,
   closeSync,
@@ -12,6 +12,7 @@ import {
 import { dirname, join, resolve } from 'node:path'
 
 import type { InstallationRecord } from './installation'
+import { macRuntimeExecutable } from './macRuntime'
 import type { RunPaths } from './paths'
 import { isPathInside } from './paths'
 import {
@@ -30,7 +31,18 @@ import {
   waitForMacProcessGroupExit,
   waitForPortRelease
 } from './process'
+import { createRedactor } from './redaction'
 import type { Platform, RunMode, TestProfile } from './types'
+
+export class AppExitedBeforeReadyError extends Error {
+  constructor(
+    readonly exitCode: number,
+    cause: unknown
+  ) {
+    super(`Application exited with code ${exitCode} before CDP became ready: ${String(cause)}`, { cause })
+    this.name = 'AppExitedBeforeReadyError'
+  }
+}
 
 export interface AppRecord {
   schemaVersion: 1
@@ -89,7 +101,7 @@ async function waitForCdp(
     try {
       const targets = await readCdpTargets()
       const mainTarget = targets.find(
-        (target) => target.type === 'page' && new URL(target.url).pathname.endsWith('/windows/main/index.html')
+        (target) => target.type === 'page' && URL.parse(target.url)?.pathname.endsWith('/windows/main/index.html')
       )
       const electronPid = findCdpPid(platform)
       if (mainTarget && electronPid && isDescendant(electronPid, runnerPid, platform)) {
@@ -107,11 +119,14 @@ async function waitForCdp(
 }
 
 /**
- * Shell known folders Windows resolves from USERPROFILE. The native save dialog opens Desktop by
- * default, so an isolated home without it reports "Location is not available" and writes nothing.
+ * Shell known folders used by native file dialogs and notification registration must exist
+ * under the isolated Windows profile before Electron starts.
  */
 export function windowsShellDirectories(homeDirectory: string): string[] {
-  return ['Desktop', 'Documents', 'Downloads'].map((name) => join(homeDirectory, name))
+  return [
+    ...['Desktop', 'Documents', 'Downloads'].map((name) => join(homeDirectory, name)),
+    join(homeDirectory, 'AppData', 'Roaming', 'Microsoft', 'Windows', 'Start Menu', 'Programs')
+  ]
 }
 
 export function createProfileEnvironment(paths: RunPaths, profile: TestProfile): NodeJS.ProcessEnv {
@@ -128,7 +143,8 @@ export function createProfileEnvironment(paths: RunPaths, profile: TestProfile):
   const cliDirectories = ['.claude', '.codex', '.config', '.hermes', join('AppData', 'Local')].map((name) =>
     join(homeDirectory, name)
   )
-  for (const directory of [...Object.values(windowsDirectories), ...cliDirectories])
+  const npmCache = join(paths.private, 'npm-cache')
+  for (const directory of [...Object.values(windowsDirectories), ...cliDirectories, npmCache])
     mkdirSync(directory, { recursive: true })
   if (process.platform === 'win32') {
     for (const directory of windowsShellDirectories(homeDirectory)) mkdirSync(directory, { recursive: true })
@@ -147,6 +163,8 @@ export function createProfileEnvironment(paths: RunPaths, profile: TestProfile):
     CODEX_HOME: join(homeDirectory, '.codex'),
     XDG_CONFIG_HOME: join(homeDirectory, '.config'),
     HERMES_HOME: join(homeDirectory, '.hermes'),
+    NPM_CONFIG_CACHE: npmCache,
+    npm_config_cache: npmCache,
     LOCALAPPDATA: join(homeDirectory, 'AppData', 'Local')
   }
 }
@@ -162,11 +180,16 @@ function getLaunchSpec(
   const logPath = join(paths.logs, `electron-${profile}.log`)
   const environment = createProfileEnvironment(paths, profile)
   if (mode === 'branch') {
+    Reflect.deleteProperty(environment, 'ELECTRON_RENDERER_URL')
+    const preparedRuntime = macRuntimeExecutable(paths)
+    const executablePath = process.platform === 'darwin' && existsSync(preparedRuntime) ? preparedRuntime : undefined
     const args = [
       join(targetRoot, 'node_modules', 'dotenv-cli', 'cli.js'),
       '--',
       process.execPath,
       join(targetRoot, 'node_modules', 'electron-vite', 'bin', 'electron-vite.js'),
+      'preview',
+      '--skipBuild',
       '--',
       // Honours CHERRY_INSPECTOR_PORT so parallel checkouts do not share a port.
       `--inspect=${MAIN_INSPECTOR_PORT}`,
@@ -181,10 +204,12 @@ function getLaunchSpec(
       cwd: targetRoot,
       environment: {
         ...environment,
+        ...(executablePath ? { ELECTRON_EXEC_PATH: executablePath } : {}),
         CS_DEV_PROFILE_ROOT: join(paths.profiles, profile),
         CS_DEV_USER_DATA_SUFFIX: `Regression-${runKey}-${profile}`
       },
-      logPath
+      logPath,
+      ...(executablePath ? { executablePath } : {})
     }
   }
 
@@ -272,14 +297,29 @@ export async function launchApp(
   }
   try {
     writeJson(paths.appRecord, launchRecord)
+    logLifecycleStage(launchRecord, 'waiting-for-cdp')
     const record: AppRecord = {
       ...launchRecord,
       ...(await waitForCdp(child.pid, options.platform, launchRecord.cdpPort, spec.logPath, options.readyTimeoutMs))
     }
     writeJson(paths.appRecord, record)
+    logLifecycleStage(record, 'ready')
     rmSync(paths.appLaunchFailure, { force: true })
     return record
   } catch (error) {
+    logLifecycleStage(launchRecord, 'launch-failed')
+    if (child.exitCode === null && !isAlive(child.pid)) {
+      await new Promise<void>((resolve) => {
+        const finish = () => {
+          clearTimeout(timer)
+          child.off('exit', finish)
+          resolve()
+        }
+        const timer = setTimeout(finish, 1_000)
+        child.once('exit', finish)
+      })
+    }
+    const exitCode = child.exitCode
     try {
       await stopOwnedRecord(launchRecord)
     } catch (cleanupError) {
@@ -288,6 +328,7 @@ export async function launchApp(
         `${String(error)}; owned-process cleanup failed: ${String(cleanupError)}`
       )
     }
+    if (typeof exitCode === 'number') throw new AppExitedBeforeReadyError(exitCode, error)
     throw error
   }
 }
@@ -310,11 +351,137 @@ export function readAppRecord(paths: RunPaths): AppRecord {
 
 export async function stopOwnedApp(paths: RunPaths): Promise<void> {
   if (!existsSync(paths.appRecord)) return
-  await stopOwnedRecord(readOwnedRecord(paths))
+  const record = readOwnedRecord(paths)
+  try {
+    await stopOwnedRecord(record)
+  } catch (error) {
+    const diagnostic = createRedactor([])({
+      code: (error as NodeJS.ErrnoException)?.code ?? null,
+      message: error instanceof Error ? error.message : String(error)
+    })
+    try {
+      appendFileSync(
+        record.logPath,
+        `[${new Date().toISOString()}] lifecycle=stop-failed runner=${record.runnerPid} error=${JSON.stringify(diagnostic)}\n`
+      )
+    } catch {
+      // Diagnostic I/O must not replace the original stop failure.
+    }
+    throw error
+  }
+}
+
+function logLifecycleStage(record: LaunchRecord, stage: string): void {
+  appendFileSync(
+    record.logPath,
+    `[${new Date().toISOString()}] lifecycle=${stage} runner=${record.runnerPid} electron=${record.electronPid ?? 'pending'}\n`
+  )
+}
+
+function processExited(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return false
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code === 'ESRCH') return true
+    throw new Error(`Cannot establish process ${pid} liveness: ${code ?? 'unknown error'}`)
+  }
+}
+
+function windowsIdentityDiagnostic(pid: number): string {
+  try {
+    return (
+      execFileSync(
+        'powershell.exe',
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-Command',
+          `$item = Get-CimInstance Win32_Process -Filter "ProcessId = ${pid}"; @{ present = $null -ne $item; hasCommand = [bool]$item.CommandLine; startedAt = if ($item) { $item.CreationDate.ToUniversalTime().Ticks.ToString() } else { $null } } | ConvertTo-Json -Compress`
+        ],
+        { encoding: 'utf8', windowsHide: true, timeout: 10_000 }
+      ).trim() || 'unavailable'
+    )
+  } catch {
+    return 'unavailable'
+  }
+}
+
+async function terminateMacProcessGroupWithDrain(
+  record: LaunchRecord,
+  signal: 'SIGTERM' | 'SIGKILL',
+  previouslyVerified: ReturnType<typeof terminateOwnedMacProcessGroup> = []
+): Promise<ReturnType<typeof terminateOwnedMacProcessGroup>> {
+  try {
+    return terminateOwnedMacProcessGroup(record, signal, previouslyVerified)
+  } catch (error) {
+    // Observing a still-visible runner grants no authority to signal its unverified group.
+    try {
+      processExited(record.runnerPid)
+    } catch {
+      throw error
+    }
+    logLifecycleStage(record, 'unverified-group-drain-start')
+    if (!(await waitForMacProcessGroupExit(record.runnerPid))) {
+      if (signal === 'SIGKILL') {
+        try {
+          const members = execFileSync('ps', ['-axo', 'pid=,ppid=,pgid=,lstart='], {
+            encoding: 'utf8',
+            timeout: 2_000,
+            stdio: ['ignore', 'pipe', 'ignore']
+          })
+            .split(/\r?\n/)
+            .flatMap((line) => {
+              const match = line.trim().match(/^(\d+)\s+(\d+)\s+(\d+)\s+(.+)$/)
+              if (!match || Number(match[3]) !== record.runnerPid) return []
+              const pid = Number(match[1])
+              const startedAt = match[4]
+              return [
+                {
+                  pid,
+                  ppid: Number(match[2]),
+                  pgid: Number(match[3]),
+                  startedAt,
+                  previouslyVerifiedStartMatches: previouslyVerified.some(
+                    (previous) => previous.pid === pid && previous.startedAt === startedAt
+                  )
+                }
+              ]
+            })
+          appendFileSync(
+            record.logPath,
+            `[${new Date().toISOString()}] lifecycle=unverified-group-survivors ${JSON.stringify({
+              runnerPid: record.runnerPid,
+              members: members.slice(0, 32),
+              truncated: members.length > 32
+            })}\n`
+          )
+        } catch {
+          // A diagnostic failure must not replace the original ownership refusal.
+        }
+      }
+      throw error
+    }
+    logLifecycleStage(record, 'unverified-group-drain-finished')
+    try {
+      processExited(record.runnerPid)
+    } catch {
+      throw error
+    }
+    return terminateOwnedMacProcessGroup(record, signal, previouslyVerified)
+  }
 }
 
 async function stopOwnedRecord(record: LaunchRecord): Promise<void> {
+  logLifecycleStage(record, 'stop-start')
   if (record.platform === 'macos') {
+    if (record.mode === 'branch' && record.electronPid && !isAlive(record.electronPid)) {
+      // Normal app exit can precede its runner's children. Wait without claiming unknown survivors.
+      logLifecycleStage(record, 'natural-group-drain-start')
+      await waitForMacProcessGroupExit(record.runnerPid)
+      logLifecycleStage(record, 'natural-group-drain-finished')
+    }
     if (record.mode === 'tag' && record.electronPid && isAlive(record.electronPid)) {
       assertOwnedProcess(record, record.electronPid, 'electron')
       // A relocation renderer exiting before its main process can schedule another relaunch.
@@ -322,9 +489,10 @@ async function stopOwnedRecord(record: LaunchRecord): Promise<void> {
       await waitForExit(record.electronPid)
       await waitForMacProcessGroupExit(record.runnerPid)
     }
-    terminateOwnedMacProcessGroup(record)
+    logLifecycleStage(record, 'group-termination-start')
+    const verifiedMembers = await terminateMacProcessGroupWithDrain(record, 'SIGTERM')
     if (!(await waitForMacProcessGroupExit(record.runnerPid))) {
-      terminateOwnedMacProcessGroup(record, 'SIGKILL')
+      await terminateMacProcessGroupWithDrain(record, 'SIGKILL', verifiedMembers)
       if (!(await waitForMacProcessGroupExit(record.runnerPid))) {
         throw new Error(`Owned application process group ${record.runnerPid} did not exit after SIGKILL`)
       }
@@ -337,6 +505,7 @@ async function stopOwnedRecord(record: LaunchRecord): Promise<void> {
         `Main-process inspector port ${MAIN_INSPECTOR_PORT} was not released after stopping the owned application`
       )
     }
+    logLifecycleStage(record, 'stopped')
     return
   }
   const currentCdpPid = findCdpPid(record.platform)
@@ -350,19 +519,35 @@ async function stopOwnedRecord(record: LaunchRecord): Promise<void> {
   const ownedPids = [
     ...new Set([record.electronPid, currentCdpPid, record.runnerPid].filter((pid) => pid !== undefined))
   ]
+  const verifiedPids = new Set<number>()
   for (const pid of ownedPids) {
-    if (!isAlive(pid)) continue
-    if (pid === currentCdpPid) {
-      assertOwnedProcess(record, pid, 'electron')
-    } else if (pid === record.runnerPid) {
-      assertOwnedProcess(record, pid, 'runner')
-    } else if (!isAlive(record.runnerPid) || !isDescendant(pid, record.runnerPid, record.platform)) {
-      throw new Error('Refusing cleanup because the recorded Electron process is no longer owned by its runner')
+    if (processExited(pid)) continue
+    try {
+      if (pid === currentCdpPid) {
+        assertOwnedProcess(record, pid, 'electron')
+      } else if (pid === record.runnerPid) {
+        assertOwnedProcess(record, pid, 'runner')
+      } else if (!isAlive(record.runnerPid) || !isDescendant(pid, record.runnerPid, record.platform)) {
+        throw new Error('Refusing cleanup because the recorded Electron process is no longer owned by its runner')
+      }
+    } catch (error) {
+      const metadata = windowsIdentityDiagnostic(pid)
+      const exited = processExited(pid)
+      appendFileSync(
+        record.logPath,
+        `[cleanup] Identity check failed for PID ${pid}; exited=${exited}; metadata=${metadata}\n`
+      )
+      if (exited) continue
+      throw error
     }
+    verifiedPids.add(pid)
   }
-  const terminationPids = [record.runnerPid, ...ownedPids]
+  const terminationPids = [record.runnerPid, ...verifiedPids].filter((pid) => verifiedPids.has(pid))
   for (const pid of new Set(terminationPids)) {
-    if (!isAlive(pid)) continue
+    if (processExited(pid)) {
+      verifiedPids.delete(pid)
+      continue
+    }
     try {
       terminateExactProcess(pid, record.platform)
     } catch (error) {
@@ -370,7 +555,7 @@ async function stopOwnedRecord(record: LaunchRecord): Promise<void> {
     }
     await waitForExit(pid)
   }
-  const remaining = ownedPids.filter(isAlive)
+  const remaining = [...verifiedPids].filter((pid) => !processExited(pid))
   if (remaining.length > 0) {
     throw new Error(`Owned Cherry Studio processes did not exit after SIGTERM: ${remaining.join(', ')}`)
   }
@@ -382,6 +567,7 @@ async function stopOwnedRecord(record: LaunchRecord): Promise<void> {
       `Main-process inspector port ${MAIN_INSPECTOR_PORT} was not released after stopping the owned application`
     )
   }
+  logLifecycleStage(record, 'stopped')
 }
 
 function isExpectedWindowUrl(url: string): boolean {
@@ -436,7 +622,7 @@ export async function adoptRelaunchedApp(paths: RunPaths, timeout = 120_000): Pr
   throw new Error(`The relaunched application did not take over the CDP port (${lastError})`)
 }
 
-export async function restartApp(paths: RunPaths, profile?: TestProfile): Promise<AppRecord> {
+export async function stopApp(paths: RunPaths): Promise<void> {
   const current = readOwnedRecord(paths)
   if (current.platform === 'windows' && current.electronPid && isAlive(current.electronPid)) {
     const { requestOwnedAppQuit } = await import('./debugBridge')
@@ -447,6 +633,13 @@ export async function restartApp(paths: RunPaths, profile?: TestProfile): Promis
     }
   }
   await stopOwnedApp(paths)
+}
+
+export async function restartApp(paths: RunPaths, profile?: TestProfile): Promise<AppRecord> {
+  const current = readOwnedRecord(paths)
+  logLifecycleStage(current, 'restart-start')
+  await stopApp(paths)
+  logLifecycleStage(current, 'restart-stopped')
   return launchApp(paths, {
     mode: current.mode,
     platform: current.platform,

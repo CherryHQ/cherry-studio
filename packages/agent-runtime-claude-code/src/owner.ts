@@ -1,5 +1,7 @@
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
+import { homedir } from 'node:os'
+import path from 'node:path'
 
 import {
   query,
@@ -52,6 +54,14 @@ interface Input {
   state: InputState & { inputId: InputId }
   message: SDKUserMessage
   resolve: (result: SubmitResult) => void
+}
+
+// Any explicit CLAUDE_CONFIG_DIR, even the CLI's own default, re-keys the macOS Keychain
+// credential and hides an existing `claude /login`, so only a non-default directory is passed.
+function childEnvironment(env: ClaudeSessionOptions['env'], configDir: string) {
+  const childEnv: Record<string, string | undefined> = { ...env, CLAUDE_CONFIG_DIR: configDir }
+  if (path.resolve(configDir) === path.join(homedir(), '.claude')) delete childEnv.CLAUDE_CONFIG_DIR
+  return childEnv
 }
 
 export class ClaudeOwner {
@@ -213,7 +223,7 @@ export class ClaudeOwner {
           prompt: this.inputStream(),
           options: {
             ...this.config,
-            env: { ...this.config.env, CLAUDE_CONFIG_DIR: this.runtime.configDir },
+            env: childEnvironment(this.config.env, this.runtime.configDir),
             permissionMode: this.config.permissionMode ?? 'default',
             sessionId: this.fresh ? this.activeSession : undefined,
             resume: this.fresh ? undefined : this.activeSession,
