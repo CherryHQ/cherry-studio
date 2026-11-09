@@ -45,7 +45,6 @@ const mocks = vi.hoisted(() => ({
   listLocalSkillFolderNames: vi.fn(),
   getSkillPluginDirectory: vi.fn(),
   checkSkillRuntimeDependencies: vi.fn(),
-  modelGetByKey: vi.fn(),
   findBySessionId: vi.fn(),
   createMcpBridgeServer: vi.fn(),
   createToolPolicySnapshot: vi.fn(),
@@ -105,10 +104,6 @@ vi.mock('@data/services/McpServerService', () => ({
     list: vi.fn(() => ({ items: [] })),
     findByIdOrName: mocks.findByIdOrName
   }
-}))
-
-vi.mock('@data/services/ModelService', () => ({
-  modelService: { getByKey: mocks.modelGetByKey }
 }))
 
 vi.mock('@data/services/ProviderService', () => ({
@@ -301,7 +296,6 @@ describe('buildClaudeCodeSessionSettings', () => {
       allowedTools: [],
       configuration: {}
     })
-    mocks.modelGetByKey.mockReturnValue({ apiModelId: 'claude-api' })
     mocks.findBySessionId.mockReturnValue(null)
     mocks.getTurnTrustedNotifyChannels.mockReturnValue(undefined)
     mocks.createToolPolicySnapshot.mockResolvedValue({
@@ -407,9 +401,12 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.env!.DBUS_SESSION_BUS_ADDRESS).toBe('unix:path=/flatpak/session-bus')
   })
 
-  it('does not invent a Linux desktop session bus when neither environment provides one', async () => {
+  it('uses the Linux desktop session bus from the login shell when the parent environment omits it', async () => {
     mocks.platform.isLinux = true
-    mocks.getShellEnv.mockResolvedValue({ PATH: '/usr/bin' })
+    mocks.getShellEnv.mockResolvedValue({
+      PATH: '/usr/bin',
+      DBUS_SESSION_BUS_ADDRESS: 'unix:path=/shell/session-bus'
+    })
     vi.stubEnv('DBUS_SESSION_BUS_ADDRESS', undefined)
 
     const settings = await buildClaudeCodeSessionSettings(
@@ -421,8 +418,32 @@ describe('buildClaudeCodeSessionSettings', () => {
       {} as never
     )
 
-    expect(settings.env).not.toHaveProperty('DBUS_SESSION_BUS_ADDRESS')
+    expect(settings.env!.DBUS_SESSION_BUS_ADDRESS).toBe('unix:path=/shell/session-bus')
   })
+
+  it.each([undefined, '', '   '])(
+    'fails before starting Claude Code when the login shell session bus address is %j',
+    async (shellAddress) => {
+      mocks.platform.isLinux = true
+      mocks.getShellEnv.mockResolvedValue({ PATH: '/usr/bin', DBUS_SESSION_BUS_ADDRESS: shellAddress })
+      vi.stubEnv('DBUS_SESSION_BUS_ADDRESS', undefined)
+
+      await expect(
+        buildClaudeCodeSessionSettings(
+          {
+            id: 'session-1',
+            agentId: 'agent-1',
+            workspace: { type: 'user', path: '/workspace/project' }
+          } as never,
+          {} as never
+        )
+      ).rejects.toMatchObject({
+        name: 'ClaudeCodeSessionBusUnavailableError',
+        i18nKey: 'claude_code_session_bus_missing',
+        detailI18nKey: 'claude_code_session_bus_missing_detail'
+      })
+    }
+  )
 
   it.each(['PostToolUse', 'PostToolUseFailure'] as const)(
     'captures %s duration through the live Agent runtime owner',
@@ -1004,52 +1025,6 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
 
     expect(settings.skills).toEqual([])
-  })
-
-  it('resolves the plan (sonnet) and small (haiku) model env keys from their own model ids', async () => {
-    // Each of the three model lookups must resolve independently from its own key/provider.
-    mocks.modelGetByKey.mockImplementation((providerId: string, modelId: string) => {
-      if (modelId === 'claude-sonnet') return { apiModelId: 'sonnet-api' }
-      if (modelId === 'claude-haiku') return { apiModelId: 'haiku-api' }
-      throw new Error(`model ${providerId}::${modelId} not in table`)
-    })
-    const session = {
-      id: 'session-1',
-      agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
-    }
-
-    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-
-    // agent.model = planModel = claude-sonnet, smallModel = claude-haiku (see the beforeEach agent).
-    expect(settings.env).toMatchObject({
-      ANTHROPIC_MODEL: 'sonnet-api',
-      ANTHROPIC_DEFAULT_OPUS_MODEL: 'sonnet-api',
-      ANTHROPIC_DEFAULT_SONNET_MODEL: 'sonnet-api',
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'haiku-api'
-    })
-  })
-
-  it('falls back each model env key to its own raw id when that model is absent from the table', async () => {
-    // Only the small (haiku) model is missing — the others must NOT be forced to fall back, and the
-    // haiku key must fall back to its OWN raw id (not the main model's).
-    mocks.modelGetByKey.mockImplementation((_providerId: string, modelId: string) => {
-      if (modelId === 'claude-haiku') throw new Error('haiku not in table')
-      return { apiModelId: `${modelId}-api` }
-    })
-    const session = {
-      id: 'session-1',
-      agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
-    }
-
-    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-
-    expect(settings.env).toMatchObject({
-      ANTHROPIC_MODEL: 'claude-sonnet-api',
-      ANTHROPIC_DEFAULT_SONNET_MODEL: 'claude-sonnet-api',
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'claude-haiku'
-    })
   })
 
   it('adds loopback bypass rules to the final Agent proxy environment', async () => {

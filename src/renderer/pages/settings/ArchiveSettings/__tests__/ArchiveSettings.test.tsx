@@ -71,6 +71,7 @@ vi.mock('../ArchiveDomainSections', async () => {
         onClick: () =>
           props.onRequestDelete({
             items: mocks.fileItems,
+            domains: ['files'],
             fileEntryIds: mocks.fileItems.map((item) => item.id),
             run: mocks.runDelete
           })
@@ -109,6 +110,7 @@ vi.mock('../AllArchiveSection', async () => {
               onClick: () =>
                 props.onRequestDelete({
                   items: mocks.allItems,
+                  domains: ['topics', 'files'],
                   fileEntryIds: mocks.allItems
                     .filter((item) => item.id.startsWith('files:'))
                     .map((item) => item.id.slice(6)),
@@ -315,7 +317,7 @@ describe('ArchiveSettings', () => {
     expect(screen.getByRole('button', { name: 'Batch manage' })).toBeDisabled()
   })
 
-  it('reports referenced files kept instead of claiming the trash is empty', async () => {
+  it('states that emptying keeps files in use and unlinks surviving conversations', async () => {
     const user = userEvent.setup()
     mocks.ipcRequest.mockResolvedValueOnce({
       status: 'completed',
@@ -335,7 +337,10 @@ describe('ArchiveSettings', () => {
     await user.click(screen.getByRole('button', { name: 'More' }))
     await user.click(screen.getByRole('menuitem', { name: 'Empty Archive' }))
     const dialog = screen.getByRole('dialog')
-    expect(dialog).toHaveTextContent('Referenced files will be kept.')
+    expect(dialog).toHaveTextContent('Everything in the Archive will be permanently deleted.')
+    expect(dialog).toHaveTextContent('Files still in use are kept.')
+    expect(dialog).toHaveTextContent('Their conversations are kept and move to Unlinked Agent.')
+    expect(dialog).toHaveTextContent('Their topics are kept and move to Unlinked Assistant.')
     await user.click(within(dialog).getByRole('button', { name: 'Empty Archive' }))
 
     expect(mocks.ipcRequest).toHaveBeenCalledExactlyOnceWith('trash.purge_now')
@@ -429,7 +434,7 @@ describe('ArchiveSettings permanent-delete confirmation', () => {
     expect(screen.queryByRole('checkbox', { name: 'Select Deleted session' })).not.toBeInTheDocument()
   })
 
-  it('shows the single-item title and waits for a fresh file reference preview', async () => {
+  it('names the single item, states its scope, and waits for a fresh file reference preview', async () => {
     const user = userEvent.setup()
     let resolveCounts!: (value: Array<{ entryId: string; refCount: number }>) => void
     vi.mocked(dataApiService.get).mockReturnValueOnce(
@@ -442,8 +447,10 @@ describe('ArchiveSettings permanent-delete confirmation', () => {
 
     await openFileDelete(user)
 
-    expect(screen.getByRole('dialog')).toHaveTextContent('Delete permanently?')
+    expect(screen.getByRole('dialog')).toHaveTextContent('Permanently delete "File 1"?')
     expect(screen.getByRole('dialog')).toHaveTextContent('This action cannot be undone.')
+    expect(screen.getByRole('dialog')).toHaveTextContent('Deleted from disk. Files still in use are kept.')
+    expect(screen.getByRole('dialog')).not.toHaveTextContent('Unlinked Agent')
     const confirm = screen.getByRole('button', { name: 'Delete Permanently' })
     expect(confirm).toBeDisabled()
     expect(screen.getByText('Checking file references…')).toBeInTheDocument()
