@@ -276,6 +276,7 @@ releaseInfo:
     - [Claude] Claude Code installs on Windows ARM64, and Linux shows guidance instead of launching without a session bus.
     - [Tesseract] OCR loads its engine in packaged builds.
     - [Agent] Remember the session details card's last open or closed state across all sessions and app restarts.
+    - [Agent] Fixed Claude Code (login) agents on macOS failing with "Not logged in · Please run /login" even after logging in with `claude /login`.
 
     ⚡ Performance
     - [Chat] Preparing large text attachments no longer blocks the interface.
@@ -359,6 +360,7 @@ releaseInfo:
     - [Claude] Claude Code 可在 Windows ARM64 上安装，Linux 在缺少会话总线时会显示指引而不是启动。
     - [Tesseract] 打包版本中 OCR 可正常加载引擎。
     - [智能体] 记住会话详情卡片最后的打开或关闭状态，切换会话或重启应用后保持一致。
+    - [智能体] 修复 macOS 上使用 Claude Code（登录）的智能体即使已通过 `claude /login` 登录仍提示「Not logged in · Please run /login」的问题。
 
     ⚡ 性能优化
     - [对话] 准备大型文本附件不再阻塞界面。
