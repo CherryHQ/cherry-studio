@@ -36,6 +36,7 @@ import { extractAgentSessionIdFromTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
+import type { AgentSessionHistoryActions } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { agentSessionForkFailureReason } from '@shared/ipc/errors/ai'
 import type { DoctorSubjectRef } from '@shared/types/doctor'
@@ -103,6 +104,7 @@ export type NavigateToForkSource = (input: { sourceSessionId: string; returnSess
 interface AgentMessageListParams {
   topic: Topic
   messages: CherryUIMessage[]
+  historyActions?: Readonly<Record<string, AgentSessionHistoryActions | undefined>>
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
   assistantProfile?: {
@@ -175,6 +177,7 @@ const requireWorkspaceFilePath = (workspacePath: string | undefined, rawPath: st
 export function useAgentMessageListProviderValue({
   topic,
   messages,
+  historyActions,
   partsByMessageId,
   streamingLayers,
   assistantProfile,
@@ -441,6 +444,7 @@ export function useAgentMessageListProviderValue({
     },
     [sessionId, t, notifyError]
   )
+  const agentRenderConfig = useMemo(() => ({ ...renderConfig, keepIntermediateAssistantText: true }), [renderConfig])
   const state = useMemo<MessageListState>(
     () => ({
       topic,
@@ -456,7 +460,7 @@ export function useAgentMessageListProviderValue({
       messageNavigation,
       ...DEFAULT_MESSAGE_LIST_CONFIG,
       listKey: resolvedAgentId,
-      renderConfig: { ...renderConfig, keepIntermediateAssistantText: true },
+      renderConfig: agentRenderConfig,
       menuConfig,
       selection: selectionController.selection,
       getMessageUiState: messageUiStateCache.getMessageUiState,
@@ -480,7 +484,7 @@ export function useAgentMessageListProviderValue({
       normalInteractionsEnabled,
       displayPartsByMessageId,
       renderActiveTurnStatus,
-      renderConfig,
+      agentRenderConfig,
       resolvedAgentId,
       selectionController.selection,
       displayStreamingLayers,
@@ -493,7 +497,12 @@ export function useAgentMessageListProviderValue({
       setActiveBranch: normalInteractionsEnabled ? setActiveBranch : undefined,
       editLabel: t('agent.edit_resend.label'),
       canEditMessage: (message) =>
-        normalInteractionsEnabled && !!startEditing && !editBusy && message.role === 'user' && !message.delivery,
+        normalInteractionsEnabled &&
+        !!startEditing &&
+        !editBusy &&
+        historyActions?.[message.id]?.edit === null &&
+        message.role === 'user' &&
+        !message.delivery,
       startEditing: startEditing
         ? (message) => {
             void startEditing(message.id)
@@ -503,7 +512,7 @@ export function useAgentMessageListProviderValue({
       forkSession: normalInteractionsEnabled
         ? {
             label: t('agent_session_fork.label'),
-            availability: (message) => agentSessionForkAvailability(t, message),
+            availability: (message) => agentSessionForkAvailability(t, message, historyActions?.[message.id]),
             run: forkSession
           }
         : undefined,
@@ -540,6 +549,7 @@ export function useAgentMessageListProviderValue({
       setActiveBranch,
       startEditing,
       editBusy,
+      historyActions,
       navigateToForkSource,
       openForkSourceSession,
       t,

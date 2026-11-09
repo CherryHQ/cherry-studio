@@ -13,7 +13,7 @@ import { join } from 'node:path'
 
 import { _electron as electron } from '@playwright/test'
 
-import { expect, test as base } from './fixtures/electron.fixture'
+import { closeElectronApp, expect, test as base } from './fixtures/electron.fixture'
 import { jsonEvidence, prepareStickyShell, stickyWindow, waitForStickyShell } from './utils/stickySmoke'
 import { uiLocator } from './utils/uiLocator'
 
@@ -30,12 +30,12 @@ const test = base.extend<{ notesProfile: NotesProfile }>({
     try {
       try {
         accessSync(ripgrepSource, constants.R_OK | constants.X_OK)
-      } catch {
-        test.skip(true, 'Managed ripgrep unavailable; set E2E_RIPGREP_BIN to an executable rg')
+      } catch (cause) {
+        throw new Error('Set E2E_RIPGREP_BIN to an executable rg before running Notes smoke tests', { cause })
       }
       const binaryDirectory = join(profile, '.cherrystudio', 'bin')
       mkdirSync(binaryDirectory, { recursive: true })
-      const destination = join(binaryDirectory, 'rg')
+      const destination = join(binaryDirectory, process.platform === 'win32' ? 'rg.exe' : 'rg')
       copyFileSync(ripgrepSource, destination)
       chmodSync(destination, 0o755)
       const notesPath = join(profile, 'userData', 'Data', 'Notes')
@@ -56,15 +56,13 @@ const test = base.extend<{ notesProfile: NotesProfile }>({
     try {
       await use(app)
     } finally {
-      await app.close()
+      await closeElectronApp(app)
     }
   },
   mainWindow: async ({ electronApp }, use) => {
     await use(await stickyWindow(electronApp))
   }
 })
-
-test.skip(!ripgrepSource, 'dev builds do not ship the managed ripgrep binary; set E2E_RIPGREP_BIN=<path to rg>')
 
 test('inline math completion preserves adjacent edits and autosaves them', async ({
   mainWindow: page,

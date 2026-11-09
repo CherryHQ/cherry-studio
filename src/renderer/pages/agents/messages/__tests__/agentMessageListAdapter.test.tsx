@@ -103,26 +103,27 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   })
 }))
 
+const renderConfiguration = vi.hoisted(() => ({
+  renderConfig: {
+    userName: '',
+    narrowMode: false,
+    messageStyle: 'plain',
+    messageFont: 'system',
+    fontSize: 14,
+    renderInputMessageAsMarkdown: false,
+    codeFancyBlock: true,
+    thoughtAutoCollapse: true,
+    keepIntermediateAssistantText: false,
+    mathEnableSingleDollar: false,
+    showMessageOutline: false,
+    multiModelMessageStyle: 'horizontal',
+    multiModelGridColumns: 2,
+    multiModelGridPopoverTrigger: 'click'
+  },
+  updateRenderConfig: vi.fn()
+}))
 vi.mock('@renderer/components/chat/messages/hooks/useMessageListRenderConfig', () => ({
-  useMessageListRenderConfig: () => ({
-    renderConfig: {
-      userName: '',
-      narrowMode: false,
-      messageStyle: 'plain',
-      messageFont: 'system',
-      fontSize: 14,
-      renderInputMessageAsMarkdown: false,
-      codeFancyBlock: true,
-      thoughtAutoCollapse: true,
-      keepIntermediateAssistantText: false,
-      mathEnableSingleDollar: false,
-      showMessageOutline: false,
-      multiModelMessageStyle: 'horizontal',
-      multiModelGridColumns: 2,
-      multiModelGridPopoverTrigger: 'click'
-    },
-    updateRenderConfig: vi.fn()
-  })
+  useMessageListRenderConfig: () => renderConfiguration
 }))
 
 vi.mock('@renderer/components/chat/messages/hooks/useMessageMenuConfig', () => ({
@@ -247,7 +248,7 @@ describe('useAgentMessageListProviderValue', () => {
   })
 
   it.each(['success', 'workspace_changed', 'legacy_history', 'cancelled', 'unexpected'] as const)(
-    'offers completed messages without an availability flag and reports native fork errors: %s',
+    'offers Main-approved completed messages and reports native fork errors: %s',
     async (scenario) => {
       let value: MessageListProviderValue | undefined
       const Probe = () => {
@@ -259,6 +260,7 @@ describe('useAgentMessageListProviderValue', () => {
             messages: []
           } as unknown as Topic,
           messages: [],
+          historyActions: { 'selected-message': { fork: null, edit: 'invalid_target' } },
           partsByMessageId: {},
           isLoading: false,
           messageNavigation: 'anchor'
@@ -722,6 +724,45 @@ describe('useAgentMessageListProviderValue', () => {
     render(<Probe />)
 
     expect(value?.state.renderConfig.keepIntermediateAssistantText).toBe(true)
+  })
+
+  it('keeps the Agent render configuration stable across streamed deltas and refreshes changed preferences', () => {
+    const topic = {
+      id: 'agent-session:session-1',
+      assistantId: 'agent-1',
+      name: 'Agent session',
+      messages: []
+    } as unknown as Topic
+    const { result, rerender } = renderHook(
+      ({ messages }) =>
+        useAgentMessageListProviderValue({
+          topic,
+          messages,
+          partsByMessageId: {},
+          isLoading: false,
+          messageNavigation: 'none'
+        }),
+      { initialProps: { messages: [] as CherryUIMessage[] } }
+    )
+    const initial = result.current.state.renderConfig
+    for (let i = 0; i < 10; i++) {
+      rerender({
+        messages: [
+          { id: 'assistant-1', role: 'assistant', parts: [{ type: 'text', text: 'delta ' + i }] }
+        ] as CherryUIMessage[]
+      })
+      expect(result.current.state.renderConfig).toBe(initial)
+    }
+    const previous = renderConfiguration.renderConfig
+    renderConfiguration.renderConfig = { ...previous, fontSize: 18 }
+    try {
+      rerender({ messages: [] })
+      expect(result.current.state.renderConfig).not.toBe(initial)
+      expect(result.current.state.renderConfig.fontSize).toBe(18)
+      expect(result.current.state.renderConfig.keepIntermediateAssistantText).toBe(true)
+    } finally {
+      renderConfiguration.renderConfig = previous
+    }
   })
 
   it('renders terminal fallbacks in both current and sealed history layers', () => {

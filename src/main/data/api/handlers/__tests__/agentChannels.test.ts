@@ -77,7 +77,7 @@ describe('agentChannelHandlers', () => {
     it('GET passes agentId filter to listChannels', async () => {
       listChannelsMock.mockReturnValueOnce([mockChannel])
 
-      const result = await agentChannelHandlers['/agent-channels'].GET({ query: { agentId: AGENT_ID } } as never)
+      const result = await agentChannelHandlers['/agent-channels'].GET({ query: { agentId: AGENT_ID } })
 
       expect(listChannelsMock).toHaveBeenCalledWith({ agentId: AGENT_ID })
       expect(result).toEqual([mockChannel])
@@ -140,7 +140,7 @@ describe('agentHandlers — task logs', () => {
       const result = await agentHandlers['/agents/:agentId/tasks/:taskId/logs'].GET({
         params: { agentId: AGENT_ID, taskId: TASK_ID },
         query: { page: 1, limit: 20 }
-      } as never)
+      })
 
       expect(getTaskMock).toHaveBeenCalledWith(AGENT_ID, TASK_ID)
       expect(getTaskLogsMock).toHaveBeenCalledWith(TASK_ID, { limit: 20, offset: 0 })
@@ -166,7 +166,7 @@ describe('agentHandlers — task logs', () => {
         agentHandlers['/agents/:agentId/tasks/:taskId/logs'].GET({
           params: { agentId: AGENT_ID, taskId: TASK_ID },
           query: { page: 1, limit: 20 }
-        } as never)
+        })
       ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
 
       expect(getTaskLogsMock).not.toHaveBeenCalled()
@@ -179,7 +179,7 @@ describe('agentHandlers — task logs', () => {
         agentHandlers['/agents/:agentId/tasks/:taskId/logs'].GET({
           params: { agentId: AGENT_ID, taskId: TASK_ID },
           query: { page: 0 }
-        } as never)
+        })
       ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
 
       expect(getTaskLogsMock).not.toHaveBeenCalled()

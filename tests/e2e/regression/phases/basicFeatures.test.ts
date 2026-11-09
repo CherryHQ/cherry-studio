@@ -1,6 +1,7 @@
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
 import { expect, test } from '../fixture'
 import { dismissOnboarding, openLaunchpad, openLaunchpadApp, selectSidebarApp } from '../helpers/navigation'
+import { marketplaceNavigation } from '../scenarios/marketplaceNavigation'
 import { miniAppPinning } from '../scenarios/miniAppPinning'
 
 test(...caseDefinition('APP-01'), async ({ mainWindow: page }) => {
@@ -59,4 +60,8 @@ test(...caseDefinition('N-01'), async ({ app, mainWindow }) => {
 
 test(...caseDefinition('MP-103'), async ({ app, mainWindow }, testInfo) => {
   await miniAppPinning(app, mainWindow, testInfo)
+})
+
+test(...caseDefinition('MARKET-01'), async ({ mainWindow: page }) => {
+  await marketplaceNavigation(page)
 })

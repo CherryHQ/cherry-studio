@@ -86,6 +86,10 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
      own native validation and opaque checkpoint remapping here, stage artifacts through
      the host, and declare the artifact paths the runtime owns. See
      [Managed workspace relocation](./agent-session-runtime.md#managed-workspace-relocation).
+   - Optional desktop history: implement `fork` and a synchronous, side-effect-free
+     `isForkCheckpoint(value)` using the adapter's native checkpoint schema. Message
+     listing uses this predicate without loading the SDK, opening storage or starting
+     execution. The fork operation still verifies native history before publication.
    - Optional: `prewarmSession` / `closeSessionWarm` / `onSessionIdle` for
      runtimes that benefit from idle warmup (see the Claude driver).
 
@@ -100,8 +104,9 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
      steer, wrap it with `wrapSteerReminder(...)`.
    - `reconcile(input)` — re-derive the desired connection state. Serialize concurrent
      calls per connection; hot-apply safe policy facts before returning `rebuild` for
-     spawn-frozen differences, freeze permission-mode changes during an active turn,
-     and return `failed` when a live tightening cannot be applied so the host fails closed.
+     spawn-frozen differences, apply permission-mode changes even during an active turn
+     (from its next tool call), and return `failed` when a live tightening cannot be applied
+     so the host fails closed.
    - `close()` — seal admission, stop native production, await observation delivery and callbacks,
      flush committed archives, then detach and release. A failed final flush retains a retryable writer.
      Durable runtimes may preserve unfinished work.

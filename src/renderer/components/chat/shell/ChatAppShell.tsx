@@ -330,7 +330,8 @@ export function ChatAppShell({
               data-ui="part:conversation-main"
               data-chat-app-shell-center
               id={centerId}
-              layout
+              // Live splitter movement must reflow content without scaling its text and icons.
+              layout={!listResizing}
               transition={centerTransition}
               className={cn(
                 'relative flex min-w-0 flex-1 flex-col overflow-hidden bg-chat-message-well',
