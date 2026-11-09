@@ -1,6 +1,9 @@
 import { EventEmitter } from 'events'
 
+import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { t } from '@main/i18n'
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -8,14 +11,10 @@ vi.mock('@logger', () => ({
   }
 }))
 
-// Mock net.fetch for all Slack API calls
 const mockNetFetch = vi.fn()
-
-vi.mock('electron', () => ({
-  app: { getPath: () => '/mock/userData' },
-  nativeTheme: { themeSource: '', shouldUseDarkColors: false },
-  net: { fetch: (...args: unknown[]) => mockNetFetch(...args) }
-}))
+beforeEach(() => {
+  vi.mocked(net.fetch).mockImplementation((...args) => mockNetFetch(...args))
+})
 
 // Mock WebSocket — create a fake class that emits events like a real WS
 class MockWebSocket extends EventEmitter {
@@ -587,6 +586,25 @@ describe('SlackAdapter', () => {
   })
 
   // ─── Streaming ────────────────────────────────────────────
+
+  it('clears a withdrawn draft while keeping the same Slack message for resumed content', async () => {
+    const adapter = await connectAdapter()
+    vi.useFakeTimers()
+    const calls = (method: string) =>
+      mockNetFetch.mock.calls.filter((call) => String(call[0]).includes(method)).map((call) => JSON.parse(call[1].body))
+    await adapter.onTextUpdate('C0ALLOWED', '')
+    expect(calls('chat.postMessage')).toEqual([])
+    await adapter.onTextUpdate('C0ALLOWED', 'Withdrawn')
+    await vi.advanceTimersByTimeAsync(2000)
+    await adapter.onTextUpdate('C0ALLOWED', '')
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(calls('chat.update').at(-1)).toMatchObject({ ts: '1234567890.123456', text: t('common.channel_processing') })
+    await adapter.onTextUpdate('C0ALLOWED', 'Replacement')
+    await vi.advanceTimersByTimeAsync(2000)
+    await adapter.onStreamComplete('C0ALLOWED', 'Final')
+    expect(calls('chat.postMessage')).toHaveLength(1)
+    expect(calls('chat.update').at(-1)).toMatchObject({ ts: '1234567890.123456', text: 'Final' })
+  })
 
   it('onTextUpdate() creates a message then edits it on subsequent updates', async () => {
     const adapter = await connectAdapter()
