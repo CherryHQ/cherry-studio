@@ -1568,6 +1568,8 @@
   "error.diagnostics.preparing_result": "Подготовка результатов…",
   "error.diagnostics.result": "Результат диагностики",
   "error.diagnostics.result_summary": "<fixed>Исправлено: {{fixed}}; </fixed><attention>требует внимания: {{attention}}</attention>.",
+  "error.duplicate_tool_call_id": "Повторяющийся ID вызова инструмента",
+  "error.duplicate_tool_call_id_detail": "{{toolCallId}} встречается в воспроизводимой истории более одного раза ({{locations}}).",
   "error.errors": "ошибка",
   "error.finishReason": "Причина завершения",
   "error.functionality": "функция",

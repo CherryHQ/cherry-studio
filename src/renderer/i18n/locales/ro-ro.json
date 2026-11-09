@@ -1568,6 +1568,8 @@
   "error.diagnostics.preparing_result": "Se pregătesc rezultatele…",
   "error.diagnostics.result": "Rezultatul diagnosticului",
   "error.diagnostics.result_summary": "<fixed>Remediat: {{fixed}}; </fixed><attention>necesită atenție: {{attention}}</attention>.",
+  "error.duplicate_tool_call_id": "ID duplicat al apelului de instrument",
+  "error.duplicate_tool_call_id_detail": "{{toolCallId}} apare de mai multe ori în istoricul reluat ({{locations}}).",
   "error.errors": "Erori",
   "error.finishReason": "Motiv finalizare",
   "error.functionality": "Funcționalitate",

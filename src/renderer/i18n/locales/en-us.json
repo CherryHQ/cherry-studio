@@ -1568,6 +1568,8 @@
   "error.diagnostics.preparing_result": "Preparing results…",
   "error.diagnostics.result": "Diagnostic result",
   "error.diagnostics.result_summary": "<fixed>Fixed: {{fixed}}; </fixed><attention>needs attention: {{attention}}</attention>.",
+  "error.duplicate_tool_call_id": "Duplicate tool call id",
+  "error.duplicate_tool_call_id_detail": "{{toolCallId}} appears more than once in the replayed history ({{locations}}).",
   "error.errors": "Errors",
   "error.finishReason": "Finish Reason",
   "error.functionality": "Functionality",

@@ -1568,6 +1568,8 @@
   "error.diagnostics.preparing_result": "Sonuçlar hazırlanıyor…",
   "error.diagnostics.result": "Tanı sonucu",
   "error.diagnostics.result_summary": "<fixed>Düzeltildi: {{fixed}}; </fixed><attention>dikkat gerektiren: {{attention}}</attention>.",
+  "error.duplicate_tool_call_id": "Yinelenen araç çağrısı kimliği",
+  "error.duplicate_tool_call_id_detail": "{{toolCallId}}, yeniden oynatılan geçmişte birden fazla kez görünüyor ({{locations}}).",
   "error.errors": "Hatalar",
   "error.finishReason": "Sonlanma Nedeni",
   "error.functionality": "İşlevsellik",

@@ -1568,6 +1568,8 @@
   "error.diagnostics.preparing_result": "กำลังเตรียมผลลัพธ์…",
   "error.diagnostics.result": "ผลการวินิจฉัย",
   "error.diagnostics.result_summary": "<fixed>แก้แล้ว: {{fixed}}; </fixed><attention>ต้องดำเนินการ: {{attention}}</attention>",
+  "error.duplicate_tool_call_id": "ID การเรียกใช้เครื่องมือซ้ำ",
+  "error.duplicate_tool_call_id_detail": "{{toolCallId}} ปรากฏมากกว่าหนึ่งครั้งในประวัติที่เล่นซ้ำ ({{locations}}).",
   "error.errors": "ข้อผิดพลาด",
   "error.finishReason": "เหตุผลที่สิ้นสุด",
   "error.functionality": "ฟังก์ชัน",

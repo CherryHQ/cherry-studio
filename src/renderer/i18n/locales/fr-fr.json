@@ -1568,6 +1568,8 @@
   "error.diagnostics.preparing_result": "Préparation des résultats…",
   "error.diagnostics.result": "Résultat du diagnostic",
   "error.diagnostics.result_summary": "<fixed>Corrigé : {{fixed}} ; </fixed><attention>nécessite une attention : {{attention}}</attention>.",
+  "error.duplicate_tool_call_id": "Identifiant d’appel d’outil en double",
+  "error.duplicate_tool_call_id_detail": "{{toolCallId}} apparaît plusieurs fois dans l’historique rejoué ({{locations}}).",
   "error.errors": "erreur",
   "error.finishReason": "Raison de la fin",
   "error.functionality": "fonction",

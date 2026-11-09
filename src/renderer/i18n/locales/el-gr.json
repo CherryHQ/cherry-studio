@@ -1568,6 +1568,8 @@
   "error.diagnostics.preparing_result": "Προετοιμασία αποτελεσμάτων…",
   "error.diagnostics.result": "Διαγνωστικό αποτέλεσμα",
   "error.diagnostics.result_summary": "<fixed>Διορθώθηκαν: {{fixed}}· </fixed><attention>χρειάζονται προσοχή: {{attention}}</attention>.",
+  "error.duplicate_tool_call_id": "Διπλό αναγνωριστικό κλήσης εργαλείου",
+  "error.duplicate_tool_call_id_detail": "Το {{toolCallId}} εμφανίζεται περισσότερες από μία φορές στο ιστορικό που αναπαράχθηκε ({{locations}}).",
   "error.errors": "Λάθος",
   "error.finishReason": "Αιτία λήξης",
   "error.functionality": "λειτουργία",

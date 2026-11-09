@@ -1568,6 +1568,8 @@
   "error.diagnostics.preparing_result": "A preparar resultados…",
   "error.diagnostics.result": "Resultado do diagnóstico",
   "error.diagnostics.result_summary": "<fixed>Corrigido: {{fixed}}; </fixed><attention>requer atenção: {{attention}}</attention>.",
+  "error.duplicate_tool_call_id": "ID de chamada de ferramenta duplicado",
+  "error.duplicate_tool_call_id_detail": "{{toolCallId}} aparece mais de uma vez no histórico reproduzido ({{locations}}).",
   "error.errors": "erro",
   "error.finishReason": "Motivo de término",
   "error.functionality": "funcionalidade",

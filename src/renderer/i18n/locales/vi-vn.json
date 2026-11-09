@@ -1568,6 +1568,8 @@
   "error.diagnostics.preparing_result": "Đang chuẩn bị kết quả…",
   "error.diagnostics.result": "Kết quả chẩn đoán",
   "error.diagnostics.result_summary": "<fixed>Đã sửa: {{fixed}}; </fixed><attention>cần chú ý: {{attention}}</attention>.",
+  "error.duplicate_tool_call_id": "ID lệnh gọi công cụ bị trùng lặp",
+  "error.duplicate_tool_call_id_detail": "{{toolCallId}} xuất hiện nhiều lần trong lịch sử được phát lại ({{locations}}).",
   "error.errors": "Lỗi",
   "error.finishReason": "Lý do kết thúc",
   "error.functionality": "Chức năng",

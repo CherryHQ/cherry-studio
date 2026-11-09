@@ -217,10 +217,7 @@ function dropNonObjectToolInputs(messages: UIMessage[]): UIMessage[] {
  * one call and one result per id, so keep the strongest local evidence in its own slot.
  */
 export function deduplicateLocalToolParts<T extends UIMessage>(messages: T[]): T[] {
-  const groups = new Map<
-    string,
-    { messageIndex: number; partIndex: number; priority: number; providerExecuted: boolean }
-  >()
+  const groups = new Map<string, { messageIndex: number; partIndex: number; priority: number }>()
   messages.forEach((message, messageIndex) => {
     if (message.role !== 'assistant') return
     message.parts.forEach((part, partIndex) => {
@@ -238,11 +235,9 @@ export function deduplicateLocalToolParts<T extends UIMessage>(messages: T[]): T
         groups.set(part.toolCallId, {
           messageIndex,
           partIndex,
-          priority,
-          providerExecuted: part.providerExecuted === true
+          priority
         })
       } else {
-        group.providerExecuted ||= part.providerExecuted === true
         if (priority > group.priority) Object.assign(group, { messageIndex, partIndex, priority })
       }
     })
@@ -254,7 +249,7 @@ export function deduplicateLocalToolParts<T extends UIMessage>(messages: T[]): T
     const parts = message.parts.filter((part, partIndex) => {
       if (!isToolUIPart(part)) return true
       const group = groups.get(part.toolCallId)!
-      return group.providerExecuted || (group.messageIndex === messageIndex && group.partIndex === partIndex)
+      return group.messageIndex === messageIndex && group.partIndex === partIndex
     })
     if (parts.length !== message.parts.length) {
       out ??= [...messages]
@@ -262,6 +257,36 @@ export function deduplicateLocalToolParts<T extends UIMessage>(messages: T[]): T
     }
   })
   return out ?? messages
+}
+
+export class DuplicateToolCallIdError extends Error {
+  readonly i18nKey = 'duplicate_tool_call_id'
+  readonly detailI18nKey = 'duplicate_tool_call_id_detail'
+  readonly detailI18nValues: { toolCallId: string; locations: string }
+
+  constructor(toolCallId: string, locations: string) {
+    super(`Duplicate tool call id '${toolCallId}' in replayed history at ${locations}.`)
+    this.name = 'DuplicateToolCallIdError'
+    this.detailI18nValues = { toolCallId, locations }
+  }
+}
+
+export function assertNoDuplicateToolCallIds(messages: ModelMessage[]): void {
+  const calls = new Map<string, string>()
+  const results = new Map<string, string>()
+  messages.forEach((message, messageIndex) => {
+    if (!Array.isArray(message.content)) return
+    message.content.forEach((part, contentIndex) => {
+      if (part.type !== 'tool-call' && part.type !== 'tool-result') return
+      const seen = part.type === 'tool-call' ? calls : results
+      const location = `messages[${messageIndex}].content[${contentIndex}]`
+      const firstLocation = seen.get(part.toolCallId)
+      if (firstLocation !== undefined) {
+        throw new DuplicateToolCallIdError(part.toolCallId, `${firstLocation}, ${location}`)
+      }
+      seen.set(part.toolCallId, location)
+    })
+  })
 }
 
 /**
@@ -362,5 +387,7 @@ export async function toModelMessages(
     tools
   })
   const gated = routeToolResultMedia(model, caps ?? ALL_MEDIA, toolResultCaps ?? caps ?? ALL_MEDIA)
-  return ensureNonEmptyAssistantContent(coalesceConsecutiveSameRole(gated))
+  const final = ensureNonEmptyAssistantContent(coalesceConsecutiveSameRole(gated))
+  assertNoDuplicateToolCallIds(final)
+  return final
 }

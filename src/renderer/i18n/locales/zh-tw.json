@@ -1568,6 +1568,8 @@
   "error.diagnostics.preparing_result": "正在整理結果…",
   "error.diagnostics.result": "診斷結果",
   "error.diagnostics.result_summary": "<fixed>已修復：{{fixed}}；</fixed><attention>需要注意：{{attention}}</attention>。",
+  "error.duplicate_tool_call_id": "工具呼叫 ID 重複",
+  "error.duplicate_tool_call_id_detail": "{{toolCallId}} 在重播的歷史記錄中出現多次（{{locations}}）。",
   "error.errors": "錯誤",
   "error.finishReason": "結束原因",
   "error.functionality": "功能",
