@@ -77,11 +77,9 @@ const CompactionAnchorBlock: React.FC<Props> = ({ data }) => {
   return (
     <div className="my-3 flex w-full items-center gap-3 text-muted-foreground" role="separator">
       <span className="h-px min-w-6 flex-1 border-t border-dashed border-border-subtle" aria-hidden />
-      {saved === undefined ? (
-        <span className="size-1.5 shrink-0 rounded-full bg-border" aria-hidden />
-      ) : (
-        <span className="shrink-0 text-xs">{t('chat.compaction.compacted', { count: saved })}</span>
-      )}
+      <span className="shrink-0 text-xs">
+        {saved === undefined ? t('chat.compaction.compacted_plain') : t('chat.compaction.compacted', { count: saved })}
+      </span>
       <span className="h-px min-w-6 flex-1 border-t border-dashed border-border-subtle" aria-hidden />
     </div>
   )

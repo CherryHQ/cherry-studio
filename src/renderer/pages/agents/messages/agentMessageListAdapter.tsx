@@ -27,6 +27,7 @@ import { dispatchLocateMessage } from '@renderer/components/chat/messages/utils/
 import { bindCaptureMessageImageRuntime } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { getMessageListItemModel, toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import type { DiagnosticReportConfig } from '@renderer/components/ErrorDetailModal'
+import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
@@ -50,6 +51,7 @@ import {
   rejectPendingAgentSessionImageActions,
   settleAgentSessionImageActionRequest
 } from './agentSessionImageActionBus'
+import { useAgentSteerPresentation } from './useAgentSteerPresentation'
 
 const exportToObsidian: ExportMessagesToObsidian = async (title, messages) => {
   const { default: popup } = await import('@renderer/components/ObsidianExportPopup')
@@ -210,6 +212,11 @@ export function useAgentMessageListProviderValue({
   afterMessages
 }: AgentMessageListParams): MessageListProviderValue {
   const { t } = useTranslation()
+  const latestMessage = messages.at(-1)
+  const latestUserMessageId = latestMessage?.role === 'user' ? latestMessage.id : undefined
+  useEffect(() => {
+    if (scrollToBottomOnSend && latestUserMessageId) agentMessageListRuntimes.get(topic.id)?.scrollToBottom()
+  }, [latestUserMessageId, scrollToBottomOnSend, topic.id])
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
   const sessionId = useMemo(() => extractAgentSessionIdFromTopicId(topic.id), [topic.id])
   const resolvedAgentId = assistantId ?? topic.assistantId
@@ -223,30 +230,46 @@ export function useAgentMessageListProviderValue({
       }
     >()
   )
-  const displayPartsByMessageId = useMemo(
+  const completePartsByMessageId = useMemo(
     () => withTerminalErrorFallback(messages, partsByMessageId, t('error.no_response')),
     [messages, partsByMessageId, t]
   )
-  const displayStreamingLayers = useMemo(() => {
-    if (!streamingLayers) return undefined
-
-    const historyPartsByMessageId = withTerminalErrorFallback(
-      messages,
-      streamingLayers.historyPartsByMessageId,
-      t('error.no_response')
-    )
-    if (historyPartsByMessageId === streamingLayers.historyPartsByMessageId) return streamingLayers
-
-    return { ...streamingLayers, historyPartsByMessageId }
-  }, [messages, streamingLayers, t])
+  const { activeExecutions } = useTopicStreamStatus(topic.id)
+  const presentation = useAgentSteerPresentation({
+    topicId: topic.id,
+    messages,
+    partsByMessageId: completePartsByMessageId,
+    activeExecutions
+  })
+  const displayPartsByMessageId = presentation.partsByMessageId
+  const historyPartsByMessageId = useMemo(
+    () =>
+      streamingLayers
+        ? withTerminalErrorFallback(messages, streamingLayers.historyPartsByMessageId, t('error.no_response'))
+        : displayPartsByMessageId,
+    [displayPartsByMessageId, messages, streamingLayers, t]
+  )
+  const displayStreamingLayers = useMemo(
+    () => ({
+      historyPartsByMessageId,
+      liveMessageIds: [...new Set([...presentation.liveMessageIds, ...presentation.projectedMessageIds])],
+      heldPartsByMessageId: presentation.heldPartsByMessageId
+    }),
+    [
+      historyPartsByMessageId,
+      presentation.liveMessageIds,
+      presentation.projectedMessageIds,
+      presentation.heldPartsByMessageId
+    ]
+  )
   const visibleMessages = useMemo(
     () =>
-      messages.filter((message) => {
+      presentation.messages.filter((message) => {
         const parts = displayPartsByMessageId[message.id] ?? message.parts ?? []
-        if (parts.length === 0) return true
+        if (parts.length === 0) return !presentation.heldPartsByMessageId[message.id]
         return parts.some((part) => !hasPartParentToolCallId(part))
       }),
-    [displayPartsByMessageId, messages]
+    [displayPartsByMessageId, presentation.messages, presentation.heldPartsByMessageId]
   )
   const messageItems = useMemo(() => {
     return visibleMessages.map((message) => {
@@ -278,6 +301,10 @@ export function useAgentMessageListProviderValue({
     },
     [resolvedAgentId]
   )
+  const deletePresentedMessage = useCallback<NonNullable<MessageListActions['deleteMessage']>>(
+    (id, options) => deleteMessage?.(presentation.sourceMessageIds[id] ?? id, options),
+    [deleteMessage, presentation.sourceMessageIds]
+  )
   const {
     errorActions,
     exportActions,
@@ -297,7 +324,7 @@ export function useAgentMessageListProviderValue({
     messages: messageItems,
     partsByMessageId: displayPartsByMessageId,
     streamingLayers: displayStreamingLayers,
-    deleteMessage,
+    deleteMessage: deleteMessage ? deletePresentedMessage : undefined,
     diagnosticReport,
     getDoctorSubject,
     selectAllPagination
@@ -430,7 +457,7 @@ export function useAgentMessageListProviderValue({
       try {
         const result = await ipcApi.request('ai.agent.session.fork', {
           sourceSessionId: sessionId,
-          messageId
+          messageId: presentation.sourceMessageIds[messageId] ?? messageId
         })
         openRoute('/app/agents', { sessionId: result.sessionId })
       } catch (error) {
@@ -442,7 +469,7 @@ export function useAgentMessageListProviderValue({
         throw error
       }
     },
-    [sessionId, t, notifyError]
+    [sessionId, t, notifyError, presentation.sourceMessageIds]
   )
   const state = useMemo<MessageListState>(
     () => ({
@@ -517,7 +544,7 @@ export function useAgentMessageListProviderValue({
         : undefined,
       loadOlder,
       bindRuntime,
-      deleteMessage,
+      deleteMessage: deleteMessage ? deletePresentedMessage : undefined,
       ...exportActions,
       ...errorActions,
       ...pickMessageLeafActions(leafCapabilities),
@@ -557,6 +584,7 @@ export function useAgentMessageListProviderValue({
       bindMessageGroupRuntime,
       bindMessageRuntime,
       deleteMessage,
+      deletePresentedMessage,
       errorActions,
       exportActions,
       headerCapabilities,

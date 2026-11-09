@@ -240,6 +240,9 @@ export const useOptionalMessageListTopicId = (): string | undefined => {
   return use(MessageListDataContext)?.topic.id
 }
 
+export const useMessageHeldParts = (messageId: string): CherryMessagePart[] | undefined =>
+  use(MessageListDataContext)?.streamingLayers?.heldPartsByMessageId?.[messageId]
+
 /**
  * Back-compat hook: returns the merged static + selectors UI value. Subscribes
  * to BOTH underlying contexts, so it re-renders on either update — fine for
@@ -274,6 +277,7 @@ const INACTIVE_MESSAGE_ACTIVITY_STATE = Object.freeze({
 })
 
 export const useMessageListItemActivityState = (message: MessageListItem) => {
+  const heldParts = useMessageHeldParts(message.id)
   const activity = useRequiredContext(MessageListActivityContext, 'useMessageListItemActivityState')
   const store = activity.messageActivityStore
   const subscribe = useCallback(
@@ -286,6 +290,7 @@ export const useMessageListItemActivityState = (message: MessageListItem) => {
   )
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 
+  if (heldParts) return INACTIVE_MESSAGE_ACTIVITY_STATE
   return store ? snapshot : (activity.getMessageActivityState?.(message) ?? INACTIVE_MESSAGE_ACTIVITY_STATE)
 }
 

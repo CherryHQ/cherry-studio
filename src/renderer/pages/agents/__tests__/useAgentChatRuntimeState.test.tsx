@@ -50,7 +50,8 @@ const mocks = vi.hoisted(() => ({
   toastWarning: vi.fn(),
   autoReadUpdate: vi.fn(),
   autoReadConsume: vi.fn(async () => ({ status: 'started' })),
-  autoReadEnabled: true
+  autoReadEnabled: true,
+  isPending: false
 }))
 
 // respondToolApproval now goes through ipcApi.request('ai.tool.respond_approval', …).
@@ -105,7 +106,7 @@ vi.mock('@renderer/hooks/useConversationTurnController', () => ({
 }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ isPending: false }),
+  useTopicStreamStatus: () => ({ isPending: mocks.isPending }),
   useTopicOverlayHandoffOnTerminal: mocks.useTopicOverlayHandoffOnTerminal
 }))
 
@@ -117,7 +118,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-import { useAgentChatRuntimeState } from '../useAgentChatRuntimeState'
+import { type AgentTurnInput, useAgentChatRuntimeState } from '../useAgentChatRuntimeState'
 
 vi.mock('@cherrystudio/ui', async () => {
   const { MockCherrystudioUI } = await import('@test-mocks/renderer/CherrystudioUI')
@@ -421,6 +422,7 @@ describe('useAgentChatRuntimeState', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.isPending = false
     toast.closeAll()
     mocks.controllerOptions.mockReset()
     mocks.streamOpen.mockReset()
@@ -538,6 +540,72 @@ describe('useAgentChatRuntimeState', () => {
     })
 
     expect(sent).toBe(false)
+  })
+
+  it('shows a steer before dispatch completes and removes its optimistic row on rejection', async () => {
+    mocks.isPending = true
+    let resolveSend!: (value: boolean) => void
+    mocks.sendTurn.mockReturnValue(
+      new Promise<boolean>((resolve) => {
+        resolveSend = resolve
+      })
+    )
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+    let sending!: Promise<boolean>
+    act(() => {
+      sending = result.current.sendMessage({ text: 'Use Python instead' })
+    })
+    expect(result.current.uiMessages.at(-1)?.parts).toEqual([{ type: 'text', text: 'Use Python instead' }])
+    await act(async () => {
+      resolveSend(false)
+      await sending
+    })
+    expect(
+      result.current.uiMessages.some((message) =>
+        message.parts.some((part) => part.type === 'text' && part.text === 'Use Python instead')
+      )
+    ).toBe(false)
+  })
+
+  it('reconciles an accepted steer with its saved user row without displaying a duplicate', async () => {
+    mocks.isPending = true
+    const saved: CherryUIMessage = {
+      id: 'saved-steer',
+      role: 'user',
+      parts: [{ type: 'text', text: 'Use Python instead' }]
+    }
+    mocks.streamOpen.mockResolvedValue({ mode: 'injected', reservedMessages: [saved] })
+    mocks.sendTurn.mockImplementation(async (input: AgentTurnInput) => {
+      const options = mocks.controllerOptions.mock.lastCall![0]
+      await options.openStream(
+        { trigger: 'submit-message', topicId: 'agent-session:session-1', userMessageParts: saved.parts },
+        input
+      )
+      return true
+    })
+    const { result, rerender } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+    await act(async () => {
+      await result.current.sendMessage({ text: 'Use Python instead' })
+    })
+    expect(result.current.uiMessages.filter((message) => message.role === 'user')).toEqual([saved])
+    mocks.useAgentSessionParts.mockReturnValue({
+      ...mocks.useAgentSessionParts.mock.results.at(-1)?.value,
+      messages: [assistantMessage, saved]
+    })
+    rerender()
+    expect(result.current.uiMessages.filter((message) => message.id === saved.id)).toHaveLength(1)
   })
 
   it.each([

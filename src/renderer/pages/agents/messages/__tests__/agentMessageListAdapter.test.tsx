@@ -439,7 +439,7 @@ describe('useAgentMessageListProviderValue', () => {
       selectAllDisabled: false,
       isSelectAllLoading: false
     })
-    expect(value?.actions.deleteMessage).toBe(deleteMessage)
+    expect(value?.actions.deleteMessage).toEqual(expect.any(Function))
     expect(value?.actions.respondToolApproval).toBe(respondToolApproval)
     expect(value?.actions.selectMessage).toEqual(expect.any(Function))
     expect(value?.actions.toggleMultiSelectMode).toEqual(expect.any(Function))

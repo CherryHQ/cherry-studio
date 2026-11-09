@@ -64,6 +64,7 @@ export type AgentSendOptions = AgentComposerSendOptions
 
 export interface AgentTurnInput {
   text: string
+  presentationId?: string
   editTarget?: AgentSessionEditTarget
   options?: AgentSendOptions
 }
@@ -195,6 +196,9 @@ export function useAgentChatRuntimeState({
   const editing = editDraft?.sessionId === sessionId ? editDraft : undefined
   const [editPending, setEditPending] = useState(false)
   const [resendingHistory, setResendingHistory] = useState<{ sessionId: string; messages: CherryUIMessage[] }>()
+  const [steerDrafts, setSteerDrafts] = useState<
+    { sessionId: string; presentationId: string; message: CherryUIMessage }[]
+  >([])
   const optimisticMessages = resendingHistory?.sessionId === sessionId ? resendingHistory.messages : undefined
   const editRequestRef = useRef(false)
   const currentSessionRef = useRef(sessionId)
@@ -249,6 +253,7 @@ export function useAgentChatRuntimeState({
   }, [reservedMessages, seedReservedMessages, sessionMessagesEnabled])
 
   const { activeExecutions, setMessages, stop } = useChatWithHistory(sessionTopicId, uiMessages, refresh)
+  const { isPending } = useTopicStreamStatus(sessionTopicId)
   const historyAdapter = useMemo<ConversationHistoryAdapter>(
     () => ({
       seedReservedMessages,
@@ -278,7 +283,20 @@ export function useAgentChatRuntimeState({
     onError: (error, input) =>
       input.editTarget ? reportEditError(error) : errorToastsRef.current?.report(error, modelId),
     openStream: async (request, input) => {
-      if (!input.editTarget || request.trigger !== 'submit-message') return ipcApi.request('ai.stream.open', request)
+      if (!input.editTarget || request.trigger !== 'submit-message') {
+        const ack = await ipcApi.request('ai.stream.open', request)
+        const userMessage =
+          ack.mode === 'blocked' ? undefined : ack.reservedMessages?.find((row) => row.role === 'user')
+        if (userMessage && input.presentationId)
+          setSteerDrafts((drafts) =>
+            drafts.map((draft) =>
+              draft.sessionId === sessionId && draft.presentationId === input.presentationId
+                ? { ...draft, message: userMessage }
+                : draft
+            )
+          )
+        return ack
+      }
       const ack = await ipcApi.request('ai.agent.session.edit_resend', {
         sessionId,
         target: { messageId: input.editTarget.messageId, version: input.editTarget.version },
@@ -297,9 +315,33 @@ export function useAgentChatRuntimeState({
   })
   const sendMessage = useCallback(
     async (message?: { text: string }, options?: AgentSendOptions) => {
-      return send({ text: message?.text ?? '', options })
+      const text = message?.text ?? ''
+      if (!isPending) return send({ text, options })
+      const presentationId = crypto.randomUUID()
+      const draft: CherryUIMessage = {
+        id: presentationId,
+        role: 'user',
+        parts: getAgentTurnParts({ text, options }),
+        metadata: { createdAt: new Date().toISOString(), parentId: latestUiMessagesRef.current.at(-1)?.id }
+      }
+      setSteerDrafts((current) => [
+        ...current.filter(
+          (item) =>
+            item.sessionId === sessionId && !latestUiMessagesRef.current.some((row) => row.id === item.message.id)
+        ),
+        { sessionId, presentationId, message: draft }
+      ])
+      try {
+        const sent = await send({ text, options, presentationId })
+        if (sent) return true
+      } catch (error) {
+        setSteerDrafts((current) => current.filter((item) => item.presentationId !== presentationId))
+        throw error
+      }
+      setSteerDrafts((current) => current.filter((item) => item.presentationId !== presentationId))
+      return false
     },
-    [send]
+    [isPending, send, sessionId]
   )
   const deleteMessage = useCallback(
     async (messageId: string) => {
@@ -347,8 +389,31 @@ export function useAgentChatRuntimeState({
       handleExecutionFinish(executionId, event)
     }
   })
+  const presentationHistory = useMemo(
+    () =>
+      optimisticMessages ??
+      mergeMessagesById(
+        uiMessages,
+        steerDrafts
+          .filter(
+            (draft) => draft.sessionId === sessionId && !uiMessages.some((message) => message.id === draft.message.id)
+          )
+          .map((draft) => draft.message)
+      ),
+    [optimisticMessages, sessionId, steerDrafts, uiMessages]
+  )
+  const displayMessages = useMemo(
+    () =>
+      optimisticMessages ??
+      mergeMessagesById(
+        presentationHistory,
+        liveAssistants.filter((live) => presentationHistory.some((message) => message.id === live.id))
+      ),
+    [liveAssistants, optimisticMessages, presentationHistory]
+  )
+
   const { partsByMessageId, streamingLayers } = useMessageStreamingLayers({
-    messages: optimisticMessages ?? uiMessages,
+    messages: presentationHistory,
     overlay,
     executions: activeExecutions,
     liveAssistants
@@ -395,16 +460,6 @@ export function useAgentChatRuntimeState({
       return next
     })
   }, [])
-
-  const displayMessages = useMemo(
-    () =>
-      optimisticMessages ??
-      mergeMessagesById(
-        uiMessages,
-        liveAssistants.filter((live) => uiMessages.some((message) => message.id === live.id))
-      ),
-    [liveAssistants, optimisticMessages, uiMessages]
-  )
 
   const respondToolApproval = useCallback(
     async (input: MessageToolApprovalInput) => {
@@ -461,7 +516,6 @@ export function useAgentChatRuntimeState({
     streamingLayers,
     onRespond: respondToolApproval
   })
-  const { isPending } = useTopicStreamStatus(sessionTopicId)
   const sessionClosing = useSharedCacheValue(AGENT_SESSION_CLOSING_CACHE_KEY(sessionId)) === true
   const editBusy = isPending || sessionClosing || editPending || toolApprovalComposerOverrides.length > 0
   const cancelEditing = useCallback(() => {

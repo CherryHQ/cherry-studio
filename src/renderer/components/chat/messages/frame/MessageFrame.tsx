@@ -12,7 +12,9 @@ import { classNames, cn } from '@renderer/utils/style'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { createUniqueModelId, type Model } from '@shared/data/types/model'
 
+import CompactionAnchorBlock from '../blocks/CompactionAnchorBlock'
 import MessageImageBlock from '../blocks/MessageImageBlock'
+import { isHiddenPart, isReasoningMessagePart, isSubstantiveAnswerPart } from '../blocks/messagePartLayouts'
 import { MessagePartsScopeProvider, useMessageParts } from '../blocks/MessagePartsContext'
 import { getHoistedAttachments } from '../blocks/MessagePartsRenderer'
 import { useScrollRuntimeNavigation } from '../list/ScrollOwnershipContext'
@@ -203,6 +205,42 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           <span>{t('chat.message.new.context')}</span>
           <hr className="flex-1 border-dashed border-border" />
         </div>
+      </div>
+    )
+  }
+
+  if (
+    isAssistantMessage &&
+    messageParts.length > 0 &&
+    messageParts.every((part) => part.type === 'data-compaction-anchor')
+  ) {
+    return (
+      <div ref={messageContainerRef}>
+        {messageParts.map((part, index) => (
+          <CompactionAnchorBlock key={part.id ?? index} data={part.data} />
+        ))}
+      </div>
+    )
+  }
+
+  if (
+    isAssistantMessage &&
+    message.status === 'paused' &&
+    messageParts.every(
+      (part) =>
+        isHiddenPart(part) ||
+        (part.type === 'text' && !isSubstantiveAnswerPart(part)) ||
+        (part.type === 'reasoning' && !isReasoningMessagePart(part))
+    )
+  ) {
+    return (
+      <div
+        ref={messageContainerRef}
+        className="my-3 flex w-full items-center gap-3 text-muted-foreground"
+        role="separator">
+        <span className="h-px min-w-6 flex-1 border-t border-dashed border-border-subtle" aria-hidden />
+        <span className="shrink-0 text-xs">{t('notification.center.result.interrupted')}</span>
+        <span className="h-px min-w-6 flex-1 border-t border-dashed border-border-subtle" aria-hidden />
       </div>
     )
   }

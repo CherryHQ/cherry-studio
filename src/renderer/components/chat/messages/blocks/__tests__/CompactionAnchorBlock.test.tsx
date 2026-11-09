@@ -41,6 +41,16 @@ describe('CompactionAnchorBlock', () => {
     expect(screen.getByText('Compacted 4000 tokens')).toBeInTheDocument()
   })
 
+  it('labels a completed session compaction even when no token counts were measured', () => {
+    render(<CompactionAnchorBlock data={anchor({ phase: 'agent-session' })} />)
+    expect(screen.getByRole('separator')).toHaveTextContent('Context compacted')
+  })
+
+  it('keeps historical anchors without a payload understandable', () => {
+    render(<CompactionAnchorBlock />)
+    expect(screen.getByRole('separator')).toHaveTextContent('Context compacted')
+  })
+
   // #17837: a fold that changed nothing used to settle as `done`, so an untouched history
   // rendered "Context compacted". `skipped` must draw nothing at all.
   it('renders nothing for a skipped (no-op) fold', () => {

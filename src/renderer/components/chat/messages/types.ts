@@ -313,6 +313,8 @@ export type MessageRenderConfigUpdate = Partial<
 export interface MessageStreamingLayers {
   historyPartsByMessageId: Record<string, CherryMessagePart[]>
   liveMessageIds: readonly string[]
+  /** Stable visible content while an execution yields to a new user input. */
+  heldPartsByMessageId?: Record<string, CherryMessagePart[]>
 }
 
 export interface MessageTailSlot {
