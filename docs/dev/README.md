@@ -42,9 +42,9 @@
 | [Browser Use — Implementation Plan](./references/ai/browser-use-implementation.md) | Browser session engine implementation, MCP contracts, and stacked delivery plan |
 | [Chat Attachments](./references/ai/chat-attachments.md) | Per-attachment routing to native file parts or capped extracted text, with read_file paging for truncated overflow |
 | [Core Architecture](./references/ai/core-architecture.md) | End-to-end chat turn flow from renderer IPC transport through AiStreamManager and Agent loop to persistence |
-| [Execution Overlay](./references/ai/execution-overlay.md) | Renderer stream overlay — TopicStreamSubscription demux by execution and anchor feeding readUIMessageStream snapshots |
+| [Execution Overlay](./references/ai/execution-overlay.md) | Shared root and child message projections, bounded attachment recovery, and root overlay handoff |
 | [Image-Generation Parameterized Architecture](./references/ai/image-generation-parameters.md) | Data-driven image-generation params — registry supports to form fields, canonical bag to vendor wire via WireProfile |
-| [IPC Transport](./references/ai/ipc-transport.md) | IpcChatTransport bridging useChat to Main over ai.stream.* IpcApi routes, with dispatch ack coordination and detach vs abort |
+| [IPC Transport](./references/ai/ipc-transport.md) | Desktop AI commands and shared root/child message projection subscriptions over IpcApi |
 | [Local Models](./references/ai/local-models.md) | Local model subsystem — the bundle catalog, on-disk installation state, verified acquisition, and the worker runtime that infers over installed models |
 | [Model Retry & Fallback](./references/ai/model-retry.md) | User-configurable same-model retry plus fallback models via ai-retry wrapModel, driven by chat.retry.* preferences |
 | [Observability](./references/ai/observability.md) | OTel tracing for AI calls and agent runtimes — Cherry roots, SDK adapters, runtime spans, local projection, and sinks |
@@ -182,6 +182,7 @@
 | [Handler Authoring](./references/job-and-scheduler/handler-authoring.md) | Writing a JobHandler — onInit registration timing, minimal echo example, and JobRegistry type binding |
 | [Migration Checklist](./references/job-and-scheduler/migration-checklist.md) | Per-handler checklist for migrating existing background services to JobManager — recovery, queues, tests, data moves |
 | [Job & Scheduler — Architecture Overview](./references/job-and-scheduler/overview.md) | Job and scheduler architecture — two-service split, DB-driven dispatch, six-state machine, and startup recovery |
+| [Scheduled tasks page](./references/job-and-scheduler/scheduled-tasks-page.md) | Scheduled tasks page navigation, conversation selection, pagination, and upgrade behavior |
 | [Scheduler Usage — Decision Tree](./references/job-and-scheduler/scheduler-usage.md) | Decision tree for choosing JobManager, SchedulerService, BaseService.registerInterval, or a raw timer |
 
 ### Knowledge

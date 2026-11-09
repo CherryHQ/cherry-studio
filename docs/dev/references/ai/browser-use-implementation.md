@@ -273,16 +273,20 @@ rejects pending operations; snapshots are serialized and discarded if the docume
 Scoped snapshots do not replace the full-page diff baseline.
 
 PR A attach sequence (`GuestSession.ensureAttached`): `attach('1.3')` → `Page.enable`,
-`Runtime.enable`, `DOM.enable`, `Accessibility.enable` → `Page.getFrameTree`. Concurrent callers
-share initialization. Main-frame navigation and debugger detach invalidate refs and the previous
+`DOM.enable`, `Accessibility.enable` → `Page.getFrameTree`. Concurrent callers
+share initialization. `Runtime.enable` is on demand from console/annotation/WebMCP flows (site
+anti-debugging: #23400). Main-frame navigation and debugger detach invalidate refs and the previous
 snapshot; the ref counter never resets within the session. Dialog open/closed events update state.
 
 PR B adds download tracking and the Network events needed for settling. PR3 adds console/network
 inspection and typed consumed events via `ProtocolMapping.Events`. `BrowserInspection` belongs to
 the guest, records only managed sessions, retains recent history across navigation and clears on
-detach/disposal. Managed-tab readiness enables Runtime and Network after the initial blank document;
-GUI navigation waits for that readiness so its initial requests are captured. Annotation-only borrowed
-guests remain lazy. Diagnostic URLs redact credential query values while retaining ordinary parameters.
+detach/disposal. Managed-tab readiness enables Network after the initial blank document.
+`Runtime.enable` is issued on demand by the console-inspection tools, WebMCP tool discovery and
+annotation capture; console and uncaught-exception recording therefore starts with the first of
+those calls on a tab, and that is the documented compatibility trade-off (#23400). GUI navigation
+waits for that readiness so its initial requests are captured. Annotation-only borrowed guests
+remain lazy. Diagnostic URLs redact credential query values while retaining ordinary parameters.
 Text fields cap at 2,000 characters; entry-array output caps at 40,000 serialized
 characters, returning the newest entries with `truncated` when needed. `clear` removes all selected
 entries, including ones omitted by the output cap, without touching the separate settling state.

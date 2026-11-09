@@ -4,6 +4,8 @@ Status: proposed
 
 [English](2026-10-17-agent-harness-evidence.md) | 中文
 
+旧 Pi 执行器的源码／测试链接固定在收缩前的 `46d76e4`，仅保留历史证据。现行实现及测试归属见[运行时边界收缩方案](../simplification/2026-11-05-agent-runtime-boundary-ownership.md)第 11 节；这些旧入口已退出生产路径。
+
 ## Problem
 
 不同 harness 的方法都叫 `prompt`、对象都叫 `session`，或者 Promise 都成功返回，并不表示行为相同。通用契约需要身份、接纳、观察、中断、所有权和恢复方面的证据。某个适配器没有暴露一项操作，也不能证明原生 harness 没有该能力。
@@ -64,7 +66,7 @@ ACP 是接入协议，不是执行引擎。该样本研究协议可表达的 har
 
 官方子智能体示例通过 `--mode json -p --no-session` 启动子进程，并把进度送到父工具的 `onUpdate`。这一组合本身不提供稳定 child session、重启后继续对话或独立子流订阅的核心契约。[官方子智能体示例](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/coding-agent/examples/extensions/subagent/index.ts)
 
-Cherry 适配器使用自研的进程内[子智能体扩展](../../../../packages/agent-runtime-pi/src/subagent.ts)，复用 Pi 原生会话。公共 child `input.submit` 现在共用其消息控制器，仅支持 `steer` 策略。当前选择、已实现桥接和剩余控制由[子智能体控制记录](../architecture/2026-10-18-agent-runtime-subagent-control.md)维护。这些扩展能力不能当作 Pi 官方示例或核心 API 的保证。
+Cherry 适配器使用自研的进程内[子智能体扩展](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/src/subagent.ts)，复用 Pi 原生会话。公共 child `input.submit` 现在共用其消息控制器，仅支持 `steer` 策略。当前选择、已实现桥接和剩余控制由[子智能体控制记录](../architecture/2026-10-18-agent-runtime-subagent-control.md)维护。这些扩展能力不能当作 Pi 官方示例或核心 API 的保证。
 
 #### 关系示例
 
@@ -198,6 +200,8 @@ later collab operation K2 -> same Thread C -> later Turn T3
 
 ### 按协议版本研究 ACP 智能体
 
+[ACP v1 适配器 Spec](../architecture/2026-11-09-agent-runtime-acp-v1.md) 记录 2026-11-09 的协议／SDK 更新、Claude/Gemini 调研，以及已执行的传输／初始化探针。下文保留原有固定基线；本次更新不代表原生 prompt 或桌面验收已完成。
+
 #### v1
 
 `session/prompt` 在处理期间保持 pending，智能体经 `session/update` 推送消息和工具更新，最终响应返回 stopReason。JSON-RPC request ID 关联本次调用，不因此建立可查询、持久化的执行对象。`session/cancel` 后仍可能有收尾更新，由 prompt 响应确认完成。[v1 Prompt turn](https://github.com/agentclientprotocol/agent-client-protocol/blob/e7dac67ac64ec7cf69079b3bb6eff46a21e026b3/docs/protocol/v1/prompt-turn.mdx)
@@ -241,7 +245,7 @@ Subagent RFD 通过父 session 的 `subagent_update` 宣告 child session；chil
 
 #### 创建、续接与控制证据
 
-- **Pi：**[官方示例](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/coding-agent/examples/extensions/subagent/index.ts)使用 `--no-session`、子进程信号和父工具进度。Cherry 的[消息路径](../../../../packages/agent-runtime-pi/src/subagent.ts)会排入运行中的 child，或重新打开已保存的 child 并增加 `run`。其[关系投影](../../../../packages/agent-runtime-pi/src/runtime.ts)现在使用父方范围内的原生 child ID，替代此前的 trigger/child 身份，没有将 run 计数作为精确取消目标暴露。
+- **Pi：**[官方示例](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/coding-agent/examples/extensions/subagent/index.ts)使用 `--no-session`、子进程信号和父工具进度。Cherry 的[消息路径](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/src/subagent.ts)会排入运行中的 child，或重新打开已保存的 child 并增加 `run`。其[关系投影](../../../../packages/agent-runtime-pi/src/runtime.ts)现在使用父方范围内的原生 child ID，替代此前的 trigger/child 身份，没有将 run 计数作为精确取消目标暴露。
 - **Pi Durable：**[后台示例](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/durable/test/examples/23-subagent-background.ts)通过 commit 创建 anchor、conversation 与 reporter。Reporter 阶段保存进度，request ID 对提交去重，answer entry ID 对报告去重。[前台示例](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/durable/test/examples/22-subagent-foreground.ts)由发起调用的工具 task 拥有 child。Cherry 的 [Durable 投影](../../../../packages/agent-runtime-pi-durable/src/runtime.ts)从原生所有权发现关系，并按 child conversation 标识它们，不是按任务区分 reporter 的身份。
 - **DSH：**[服务契约](https://github.com/deepseek-ai/deepseek-harness/blob/1600d8a1e140dcde43a1a0941940a0480712c011/packages/subagent/subagent/README.md)区分本地续接、外部执行，以及向父方或调用者交付。[Manager](https://github.com/deepseek-ai/deepseek-harness/blob/1600d8a1e140dcde43a1a0941940a0480712c011/packages/subagent/subagent/src/manager.ts) 的 `receipt(activation)` 为释放操作闭包捕获特定 activation。Caller delivery 不发送父方通知。清理失败可以使 dispose 失败而不覆盖已捕获的成功结果；结果、清理和父方交付是不同事实。
 - **Codex：**内部 [send_message](https://github.com/openai/codex/blob/ce0323f2f2d3b25e82806cd555237da3db4e1897/codex-rs/core/src/tools/handlers/multi_agents_v2/send_message.rs) 与 [followup_task](https://github.com/openai/codex/blob/ce0323f2f2d3b25e82806cd555237da3db4e1897/codex-rs/core/src/tools/handlers/multi_agents_v2/followup_task.rs) 分别选择 `QueueOnly` 与 `TriggerTurn`，仅忙碌策略不能表达这个差异。[智能体中断](https://github.com/openai/codex/blob/ce0323f2f2d3b25e82806cd555237da3db4e1897/codex-rs/core/src/agent/control/interrupt.rs)针对智能体，不接收某次旧任务作为目标。[App Server 请求接口](https://github.com/openai/codex/blob/ce0323f2f2d3b25e82806cd555237da3db4e1897/codex-rs/app-server-protocol/src/protocol/common.rs)是另一份契约；仅 `thread/start` 不建立原生子智能体所有权。内部 MultiAgentV2 与 App Server v2 是不同版本维度。
@@ -251,7 +255,7 @@ Subagent RFD 通过父 session 的 `subagent_update` 宣告 child session；chil
 
 公共观察层可以描述有证据的关系和可用输出来源。仅有关系，既不能证明一次任务，也不能证明精确取消目标。输入与控制仍属于具体访问入口的能力；只有关系或当前活动证据时，保留未知结果。
 
-Pi 与 Durable 可以通过各自原生实现共享 Cherry 产品策略。[Pi 交付](../../../../packages/agent-runtime-pi/src/subagentDelivery.ts)在用户停止父方后禁止自动唤醒，直到另一轮开始；Durable 示例允许停止后到达的报告唤醒父方。内存中的完成回调也不能代替 Durable 已提交的 reporter 状态。只有存在等价消费者时才共享纯校验或格式化；把 Pi 控制器搬进公共包不能解决这些差异。
+Pi 与 Durable 可以通过各自原生实现共享 Cherry 产品策略。[Pi 交付](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/src/subagentDelivery.ts)在用户停止父方后禁止自动唤醒，直到另一轮开始；Durable 示例允许停止后到达的报告唤醒父方。内存中的完成回调也不能代替 Durable 已提交的 reporter 状态。只有存在等价消费者时才共享纯校验或格式化；把 Pi 控制器搬进公共包不能解决这些差异。
 
 以下场景用于区分所需控制。下方验证部分记录已实现子集，此表不表示所有场景都已通过：
 
@@ -308,12 +312,13 @@ OAR 基线 `141921ea5a818bd8b0a1c0c1e17a2593898dbefe` 的 `packages/oar/src/runt
 | [Pi 适配器](../../../../packages/agent-runtime-pi/tests/runtime.test.ts) | 多访问者共享内容身份；流式输出与 release 隔离；原生忙时拒绝；命令 preflight 与 follow-up 入队；错误原生身份拒绝；原生文件正常关闭和重开；经所有者执行的 child 续接及运行中 steering；child 重新绑定后关系稳定且观察持续；原生父方通知仅一次；shutdown 等待 child 接纳。 |
 | [Pi 原生会话](../../../../packages/agent-runtime-pi/tests/nativeSession.test.ts) | 原生提供商执行，以及调用方保有借入 model runtime 的所有权，不依赖 Cherry AI SDK 桥接。 |
 | [Pi Durable 适配器](../../../../packages/agent-runtime-pi-durable/tests/runtime.test.ts) | 当前视图与输入完成；忙时拒绝、去重、按会话撤回；后续状态读取失败不丢失接纳回执；owned child 独立观察及父访问释放后继续输入；关系稳定且父输出不变；SQLite 正常关闭重开；被动观察查询后显式 resume。 |
-| `src/main/ai/runtime/pi/gateway*.test.ts` 中的 Cherry 桥接测试 | 模型桥、原生历史、工具、压缩、goal、前后台子智能体、续接与结果交付。[子智能体停止测试](../../../../src/main/ai/runtime/pi/gatewaySubagentStop.test.ts)也覆盖通过所有者控制器中断 child thread。仅原生测试保留在 `packages/agent-runtime-pi/tests/`。 |
+| `packages/agent-runtime-pi/tests/` 中的原生行为测试 | 使用原生测试提供商，覆盖原生历史、工具、压缩、goal、前后台子智能体、续接与结果交付。[子智能体停止测试](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/tests/subagentStop.test.ts)也覆盖通过所有者控制器中断 child thread。 |
+| [Cherry 网关集成](../../../../src/main/ai/runtime/pi/gatewayIntegration.test.ts) | 以本地回环上游验证真实网关执行、提供商选择、请求选项、取消与 SQLite 计费。 |
 | [校验范围选择](../../../../scripts/__tests__/validationPlan.test.ts)、[校验工作流](../../../../scripts/__tests__/validationWorkflow.test.ts) | 新包纳入影响范围选择；公共包变化包含两个适配器的消费者检查。 |
 
 客户端工具参数由执行它的 harness 校验。即使 schema 校验失败，网关也保留对象参数和调用身份，让 harness 返回错误并由模型纠正。拒绝所有校验错误会截断这个循环；把 null 或无法解析的参数替换成 `{}` 则可能执行另一个调用。因此网关拒绝非对象的错误输入。`toolInputRecovery.test.ts` 通过真实协议转换器和原生 Pi 循环覆盖两类结果；共享夹具位于 `tests/helpers/piGateway.ts`，不放在生产 runtime 代码中。
 
-[Pi 桥接 README](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/README.md)说明测试使用真实 AI SDK 流式处理和本地 HTTP 提供商。这不等于真实外部提供商验收、完整上游 SDK 测试套件或 Electron 验收。测试文件和历史通过记录不能替代这些边界。
+[Pi 集成 README](../../../../src/main/ai/runtime/pi/README.md)区分原生包测试、网关集成和桌面连接所有权测试。这些测试不代表真实外部提供商验收、完整上游 SDK 测试套件或 Electron 验收。测试文件和历史通过记录不能替代这些边界。
 
 #### 子智能体输入实现验证 — 2026-10-19
 
@@ -411,6 +416,10 @@ Unsupported 或 unknown 可以是合法结果，但都不能算作更强保证�
 - 要求所有 harness 提供最丰富的子会话对话和取消行为：不采用，因为单次任务和仅可观察的子智能体也有效；独立的控制提案定义可选能力。
 - 离线测试通过就认定适配完成：不采用，因为生产接入、UI 投影、真实提供商、崩溃行为与副作用都需要独立验收。
 
+### 原生网关切换
+
+宿主现向内部网关注册 Pi 原生 provider。`gateway*.test.ts` 使用 HTTP fixture 和生产网关转换器；上面的旧 `aiSdk*.test.ts` 命令日志仍作为历史记录。受影响的 Main 范围通过了 39 个测试文件、659 个用例，两个原生 Pi 包测试文件通过了 15 个用例。`gatewayIntegration.test.ts` 使用本地上游验证真实网关执行、provider 解析、reasoning 选择、取消和 SQLite 计费。这些检查不代表真实 provider 或 Electron 验收。桌面根会话已经接入；独立子会话投影和 Durable 桌面接入仍是独立工作。
+
 ## Acceptance criteria
 
 - AC1 — 每项公共保证均可追溯到具名样本、固定源码或已执行测试，并有明确证据层级；历史版本仍可辨认。(verification: docs gate — 运行时契约与证据记录维护者)
@@ -419,7 +428,7 @@ Unsupported 或 unknown 可以是合法结果，但都不能算作更强保证�
 - AC4 — 持久化证据区分正常重开、崩溃恢复和外部副作用；更强恢复保证必须附带实际覆盖该场景的专项验证。(verification: unit — 适配器存储与恢复测试负责人)
 - AC5 — 宣布桌面接入完成前，真实应用能展示父任务完成后的独立子输出、预期的输入/控制路径，以及消费者重连，且不混淆宿主展示与原生执行。(verification: Electron — 桌面运行时与投影负责人)
 
-AC1 是文档约束；AC2–AC4 需要被验收实现版本上的证据。新适配器尚未接入桌面，所以 AC5 仍待完成。本 proposed 记录不表示整个栈已经满足这些条件。
+AC1 是文档约束；AC2–AC4 需要被验收实现版本上的证据。AC5 仍有独立子会话投影和 Durable 桌面接入待完成。本 proposed 记录不表示整个栈已经满足这些条件。
 
 ## Risks
 

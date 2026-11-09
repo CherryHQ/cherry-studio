@@ -195,10 +195,11 @@ describe('listModels — malformed OpenAI-compatible rows', () => {
       responses: [
         { data: [{ id: 'openrouter-chat' }], skippedModelCount: 1 },
         { data: [{ id: 'openrouter-embedding' }], skippedModelCount: 2 },
-        { data: [{ id: 'openrouter-image' }], skippedModelCount: 3 }
+        { data: [{ id: 'openrouter-image' }], skippedModelCount: 3 },
+        { data: [{ id: 'openrouter-reranker' }], skippedModelCount: 4 }
       ],
-      expectedModelIds: ['openrouter-chat', 'openrouter-embedding', 'openrouter-image'],
-      expectedSkippedModelCount: 6
+      expectedModelIds: ['openrouter-chat', 'openrouter-embedding', 'openrouter-image', 'openrouter-reranker'],
+      expectedSkippedModelCount: 10
     },
     {
       name: 'PPIO',
@@ -993,7 +994,8 @@ describe('listModels — openRouterFetcher image models', () => {
           modelsApiUrls: {
             default: 'https://openrouter.example/models',
             embedding: 'https://openrouter.example/embeddings/models',
-            image: 'https://openrouter.example/images/models'
+            image: 'https://openrouter.example/images/models',
+            reranker: 'https://openrouter.example/rerank/models'
           }
         },
         [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: {
@@ -1007,6 +1009,9 @@ describe('listModels — openRouterFetcher image models', () => {
   it('unions the dedicated image catalog and marks duplicate image models for image routing', async () => {
     const provider = makeOpenRouterProvider()
     aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) => {
+      if (url.endsWith('/rerank/models')) {
+        return Promise.resolve({ value: { data: [] } })
+      }
       if (url.endsWith('/embeddings/models')) {
         return Promise.resolve({ value: { data: [{ id: 'openai/text-embedding-3-small' }] } })
       }
@@ -1028,7 +1033,8 @@ describe('listModels — openRouterFetcher image models', () => {
     expect(aiSdkGetFromApiMock.mock.calls.map(([call]) => call.url)).toEqual([
       'https://openrouter.example/models',
       'https://openrouter.example/embeddings/models',
-      'https://openrouter.example/images/models'
+      'https://openrouter.example/images/models',
+      'https://openrouter.example/rerank/models'
     ])
     expect(models.map((model) => model.apiModelId)).toEqual([
       'anthropic/claude-sonnet-4',
@@ -1051,6 +1057,9 @@ describe('listModels — openRouterFetcher image models', () => {
     const apiKey = 'sk-should-not-reach-logs'
     const provider = makeOpenRouterProvider()
     aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) => {
+      if (url.endsWith('/rerank/models')) {
+        return Promise.resolve({ value: { data: [] } })
+      }
       if (url.endsWith('/images/models')) {
         return Promise.reject(new Error(`image catalog unavailable for ${apiKey}`))
       }
@@ -1067,6 +1076,181 @@ describe('listModels — openRouterFetcher image models', () => {
       ]
     })
     expect(JSON.stringify(mockMainLoggerService.warn.mock.calls)).not.toContain(apiKey)
+  })
+
+  it('unions the rerank catalog and marks rerank-only models', async () => {
+    aiSdkGetFromApiMock
+      .mockResolvedValueOnce({ value: { data: [] } })
+      .mockResolvedValueOnce({ value: { data: [] } })
+      .mockResolvedValueOnce({ value: { data: [] } })
+      .mockResolvedValueOnce({
+        value: { data: [{ id: 'voyageai/rerank-3', name: 'Voyage Rerank 3', owned_by: 'voyageai' }] }
+      })
+
+    const { models } = await listModels(makeOpenRouterProvider())
+
+    expect(models).toHaveLength(1)
+    expect(models[0]).toMatchObject({
+      apiModelId: 'voyageai/rerank-3',
+      name: 'Voyage Rerank 3',
+      ownedBy: 'voyageai',
+      capabilities: [MODEL_CAPABILITY.RERANK]
+    })
+    expect(models[0].endpointTypes).toBeUndefined()
+  })
+
+  it('adds rerank to a model that is already in the chat catalog without replacing its fields', async () => {
+    aiSdkGetFromApiMock
+      .mockResolvedValueOnce({
+        value: {
+          data: [
+            { id: 'anthropic/claude-sonnet-4', name: 'Claude' },
+            { id: ' voyageai/rerank-3 ', name: 'Chat Name', owned_by: 'chat-owner' },
+            { id: 'openai/gpt-4o', name: 'GPT' }
+          ]
+        }
+      })
+      .mockResolvedValueOnce({ value: { data: [] } })
+      .mockResolvedValueOnce({ value: { data: [] } })
+      .mockResolvedValueOnce({
+        value: { data: [{ id: 'voyageai/rerank-3', name: 'Rerank Name', owned_by: 'rerank-owner' }] }
+      })
+
+    const { models } = await listModels(makeOpenRouterProvider())
+
+    expect(models.map((model) => model.apiModelId)).toEqual([
+      'anthropic/claude-sonnet-4',
+      ' voyageai/rerank-3 ',
+      'openai/gpt-4o'
+    ])
+    expect(models[1]).toMatchObject({
+      name: 'Chat Name',
+      ownedBy: 'chat-owner',
+      capabilities: [MODEL_CAPABILITY.RERANK]
+    })
+    expect(models[1].endpointTypes).toBeUndefined()
+  })
+
+  it('preserves image projection when the same model is also a rerank model', async () => {
+    aiSdkGetFromApiMock
+      .mockResolvedValueOnce({ value: { data: [{ id: 'openai/gpt-image-2', name: 'Chat Name' }] } })
+      .mockResolvedValueOnce({ value: { data: [] } })
+      .mockResolvedValueOnce({ value: { data: [{ id: 'openai/gpt-image-2', name: 'Image Name' }] } })
+      .mockResolvedValueOnce({ value: { data: [{ id: ' openai/gpt-image-2 ', name: 'Rerank Name' }] } })
+
+    const { models } = await listModels(makeOpenRouterProvider())
+
+    expect(models).toHaveLength(1)
+    expect(models[0]).toMatchObject({
+      apiModelId: 'openai/gpt-image-2',
+      name: 'Image Name',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION, MODEL_CAPABILITY.RERANK]
+    })
+  })
+
+  it.each([false, true])(
+    'keeps the other catalogs when the rerank catalog fails (strict: %s)',
+    async (throwOnError) => {
+      const apiKey = 'sk-should-not-reach-logs'
+      aiSdkGetFromApiMock
+        .mockResolvedValueOnce({ value: { data: [{ id: 'anthropic/claude-sonnet-4' }] } })
+        .mockResolvedValueOnce({ value: { data: [{ id: 'openai/text-embedding-3-small' }] } })
+        .mockResolvedValueOnce({ value: { data: [{ id: 'openai/gpt-image-2' }] } })
+        .mockRejectedValueOnce(new Error(`rerank catalog unavailable for ${apiKey}`))
+
+      const { models } = await listModels(makeOpenRouterProvider(), undefined, { throwOnError })
+
+      expect(models.map((model) => model.apiModelId)).toEqual([
+        'anthropic/claude-sonnet-4',
+        'openai/text-embedding-3-small',
+        'openai/gpt-image-2'
+      ])
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        'Optional model list endpoint failed; continuing with primary models',
+        { providerId: 'openrouter', endpoint: 'openrouter-reranker-models', errorType: 'Error' }
+      )
+      expect(JSON.stringify(mockMainLoggerService.warn.mock.calls).includes(apiKey)).toBe(false)
+    }
+  )
+
+  it('uses the standard OpenRouter rerank models URL when the provider omits it', async () => {
+    const provider = makeOpenRouterProvider()
+    delete provider.endpointConfigs![ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]!.modelsApiUrls!.reranker
+    aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) =>
+      Promise.resolve({
+        value: {
+          data:
+            url === 'https://openrouter.ai/api/v1/models?output_modalities=rerank' ? [{ id: 'voyageai/rerank-3' }] : []
+        }
+      })
+    )
+
+    const { models } = await listModels(provider)
+
+    expect(aiSdkGetFromApiMock.mock.calls.map(([call]) => call.url)).toEqual([
+      'https://openrouter.example/models',
+      'https://openrouter.example/embeddings/models',
+      'https://openrouter.example/images/models',
+      'https://openrouter.ai/api/v1/models?output_modalities=rerank'
+    ])
+    expect(models).toHaveLength(1)
+    expect(models[0]).toMatchObject({ apiModelId: 'voyageai/rerank-3', capabilities: [MODEL_CAPABILITY.RERANK] })
+  })
+
+  it('preserves the chat, embedding, and image projections when adding the rerank catalog', async () => {
+    aiSdkGetFromApiMock
+      .mockResolvedValueOnce({ value: { data: [{ id: 'chat-model', name: 'Chat', owned_by: 'chat-owner' }] } })
+      .mockResolvedValueOnce({
+        value: { data: [{ id: 'embedding-model', name: 'Embedding', owned_by: 'embed-owner' }] }
+      })
+      .mockResolvedValueOnce({ value: { data: [{ id: 'image-model', name: 'Image', owned_by: 'image-owner' }] } })
+      .mockResolvedValueOnce({ value: { data: [] } })
+
+    const { models } = await listModels(makeOpenRouterProvider())
+
+    expect(models).toStrictEqual([
+      {
+        id: 'openrouter::chat-model',
+        providerId: 'openrouter',
+        apiModelId: 'chat-model',
+        name: 'Chat',
+        group: 'chat',
+        ownedBy: 'chat-owner',
+        description: undefined,
+        capabilities: [],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false
+      },
+      {
+        id: 'openrouter::embedding-model',
+        providerId: 'openrouter',
+        apiModelId: 'embedding-model',
+        name: 'Embedding',
+        group: 'embedding',
+        ownedBy: 'embed-owner',
+        description: undefined,
+        capabilities: [],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false
+      },
+      {
+        id: 'openrouter::image-model',
+        providerId: 'openrouter',
+        apiModelId: 'image-model',
+        name: 'Image',
+        group: 'image',
+        ownedBy: 'image-owner',
+        description: undefined,
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false
+      }
+    ])
   })
 })
 

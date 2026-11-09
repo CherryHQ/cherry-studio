@@ -18,14 +18,13 @@ import pkg from './package.json'
 import { buildFlatContractCss } from './packages/ui/scripts/build-theme-css'
 import { chunkExportGuardPlugin } from './scripts/checkChunkExports'
 import { claudeCodeBinaryManifest } from './scripts/claudeCodeBinaryManifest'
-import { piVccBundlePlugin } from './scripts/piVccBundle'
 import { uiContractPlugin } from './scripts/uiContract/vitePlugin'
 import { APP_EDITIONS, type AppEdition } from './src/shared/types/appEdition'
 import { parseReleaseHistory, validateCurrentReleaseHistory } from './src/shared/utils/releaseNotes'
 import { getSentryBuildContext } from './src/shared/utils/sentry'
 
 const { buildSelectionPanel, sourcePath: selectionPanelSource } = createRequire(import.meta.url)(
-  './native/darwin/build'
+  './native/selection-panel/build'
 )
 
 const { buildExternalApp, sourceFiles: externalAppSources } = createRequire(import.meta.url)(
@@ -100,14 +99,8 @@ const sentrySourceMapPlugins = (outputDirectory: 'main' | 'preload' | 'renderer'
       })
     : []
 
-// Bundle/externalize split for the main process: everything in `dependencies` is
-// externalized below (kept in node_modules of the packaged app), and everything
-// NOT in `dependencies` (i.e. in `devDependencies`) is bundled into the main bundle by
-// Rolldown. The API gateway's Elysia stack (`elysia`, `@elysia/*`) is intentionally in
-// `devDependencies` for exactly this reason — it is pure JS and bundles cleanly. Do NOT
-// move it to `dependencies`: that would externalize it, and since devDependencies are
-// pruned from production packages, the packaged app would fail at runtime with
-// MODULE_NOT_FOUND (no test catches this). See docs/dev/references/api-gateway/README.md.
+// `dependencies` stay external and ship whole; everything else is bundled. Only R1–R4 packages
+// belong there: see "Main-Process Dependencies" in CLAUDE.md.
 const mainExternalDependencies = [
   ...Object.keys(pkg.dependencies),
   // optionalDependencies too: platform-gated natives (e.g. node-mac-permissions) are real import
@@ -205,7 +198,6 @@ export default defineConfig({
         }
       },
       chunkExportGuardPlugin(),
-      piVccBundlePlugin(),
       miniAppThemeAssetPlugin(),
       ...visualizerPlugin('main'),
       ...sentrySourceMapPlugins('main')
@@ -255,6 +247,8 @@ export default defineConfig({
       }
     },
     build: {
+      externalizeDeps: false,
+      isolatedEntries: true,
       sourcemap: sentrySourceMap,
       rolldownOptions: {
         // Unlike renderer which auto-discovers entries from HTML files,
@@ -356,6 +350,8 @@ export default defineConfig({
           quickAssistant: resolve(__dirname, 'src/renderer/windows/quickAssistant/index.html'),
           selectionToolbar: resolve(__dirname, 'src/renderer/windows/selection/toolbar/index.html'),
           selectionAction: resolve(__dirname, 'src/renderer/windows/selection/action/index.html'),
+          selectionAgent: resolve(__dirname, 'src/renderer/windows/selection/agent/index.html'),
+          selectionCapsule: resolve(__dirname, 'src/renderer/windows/selection/capsule/index.html'),
           migrationV2: resolve(__dirname, 'src/renderer/windows/migrationV2/index.html'),
           userDataRelocation: resolve(__dirname, 'src/renderer/windows/userDataRelocation/index.html'),
           subWindow: resolve(__dirname, 'src/renderer/windows/subWindow/index.html'),
