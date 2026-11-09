@@ -1,48 +1,10 @@
-import fs from 'node:fs'
 import { createServer } from 'node:http'
-import os from 'node:os'
-import path from 'node:path'
 
-import { _electron as electron } from '@playwright/test'
-
-import { expect, test as base } from './fixtures/electron.fixture'
+import { expect, test } from './fixtures/electron.fixture'
+import { openSettings } from './utils/navigation'
 
 const PROBE_URL = 'https://www.querit.ai/en/docs/overview/about'
 const PAGE_FAILURE_DESCRIPTION = `Querit responded, but could not fetch the test page (${PROBE_URL}). URL fetching was not verified.`
-
-const test = base.extend<{ isolatedProfile: string }>({
-  isolatedProfile: async ({}, provide) => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cherry-e2e-querit-'))
-    const previousProfile = process.env.CS_DEV_PROFILE_ROOT
-    process.env.CS_DEV_PROFILE_ROOT = dir
-    try {
-      await provide(dir)
-    } finally {
-      if (previousProfile === undefined) {
-        delete process.env.CS_DEV_PROFILE_ROOT
-      } else {
-        process.env.CS_DEV_PROFILE_ROOT = previousProfile
-      }
-      fs.rmSync(dir, { recursive: true, force: true })
-    }
-  },
-  electronApp: async ({ isolatedProfile }, provide) => {
-    const electronApp = await electron.launch({
-      args: ['.'],
-      env: {
-        ...process.env,
-        CS_DEV_PROFILE_ROOT: isolatedProfile,
-        NODE_ENV: 'development'
-      },
-      timeout: 60_000
-    })
-    try {
-      await provide(electronApp)
-    } finally {
-      await electronApp.close()
-    }
-  }
-})
 
 test.setTimeout(300_000)
 
@@ -115,7 +77,7 @@ test('Querit fetch check distinguishes page failure, usable content and HTTP fai
     }
     await expect(shell, 'App shell should appear after onboarding dismissal').toBeVisible({ timeout: 60_000 })
     await page.setViewportSize({ width: 1280, height: 900 })
-    await page.getByRole('button', { name: 'Settings', exact: true }).first().click({ timeout: 60_000 })
+    await openSettings(page)
     await expect(page.locator('[data-ui~="settings.view"]')).toBeVisible({ timeout: 60_000 })
     await page
       .locator('[data-ui~="settings.navigation"] [data-slot="menu-item"]')

@@ -108,7 +108,6 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
   useExecutionOverlay: (
     _topicId: string,
     executions: ActiveExecution[],
-    _messages: CherryUIMessage[],
     options?: {
       onUpdate?: (executionId: string, event: Pick<ExecutionFinishEvent, 'attemptId' | 'message'>) => void
       onFinish?: (executionId: string, event: ExecutionFinishEvent) => void

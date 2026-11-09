@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
-import { McpServerService, mcpServerService } from '@data/services/McpServerService'
+import { mcpServerService } from '@data/services/McpServerService'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 
 describe('McpServerService', () => {
@@ -25,8 +25,187 @@ describe('McpServerService', () => {
     return values
   }
 
-  it('should export a module-level singleton', () => {
-    expect(mcpServerService).toBeInstanceOf(McpServerService)
+  describe('findByConfig', () => {
+    const config = {
+      name: 'test-server',
+      type: 'stdio' as const,
+      command: 'npx',
+      args: ['-y', 'my-server'],
+      env: { API_KEY: 'test', OTHER: 'x' }
+    }
+
+    it('finds an equivalent stdio definition independent of ordinary object key order', async () => {
+      await seedServer({ env: { OTHER: 'x', API_KEY: 'test' } })
+      const before = dbh.db.select().from(mcpServerTable).all()
+      expect(mcpServerService.findByConfig({ ...config, command: ' npx ' })?.id).toBe('srv-1')
+      expect(dbh.db.select().from(mcpServerTable).all()).toEqual(before)
+    })
+
+    it.each(['sse', 'streamableHttp'] as const)(
+      'finds an equivalent remote definition using effective request headers: %s',
+      async (type) => {
+        await seedServer({ type, baseUrl: 'https://example.com', headers: { Authorization: 'secret' } })
+        expect(
+          mcpServerService.findByConfig({
+            name: 'test-server',
+            type,
+            baseUrl: 'https://example.com',
+            headers: { authorization: 'secret' }
+          })?.id
+        ).toBe('srv-1')
+        dbh.db.update(mcpServerTable).set({ headers: null }).run()
+        expect(
+          mcpServerService.findByConfig({
+            name: 'test-server',
+            type,
+            baseUrl: 'https://example.com',
+            headers: { 'HTTP-Referer': 'https://cherry-ai.com', 'X-Title': 'Cherry Studio' }
+          })?.id
+        ).toBe('srv-1')
+      }
+    )
+
+    it('does not merge remote headers with different effective credentials', async () => {
+      await seedServer({ type: 'sse', baseUrl: 'https://example.com', headers: { Authorization: 'secret' } })
+      for (const headers of [{ authorization: 'other' }, {}, { authorization: '' }] as Record<string, string>[])
+        expect(
+          mcpServerService.findByConfig({ name: 'test-server', type: 'sse', baseUrl: 'https://example.com', headers })
+        ).toBeUndefined()
+    })
+
+    it('distinguishes conflicting remote header aliases by their effective winner', async () => {
+      await seedServer({
+        type: 'sse',
+        baseUrl: 'https://example.com',
+        headers: { Authorization: 'one', authorization: 'two' }
+      })
+      expect(
+        mcpServerService.findByConfig({
+          name: 'test-server',
+          type: 'sse',
+          baseUrl: 'https://example.com',
+          headers: { authorization: 'two', Authorization: 'one' }
+        })
+      ).toBeUndefined()
+    })
+
+    it('does not merge distinct stdio launch inputs or credentials', async () => {
+      await seedServer({ env: config.env })
+      const changes: Partial<Parameters<typeof mcpServerService.findByConfig>[0]>[] = [
+        { name: 'other' },
+        { type: 'sse' as const },
+        { command: 'other' },
+        { args: ['my-server', '-y'] },
+        { args: [' -y', 'my-server'] },
+        { env: { API_KEY: 'other', OTHER: 'x' } },
+        { env: { API_KEY: 'test' } },
+        { env: { API_KEY: 'test', OTHER: '' } },
+        { registryUrl: 'other' },
+        { dxtPath: 'other' }
+      ]
+      for (const change of changes) expect(mcpServerService.findByConfig({ ...config, ...change })).toBeUndefined()
+    })
+
+    it('does not merge distinct remote endpoints or transports', async () => {
+      await seedServer({ type: 'sse', baseUrl: 'https://example.com/a?q=1' })
+      for (const change of [
+        { type: 'streamableHttp' as const, baseUrl: 'https://example.com/a?q=1' },
+        { type: 'sse' as const, baseUrl: 'https://example.com/b?q=1' },
+        { type: 'sse' as const, baseUrl: 'https://example.com/a?q=2' }
+      ])
+        expect(mcpServerService.findByConfig({ name: 'test-server', ...change })).toBeUndefined()
+    })
+
+    it('ignores fields unused by the selected transport without overwriting them', async () => {
+      await seedServer({ type: 'sse', baseUrl: 'https://example.com', registryUrl: 'old', dxtPath: 'old' })
+      const before = dbh.db.select().from(mcpServerTable).all()
+      expect(
+        mcpServerService.findByConfig({
+          name: 'test-server',
+          type: 'sse',
+          baseUrl: 'https://example.com',
+          command: 'different'
+        })?.id
+      ).toBe('srv-1')
+      expect(dbh.db.select().from(mcpServerTable).all()).toEqual(before)
+      dbh.db
+        .update(mcpServerTable)
+        .set({ type: 'stdio', baseUrl: null, headers: { Authorization: 'old' }, registryUrl: null, dxtPath: null })
+        .run()
+      expect(
+        mcpServerService.findByConfig({
+          name: 'test-server',
+          type: 'stdio',
+          command: 'npx',
+          args: ['-y', 'my-server'],
+          env: { API_KEY: 'test' },
+          headers: { authorization: 'different' }
+        })?.id
+      ).toBe('srv-1')
+    })
+
+    it('matches absent transport and empty optional values according to runtime defaults', async () => {
+      await seedServer({ type: null, args: null, env: null, command: '' })
+      expect(
+        mcpServerService.findByConfig({ name: 'test-server', type: 'stdio', args: [], env: {}, command: '' })?.id
+      ).toBe('srv-1')
+      dbh.db.update(mcpServerTable).set({ baseUrl: 'https://example.com' }).run()
+      expect(
+        mcpServerService.findByConfig({ name: 'test-server', type: 'sse', baseUrl: 'https://example.com' })?.id
+      ).toBe('srv-1')
+      expect(
+        mcpServerService.findByConfig({ name: 'test-server', type: 'streamableHttp', baseUrl: 'https://example.com' })
+      ).toBeUndefined()
+      expect(mcpServerService.findByConfig({ name: 'test-server', type: 'stdio', baseUrl: '' })).toBeUndefined()
+    })
+
+    it('preserves the Windows PATH alias winner when comparing environment records', async () => {
+      const descriptor = Object.getOwnPropertyDescriptor(process, 'platform')!
+      try {
+        Object.defineProperty(process, 'platform', { value: 'win32' })
+        await seedServer({ env: { Path: 'one', PATH: 'two', API_KEY: 'test' } })
+        const query = (env: Record<string, string>) =>
+          mcpServerService.findByConfig({
+            name: 'test-server',
+            type: 'stdio',
+            command: 'npx',
+            args: ['-y', 'my-server'],
+            env
+          })
+        expect(query({ API_KEY: 'test', Path: 'one', PATH: 'two' })?.id).toBe('srv-1')
+        expect(query({ API_KEY: 'test', PATH: 'two', Path: 'one' })).toBeUndefined()
+      } finally {
+        Object.defineProperty(process, 'platform', descriptor)
+      }
+    })
+
+    it('searches all same-name candidates and chooses the oldest matching definition', async () => {
+      await seedServer({ id: 'first', command: 'other' })
+      await seedServer({ id: 'second', env: config.env })
+      expect(mcpServerService.findByConfig(config)?.id).toBe('second')
+      await seedServer({ id: 'a-match', env: config.env, createdAt: 0, sortOrder: 100, isActive: false })
+      await seedServer({ id: 'b-match', env: config.env, createdAt: 0, sortOrder: -1, isActive: true })
+      expect(mcpServerService.findByConfig(config)?.id).toBe('a-match')
+      expect(dbh.db.select().from(mcpServerTable).all()).toHaveLength(4)
+    })
+
+    it('reuses ordinary definitions across source and state differences but excludes builtins', async () => {
+      await seedServer({ env: config.env, installSource: 'builtin' })
+      expect(mcpServerService.findByConfig(config)).toBeUndefined()
+      for (const installSource of ['manual', 'protocol', 'ai_assisted', 'unknown', null] as const) {
+        dbh.db.update(mcpServerTable).set({ installSource, isActive: true }).run()
+        expect(mcpServerService.findByConfig(config)?.id).toBe('srv-1')
+      }
+      dbh.db.update(mcpServerTable).set({ type: 'inMemory' }).run()
+      expect(mcpServerService.findByConfig(config)).toBeUndefined()
+    })
+
+    it('returns undefined without writing when no matching definition exists', async () => {
+      expect(mcpServerService.findByConfig(config)).toBeUndefined()
+      await seedServer({ command: 'other' })
+      expect(mcpServerService.findByConfig(config)).toBeUndefined()
+      expect(dbh.db.select().from(mcpServerTable).all()).toHaveLength(1)
+    })
   })
 
   describe('getById', () => {

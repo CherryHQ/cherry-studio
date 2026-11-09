@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { describe, expect, it, vi } from 'vitest'
 
 // Route `@application` through the unified mock factory so `application.getPath`
@@ -32,7 +34,7 @@ describe('resolvePhysicalPath', () => {
         origin: 'internal',
         ext: 'pdf'
       }
-      expect(resolvePhysicalPath(entry)).toBe('/mock/feature.files.data/abc-123.pdf')
+      expect(resolvePhysicalPath(entry)).toBe(path.resolve('/mock/feature.files.data/abc-123.pdf'))
     })
 
     it('returns path with bare id when ext is null', () => {
@@ -41,7 +43,7 @@ describe('resolvePhysicalPath', () => {
         origin: 'internal',
         ext: null
       }
-      expect(resolvePhysicalPath(entry)).toBe('/mock/feature.files.data/abc-123')
+      expect(resolvePhysicalPath(entry)).toBe(path.resolve('/mock/feature.files.data/abc-123'))
     })
   })
 

@@ -9,12 +9,16 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import type { JobContext } from '@main/core/job/types'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 
+vi.mock('@data/services/AgentSessionMessageService', () => ({
+  agentSessionMessageService: { hasAssistantMessageWithTextInWindow: vi.fn() }
+}))
 const {
   mockAbort,
   mockRemoveListener,
@@ -58,6 +62,7 @@ vi.mock('@application', async () => {
     // An untrusted agent directory pauses its heartbeat schedule.
     JobManager: {
       ...mod.defaultServiceInstances.JobManager,
+      cancel: vi.fn(async () => ({ outcome: 'cancelled' })),
       updateJobScheduleTx: mockUpdateJobScheduleTx,
       syncJobScheduleTimerById: mockSyncJobScheduleTimerById
     }
@@ -76,9 +81,6 @@ vi.mock('@data/services/AgentService', () => ({
 }))
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: { create: vi.fn(), getByTaskScheduleId: vi.fn() }
-}))
-vi.mock('@data/services/AgentSessionMessageService', () => ({
-  agentSessionMessageService: { hasAssistantMessageWithTextInWindow: vi.fn() }
 }))
 vi.mock('@data/services/JobScheduleService', () => ({
   jobScheduleService: { getById: vi.fn(), getByIdTx: vi.fn() }
@@ -99,7 +101,6 @@ vi.mock('@main/ai/agents/agentDataDirectory', async (importOriginal) => ({
 import { application } from '@application'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
-import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
@@ -236,14 +237,14 @@ function makeSchedule(
 
 describe('runAgentTask', () => {
   beforeEach(() => {
+    vi.mocked(jobService.listRecentTerminalByScheduleId).mockReset()
+    vi.mocked(agentSessionMessageService.hasAssistantMessageWithTextInWindow).mockReset()
     vi.mocked(application.getPath).mockReturnValue('/agent-data')
     vi.mocked(jobService.getById).mockReset()
-    vi.mocked(jobService.listRecentTerminalByScheduleId).mockReset()
     vi.mocked(jobScheduleService.getById).mockReset()
     vi.mocked(agentService.getAgent).mockReset()
     vi.mocked(agentSessionService.create).mockReset()
     vi.mocked(agentSessionService.getByTaskScheduleId).mockReset()
-    vi.mocked(agentSessionMessageService.hasAssistantMessageWithTextInWindow).mockReset()
     vi.mocked(jobScheduleService.getByIdTx).mockReset()
     mockBindTaskSessionReuse.mockReset().mockReturnValue(true)
     mockIsSessionBusy.mockReset().mockReturnValue(false)
@@ -281,7 +282,7 @@ describe('runAgentTask', () => {
 
       const out = await runAgentTask(makeCtx())
 
-      expect(out).toEqual({ result: 'Skipped (disabled)', skipped: true })
+      expect(out).toEqual({ kind: 'skipped', result: 'Skipped (disabled)' })
       expect(agentSessionService.create).not.toHaveBeenCalled()
       expect(readHeartbeat).not.toHaveBeenCalled()
     }
@@ -296,7 +297,7 @@ describe('runAgentTask', () => {
 
     const out = await runAgentTask(makeCtx())
 
-    expect(out).toEqual({ result: 'Skipped (disabled)', skipped: true })
+    expect(out).toEqual({ kind: 'skipped', result: 'Skipped (disabled)' })
     expect(agentSessionService.create).not.toHaveBeenCalled()
     expect(mockStartRun).not.toHaveBeenCalled()
   })
@@ -334,7 +335,7 @@ describe('runAgentTask', () => {
 
     const out = await runAgentTask(makeCtx())
 
-    expect(out).toEqual({ result: 'Skipped (untrusted agent data path)', skipped: true })
+    expect(out).toEqual({ kind: 'skipped', result: 'Skipped (untrusted agent data path)' })
     expect(agentSessionService.create).not.toHaveBeenCalled()
     expect(readHeartbeat).not.toHaveBeenCalled()
     // Reconcile immediately so repairing the directory can re-arm the schedule.
@@ -359,7 +360,7 @@ describe('runAgentTask', () => {
     vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
     mockAssertAgentStorageDirectory.mockRejectedValueOnce(new Error('untrusted path'))
 
-    expect(await runAgentTask(makeCtx())).toEqual({ result: 'Skipped (untrusted agent data path)', skipped: true })
+    expect(await runAgentTask(makeCtx())).toEqual({ kind: 'skipped', result: 'Skipped (untrusted agent data path)' })
     expect(mockUpdateJobScheduleTx).not.toHaveBeenCalled()
     expect(syncHeartbeatScheduleMock).not.toHaveBeenCalled()
   })
@@ -372,9 +373,8 @@ describe('runAgentTask', () => {
 
     const out = await runAgentTask(makeCtx())
 
-    expect(out).toEqual({ result: 'Skipped (no file)', skipped: true })
+    expect(out).toEqual({ kind: 'skipped', result: 'Skipped (no file)' })
     expect(agentSessionService.create).not.toHaveBeenCalled()
-    expect(readHeartbeat).toHaveBeenCalledWith('/agent-data/a1')
   })
 
   describe('task dependency', () => {
@@ -395,31 +395,66 @@ describe('runAgentTask', () => {
 
     it('skips without starting a run when the dependency last failed', async () => {
       arm({ taskId: 'dep' }, lastRun('failed', new Date().toISOString()))
-      await expect(runTask()).resolves.toEqual({ result: 'Skipped (dependency failed)', skipped: true })
+      await expect(runTask()).resolves.toEqual({ kind: 'skipped', result: 'Skipped (dependency failed)' })
       expect(mockStartRun).not.toHaveBeenCalled()
       expect(agentSessionService.create).not.toHaveBeenCalled()
     })
 
     it('skips when the dependency has never run', async () => {
       arm({ taskId: 'dep' }, [])
-      await expect(runTask()).resolves.toEqual({ result: 'Skipped (dependency not run)', skipped: true })
+      await expect(runTask()).resolves.toEqual({ kind: 'skipped', result: 'Skipped (dependency not run)' })
     })
 
     it('skips when the dependency succeeded outside the window', async () => {
       arm({ taskId: 'dep', withinMinutes: 10 }, lastRun('completed', new Date(Date.now() - 3_600_000).toISOString()))
-      await expect(runTask()).resolves.toEqual({ result: 'Skipped (dependency stale)', skipped: true })
+      await expect(runTask()).resolves.toEqual({ kind: 'skipped', result: 'Skipped (dependency stale)' })
+      expect(mockStartRun).not.toHaveBeenCalled()
+    })
+
+    it('blocks the current main structured skipped kind without inspecting prose', async () => {
+      arm({ taskId: 'dep' }, [
+        {
+          status: 'completed',
+          finishedAt: new Date().toISOString(),
+          output: { kind: 'skipped', result: 'not a legacy marker' }
+        }
+      ])
+      await expect(runTask()).resolves.toEqual({ kind: 'skipped', result: 'Skipped (dependency failed)' })
+      expect(mockStartRun).not.toHaveBeenCalled()
+    })
+
+    it('accepts main executed provenance even when the reply exactly equals a legacy marker', async () => {
+      arm({ taskId: 'dep' }, [
+        {
+          status: 'completed',
+          finishedAt: new Date().toISOString(),
+          output: { kind: 'executed', result: 'Skipped (disabled)' }
+        }
+      ])
+      const promise = runTask()
+      await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+      captured.listeners[0].onDone({ status: 'completed' })
+      await expect(promise).resolves.toMatchObject({ kind: 'executed' })
+      expect(agentSessionMessageService.hasAssistantMessageWithTextInWindow).not.toHaveBeenCalled()
+    })
+
+    it.each(['cancelled', 'failed'])('blocks a %s upstream job under main cancellation semantics', async (status) => {
+      arm({ taskId: 'dep' }, [
+        { status, finishedAt: new Date().toISOString(), metadata: { taskResultStatus: 'interrupted' }, output: null }
+      ])
+      await expect(runTask()).resolves.toEqual({ kind: 'skipped', result: 'Skipped (dependency failed)' })
       expect(mockStartRun).not.toHaveBeenCalled()
     })
 
     it('blocks when the dependency latest run carries a structured skip marker', async () => {
       arm({ taskId: 'dep' }, lastRun('completed', new Date().toISOString(), 'Skipped (session busy)', true))
-      await expect(runTask()).resolves.toEqual({ result: 'Skipped (dependency failed)', skipped: true })
+      await expect(runTask()).resolves.toEqual({ kind: 'skipped', result: 'Skipped (dependency failed)' })
       expect(mockStartRun).not.toHaveBeenCalled()
     })
 
     it('blocks when the dependency latest run was stopped externally (structured session-stop skip)', async () => {
       arm({ taskId: 'dep' }, lastRun('completed', new Date().toISOString(), 'Skipped (session stopped)', true))
-      await expect(runTask()).resolves.toEqual({ result: 'Skipped (dependency failed)', skipped: true })
+      await expect(runTask()).resolves.toEqual({ kind: 'skipped', result: 'Skipped (dependency failed)' })
       expect(mockStartRun).not.toHaveBeenCalled()
     })
 
@@ -434,7 +469,7 @@ describe('runAgentTask', () => {
       'Skipped (workspace deleted)'
     ])('keeps blocking on the legacy text-only skip marker %s', async (marker) => {
       arm({ taskId: 'dep' }, lastRun('completed', new Date().toISOString(), marker))
-      await expect(runTask()).resolves.toEqual({ result: 'Skipped (dependency failed)', skipped: true })
+      await expect(runTask()).resolves.toEqual({ kind: 'skipped', result: 'Skipped (dependency failed)' })
       expect(mockStartRun).not.toHaveBeenCalled()
     })
 
@@ -445,7 +480,7 @@ describe('runAgentTask', () => {
       )
       const promise = runTask()
       await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
-      captured.listeners[0].onDone()
+      captured.listeners[0].onDone({ status: 'completed' })
       await expect(promise).resolves.toBeDefined()
     })
 
@@ -453,7 +488,7 @@ describe('runAgentTask', () => {
       arm({ taskId: 'dep' }, lastRun('completed', new Date().toISOString(), 'Skipped (disabled) items were kept'))
       const promise = runTask()
       await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
-      captured.listeners[0].onDone()
+      captured.listeners[0].onDone({ status: 'completed' })
       await expect(promise).resolves.toBeDefined()
     })
 
@@ -461,7 +496,7 @@ describe('runAgentTask', () => {
       arm({ taskId: 'dep' }, lastRun('completed', new Date().toISOString(), 'Skipped 2 of 10 items', false))
       const promise = runTask()
       await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
-      captured.listeners[0].onDone()
+      captured.listeners[0].onDone({ status: 'completed' })
       await expect(promise).resolves.toBeDefined()
     })
 
@@ -469,7 +504,7 @@ describe('runAgentTask', () => {
       arm({ taskId: 'dep' }, lastRun('completed', new Date().toISOString(), 'Skipped frames without motion'))
       const promise = runTask()
       await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
-      captured.listeners[0].onDone()
+      captured.listeners[0].onDone({ status: 'completed' })
       await expect(promise).resolves.toBeDefined()
     })
 
@@ -477,7 +512,7 @@ describe('runAgentTask', () => {
       arm({ taskId: 'dep', withinMinutes: 10 }, lastRun('completed', new Date().toISOString()))
       const promise = runTask()
       await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
-      captured.listeners[0].onDone()
+      captured.listeners[0].onDone({ status: 'completed' })
       await expect(promise).resolves.toBeDefined()
     })
 
@@ -496,7 +531,7 @@ describe('runAgentTask', () => {
       vi.mocked(agentSessionMessageService.hasAssistantMessageWithTextInWindow).mockReturnValue(true)
       const promise = runTask()
       await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
-      captured.listeners[0].onDone()
+      captured.listeners[0].onDone({ status: 'completed' })
       await expect(promise).resolves.toBeDefined()
       expect(agentSessionMessageService.hasAssistantMessageWithTextInWindow).toHaveBeenCalledWith(
         'dep-session',
@@ -518,13 +553,13 @@ describe('runAgentTask', () => {
         }
       ] as never)
       vi.mocked(agentSessionMessageService.hasAssistantMessageWithTextInWindow).mockReturnValue(false)
-      await expect(runTask()).resolves.toEqual({ result: 'Skipped (dependency failed)', skipped: true })
+      await expect(runTask()).resolves.toEqual({ kind: 'skipped', result: 'Skipped (dependency failed)' })
       expect(mockStartRun).not.toHaveBeenCalled()
     })
 
     it('blocks on a legacy exact-marker row without consulting the transcript when no session link exists', async () => {
       arm({ taskId: 'dep' }, lastRun('completed', new Date().toISOString(), 'Skipped (session busy)'))
-      await expect(runTask()).resolves.toEqual({ result: 'Skipped (dependency failed)', skipped: true })
+      await expect(runTask()).resolves.toEqual({ kind: 'skipped', result: 'Skipped (dependency failed)' })
       expect(agentSessionMessageService.hasAssistantMessageWithTextInWindow).not.toHaveBeenCalled()
       expect(mockStartRun).not.toHaveBeenCalled()
     })
@@ -600,7 +635,7 @@ describe('runAgentTask', () => {
       await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
       captured.listeners[0].onDone({ status: 'completed' })
 
-      await expect(promise).resolves.toEqual({ result: 'Completed', skipped: false })
+      await expect(promise).resolves.toEqual({ kind: 'executed', result: 'Completed' })
       expect(mockStartRun).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'sess-new' }))
       expect(agentSessionService.getByTaskScheduleId).not.toHaveBeenCalled()
       expect(mockBindTaskSessionReuse).not.toHaveBeenCalled()
@@ -652,7 +687,7 @@ describe('runAgentTask', () => {
         makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0, workspace: { type: 'system' } } })
       )
 
-      expect(out).toEqual({ result: 'Skipped (session busy)', skipped: true })
+      expect(out).toEqual({ kind: 'skipped', result: 'Skipped (session busy)' })
       expect(mockStartRun).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'sess-sticky' }))
       expect(mockStartRun).toHaveBeenCalledWith(expect.objectContaining({ requireIdle: { expectedAgentId: 'a1' } }))
       expect(mockAbort).not.toHaveBeenCalled()
@@ -675,7 +710,7 @@ describe('runAgentTask', () => {
         runAgentTask(
           makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0, workspace: { type: 'system' } } })
         )
-      ).resolves.toMatchObject({ result: 'Skipped (session busy)', skipped: true })
+      ).resolves.toMatchObject({ kind: 'skipped', result: 'Skipped (session busy)' })
     })
 
     it('starts a freshly created session through the locked require-idle path', async () => {
@@ -703,10 +738,8 @@ describe('runAgentTask', () => {
     })
   })
 
-  // C1 (agents-jobs-3): a `text-delta` chunk's payload is on `.delta`, not `.text`.
-  // The previous `as { text }` cast silently accumulated nothing, so every run
-  // persisted the `'Completed'` fallback instead of the model's reply.
-  it('accumulates text-delta chunks via .delta into the result', async () => {
+  // Replacements must reach the saved job result even when no body chunks are emitted.
+  it('uses the final authoritative message as the task result', async () => {
     vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
     vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
     vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
@@ -716,13 +749,20 @@ describe('runAgentTask', () => {
 
     await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
     const sentinel = captured.listeners[0]
-    sentinel.onChunk({ type: 'text-delta', delta: 'Hello ' })
-    sentinel.onChunk({ type: 'text-delta', delta: 'world' })
-    sentinel.onChunk({ type: 'reasoning-delta', delta: 'ignored' })
-    sentinel.onDone({ status: 'completed' })
+    sentinel.onDone({
+      status: 'completed',
+      finalMessage: {
+        id: 'reply',
+        role: 'assistant',
+        parts: [
+          { type: 'reasoning', text: 'ignored' },
+          { type: 'text', text: 'Hello world' }
+        ]
+      }
+    })
 
     const out = await promise
-    expect(out).toEqual({ result: 'Hello world', skipped: false })
+    expect(out).toEqual({ kind: 'executed', result: 'Hello world' })
   })
 
   it('builds listeners only for subscribed channels owned by the task agent', async () => {
@@ -784,51 +824,64 @@ describe('runAgentTask', () => {
     for (const listener of captured.listeners) {
       listener.onChunk?.(chunk)
     }
-    const doneResult = { status: 'success' }
+    const doneResult = {
+      status: 'success',
+      finalMessage: { id: 'reply', role: 'assistant', parts: [{ type: 'text', text: 'daily summary' }] }
+    }
     await Promise.all(captured.listeners.map((listener) => Promise.resolve(listener.onDone?.(doneResult as never))))
 
-    await expect(promise).resolves.toEqual({ result: 'daily summary', skipped: false })
+    await expect(promise).resolves.toEqual({ kind: 'executed', result: 'daily summary' })
     expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'daily summary', undefined)
     expect(adapter.onStreamComplete).toHaveBeenCalledTimes(1)
   })
 
-  it('delivers a paused cron result to a subscribed channel exactly once', async () => {
-    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
-    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
-    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
-    vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
-    vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValueOnce([
-      { id: 'ch1', type: 'telegram', agentId: 'a1', isActive: true }
-    ] as never)
+  it.each([undefined, 'user-requested', 'remote-cancel'])(
+    'settles paused cron runs without claiming success: %s',
+    async (reason) => {
+      vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+      vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
+      vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+      vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+      vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValueOnce([
+        { id: 'ch1', type: 'telegram', agentId: 'a1', isActive: true }
+      ] as never)
 
-    const adapter = {
-      channelId: 'ch1',
-      connected: true,
-      notifyChatIds: ['chat-1'],
-      sendMessage: vi.fn<(chatId: string, text: string) => Promise<void>>(async () => {}),
-      onTextUpdate: vi.fn(async () => {}),
-      onStreamComplete: vi.fn(async () => false)
+      const adapter = {
+        channelId: 'ch1',
+        connected: true,
+        notifyChatIds: ['chat-1'],
+        sendMessage: vi.fn<(chatId: string, text: string) => Promise<void>>(async () => {}),
+        onTextUpdate: vi.fn(async () => {}),
+        onStreamComplete: vi.fn(async () => false)
+      }
+      mockGetAdapter.mockReturnValue(adapter as never)
+
+      const ctx = makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } })
+      const promise = runAgentTask(ctx)
+
+      await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+      const chunk = { type: 'text-delta', delta: 'partial summary' }
+      for (const listener of captured.listeners) {
+        listener.onChunk?.(chunk)
+      }
+      const rejected = expect(promise).rejects.toThrow('Task interrupted')
+      const pausedResult = {
+        status: 'paused',
+        reason,
+        finalMessage: { id: 'reply', role: 'assistant', parts: [{ type: 'text', text: 'partial summary' }] }
+      }
+      await Promise.all(
+        captured.listeners.map((listener) => Promise.resolve(listener.onPaused?.(pausedResult as never)))
+      )
+
+      await rejected
+      expect(ctx.patchMetadata).toHaveBeenCalledWith({ taskResultStatus: reason ? 'cancelled' : 'interrupted' })
+      expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
+      expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'partial summary\n\n_(Stopped)_', undefined)
+      expect(adapter.onStreamComplete).toHaveBeenCalledTimes(1)
     }
-    mockGetAdapter.mockReturnValue(adapter as never)
-
-    const promise = runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } }))
-
-    await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
-    const chunk = { type: 'text-delta', delta: 'partial summary' }
-    for (const listener of captured.listeners) {
-      listener.onChunk?.(chunk)
-    }
-    const pausedResult = { status: 'paused' }
-    await Promise.all(captured.listeners.map((listener) => Promise.resolve(listener.onPaused?.(pausedResult as never))))
-
-    // Externally stopped: the channel still gets the partial text with its stopped
-    // marker, but the job output is a structured skip, never a mislabelled success.
-    await expect(promise).resolves.toEqual({ result: 'Skipped (session stopped)', skipped: true })
-    expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
-    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'partial summary\n\n_(Stopped)_', undefined)
-    expect(adapter.onStreamComplete).toHaveBeenCalledTimes(1)
-  })
+  )
 
   it.each([
     [
@@ -938,29 +991,6 @@ describe('runAgentTask', () => {
     expect(adapter.sendMessage).not.toHaveBeenCalled()
   })
 
-  it('keeps the JobManager abort outcome when a late paused event lands after the abort', async () => {
-    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
-    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
-    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
-    vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
-    vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValue([])
-
-    const controller = new AbortController()
-    const promise = runAgentTask(
-      makeCtx({ signal: controller.signal, input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } })
-    )
-
-    await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
-    controller.abort(new Error('cancelled by manager'))
-    // The stream manager can still broadcast its paused terminal event after our
-    // abort settled the execution; it must not overwrite the abort outcome.
-    for (const listener of captured.listeners) {
-      await Promise.resolve(listener.onPaused?.({ status: 'paused' }))
-    }
-
-    await expect(promise).rejects.toThrow('cancelled by manager')
-  })
-
   it('does not abort a queued successor after this task terminal listener has settled', async () => {
     vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
     vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
@@ -977,7 +1007,7 @@ describe('runAgentTask', () => {
 
     await expect(
       runAgentTask(makeCtx({ signal: controller.signal, input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } }))
-    ).resolves.toEqual({ result: 'Completed', skipped: false })
+    ).resolves.toEqual({ kind: 'executed', result: 'Completed' })
 
     expect(mockAbort).not.toHaveBeenCalled()
     expect(mockRemoveListener).toHaveBeenCalledWith(buildAgentSessionTopicId('sess-new'), 'agent-task:s1')
@@ -1027,7 +1057,7 @@ describe('runAgentTask', () => {
     await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalledTimes(2))
     captured.listeners[0].onDone({ status: 'completed' })
 
-    await expect(promise).resolves.toEqual({ result: 'Completed', skipped: false })
+    await expect(promise).resolves.toEqual({ kind: 'executed', result: 'Completed' })
     expect(agentSessionService.create).toHaveBeenCalledTimes(2)
     expect(mockStartRun.mock.calls[1][0]).toMatchObject({ sessionId: 'sess-rebound' })
     expect(vi.mocked(ctx.patchMetadata).mock.lastCall).toEqual([{ sessionId: 'sess-rebound' }])

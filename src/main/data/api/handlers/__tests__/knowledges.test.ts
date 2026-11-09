@@ -74,7 +74,7 @@ describe('knowledgeHandlers', () => {
         query: {
           cursor: 'cursor-2',
           limit: 10
-        } as never
+        }
       })
 
       expect(listKnowledgeBasesCursorMock).toHaveBeenCalledWith({
@@ -95,7 +95,7 @@ describe('knowledgeHandlers', () => {
         query: {
           search: '  research  '
         }
-      } as never)
+      })
 
       expect(listKnowledgeBasesCursorMock).toHaveBeenCalledWith({
         limit: KNOWLEDGE_BASES_DEFAULT_LIMIT,
@@ -109,7 +109,7 @@ describe('knowledgeHandlers', () => {
         knowledgeHandlers['/knowledge-bases'].GET({
           query: {
             limit: KNOWLEDGE_BASES_MAX_LIMIT + 1
-          } as never
+          }
         })
       ).rejects.toHaveProperty('name', 'ZodError')
 
@@ -317,7 +317,7 @@ describe('knowledgeHandlers', () => {
         query: {
           groupId: null
         }
-      } as never)
+      })
 
       expect(listKnowledgeItemsMock).toHaveBeenCalledWith('kb-1', {
         limit: KNOWLEDGE_ITEMS_DEFAULT_LIMIT,
@@ -331,7 +331,7 @@ describe('knowledgeHandlers', () => {
           params: { id: 'kb-1' },
           query: {
             limit: 0
-          } as never
+          }
         })
       ).rejects.toHaveProperty('name', 'ZodError')
 
@@ -344,7 +344,7 @@ describe('knowledgeHandlers', () => {
           params: { id: 'kb-1' },
           query: {
             limit: KNOWLEDGE_ITEMS_MAX_LIMIT + 1
-          } as never
+          }
         })
       ).rejects.toHaveProperty('name', 'ZodError')
 
