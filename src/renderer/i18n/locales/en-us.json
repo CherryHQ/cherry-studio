@@ -5784,6 +5784,13 @@
   "settings.quickPanel.scope.global": "Global",
   "settings.quickPanel.select": "Select",
   "settings.quickPanel.title": "Input Quick Panel",
+  "settings.reasoning_effort_mappings.automatic": "Automatic (nearest supported)",
+  "settings.reasoning_effort_mappings.description": "Map Cherry Studio thinking levels to each provider's native effort values. Unmapped levels keep the built-in nearest-tier behavior.",
+  "settings.reasoning_effort_mappings.provider_placeholder": "Select a provider",
+  "settings.reasoning_effort_mappings.scope.global": "Global default",
+  "settings.reasoning_effort_mappings.scope.label": "Mapping scope",
+  "settings.reasoning_effort_mappings.scope.provider": "Provider override",
+  "settings.reasoning_effort_mappings.title": "Reasoning effort mappings",
   "settings.scheduledTasks.chatDraft": "Help me set up a scheduled task. First, briefly explain what scheduled tasks can do, then ask me a few questions to work out what you should do and when it should run. Only create the task after I confirm, then tell me its name, schedule, and prompt.",
   "settings.scheduledTasks.createDescription": "Set what the Agent should do and when it should run.",
   "settings.scheduledTasks.createTitle": "New scheduled task",
@@ -6513,12 +6520,5 @@
   "webview.navigation.invalid_address": "Enter a valid HTTP, HTTPS, or file URL",
   "webview.navigation.load_failed": "Failed to load the page",
   "webview.navigation.open_external": "Open in external browser",
-  "webview.navigation.reload": "Reload",
-  "settings.reasoning_effort_mappings.automatic": "Automatic (nearest supported)",
-  "settings.reasoning_effort_mappings.description": "Map Cherry Studio thinking levels to each provider's native effort values. Unmapped levels keep the built-in nearest-tier behavior.",
-  "settings.reasoning_effort_mappings.provider_placeholder": "Select a provider",
-  "settings.reasoning_effort_mappings.scope.global": "Global default",
-  "settings.reasoning_effort_mappings.scope.label": "Mapping scope",
-  "settings.reasoning_effort_mappings.scope.provider": "Provider override",
-  "settings.reasoning_effort_mappings.title": "Reasoning effort mappings"
+  "webview.navigation.reload": "Reload"
 }

@@ -5784,6 +5784,13 @@
   "settings.quickPanel.scope.global": "Toàn cục",
   "settings.quickPanel.select": "Chọn",
   "settings.quickPanel.title": "Bảng chọn nhanh",
+  "settings.reasoning_effort_mappings.automatic": "Tự động (mức được hỗ trợ gần nhất)",
+  "settings.reasoning_effort_mappings.description": "Ánh xạ các mức suy luận của Cherry Studio sang giá trị effort gốc của từng nhà cung cấp. Các mức chưa ánh xạ vẫn giữ hành vi mức gần nhất tích hợp sẵn.",
+  "settings.reasoning_effort_mappings.provider_placeholder": "Chọn nhà cung cấp",
+  "settings.reasoning_effort_mappings.scope.global": "Mặc định toàn cục",
+  "settings.reasoning_effort_mappings.scope.label": "Phạm vi ánh xạ",
+  "settings.reasoning_effort_mappings.scope.provider": "Ghi đè theo nhà cung cấp",
+  "settings.reasoning_effort_mappings.title": "Ánh xạ effort suy luận",
   "settings.scheduledTasks.chatDraft": "Hãy giúp tôi thiết lập một tác vụ đã lên lịch. Trước tiên, hãy giải thích ngắn gọn tác vụ đã lên lịch có thể làm gì, sau đó hỏi tôi vài câu để xác định bạn cần làm gì và khi nào chạy. Chỉ tạo tác vụ sau khi tôi xác nhận, rồi cho tôi biết tên, lịch chạy và lời nhắc của tác vụ.",
   "settings.scheduledTasks.createDescription": "Thiết lập những gì Agent cần làm và khi nào nó sẽ chạy.",
   "settings.scheduledTasks.createTitle": "Tác vụ đã lên lịch mới",
@@ -6513,12 +6520,5 @@
   "webview.navigation.invalid_address": "Nhập URL HTTP, HTTPS hoặc tệp hợp lệ",
   "webview.navigation.load_failed": "Tải trang thất bại",
   "webview.navigation.open_external": "Mở trong trình duyệt bên ngoài",
-  "webview.navigation.reload": "Tải lại",
-  "settings.reasoning_effort_mappings.automatic": "Tự động (mức được hỗ trợ gần nhất)",
-  "settings.reasoning_effort_mappings.description": "Ánh xạ các mức suy luận của Cherry Studio sang giá trị effort gốc của từng nhà cung cấp. Các mức chưa ánh xạ vẫn giữ hành vi mức gần nhất tích hợp sẵn.",
-  "settings.reasoning_effort_mappings.provider_placeholder": "Chọn nhà cung cấp",
-  "settings.reasoning_effort_mappings.scope.global": "Mặc định toàn cục",
-  "settings.reasoning_effort_mappings.scope.label": "Phạm vi ánh xạ",
-  "settings.reasoning_effort_mappings.scope.provider": "Ghi đè theo nhà cung cấp",
-  "settings.reasoning_effort_mappings.title": "Ánh xạ effort suy luận"
+  "webview.navigation.reload": "Tải lại"
 }

@@ -5784,6 +5784,13 @@
   "settings.quickPanel.scope.global": "グローバル",
   "settings.quickPanel.select": "選択",
   "settings.quickPanel.title": "クイックメニュー",
+  "settings.reasoning_effort_mappings.automatic": "自動（最も近いサポートレベル）",
+  "settings.reasoning_effort_mappings.description": "Cherry Studio の思考レベルを各プロバイダーのネイティブ effort 値にマッピングします。未マッピングのレベルは組み込みの最寄りレベル動作を維持します。",
+  "settings.reasoning_effort_mappings.provider_placeholder": "プロバイダーを選択",
+  "settings.reasoning_effort_mappings.scope.global": "グローバル既定",
+  "settings.reasoning_effort_mappings.scope.label": "マッピング範囲",
+  "settings.reasoning_effort_mappings.scope.provider": "プロバイダー上書き",
+  "settings.reasoning_effort_mappings.title": "思考 effort マッピング",
   "settings.scheduledTasks.chatDraft": "スケジュールされたタスクの設定を手伝ってください。まず、スケジュールされたタスクで何ができるかを簡単に説明し、何をいつ実行すべきかを決めるためにいくつか質問してください。私が確認してからタスクを作成し、その名前、スケジュール、プロンプトを教えてください。",
   "settings.scheduledTasks.createDescription": "エージェントが何をすべきか、そしていつ実行すべきかを設定します。",
   "settings.scheduledTasks.createTitle": "新規スケジュールタスク",
@@ -6513,12 +6520,5 @@
   "webview.navigation.invalid_address": "有効な HTTP、HTTPS、またはファイル URL を入力してください",
   "webview.navigation.load_failed": "ページの読み込みに失敗しました",
   "webview.navigation.open_external": "外部ブラウザで開く",
-  "webview.navigation.reload": "再読み込み",
-  "settings.reasoning_effort_mappings.automatic": "自動（最も近いサポートレベル）",
-  "settings.reasoning_effort_mappings.description": "Cherry Studio の思考レベルを各プロバイダーのネイティブ effort 値にマッピングします。未マッピングのレベルは組み込みの最寄りレベル動作を維持します。",
-  "settings.reasoning_effort_mappings.provider_placeholder": "プロバイダーを選択",
-  "settings.reasoning_effort_mappings.scope.global": "グローバル既定",
-  "settings.reasoning_effort_mappings.scope.label": "マッピング範囲",
-  "settings.reasoning_effort_mappings.scope.provider": "プロバイダー上書き",
-  "settings.reasoning_effort_mappings.title": "思考 effort マッピング"
+  "webview.navigation.reload": "再読み込み"
 }

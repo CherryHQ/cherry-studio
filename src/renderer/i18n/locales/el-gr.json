@@ -5784,6 +5784,13 @@
   "settings.quickPanel.scope.global": "Καθολικό",
   "settings.quickPanel.select": "Επιλογή",
   "settings.quickPanel.title": "Γρήγορη Πρόσβαση",
+  "settings.reasoning_effort_mappings.automatic": "Αυτόματο (πλησιέστερο υποστηριζόμενο)",
+  "settings.reasoning_effort_mappings.description": "Αντιστοιχίστε τα επίπεδα σκέψης του Cherry Studio στις εγγενείς τιμές effort κάθε παρόχου. Τα μη αντιστοιχισμένα επίπεδα διατηρούν τη συμπεριφορά πλησιέστερου επιπέδου.",
+  "settings.reasoning_effort_mappings.provider_placeholder": "Επιλέξτε πάροχο",
+  "settings.reasoning_effort_mappings.scope.global": "Καθολική προεπιλογή",
+  "settings.reasoning_effort_mappings.scope.label": "Εύρος αντιστοίχισης",
+  "settings.reasoning_effort_mappings.scope.provider": "Υπέρβαση παρόχου",
+  "settings.reasoning_effort_mappings.title": "Αντιστοιχίσεις effort σκέψης",
   "settings.scheduledTasks.chatDraft": "Βοήθησέ με να ρυθμίσω μια προγραμματισμένη εργασία. Πρώτα εξήγησε σύντομα τι μπορούν να κάνουν οι προγραμματισμένες εργασίες και μετά κάνε μου μερικές ερωτήσεις για να καταλάβεις τι πρέπει να κάνεις και πότε να εκτελείται. Δημιούργησε την εργασία μόνο αφού επιβεβαιώσω και μετά πες μου το όνομα, το χρονοδιάγραμμα και την προτροπή της.",
   "settings.scheduledTasks.createDescription": "Ρυθμίστε τι πρέπει να κάνει ο Πράκτορας και πότε πρέπει να εκτελείται.",
   "settings.scheduledTasks.createTitle": "Νέα προγραμματισμένη εργασία",
@@ -6513,12 +6520,5 @@
   "webview.navigation.invalid_address": "Εισαγάγετε μια έγκυρη διεύθυνση URL HTTP, HTTPS ή αρχείου",
   "webview.navigation.load_failed": "Αποτυχία φόρτωσης της σελίδας",
   "webview.navigation.open_external": "Άνοιγμα σε εξωτερικό πρόγραμμα περιήγησης",
-  "webview.navigation.reload": "Επαναφόρτωση",
-  "settings.reasoning_effort_mappings.automatic": "Αυτόματο (πλησιέστερο υποστηριζόμενο)",
-  "settings.reasoning_effort_mappings.description": "Αντιστοιχίστε τα επίπεδα σκέψης του Cherry Studio στις εγγενείς τιμές effort κάθε παρόχου. Τα μη αντιστοιχισμένα επίπεδα διατηρούν τη συμπεριφορά πλησιέστερου επιπέδου.",
-  "settings.reasoning_effort_mappings.provider_placeholder": "Επιλέξτε πάροχο",
-  "settings.reasoning_effort_mappings.scope.global": "Καθολική προεπιλογή",
-  "settings.reasoning_effort_mappings.scope.label": "Εύρος αντιστοίχισης",
-  "settings.reasoning_effort_mappings.scope.provider": "Υπέρβαση παρόχου",
-  "settings.reasoning_effort_mappings.title": "Αντιστοιχίσεις effort σκέψης"
+  "webview.navigation.reload": "Επαναφόρτωση"
 }

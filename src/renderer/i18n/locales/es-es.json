@@ -5784,6 +5784,13 @@
   "settings.quickPanel.scope.global": "Global",
   "settings.quickPanel.select": "Seleccionar",
   "settings.quickPanel.title": "Menú de acceso rápido",
+  "settings.reasoning_effort_mappings.automatic": "Automático (nivel compatible más cercano)",
+  "settings.reasoning_effort_mappings.description": "Asigne los niveles de razonamiento de Cherry Studio a los valores de effort nativos de cada proveedor. Los niveles sin asignar conservan el comportamiento integrado del nivel más cercano.",
+  "settings.reasoning_effort_mappings.provider_placeholder": "Seleccionar proveedor",
+  "settings.reasoning_effort_mappings.scope.global": "Predeterminado global",
+  "settings.reasoning_effort_mappings.scope.label": "Ámbito de asignación",
+  "settings.reasoning_effort_mappings.scope.provider": "Anulación por proveedor",
+  "settings.reasoning_effort_mappings.title": "Asignaciones de effort de razonamiento",
   "settings.scheduledTasks.chatDraft": "Ayúdame a configurar una tarea programada. Primero, explica brevemente qué pueden hacer las tareas programadas y luego hazme algunas preguntas para determinar qué debes hacer y cuándo debe ejecutarse. Crea la tarea solo después de que lo confirme y luego dime su nombre, su programación y su prompt.",
   "settings.scheduledTasks.createDescription": "Establece lo que el Agente debe hacer y cuándo debe ejecutarse.",
   "settings.scheduledTasks.createTitle": "Nueva tarea programada",
@@ -6513,12 +6520,5 @@
   "webview.navigation.invalid_address": "Introduce una URL válida de HTTP, HTTPS o de archivo",
   "webview.navigation.load_failed": "No se pudo cargar la página",
   "webview.navigation.open_external": "Abrir en el navegador externo",
-  "webview.navigation.reload": "Recargar",
-  "settings.reasoning_effort_mappings.automatic": "Automático (nivel compatible más cercano)",
-  "settings.reasoning_effort_mappings.description": "Asigne los niveles de razonamiento de Cherry Studio a los valores de effort nativos de cada proveedor. Los niveles sin asignar conservan el comportamiento integrado del nivel más cercano.",
-  "settings.reasoning_effort_mappings.provider_placeholder": "Seleccionar proveedor",
-  "settings.reasoning_effort_mappings.scope.global": "Predeterminado global",
-  "settings.reasoning_effort_mappings.scope.label": "Ámbito de asignación",
-  "settings.reasoning_effort_mappings.scope.provider": "Anulación por proveedor",
-  "settings.reasoning_effort_mappings.title": "Asignaciones de effort de razonamiento"
+  "webview.navigation.reload": "Recargar"
 }

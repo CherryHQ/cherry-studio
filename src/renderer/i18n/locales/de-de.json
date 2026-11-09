@@ -5784,6 +5784,13 @@
   "settings.quickPanel.scope.global": "Global",
   "settings.quickPanel.select": "Auswählen",
   "settings.quickPanel.title": "Schnellmenü",
+  "settings.reasoning_effort_mappings.automatic": "Automatisch (nächst unterstützte Stufe)",
+  "settings.reasoning_effort_mappings.description": "Ordnet Cherry Studio-Denkebenen den nativen Effort-Werten jedes Anbieters zu. Nicht zugeordnete Ebenen behalten das integrierte Verhalten der nächsten Stufe.",
+  "settings.reasoning_effort_mappings.provider_placeholder": "Anbieter auswählen",
+  "settings.reasoning_effort_mappings.scope.global": "Globale Standardzuordnung",
+  "settings.reasoning_effort_mappings.scope.label": "Zuordnungsbereich",
+  "settings.reasoning_effort_mappings.scope.provider": "Anbieterüberschreibung",
+  "settings.reasoning_effort_mappings.title": "Denkaufwand-Zuordnungen",
   "settings.scheduledTasks.chatDraft": "Hilf mir, eine geplante Aufgabe einzurichten. Erkläre zuerst kurz, was geplante Aufgaben können, und stelle mir dann ein paar Fragen, um herauszufinden, was du tun sollst und wann es ausgeführt werden soll. Erstelle die Aufgabe erst, nachdem ich bestätigt habe, und nenne mir dann ihren Namen, Zeitplan und Prompt.",
   "settings.scheduledTasks.createDescription": "Legen Sie fest, was der Agent tun soll und wann er ausgeführt werden soll.",
   "settings.scheduledTasks.createTitle": "Neue geplante Aufgabe",
@@ -6513,12 +6520,5 @@
   "webview.navigation.invalid_address": "Gib eine gültige HTTP-, HTTPS- oder Datei-URL ein",
   "webview.navigation.load_failed": "Seite konnte nicht geladen werden",
   "webview.navigation.open_external": "Im externen Browser öffnen",
-  "webview.navigation.reload": "Neu laden",
-  "settings.reasoning_effort_mappings.automatic": "Automatisch (nächst unterstützte Stufe)",
-  "settings.reasoning_effort_mappings.description": "Ordnet Cherry Studio-Denkebenen den nativen Effort-Werten jedes Anbieters zu. Nicht zugeordnete Ebenen behalten das integrierte Verhalten der nächsten Stufe.",
-  "settings.reasoning_effort_mappings.provider_placeholder": "Anbieter auswählen",
-  "settings.reasoning_effort_mappings.scope.global": "Globale Standardzuordnung",
-  "settings.reasoning_effort_mappings.scope.label": "Zuordnungsbereich",
-  "settings.reasoning_effort_mappings.scope.provider": "Anbieterüberschreibung",
-  "settings.reasoning_effort_mappings.title": "Denkaufwand-Zuordnungen"
+  "webview.navigation.reload": "Neu laden"
 }

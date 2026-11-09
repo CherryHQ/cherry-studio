@@ -5784,6 +5784,13 @@
   "settings.quickPanel.scope.global": "全局",
   "settings.quickPanel.select": "选择",
   "settings.quickPanel.title": "输入快捷面板",
+  "settings.reasoning_effort_mappings.automatic": "自动（最近支持档位）",
+  "settings.reasoning_effort_mappings.description": "将 Cherry Studio 的思考强度档位映射到各服务商原生 effort 值。未配置的档位仍使用内置的最近档位映射。",
+  "settings.reasoning_effort_mappings.provider_placeholder": "选择服务商",
+  "settings.reasoning_effort_mappings.scope.global": "全局默认",
+  "settings.reasoning_effort_mappings.scope.label": "映射范围",
+  "settings.reasoning_effort_mappings.scope.provider": "服务商覆盖",
+  "settings.reasoning_effort_mappings.title": "思考强度映射",
   "settings.scheduledTasks.chatDraft": "帮我设置一个定时任务。请先简要介绍定时任务能做什么，然后问我几个问题，弄清楚你要做什么、什么时候执行。等我确认后再创建任务，并告诉我任务的名称、执行时间和提示词。",
   "settings.scheduledTasks.createDescription": "设置 Agent 要执行的内容和运行频率。",
   "settings.scheduledTasks.createTitle": "建立定时任务",
@@ -6513,12 +6520,5 @@
   "webview.navigation.invalid_address": "请输入有效的 HTTP、HTTPS 或文件地址",
   "webview.navigation.load_failed": "页面加载失败",
   "webview.navigation.open_external": "在外部浏览器中打开",
-  "webview.navigation.reload": "刷新",
-  "settings.reasoning_effort_mappings.automatic": "自动（最近支持档位）",
-  "settings.reasoning_effort_mappings.description": "将 Cherry Studio 的思考强度档位映射到各服务商原生 effort 值。未配置的档位仍使用内置的最近档位映射。",
-  "settings.reasoning_effort_mappings.provider_placeholder": "选择服务商",
-  "settings.reasoning_effort_mappings.scope.global": "全局默认",
-  "settings.reasoning_effort_mappings.scope.label": "映射范围",
-  "settings.reasoning_effort_mappings.scope.provider": "服务商覆盖",
-  "settings.reasoning_effort_mappings.title": "思考强度映射"
+  "webview.navigation.reload": "刷新"
 }
