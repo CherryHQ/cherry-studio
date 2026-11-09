@@ -122,3 +122,5 @@ pnpm test:main tests/helpers/http/__tests__/mockChatServer.test.ts
 
 They do not verify desktop rendering or message persistence. Those assertions
 belong in the [regression scenarios](../../e2e/regression/README.md).
+
+Streaming requests can emit a progress-only event with `request.sendProgress({ total, processed, cache, time_ms })` before sending text. Set `rejectReturnProgress: true` when starting the server to reject requests containing `return_progress` with HTTP 400 before streaming begins.

@@ -2645,6 +2645,7 @@
   "message.tools.placeholder.elapsed.seconds": "{{seconds}}วิ",
   "message.tools.placeholder.generating": "กำลังเขียนคำตอบ",
   "message.tools.placeholder.preparing": "กำลังเตรียมคำตอบ",
+  "message.tools.placeholder.prompt_progress": "กำลังอ่านบทสนทนา… {{percent}} (เหลือประมาณ {{eta}})",
   "message.tools.placeholder.thinking": "ให้ฉันคิดก่อน",
   "message.tools.placeholder.usingTools": "กำลังดำเนินการ",
   "message.tools.processed": "ประมวลผลแล้ว",

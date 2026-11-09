@@ -9,6 +9,7 @@ import type { Provider } from '@shared/data/types/provider'
 import type { AiChatRequest, AppProviderSettingsMap } from '../../../types'
 import { buildAgentParams } from '../params/buildAgentParams'
 import type { RequestFeature } from '../params/feature'
+import type { PromptProgressSink } from '../params/promptProgressFetch'
 import type { FallbackResolver } from './createRetryableWrap'
 import { resolveApiKeyFallbacks } from './resolveApiKeyFallbacks'
 
@@ -18,6 +19,7 @@ export interface BuildApiKeyFallbackModelsArgs {
   model: Model
   assistant: Assistant | undefined
   signal: AbortSignal | undefined
+  promptProgressSink?: PromptProgressSink
   extraFeatures: readonly RequestFeature[]
   primaryCredentialReceipt: ServingCredentialReceipt
   createUsagePlugin: (credentialReceipt: ServingCredentialReceipt) => AiPlugin
@@ -39,6 +41,7 @@ export function buildApiKeyFallbackModels(args: BuildApiKeyFallbackModelsArgs): 
       model: args.model,
       assistant: args.assistant,
       extraFeatures: args.extraFeatures,
+      promptProgressSink: args.promptProgressSink,
       getRepairUsagePlugins: () => repairUsagePlugins.current ?? [],
       compactionSink: args.request.compactionSink
     })

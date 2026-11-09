@@ -10,6 +10,7 @@ const translations: Record<string, string> = {
   'message.tools.placeholder.elapsed.seconds': '{{seconds}} seconds',
   'message.tools.placeholder.generating': 'Generating response',
   'message.tools.placeholder.preparing': 'Preparing response',
+  'message.tools.placeholder.prompt_progress': 'Reading the conversation… {{percent}} (~{{eta}} left)',
   'message.tools.placeholder.thinking': 'Thinking',
   'message.tools.placeholder.usingTools': 'Working with tools'
 }
@@ -44,6 +45,11 @@ describe('PlaceholderBlock', () => {
     expect(screen.getByTestId('beat-loader')).toBeInTheDocument()
     expect(screen.queryByTestId('message-status-elapsed')).not.toBeInTheDocument()
     expect(container.querySelector('svg')).toBeNull()
+  })
+
+  it('shows reported progress and ETA while preparing', () => {
+    render(<PlaceholderBlock isProcessing createdAt="" progress={{ percent: 62, etaMs: 6129 }} />)
+    expect(screen.getByTestId('message-status-text')).toHaveTextContent('62% (~6 seconds left)')
   })
 
   it('shows the requested generation stage', () => {

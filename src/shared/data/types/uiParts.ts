@@ -137,7 +137,10 @@ export type RetryPartData =
  * All custom DataUIPart types for Cherry Studio.
  * Used with `useChat({ dataPartSchemas })` to enable type-safe custom parts.
  */
+export type PromptProgressPartData = { percent: number; etaMs: number } | null
+
 export type CherryDataPartTypes = {
+  'prompt-progress': PromptProgressPartData
   error: ErrorPartData
   translation: TranslationPartData
   video: VideoPartData

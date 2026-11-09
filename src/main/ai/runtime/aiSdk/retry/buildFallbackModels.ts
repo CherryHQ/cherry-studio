@@ -30,6 +30,7 @@ import type { AgentOptions } from '../loop/types'
 import { buildAgentParams } from '../params/buildAgentParams'
 import type { RequestFeature } from '../params/feature'
 import type { NativeFileSupport } from '../params/nativeFileSupport'
+import type { PromptProgressSink } from '../params/promptProgressFetch'
 import type { FallbackCallOptions, FallbackResolver, RetryFallback } from './createRetryableWrap'
 import type { RetryPolicy } from './retryPolicy'
 
@@ -47,6 +48,7 @@ export interface BuildFallbackModelsArgs {
   primaryHasTools: boolean
   /** Native attachment shapes preserved for the primary and replayed to fallbacks. */
   requiredNativeFileSupport: NativeFileSupport
+  promptProgressSink?: PromptProgressSink
   extraFeatures: readonly RequestFeature[]
   retryPolicy: RetryPolicy
   createUsagePlugin: (input: {
@@ -159,6 +161,7 @@ async function resolveFallback(
     model,
     assistant: args.assistant,
     extraFeatures: args.extraFeatures,
+    promptProgressSink: args.promptProgressSink,
     getRepairUsagePlugins: () => repairUsagePlugins.current ?? []
   })
   const unsupportedNativeType = (Object.keys(required) as Array<keyof NativeFileSupport>).find(

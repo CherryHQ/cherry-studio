@@ -2645,6 +2645,7 @@
   "message.tools.placeholder.elapsed.seconds": "{{seconds}}秒",
   "message.tools.placeholder.generating": "回答を書く",
   "message.tools.placeholder.preparing": "応答を準備中",
+  "message.tools.placeholder.prompt_progress": "会話を読み込み中… {{percent}}（残り約{{eta}}）",
   "message.tools.placeholder.thinking": "考える",
   "message.tools.placeholder.usingTools": "タスクに取り組んでいる",
   "message.tools.processed": "処理済み",

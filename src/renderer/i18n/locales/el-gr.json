@@ -2645,6 +2645,7 @@
   "message.tools.placeholder.elapsed.seconds": "{{seconds}}δ",
   "message.tools.placeholder.generating": "Συγγραφή απάντησης",
   "message.tools.placeholder.preparing": "Προετοιμασία απάντησης",
+  "message.tools.placeholder.prompt_progress": "Ανάγνωση της συνομιλίας… {{percent}} (απομένουν περίπου {{eta}})",
   "message.tools.placeholder.thinking": "Σκέψη",
   "message.tools.placeholder.usingTools": "Δουλεύω πάνω στην εργασία",
   "message.tools.processed": "Επεξεργάστηκε",

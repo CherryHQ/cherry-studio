@@ -2645,6 +2645,7 @@
   "message.tools.placeholder.elapsed.seconds": "{{seconds}}s",
   "message.tools.placeholder.generating": "Escribiendo respuesta",
   "message.tools.placeholder.preparing": "Preparando respuesta",
+  "message.tools.placeholder.prompt_progress": "Leyendo la conversación… {{percent}} (quedan ~{{eta}})",
   "message.tools.placeholder.thinking": "Pensamiento",
   "message.tools.placeholder.usingTools": "Trabajando en la tarea",
   "message.tools.processed": "Procesado",

@@ -6,6 +6,7 @@ interface PlaceholderBlockProps {
   isProcessing: boolean
   createdAt: string
   status?: PlaceholderStatus
+  progress?: { percent: number; etaMs: number }
 }
 
 export type PlaceholderStatus = 'generating' | 'preparing' | 'thinking' | 'usingTools'
@@ -71,15 +72,25 @@ export function formatPlaceholderElapsed(elapsedMs: number, t: Translate): strin
   return t('message.tools.placeholder.elapsed.seconds', { seconds })
 }
 
-const PlaceholderBlock: React.FC<PlaceholderBlockProps> = ({ isProcessing, status = 'preparing' }) => {
-  const { t } = useTranslation()
+const PlaceholderBlock: React.FC<PlaceholderBlockProps> = ({ isProcessing, status = 'preparing', progress }) => {
+  const { t, i18n } = useTranslation()
 
   if (isProcessing) {
     return (
       <div
         className="flex min-h-7 flex-row items-center gap-1.5 py-0.5 text-[13px] leading-5 text-foreground-tertiary select-none"
         data-testid="message-status-placeholder">
-        <span data-testid="message-status-text">{t(PLACEHOLDER_LABEL_KEYS[status])}</span>
+        <span data-testid="message-status-text">
+          {progress
+            ? t('message.tools.placeholder.prompt_progress', {
+                percent: new Intl.NumberFormat(i18n?.resolvedLanguage, {
+                  style: 'percent',
+                  maximumFractionDigits: 0
+                }).format(progress.percent / 100),
+                eta: formatPlaceholderElapsed(progress.etaMs, t)
+              })
+            : t(PLACEHOLDER_LABEL_KEYS[status])}
+        </span>
         <BeatLoader color="currentColor" size={4} speedMultiplier={0.8} />
       </div>
     )

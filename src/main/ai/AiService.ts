@@ -77,6 +77,7 @@ import type { AgentLoopHooks, NativeFileSupport, RequestFeature } from './runtim
 import {
   Agent,
   buildAgentParams,
+  type PromptProgressSink,
   buildApiKeyFallbackModels,
   buildFallbackModels,
   createRetryableWrap,
@@ -616,6 +617,9 @@ export class AiService extends BaseService {
       throw new Error(`Agent session stream ${request.conversation.topicId} requires an agent-session runtime request`)
     }
 
+    const agentRef: { current?: Agent } = {}
+    const promptProgressSink: PromptProgressSink = (data) =>
+      agentRef.current?.write({ type: 'data-prompt-progress', id: 'prompt-progress', data })
     const repairUsagePlugins: { current?: AiPlugin[] } = {}
     const {
       sdkConfig,
@@ -630,7 +634,13 @@ export class AiService extends BaseService {
       hookParts,
       nativeFileSupport,
       fileAttachments
-    } = await this.buildAgentParamsFor(request, signal, extraFeatures, () => repairUsagePlugins.current ?? [])
+    } = await this.buildAgentParamsFor(
+      request,
+      signal,
+      extraFeatures,
+      () => repairUsagePlugins.current ?? [],
+      promptProgressSink
+    )
     const usageContext = createCaptureContext({
       provider,
       model,
@@ -681,7 +691,6 @@ export class AiService extends BaseService {
     // An explicit per-request `maxRetries: 0` means "no retries for this request"
     // — honor it (like embedding/rerank), overriding the global retry preference.
     const retryDisabledForRequest = request.requestOptions?.maxRetries === 0
-    const agentRef: { current?: Agent } = {}
     let activeRepairToolCall = options.repairToolCall
     const repairToolCall = options.repairToolCall
       ? (repairOptions: Parameters<NonNullable<typeof options.repairToolCall>>[0]) =>
@@ -696,6 +705,7 @@ export class AiService extends BaseService {
         assistant,
         signal,
         extraFeatures,
+        promptProgressSink,
         primaryCredentialReceipt: credentialReceipt,
         createUsagePlugin: (fallbackReceipt) =>
           createAiUsagePlugin(
@@ -724,6 +734,7 @@ export class AiService extends BaseService {
           primaryHasTools: !!tools && Object.keys(tools).length > 0,
           requiredNativeFileSupport: resolveRequiredNativeFileSupport(request.messages, nativeFileSupport),
           extraFeatures,
+          promptProgressSink,
           retryPolicy,
           createUsagePlugin: ({ provider, model, sdkModelId, credentialReceipt }) =>
             createAiUsagePlugin(
@@ -1592,7 +1603,8 @@ export class AiService extends BaseService {
       Pick<AiGenerateRequest, 'system'>,
     signal: AbortSignal | undefined,
     extraFeatures: readonly RequestFeature[] = [],
-    getRepairUsagePlugins?: () => AiPlugin[]
+    getRepairUsagePlugins?: () => AiPlugin[],
+    promptProgressSink?: PromptProgressSink
   ) {
     const { provider, model, assistant } = this.getProviderAndModel(request)
     const built = await buildAgentParams({
@@ -1603,6 +1615,7 @@ export class AiService extends BaseService {
       assistant,
       extraFeatures,
       getRepairUsagePlugins,
+      promptProgressSink,
       compactionSink: request.compactionSink
     })
     return { ...built, provider, model, assistant }
