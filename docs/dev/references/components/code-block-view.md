@@ -111,6 +111,11 @@ A newly visible viewer paints plain source before starting its first syntax requ
 already warm. Ready tokens then update the same rows. Off-screen requests and subsequent range updates retain their
 debounce; leaving the viewer or changing its pending range cancels the scheduled first request.
 
+Viewport entry and exit notify the viewer even when TanStack's row range stays unchanged. A short block can keep the
+same `[0, 0]` range on both sides of the viewport; waiting for a range change or scroll-end would leave its source
+hidden after a compensating scroll returns it to view. The element and window offset observers track this boundary
+using cached geometry, without rectangle reads during scroll dispatch.
+
 ### CodeEditor
 
 The edit action loads `CodeEditor`, showing the same Viewer while loading. CodeBlockView retains local EditorState
