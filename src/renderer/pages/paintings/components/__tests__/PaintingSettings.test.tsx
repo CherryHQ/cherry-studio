@@ -99,7 +99,7 @@ describe('PaintingSettings output format note', () => {
     const support = ModelListSchema.parse(catalog).models.find(
       (model) => model.id === 'gpt-image-2-6-flare'
     )?.imageGeneration
-    if (!support) throw new Error('Missing generation support')
+    if (!support?.modes.generate) throw new Error('Missing generation support')
     support.modes.generate.supports = { outputFormat: { type: 'enum', options: ['png', 'jpeg', 'webp'] } }
     vi.mocked(useImageGenerationSupport).mockReturnValue(support)
     renderSettings()
@@ -112,7 +112,7 @@ describe('PaintingSettings output format note', () => {
     const support = ModelListSchema.parse(catalog).models.find(
       (model) => model.id === 'gpt-image-2-6-flare'
     )?.imageGeneration
-    if (!support) throw new Error('Missing generation support')
+    if (!support?.modes.generate) throw new Error('Missing generation support')
     support.modes.generate.supports = {}
     vi.mocked(useImageGenerationSupport).mockReturnValue(support)
     renderSettings()
