@@ -73,7 +73,7 @@ export async function scheduledTaskConversation(app: RegressionApp, page: Page, 
     await screenshot('MP-145 scheduled tasks header')
     await expect
       .soft(
-        page.getByText('Set what the Agent should do and how often it should run.', { exact: true }),
+        page.getByText('Set what the Agent should do and when it should run.', { exact: true }),
         'Page header must explain task content and run frequency (设置 Agent 要执行的内容和运行频率。)'
       )
       .toBeVisible()

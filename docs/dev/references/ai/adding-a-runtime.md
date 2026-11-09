@@ -8,7 +8,7 @@ sources:
 
 # Adding an Agent Runtime
 
-How to add another agent runtime alongside `claude-code` and `pi`. For the
+How to add another agent runtime alongside `claude-code`, `pi` and `pi-durable`. For the
 host/driver architecture itself (turn lifecycle, resume tokens, follow-up
 queue) read [Agent Session Runtime](./agent-session-runtime.md) first — this
 document is the operational checklist.
@@ -76,23 +76,27 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
 `src/main/ai/runtime/types.ts`:
 
 1. **Driver** (`AgentSessionRuntimeDriver`) — required members:
-   - `type` (the `AgentType` literal) and `capabilities: ['agent-session']`
+   - `type` (the `AgentType` literal)
    - `validateSession(session)` — throw if the session can't be served
      (missing workspace, agent, model, unusable provider). Must be
      **side-effect free**: it runs on every dispatch, so it must not consume
      API-key rotation, open connections, or write state.
-   - `listAvailableTools(mcpIds)` — the tool catalog for approval UI.
    - `connect(input)` — build an `AgentRuntimeConnection`.
    - `workspaceRelocation`, when the runtime persists workspace-dependent history:
      own native validation and opaque checkpoint remapping here, stage artifacts through
      the host, and declare the artifact paths the runtime owns. See
      [Managed workspace relocation](./agent-session-runtime.md#managed-workspace-relocation).
+   - Optional desktop history: implement `fork` and a synchronous, side-effect-free
+     `isForkCheckpoint(value)` using the adapter's native checkpoint schema. Message
+     listing uses this predicate without loading the SDK, opening storage or starting
+     execution. The fork operation still verifies native history before publication.
    - Optional: `prewarmSession` / `closeSessionWarm` / `onSessionIdle` for
      runtimes that benefit from idle warmup (see the Claude driver).
 
 2. **Connection** (`AgentRuntimeConnection`) — required members:
    - `events` — an `AsyncIterable<AgentRuntimeEvent>`. Minimum viable event
-     mapping: `chunk` for streamed content, `turn-complete` to settle the
+     mapping: `message-projection` for authoritative Agent content, `chunk` for
+     host controls and display metadata, `turn-complete` to settle the
      host turn (the host closes the UI turn on this event — a runtime that
      never emits it strands the turn), `resume-token` whenever the runtime
      learns a recovery handle, `error` on failure.
@@ -102,21 +106,41 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
      calls per connection; hot-apply safe policy facts before returning `rebuild` for
      spawn-frozen differences, freeze permission-mode changes during an active turn,
      and return `failed` when a live tightening cannot be applied so the host fails closed.
-   - `close()`.
+   - `close()` — seal admission, stop native production, await observation delivery and callbacks,
+     flush committed archives, then detach and release. A failed final flush retains a retryable writer.
+     Durable runtimes may preserve unfinished work.
+   - Optional `contextId` identifies the bound product context. Expose it before controls
+     that may precede the first native message so Main can attach them to the reserved reply.
    - Optional, with host fallbacks when omitted:
+     - `interrupt()` — cancel foreground work for user Stop before the host closes the
+       connection. Keep this separate from durable shutdown and recovery.
      - `redirect(input)` — native mid-turn steering; without it the host
        queues follow-ups as the next turn. If implemented, you must emit
-       `steer-boundary` when a steer is injected. A driver that returns unplaced inputs
+       `steer-boundary` with input IDs when native placement is evidenced. Keep original product
+       snapshots/headless policy on the existing session entry, including unknown admission across
+       replacement. Prepare the native binding before dispatch, fence stale callbacks by generation,
+       and reconcile retained inputs without automatically resending. Pi/Durable reserve the reply
+       synchronously before the next provider request; Claude command-start alone is not placement. A driver that returns unplaced inputs
        for the next turn emits `steer-undelivered`; Pi instead records native queued
        inputs as aborted when execution ends without placing them, without automatic resend.
+       Claude uses native next-priority admission across the turn boundary and never
+       returns an accepted input for host resend.
      - `retainWhileIdle` — keep an owned in-process runtime beyond the host idle TTL;
        explicit retirement and service shutdown still close it.
+     - `background-work-state` — retain the connection while native background work exists.
+       It does not determine product reply completion. `background-results` reports native triggering
+       tool-call IDs whose child result or parent notification generation has not drained; only a
+       confirmed empty set proves drainage. Publish these facts after their observed content.
+       `autonomous-turn-state: started` carries `sourceToolCallIds` for a background notification.
+       Main resumes the reply owning those calls; an independent native turn keeps its own reply.
+       Resident commands may retain the connection without holding a product reply open.
      - `childProjection(toolCallId)` — expose a child snapshot and subscription
        through the root owner. `messageChild(contextId, text)` dispatches child input
        through that owner. These optional desktop facets do not add native history
        methods to the common Runtime contract; see [Pi child projection](./agent-session-runtime.md#pi-behavior-host).
        A connection with independent child writes also provides `drainChildWrites()`:
-       after input admission drains, wait for native work and archive writes before returning.
+       after input admission drains, wait for native work, queued observation delivery and in-flight
+       callbacks before the final archive flush. Keep the write boundary sealed until resume.
        Reject on a failed flush so backup cannot accept an unconfirmed boundary.
      - `getContextUsage()` — live context-window stats; without it the UI
        simply has no usage meter.
@@ -133,10 +157,14 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
    carrier, tool snippets, skills transport, and the representation of base/append.
    See [System prompt ownership](./agent-session-runtime.md#system-prompt-ownership).
 
-4. **Stream adapter** — convert runtime-native events into
-   `UIMessageChunk`s. Import your transport constant from the descriptor
-   (single source), never re-declare the string. Reference implementations:
-   `claudeCode/streamAdapter.ts` and `pi/piStreamAdapter.ts`.
+4. **Content producer** — choose one source per execution. Common runtime adapters
+   expose AI SDK `RuntimeMessage` values through observation. Native deltas use
+   `RuntimeMessageStream` before observer fanout; authoritative native snapshots
+   can produce messages directly. Main uses `ThreadMessageProjection` and product
+   decorators such as `pi/PiMessageMetadata.ts` and `claudeCode/ClaudeMessageMetadata.ts`,
+   then publishes replacement-aware product views. Keep lifecycle/approval controls separate;
+   do not produce the same text and tools through both sources. Import the transport
+   constant from the descriptor rather than re-declaring its string.
 
 5. **Register the driver** in `src/main/ai/runtime/registerDrivers.ts`
    (called from `AgentSessionRuntimeService.onInit`). Do **not** create a

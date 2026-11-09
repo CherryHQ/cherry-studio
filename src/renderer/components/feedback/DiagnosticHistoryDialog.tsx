@@ -12,7 +12,7 @@ import {
   DialogTitle,
   EmptyState,
   Item,
-  Scrollbar,
+  ScrollArea,
   Skeleton,
   Tooltip
 } from '@cherrystudio/ui'
@@ -98,7 +98,7 @@ export function DiagnosticHistoryDialog({ open, onOpenChange }: DiagnosticHistor
         <DialogHeader className="flex-row items-center gap-2 border-b border-border-subtle px-5 py-4 pr-12">
           <DialogTitle>{t('settings.about.feedback.history.title')}</DialogTitle>
         </DialogHeader>
-        <Scrollbar className="min-h-0 px-5 py-4">
+        <ScrollArea viewportProps={{ className: 'px-5 py-4' }} className="min-h-0">
           <div className="space-y-3">
             {error ? <Alert type="error" showIcon message={t('settings.about.feedback.history.load_failed')} /> : null}
             {refreshError ? (
@@ -177,7 +177,7 @@ export function DiagnosticHistoryDialog({ open, onOpenChange }: DiagnosticHistor
               </ul>
             ) : null}
           </div>
-        </Scrollbar>
+        </ScrollArea>
         {data && data.total > PAGE_SIZE ? (
           <div className="flex items-center justify-between border-t border-border-subtle px-5 py-3 text-sm text-muted-foreground">
             <span className="tabular-nums">{`${page} / ${Math.ceil(data.total / PAGE_SIZE)}`}</span>

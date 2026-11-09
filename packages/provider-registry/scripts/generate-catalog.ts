@@ -11,7 +11,6 @@
  *     tsx scripts/generate-catalog.ts --report   # also dump /tmp/gen-*.txt review files
  *     tsx scripts/generate-catalog.ts --write --model gemini-4-argon # refresh one canonical model
  */
-import { createHash } from 'node:crypto'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -36,6 +35,7 @@ import { stripHostReprefix } from '../src/utils/normalize'
 import { deriveLegacyReasoningFields } from '../src/utils/reasoningControls'
 import { getServiceTierCatalogErrors } from '../src/utils/serviceTierCatalog'
 import { canonOf, deriveOverrideModelId, isModelsDevRoutingAlias, prefixHit } from './canonicalize'
+import { sortKeys, stampAndSerialize } from './catalogSerialization.mjs'
 import { scopeModelRefresh } from './scopeModelRefresh'
 import {
   type CherryMeta,
@@ -75,9 +75,6 @@ const REPORT = args.report
 // content without changing version — and the seed would silently never run. Upstream (models.dev/
 // OpenRouter) is read live by default; set MODELSDEV_CACHE / OPENROUTER_CACHE /
 // OPENROUTER_IMAGE_CACHE to cache it during dev.
-const contentVersion = (body: unknown): string =>
-  createHash('sha256').update(JSON.stringify(body)).digest('hex').slice(0, 16)
-
 /**
  * Collect + validate every creator-declared reasoning family rule, in
  * CREATORS × declaration order (order IS the match priority — never sort).
@@ -266,12 +263,6 @@ function buildServerToolConstraintsGen(models: Map<string, any>): string {
   ].join('\n')
 }
 
-/** Key-sort `body`, stamp `version: contentVersion(body)`, and serialize — the single write shape. */
-const stampAndSerialize = (body: Record<string, unknown>): string => {
-  const sorted = sortKeys(body)
-  return JSON.stringify(sortKeys({ ...sorted, version: contentVersion(sorted) }), null, 2) + '\n'
-}
-
 // Canonicalization (`canonOf`) + prefix matching (`prefixHit`) live in `./canonicalize` so they can be
 // unit-tested / reused without running this script's generation IIFE.
 
@@ -287,17 +278,6 @@ const crossVendorHost = (id: string, ownerCreatorId: string | undefined) => {
   const creator = vendor && vendor !== ownerCreatorId ? creatorById.get(vendor) : undefined
   return !!creator && !(creator.idPrefixes ?? []).some((p) => prefixHit(canonOf(id), p))
 }
-
-const sortKeys = (v: any): any =>
-  Array.isArray(v)
-    ? v.map(sortKeys)
-    : v && typeof v === 'object'
-      ? Object.fromEntries(
-          Object.keys(v)
-            .sort()
-            .map((k) => [k, sortKeys(v[k])])
-        )
-      : v
 
 /** Load an upstream source (cache file or live URL) and validate its top-level shape with zod. */
 async function load<T>(env: string, url: string, schema: ZodType<T>): Promise<T> {

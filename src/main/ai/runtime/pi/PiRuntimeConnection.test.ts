@@ -2,8 +2,10 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync,
 import { join } from 'node:path'
 
 import type { AssistantMessage } from '@earendil-works/pi-ai'
-import { createAssistantMessageEventStream, Type } from '@earendil-works/pi-ai'
+import { createAssistantMessageEventStream } from '@earendil-works/pi-ai'
+import { obj } from '@earendil-works/pi-schema'
 import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
 import { v7 as uuid } from 'uuid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -40,7 +42,8 @@ import * as piBehaviorHost from './piBehaviorHost'
 import type { PiConnectionSnapshot } from './piConnectionSignature'
 import type * as PiMcpExtension from './piMcpExtension'
 import { buildPiMcpToolName } from './piMcpExtension'
-import { buildPiLoginPathPrefix, PiRuntimeConnection } from './PiRuntimeConnection'
+import { PiRuntimeConnection } from './PiRuntimeConnection'
+import { buildPiLoginPathPrefix } from './piShell'
 
 const modelId = 'test::test-model'
 
@@ -56,6 +59,7 @@ vi.mock('@application', async () => {
   const overrides = {
     DbService: defaultServiceInstances.DbService,
     ApiGatewayService: {
+      captureAgentSessionUsage: () => ({ headers: {}, release: () => {} }),
       ensureInternalGateway: async () => ({ baseUrl: 'http://gateway.invalid', apiKey: 'fixture' }),
       getAgentSessionUsageHeaders: () => ({})
     },
@@ -82,7 +86,7 @@ vi.mock('./piMcpExtension', async (original) => ({
         name: buildPiMcpToolName('cherry-tools', name),
         label: name,
         description: name,
-        parameters: Type.Object({}),
+        parameters: obj({}),
         execute: async () => {
           mocks.delegated()
           return { content: [{ type: 'text', text: 'delegated' }] }
@@ -223,9 +227,23 @@ describe('desktop Pi root connection', () => {
   async function done(events: AgentRuntimeEvent[]) {
     await expect.poll(() => events.some((event) => event.type === 'turn-complete' || event.type === 'error')).toBe(true)
   }
+  function projected(events: AgentRuntimeEvent[]) {
+    const messages = new Map<
+      string,
+      Extract<AgentRuntimeEvent, { type: 'message-projection' }>['projection']['messages'][number]
+    >()
+    for (const event of events) {
+      if (event.type !== 'message-projection') continue
+      for (const old of [...Object.keys(event.projection.replaces), ...event.projection.removed]) messages.delete(old)
+      for (const message of event.projection.messages)
+        if (event.projection.live.includes(message.id)) messages.set(message.id, message)
+    }
+    return [...messages.values()]
+  }
   const text = (events: AgentRuntimeEvent[]) =>
-    events
-      .flatMap((event) => (event.type === 'chunk' && event.chunk.type === 'text-delta' ? [event.chunk.delta] : []))
+    projected(events)
+      .filter((message) => message.role === 'assistant')
+      .flatMap((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])))
       .join('')
   function nativeFiles() {
     const directory = application.getPath('feature.agents.pi.sessions')
@@ -366,7 +384,10 @@ describe('desktop Pi root connection', () => {
       if (call.sessionId !== root) {
         child = call.sessionId!
         childRuns++
-        return assistantReply(childRuns === 1 ? 'child first answer' : 'child continued answer')
+        return {
+          ...assistantReply(childRuns === 1 ? 'child first answer' : 'child continued answer'),
+          responseId: `child-response-${childRuns}`
+        }
       }
       const last = JSON.stringify(call.messages.at(-1))
       if (last.includes('delegate now'))
@@ -390,6 +411,7 @@ describe('desktop Pi root connection', () => {
     expect(events.filter((event) => event.type === 'error')).toEqual([])
     const access = await connection.childProjection('spawn')
     expect(access).toBeDefined()
+    expect(access!.snapshot().canSubmit).toBe(true)
     const childText = () =>
       access!
         .snapshot()
@@ -399,9 +421,6 @@ describe('desktop Pi root connection', () => {
         .join('')
     await expect.poll(childText).toBe('child first answer')
     expect(text(events)).toBe('parent finished')
-    expect(events.some((event) => event.type === 'background-flow-chunk' && event.chunk.type === 'text-delta')).toBe(
-      false
-    )
     const before = access!.snapshot()
     const subscriberA: unknown[] = []
     const subscriberB: unknown[] = []
@@ -412,6 +431,18 @@ describe('desktop Pi root connection', () => {
     await connection.send({ message: message('continue child') })
     await done(events)
     await expect.poll(() => childText()).toContain('child continued answer')
+    const childMessage = access!
+      .snapshot()
+      .messages.find((message) =>
+        message.parts.some((part) => part.type === 'text' && part.text === 'child continued answer')
+      )!
+    await expect
+      .poll(() => events.filter((event) => event.type === 'response-start' && event.responseId === 'child-response-2'))
+      .toContainEqual({
+        type: 'response-start',
+        responseId: 'child-response-2',
+        messageId: childMessage.id
+      })
     expect(child).toBe(firstChild)
     expect(nativeFiles()).toHaveLength(2)
     await expect
@@ -650,6 +681,9 @@ describe('desktop Pi root connection', () => {
     await connection.send({ message: message('delegate now') })
     await held.reached
     await done(events)
+    expect(events.filter((event) => event.type === 'background-work-state').at(-1)).toMatchObject({
+      active: true
+    })
     const tasks = events.find((event) => event.type === 'background-tasks' && event.tasks.length > 0)
     if (tasks?.type !== 'background-tasks') throw new Error('No child task')
     expect(events.filter((event) => event.type === 'background-task-event').at(-1)).toMatchObject({
@@ -699,6 +733,7 @@ describe('desktop Pi root connection', () => {
     const { connection, events } = await connect()
     await connection.send({ message: message('/goal check the files') })
     await done(events)
+    expect(text(events)).toBe('Goal created.')
     expect(script.calls).toHaveLength(0)
     events.length = 0
     snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'auto' }
@@ -706,10 +741,12 @@ describe('desktop Pi root connection', () => {
     await done(events)
     expect(events.filter((event) => event.type === 'error')).toEqual([])
     const started = events.findIndex((event) => event.type === 'autonomous-turn-state' && event.state === 'started')
-    const firstChunk = events.findIndex((event) => event.type === 'chunk')
+    const firstChunk = events.findIndex(
+      (event) => event.type === 'message-projection' && event.projection.live.length > 0
+    )
     expect(started).toBeGreaterThanOrEqual(0)
     expect(started).toBeLessThan(firstChunk)
-    expect(events.at(-1)).toMatchObject({ type: 'autonomous-turn-state', state: 'finished' })
+    expect(events.filter((event) => event.type === 'autonomous-turn-state').at(-1)).toMatchObject({ state: 'finished' })
     expect(script.calls).toHaveLength(4)
     expect(events[started]).toMatchObject({ origin: { kind: 'goal-round', round: 1 } })
   })
@@ -790,6 +827,30 @@ describe('desktop Pi root connection', () => {
     }
   )
 
+  it.each(['trashed', 'deleted'] as const)('releases a settled runtime after its session is %s', async (state) => {
+    const { connection, events, consuming } = await connect()
+    const user = message('finish before deletion')
+    await connection.send({ message: user })
+    await done(events)
+    const row = dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, input.sessionId)).get()!
+    if (state === 'deleted') dbh.db.delete(agentSessionTable).where(eq(agentSessionTable.id, input.sessionId)).run()
+    else
+      dbh.db
+        .update(agentSessionTable)
+        .set({ deletedAt: Date.now() })
+        .where(eq(agentSessionTable.id, input.sessionId))
+        .run()
+    try {
+      await expect(connection.close()).resolves.toBeUndefined()
+      await consuming
+      await expect(connection.send({ message: user })).rejects.toThrow('unavailable')
+    } finally {
+      if (state === 'deleted') dbh.db.insert(agentSessionTable).values(row).run()
+      else
+        dbh.db.update(agentSessionTable).set({ deletedAt: null }).where(eq(agentSessionTable.id, input.sessionId)).run()
+    }
+  })
+
   it('reopens the native history without replaying archived content into the live product stream', async () => {
     const first = await connect()
     await first.connection.send({ message: message('first question') })
@@ -815,7 +876,9 @@ describe('desktop Pi root connection', () => {
     await done(events)
     expect(events.filter((event) => event.type === 'error')).toEqual([])
     expect(text(events)).toBe('Read successfully')
-    const results = events.filter((event) => event.type === 'chunk' && event.chunk.type === 'tool-output-available')
+    const results = projected(events).flatMap((message) =>
+      message.parts.filter((part) => part.type === 'dynamic-tool' && part.state === 'output-available')
+    )
     expect(results).toHaveLength(1)
     expect(JSON.stringify(results)).toContain('native tool result')
     expect(script.calls).toHaveLength(2)
@@ -887,33 +950,20 @@ describe('desktop Pi root connection', () => {
     expect(text(next.events)).toBe('resumed')
   })
 
-  it.each(['high', 'low', 'none'] as const)(
-    'retains explicit %s reasoning in the native session',
+  it.each(['default', 'auto'] as const)(
+    'rebuilds when the gateway reasoning selection changes from %s',
     async (reasoningEffort) => {
       input.reasoningEffort = reasoningEffort
-      const { connection, events } = await connect()
-      await connection.send({ message: message('question') })
-      await done(events)
-      expect(events.filter((event) => event.type === 'error')).toEqual([])
-      const entries = readFileSync(join(application.getPath('feature.agents.pi.sessions'), nativeFiles()[0]), 'utf8')
-        .trim()
-        .split('\n')
-        .map((line) => JSON.parse(line))
-      expect(entries).toContainEqual(
-        expect.objectContaining({
-          type: 'thinking_level_change',
-          thinkingLevel: reasoningEffort === 'none' ? 'off' : reasoningEffort
+      const { connection } = await connect()
+      expect(await connection.reconcile({ modelId: input.modelId, reasoningEffort })).toBe('current')
+      expect(
+        await connection.reconcile({
+          modelId: input.modelId,
+          reasoningEffort: reasoningEffort === 'auto' ? 'default' : 'auto'
         })
-      )
+      ).toBe('rebuild')
     }
   )
-
-  it('keeps equivalent automatic reasoning selections on the same connection', async () => {
-    input.reasoningEffort = 'auto'
-    const { connection } = await connect()
-    expect(await connection.reconcile({ modelId: input.modelId, reasoningEffort: 'default' })).toBe('current')
-    expect(await connection.reconcile({ modelId: input.modelId })).toBe('current')
-  })
 
   it('rebuilds for changed per-turn settings and rejects startup configuration drift', async () => {
     const { connection } = await connect()
@@ -950,11 +1000,10 @@ describe('desktop Pi root connection', () => {
     expect(text(events.slice(0, boundary))).toBe('before steer')
     expect(text(events.slice(boundary))).toBe('Hello world')
     const responses = [
-      ...new Map(nativeInputs.filter((state) => state.response).map((state) => [state.inputId, state])).values()
+      ...new Map(nativeInputs.filter((state) => state.outcome).map((state) => [state.inputId, state])).values()
     ]
     expect(responses.map((response) => response.inputId).sort()).toEqual([first.id, followup.id].sort())
     expect(responses.map((response) => response.outcome)).toEqual(['completed', 'completed'])
-    expect(new Set(responses.map((response) => response.response?.id)).size).toBe(2)
   })
 
   it('cancels queued input on stop without automatically sending it in the next owner', async () => {
