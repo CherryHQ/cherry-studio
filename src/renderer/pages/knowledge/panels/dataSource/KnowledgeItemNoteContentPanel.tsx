@@ -48,7 +48,7 @@ const KnowledgeItemNoteContentPanel = ({ itemId, onBack }: KnowledgeItemNoteCont
           variant="ghost"
           size="icon-sm"
           aria-label={t('common.back')}
-          className="text-foreground-muted size-5 min-h-5 min-w-5 rounded p-0 shadow-none transition-colors hover:bg-accent hover:text-foreground"
+          className="size-5 min-h-5 min-w-5 rounded p-0 text-muted-foreground shadow-none transition-colors hover:bg-accent hover:text-foreground"
           onClick={onBack}>
           <ArrowLeft className="size-3.5" />
         </Button>

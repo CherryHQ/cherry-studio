@@ -74,7 +74,7 @@ Cherry Studio 使用文档：按你要完成的事找到教程。
 
 关注我们的社交账号：[推特(X)](https://x.com/CherryStudioHQ)、[小红书](https://www.xiaohongshu.com/user/profile/662b6853000000000b031d9a)、[微博](https://weibo.com/u/7975656228)、[哔哩哔哩](https://space.bilibili.com/3546657515898892)、[抖音](https://www.douyin.com/user/MS4wLjABAAAAmw9A54m5J0hHVMQY5eGrVJ-EHDoOS0hgJ6M1F9MN2Tn2V163A0xrC4_KVzfmQSxC)
 
-加入我们的社群：[QQ 群](https://qm.qq.com/q/lo0D4qVZKi)、[Telegram](https://t.me/CherryStudioAI)、[Discord](https://discord.gg/wez8HtpxqQ)、[微信群](https://www.cherry-ai.com/#Community)
+加入我们的社群：[QQ 群](https://qm.qq.com/q/lo0D4qVZKi)、[Telegram](https://t.me/CherryStudioAI)、[Discord](https://discord.gg/wez8HtpxqQ)、[微信群](https://cherryai.com.cn/#Community)
 
 ***
 
