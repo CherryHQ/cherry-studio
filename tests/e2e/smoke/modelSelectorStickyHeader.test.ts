@@ -144,10 +144,9 @@ test('ModelSelector sticky header hands off between two provider groups', async 
       expect.soft(overlap.index, `${name}: overlap hit`).toBe(H)
       expect.soft(below.index, `${name}: first model below incoming header`).toBe(H + 1)
       expect.soft(below.text).toContain(`${newName} model`)
-      // Same-depth stacking and transform clamping are the layout contract under test.
+      // Headers must cover model rows while preserving same-depth handoff order.
       expect.soft(state.z).toBe(old.z)
       expect.soft(state.z).toBeGreaterThan(sample.model.z)
-      expect.soft(state.transform).toMatch(/^matrix/)
       expect.soft(state.background).not.toBe('rgba(0, 0, 0, 0)')
       tops.push(state.top)
     }
@@ -172,6 +171,16 @@ test('ModelSelector sticky header hands off between two provider groups', async 
         .toBeLessThanOrEqual(2)
       expect.soft(transitions[i].state.top).toBeLessThanOrEqual(transitions[i - 1].state.top + 1)
     }
+
+    // Read before scroll listeners run: pinning must be owned by browser layout.
+    await scroll(list, A + 8)
+    const synchronousDrift = await head.evaluate((el) => {
+      const viewport = el.closest('.dynamic-virtual-list')!
+      const before = el.getBoundingClientRect().top
+      viewport.scrollTop += 2
+      return el.getBoundingClientRect().top - before
+    })
+    expect(Math.abs(synchronousDrift), 'Header stays pinned before scroll callbacks').toBeLessThan(1)
 
     const selectedName = `${newName} model 18`
     await scroll(list, 0)

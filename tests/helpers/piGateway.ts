@@ -4,9 +4,9 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import type { LanguageModelV3CallOptions, LanguageModelV3StreamPart } from '@ai-sdk/provider'
-import { type AssistantMessage, InMemoryCredentialStore, type Message } from '@earendil-works/pi-ai'
+import { InMemoryCredentialStore, type Message } from '@earendil-works/pi-ai'
 import {
-  type AgentSession,
+  type SessionEntry,
   ModelRuntime,
   type ProviderModelConfig,
   SessionManager
@@ -22,10 +22,13 @@ import {
 import { MockLanguageModelV3 } from 'ai/test'
 import { onTestFinished } from 'vitest'
 
-import { type AgentRuntimeSessionOptions, createAgentRuntimeSession } from '@cherrystudio/agent-runtime-pi'
+import { runtimeId, type InputState } from '@cherrystudio/agent-runtime'
+import { type PiSessionOptions, createPiRuntime } from '@cherrystudio/agent-runtime-pi'
 import { loadPiApiStreamSimple } from '@main/ai/runtime/pi/piSdk'
 import { type InputParamsMap, MessageConverterFactory, StreamAdapterFactory } from '@main/features/apiGateway/adapters'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+
+import { createTestBehavior } from '../../packages/agent-runtime-pi/tests/sessionSupport'
 
 export type TestModel = Omit<Extract<ProviderModelConfig, { reasoning: boolean }>, 'id'> & { id: UniqueModelId }
 
@@ -149,40 +152,56 @@ export function tempDir(label: string): string {
   return dir
 }
 
-type Defaulted = 'cwd' | 'agentDir' | 'model' | 'modelRuntime' | 'systemPrompt'
-export type TestSessionOptions = Omit<AgentRuntimeSessionOptions, Defaulted> &
-  Partial<Pick<AgentRuntimeSessionOptions, 'cwd' | 'agentDir' | 'systemPrompt'>> & {
+type Defaulted = 'cwd' | 'agentDir' | 'model' | 'modelRuntime' | 'systemPrompt' | 'behavior'
+export type TestSessionOptions = Omit<PiSessionOptions, Defaulted> &
+  Partial<Pick<PiSessionOptions, 'cwd' | 'agentDir' | 'systemPrompt'>> & {
+    entries?: SessionEntry[]
+    sessionId?: string
     history?: Message[]
     model?: TestModel
     port: GatewayFixture
   }
 
 export async function createTestSession(options: TestSessionOptions) {
-  const { port, model, history, ...sessionOptions } = options
+  const { port, model, history, entries, sessionId, ...sessionOptions } = options
   const binding = await createTestBinding({ port, model })
   const cwd = options.cwd ?? tempDir('cwd')
-  const sessionManager = options.sessionManager ?? SessionManager.inMemory(cwd)
+  const sessionManager = options.sessionManager ?? SessionManager.inMemory(cwd, { id: sessionId }, entries)
   for (const message of history ?? []) sessionManager.appendMessage(message)
-  const runtime = await createAgentRuntimeSession({
+  const created = await createPiRuntime({ backendId: runtimeId('gateway-fixture') })
+  if (created.status !== 'confirmed') throw new Error(created.error.message)
+  const runtime = created.value
+  onTestFinished(async () => {
+    await runtime.shutdown()
+  })
+  const opened = await runtime.create({
     cwd,
     sessionManager,
     agentDir: options.agentDir ?? tempDir('agent'),
     systemPrompt: 'You are Cherry.',
     ...sessionOptions,
-    settings: { retry: { enabled: false }, ...sessionOptions.settings },
-    ...binding
+    ...binding,
+    behavior: createTestBehavior(binding.model)
   })
-  onTestFinished(() => runtime.dispose())
-  return runtime
+  if (opened.status !== 'confirmed') throw new Error(opened.error.message)
+  const handle = opened.value
+  const inputs = new Map<string, InputState>()
+  const observed = await handle.observe((event) => {
+    if (event.type === 'input.changed' && event.input.inputId) inputs.set(event.input.inputId, event.input)
+  })
+  if (observed.status !== 'confirmed') throw new Error(observed.error.message)
+  return {
+    handle,
+    async prompt(text: string) {
+      const inputId = runtimeId<'input'>(text)
+      const result = await handle.input.submit({ inputId, text, whenBusy: 'reject' })
+      if (result.status !== 'acknowledged') throw new Error(result.error.message)
+      await handle.pi.settled()
+      await observed.value.drain()
+      return inputs.get(inputId)
+    }
+  }
 }
-
-export function lastAssistant(session: AgentSession): AssistantMessage {
-  const message = session.messages.filter((m) => m.role === 'assistant').at(-1)
-  if (!message) throw new Error('no assistant message')
-  return message
-}
-
-export const plain = <T>(value: T): T => JSON.parse(JSON.stringify(value))
 
 export const finish = (
   unified: 'stop' | 'tool-calls' | 'length' | 'other',

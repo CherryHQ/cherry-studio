@@ -705,7 +705,7 @@ const openRouterFetcher: ModelFetcher = {
   fetch: async (provider, signal, options) => {
     const headers = defaultHeaders(provider)
     const modelsApiUrls = provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.modelsApiUrls
-    const [modelsResponse, embedModelsResponse, imageModelsResponse] = await Promise.all([
+    const [modelsResponse, embedModelsResponse, imageModelsResponse, rerankModelsResponse] = await Promise.all([
       getFromApi({
         url: modelsApiUrls?.default ?? 'https://openrouter.ai/api/v1/models',
         headers,
@@ -733,17 +733,38 @@ const openRouterFetcher: ModelFetcher = {
           providerId: provider.id,
           endpoint: 'openrouter-image-models'
         })
+      ),
+      getFromApi({
+        url: modelsApiUrls?.reranker ?? 'https://openrouter.ai/api/v1/models?output_modalities=rerank',
+        headers,
+        responseSchema: OpenAIModelsResponseSchema,
+        abortSignal: signal
+      }).catch((error) =>
+        recoverOptionalModelListFailure<OpenAIModelResponseItem>(error, {
+          providerId: provider.id,
+          endpoint: 'openrouter-reranker-models'
+        })
       )
     ])
-    warnSkippedOpenAIModelEntries(provider.id, modelsResponse, embedModelsResponse, imageModelsResponse)
-    const imageModelsById = new Map(imageModelsResponse.data.map((model) => [model.id, model]))
-    const all = [...modelsResponse.data, ...embedModelsResponse.data, ...imageModelsResponse.data].filter((m) =>
-      isSupportedOpenRouterChatModel(m.id)
+    warnSkippedOpenAIModelEntries(
+      provider.id,
+      modelsResponse,
+      embedModelsResponse,
+      imageModelsResponse,
+      rerankModelsResponse
     )
+    const imageModelsById = new Map(imageModelsResponse.data.map((model) => [model.id, model]))
+    const rerankModelIds = new Set(rerankModelsResponse.data.map((model) => model.id.trim()))
+    const all = [
+      ...modelsResponse.data,
+      ...embedModelsResponse.data,
+      ...imageModelsResponse.data,
+      ...rerankModelsResponse.data
+    ].filter((m) => isSupportedOpenRouterChatModel(m.id))
     return listing(
       dedup(all, (m) => m.id).map((m) => {
         const imageModel = imageModelsById.get(m.id)
-        return toModel(m.id, provider, {
+        const model = toModel(m.id, provider, {
           name: imageModel?.name ?? m.name,
           ownedBy: m.owned_by,
           ...(imageModel
@@ -753,6 +774,10 @@ const openRouterFetcher: ModelFetcher = {
               }
             : {})
         })
+        if (rerankModelIds.has(m.id.trim())) {
+          model.capabilities = Array.from(new Set([...(model.capabilities ?? []), MODEL_CAPABILITY.RERANK]))
+        }
+        return model
       })
     )
   }
