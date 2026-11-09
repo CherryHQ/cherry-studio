@@ -26,6 +26,8 @@ vi.mock('@main/ai/messages/attachmentTextExtraction', () => ({
   noExtractableTextNote: (name: string) => `No text in ${name}`
 }))
 
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
+
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
 import type { ReadFileInput } from '@shared/ai/builtinTools'
 
@@ -38,6 +40,7 @@ const ctx = (attachments: FileAttachmentRef[]) => ({ attachments })
 const input = (rest: { filename: string; offset?: number; limit?: number }): ReadFileInput => rest
 
 afterEach(() => {
+  MockMainCacheServiceUtils.resetMocks()
   getByIdMock.mockReset()
   mediaAnalysisMock.mockReset()
   ocrMock.mockReset()
@@ -118,6 +121,29 @@ describe('readFile — extracted content', () => {
       expect(extractMock).not.toHaveBeenCalled()
     }
   )
+
+  // A partial analysis is not cached, so a re-run (e.g. a retried vision call) can change the text.
+  it('continues media paging over the first page text even when analysis changes', async () => {
+    getByIdMock.mockResolvedValue({ ext: 'mp4' })
+    mediaAnalysisMock.mockResolvedValueOnce('[00:00] alpha [00:10] beta').mockResolvedValue('[00:00] retried, longer')
+    const attachments = ctx([att('clip.mp4')])
+
+    const first = await readFile(input({ filename: 'clip.mp4', limit: 14 }), attachments)
+    const second = await readFile(input({ filename: 'clip.mp4', offset: 14, limit: 14 }), attachments)
+
+    expect(first).toEqual({ text: '[00:00] alpha ', totalChars: 26, nextOffset: 14 })
+    expect(second).toEqual({ text: '[00:10] beta', totalChars: 26 })
+  })
+
+  it('re-analyzes when paging restarts from the first page', async () => {
+    getByIdMock.mockResolvedValue({ ext: 'mp4' })
+    mediaAnalysisMock.mockResolvedValueOnce('partial').mockResolvedValueOnce('complete')
+    const attachments = ctx([att('clip.mp4')])
+
+    await readFile(input({ filename: 'clip.mp4' }), attachments)
+
+    await expect(readFile(input({ filename: 'clip.mp4' }), attachments)).resolves.toMatchObject({ text: 'complete' })
+  })
 
   it.each(['mp4', 'webm'])('sanitizes .%s media analysis failures', async (ext) => {
     getByIdMock.mockResolvedValueOnce({ ext })

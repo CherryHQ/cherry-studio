@@ -190,7 +190,9 @@ existing path.
 the ASR, Vision, OCR, and execution-budget configuration. A repeated turn does
 not duplicate preprocessing, and configuration changes invalidate the cache.
 `read_file` reaches the full timestamped analysis through the same service and
-cache key, so repeated reads do not duplicate preprocessing either.
+cache key. Its first page (no `offset`) analyzes; later pages reuse that page's
+text for 30 minutes, so a partial analysis, which the service does not cache,
+is neither re-run nor allowed to shift offsets between pages.
 
 ## Capability resolution
 
