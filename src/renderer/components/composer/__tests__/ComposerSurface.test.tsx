@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Button as ToolbarButton } from '@cherrystudio/ui/components/primitives/button'
 import type { QuickPanelInputAdapter, QuickPanelInputEvent, QuickPanelListItem } from '@renderer/components/QuickPanel'
+import { CodeStyleContext } from '@renderer/hooks/useCodeStyle'
 import { voiceTargetManager } from '@renderer/services/voice'
 import { VoiceTargetManager } from '@renderer/services/voice/VoiceTargetManager'
 import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/types/file'
@@ -31,6 +32,7 @@ import type * as PasteHandling from '../paste/pasteHandling'
 import { COMPOSER_SUPPRESS_SUGGESTION_META } from '../quickPanel/suggestionExtension'
 
 const mocks = vi.hoisted(() => ({
+  handleMarkdownCodeKey: vi.fn(() => false),
   editorOptions: undefined as any,
   editorInstance: undefined as any,
   currentView: undefined as any,
@@ -307,6 +309,10 @@ vi.mock('@tiptap/react', async (importOriginal) => ({
       />
     </div>
   )
+}))
+
+vi.mock('../markdownLivePreview/codeBlockKeys', () => ({
+  handleMarkdownCodeKey: mocks.handleMarkdownCodeKey
 }))
 
 vi.mock('../ComposerToolRuntime', () => ({
@@ -966,6 +972,68 @@ describe('ComposerSurface', () => {
 
     render(<ComposerSurface {...baseProps} markdownLivePreview />)
     await waitFor(() => expect(mocks.editorPresetOptions.markdownLivePreview).toBe(true))
+  })
+
+  describe('Markdown code blocks', () => {
+    const pressEnter = async (props: Partial<ComposerSurfaceProps>) => {
+      const onSendDraft = vi.fn()
+      render(<ComposerSurface {...baseProps} text="hello" {...props} onSendDraft={onSendDraft} />)
+      await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+      const event = new KeyboardEvent('keydown', { key: 'Enter', cancelable: true })
+      const handled = mocks.editorOptions.editorProps.handleKeyDown(null, event)
+      return { event, handled, onSendDraft }
+    }
+
+    beforeEach(() => {
+      mocks.handleMarkdownCodeKey.mockReset()
+    })
+
+    it('never sends when a code block takes Enter', async () => {
+      mocks.handleMarkdownCodeKey.mockReturnValue(true)
+
+      const { event, handled, onSendDraft } = await pressEnter({ markdownLivePreview: true })
+
+      expect(handled).toBe(true)
+      expect(event.defaultPrevented).toBe(true)
+      expect(onSendDraft).not.toHaveBeenCalled()
+    })
+
+    it('sends as configured when Enter is outside a code block', async () => {
+      const { onSendDraft } = await pressEnter({ markdownLivePreview: true })
+
+      await waitFor(() => expect(onSendDraft).toHaveBeenCalledTimes(1))
+    })
+
+    it('keeps Enter unchanged on surfaces without live preview', async () => {
+      mocks.handleMarkdownCodeKey.mockReturnValue(true)
+
+      const { onSendDraft } = await pressEnter({})
+
+      await waitFor(() => expect(onSendDraft).toHaveBeenCalledTimes(1))
+    })
+
+    it('follows the code theme palette on live-preview surfaces only', async () => {
+      const withPalette = (color: string, props: Partial<ComposerSurfaceProps>) => (
+        <CodeStyleContext value={{ codeBlockStyle: { '--code-syntax-keyword': color } } as never}>
+          <ComposerSurface {...baseProps} {...props} />
+        </CodeStyleContext>
+      )
+      const keywordColor = () =>
+        screen
+          .getByTestId('editor-content')
+          .closest<HTMLElement>('[data-slot="scroll-area"]')
+          ?.style.getPropertyValue('--code-syntax-keyword')
+
+      const { rerender, unmount } = render(withPalette('red', { markdownLivePreview: true }))
+      await waitFor(() => expect(keywordColor()).toBe('red'))
+      rerender(withPalette('blue', { markdownLivePreview: true }))
+      await waitFor(() => expect(keywordColor()).toBe('blue'))
+      unmount()
+
+      render(withPalette('red', {}))
+      await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+      expect(keywordColor()).toBe('')
+    })
   })
 
   it('returns to the regular presentation for explicit multiple lines that do not overflow', async () => {

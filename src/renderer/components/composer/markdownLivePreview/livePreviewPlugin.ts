@@ -4,9 +4,11 @@ import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import { type EditorState, Plugin, PluginKey, type Selection, type Transaction } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 
+import { createCodeHighlightPlugin } from './codeBlockPlugin'
 import {
   createMarkdownSession,
   findSourceLineIndex,
+  type MarkdownCodeBlock,
   type MarkdownSession,
   type SourceLine,
   toDocumentPosition,
@@ -23,11 +25,13 @@ interface LineMarkup {
   spans: Span[]
   markers: Marker[]
   blockClasses: string[]
+  code?: { block: MarkdownCodeBlock; line: SourceLine }
 }
 
 interface LivePreviewState {
   session: MarkdownSession
   markup: LineMarkup[]
+  codeBlocks: MarkdownCodeBlock[]
   keys: string[]
   decorations: DecorationSet
   /** Set while composition edits the document without a matching parse. */
@@ -45,15 +49,16 @@ const DELIMITED_NODES: Record<string, { mark: string; className: string }> = {
   InlineCode: { mark: 'CodeMark', className: 'composer-md-inline-code' },
   Autolink: { mark: 'LinkMark', className: 'composer-md-link' }
 }
-const LITERAL_NODES = new Set(['Image', 'Table', 'HTMLBlock', 'HTMLTag', 'FencedCode', 'CodeBlock', 'LinkReference'])
+const LITERAL_NODES = new Set(['Image', 'Table', 'HTMLBlock', 'HTMLTag', 'CodeBlock', 'LinkReference'])
 
 const COMPOSITION_END_SETTLE_MS = 40
 
 const SYNTAX_CLASS = 'composer-md-syntax'
 const HIDDEN_SYNTAX_CLASS = `${SYNTAX_CLASS} composer-md-syntax-hidden`
 
-function collectMarkup({ text, lines, tree }: MarkdownSession): LineMarkup[] {
+function collectMarkup({ text, lines, tree }: MarkdownSession) {
   const markup = lines.map<LineMarkup>(() => ({ spans: [], markers: [], blockClasses: [] }))
+  const codeBlocks: MarkdownCodeBlock[] = []
   const documentRange = (range: Range) => ({
     from: toDocumentPosition(lines, range.from),
     to: toDocumentPosition(lines, range.to)
@@ -134,10 +139,33 @@ function collectMarkup({ text, lines, tree }: MarkdownSession): LineMarkup[] {
     addMarker(node.from, node.to + (text[node.to] === ' ' ? 1 : 0), { from: line.textFrom, to: line.textTo })
   }
 
+  const addCodeBlock = (node: SyntaxNode) => {
+    const first = findSourceLineIndex(lines, node.from)
+    const last = findSourceLineIndex(lines, node.to)
+    const close = node.getChildren('CodeMark').length > 1 ? lines[last] : undefined
+    const info = node.getChild('CodeInfo')
+    const codeLines = lines.slice(first + 1, close ? last : last + 1)
+    const block: MarkdownCodeBlock = {
+      language: info ? text.slice(info.from, info.to).split(/\s+/)[0] : '',
+      code: codeLines.map((line) => text.slice(line.textFrom, line.textTo)).join('\n'),
+      reveal: documentRange(node),
+      open: lines[first],
+      codeLines,
+      close,
+      nested: node.parent?.name !== 'Document'
+    }
+    codeBlocks.push(block)
+    for (let index = first; index <= last; index += 1) markup[index].code = { block, line: lines[index] }
+  }
+
   tree.iterate({
     enter: (ref) => {
       const { name } = ref
       if (LITERAL_NODES.has(name)) return false
+      if (name === 'FencedCode') {
+        addCodeBlock(ref.node)
+        return false
+      }
 
       const delimited = DELIMITED_NODES[name]
       if (delimited) addDelimited(ref.node, delimited.mark, delimited.className)
@@ -166,25 +194,44 @@ function collectMarkup({ text, lines, tree }: MarkdownSession): LineMarkup[] {
     }
   })
 
-  return markup
+  return { markup, codeBlocks }
 }
 
-const isRevealed = (marker: Marker, selection: Selection) =>
-  selection.from <= marker.reveal.to && selection.to >= marker.reveal.from
+const isTouching = (selection: Selection, range: Range) => selection.from <= range.to && selection.to >= range.from
+const isRevealed = (marker: Marker, selection: Selection) => isTouching(selection, marker.reveal)
 
-function lineKey({ spans, markers, blockClasses }: LineMarkup, selection: Selection) {
-  if (spans.length === 0 && markers.length === 0 && blockClasses.length === 0) return ''
+/** Fences stay hidden unless the selection is in the block or the block has nothing else to show. */
+function codeLineAttrs({ block, line }: NonNullable<LineMarkup['code']>, selection: Selection) {
+  const showFences = isTouching(selection, block.reveal) || block.codeLines.length === 0
+  if (!showFences && (line === block.open || line === block.close)) return { class: 'composer-md-line-hidden' }
+
+  const first = showFences ? block.open : block.codeLines[0]
+  const last = showFences ? (block.close ?? block.codeLines.at(-1) ?? block.open) : block.codeLines.at(-1)
+  const classes = ['composer-md-cb-line']
+  if (line === first) classes.push('composer-md-cb-first')
+  if (line === last) classes.push('composer-md-cb-last')
+  return { class: classes.join(' '), ...(line === first && block.language && { 'data-language': block.language }) }
+}
+
+function lineKey({ spans, markers, blockClasses, code }: LineMarkup, selection: Selection) {
+  if (spans.length === 0 && markers.length === 0 && blockClasses.length === 0 && !code) return ''
   const spanKey = spans.map((span) => `${span.from}-${span.to}:${span.className}`).join()
   const markerKey = markers.map((marker) => `${marker.from}-${marker.to}:${+isRevealed(marker, selection)}`).join()
-  return `${spanKey}|${markerKey}|${blockClasses.join()}`
+  const codeKey = code ? JSON.stringify(codeLineAttrs(code, selection)) : ''
+  return `${spanKey}|${markerKey}|${blockClasses.join()}|${codeKey}`
 }
 
 function renderLine(line: SourceLine, markup: LineMarkup, selection: Selection): Decoration[] {
   const base = line.blockPosition + 1
   const inline = (range: Range, className: string) =>
     Decoration.inline(base + range.from, base + range.to, { class: className })
+  const codeAttrs = markup.code && codeLineAttrs(markup.code, selection)
   const isCollapsed = markup.markers.some((marker) => marker.collapsesLine && !isRevealed(marker, selection))
-  const blockClasses = isCollapsed ? [...markup.blockClasses, 'composer-md-line-hidden'] : markup.blockClasses
+  const blockClasses = [
+    ...markup.blockClasses,
+    ...(isCollapsed ? ['composer-md-line-hidden'] : []),
+    ...(codeAttrs ? [codeAttrs.class] : [])
+  ]
 
   return [
     ...markup.spans.map((span) => inline(span, span.className)),
@@ -194,6 +241,7 @@ function renderLine(line: SourceLine, markup: LineMarkup, selection: Selection):
     ...(blockClasses.length > 0
       ? [
           Decoration.node(line.blockPosition, line.blockPosition + line.blockSize, {
+            ...codeAttrs,
             class: blockClasses.join(' ')
           })
         ]
@@ -219,10 +267,11 @@ function decorationsOnLine(decorations: DecorationSet, line: SourceLine) {
 
 function createPreviewState(doc: ProseMirrorNode, selection: Selection, previous?: MarkdownSession): LivePreviewState {
   const session = createMarkdownSession(doc, previous)
-  const markup = collectMarkup(session)
+  const { markup, codeBlocks } = collectMarkup(session)
   return {
     session,
     markup,
+    codeBlocks,
     keys: markup.map((line) => lineKey(line, selection)),
     decorations: DecorationSet.create(
       doc,
@@ -239,7 +288,7 @@ function updateReveal(previous: LivePreviewState, doc: ProseMirrorNode, selectio
   const added: Decoration[] = []
 
   markup.forEach((line, index) => {
-    if (line.markers.length === 0) return
+    if (line.markers.length === 0 && !line.code) return
     const key = lineKey(line, selection)
     if (key === keys[index]) return
     keys[index] = key
@@ -263,7 +312,7 @@ function updateDocument(previous: LivePreviewState, transaction: Transaction, st
   const lastChangedNew = findLineAtPosition(session.lines, Math.max(...ranges.map(({ newRange }) => newRange.to)))
   const lineDelta = session.lines.length - previousLines.length
 
-  const markup = collectMarkup(session)
+  const { markup, codeBlocks } = collectMarkup(session)
   const keys = markup.map((line) => lineKey(line, state.selection))
 
   const staleOldLines = new Set<number>()
@@ -282,6 +331,7 @@ function updateDocument(previous: LivePreviewState, transaction: Transaction, st
   return {
     session,
     markup,
+    codeBlocks,
     keys,
     decorations: previous.decorations.remove(removed).map(transaction.mapping, transaction.doc).add(state.doc, added),
     stale: false
@@ -361,10 +411,29 @@ function createLivePreviewPlugin() {
   })
 }
 
+/** Composition defers the parse, so a stale state answers from the current document instead. */
+export function getMarkdownCodeBlocks(state: EditorState): MarkdownCodeBlock[] {
+  const preview = livePreviewKey.getState(state)
+  if (!preview) return []
+  return preview.stale ? collectMarkup(createMarkdownSession(state.doc)).codeBlocks : preview.codeBlocks
+}
+
+export function findMarkdownCodeLine(state: EditorState, position: number) {
+  for (const block of getMarkdownCodeBlocks(state)) {
+    for (const line of [block.open, ...block.codeLines, ...(block.close ? [block.close] : [])]) {
+      if (position > line.blockPosition && position < line.blockPosition + line.blockSize) return { block, line }
+    }
+  }
+  return null
+}
+
+export const isMarkdownFencedCodePosition = (state: EditorState, position: number) =>
+  findMarkdownCodeLine(state, position) !== null
+
 export const ComposerMarkdownLivePreview = Extension.create({
   name: 'composerMarkdownLivePreview',
 
   addProseMirrorPlugins() {
-    return [createLivePreviewPlugin()]
+    return [createLivePreviewPlugin(), createCodeHighlightPlugin(getMarkdownCodeBlocks)]
   }
 })
