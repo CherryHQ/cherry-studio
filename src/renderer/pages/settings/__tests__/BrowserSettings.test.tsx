@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { MockUseDataApiUtils, mockUseInfiniteQuery } from '@test-mocks/renderer/useDataApi'
-import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
+import { MockUsePreferenceUtils, mockUsePreference } from '@test-mocks/renderer/usePreference'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createInstance } from 'i18next'
@@ -91,6 +91,7 @@ const renderSettings = () =>
       <BrowserSettings />
     </I18nextProvider>
   )
+const defaultUsePreference = mockUsePreference.getMockImplementation()!
 
 beforeAll(async () => {
   Element.prototype.scrollIntoView = vi.fn()
@@ -109,6 +110,7 @@ afterEach(async () => {
   cleanup()
 })
 beforeEach(() => {
+  mockUsePreference.mockImplementation(defaultUsePreference)
   MockUsePreferenceUtils.resetMocks()
   MockUsePreferenceUtils.setPreferenceValue('app.browser.auto_open_panel', true)
   MockUsePreferenceUtils.setPreferenceValue('app.browser.agent_control.enabled', false)
@@ -130,8 +132,9 @@ describe('Browser settings workflows', () => {
   it('opens the import flow by keyboard, defaults to supported data, and restores focus on Escape', async () => {
     const user = userEvent.setup()
     renderSettings()
-    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Import browser data' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Browser' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Custom URL' })).not.toBeInTheDocument()
     expect(ipcApi.request).not.toHaveBeenCalled()
     const trigger = screen.getByRole('button', { name: 'Import Import browser data' })
     trigger.focus()
@@ -577,5 +580,165 @@ describe('Browser preferences', () => {
       expect(MockUsePreferenceUtils.getAllPreferenceValues()['app.browser.agent_control.enabled']).toBe(false)
     )
     await waitForBrowserSwitchSave(en['settings.browser.control'])
+  })
+})
+
+describe('Browser start page', () => {
+  const chooseMode = async (user: ReturnType<typeof userEvent.setup>, label: string) => {
+    const select = screen.getByRole('combobox', { name: 'Start page' })
+    select.focus()
+    await user.keyboard('{Enter}')
+    await user.click(screen.getByRole('option', { name: label }))
+    await waitFor(() => expect(select).toBeEnabled())
+  }
+
+  it('persists a keyboard-selected mode independently of AI control and auto-opening', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('app.browser.auto_open_panel', false)
+    const view = renderSettings()
+    const select = screen.getByRole('combobox', { name: 'Start page' })
+    expect(select).toHaveTextContent('Blank page')
+    select.focus()
+    await user.keyboard('{Enter}')
+    await user.keyboard('{ArrowDown}{Enter}')
+    await waitFor(() => expect(select).toBeEnabled())
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.browser.start_page.mode')).toBe('last')
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.browser.agent_control.enabled')).toBe(false)
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.browser.auto_open_panel')).toBe(false)
+    view.unmount()
+    renderSettings()
+    expect(screen.getByRole('combobox', { name: 'Start page' })).toHaveTextContent('Last opened page')
+  })
+
+  it.each([
+    ['  https://example.com/path?q=1#section  ', 'https://example.com/path?q=1#section'],
+    ['  not a valid URL  ', 'not a valid URL'],
+    ['   ', '']
+  ])('saves the trimmed draft %j verbatim on blur and retains it across modes and remount', async (draft, saved) => {
+    const user = userEvent.setup()
+    const previous = 'https://previous.example/'
+    MockUsePreferenceUtils.setPreferenceValue('app.browser.start_page.custom_url', previous)
+    const view = renderSettings()
+    await chooseMode(user, 'Custom URL')
+    const input = screen.getByRole('textbox', { name: 'Custom URL' })
+    expect(input).toHaveAccessibleDescription(en['settings.browser.startPageCustomUrlHelp'])
+    await user.clear(input)
+    await user.type(input, draft)
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.browser.start_page.custom_url')).toBe(previous)
+    await user.tab()
+    await waitFor(() => expect(input).toBeEnabled())
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.browser.start_page.custom_url')).toBe(saved)
+    expect(input).toHaveValue(saved)
+    await chooseMode(user, 'Blank page')
+    expect(screen.queryByRole('textbox', { name: 'Custom URL' })).not.toBeInTheDocument()
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.browser.start_page.custom_url')).toBe(saved)
+    await chooseMode(user, 'Custom URL')
+    expect(screen.getByRole('textbox', { name: 'Custom URL' })).toHaveValue(saved)
+    view.unmount()
+    renderSettings()
+    expect(screen.getByRole('textbox', { name: 'Custom URL' })).toHaveValue(saved)
+  })
+
+  it('commits Enter and blur only once, and skips unchanged trimmed drafts', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('app.browser.start_page.mode', 'custom')
+    let finishSave!: () => void
+    const pending = new Promise<void>((resolve) => {
+      finishSave = resolve
+    })
+    const savedValues: string[] = []
+    mockUsePreference.mockImplementation((key, options) => {
+      const [value, setValue] = defaultUsePreference(key, options)
+      return [
+        value,
+        async (next) => {
+          if (key === 'app.browser.start_page.custom_url') {
+            savedValues.push(next)
+            await pending
+          }
+          await setValue(next)
+        }
+      ]
+    })
+    renderSettings()
+    const input = screen.getByRole('textbox', { name: 'Custom URL' })
+    await user.type(input, ' https://example.com/ ')
+    await user.keyboard('{Enter}')
+    // Deliver blur before persistence finishes to exercise the Enter/blur race.
+    fireEvent.blur(input)
+    expect(input).toBeDisabled()
+    expect(savedValues).toEqual(['https://example.com/'])
+    finishSave()
+    await waitFor(() => expect(input).toBeEnabled())
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.browser.start_page.custom_url')).toBe('https://example.com/')
+    await user.click(input)
+    await user.type(input, ' ')
+    await user.keyboard('{Enter}')
+    await user.tab()
+    expect(savedValues).toEqual(['https://example.com/'])
+  })
+
+  it('keeps a rejected draft editable and retries it without restoring the old URL', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('app.browser.start_page.mode', 'custom')
+    MockUsePreferenceUtils.setPreferenceValue('app.browser.start_page.custom_url', 'https://previous.example/')
+    MockUsePreferenceUtils.mockPreferenceError('app.browser.start_page.custom_url', new Error('Save failed'))
+    const view = renderSettings()
+    const input = screen.getByRole('textbox', { name: 'Custom URL' })
+    await user.clear(input)
+    await user.type(input, 'failed draft')
+    await user.keyboard('{Enter}')
+    expect(await screen.findByRole('alert')).toHaveTextContent(en['settings.browser.error'])
+    expect(input).toBeEnabled()
+    expect(input).toHaveValue('failed draft')
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.browser.start_page.custom_url')).toBe(
+      'https://previous.example/'
+    )
+    mockUsePreference.mockImplementation(defaultUsePreference)
+    view.rerender(
+      <I18nextProvider i18n={i18n}>
+        <BrowserSettings />
+      </I18nextProvider>
+    )
+    expect(input).toHaveValue('failed draft')
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(input).toBeEnabled())
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.browser.start_page.custom_url')).toBe('failed draft')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('reports a mode persistence failure through the existing translated alert', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.mockPreferenceError('app.browser.start_page.mode', new Error('Save failed'))
+    renderSettings()
+    await chooseMode(user, 'Last opened page')
+    expect(await screen.findByRole('alert')).toHaveTextContent(en['settings.browser.error'])
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.browser.start_page.mode')).toBe('blank')
+    expect(screen.getByRole('combobox', { name: 'Start page' })).toHaveTextContent('Blank page')
+  })
+
+  it('displays invalid stored text as stored and resynchronizes only when the stored URL changes', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('app.browser.start_page.mode', 'custom')
+    MockUsePreferenceUtils.setPreferenceValue('app.browser.start_page.custom_url', '  invalid stored text  ')
+    const view = renderSettings()
+    const input = screen.getByRole('textbox', { name: 'Custom URL' })
+    expect(input).toHaveValue('  invalid stored text  ')
+    await user.clear(input)
+    await user.type(input, 'local draft')
+    const rerender = () =>
+      view.rerender(
+        <I18nextProvider i18n={i18n}>
+          <BrowserSettings />
+        </I18nextProvider>
+      )
+    rerender()
+    expect(input).toHaveValue('local draft')
+    MockUsePreferenceUtils.simulateExternalPreferenceChange(
+      'app.browser.start_page.custom_url',
+      'external invalid text'
+    )
+    rerender()
+    expect(input).toHaveValue('external invalid text')
   })
 })
