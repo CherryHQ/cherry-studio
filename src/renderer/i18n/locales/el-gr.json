@@ -6206,8 +6206,6 @@
   "settings.usage.export.png": "Εξαγωγή ως PNG",
   "settings.usage.export.progress": "Ανάγνωση εγγραφών χρήσης ({{count}} από {{total}})…",
   "settings.usage.export.range": "{{from}} – {{to}} ({{timezone}})",
-  "settings.usage.export.sheets.metadata": "Μεταδεδομένα",
-  "settings.usage.export.sheets.usage": "Χρήση",
   "settings.usage.export.success": "Η χρήση εξήχθη επιτυχώς",
   "settings.usage.export.title": "Εξαγωγή",
   "settings.usage.export.xlsx": "Εξαγωγή ως XLSX",
