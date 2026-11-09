@@ -82,10 +82,14 @@ const ActionGeneral: FC<Props> = React.memo(({ action, sourceEntityId, scrollToB
   const [completionError, setCompletionError] = useState<{ message: string; cause: unknown } | null>(null)
   const [requestStartedAt, setRequestStartedAt] = useState('')
 
-  const { sendMessage, stop: stopChat } = useStreamCommands(temporaryTopicId ?? 'pending-temp', undefined, (err) => {
-    setIsPreparing(false)
-    setCompletionError({ message: getSelectionActionErrorMessage(err, t), cause: err })
-  })
+  const { sendMessage, stop: stopChat } = useStreamCommands(
+    temporaryTopicId ?? 'pending-temp',
+    undefined,
+    (err, cause) => {
+      setIsPreparing(false)
+      setCompletionError({ message: getSelectionActionErrorMessage(err, t), cause })
+    }
+  )
 
   // Temporary topics use the message identities assigned by Main.
   const { activeExecutions, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
