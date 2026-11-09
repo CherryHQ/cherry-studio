@@ -24,8 +24,6 @@
  * model).
  */
 
-import { extname } from 'node:path'
-
 import { isAbortError } from '@ai-sdk/provider-utils'
 import type { UIMessage } from 'ai'
 
@@ -34,12 +32,10 @@ import { loggerService } from '@logger'
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
 import type { NativeFileSupport } from '@main/ai/runtime/aiSdk'
 import { surrogateSafeEnd } from '@main/ai/utils/textPaging'
-import { decodeTextWithAutoEncoding } from '@main/utils/legacyFile'
 import { READ_FILE_PAGE_SIZE } from '@shared/ai/builtinTools'
 import type { FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { FILE_TYPE, type FileType } from '@shared/types/file'
-import { parseDataUrl } from '@shared/utils/dataUrl'
 import { getFileTypeByExt } from '@shared/utils/file'
 
 import { allocateInlineCaps, type AttachmentBudget } from './attachmentBudget'
@@ -206,14 +202,6 @@ function noteOf(handle: string): { type: 'text'; text: string } {
   return { type: 'text', text: `Attached file "${handle}": [could not read this file].` }
 }
 
-function extractLegacyText(part: FileUIPart): string | undefined {
-  if (getFileTypeByExt(extname(part.filename ?? '')) !== FILE_TYPE.TEXT) return
-  const data = parseDataUrl(part.url)
-  if (!data) return
-  const bytes = data.isBase64 ? Buffer.from(data.data, 'base64') : Buffer.from(decodeURIComponent(data.data))
-  return decodeTextWithAutoEncoding(bytes).trim()
-}
-
 function rejectedMediaKind(mediaType: string, ns: NativeFileSupport): 'image' | 'audio' | 'video' | undefined {
   if (!ns.image && mediaType.startsWith('image/')) return 'image'
   if (!ns.audio && mediaType.startsWith('audio/')) return 'audio'
@@ -260,16 +248,7 @@ async function prepareChatMessage<T extends UIMessage>(
             text: `[${rejectedKind} attachment omitted: this model does not accept ${rejectedKind} input]`
           })
         } else {
-          const text = extractLegacyText(inlined)
-          if (text === undefined) {
-            kept.push(inlined)
-          } else {
-            const body = text || noExtractableTextNote(name)
-            kept.push({
-              type: 'text',
-              text: `Attached file "${name}":\n${capInlineText(name, body, false, READ_FILE_PAGE_SIZE)}`
-            })
-          }
+          kept.push(inlined)
         }
       }
       continue

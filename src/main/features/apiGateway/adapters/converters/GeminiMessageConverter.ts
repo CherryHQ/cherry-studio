@@ -22,6 +22,7 @@ import type { Provider } from '@shared/data/types/provider'
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
 import { type JsonSchemaLike, jsonSchemaToZod } from './jsonSchemaToZod'
 import { mapGeminiThinkingToProviderOptions } from './providerOptionsMapper'
+import { inlineTextFileContent } from './textFileInlining'
 
 /** Inline binary payload (`inlineData`). */
 interface GeminiBlob {
@@ -172,6 +173,14 @@ function functionResponseToConversion(
   const relocatedParts: Array<TextUIPart | FileUIPart> = []
   for (const [index, file] of media.entries()) {
     const anchor = functionResponseMediaAnchor(association, index + 1)
+    // Text payloads are normalized to text parts at this protocol boundary —
+    // see textFileInlining.ts. Full content: the gateway caller owns its window.
+    const text = inlineTextFileContent(file.mediaType, file.url)
+    if (text !== undefined) {
+      lines.push(`${anchor} (${file.mediaType}): inlined as text in the following user message`)
+      relocatedParts.push({ type: 'text', text: anchor }, { type: 'text', text })
+      continue
+    }
     lines.push(`${anchor} (${file.mediaType}): attached in the following user message`)
     relocatedParts.push({ type: 'text', text: anchor }, file)
   }
@@ -309,12 +318,16 @@ export class GeminiMessageConverter implements IMessageConverter<GeminiGenerateC
           }
         } else if (part.inlineData?.data) {
           const mediaType = part.inlineData.mimeType || 'application/octet-stream'
-          const file: FileUIPart = {
-            type: 'file',
-            mediaType,
-            url: `data:${mediaType};base64,${part.inlineData.data}`
+          const url = `data:${mediaType};base64,${part.inlineData.data}`
+          // Text payloads are normalized at this protocol boundary — see
+          // textFileInlining.ts.
+          const text = inlineTextFileContent(mediaType, url)
+          if (text !== undefined) {
+            parts.push({ type: 'text', text })
+          } else {
+            const file: FileUIPart = { type: 'file', mediaType, url }
+            parts.push(file)
           }
-          parts.push(file)
         } else if (part.fileData?.fileUri) {
           const file: FileUIPart = {
             type: 'file',

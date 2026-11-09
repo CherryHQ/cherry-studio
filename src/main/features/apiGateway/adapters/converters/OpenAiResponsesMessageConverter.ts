@@ -20,6 +20,7 @@ import type { IMessageConverter, StreamTextOptions } from '../interfaces'
 import { jsonSchemaToZod } from './jsonSchemaToZod'
 import type { ReasoningEffort } from './providerOptionsMapper'
 import { mapReasoningEffortToProviderOptions } from './providerOptionsMapper'
+import { inlineTextFileContent } from './textFileInlining'
 
 let uiMessageSeq = 0
 function nextUIMessageId(): string {
@@ -60,6 +61,17 @@ function functionOutputToConversion(callId: string, output: FunctionCallOutput['
   const attach = (kind: string, file: FileUIPart) => {
     const anchor = functionOutputAttachmentAnchor(callId, kind, ++attachmentIndex)
     const name = file.filename ? `, ${file.filename}` : ''
+    // Text files are normalized to text parts at this protocol boundary — see
+    // textFileInlining.ts. Full content: the gateway caller owns its window.
+    const text = inlineTextFileContent(file.mediaType, file.url)
+    if (text !== undefined) {
+      lines.push(`${anchor} (${file.mediaType}${name}): inlined as text in the following user message`)
+      relocatedParts.push(
+        { type: 'text', text: anchor },
+        { type: 'text', text: file.filename ? `Attached file "${file.filename}":\n${text}` : text }
+      )
+      return
+    }
     lines.push(`${anchor} (${file.mediaType}${name}): attached in the following user message`)
     relocatedParts.push({ type: 'text', text: anchor }, file)
   }

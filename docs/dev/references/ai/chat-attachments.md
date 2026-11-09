@@ -64,10 +64,16 @@ Decided per file part in `prepareChatMessages`
   cap below). The internal `fileEntryId` is never written into the prompt.
 
 Only `fileEntryId`-backed (first-party chat) images enter the OCR path. Gateway /
-external file parts (no `fileEntryId`) are still eagerly materialized. Text/code
-files with locally materialized bytes are decoded and inlined with a page-size
-cap, without `read_file` paging; image/audio/video parts are omitted when native
-support is false. Other gateway/external file types keep their existing behavior.
+external file parts (no `fileEntryId`) are still eagerly materialized, but
+image/audio/video parts are omitted when native support is false. Other
+gateway/external file types keep their existing behavior.
+
+External inline `text/*` files are normalized at the gateway protocol boundary,
+before shared chat routing: Responses tool-output `input_file` payloads and
+Gemini `inlineData` (including function-response media) become text parts. Their
+full decoded content is preserved without a page-size cap; the gateway caller
+owns its context window. Remote file URLs are not fetched by conversion and
+remain file parts.
 
 ## Supported extensions (upload allowlist)
 

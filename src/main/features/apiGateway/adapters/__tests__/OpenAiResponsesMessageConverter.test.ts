@@ -250,6 +250,68 @@ describe('OpenAiResponsesMessageConverter.toUIMessages', () => {
     })
   })
 
+  it('inlines text input_file outputs as full, uncapped text parts', () => {
+    // 12,000 chars — beyond the chat router's 8,000-char page. The gateway
+    // caller owns its context window, so boundary inlining never truncates.
+    const article = '文章正文'.repeat(3000)
+    const msgs = converter.toUIMessages(
+      params({
+        input: [
+          { type: 'function_call', call_id: 'c1', name: 'read_article', arguments: '{}' },
+          {
+            type: 'function_call_output',
+            call_id: 'c1',
+            output: [
+              {
+                type: 'input_file',
+                file_data: Buffer.from(article, 'utf8').toString('base64'),
+                filename: 'article.txt'
+              },
+              {
+                type: 'input_file',
+                file_data: `data:text/markdown;base64,${Buffer.from('# Notes').toString('base64')}`,
+                filename: 'notes.md'
+              }
+            ]
+          }
+        ] as ResponsesCreateParams['input']
+      })
+    )
+    const output = (msgs[0].parts[0] as { output?: unknown }).output as string
+    expect(output).toContain('[tool-result attachment call_id="c1" file=1] (text/plain, article.txt): inlined as text')
+    expect(output).toContain('[tool-result attachment call_id="c1" file=2] (text/markdown, notes.md): inlined as text')
+    expect(output).not.toContain(article)
+    // No `file` part survives for a text media type: the OpenAI Responses
+    // adapter rejects every text/* file part, and the Anthropic adapter
+    // rejects any text media type except text/plain.
+    expect(msgs[1].role).toBe('user')
+    expect(msgs[1].parts).toEqual([
+      { type: 'text', text: expect.stringContaining('call_id="c1"') },
+      { type: 'text', text: `Attached file "article.txt":\n${article}` },
+      { type: 'text', text: expect.stringContaining('call_id="c1"') },
+      { type: 'text', text: 'Attached file "notes.md":\n# Notes' }
+    ])
+  })
+
+  it('keeps remote file_url text files as file parts (no fetch at conversion time)', () => {
+    const msgs = converter.toUIMessages(
+      params({
+        input: [
+          { type: 'function_call', call_id: 'c1', name: 'read_article', arguments: '{}' },
+          {
+            type: 'function_call_output',
+            call_id: 'c1',
+            output: [{ type: 'input_file', file_url: 'https://files.example/article.txt' }]
+          }
+        ] as ResponsesCreateParams['input']
+      })
+    )
+    expect(msgs[1].parts).toEqual([
+      { type: 'text', text: expect.stringContaining('call_id="c1"') },
+      { type: 'file', mediaType: 'text/plain', url: 'https://files.example/article.txt' }
+    ])
+  })
+
   it('downgrades file_id-only input_file outputs to a placeholder (not resolvable cross-vendor)', () => {
     const msgs = converter.toUIMessages(
       params({
