@@ -7,8 +7,7 @@ import {
   type FinishReason,
   isToolUIPart,
   type LanguageModelUsage,
-  type ModelMessage,
-  type UIMessageChunk
+  type ModelMessage
 } from 'ai'
 
 import { application } from '@application'
@@ -84,6 +83,7 @@ import {
   readRetryPolicy
 } from './runtime/aiSdk'
 import { skillService } from './skills/SkillService'
+import type { AiStreamSource } from './streamManager'
 import { type MessageRuntimeTimingSink } from './streamManager'
 import { resolveModelTokenDialect } from './tokens/dialect'
 import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin/registerBuiltinTools'
@@ -465,23 +465,27 @@ export class AiService extends BaseService {
   ): Promise<AiToolApprovalRespondResponse> {
     // Claude-Agent path: the runtime settles any persisted interaction card, then unblocks
     // the exact `canUseTool` invocation that issued this approval id.
-    const dispatched = application.get('AgentSessionRuntimeService').respondToolApproval(
+    const result = application.get('AgentSessionRuntimeService').respondToolApproval(
       payload.approvalId,
       {
         approved: payload.approved,
         reason: payload.reason,
         updatedInput: payload.updatedInput
       },
-      payload.anchorId
+      payload.anchorId,
+      payload.topicId
     )
-    if (dispatched) return { ok: true }
+    if (result.ok) return result
+
+    // Agent-session anchors belong to the runtime path, never the chat message table.
+    if (payload.topicId && isAgentSessionTopic(payload.topicId)) return result
 
     // MCP path: write decisions to DB, then dispatch continue-conversation when nothing is pending.
     if (!payload.topicId || !payload.anchorId) {
       logger.warn('Tool-approval response had no live registry entry and no anchor context', {
         approvalId: payload.approvalId
       })
-      return { ok: false }
+      return { ok: false, reason: 'rejected' }
     }
 
     // The approval card is clickable the moment the `tool-approval-request` chunk arrives (the live
@@ -502,7 +506,7 @@ export class AiService extends BaseService {
           topicId: payload.topicId
         }
       )
-      return { ok: false }
+      return { ok: false, reason: 'rejected' }
     }
 
     // Main is the single authority for the approval mutation: the
@@ -532,7 +536,7 @@ export class AiService extends BaseService {
         approvalId: payload.approvalId,
         anchorId: payload.anchorId
       })
-      return { ok: false }
+      return { ok: false, reason: 'rejected' }
     }
     const { parts: committedParts, appliedApprovalIds, alreadySettledApprovalIds } = approvalResult
     if (appliedApprovalIds.length === 0 && alreadySettledApprovalIds.includes(decision.approvalId)) {
@@ -554,7 +558,7 @@ export class AiService extends BaseService {
     // surface it on, so resolve through the result shape instead of dispatching into the void.
     if (!senderWc) {
       logger.warn('Tool-approval continuation skipped: no caller window', { approvalId: payload.approvalId })
-      return { ok: false }
+      return { ok: false, reason: 'rejected' }
     }
 
     const aiStreamManager = application.get('AiStreamManager')
@@ -576,7 +580,7 @@ export class AiService extends BaseService {
         topicId: payload.topicId,
         error: error instanceof Error ? error.message : String(error)
       })
-      return { ok: false }
+      return { ok: false, reason: 'rejected' }
     }
     return { ok: true }
   }
@@ -584,15 +588,15 @@ export class AiService extends BaseService {
   // ── Streaming chat (agent.stream) ──
 
   /**
-   * Raw `UIMessageChunk` stream from `Agent.stream`. Caller (usually
-   * `AiStreamManager`) owns read/multicast/accumulation/terminal dispatch.
+   * One content source per execution: SDK chunks or authoritative message views.
+   * `AiStreamManager` owns consumption, publication and terminal dispatch.
    * Pre-stream errors reject the Promise; mid-stream errors come through
    * the stream itself.
    */
   async streamText(
     request: AsInProcessChat<AiStreamRequest>,
     extraFeatures: readonly RequestFeature[] = []
-  ): Promise<ReadableStream<UIMessageChunk>> {
+  ): Promise<AiStreamSource> {
     logger.info('streamText started', { chatId: request.conversation.topicId })
     const signal = request.requestOptions?.signal
     if (!signal) {
@@ -638,12 +642,14 @@ export class AiService extends BaseService {
         ? request.usageContext.source
         : (request.source ?? sourceSnapshotForAssistant(assistant)),
       messageRef: request.usageContext
-        ? { kind: 'agent-session', id: request.usageContext.assistantMessageId }
+        ? request.usageContext.assistantMessageId
+          ? { kind: 'agent-session', id: request.usageContext.assistantMessageId }
+          : null
         : request.messageId
           ? { kind: 'chat', id: request.messageId }
           : null
     })
-    const usagePlugin = createAiUsagePlugin(usageContext)
+    const usagePlugin = createAiUsagePlugin(usageContext, request.usageContext?.recordInvocation)
     repairUsagePlugins.current = [usagePlugin]
 
     const mediaCapabilities = resolveMediaCapabilities(model)
@@ -692,8 +698,9 @@ export class AiService extends BaseService {
         extraFeatures,
         primaryCredentialReceipt: credentialReceipt,
         createUsagePlugin: (fallbackReceipt) =>
-          createAiUsagePlugin(() =>
-            createAiUsageCaptureContext({ ...usageContext(), credentialReceipt: fallbackReceipt })
+          createAiUsagePlugin(
+            () => createAiUsageCaptureContext({ ...usageContext(), credentialReceipt: fallbackReceipt }),
+            request.usageContext?.recordInvocation
           )
       })
       const retryPolicy = resolveTextRetryPolicy(
@@ -727,7 +734,8 @@ export class AiService extends BaseService {
                 credentialReceipt,
                 source: usageContext().source,
                 messageRef: usageContext().messageRef
-              })
+              }),
+              request.usageContext?.recordInvocation
             )
         }),
         onFallbackActivated: (fallback) => {
@@ -775,7 +783,7 @@ export class AiService extends BaseService {
     })
     agentRef.current = agent
 
-    return agent.stream(preparedMessages, signal)
+    return { kind: 'chunks', stream: agent.stream(preparedMessages, signal) }
   }
 
   private async withRuntimeActivity<T>(reason: string, operation: () => Promise<T>): Promise<T> {

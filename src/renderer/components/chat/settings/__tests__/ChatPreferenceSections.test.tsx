@@ -123,6 +123,7 @@ vi.mock('react-i18next', () => ({
 
 describe('ChatPreferenceSections', () => {
   beforeEach(() => {
+    mocks.preferenceValues['chat.message.timestamp_context.enabled'] = false
     mocks.preferenceValues['chat.message.font_size'] = 14
     mocks.preferenceValues['chat.narrow_mode'] = true
     mocks.preferenceValues['chat.message.user_content.default_expanded'] = false
@@ -142,9 +143,25 @@ describe('ChatPreferenceSections', () => {
     expect(screen.getByText('settings.math.single_dollar.label')).toBeInTheDocument()
     expect(screen.getByText('chat.settings.code_fancy_block.label')).toBeInTheDocument()
     expect(screen.getByText('settings.messages.show_message_outline')).toBeInTheDocument()
+    expect(screen.getByText('settings.messages.navigation.none')).toBeInTheDocument()
+    expect(screen.getByText('settings.messages.navigation.anchor')).toBeInTheDocument()
+    expect(screen.queryByText('settings.messages.navigation.buttons')).not.toBeInTheDocument()
     expect(screen.getByText('message.message.multi_model_style.label')).toBeInTheDocument()
     expect(screen.getByText('settings.messages.input.show_estimated_tokens')).toBeInTheDocument()
     expect(screen.queryByText('settings.messages.input.enable_quick_triggers')).toBeNull()
+  })
+
+  it('saves and restores the opt-in timestamp context preference', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<ChatPreferenceSections />)
+    const name = 'settings.messages.timestamp_context.label'
+    expect(screen.getByRole('button', { name })).toHaveAttribute('data-checked', 'false')
+    await user.click(screen.getByRole('button', { name }))
+    expect(mocks.setPreference).toHaveBeenCalledWith('chat.message.timestamp_context.enabled', true)
+    rerender(<ChatPreferenceSections />)
+    expect(screen.getByRole('button', { name })).toHaveAttribute('data-checked', 'true')
+    await user.click(screen.getByRole('button', { name }))
+    expect(mocks.setPreference).toHaveBeenLastCalledWith('chat.message.timestamp_context.enabled', false)
   })
 
   it('labels the auto code themes as the Cherry default while keeping the stored value', () => {

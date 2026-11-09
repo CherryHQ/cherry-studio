@@ -59,9 +59,21 @@ describe('getFileIconName', () => {
 
   it('maps office documents onto the collection glyphs that exist', () => {
     expect(getFileIconName('report.docx')).toBe('word')
+    expect(getFileIconName('report.odt')).toBe('word')
+    expect(getFileIconName('notes.rtf')).toBe('word')
     expect(getFileIconName('budget.xlsx')).toBe('table')
+    expect(getFileIconName('budget.ods')).toBe('table')
     expect(getFileIconName('sheet.csv')).toBe('table')
     expect(getFileIconName('deck.pptx')).toBe('powerpoint')
+    expect(getFileIconName('deck.odp')).toBe('powerpoint')
+    expect(getFileIconName('book.epub')).toBe('epub')
+    expect(getFileIconName('notes.markdown')).toBe('markdown')
+    expect(getFileIconName('data.jsonl')).toBe('json')
+    expect(getFileIconName('notes.text')).toBe('document')
+    expect(getFileIconName('photo.avif')).toBe('image')
+    expect(getFileIconName('photo.heic')).toBe('image')
+    expect(getFileIconName('photo.heif')).toBe('image')
+    expect(getFileIconName('archive.tgz')).toBe('zip')
   })
 
   it('only references icon names that exist in material-icon-theme', () => {

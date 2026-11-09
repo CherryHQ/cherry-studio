@@ -723,4 +723,21 @@ describe('deferred ComposerSurface', () => {
     await screen.findByTestId('composer-runtime')
     expect(mocks.runtimeIntent?.transfer).toBeUndefined()
   })
+  it('handles the mode shortcut before the editor loads without changing the draft', () => {
+    let mode = 'ordinary'
+    render(
+      <Harness
+        text="Keep this draft"
+        onShiftTab={() => {
+          mode = mode === 'ordinary' ? 'plan' : 'ordinary'
+        }}
+      />
+    )
+    const input = screen.getByRole('textbox', { name: 'Message' })
+    fireEvent.keyDown(input, { key: 'Tab', shiftKey: true })
+    expect(mode).toBe('plan')
+    expect(input).toHaveValue('Keep this draft')
+    fireEvent.keyDown(input, { key: 'Tab', shiftKey: true, repeat: true })
+    expect(mode).toBe('plan')
+  })
 })

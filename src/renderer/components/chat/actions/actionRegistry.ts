@@ -187,6 +187,7 @@ export class ActionRegistry<TContext> {
         .filter((child): child is ResolvedAction<TContext> => !!child)
     )
     const confirm = resolveConfirm(action.confirm, context)
+    const shortcut = action.shortcut ? resolveText(action.shortcut, context) : undefined
 
     return {
       id: action.id,
@@ -197,7 +198,7 @@ export class ActionRegistry<TContext> {
       ...(action.order !== undefined && { order: action.order }),
       ...(action.surface && { surface: action.surface }),
       danger: action.danger ?? false,
-      ...(action.shortcut && { shortcut: action.shortcut }),
+      ...(shortcut && { shortcut }),
       ...(confirm && { confirm }),
       availability,
       children
