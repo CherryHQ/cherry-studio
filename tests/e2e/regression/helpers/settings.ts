@@ -4,10 +4,10 @@ import { dismissOnboarding, openLaunchpadApp, selectSidebarApp } from './navigat
 
 export async function openMcpServers(page: Page): Promise<void> {
   await openLaunchpadApp(page, 'Marketplace')
-  const marketplace = page.getByTestId('marketplace-page')
+  const marketplace = page.getByTestId('marketplace-page').filter({ visible: true })
   await marketplace
     .getByRole('complementary', { name: 'Resource types' })
-    .getByRole('button', { name: /^MCP\b/ })
+    .getByRole('button', { name: /\bMCP\b/ })
     .click()
   await marketplace.getByRole('button', { name: 'Manage MCP', exact: true }).click()
   await expect(
