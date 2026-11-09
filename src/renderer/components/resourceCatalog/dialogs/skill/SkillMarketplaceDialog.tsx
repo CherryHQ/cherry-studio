@@ -327,7 +327,7 @@ function SkillSearchBody({
       overscan={6}
       getItemKey={getResultKey}
       role="list"
-      className="[&::-webkit-scrollbar]:!w-0.75 box-border px-6 pt-1 pb-1 [&::-webkit-scrollbar-thumb]:rounded-full">
+      className="box-border px-6 pt-1 pb-1">
       {(result, index) => (
         <SkillSearchResultRow
           result={result}

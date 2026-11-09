@@ -3,7 +3,7 @@ import { motion } from 'motion/react'
 import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, ReorderableList, Tooltip } from '@cherrystudio/ui'
+import { Button, ReorderableList, ScrollArea, Tooltip } from '@cherrystudio/ui'
 import { type ChatInputTokenKind, type ChatTokenView } from '@renderer/components/composer/chatTokenView'
 import { ComposerToken } from '@renderer/components/composer/tokenView'
 import { isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
@@ -224,8 +224,9 @@ export function QueuedFollowupsDock({
         className="relative"
         style={{ height: isExpanded ? 'auto' : 0 }}>
         <motion.div layout="position" layoutDependency={isExpanded} transition={transition}>
-          <div
-            className="max-h-40 overflow-y-auto transition-[opacity,transform]"
+          <ScrollArea
+            type="auto"
+            className="max-h-40 transition-[opacity,transform]"
             style={{
               opacity: isExpanded ? 1 : 0,
               transform: isExpanded ? 'translateY(0px)' : 'translateY(4px)',
@@ -250,7 +251,7 @@ export function QueuedFollowupsDock({
                 />
               )}
             />
-          </div>
+          </ScrollArea>
         </motion.div>
       </motion.div>
     </motion.div>

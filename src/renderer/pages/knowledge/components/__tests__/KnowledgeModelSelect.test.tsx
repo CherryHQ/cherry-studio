@@ -1,3 +1,10 @@
+vi.mock('@renderer/components/cherryCloud/CherryCloudModelSelector', async () => {
+  const selector = await import('@renderer/components/ModelSelector')
+  return {
+    CherryCloudModelSelector: selector.ModelSelector
+  }
+})
+
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ButtonHTMLAttributes } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'

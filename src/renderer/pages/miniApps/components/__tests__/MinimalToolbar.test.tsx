@@ -3,9 +3,12 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { InputHTMLAttributes, ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherrystudioUI from '@cherrystudio/ui'
+import type * as Platform from '@renderer/utils/platform'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 
-vi.mock('@cherrystudio/ui', () => ({
+vi.mock('@cherrystudio/ui', async (importOriginal) => ({
+  ...(await importOriginal<typeof CherrystudioUI>()),
   Button: ({ children, ...props }: { children?: ReactNode }) => (
     <button type="button" {...props}>
       {children}
@@ -19,7 +22,10 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
 }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn() } }))
 vi.mock('@renderer/services/toast', () => ({ toast: { error: vi.fn() } }))
-vi.mock('@renderer/utils/platform', () => ({ isDev: true }))
+vi.mock('@renderer/utils/platform', async (importOriginal) => ({
+  ...(await importOriginal<typeof Platform>()),
+  isDev: true
+}))
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), error: vi.fn() }) }
 }))
@@ -53,6 +59,7 @@ const renderToolbar = (app: MiniAppType) =>
       currentUrl={null}
       isWebviewReady
       onReload={vi.fn()}
+      onRestart={vi.fn()}
       onOpenDevTools={vi.fn()}
       splitMode="open"
       onSplit={vi.fn()}
