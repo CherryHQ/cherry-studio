@@ -178,7 +178,7 @@ function ModelControl({
       <span
         title={modelLabel}
         className={cn(
-          'max-w-40 text-xs',
+          'text-xs',
           canChangeModel ? (model ? 'text-foreground' : 'text-muted-foreground') : undefined,
           labelClassName
         )}>

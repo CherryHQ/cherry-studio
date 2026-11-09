@@ -72,6 +72,7 @@ describe('validation selection', () => {
         'agent-behavior',
         'agent-runtime-pi',
         'agent-runtime-pi-durable',
+        'agent-runtime-acp',
         'agent-runtime-claude-code',
         'main'
       ]
@@ -99,6 +100,12 @@ describe('validation selection', () => {
     const plan = createPlan(['packages/agent-behavior/src/core/facts.ts'])
     expect(plan.projects).toEqual(expect.arrayContaining(['main', 'agent-behavior', 'agent-runtime-pi']))
     expect(plan.tasks).toEqual(expect.arrayContaining(['types-agent-behavior', 'types-agent-runtime-pi']))
+  })
+  it('checks the ACP adapter independently and includes it when common contracts change', () => {
+    const plan = createPlan(['packages/agent-runtime-acp/src/runtime.ts'])
+    expect(plan.projects).toEqual(['agent-runtime-acp'])
+    expect(plan.tasks).toContain('types-agent-runtime-acp')
+    expect(createPlan(['packages/agent-runtime/src/contracts.ts']).tasks).toContain('types-agent-runtime-acp')
   })
   it('selects the portable web search typecheck alongside its Desktop consumers', () => {
     const plan = createPlan(['packages/web-search/src/providers/tavily.ts'])
