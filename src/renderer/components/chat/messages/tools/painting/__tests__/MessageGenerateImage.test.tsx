@@ -69,8 +69,11 @@ describe('MessageGenerateImageToolTitle', () => {
     ;(window as unknown as { api: unknown }).api = { file: { getPhysicalPath: mocks.getPhysicalPath } }
   })
 
-  it('renders the generated images resolved to file URLs', async () => {
-    render(<MessageGenerateImageToolTitle toolResponse={toolResponse({ response: [{ id: 'f1', name: 'a.png' }] })} />)
+  it.each([
+    { id: 'f1', name: 'a.png' },
+    { id: 'f1', name: 'a.png', metadata: { format: 'png', frameCount: 1 }, warning: 'GIF request not met' }
+  ])('renders historical and inspected generated images resolved to file URLs: %j', async (file) => {
+    render(<MessageGenerateImageToolTitle toolResponse={toolResponse({ response: [file] })} />)
     await waitFor(() => expect(screen.getByTestId('image-viewer')).toHaveTextContent('file:///data/f1.png'))
     expect(mocks.getPhysicalPath).toHaveBeenCalledWith({ id: 'f1' })
   })

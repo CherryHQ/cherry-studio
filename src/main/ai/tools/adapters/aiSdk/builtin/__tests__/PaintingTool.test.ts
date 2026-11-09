@@ -2,6 +2,7 @@ import { resolve } from 'node:path'
 
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
 import type { Tool } from 'ai'
+import sharp from 'sharp'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { readProviderModelRegistry } from '@cherrystudio/provider-registry/node'
@@ -27,16 +28,14 @@ vi.mock('@data/services/ProviderRegistryService', () => ({
   providerRegistryService: { getImageGenerationSupport }
 }))
 
-vi.mock('@application', () => ({
-  application: {
-    get: (name: string) => {
-      if (name === 'PreferenceService') return { get: getPreference }
-      if (name === 'AiService') return { generateImage }
-      if (name === 'FileManager') return { read: fileRead }
-      throw new Error(`unexpected service: ${name}`)
-    }
-  }
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory, MockApplicationUtils } = await import('@test-mocks/main/application')
+  MockApplicationUtils.setService('AiService', { generateImage })
+  return mockApplicationFactory({
+    PreferenceService: { get: getPreference },
+    FileManager: { read: fileRead }
+  })
+})
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -50,7 +49,7 @@ import {
   PAINTING_ERROR_NOTE,
   PAINTING_MODEL_NOT_CONFIGURED_NOTE
 } from '../../../../painting'
-import { createGenerateImageToolEntry, GENERATE_IMAGE_TOOL_NAME } from '../PaintingTool'
+import { createGenerateImageToolEntry } from '../PaintingTool'
 
 const entry = createGenerateImageToolEntry()
 
@@ -110,6 +109,18 @@ function getZhipuCogViewSupport(): ImageGenerationSupport {
   return support
 }
 
+const animationSupport = {
+  modes: {
+    generate: {
+      supports: {
+        outputFormat: { type: 'enum', options: ['png', 'gif'] },
+        frameCount: { type: 'range', min: 2, max: 16 },
+        frameDurationMs: { type: 'range', min: 20, max: 2000 }
+      }
+    }
+  }
+} satisfies ImageGenerationSupport
+
 describe('generate_image', () => {
   beforeEach(() => {
     getPreference.mockReset()
@@ -121,18 +132,108 @@ describe('generate_image', () => {
     getImageGenerationSupport.mockReturnValue(null)
   })
 
-  it('builds an entry with the agreed namespace + defer policy', () => {
-    expect(entry.name).toBe(GENERATE_IMAGE_TOOL_NAME)
-    expect(entry.namespace).toBe('media')
-    expect(entry.defer).toBe('auto')
-    expect(entry.tool.type).toBe('dynamic')
+  it.each([{ frameCount: 8, frameDurationMs: 200 }, { frameDurationMs: 200 }, { outputFormat: 'png', frameCount: 8 }])(
+    'rejects animation timing without GIF before a paid request: %j',
+    async (params) => {
+      const result = await callExecute(
+        { prompt: 'a panda eating bamboo', ...params },
+        undefined,
+        buildTool(animationSupport)
+      )
+      expect(result).toMatchObject({ error: expect.stringContaining('outputFormat') })
+      expect(result).toMatchObject({ error: expect.stringContaining('gif') })
+      expect(generateImage).not.toHaveBeenCalled()
+    }
+  )
+
+  it('reports the actual static artifact when a GIF was requested, keeping the generated file', async () => {
+    const bytes = await sharp({ create: { width: 4, height: 4, channels: 3, background: '#ffffff' } })
+      .png()
+      .toBuffer()
+    generateImage.mockResolvedValue({ files: [{ id: 'f1', name: 'image.gif' }] })
+    fileRead.mockResolvedValue({ content: bytes.toString('base64'), mime: 'image/gif' })
+
+    const result = await callExecute(
+      { prompt: 'a panda eating bamboo', outputFormat: 'gif', frameCount: 8, frameDurationMs: 200 },
+      undefined,
+      buildTool(animationSupport)
+    )
+    expect(result).toEqual([
+      expect.objectContaining({
+        id: 'f1',
+        metadata: { format: 'png', frameCount: 1 },
+        warning: expect.stringContaining('not met')
+      })
+    ])
+    const output = await entry.tool.toModelOutput!({ output: result } as never)
+    expect(output).toMatchObject({ value: expect.stringContaining('png, 1 frame(s)') })
+    expect(output).toMatchObject({ value: expect.stringContaining('not met') })
   })
 
-  it('materializes the configured schema as an AI SDK dynamic tool', () => {
-    const selectedTool = buildTool(generateSupport)
+  it.each([8, 2])('reports unmet GIF timing independently of the requested frame count %i', async (frameCount) => {
+    const raw = Buffer.concat([Buffer.alloc(4 * 4 * 3, 40), Buffer.alloc(4 * 4 * 3, 200)])
+    const bytes = await sharp(raw, { raw: { width: 4, height: 8, channels: 3, pageHeight: 4 } })
+      .gif({ delay: [100, 200], loop: 0 })
+      .toBuffer()
+    generateImage.mockResolvedValue({ files: [{ id: 'f1', name: 'image.png' }] })
+    fileRead.mockResolvedValue({ content: bytes.toString('base64'), mime: 'image/png' })
 
-    expect(selectedTool.type).toBe('dynamic')
-    expect(selectedTool.inputSchema).toBeDefined()
+    const result = await callExecute(
+      { prompt: 'a panda', outputFormat: 'gif', frameCount, frameDurationMs: 200 },
+      undefined,
+      buildTool(animationSupport)
+    )
+    expect(result).toEqual([
+      expect.objectContaining({
+        metadata: { format: 'gif', frameCount: 2, frameDurationsMs: [100, 200] },
+        warning: expect.stringContaining('not met')
+      })
+    ])
+    const output = await entry.tool.toModelOutput!({ output: result } as never)
+    expect(output).toMatchObject({ value: expect.stringContaining('gif, 2 frame(s), frame durations (ms): 100, 200') })
+    expect(output).toMatchObject({ value: expect.stringContaining('not automatically retry') })
+  })
+
+  it.each([{}, { frameCount: 2, frameDurationMs: 200 }])(
+    'accepts matching GIF output with optional timing %j',
+    async (timing) => {
+      const raw = Buffer.concat([Buffer.alloc(4 * 4 * 3, 40), Buffer.alloc(4 * 4 * 3, 200)])
+      const bytes = await sharp(raw, { raw: { width: 4, height: 8, channels: 3, pageHeight: 4 } })
+        .gif({ delay: [200, 200] })
+        .toBuffer()
+      generateImage.mockResolvedValue({ files: [{ id: 'f1', name: 'animation.gif' }] })
+      fileRead.mockResolvedValue({ content: bytes.toString('base64'), mime: 'image/gif' })
+      const result = await callExecute(
+        { prompt: 'a panda', outputFormat: 'gif', ...timing },
+        undefined,
+        buildTool(animationSupport)
+      )
+      expect(result).toEqual([
+        { id: 'f1', name: 'animation.gif', metadata: { format: 'gif', frameCount: 2, frameDurationsMs: [200, 200] } }
+      ])
+    }
+  )
+
+  it('preserves files whose bytes cannot be inspected without claiming animation', async () => {
+    generateImage.mockResolvedValue({ files: [{ id: 'f1', name: 'animation.gif' }] })
+    fileRead.mockResolvedValue({ content: Buffer.from('not an image').toString('base64'), mime: 'image/gif' })
+    const result = await callExecute({ prompt: 'a panda', outputFormat: 'gif' }, undefined, buildTool(animationSupport))
+    expect(result).toEqual([
+      expect.objectContaining({ id: 'f1', warning: expect.stringContaining('could not be verified') })
+    ])
+    const output = await entry.tool.toModelOutput!({ output: result } as never)
+    expect(output).toMatchObject({ value: expect.stringContaining('animation and frame timing unverified') })
+  })
+
+  it('preserves cancellation when reading a generated artifact', async () => {
+    const controller = new AbortController()
+    const reason = new Error('cancelled during metadata inspection')
+    generateImage.mockResolvedValue({ files: [{ id: 'f1', name: 'image.png' }] })
+    fileRead.mockImplementation(async () => {
+      controller.abort(reason)
+      return { content: '', mime: 'image/png' }
+    })
+    await expect(callExecute({ prompt: 'a panda' }, controller.signal, buildTool(generateSupport))).rejects.toBe(reason)
   })
 
   describe('applies', () => {
@@ -162,7 +263,8 @@ describe('generate_image', () => {
 
     const result = await callExecute({ prompt: 'a cat' })
 
-    expect(result).toEqual([{ id: 'f1', name: 'image-1.png' }])
+    expect(result).toEqual([expect.objectContaining({ id: 'f1', name: 'image-1.png' })])
+    expect(result).toEqual([expect.objectContaining({ warning: expect.stringContaining('could not be verified') })])
     expect(generateImage).toHaveBeenCalledWith(
       expect.objectContaining({ uniqueModelId: 'openai::dall-e-3', prompt: 'a cat', paramValues: {} })
     )

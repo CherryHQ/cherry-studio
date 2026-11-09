@@ -34,8 +34,22 @@ export type GenerateImageToolInput = {
   image_ids?: string[] | null
 } & Partial<Record<CanonicalParamKey, unknown>>
 
+export function validateGenerateImageAnimationInput(input: GenerateImageToolInput): string | undefined {
+  const hasTiming = input.frameCount != null || input.frameDurationMs != null
+  if (hasTiming && input.outputFormat !== 'gif') {
+    return 'Invalid animation parameters: frameCount and frameDurationMs require outputFormat="gif". Set outputFormat to "gif" or remove the frame parameters; do not retry unchanged.'
+  }
+  return undefined
+}
+
 function describeParam(key: CanonicalParamKey, spec: SupportSpec, modes: readonly ToolMode[]): string {
-  const prefix = `Canonical painting parameter for ${modes.join('/')} mode: ${key}.`
+  const dependency =
+    key === 'frameCount' || key === 'frameDurationMs'
+      ? ' Requires outputFormat="gif"; frame parameters alone do not request animation.'
+      : key === 'outputFormat' && spec.type === 'enum' && spec.options.includes('gif')
+        ? ' For animation, explicitly set outputFormat="gif"; example: {"outputFormat":"gif","frameCount":8,"frameDurationMs":200}.'
+        : ''
+  const prefix = `Canonical painting parameter for ${modes.join('/')} mode: ${key}.${dependency}`
   switch (spec.type) {
     case 'enum':
       return `${prefix} Allowed values: ${spec.options.join(', ')}.${spec.default === undefined ? '' : ` Default: ${spec.default}.`}`
