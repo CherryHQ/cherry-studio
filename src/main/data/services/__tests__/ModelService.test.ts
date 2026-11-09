@@ -8,6 +8,7 @@ import { and, eq, or } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
@@ -2243,6 +2244,34 @@ describe('ModelService.delete', () => {
     } finally {
       prefGet.mockImplementation(originalGet)
     }
+  })
+})
+
+describe('ModelService — deleting a model an agent runs on', () => {
+  const dbh = setupTestDatabase()
+  const modelId = createUniqueModelId('openai', 'gpt-4o')
+
+  it.each([
+    ['delete', () => modelService.delete('openai', 'gpt-4o')],
+    ['bulkDelete', () => modelService.bulkDelete([{ providerId: 'openai', modelId: 'gpt-4o' }])],
+    ['reconcileForProvider', () => modelService.reconcileForProvider('openai', { toAdd: [], toRemove: [modelId] })]
+  ])('%s notifies live agent reads', async (_, deleteModel) => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    // Preset-backed, so reconcile removes it instead of keeping it as a custom model.
+    await dbh.db.insert(userModelTable).values(modelRow('openai', 'gpt-4o', { id: modelId, presetModelId: 'gpt-4o' }))
+    await dbh.db
+      .insert(agentTable)
+      .values({ id: 'agent-1', type: 'claude-code', name: 'Agent', instructions: '', model: modelId, orderKey: 'a0' })
+    notifyDataApiDataChangeMock.mockClear()
+
+    deleteModel()
+
+    const [agent] = await dbh.db.select().from(agentTable)
+    expect(agent.model).toBeNull()
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      { endpoint: '/agents', kind: 'projection' },
+      { endpoint: '/agents/:agentId' }
+    ])
   })
 })
 

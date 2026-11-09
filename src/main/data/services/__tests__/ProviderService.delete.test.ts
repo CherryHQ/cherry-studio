@@ -11,6 +11,7 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { pinTable } from '@data/db/schemas/pin'
@@ -263,6 +264,7 @@ describe('ProviderService.delete — preset protection boundary', () => {
       .from(agentSessionTable)
       .where(eq(agentSessionTable.id, 'session-provider-sibling'))
     expect(sibling.model).toBe(siblingModelId)
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([{ endpoint: '/pins', kind: 'membership' }])
   })
 
   it('purges pins for every model under the provider as part of the delete transaction', async () => {
@@ -342,6 +344,36 @@ describe('ProviderService.delete — preset protection boundary', () => {
     // Other providers' pins are untouched.
     const survivingPins = await dbh.db.select().from(pinTable).where(eq(pinTable.entityId, claude))
     expect(survivingPins).toHaveLength(1)
+  })
+
+  it('notifies live agent reads when an agent ran on one of its models', async () => {
+    const modelId = createUniqueModelId('my-local-llm', 'llama')
+    const [providerOrderKey, modelOrderKey] = generateOrderKeySequence(2)
+    await dbh.db
+      .insert(userProviderTable)
+      .values({ providerId: 'my-local-llm', name: 'My Local LLM', orderKey: providerOrderKey })
+    await dbh.db.insert(userModelTable).values({
+      id: modelId,
+      providerId: 'my-local-llm',
+      modelId: 'llama',
+      name: 'Llama',
+      capabilities: [],
+      supportsStreaming: true,
+      orderKey: modelOrderKey
+    })
+    await dbh.db
+      .insert(agentTable)
+      .values({ id: 'agent-1', type: 'claude-code', name: 'Agent', instructions: '', model: modelId, orderKey: 'a0' })
+    notifyDataApiDataChangeMock.mockClear()
+
+    providerService.delete('my-local-llm')
+
+    const [agent] = await dbh.db.select().from(agentTable)
+    expect(agent.model).toBeNull()
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      { endpoint: '/agents', kind: 'projection' },
+      { endpoint: '/agents/:agentId' }
+    ])
   })
 
   it('throws notFound when the provider row does not exist (no silent zero-row delete)', async () => {

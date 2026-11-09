@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ResourcePaneCountButton } from '@renderer/components/chat/panes/Shell'
 import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
+import type * as CommandHooks from '@renderer/hooks/command'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { EventPayload } from '@shared/ipc/types'
 
@@ -17,7 +18,8 @@ let browserOpenListener: (payload: EventPayload<'browser.pane.open_requested'>) 
 const useCommandHandlerMock = vi.hoisted(() => vi.fn())
 const topicBranchPanelModuleState = vi.hoisted(() => ({ importCount: 0 }))
 
-vi.mock('@renderer/hooks/command', () => ({
+vi.mock('@renderer/hooks/command', async (importOriginal) => ({
+  ...(await importOriginal<typeof CommandHooks>()),
   useCommandHandler: useCommandHandlerMock
 }))
 
@@ -475,7 +477,7 @@ describe('TopicRightPane', () => {
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
   })
 
-  it('reconciles an open resource capability to the next ready capability', async () => {
+  it('closes an unavailable resource pane without opening an unrelated capability', () => {
     const { rerender } = render(
       <TopicRightPane.Scope
         topicId="topic-a"
@@ -494,9 +496,9 @@ describe('TopicRightPane', () => {
       </TopicRightPane.Scope>
     )
 
-    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
     expect(screen.queryByTestId('resource-list')).toBeNull()
-    expect(await screen.findByTestId('branch-pane')).toBeInTheDocument()
+    expect(screen.queryByTestId('branch-pane')).toBeNull()
   })
 
   it('opens the resource pane on a locate reveal request', () => {

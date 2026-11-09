@@ -398,6 +398,30 @@ describe('messageMenuBarActions', () => {
     expect(typeof toolbarActions.find((action) => action.id === 'more-menu')?.renderToolbar).toBe('function')
   })
 
+  it('offers regenerate for user messages when the action is available', async () => {
+    const regenerateMessage = vi.fn()
+    const context = createActionContext({
+      message: {
+        id: 'message-1',
+        role: 'user',
+        topicId: 'topic-1',
+        parentId: null,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        status: 'success'
+      },
+      actions: { regenerateMessage },
+      isAssistantMessage: false,
+      isUserMessage: true
+    })
+    const action = resolveMessageMenuBarToolbarActions(context).find((item) => item.id === 'assistant-regenerate')
+
+    expect(action?.availability).toMatchObject({ visible: true, enabled: true })
+
+    await executeMessageMenuBarAction('assistant-regenerate', context)
+
+    expect(regenerateMessage).toHaveBeenCalledWith('message-1')
+  })
+
   it('exposes read aloud only for completed assistant messages with natural-language text', () => {
     const completed = createActionContext({ messageParts: [{ type: 'text', text: 'Answer' }] as any })
     const pending = createActionContext({

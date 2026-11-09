@@ -32,4 +32,5 @@ export function notifyModelsDeleted(uniqueModelIds: readonly string[], sessionId
     { endpoint: '/models', kind: 'membership', entityIds: [...uniqueModelIds] },
     ...(sessionIds.length > 0 ? [{ endpoint: '/agent-sessions/:sessionId' as const, entityIds: [...sessionIds] }] : [])
   ])
+  notifyDataApiDataChange([{ endpoint: '/agents', kind: 'projection' }, { endpoint: '/agents/:agentId' }])
 }

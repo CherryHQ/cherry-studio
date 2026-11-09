@@ -92,6 +92,12 @@ export const ListAgentSessionsQuerySchema = z.strictObject({
 export type ListAgentSessionsQueryParams = z.input<typeof ListAgentSessionsQuerySchema>
 export type ListAgentSessionsQuery = z.output<typeof ListAgentSessionsQuerySchema>
 
+/** Ordinary conversation entry can reject task-owned sessions without restricting task history reads. */
+export const GetAgentSessionQuerySchema = z.strictObject({
+  excludeTaskSessions: z.boolean().optional()
+})
+export type GetAgentSessionQuery = z.infer<typeof GetAgentSessionQuerySchema>
+
 /** Optional owner scope for `GET /agent-sessions/latest`; omitted means global latest. */
 export const LatestAgentSessionQuerySchema = z.strictObject({
   agentId: z.string().min(1).optional()
@@ -157,6 +163,7 @@ export type AgentSessionSchemas = {
   '/agent-sessions/:sessionId': {
     GET: {
       params: { sessionId: string }
+      query?: GetAgentSessionQuery
       response: AgentSessionEntity
     }
     PATCH: {

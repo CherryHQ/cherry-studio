@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
   ensureTraceIdTx: vi.fn(),
   getAgent: vi.fn(),
+  captureHead: vi.fn(),
+  branchTip: vi.fn(),
   saveMessage: vi.fn(),
   saveMessagesTx: vi.fn(),
   hasSessionMessages: vi.fn(),
@@ -30,6 +32,10 @@ vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: { getById: mocks.getSession, ensureTraceIdTx: mocks.ensureTraceIdTx }
 }))
 
+vi.mock('@data/services/agentSessionMessageTree', () => ({ getAgentSessionHead: () => mocks.captureHead() }))
+vi.mock('@main/ai/runtime/claudeCode', () => ({ reserveClaudeBranchTx: vi.fn() }))
+vi.mock('@main/ai/runtime/pi/piContext', () => ({ reservePiBranchTx: vi.fn() }))
+
 vi.mock('@data/services/AgentService', () => ({
   agentService: { getAgent: mocks.getAgent }
 }))
@@ -44,6 +50,8 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     }
   },
   agentSessionMessageService: {
+    captureHead: mocks.captureHead,
+    branchTip: mocks.branchTip,
     saveMessage: mocks.saveMessage,
     saveMessagesTx: mocks.saveMessagesTx,
     hasSessionMessages: mocks.hasSessionMessages,
@@ -99,10 +107,8 @@ describe('AgentChatContextProvider', () => {
     runtimeDriverRegistry.clearForTest()
     runtimeDriverRegistry.register({
       type: 'claude-code',
-      capabilities: ['agent-session'],
       connect: vi.fn(),
-      validateSession: mocks.runtimeValidateSession,
-      listAvailableTools: vi.fn().mockResolvedValue([])
+      validateSession: mocks.runtimeValidateSession
     })
     mocks.getSession.mockReturnValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/tmp' } })
     mocks.ensureTraceIdTx.mockReturnValue('a'.repeat(32))
@@ -144,9 +150,12 @@ describe('AgentChatContextProvider', () => {
       }))
     )
     mocks.hasSessionMessages.mockReturnValue(false)
+    mocks.captureHead.mockReturnValue('branch-head')
+    mocks.branchTip.mockImplementation((_sessionId, messageId) => messageId)
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') {
         return {
+          prepareBranch: async () => {},
           beginTurn: mocks.runtimeBeginTurn,
           enqueueUserMessage: mocks.runtimeEnqueueUserMessage,
           isSessionBusy: mocks.runtimeIsSessionBusy,
@@ -168,6 +177,29 @@ describe('AgentChatContextProvider', () => {
     // clearAllMocks preserves return values: re-seed the name map so override
     // tests can't leak state into later cases.
     mocks.getModelNames.mockReturnValue(new Map())
+  })
+
+  it('keeps the captured branch when the user changes selection during validation', async () => {
+    const validation = Promise.withResolvers<void>()
+    mocks.runtimeValidateSession.mockReturnValueOnce(validation.promise)
+    const dispatch = provider.prepareDispatch(makeSubscriber(), openReq())
+    mocks.captureHead.mockReturnValue('other-branch')
+    validation.resolve()
+    const prepared = await dispatch
+    expect(prepared.reservedMessages?.map((message) => message.role)).toEqual(['user', 'assistant'])
+    expect(mocks.saveMessagesTx.mock.calls[0][1].parentId).toBe('branch-head')
+  })
+
+  it.each([false, true])('rejects a stale append instead of creating an un-forked sibling (busy: %s)', async (busy) => {
+    const validation = Promise.withResolvers<void>()
+    mocks.runtimeValidateSession.mockReturnValueOnce(validation.promise)
+    mocks.runtimeIsSessionBusy.mockReturnValue(busy)
+    const dispatch = provider.prepareDispatch(makeSubscriber(), openReq())
+    mocks.branchTip.mockReturnValue('newly-appended-message')
+    validation.resolve()
+    await expect(dispatch).rejects.toMatchObject({ code: 'RESOURCE_LOCKED' })
+    expect(mocks.saveMessage).not.toHaveBeenCalled()
+    expect(mocks.saveMessagesTx).not.toHaveBeenCalled()
   })
 
   it.each(['busy', 'close_failed'] as const)(

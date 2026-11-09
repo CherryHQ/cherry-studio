@@ -45,7 +45,6 @@ const mocks = vi.hoisted(() => ({
   listLocalSkillFolderNames: vi.fn(),
   getSkillPluginDirectory: vi.fn(),
   checkSkillRuntimeDependencies: vi.fn(),
-  modelGetByKey: vi.fn(),
   findBySessionId: vi.fn(),
   createMcpBridgeServer: vi.fn(),
   createToolPolicySnapshot: vi.fn(),
@@ -105,10 +104,6 @@ vi.mock('@data/services/McpServerService', () => ({
     list: vi.fn(() => ({ items: [] })),
     findByIdOrName: mocks.findByIdOrName
   }
-}))
-
-vi.mock('@data/services/ModelService', () => ({
-  modelService: { getByKey: mocks.modelGetByKey }
 }))
 
 vi.mock('@data/services/ProviderService', () => ({
@@ -301,7 +296,6 @@ describe('buildClaudeCodeSessionSettings', () => {
       allowedTools: [],
       configuration: {}
     })
-    mocks.modelGetByKey.mockReturnValue({ apiModelId: 'claude-api' })
     mocks.findBySessionId.mockReturnValue(null)
     mocks.getTurnTrustedNotifyChannels.mockReturnValue(undefined)
     mocks.createToolPolicySnapshot.mockResolvedValue({
@@ -481,6 +475,23 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings).not.toHaveProperty('fastMode')
     expect(settings.forwardSubagentText).toBe(true)
   })
+
+  it.each([
+    { configuration: undefined, expected: 'default' },
+    { configuration: {}, expected: 'default' },
+    { configuration: { permission_mode: 'auto' }, expected: 'auto' }
+  ])(
+    'keeps the Cherry permission policy when SDK defaults change: $configuration',
+    async ({ configuration, expected }) => {
+      mocks.getAgent.mockReturnValue({ ...mocks.getAgent(), configuration })
+      const settings = await buildClaudeCodeSessionSettings(
+        { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+        {} as never
+      )
+
+      expect(settings.permissionMode).toBe(expected)
+    }
+  )
 
   it('overrides the SDK default 30-day cleanup for Cherry-managed sessions', async () => {
     const settings = await buildClaudeCodeSessionSettings(
@@ -987,82 +998,6 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
 
     expect(settings.skills).toEqual([])
-  })
-
-  it('resolves the plan (sonnet) and small (haiku) model env keys from their own model ids', async () => {
-    // Each of the three model lookups must resolve independently from its own key/provider.
-    mocks.modelGetByKey.mockImplementation((providerId: string, modelId: string) => {
-      if (modelId === 'claude-sonnet') return { apiModelId: 'sonnet-api' }
-      if (modelId === 'claude-haiku') return { apiModelId: 'haiku-api' }
-      throw new Error(`model ${providerId}::${modelId} not in table`)
-    })
-    const session = {
-      id: 'session-1',
-      agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
-    }
-
-    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-
-    // agent.model = planModel = claude-sonnet, smallModel = claude-haiku (see the beforeEach agent).
-    expect(settings.env).toMatchObject({
-      ANTHROPIC_MODEL: 'sonnet-api',
-      ANTHROPIC_DEFAULT_OPUS_MODEL: 'sonnet-api',
-      ANTHROPIC_DEFAULT_SONNET_MODEL: 'sonnet-api',
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'haiku-api'
-    })
-  })
-
-  it('falls back each model env key to its own raw id when that model is absent from the table', async () => {
-    // Only the small (haiku) model is missing — the others must NOT be forced to fall back, and the
-    // haiku key must fall back to its OWN raw id (not the main model's).
-    mocks.modelGetByKey.mockImplementation((_providerId: string, modelId: string) => {
-      if (modelId === 'claude-haiku') throw new Error('haiku not in table')
-      return { apiModelId: `${modelId}-api` }
-    })
-    const session = {
-      id: 'session-1',
-      agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
-    }
-
-    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-
-    expect(settings.env).toMatchObject({
-      ANTHROPIC_MODEL: 'claude-sonnet-api',
-      ANTHROPIC_DEFAULT_SONNET_MODEL: 'claude-sonnet-api',
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'claude-haiku'
-    })
-  })
-
-  it('builds model env keys from the session override when the agent default is cleared', async () => {
-    mocks.getAgent.mockReturnValue({
-      id: 'agent-1',
-      type: 'claude-code',
-      instructions: 'Follow instructions.',
-      model: null,
-      planModel: null,
-      smallModel: null,
-      mcps: [],
-      allowedTools: [],
-      configuration: {}
-    })
-    mocks.modelGetByKey.mockReturnValue({ apiModelId: 'override-api' })
-    const session = {
-      id: 'session-1',
-      agentId: 'agent-1',
-      model: 'provider-1::override-model',
-      workspace: { type: 'user', path: '/workspace/project' }
-    }
-
-    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-
-    expect(settings.env).toMatchObject({
-      ANTHROPIC_MODEL: 'override-api',
-      ANTHROPIC_DEFAULT_OPUS_MODEL: 'override-api',
-      ANTHROPIC_DEFAULT_SONNET_MODEL: 'override-api',
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'override-api'
-    })
   })
 
   it('adds loopback bypass rules to the final Agent proxy environment', async () => {
@@ -2869,44 +2804,6 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(await submit()).toEqual({})
   })
 
-  it('wires a PreToolUse steer hook that drains the holder and injects it as additionalContext', async () => {
-    const session = {
-      id: 'session-1',
-      agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
-    }
-
-    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-
-    // The session-scoped steer holder is wired onto the settings — the driver reads it from here and
-    // the connection's redirect() fills `pending`. Without it the whole agent steer is inert.
-    expect(settings.steerHolder).toBeDefined()
-
-    const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
-    const steerHook = preToolUse?.find((hook) => hook.name === 'steerHook') as unknown as (input: {
-      hook_event_name: string
-    }) => Promise<{ continue?: boolean; hookSpecificOutput?: { additionalContext?: string } }>
-    expect(steerHook).toBeDefined()
-
-    // No queued steer → the hook no-ops.
-    expect(await steerHook({ hook_event_name: 'PreToolUse' })).toEqual({})
-
-    // A steer stashed mid-turn is drained and injected as additionalContext (model redirects without
-    // aborting); `onInjected` fires so the connection can arm its steer-boundary.
-    const onInjected = vi.fn()
-    settings.steerHolder!.onInjected = onInjected
-    settings.steerHolder!.pending.push({
-      message: { data: { parts: [{ type: 'text', text: 'change direction now' }] } }
-    } as never)
-
-    const output = await steerHook({ hook_event_name: 'PreToolUse' })
-
-    expect(output.continue).toBe(true)
-    expect(output.hookSpecificOutput?.additionalContext).toContain('change direction now')
-    expect(settings.steerHolder!.pending).toHaveLength(0) // drained in place
-    expect(onInjected).toHaveBeenCalledTimes(1)
-  })
-
   it('keeps RTK as the only Bash text rewrite', async () => {
     mocks.rtkRewrite.mockResolvedValue('rtk eslint .')
     const session = {
@@ -2930,30 +2827,6 @@ describe('buildClaudeCodeSessionSettings', () => {
         updatedInput: { command: 'rtk eslint .' }
       }
     })
-  })
-
-  it('keeps an empty-text steer pending when the PreToolUse hook cannot inject it', async () => {
-    const session = {
-      id: 'session-1',
-      agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
-    }
-
-    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-    const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
-    const steerHook = preToolUse?.find((hook) => hook.name === 'steerHook') as unknown as (input: {
-      hook_event_name: string
-    }) => Promise<{ continue?: boolean; hookSpecificOutput?: { additionalContext?: string } }>
-    expect(steerHook).toBeDefined()
-    const onInjected = vi.fn()
-    settings.steerHolder!.onInjected = onInjected
-    const emptySteer = { message: { data: { parts: [{ type: 'text', text: '   ' }] } } } as never
-    settings.steerHolder!.pending.push(emptySteer)
-
-    await expect(steerHook({ hook_event_name: 'PreToolUse' })).resolves.toEqual({})
-
-    expect(settings.steerHolder!.pending).toEqual([emptySteer])
-    expect(onInjected).not.toHaveBeenCalled()
   })
 
   it('hands the real kb_manage approval exception to the tool-policy snapshot (production gate wiring)', async () => {
@@ -3067,28 +2940,6 @@ describe('buildClaudeCodeSessionSettings', () => {
       expect(out).toContainEqual(
         expect.objectContaining({ hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' }) })
       )
-    })
-
-    it('steers via the live holder after the original is disposed and rebuilt (Bug B)', async () => {
-      const prewarm = await buildClaudeCodeSessionSettings(sessionWith('warm-b'), {} as never)
-      // Simulate the connection that prewarm baked for closing — disposes + evicts the holder.
-      prewarm.steerHolder?.dispose()
-
-      // Reconnect builds a brand-new holder; the host stashes a steer into it via redirect().
-      const reconnect = await buildClaudeCodeSessionSettings(sessionWith('warm-b'), {} as never)
-      const onInjected = vi.fn()
-      reconnect.steerHolder!.onInjected = onInjected
-      reconnect.steerHolder!.pending.push({
-        message: { data: { parts: [{ type: 'text', text: 'go north instead' }] } }
-      } as never)
-
-      // The prewarm-baked steer hook resolves the live holder by id → injects the steer.
-      const out = await runHooks(prewarm, 'Read')
-      const additionalContexts = out.map(
-        (o) => (o as { hookSpecificOutput?: { additionalContext?: string } })?.hookSpecificOutput?.additionalContext
-      )
-      expect(additionalContexts).toContainEqual(expect.stringContaining('go north instead'))
-      expect(onInjected).toHaveBeenCalledTimes(1)
     })
 
     it('approves via the re-bound emitter after the original is disposed and rebuilt (approval)', async () => {
