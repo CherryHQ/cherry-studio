@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import type { SDKMessage, SessionMessage } from '@anthropic-ai/claude-agent-sdk'
+import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 import { expect, it } from 'vitest'
 
 import { runtimeId } from '@cherrystudio/agent-runtime'
@@ -30,7 +30,7 @@ it('drops only the synthetic interrupt placeholder in live and restored product 
   for (const item of [real, closer]) live.publish(live.message(item))
   expect(live.feed.snapshot.messages.map((item) => item.id)).toEqual([real.uuid])
   const archive = restored.restore(
-    [real, closer].map((item) => ({ ...item, parent_agent_id: null })) as SessionMessage[],
+    [real, closer].map((item) => ({ ...item, parent_agent_id: null })),
     []
   )
   expect(restored.feed.snapshot.messages.map((item) => item.id)).toEqual([real.uuid])
@@ -86,7 +86,7 @@ it('does not count synthetic assistant or stream-start usage and retains real us
     parent_tool_use_id: null,
     uuid: randomUUID(),
     session_id: '207995f5-3d2e-4da0-869e-15105be0138e'
-  } as SDKMessage)
+  })
   invocations.accept(closer)
   expect(invocations.close()).toEqual([])
   invocations.accept(real)
