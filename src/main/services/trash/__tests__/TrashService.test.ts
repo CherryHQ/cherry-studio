@@ -1,3 +1,4 @@
+import { defaultServiceInstances } from '@test-mocks/main/application'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as LifecycleModule from '@main/core/lifecycle'
@@ -51,6 +52,7 @@ beforeEach(() => {
   appGetMock.mockImplementation((name: string) => {
     if (name === 'JobManager') return jobManager
     if (name === 'AiStreamManager') return aiStreamManager
+    if (name === 'SideChatRuntimeService') return defaultServiceInstances.SideChatRuntimeService
     throw new Error(`Unexpected application.get(${name})`)
   })
 })

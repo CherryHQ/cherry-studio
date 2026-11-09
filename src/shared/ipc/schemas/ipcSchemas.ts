@@ -39,6 +39,7 @@ import { type QuickAssistantEventSchemas, quickAssistantRequestSchemas } from '.
 import { type ScreenshotEventSchemas, screenshotRequestSchemas } from './screenshot'
 import { screenshotChatRequestSchemas, type ScreenshotChatEventSchemas } from './screenshotChat'
 import { type SelectionEventSchemas, selectionRequestSchemas } from './selection'
+import { sideChatRequestSchemas, type SideChatEventSchemas } from './sideChat'
 import { skillRequestSchemas } from './skill'
 import { type SystemEventSchemas, systemRequestSchemas } from './system'
 import { type TabEventSchemas, tabRequestSchemas } from './tab'
@@ -58,6 +59,7 @@ import { type WindowEventSchemas, windowRequestSchemas } from './window'
  * never enter the renderer bundle (see ipc-overview.md, "zod across processes").
  */
 export const ipcRequestSchemas = {
+  ...sideChatRequestSchemas,
   ...aiRequestSchemas,
   ...agentRequestSchemas,
   ...voiceRequestSchemas,
@@ -119,7 +121,8 @@ export type IpcRoute = keyof IpcRequestSchemas
  * the renderer trusts them and never re-parses). Each migrated domain intersects
  * its own `*EventSchemas` type here.
  */
-export type IpcEventSchemas = AiEventSchemas &
+export type IpcEventSchemas = SideChatEventSchemas &
+  AiEventSchemas &
   ApiGatewayEventSchemas &
   AppEventSchemas &
   BackupEventSchemas &

@@ -474,13 +474,15 @@ describe('AiStreamManager', () => {
         uniqueModelId: 'provider-a::model-a',
         messages: [{ id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'hello' }] }],
         listener: new FakeListener('gateway:request-1'),
-        contextOwner: 'caller'
+        contextOwner: 'caller',
+        disableTools: true
       })
 
       expect(mockStreamText).toHaveBeenCalledWith(
         expect.objectContaining({
           conversation: { id: 'gateway-request-1', topicId: 'gateway-request-1' },
-          contextOwner: 'caller'
+          contextOwner: 'caller',
+          disableTools: true
         })
       )
     })

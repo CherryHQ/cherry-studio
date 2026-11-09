@@ -1,3 +1,4 @@
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -53,6 +54,9 @@ import { topicHandlers } from '../topics'
 describe('topicHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    MockApplicationUtils.setService('AiStreamManager', {
+      withDispatchLock: async (_topicId: string, operation: () => Promise<unknown>) => operation()
+    })
   })
 
   describe('trash routing', () => {

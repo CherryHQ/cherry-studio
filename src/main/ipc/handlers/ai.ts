@@ -4,6 +4,7 @@ import { application } from '@application'
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { AgentSessionForkSourceError } from '@data/services/AgentSessionForkService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { sideChatService } from '@data/services/SideChatService'
 import { loggerService } from '@logger'
 import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
 import { agentWorkspaceStorageService } from '@main/ai/agents/AgentWorkspaceStorageService'
@@ -31,6 +32,11 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { exposeAiError } from './exposeAiError'
 
 const logger = loggerService.withContext('ipc/ai')
+
+function assertOrdinaryStream(topicId: string): void {
+  if (topicId.startsWith('side-chat:') || sideChatService.find(topicId))
+    throw new Error('Use the side-chat command interface')
+}
 
 async function exposeAiStreamAdmission<T>(op: () => Promise<T>): Promise<T> {
   try {
@@ -111,6 +117,7 @@ async function exposeAgentSessionArchiveError<T>(operation: () => T | Promise<T>
 
 export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.projection.attach': ({ target, subscriptionId }, { senderId }) => {
+    if (target.kind === 'topic') assertOrdinaryStream(target.topicId)
     const sender = senderWebContents(senderId)
     if (!sender || senderId === null) throw new Error('Projection subscription requires a window')
     const send = (update: MessageProjectionUpdate) =>
@@ -161,6 +168,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
 
   // ── Streaming chat — delegate to AiStreamManager, which owns the stream registry. ──
   'ai.stream.open': async (request, { senderId }) => {
+    assertOrdinaryStream(request.topicId)
     if (!senderId) throw new Error('ai.stream.open requires a managed window')
     const wc = senderWebContents(senderId)
     if (!wc) throw new Error('ai.stream.open requires a managed window')
@@ -168,6 +176,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     return exposeAiStreamAdmission(() => application.get('AiStreamManager').dispatchCommand(dispatchRequest))
   },
   'ai.stream.attach': async (request, { senderId }) => {
+    assertOrdinaryStream(request.topicId)
     const wc = senderWebContents(senderId)
     if (!wc) throw new Error('ai.stream.attach requires a managed window')
     return application.get('AiStreamManager').attach(wc, request)
@@ -178,11 +187,13 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     if (wc) application.get('AiStreamManager').detach(wc, request)
   },
   'ai.stream.abort': async ({ topicId }) => {
+    assertOrdinaryStream(topicId)
     await application.get('AiStreamManager').abortAndDrain(topicId, 'user-requested')
   },
 
   // ── Tool calls — deferred output lookup + approval decisions. ──
   'ai.tool.get_result': async ({ topicId, messageId, toolCallId }) => {
+    assertOrdinaryStream(topicId)
     // Active stream first: it is the only source holding the value before the message persists.
     const live = application.get('AiStreamManager').getDeferredToolOutput(topicId, toolCallId)
     if (live.found) return live
