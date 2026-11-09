@@ -17,6 +17,7 @@ import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { AiStreamAdmissionError, type MainDispatchRequest } from '@main/ai/streamManager'
 import { openRequestPath } from '@main/services/file'
 import { PathStaleVersionError } from '@main/utils/file'
+import { isDirectoryAccessible } from '@main/utils/isDirectoryAccessible'
 import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
 import type { MessageProjectionUpdate } from '@shared/ai/messageProjection'
 import { ErrorCode, isDataApiError, isDataApiResourceNotFoundError } from '@shared/data/api/errors'
@@ -270,6 +271,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
       throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED, reason, { reason })
     }
   },
+  'ai.agent.workspace.is_accessible': ({ path }) => isDirectoryAccessible(path),
   'ai.agent.workspace.register': async ({ path, name }) =>
     agentWorkspaceStorageService.registerWorkspace(path, { name }),
   'ai.agent.workspace.delete': ({ workspaceId }) =>

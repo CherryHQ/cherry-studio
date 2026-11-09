@@ -1,5 +1,4 @@
 import { randomBytes } from 'node:crypto'
-import { statSync } from 'node:fs'
 
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, notInArray, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
@@ -24,6 +23,7 @@ import { pinService } from '@data/services/PinService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { Emitter, type Event } from '@main/core/lifecycle'
+import { isDirectoryAccessible } from '@main/utils/isDirectoryAccessible'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -53,14 +53,6 @@ import {
 } from './utils/pinnedListCursor'
 
 const logger = loggerService.withContext('AgentSessionService')
-
-function isDirectoryAccessible(directoryPath: string): boolean {
-  try {
-    return statSync(directoryPath).isDirectory()
-  } catch {
-    return false
-  }
-}
 
 const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 200

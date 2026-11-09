@@ -455,6 +455,10 @@ export const aiRequestSchemas = {
     input: ReuseOrCreateAgentSessionSchema,
     output: z.custom<ReusableAgentSessionPlaceholdersResponse>()
   }),
+  'ai.agent.workspace.is_accessible': defineRoute({
+    input: z.strictObject({ path: AbsoluteFilePathSchema }),
+    output: z.boolean()
+  }),
   'ai.agent.workspace.register': defineRoute({
     input: z.strictObject({
       path: z.string().trim().pipe(AbsoluteFilePathSchema),
