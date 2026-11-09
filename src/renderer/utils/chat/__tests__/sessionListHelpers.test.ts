@@ -11,12 +11,14 @@ import {
   createSessionDisplayGroupResolver,
   createSessionWorkdirDisplayMaps,
   createSessionWorkdirLabelMap,
+  deriveSessionListView,
   getPrimarySessionWorkdir,
   moveSessionWorkdirGroupAfterDrop,
   normalizeSessionDropPayload,
   normalizeSessionWorkdirPath,
   SESSION_NO_PROJECT_GROUP_ID,
   SESSION_PINNED_GROUP_ID,
+  type SessionListItem,
   sortSessionsForDisplayGroups
 } from '../sessionListHelpers'
 import { createResourceListGroupReorderPayload, createResourceListItemReorderPayload } from './resourceListFixtures'
@@ -503,5 +505,70 @@ describe('SessionList helpers', () => {
         workdirDisplay: createSessionWorkdirDisplayMaps(sessions, [makeWorkspace('/Users/jd/project-a')])
       }).map((session) => session.id)
     ).toEqual(['inserted-before-that', 'inserted-before-first', 'first-created'])
+  })
+})
+
+describe('deriveSessionListView', () => {
+  const labels = {
+    pinned: 'Pinned',
+    time: { today: 'Today', yesterday: 'Yesterday', 'this-week': 'This week', earlier: 'Earlier' },
+    agent: { unknown: 'Unknown' },
+    workdir: { none: 'None' }
+  }
+  const options = {
+    agentById: new Map([
+      ['agent-a', { id: 'agent-a', name: 'Alpha' }],
+      ['agent-b', { id: 'agent-b', name: 'Beta' }]
+    ]),
+    agentRankById: new Map([
+      ['agent-b', 0],
+      ['agent-a', 1]
+    ]),
+    labels,
+    mode: 'agent' as const,
+    now: new Date('2026-01-07T12:00:00Z'),
+    visibleAgentId: undefined,
+    workspaces: []
+  }
+  const items = [
+    { id: 'a1', agentId: 'agent-a', orderKey: 'a0', lastActivityAt: '2026-01-07T10:00:00Z' },
+    { id: 'b1', agentId: 'agent-b', orderKey: 'a1', lastActivityAt: '2026-01-07T09:00:00Z' }
+  ] as SessionListItem[]
+
+  it('orders sessions by agent rank and groups them by agent', () => {
+    const view = deriveSessionListView(items, options)
+
+    expect(view.items.map((item) => item.id)).toEqual(['b1', 'a1'])
+    expect(view.groupBy(view.items[0])?.id).toBe('session:agent:agent-b')
+  })
+
+  it('keeps only the chosen agent, and nothing until one is chosen', () => {
+    expect(
+      deriveSessionListView(items, { ...options, visibleAgentId: 'agent-a' }).items.map((item) => item.id)
+    ).toEqual(['a1'])
+    expect(deriveSessionListView(items, { ...options, visibleAgentId: null }).items).toEqual([])
+  })
+
+  it('applies an in-flight drag on top of the sorted order', () => {
+    const view = deriveSessionListView(
+      [
+        { ...items[0], id: 'a2', orderKey: 'a0' },
+        { ...items[0], id: 'a3', orderKey: 'a1' }
+      ],
+      options,
+      {
+        type: 'item',
+        activeId: 'a3',
+        overId: 'a2',
+        overType: 'item',
+        position: 'before',
+        sourceGroupId: 'session:agent:agent-a',
+        targetGroupId: 'session:agent:agent-a',
+        sourceIndex: 1,
+        targetIndex: 0
+      }
+    )
+
+    expect(view.items.map((item) => item.id)).toEqual(['a3', 'a2'])
   })
 })

@@ -93,10 +93,6 @@ vi.mock('@data/hooks/usePreference', () => ({
   usePreference: () => [overridesMock.value, setOverridesMock]
 }))
 
-vi.mock('@renderer/components/Scrollbar', () => ({
-  default: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>
-}))
-
 // The API key list popup now renders through the real services/popup store + PopupHost,
 // so opt this file out of the globally installed popup mock (tests/renderer.setup.ts).
 vi.mock('@renderer/services/popup', async (importOriginal) => await importOriginal())
@@ -348,7 +344,7 @@ describe('processing settings pages', () => {
 
     await screen.findByText('settings.tool.file_processing.features.document_to_markdown.title')
 
-    expect(container.firstElementChild?.firstElementChild).toHaveClass(
+    expect(container.querySelector('[data-slot=scroll-area-content] > div')).toHaveClass(
       '[&_input[data-slot=input]]:h-8',
       '[&_input[data-slot=input]]:rounded-lg',
       '[&_input[data-slot=input]]:border-border-subtle',
