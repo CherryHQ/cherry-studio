@@ -198,6 +198,13 @@ export function useAgentChatRuntimeState({
   const [resendingHistory, setResendingHistory] = useState<{ sessionId: string; messages: CherryUIMessage[] }>()
   const optimisticMessages = resendingHistory?.sessionId === sessionId ? resendingHistory.messages : undefined
   const editRequestRef = useRef(false)
+  const editActivationRef = useRef(0)
+  useLayoutEffect(
+    () => () => {
+      editActivationRef.current += 1
+    },
+    [sessionId]
+  )
   const currentSessionRef = useRef(sessionId)
   currentSessionRef.current = sessionId
   const reportEditError = useCallback(
@@ -491,6 +498,7 @@ export function useAgentChatRuntimeState({
       editRequestRef.current = true
       setEditPending(true)
       const input = { text: message?.text ?? '', options, editTarget: editing }
+      const activation = editActivationRef.current
       try {
         const confirmed = await popup.confirm({
           title: t('agent.edit_resend.save'),
@@ -499,7 +507,8 @@ export function useAgentChatRuntimeState({
           cancelText: t('common.cancel'),
           okButtonProps: { danger: true }
         })
-        if (!confirmed || currentSessionRef.current !== sessionId) return false
+        if (!confirmed || editActivationRef.current !== activation || currentSessionRef.current !== sessionId)
+          return false
         const index = uiMessages.findIndex((item) => item.id === editing.messageId)
         if (index >= 0) {
           setResendingHistory({

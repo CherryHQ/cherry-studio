@@ -421,6 +421,39 @@ describe('useAgentChatRuntimeState', () => {
     expect(mocks.sendTurn).not.toHaveBeenCalled()
   })
 
+  it.each(['hidden', 'reactivated', 'closed'] as const)(
+    'invalidates confirmation when its originating tab is %s',
+    async (state) => {
+      mocks.editTarget.mockResolvedValue({ messageId: 'user-1', version: 'v1', parts: [] })
+      const decision = Promise.withResolvers<boolean>()
+      vi.mocked(popup.confirm).mockReturnValueOnce(decision.promise)
+      latestRuntime = null
+      const view = render(<ActivityHarness sessionId="session-1" mode="visible" />)
+      await act(() => currentRuntime().startEditing('user-1'))
+      let resend: Promise<boolean>
+      act(() => {
+        resend = currentRuntime().resendEditedMessage({ text: 'Replacement' })
+      })
+      if (state === 'closed') view.unmount()
+      else {
+        view.rerender(<ActivityHarness sessionId="session-1" mode="hidden" />)
+        if (state === 'reactivated') view.rerender(<ActivityHarness sessionId="session-1" mode="visible" />)
+      }
+      await act(async () => {
+        decision.resolve(true)
+        expect(await resend).toBe(false)
+      })
+      expect(mocks.sendTurn).not.toHaveBeenCalled()
+      expect(mocks.editResend).not.toHaveBeenCalled()
+      if (state === 'reactivated') {
+        await act(async () => {
+          expect(await currentRuntime().resendEditedMessage({ text: 'Fresh confirmation' })).toBe(true)
+        })
+        expect(mocks.sendTurn).toHaveBeenCalledTimes(1)
+      }
+    }
+  )
+
   it('retains the edited draft after a failed resend and clears it only on acceptance or cancel', async () => {
     const draft = {
       messageId: 'edited-user',

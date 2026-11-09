@@ -49,6 +49,7 @@ The operation journal records the intended native context before preparation. Th
 in one product transaction. It does not retain a new history version. The common
 prefix, existing sibling branches outside that subtree, and independent fork sessions remain unchanged.
 Desktop asks for confirmation when saving an edit, before changing displayed history or dispatching the replacement. Cancelling keeps the draft and original messages.
+Hiding or closing the originating view invalidates its pending confirmation, even if the same session is shown again before the dialog is answered.
 Native fork starts at the checkpoint before the edited input. Each new branch
 has a native binding in `agent_session_context`; remapped checkpoints belong to
 that binding and do not overwrite the original prefix rows.
