@@ -942,7 +942,6 @@
   "chat.message.token_details.waiting_first_token": "Bekleme",
   "chat.message.useful.label": "Bağlam olarak ayarla",
   "chat.message.useful.tip": "Bu mesaj grubunda, bağlama katılması için bu mesaj seçilecek",
-  "chat.message.waiting_to_continue": "Devam etmek için bekleniyor…",
   "chat.multiple.select.empty": "Mesaj Seçilmedi",
   "chat.multiple.select.label": "Çoklu Seçim",
   "chat.navigation.anchor.jump_to_turn": "{{number}}. tura atla",

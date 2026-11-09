@@ -942,7 +942,6 @@
   "chat.message.token_details.waiting_first_token": "Wartend",
   "chat.message.useful.label": "Als Kontext festlegen",
   "chat.message.useful.tip": "In dieser Nachrichtengruppe wird diese Nachricht in den Kontext aufgenommen",
-  "chat.message.waiting_to_continue": "Warten auf Fortsetzung…",
   "chat.multiple.select.empty": "Keine Nachrichten ausgewählt",
   "chat.multiple.select.label": "Mehrfachauswahl",
   "chat.navigation.anchor.jump_to_turn": "Springe zu Zug {{number}}",

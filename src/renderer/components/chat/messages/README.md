@@ -123,7 +123,7 @@ The message UI may own transient UI state:
 - measurement cache
 - local expanded/collapsed state when it is purely visual
 
-Streaming adapters may supply `streamingLayers.heldPartsByMessageId` to keep the existing message visually stable while its execution yields to a new user input. The same bubble resumes reading the complete projection when that execution leaves the active set. This presentation state neither settles execution nor changes message ownership; history actions and exports keep reading complete message data.
+Streaming adapters may supply `streamingLayers.heldPartsByMessageId` to keep the existing message visually stable while its execution yields to a new user input. Adapters can project ongoing parts into a continuation after the new input while preserving completed content and compaction anchors in the preceding bubble. This presentation state neither settles execution nor changes message ownership; native persistence and execution ownership remain unchanged.
 
 Business data stays outside:
 

@@ -942,7 +942,6 @@
   "chat.message.token_details.waiting_first_token": "Așteptare",
   "chat.message.useful.label": "Setează ca context",
   "chat.message.useful.tip": "În acest grup de mesaje, acest mesaj va fi selectat pentru a se alătura contextului",
-  "chat.message.waiting_to_continue": "Se așteaptă continuarea…",
   "chat.multiple.select.empty": "Niciun mesaj selectat",
   "chat.multiple.select.label": "Selecție multiplă",
   "chat.navigation.anchor.jump_to_turn": "Salt la tura {{number}}",

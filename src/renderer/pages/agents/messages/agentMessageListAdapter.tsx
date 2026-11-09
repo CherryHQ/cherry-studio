@@ -227,42 +227,46 @@ export function useAgentMessageListProviderValue({
       }
     >()
   )
-  const displayPartsByMessageId = useMemo(
+  const completePartsByMessageId = useMemo(
     () => withTerminalErrorFallback(messages, partsByMessageId, t('error.no_response')),
     [messages, partsByMessageId, t]
   )
   const { activeExecutions } = useTopicStreamStatus(topic.id)
-  const heldPartsByMessageId = useAgentSteerPresentation({
+  const presentation = useAgentSteerPresentation({
     topicId: topic.id,
     messages,
-    partsByMessageId: displayPartsByMessageId,
+    partsByMessageId: completePartsByMessageId,
     activeExecutions
   })
+  const displayPartsByMessageId = presentation.partsByMessageId
   const historyPartsByMessageId = useMemo(
     () =>
       streamingLayers
         ? withTerminalErrorFallback(messages, streamingLayers.historyPartsByMessageId, t('error.no_response'))
-        : undefined,
-    [messages, streamingLayers, t]
+        : displayPartsByMessageId,
+    [displayPartsByMessageId, messages, streamingLayers, t]
   )
-  const displayStreamingLayers = useMemo(() => {
-    if (!streamingLayers || !historyPartsByMessageId) return undefined
-    if (
-      historyPartsByMessageId === streamingLayers.historyPartsByMessageId &&
-      Object.keys(heldPartsByMessageId).length === 0
-    )
-      return streamingLayers
-
-    return { ...streamingLayers, historyPartsByMessageId, heldPartsByMessageId }
-  }, [heldPartsByMessageId, historyPartsByMessageId, streamingLayers])
+  const displayStreamingLayers = useMemo(
+    () => ({
+      historyPartsByMessageId,
+      liveMessageIds: [...new Set([...presentation.liveMessageIds, ...presentation.projectedMessageIds])],
+      heldPartsByMessageId: presentation.heldPartsByMessageId
+    }),
+    [
+      historyPartsByMessageId,
+      presentation.liveMessageIds,
+      presentation.projectedMessageIds,
+      presentation.heldPartsByMessageId
+    ]
+  )
   const visibleMessages = useMemo(
     () =>
-      messages.filter((message) => {
+      presentation.messages.filter((message) => {
         const parts = displayPartsByMessageId[message.id] ?? message.parts ?? []
-        if (parts.length === 0) return true
+        if (parts.length === 0) return !presentation.heldPartsByMessageId[message.id]
         return parts.some((part) => !hasPartParentToolCallId(part))
       }),
-    [displayPartsByMessageId, messages]
+    [displayPartsByMessageId, presentation.messages, presentation.heldPartsByMessageId]
   )
   const messageItems = useMemo(() => {
     return visibleMessages.map((message) => {
@@ -294,6 +298,10 @@ export function useAgentMessageListProviderValue({
     },
     [resolvedAgentId]
   )
+  const deletePresentedMessage = useCallback<NonNullable<MessageListActions['deleteMessage']>>(
+    (id, options) => deleteMessage?.(presentation.sourceMessageIds[id] ?? id, options),
+    [deleteMessage, presentation.sourceMessageIds]
+  )
   const {
     errorActions,
     exportActions,
@@ -313,7 +321,7 @@ export function useAgentMessageListProviderValue({
     messages: messageItems,
     partsByMessageId: displayPartsByMessageId,
     streamingLayers: displayStreamingLayers,
-    deleteMessage,
+    deleteMessage: deleteMessage ? deletePresentedMessage : undefined,
     diagnosticReport,
     getDoctorSubject,
     selectAllPagination
@@ -446,7 +454,7 @@ export function useAgentMessageListProviderValue({
       try {
         const result = await ipcApi.request('ai.agent.session.fork', {
           sourceSessionId: sessionId,
-          messageId
+          messageId: presentation.sourceMessageIds[messageId] ?? messageId
         })
         openRoute('/app/agents', { sessionId: result.sessionId })
       } catch (error) {
@@ -458,7 +466,7 @@ export function useAgentMessageListProviderValue({
         throw error
       }
     },
-    [sessionId, t, notifyError]
+    [sessionId, t, notifyError, presentation.sourceMessageIds]
   )
   const state = useMemo<MessageListState>(
     () => ({
@@ -528,7 +536,7 @@ export function useAgentMessageListProviderValue({
         : undefined,
       loadOlder,
       bindRuntime,
-      deleteMessage,
+      deleteMessage: deleteMessage ? deletePresentedMessage : undefined,
       ...exportActions,
       ...errorActions,
       ...pickMessageLeafActions(leafCapabilities),
@@ -567,6 +575,7 @@ export function useAgentMessageListProviderValue({
       bindMessageGroupRuntime,
       bindMessageRuntime,
       deleteMessage,
+      deletePresentedMessage,
       errorActions,
       exportActions,
       headerCapabilities,

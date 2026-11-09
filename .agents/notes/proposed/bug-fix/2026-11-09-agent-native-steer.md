@@ -52,11 +52,9 @@ Root steering is the direct-send path under review. Managed child input keeps th
 
 ### 4. Provide immediate visual steering and retain the native reply boundary
 
-All three runtimes provide visual `now` independently of native scheduling. On direct steer send, immediately show the user message and anchor the active waiting indicator below it. Keep A1's already displayed content in its existing bubble and suspend its live refresh while it remains the preceding active execution. No new section, label, or expand/collapse control is introduced. Main continues receiving the complete A1 projection; once native handoff removes A1 from the active set, the same bubble converges to that projection. Retain Stop while execution remains active, without moving focus or automatic scrolling back above the steer. This is a presentation boundary, not successful completion or proof that the new instruction has been consumed.
+All three runtimes provide visual `now` independently of native scheduling. Direct steer immediately shows its user row and a continuation assistant below it. Completed text and tools stay before steer; unfinished tools, processing activity and subsequent deltas appear in the continuation. Compaction anchors stay at their original message position even when completion arrives later. There is no separate waiting label. Stop remains available while the native loop continues.
 
-Key the visual boundary to the existing user-message and predecessor execution identities. Do not create a second authoritative reply record or persist a second copy of streamed content. The temporarily held content is presentation state derived from the existing message projection; it is released at native handoff or rejected dispatch. A second window derives the boundary from the accepted user message and its execution relationship. A reload uses saved messages and current execution/input facts; uncertain placement remains visibly pending or unknown rather than being guessed from timestamps.
-
-The waiting row below the steer is not a fabricated assistant reply. Once native placement creates A2 through the existing state machine, replace that waiting row with A2's actual stream without moving the conversation anchor. Repeated sends stay ordered; one native response may answer several inputs. On rejected dispatch, reconcile the optimistic row, remove its waiting indicator and restore the previous active presentation. Unknown delivery keeps a recoverable state and never triggers automatic replay. On Stop, settle the waiting presentation without letting late data reactivate it.
+The renderer records the local split against predecessor and user identities, without changing native message ownership or persisting duplicate content. Acknowledgment replaces the optimistic user identity without taking another snapshot. At native handoff, carried parts join the actual successor's display once; the predecessor does not expand back across the boundary. Rejected dispatch restores the original live view. Topic changes discard local boundaries. An observer or reload can derive an active boundary from current messages, but cannot reconstruct the exact earlier text cutoff without a persisted boundary; reload and multiwindow agreement remain unverified acceptance work.
 
 Continue to derive `input-boundary` from native request membership, including `status: requesting`, before publishing the corresponding response content and usage. The [runtime service](../../../../src/main/ai/agentSession/AgentSessionRuntimeService.ts) resolves input IDs and the [existing reducer](../../../../src/main/ai/agentSession/agentSessionRuntimeState.ts) owns the authoritative A1-to-A2 handoff:
 
@@ -66,7 +64,7 @@ Continue to derive `input-boundary` from native request membership, including `s
 
 Several inputs may share a native response. Preserve that native placement rather than creating an empty assistant message for every click. New input, native placement, product reply completion, and background resource lifetime remain separate facts.
 
-Renderer consumes message projections by message and execution identity and owns the visual waiting and temporary refresh suspension above. Main continues receiving and persisting old deltas under A1 until their native boundary. Sending alone never changes output attribution or database terminal state. UI copy uses i18next and components follow the repository design system.
+Renderer consumes message projections by message and execution identity and owns the visual segmentation above. Main continues receiving and persisting old deltas under A1 until their native boundary. Sending alone never changes output attribution or database terminal state. UI copy uses i18next and components follow the repository design system.
 
 ### 5. Respect native tool and Stop behavior
 
@@ -87,7 +85,7 @@ Ordinary Chat's AI SDK step-boundary continuation, native loop/scheduler redesig
 
 ### 7. UI implementation evidence
 
-The shared Agent renderer adds a temporary steer user row before dispatch returns, reconciles it to the reserved persisted identity, and removes it on rejected dispatch. The preceding active message keeps its already displayed content in the same bubble, without any additional section or control. At native handoff its held view is released to the complete projection. The waiting row sits below the new input and disappears when the successor row arrives or execution stops. Native submission policies and result classification have not changed.
+The shared Agent renderer shows optimistic steer input immediately and projects unfinished work into the assistant continuation after it. Completed predecessor content stays held, while native successor parts merge with carried work for display. Compaction anchors remain before steer. Native submission policies, persistence and result classification are unchanged.
 
 Focused renderer tests cover held content, rejection recovery, handoff release, cross-topic reset, immediate user display, accepted-row deduplication, and affected list/parts/provider consumers. Controlled Electron verification supplies delayed-placement renderer state; it does not execute a native provider. Evidence for the simplified UI is recorded separately in the ignored `.context/cherry-electron-dev/steer-simple-evidence.json` and corresponding screenshots. This is partial AC12 evidence, not completion of per-runtime native, tool, multi-window, or persistence acceptance. The Spec remains proposed.
 
@@ -96,7 +94,7 @@ Subsequent real-provider Electron sessions used DeepSeek Flash through Claude Ag
 
 The renderer also presents assistant rows containing only compaction anchors as standalone labeled separators. Empty paused rows use a centered interrupted separator; rows with substantive answers, reasoning, or tools retain their message frame. These are presentation changes over existing parts/status, not a new timeline or persisted event store. History reload and real Pi Stop scenarios were checked in Electron.
 
-The current waiting indicator is inferred from a pending topic whose last visible row is a user message. It is not an authoritative input-admission or native-placement fact. Main-owned admission for compaction, pending steer, and cross-session deliveries remains follow-up work; this draft does not claim that the renderer inference handles all of those paths.
+The waiting indicator has been removed. Main-owned admission for compaction, pending steer, and cross-session deliveries remains follow-up work. Local presentation is not evidence that a native runtime has consumed the new input.
 
 ## Alternatives considered
 
@@ -104,7 +102,7 @@ The current waiting indicator is inferred from a pending topic whose last visibl
 - Keep Claude `next`: retains the current waiting behavior and does not meet immediate steer intent.
 - Explicit Stop followed by a new request: adds cancellation and resubmission semantics to an operation already supported by the running Query.
 - Change only the priority: risks interpreting an intermediate aborted segment as final failure or completion; native traces must establish whether result handling also needs repair.
-- Reassign old deltas to A2 immediately on send: guesses placement and assigns old output to new input. Immediate visual focus and temporary refresh suspension provide feedback without changing content ownership.
+- Reassign old deltas to A2 immediately on send: guesses placement and assigns old output to new input. Visual segmentation provides immediate feedback without changing native content ownership.
 - Wait for native placement before any visual response: unnecessarily ties UI feedback to the runtime's model/tool scheduling latency.
 - Ignore all aborted results: hides explicit Stop and unrelated failures, and can leave the session waiting forever.
 
@@ -123,7 +121,7 @@ The current waiting indicator is inferred from a pending topic whose last visibl
 - AC10 — Pi Durable accepted steer survives a race with normal completion and orderly reopen, is answered once, and preserves captured placement/completion and usage; truncation and cancellation remain visible. (verification: Durable runtime/run-metadata tests, native probe, and SQLite/Electron inspection — implementation owner)
 - AC11 — AC3 and AC5 through AC8 pass independently for Claude, Pi, and Pi Durable, with runtime-specific placement and tool behavior recorded; one passing runtime cannot substitute for another. (verification: per-runtime acceptance matrix — implementation owner)
 
-- AC12 — For all three runtimes, sending steer immediately shows its user row and waiting indicator below it, while new predecessor text no longer appears as the current answer or pulls scrolling backward, even with placement blocked; existing content and tool cards remain in their original bubble, which converges to the complete projection when native handoff ends the hold. Rejection, repeated sends, Stop, a second window, and reload reconcile the visual boundary without changing native attribution or replaying input. (verification: focused renderer tests and delayed-placement Electron acceptance per runtime — implementation owner)
+- AC12 — Steer immediately shows its user row and continuation assistant, with unfinished tools, activity and later deltas below the input. Completed content and compaction anchors stay before it. Native handoff merges the visible continuation without duplicate parts or restoring late text above steer; rejection restores the live predecessor. Native attribution and submission are unchanged. Reload and second-window agreement require separate evidence. (verification: focused renderer tests and real-provider Electron acceptance — implementation owner)
 
 ## Risks
 
