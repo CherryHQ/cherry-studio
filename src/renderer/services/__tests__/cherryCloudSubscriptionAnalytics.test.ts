@@ -9,7 +9,7 @@ import {
 
 const request = vi.mocked(window.api.ipcApi.request)
 const tracked = () =>
-  request.mock.calls.filter(([route]) => route === 'cherry_cloud.analytics.track').map(([, event]) => event)
+  request.mock.calls.filter(([route]) => route === 'cherry_cloud.analytics.track').map(([, input]) => input)
 
 afterEach(() => {
   vi.useRealTimers()
@@ -23,8 +23,8 @@ describe('cherryCloudSubscriptionAnalytics', () => {
     trackSubscriptionEntryView('quota_notice')
 
     expect(tracked()).toEqual([
-      { event: 'subscription_entry_view', source: 'account_panel' },
-      { event: 'subscription_entry_view', source: 'quota_notice' }
+      { payload: { event: 'subscription_entry_view', source: 'account_panel' }, scopeId: undefined },
+      { payload: { event: 'subscription_entry_view', source: 'quota_notice' }, scopeId: undefined }
     ])
   })
 

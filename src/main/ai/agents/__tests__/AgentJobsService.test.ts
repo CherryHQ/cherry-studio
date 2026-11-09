@@ -995,7 +995,11 @@ describe('AgentJobsService', () => {
       const legacy = create('legacy', task.id)
       const ordinary = create('ordinary')
       const foreign = create('foreign task', other.id)
-      dbh.db.update(agentSessionTable).set({ taskScheduleId: task.id }).where(eq(agentSessionTable.id, sticky.id)).run()
+      dbh.db
+        .update(agentSessionTable)
+        .set({ isTaskReuseTarget: true, taskId: task.id })
+        .where(eq(agentSessionTable.id, sticky.id))
+        .run()
       for (const [id, scheduleId, metadata, output, status] of [
         ['fresh', task.id, { sessionId: fresh.id }, null, 'completed'],
         ['legacy', task.id, {}, { sessionId: legacy.id }, 'completed'],
@@ -1153,7 +1157,7 @@ describe('AgentJobsService', () => {
       const session = agentSessionService.create({ agentId: AGENT_ID, name: 'task', workspace: { type: 'system' } })
       dbh.db
         .update(agentSessionTable)
-        .set({ taskScheduleId: task.id })
+        .set({ isTaskReuseTarget: true, taskId: task.id })
         .where(eq(agentSessionTable.id, session.id))
         .run()
       const remove = vi.spyOn(jobScheduleService, 'deleteTx').mockImplementationOnce(() => {
@@ -1556,6 +1560,21 @@ describe('AgentJobsService', () => {
       const trashed = service.createTask(AGENT_ID, form)
       const missing = service.createTask(OTHER_AGENT_ID, { ...form, name: 'missing-agent-task' })
       const restored = service.createTask('agent-active', { ...form, name: 'restored-agent-task' })
+      const retained = agentSessionService.create(
+        {
+          agentId: OTHER_AGENT_ID,
+          name: 'Orphaned reuse target',
+          workspace: { type: 'system' }
+        },
+        'conversation',
+        missing.id
+      )
+      dbh.db
+        .update(agentSessionTable)
+        .set({ isTaskReuseTarget: true })
+        .where(eq(agentSessionTable.id, retained.id))
+        .run()
+
       dbh.db.update(agentTable).set({ deletedAt: Date.now() }).where(eq(agentTable.id, AGENT_ID)).run()
       dbh.db.delete(agentTable).where(eq(agentTable.id, OTHER_AGENT_ID)).run()
       jobScheduleService.update(restored.id, {
@@ -1574,6 +1593,11 @@ describe('AgentJobsService', () => {
         metadata: { agentTrash: { resumeOnRestore: true } }
       })
       expect(jobScheduleService.getById(missing.id)).toBeNull()
+      expect(dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, retained.id)).get()).toMatchObject({
+        taskId: null,
+        isTaskReuseTarget: false
+      })
+
       expect(jobScheduleService.getById(restored.id)).toMatchObject({ enabled: true })
       expect(jobScheduleService.getById(restored.id)?.metadata).not.toHaveProperty('agentTrash')
       expect(scheduler.has(`schedule:${trashed.id}`)).toBe(false)
@@ -1685,11 +1709,11 @@ describe('AgentJobsService', () => {
       expect(agentTaskService.getTask(AGENT_ID, task.id)?.reuseSessionId).toBeNull()
       expect(
         dbh.db
-          .select({ taskScheduleId: agentSessionTable.taskScheduleId })
+          .select({ isTaskReuseTarget: agentSessionTable.isTaskReuseTarget })
           .from(agentSessionTable)
           .where(eq(agentSessionTable.id, session.id))
           .get()
-      ).toEqual({ taskScheduleId: null })
+      ).toEqual({ isTaskReuseTarget: false })
     })
 
     it('trashing and restoring also preserves a legacy task whose template has no workspace', async () => {
@@ -1782,11 +1806,11 @@ describe('AgentJobsService', () => {
       expect(jobScheduleService.getById(pausedTask.id)).toMatchObject({ enabled: false, name: 'paused-task' })
       expect(
         dbh.db
-          .select({ taskScheduleId: agentSessionTable.taskScheduleId })
+          .select({ isTaskReuseTarget: agentSessionTable.isTaskReuseTarget })
           .from(agentSessionTable)
           .where(eq(agentSessionTable.id, session.id))
           .get()
-      ).toEqual({ taskScheduleId: null })
+      ).toEqual({ isTaskReuseTarget: false })
     })
 
     it('repairs archived owner schedules without enabling them', async () => {

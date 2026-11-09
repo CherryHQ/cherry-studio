@@ -200,6 +200,8 @@ The public Thread should map to the native Thread, not mechanically to the field
 
 ### ACP agents by protocol version
 
+The [ACP v1 adapter Spec](../architecture/2026-11-09-agent-runtime-acp-v1.md) records the 2026-11-09 protocol/SDK refresh, Claude/Gemini research, and executed transport/initialization probes. The section below retains its original pinned baseline; the refresh does not establish native prompt or desktop acceptance.
+
 #### v1
 
 `session/prompt` stays pending while the agent sends message and tool updates through `session/update`; its eventual response supplies stopReason. JSON-RPC request ID correlates the call without establishing a queryable persistent execution. Final updates may follow `session/cancel`; the prompt response confirms completion. [v1 prompt turn](https://github.com/agentclientprotocol/agent-client-protocol/blob/e7dac67ac64ec7cf69079b3bb6eff46a21e026b3/docs/protocol/v1/prompt-turn.mdx)

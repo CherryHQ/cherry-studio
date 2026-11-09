@@ -54,13 +54,17 @@ function retryAfterMs(response: Response): number {
 function untilAborted<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const abort = () => reject(signal.reason)
-    if (signal.aborted) return abort()
+    if (signal.aborted) {
+      void promise.catch(() => undefined)
+      return abort()
+    }
     signal.addEventListener('abort', abort, { once: true })
     promise.then(resolve, reject).finally(() => signal.removeEventListener('abort', abort))
   })
 }
 
 function wait(ms: number, signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return Promise.resolve()
   return new Promise((resolve) => {
     const timer = setTimeout(done, ms)
     signal.addEventListener('abort', done, { once: true })
@@ -86,16 +90,15 @@ async function errorCode(response: Response): Promise<string | null> {
 }
 
 /**
- * Keeps the China-edition subscription notification stream open for the signed-in account. Every
- * notification that changes entitlements refreshes the account and models, after which the renderer
- * is told to refetch plans and model availability.
+ * Keeps the China-edition subscription notification stream open for the signed-in account.
+ * Entitlement changes refresh account facts and publish a typed receipt to renderer consumers.
  */
 @Injectable('CherryCloudNotificationService')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['CherryCloudService'])
 @Conditional(when(() => getAppEdition() === 'cn', 'China edition'))
 export class CherryCloudNotificationService extends BaseService {
-  private connection: { accountId: string; controller: AbortController } | null = null
+  private connection: { accountId: string; scopeId: string; controller: AbortController } | null = null
   private readonly seenIds = new Set<string>()
 
   protected async onInit(): Promise<void> {
@@ -107,13 +110,13 @@ export class CherryCloudNotificationService extends BaseService {
 
   private follow(status: CherryCloudStatus): void {
     const accountId = status.phase === 'signed-in' ? status.accountId : null
-    if (this.connection?.accountId === accountId) return
+    if (this.connection?.accountId === accountId && this.connection?.scopeId === status.scopeId) return
     this.disconnect()
     if (!accountId) return
     const controller = new AbortController()
-    this.connection = { accountId, controller }
+    this.connection = { accountId, scopeId: status.scopeId, controller }
     this.seenIds.clear()
-    void this.run(accountId, controller.signal)
+    void this.run(accountId, status.scopeId, controller.signal)
   }
 
   private disconnect(): void {
@@ -121,14 +124,14 @@ export class CherryCloudNotificationService extends BaseService {
     this.connection = null
   }
 
-  private async run(accountId: string, signal: AbortSignal): Promise<void> {
+  private async run(accountId: string, scopeId: string, signal: AbortSignal): Promise<void> {
     let retryMs = RETRY_MIN_MS
     while (!signal.aborted) {
       let serverDelayMs = 0
       try {
         const cursor = this.storedCursor(accountId)
-        if (cursor) await this.catchUp(accountId, cursor, signal)
-        await this.listen(accountId, signal, () => (retryMs = RETRY_MIN_MS))
+        if (cursor) await this.catchUp(accountId, scopeId, cursor, signal)
+        await this.listen(accountId, scopeId, signal, () => (retryMs = RETRY_MIN_MS))
       } catch (error) {
         if (signal.aborted) return
         if (error instanceof NotificationsUnavailableError) return
@@ -147,7 +150,7 @@ export class CherryCloudNotificationService extends BaseService {
   }
 
   /** Replays what arrived while disconnected; history refreshes entitlements but is never announced. */
-  private async catchUp(accountId: string, cursor: string, signal: AbortSignal): Promise<void> {
+  private async catchUp(accountId: string, scopeId: string, cursor: string, signal: AbortSignal): Promise<void> {
     let after = cursor
     for (;;) {
       const query = new URLSearchParams({ after, limit: String(PAGE_LIMIT) })
@@ -159,7 +162,8 @@ export class CherryCloudNotificationService extends BaseService {
         deadline
       )
       const unseen = page.items.filter((notification) => !this.seenIds.has(notification.id))
-      if (unseen.some(asksForRefresh)) await this.refreshAccount(signal)
+      if (unseen.some(asksForRefresh)) await this.refreshAccount(scopeId, signal)
+      signal.throwIfAborted()
       unseen.forEach((notification) => this.remember(notification.id))
       after = page.next_cursor
       this.saveCursor(accountId, after)
@@ -167,19 +171,23 @@ export class CherryCloudNotificationService extends BaseService {
     }
   }
 
-  private async listen(accountId: string, signal: AbortSignal, onReady: () => void): Promise<void> {
+  private async listen(accountId: string, scopeId: string, signal: AbortSignal, onReady: () => void): Promise<void> {
+    signal.throwIfAborted()
     const connection = new AbortController()
-    const close = () => connection.abort()
+    let fail: (error: Error) => void = () => undefined
+    const close = () => {
+      fail(new DOMException('Cherry Cloud notification connection cancelled', 'AbortError'))
+      connection.abort()
+    }
     signal.addEventListener('abort', close, { once: true })
     // Heartbeats are SSE comments the parser drops, so liveness is measured on the raw text; a silent
     // connection is failed here because aborting the request does not always end its body.
     let idleTimer: ReturnType<typeof setTimeout> | undefined
-    let fail: (error: Error) => void = () => undefined
     const watch = () => {
       clearTimeout(idleTimer)
       idleTimer = setTimeout(() => {
         fail(new Error('Cherry Cloud notification stream stopped sending heartbeats'))
-        close()
+        connection.abort()
       }, IDLE_TIMEOUT_MS)
     }
     const heartbeat = new TransformStream<string, string>({
@@ -193,7 +201,7 @@ export class CherryCloudNotificationService extends BaseService {
       }
     })
     try {
-      await this.readStream(accountId, connection.signal, heartbeat, onReady)
+      await this.readStream(accountId, scopeId, connection.signal, heartbeat, onReady)
     } finally {
       clearTimeout(idleTimer)
       signal.removeEventListener('abort', close)
@@ -202,13 +210,17 @@ export class CherryCloudNotificationService extends BaseService {
 
   private async readStream(
     accountId: string,
+    scopeId: string,
     signal: AbortSignal,
     heartbeat: TransformStream<string, string>,
     onReady: () => void
   ): Promise<void> {
     const cursor = this.storedCursor(accountId)
     const query = cursor ? `?${new URLSearchParams({ after: cursor })}` : ''
-    const response = await this.request(`${STREAM_PATH}${query}`, signal, { Accept: 'text/event-stream' })
+    const response = await untilAborted(
+      this.request(`${STREAM_PATH}${query}`, signal, { Accept: 'text/event-stream' }),
+      signal
+    )
     if (!response.body) throw new Error('Cherry Cloud notification stream has no body')
 
     const events = response.body
@@ -223,15 +235,19 @@ export class CherryCloudNotificationService extends BaseService {
         if (isCursorRejection(code)) throw new CursorRejectedError()
         throw new Error(`Cherry Cloud notification stream error (${code ?? 'unknown'})`)
       } else if (event.event === 'ready') {
-        this.saveCursor(accountId, notificationReadySchema.parse(JSON.parse(event.data)).cursor)
+        const ready = notificationReadySchema.parse(JSON.parse(event.data))
+        await this.refreshAccount(scopeId, signal)
+        signal.throwIfAborted()
+        this.saveCursor(accountId, ready.cursor)
         onReady()
-        await this.refreshAccount(signal)
       } else if (event.event === 'notification') {
         const notification = cloudNotificationSchema.parse(JSON.parse(event.data))
         if (!this.seenIds.has(notification.id)) {
-          if (asksForRefresh(notification)) await this.refreshAccount(signal)
+          if (asksForRefresh(notification)) await this.refreshAccount(scopeId, signal)
+          signal.throwIfAborted()
           this.remember(notification.id)
         }
+        signal.throwIfAborted()
         this.saveCursor(accountId, notification.cursor)
       }
     }
@@ -246,9 +262,12 @@ export class CherryCloudNotificationService extends BaseService {
     this.seenIds.delete(oldest)
   }
 
-  private async refreshAccount(signal: AbortSignal): Promise<void> {
-    await application.get('CherryCloudService').refreshEntitledModels()
-    if (!signal.aborted) application.get('IpcApiService').broadcast('cherry_cloud.account_refreshed', undefined)
+  private async refreshAccount(scopeId: string, signal: AbortSignal): Promise<void> {
+    const result = await application
+      .get('CherryCloudService')
+      .refreshAccount({ scopeId, reason: 'notification', signal })
+    signal.throwIfAborted()
+    if (result.outcome !== 'refreshed') throw new Error(`Cherry Cloud notification refresh ${result.outcome}`)
   }
 
   private async request(path: string, signal: AbortSignal, headers?: HeadersInit): Promise<Response> {

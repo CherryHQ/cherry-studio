@@ -2,10 +2,12 @@ import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { resolve } from 'node:path'
 
-import { Type } from '@earendil-works/pi-ai'
+import { normalizeContext } from '@earendil-works/pi-ai'
 import { defineTool } from '@earendil-works/pi-coding-agent'
+import { GoogleGenAI } from '@google/genai'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
+import { Type } from 'typebox'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
@@ -22,6 +24,7 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { modelService } from '@data/services/ModelService'
 import '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
+import { AgentSessionUsageAttribution } from '@main/ai/agentSession/AgentSessionUsageAttribution'
 import { AiService } from '@main/ai/AiService'
 import { AiStreamManager } from '@main/ai/streamManager/AiStreamManager'
 import type * as CustomFetch from '@main/ai/utils/customFetch'
@@ -38,7 +41,8 @@ const mocks = vi.hoisted(() => ({
   messageId: 'original-answer',
   gatewayUrl: '',
   manager: undefined as AiStreamManager | undefined,
-  ai: undefined as AiService | undefined
+  ai: undefined as AiService | undefined,
+  attribution: undefined as AgentSessionUsageAttribution | undefined
 }))
 vi.mock('@application', async () => {
   const { mockApplicationFactory, defaultServiceInstances } = await import('@test-mocks/main/application')
@@ -55,10 +59,11 @@ vi.mock('@application', async () => {
       getAgentSessionUsageHeaders: (sessionId: string) => ({ 'x-cherry-agent-session-id': sessionId }),
       isInternalRequest: (headers: Headers) => headers.get('authorization') === 'Bearer internal-fixture-key',
       getAgentSessionId: (headers: Headers) => headers.get('x-cherry-agent-session-id'),
-      resolveAgentSessionUsage: (headers: Headers) => ({
+      resolveAgentSessionUsage: (headers: Headers, responseId: string) => ({
         agentSessionId: headers.get('x-cherry-agent-session-id')!,
         assistantMessageId: mocks.messageId,
-        source: null
+        source: null,
+        ...(mocks.attribution && { recordInvocation: mocks.attribution.capture(responseId) })
       })
     },
     AgentSessionRuntimeService: { getActiveUsageContext: () => ({ assistantMessageId: mocks.messageId, source: null }) }
@@ -122,7 +127,10 @@ describe('native Pi through the production gateway', () => {
           params: JSON.parse(raw),
           inputFormat: protocol,
           outputFormat: protocol,
-          ...(protocol === 'gemini' && { modelString: 'port:wire-model', streaming: true }),
+          ...(protocol === 'gemini' && {
+            modelString: 'port:wire-model',
+            streaming: request.url?.includes(':streamGenerateContent')
+          }),
           signal: abort.signal,
           requestHeaders: headers
         })
@@ -141,6 +149,7 @@ describe('native Pi through the production gateway', () => {
     upstreamClosed = false
     protocol = 'openai'
     mocks.messageId = 'original-answer'
+    mocks.attribution = undefined
     call = () => ({ content: 'Model answer' })
     server = createServer(async (req, res) => {
       let raw = ''
@@ -592,6 +601,64 @@ describe('native Pi through the production gateway', () => {
     await sendUser('question')
     expect(dbh.db.select().from(aiUsageRecordTable).all()).toMatchObject([{ messageId: 'original-answer' }])
   })
+
+  it.each([true, false])(
+    'binds Google native root and child response identities to stored usage (streaming: %s)',
+    async (streaming) => {
+      protocol = 'gemini'
+      mocks.attribution = new AgentSessionUsageAttribution()
+      dbh.db
+        .update(userProviderTable)
+        .set({
+          endpointConfigs: {
+            [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
+              baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1beta`
+            }
+          },
+          defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+        })
+        .where(eq(userProviderTable.providerId, 'port'))
+        .run()
+      const received: string[] = []
+      const binding = await createPiGatewayModelBinding(
+        { sessionId: 'session' },
+        providerService.getByProviderId('port'),
+        modelService.getByKey('port', 'wire-model')
+      )
+      const client = new GoogleGenAI({
+        apiKey: 'internal-fixture-key',
+        httpOptions: {
+          baseUrl: mocks.gatewayUrl,
+          apiVersion: 'v1beta',
+          headers: { 'x-cherry-agent-session-id': 'session' }
+        }
+      })
+      for (const owner of ['root-message', 'child-message']) {
+        const response = streaming
+          ? await binding.modelRuntime
+              .streamSimple(
+                binding.model,
+                normalizeContext({ messages: [{ role: 'user', content: owner, timestamp: 1 }] }),
+                { sessionId: owner }
+              )
+              .result()
+          : await client.models.generateContent({ model: 'port:wire-model', contents: owner })
+        expect(response.responseId).toBeTruthy()
+        received.push(response.responseId!)
+        mocks.attribution.bind(response.responseId!, owner)
+        mocks.attribution.bind(response.responseId!, owner)
+      }
+      expect(new Set(received).size).toBe(2)
+      const charges = dbh.db.select().from(aiUsageRecordTable).all()
+      expect(charges).toHaveLength(2)
+      expect(
+        charges.map((row) => ({ messageId: row.messageId, kind: row.messageKind, total: row.totalTokens }))
+      ).toEqual([
+        { messageId: 'root-message', kind: 'agent-session', total: 125 },
+        { messageId: 'child-message', kind: 'agent-session', total: 125 }
+      ])
+    }
+  )
   it.each(['high', 'ultra'] as const)(
     'keeps %s reasoning through native wire defaults and gateway execution',
     async (reasoningEffort) => {

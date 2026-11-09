@@ -20,11 +20,13 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { jobScheduleTable } from '@data/db/schemas/job'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import '@data/services/AgentSessionMessageService'
+import { agentTaskService } from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { loggerService } from '@logger'
@@ -163,7 +165,8 @@ describe('heartbeatSchedule', () => {
     notifyDataApiDataChangeMock.mockClear()
     heartbeatFileGate.entered.mockClear()
     for (const { id } of jobScheduleService.listAll({ type: 'agent.task' })) {
-      await jobManager.unregisterJobScheduleById(id)
+      dbh.db.transaction((tx) => agentTaskService.deleteScheduleTx(tx, id))
+      jobManager.syncJobScheduleTimerById(id)
     }
     dbh.db.delete(agentTable).run()
     // The agents root is shared across tests; reset it so seeded files from
@@ -1115,12 +1118,40 @@ describe('heartbeatSchedule', () => {
       catchUpPolicy: { kind: 'skip-missed' }
     })
 
+    const bound = heartbeatRows(AGENT_ID).map((schedule) => {
+      const session = agentSessionService.create(
+        {
+          agentId: AGENT_ID,
+          name: 'Heartbeat history',
+          workspace: { type: 'system' }
+        },
+        'background',
+        schedule.id
+      )
+      dbh.db.transaction((tx) =>
+        agentSessionService.bindTaskScheduleTx(tx, {
+          sessionId: session.id,
+          taskScheduleId: schedule.id,
+          expectedAgentId: AGENT_ID
+        })
+      )
+      return { scheduleId: schedule.id, sessionId: session.id }
+    })
+
     await syncHeartbeatSchedule(AGENT_ID)
 
     const survivors = heartbeatRows(AGENT_ID)
     expect(survivors).toHaveLength(1)
     expect(survivors[0].trigger).toEqual({ kind: 'interval', ms: 45 * 60_000 })
     expect(survivors[0].enabled).toBe(true)
+    for (const { scheduleId, sessionId } of bound) {
+      const retained = scheduleId === survivors[0].id
+      expect(dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, sessionId)).get()).toMatchObject({
+        taskId: retained ? scheduleId : null,
+        isTaskReuseTarget: retained
+      })
+      expect(scheduler.has(`schedule:${scheduleId}`)).toBe(retained)
+    }
   })
 
   it('pauses a duplicate heartbeat row the reconciliation fails to unregister', async () => {
@@ -1154,13 +1185,15 @@ describe('heartbeatSchedule', () => {
       },
       catchUpPolicy: { kind: 'skip-missed' }
     })
-    const spy = vi.spyOn(jobManager, 'unregisterJobScheduleById').mockRejectedValue(new Error('SQLITE_BUSY'))
+    const spy = vi.spyOn(agentTaskService, 'deleteScheduleTx').mockImplementation(() => {
+      throw new Error('SQLITE_BUSY')
+    })
 
     await syncHeartbeatSchedule(AGENT_ID)
 
     // Whichever sentinel row sync picked as canonical, the OTHER one is the
     // removal target — it must come out of the failed removal disabled.
-    const removalTarget = spy.mock.calls[0]?.[0]
+    const removalTarget = spy.mock.calls[0]?.[1]
     spy.mockRestore()
     expect(removalTarget).toBeDefined()
     expect(jobScheduleService.getById(removalTarget)?.enabled).toBe(false)

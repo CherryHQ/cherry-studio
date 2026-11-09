@@ -4,21 +4,85 @@ import { SWRConfig } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Model } from '@shared/data/types/model'
-import type { CherryCloudModelSyncResult } from '@shared/ipc/schemas/cherryCloud'
+import type { CherryCloudAccountReceipt, CherryCloudModelSyncResult } from '@shared/ipc/schemas/cherryCloud'
 
 import { useCherryCloudModelAvailability } from '../useCherryCloudModelAvailability'
 
 const mocks = vi.hoisted(() => ({
   ipcRequest: vi.fn(),
+  receipt: undefined as CherryCloudAccountReceipt | undefined,
+  revision: 0,
+  scope: 0,
   statusChanged: undefined as (() => void) | undefined
 }))
 
-vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: mocks.ipcRequest },
-  useIpcOn: (_event: string, listener: () => void) => {
-    mocks.statusChanged = listener
+vi.mock('@renderer/ipc', async () => {
+  const { useEffect } = await import('react')
+  const listeners = new Set<(receipt: CherryCloudAccountReceipt) => void>()
+  function empty() {
+    return {
+      status: {
+        phase: 'signed-in' as const,
+        accountId: 'a',
+        displayName: null,
+        scopeId: String(mocks.scope),
+        revision: ++mocks.revision
+      },
+      reason: 'models' as const,
+      account: { freshness: 'unknown' as const, error: null },
+      models: { freshness: 'unknown' as const, error: null },
+      plans: { freshness: 'unknown' as const, error: null }
+    }
   }
-}))
+  return {
+    ipcApi: {
+      request: async (route: string) => {
+        if (route === 'cherry_cloud.account.get') return (mocks.receipt ??= empty())
+        const scope = mocks.scope
+        try {
+          const value = await mocks.ipcRequest(route)
+          if (scope !== mocks.scope) throw new DOMException('superseded', 'AbortError')
+          const next = { ...empty(), models: { freshness: 'fresh' as const, value, observedRevision: mocks.revision } }
+          mocks.receipt = next
+          listeners.forEach((listener) => listener(next))
+          return value
+        } catch (error) {
+          if (scope === mocks.scope) {
+            const previous = mocks.receipt?.models
+            const next = {
+              ...empty(),
+              models:
+                previous && previous.freshness !== 'unknown'
+                  ? {
+                      ...previous,
+                      freshness: 'stale' as const,
+                      error: error instanceof Error ? error.message : String(error)
+                    }
+                  : { freshness: 'unknown' as const, error: error instanceof Error ? error.message : String(error) }
+            }
+            mocks.receipt = next
+            listeners.forEach((listener) => listener(next))
+          }
+          throw error
+        }
+      }
+    },
+    useIpcOn: (_event: string, listener: (receipt: CherryCloudAccountReceipt) => void) => {
+      useEffect(() => {
+        listeners.add(listener)
+        mocks.statusChanged = () => {
+          mocks.scope += 1
+          const next = empty()
+          mocks.receipt = next
+          listeners.forEach((callback) => callback(next))
+        }
+        return () => {
+          listeners.delete(listener)
+        }
+      }, [listener])
+    }
+  }
+})
 
 // Stable t identity: real i18next t does not change between renders, and an
 // unstable t would recompute the hook memo every render, masking missing
@@ -62,6 +126,9 @@ describe('useCherryCloudModelAvailability', () => {
   beforeEach(() => {
     mocks.ipcRequest.mockReset()
     mocks.statusChanged = undefined
+    mocks.receipt = undefined
+    mocks.scope += 1
+    mocks.revision = 0
   })
 
   it('reports availability as not ready while the first snapshot is pending', () => {
@@ -85,7 +152,7 @@ describe('useCherryCloudModelAvailability', () => {
     mocks.ipcRequest.mockRejectedValue(failure)
     const { result } = renderHook(() => useCherryCloudModelAvailability(), { wrapper: wrapper() })
 
-    await waitFor(() => expect(result.current.availabilityError).toBe(failure))
+    await waitFor(() => expect(result.current.availabilityError).toEqual(failure))
     expect(result.current.isAvailabilityReady).toBe(false)
     expect(result.current.isModelHidden(cloud('deepseek-go'), true)).toBe(true)
   })
@@ -213,7 +280,7 @@ describe('useCherryCloudModelAvailability', () => {
 
     const failure = new Error('reset sync failed')
     await act(async () => pending.reject(failure))
-    await waitFor(() => expect(result.current.availabilityError).toBe(failure))
+    await waitFor(() => expect(result.current.availabilityError).toEqual(failure))
     expect(result.current.isAvailabilityReady).toBe(false)
     expect(second.result.current.isAvailabilityReady).toBe(false)
 

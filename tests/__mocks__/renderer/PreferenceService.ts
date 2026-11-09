@@ -1,5 +1,7 @@
 import { vi } from 'vitest'
 
+import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
+
 /**
  * Mock PreferenceService for testing
  * Provides common preference defaults used across the application
@@ -52,7 +54,8 @@ export const mockPreferenceDefaults: Record<string, any> = {
   'feature.agent.file_pane.indent_guides': true,
   'feature.agent.file_pane.show_whitespace': false,
   'feature.agent.file_pane.scroll_past_end': false,
-  'feature.agent.file_pane.tab_size': 2
+  'feature.agent.file_pane.tab_size': 2,
+  'agent.details.sections': getDefaultValue('agent.details.sections')
 
   // Add more defaults as needed
 }

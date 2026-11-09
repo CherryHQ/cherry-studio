@@ -92,11 +92,20 @@ function withResolvedApprovals(message: CherryUIMessage, exec: StreamExecution):
   return {
     ...message,
     parts: message.parts.map((part) => {
-      if (!isToolUIPart(part) || part.state !== 'approval-requested') return part
+      if (!isToolUIPart(part) || !part.approval) return part
       const approved = exec.resolvedToolApprovals?.get(part.toolCallId)
-      return approved === undefined
-        ? part
-        : { ...part, state: 'approval-responded', approval: { ...part.approval, approved } }
+      if (approved === false) {
+        return {
+          ...part,
+          state: 'output-denied',
+          output: undefined,
+          errorText: undefined,
+          approval: { ...part.approval, approved: false as const }
+        }
+      }
+      return approved === true && part.state === 'approval-requested'
+        ? { ...part, state: 'approval-responded', approval: { ...part.approval, approved } }
+        : part
     })
   }
 }

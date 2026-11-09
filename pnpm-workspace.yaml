@@ -18,7 +18,7 @@ packageExtensions:
 overrides:
   # Linux x64 must stay usable without AVX/AVX2; the fork's prebuilt vec0.so requires them (#22048).
   "@aiany/sqlite-vec-linux-x64": "npm:sqlite-vec-linux-x64@0.1.9"
-  "@earendil-works/pi-ai@1.4.0>@google/genai": "2.23.0"
+  "@earendil-works/pi-ai@1.5.0>@google/genai": "2.23.0"
   picomatch: "4.0.4"
   "concurrently>shell-quote": "1.8.4"
   fast-xml-parser: ">=5.10.1"
@@ -70,13 +70,13 @@ overrides:
   # transformers 4.2.0 pins 1.24.3; keep every inference path on the patched lifecycle-safe build.
   onnxruntime-node: "1.25.1"
   # Keep exactly one @ai-sdk/provider + provider-utils so `instanceof APICallError` holds
-  # across every provider package; 3.0.18 / 4.0.58 is what the current provider set declares.
-  "@ai-sdk/provider": "3.0.18"
-  "@ai-sdk/provider-utils": "4.0.58"
+  # across every provider package; 3.0.19 / 4.0.64 satisfies the OpenAI 3.0.137 adapter.
+  "@ai-sdk/provider": "3.0.19"
+  "@ai-sdk/provider-utils": "4.0.64"
   # Keep Vertex and workspace consumers on the same patched Google adapter.
   "@ai-sdk/google": "3.0.132"
   # Keep every OpenAI consumer on the single patched build, including Azure's transitive copy.
-  "@ai-sdk/openai": "3.0.109"
+  "@ai-sdk/openai": "3.0.137"
   # Share one patched Anthropic build across direct, Bedrock, and Vertex consumers.
   # 3.0.125 adds Sonnet 5.5; our patch preserves gateway schema and token-limit compatibility.
   "@ai-sdk/anthropic": "3.0.125"
@@ -100,7 +100,7 @@ patchedDependencies:
   "ollama-ai-provider-v2@3.3.1": patches/ollama-ai-provider-v2@3.3.1.patch
   "@opeoginni/github-copilot-openai-compatible@1.0.0": patches/@opeoginni__github-copilot-openai-compatible@1.0.0.patch
   "@ai-sdk/amazon-bedrock@4.0.96": patches/@ai-sdk__amazon-bedrock@4.0.96.patch
-  "@ai-sdk/openai@3.0.109": patches/@ai-sdk__openai@3.0.109.patch
+  "@ai-sdk/openai@3.0.137": patches/@ai-sdk__openai@3.0.137.patch
   "@ai-sdk/google@3.0.132": patches/@ai-sdk__google@3.0.132.patch
   "@ai-sdk/anthropic": patches/@ai-sdk__anthropic.patch
   "@tiptap/extension-drag-handle@3.26.1": patches/@tiptap__extension-drag-handle@3.26.1.patch
@@ -117,7 +117,7 @@ patchedDependencies:
   streamdown@2.5.0: patches/streamdown@2.5.0.patch
   app-builder-lib@26.15.6: patches/app-builder-lib@26.15.6.patch
   # Preserve ultra reasoning and Google custom fetch until Pi supports both upstream.
-  "@earendil-works/pi-ai@1.4.0": patches/@earendil-works__pi-ai@1.4.0.patch
+  "@earendil-works/pi-ai@1.5.0": patches/@earendil-works__pi-ai@1.5.0.patch
   # #20329: preserve current animation targets when React Activity reconnects.
   # Remove when an upstream release includes the blocked-initial-animation remount fix.
   motion-dom@12.42.0: patches/motion-dom@12.42.0.patch
@@ -132,12 +132,12 @@ patchedDependencies:
   "@pierre/diffs@1.6.1": patches/@pierre__diffs@1.6.1.patch
   vfile-location@5.0.3: patches/vfile-location@5.0.3.patch
 
-  "@earendil-works/pi-agent-core@1.4.0": patches/@earendil-works__pi-agent-core@1.4.0.patch
+  "@earendil-works/pi-agent-core@1.5.0": patches/@earendil-works__pi-agent-core@1.5.0.patch
 
   # Carry native input correlation until an upstream release provides the same placement events.
-  "@earendil-works/pi-coding-agent@1.4.0": patches/@earendil-works__pi-coding-agent@1.4.0.patch
+  "@earendil-works/pi-coding-agent@1.5.0": patches/@earendil-works__pi-coding-agent@1.5.0.patch
 
-  "@earendil-works/pi-durable@1.4.0": patches/@earendil-works__pi-durable@1.4.0.patch
+  "@earendil-works/pi-durable@1.5.0": patches/@earendil-works__pi-durable@1.5.0.patch
 
 allowBuilds:
   "@google/genai": false
@@ -179,9 +179,9 @@ minimumReleaseAgeExclude:
   - "@ai-sdk/huggingface@1.0.74"
   - "@ai-sdk/togetherai@2.0.78"
   - "@ai-sdk/xai@3.0.126"
-  - "@ai-sdk/provider-utils@4.0.58"
+  - "@ai-sdk/provider-utils@4.0.64"
   - "@cherrystudio/analytics-client@1.4.0"
-  - "@ai-sdk/openai@3.0.109"
+  - "@ai-sdk/openai@3.0.137"
   - "@ai-sdk/azure@3.0.116"
   - "@ai-sdk/anthropic@3.0.125"
   - "@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.311"
@@ -193,13 +193,13 @@ minimumReleaseAgeExclude:
   - "@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.311"
   - "@anthropic-ai/claude-agent-sdk-win32-x64@0.3.311"
   - "@anthropic-ai/claude-agent-sdk@0.3.311"
-  - "@cherrystudio/computer-use-darwin-arm64@0.1.9"
-  - "@cherrystudio/computer-use-darwin-x64@0.1.9"
-  - "@cherrystudio/computer-use-win32-arm64@0.1.9"
-  - "@cherrystudio/computer-use@0.1.9"
-  - "@cherrystudio/computer-use-linux-arm64@0.1.9"
-  - "@cherrystudio/computer-use-linux-x64@0.1.9"
-  - "@cherrystudio/computer-use-win32-x64@0.1.9"
+  - "@cherrystudio/computer-use-darwin-arm64@0.1.10"
+  - "@cherrystudio/computer-use-darwin-x64@0.1.10"
+  - "@cherrystudio/computer-use-win32-arm64@0.1.10"
+  - "@cherrystudio/computer-use@0.1.10"
+  - "@cherrystudio/computer-use-linux-arm64@0.1.10"
+  - "@cherrystudio/computer-use-linux-x64@0.1.10"
+  - "@cherrystudio/computer-use-win32-x64@0.1.10"
   - "mediabunny@1.58.0"
   - electron@45.2.2
   - "@pierre/diffs@1.6.1"

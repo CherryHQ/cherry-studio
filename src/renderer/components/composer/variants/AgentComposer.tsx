@@ -69,6 +69,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
+import { getPermissionModeCards } from '@renderer/utils/agent'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import {
   getComposerShortcutLabel,
@@ -120,9 +121,7 @@ import {
   writeAgentDraftCache
 } from './agent/agentDraftCache'
 import { buildAgentFilePartsForAttachments, toAccessiblePaths } from './agent/agentFileParts'
-import { PlanModeHint } from './agent/PlanModeHint'
 import { createAttachmentFromPath, useAgentResourceMentionSource } from './agent/useAgentResourceMentionSource'
-import { usePlanModeHint } from './agent/usePlanModeHint'
 import {
   AGENT_MANAGED_TOKEN_KINDS,
   AGENT_MANAGED_TOKEN_KINDS_BEFORE_KNOWLEDGE_RESTORE,
@@ -540,6 +539,7 @@ const AgentComposerInner = ({
 }: InnerProps) => {
   const { updateAgent, updateModel } = useUpdateAgent()
   const quotaExhaustion = useCherryCloudQuotaExhaustion(model, true)
+  const quotaBlocksSend = !!quotaExhaustion && quotaExhaustion.reason !== 'unknown'
   const { updateSession } = useUpdateSession()
   const scope = TopicType.Session
   const config = getComposerToolConfig(scope)
@@ -627,11 +627,17 @@ const AgentComposerInner = ({
   const [shouldValidateSkills, setShouldValidateSkills] = useState(initialDraft.shouldValidateSkills)
   const [text, setTextState] = useState(() => initialDraft.text)
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[]>(() => initialDraft.tokens)
-  const enablePlanMode = useCallback(() => {
-    if (agent)
-      void updateAgent({ id: agent.id, configuration: { permission_mode: 'plan' } }, { showSuccessToast: false })
+  const supportsPlan = !!agent && getPermissionModeCards(agent.type).some((card) => card.mode === 'plan')
+  const togglePlanMode = useCallback(() => {
+    if (!agent) return
+    void updateAgent(
+      {
+        id: agent.id,
+        configuration: { permission_mode: agent.configuration?.permission_mode === 'plan' ? 'default' : 'plan' }
+      },
+      { showSuccessToast: false }
+    )
   }, [agent, updateAgent])
-  const planHint = usePlanModeHint({ agent, text, enablePlanMode })
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
   const releaseFollowupEditRef = useRef<() => void>(() => {})
@@ -1325,7 +1331,6 @@ const AgentComposerInner = ({
 
   const clearCurrentDraft = useCallback(() => {
     releaseFollowupEditRef.current()
-    planHint.resetDraft()
     setText('')
     setFiles([])
     setSelectedSkills([])
@@ -1354,7 +1359,6 @@ const AgentComposerInner = ({
     draftCacheKey,
     draftPersistenceEnabled,
     knowledgeBaseIdsRef,
-    planHint.resetDraft,
     resetHistoryIndex,
     setFiles,
     setText,
@@ -1378,8 +1382,7 @@ const AgentComposerInner = ({
     scopeKey: launchOptions?.editing ? `${sessionTopicId}:edit:${launchOptions.editing.messageId}` : sessionTopicId,
     status: sendDisabled || launchOptions?.editing ? undefined : sessionStatus,
     lastCompletedAt,
-    onDrain: sendQueuedPayload,
-    blocked: !!quotaExhaustion
+    onDrain: sendQueuedPayload
   })
   releaseFollowupEditRef.current = releaseEdit
 
@@ -1641,7 +1644,7 @@ const AgentComposerInner = ({
             hasPendingReference ||
             modelPending ||
             !!missingModelMessage ||
-            !!quotaExhaustion ||
+            quotaBlocksSend ||
             (text.trim().length === 0 && files.length === 0 && selectedSkills.length === 0)
           }
           sendBlockedReason={
@@ -1653,15 +1656,10 @@ const AgentComposerInner = ({
             launchOptions?.editing ? { ...launchOptions.editing, cancelDisabled: isDirectSending } : undefined
           }
           onPause={abortAgentSession}
-          onShiftTab={() => {
-            if (!planHint.visible) return false
-            planHint.accept()
-            return true
-          }}
+          onShiftTab={supportsPlan ? togglePlanMode : undefined}
           queueContent={
             <>
               {quotaExhaustion ? <CherryCloudQuotaNotice exhaustion={quotaExhaustion} /> : null}
-              {planHint.visible && <PlanModeHint onAccept={planHint.accept} onDismiss={planHint.dismiss} />}
               {compaction.status === 'failed' && (
                 <Alert
                   type="warning"
@@ -1689,7 +1687,6 @@ const AgentComposerInner = ({
                   }}
                   onRemove={removeFollowup}
                   onReorder={reorderFollowups}
-                  isSteerDisabled={quotaExhaustion ? () => true : undefined}
                 />
               ) : undefined}
             </>
