@@ -16,7 +16,7 @@ import { preferenceService } from '@renderer/data/PreferenceService'
 import { ipcApi } from '@renderer/ipc'
 import { getGuestAuthorizationKey } from '@renderer/utils/webviewGuest'
 import type { WebviewAnnotationTarget } from '@shared/types/webviewAnnotation'
-import { normalizeBrowserUrl } from '@shared/utils/browserUrl'
+import { normalizeBrowserUrl, sanitizeBrowserVisitUrl } from '@shared/utils/browserUrl'
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import { BrowserChrome } from './BrowserChrome'
@@ -161,12 +161,8 @@ export function WebviewBrowser({
     (event: DidNavigateEvent | DidNavigateInPageEvent) => {
       if ('isMainFrame' in event && !event.isMainFrame) return
       if (startPageContext !== undefined && securityProfile === WebviewSecurityProfile.AgentBrowser) {
-        let url: string | undefined
-        try {
-          url = normalizeBrowserUrl(event.url)
-        } catch {
-          // Blank and artifact destinations must leave remembered HTTP(S) history intact.
-        }
+        // Blank and artifact destinations must leave remembered HTTP(S) history intact.
+        const url = sanitizeBrowserVisitUrl(event.url)
         // Remembering powers last mode, so it must not run before the user opts in.
         if (url !== undefined && preferenceService.getCachedValue('app.browser.start_page.mode') === 'last') {
           cacheService.setPersist('ui.browser.last_urls', (urls) => ({

@@ -189,6 +189,28 @@ describe('WebviewBrowser', () => {
       })
     })
 
+    it.each([
+      [
+        'https://example.test/callback?code=secret-code&access_token=secret-token&q=1#access_token=fragment-secret',
+        'https://example.test/callback?q=1'
+      ],
+      ['https://user:pass@credentials.test/', 'https://credentials.test/']
+    ])('sanitizes committed destinations before remembering them: %s', (url, expected) => {
+      mockPreferenceState.set('app.browser.start_page.mode', 'last')
+      const view = open()
+      emit(view.getByTestId('webview-browser-guest'), 'did-navigate', { url })
+      expect(mockCacheService.getPersist('ui.browser.last_urls')).toEqual({ ...remembered, [context]: expected })
+    })
+
+    it('leaves remembered destinations intact when a committed href exceeds the storage limit', () => {
+      mockPreferenceState.set('app.browser.start_page.mode', 'last')
+      const view = open()
+      emit(view.getByTestId('webview-browser-guest'), 'did-navigate', {
+        url: `https://example.test/${'a'.repeat(16_384)}`
+      })
+      expect(mockCacheService.getPersist('ui.browser.last_urls')).toEqual(remembered)
+    })
+
     it.each(['blank', 'custom', 'unknown', undefined])(
       'does not retain committed HTTP(S) destinations without opting into last mode: %s',
       (mode) => {
