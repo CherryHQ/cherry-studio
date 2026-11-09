@@ -124,7 +124,7 @@ export const useCommandShortcuts = () => {
           return []
         }
 
-        if (!evaluateContextExpr(command.enablement, context) || !evaluateContextExpr(rule.when, context)) {
+        if (!evaluateContextExpr(command.enablement, context)) {
           return []
         }
 

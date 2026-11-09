@@ -9,7 +9,7 @@ function makeError(overrides: Partial<SerializedError> = {}): SerializedError {
   return { name: 'Error', message: 'test error', stack: null, ...overrides }
 }
 
-/** Shaped like `serializeError(RetryError)`: nested attempts keep no `message`/`stack`. */
+/** Serialized RetryError with caller-supplied terminal attempts. */
 function makeRetryError(overrides: Partial<SerializedError> = {}): SerializedError {
   return makeError({
     name: 'AI_RetryError',
@@ -53,6 +53,21 @@ function makeCopiedRetry(
 }
 
 describe('classifyError', () => {
+  it.each([
+    'Response: content-type json, empty body, 0 bytes, request-id absent, server nginx.',
+    'Response: content-type json, body is JSON but not a Message, 107 bytes, request-id absent.'
+  ])('provides invalid-response recovery without replacing CLI diagnostics: %s', (detail) => {
+    const message = `API Error: API returned an empty or malformed response (HTTP 200) — check for a proxy or gateway intercepting the request. ${detail} This was the non-streaming retry of streaming request.`
+    const error = makeError({ message })
+
+    expect(classifyError(error)).toEqual({
+      category: 'parse',
+      i18nKey: 'error.diagnosis.parse',
+      navTarget: null
+    })
+    expect(error.message).toBe(message)
+  })
+
   it.each(['', 'Provider unavailable', '   ', null, 'undefined'])(
     'uses response-stream guidance only for a marked unknown failure (%j)',
     (message) => {
@@ -287,7 +302,7 @@ required service tier.`
       makeApiCallAttempt({ statusCode: 429, providerErrorCategory: 'rate_limit', message: 'too many requests' })
     ])
 
-    expect(classifyError(terminalUnauthorized).category).toBe('rate_limit')
+    expect(classifyError(terminalUnauthorized).category).toBe('auth')
     expect(classifyError(terminalRateLimit).category).toBe('rate_limit')
   })
 
@@ -902,4 +917,26 @@ describe('getLocalModelResolutionFailure', () => {
   it('does not mistake a provider response for a local resolution failure', () => {
     expect(getLocalModelResolutionFailure(makeError({ message: 'Model not found', status: 404 }))).toBeNull()
   })
+})
+
+it('uses the terminal structured quota identity ahead of copied retry text, preserving explicit outer facts', () => {
+  const attempts = [makeApiCallAttempt({ statusCode: 429, providerErrorCategory: 'quota', message: 'Plan depleted' })]
+  expect(classifyError(makeCopiedRetry('Too Many Requests', attempts)).category).toBe('quota')
+  expect(
+    classifyError(makeCopiedRetry('Too Many Requests', attempts, { providerErrorCategory: 'auth' })).category
+  ).toBe('auth')
+  expect(classifyError(makeCopiedRetry('Too Many Requests', attempts, { statusCode: 503 })).category).toBe('server')
+  expect(
+    classifyError(makeCopiedRetry('Too Many Requests', attempts, { finishReason: 'content-filter' })).category
+  ).toBe('content')
+  const retry = makeCopiedRetry('Too Many Requests', [
+    ...attempts,
+    makeApiCallAttempt({ statusCode: 429, providerErrorCategory: 'rate_limit' })
+  ])
+  expect(classifyError(retry).category).toBe('rate_limit')
+  const unmarkedTerminal = makeCopiedRetry('Too Many Requests', [
+    ...attempts,
+    makeApiCallAttempt({ statusCode: 429, message: 'Too Many Requests' })
+  ])
+  expect(classifyError(unmarkedTerminal).category).toBe('rate_limit')
 })

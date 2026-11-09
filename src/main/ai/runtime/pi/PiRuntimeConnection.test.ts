@@ -2,8 +2,10 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync,
 import { join } from 'node:path'
 
 import type { AssistantMessage } from '@earendil-works/pi-ai'
-import { createAssistantMessageEventStream, Type } from '@earendil-works/pi-ai'
+import { createAssistantMessageEventStream } from '@earendil-works/pi-ai'
+import { obj } from '@earendil-works/pi-schema'
 import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
 import { v7 as uuid } from 'uuid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -84,7 +86,7 @@ vi.mock('./piMcpExtension', async (original) => ({
         name: buildPiMcpToolName('cherry-tools', name),
         label: name,
         description: name,
-        parameters: Type.Object({}),
+        parameters: obj({}),
         execute: async () => {
           mocks.delegated()
           return { content: [{ type: 'text', text: 'delegated' }] }
@@ -341,6 +343,58 @@ describe('desktop Pi root connection', () => {
     expect(existsSync(join(directory, 'original.txt'))).toBe(false)
     expect(JSON.stringify(script.calls.at(-1)!.messages)).toContain('Redis')
     expect(toolApprovalRegistry.size()).toBe(0)
+  })
+
+  // Catches a mid-turn mode switch that only reaches the next turn: the running turn's next tool call
+  // would still be approved (or skipped) under the mode the user just left.
+  it.each([
+    { from: 'bypassPermissions', to: 'default', asksForWrite: true },
+    { from: 'default', to: 'bypassPermissions', asksForWrite: false }
+  ] as const)('applies a $from → $to switch to the running turn', async ({ from, to, asksForWrite }) => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: from }
+    setScript([
+      assistantReply(
+        [
+          toolCallPart('ask', 'AskUserQuestion', {
+            questions: [
+              {
+                question: 'Continue?',
+                header: 'Continue',
+                options: [
+                  { label: 'Yes', description: 'Go on' },
+                  { label: 'No', description: 'Stop' }
+                ]
+              }
+            ]
+          })
+        ],
+        'toolUse'
+      ),
+      assistantReply([toolCallPart('write', 'write', { path: 'after-switch.txt', content: 'written' })], 'toolUse'),
+      assistantReply('finished')
+    ])
+    const { connection, events } = await connect()
+    await connection.send({ message: message('ask then write') })
+    const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
+    await expect.poll(() => approvals().length).toBe(1)
+
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: to }
+    expect(await connection.reconcile({ modelId: input.modelId })).toBe('patched')
+    toolApprovalRegistry.dispatch(approvals()[0].request.approvalId, {
+      approved: true,
+      updatedInput: { answers: { 'Continue?': 'Yes' } }
+    })
+
+    if (asksForWrite) {
+      await expect.poll(() => approvals().length).toBe(2)
+      expect(approvals()[1].request).toMatchObject({ toolCallId: 'write' })
+      expect(existsSync(join(directory, 'after-switch.txt'))).toBe(false)
+      toolApprovalRegistry.dispatch(approvals()[1].request.approvalId, { approved: true })
+    }
+    await done(events)
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+    expect(approvals()).toHaveLength(asksForWrite ? 2 : 1)
+    expect(readFileSync(join(directory, 'after-switch.txt'), 'utf8')).toBe('written')
   })
 
   // Catches shutdown waiting indefinitely for an unanswered desktop question.
@@ -824,6 +878,30 @@ describe('desktop Pi root connection', () => {
       expect(nativeFiles()).toHaveLength(1)
     }
   )
+
+  it.each(['trashed', 'deleted'] as const)('releases a settled runtime after its session is %s', async (state) => {
+    const { connection, events, consuming } = await connect()
+    const user = message('finish before deletion')
+    await connection.send({ message: user })
+    await done(events)
+    const row = dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, input.sessionId)).get()!
+    if (state === 'deleted') dbh.db.delete(agentSessionTable).where(eq(agentSessionTable.id, input.sessionId)).run()
+    else
+      dbh.db
+        .update(agentSessionTable)
+        .set({ deletedAt: Date.now() })
+        .where(eq(agentSessionTable.id, input.sessionId))
+        .run()
+    try {
+      await expect(connection.close()).resolves.toBeUndefined()
+      await consuming
+      await expect(connection.send({ message: user })).rejects.toThrow('unavailable')
+    } finally {
+      if (state === 'deleted') dbh.db.insert(agentSessionTable).values(row).run()
+      else
+        dbh.db.update(agentSessionTable).set({ deletedAt: null }).where(eq(agentSessionTable.id, input.sessionId)).run()
+    }
+  })
 
   it('reopens the native history without replaying archived content into the live product stream', async () => {
     const first = await connect()

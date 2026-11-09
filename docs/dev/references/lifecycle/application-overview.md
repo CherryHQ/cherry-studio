@@ -190,7 +190,7 @@ await application.start('DbService')
 
 Always use `application.relaunch()` instead of calling `app.relaunch()` directly. It handles:
 
-- **Dev mode detection**: Shows a dialog and exits gracefully (auto-relaunch is not possible in dev)
+- **Dev mode detection**: Exits for a manual restart. The warning dialog is shown only after Electron is ready; preboot relaunch logs the warning and exits without invoking unavailable dialog APIs.
 - **Platform fixes**: Linux AppImage `execPath` rewrite, Windows Portable executable path
 
 ```typescript

@@ -70,6 +70,7 @@ import { AgentSessionEditError } from './AgentSessionEditError'
 import { RuntimeForkAnchorSchema, type RuntimeForkCheckpoint } from './agentSessionForkContract'
 import {
   advanceAgentSessionHeadTx,
+  agentSessionDescendantIds,
   agentSessionPathIds,
   ensureAgentSessionRootTx,
   getAgentSessionHead,
@@ -553,10 +554,16 @@ export class AgentSessionMessageService {
         .select({ id: sessionMessagesTable.id })
         .from(sessionMessagesTable)
         .where(
-          and(
-            eq(sessionMessagesTable.sessionId, sessionId),
-            or(
-              inArray(sessionMessagesTable.status, ['pending', 'streaming']),
+          or(
+            and(
+              eq(sessionMessagesTable.sessionId, sessionId),
+              or(
+                inArray(sessionMessagesTable.status, ['pending', 'streaming']),
+                inArray(sessionMessagesTable.deliveryStatus, ['accepted', 'delivering'])
+              )
+            ),
+            and(
+              eq(sessionMessagesTable.deliverySenderSessionId, sessionId),
               inArray(sessionMessagesTable.deliveryStatus, ['accepted', 'delivering'])
             )
           )
@@ -574,14 +581,24 @@ export class AgentSessionMessageService {
     }
   }
 
-  selectEditParentTx(tx: DbOrTx, sessionId: string, target: { messageId: string; version: string }): void {
+  replaceEditBranchTx(tx: DbOrTx, sessionId: string, target: { messageId: string; version: string }): void {
     const snapshot = this.readEditVersionTx(tx, sessionId, target.messageId)
     if (snapshot.version !== target.version) throw new AgentSessionEditError('history_changed')
-    // Publication selects the shared predecessor; the following insert creates a sibling.
+    const replaced = and(
+      eq(sessionMessagesTable.sessionId, sessionId),
+      inArray(sessionMessagesTable.id, agentSessionDescendantIds(sessionId, target.messageId))
+    )
+    const rows = tx.select({ id: sessionMessagesTable.id }).from(sessionMessagesTable).where(replaced).all()
+    agentSessionContextService.removeRootMessagesTx(
+      tx,
+      sessionId,
+      rows.map((row) => row.id)
+    )
     tx.update(sessionTable).set({ activeNodeId: snapshot.user.parentId }).where(eq(sessionTable.id, sessionId)).run()
+    tx.delete(sessionMessagesTable).where(replaced).run()
   }
 
-  hasRuntimeResumeToken(sessionId: string, resumeToken: string): boolean {
+  hasRuntimeResumeToken(sessionId: string, resumeToken: string, contextId?: string): boolean {
     if (
       application
         .get('DbService')
@@ -591,6 +608,7 @@ export class AgentSessionMessageService {
         .where(
           and(
             eq(agentSessionContextTable.sessionId, sessionId),
+            contextId ? eq(agentSessionContextTable.id, contextId) : undefined,
             eq(agentSessionContextTable.bindingState, 'bound'),
             eq(agentSessionContextTable.nativeThreadId, resumeToken)
           )
@@ -598,6 +616,7 @@ export class AgentSessionMessageService {
         .get()
     )
       return true
+    if (contextId) return false
     return Boolean(
       application
         .get('DbService')
@@ -638,11 +657,8 @@ export class AgentSessionMessageService {
 
   getNativeSessionId(sessionId: string, messageId?: string): string | undefined {
     const rows = this.nativePath(sessionId, messageId).toReversed()
-    return (
-      rows.find((row) => row.nativeSessionId)?.nativeSessionId ??
-      rows.find((row) => row.runtimeResumeToken)?.runtimeResumeToken ??
-      undefined
-    )
+    const row = rows.find((row) => row.nativeSessionId || row.runtimeResumeToken)
+    return row?.nativeSessionId ?? row?.runtimeResumeToken ?? undefined
   }
 
   /** Main-only native fork read. API callers must never receive these raw rows. */
@@ -669,12 +685,17 @@ export class AgentSessionMessageService {
     messageId: string,
     rows: SessionMessageRow[]
   ): SessionMessageRow[] {
-    const mapping = agentSessionContextService.branchTx(tx, sessionId, messageId)?.checkpointMapping?.fork
+    const context = agentSessionContextService.branchTx(tx, sessionId, messageId)
+    const mapping = context?.checkpointMapping?.fork
     return rows.map((row) => {
       const anchor = RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor)
       const checkpoint = mapping?.[row.id]
-      return checkpoint && anchor.success
-        ? { ...row, data: { ...row.data, runtimeAnchor: { ...anchor.data, checkpoint } } }
+      return checkpoint && anchor.success && context
+        ? {
+            ...row,
+            runtimeResumeToken: context.nativeThreadId,
+            data: { ...row.data, runtimeAnchor: { ...anchor.data, checkpoint } }
+          }
         : row
     })
   }
@@ -715,14 +736,7 @@ export class AgentSessionMessageService {
       .where(
         and(
           eq(sessionMessagesTable.sessionId, sessionId),
-          inArray(
-            sessionMessagesTable.id,
-            sql`(with recursive descendants(id) as (
-            select id from agent_session_message where session_id = ${sessionId} and id = ${messageId}
-            union
-            select m.id from agent_session_message m join descendants d on m.parent_id = d.id where m.session_id = ${sessionId}
-          ) select id from descendants)`
-          ),
+          inArray(sessionMessagesTable.id, agentSessionDescendantIds(sessionId, messageId)),
           sql`json_type(${sessionMessagesTable.data}, '$.runtimeAnchor') is not null`
         )
       )
@@ -1156,7 +1170,7 @@ export class AgentSessionMessageService {
     }
     this.invalidateForkPrefixTx(tx, sessionId, messageId)
     if (existing) {
-      agentSessionContextService.removeRootMessageTx(tx, sessionId, messageId)
+      agentSessionContextService.removeRootMessagesTx(tx, sessionId, [messageId])
       tx.update(sessionMessagesTable)
         .set({ parentId: existing.parentId })
         .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.parentId, messageId)))
@@ -2535,12 +2549,18 @@ export class AgentSessionMessageService {
       if (!existingRow) return false
 
       const existing = this.rowToEntity(existingRow)
-      const parts = existing.data.parts ?? []
+      const parts = (existing.data.parts ?? []).map((part): CherryMessagePart => {
+        if (
+          !isToolUIPart(part) ||
+          part.state !== 'output-error' ||
+          part.approval?.id !== decision.approvalId ||
+          part.approval.approved !== undefined
+        )
+          return part
+        return { ...part, errorText: undefined, state: 'approval-requested', approval: { id: decision.approvalId } }
+      })
       const hasPendingApproval = parts.some(
-        (part) =>
-          isToolUIPart(part) &&
-          part.state === 'approval-requested' &&
-          (part as { approval?: { id?: string } }).approval?.id === decision.approvalId
+        (part) => isToolUIPart(part) && part.state === 'approval-requested' && part.approval.id === decision.approvalId
       )
       if (!hasPendingApproval) return false
 
@@ -2567,6 +2587,63 @@ export class AgentSessionMessageService {
       ])
     }
     return applied
+  }
+
+  /**
+   * Terminalize a persisted approval card whose live request went away without a user decision. The
+   * row keeps its status and role — it is a settled interaction record, not a live turn — and only
+   * the parked part becomes terminal, so the card stops reading as answerable.
+   *
+   * Returns `false` when nothing is parked on that approval: already answered, or already retired.
+   */
+  retireAbandonedApproval(sessionId: string, approvalId: string, errorText: string): boolean {
+    const retired = application.get('DbService').withWriteTx((tx) => {
+      const [parkedRow] = tx
+        .select()
+        .from(sessionMessagesTable)
+        .where(
+          and(
+            eq(sessionMessagesTable.sessionId, sessionId),
+            sql<boolean>`exists (
+              select 1 from json_each(${sessionMessagesTable.data}, '$.parts') as part
+              where json_extract(part.value, '$.state') = 'approval-requested'
+                and json_extract(part.value, '$.approval.id') = ${approvalId}
+            )`
+          )
+        )
+        .limit(1)
+        .all()
+      if (!parkedRow) return null
+
+      const parked = this.rowToEntity(parkedRow)
+      const updatedAt = Date.now()
+      // The part keeps every field it was parked with; only its state leaves the approval machine.
+      const parts = (parked.data.parts ?? []).map((part): CherryMessagePart => {
+        const parkedApprovalId = (part as { approval?: { id?: string } }).approval?.id
+        if (!isToolUIPart(part) || part.state !== 'approval-requested' || parkedApprovalId !== approvalId) {
+          return part
+        }
+        return { ...part, state: 'output-error', errorText } as unknown as CherryMessagePart
+      })
+      tx.update(sessionMessagesTable)
+        .set({ data: { ...parked.data, parts }, updatedAt })
+        .where(eq(sessionMessagesTable.id, parked.id))
+        .run()
+      agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
+      return parked.id
+    })
+
+    if (!retired) return false
+    agentSessionService.notifyReadModelChange([sessionId], 'projection')
+    notifyDataApiDataChange([
+      {
+        endpoint: '/agent-sessions/:sessionId/messages',
+        kind: 'projection',
+        routeParams: { sessionId },
+        entityIds: [retired]
+      }
+    ])
+    return true
   }
 }
 

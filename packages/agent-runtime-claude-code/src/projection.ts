@@ -472,7 +472,16 @@ export class ClaudeProjection {
     }
     this.feed.publish(
       events,
-      selected.map((message) => ({ source: 'archive', message })),
+      selected.map((message): ClaudeNativeMessage => {
+        const entry = metadata.get(message.uuid)
+        return {
+          source: 'archive',
+          message,
+          ...(message.type === 'assistant' && entry?.type === 'assistant' && entry.isApiErrorMessage === true
+            ? { isApiErrorMessage: true as const }
+            : {})
+        }
+      }),
       this.legacy
     )
     const content = selected.flatMap((message) =>

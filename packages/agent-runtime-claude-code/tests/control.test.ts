@@ -133,6 +133,18 @@ describe('Claude native lifecycle', () => {
     const f = fixture()
     f.state.beginTurn()
     f.accept({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      message: { content: [{ type: 'tool_use', id: 'server-call', name: 'Bash', input: { run_in_background: true } }] }
+    })
+    f.accept({
+      type: 'system',
+      subtype: 'task_started',
+      task_id: 'server',
+      task_type: 'local_bash',
+      tool_use_id: 'server-call'
+    })
+    f.accept({
       type: 'system',
       subtype: 'background_tasks_changed',
       tasks: [
@@ -144,6 +156,52 @@ describe('Claude native lifecycle', () => {
     expect(f.state.snapshot.backgroundWorkActive).toBe(true)
     expect(f.state.snapshot.backgroundResults).toEqual({ status: 'confirmed', value: [] })
   })
+
+  it.each(['user', 'assistant'])(
+    'attributes a background shell when its wake starts with %s without holding the running command',
+    (first) => {
+      const f = fixture()
+      f.state.beginTurn()
+      f.accept({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        message: { content: [{ type: 'tool_use', id: 'shell-call', name: 'Bash', input: { run_in_background: true } }] }
+      })
+      f.accept({
+        type: 'system',
+        subtype: 'background_tasks_changed',
+        tasks: [{ task_id: 'shell', run_id: 'shell-run', task_type: 'local_bash', description: 'work' }]
+      })
+      f.accept({
+        type: 'system',
+        subtype: 'task_started',
+        task_id: 'shell',
+        run_id: 'shell-run',
+        task_type: 'local_bash',
+        tool_use_id: 'shell-call'
+      })
+      f.accept(f.result())
+      expect(f.state.snapshot.backgroundResults).toEqual({ status: 'confirmed', value: [] })
+      f.accept({
+        type: 'system',
+        subtype: 'task_notification',
+        task_id: 'shell',
+        run_id: 'shell-run',
+        tool_use_id: 'shell-call',
+        status: 'completed'
+      })
+      f.accept({ type: 'system', subtype: 'background_tasks_changed', tasks: [] })
+      f.accept({ type: first, origin: { kind: 'task-notification', runId: 'shell-run' }, message: { content: [] } })
+      expect(f.events).toContainEqual({
+        type: 'autonomous-turn-state',
+        state: 'started',
+        sourceToolCallIds: ['shell-call']
+      })
+      f.accept(f.result({ origin: { kind: 'task-notification', runId: 'shell-run' } }))
+      f.accept({ type: 'system', subtype: 'session_state_changed', state: 'idle' })
+      expect(f.state.snapshot.backgroundResults).toEqual({ status: 'confirmed', value: [] })
+    }
+  )
 
   it('keeps a continued run pending when a late notification belongs to the original run', () => {
     const f = fixture()

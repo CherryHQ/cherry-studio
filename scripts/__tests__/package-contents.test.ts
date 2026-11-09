@@ -22,6 +22,31 @@ function includesFile(filename: string, patterns = config.files): boolean {
 }
 
 describe('packaged dependency contents', () => {
+  it.each(['node_modules', 'node_modules/consumer/node_modules'])(
+    'excludes on-demand Claude binaries under %s while preserving the SDK',
+    (modules) => {
+      for (const target of [
+        'darwin-arm64',
+        'darwin-x64',
+        'linux-arm64',
+        'linux-x64',
+        'linux-arm64-musl',
+        'linux-x64-musl',
+        'win32-arm64',
+        'win32-x64'
+      ]) {
+        const root = `${modules}/@anthropic-ai/claude-agent-sdk-${target}`
+        for (const file of ['package.json', target.startsWith('win32') ? 'claude.exe' : 'claude']) {
+          expect(includesFile(`${root}/${file}`), `${root}/${file}`).toBe(false)
+        }
+      }
+      for (const file of ['package.json', 'sdk.mjs']) {
+        const sdkFile = `${modules}/@anthropic-ai/claude-agent-sdk/${file}`
+        expect(includesFile(sdkFile), sdkFile).toBe(true)
+      }
+    }
+  )
+
   it.each([
     ['darwin', 'arm64'],
     ['darwin', 'x64'],

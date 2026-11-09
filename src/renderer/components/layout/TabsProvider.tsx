@@ -114,7 +114,7 @@ export function repairPinnedTabs(raw: unknown, normalTabs: readonly Tab[]): Pinn
     if (entry.type !== 'route' && entry.type !== 'webview') continue
     if (typeof entry.url !== 'string' || !entry.url.trim()) continue
     try {
-      new URL(entry.url, 'https://www.cherry-ai.com')
+      new URL(entry.url, 'https://cherryai.com')
     } catch {
       continue
     }

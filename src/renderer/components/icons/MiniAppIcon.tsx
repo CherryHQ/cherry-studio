@@ -37,7 +37,7 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', artworkSize, size 
       )
     }
     if (appearance === 'sidebar') {
-      const displayConfig = getIconDisplayConfig('mini-app', app.logo)
+      const displayConfig = getIconDisplayConfig('mini-app', logoRef.meta.id)
       if (displayConfig?.scale && displayConfig.scale < 1) {
         return <Icon.Avatar size={size} className="select-none" shape="circle" />
       }
@@ -58,7 +58,7 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', artworkSize, size 
       )
     }
     if (appearance === 'plain' || appearance === 'bare') {
-      const displayConfig = getIconDisplayConfig('mini-app', app.logo)
+      const displayConfig = getIconDisplayConfig('mini-app', logoRef.meta.id)
       const metrics =
         appearance === 'bare' && artworkSize !== undefined
           ? getProviderIconAssetMetrics({ kind: logoRef.kind, iconId: logoRef.meta.id })
@@ -78,6 +78,7 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', artworkSize, size 
             ...style
           }}>
           <Icon
+            {...(displayConfig?.viewBox ? { viewBox: displayConfig.viewBox } : {})}
             aria-label={app.name || 'MiniApp Icon'}
             className="select-none"
             style={{
