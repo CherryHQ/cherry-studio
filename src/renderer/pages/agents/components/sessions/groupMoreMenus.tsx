@@ -23,9 +23,11 @@ export function AgentGroupMoreMenu({
   onArchiveSessions,
   onDeleteAgent,
   onEdit,
+  onPermanentDeleteAgent,
   onSetAgentIconType,
   onTogglePin,
   onToggleSidebar,
+  permanentDeleteShortcut,
   sidebarPinned
 }: {
   agentId: string
@@ -38,9 +40,11 @@ export function AgentGroupMoreMenu({
   onArchiveSessions: (agentId: string) => void | Promise<void>
   onDeleteAgent: (agentId: string) => void | Promise<void>
   onEdit: (agentId: string) => void
+  onPermanentDeleteAgent?: (agentId: string) => void | Promise<void>
   onSetAgentIconType: (iconType: AssistantIconType) => void | Promise<void>
   onTogglePin: (agentId: string) => void | Promise<void>
   onToggleSidebar: (agentId: string) => void | Promise<void>
+  permanentDeleteShortcut?: string
 }) {
   const { t } = useTranslation()
   const actionContext: AgentGroupActionContext = {
@@ -51,9 +55,11 @@ export function AgentGroupMoreMenu({
     onArchiveSessions,
     onDeleteAgent,
     onEdit,
+    onPermanentDeleteAgent,
     onSetAgentIconType,
     onTogglePin,
     onToggleSidebar,
+    permanentDeleteShortcut,
     pinDisabled,
     pinned,
     sidebarPinned,

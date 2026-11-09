@@ -33,7 +33,6 @@ import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { probeReadable } from '@main/utils/file'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
-import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryUIMessage, FileUIPart } from '@shared/data/types/message'
@@ -177,7 +176,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.input.modelId,
       this.input.reasoningEffort ?? 'default',
       this.input.fastMode === true,
-      this.input.knowledgeBaseIds
+      this.input.knowledgeBaseIds,
+      this.input.serviceTier
     )
     if (!request) {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
@@ -342,6 +342,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   async reconcile(input: {
     modelId: UniqueModelId
     reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
+    serviceTier?: AgentRuntimeConnectInput['serviceTier']
     knowledgeBaseIds?: readonly string[]
     fastMode?: boolean
   }): Promise<AgentRuntimeReconcileResult> {
@@ -359,6 +360,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private async reconcileOnce(input: {
     modelId: UniqueModelId
     reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
+    serviceTier?: AgentRuntimeConnectInput['serviceTier']
     knowledgeBaseIds?: readonly string[]
     fastMode?: boolean
   }): Promise<AgentRuntimeReconcileResult> {
@@ -368,7 +370,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       input.modelId,
       input.reasoningEffort ?? 'default',
       input.fastMode === true,
-      input.knowledgeBaseIds
+      input.knowledgeBaseIds,
+      input.serviceTier
     )
     if (!derived.ok) return 'invalid'
     const baseline = this.connectionConfig
@@ -376,51 +379,26 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     if (!baseline) return 'rebuild'
 
     const fresh = derived.config
-    const permissionModeChanged = baseline.live.toolPolicy.permissionMode !== fresh.live.toolPolicy.permissionMode
-    // Claude's set_permission_mode control request can terminate work already in flight. Keep the
-    // mode (and the local approval gate that mirrors it) frozen for the active turn; the host pulls
-    // reconcile again before admitting the next turn, when the SDK update is safe to apply.
-    const deferPermissionMode = permissionModeChanged && this.handle?.claude.state().active === true
-    const applicableToolPolicy = deferPermissionMode
-      ? { ...fresh.live.toolPolicy, permissionMode: baseline.live.toolPolicy.permissionMode }
-      : fresh.live.toolPolicy
     let patched = false
-    // Apply the tool-policy facts that are safe for this turn BEFORE the rebuild verdict. Newly
-    // disabled tools still tighten immediately; permission-mode changes wait for the next boundary.
-    if (!toolPolicyFactsEqual(baseline.live.toolPolicy, applicableToolPolicy)) {
+    // Apply the live tool-policy facts BEFORE the rebuild verdict, mid-turn included: the SDK applies
+    // a permission-mode change from the next tool call without interrupting the running turn.
+    if (!toolPolicyFactsEqual(baseline.live.toolPolicy, fresh.live.toolPolicy)) {
       try {
         const agent = agentService.getAgent(this.input.agentId)
         if (!agent) return 'invalid'
-        if (permissionModeChanged && !deferPermissionMode) {
-          const changed = await this.handle.claude.setPermissionMode(
-            (fresh.live.toolPolicy.permissionMode ?? 'default') as AgentPermissionMode
-          )
+        const permissionMode = fresh.live.toolPolicy.permissionMode ?? 'default'
+        if (baseline.live.toolPolicy.permissionMode !== fresh.live.toolPolicy.permissionMode) {
+          const changed = await this.handle.claude.setPermissionMode(permissionMode)
           if (changed.status !== 'confirmed') throw new Error(changed.error.message)
+          // Approval must use the confirmed mode while the tool catalog is refreshing.
+          this.toolPolicySnapshot?.setPermissionMode(permissionMode)
         }
-        // Refresh only after the SDK confirms an applicable permission change. If the current turn
-        // keeps its old mode, preserve that mode in the snapshot while still applying other policy
-        // changes (for example, disabling a tool).
-        await this.toolPolicySnapshot?.update(
-          deferPermissionMode
-            ? {
-                ...agent,
-                configuration: {
-                  ...agent.configuration,
-                  permission_mode: (baseline.live.toolPolicy.permissionMode ?? undefined) as
-                    | AgentPermissionMode
-                    | undefined
-                }
-              }
-            : agent
-        )
+        await this.toolPolicySnapshot?.update(agent)
       } catch (error) {
         logger.warn('Live tool-policy apply failed during reconcile', { sessionId: this.input.sessionId, error })
         return 'failed'
       }
-      this.connectionConfig = {
-        ...baseline,
-        live: { ...fresh.live, toolPolicy: applicableToolPolicy }
-      }
+      this.connectionConfig = { ...baseline, live: fresh.live }
       patched = true
     }
 
@@ -640,41 +618,49 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
             : event
         )
       }
-      const result = await this.handleControl(control)
+      const result = await this.handleControl(control, contextId)
       if (result) terminal.push(result)
     }
     return terminal
   }
 
-  private async handleControl(control: ClaudeControl): Promise<AgentRuntimeEvent | undefined> {
+  private async handleControl(control: ClaudeControl, contextId: string): Promise<AgentRuntimeEvent | undefined> {
     if (control.type === 'input-boundary') {
       this.eventQueue.push({ type: 'steer-boundary', inputIds: control.inputIds })
       this.currentSources.clear()
     } else if (control.type === 'autonomous-turn-state' && control.state === 'started') {
       this.currentSources.clear()
     } else if (control.type === 'session') {
+      if (contextId !== this.context?.id) return
       if (control.sessionId !== this.handle!.claude.sessionId) {
         const opened = await this.runtime!.open({
           backendId: this.handle!.thread.backendId,
           id: runtimeId(control.sessionId)
         })
         if (opened.status !== 'confirmed') throw new Error(opened.error.message)
+        let context: NonNullable<typeof this.context>
+        try {
+          context = prepareClaudeBranch(
+            this.input.sessionId,
+            resolveClaudeConfigDirectory(this.spawnOptions?.env),
+            control.sessionId
+          )
+        } catch (error) {
+          await opened.value.release()
+          throw error
+        }
+        this.context = context
         this.handle = opened.value
-        this.context = prepareClaudeBranch(
-          this.input.sessionId,
-          resolveClaudeConfigDirectory(this.spawnOptions?.env),
-          control.sessionId,
-          this.input.branchHead
-        )
         await this.observeRoot(this.handle)
       }
-      this.context = contexts.bindContext(this.context!.id, control.sessionId)
+      this.context = contexts.bindContext(this.context.id, control.sessionId)
       this.updateResumeToken(control.sessionId)
     } else if (control.type === 'archive-changed') {
       await this.handle!.claude.archive()
     } else if (control.type === 'diagnostic') {
       logger.warn(control.message, { detail: control.detail })
     } else if (control.type === 'result') {
+      if (control.sessionId !== this.handle?.claude.sessionId) return
       if (control.failure) return { type: 'error', error: new ClaudeCodeResultError(control.failure) }
       if (!control.terminal) return
       this.updateResumeToken(control.sessionId)
@@ -1247,6 +1233,9 @@ function toClaudeImageMediaType(value: string | undefined) {
 export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly workspaceRelocation = claudeWorkspaceRelocation
   readonly fork = forkClaudeSession
+  isForkCheckpoint(value: unknown): boolean {
+    return ClaudeForkCheckpointSchema.safeParse(value).success
+  }
   readonly type = 'claude-code'
 
   async validateSession(session: AgentSessionEntity): Promise<void> {

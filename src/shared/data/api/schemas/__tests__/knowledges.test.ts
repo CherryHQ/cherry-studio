@@ -201,6 +201,13 @@ describe('Knowledge base schemas', () => {
         groupId: null
       }).success
     ).toBe(true)
+    expect(
+      KnowledgeAddItemInputSchema.safeParse({
+        type: 'url',
+        data: { source: 'not a valid URL', url: 'not a valid URL' },
+        groupId: null
+      }).success
+    ).toBe(false)
 
     expect(
       KnowledgeAddItemInputSchema.safeParse({

@@ -16,6 +16,8 @@ export type Metrics = {
 
 export interface MessageUiState {
   foldSelected?: boolean
+  /** Active reply when browsing was saved; ignore the selection after branch navigation. */
+  foldSelectedBranchId?: string | null
   multiModelMessageStyle?: string
   useful?: boolean
   disclosures?: Record<string, boolean>

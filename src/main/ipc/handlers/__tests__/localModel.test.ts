@@ -41,12 +41,16 @@ describe('localModelHandlers', () => {
   })
 
   it('delegates lifecycle routes to the local model service', async () => {
-    localModelService.refreshStatus.mockReturnValue({ status: 'ready' })
+    localModelService.refreshStatus.mockReturnValue({
+      status: 'not_downloaded',
+      hintCode: 'missing_shared_runtime'
+    })
     localModelService.download.mockResolvedValue('ready')
     localModelService.remove.mockResolvedValue({ removed: false })
 
     await expect(localModelHandlers['local_model.get_status']({ id: EMBEDDING }, ctx)).resolves.toEqual({
-      status: 'ready'
+      status: 'not_downloaded',
+      hintCode: 'missing_shared_runtime'
     })
     await expect(localModelHandlers['local_model.download']({ id: OCR }, ctx)).resolves.toEqual({ result: 'ready' })
     await localModelHandlers['local_model.cancel']({ id: EMBEDDING }, ctx)

@@ -115,6 +115,16 @@ describe('settings search index', () => {
   })
 
   it.each([
+    { locale: enUS, language: 'en-US' },
+    { locale: zhCN, language: 'zh-CN' }
+  ])('finds the browser start page row by its translated title in $language', ({ locale }) => {
+    const t = (key: string) => String(lookup(locale, key) ?? key)
+    expect(rankEntries(t('settings.browser.startPage'), settingsSearchSections, t)).toContainEqual(
+      expect.objectContaining({ route: '/settings/browser', focusId: 'setting-browser-start-page' })
+    )
+  })
+
+  it.each([
     { locale: enUS, language: 'en-US', query: 'Expand long user messages by default' },
     { locale: zhCN, language: 'zh-CN', query: '默认展开长用户消息' },
     { locale: enUS, language: 'en-US', query: 'Messages you manually expand or collapse' }
