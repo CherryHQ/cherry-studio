@@ -5,8 +5,23 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type * as CommandComponents from '@renderer/components/command'
+import type * as CommandHooks from '@renderer/hooks/command'
 
 import { ResourceEntityRail, type ResourceEntityRailItem } from '../ResourceEntityRail'
+
+const deleteCommand = vi.hoisted(() => ({
+  handler: undefined as (() => unknown) | undefined,
+  enabled: undefined as (() => boolean) | undefined
+}))
+vi.mock('@renderer/hooks/command', async (importOriginal) => ({
+  ...(await importOriginal<typeof CommandHooks>()),
+  useCommandHandler: (id: string, handler: () => unknown, options: { enabled?: () => boolean }) => {
+    if (id === 'resource.delete_permanently') {
+      deleteCommand.handler = handler
+      deleteCommand.enabled = options.enabled
+    }
+  }
+}))
 
 const virtualListMocks = vi.hoisted(() => ({
   onDragEnd: undefined as ((payload: unknown) => void) | undefined
@@ -596,6 +611,18 @@ describe('ResourceEntityRail', () => {
         />
       )
     }
+
+    it('passes canonical tagged entities to permanent-delete eligibility and action', async () => {
+      const onDelete = vi.fn()
+      const eligible = vi.fn((item: ResourceEntityRailItem) => item.id === 'b')
+      renderRail({ permanentDelete: { isItemEligible: eligible, onDelete } })
+      const row = screen.getAllByRole('option').find((item) => item.textContent?.includes('Agent B'))!
+      row.focus()
+      expect(deleteCommand.enabled?.()).toBe(true)
+      await deleteCommand.handler?.()
+      expect(eligible).toHaveBeenLastCalledWith(tagItems[1])
+      expect(onDelete).toHaveBeenCalledWith(tagItems[1])
+    })
 
     it('renders one section per tag with color and count, a multi-tag agent under each, and Untagged last', () => {
       renderRail()

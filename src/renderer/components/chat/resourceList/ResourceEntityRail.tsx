@@ -461,8 +461,14 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
         presentation="left-panel">
         {permanentDelete ? (
           <ResourceList.PermanentDelete
-            isItemEligible={permanentDelete.isItemEligible}
-            onDelete={permanentDelete.onDelete}
+            isItemEligible={(railRow) => {
+              const item = groupByTags ? ((railRow as EntityRailTagRow<T>).railSource ?? railRow) : railRow
+              return permanentDelete.isItemEligible?.(item) ?? true
+            }}
+            onDelete={(railRow) => {
+              const item = groupByTags ? ((railRow as EntityRailTagRow<T>).railSource ?? railRow) : railRow
+              return permanentDelete.onDelete(item)
+            }}
           />
         ) : null}
         <ResourceList.Header>
