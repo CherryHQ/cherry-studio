@@ -244,7 +244,6 @@ type AgentSessionTurn = {
   projection?: RootMessageProjection
   parentId?: string
   origin?: AutonomousTurnOrigin
-  existingReply?: true
   headless?: boolean
   trustedNotifyChannels?: readonly NotifyChannel[]
 }
@@ -2395,7 +2394,7 @@ export class AgentSessionRuntimeService extends BaseService {
             : entry.messageSnapshot,
           headless,
           origin: event.origin,
-          ...(background ? { assistantMessageId, existingReply: true } : {})
+          ...(background ? { assistantMessageId } : {})
         })
         if (background) turn.projection = projection
         this.clearIdleTimer(entry)
@@ -3101,7 +3100,8 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private saveReply(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): void {
-    if (turn.existingReply) entry.persistedMessageIds?.delete(turn.assistantMessageId)
+    const background = turn.origin?.kind === 'background-work'
+    if (background) entry.persistedMessageIds?.delete(turn.assistantMessageId)
     agentSessionMessageService.saveMessage({
       sessionId: entry.sessionId,
       parentId: turn.parentId ? agentSessionMessageService.branchTip(entry.sessionId, turn.parentId) : undefined,
@@ -3109,12 +3109,12 @@ export class AgentSessionRuntimeService extends BaseService {
         id: turn.assistantMessageId,
         role: 'assistant',
         status: 'pending',
-        data: { parts: turn.existingReply ? (turn.projection?.parts(turn.assistantMessageId) ?? []) : [] },
+        data: { parts: background ? (turn.projection?.parts(turn.assistantMessageId) ?? []) : [] },
         modelId: turn.modelId,
         messageSnapshot: turn.messageSnapshot
       }
     })
-    if (!turn.existingReply) entry.branchHead = turn.assistantMessageId
+    if (!background) entry.branchHead = turn.assistantMessageId
     if (turn.origin)
       application
         .get('CacheService')
