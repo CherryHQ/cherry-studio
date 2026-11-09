@@ -143,6 +143,7 @@ export type AgentTabSortType = 'tags' | 'list'
 export const SIDEBAR_FAVORITES = [
   'assistants',
   'agents',
+  'scheduled_tasks',
   'paintings',
   'translate',
   'mini_app',
@@ -454,6 +455,8 @@ export type FileProcessorOptions = {
 export type FileProcessorCapabilityOverride = {
   apiHost?: string
   modelId?: string
+  formulaLevel?: 0 | 1 | 2
+  mergeCrossPageForms?: boolean
 }
 
 export type FileProcessorCapabilityOverrides = Partial<Record<FileProcessorFeature, FileProcessorCapabilityOverride>>

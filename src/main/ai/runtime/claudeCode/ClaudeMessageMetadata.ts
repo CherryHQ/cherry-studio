@@ -12,6 +12,7 @@ import type { ClaudeObservation } from '@cherrystudio/agent-runtime-claude-code'
 import type { MessageDecorator } from '@main/ai/agentSession/ThreadMessageProjection'
 import { extractSystemReminderBodies, SystemReminderTextFilter } from '@main/ai/steerReminder'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import { stripClaudeCodeRejectionPrefix } from '@shared/ai/providerError'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import { isMcpContentBlock } from '@shared/utils/mcp'
 
@@ -32,6 +33,7 @@ type ToolMetadata = {
 /** Cherry display policy applied after the adapter has materialized native content. */
 export class ClaudeMessageMetadata {
   private readonly reminders = new Set<string>()
+  private readonly rejectedMessages = new Set<string>()
   private readonly thinking = new Map<
     string,
     Map<number, { startedAt: number; elapsedFrom: number; thinkingMs?: number }>
@@ -45,6 +47,9 @@ export class ClaudeMessageMetadata {
     if (refreshAll) this.catalog = structuredClone(this.mcpToolMetadata)
     for (const native of batch.native) {
       const message = native.message
+      if (message.type === 'assistant' && 'error' in message && message.error) {
+        this.rejectedMessages.add(message.uuid)
+      }
       if (message.type === 'user' && 'isSynthetic' in message && message.isSynthetic) {
         const body = message.message as { content?: string | BetaContentBlockParam[] }
         const content =
@@ -131,7 +136,8 @@ export class ClaudeMessageMetadata {
       }
       if (part.type !== 'text') return part
       const filter = new SystemReminderTextFilter(this.reminders)
-      return { ...part, text: filter.write(part.text) + (part.state === 'streaming' ? '' : filter.flush()) }
+      const text = this.rejectedMessages.has(message.id) ? stripClaudeCodeRejectionPrefix(part.text) : part.text
+      return { ...part, text: filter.write(text) + (part.state === 'streaming' ? '' : filter.flush()) }
     })
   })
 

@@ -80,8 +80,6 @@
     "@tiptap/core": "3.26.1",
     "@tiptap/pm": "3.26.1",
     "eslint": "^9.22.0",
-    "eslint-plugin-react-hooks": "^5.2.0",
-    "eslint-plugin-unused-imports": "^4.1.4",
     "tsdown": "^0.22.14",
     "typescript": "5.9.3"
   },

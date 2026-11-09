@@ -1,6 +1,7 @@
 import type { LucideProps } from 'lucide-react'
 import {
   BotMessageSquare,
+  Clock,
   Code,
   Database,
   FileSearch,
@@ -33,6 +34,7 @@ const CodeMateIcon: SidebarIconComponent = (props) => <Code {...props} viewBox="
 export const SIDEBAR_ICON_COMPONENTS = {
   assistants: MessageSquare,
   agents: MousePointerClick,
+  scheduled_tasks: Clock,
   paintings: Palette,
   translate: Languages,
   mini_app: LayoutGrid,
@@ -84,6 +86,18 @@ export function SidebarIcon({
 }: LucideProps & { icon: SidebarGlyph; active?: boolean }) {
   const Outline = NAVIGATION_ICON_COMPONENTS[icon]
   if (!active) return <Outline {...props} />
+  if (icon === 'scheduled_tasks') {
+    return (
+      <Icon
+        {...props}
+        fill="currentColor"
+        iconNode={[
+          ['circle', { cx: '12', cy: '12', r: '10', key: 'clock' }],
+          ['path', { d: 'M12 6v6l4 2', fill: 'none', stroke: 'var(--background)', key: 'hands' }]
+        ]}
+      />
+    )
+  }
   const filledPath = FILLED_PATHS[icon]
   if (filledPath) {
     return (

@@ -17,6 +17,7 @@ const logger = loggerService.withContext('LocalModelsSection')
 const CARD_NOTICE_KEYS = {
   downloadFailed: 'settings.dependencies.localModels.notice.downloadFailed',
   incompleteCache: 'settings.dependencies.localModels.notice.incompleteCache',
+  missingRuntime: 'settings.dependencies.localModels.notice.missingRuntime',
   removeFailed: 'settings.dependencies.localModels.notice.removeFailed',
   inUse: 'settings.dependencies.localModels.notice.inUse'
 } as const
@@ -100,7 +101,9 @@ function useLocalModelCard(id: LocalModelBundleId) {
         ? localModel.errorCode === 'incomplete_cache'
           ? 'incompleteCache'
           : 'downloadFailed'
-        : null),
+        : localModel.hintCode === 'missing_shared_runtime'
+          ? 'missingRuntime'
+          : null),
     download,
     remove
   }

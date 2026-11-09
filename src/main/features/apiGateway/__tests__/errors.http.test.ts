@@ -52,6 +52,7 @@ type Case = {
   boundary?: boolean
   providerType?: string
   requestId?: string
+  quota?: boolean
 }
 const realInputs = new Map<string, unknown>()
 const cases: Case[] = []
@@ -228,6 +229,24 @@ add('empty-object', {})
 for (const code of ['ETIMEDOUT', 'ECONNRESET', 20, 23])
   add(`unsupported-code-${code}`, { ...markers, name: 'Error', code })
 add('network-category', { ...markers, providerErrorCategory: 'network' })
+const quotaMessage = '套餐「Cherry Plus」额度已耗尽或不足以完成本次请求，建议 29天7小时后重试。'
+cases.push({
+  id: 'provider-quota-429',
+  origin: 'APICallError + serializeError',
+  input: () =>
+    serializeError(
+      new APICallError({
+        message: quotaMessage,
+        url: 'http://fixture.invalid',
+        requestBodyValues: {},
+        statusCode: 429,
+        responseBody: JSON.stringify({ error: { code: 'QUOTA_EXHAUSTED', type: 'quota_error', message: quotaMessage } })
+      })
+    ),
+  status: 429,
+  message: quotaMessage,
+  quota: true
+})
 add('nested-timeout-only', { message: 'ordinary failure', cause: { name: 'TimeoutError', message: phrases[0] } })
 for (const [id, value] of Object.entries({
   undefined,
@@ -289,8 +308,9 @@ function expectedBody(format: OutputFormat, c: Case, sse = false) {
       }
     }
   if (format === 'gemini') return { error: { code: c.status, message: c.message, status: v.google } }
-  if (format === 'openai-responses' && sse) return { type: 'error', code: v.code, message: c.message }
-  return { error: { message: c.message, type: v.openai, code: v.code } }
+  const openai = c.quota ? { type: 'insufficient_quota', code: 'insufficient_quota' } : { type: v.openai, code: v.code }
+  if (format === 'openai-responses' && sse) return { type: 'error', code: openai.code, message: c.message }
+  return { error: { message: c.message, ...openai } }
 }
 function expectedFrame(format: OutputFormat, c: Case) {
   const event = format === 'anthropic' || format === 'openai-responses' ? 'event: error\n' : ''

@@ -223,6 +223,7 @@ export const mockUsePaginatedQuery = vi.fn(
         hasPrev: boolean
         prevPage: () => void
         nextPage: () => void
+        goToPage: (page: number) => void
         refresh: () => Promise<unknown>
         reset: () => void
       }
@@ -246,6 +247,7 @@ export const mockUsePaginatedQuery = vi.fn(
       hasPrev: false,
       prevPage: vi.fn(),
       nextPage: vi.fn(),
+      goToPage: vi.fn(),
       refresh: vi.fn().mockResolvedValue(undefined),
       reset: vi.fn()
     } as unknown as ResponseForPath<TPath, 'GET'> extends PaginationResponse<infer T>
@@ -260,6 +262,7 @@ export const mockUsePaginatedQuery = vi.fn(
           hasPrev: boolean
           prevPage: () => void
           nextPage: () => void
+          goToPage: (page: number) => void
           refresh: () => Promise<unknown>
           reset: () => void
         }
@@ -897,6 +900,7 @@ export const MockUseDataApiUtils = {
           hasPrev: options?.hasPrev ?? false,
           prevPage: vi.fn(),
           nextPage: vi.fn(),
+          goToPage: vi.fn(),
           refresh: vi.fn(),
           reset: vi.fn()
         }
@@ -913,6 +917,7 @@ export const MockUseDataApiUtils = {
         hasPrev: false,
         prevPage: vi.fn(),
         nextPage: vi.fn(),
+        goToPage: vi.fn(),
         refresh: vi.fn(),
         reset: vi.fn()
       }

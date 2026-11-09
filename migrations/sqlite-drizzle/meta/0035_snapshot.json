@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "aff55fae-f2ea-43ee-aad7-3135400afa66",
+  "id": "db624c69-6658-4a44-98e8-8e9587be32eb",
   "prevId": "21fa5fe5-e74e-4e5c-94f1-5fae6691f254",
   "tables": {
     "agent": {
@@ -80,13 +80,6 @@
           "autoincrement": false,
           "default": "'{}'"
         },
-        "group_id": {
-          "name": "group_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "order_key": {
           "name": "order_key",
           "type": "text",
@@ -131,13 +124,6 @@
           ],
           "isUnique": false
         },
-        "agent_group_id_idx": {
-          "name": "agent_group_id_idx",
-          "columns": [
-            "group_id"
-          ],
-          "isUnique": false
-        },
         "agent_order_key_idx": {
           "name": "agent_order_key_idx",
           "columns": [
@@ -179,19 +165,6 @@
           "tableTo": "user_model",
           "columnsFrom": [
             "small_model"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "agent_group_id_group_id_fk": {
-          "name": "agent_group_id_group_id_fk",
-          "tableFrom": "agent",
-          "tableTo": "group",
-          "columnsFrom": [
-            "group_id"
           ],
           "columnsTo": [
             "id"
@@ -782,6 +755,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "source_task_schedule_id": {
+          "name": "source_task_schedule_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "trace_id": {
           "name": "trace_id",
           "type": "text",
@@ -844,6 +824,13 @@
           "name": "agent_session_order_key_idx",
           "columns": [
             "order_key"
+          ],
+          "isUnique": false
+        },
+        "agent_session_source_task_idx": {
+          "name": "agent_session_source_task_idx",
+          "columns": [
+            "source_task_schedule_id"
           ],
           "isUnique": false
         },
@@ -915,6 +902,19 @@
           "tableTo": "job_schedule",
           "columnsFrom": [
             "task_schedule_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "agent_session_source_task_schedule_id_job_schedule_id_fk": {
+          "name": "agent_session_source_task_schedule_id_job_schedule_id_fk",
+          "tableFrom": "agent_session",
+          "tableTo": "job_schedule",
+          "columnsFrom": [
+            "source_task_schedule_id"
           ],
           "columnsTo": [
             "id"

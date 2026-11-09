@@ -26,6 +26,8 @@ export const agentSessionTable = sqliteTable(
     taskScheduleId: text()
       .unique()
       .references(() => jobScheduleTable.id, { onDelete: 'set null' }),
+    // All task runs retain ownership independently of the sticky reuse pointer and job GC.
+    sourceTaskScheduleId: text().references(() => jobScheduleTable.id, { onDelete: 'set null' }),
     traceId: text(),
     activeNodeId: text(),
     ...orderKeyColumns,
@@ -36,6 +38,7 @@ export const agentSessionTable = sqliteTable(
   },
   (t) => [
     orderKeyIndex('agent_session')(t),
+    index('agent_session_source_task_idx').on(t.sourceTaskScheduleId),
     index('agent_session_owner_idx').on(t.ownerSessionId),
     index('agent_session_last_activity_at_idx').on(t.lastActivityAt),
     index('agent_session_updated_at_idx').on(t.updatedAt)

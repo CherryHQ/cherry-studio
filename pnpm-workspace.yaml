@@ -86,6 +86,9 @@ overrides:
   ai: "6.0.185"
 
 patchedDependencies:
+  # Accumulate streaming chat-completions tool-call deltas missing id and synthesize stable IDs (Issue #23741).
+  # Remove only when an upstream version tolerates first deltas without id and all repository regressions pass unpatched.
+  "@ai-sdk/mistral@3.0.30": patches/@ai-sdk__mistral@3.0.30.patch
   # Forward native idle facts so runtime observation can confirm backup quiescence.
   "@anthropic-ai/claude-agent-sdk@0.3.311": patches/@anthropic-ai__claude-agent-sdk@0.3.311.patch
   dingtalk-stream@2.1.7-beta.1: patches/dingtalk-stream@2.1.7-beta.1.patch
