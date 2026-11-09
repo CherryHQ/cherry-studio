@@ -620,6 +620,73 @@ describe('useChatVirtualizerRuntime', () => {
     }
   })
 
+  it.each(['finish', 'interrupt'] as const)(
+    'lets bottom navigation animate through content growth and %s',
+    (ending) => {
+      const callbacks: ResizeObserverCallback[] = []
+      const restoreResizeObserver = installResizeObserverMock(callbacks)
+      try {
+        let runtime: ChatVirtualizerRuntime<string> | undefined
+        render(<RuntimeDomProbe items={['message-a']} onRuntime={(value) => (runtime = value)} />)
+        const scroller = runtime!.scrollerRef.current!
+        let scrollHeight = 1200
+        setElementMetric(scroller, 'scrollHeight', () => scrollHeight)
+        setElementMetric(scroller, 'clientHeight', () => 400)
+        runtime!.vlistHandleRef.current = createHandle(scroller, {
+          scrollToIndex: (_index, options) => {
+            if (!options?.smooth) scroller.scrollTop = scrollHeight - 400
+          },
+          scrollTo: (offset) => {
+            scroller.scrollTop = offset
+          }
+        })
+        scroller.scrollTop = 100
+        act(() => runtime!.takeUserControl('user-scrolled-up'))
+
+        act(() => runtime!.scrollToBottom())
+        expect(scroller.scrollTop).toBe(100)
+        expect(runtime!.isScrollToBottomButtonVisible).toBe(false)
+
+        act(() => {
+          scroller.scrollTop = 450
+          runtime!.scrollerProps.onScroll(450)
+          scrollHeight = 1500
+          callbacks.forEach((callback) => callback([], {} as ResizeObserver))
+        })
+        expect(scroller.scrollTop).toBe(450)
+
+        if (ending === 'interrupt') {
+          act(() => {
+            runtime!.markUserInput('up')
+            scroller.scrollTop = 350
+            runtime!.scrollerProps.onScroll(350)
+          })
+        } else {
+          act(() => {
+            scroller.scrollTop = 800
+            runtime!.scrollerProps.onScroll(800)
+          })
+        }
+        act(() => runtime!.scrollerProps.onScrollEnd())
+        if (ending === 'finish') {
+          expect(scroller.scrollTop).toBe(800)
+          act(() => {
+            scroller.scrollTop = 1100
+            runtime!.scrollerProps.onScroll(1100)
+            runtime!.scrollerProps.onScrollEnd()
+          })
+        }
+        act(() => {
+          scrollHeight = 1700
+          callbacks.forEach((callback) => callback([], {} as ResizeObserver))
+        })
+        expect(scroller.scrollTop).toBe(ending === 'interrupt' ? 350 : 1300)
+      } finally {
+        restoreResizeObserver()
+      }
+    }
+  )
+
   it('hides the scroll-to-bottom button after programmatic scroll to bottom', () => {
     let runtime: ChatVirtualizerRuntime<string> | undefined
     render(<RuntimeProbe items={['message-a']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
