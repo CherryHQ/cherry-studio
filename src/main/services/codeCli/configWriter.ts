@@ -30,22 +30,20 @@ async function resolveTargetPath(target: CliConfigTarget): Promise<AbsoluteFileP
 }
 
 /**
- * OMP also accepts `config.yaml` alongside `config.yml` (tried in order
+ * OMP accepts `config.yaml` alongside `config.yml` (tried in order
  * `["config.yml", "config.yaml"]`; see OMP 18.18.1 `OE` array and its
- * `for (let t of OE)` loader). If only the `.yaml` variant exists, preserve
- * it instead of creating a higher-priority `.yml` that would shadow the
- * user's active configuration. When `.yml` exists (or neither exists), keep
+ * `for (let t of OE)` loader). Its generic `ConfigFile` class derives the same
+ * `.yaml` fallback for every `.yml` path — including `models.yml` — and
+ * resolves `.yml` first, then `.yaml`. If only the `.yaml` variant exists,
+ * preserve it instead of creating a higher-priority `.yml` that would shadow
+ * the user's active configuration. When `.yml` exists (or neither exists), keep
  * the declared `.yml` path.
- *
- * `models` has no such fallback upstream (`XOt.join(n, "models.yml")` is the
- * sole models path in the OMP bundle), so `omp-models` is intentionally
- * excluded: a lone `models.yaml` is ignored by OMP and must not divert writes.
  *
  * The fallback path is derived from the resolved primary path (same base dir,
  * `.yml` → `.yaml`) so `hermes-home` vs `sys.home` resolution stays in one
  * place (`resolveTargetPath`).
  */
-const OMP_YAML_FALLBACK_TARGETS: ReadonlySet<CliConfigTarget> = new Set(['omp-config'])
+const OMP_YAML_FALLBACK_TARGETS: ReadonlySet<CliConfigTarget> = new Set(['omp-config', 'omp-models'])
 
 async function readOrNull(absPath: AbsoluteFilePath): Promise<string | null> {
   try {

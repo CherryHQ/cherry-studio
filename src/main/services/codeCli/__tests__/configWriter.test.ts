@@ -345,18 +345,33 @@ describe('readCliConfigFiles', () => {
       ])
     })
 
-    it('ignores a lone models.yaml: OMP only reads models.yml', async () => {
+    it('reads the models.yaml variant when models.yml is missing', async () => {
       await mkdir(path.dirname(ompModelsYaml()), { recursive: true })
       await writeFile(ompModelsYaml(), 'providers: {}\n')
 
       await expect(readCliConfigFiles(['omp-models'])).resolves.toEqual([
-        { target: 'omp-models', path: ompModelsYml(), content: null }
+        { target: 'omp-models', path: ompModelsYaml(), content: 'providers: {}\n' }
       ])
+    })
+
+    it('prefers models.yml when both variants exist', async () => {
+      await mkdir(path.dirname(ompModelsYml()), { recursive: true })
+      await writeFile(ompModelsYml(), 'providers: {yml: true}\n')
+      await writeFile(ompModelsYaml(), 'providers: {yaml: true}\n')
+
+      await expect(readCliConfigFiles(['omp-models'])).resolves.toEqual([
+        { target: 'omp-models', path: ompModelsYml(), content: 'providers: {yml: true}\n' }
+      ])
+    })
+
+    it('writes to the existing models.yaml instead of creating a shadowing models.yml', async () => {
+      await mkdir(path.dirname(ompModelsYaml()), { recursive: true })
+      await writeFile(ompModelsYaml(), 'providers: {}\n')
 
       await writeCliConfigFiles(CodeCli.OMP, [{ target: 'omp-models', content: 'providers: {a: 1}\n' }])
 
-      expect(await readFile(ompModelsYml(), 'utf-8')).toBe('providers: {a: 1}\n')
-      expect(await readFile(ompModelsYaml(), 'utf-8')).toBe('providers: {}\n')
+      expect(await readFile(ompModelsYaml(), 'utf-8')).toBe('providers: {a: 1}\n')
+      await expect(stat(ompModelsYml())).rejects.toThrow()
     })
 
     it('rejects when the .yml path is a directory even if .yaml exists', async () => {
