@@ -1891,7 +1891,7 @@
   "knowledge.data_source.add_dialog.unsupported_files_skipped": "S-au omis {{count}} fișier(e) neacceptate",
   "knowledge.data_source.add_dialog.url.description": "Introdu URL-ul unei pagini web:",
   "knowledge.data_source.add_dialog.url.help": "Textul paginii va fi preluat, împărțit în fragmente și indexat automat",
-  "knowledge.data_source.add_dialog.url.placeholder": "https://docs.cherry-ai.com/",
+  "knowledge.data_source.add_dialog.url.placeholder": "https://cherryai.com/docs",
   "knowledge.data_source.back_to_parent": "Înapoi",
   "knowledge.data_source.bulk.delete": "Șterge",
   "knowledge.data_source.bulk.delete_confirm_description": "Ștergi cele {{count}} surse de date selectate? Această acțiune nu poate fi anulată.",
