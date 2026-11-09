@@ -17,7 +17,7 @@ import { OPENAI_CODEX_PROVIDER_ID } from '@shared/data/presets/codex'
 import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
 import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
 import type { EndpointType, Model } from '@shared/data/types/model'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODALITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import {
   formatApiHost,
@@ -57,7 +57,12 @@ import type { ServingAuthMethod, ServingCredentialReceipt } from './credential'
 import { normalizeComfyuiBaseUrl } from './custom/comfyui/comfyuiHttp'
 import { appendDashScopeWebExtractor } from './custom/dashscope/dashscopeWebExtractor'
 import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiImageRouting'
-import { resolveAiSdkProviderId, type ResolvedEndpoint, resolveEffectiveEndpoint } from './endpoint'
+import {
+  resolveAiSdkProviderId,
+  type ResolvedEndpoint,
+  type ResolveEndpointIntent,
+  resolveEffectiveEndpoint
+} from './endpoint'
 import { buildGrokCliRequestHeaders, rewriteGrokCliResponsesBody } from './grokCli'
 import { transformLmStudioRequestBody } from './lmstudio'
 import { isVertexMaasModelId, normalizeVertexCredentials } from './vertex'
@@ -86,11 +91,14 @@ type ApiKeyBuilderContext = BuilderContext & {
 interface ProviderToAiSdkConfigOptions {
   apiKeyOverride?: string
   resolvedEndpoint?: ResolvedEndpoint
+  intent?: ResolveEndpointIntent
 }
 
 export interface ResolvedProviderAiSdkConfig {
   config: ProviderConfig
   credentialReceipt: ServingCredentialReceipt
+  /** The endpoint the config was built for, so callers never resolve it a second time. */
+  endpointType: EndpointType | undefined
 }
 
 /** Applies endpoint-/provider-specific formatting (API version, Ollama/Gemini paths). */
@@ -201,7 +209,7 @@ function withoutCredential(build: ProviderConfigBuilder): ConfigBuilderEntry['bu
   })
 }
 
-/** Endpoint priority: `model.endpointTypes[0]` > `provider.defaultChatEndpoint` > fallback. */
+/** Shorthand for {@link resolveProviderAiSdkConfig} when only the config is needed. */
 export async function providerToAiSdkConfig(
   provider: Provider,
   model: Model,
@@ -216,7 +224,9 @@ export async function resolveProviderAiSdkConfig(
   model: Model,
   options?: ProviderToAiSdkConfigOptions
 ): Promise<ResolvedProviderAiSdkConfig> {
-  const { endpointType, baseUrl } = options?.resolvedEndpoint ?? resolveEffectiveEndpoint(provider, model)
+  const intent = options?.intent ?? 'chat'
+  const { endpointType, baseUrl } =
+    options?.resolvedEndpoint ?? resolveEffectiveEndpoint(provider, model, undefined, intent)
 
   const aiSdkProviderId = appProviderIds[resolveAiSdkProviderId(provider, endpointType)]
 
@@ -401,7 +411,26 @@ export async function resolveProviderAiSdkConfig(
     },
     { match: (_, id) => id === 'newapi', build: withSelectedApiKey(buildNewApiConfig) },
     { match: (_, id) => id === 'aihubmix', build: withSelectedApiKey(buildAiHubMixConfig) },
-    { match: (_, id) => id === 'dmxapi', build: withSelectedApiKey(buildDmxapiConfig) }
+    { match: (_, id) => id === 'dmxapi', build: withSelectedApiKey(buildDmxapiConfig) },
+    // OpenRouter emits images from its chat endpoint only when the request asks for both
+    // modalities; `modalities` is not covered by the WireProfile engine.
+    {
+      match: (_, id) => id === 'openrouter',
+      build: withSelectedApiKey((ctx) => {
+        const config = buildGenericProviderConfig(ctx)
+        if (
+          ctx.endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS &&
+          isGenerateImageModel(ctx.model) &&
+          ctx.model.outputModalities?.includes(MODALITY.IMAGE)
+        ) {
+          const settings = config.providerSettings as typeof config.providerSettings & {
+            extraBody?: Record<string, unknown>
+          }
+          settings.extraBody = { ...settings.extraBody, modalities: [MODALITY.TEXT, MODALITY.IMAGE] }
+        }
+        return config
+      })
+    }
   ]
 
   const builder = builders.find((b) => b.match(provider, aiSdkProviderId))
@@ -423,7 +452,8 @@ export async function resolveProviderAiSdkConfig(
 
   return {
     config,
-    credentialReceipt: resolved.credentialReceipt
+    credentialReceipt: resolved.credentialReceipt,
+    endpointType
   }
 }
 
