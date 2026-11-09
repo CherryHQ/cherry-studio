@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-09-pi-durable-desktop-fork.md
+2026-11-09-pi-durable-desktop-fork.md: 0733e85b0e42da9686557c185807f06961b8e4a9
+2026-11-09-pi-durable-desktop-fork.zh.md: c4d1e7d1c07d4d4ae52484734d74fc2a1b20e9d7
