@@ -20,8 +20,10 @@ import {
   Phase,
   ServicePhase
 } from '@main/core/lifecycle'
+import { areDiagnosticsSuppressed, withoutDiagnostics } from '@main/core/logger/diagnosticScope'
 import type { SourceSnapshot } from '@main/data/services/AiUsageRecordService'
 import { messageService } from '@main/data/services/MessageService'
+import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { isAbortError } from '@main/utils/error'
 import { shouldDeferToolOutput } from '@main/utils/messageOutputProjection'
@@ -371,6 +373,7 @@ export class AiStreamManager extends BaseService {
   public readonly onConversationCompleted: Event<ConversationCompletedEvent> = this._onConversationCompleted.event
   private readonly _onConversationUnsuccessful = new Emitter<ConversationUnsuccessfulEvent>()
   public readonly onConversationUnsuccessful = this._onConversationUnsuccessful.event
+  private readonly privateExecutions = new WeakSet<StreamExecution>()
   private readonly activeStreams = new Map<string, ActiveStream>()
   private readonly completedBatchTasks = new Map<string, Set<string>>()
   private readonly failedCompletionAttempts = new Map<string, Set<number>>()
@@ -515,6 +518,14 @@ export class AiStreamManager extends BaseService {
    * both see "no live stream" and orphan a row.
    */
   async dispatch(subscriber: StreamListener, req: MainDispatchRequest): Promise<AiStreamOpenResponse> {
+    const dispatch = () => this.dispatchWithDiagnostics(subscriber, req)
+    return temporaryChatService.hasTopic(req.topicId) ? withoutDiagnostics(dispatch) : dispatch()
+  }
+
+  private async dispatchWithDiagnostics(
+    subscriber: StreamListener,
+    req: MainDispatchRequest
+  ): Promise<AiStreamOpenResponse> {
     // Gate on the boot reconcile so a placeholder written here is never clobbered by it.
     // No-op after boot (resolved promise); the only caller it can actually block is a
     // stream opened in the boot window before reconcile finished.
@@ -1360,6 +1371,16 @@ export class AiStreamManager extends BaseService {
   /** Abort all executions in a topic. */
   abort(topicId: string, reason: string): void {
     const stream = this.activeStreams.get(topicId)
+    const abort = () => this.abortWithDiagnostics(topicId, reason)
+    if (stream && [...stream.executions.values()].some((exec) => this.privateExecutions.has(exec))) {
+      withoutDiagnostics(abort)
+    } else {
+      abort()
+    }
+  }
+
+  private abortWithDiagnostics(topicId: string, reason: string): void {
+    const stream = this.activeStreams.get(topicId)
     if (!stream || !isLiveStatus(stream.status)) {
       if (isAgentSessionTopic(topicId)) {
         application.get('AgentSessionRuntimeService').abortPendingTurn(extractAgentSessionId(topicId), reason)
@@ -2142,12 +2163,19 @@ export class AiStreamManager extends BaseService {
       : () => this.runExecutionLoop(topicId, modelId, request, exec)
 
     const activity = application.get('RuntimeActivityService').begin(`ai:stream:${topicId}:${modelId}`)
-    exec.loopPromise = launchLoop()
-      .catch((err) => {
-        // Defensive funnel for sync throws (e.g. `streamText` rejects before returning a stream).
-        return this.onExecutionError(topicId, modelId, serializeError(err), exec)
-      })
-      .finally(() => activity.dispose())
+    const run = () =>
+      launchLoop()
+        .catch((err) => {
+          // Keep terminal callbacks inside the same diagnostic boundary as stream consumption.
+          return this.onExecutionError(topicId, modelId, serializeError(err), exec)
+        })
+        .finally(() => activity.dispose())
+    if (temporaryChatService.hasTopic(topicId) || areDiagnosticsSuppressed()) {
+      this.privateExecutions.add(exec)
+      exec.loopPromise = withoutDiagnostics(run)
+    } else {
+      exec.loopPromise = run()
+    }
 
     return exec
   }

@@ -1,9 +1,6 @@
 import type { LanguageModelMiddleware } from 'ai'
 
 import { definePlugin } from '@cherrystudio/ai-core'
-import { loggerService } from '@logger'
-
-const logger = loggerService.withContext('skipGeminiThoughtSignaturePlugin')
 
 /**
  * skip Gemini Thought Signature Middleware
@@ -23,7 +20,6 @@ function createSkipGeminiThoughtSignatureMiddleware(): LanguageModelMiddleware {
 
     transformParams: async ({ params }) => {
       const transformedParams = { ...params }
-      logger.debug('transformedParams', transformedParams)
       // Process messages in prompt
       if (transformedParams.prompt && Array.isArray(transformedParams.prompt)) {
         transformedParams.prompt = transformedParams.prompt.map((message) => {

@@ -9,6 +9,7 @@ import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node'
 
 import type { TraceConfig } from '../traceConfig'
 import { defaultConfig } from '../traceConfig'
+import { diagnosticSampler } from './diagnosticSampler'
 
 export class NodeTracer {
   private static provider: NodeTracerProvider
@@ -24,6 +25,7 @@ export class NodeTracer {
     }
     this.spanProcessor = spanProcessor || new BatchSpanProcessor(this.getExporter())
     this.provider = new NodeTracerProvider({
+      sampler: diagnosticSampler,
       spanProcessors: [this.spanProcessor]
     })
     this.provider.register({

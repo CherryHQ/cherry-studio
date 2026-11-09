@@ -3,6 +3,7 @@ import { context, type Span, SpanStatusCode, trace, type Tracer } from '@opentel
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { areDiagnosticsSuppressed } from '@main/core/logger/diagnosticScope'
 import { KB } from '@shared/utils/constants'
 import { redactRecord, redactUrlParams } from '@shared/utils/redaction'
 
@@ -30,6 +31,7 @@ export interface HttpTraceOptions {
 
 /** Enable developer HTTP tracing independently of the request modality. */
 export function applyHttpTrace(settings: { fetch?: FetchFunction }, opts: HttpTraceOptions): void {
+  if (areDiagnosticsSuppressed()) return
   if (!application.get('PreferenceService').get('app.developer_mode.enabled')) return
   settings.fetch = createHttpTraceFetch(settings.fetch ?? globalThis.fetch, opts)
 }
@@ -48,6 +50,7 @@ export function createHttpTraceFetch(innerFetch: FetchFunction, opts: HttpTraceO
   const maxBodyBytes = opts.maxBodyBytes ?? MAX_BODY_BYTES
 
   return async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (areDiagnosticsSuppressed()) return innerFetch(input, init)
     const span = tracer.startSpan('http.request', {}, context.active())
     // Hand the innermost fetch (customFetch) a slot to record the final on-wire
     // body. Provider transforms between this span and the wire (DashScope
