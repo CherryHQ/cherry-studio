@@ -3345,7 +3345,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const connection = this.currentConnection(entry)
     const connectionLoop = entry.connectionLoop
     await this.closeRuntimeConnection(connection, entry.sessionId, true, interrupt)
-    if (connectionAttempt) await connectionAttempt
+    if (connectionAttempt) await connectionAttempt.catch(() => undefined)
     if (connectionLoop) await connectionLoop
     await streamDrain
     for (const turn of getAgentSessionRuntimeTurns(entry.runtimeState)) {
