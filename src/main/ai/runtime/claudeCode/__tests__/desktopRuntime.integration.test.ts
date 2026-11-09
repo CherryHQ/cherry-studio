@@ -39,6 +39,7 @@ import type { AgentRuntimeConnection, AgentRuntimeEvent, AgentRuntimeConnectInpu
 import type * as AgentSessionWarmup from '../agentSessionWarmup'
 import { ClaudeCodeRuntimeDriver } from '../ClaudeCodeRuntimeDriver'
 import type { ClaudeCodeProcessDiagnostics } from '../processExitDiagnostics'
+import { createClaudeCodeQueryOptions } from '../queryOptions'
 import type * as SettingsBuilder from '../settingsBuilder'
 
 vi.mock(
@@ -1097,9 +1098,13 @@ it.each([
 ] as const)(
   'applies a $from → $to switch to the running turn',
   async ({ from, to, runs }) => {
-    const test = await desktop({ permissionMode: from, allowDangerouslySkipPermissions: true, tools: ['Bash'] })
-    const agentId = randomUUID()
     const modelId = 'native-test::claude-sonnet-4-6'
+    const { permissionMode, allowDangerouslySkipPermissions } = createClaudeCodeQueryOptions({
+      modelId,
+      settings: { permissionMode: from }
+    })
+    const test = await desktop({ permissionMode, allowDangerouslySkipPermissions, tools: ['Bash'] })
+    const agentId = randomUUID()
     dbh.db
       .insert(agentTable)
       .values({ id: agentId, type: 'claude-code', name: 'Agent', instructions: '', orderKey: 'a0' })

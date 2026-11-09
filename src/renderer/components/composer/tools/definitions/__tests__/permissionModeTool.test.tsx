@@ -14,7 +14,6 @@ const mocks = vi.hoisted(() => ({
   registerLaunchers: vi.fn<(launchers: ComposerToolLauncher[]) => () => void>(() => () => undefined),
   updateAgent: vi.fn(),
   permissionMode: 'default',
-  streamStatus: undefined as string | undefined,
   agent: { id: 'agent-1', name: 'Support Bot' } as { id: string; name: string } | undefined
 }))
 
@@ -23,12 +22,6 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
     agent: mocks.agent ? { ...mocks.agent, configuration: { permission_mode: mocks.permissionMode } } : undefined
   }),
   useUpdateAgent: () => ({ updateAgent: mocks.updateAgent })
-}))
-
-vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: (topicId: string) => ({
-    status: topicId === 'agent-session:session-1' ? mocks.streamStatus : undefined
-  })
 }))
 
 import permissionModeTool from '../permissionModeTool'
@@ -40,7 +33,7 @@ const renderLauncher = () => {
   const context = {
     t,
     launcher: { registerLaunchers: mocks.registerLaunchers },
-    session: { agentId: 'agent-1', sessionId: 'session-1' }
+    session: { agentId: 'agent-1' }
   }
 
   render(<Runtime context={context as any} />)
@@ -56,7 +49,6 @@ describe('permissionModeTool submenu', () => {
     mocks.registerLaunchers.mockClear()
     mocks.updateAgent.mockClear()
     mocks.permissionMode = 'default'
-    mocks.streamStatus = undefined
     mocks.agent = { id: 'agent-1', name: 'Support Bot' }
   })
 
@@ -86,7 +78,7 @@ describe('permissionModeTool submenu', () => {
     const context = {
       t,
       launcher: { registerLaunchers: mocks.registerLaunchers },
-      session: { agentId: 'agent-1', sessionId: 'session-1' }
+      session: { agentId: 'agent-1' }
     }
     const { rerender } = render(<Runtime context={context as any} />)
 
@@ -197,11 +189,7 @@ describe('permissionModeTool submenu', () => {
   it('drops a pending Full Access confirmation when a newer restrictive mode arrives', async () => {
     mocks.permissionMode = 'auto'
     const Runtime = permissionModeTool.composer!.runtime!
-    const context = {
-      t,
-      launcher: { registerLaunchers: mocks.registerLaunchers },
-      session: { agentId: 'agent-1', sessionId: 'session-1' }
-    }
+    const context = { t, launcher: { registerLaunchers: mocks.registerLaunchers }, session: { agentId: 'agent-1' } }
     const { rerender } = render(<Runtime context={context as any} />)
     const submenu = mocks.registerLaunchers.mock.calls.at(-1)?.[0]?.[0]?.submenu ?? []
     submenu.find((item) => item.id === 'permission-mode-bypassPermissions')?.action?.({} as any)
@@ -226,58 +214,5 @@ describe('permissionModeTool submenu', () => {
 
     expect(mocks.updateAgent).not.toHaveBeenCalled()
     expect(screen.getByRole('dialog')).toBeInTheDocument()
-  })
-
-  describe('while the session runs a turn', () => {
-    it.each(['streaming', 'awaiting-approval'])(
-      'holds a mode switch behind an immediate-effect confirmation (%s)',
-      async (status) => {
-        const user = userEvent.setup()
-        mocks.streamStatus = status
-        renderRuntime()
-          .find((item) => item.id === 'permission-mode-auto')
-          ?.action?.({} as any)
-
-        expect(mocks.updateAgent).not.toHaveBeenCalled()
-        expect(await screen.findByRole('dialog')).toBeInTheDocument()
-        expect(screen.getByText('Switch permission mode now?')).toBeInTheDocument()
-        expect(screen.getByText('Support Bot')).toBeInTheDocument()
-
-        await user.click(screen.getByRole('button', { name: 'Switch Now' }))
-
-        expect(mocks.updateAgent).toHaveBeenCalledTimes(1)
-        expect(mocks.updateAgent).toHaveBeenCalledWith(
-          { id: 'agent-1', configuration: { permission_mode: 'auto' } },
-          { showSuccessToast: false }
-        )
-      }
-    )
-
-    it('keeps the current mode when the confirmation is cancelled', async () => {
-      const user = userEvent.setup()
-      mocks.streamStatus = 'streaming'
-      renderLauncher()
-      mocks.registerLaunchers.mock.calls
-        .at(-1)?.[0]
-        .find((item) => item.id === 'plan-mode')
-        ?.action?.({} as any)
-      expect(await screen.findByRole('dialog')).toBeInTheDocument()
-
-      await user.click(screen.getByRole('button', { name: 'Cancel' }))
-
-      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-      expect(mocks.updateAgent).not.toHaveBeenCalled()
-    })
-
-    it('shows only the Full Access confirmation for Full Access', async () => {
-      mocks.streamStatus = 'streaming'
-      renderRuntime()
-        .find((item) => item.id === 'permission-mode-bypassPermissions')
-        ?.action?.({} as any)
-
-      expect(await screen.findAllByRole('dialog')).toHaveLength(1)
-      expect(screen.getByText('Enable Full Access?')).toBeInTheDocument()
-      expect(screen.queryByText('Switch permission mode now?')).not.toBeInTheDocument()
-    })
   })
 })

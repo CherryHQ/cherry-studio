@@ -16,25 +16,24 @@ The claim did not hold for the pinned SDK. A scripted local Messages API drove t
 
 Connection `reconcile` applies a permission-mode change immediately on all three runtimes, including during an active turn, so it governs the turn's next tool call:
 
-- Claude Code awaits `setPermissionMode` and only then refreshes the local tool-policy snapshot, so the local approval gate never runs ahead of the subprocess.
+- Claude Code enables the SDK launch capability for switching into Full Access. It starts in the configured mode and publishes a new local approval mode only after the SDK confirms `setPermissionMode`. Catalog refreshes update tool availability independently.
 - Pi and Pi Durable replace the mode their approval gate reads on every tool call and call `permissionModeChanged()`, which wakes the behavior package's idle driver; the driver still acts only when the conversation is idle.
 - Disabled-tool handling is unchanged: an active turn only adds newly disabled tools.
 - An approval already waiting for the user keeps waiting; it is not re-decided under the new mode.
 - A failed live apply returns `failed`, and the host fails closed by pausing the turn and closing the connection.
 
-The composer's permission control confirms a switch while the current session's turn is active (`pending`, `streaming` or `awaiting-approval`). The dialog states that the new mode applies right away to the task's next tool call and names the Agent. An idle session switches directly. Full Access keeps its existing scope confirmation in every state and never stacks the running-turn dialog on top of it.
+The composer applies ordinary switches directly from the menu and from Shift+Tab. Full Access keeps its scope confirmation in every state.
 
 ## Alternatives considered
 
 - Keep the deferral: the visible mode and the enforced mode disagree for the rest of the turn, in both the loosening and tightening directions.
-- Confirm every switch: adds a step to idle switches and to the Shift+Tab Plan toggle, where no running work is affected.
-- Confirm only loosening switches: tightening also changes running work (Plan stops edits mid-task); the requester chose to confirm every switch made during a running turn.
+- Confirm ordinary switches during active turns: interrupts direct mode changes, including the Shift+Tab Plan toggle. The requester chose to keep confirmation for Full Access only.
 - Re-decide pending approvals under the new mode: guard-rule `ask` decisions must survive Full Access, but pending approvals do not record their source. Deferred until that provenance exists.
 - Apply immediately on Pi but keep Claude Code deferred: runtime-dependent semantics for one Agent setting.
 
 ## Consequences
 
-A mode change reaches every live session of the Agent, while the confirmation reflects only the composer's own session. A session of the same Agent running in another window switches without its own prompt.
+A mode change reaches every live session of the Agent, including sessions running in other windows.
 
 A rejected live apply now pauses the running turn instead of surfacing at the next message. If a future SDK makes `set_permission_mode` interrupt a turn, the Claude Code integration regression stops completing its turn and fails.
 
@@ -43,6 +42,6 @@ A rejected live apply now pauses the running turn instead of surfacing at the ne
 - Regression — `pnpm test:main src/main/ai/runtime/claudeCode/__tests__/desktopRuntime.integration.test.ts`: with the real SDK subprocess, a mid-turn bypass → default switch refuses the next Bash call and default → bypass runs it; both cases fail on the deferring driver.
 - Regression — `pnpm test:main src/main/ai/runtime/pi/PiRuntimeConnection.test.ts`: a mid-turn switch in either direction changes whether the turn's next write asks for approval; fails on the deferring connection.
 - Regression — `pnpm test:main src/main/ai/runtime/piDurable/PiDurableRuntimeConnection.test.ts`: the same two directions for Pi Durable; fails on the deferring desktop host.
-- Regression — `pnpm test:renderer src/renderer/components/composer/tools/definitions/__tests__/permissionModeTool.test.tsx`: a running or approval-waiting session confirms before persisting, cancel keeps the mode, and Full Access opens one dialog.
+- Regression — `pnpm test:renderer src/renderer/components/composer/tools/definitions/__tests__/permissionModeTool.test.tsx`: ordinary mode selections apply directly, while Full Access requires confirmation and cancellation keeps the current mode.
 
-The five affected main-process test files (including `ClaudeCodeRuntimeDriver.test.ts` and `AgentSessionRuntimeService.test.ts`) passed 309 tests. `pnpm typecheck:node`, `pnpm typecheck:web`, `pnpm i18n:check`, `pnpm docs:check` and scoped Oxfmt, Oxlint and ESLint passed. The confirmation was not exercised in a running Electron app.
+The five affected main-process test files (including `ClaudeCodeRuntimeDriver.test.ts` and `AgentSessionRuntimeService.test.ts`) passed 309 tests. `pnpm typecheck:node`, `pnpm typecheck:web`, `pnpm i18n:check`, `pnpm docs:check` and scoped Oxfmt, Oxlint and ESLint passed.

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
-import { ConfirmDialog } from '@cherrystudio/ui'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { PERMISSION_MODE_TOOLBAR_MANIFEST } from '@renderer/components/composer/tools/toolbarManifests'
 import { defineTool, type ToolRenderContext } from '@renderer/components/composer/tools/types'
@@ -12,11 +11,8 @@ import {
 } from '@renderer/components/PermissionModeOption'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
-import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import type { PermissionMode } from '@renderer/types/agent'
 import { getPermissionModeCards } from '@renderer/utils/agent'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { classifyTurn } from '@shared/ai/transport'
 
 type PermissionModeContext = ToolRenderContext<readonly [], readonly []>
 
@@ -25,16 +21,13 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
   const agentId = sessionContext?.agentId
   const { agent } = useAgent(agentId ?? '')
   const { updateAgent } = useUpdateAgent()
-  const { status: sessionStatus } = useTopicStreamStatus(buildAgentSessionTopicId(sessionContext?.sessionId ?? ''))
-  const turnActive = classifyTurn(sessionStatus).isTurnActive
 
   // Permission mode lives on the agent — sessions are pure instances. Approval is governed
   // solely by the permission mode (the per-tool allow-list was removed).
   const currentMode = agent?.configuration?.permission_mode ?? 'default'
   const permissionModeCards = useMemo(() => getPermissionModeCards(agent?.type), [agent?.type])
   const planCard = permissionModeCards.find((card) => card.mode === 'plan')
-  // A mode held behind a confirmation: Full Access always, any other mode only while a turn runs.
-  const [pendingMode, setPendingMode] = useState<PermissionMode | null>(null)
+  const [fullAccessPending, setFullAccessPending] = useState(false)
 
   // Returns false when there is no agent yet so the confirm dialog stays open.
   const applyMode = useCallback(
@@ -49,19 +42,19 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
   const handleSelectMode = useCallback(
     (nextMode: PermissionMode) => {
       if (nextMode === currentMode) return
-      if (nextMode === 'bypassPermissions' || turnActive) {
-        setPendingMode(nextMode)
+      if (nextMode === 'bypassPermissions') {
+        setFullAccessPending(true)
         return
       }
-      setPendingMode(null)
+      setFullAccessPending(false)
       applyMode(nextMode)
     },
-    [applyMode, currentMode, turnActive]
+    [applyMode, currentMode]
   )
 
   // Any newer mode (local or incoming) wins; confirming must never apply a stale dialog over it.
   useEffect(() => {
-    setPendingMode(null)
+    setFullAccessPending(false)
   }, [currentMode])
 
   const modeCard = permissionModeCards.find((card) => card.mode === currentMode)
@@ -129,14 +122,11 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
     ])
   }, [currentMode, handleSelectMode, launcher, launcherLabel, launcherTooltip, modeSubmenu, planCard, t, tooltipTitle])
 
-  const pendingCard = permissionModeCards.find((card) => card.mode === pendingMode)
-
   return {
     currentMode,
     tooltipTitle,
-    pendingMode,
-    pendingModeTitle: pendingCard ? t(pendingCard.titleKey, pendingCard.titleFallback) : '',
-    setPendingMode,
+    fullAccessPending,
+    setFullAccessPending,
     applyMode,
     agentName: agent?.name.trim() || undefined
   }
@@ -144,45 +134,16 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
 
 const PermissionModeComposerRuntime = ({ context }: { context: PermissionModeContext }) => {
   const { t } = context
-  const { pendingMode, pendingModeTitle, setPendingMode, applyMode, agentName } =
-    usePermissionModeToolController(context)
-  const closeOnDismiss = (open: boolean) => {
-    if (!open) setPendingMode(null)
-  }
+  const { fullAccessPending, setFullAccessPending, applyMode, agentName } = usePermissionModeToolController(context)
 
   return (
-    <>
-      <FullAccessConfirmDialog
-        open={pendingMode === 'bypassPermissions'}
-        onOpenChange={closeOnDismiss}
-        onConfirm={() => applyMode('bypassPermissions')}
-        scopeName={agentName}
-        t={t}
-      />
-      <ConfirmDialog
-        open={pendingMode !== null && pendingMode !== 'bypassPermissions'}
-        onOpenChange={closeOnDismiss}
-        title={t('agent.settings.tooling.permissionMode.runningSwitchConfirm.title', 'Switch permission mode now?')}
-        description={t(
-          'agent.settings.tooling.permissionMode.runningSwitchConfirm.description',
-          'This session is running a task. The new mode applies right away: its next tool call will follow {{mode}}.',
-          { mode: pendingModeTitle }
-        )}
-        content={
-          agentName ? (
-            <p className="text-sm">
-              <span className="text-muted-foreground">
-                {t('agent.settings.tooling.permissionMode.fullAccessConfirm.agentLabel', 'Agent')}:{' '}
-              </span>
-              <span className="font-medium text-foreground">{agentName}</span>
-            </p>
-          ) : null
-        }
-        confirmText={t('agent.settings.tooling.permissionMode.runningSwitchConfirm.confirm', 'Switch Now')}
-        cancelText={t('common.cancel', 'Cancel')}
-        onConfirm={() => (pendingMode ? applyMode(pendingMode) : undefined)}
-      />
-    </>
+    <FullAccessConfirmDialog
+      open={fullAccessPending}
+      onOpenChange={setFullAccessPending}
+      onConfirm={() => applyMode('bypassPermissions')}
+      scopeName={agentName}
+      t={t}
+    />
   )
 }
 
