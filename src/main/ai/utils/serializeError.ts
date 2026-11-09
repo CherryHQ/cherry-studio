@@ -1,4 +1,4 @@
-import { APICallError, RetryError } from 'ai'
+import { APICallError, JSONParseError, RetryError, TypeValidationError } from 'ai'
 
 import {
   enrichOllamaContextAllocationSerializedError,
@@ -89,6 +89,9 @@ export function serializeError(error: unknown, context?: SerializeErrorContext):
     ].join('\n')
     enrichOllamaAllocationError(serialized, context, allocationHint)
     return serialized
+  }
+  if (JSONParseError.isInstance(error) || TypeValidationError.isInstance(error)) {
+    return serializeNestedProviderError(error) as SerializedError
   }
   if (error instanceof Error) {
     const e = error as unknown as Record<string, unknown>

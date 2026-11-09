@@ -1,4 +1,3 @@
-import { Link } from '@tanstack/react-router'
 import { AlertTriangle, ChevronRight, X } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
@@ -10,6 +9,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { getHttpMessageLabelKey, getProviderLabelKey } from '@renderer/i18n/label'
 import { ipcApi } from '@renderer/ipc'
 import type { SerializedError } from '@renderer/types/error'
+import { getCherryCloudErrorPresentation } from '@renderer/utils/cherryCloudErrorPresentation'
 import { formatErrorMessageWithPrefix, providerErrorText } from '@renderer/utils/error'
 import {
   classifyError,
@@ -55,6 +55,7 @@ const ErrorBlock: React.FC<Props> = ({ partId, error, message }) => {
 
 const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
   const { t, i18n } = useTranslation()
+  const { navigateToRoute } = useMessageListActions()
 
   const claudeCodeExit = getClaudeCodeExitInfo(error)
   if (claudeCodeExit) {
@@ -86,7 +87,18 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
           i18nKey={i18nKey}
           values={{ provider: t(getProviderLabelKey(providerId)) }}
           components={{
-            provider: <Link style={{ color: 'var(--link)' }} to="/settings/provider" search={{ id: providerId }} />
+            provider: navigateToRoute ? (
+              <button
+                type="button"
+                className="cursor-pointer text-link hover:underline focus-visible:underline focus-visible:outline-none"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  void navigateToRoute({ path: '/settings/provider', query: { id: providerId } })
+                }}
+              />
+            ) : (
+              <span />
+            )
           }}
         />
       )
@@ -158,12 +170,16 @@ const MessageErrorInfo: React.FC<{
   const providerId = getMessageListItemModel(message)?.provider ?? errorProviderId
   const classification = useMemo(() => classifyError(error, providerId), [error, providerId])
   const localModelFailure = useMemo(() => getLocalModelResolutionFailure(error), [error])
+  const cloudPresentation = getCherryCloudErrorPresentation(error, providerId, classification.category)
+  const cherryCloudQuotaRejection = cloudPresentation.quota
+  const cherryCloudQuotaText = cherryCloudQuotaRejection ? cloudPresentation.text : ''
   // An app-owned i18nKey is the throwing code's own display text — prefer it over a
   // pattern-matched category heading, which can name the wrong subsystem entirely (an
   // OCR-fallback failure must not present as a chat-provider auth error). Keys that
   // interpolate <provider> still go through the classification branch: plain `t()`
   // would render the raw tags, and the provider branch needs the <Trans> link form.
   const localizedErrorMessage = useMemo(() => {
+    if (cherryCloudQuotaRejection) return t('models.detail.quota_exhausted')
     if (errorI18nKey === 'ollama_context_memory' && i18n.exists('error.ollama_context_memory')) {
       const bag = error as Record<string, unknown> | undefined
       const trained = typeof bag?.ollamaTrainedNumCtx === 'number' ? bag.ollamaTrainedNumCtx : '—'
@@ -184,6 +200,7 @@ const MessageErrorInfo: React.FC<{
     classification.i18nKey,
     error,
     errorI18nKey,
+    cherryCloudQuotaRejection,
     hasAppOwnedI18nKey,
     i18n,
     localModelFailure,
@@ -267,7 +284,7 @@ const MessageErrorInfo: React.FC<{
 
   const canOpenDetail = !!openErrorDetail
   const canRemoveErrorPart = !!removeMessageErrorPart
-  const canNavigate = !!classification.navTarget && !!navigateErrorTarget
+  const canNavigate = !!classification.navTarget && !!navigateErrorTarget && !cherryCloudQuotaRejection
   const modelForRetry = getMessageListItemModel(message)
   const ollamaRetryCurrentCtx = readOllamaRetryNumCtx(error)
   const ollamaRetryReducedCtx =
@@ -361,7 +378,7 @@ const MessageErrorInfo: React.FC<{
       <div
         className="ml-5.75 line-clamp-3 text-xs leading-normal [overflow-wrap:anywhere] [&_a]:text-link"
         style={{ color: ERROR_DESCRIPTION_COLOR }}>
-        <ErrorMessage error={error} />
+        {cherryCloudQuotaText || <ErrorMessage error={error} />}
       </div>
 
       {/* Footer */}

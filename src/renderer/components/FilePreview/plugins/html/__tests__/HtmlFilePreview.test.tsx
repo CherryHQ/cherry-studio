@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -75,7 +76,7 @@ vi.mock('@cherrystudio/ui', () => ({
   ),
   Button: (props: ComponentPropsWithoutRef<'button'>) => <button type="button" {...props} />,
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
-  Scrollbar: ({ children, ...props }: ComponentPropsWithoutRef<'div'>) => <div {...props}>{children}</div>
+  ScrollArea: MockCherrystudioUI.ScrollArea
 }))
 
 vi.mock('react-i18next', () => ({

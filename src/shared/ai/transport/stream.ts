@@ -42,6 +42,10 @@ export interface StreamChunkPayload {
   executionId?: UniqueModelId
   /** Unique runtime attempt. Distinguishes repeated runs of the same model against the same row. */
   attemptId?: number
+  /** Last source chunk covered by this payload, monotonic within a managed execution attempt. */
+  sequence?: number
+  /** First source chunk in a coalesced live or replay payload, including a partially retained split delta. */
+  firstSequence?: number
   /** Assistant row this execution writes to. Disambiguates same-model chained turns. */
   anchorMessageId?: string
   chunk: UIMessageChunk
@@ -245,9 +249,7 @@ export interface AiToolApprovalRespondRequest extends ApprovalDecision {
   anchorId?: string
 }
 
-export interface AiToolApprovalRespondResponse {
-  ok: boolean
-}
+export type AiToolApprovalRespondResponse = { ok: true } | { ok: false; reason: 'undelivered' | 'rejected' }
 
 /** Subscribe to a topic's stream state. */
 export interface AiStreamAttachRequest {
@@ -297,7 +299,12 @@ export interface AiStreamAttachTerminal {
 }
 export type AiStreamAttachResponse =
   | { status: 'not-found' }
-  | { status: 'attached'; bufferedChunks: StreamChunkPayload[] }
+  | {
+      status: 'attached'
+      bufferedChunks: StreamChunkPayload[]
+      replayThrough: Record<number, number>
+      replayFrom?: Record<number, number>
+    }
   | ({ status: 'done' } & AiStreamAttachTerminal)
   | ({ status: 'paused' } & AiStreamAttachTerminal)
   | { status: 'error'; error?: SerializedError }

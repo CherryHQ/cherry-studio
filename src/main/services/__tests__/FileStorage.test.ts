@@ -154,6 +154,14 @@ describe('FileStorage', () => {
       expect(shell.trashItem).toHaveBeenCalledWith('C:\\Users\\test\\Notes\\note.md')
     })
 
+    it('permanently deletes the file when the trash API fails', async () => {
+      vi.mocked(shell.trashItem).mockRejectedValue(new Error('Failed to move item to trash'))
+
+      await fileStorage.deleteExternalFile(event, tmpFile)
+
+      expect(fs.existsSync(tmpFile)).toBe(false)
+    })
+
     it('does not invoke the trash API for an empty path', async () => {
       await fileStorage.deleteExternalFile(event, '')
 

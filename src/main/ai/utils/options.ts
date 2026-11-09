@@ -14,7 +14,6 @@ import { ENDPOINT_TYPE, type EndpointType, type Model, type ServiceTierSelection
 import type { Provider } from '@shared/data/types/provider'
 import { type AiSdkParam, isAiSdkParam } from '@shared/types/aiSdk'
 import { isReasoningModel } from '@shared/utils/model'
-import { isSupportFastMode } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import type { AppProviderId } from '../types'
@@ -26,28 +25,6 @@ import { encodeReasoningInvocation, type ResolvedReasoningInvocation } from './r
 import { getWebSearchParams } from './websearch'
 
 const logger = loggerService.withContext('aiCore.utils.options')
-
-export function applyFastModeToProviderOptions(
-  provider: Pick<Provider, 'fastMode'>,
-  model: Pick<Model, 'supportsFastMode'>,
-  providerOptions: ProviderOptions,
-  fastMode: boolean
-): ProviderOptions {
-  if (!fastMode || !isSupportFastMode(provider, model)) {
-    return providerOptions
-  }
-  // 'claude-code' carries Fast inside the SDK, not through providerOptions.
-  if (provider.fastMode.transport !== 'openai-priority') return providerOptions
-  const serviceTier = provider.fastMode.serviceTier ?? 'priority'
-
-  return {
-    ...providerOptions,
-    openai: {
-      ...providerOptions.openai,
-      serviceTier
-    }
-  }
-}
 
 export function resolveServiceTierWireValue(
   control: ResolvedServiceTierControl,

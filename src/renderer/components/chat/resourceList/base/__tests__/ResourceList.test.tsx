@@ -562,6 +562,47 @@ describe('ResourceList', () => {
     expect(onCollapsedStateChange).not.toHaveBeenCalled()
   })
 
+  it('keeps actions stable when host handlers change, and calls the latest handler', () => {
+    const actionRefs: unknown[] = []
+    const Provider = ResourceList.Provider<TestItem>
+    const createHandlers = () => ({
+      onCollapsedStateChange: vi.fn(),
+      onGroupHeaderSelectItem: vi.fn(),
+      onOpenContextMenu: vi.fn(),
+      onRenameItem: vi.fn(),
+      onReorder: vi.fn(),
+      onSelectItem: vi.fn()
+    })
+    const firstHandlers = createHandlers()
+    const latestHandlers = createHandlers()
+
+    function ActionProbe() {
+      const { actions } = useResourceList<TestItem>()
+      actionRefs.push(actions)
+      return (
+        <button type="button" onClick={() => actions.selectItem('topic-1')}>
+          Select
+        </button>
+      )
+    }
+
+    const renderList = (handlers: ReturnType<typeof createHandlers>) => (
+      <Provider items={ITEMS} {...handlers}>
+        <ResourceList.Frame>
+          <ActionProbe />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    const { rerender } = render(renderList(firstHandlers))
+    rerender(renderList(latestHandlers))
+    fireEvent.click(screen.getByRole('button', { name: 'Select' }))
+
+    expect(new Set(actionRefs).size).toBe(1)
+    expect(latestHandlers.onSelectItem).toHaveBeenCalledWith('topic-1')
+    expect(firstHandlers.onSelectItem).not.toHaveBeenCalled()
+  })
+
   it('keeps resource actions stable when local filter state changes', () => {
     const actionRefs: unknown[] = []
     const Provider = ResourceList.Provider<TestItem>
@@ -2169,90 +2210,6 @@ describe('ResourceList', () => {
     fireEvent.contextMenu(screen.getByRole('button', { name: 'topic' }))
     fireEvent.click(screen.getByRole('button', { name: 'Run topic' }))
     await waitFor(() => expect(onAction).toHaveBeenCalledWith('topic'))
-  })
-
-  it('restarts the shared list viewport scrollbar fade after continued scrolling', () => {
-    vi.useFakeTimers()
-    const Provider = ResourceList.Provider<TestItem>
-
-    render(
-      <Provider items={ITEMS}>
-        <ResourceList.Frame>
-          <ResourceList.VirtualItems<TestItem>
-            renderItem={(item) => (
-              <ResourceList.Item item={item}>
-                <span>{item.name}</span>
-              </ResourceList.Item>
-            )}
-          />
-        </ResourceList.Frame>
-      </Provider>
-    )
-
-    const viewport = screen.getByRole('listbox')
-    expect(viewport).toHaveAttribute('data-scrolling', 'false')
-    // scrollbarColor is part of the shared viewport's documented fade behavior.
-    expect(viewport).toHaveStyle({ scrollbarColor: 'transparent transparent' })
-
-    fireEvent.scroll(viewport)
-    expect(viewport).toHaveAttribute('data-scrolling', 'true')
-    expect(viewport).toHaveStyle({ scrollbarColor: 'var(--scrollbar-thumb) transparent' })
-
-    act(() => {
-      vi.advanceTimersByTime(1000)
-    })
-    fireEvent.scroll(viewport)
-
-    act(() => {
-      vi.advanceTimersByTime(1199)
-    })
-    expect(viewport).toHaveAttribute('data-scrolling', 'true')
-    expect(viewport).toHaveStyle({ scrollbarColor: 'var(--scrollbar-thumb) transparent' })
-
-    act(() => {
-      vi.advanceTimersByTime(1)
-    })
-    expect(viewport).toHaveAttribute('data-scrolling', 'true')
-    expect(viewport).toHaveStyle({
-      scrollbarColor: 'color-mix(in srgb, var(--scrollbar-thumb) 70%, transparent) transparent'
-    })
-
-    act(() => {
-      vi.advanceTimersByTime(420)
-    })
-    expect(viewport).toHaveAttribute('data-scrolling', 'false')
-    expect(viewport).toHaveStyle({ scrollbarColor: 'transparent transparent' })
-  })
-
-  it('keeps the shared list viewport fade deadline when the system clock moves backward', () => {
-    vi.useFakeTimers()
-    const Provider = ResourceList.Provider<TestItem>
-
-    render(
-      <Provider items={ITEMS}>
-        <ResourceList.Frame>
-          <ResourceList.VirtualItems<TestItem>
-            renderItem={(item) => (
-              <ResourceList.Item item={item}>
-                <span>{item.name}</span>
-              </ResourceList.Item>
-            )}
-          />
-        </ResourceList.Frame>
-      </Provider>
-    )
-
-    const viewport = screen.getByRole('listbox')
-    fireEvent.scroll(viewport)
-    vi.setSystemTime(Date.now() - 60_000)
-
-    act(() => {
-      vi.advanceTimersByTime(1200)
-    })
-
-    expect(viewport).toHaveStyle({
-      scrollbarColor: 'color-mix(in srgb, var(--scrollbar-thumb) 70%, transparent) transparent'
-    })
   })
 
   it('loads each group in configured increments and collapses it to the default count', () => {

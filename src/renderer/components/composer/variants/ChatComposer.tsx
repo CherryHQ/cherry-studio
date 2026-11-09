@@ -1,4 +1,5 @@
 import { Eraser, ScanLine } from 'lucide-react'
+import mime from 'mime-types'
 import React, { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -7,14 +8,8 @@ import { loggerService } from '@logger'
 import { ContextUsageMeter, ContextUsageSummary } from '@renderer/components/chat/contextUsage'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
-import {
-  hasSignedReasoningMetadata,
-  replaceReasoningPartText
-} from '@renderer/components/chat/messages/blocks/reasoningEditing'
-import {
-  ConversationTopBarPortal,
-  useConversationTopBarPortalLayout
-} from '@renderer/components/chat/shell/ConversationTopBarPortal'
+import { replaceReasoningPartText } from '@renderer/components/chat/messages/blocks/reasoningEditing'
+import { useConversationTopBarPortalLayout } from '@renderer/components/chat/shell/ConversationTopBarPortal'
 import { useActiveComposerOverride, useComposerLayerActive } from '@renderer/components/composer/ComposerContext'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/composer/ComposerSurface'
 import {
@@ -47,7 +42,9 @@ import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useCherryCloudQuotaExhaustion } from '@renderer/hooks/useCherryCloudQuotaExhaustion'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
+import { useLatest } from '@renderer/hooks/useLatest'
 import { useModelById, useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
@@ -55,10 +52,14 @@ import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import { type Topic, TopicType } from '@renderer/types/topic'
+import { removeFileExtension, removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
+import { getImageBlobFromSource } from '@renderer/utils/image'
 import { resolveSendShortcut } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import { createComposerFileTokenSourceId } from '@renderer/utils/message/composerFileTokenSource'
 import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
+import { isVisionModel } from '@renderer/utils/model'
 import {
   isGPT5SeriesReasoningModel,
   isOpenAIWebSearchModel,
@@ -76,14 +77,24 @@ import {
 import type { Provider } from '@shared/data/types/provider'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import { imageExts } from '@shared/utils/file'
 
+import { CherryCloudQuotaNotice } from '../CherryCloudQuotaNotice'
 import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
 import { useInputHistory } from '../useInputHistory'
-import { ChatConversationControls, type ChatConversationControlsProps } from './chat/ChatConversationControls'
+import {
+  type ChatComposerControlsRenderer,
+  type ComposerInputAdapter,
+  type ComposerUnifiedPanelControl,
+  renderChatHomeControls,
+  renderChatHomeInputControls,
+  renderChatInputControls,
+  renderChatToolbarControls
+} from './chat/chatComposerControls'
 import { type ChatComposerDraftCache, readChatDraftCache, writeChatDraftCache } from './chat/chatDraftCache'
 import {
   createEditableMessageDraft,
@@ -91,18 +102,13 @@ import {
   replaceEditedMessageParts
 } from './chat/messageEditingDraft'
 import { useChatMentionedModels } from './chat/useChatMentionedModels'
+import { useNoteReferenceMentionItems } from './chat/useNoteReferenceMentionItems'
 import {
   chatComposerTokenId,
   fileToComposerToken,
   getComposerTokenIds,
   knowledgeBaseToComposerToken
 } from './chatComposerTokens'
-import {
-  COMPOSER_TOOLBAR_CLASS,
-  ComposerBelowControls,
-  ComposerToolbarControls,
-  ComposerToolMenuControls
-} from './shared/ComposerControlScaffolding'
 import { ComposerDictationButton } from './shared/ComposerDictationButton'
 import { type AddNewTopicPayload, emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import {
@@ -116,7 +122,6 @@ import { useComposerFileCapabilities } from './shared/useComposerFileCapabilitie
 import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
 import { useComposerToolbarPinnedTools } from './shared/useComposerToolbarPinnedTools'
 import { useEntityReferenceMentionSource } from './shared/useEntityReferenceMentionSource'
-import { useLatest } from './shared/useLatest'
 import { useScreenshotChat } from './shared/useScreenshotChat'
 
 const logger = loggerService.withContext('ChatComposer')
@@ -140,6 +145,7 @@ export type ChatComposerResolvedContext = Pick<
 
 export interface ChatConversationControlsSnapshot {
   scopeKey: string
+  supportsImageInput: boolean
   mentionedModels: Model[]
   mentionedModelSelectorValue: Model[]
   lockedMentionedModels: Model[]
@@ -205,138 +211,7 @@ interface InputHistoryToolSnapshot extends Pick<SavedComposerDraft, 'files' | 's
 
 type ComposerFilePart = Extract<CherryMessagePart, { type: 'file' }>
 
-type ChatComposerControlProps = Omit<ChatConversationControlsProps, 'side'> & {
-  topBarPortalAvailable: boolean
-  topBarPortalIconOnly: boolean
-  leadingControl?: React.ReactNode
-  renderPersistentToolShortcuts?: (args: {
-    inputAdapter?: ComposerInputAdapter
-    unifiedPanelControl?: ComposerUnifiedPanelControl
-  }) => React.ReactNode
-}
-
 type ComposerSurfaceProps = React.ComponentProps<typeof ComposerSurface>
-type ComposerInputAdapter = Parameters<NonNullable<ComposerSurfaceProps['renderLeftControls']>>[0]
-type ComposerUnifiedPanelControl = Parameters<NonNullable<ComposerSurfaceProps['renderLeftControls']>>[1]
-type ChatComposerControlSlots = Pick<
-  ComposerSurfaceProps,
-  'renderLeftControls' | 'renderBelowControls' | 'renderCompactControls'
->
-type ChatComposerControlsRenderer = (props: ChatComposerControlProps) => ChatComposerControlSlots
-
-const renderChatPersistentCompactControls = (
-  props: ChatComposerControlProps,
-  inputAdapter: ComposerInputAdapter,
-  unifiedPanelControl: ComposerUnifiedPanelControl
-) => props.renderPersistentToolShortcuts?.({ inputAdapter, unifiedPanelControl })
-
-const restoreComposerInputFocus = (inputAdapter: ComposerInputAdapter) => {
-  window.requestAnimationFrame(() => inputAdapter?.focus())
-}
-
-const ChatComposerContextControlsWithAutoFocus = ({
-  inputAdapter,
-  ...props
-}: ChatComposerControlProps & { side: 'top' | 'bottom'; iconOnly?: boolean; inputAdapter: ComposerInputAdapter }) => {
-  const onDialogCloseAutoFocus = useCallback(() => restoreComposerInputFocus(inputAdapter), [inputAdapter])
-
-  return <ChatConversationControls {...props} onDialogCloseAutoFocus={onDialogCloseAutoFocus} />
-}
-
-const renderChatComposerContextControls = (
-  props: ChatComposerControlProps,
-  inputAdapter: ComposerInputAdapter,
-  { side, iconOnly }: { side: 'top' | 'bottom'; iconOnly: boolean }
-) => {
-  const controls = (
-    <ChatComposerContextControlsWithAutoFocus
-      {...props}
-      side={props.topBarPortalAvailable ? 'bottom' : side}
-      iconOnly={props.topBarPortalAvailable ? props.topBarPortalIconOnly : iconOnly}
-      inputAdapter={inputAdapter}
-    />
-  )
-
-  return props.topBarPortalAvailable ? <ConversationTopBarPortal>{controls}</ConversationTopBarPortal> : controls
-}
-
-const renderChatToolbarControls: ChatComposerControlsRenderer = (props) => ({
-  renderLeftControls: (inputAdapter, unifiedPanelControl) => {
-    const persistentToolShortcuts = props.renderPersistentToolShortcuts?.({ inputAdapter, unifiedPanelControl })
-
-    return (
-      <ComposerToolbarControls
-        inputAdapter={inputAdapter}
-        leading={
-          <>
-            {props.leadingControl}
-            {persistentToolShortcuts}
-          </>
-        }
-        unifiedPanelControl={unifiedPanelControl}
-        renderContextControls={(placement) => renderChatComposerContextControls(props, inputAdapter, placement)}
-      />
-    )
-  }
-})
-
-const renderChatInputControls: ChatComposerControlsRenderer = (props) => ({
-  renderLeftControls: (inputAdapter, unifiedPanelControl) => (
-    <ComposerToolbarControls
-      inputAdapter={inputAdapter}
-      leading={
-        <>
-          {props.leadingControl}
-          {props.renderPersistentToolShortcuts?.({ inputAdapter, unifiedPanelControl })}
-        </>
-      }
-      unifiedPanelControl={unifiedPanelControl}
-      renderContextControls={() => null}
-    />
-  ),
-  renderCompactControls: (inputAdapter, unifiedPanelControl) =>
-    renderChatPersistentCompactControls(props, inputAdapter, unifiedPanelControl)
-})
-
-const renderChatHomeControls: ChatComposerControlsRenderer = (props) => ({
-  renderLeftControls: (inputAdapter, unifiedPanelControl) => {
-    const persistentToolShortcuts = props.renderPersistentToolShortcuts?.({ inputAdapter, unifiedPanelControl })
-
-    return (
-      <>
-        {props.topBarPortalAvailable
-          ? renderChatComposerContextControls(props, inputAdapter, { side: 'bottom', iconOnly: false })
-          : null}
-        <div className={COMPOSER_TOOLBAR_CLASS}>
-          {props.leadingControl}
-          {persistentToolShortcuts}
-          <ComposerToolMenuControls inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
-        </div>
-      </>
-    )
-  },
-  renderBelowControls: props.topBarPortalAvailable
-    ? undefined
-    : (inputAdapter) => (
-        <ComposerBelowControls
-          renderContextControls={(placement) =>
-            renderChatComposerContextControls({ ...props, useMentionedModelSelector: true }, inputAdapter, placement)
-          }
-        />
-      )
-})
-
-const renderChatHomeInputControls: ChatComposerControlsRenderer = (props) => ({
-  renderLeftControls: (inputAdapter, unifiedPanelControl) => (
-    <div className={COMPOSER_TOOLBAR_CLASS}>
-      {props.leadingControl}
-      {props.renderPersistentToolShortcuts?.({ inputAdapter, unifiedPanelControl })}
-      <ComposerToolMenuControls inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
-    </div>
-  ),
-  renderCompactControls: (inputAdapter, unifiedPanelControl) =>
-    renderChatPersistentCompactControls(props, inputAdapter, unifiedPanelControl)
-})
 
 function ChatComposerContextUsage({ usage }: { usage?: ChatContextUsageSource | null }) {
   const { t } = useTranslation()
@@ -551,7 +426,7 @@ const ChatComposerInner = ({
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
   // Yield the same rail gutter as the message column so the composer stays aligned.
-  const { railGutterPx } = useChatLayoutMode()
+  const { railGutterPx, sidePaddingPx } = useChatLayoutMode()
   const { available: topBarPortalAvailable, iconOnly: topBarPortalIconOnly } = useConversationTopBarPortalLayout()
   const composerOverridden = useActiveComposerOverride() !== null
   const layerActive = useComposerLayerActive()
@@ -561,9 +436,10 @@ const ChatComposerInner = ({
   const { editingMessage, cancelEditing, stopEditing } = useMessageEditing()
   const editingMessageForCurrentTopic = topicId && editingMessage?.message.topicId === topicId ? editingMessage : null
   const staleEditingMessage = editingMessage && !editingMessageForCurrentTopic
-  // Assistant edits expose the unsigned reasoning above the main text; signed
-  // reasoning cannot be replayed after a change, so it stays read-only. A
-  // message with several reasoning parts keeps the plain anchor behaviour.
+  // Assistant edits expose the reasoning above the main text. Signed reasoning
+  // is saved with a replay marker so the main-process pipeline can send the
+  // corrected text as a plain `<think>` block. A message with several reasoning
+  // parts keeps the plain anchor behaviour.
   const editingReasoning = useMemo(() => {
     const snapshot = editingMessageForCurrentTopic
     if (!snapshot || snapshot.message.role !== 'assistant') return undefined
@@ -571,7 +447,7 @@ const ChatComposerInner = ({
     if (reasoningIndexes.length !== 1) return undefined
     const index = reasoningIndexes[0]
     const part = snapshot.parts[index]
-    if (part.type !== 'reasoning' || hasSignedReasoningMetadata(part)) return undefined
+    if (part.type !== 'reasoning') return undefined
     return { index, text: part.text ?? '' }
   }, [editingMessageForCurrentTopic])
   const [reasoningDraft, setReasoningDraft] = useState('')
@@ -591,7 +467,6 @@ const ChatComposerInner = ({
   )
   const surfaceGetDraftRef = useRef<ComposerSurfaceActions['getDraft']>(emptyActions.getDraft)
   const [draftTokenRevision, setDraftTokenRevision] = useState(0)
-  const knowledgeBaseIdsRef = useRef([...initialDraft.knowledgeBaseIds])
   const mentionedModelDraftRef = useRef({
     mentionedModelIds: [...initialDraft.mentionedModelIds],
     modelMultiSelectMode: initialDraft.modelMultiSelectMode
@@ -603,12 +478,6 @@ const ChatComposerInner = ({
   const { models: draftModels, isLoading: isDraftModelsLoading } = useModels(
     { enabled: true },
     { fetchEnabled: shouldHydrateMentionedModelDraft && initialDraft.mentionedModelIds.length > 0 }
-  )
-  const observedKnowledgeBaseSelectionKeyRef = useRef<string | null>(
-    initialDraft.knowledgeBaseIds.length === 0 ? JSON.stringify([]) : null
-  )
-  const [isKnowledgeBaseDraftHydrated, setIsKnowledgeBaseDraftHydrated] = useState(
-    initialDraft.knowledgeBaseIds.length === 0
   )
   const quickPanel = useOptionalQuickPanel()
   const rootPanelVisible = Boolean(quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root)
@@ -831,6 +700,25 @@ const ChatComposerInner = ({
     }
   }, [isMentionedModelDraftHydrated, mentionedModelMultiSelectMode, mentionedModels, useMentionedModelSelector])
 
+  const selectedKnowledgeBasesScopeKey = `${scopeKey}:${selectedAssistantId ?? 'no-assistant'}`
+  const {
+    selectableKnowledgeBases,
+    selectedKnowledgeBasesInScope,
+    resolveKnowledgeBaseMarker,
+    restoreKnowledgeBaseSelection,
+    isKnowledgeBaseDraftHydrated,
+    knowledgeBaseIdsRef,
+    syncKnowledgeBaseIds
+  } = useComposerKnowledgeBaseScope({
+    configuredKnowledgeBaseIds: assistant?.knowledgeBaseIds,
+    allKnowledgeBases,
+    isKnowledgeBasesLoading,
+    scopeKey: selectedKnowledgeBasesScopeKey,
+    selectedKnowledgeBases,
+    setSelectedKnowledgeBases,
+    initialKnowledgeBaseIds: initialDraft.knowledgeBaseIds
+  })
+
   const exitInputHistoryPreview = useCallback(() => {
     const draft = takeDraftBeforeHistory()
     const tools = inputHistoryToolsRef.current
@@ -850,7 +738,7 @@ const ChatComposerInner = ({
       knowledgeBaseIds: knowledgeBaseIdsRef.current,
       ...mentionedModelDraftRef.current
     })
-  }, [actionsRef, draftCacheScopeKey, exitInputHistoryPreview, filesRef])
+  }, [actionsRef, draftCacheScopeKey, exitInputHistoryPreview, filesRef, knowledgeBaseIdsRef])
   const handleMentionedModelsSelect = useCallback(
     (nextModels: Model[]) => {
       exitInputHistoryPreviewForModelChange()
@@ -898,6 +786,8 @@ const ChatComposerInner = ({
           : runtimeModel
             ? [runtimeModel]
             : EMPTY_MODELS
+  const supportsImageInput = effectiveSubmittedModels.length > 0 && effectiveSubmittedModels.every(isVisionModel)
+  const supportsImageInputRef = useLatest(supportsImageInput)
   const effectiveSubmittedModel = effectiveSubmittedModels.length === 1 ? effectiveSubmittedModels[0] : undefined
   // Persisted assistant refreshes may clear transient mentions; submit the visible selector
   // snapshot so the next turn cannot fall back to stale assistant state.
@@ -973,6 +863,7 @@ const ChatComposerInner = ({
   const conversationControlsSnapshot = useMemo<ChatConversationControlsSnapshot>(
     () => ({
       scopeKey,
+      supportsImageInput,
       mentionedModels,
       mentionedModelSelectorValue,
       lockedMentionedModels,
@@ -991,6 +882,7 @@ const ChatComposerInner = ({
       mentionedModelMultiSelectMode,
       mentionedModelSelectorValue,
       mentionedModels,
+      supportsImageInput,
       scopeKey
     ]
   )
@@ -1011,6 +903,8 @@ const ChatComposerInner = ({
     useMentionedModelSelector && !isMentionedModelSelectorLocked && mentionedModelSelectorValue.length === 0
       ? t('code.model_required')
       : undefined
+  const quotaExhaustion = useCherryCloudQuotaExhaustion(effectiveSubmittedModel)
+  const quotaBlocksSend = !!quotaExhaustion && quotaExhaustion.reason !== 'unknown'
   const isModelUnavailable =
     !missingAssistantMessage &&
     !runtimeModelPending &&
@@ -1036,42 +930,11 @@ const ChatComposerInner = ({
   // Steer: while a turn is streaming (but not paused for tool approval) a new message is sent as a
   // follow-up rather than blocked — the main process persists it and yields/chains a continuation.
   const canSteer = isPending && !awaitingApproval
-  const selectedKnowledgeBasesScopeKey = `${scopeKey}:${selectedAssistantId ?? 'no-assistant'}`
   const assistantName = displayAssistant?.name ?? (isAssistantLoading ? t('common.loading') : selectAssistantMessage)
   const { canAddImageFile, supportedExts } = useComposerFileCapabilities({
     models: mentionedModels,
     fallbackModel: runtimeModel
   })
-
-  const {
-    selectableKnowledgeBases,
-    selectedKnowledgeBasesInScope,
-    resolveKnowledgeBaseMarker,
-    restoreKnowledgeBaseSelection
-  } = useComposerKnowledgeBaseScope({
-    configuredKnowledgeBaseIds: assistant?.knowledgeBaseIds,
-    allKnowledgeBases,
-    isKnowledgeBasesLoading,
-    scopeKey: selectedKnowledgeBasesScopeKey,
-    selectedKnowledgeBases,
-    setSelectedKnowledgeBases
-  })
-
-  useEffect(() => {
-    if (isKnowledgeBaseDraftHydrated || isKnowledgeBasesLoading) return
-
-    const wantedIds = new Set(initialDraft.knowledgeBaseIds)
-    const restoredIds = selectableKnowledgeBases.filter((base) => wantedIds.has(base.id)).map((base) => base.id)
-    observedKnowledgeBaseSelectionKeyRef.current = JSON.stringify(restoredIds)
-    restoreKnowledgeBaseSelection(initialDraft.knowledgeBaseIds)
-    setIsKnowledgeBaseDraftHydrated(true)
-  }, [
-    initialDraft.knowledgeBaseIds,
-    isKnowledgeBaseDraftHydrated,
-    isKnowledgeBasesLoading,
-    restoreKnowledgeBaseSelection,
-    selectableKnowledgeBases
-  ])
 
   // Single owner of the topic draft cache. Runs after ComposerSurface's effects have synced the
   // editor to the current text, so getDraft() serializes the live tokens consistently. Every
@@ -1089,18 +952,7 @@ const ChatComposerInner = ({
       return
     }
     if (editingMessage) return
-    const selectedKnowledgeBaseIds = selectedKnowledgeBasesInScope.map((base) => base.id)
-    const selectedKnowledgeBaseIdsKey = JSON.stringify(selectedKnowledgeBaseIds)
-    if (observedKnowledgeBaseSelectionKeyRef.current === null) {
-      observedKnowledgeBaseSelectionKeyRef.current = selectedKnowledgeBaseIdsKey
-    } else if (observedKnowledgeBaseSelectionKeyRef.current !== selectedKnowledgeBaseIdsKey) {
-      observedKnowledgeBaseSelectionKeyRef.current = selectedKnowledgeBaseIdsKey
-      const selectableKnowledgeBaseIdSet = new Set(selectableKnowledgeBases.map((base) => base.id))
-      const unresolvedKnowledgeBaseIds = knowledgeBaseIdsRef.current.filter(
-        (id) => !selectableKnowledgeBaseIdSet.has(id)
-      )
-      knowledgeBaseIdsRef.current = [...new Set([...unresolvedKnowledgeBaseIds, ...selectedKnowledgeBaseIds])]
-    }
+    syncKnowledgeBaseIds()
     const draft = actionsRef.current.getDraft()
     writeChatDraftCache(draftCacheScopeKey, {
       text: draft.text,
@@ -1118,10 +970,10 @@ const ChatComposerInner = ({
     isInputHistoryActive,
     isKnowledgeBaseDraftHydrated,
     isMentionedModelDraftHydrated,
+    knowledgeBaseIdsRef,
     mentionedModelMultiSelectMode,
     mentionedModels,
-    selectableKnowledgeBases,
-    selectedKnowledgeBasesInScope,
+    syncKnowledgeBaseIds,
     text
   ])
 
@@ -1141,7 +993,6 @@ const ChatComposerInner = ({
         savedDraft?.mentionedModelMultiSelectMode ?? mentionedModelDraftRef.current.modelMultiSelectMode
     })
   })
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest draft; cleanup is keyed only by topic.
   useEffect(() => () => persistFinalDraft(), [draftCacheScopeKey])
 
   const restoreSavedDraft = useCallback(() => {
@@ -1241,6 +1092,7 @@ const ChatComposerInner = ({
     editingMessageForCurrentTopic,
     exitInputHistoryPreview,
     filesRef,
+    knowledgeBaseIdsRef,
     mentionedModelsRef,
     selectedKnowledgeBasesRef
   ])
@@ -1269,9 +1121,22 @@ const ChatComposerInner = ({
     [reconcileTokens]
   )
 
+  const { getItems: getNoteReferenceItems, onExit: closeNoteReferences } = useNoteReferenceMentionItems({
+    files,
+    setFiles
+  })
+  const additionalReferenceItems = useMemo(
+    () => ({
+      getItems: getNoteReferenceItems,
+      onExit: closeNoteReferences,
+      title: t('chat.input.note_reference.title')
+    }),
+    [closeNoteReferences, getNoteReferenceItems, t]
+  )
   const { sources: entityReferenceSources, hasPendingReference } = useEntityReferenceMentionSource({
     entityType: 'topic',
-    excludeId: topicId
+    excludeId: topicId,
+    additionalItems: additionalReferenceItems
   })
 
   const onPause = useCallback(() => {
@@ -1468,6 +1333,51 @@ const ChatComposerInner = ({
   }, [actionsRef, layerActive, streamScopeKey])
 
   useEffect(() => {
+    if (!layerActive) return
+    return EventEmitter.on(EVENT_NAMES.ADD_CHAT_COMPOSER_IMAGE_REFERENCE, async (payload: unknown) => {
+      if (!payload || typeof payload !== 'object') return
+      const reference = payload as { topicId?: unknown; url?: unknown; name?: unknown }
+      if (
+        reference.topicId !== streamScopeKey ||
+        typeof reference.url !== 'string' ||
+        !supportsImageInputRef.current ||
+        (!reference.url.startsWith('file://') && !reference.url.startsWith('data:image/'))
+      ) {
+        return
+      }
+
+      try {
+        const blob = await getImageBlobFromSource(reference.url)
+        const extension = mime.extension(blob.type)
+        if (!extension || !imageExts.includes(`.${extension}`)) {
+          throw new Error(`Unsupported image type: ${blob.type}`)
+        }
+        const baseName =
+          typeof reference.name === 'string'
+            ? removeSpecialCharactersForFileName(removeFileExtension(reference.name))
+            : ''
+        const name = baseName || 'image'
+        const origin_name = `${name}.${extension}`
+        setFiles((files) => [
+          ...files,
+          {
+            fileTokenSourceId: createComposerFileTokenSourceId(),
+            blob,
+            name,
+            origin_name,
+            size: blob.size,
+            ext: `.${extension}`,
+            type: 'image'
+          }
+        ])
+      } catch (error) {
+        logger.error('Failed to add generated image as a composer reference', error as Error)
+        toast.error(t('common.error'))
+      }
+    })
+  }, [layerActive, setFiles, streamScopeKey, supportsImageInputRef, t])
+
+  useEffect(() => {
     Object.assign(actionsRef.current, { addNewTopic })
   }, [actionsRef, addNewTopic])
 
@@ -1582,7 +1492,7 @@ const ChatComposerInner = ({
     sendId: sendFollowup,
     removeId: removeFollowup,
     reorder: reorderFollowups,
-    takeForEdit: takeFollowupForEdit,
+    editItem: editFollowup,
     releaseEdit,
     paused: followupPaused,
     setPaused: setFollowupPaused
@@ -1603,20 +1513,7 @@ const ChatComposerInner = ({
   )
   const { models: allModels } = useModels({ enabled: true }, { fetchEnabled: queuedFollowupModelsDataEnabled })
 
-  const captureOutgoingFollowup = useCallback(
-    (taken: FollowupQueueItem) => {
-      const draft = actionsRef.current.getDraft()
-      const payload = buildQueuedPayload(draft)
-      if (payload === null) {
-        if (!draft.text.trim() && files.length === 0) return { draft: taken.draft, payload: taken.payload }
-        return null
-      }
-      return { draft, payload: { ...payload, chatTarget: taken.payload.chatTarget } }
-    },
-    [actionsRef, buildQueuedPayload, files]
-  )
-
-  // After takeForEdit removes the queued item, atomic replacement preserves unmanaged tokens
+  // After editItem hands over the queued item, atomic replacement preserves unmanaged tokens
   // even when the restored text is unchanged.
   const restoreFollowupDraft = useCallback(
     (item: FollowupQueueItem) => {
@@ -1807,6 +1704,8 @@ const ChatComposerInner = ({
       }
 
       if (editingMessageForCurrentTopic) {
+        // Save-only edits stay available out of quota; only the resend is held.
+        if (quotaBlocksSend) return
         await commitEditedMessage(draft, true)
         return
       }
@@ -1867,6 +1766,7 @@ const ChatComposerInner = ({
       loading,
       missingAssistantMessage,
       missingSelectedModelMessage,
+      quotaBlocksSend,
       runtimeModel,
       runtimeModelPending,
       selectedModelForMissingAssistantDefault,
@@ -1960,6 +1860,29 @@ const ChatComposerInner = ({
     </>
   )
 
+  const followupsDock =
+    queuedFollowups.length > 0 ? (
+      <QueuedFollowupsDock
+        items={queuedFollowups}
+        paused={followupPaused}
+        onTogglePause={() => setFollowupPaused(!followupPaused)}
+        onSteer={sendFollowup}
+        onEdit={(id) => {
+          if (directSendInFlightRef.current) return
+          editFollowup(id, {
+            editingMessage: Boolean(editingMessageForCurrentTopic),
+            getDraft: () => actionsRef.current.getDraft(),
+            buildPayload: buildQueuedPayload,
+            hasFiles: files.length > 0,
+            restore: restoreFollowupDraft
+          })
+        }}
+        onRemove={removeFollowup}
+        onReorder={reorderFollowups}
+        isSteerDisabled={isQueuedFollowupSteerDisabled}
+      />
+    ) : undefined
+
   return (
     <ComposerToolDerivedStateProvider
       couldAddImageFile={canAddImageFile}
@@ -1994,7 +1917,8 @@ const ChatComposerInner = ({
             hasPendingReference ||
             !!missingAssistantMessage ||
             !!missingModelMessage ||
-            !!missingSelectedModelMessage
+            !!missingSelectedModelMessage ||
+            (quotaBlocksSend && !editingMessageForCurrentTopic)
           }
           sendBlockedReason={
             isSavingEdit || isDirectSending || sendDisabled || hasPendingReference
@@ -2030,31 +1954,14 @@ const ChatComposerInner = ({
           }
           onPause={onPause}
           queueContent={
-            queuedFollowups.length > 0 ? (
-              <QueuedFollowupsDock
-                items={queuedFollowups}
-                paused={followupPaused}
-                onTogglePause={() => setFollowupPaused(!followupPaused)}
-                onSteer={sendFollowup}
-                onEdit={(id) => {
-                  if (directSendInFlightRef.current) return
-                  if (editingMessageForCurrentTopic) {
-                    releaseEdit()
-                    const item = queuedFollowups.find((entry) => entry.id === id)
-                    if (!item) return
-                    restoreFollowupDraft(item)
-                    removeFollowup(id)
-                    return
-                  }
-                  const incoming = takeFollowupForEdit(id, captureOutgoingFollowup)
-                  if (!incoming) return
-                  restoreFollowupDraft(incoming)
-                }}
-                onRemove={removeFollowup}
-                onReorder={reorderFollowups}
-                isSteerDisabled={isQueuedFollowupSteerDisabled}
-              />
-            ) : undefined
+            quotaExhaustion ? (
+              <>
+                <CherryCloudQuotaNotice exhaustion={quotaExhaustion} />
+                {followupsDock}
+              </>
+            ) : (
+              followupsDock
+            )
           }
           supportedExts={supportedExts}
           setFiles={setFiles}
@@ -2069,6 +1976,7 @@ const ChatComposerInner = ({
           fontSize={fontSize}
           narrowMode={forceNarrowLayout || narrowMode}
           railGutterPx={railGutterPx}
+          sidePaddingPx={sidePaddingPx}
           onFocus={() => setSearching(false)}
           onActionsChange={handleSurfaceActionsChange}
           isInputHistoryActive={isInputHistoryActive}

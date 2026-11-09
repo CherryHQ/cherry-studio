@@ -1,195 +1,121 @@
-import React, { useCallback, useEffect, useMemo, useRef } from 'react'
+import { type ReactNode, useEffect, useMemo, useRef } from 'react'
 
+import { KeyboardLayerProvider } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
   type CommandHandler,
-  type CommandHandlerOptions,
   CommandRuntimeContext,
+  type CommandRuntime,
+  runCommandHandler,
   type CommandSharedPreferences,
   CommandSharedPreferencesContext,
   useCommandContextSnapshot
 } from '@renderer/hooks/command'
+import {
+  CommandFocusHostContext,
+  CommandFocusRegistry,
+  CommandFocusScopeContext,
+  CommandFocusScopeState,
+  findScopeHandler,
+  readScopeContext,
+  readRegisteredHandler
+} from '@renderer/hooks/command'
 import { platform } from '@renderer/utils/platform'
-import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import type { ContextReader, SupportedPlatform } from '@shared/types/command'
 import { type CommandId, REGISTERED_KEYBINDINGS, resolveCommandByKeybinding } from '@shared/utils/command'
 import { getShortcutBindingFromKeyboardEvent } from '@shared/utils/shortcut'
 
+import { CommandKeyboardLayer } from './CommandFocusScope'
+
 const logger = loggerService.withContext('CommandProvider')
 
-interface CommandHandlerEntry {
-  id: number
-  handler: CommandHandler
-  enabled: boolean
-}
-
-interface CommandDispatcherState {
-  context: ContextReader
-  shortcutPreferences: Partial<Record<CommandId, PreferenceShortcutType>>
-  hasHandler: (command: CommandId) => boolean
-  execute: (command: CommandId) => void
-}
-
-/**
- * True when the event target is a text-entry surface — an `<input>`,
- * `<textarea>`, or any element with `contenteditable`. Used to suppress
- * no-modifier shortcuts so plain keys (Escape, single letters) don't hijack
- * typing.
- */
-function isEditableTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) {
-    return false
+function isEditableEvent(event: KeyboardEvent): boolean {
+  for (const node of event.composedPath()) {
+    if (!(node instanceof HTMLElement)) continue
+    if (['INPUT', 'TEXTAREA', 'SELECT'].includes(node.tagName)) return true
+    const editable = node.getAttribute('contenteditable')
+    if (editable === 'false') return false
+    if (node.isContentEditable || editable === '' || editable === 'true' || editable === 'plaintext-only') return true
   }
-  const tagName = target.tagName
-  if (tagName === 'INPUT' || tagName === 'TEXTAREA') {
-    return true
-  }
-  // `isContentEditable` reflects the inherited editing state in real browsers;
-  // the attribute fallback covers environments (jsdom) that don't compute it.
-  return target.isContentEditable || target.getAttribute('contenteditable') === 'true'
+  return false
 }
 
 const shortcutPreferenceKeys = Object.fromEntries(
   REGISTERED_KEYBINDINGS.map((rule) => [rule.command, rule.preferenceKey])
 ) as Record<CommandId, (typeof REGISTERED_KEYBINDINGS)[number]['preferenceKey']>
 
-export function CommandProvider({ children }: { children: React.ReactNode }) {
+export function CommandProvider({ children }: { children: ReactNode }) {
   const contextSnapshot = useCommandContextSnapshot()
   const [shortcutPreferences] = useMultiplePreferences(shortcutPreferenceKeys)
   const [menuPresentationMode] = usePreference('menu.presentation_mode')
+  const stateRef = useRef({ context: contextSnapshot, shortcutPreferences })
+  stateRef.current = { context: contextSnapshot, shortcutPreferences }
 
-  const nextHandlerIdRef = useRef(0)
-  const handlersRef = useRef(new Map<CommandId, CommandHandlerEntry[]>())
-  const dispatcherStateRef = useRef<CommandDispatcherState>({
-    context: contextSnapshot,
-    shortcutPreferences: shortcutPreferences,
-    hasHandler: () => false,
-    execute: () => {}
-  })
-
-  const getActiveHandler = useCallback((command: CommandId): CommandHandlerEntry | undefined => {
-    const handlers = handlersRef.current.get(command)
-    return handlers?.findLast((entry) => entry.enabled)
+  const host = useMemo(() => {
+    const rootScope = new CommandFocusScopeState(null, { element: () => null, active: () => true, context: () => ({}) })
+    const registry = new CommandFocusRegistry()
+    const forScope = (scope: CommandFocusScopeState): CommandRuntime => ({
+      registerHandler: (command, handler, options) => scope.registerHandler(command, handler, options),
+      hasHandler: (command) => Boolean(findScopeHandler(scope, command)),
+      execute: (command, args) => {
+        const entry = findScopeHandler(scope, command)
+        if (entry) runCommandHandler(command, readRegisteredHandler(entry), args)
+        else logger.warn(`No renderer command handler registered: ${command}`)
+      }
+    })
+    return { rootScope, registry, forScope }
   }, [])
-
-  const registerHandler = useCallback(
-    (command: CommandId, handler: CommandHandler, options?: CommandHandlerOptions) => {
-      const entry: CommandHandlerEntry = {
-        id: nextHandlerIdRef.current++,
-        handler,
-        enabled: options?.enabled !== false
-      }
-      const handlers = handlersRef.current.get(command) ?? []
-      handlers.push(entry)
-      handlersRef.current.set(command, handlers)
-
-      return () => {
-        const currentHandlers = handlersRef.current.get(command)
-        if (!currentHandlers) {
-          return
-        }
-
-        const nextHandlers = currentHandlers.filter((current) => current.id !== entry.id)
-        if (nextHandlers.length > 0) {
-          handlersRef.current.set(command, nextHandlers)
-        } else {
-          handlersRef.current.delete(command)
-        }
-      }
-    },
-    []
-  )
-
-  const hasHandler = useCallback((command: CommandId) => Boolean(getActiveHandler(command)), [getActiveHandler])
-
-  const execute = useCallback(
-    (command: CommandId, args?: unknown) => {
-      const handler = getActiveHandler(command)?.handler
-      if (!handler) {
-        logger.warn(`No renderer command handler registered: ${command}`)
-        return
-      }
-
-      try {
-        void Promise.resolve(handler(args)).catch((error) => {
-          logger.error(`Renderer command handler failed: ${command}`, error as Error)
-        })
-      } catch (error) {
-        logger.error(`Renderer command handler failed: ${command}`, error as Error)
-      }
-    },
-    [getActiveHandler]
-  )
-
-  useEffect(() => {
-    dispatcherStateRef.current = {
-      context: contextSnapshot,
-      shortcutPreferences: shortcutPreferences,
-      hasHandler,
-      execute
-    }
-  }, [contextSnapshot, execute, hasHandler, shortcutPreferences])
+  const runtime = useMemo(() => host.forScope(host.rootScope), [host])
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.isComposing) {
-        return
-      }
-
-      // Skip no-modifier shortcuts while an editable target is focused so plain
-      // keys (Escape, single letters) don't hijack typing. Modifier combos
-      // (Ctrl/Meta/Alt) still fire everywhere; Shift alone does not count.
-      const hasModifier = event.ctrlKey || event.metaKey || event.altKey
-      if (!hasModifier && isEditableTarget(event.target)) {
-        return
-      }
-
-      const state = dispatcherStateRef.current
-      const binding = getShortcutBindingFromKeyboardEvent(event, platform as SupportedPlatform)
+      if (event.isComposing || event.keyCode === 229) return
+      const editable = isEditableEvent(event)
+      if (!(event.ctrlKey || event.metaKey || event.altKey) && editable) return
+      const scope = host.registry.resolve(event, host.rootScope)
+      const base = readScopeContext(scope, stateRef.current.context)
+      const context: ContextReader = (key) =>
+        key === 'input.focused' ? editable : typeof base === 'function' ? base(key) : undefined
+      const candidates = new Map<
+        CommandId,
+        { entry: NonNullable<ReturnType<typeof findScopeHandler>>; handler: CommandHandler }
+      >()
       const command = resolveCommandByKeybinding({
-        binding,
-        preferences: state.shortcutPreferences,
-        context: state.context,
+        binding: getShortcutBindingFromKeyboardEvent(event, platform as SupportedPlatform),
+        preferences: stateRef.current.shortcutPreferences,
+        context,
         platform: platform as SupportedPlatform,
         scope: 'renderer',
-        canExecuteCommand: state.hasHandler
+        canExecuteCommand: (id) => {
+          const entry = findScopeHandler(scope, id)
+          if (entry) candidates.set(id, { entry, handler: readRegisteredHandler(entry) })
+          return Boolean(entry)
+        }
       })
-
-      if (!command) {
-        return
-      }
-
+      if (!command) return
+      const candidate = candidates.get(command)
+      if (!candidate || candidate.entry.options.shouldHandleKeyEvent?.(event) === false) return
       event.preventDefault()
-      state.execute(command)
+      runCommandHandler(command, candidate.handler)
     }
-
     window.addEventListener('keydown', handleKeyDown)
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [])
-
-  const value = useMemo(
-    () => ({
-      execute,
-      hasHandler,
-      registerHandler
-    }),
-    [execute, hasHandler, registerHandler]
-  )
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [host])
 
   const sharedPreferences = useMemo<CommandSharedPreferences>(
-    () => ({
-      shortcutPreferences: shortcutPreferences,
-      menuPresentationMode: menuPresentationMode
-    }),
+    () => ({ shortcutPreferences, menuPresentationMode }),
     [shortcutPreferences, menuPresentationMode]
   )
-
   return (
-    <CommandRuntimeContext value={value}>
-      <CommandSharedPreferencesContext value={sharedPreferences}>{children}</CommandSharedPreferencesContext>
-    </CommandRuntimeContext>
+    <CommandFocusHostContext value={host}>
+      <CommandFocusScopeContext value={host.rootScope}>
+        <CommandRuntimeContext value={runtime}>
+          <CommandSharedPreferencesContext value={sharedPreferences}>
+            <KeyboardLayerProvider adapter={CommandKeyboardLayer}>{children}</KeyboardLayerProvider>
+          </CommandSharedPreferencesContext>
+        </CommandRuntimeContext>
+      </CommandFocusScopeContext>
+    </CommandFocusHostContext>
   )
 }

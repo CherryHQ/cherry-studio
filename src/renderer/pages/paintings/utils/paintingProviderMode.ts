@@ -6,8 +6,8 @@ import type { PaintingMode } from '@shared/data/types/painting'
  * registry mode used by `imageGenerationToFields(..., { mode })`. 'draw'
  * aliases to 'generate' for legacy PPIO paintings.
  */
-export function tabToImageGenerationMode(dbMode: PaintingMode): ImageGenerationMode | undefined {
-  if (dbMode === 'generate' || dbMode === 'draw') return 'generate'
+export function tabToImageGenerationMode(dbMode: PaintingMode, inputImageCount = 0): ImageGenerationMode | undefined {
+  if (dbMode === 'generate' || dbMode === 'draw') return inputImageCount > 0 ? 'edit' : 'generate'
   if (dbMode === 'edit') return 'edit'
   if (dbMode === 'remix') return 'remix'
   if (dbMode === 'upscale') return 'upscale'

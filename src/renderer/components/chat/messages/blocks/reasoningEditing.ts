@@ -2,14 +2,17 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 
 const CHERRY_METADATA_KEY = 'cherry'
 
+const THINK_REPLAY_MARKER = 'think'
+
 /**
  * Whether a reasoning part carries replay metadata from its provider (OpenAI
  * response item ids, Anthropic thought signatures, encrypted reasoning, ...).
  *
- * Such a part cannot be replayed once its text changes: the signature only
- * covers the original text, so serializers either reject it or skip the part.
- * Editing is therefore offered only for unsigned reasoning; Cherry's own timing
- * metadata does not count as a signature.
+ * Such a part cannot be replayed as native reasoning once its text changes: the
+ * signature only covers the original text, so serializers either reject it or
+ * skip the part. Signed parts are therefore replayed as plain `<think>` text
+ * (see `replaceReasoningPartText`); Cherry's own timing metadata does not count
+ * as a signature.
  */
 export function hasSignedReasoningMetadata(part: CherryMessagePart): boolean {
   if (part.type !== 'reasoning') return false
@@ -26,8 +29,13 @@ export function hasSignedReasoningMetadata(part: CherryMessagePart): boolean {
  * signatures and encrypted payloads that sign the ORIGINAL text (see
  * `openaiResponsesItemId`, `grokReasoningReplay`, Gemini thought signatures).
  * Replaying an edited text under the old signature can be rejected by the
- * provider or silently ignored, so an edited thought must start unsigned. The
- * `cherry` sub-object only describes duration/start time and is kept.
+ * provider or silently ignored.
+ *
+ * Signed reasoning is instead marked for replay as plain `<think>` text: the
+ * main-process message pipeline renders the marker into an assistant text part
+ * before serialization, so the model still sees the corrected thought without
+ * an invalid signature. Unsigned reasoning keeps its native replay and gets no
+ * marker. The `cherry` sub-object also keeps duration/start time.
  *
  * Returns the very same array when nothing changes so callers can skip a write.
  */
@@ -42,7 +50,9 @@ export function replaceReasoningPartText(
   const { providerMetadata, ...rest } = target as typeof target & {
     providerMetadata?: { cherry?: unknown }
   }
-  const cherry = providerMetadata?.cherry
+  const cherry = (providerMetadata?.cherry ?? {}) as Record<string, unknown>
+  const replayAsThink = hasSignedReasoningMetadata(target) || cherry.editedReasoningReplay === THINK_REPLAY_MARKER
+  const nextCherry = replayAsThink ? { ...cherry, editedReasoningReplay: THINK_REPLAY_MARKER } : cherry
 
   return parts.map((part, index) => {
     if (index !== partIndex) return part
@@ -50,7 +60,7 @@ export function replaceReasoningPartText(
       ...rest,
       text,
       state: 'done',
-      ...(cherry ? { providerMetadata: { cherry } } : {})
+      ...(Object.keys(nextCherry).length > 0 ? { providerMetadata: { cherry: nextCherry } } : {})
     } as CherryMessagePart
   })
 }

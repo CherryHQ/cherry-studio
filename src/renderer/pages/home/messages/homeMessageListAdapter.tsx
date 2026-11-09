@@ -32,7 +32,8 @@ import {
   runMessageImageAction
 } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { getMessageListItemModel, toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
-import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
+import { CherryCloudModelSelector as ModelSelector } from '@renderer/components/cherryCloud/CherryCloudModelSelector'
+import { type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { SiblingsContext } from '@renderer/hooks/SiblingsContext'
@@ -83,6 +84,7 @@ interface HomeMessageListParams {
   hasOlder?: boolean
   selectAllPagination?: MessageListSelectAllPagination
   openCitationsPanel?: MessageListActions['openCitationsPanel']
+  addGeneratedImageToComposer?: MessageListActions['addGeneratedImageToComposer']
   imageActionConsumer?: 'capture'
   onBindRuntime?: MessageListActions['bindRuntime']
   onStartBranchDraft?: MessageListActions['startMessageBranch']
@@ -102,6 +104,7 @@ export function useHomeMessageListProviderValue({
   hasOlder = false,
   selectAllPagination,
   openCitationsPanel,
+  addGeneratedImageToComposer,
   imageActionConsumer,
   onBindRuntime,
   onStartBranchDraft,
@@ -657,7 +660,15 @@ export function useHomeMessageListProviderValue({
       if (!group || group.length < 2) return null
 
       const activeIndex = group.findIndex((message) => message.id === messageId)
-      return { group, activeIndex: activeIndex >= 0 ? activeIndex : 0 }
+      return {
+        group: group.map((message) => ({
+          id: message.id,
+          preview: getComposerTextFromParts(message.data.parts ?? [])
+            .replace(/\s+/g, ' ')
+            .trim()
+        })),
+        activeIndex: activeIndex >= 0 ? activeIndex : 0
+      }
     },
     [siblingsContext]
   )
@@ -770,6 +781,10 @@ export function useHomeMessageListProviderValue({
           multiple={false}
           value={currentMentionModel}
           filter={mentionModelFilter}
+          offerFilter={(offer) =>
+            !messageParts.some((part) => part.type === 'file' && part.mediaType?.startsWith('image/')) ||
+            Boolean(offer.capabilities?.includes('image-recognition'))
+          }
           onSelect={onSelectMentionModel}
           trigger={trigger}
           onOpenChange={onOpenChange}
@@ -838,6 +853,7 @@ export function useHomeMessageListProviderValue({
       bindMessageRuntime,
       bindMessageGroupRuntime,
       locateMessage,
+      addGeneratedImageToComposer: normalInteractionsEnabled ? addGeneratedImageToComposer : undefined,
       ...(canStartNewContext && { startNewContext }),
       saveCodeBlock,
       ...exportActions,
@@ -877,6 +893,7 @@ export function useHomeMessageListProviderValue({
       bindMessageRuntime,
       bindRuntime,
       canStartNewContext,
+      addGeneratedImageToComposer,
       copyBranchToNewTopic,
       getMessageDeleteAvailability,
       deleteMessage,
