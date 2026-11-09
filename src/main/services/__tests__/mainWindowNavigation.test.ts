@@ -337,6 +337,26 @@ describe('mainWindowNavigation', () => {
       expect(ipcApiServiceMock.send).toHaveBeenCalledWith('main-1', 'app.updater.run_check', undefined)
     })
 
+    it('never raises main without reveal and skips it while hidden or minimized', () => {
+      const backgroundWindow = { ...focusedWindow, isVisible: vi.fn(() => false), isMinimized: vi.fn(() => false) }
+      windowManagerMock.getWindowsByType.mockReturnValue([backgroundWindow])
+      markMainRendererReadyForTabAttach('main-1')
+      setMainSurfaceReceiver('error', true)
+
+      expect(deliverToReadyMain('app.error.open', fault, { reveal: false })).toBe(false)
+      backgroundWindow.isVisible.mockReturnValue(true)
+      backgroundWindow.isMinimized.mockReturnValue(true)
+      expect(deliverToReadyMain('app.error.open', fault, { reveal: false })).toBe(false)
+      expect(ipcApiServiceMock.send).not.toHaveBeenCalled()
+
+      backgroundWindow.isMinimized.mockReturnValue(false)
+      expect(deliverToReadyMain('app.error.open', fault, { reveal: false })).toBe(true)
+      expect(ipcApiServiceMock.send).toHaveBeenCalledWith('main-1', 'app.error.open', fault)
+      expect(backgroundWindow.restore).not.toHaveBeenCalled()
+      expect(backgroundWindow.show).not.toHaveBeenCalled()
+      expect(backgroundWindow.focus).not.toHaveBeenCalled()
+    })
+
     it('presents a queued renderer crash when the error receiver becomes ready', () => {
       windowManagerMock.getWindowsByType.mockReturnValue([focusedWindow])
       markMainRendererReadyForTabAttach('main-1')

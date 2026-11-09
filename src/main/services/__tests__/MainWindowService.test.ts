@@ -1574,19 +1574,42 @@ describe('MainWindowService', () => {
       expect(applicationMock.forceExit).not.toHaveBeenCalled()
     })
 
-    it('forceExits on second crash within 60 seconds', () => {
+    function crashTwiceWithinOneMinute() {
       attachCrashMonitor(svc, win)
       const listener = getCrashListener(win)
       const realNow = Date.now
       try {
-        Date.now = vi.fn().mockReturnValueOnce(1000).mockReturnValueOnce(1500)
+        Date.now = vi.fn().mockReturnValueOnce(100_000).mockReturnValueOnce(100_500)
         listener(null, { reason: 'crashed' })
         listener(null, { reason: 'crashed' })
       } finally {
         Date.now = realNow
       }
+    }
 
-      expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
+    it('explains a second crash within 60 seconds before force-exiting', async () => {
+      let closeDialog!: (value: { response: number; checkboxChecked: boolean }) => void
+      vi.mocked(dialog.showMessageBox).mockReturnValueOnce(new Promise((resolve) => (closeDialog = resolve)))
+
+      crashTwiceWithinOneMinute()
+      await nextImmediate()
+
+      expect(vi.mocked(dialog.showMessageBox).mock.lastCall?.[0]).toMatchObject({
+        type: 'error',
+        message: 'The Cherry Studio window crashed again shortly after recovering.'
+      })
+      expect(applicationMock.forceExit).not.toHaveBeenCalled()
+
+      closeDialog({ response: 0, checkboxChecked: false })
+      await vi.waitFor(() => expect(applicationMock.forceExit).toHaveBeenCalledWith(1))
+    })
+
+    it('still force-exits when the repeated-crash dialog fails', async () => {
+      vi.mocked(dialog.showMessageBox).mockRejectedValueOnce(new Error('dialog unavailable'))
+
+      crashTwiceWithinOneMinute()
+
+      await vi.waitFor(() => expect(applicationMock.forceExit).toHaveBeenCalledWith(1))
     })
 
     // Regression guard for the "A JavaScript error occurred in the main process" dialog:
