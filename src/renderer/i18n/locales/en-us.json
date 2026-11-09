@@ -395,6 +395,7 @@
   "agent.session.workspace_selector.create_failed": "Failed to add work directory.",
   "agent.session.workspace_selector.create_new": "Add new work directory",
   "agent.session.workspace_selector.empty_text": "No work directories",
+  "agent.session.workspace_selector.install_directory_refused": "This folder is inside the Cherry Studio installation directory{{directory}}, which in-app upgrades replace. Choose a folder outside it.",
   "agent.session.workspace_selector.no_project": "No work directory",
   "agent.session.workspace_selector.placeholder": "Select work directory",
   "agent.session.workspace_selector.search_placeholder": "Search work directories",

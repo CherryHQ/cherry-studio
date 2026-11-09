@@ -395,6 +395,7 @@
   "agent.session.workspace_selector.create_failed": "Falha ao adicionar a pasta de trabalho.",
   "agent.session.workspace_selector.create_new": "Adicionar nova pasta de trabalho",
   "agent.session.workspace_selector.empty_text": "Sem pastas de trabalho",
+  "agent.session.workspace_selector.install_directory_refused": "Esta pasta está dentro do diretório de instalação do Cherry Studio{{directory}}, que é substituído nas atualizações feitas a partir da aplicação. Escolha uma pasta fora desse diretório.",
   "agent.session.workspace_selector.no_project": "Sem pasta de trabalho",
   "agent.session.workspace_selector.placeholder": "Selecionar pasta de trabalho",
   "agent.session.workspace_selector.search_placeholder": "Pesquisar pastas de trabalho",

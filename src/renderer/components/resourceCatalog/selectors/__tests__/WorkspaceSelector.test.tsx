@@ -1,10 +1,13 @@
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import i18next from 'i18next'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import { aiErrorCodes } from '@shared/ipc/errors/ai'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 
 const {
   closeConversationTabsMock,
@@ -196,7 +199,8 @@ let referencesQueryResult: {
   mutate: ReturnType<typeof vi.fn>
 }
 
-beforeAll(() => {
+beforeAll(async () => {
+  await i18next.changeLanguage('en-us')
   globalThis.ResizeObserver = class {
     observe() {}
     unobserve() {}
@@ -394,6 +398,27 @@ describe('WorkspaceSelector', () => {
     expect(refetchWorkspacesMock).not.toHaveBeenCalled()
     expect(invalidateCacheMock).toHaveBeenCalledWith('/agent-workspaces')
     expect(onChange).toHaveBeenCalledWith('workspace-created')
+  })
+
+  it('explains an installation-directory rejection without changing the selected workspace', async () => {
+    const user = userEvent.setup()
+    selectFolderMock.mockResolvedValue('/opt/cherry/work')
+    ipcRequestMock.mockRejectedValueOnce(
+      new IpcError(aiErrorCodes.AI_AGENT_WORKSPACE_INSTALL_DIRECTORY, 'internal', {
+        workspacePath: '/opt/cherry/work',
+        installDirectory: '/opt/cherry'
+      })
+    )
+    const { onChange } = renderSelector()
+    openPopover()
+    await user.click(screen.getByRole('button', { name: 'Add new work directory' }))
+    await waitFor(() =>
+      expect(toastErrorMock).toHaveBeenCalledWith(
+        'This folder is inside the Cherry Studio installation directory (/opt/cherry), which in-app upgrades replace. Choose a folder outside it.'
+      )
+    )
+    expect(onChange).not.toHaveBeenCalled()
+    expect(invalidateCacheMock).not.toHaveBeenCalled()
   })
 
   it('preserves the selection and allows retry after registration is rejected', async () => {

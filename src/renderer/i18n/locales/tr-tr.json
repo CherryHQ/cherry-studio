@@ -395,6 +395,7 @@
   "agent.session.workspace_selector.create_failed": "Çalışma dizini eklenemedi.",
   "agent.session.workspace_selector.create_new": "Yeni çalışma dizini ekle",
   "agent.session.workspace_selector.empty_text": "Çalışma dizini yok",
+  "agent.session.workspace_selector.install_directory_refused": "Bu klasör, uygulama içinden yapılan yükseltmelerde değiştirilen Cherry Studio kurulum dizininin{{directory}} içinde bulunuyor. Bu dizinin dışında bir klasör seçin.",
   "agent.session.workspace_selector.no_project": "Çalışma dizini yok",
   "agent.session.workspace_selector.placeholder": "Çalışma dizini seç",
   "agent.session.workspace_selector.search_placeholder": "Çalışma dizinlerinde ara",

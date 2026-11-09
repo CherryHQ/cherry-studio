@@ -395,6 +395,7 @@
   "agent.session.workspace_selector.create_failed": "Không thể thêm thư mục làm việc.",
   "agent.session.workspace_selector.create_new": "Thêm thư mục làm việc mới",
   "agent.session.workspace_selector.empty_text": "Không có thư mục làm việc",
+  "agent.session.workspace_selector.install_directory_refused": "Thư mục này nằm trong thư mục cài đặt Cherry Studio{{directory}}, vốn sẽ bị thay thế khi nâng cấp trong ứng dụng. Hãy chọn một thư mục bên ngoài thư mục cài đặt.",
   "agent.session.workspace_selector.no_project": "Không có thư mục làm việc",
   "agent.session.workspace_selector.placeholder": "Chọn thư mục làm việc",
   "agent.session.workspace_selector.search_placeholder": "Tìm kiếm thư mục làm việc",

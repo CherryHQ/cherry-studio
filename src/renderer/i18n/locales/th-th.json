@@ -395,6 +395,7 @@
   "agent.session.workspace_selector.create_failed": "ไม่สามารถเพิ่มไดเรกทอรีทำงานได้",
   "agent.session.workspace_selector.create_new": "เพิ่มไดเรกทอรีทำงานใหม่",
   "agent.session.workspace_selector.empty_text": "ไม่มีไดเรกทอรีทำงาน",
+  "agent.session.workspace_selector.install_directory_refused": "โฟลเดอร์นี้อยู่ภายในไดเรกทอรีติดตั้ง Cherry Studio{{directory}} ซึ่งจะถูกแทนที่เมื่ออัปเกรดผ่านแอป โปรดเลือกโฟลเดอร์ที่อยู่นอกไดเรกทอรีติดตั้ง",
   "agent.session.workspace_selector.no_project": "ไม่มีไดเรกทอรีทำงาน",
   "agent.session.workspace_selector.placeholder": "เลือกไดเรกทอรีทำงาน",
   "agent.session.workspace_selector.search_placeholder": "ค้นหาไดเรกทอรีทำงาน",

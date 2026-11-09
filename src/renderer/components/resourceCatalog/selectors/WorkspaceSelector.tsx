@@ -15,6 +15,7 @@ import {
 import { useDataChange, useInvalidateCache, useQuery } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { workspaceInstallDirectoryErrorMessage } from '@renderer/utils/error'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
@@ -149,7 +150,7 @@ export function WorkspaceSelector({
       await onChange(workspace.id)
     } catch (error) {
       logger.error('Failed to create workspace from folder', error as Error, { folderPath })
-      toast.error(t('agent.session.workspace_selector.create_failed'))
+      toast.error(workspaceInstallDirectoryErrorMessage(error) ?? t('agent.session.workspace_selector.create_failed'))
     } finally {
       setIsCreatingWorkspace(false)
     }

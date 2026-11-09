@@ -1,14 +1,17 @@
 import { APICallError, RetryError } from 'ai'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AgentSessionForkSourceError } from '@data/services/AgentSessionForkService'
 import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
+import { WorkspaceInstallDirectoryError } from '@main/ai/agents/agentWorkspaceInstallDirectory'
+import { agentWorkspaceStorageService } from '@main/ai/agents/AgentWorkspaceStorageService'
 import { AgentSessionForkError } from '@main/ai/runtime/fork/checkpoint'
 import { AiStreamAdmissionError } from '@main/ai/streamManager'
 import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 const {
   appGetMock,
@@ -151,7 +154,34 @@ beforeEach(() => {
 // ignore IpcContext — pass a stable stub.
 const ctx = { senderId: 'w1' }
 
+afterEach(() => vi.restoreAllMocks())
+
 describe('aiHandlers', () => {
+  it('translates installation-directory rejection into a branchable IPC error with both paths', async () => {
+    const workspacePath = AbsoluteFilePathSchema.parse('/opt/cherry/work')
+    const installDirectory = '/opt/cherry'
+    vi.spyOn(agentWorkspaceStorageService, 'registerWorkspace').mockImplementation(() => {
+      throw new WorkspaceInstallDirectoryError(workspacePath, installDirectory)
+    })
+    const result = aiHandlers['ai.agent.workspace.register']({ path: workspacePath }, ctx)
+    await expect(result).rejects.toBeInstanceOf(IpcError)
+    await expect(result).rejects.toMatchObject({
+      code: aiErrorCodes.AI_AGENT_WORKSPACE_INSTALL_DIRECTORY,
+      message: expect.stringContaining(workspacePath),
+      data: { workspacePath, installDirectory }
+    })
+  })
+
+  it('preserves unrelated workspace registration failures', async () => {
+    const error = new Error('Workspace storage is in use')
+    vi.spyOn(agentWorkspaceStorageService, 'registerWorkspace').mockImplementation(() => {
+      throw error
+    })
+    await expect(
+      aiHandlers['ai.agent.workspace.register']({ path: AbsoluteFilePathSchema.parse('/projects/work') }, ctx)
+    ).rejects.toBe(error)
+  })
+
   it('forwards a native fork request with only the source session and checkpoint message', async () => {
     agentSessionRuntimeService.forkSession.mockResolvedValue('child')
     await expect(

@@ -395,6 +395,7 @@
   "agent.session.workspace_selector.create_failed": "Не удалось добавить рабочий каталог.",
   "agent.session.workspace_selector.create_new": "Добавить новую рабочую директорию",
   "agent.session.workspace_selector.empty_text": "Нет рабочих каталогов",
+  "agent.session.workspace_selector.install_directory_refused": "Эта папка находится в каталоге установки Cherry Studio{{directory}}, который заменяется при обновлении из приложения. Выберите папку вне этого каталога.",
   "agent.session.workspace_selector.no_project": "Нет рабочего каталога",
   "agent.session.workspace_selector.placeholder": "Выберите рабочий каталог",
   "agent.session.workspace_selector.search_placeholder": "Поиск рабочих каталогов",

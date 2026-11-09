@@ -395,6 +395,7 @@
   "agent.session.workspace_selector.create_failed": "Αποτυχία προσθήκης καταλόγου εργασίας.",
   "agent.session.workspace_selector.create_new": "Προσθήκη νέου καταλόγου εργασίας",
   "agent.session.workspace_selector.empty_text": "Κανένας κατάλογος εργασίας",
+  "agent.session.workspace_selector.install_directory_refused": "Αυτός ο φάκελος βρίσκεται μέσα στον κατάλογο εγκατάστασης του Cherry Studio{{directory}}, ο οποίος αντικαθίσταται κατά τις αναβαθμίσεις μέσα από την εφαρμογή. Επιλέξτε έναν φάκελο έξω από αυτόν.",
   "agent.session.workspace_selector.no_project": "Κανένας κατάλογος εργασίας",
   "agent.session.workspace_selector.placeholder": "Επιλέξτε κατάλογο εργασίας",
   "agent.session.workspace_selector.search_placeholder": "Αναζήτηση καταλόγων εργασίας",

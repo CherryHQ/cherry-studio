@@ -61,6 +61,8 @@ The client enables electron-updater's native differential downloader while keepi
 
 Both old and new version blockmap URLs must remain available through the existing download routes. Validate redirects and Range responses on GitHub and GitCode before rollout; an installer accepting Range requests alone is insufficient. This change reduces download traffic, not the full extraction/replacement work performed after application exit. It does not change installer identity, data migration or the explicit installation action.
 
+Windows NSIS upgrades replace the entire installation directory (`$INSTDIR`), including user-created subdirectories. Cherry Studio therefore refuses to register Agent workspaces equal to or inside that directory: `src/main/ai/agents/agentWorkspaceInstallDirectory.ts` owns the policy, called by `AgentWorkspaceStorageService.registerWorkspace` before reservations or database writes. Portable and unpackaged builds are exempt; existing workspace records are not automatically migrated.
+
 ## Check Lifecycle
 
 Manual checks are available in development and packaged, non-portable builds. Portable builds do not perform update checks. Packaged, non-portable builds also schedule automatic checks in the main process. Successful checks return to the normal cadence, while failed scheduled checks use exponential backoff before retrying. Update events and download progress continue to reach the main window through IpcApi.

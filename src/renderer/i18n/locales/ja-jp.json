@@ -395,6 +395,7 @@
   "agent.session.workspace_selector.create_failed": "ワークフォルダーの追加に失敗しました。",
   "agent.session.workspace_selector.create_new": "新しい作業フォルダーを追加",
   "agent.session.workspace_selector.empty_text": "作業フォルダーがありません",
+  "agent.session.workspace_selector.install_directory_refused": "このフォルダーは Cherry Studio のインストールディレクトリ{{directory}}内にあります。このディレクトリはアプリ内アップグレード時に置き換えられます。インストールディレクトリの外にあるフォルダーを選択してください。",
   "agent.session.workspace_selector.no_project": "作業フォルダーがありません",
   "agent.session.workspace_selector.placeholder": "作業フォルダーを選択",
   "agent.session.workspace_selector.search_placeholder": "作業フォルダーを検索",

@@ -395,6 +395,7 @@
   "agent.session.workspace_selector.create_failed": "Impossibile aggiungere la cartella di lavoro.",
   "agent.session.workspace_selector.create_new": "Aggiungi nuova cartella di lavoro",
   "agent.session.workspace_selector.empty_text": "Nessuna cartella di lavoro",
+  "agent.session.workspace_selector.install_directory_refused": "Questa cartella si trova nella directory di installazione di Cherry Studio{{directory}}, che viene sostituita dagli aggiornamenti eseguiti dall’app. Scegli una cartella al di fuori di questa directory.",
   "agent.session.workspace_selector.no_project": "Nessuna cartella di lavoro",
   "agent.session.workspace_selector.placeholder": "Seleziona cartella di lavoro",
   "agent.session.workspace_selector.search_placeholder": "Cerca cartelle di lavoro",

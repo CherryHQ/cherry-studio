@@ -395,6 +395,7 @@
   "agent.session.workspace_selector.create_failed": "Fehler beim Hinzufügen des Arbeitsverzeichnisses.",
   "agent.session.workspace_selector.create_new": "Neues Arbeitsverzeichnis hinzufügen",
   "agent.session.workspace_selector.empty_text": "Keine Arbeitsverzeichnisse",
+  "agent.session.workspace_selector.install_directory_refused": "Dieser Ordner befindet sich im Installationsverzeichnis von Cherry Studio{{directory}}, das bei Updates innerhalb der App ersetzt wird. Wählen Sie einen Ordner außerhalb dieses Verzeichnisses.",
   "agent.session.workspace_selector.no_project": "Kein Arbeitsverzeichnis",
   "agent.session.workspace_selector.placeholder": "Arbeitsverzeichnis auswählen",
   "agent.session.workspace_selector.search_placeholder": "Arbeitsverzeichnisse durchsuchen",

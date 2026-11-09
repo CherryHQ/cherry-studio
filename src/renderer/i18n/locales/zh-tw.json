@@ -395,6 +395,7 @@
   "agent.session.workspace_selector.create_failed": "新增工作目錄失敗。",
   "agent.session.workspace_selector.create_new": "新增工作目錄",
   "agent.session.workspace_selector.empty_text": "目前沒有工作目錄",
+  "agent.session.workspace_selector.install_directory_refused": "此資料夾位於 Cherry Studio 安裝目錄{{directory}}內，應用程式內升級會取代安裝目錄。請選擇安裝目錄以外的資料夾。",
   "agent.session.workspace_selector.no_project": "不使用工作目錄",
   "agent.session.workspace_selector.placeholder": "選擇工作目錄",
   "agent.session.workspace_selector.search_placeholder": "搜尋工作目錄",

@@ -395,6 +395,7 @@
   "agent.session.workspace_selector.create_failed": "Échec de l'ajout du répertoire de travail.",
   "agent.session.workspace_selector.create_new": "Ajouter un nouveau répertoire de travail",
   "agent.session.workspace_selector.empty_text": "Aucun répertoire de travail",
+  "agent.session.workspace_selector.install_directory_refused": "Ce dossier se trouve dans le répertoire d’installation de Cherry Studio{{directory}}, qui est remplacé lors des mises à niveau depuis l’application. Choisissez un dossier en dehors de ce répertoire.",
   "agent.session.workspace_selector.no_project": "Aucun répertoire de travail",
   "agent.session.workspace_selector.placeholder": "Sélectionner le répertoire de travail",
   "agent.session.workspace_selector.search_placeholder": "Rechercher dans les répertoires de travail",

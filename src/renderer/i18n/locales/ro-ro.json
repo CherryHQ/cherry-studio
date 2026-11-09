@@ -395,6 +395,7 @@
   "agent.session.workspace_selector.create_failed": "Nu s-a reușit adăugarea directorului de lucru.",
   "agent.session.workspace_selector.create_new": "Adaugă un nou director de lucru",
   "agent.session.workspace_selector.empty_text": "Niciun director de lucru",
+  "agent.session.workspace_selector.install_directory_refused": "Acest dosar se află în directorul de instalare Cherry Studio{{directory}}, care este înlocuit la actualizările din aplicație. Alegeți un dosar din afara acestuia.",
   "agent.session.workspace_selector.no_project": "Niciun director de lucru",
   "agent.session.workspace_selector.placeholder": "Selectează directorul de lucru",
   "agent.session.workspace_selector.search_placeholder": "Caută în directoarele de lucru",

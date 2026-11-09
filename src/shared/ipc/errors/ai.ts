@@ -27,6 +27,8 @@ export const aiErrorCodes = {
   AI_AGENT_NOT_FOUND: 'AI_AGENT_NOT_FOUND',
   /** A session was requested in a user workspace that no longer exists. */
   AI_AGENT_WORKSPACE_NOT_FOUND: 'AI_AGENT_WORKSPACE_NOT_FOUND',
+  /** Workspace registration rejected an installation directory path; the renderer localizes the recovery guidance. */
+  AI_AGENT_WORKSPACE_INSTALL_DIRECTORY: 'AI_AGENT_WORKSPACE_INSTALL_DIRECTORY',
   /** Moving Agent Sessions to the Recycle Bin was rejected while generation is unsettled. */
   AI_AGENT_SESSION_ARCHIVE_BUSY: 'AI_AGENT_SESSION_ARCHIVE_BUSY',
   /** Direct permanent deletion of an active Agent Session was rejected because it is pinned. */
