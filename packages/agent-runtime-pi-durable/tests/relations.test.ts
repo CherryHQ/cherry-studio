@@ -1,5 +1,5 @@
-import type { Context } from '@earendil-works/chord/context'
-import { createModels, fauxAssistantMessage, fauxProvider, fauxToolCall, Type } from '@earendil-works/pi-ai'
+import { awaitWithContext, type Context } from '@earendil-works/chord/context'
+import { createModels, fauxAssistantMessage, fauxProvider, fauxToolCall } from '@earendil-works/pi-ai'
 import {
   createRegistry,
   defineExtension,
@@ -12,6 +12,7 @@ import {
   type Storage,
   type ToolExecutionApi
 } from '@earendil-works/pi-durable'
+import { obj } from '@earendil-works/pi-schema'
 import { expect, it, onTestFinished } from 'vitest'
 
 import { runtimeId, type ObservationPayload, type OperationResult } from '@cherrystudio/agent-runtime'
@@ -47,7 +48,7 @@ async function setup(
         defineTool({
           name: 'delegate',
           description: 'Create children',
-          parameters: Type.Object({}),
+          parameters: obj({}),
           async execute(_args, api, context) {
             await execute(api, context)
             return { output: [{ type: 'text', text: 'created' }] }
@@ -209,13 +210,13 @@ it('rejects ambiguous creation origins and retries a failed relation read withou
   let fail = false
   const wrapped = new Proxy(storage, {
     get(target, key) {
-      if (key === 'task')
-        return async (...args: Parameters<Storage['task']>) => {
+      if (key === 'scanConversations')
+        return async (...args: Parameters<Storage['scanConversations']>) => {
           if (fail) {
             fail = false
             throw new StorageRequestError('relation temporarily unavailable')
           }
-          return target.task(...args)
+          return target.scanConversations(...args)
         }
       const value = Reflect.get(target, key)
       return typeof value === 'function' ? value.bind(target) : value
@@ -239,7 +240,11 @@ it('rejects ambiguous creation origins and retries a failed relation read withou
   await runtime.settled()
   const calls = faux.state.callCount
   fail = true
-  await expect(child.durable.relation()).rejects.toThrow('relation temporarily unavailable')
+  expect(await root.durable.openChild('spawn')).toMatchObject({ status: 'unknown' })
+  expect(await root.durable.openChild('spawn')).toMatchObject({
+    status: 'rejected',
+    error: { code: 'ambiguous-origin' }
+  })
   expect(await child.durable.relation()).toMatchObject({ parent: root.thread, origin: { toolCallId: 'spawn' } })
   expect(faux.state.callCount).toBe(calls)
 })
@@ -391,10 +396,10 @@ it('closes observations when the native session fails without a task graph watch
   let fail = false
   const wrapped = new Proxy(storage, {
     get(target, key) {
-      if (key === 'task')
-        return async (...args: Parameters<Storage['task']>) => {
+      if (key === 'scanConversations')
+        return async (...args: Parameters<Storage['scanConversations']>) => {
           if (fail) throw new Error('native storage failed')
-          return target.task(...args)
+          return target.scanConversations(...args)
         }
       const value = Reflect.get(target, key)
       return typeof value === 'function' ? value.bind(target) : value
@@ -407,10 +412,10 @@ it('closes observations when the native session fails without a task graph watch
   const { events } = await observe(root)
   await submit(root)
   await runtime.settled()
-  const child = confirmed(await root.durable.openChild('spawn')).handle
+  confirmed(await root.durable.openChild('spawn'))
   await runtime.settled()
   fail = true
-  await expect(child.durable.relation()).rejects.toThrow()
+  expect((await root.durable.openChild('spawn')).status).not.toBe('confirmed')
   await expect.poll(() => events.at(-1)).toEqual({ type: 'closed', reason: 'source-lost' })
   expect(errors.some((error) => error instanceof Error && error.message === 'native storage failed')).toBe(true)
 })
@@ -432,6 +437,55 @@ it('settles pending child access when the runtime closes', async () => {
   expect(await closing).toMatchObject({ status: 'confirmed' })
 })
 
+it('signals source loss before blocked tool cleanup finishes', async () => {
+  const entered = gate()
+  const cancelled = gate()
+  const cleanup = gate()
+  const never = gate()
+  let fail = false
+  const storage = new MemoryStorage()
+  const wrapped = new Proxy(storage, {
+    get(target, key) {
+      if (key === 'scanEntries')
+        return async (...args: Parameters<Storage['scanEntries']>) => {
+          if (fail) throw new Error('fatal storage read')
+          return target.scanEntries(...args)
+        }
+      const value = Reflect.get(target, key)
+      return typeof value === 'function' ? value.bind(target) : value
+    }
+  })
+  const { runtime } = await setup(async (_api, context) => {
+    entered.resolve()
+    try {
+      await awaitWithContext(never.promise, context)
+    } finally {
+      cancelled.resolve()
+      await cleanup.promise
+    }
+  }, wrapped)
+  const root = await parent(runtime)
+  const { events } = await observe(root)
+  await submit(root)
+  await entered.promise
+  let opened: unknown
+  const opening = root.durable.openChild('spawn').then((result) => {
+    opened = result
+  })
+  fail = true
+  const reading = root.archive()
+  try {
+    await cancelled.promise
+    await expect.poll(() => events.at(-1), { timeout: 1000 }).toEqual({ type: 'closed', reason: 'source-lost' })
+    await expect.poll(() => opened, { timeout: 1000 }).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
+  } finally {
+    cleanup.resolve()
+    never.resolve()
+    await reading
+    await opening
+  }
+})
+
 it.each(['settled', 'shutdown'] as const)('joins admitted relation delivery before %s completes', async (operation) => {
   const reading = gate()
   const deliver = gate()
@@ -442,7 +496,7 @@ it.each(['settled', 'shutdown'] as const)('joins admitted relation delivery befo
       if (key === 'commit')
         return async (...args: Parameters<Storage['commit']>) => {
           const seq = await target.commit(...args)
-          const child = args[0].find((write) => write.type === 'conversation' && write.value.owner)
+          const child = args[0].flat().find((write) => write.type === 'conversation' && write.value.owner)
           if (child?.type === 'conversation') held = child.value.owner
           return seq
         }
