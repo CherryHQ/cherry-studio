@@ -138,8 +138,9 @@ export function useChatRuntimeState({
   const scrollToBottom = useCallback(() => {
     requestAnimationFrame(() => messageListRuntimeRef.current?.scrollToBottom())
   }, [])
-  const locateMessage = useCallback((messageId: string, highlight?: boolean) => {
-    dispatchLocateMessage(messageListRuntimeRef.current, messageId, highlight)
+  const locateMessage = useCallback((messageId: string | null, highlight?: boolean) => {
+    if (messageId === null) messageListRuntimeRef.current?.scrollToBottom()
+    else dispatchLocateMessage(messageListRuntimeRef.current, messageId, highlight)
   }, [])
 
   // PR 3: the effect that pushed `uiMessages` into `useChat.setMessages` after
@@ -196,7 +197,7 @@ export function useChatRuntimeState({
     liveAssistants,
     disposeOverlay,
     reset: resetOverlay
-  } = useExecutionOverlay(topic.id, branchActiveExecutions, messages, {
+  } = useExecutionOverlay(topic.id, branchActiveExecutions, {
     onUpdate: (_executionId, event) =>
       autoReadService.update({
         ...event,
@@ -213,7 +214,7 @@ export function useChatRuntimeState({
 
   // Deterministic overlay→DB handoff at terminal (see hook docs); branch
   // bookkeeping stays in `handleExecutionFinish`.
-  useTopicOverlayHandoffOnTerminal(topic.id, createOverlayRefreshHandoff(refresh, resetOverlay))
+  useTopicOverlayHandoffOnTerminal(topic.id, createOverlayRefreshHandoff(refresh, resetOverlay), liveAssistants)
 
   const { partsByMessageId, liveMessageIds, streamingLayers } = useMessageStreamingLayers({
     messages,

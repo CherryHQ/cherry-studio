@@ -130,6 +130,7 @@ export interface Adapter {
   /** Counts `work` as pending for `settled()` until it settles. */
   track<T>(work: Promise<T>): Promise<T>
   report(error: unknown): void
+  results(thread: ThreadId): void
   withScope<T>(call: CallScope, use: (ports: BoundPorts) => Promise<T>): Promise<T>
   lifecycle(call: (handlers: LifecycleHandlers, ports: BoundPorts) => Promise<void>): Promise<void>
 }
