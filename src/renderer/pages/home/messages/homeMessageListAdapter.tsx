@@ -877,10 +877,15 @@ export function useHomeMessageListProviderValue({
           (safeUrl?.protocol === 'http:' || safeUrl?.protocol === 'https:') &&
           !/^http:\/\/file\//i.test(url)
         ) {
+          const previous = topicBrowserRuntimeService.get(topicId)
           topicBrowserRuntimeService.ensure(topicId, url)
           if (topicBrowserRuntimeService.get(topicId) && panelActions.tryOpen('browser', { userInitiated: true })) {
             if (panelState.maximized) panelActions.minimize()
-            if (topicBrowserRuntimeService.navigate(topicId, url)) return
+            // src already loads the URL; avoid a second request and only navigate back after browsing elsewhere.
+            if (previous?.ready && previous.guest && previous.sourceUrl === url) {
+              topicBrowserRuntimeService.navigate(topicId, url)
+            }
+            return
           }
         }
         return leafCapabilities.openExternalUrl?.(url)

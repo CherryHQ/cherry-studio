@@ -111,7 +111,7 @@ describe('AgentBrowserRuntimeHost', () => {
   afterEach(() => {
     cleanup()
     window.getSelection()?.removeAllRanges()
-    for (const key of ['getWebContentsId', 'isLoading', 'getTitle', 'getURL'])
+    for (const key of ['getWebContentsId', 'isLoading', 'getTitle', 'getURL', 'loadURL'])
       Reflect.deleteProperty(HTMLElement.prototype, key)
     runtime.dispose()
     topicRuntime.dispose()
@@ -133,6 +133,24 @@ describe('AgentBrowserRuntimeHost', () => {
     await waitFor(() => expect(loadURL).toHaveBeenCalledExactlyOnceWith(url))
     expect(runtime.get('session-a')?.pendingNavigation).toBeUndefined()
     Reflect.deleteProperty(HTMLElement.prototype, 'loadURL')
+  })
+
+  it('loads an initial topic guest only through src without calling loadURL', async () => {
+    const loadURL = vi.fn().mockResolvedValue(undefined)
+    Object.assign(HTMLElement.prototype, { isLoading: () => true, loadURL })
+    bridge.tabs = [{ id: 'tab-a', type: 'route', url: '/app/chat?topicId=topic-a', title: 'Chat' }]
+    const url = 'https://example.com/'
+    topicRuntime.ensure('topic-a', url)
+    const view = render(<AgentBrowserRuntimeHost />)
+    act(() => topicRuntime.ensure('topic-a', url))
+    const guest = await view.findByTestId('webview-browser-guest')
+
+    await act(async () => {
+      guest.dispatchEvent(new Event('dom-ready'))
+    })
+
+    expect(guest).toHaveAttribute('src', url)
+    expect(loadURL).not.toHaveBeenCalled()
   })
 
   it.each([

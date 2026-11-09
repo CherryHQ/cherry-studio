@@ -43,9 +43,12 @@ const routeActions = vi.hoisted(() => ({
   tryOpen: vi.fn(() => routeState.accepted),
   minimize: vi.fn()
 }))
+const runtimeState = vi.hoisted(() => ({
+  resource: {} as { sourceUrl?: string; ready?: boolean; guest?: object | null } | undefined
+}))
 const runtimeMock = vi.hoisted(() => ({
   ensure: vi.fn(),
-  get: vi.fn(() => (routeState.owner ? {} : undefined)),
+  get: vi.fn(() => (routeState.owner ? runtimeState.resource : undefined)),
   navigate: vi.fn(() => true)
 }))
 vi.mock('@renderer/components/chat/panes/Shell', () => ({
@@ -364,6 +367,15 @@ function MessageListAdapterHarness({
 describe('useHomeMessageListProviderValue topic image actions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    runtimeState.resource = {}
+    Object.assign(routeState, {
+      enabled: false,
+      present: true,
+      canOpen: true,
+      accepted: true,
+      owner: true,
+      maximized: false
+    })
     chatWriteMock.canStartNewContext = true
     messageEditingMock.editingMessageId = null
     messageEditingMock.editingMessage = null
@@ -385,6 +397,7 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
   })
 
   it('routes eligible Chat links and delegates all declined activations once', () => {
+    runtimeState.resource = { sourceUrl: 'https://example.com/page', ready: true, guest: {} }
     Object.assign(routeState, {
       enabled: true,
       present: true,
@@ -427,6 +440,58 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     )
     fallback(url)
     routeState.enabled = false
+  })
+
+  it('loads a first Chat link through src without explicit navigation or fallback', () => {
+    routeState.enabled = true
+    const url = 'https://example.com/page'
+    runtimeState.resource = undefined
+    runtimeMock.ensure.mockImplementationOnce(() => {
+      runtimeState.resource = { sourceUrl: url, ready: false, guest: null }
+    })
+    let value: MessageListProviderValue | undefined
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
+
+    act(() => {
+      void value?.actions.openExternalUrl?.(url)
+    })
+
+    expect(runtimeMock.ensure).toHaveBeenCalledWith('topic-a', url)
+    expect(routeActions.tryOpen).toHaveBeenCalledWith('browser', { userInitiated: true })
+    expect(runtimeMock.navigate).not.toHaveBeenCalled()
+    expect(leafCapabilitiesMock.openExternalUrl).not.toHaveBeenCalled()
+  })
+
+  it('explicitly navigates a ready Chat guest when reopening its source URL', () => {
+    routeState.enabled = true
+    const url = 'https://example.com/page'
+    runtimeState.resource = { sourceUrl: url, ready: true, guest: {} }
+    let value: MessageListProviderValue | undefined
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
+
+    act(() => {
+      void value?.actions.openExternalUrl?.(url)
+    })
+
+    expect(runtimeMock.navigate).toHaveBeenCalledExactlyOnceWith('topic-a', url)
+  })
+
+  it('loads a changed Chat source URL without explicit navigation', () => {
+    routeState.enabled = true
+    const url = 'https://example.com/page'
+    runtimeState.resource = { sourceUrl: 'https://previous.example/', ready: true, guest: {} }
+    runtimeMock.ensure.mockImplementationOnce(() => {
+      runtimeState.resource = { ...runtimeState.resource, sourceUrl: url }
+    })
+    let value: MessageListProviderValue | undefined
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
+
+    act(() => {
+      void value?.actions.openExternalUrl?.(url)
+    })
+
+    expect(runtimeMock.ensure).toHaveBeenCalledWith('topic-a', url)
+    expect(runtimeMock.navigate).not.toHaveBeenCalled()
   })
 
   it('exposes generated image reference actions only to normal message interactions', () => {
