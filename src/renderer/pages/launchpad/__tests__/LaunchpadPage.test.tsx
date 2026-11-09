@@ -136,6 +136,7 @@ vi.mock('react-i18next', () => ({
           'title.chat': 'Chat',
           'title.work': 'Agent',
           'title.paintings': 'Paintings',
+          'title.marketplace': 'Marketplace',
           'settings.scheduledTasks.title': 'Scheduled Tasks',
           'assistants.presets.title': 'Library',
           'code.title': 'Code',
@@ -197,6 +198,12 @@ describe('LaunchpadPage', () => {
     mocks.setSidebarFavorites.mockResolvedValue(undefined)
     mocks.setAppOrder.mockResolvedValue(undefined)
     mocks.reorderMiniAppsByStatus.mockResolvedValue(undefined)
+  })
+
+  it('opens the marketplace from its launchpad tile', async () => {
+    render(<LaunchpadPage />)
+    await userEvent.click(screen.getByRole('button', { name: 'Marketplace' }))
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/marketplace' })
   })
 
   it('renders the launchpad page chrome and app grid', () => {

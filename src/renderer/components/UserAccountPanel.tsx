@@ -1,7 +1,6 @@
 import { ChevronRight, CreditCard, Gauge, LogIn, RotateCcw, Settings } from 'lucide-react'
 import { type ReactNode, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import useSWR from 'swr'
 
 import {
   Avatar,
@@ -18,8 +17,7 @@ import { CherryCloudQuotaUsage } from '@renderer/components/CherryCloudQuotaUsag
 import { CommandShortcut } from '@renderer/components/command'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
-import { useCherryCloudSubscribeReminder } from '@renderer/hooks/useCherryCloudPlans'
-import { ipcApi } from '@renderer/ipc'
+import { useCherryCloudPlans, useCherryCloudSubscribeReminder } from '@renderer/hooks/useCherryCloudPlans'
 import { openCherryCloudAccountPortal } from '@renderer/services/cherryCloudAccountPortal'
 import { startCherryCloudSubscription } from '@renderer/services/cherryCloudSubscription'
 import { trackSubscriptionEntryView } from '@renderer/services/cherryCloudSubscriptionAnalytics'
@@ -56,16 +54,12 @@ export function UserAccountPanel({
   const showSubscribeDot = useCherryCloudSubscribeReminder()
   const isCloudSignedIn = cloudStatus?.phase === 'signed-in'
 
-  const accountId = isCloudSignedIn ? cloudStatus.accountId : null
   const {
-    data: plans,
-    error: plansError,
-    mutate: reloadPlans
-  } = useSWR(
-    accountId ? ['cherry-cloud/account-plans', accountId] : null,
-    () => ipcApi.request('cherry_cloud.account_plans.get'),
-    { shouldRetryOnError: false }
-  )
+    plansQuery: { data: plans, error: plansError, mutate: reloadPlans },
+    activePaid,
+    upcomingPaid,
+    isPlansReady
+  } = useCherryCloudPlans()
 
   const handleOpenAccountDetails = () => {
     onRequestClose?.()
@@ -77,11 +71,9 @@ export function UserAccountPanel({
     openSettingsTab()
   }
 
-  const activePaidPlan = plans?.entitlements.find((item) => item.state === 'active' && !item.plan.is_free)
+  const activePaidPlan = activePaid
   // A bought plan that has not started yet is shown as such, not offered again.
-  const upcomingPaidPlan = activePaidPlan
-    ? undefined
-    : plans?.entitlements.find((item) => item.state === 'upcoming' && !item.plan.is_free)
+  const upcomingPaidPlan = activePaidPlan ? undefined : upcomingPaid
   const paidPlanName = (activePaidPlan ?? upcomingPaidPlan)?.plan.display_name
   const remainingPercent = activePaidPlan ? (getLowestRemainingPercent(activePaidPlan) ?? null) : null
   const cloudSubtitle = isCloudSignedIn
@@ -96,7 +88,8 @@ export function UserAccountPanel({
   const accountDisplayName = userName || t('settings.profile.title')
   const subscriptionLoading =
     cloudStatusLoadState === 'loading' || isAuthorizing || (isCloudSignedIn && !plans && !plansError)
-  const subscriptionFailed = cloudStatusLoadState === 'error' || (isCloudSignedIn && plansError && !plans)
+  const subscriptionFailed =
+    cloudStatusLoadState === 'error' || (isCloudSignedIn && !paidPlanName && !isPlansReady && !subscriptionLoading)
   const subscriptionAction = subscriptionLoading ? (
     t('common.loading')
   ) : subscriptionFailed ? (
@@ -112,7 +105,8 @@ export function UserAccountPanel({
   ) : (
     <span className="text-link">{t('settings.subscription.go_to_subscribe')}</span>
   )
-  const offersSubscription = !subscriptionLoading && !subscriptionFailed && !paidPlanName
+  const offersSubscription =
+    !subscriptionLoading && !subscriptionFailed && !paidPlanName && (!isCloudSignedIn || isPlansReady)
   useEffect(() => {
     if (offersSubscription) trackSubscriptionEntryView('account_panel')
   }, [offersSubscription])
@@ -121,7 +115,7 @@ export function UserAccountPanel({
       void loadCloudStatus()
     } else if (!isCloudSignedIn) {
       void startCherryCloudSubscription('account_panel')
-    } else if (plansError && !plans) {
+    } else if (!isPlansReady && !paidPlanName) {
       void reloadPlans().catch(() => {})
     } else if (plans) {
       onRequestClose?.()

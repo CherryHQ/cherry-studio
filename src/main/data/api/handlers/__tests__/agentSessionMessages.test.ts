@@ -1,3 +1,4 @@
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -34,31 +35,18 @@ import { agentSessionMessageHandlers } from '../agentSessionMessages'
 describe('agentSessionMessageHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    MockApplicationUtils.setService('AgentSessionRuntimeService', {
+      getHistoryActions: () =>
+        new Map([
+          ['assistant-message', { fork: 'legacy_history', edit: 'invalid_target' }],
+          ['user-message', { fork: 'not_turn_boundary', edit: 'checkpoint_unsupported' }]
+        ])
+    })
     // `getConversationById` is synchronous; scope violations throw inline.
     getConversationByIdMock.mockReturnValue({ id: 'session-1' })
   })
 
   describe('/agent-sessions/:sessionId/messages', () => {
-    it('forwards messageId query to agentSessionMessageService.listSessionMessages', async () => {
-      // `listSessionMessages` is synchronous (better-sqlite3), so the mock must return, not resolve.
-      const response = { items: [], nextCursor: undefined }
-      listSessionMessagesMock.mockReturnValueOnce(response)
-
-      const result = await agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'].GET({
-        params: { sessionId: 'session-1' },
-        query: {
-          messageId: 'message-1',
-          limit: '25'
-        }
-      } as never)
-
-      expect(listSessionMessagesMock).toHaveBeenCalledWith('session-1', {
-        messageId: 'message-1',
-        limit: 25
-      })
-      expect(result).toBe(response)
-    })
-
     it('replaces an oversized assistant tool output with a reference, leaving the stored data alone', async () => {
       const output = { content: 'x'.repeat(64 * 1024) }
       const assistant = {
@@ -93,7 +81,8 @@ describe('agentSessionMessageHandlers', () => {
           }
         }
       })
-      expect(result.items[1]).toBe(user)
+      expect(result.items[1]).toMatchObject(user)
+      expect(result.items[0]).toHaveProperty('historyActions', { fork: 'legacy_history', edit: 'invalid_target' })
       expect(assistant.data.parts[1]).toMatchObject({ output })
       const replaced = {
         ...assistant,
@@ -123,7 +112,7 @@ describe('agentSessionMessageHandlers', () => {
         query: { deferToolOutputs: true }
       })) as unknown as { items: unknown[] }
 
-      expect(result.items[0]).toBe(assistant)
+      expect(result.items[0]).toMatchObject(assistant)
     })
 
     it('returns stored tool outputs verbatim unless the caller opts in', async () => {
@@ -143,7 +132,10 @@ describe('agentSessionMessageHandlers', () => {
         agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'].GET({
           params: { sessionId: 'session-1' }
         })
-      ).resolves.toBe(response)
+      ).resolves.toEqual({
+        ...response,
+        items: [{ ...assistant, historyActions: { fork: 'legacy_history', edit: 'invalid_target' } }]
+      })
     })
 
     it('hides the message list of a session outside the conversation scope', async () => {

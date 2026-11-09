@@ -12,14 +12,3 @@ export function getCherryCloudSignInErrorMessage(error: unknown, t: TFunction): 
   }
   return t('settings.provider.cherry_cloud.sign_in_failed')
 }
-
-/** The coarse reason category reported when a `cherry_cloud.login.start` request fails. */
-export function getCherryCloudSignInFailureReason(
-  error: unknown
-): 'upgrade_required' | 'service_unavailable' | 'other' {
-  if (error instanceof IpcError && error.code === cherryCloudErrorCodes.UPGRADE_REQUIRED) return 'upgrade_required'
-  if (error instanceof IpcError && error.code === cherryCloudErrorCodes.LOGIN_SERVICE_UNAVAILABLE) {
-    return 'service_unavailable'
-  }
-  return 'other'
-}
