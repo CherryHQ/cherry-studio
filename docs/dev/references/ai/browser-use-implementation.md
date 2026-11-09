@@ -2,6 +2,9 @@
 description: Browser session engine implementation, MCP contracts, and stacked delivery plan
 sources:
   - src/main/features/browser
+  - src/renderer/pages/home/messages
+  - src/renderer/pages/home/components/TopicRightPane.tsx
+  - src/renderer/components/chat/shell/paneLayout.ts
 ---
 
 # Browser Use — Implementation Plan
@@ -1182,6 +1185,19 @@ other website links open `/app/browser` tabs through main-window navigation, sha
 IPC, host-window link interception, app menu links and external mini-app popups use that policy. Explicit
 external-browser buttons use a separate IPC command; OAuth authorization and non-HTTP schemes retain
 their existing handling.
+
+`app.browser.open_chat_links_in_right_panel` defaults to `false`. When enabled, plain HTTP(S) link activation
+in Chat messages opens the current topic's browser pane. Agent message links retain their existing routing,
+and modifier-assisted activation keeps its existing behavior. The two link preferences have this precedence:
+
+| Chat pane preference | Open links in browser | Plain Chat links |
+|---|---|---|
+| On | On or off | Topic browser pane |
+| Off | On | Built-in browser tab |
+| Off | Off | External browser |
+
+On first use the topic browser pane is about one third of the chat shell width. User resizing persists the
+chosen width; the initial ratio itself is not stored.
 
 `app.browser.auto_open_panel` defaults to `true` and controls tool-driven opening of the right-side browser panel
 in Agent sessions and Assistant topics. When disabled, browser tools continue operating without opening the panel

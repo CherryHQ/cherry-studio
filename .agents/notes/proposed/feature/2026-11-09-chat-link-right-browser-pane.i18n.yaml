@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-09-chat-link-right-browser-pane.md
+2026-11-09-chat-link-right-browser-pane.md: 34472dd29ce9e4f8370862ef7105503267fdb2c0
+2026-11-09-chat-link-right-browser-pane.zh.md: eac9d661547b357b2bdc17f83661aaedc29927b3

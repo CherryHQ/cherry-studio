@@ -4036,6 +4036,8 @@
   "settings.browser.names.opera": "Opera",
   "settings.browser.names.vivaldi": "Vivaldi",
   "settings.browser.noResults": "Nicio pagină corespunzătoare. Încearcă altă căutare.",
+  "settings.browser.openChatLinks": "Deschide linkurile din chat în panoul din dreapta",
+  "settings.browser.openChatLinksHelp": "Deschide linkurile din mesajele de chat în browserul subiectului. Dezactivează pentru a reveni la deschiderea normală a linkurilor.",
   "settings.browser.openLinks": "Deschide linkurile web în browserul integrat",
   "settings.browser.openLinksHelp": "Deschide linkurile în file de browser care partajează datele site-urilor tale.",
   "settings.browser.profile": "Profil",

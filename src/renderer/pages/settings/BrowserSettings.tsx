@@ -49,6 +49,9 @@ const sections = [
 export function BrowserSettings() {
   const { t } = useTranslation()
   const [openLinks, setOpenLinks] = usePreference('app.browser.open_links_in_browser')
+  const [openChatLinks, setOpenChatLinks] = usePreference('app.browser.open_chat_links_in_right_panel')
+  const [savingChatLinks, setSavingChatLinks] = useState(false)
+  const [chatLinksError, setChatLinksError] = useState(false)
   const [autoOpenPanel, setAutoOpenPanel] = usePreference('app.browser.auto_open_panel')
   const [enabled, setEnabled] = usePreference('app.browser.agent_control.enabled')
   const [startPageMode, setStartPageMode] = usePreference('app.browser.start_page.mode')
@@ -217,6 +220,39 @@ export function BrowserSettings() {
             </div>
           )}
         </SettingRow>
+        <SettingDivider />
+        <SettingRow id="setting-browser-open-chat-links" className="scroll-mt-6 flex-nowrap">
+          <div className="min-w-0">
+            <SettingRowTitle id="browser-open-chat-links-title">{t('settings.browser.openChatLinks')}</SettingRowTitle>
+            <SettingDescription id="browser-open-chat-links-help">
+              {t('settings.browser.openChatLinksHelp')}
+            </SettingDescription>
+          </div>
+          <Switch
+            id="browser-open-chat-links"
+            aria-labelledby="browser-open-chat-links-title"
+            aria-describedby="browser-open-chat-links-help"
+            className="mt-0.5"
+            checked={openChatLinks}
+            disabled={savingChatLinks}
+            onCheckedChange={async (value) => {
+              setSavingChatLinks(true)
+              setChatLinksError(false)
+              try {
+                await setOpenChatLinks(value)
+              } catch {
+                setChatLinksError(true)
+              } finally {
+                setSavingChatLinks(false)
+              }
+            }}
+          />
+        </SettingRow>
+        {chatLinksError && (
+          <p role="alert" className="mt-2 text-error text-sm">
+            {t('settings.browser.error')}
+          </p>
+        )}
         {error && (
           <p role="alert" className="mt-2 text-error text-sm">
             {t('settings.browser.error')}

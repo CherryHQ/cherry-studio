@@ -28,11 +28,18 @@ export const ARTIFACT_RIGHT_PANE_CACHE_KEY = 'ui.chat.artifact_pane.width'
  */
 export const RESOURCE_LIST_RIGHT_PANE_CACHE_KEY = 'ui.chat.resource_pane.width'
 
-export type RightPaneResizeCacheKey = typeof ARTIFACT_RIGHT_PANE_CACHE_KEY | typeof RESOURCE_LIST_RIGHT_PANE_CACHE_KEY
+export const BROWSER_RIGHT_PANE_CACHE_KEY = 'ui.chat.browser_pane.width'
+export const BROWSER_RIGHT_PANE_WINDOW_CACHE_KEY = 'ui.window.chat.browser_pane.width'
+
+export type RightPaneResizeCacheKey =
+  | typeof ARTIFACT_RIGHT_PANE_CACHE_KEY
+  | typeof RESOURCE_LIST_RIGHT_PANE_CACHE_KEY
+  | typeof BROWSER_RIGHT_PANE_CACHE_KEY
 
 const RIGHT_PANE_WINDOW_CACHE_KEY = {
   [ARTIFACT_RIGHT_PANE_CACHE_KEY]: 'ui.window.chat.artifact_pane.width',
-  [RESOURCE_LIST_RIGHT_PANE_CACHE_KEY]: 'ui.window.chat.resource_pane.width'
+  [RESOURCE_LIST_RIGHT_PANE_CACHE_KEY]: 'ui.window.chat.resource_pane.width',
+  [BROWSER_RIGHT_PANE_CACHE_KEY]: BROWSER_RIGHT_PANE_WINDOW_CACHE_KEY
 } as const
 
 export function getRightPaneWindowCacheKey(cacheKey: RightPaneResizeCacheKey) {
@@ -48,9 +55,10 @@ export function getRightPaneWindowCacheKey(cacheKey: RightPaneResizeCacheKey) {
  * - `navigation-list` — the topic/session list: a list, so it mirrors the left list's envelope
  *   and keeps a separate persisted width; dragging one never resizes the other.
  */
-export type RightPaneWidthPreset = 'inspector' | 'navigation-list'
+export type RightPaneWidthPreset = 'inspector' | 'navigation-list' | 'browser'
 
 export type RightPaneWidthPolicy = {
+  preset: RightPaneWidthPreset
   cacheKey: RightPaneResizeCacheKey
   windowCacheKey: (typeof RIGHT_PANE_WINDOW_CACHE_KEY)[RightPaneResizeCacheKey]
   minWidth: number
@@ -59,16 +67,25 @@ export type RightPaneWidthPolicy = {
 
 const RIGHT_PANE_WIDTH_PRESETS = {
   inspector: {
+    preset: 'inspector',
     cacheKey: ARTIFACT_RIGHT_PANE_CACHE_KEY,
     windowCacheKey: RIGHT_PANE_WINDOW_CACHE_KEY[ARTIFACT_RIGHT_PANE_CACHE_KEY],
     minWidth: ARTIFACT_RIGHT_PANE_MIN_WIDTH,
     maxWidth: undefined
   },
   'navigation-list': {
+    preset: 'navigation-list',
     cacheKey: RESOURCE_LIST_RIGHT_PANE_CACHE_KEY,
     windowCacheKey: RIGHT_PANE_WINDOW_CACHE_KEY[RESOURCE_LIST_RIGHT_PANE_CACHE_KEY],
     minWidth: RESOURCE_LIST_PANE_MIN_WIDTH,
     maxWidth: RESOURCE_LIST_PANE_MAX_WIDTH
+  },
+  browser: {
+    preset: 'browser',
+    cacheKey: BROWSER_RIGHT_PANE_CACHE_KEY,
+    windowCacheKey: BROWSER_RIGHT_PANE_WINDOW_CACHE_KEY,
+    minWidth: ARTIFACT_RIGHT_PANE_MIN_WIDTH,
+    maxWidth: undefined
   }
 } as const satisfies Record<RightPaneWidthPreset, RightPaneWidthPolicy>
 
@@ -76,4 +93,17 @@ export const DEFAULT_RIGHT_PANE_WIDTH_PRESET: RightPaneWidthPreset = 'inspector'
 
 export function getRightPaneWidthPolicy(preset: RightPaneWidthPreset = DEFAULT_RIGHT_PANE_WIDTH_PRESET) {
   return RIGHT_PANE_WIDTH_PRESETS[preset]
+}
+
+export function resolveRightPaneWidth(
+  policy: RightPaneWidthPolicy,
+  storedWidth: number | null,
+  shellWidth: number | null
+): number {
+  const width =
+    storedWidth ??
+    (policy.preset === 'browser' && shellWidth !== null
+      ? Math.round(shellWidth / 3)
+      : ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH)
+  return Math.min(policy.maxWidth ?? Infinity, Math.max(policy.minWidth, Math.round(width)))
 }

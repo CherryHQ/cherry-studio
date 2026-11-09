@@ -28,6 +28,28 @@ describe('useWindowScopedPersistCache', () => {
     windowFrameMock.mode = 'embedded'
   })
 
+  it('recaptures the seed when the key pair changes without following later broadcasts', () => {
+    windowFrameMock.mode = 'window'
+    cacheService.delete('ui.window.chat.artifact_pane.width')
+    cacheService.delete('ui.window.chat.browser_pane.width')
+    cacheService.setPersist('ui.chat.artifact_pane.width', 430)
+    cacheService.setPersist('ui.chat.browser_pane.width', 510)
+    const { result, rerender } = renderHook(
+      ({ browser }) =>
+        browser
+          ? useWindowScopedPersistCache('ui.chat.browser_pane.width', 'ui.window.chat.browser_pane.width')
+          : useWindowScopedPersistCache('ui.chat.artifact_pane.width', 'ui.window.chat.artifact_pane.width'),
+      { initialProps: { browser: false } }
+    )
+    expect(result.current[0]).toBe(430)
+    rerender({ browser: true })
+    expect(result.current[0]).toBe(510)
+    act(() => cacheService.set('ui.window.chat.browser_pane.width', null))
+    expect(result.current[0]).toBeNull()
+    act(() => cacheService.setPersist('ui.chat.browser_pane.width', 600))
+    expect(result.current[0]).toBeNull()
+  })
+
   it('reads and writes the persisted key in the embedded main window', () => {
     cacheService.setPersist('ui.agent.session.expansion.agent', ['session:agent:a'])
 

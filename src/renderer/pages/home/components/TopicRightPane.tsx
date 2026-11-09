@@ -188,6 +188,17 @@ const TOPIC_TRACE_PANE_CAPABILITY = {
     readiness: scope.developerMode && scope.topicId ? 'ready' : 'unavailable'
   })
 } satisfies RightPanelCapability<TopicRightPanelScope>
+/** Stable browser identity keeps width selection independent of catalog order. */
+const TOPIC_BROWSER_PANE_CAPABILITY = {
+  component: TopicBrowserRightPanel,
+  resolve: (scope: TopicRightPanelScope) => ({
+    id: 'browser',
+    instanceKey: `browser:${scope.topicId ?? 'unavailable'}`,
+    title: scope.browserTitle,
+    readiness: scope.topicId ? 'ready' : 'unavailable',
+    canMaximize: true
+  })
+} satisfies RightPanelCapability<TopicRightPanelScope>
 const TOPIC_RIGHT_PANEL_CAPABILITIES = [
   TOPIC_RESOURCE_PANE_CAPABILITY,
   {
@@ -200,16 +211,7 @@ const TOPIC_RIGHT_PANEL_CAPABILITIES = [
       canMaximize: true
     })
   },
-  {
-    component: TopicBrowserRightPanel,
-    resolve: (scope) => ({
-      id: 'browser',
-      instanceKey: `browser:${scope.topicId ?? 'unavailable'}`,
-      title: scope.browserTitle,
-      readiness: scope.topicId ? 'ready' : 'unavailable',
-      canMaximize: true
-    })
-  },
+  TOPIC_BROWSER_PANE_CAPABILITY,
   TOPIC_TRACE_PANE_CAPABILITY
 ] satisfies readonly RightPanelCapability<TopicRightPanelScope>[]
 
@@ -235,6 +237,16 @@ function TopicRightPaneProvider({
   }
 >) {
   const { t } = useTranslation()
+  const [openChatLinksInRightPanel] = usePreference('app.browser.open_chat_links_in_right_panel')
+  const capabilities = useMemo(
+    () =>
+      TOPIC_RIGHT_PANEL_CAPABILITIES.map((capability) =>
+        capability === TOPIC_BROWSER_PANE_CAPABILITY
+          ? { ...capability, widthPreset: openChatLinksInRightPanel ? ('browser' as const) : ('inspector' as const) }
+          : capability
+      ),
+    [openChatLinksInRightPanel]
+  )
   const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
   const storeRef = useRef<TopicBranchLiveStateStore>(undefined as never)
   if (!storeRef.current) storeRef.current = createTopicBranchLiveStateStore()
@@ -254,7 +266,7 @@ function TopicRightPaneProvider({
 
   return (
     <RightPanelProvider
-      capabilities={TOPIC_RIGHT_PANEL_CAPABILITIES}
+      capabilities={capabilities}
       scope={scope}
       defaultPanelId={RESOURCE_PANE_TAB}
       defaultOpen={defaultOpen}
@@ -281,10 +293,11 @@ function TopicRightPaneViewport({ onLocateMessage }: TopicRightPaneViewportCallb
 function TopicRightPaneShortcuts({ browserEnabled = true }: { browserEnabled?: boolean }) {
   const { t } = useTranslation()
   const [browserControlEnabled] = usePreference('app.browser.agent_control.enabled')
+  const [openChatLinksInRightPanel] = usePreference('app.browser.open_chat_links_in_right_panel')
 
   return (
     <>
-      {browserEnabled && browserControlEnabled && (
+      {(openChatLinksInRightPanel || (browserEnabled && browserControlEnabled)) && (
         <RightPanelShortcut tab="browser" label={t('settings.browser.title')} icon={<Globe className="size-3.5" />} />
       )}
       <RightPanelShortcut tab="branch" label={t('chat.message.flow.title')} icon={<GitBranch className="size-3.5" />} />

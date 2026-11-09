@@ -4036,6 +4036,8 @@
   "settings.browser.names.opera": "Opera",
   "settings.browser.names.vivaldi": "Vivaldi",
   "settings.browser.noResults": "ไม่พบหน้าที่ตรงกัน ลองค้นหาด้วยคำอื่น",
+  "settings.browser.openChatLinks": "เปิดลิงก์แชตในแผงด้านขวา",
+  "settings.browser.openChatLinksHelp": "เปิดลิงก์จากข้อความแชตในแผงเบราว์เซอร์ของหัวข้อ ปิดตัวเลือกนี้เพื่อกลับไปเปิดลิงก์ตามปกติ",
   "settings.browser.openLinks": "เปิดลิงก์เว็บไซต์ในเบราว์เซอร์ในตัว",
   "settings.browser.openLinksHelp": "เปิดลิงก์เว็บไซต์ในแท็บเบราว์เซอร์ที่ใช้ข้อมูลเว็บไซต์ร่วมกัน",
   "settings.browser.profile": "โปรไฟล์",

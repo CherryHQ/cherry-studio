@@ -4036,6 +4036,8 @@
   "settings.browser.names.opera": "Opera",
   "settings.browser.names.vivaldi": "Vivaldi",
   "settings.browser.noResults": "Keine passenden Seiten. Versuchen Sie einen anderen Suchbegriff.",
+  "settings.browser.openChatLinks": "Chat-Links im rechten Bereich öffnen",
+  "settings.browser.openChatLinksHelp": "Links aus Chatnachrichten im Browserbereich des Themas öffnen. Deaktivieren stellt das normale Öffnen von Links wieder her.",
   "settings.browser.openLinks": "Weblinks im integrierten Browser öffnen",
   "settings.browser.openLinksHelp": "Links in Browser-Tabs öffnen, die Ihre Websitedaten gemeinsam nutzen.",
   "settings.browser.profile": "Profil",

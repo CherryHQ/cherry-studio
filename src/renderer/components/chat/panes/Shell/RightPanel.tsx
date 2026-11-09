@@ -588,6 +588,7 @@ export function RightPanelViewport({ children = <RightPanel /> }: { children?: R
         minWidth={paneWidth.minWidth}
         maxWidth={paneWidth.maxWidth}
         cacheKey={paneWidth.cacheKey}
+        widthPreset={paneWidth.preset}
         onLayoutAnimationComplete={actions.completeLayoutAnimation}
         onFullWidthPhaseChange={actions.reportFullWidthPhase}
         onResizingChange={actions.reportPaneResizing}

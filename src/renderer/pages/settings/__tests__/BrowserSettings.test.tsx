@@ -591,6 +591,21 @@ describe('Browser preferences', () => {
     expect(MockUsePreferenceUtils.getPreferenceValue('app.browser.open_links_in_browser')).toBe(false)
   })
 
+  it('saves Chat link routing independently and does not toggle from its title', async () => {
+    const user = userEvent.setup()
+    renderSettings()
+    const label = en['settings.browser.openChatLinks']
+    const toggle = screen.getByRole('switch', { name: label })
+    expect(toggle).not.toBeChecked()
+    expect(toggle).toHaveAccessibleDescription(en['settings.browser.openChatLinksHelp'])
+    await user.click(screen.getByText(label, { exact: true }))
+    expect(toggle).not.toBeChecked()
+    await user.click(toggle)
+    await waitForBrowserSwitchSave(label)
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.browser.open_chat_links_in_right_panel')).toBe(true)
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.browser.open_links_in_browser')).toBe(false)
+  })
+
   it('persists website routing independently of Agent control', async () => {
     const user = userEvent.setup()
     renderSettings()

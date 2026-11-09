@@ -153,6 +153,17 @@ describe('TopicRightPane', () => {
     expect(screen.queryByRole('button', { name: 'settings.browser.title' })).not.toBeInTheDocument()
   })
 
+  it('offers the browser shortcut for Chat links independently of browser control', () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.browser.open_chat_links_in_right_panel', true)
+    MockUsePreferenceUtils.setPreferenceValue('app.browser.agent_control.enabled', false)
+    render(
+      <TopicRightPane.Scope topicId="topic-a">
+        <TopicRightPane.Shortcuts browserEnabled={false} />
+      </TopicRightPane.Scope>
+    )
+    expect(screen.getByRole('button', { name: 'settings.browser.title' })).toBeVisible()
+  })
+
   const triggerRightSidebarShortcut = () => {
     const handler = useCommandHandlerMock.mock.calls
       .filter(([command]) => command === 'topic.sidebar.toggle')

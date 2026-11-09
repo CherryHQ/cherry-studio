@@ -137,7 +137,11 @@ export const WebCitationHoverContent: React.FC<{ citation: WebCitationHoverData;
     (event: React.MouseEvent<HTMLAnchorElement>) => {
       if (!openExternalUrl) return
       event.preventDefault()
-      void openExternalUrl(citation.url)
+      if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+        void openExternalUrl(citation.url)
+      } else {
+        void openExternalUrl(citation.url, { preserveDefaultRouting: true })
+      }
     },
     [citation.url, openExternalUrl]
   )

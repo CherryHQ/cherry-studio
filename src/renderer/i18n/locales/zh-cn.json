@@ -4036,6 +4036,8 @@
   "settings.browser.names.opera": "Opera",
   "settings.browser.names.vivaldi": "Vivaldi",
   "settings.browser.noResults": "未找到匹配的网页，请尝试其他关键词。",
+  "settings.browser.openChatLinks": "在右侧面板打开聊天链接",
+  "settings.browser.openChatLinksHelp": "在话题浏览器面板中打开聊天消息的链接。关闭后恢复正常的链接打开方式。",
   "settings.browser.openLinks": "通过内置浏览器打开网站链接",
   "settings.browser.openLinksHelp": "网站链接将在浏览器标签页中打开，并共享已有的网站数据。",
   "settings.browser.profile": "用户配置",
