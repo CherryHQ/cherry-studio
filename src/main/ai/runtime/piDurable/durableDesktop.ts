@@ -226,8 +226,9 @@ export async function prepareDurableDesktop(
           next.knowledgeBaseIds
         )
         const mode = current.agent.configuration?.permission_mode ?? 'default'
-        const permissionChanged = !active && mode !== permissionMode
-        if (!active) permissionMode = mode
+        // The approval gate reads the mode per tool call, so a change applies mid-turn from the next call.
+        const permissionChanged = mode !== permissionMode
+        permissionMode = mode
         const names = (current.agent.disabledTools ?? []).map(normalizePiDisabledToolId)
         disabled = active ? new Set([...disabled, ...names]) : new Set(names)
         return { signature: current.signature, permissionChanged }
