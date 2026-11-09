@@ -4,7 +4,6 @@ import type { Components } from 'streamdown'
 import type { MarkdownSource } from '@cherrystudio/ui'
 import type { Citation } from '@renderer/types/message'
 
-import ChatMarkdownRuntime from './ChatMarkdownRuntime'
 import { scanStandaloneHtmlArtifact } from './standaloneHtmlArtifact'
 
 export interface ChatMarkdownProps {
@@ -19,6 +18,7 @@ export interface ChatMarkdownProps {
 
 export type InlineHtmlPreviewMode = 'generating' | 'ready'
 
+const ChatMarkdownRuntime = lazy(() => import('./ChatMarkdownRuntime'))
 const StandaloneHtmlArtifactRenderer = lazy(() => import('./StandaloneHtmlArtifactRenderer'))
 
 const ChatMarkdown: FC<ChatMarkdownProps> = (props) => {
@@ -40,7 +40,16 @@ const ChatMarkdown: FC<ChatMarkdownProps> = (props) => {
     )
   }
 
-  return <ChatMarkdownRuntime {...props} />
+  return (
+    <Suspense
+      fallback={
+        <div className={['markdown', props.className].filter(Boolean).join(' ')} style={{ whiteSpace: 'pre-wrap' }}>
+          {block.content}
+        </div>
+      }>
+      <ChatMarkdownRuntime {...props} />
+    </Suspense>
+  )
 }
 
 export default ChatMarkdown

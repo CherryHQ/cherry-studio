@@ -24,11 +24,13 @@ vi.mock('@renderer/components/Preview/MermaidPreview', () => ({
 }))
 
 describe('ChatMarkdown loading boundary', () => {
-  it('renders formatted text on the first commit', () => {
-    render(<ChatMarkdown block={{ id: 'part', content: '# Ready\n\n**Formatted** text.', status: 'success' }} />)
+  it('shows plain text immediately while the runtime loads', () => {
+    render(<ChatMarkdown block={{ id: 'part', content: '# Ready\n\n**Formatted** text.', status: 'success' }} />, {
+      wrapper: CodeStyleProvider
+    })
 
-    expect(screen.getByRole('heading', { name: 'Ready', level: 1 })).toBeVisible()
-    expect(screen.getByText('Formatted')).toBeVisible()
+    expect(screen.getByText(/# Ready/)).toBeVisible()
+    expect(screen.queryByRole('heading', { name: 'Ready', level: 1 })).not.toBeInTheDocument()
   })
 
   it('preserves existing prose when a stream adds a diagram whose preview is still loading', async () => {
@@ -36,6 +38,8 @@ describe('ChatMarkdown loading boundary', () => {
     const { rerender } = render(<ChatMarkdown block={{ id: 'stream', content, status: 'streaming' }} />, {
       wrapper: CodeStyleProvider
     })
+    expect(screen.getByText(/# Reading position/)).toBeVisible()
+    expect(screen.queryByRole('heading', { name: 'Reading position' })).not.toBeInTheDocument()
     const heading = await screen.findByRole('heading', { name: 'Reading position' }, { timeout: 10000 })
 
     try {
