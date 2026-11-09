@@ -58,6 +58,10 @@ export function createSupportedFileReader(filePath: AbsoluteFilePath): VectorSto
     case '.pptx':
     case '.xls':
     case '.xlsx':
+    case '.odt':
+    case '.odp':
+    case '.ods':
+    case '.rtf':
       return new AnydocReader()
     case '.html':
     case '.htm':

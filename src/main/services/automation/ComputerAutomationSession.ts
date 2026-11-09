@@ -210,6 +210,7 @@ export class ComputerAutomationSession {
       target,
       app: state.app,
       window: state.window,
+      inputChannel: state.inputChannel,
       ...(ax
         ? { tree: available ? { status: 'available' as const, elements, truncated: available.truncated } : state.tree }
         : {}),
