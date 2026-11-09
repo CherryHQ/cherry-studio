@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
     'chat.narrow_mode': true,
     'chat.message.thought.auto_collapse': true,
     'chat.message.keep_intermediate_text': false,
+    'chat.message.show_citation_markers': true,
     'chat.message.user_content.default_expanded': false,
     'chat.message.multi_model.style': 'horizontal',
     'chat.message.math.single_dollar': true,
@@ -130,6 +131,15 @@ describe('ChatPreferenceSections', () => {
     mocks.preferenceValues['chat.message.keep_intermediate_text'] = false
     mocks.loadThemeNames.mockClear()
     mocks.setPreference.mockClear()
+  })
+
+  it('binds the citation marker switch to its preference and preserves its default', () => {
+    mocks.preferenceValues['chat.message.show_citation_markers'] = true
+    render(<ChatPreferenceSections />)
+    const toggle = screen.getByRole('button', { name: 'settings.messages.show_citation_markers.label' })
+    expect(toggle).toHaveAttribute('data-checked', 'true')
+    fireEvent.click(toggle)
+    expect(mocks.setPreference).toHaveBeenCalledWith('chat.message.show_citation_markers', false)
   })
 
   it('renders shared chat preferences without assistant-only controls by default', () => {

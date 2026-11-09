@@ -20,6 +20,7 @@ const mockRenderConfig = vi.hoisted(() => ({
   showCitationMarkers: true
 }))
 const imagePreviewShowMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+const openCitationsPanel = vi.hoisted(() => vi.fn())
 const openExternalUrl = vi.hoisted(() => vi.fn())
 
 const mockTranslations = vi.hoisted(() => ({
@@ -29,7 +30,7 @@ const mockTranslations = vi.hoisted(() => ({
 
 vi.mock('../../MessageListProvider', () => ({
   useMessageRenderConfig: () => mockRenderConfig,
-  useOptionalMessageListActions: () => ({ openExternalUrl })
+  useOptionalMessageListActions: () => ({ openExternalUrl, openCitationsPanel })
 }))
 
 vi.mock('@renderer/services/ImagePreviewService', () => ({
@@ -1295,6 +1296,22 @@ Hidden answer
       renderMainTextBlock({ content: 'Claim.[cite:abc-1] Next.', role: 'assistant' })
 
       expect(getRenderedMarkdown()).toHaveAttribute('data-content', 'Claim. Next.')
+    })
+
+    it('keeps code literals and the sources footer when hiding markers', () => {
+      mockRenderConfig.showCitationMarkers = false
+      const citations: Citation[] = [
+        { number: 1, url: 'https://example.com', title: 'Source title', content: 'Evidence' }
+      ]
+      renderMainTextBlock({
+        content: 'Claim [1]. `literal [1]`',
+        role: 'assistant',
+        citations,
+        citationReferences: [{ citationBlockSource: WEB_SEARCH_SOURCE.OPENAI }]
+      })
+      expect(getRenderedMarkdown()).toHaveAttribute('data-content', 'Claim. `literal [1]`')
+      fireEvent.click(screen.getByRole('button', { name: /message.citation/ }))
+      expect(openCitationsPanel).toHaveBeenCalledWith({ citations })
     })
 
     it('keeps a literal [cite:id] typed by the user', () => {

@@ -433,7 +433,7 @@ const MainTextBlock: React.FC<Props> = ({
   )
   const processContent = useCallback(
     (rawText: string) => {
-      const hideMarkers = !showCitationMarkers && role === 'assistant'
+      const hideMarkers = showCitationMarkers === false && role === 'assistant'
       if (citationReferences?.length && citations.length > 0) {
         const sourceType = determineCitationSource(citationReferences)
         return hideMarkers

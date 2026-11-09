@@ -78,9 +78,9 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   // SDK skips canUseTool on auto-approved paths.
   const toolGuardHook: HookCallback = async (input, toolUseId, options): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
-    const toolName = String((input as Record<string, unknown>).tool_name ?? '')
+    const toolName = input.tool_name
     if (!toolName) return {}
-    const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
+    const toolInput = input.tool_input as Record<string, unknown> | undefined
     surfaceExitPlanModeInput(sessionId, toolName, toolInput, toolUseId)
     // Live state by id at fire-time: mode and disabled-set follow mid-session agent updates on warm
     // connections; a missing snapshot means no disabled set yet (canUseTool separately fails closed).
@@ -142,9 +142,8 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   // instead of substituting unrelated output.
   const skillDependencyAdvisoryHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
-    const event = input as Record<string, unknown>
-    if (String(event.tool_name ?? '') !== SKILL_TOOL_NAME) return {}
-    const skillName = (event.tool_input as Record<string, unknown> | undefined)?.skill
+    if (input.tool_name !== SKILL_TOOL_NAME) return {}
+    const skillName = (input.tool_input as Record<string, unknown> | undefined)?.skill
     if (typeof skillName !== 'string' || !skillName) return {}
 
     const { warning } = await checkSkillRuntimeDependencies(skillName, cwd, ctx.pluginDirectories)
@@ -155,9 +154,9 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
 
   const rtkRewriteHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
-    const toolName = String((input as Record<string, unknown>).tool_name ?? '')
+    const toolName = input.tool_name
     if (toolName !== 'Bash') return {}
-    const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
+    const toolInput = input.tool_input as Record<string, unknown> | undefined
     const command = toolInput?.command
     if (typeof command !== 'string' || !command.trim()) return {}
 
@@ -239,10 +238,9 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     if (!input || (input.hook_event_name !== 'PostToolUse' && input.hook_event_name !== 'PostToolUseFailure')) {
       return {}
     }
-    const event = input as unknown as Record<string, unknown>
-    const toolCallId = event.tool_use_id
-    const toolName = event.tool_name
-    const durationMs = event.duration_ms
+    const toolCallId = input.tool_use_id
+    const toolName = input.tool_name
+    const durationMs = input.duration_ms
     if (
       typeof toolCallId !== 'string' ||
       typeof toolName !== 'string' ||

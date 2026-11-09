@@ -65,7 +65,13 @@ export class ClaudeFeed {
     if (state) this.controlState = state
     if (legacy) this.legacy = structuredClone(legacy)
     const replaces: Record<string, string> = {}
-    native = native.filter((value) => !value.message.uuid || !this.retracted.has(value.message.uuid))
+    native = native
+      .filter((value) => !value.message.uuid || !this.retracted.has(value.message.uuid))
+      .map((value) =>
+        value.source === 'live' && value.message.type === 'assistant' && value.message.error
+          ? { ...value, isApiErrorMessage: true as const }
+          : value
+      )
     for (const event of events) {
       this.state.publish(event)
       if (event.type === 'message.upsert') {

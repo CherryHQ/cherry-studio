@@ -171,10 +171,13 @@ const copyableTextContent = (
   hideCitationMarkers = false
 ): string => {
   const content = getComposerTextFromMessage(message, getNamingTextContent(message), getTokenText)
-  return getToolCitationExport(message, content, hideCitationMarkers && message.role === 'assistant').content
+  return message.role === 'user'
+    ? content
+    : getToolCitationExport(message, content, hideCitationMarkers && message.role === 'assistant').content
 }
 
-const readHideCitationMarkers = async () => !(await preferenceService.get('chat.message.show_citation_markers'))
+const readHideCitationMarkers = async () =>
+  (await preferenceService.get('chat.message.show_citation_markers')) === false
 
 export const messageToPlainText = async (message: ExportableMessage): Promise<string> => {
   const contents = await readPastedTextFileContents([message])

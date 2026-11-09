@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, test, vi } from 'vitest'
 
 // Import Message, MessageBlock, and necessary enums
+import { preferenceService } from '@data/PreferenceService'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
@@ -230,6 +231,29 @@ describe('export', () => {
   })
 
   describe('messageToPlainText', () => {
+    it('hides assistant tool markers in single and multiple plain-text copies only when disabled', async () => {
+      const assistant = createExportView([
+        {
+          type: 'tool-web_search',
+          toolCallId: 'search-hidden',
+          state: 'output-available',
+          input: { query: 'q' },
+          output: [{ id: '3f2a1b9c-1', title: 'Example', url: 'https://example.com', content: 'Evidence' }]
+        },
+        { type: 'text', text: 'Claim.[cite:3f2a1b9c-1]' }
+      ] as MessageExportView['parts'])
+      const user = { ...assistant, role: 'user' as const }
+      vi.mocked(preferenceService.get)
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(false)
+      expect(await messageToPlainText(assistant)).toBe('Claim.')
+      expect(await messageToPlainText(user)).toBe('Claim.[cite:3f2a1b9c-1]')
+      const copied = await messagesToPlainText([assistant, user])
+      expect(copied).toContain('Assistant:\nClaim.')
+      expect(copied).toContain('User:\nClaim.[cite:3f2a1b9c-1]')
+    })
+
     it('should convert a single message content to plain text without role prefix', async () => {
       const testMessage = createMessage({ role: 'user', id: 'single_msg_plain' }, [
         { type: MessageBlockType.MAIN_TEXT, content: '### Single Message Content' }

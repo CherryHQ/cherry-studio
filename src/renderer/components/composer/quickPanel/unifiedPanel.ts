@@ -107,7 +107,14 @@ function createQuickPanelWithParent(
 }
 
 function getLauncherSearchText(launcher: ComposerToolLauncher) {
-  return [launcher.label, launcher.description, launcher.tooltip, launcher.disabledReason, launcher.suffix]
+  return [
+    launcher.label,
+    launcher.shortcut,
+    launcher.description,
+    launcher.tooltip,
+    launcher.disabledReason,
+    launcher.suffix
+  ]
     .map((value) => (typeof value === 'string' ? value : ''))
     .join(' ')
 }
@@ -289,6 +296,7 @@ function createUnifiedPanelListItem(
   return {
     id: launcher.id,
     label: launcher.label,
+    shortcut: launcher.shortcut,
     description: getLauncherDescription(launcher),
     tooltip: launcher.tooltip,
     tooltipAnchor: launcher.tooltipAnchor,
