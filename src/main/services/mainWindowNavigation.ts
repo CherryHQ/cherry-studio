@@ -153,16 +153,26 @@ function flushMainRendererFault(): void {
  * Show and focus a ready main window, then deliver one event to it.
  * Returns false when main is missing, still loading, or crashed — callers must
  * fail the IPC instead of broadcasting into an empty room.
+ * With `reveal: false` the window is never raised, and a hidden or minimized
+ * main window also returns false.
  */
-export function deliverToReadyMain<E extends IpcEventName>(event: E, payload: EventPayload<E>): boolean {
+export function deliverToReadyMain<E extends IpcEventName>(
+  event: E,
+  payload: EventPayload<E>,
+  { reveal = true }: { reveal?: boolean } = {}
+): boolean {
   const windowManager = application.get('WindowManager')
   const mainWindow = windowManager.getWindowsByType(WindowType.Main).find((win) => !win.isDestroyed())
   if (!mainWindow) return false
   const windowId = windowManager.getWindowId(mainWindow)
   if (!windowId || !isTabDeliveryReady(windowId) || !isSurfaceReceiverReady(event)) return false
-  if (mainWindow.isMinimized()) mainWindow.restore()
-  mainWindow.show()
-  mainWindow.focus()
+  if (reveal) {
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
+    mainWindow.focus()
+  } else if (!mainWindow.isVisible() || mainWindow.isMinimized()) {
+    return false
+  }
   application.get('IpcApiService').send(windowId, event, payload)
   return true
 }

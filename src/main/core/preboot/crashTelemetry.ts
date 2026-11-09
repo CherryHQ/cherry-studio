@@ -65,7 +65,7 @@ const inFlightUnhandledRejections = new Set<string>()
 let handoffModules:
   | Promise<{
       application: { getExisting(name: string): unknown }
-      deliverToReadyMain: (channel: 'app.error.open', context: AppErrorContext) => boolean
+      deliverToReadyMain: (channel: 'app.error.open', context: AppErrorContext, options: { reveal: false }) => boolean
     }>
   | undefined
 
@@ -108,7 +108,7 @@ function rememberPresentedRejection(signature: string, now: number): void {
   }
 }
 
-/** Returns whether a ready main window accepted the fault. Deduped reasons return false. */
+/** Returns whether a visible, ready main window accepted the fault. Deduped reasons return false. */
 export async function presentProductionUnhandledRejection(reason: unknown, now = Date.now()): Promise<boolean> {
   const signature = rejectionSignature(reason)
   const last = recentUnhandledRejections.get(signature)
@@ -128,7 +128,8 @@ export async function presentProductionUnhandledRejection(reason: unknown, now =
       message,
       ...(reason instanceof Error ? { name: reason.name, ...(reason.stack ? { stack: reason.stack } : {}) } : {})
     }
-    if (!deliverToReadyMain('app.error.open', context)) return false
+    // Background faults must not pull a hidden or minimized window to the front.
+    if (!deliverToReadyMain('app.error.open', context, { reveal: false })) return false
     rememberPresentedRejection(signature, now)
     return true
   } catch (error) {
