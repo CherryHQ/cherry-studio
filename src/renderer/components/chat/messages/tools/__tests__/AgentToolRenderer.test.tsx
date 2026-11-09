@@ -351,6 +351,23 @@ describe('AgentToolRenderer', () => {
   })
 
   describe('completed tool rendering', () => {
+    it.each(['Read', 'Write', 'Edit', 'MultiEdit'])('shows the Windows filename in a completed %s card', (name) => {
+      const toolResponse = createToolResponse({
+        tool: { id: name, name, description: 'Access a file', type: 'provider' },
+        status: 'done',
+        arguments: {
+          file_path: String.raw`D:\work space\qa-permission.txt`,
+          content: 'written',
+          old_string: 'before',
+          new_string: 'after',
+          edits: [{ old_string: 'before', new_string: 'after' }]
+        },
+        response: { content: [{ type: 'text', text: 'written' }] }
+      })
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      expect(screen.getByText('qa-permission.txt', { exact: true })).toBeVisible()
+    })
+
     it('does not duplicate an ExitPlanMode plan repeated in the tool result', () => {
       const plan = '# Release plan\n\n1. Run the focused tests'
       const toolResponse = createToolResponse({

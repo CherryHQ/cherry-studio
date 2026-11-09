@@ -1,4 +1,4 @@
-import { lazyStream, type TSchema } from '@earendil-works/pi-ai'
+import { lazyStream } from '@earendil-works/pi-ai'
 import type {
   AgentSession,
   ContextEvent,
@@ -178,7 +178,7 @@ function nativeTool(adapter: Adapter, conv: Conversation, tool: ToolDefinition):
     name: tool.name,
     label: tool.name,
     description: tool.description,
-    parameters: tool.schema as unknown as TSchema,
+    parameters: tool.schema as object,
     executionMode: tool.executionMode,
     exposure: 'model-only',
     async execute(toolCallId, params, signal) {
