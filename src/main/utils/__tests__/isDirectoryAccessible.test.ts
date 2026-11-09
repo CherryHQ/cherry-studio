@@ -15,10 +15,12 @@ it('checks directory read and traversal permissions, not just existence', () => 
     expect(isDirectoryAccessible(path.join(root, 'missing'))).toBe(false)
     writeFileSync(path.join(root, 'file'), '')
     expect(isDirectoryAccessible(path.join(root, 'file'))).toBe(false)
-    chmodSync(folder, 0)
-    expect(isDirectoryAccessible(folder)).toBe(false)
-    chmodSync(folder, 0o700)
-    expect(isDirectoryAccessible(folder)).toBe(true)
+    if (process.platform !== 'win32' && process.getuid?.() !== 0) {
+      chmodSync(folder, 0)
+      expect(isDirectoryAccessible(folder)).toBe(false)
+      chmodSync(folder, 0o700)
+      expect(isDirectoryAccessible(folder)).toBe(true)
+    }
   } finally {
     chmodSync(folder, 0o700)
     rmSync(root, { recursive: true, force: true })

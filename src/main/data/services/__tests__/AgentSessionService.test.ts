@@ -1196,24 +1196,27 @@ describe('AgentSessionService', () => {
     })
   })
 
-  it('rebinds a messaged session whose existing directory cannot be read', async () => {
-    const unreadable = await createWorkspace('unreadable-folder')
-    const replacement = await createWorkspace('readable-folder')
-    await mkdir(unreadable.path, { recursive: true })
-    await mkdir(replacement.path, { recursive: true })
-    const session = await createSession('Unreadable', unreadable.id)
-    await insertSessionMessage(session.id, 'message-unreadable')
-    await chmod(unreadable.path, 0)
-    try {
-      expect(agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: replacement.id })).toMatchObject(
-        {
+  it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)(
+    'rebinds a messaged session whose existing directory cannot be read',
+    async () => {
+      const unreadable = await createWorkspace('unreadable-folder')
+      const replacement = await createWorkspace('readable-folder')
+      await mkdir(unreadable.path, { recursive: true })
+      await mkdir(replacement.path, { recursive: true })
+      const session = await createSession('Unreadable', unreadable.id)
+      await insertSessionMessage(session.id, 'message-unreadable')
+      await chmod(unreadable.path, 0)
+      try {
+        expect(
+          agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: replacement.id })
+        ).toMatchObject({
           workspaceId: replacement.id
-        }
-      )
-    } finally {
-      await chmod(unreadable.path, 0o700)
+        })
+      } finally {
+        await chmod(unreadable.path, 0o700)
+      }
     }
-  })
+  )
 
   it('keeps a messaged session bound while its user workspace folder exists', async () => {
     const userWorkspace = await createWorkspace('present-folder')
