@@ -1,15 +1,12 @@
-import { createFileRoute } from '@tanstack/react-router'
-
-import TasksSettings from '@renderer/pages/settings/TasksSettings'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/settings/scheduled-tasks/$taskId')({
   validateSearch: (search: Record<string, unknown>): { notificationId?: string } => ({
-    notificationId: typeof search.notificationId === 'string' ? search.notificationId : undefined
+    ...(typeof search.notificationId === 'string' && search.notificationId.trim()
+      ? { notificationId: search.notificationId }
+      : {})
   }),
-  component: TaskNotificationRoute
+  beforeLoad: ({ params, search }) => {
+    throw redirect({ to: '/app/scheduled-tasks', search: { taskId: params.taskId, ...search }, replace: true })
+  }
 })
-
-function TaskNotificationRoute() {
-  const { notificationId } = Route.useSearch()
-  return <TasksSettings notificationId={notificationId} />
-}

@@ -33,6 +33,8 @@ export interface TopicMenuActionOptions {
   onClearMessages: TopicMenuHandler
   onCopyImage?: TopicMenuHandler
   onDelete: TopicDeleteHandler
+  onDeletePermanently?: TopicDeleteHandler
+  permanentDeleteShortcut?: string
   onExportImage?: TopicMenuHandler
   assistantMoveTargets?: readonly TopicMoveAssistantTarget[]
   onMoveToAssistant?: TopicMoveToAssistantHandler
@@ -60,6 +62,7 @@ export function createTopicActionContext({
   onClearMessages,
   onCopyImage,
   onDelete,
+  onDeletePermanently,
   onExportImage,
   onMoveToAssistant,
   onOpenInNewTab,
@@ -69,6 +72,7 @@ export function createTopicActionContext({
   onSetPanePosition,
   onStartRename,
   panePosition,
+  permanentDeleteShortcut,
   sidebarPinned,
   t,
   topic,
@@ -85,6 +89,8 @@ export function createTopicActionContext({
     onCopyMarkdown: copyTopicAsMarkdown,
     onCopyPlainText: copyTopicAsPlainText,
     onDelete,
+    onDeletePermanently,
+    permanentDeleteShortcut,
     onExportImage: onExportImage ?? ((topic) => void EventEmitter.emit(EVENT_NAMES.EXPORT_TOPIC_IMAGE, topic)),
     onExportJoplin: async (topic) => {
       const { exportMarkdownToJoplin } = await import('@renderer/services/ExportService')
@@ -217,6 +223,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
     onClearMessages,
     onCopyImage,
     onDelete,
+    onDeletePermanently,
     onExportImage,
     onMoveToAssistant,
     onOpenInNewTab,
@@ -226,6 +233,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
     onSetPanePosition,
     onStartRename,
     panePosition,
+    permanentDeleteShortcut,
     sidebarPinned,
     t,
     topic,
@@ -244,6 +252,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
         onClearMessages,
         onCopyImage,
         onDelete,
+        onDeletePermanently,
         onExportImage,
         onMoveToAssistant,
         onOpenInNewTab,
@@ -253,6 +262,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
         onSetPanePosition,
         onStartRename,
         panePosition,
+        permanentDeleteShortcut,
         sidebarPinned,
         t,
         topic,
@@ -269,6 +279,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
       onClearMessages,
       onCopyImage,
       onDelete,
+      onDeletePermanently,
       onExportImage,
       onMoveToAssistant,
       onOpenInNewTab,
@@ -278,6 +289,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
       onSetPanePosition,
       onStartRename,
       panePosition,
+      permanentDeleteShortcut,
       sidebarPinned,
       t,
       topic,
