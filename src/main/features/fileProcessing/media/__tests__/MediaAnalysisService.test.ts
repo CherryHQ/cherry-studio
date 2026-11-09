@@ -124,6 +124,7 @@ import { VoiceCleanupError, VoiceRuntimeError } from '@main/ai/voice/VoiceRuntim
 import { BaseService } from '@main/core/lifecycle'
 
 import { MediaAnalysisService } from '../MediaAnalysisService'
+import { resolveMediaExecutionConfig } from '../mediaExecutionConfig'
 import { planFrameTimestamps } from '../probeClassification'
 
 const file = { kind: 'path' as const, path: AbsoluteFilePathSchema.parse('/fixture.mp4') }
@@ -453,6 +454,18 @@ describe('MediaAnalysisService', () => {
 
     await expect(pending).rejects.toBe(reason)
     expect(await readdir(runtime.tempRoot)).toEqual([])
+  })
+
+  it('rejects a cancellation during config resolution even when the analysis is cached', async () => {
+    await service.analyze(file)
+    const controller = new AbortController()
+    const reason = new Error('cancelled')
+    vi.mocked(resolveMediaExecutionConfig).mockImplementationOnce(async () => {
+      controller.abort(reason)
+      return runtime.config
+    })
+
+    await expect(service.analyze(file, controller.signal)).rejects.toBe(reason)
   })
 
   it('does not publish a transcript when transcription cleanup fails', async () => {
