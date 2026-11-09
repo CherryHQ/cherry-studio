@@ -6,7 +6,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { cacheCleanupService } from '@main/services/cacheCleanup'
-import { requestDataReset, requestV1Remigration } from '@main/services/dataReset'
+import { requestDataReset } from '@main/services/dataReset'
 import { regionService } from '@main/services/RegionService'
 import { inspectUserDataRelocationTarget, requestUserDataRelocation } from '@main/services/userDataRelocation'
 import { getAndroidDownloadUrl } from '@main/utils/mobileAppDownload'
@@ -50,7 +50,6 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
     return application.get('PreferenceService').get('app.zoom_factor')
   },
   'app.data_reset.request': async () => requestDataReset(),
-  'app.migration_v2.rerun': async () => requestV1Remigration(),
   'app.updater.check_for_update': async () => {
     await application.get('AppUpdaterService').checkForUpdates()
   },

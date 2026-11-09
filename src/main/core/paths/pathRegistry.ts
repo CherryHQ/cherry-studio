@@ -351,6 +351,7 @@ export function buildPathRegistry() {
     'v1.trace': path.join(CHERRY_HOME, 'trace'),
     'v1.cli.install': path.join(CHERRY_HOME, 'install'),
     'v1.database.file': path.join(appUserData, 'cherrystudio.sqlite'),
+    'v1.home_config_file': path.join(CHERRY_HOME, 'config', 'config.json'),
     'v1.agents.claude': path.join(appUserData, '.claude'),
 
     // -- F. external.* — third-party tool paths (Cherry reads/writes, does NOT own) --

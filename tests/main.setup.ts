@@ -87,6 +87,8 @@ vi.mock('electron', async () => {
         }
       }),
       getVersion: vi.fn(() => '1.0.0'),
+      whenReady: vi.fn().mockResolvedValue(undefined),
+      runningUnderARM64Translation: false,
       getLocale: vi.fn(() => 'en-US'),
       getPreferredSystemLanguages: vi.fn(() => ['en-US']),
       // Explicit false (matching the previous `undefined` semantics) so the
@@ -219,22 +221,6 @@ vi.mock('winston-daily-rotate-file', () => {
       log: vi.fn()
     }
   })
-})
-
-// Mock electron-store to avoid file system operations
-vi.mock('electron-store', () => {
-  return {
-    default: vi.fn().mockImplementation(function ElectronStoreMock() {
-      return {
-        get: vi.fn((key: string, defaultValue?: unknown) => defaultValue),
-        set: vi.fn(),
-        delete: vi.fn(),
-        clear: vi.fn(),
-        has: vi.fn(() => false),
-        store: {}
-      }
-    })
-  }
 })
 
 // Mock Node.js modules

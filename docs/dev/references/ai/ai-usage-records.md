@@ -450,32 +450,7 @@ available in the general invocation list.
 
 ## Historical migration
 
-`AiUsageRecordMigrator` runs after chat and agent message migration.
-
-- It reads only migrated message rows; it does not join current provider,
-  model, assistant, or agent configuration.
-- Each usage-bearing assistant message becomes one `legacy-aggregate`.
-- `ChatMigrator` and `AgentsMigrator` estimate request count from raw blocks
-  and persist it in the migrated `MessageStats`, so resume does not rely on an
-  in-memory map.
-- The estimate starts at one and adds one for each consecutive/parallel tool
-  group followed by model output. Citation/file/source blocks do not split the
-  group, and a terminal tool group adds nothing.
-- Provider/model may remain unknown. Source comes only from
-  `messageSnapshot`. Credential attribution is always `unknown`.
-- Existing v1 cost is retained according to its stored semantics. Missing cost
-  is never recomputed from current pricing.
-- Legacy model pricing recognizes only absent/`$` as USD and `¥`/`￥` as CNY.
-  Other currency symbols are dropped instead of being assigned an invented
-  currency.
-- Legacy invocation metrics remain null; historical message timings are
-  preserved while usage/cost are rebuilt from the inserted record.
-- Stable request ids, keyset batches, progress reporting, rollback, and
-  row-by-row retry keep migration idempotent and resumable.
-
-See
-`src/main/data/migration/v2/migrators/README-AiUsageRecordMigrator.md` for the
-field mapping.
+Previously imported usage records remain in SQLite. New v1 imports require the [intermediate upgrade release](../data/v2-migration-guide.md); the current application does not rerun conversion or recompute historical costs.
 
 ## Query API and freshness
 
@@ -533,5 +508,4 @@ global SWR focus/reconnect revalidation is disabled.
 | `packages/aiCore/src/core/runtime/` | Embedding/image/rerank provider-call events |
 | `src/main/ai/runtime/claudeCode/ClaudeCodeRuntimeDriver.ts` | Direct Agent SDK capture |
 | `src/main/ai/runtime/pi/gatewayModelBinding.ts` | Shared Pi/Durable gateway binding and native context/display usage |
-| `src/main/data/migration/v2/migrators/AiUsageRecordMigrator.ts` | v1 aggregate migration |
 | `src/renderer/pages/settings/UsageSettings/` | Usage read model consumers |

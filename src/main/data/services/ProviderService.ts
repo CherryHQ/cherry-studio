@@ -88,13 +88,7 @@ function getAvailableProviderMetadata(row: ProviderIdentity): ProviderDisplayMet
   return isProviderAvailableInCurrentEdition(metadata) ? metadata : null
 }
 
-/**
- * Edition availability of a persisted provider, decided from the identity columns
- * alone: static registry metadata, the build-time edition, and the preboot v1-origin
- * flag. Callers that already hold `providerId` / `presetProviderId` — anything reading
- * inside someone else's transaction — must use this instead of a service method that
- * opens its own connection.
- */
+/** Edition availability from provider metadata, the build edition, and persisted v1 migration origin. */
 export function isProviderIdentityAvailable(row: ProviderIdentity): boolean {
   return getAvailableProviderMetadata(row) !== null
 }

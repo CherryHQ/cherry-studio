@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/simplification/2026-11-09-retire-v1-data-migration.md
+2026-11-09-retire-v1-data-migration.md: 6612bb7f821e06d6be4ab3a1b6b2493fb24673ef
+2026-11-09-retire-v1-data-migration.zh.md: f1ec741caaae3513769037177789dae65bd2c452

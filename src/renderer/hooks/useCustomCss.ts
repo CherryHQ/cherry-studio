@@ -37,7 +37,7 @@ export function useCustomCssInjection(cssText: string | undefined): void {
 /**
  * Inject the user's active `ui.custom_css` preference in every regular UI window.
  * V1-marked content is rejected by the shared injection primitive. The preboot
- * windows (`migrationV2`, `userDataRelocation`) are the exceptions — they do not
+ * windows (`userDataRelocation`) are the exceptions — they do not
  * initialize preferences.
  */
 export function useCustomCss(): void {
