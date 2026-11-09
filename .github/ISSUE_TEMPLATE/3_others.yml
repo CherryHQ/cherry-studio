@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         Thank you for taking the time to ask a question!
-        Before submitting this issue, please make sure you've reviewed the [FAQ](https://docs.cherry-ai.com/question-contact/questions) and [Knowledge Base](https://docs.cherry-ai.com/question-contact/knowledge)
+        Before submitting this issue, please make sure you've reviewed the [FAQ](https://cherryai.com/docs/question-contact/questions) and [Knowledge Base](https://cherryai.com/docs/question-contact/knowledge)
 
   - type: checkboxes
     id: checklist

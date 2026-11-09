@@ -23,7 +23,7 @@ const SiyuanSettings: FC = () => {
   const [siyuanBoxId, setSiyuanBoxId] = usePreference('data.integration.siyuan.box_id')
   const [siyuanRootPath, setSiyuanRootPath] = usePreference('data.integration.siyuan.root_path')
 
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { theme } = useTheme()
 
   const handleApiUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -43,7 +43,9 @@ const SiyuanSettings: FC = () => {
   }
 
   const handleSiyuanHelpClick = () => {
-    void openExternalWebsite('https://docs.cherry-ai.com/advanced-basic/siyuan')
+    void openExternalWebsite(
+      `${i18n.language.startsWith('zh') ? 'https://cherryai.com.cn/docs' : 'https://cherryai.com/docs'}/advanced-basic/siyuan`
+    )
   }
 
   const handleCheckConnection = async () => {

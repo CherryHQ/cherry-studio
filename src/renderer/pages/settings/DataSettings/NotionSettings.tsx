@@ -26,7 +26,7 @@ const NotionSettings: FC = () => {
   const [notionPageNameKey, setNotionPageNameKey] = usePreference('data.integration.notion.page_name_key')
   const [notionExportReasoning, setNotionExportReasoning] = usePreference('data.integration.notion.export_reasoning')
 
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { theme } = useTheme()
 
   const handleNotionTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -73,7 +73,9 @@ const NotionSettings: FC = () => {
   }
 
   const handleNotionTitleClick = () => {
-    void openExternalWebsite('https://docs.cherry-ai.com/advanced-basic/notion')
+    void openExternalWebsite(
+      `${i18n.language.startsWith('zh') ? 'https://cherryai.com.cn/docs' : 'https://cherryai.com/docs'}/advanced-basic/notion`
+    )
   }
 
   return (

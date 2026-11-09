@@ -164,7 +164,7 @@ const AboutSettings: FC = () => {
 
   const onOpenDocs = () => {
     const isChinese = i18n.language.startsWith('zh')
-    void openExternalWebsite(isChinese ? 'https://docs.cherry-ai.com/' : 'https://docs.cherry-ai.com/docs/en-us')
+    void openExternalWebsite(isChinese ? 'https://cherryai.com.cn/docs' : 'https://cherryai.com/docs')
   }
 
   const testChannels = getAvailableTestChannels()
