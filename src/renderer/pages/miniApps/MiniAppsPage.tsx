@@ -167,7 +167,12 @@ const MiniAppsPage: FC = () => {
         <div className="flex shrink-0 items-start justify-end p-3">
           <div className="flex items-center gap-1">
             <Tooltip content={t('miniApp.add.title')}>
-              <Button variant="ghost" size="icon-sm" aria-label={t('miniApp.add.title')} onClick={openCreateAppPanel}>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t('miniApp.add.title')}
+                onClick={openCreateAppPanel}
+                className="text-muted-foreground">
                 <Plus size={14} />
               </Button>
             </Tooltip>
@@ -175,7 +180,8 @@ const MiniAppsPage: FC = () => {
               variant="ghost"
               size="icon-sm"
               aria-label={t('settings.miniApps.display_title')}
-              onClick={() => setSettingsOpen(true)}>
+              onClick={() => setSettingsOpen(true)}
+              className="text-muted-foreground">
               <Menu size={14} />
             </Button>
           </div>

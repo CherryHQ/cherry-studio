@@ -15,7 +15,8 @@ const mocks = vi.hoisted(() => ({
     downloadProgress: 0,
     available: false,
     ignore: false,
-    manualCheck: false
+    manualCheck: false,
+    lastErrorKey: null
   },
   request: vi.fn(),
   toastError: vi.fn(),

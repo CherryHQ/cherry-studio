@@ -1,0 +1,357 @@
+import type { SDKAssistantMessage, SDKMessage, SDKPartialAssistantMessage } from '@anthropic-ai/claude-agent-sdk'
+
+import type { ClaudeInvocation } from './types'
+
+type InvocationUsage = NonNullable<ClaudeInvocation['usage']>
+
+type InvocationTiming = {
+  streamStartedAt: number
+  ttftMs?: SDKPartialAssistantMessage['ttft_ms']
+  thinkingStartedAt?: number
+  thinkingDurationMs?: number
+}
+
+type PendingInvocationUsage = Pick<SDKAssistantMessage['message'], 'id' | 'model'> & {
+  startUsage?: InvocationUsage
+  assistantUsage?: InvocationUsage
+  terminalUsage?: InvocationUsage
+  timing?: InvocationTiming
+  metrics?: ClaudeInvocation['metrics']
+  completionObserved: boolean
+  isStreamStopped: boolean
+  usageFinal: boolean
+}
+
+function invocationUsage(usage: InvocationUsage): InvocationUsage | undefined {
+  const reportedValues = [
+    usage.input_tokens,
+    usage.output_tokens,
+    usage.cache_read_input_tokens,
+    usage.cache_creation_input_tokens
+  ].filter((value): value is number => value != null)
+  if (reportedValues.length === 0 || reportedValues.some((value) => !Number.isFinite(value) || value < 0))
+    return undefined
+
+  return { ...usage }
+}
+
+function mergeInvocationUsage(
+  current: InvocationUsage | undefined,
+  next: InvocationUsage | undefined
+): InvocationUsage | undefined {
+  if (!current) return next
+  if (!next) return current
+  return {
+    ...current,
+    ...next,
+    output_tokens: next.output_tokens ?? current.output_tokens,
+    input_tokens: next.input_tokens ?? current.input_tokens,
+    cache_read_input_tokens: next.cache_read_input_tokens ?? current.cache_read_input_tokens,
+    cache_creation_input_tokens: next.cache_creation_input_tokens ?? current.cache_creation_input_tokens
+  }
+}
+
+function pendingInvocationFromAssistant(message: SDKAssistantMessage, fallbackModel: string): PendingInvocationUsage {
+  const isComplete = message.message.stop_reason != null && message.aborted !== true && message.error === undefined
+  const assistantUsage =
+    message.aborted !== true && message.error === undefined ? invocationUsage(message.message.usage) : undefined
+  return {
+    id: message.message.id,
+    model: resolveSdkInvocationModel(message.message.model, fallbackModel),
+    ...(assistantUsage ? { assistantUsage } : {}),
+    completionObserved: isComplete,
+    isStreamStopped: false,
+    usageFinal: isComplete
+  }
+}
+
+function resolveSdkInvocationModel(model: unknown, fallbackModel: string): string {
+  return typeof model === 'string' && model.trim() ? model : fallbackModel
+}
+
+function selectAssistantUsage(
+  current: InvocationUsage | undefined,
+  next: InvocationUsage | undefined
+): InvocationUsage | undefined {
+  if (!next) return current
+  if (!current || (next.output_tokens ?? 0) >= (current.output_tokens ?? 0)) return next
+  return current
+}
+
+function finiteNonnegativeDuration(value: number | undefined): number | undefined {
+  return value !== undefined && Number.isFinite(value) && value >= 0 ? value : undefined
+}
+
+function startsThinking(event: SDKPartialAssistantMessage['event']): boolean {
+  return (
+    (event.type === 'content_block_start' && event.content_block.type === 'thinking') ||
+    (event.type === 'content_block_delta' && event.delta.type === 'thinking_delta')
+  )
+}
+
+function hasNonReasoningOutput(event: SDKPartialAssistantMessage['event']): boolean {
+  if (event.type === 'content_block_delta') {
+    return (
+      (event.delta.type === 'text_delta' && event.delta.text.length > 0) ||
+      (event.delta.type === 'input_json_delta' && event.delta.partial_json.length > 0)
+    )
+  }
+  if (event.type !== 'content_block_start') return false
+  return (
+    event.content_block.type === 'tool_use' ||
+    event.content_block.type === 'server_tool_use' ||
+    event.content_block.type === 'mcp_tool_use'
+  )
+}
+
+function mergePendingInvocation(current: PendingInvocationUsage, next: PendingInvocationUsage): PendingInvocationUsage {
+  const startUsage = mergeInvocationUsage(current.startUsage, next.startUsage)
+  const assistantUsage = selectAssistantUsage(current.assistantUsage, next.assistantUsage)
+  const terminalUsage = mergeInvocationUsage(current.terminalUsage, next.terminalUsage)
+  const timing = next.timing ?? current.timing
+  const metrics = next.metrics ?? current.metrics
+  return {
+    id: current.id,
+    model: next.model || current.model,
+    ...(startUsage ? { startUsage } : {}),
+    ...(assistantUsage ? { assistantUsage } : {}),
+    ...(terminalUsage ? { terminalUsage } : {}),
+    ...(timing ? { timing } : {}),
+    ...(metrics ? { metrics } : {}),
+    completionObserved: current.completionObserved || next.completionObserved,
+    isStreamStopped: current.isStreamStopped || next.isStreamStopped,
+    usageFinal: current.usageFinal || next.usageFinal
+  }
+}
+
+/** SDK response identity owns aggregation, independent of any product billing route. */
+export class ClaudeInvocations {
+  private readonly pendingInvocations = new Map<string, PendingInvocationUsage>()
+  private readonly streamInvocationIdsByLane = new Map<string, string>()
+  private readonly committedInvocationIds = new Set<string>()
+  private readonly emitted: ClaudeInvocation[] = []
+  private readonly turnTopLevelInvocationIds = new Set<string>()
+
+  accept(message: SDKMessage): readonly ClaudeInvocation[] {
+    if (message.type === 'assistant') this.captureAssistantInvocation(message)
+    else if (message.type === 'stream_event') this.captureStreamInvocation(message)
+    else if (message.type === 'result') {
+      if (message.subtype === 'success' && this.turnTopLevelInvocationIds.size === 1) {
+        const [id] = this.turnTopLevelInvocationIds
+        const pending = this.pendingInvocations.get(id)
+        const usage = invocationUsage(message.usage)
+        if (pending && !pending.usageFinal && usage) {
+          this.pendingInvocations.set(id, {
+            ...pending,
+            terminalUsage: usage,
+            completionObserved: true,
+            usageFinal: true
+          })
+        }
+      }
+      const id = this.streamInvocationIdsByLane.get('top-level')
+      const pending = id ? this.pendingInvocations.get(id) : undefined
+      if (pending && !pending.timing && message.subtype === 'success')
+        this.pendingInvocations.set(pending.id, { ...pending, completionObserved: true })
+      this.commitLaneUsage(null)
+      this.turnTopLevelInvocationIds.clear()
+    } else if (message.type === 'system' && message.subtype === 'task_notification' && message.tool_use_id)
+      this.commitLaneUsage(message.tool_use_id)
+    return this.emitted.splice(0)
+  }
+
+  close(): readonly ClaudeInvocation[] {
+    this.settlePendingInvocations()
+    return this.emitted.splice(0)
+  }
+
+  private captureAssistantInvocation(message: SDKAssistantMessage): void {
+    if (this.committedInvocationIds.has(message.message.id)) return
+
+    const next = pendingInvocationFromAssistant(message, '')
+    this.captureInvocationForLane(this.invocationLane(message.parent_tool_use_id), next)
+    if (this.pendingInvocations.get(next.id)?.isStreamStopped) {
+      this.commitInvocationUsage(next.id)
+    }
+  }
+
+  private captureStreamInvocation(message: SDKPartialAssistantMessage): void {
+    const lane = this.invocationLane(message.parent_tool_use_id)
+    if (message.event.type === 'message_start') {
+      const sdkMessage = message.event.message
+      const startUsage = invocationUsage(sdkMessage.usage)
+      const ttftMs = finiteNonnegativeDuration(message.ttft_ms)
+      this.captureInvocationForLane(lane, {
+        id: sdkMessage.id,
+        model: resolveSdkInvocationModel(sdkMessage.model, ''),
+        ...(startUsage ? { startUsage } : {}),
+        timing: {
+          streamStartedAt: performance.now(),
+          ...(ttftMs !== undefined ? { ttftMs } : {})
+        },
+        completionObserved: false,
+        isStreamStopped: false,
+        usageFinal: false
+      })
+      return
+    }
+
+    const requestId = this.streamInvocationIdsByLane.get(lane)
+    if (!requestId) return
+
+    if (message.event.type === 'content_block_start' || message.event.type === 'content_block_delta') {
+      const current = this.pendingInvocations.get(requestId)
+      if (!current) return
+      this.pendingInvocations.set(requestId, this.observeInvocationOutput(current, message))
+      return
+    }
+
+    if (message.event.type === 'message_delta') {
+      const current = this.pendingInvocations.get(requestId)
+      if (!current) return
+      const terminalUsage = invocationUsage(message.event.usage)
+      const isStreamStopped = message.event.delta.stop_reason !== null
+      const finalized = isStreamStopped ? this.finalizeInvocationTiming(current) : current
+      this.pendingInvocations.set(requestId, {
+        ...finalized,
+        ...(terminalUsage ? { terminalUsage } : {}),
+        completionObserved: finalized.completionObserved || isStreamStopped,
+        isStreamStopped: finalized.isStreamStopped || isStreamStopped,
+        usageFinal: finalized.usageFinal || isStreamStopped
+      })
+      if (isStreamStopped && (terminalUsage || current.terminalUsage)) this.commitInvocationUsage(requestId)
+      return
+    }
+
+    if (message.event.type === 'message_stop') {
+      const current = this.pendingInvocations.get(requestId)
+      if (!current) return
+      this.pendingInvocations.set(requestId, {
+        ...this.finalizeInvocationTiming(current),
+        completionObserved: true,
+        isStreamStopped: true,
+        usageFinal: true
+      })
+      if (current.terminalUsage || current.assistantUsage) this.commitInvocationUsage(requestId)
+    }
+  }
+
+  private observeInvocationOutput(
+    pending: PendingInvocationUsage,
+    message: SDKPartialAssistantMessage
+  ): PendingInvocationUsage {
+    const timing = pending.timing
+    if (!timing) return pending
+
+    let thinkingStartedAt = timing.thinkingStartedAt
+    let thinkingDurationMs = timing.thinkingDurationMs
+    if (startsThinking(message.event) && thinkingStartedAt === undefined) {
+      thinkingStartedAt = performance.now()
+    }
+    if (thinkingStartedAt !== undefined && thinkingDurationMs === undefined && hasNonReasoningOutput(message.event)) {
+      thinkingDurationMs = Math.max(0, Math.round(performance.now() - thinkingStartedAt))
+    }
+
+    return {
+      ...pending,
+      timing: {
+        ...timing,
+        ...(thinkingStartedAt !== undefined ? { thinkingStartedAt } : {}),
+        ...(thinkingDurationMs !== undefined ? { thinkingDurationMs } : {})
+      }
+    }
+  }
+
+  private finalizeInvocationTiming(pending: PendingInvocationUsage): PendingInvocationUsage {
+    const timing = pending.timing
+    if (!timing) return pending
+
+    const completedAt = performance.now()
+    const timeFirstTokenMs = timing.ttftMs
+    const timeCompletionMs =
+      timeFirstTokenMs !== undefined
+        ? Math.max(timeFirstTokenMs, Math.round(timeFirstTokenMs + completedAt - timing.streamStartedAt))
+        : undefined
+    const timeThinkingMs =
+      timing.thinkingDurationMs ??
+      (timing.thinkingStartedAt !== undefined
+        ? Math.max(0, Math.round(completedAt - timing.thinkingStartedAt))
+        : undefined)
+    const metrics = {
+      ...(timeFirstTokenMs !== undefined ? { timeFirstTokenMs } : {}),
+      ...(timeCompletionMs !== undefined ? { timeCompletionMs } : {}),
+      ...(timeThinkingMs !== undefined ? { timeThinkingMs } : {})
+    }
+
+    return {
+      ...pending,
+      ...(Object.keys(metrics).length > 0 ? { metrics } : {})
+    }
+  }
+
+  private captureInvocationForLane(lane: string, next: PendingInvocationUsage): void {
+    if (this.committedInvocationIds.has(next.id)) {
+      return
+    }
+
+    if (lane === 'top-level') this.turnTopLevelInvocationIds.add(next.id)
+    const previousRequestId = this.streamInvocationIdsByLane.get(lane)
+    if (previousRequestId && previousRequestId !== next.id) {
+      const previous = this.pendingInvocations.get(previousRequestId)
+      // A new response on the same lane closes the preceding invocation, but does not
+      // make its SDK per-block usage snapshot final.
+      if (previous?.assistantUsage && !previous.timing)
+        this.pendingInvocations.set(previousRequestId, { ...previous, completionObserved: true })
+      this.commitInvocationUsage(previousRequestId)
+    }
+    this.streamInvocationIdsByLane.set(lane, next.id)
+
+    const current = this.pendingInvocations.get(next.id)
+    this.pendingInvocations.set(next.id, current ? mergePendingInvocation(current, next) : next)
+  }
+
+  private commitLaneUsage(parentToolUseId: string | null): void {
+    const requestId = this.streamInvocationIdsByLane.get(this.invocationLane(parentToolUseId))
+    if (requestId) this.commitInvocationUsage(requestId)
+  }
+
+  private settlePendingInvocations(): void {
+    for (const [requestId, pending] of [...this.pendingInvocations.entries()]) {
+      if (pending.completionObserved) {
+        this.commitInvocationUsage(requestId)
+      } else {
+        this.discardInvocationUsage(requestId)
+      }
+    }
+  }
+
+  private discardInvocationUsage(requestId: string): void {
+    if (!this.pendingInvocations.delete(requestId)) return
+    for (const [lane, laneRequestId] of this.streamInvocationIdsByLane) {
+      if (laneRequestId === requestId) this.streamInvocationIdsByLane.delete(lane)
+    }
+  }
+
+  private commitInvocationUsage(requestId: string): void {
+    const pending = this.pendingInvocations.get(requestId)
+    if (!pending?.completionObserved) return
+    this.pendingInvocations.delete(requestId)
+    for (const [lane, laneRequestId] of this.streamInvocationIdsByLane) {
+      if (laneRequestId === requestId) this.streamInvocationIdsByLane.delete(lane)
+    }
+    this.committedInvocationIds.add(pending.id)
+    const usage = pending.usageFinal
+      ? mergeInvocationUsage(mergeInvocationUsage(pending.startUsage, pending.assistantUsage), pending.terminalUsage)
+      : undefined
+    this.emitted.push({
+      responseId: pending.id,
+      ...(pending.model ? { model: pending.model } : {}),
+      ...(usage ? { usage } : {}),
+      ...(pending.metrics ? { metrics: pending.metrics } : {})
+    })
+  }
+
+  private invocationLane(parentToolUseId: string | null | undefined): string {
+    return parentToolUseId == null ? 'top-level' : `tool:${parentToolUseId}`
+  }
+}
