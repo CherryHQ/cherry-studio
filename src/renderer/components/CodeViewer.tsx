@@ -616,14 +616,14 @@ const CodeViewer = ({
     }
   }, [debouncedHighlightLines])
 
-  // 首帧仅让视口内代码块绕过防抖，避免可见文本闪烁和离屏 Worker 请求突发。
+  // Give plain code a painted frame before starting visible syntax work.
+  // Off-screen blocks keep the debounce to avoid a burst of worker requests.
   useEffect(() => {
     if (!highlight) return
     const shikiTheme = shikiThemeRef.current
     if (firstIndex === undefined || lastIndex === undefined || !shikiTheme) return
 
     if (!hasRequestedHighlightRef.current) {
-      hasRequestedHighlightRef.current = true
       const rect = shikiTheme.getBoundingClientRect()
       const intersectsViewport =
         rect.width > 0 &&
@@ -634,14 +634,21 @@ const CodeViewer = ({
         rect.left < window.innerWidth
 
       if (!intersectsViewport) {
+        hasRequestedHighlightRef.current = true
         void debouncedHighlightLines(firstIndex, lastIndex + 1)
         return
       }
-      void highlightLines(firstIndex, lastIndex + 1)
-      return
+      let frame = requestAnimationFrame(() => {
+        frame = requestAnimationFrame(() => {
+          hasRequestedHighlightRef.current = true
+          void highlightLines(firstIndex, lastIndex + 1)
+        })
+      })
+      return () => cancelAnimationFrame(frame)
     }
 
     void debouncedHighlightLines(firstIndex, lastIndex + 1)
+    return undefined
   }, [firstIndex, lastIndex, debouncedHighlightLines, highlightLines, highlight])
 
   // Monitor selection changes, clear stale selection state, and auto-expand in collapsed state
