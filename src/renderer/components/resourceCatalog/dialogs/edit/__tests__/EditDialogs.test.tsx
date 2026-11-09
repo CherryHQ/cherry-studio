@@ -689,7 +689,8 @@ beforeEach(() => {
     if (path === '/knowledge-bases') {
       return {
         data: {
-          items: knowledgeBasesState.current
+          items: knowledgeBasesState.current,
+          total: knowledgeBasesState.current.length
         },
         isLoading: false
       }
@@ -1399,6 +1400,44 @@ describe('edit dialogs', () => {
         })
       )
     } finally {
+      mockPreferenceState.delete('chat.model_settings')
+    }
+  })
+
+  it('drops restored Gemini search with scoped KB tools and MCP disabled without overwriting memory', async () => {
+    const previousModel = { ...MODEL }
+    Object.assign(MODEL, { providerId: 'gemini', apiModelId: 'gemini-2.5-pro', capabilities: ['function-call'] })
+    const remembered = { [MODEL.id]: { enableWebSearch: true } }
+    mockPreferenceState.set('chat.model_settings', remembered)
+    providersListState.current = [
+      { id: 'gemini', serverTools: [{ id: 'web-search', modelScope: 'model-dependent', vendors: ['gemini'] }] }
+    ]
+    try {
+      render(
+        <AssistantEditDialog
+          open
+          resource={{
+            ...ASSISTANT,
+            knowledgeBaseIds: ['kb-1'],
+            settings: { ...ASSISTANT.settings, mcpMode: 'disabled' }
+          }}
+          onOpenChange={vi.fn()}
+        />
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Model' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
+      await waitFor(() =>
+        expect(updateAssistantMock).toHaveBeenCalledWith({
+          body: expect.objectContaining({
+            modelId: MODEL.id,
+            settings: expect.objectContaining({ enableWebSearch: false })
+          })
+        })
+      )
+      expect(mockPreferenceState.get('chat.model_settings')).toEqual(remembered)
+    } finally {
+      Object.assign(MODEL, previousModel)
+      delete (MODEL as Record<string, unknown>).apiModelId
       mockPreferenceState.delete('chat.model_settings')
     }
   })

@@ -37,6 +37,7 @@ import { useGroupMutations, useGroups } from '@renderer/hooks/useGroups'
 import { useModels } from '@renderer/hooks/useModel'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { useProviders } from '@renderer/hooks/useProvider'
+import { useScopedKnowledgeToolSignals } from '@renderer/hooks/useScopedKnowledgeToolSignals'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
@@ -243,6 +244,7 @@ function AssistantEditDialogContent({
   const defaultValues = useMemo(() => defaultValuesForAssistant(resource), [resource])
   const form = useForm<AssistantEditFormValues>({ defaultValues })
   const values = form.watch()
+  const scopedKnowledgeTools = useScopedKnowledgeToolSignals(values.knowledgeBaseIds)
   // Resolve the switch target from the same cached catalog the model selector
   // lists. A per-model query (`useModelById`) leaves a loading window after
   // each pick where an autosave/close would commit the new modelId with the
@@ -347,7 +349,7 @@ function AssistantEditDialogContent({
         currentSettings: { ...resource.settings, ...pending.payload.settings },
         remembered: chatModelSettings?.[pending.payload.modelId],
         clientSearchAvailable,
-        hasFunctionToolSignals: getEffectiveMcpMode(resource) !== 'disabled'
+        hasFunctionToolSignals: getEffectiveMcpMode(resource) !== 'disabled' || scopedKnowledgeTools
       })
       if (switched) {
         pending.payload.settings = {

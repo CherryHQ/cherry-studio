@@ -296,7 +296,7 @@ describe('useAssistant', () => {
       capabilities: ['function-call']
     } as never
 
-    function setup(savedSettings: Record<string, unknown>) {
+    function setup(savedSettings: Record<string, unknown>, knowledgeBaseIds: string[] = [], total = 1) {
       updateModelSettings.mockImplementation(async (modelId, patch) => {
         const all = MockUsePreferenceUtils.getPreferenceValue('chat.model_settings') as Record<string, object>
         MockUsePreferenceUtils.setPreferenceValue('chat.model_settings', {
@@ -314,15 +314,40 @@ describe('useAssistant', () => {
             id: 'assistant-1',
             name: 'Assistant 1',
             modelId: 'provider::model-a',
-            settings: { enableWebSearch: true },
+            settings: { enableWebSearch: true, mcpMode: 'disabled' },
             mcpServerIds: [],
-            knowledgeBaseIds: []
+            knowledgeBaseIds
           })
         }
+        if (path === '/knowledge-bases') return queryResult({ total, items: [] })
+        if (path === '/providers')
+          return queryResult([
+            { id: 'gemini', serverTools: [{ id: 'web-search', modelScope: 'model-dependent', vendors: ['gemini'] }] }
+          ])
         return queryResult()
       })
       return { trigger, hook: renderHook(() => useAssistant('assistant-1')) }
     }
+
+    it.each([
+      [['kb-1'], 1, false],
+      [[], 1, true],
+      [['kb-1'], 0, true]
+    ] as const)('reconciles restored Gemini search for scoped KBs %j with total %s', async (ids, total, expected) => {
+      const remembered = { 'gemini::gemini-2.5-pro': { enableWebSearch: true } }
+      const { hook, trigger } = setup(remembered, [...ids], total)
+      await act(async () => {
+        await hook.result.current.setModel({
+          ...modelB,
+          id: 'gemini::gemini-2.5-pro',
+          providerId: 'gemini',
+          apiModelId: 'gemini-2.5-pro'
+        } as never)
+      })
+      expect(trigger.mock.calls[0][0].body.settings.enableWebSearch).toBe(expected)
+      expect(MockUsePreferenceUtils.getPreferenceValue('chat.model_settings')).toEqual(remembered)
+      expect(updateModelSettings).not.toHaveBeenCalled()
+    })
 
     it('saves web search changes under the active model', async () => {
       const { hook } = setup({})

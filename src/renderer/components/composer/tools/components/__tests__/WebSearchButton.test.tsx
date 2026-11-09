@@ -217,6 +217,27 @@ describe('WebSearchButton', () => {
     })
   })
 
+  it.each([
+    [['kb-1'], 1, true],
+    [[], 1, false],
+    [['kb-1'], 0, false]
+  ] as const)('reconciles Gemini control for scoped KBs %j with total %s', (ids, total, disabled) => {
+    mocks.assistant.knowledgeBaseIds = [...ids]
+    mocks.provider = {
+      id: 'gemini',
+      serverTools: [{ id: 'web-search', modelScope: 'model-dependent', vendors: ['gemini'] }]
+    }
+    mocks.model = {
+      ...mocks.model!,
+      providerId: 'gemini',
+      apiModelId: 'gemini-2.5-pro',
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+    }
+    MockUseDataApiUtils.mockQueryData('/knowledge-bases', { total, items: [] })
+    render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+    expect(screen.getByRole('button', { name: 'chat.input.web_search.label' }).hasAttribute('disabled')).toBe(disabled)
+  })
+
   it('reads only the current model provider', () => {
     const view = render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
 

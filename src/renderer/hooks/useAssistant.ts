@@ -24,6 +24,7 @@ import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { useModelById } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
+import { useScopedKnowledgeToolSignals } from '@renderer/hooks/useScopedKnowledgeToolSignals'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import { ipcApi } from '@renderer/ipc'
 import type { Assistant, AssistantSettings } from '@renderer/types/assistant'
@@ -228,6 +229,9 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
   const [modelSettings] = usePreference('chat.model_settings')
   const { providers } = useProviders()
   const { providers: webSearchProviders, defaultSearchKeywordsProvider } = useWebSearchProviders()
+  const scopedKnowledgeTools = useScopedKnowledgeToolSignals(assistant?.knowledgeBaseIds)
+  const scopedKnowledgeToolsRef = useRef(scopedKnowledgeTools)
+  scopedKnowledgeToolsRef.current = scopedKnowledgeTools
   const idRef = useRef(id)
   const assistantRef = useRef(assistant)
   const patchAssistantRef = useRef(patchAssistant)
@@ -295,10 +299,8 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
       remembered: modelSettingsRef.current?.[next.id],
       extraSettings,
       clientSearchAvailable: clientSearchAvailableRef.current,
-      // MCP mode stands in for the request's eventual function tools (the same
-      // stand-in WebSearchButton uses), so a restored search flag is
-      // reconciled against the Gemini native/function-tool conflict too.
-      hasFunctionToolSignals: getEffectiveMcpMode(currentAssistant) !== 'disabled'
+      // Include scoped KB tools as well as MCP when predicting the Gemini conflict.
+      hasFunctionToolSignals: getEffectiveMcpMode(currentAssistant) !== 'disabled' || scopedKnowledgeToolsRef.current
     })
     return patchAssistantRef.current(
       currentId,
