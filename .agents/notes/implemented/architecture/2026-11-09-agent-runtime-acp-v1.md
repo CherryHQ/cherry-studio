@@ -1,6 +1,6 @@
 # Agent Note: ACP v1 runtime adapter
 
-Status: proposed
+Status: implemented
 
 English | [中文](2026-11-09-agent-runtime-acp-v1.zh.md)
 
@@ -8,11 +8,11 @@ English | [中文](2026-11-09-agent-runtime-acp-v1.zh.md)
 
 Cherry has common [runtime contracts](../../../../packages/agent-runtime/README.md) and native Pi, Pi Durable, and Claude Code adapters, but no portable ACP adapter on `main` at `27a61a606566`. ACP is the client protocol of a harness, not an execution engine. Connecting an agent does not transfer ownership of its model loop, storage, tools, or children to Cherry.
 
-The requested target is a general `@cherrystudio/agent-runtime-acp/v1` adapter, with Claude ACP and Gemini CLI as the first compatibility samples. This note specializes the [harness boundaries](2026-10-17-agent-harness-boundaries.md) without changing the common contract. The earlier [five-sample evidence](../testing/2026-10-17-agent-harness-evidence.md) remains historical evidence at its own pinned revisions.
+The requested target is a general `@cherrystudio/agent-runtime-acp/v1` adapter, with Claude ACP and Gemini CLI as the first compatibility samples. This note specializes the [harness boundaries](../../proposed/architecture/2026-10-17-agent-harness-boundaries.md) without changing the common contract. The earlier [five-sample evidence](../../proposed/testing/2026-10-17-agent-harness-evidence.md) remains historical evidence at its own pinned revisions.
 
 Related [PR #21221](https://github.com/CherryHQ/cherry-studio/pull/21221), inspected at `909ce14a6882`, already contains a desktop `localAgent/AcpConnection.ts`. It also owns launch, authentication, filesystem/terminal callbacks, and product usage. That unmerged implementation is integration evidence, not code present on this branch. The portable package must not become a second production connection owner alongside it; desktop adoption requires a separately scoped migration of the owning connection.
 
-## Proposal
+## Decision
 
 ### Research baseline
 
@@ -40,13 +40,13 @@ The protocol repository and SDK are not interchangeable version pins. For exampl
 
 ### Package and resource ownership
 
-Add `packages/agent-runtime-acp`, exporting `/v1` explicitly. Depend on `@cherrystudio/agent-runtime` and exact `@agentclientprotocol/sdk@2.4.0`; use the existing SDK content protocol through the common package. No Electron, product database, agent installer, credential manager, or native-harness dependency belongs in the package. No new public type is needed in the common runtime.
+`packages/agent-runtime-acp` exports `/v1` explicitly. Depend on `@cherrystudio/agent-runtime` and exact `@agentclientprotocol/sdk@2.4.0`; use the existing SDK content protocol through the common package. No Electron, product database, agent installer, credential manager, or native-harness dependency belongs in the package. No new public type is needed in the common runtime.
 
 `createAcpRuntime` owns one configured backend namespace and its ACP connection. The host supplies an exclusive transport lease with a close-and-join operation, native session configuration lookup, diagnostics, and supported client callbacks. The SDK owns framing, JSON-RPC correlation, validation of incoming method parameters, and connection requests. The adapter owns initialization, session routing, input bookkeeping, normalized feeds, and access lifetime. The host remains responsible for executable resolution, process launch, credentials, path policy, and joining an owned process on shutdown. Closing an SDK connection alone does not prove process exit.
 
 Register callbacks before initialization and require protocol version 1. Use `ClientApp.connect`, whose connection has an explicit lifetime; a `connectWith` callback returning a runtime would close its transport. Gate optional operations against negotiated capabilities and returned session configuration. Advertised extensions remain native metadata and do not authorize calling methods absent from the stable entrypoint.
 
-`create` uses native `session/new`. `open` validates the backend and reuses an existing session owner before considering `session/load`. The host provides the saved `cwd` and MCP configuration for cold load; displayed messages are never converted into native context. Capture setup-time updates before new/load responses, including updates emitted before a new session ID is returned. Bound provisional routing and fail explicitly on overflow; never silently drop history or assign it to another session. New-session creation can be serialized at the connection boundary to avoid ambiguous provisional routing, without serializing prompts across independent sessions.
+`create` uses native `session/new`. `open` validates the backend and reuses an existing session owner before considering `session/load`. The host provides the saved `cwd` and MCP configuration for cold load; displayed messages are never converted into native context. Capture setup-time updates before new/load responses, including updates emitted before a new session ID is returned. Bound provisional routing and fail explicitly on overflow; never silently drop history or assign it to another session. New-session creation is serialized at the connection boundary to avoid ambiguous provisional routing, without serializing prompts across independent sessions.
 
 Each live session has one projection producer and independently releasable handles. `observe`, `Observation.stop`, and `release` do not prompt, reload, cancel, or close the native session. Runtime shutdown closes admission, settles pending permission callbacks, requests supported native termination, joins the transport lease, drains published observations, and then ends feeds. Failure to confirm source termination returns `unknown`; it does not erase the owner or claim a successful shutdown. No operation deletes native history.
 
@@ -70,13 +70,11 @@ Permission callbacks receive the native request, session identity, offered optio
 
 Context reads are passive. A confirmed common context reading requires native capacity/occupancy evidence and an established model identity; otherwise return `unknown` or `unsupported` and retain the raw ACP usage update. Do not guess the model, substitute billing counters for context occupancy, or charge a replayed cumulative cost. Stable v1 does not enable common subagent access. Existing direct Claude Code integration remains the owner of capabilities specific to that SDK.
 
-### Verification and implementation layers
+### Implementation and native evidence
 
-Executed research uses published SDK 2.4.0 over real NDJSON streams with a scripted protocol peer: initialization/new session, output and permission while prompt is pending, cancelled permission plus trailing tool update before the prompt response, replay before load response, and pending-request rejection on connection loss all passed. This verifies transport behavior, not a Cherry adapter or a native model loop.
+[Spec PR #23916](https://github.com/CherryHQ/cherry-studio/pull/23916) merged at `724130665f2e`, and the user explicitly authorized implementation in the task conversation. This package completes the adapter and native acceptance layers. The historical research probes established only transport behavior and isolated initialization; they did not claim a Cherry adapter or native model loop. The older Gemini 0.19.4 initialization timeout remains outside the accepted baseline.
 
-Isolated subprocess initialization also passed for published Claude ACP 0.101.0 and Gemini CLI 0.67.0. Both negotiated v1 and advertised history loading, image input, embedded context, and HTTP/SSE MCP; Gemini also advertised audio. Claude advertised additional session capabilities and extension metadata. The older locally installed Gemini 0.19.4 timed out during initialization and is not an accepted baseline. These probes used temporary homes/workspaces with no authentication or model request. They do not prove prompting, tools, cancellation, recovery, or desktop integration on either real harness.
-
-The Spec is the bottom layer. After approval, the package layer implements the contracts with explicit-path tests for public adapter calls over the real SDK and a child-process fixture. The native acceptance layer exercises Claude and Gemini processes with controlled model endpoints and isolated storage. Record exact package versions and scenarios; do not substitute mocked RPC replies for native loop acceptance. Only cumulative evidence covering every AC moves this note to implemented. Desktop adoption, service installation, account UI, provider routing, and experimental v1/v2 features require separate scopes.
+The implemented package uses the SDK's stable client, `ThreadFeed` and `RuntimeMessageStream`. Protocol tests exercise public adapter calls over real SDK transports and an owned child process. Native tests run published Claude ACP and Gemini processes with isolated storage and controlled model endpoints. They verify actual file-tool effects and reload history through ACP in a fresh process. Desktop adoption, installation, account UI, provider routing and experimental v1/v2 controls remain separate scopes.
 
 ## Alternatives considered
 
@@ -85,17 +83,25 @@ The Spec is the bottom layer. After approval, the package layer implements the c
 - Normalize queueing, children, and durable identities from tool names or method names: rejected because source evidence contradicts those guarantees.
 - Move the desktop connection wholesale into the package: rejected because launch, credentials, product usage, and host filesystem policy belong to the desktop host; migrate consumers in a separately approved integration change.
 
-## Acceptance criteria
+## Consequences
 
-- AC1 — `/v1` builds and typechecks against exact stable SDK 2.4.0 without Electron, product data, native SDK dependencies, or changes to the common runtime contract; incompatible protocol versions are refused. (verification: unit — package typecheck and initialization integration tests)
-- AC2 — Concurrent opens share one live owner; cold load captures replay before its response; absent capability, missing history, and setup-buffer overflow fail explicitly without creating a replacement session or mixing content. (verification: unit — public runtime lifecycle tests over SDK transport)
-- AC3 — Submit returns before turn completion with only dispatch evidence; a busy or duplicate submission is not sent; unsupported policies, remote errors, limits/refusal, and source loss retain their specified outcomes without retry. (verification: unit — public input integration tests)
-- AC4 — Permission selection uses offered IDs; interruption cancels pending permissions, retains trailing updates, and confirms only the captured native prompt boundary; stale replies and transport failure cannot grant permission or claim cancellation. (verification: unit — bidirectional SDK cancellation tests)
-- AC5 — Text, reasoning, tool patch updates, rich native content, and metadata updates survive observation and replay with explicit identity limits; slow consumers, overflow, and release do not change execution or another observer. (verification: unit — projection and observation integration tests)
-- AC6 — Optional controls and host callbacks require actual support; context reads remain passive and unknown model/context data stays unknown; cumulative cost and experimental child metadata cannot fabricate billing or common controls. (verification: unit — capability and callback integration tests)
-- AC7 — Shutdown joins the owned transport/process and published delivery; failed termination remains unknown, while releasing one access leaves other accesses and native work intact and history undeleted. (verification: unit — child-process lifecycle integration tests)
-- AC8 — Pinned Claude ACP and Gemini processes each complete a scripted-model conversation, tool permission round trip, cancellation, and native history reload; evidence distinguishes those tests from handshake-only probes and Electron acceptance. (verification: unit — native subprocess integration tests with controlled model endpoints)
+SDK and protocol schemas evolve independently; extension metadata does not enable unsupported controls. Native IDs remain session/content-kind scoped, and absent IDs remain projection-local. Prompt completion is not whole-harness quiescence. Stable model configuration plus native occupancy is required for common context usage; legacy model extensions and cumulative billing remain native facts. The host owns executable, credential, filesystem and terminal policy.
 
-## Risks
+Setup buffering is bounded to 256 updates or 8 MiB. Cancellation and shutdown waits use 10-second deadlines and retain unknown outcomes when confirmation fails. Terminal support requires every terminal callback. Elicitation advertises session-scoped forms only; URL and request-scoped elicitation are not supported.
 
-SDK and protocol schemas evolve independently, and agents may emit extension fields even to a stable client. Native facts need typed preservation without assuming support. Optional message IDs limit durable display reconciliation. Some agents continue autonomous work or can be controlled by another client, so prompt completion is not whole-harness quiescence. Host callbacks and native close behavior need cancellation tests, not just happy-path API calls. The related desktop PR may land before package adoption; refresh its actual owner and avoid duplicate readers or process managers.
+Published Gemini 0.67.0 starts history replay without awaiting it before returning from `session/load`; the newer researched source awaits replay. The adapter retains late updates, and native acceptance waits for the expected history to arrive. A successful load response from that binary is not proof of complete replay. Claude acceptance selects the advertised `default` permission mode, since its initial mode can allow edits, and the model fixture handles separate title-generation requests. Native acceptance is opt-in, with version checks; missing binaries and Windows are explicitly skipped, not counted as passed.
+
+## Verification
+
+The commands below ran on macOS with Node 24.21.0 and pnpm 12.6.0. The protocol suite uses SDK 2.4.0 over real NDJSON streams; the native suite launches isolated subprocesses against controlled loopback model endpoints. Native binaries are external test inputs, not package dependencies. Reproduction commands and environment variables live in the [package README](../../../../packages/agent-runtime-acp/README.md).
+
+- AC1 — Package `build` and `typecheck`, plus `runtime.test.ts`: the `/v1` export builds with stable SDK 2.4.0, rejects incompatible initialization, and leaves common runtime contracts unchanged.
+- AC2 — `runtime.test.ts` and `lifecycle.test.ts`: concurrent opens share an owner; new/load replay is routed by session; missing history, unsupported load, foreign backends and bounded setup overflow fail without creating a replacement.
+- AC3 — `runtime.test.ts`: dispatch-only acknowledgement, synchronous busy reservation, local duplicate rejection, independent sessions, unsupported policies, exact stop outcomes, remote failure and disconnect without retry.
+- AC4 — `runtime.test.ts` and `lifecycle.test.ts`: offered permission IDs, cancelled pending permission, stale reply rejection, trailing output, completion racing cancellation, source loss and cancellation deadline retaining the busy slot.
+- AC5 — `runtime.test.ts` and `lifecycle.test.ts`: text/reasoning and text/file/text order, merged tool patches, retained resources/diffs/metadata, session-scoped IDs, observer isolation, overflow recovery and closure of only the overloaded observer.
+- AC6 — `runtime.test.ts` and `lifecycle.test.ts`: capability-gated content/MCP/configuration, scoped filesystem and full terminal callbacks, form elicitation, passive context evidence, preserved cumulative cost and absent common child controls.
+- AC7 — `lifecycle.test.ts`: real child-process exit, failed join and retry, late transport acquisition, delivery drain and native-history preservation; handle release leaves another access alive.
+- AC8 — `native.test.ts`: Claude ACP 0.101.0 with Claude Agent SDK 0.3.318 and Gemini CLI 0.67.0 each complete conversation, real file-tool permission, in-flight cancellation and history reload in a fresh process. Both executable variables were supplied; neither native case was skipped.
+
+The changed validation planner also passes `scripts/__tests__/validationPlan.test.ts`. Electron adoption, real-provider billing, Windows native acceptance and packaging are outside this evidence.
