@@ -44,7 +44,7 @@ import { gate, toolCallPart } from '../../../../../packages/agent-runtime-pi/tes
 import type { PiConnectionSnapshot } from '../pi/piConnectionSignature'
 import { runtimeDriverRegistry } from '../registry'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
-import { allocateDurableBackendTx, prepareDurableBranch } from './durableContext'
+import { allocateDurableBackendTx, prepareDurableBranch, reserveDurableBranchTx } from './durableContext'
 import type { PiDurableRuntimeConnection } from './PiDurableRuntimeConnection'
 import { PiDurableRuntimeDriver } from './PiDurableRuntimeDriver'
 
@@ -245,6 +245,174 @@ describe('desktop Pi Durable connection', () => {
       }
     })
   }
+
+  async function editInput(messageId: string, replacement: string, fail?: 'close' | 'commit') {
+    const target = { messageId, version: messages.readEditSnapshotTx(dbh.db, input.sessionId, messageId).version }
+    return new AgentSessionForkOperations().edit(
+      input.sessionId,
+      target,
+      async () => {
+        if (fail === 'close') throw new Error('close failed')
+        for (const connection of connections) await connection.close()
+      },
+      (tx, nativeId, contextId) => {
+        const [row] = messages.saveMessagesTx(tx, {
+          sessionId: input.sessionId,
+          messages: [{ role: 'user', status: 'success', data: { parts: [{ type: 'text', text: replacement }] } }]
+        })
+        reserveDurableBranchTx(tx, input.sessionId, row.id, nativeId, contextId)
+        if (contextId) messages.setEditRuntimeTx(tx, input.sessionId, row.id, nativeId)
+        if (fail === 'commit') throw new Error('product commit failed')
+        return row
+      }
+    )
+  }
+
+  // Editing the first input must neither recover its original prompt nor guess a numeric native identity.
+  it('edits the first input into a fresh durable context and survives reopening', async () => {
+    sharedHosts()
+    const parent = await connect()
+    const old = message('original first input')
+    await parent.connection.send({ message: old })
+    await savedAnswer(parent)
+    const original = contexts.context(parent.connection.contextId!)
+    writeFileSync(join(directory, 'keep.txt'), 'current files')
+    const calls = script.calls.length
+    const edited = await editInput(old.id, 'replacement first input')
+    const target = prepareDurableBranch(input.sessionId, edited.id)
+    expect(target.backendId).not.toBe(original.backendId)
+    expect(target.nativeThreadId).toBeNull()
+    expect(messages.readEditSnapshotTx(dbh.db, input.sessionId, edited.id).user.data.nativeSessionId).toBeUndefined()
+    expect(script.calls).toHaveLength(calls)
+    expect(messages.listSessionMessages(input.sessionId).items.map((row) => row.id)).toEqual([edited.id])
+    expect(messages.getSessionMessage(input.sessionId, old.id).data.parts).toEqual(old.data.parts)
+    input = { ...input, branchHead: edited.id }
+    const fresh = await connect()
+    expect(fresh.connection.contextId).toBe(target.id)
+    setScript([assistantReply('replacement answer')])
+    await fresh.connection.send({ message: edited })
+    const answer = await savedAnswer(fresh)
+    expect(JSON.stringify(script.calls[0].messages)).toContain('replacement first input')
+    expect(JSON.stringify(script.calls[0].messages)).not.toContain('original first input')
+    expect(readFileSync(join(directory, 'keep.txt'), 'utf8')).toBe('current files')
+    await fresh.connection.close()
+    input = { ...input, branchHead: answer.id }
+    const reopened = await connect()
+    expect(reopened.connection.contextId).toBe(target.id)
+    expect(reopened.handle.thread.id).toBe(fresh.handle.thread.id)
+    setScript([assistantReply('continued replacement')])
+    await reopened.connection.send({ message: message('continue edited context') })
+    await savedAnswer(reopened)
+    expect(JSON.stringify(script.calls[0].messages)).toContain('replacement first input')
+    expect(JSON.stringify(script.calls[0].messages)).not.toContain('original first input')
+  })
+
+  // A second edit must use the first edit's remapped prefix without changing shared product rows.
+  it('edits a committed prefix repeatedly and retains independent old and new branches', async () => {
+    sharedHosts()
+    const parent = await connect()
+    await parent.connection.send({ message: message('shared first input') })
+    const shared = await savedAnswer(parent)
+    const original = contexts.context(parent.connection.contextId!)
+    const old = message('original later question')
+    parent.events.length = 0
+    setScript([assistantReply('original later answer')])
+    await parent.connection.send({ message: old })
+    const oldAnswer = await savedAnswer(parent)
+    const before = messages.getSessionMessage(input.sessionId, shared.id)
+    const edited = await editInput(old.id, 'edited later question')
+    input = { ...input, branchHead: edited.id }
+    const first = await connect()
+    const firstContext = contexts.context(first.connection.contextId!)
+    expect(firstContext.backendId).toBe(original.backendId)
+    expect(first.handle.thread.id).not.toBe(original.nativeThreadId)
+    setScript([assistantReply('edited later answer')])
+    await first.connection.send({ message: edited })
+    await savedAnswer(first)
+    expect(JSON.stringify(script.calls[0].messages)).toContain('shared first input')
+    expect(JSON.stringify(script.calls[0].messages)).not.toContain('original later question')
+    expect(JSON.stringify(script.calls[0].messages)).not.toContain('original later answer')
+    const repeated = await editInput(edited.id, 'second edited question')
+    input = { ...input, branchHead: repeated.id }
+    const second = await connect()
+    expect(second.handle.thread.id).not.toBe(first.handle.thread.id)
+    setScript([assistantReply('second edited answer')])
+    await second.connection.send({ message: repeated })
+    const final = await savedAnswer(second)
+    expect(JSON.stringify(script.calls[0].messages)).not.toContain('edited later question')
+    expect(messages.getSessionMessage(input.sessionId, shared.id)).toEqual(before)
+    const calls = script.calls.length
+    const fork = await new AgentSessionForkOperations().fork(input.sessionId, final.id)
+    expect(messages.listSessionMessages(fork).items).toHaveLength(4)
+    expect(script.calls).toHaveLength(calls)
+    await second.connection.close()
+    messages.selectBranch(input.sessionId, old.id)
+    input = { ...input, branchHead: oldAnswer.id }
+    const reopened = await connect()
+    expect(reopened.handle.thread.id).toBe(original.nativeThreadId)
+    setScript([assistantReply('original branch continued')])
+    await reopened.connection.send({ message: message('continue original') })
+    await savedAnswer(reopened)
+    expect(JSON.stringify(script.calls[0].messages)).toContain('original later question')
+    expect(JSON.stringify(script.calls[0].messages)).not.toContain('second edited question')
+  })
+
+  // Prepared native forks must stay inert when close, publication, or receipt delivery fails.
+  it.each(['close', 'commit', 'receipt'] as const)(
+    'keeps the original durable branch after failed edit: %s',
+    async (fail) => {
+      sharedHosts()
+      const parent = await connect()
+      const initial = message('shared failure boundary')
+      await parent.connection.send({ message: initial })
+      await savedAnswer(parent)
+      const old = message('original failure input')
+      parent.events.length = 0
+      await parent.connection.send({ message: old })
+      const answer = await savedAnswer(parent)
+      const other = messages.saveMessage({
+        sessionId: input.sessionId,
+        parentId: messages.readEditSnapshotTx(dbh.db, input.sessionId, initial.id).user.parentId!,
+        message: { role: 'user', data: { parts: [] } }
+      })
+      const collision = contexts.reserveBranchTx(dbh.db, {
+        sessionId: input.sessionId,
+        backendId: allocateDurableBackendTx(dbh.db).id,
+        anchorMessageId: other.id,
+        nativeThreadId: '2'
+      })
+      contexts.bindContext(collision.id, '2')
+      messages.selectBranch(input.sessionId, answer.id)
+      const before = messages.listSessionMessages(input.sessionId).items
+      if (fail === 'receipt') {
+        const runtime = parent.connection['runtime']!
+        const commit = runtime.durable.commit.bind(runtime.durable)
+        vi.spyOn(runtime.durable, 'commit').mockImplementationOnce(async (...args) => {
+          await commit(...args)
+          throw new Error('receipt lost')
+        })
+      }
+      await expect(editInput(old.id, 'unpublished replacement', fail === 'receipt' ? undefined : fail)).rejects.toThrow(
+        fail === 'receipt' ? 'receipt lost' : fail === 'close' ? 'close failed' : 'product commit failed'
+      )
+      expect(messages.listSessionMessages(input.sessionId).items).toEqual(before)
+      const records = await readForkResources()
+      expect(records).toHaveLength(1)
+      expect(records[0].nativeDisposition).toBe('retained')
+      const prepared = records[0].nativePreparations![0]
+      expect(contexts.roots(prepared.backendId).some((context) => context.id === prepared.contextId)).toBe(false)
+      const calls = script.calls.length
+      await new AgentSessionForkOperations().recover()
+      expect(script.calls).toHaveLength(calls)
+      for (const connection of connections) await connection.close()
+      input = { ...input, branchHead: answer.id }
+      const reopened = await connect()
+      setScript([assistantReply('original survived edit failure')])
+      await reopened.connection.send({ message: message('continue after failure') })
+      await savedAnswer(reopened)
+      expect(text(reopened.events)).toContain('original survived edit failure')
+    }
+  )
 
   it('forks a committed prefix in the shared owner and survives source deletion and a cold reopen', async () => {
     sharedHosts()

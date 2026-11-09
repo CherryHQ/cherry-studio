@@ -1004,7 +1004,7 @@ from idle activity or an empty product-input map.
 Native submission and assistant metadata carry the consuming run's stable identity.
 Ordinary steer may start a later run after normal completion; it has no run-only constraint.
 Background continuation keeps the child identity. Independent continuation of a completed
-foreground child is rejected because native tool ownership is immutable. Successful committed boundaries support ownerless same-storage desktop forks; each root retains its own model options, approvals, extensions and environment. Before shared recovery resumes unfinished roots, their stored request selections and Main projection consumers are restored. Final release closes the backend once and drains observations before product writers stop. Durable Edit and resend, file rewind and `vcc_recall` remain unavailable. See the
+foreground child is rejected because native tool ownership is immutable. Successful committed boundaries support ownerless same-storage desktop forks; each root retains its own model options, approvals, extensions and environment. Before shared recovery resumes unfinished roots, their stored request selections and Main projection consumers are restored. Final release closes the backend once and drains observations before product writers stop. Edit and resend retains sibling-message branches, preparing an ownerless native fork at the predecessor or a fresh context for the first input. File rewind and `vcc_recall` remain unavailable. See the
 [driver README](../../../../src/main/ai/runtime/piDurable/README.md) for storage and recovery boundaries.
 
 ### Pi code mode
