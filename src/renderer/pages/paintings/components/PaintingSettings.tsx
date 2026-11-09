@@ -63,11 +63,12 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({
   )
 
   const outputFormatItem = configItems.find((item) => item.key === 'outputFormat')
-  const outputFormats = outputFormatItem
-    ? resolveItemOptions(outputFormatItem, paintingParams)
-        .map((option) => String(option.value).toUpperCase())
-        .join(', ')
-    : ''
+  const outputFormats =
+    outputFormatItem && outputFormatItem.outputFormatKind !== 'delivery'
+      ? resolveItemOptions(outputFormatItem, paintingParams)
+          .map((option) => String(option.value).toUpperCase())
+          .join(', ')
+      : ''
 
   return (
     <>

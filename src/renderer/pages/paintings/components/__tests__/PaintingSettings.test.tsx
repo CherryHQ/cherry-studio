@@ -122,3 +122,19 @@ describe('PaintingSettings output format note', () => {
     expect(screen.getByTestId('painting-output-format-note')).not.toHaveTextContent('Supported output formats:')
   })
 })
+
+it.each(['image-01', 'image-01-live'])(
+  'does not describe MiniMax %s response delivery as an image encoding',
+  (modelId) => {
+    const support = ModelListSchema.parse(catalog).models.find((model) => model.id === modelId)?.imageGeneration
+    if (!support) throw new Error('Missing real MiniMax catalog support')
+    vi.mocked(useImageGenerationSupport).mockReturnValue(support)
+    renderWithI18n(
+      <PaintingSettings painting={{ ...painting, providerId: 'minimax', model: modelId }} onConfigChange={vi.fn()} />
+    )
+    const note = screen.getByTestId('painting-output-format-note')
+    expect(note).toHaveTextContent('Output format is chosen by the provider')
+    expect(note).not.toHaveTextContent('Supported output formats:')
+    expect(note).not.toHaveTextContent('BASE64')
+  }
+)
