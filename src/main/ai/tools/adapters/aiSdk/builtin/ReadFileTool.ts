@@ -39,6 +39,22 @@ import type { ToolEntry } from '../types'
 
 const logger = loggerService.withContext('ReadFile')
 
+const MEDIA_READ_SNAPSHOT_TTL_MS = 30 * 60 * 1000
+
+/**
+ * Full media analysis for paging. The first page analyzes (so a partial result can be retried);
+ * later pages reuse its text, because an uncached partial re-run can shift every offset.
+ */
+async function readMediaAnalysis(entryId: string, offset: number | undefined, signal?: AbortSignal): Promise<string> {
+  const cache = application.get('CacheService')
+  const key = `read-file:media:${entryId}`
+  const snapshot = offset ? cache.get<unknown>(key) : undefined
+  if (typeof snapshot === 'string') return snapshot
+  const text = await application.get('MediaAnalysisService').analyzeToFullText({ kind: 'entry', entryId }, signal)
+  cache.set(key, text, MEDIA_READ_SNAPSHOT_TTL_MS)
+  return text
+}
+
 export const READ_FILE_DESCRIPTION = `Read more text from a file the user attached to this conversation.
 
 Attachments are already inlined into the conversation. Call this when an attachment was truncated and you need the rest, when compact audio/video analysis lacks needed detail, or to page further through a long result with \`offset\` + \`limit\` (it returns \`nextOffset\` until the end is reached). Do not call it for content already fully inline — especially native images, which you can already see.`
@@ -98,7 +114,7 @@ export async function readFile(
 
     let text: string | null
     if (fileType === FILE_TYPE.AUDIO || fileType === FILE_TYPE.VIDEO) {
-      text = await application.get('MediaAnalysisService').analyzeToFullText({ kind: 'entry', entryId }, signal)
+      text = await readMediaAnalysis(entryId, input.offset, signal)
     } else if (fileType === FILE_TYPE.IMAGE) {
       text = await application.get('FileProcessingService').ocrImage({ kind: 'entry', entryId }, signal)
     } else {
