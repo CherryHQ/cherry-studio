@@ -2386,6 +2386,8 @@
   "marketplace.instructions": "Instrucciones",
   "marketplace.load_failed": "No se pudo cargar el mercado. Inténtalo de nuevo.",
   "marketplace.manage_mcp": "Gestionar MCP",
+  "marketplace.mcp.configuration.filesystem": "Después de añadir el servidor, abra su configuración e introduzca una ruta absoluta de carpeta en la primera línea de {{arguments}}. También puede establecer WORKSPACE_ROOT con esa ruta en {{environment}}; tiene prioridad sobre {{arguments}}. Si deja ambos sin configurar, se utilizará el directorio de trabajo MCP integrado. Guarde y active el servidor y selecciónelo en la configuración MCP de su agente. No se puede acceder a archivos fuera de ese directorio.",
+  "marketplace.mcp.configuration.title": "Guía de configuración",
   "marketplace.more_sources": "Más fuentes",
   "marketplace.no_results": "No se encontraron recursos",
   "marketplace.no_results_description": "Prueba con otro término de búsqueda.",

@@ -78,7 +78,7 @@ export function MarketplaceTemplates({
   return (
     <div className={preview ? '' : 'flex h-full min-h-0 flex-col'}>
       {!preview && categories ? (
-        <div className="mb-3 shrink-0" aria-label={t('marketplace.categories')}>
+        <div className="mb-3 shrink-0 pr-4" aria-label={t('marketplace.categories')}>
           <HorizontalScrollContainer
             gap="4px"
             scrollLeftLabel={t('settings.models.filter.scroll_left')}

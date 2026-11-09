@@ -2386,6 +2386,8 @@
   "marketplace.instructions": "Anweisungen",
   "marketplace.load_failed": "Der Marktplatz konnte nicht geladen werden. Bitte erneut versuchen.",
   "marketplace.manage_mcp": "MCP verwalten",
+  "marketplace.mcp.configuration.filesystem": "Öffnen Sie nach dem Hinzufügen die Servereinstellungen und tragen Sie in der ersten Zeile von {{arguments}} einen absoluten Verzeichnispfad ein. Alternativ setzen Sie WORKSPACE_ROOT unter {{environment}} auf diesen Pfad; dies hat Vorrang vor {{arguments}}. Bleiben beide Angaben leer, wird das integrierte MCP-Arbeitsverzeichnis verwendet. Speichern und aktivieren Sie den Server und wählen Sie ihn anschließend in den MCP-Einstellungen Ihres Agenten aus. Auf Dateien außerhalb des Verzeichnisses kann nicht zugegriffen werden.",
+  "marketplace.mcp.configuration.title": "Konfigurationsanleitung",
   "marketplace.more_sources": "Weitere Quellen",
   "marketplace.no_results": "Keine Ressourcen gefunden",
   "marketplace.no_results_description": "Versuchen Sie einen anderen Suchbegriff.",

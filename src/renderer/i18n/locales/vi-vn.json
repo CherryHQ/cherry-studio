@@ -2386,6 +2386,8 @@
   "marketplace.instructions": "Chỉ dẫn",
   "marketplace.load_failed": "Không thể tải thị trường. Vui lòng thử lại.",
   "marketplace.manage_mcp": "Quản lý MCP",
+  "marketplace.mcp.configuration.filesystem": "Sau khi thêm máy chủ, hãy mở phần cài đặt và nhập đường dẫn thư mục tuyệt đối vào dòng đầu tiên của {{arguments}}. Bạn cũng có thể đặt WORKSPACE_ROOT thành đường dẫn đó trong {{environment}}; giá trị này được ưu tiên hơn {{arguments}}. Nếu không thiết lập cả hai, thư mục làm việc MCP tích hợp sẽ được sử dụng. Lưu và bật máy chủ, rồi chọn máy chủ trong cài đặt MCP của tác nhân. Không thể truy cập tệp bên ngoài thư mục này.",
+  "marketplace.mcp.configuration.title": "Hướng dẫn cấu hình",
   "marketplace.more_sources": "Nguồn khác",
   "marketplace.no_results": "Không tìm thấy tài nguyên",
   "marketplace.no_results_description": "Hãy thử từ khóa khác.",

@@ -2386,6 +2386,8 @@
   "marketplace.instructions": "指示",
   "marketplace.load_failed": "マーケットを読み込めません。もう一度お試しください。",
   "marketplace.manage_mcp": "MCP を管理",
+  "marketplace.mcp.configuration.filesystem": "サーバーを追加した後、設定を開き、{{arguments}} の最初の行にアクセスを許可するフォルダーの絶対パスを入力します。または、{{environment}} で WORKSPACE_ROOT にそのパスを設定します。この値は {{arguments}} より優先されます。どちらも未設定の場合、内蔵の MCP 作業フォルダーが使用されます。保存してサーバーを有効にした後、エージェントの MCP 設定で選択してください。指定したフォルダーの外にあるファイルにはアクセスできません。",
+  "marketplace.mcp.configuration.title": "設定ガイド",
   "marketplace.more_sources": "その他のソース",
   "marketplace.no_results": "リソースが見つかりません",
   "marketplace.no_results_description": "別のキーワードをお試しください。",

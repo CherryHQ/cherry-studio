@@ -2386,6 +2386,8 @@
   "marketplace.instructions": "คำสั่ง",
   "marketplace.load_failed": "ไม่สามารถโหลดมาร์เก็ตเพลซได้ โปรดลองอีกครั้ง",
   "marketplace.manage_mcp": "จัดการ MCP",
+  "marketplace.mcp.configuration.filesystem": "หลังจากเพิ่มเซิร์ฟเวอร์ ให้เปิดการตั้งค่าแล้วป้อนพาธแบบสัมบูรณ์ของโฟลเดอร์ในบรรทัดแรกของ {{arguments}} หรือกำหนด WORKSPACE_ROOT เป็นพาธนั้นใน {{environment}} ซึ่งจะมีลำดับความสำคัญเหนือ {{arguments}} หากไม่กำหนดทั้งสองส่วน ระบบจะใช้โฟลเดอร์ทำงาน MCP ในตัว บันทึกและเปิดใช้งานเซิร์ฟเวอร์ แล้วเลือกเซิร์ฟเวอร์นี้ในการตั้งค่า MCP ของเอเจนต์ ไม่สามารถเข้าถึงไฟล์นอกโฟลเดอร์ดังกล่าวได้",
+  "marketplace.mcp.configuration.title": "คู่มือการตั้งค่า",
   "marketplace.more_sources": "แหล่งเพิ่มเติม",
   "marketplace.no_results": "ไม่พบทรัพยากร",
   "marketplace.no_results_description": "ลองใช้คำค้นหาอื่น",
