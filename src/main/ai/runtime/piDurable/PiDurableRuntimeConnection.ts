@@ -31,6 +31,7 @@ import { buildAgentUserContent } from '../agentUserContent'
 import { childTaskStatus } from '../pi/childTaskStatus'
 import { PiInvalidConnectionSnapshotError } from '../pi/piConnectionSignature'
 import { PiMessageMetadata } from '../pi/PiMessageMetadata'
+import { PiTurnUsage } from '../pi/PiTurnUsage'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -76,7 +77,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   private failure?: unknown
   private nextOrigin: AutonomousTurnOrigin = { kind: 'background-work' }
   private providerSessionId?: string
-  private usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
+  private readonly turnUsage = new PiTurnUsage()
   private reconcileChain: Promise<unknown> = Promise.resolve()
   private readonly steers = new Set<string>()
   private readonly children = new Map<
@@ -147,7 +148,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     if (this.sending) throw new Error('Durable already has an active submission')
     this.sending = true
     this.failure = undefined
-    this.usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
+    this.turnUsage.reset()
     const text = buildAgentUserContent(input.message)
     if (!input.systemReminder && /^\/compact(?:\s|$)/.test(text.trim())) {
       this.compacting = true
@@ -278,7 +279,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     this.sending = true
     this.autonomous = true
     this.failure = undefined
-    this.usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
+    this.turnUsage.reset()
     this.events.push({ type: 'autonomous-turn-state', state: 'started', origin: this.nextOrigin, sourceToolCallIds })
     this.nextOrigin = { kind: 'background-work' }
   }
@@ -577,15 +578,9 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private recordUsage(usage: Usage) {
-    this.usage.inputTokens += usage.input + usage.cacheRead + usage.cacheWrite
-    this.usage.outputTokens += usage.output
-    this.usage.totalTokens += usage.totalTokens
     this.events.push({
       type: 'chunk',
-      chunk: {
-        type: 'message-metadata',
-        messageMetadata: { totalTokens: this.usage.totalTokens, stats: { ...this.usage } }
-      }
+      chunk: { type: 'message-metadata', messageMetadata: this.turnUsage.record(usage) }
     })
   }
 

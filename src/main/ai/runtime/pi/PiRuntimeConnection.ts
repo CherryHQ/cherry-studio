@@ -88,6 +88,7 @@ import { buildPiMcpToolName, createPiMcpExtension } from './piMcpExtension'
 import { PiMessageMetadata, resolvePiMcpToolMetadata } from './PiMessageMetadata'
 import { loadPiSdk } from './piSdk'
 import { buildPiLoginPathPrefix, mergePiBashExecutionEnv, resolvePiShellPath } from './piShell'
+import { PiTurnUsage } from './PiTurnUsage'
 
 const logger = loggerService.withContext('PiRuntimeConnection')
 
@@ -136,8 +137,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private readonly toolSpans = new Map<string, Span>()
   private readonly toolNames = new Map<string, string>()
   private checkpoint?: string
-  private reasoningTokens: number | undefined
-  private usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
+  private readonly turnUsage = new PiTurnUsage()
   private readonly adapter = new PiMessageMetadata((name) => this.resolveMcpToolMetadata(name))
   private projection?: ThreadProjection
   private readonly completedTools = new Set<string>()
@@ -382,8 +382,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     if (this.sending) throw new Error('Pi already has an active submission')
     this.sending = true
     this.failure = undefined
-    this.usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
-    this.reasoningTokens = undefined
+    this.turnUsage.reset()
     const content = buildAgentUserContent(input.message)
     const command = input.systemReminder ? undefined : parseManualCompactCommand(content)
     if (command) {
@@ -469,6 +468,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
             this.autonomous = true
             this.sending = true
             this.failure = undefined
+            this.turnUsage.reset()
             this.eventQueue.push({
               type: 'autonomous-turn-state',
               state: 'started',
@@ -851,24 +851,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private recordUsage(usage: Usage): void {
-    if (usage.reasoning !== undefined) this.reasoningTokens = (this.reasoningTokens ?? 0) + usage.reasoning
-    this.usage.inputTokens += usage.input + usage.cacheRead + usage.cacheWrite
-    this.usage.outputTokens += usage.output
-    this.usage.totalTokens += usage.totalTokens
     this.eventQueue.push({
       type: 'chunk',
-      chunk: {
-        type: 'message-metadata',
-        messageMetadata: {
-          totalTokens: this.usage.totalTokens,
-          stats: {
-            ...this.usage,
-            ...(this.reasoningTokens === undefined
-              ? {}
-              : { outputTokenDetails: { reasoningTokens: this.reasoningTokens } })
-          }
-        }
-      }
+      chunk: { type: 'message-metadata', messageMetadata: this.turnUsage.record(usage) }
     })
   }
 
