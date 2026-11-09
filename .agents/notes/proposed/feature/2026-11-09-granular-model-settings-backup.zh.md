@@ -19,7 +19,7 @@ Status: proposed
   "providers": [ ... ], "models": [ ... ] }
 ```
 
-服务商条目使用 `CreateProviderSchema` 的字段（不含 `logo`），并加上 `isEnabled`。模型条目使用 `CreateModelSchema` 的字段，并加上 `isEnabled` 与 `isHidden`。两者均复用现有 schema，使文件与 DataApi 契约保持一致。排除项：logo 绑定、排序键、时间戳、`notes`、`reasoning`、`isDeprecated`、Cherry 托管的服务商及其默认模型，以及所有非模型表。引用某模型的助手默认设置不导出。
+服务商条目使用 `CreateProviderSchema` 的字段（不含 `logo`），并加上 `isEnabled`；仅限无预置的服务商，另含下文“路由来源”所述的按端点存储的 `adapterFamily` 路由来源信息。模型条目使用 `CreateModelSchema` 的字段，并加上 `isEnabled` 与 `isHidden`。两者均复用现有 schema，使文件与 DataApi 契约保持一致。排除项：logo 绑定、排序键、时间戳、`notes`、`reasoning`、`isDeprecated`、Cherry 托管的服务商及其默认模型，以及所有非模型表。引用某模型的助手默认设置不导出。
 
 **导出来源。** 主进程直接读取已存储的覆盖行，而非经注册表补全的 `Model` 或 `Provider` 对象，因此预置值不会被固化进文件。预置模型只导出其已存储的覆盖项。保存对话框与发起请求的窗口绑定，与 `ExportService` 一致。导出前渲染进程显示确认提示，说明文件包含 API 密钥。
 
@@ -30,14 +30,16 @@ Status: proposed
 
 每个冲突对应一行：服务商（`providerId`）或模型（`(providerId, modelId)`）。对话框为每行提供"替换"或"跳过"，并提供"全部替换"与"全部跳过"。没有决定的冲突按跳过处理。取消对话框则不写入任何数据。
 
-**写入语义。** 写入通过 `providerService` 与 `modelService` 的公共方法完成，即 DataApi 处理器所调用的同一批方法，因此托管服务商保护、注册表补全与版本检查仍然生效。服务商先于模型写入，以便模型的外键能够解析。
+**写入语义。** 写入通过 `providerService` 与 `modelService` 的公共方法完成，即 DataApi 处理器所调用的同一批方法，因此托管服务商保护、注册表补全与版本检查仍然生效，唯一的例外是下文“路由来源”所述的所有者可控路径。服务商先于模型写入，以便模型的外键能够解析。
 
-- 新服务商：`create`，若 `isEnabled` 为真则再 `update`，文件列出密钥时再调用 `replaceApiKeys`。
+- 新服务商：`create`，若 `isEnabled` 为真则再 `update`，文件列出密钥时再调用 `replaceApiKeys`。对于无预置的服务商，随后按下文“路由来源”所述从文件恢复 `adapterFamily` 来源信息。
 - 替换服务商：`update` 写入文件中存在的服务商字段（`name`、`endpointConfigs`、`defaultChatEndpoint`、`authConfig`、`providerSettings`、`isEnabled`），文件列出 `apiKeys` 时再调用 `replaceApiKeys`。文件中缺失的 `providerSettings` 顶层键被设为 `null` 以清除；其他缺失的服务商字段保持不变。
 - 新模型：以创建字段调用 `create`，仅当 `isEnabled` 或 `isHidden` 与默认值不同时再 `update`。
 - 替换模型：以文件中的全部字段调用 `update`。文件中缺失的可空上限（`contextWindow`、`maxInputTokens`、`maxOutputTokens`）设为 `null`；文件中缺失的其他字段保持不变。
 
 每个条目独立尝试。结果列出已创建、已替换、已跳过与失败的数量，每个失败项附带其类别、标识与错误信息。服务商失败时，其模型以 `provider_not_imported` 原因计入失败。
+
+**路由来源。** 无预置的迁移自建中转服务，其已存储的端点覆盖项可能带有旧的 `adapterFamily` 提示（例如 `gateway` 或 `newapi`）。端点类型推断无法重建该提示：导入后一旦丢失，服务商会解析为 `openai-compatible`，在保留 URL 与密钥的情况下悄然改变请求协议。因此文档 schema 仅对无预置的服务商在 `endpointConfigs` 中携带 `adapterFamily`，导出时与其他覆盖项一样直接读取已存储的行。导入时，无论是新建还是“替换”决定，`ModelSettingsBackupService` 都通过一条所有者可控的路径恢复它：在上述服务调用之后，由主进程直接写入持久化的端点覆盖项，且仅限无预置的服务商、取值仅限 `resolveAiSdkProviderId` 接受的已知适配族集合。集合之外的值会被丢弃，并在条目结果中以 `adapter_family_dropped` 报告。`CreateProviderSchema` 及其他渲染进程可达的 schema 不新增该字段，因此普通渲染进程写入仍无法设置 `adapterFamily`，文件也无法为预置服务商设置它。
 
 **归属。** 导出与导入逻辑位于 `src/main/services/ModelSettingsBackupService.ts`，是与 `ExportService` 相同的非生命周期单例。路由声明于 `src/shared/ipc/schemas/modelSettings.ts`，处理器位于 `src/main/ipc/handlers/modelSettings.ts`。文档 schema 位于 `src/shared/types/modelSettingsBackup.ts`。渲染进程在 `BasicDataSettings.tsx` 中新增一行，并在 `DataSettings/` 下新增冲突弹窗。`LegacyBackupManager`、备份归档及其恢复路径均不修改。
 
@@ -54,7 +56,7 @@ Status: proposed
 - AC1 — 导出的文档通过严格 schema 校验，且仅包含 `providers` 与 `models` 数组；不出现话题、消息、智能体、助手、文件或偏好数据（verification: unit）
 - AC2 — 预置模型仅导出已存储的覆盖列；Cherry 托管的服务商及其默认模型不出现在文件中（verification: unit）
 - AC3 — 导入时拒绝错误的 `format`、不支持的 `version`、超过 10 MiB 的文件、非法 JSON 以及任何格式错误的条目，且在此之前不写入任何数据（verification: unit）
-- AC4 — 在空数据库上导入时，每个服务商被创建并带有其 API 密钥、端点配置与启用状态，每个模型被创建并带有其启用与隐藏状态（verification: unit）
+- AC4 — 在空数据库上导入时，每个服务商被创建并带有其 API 密钥、端点配置与启用状态，每个模型被创建并带有其启用与隐藏状态；已存储端点覆盖项中带有 `adapterFamily: 'gateway'` 或 `adapterFamily: 'newapi'` 的无预置迁移中转服务，导入后仍解析为相同的适配族，而非 `openai-compatible`（verification: unit）
 - AC5 — 冲突按服务商与 `(providerId, modelId)` 逐条检测；替换决定覆盖列出的字段，跳过或缺失决定则保持行不变，替换模型时清除文件中缺失的可空上限（verification: unit）
 - AC6 — 单个条目失败不影响其他条目，结果逐条列出失败的类别与标识；未导入服务商的模型以 `provider_not_imported` 报告（verification: unit）
 - AC7 — 冲突对话框提供逐行的替换与跳过，以及全部替换与全部跳过；取消时不写入任何数据；导出前显示 API 密钥警告（verification: renderer）

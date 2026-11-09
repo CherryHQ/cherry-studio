@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-09-granular-model-settings-backup.md
-2026-11-09-granular-model-settings-backup.md: 4d40bee9cfba86f60e6ae3a939f2278545701ebb
-2026-11-09-granular-model-settings-backup.zh.md: 6c36e1fd0f2eba52ce1072d4343c4b8c6dac6654
+2026-11-09-granular-model-settings-backup.md: 29388bb9b0c5dc8235784ce03ddc49a794067718
+2026-11-09-granular-model-settings-backup.zh.md: 5829d32c85c7853213149a080d0236bc58573694
