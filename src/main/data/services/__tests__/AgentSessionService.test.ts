@@ -20,6 +20,7 @@ import { agentTaskService } from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { pinService } from '@data/services/PinService'
+import * as workspaceAccess from '@main/utils/isDirectoryAccessible'
 import { ErrorCode } from '@shared/data/api/errors'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 
@@ -1181,6 +1182,29 @@ describe('AgentSessionService', () => {
       .from(agentWorkspaceTable)
       .where(eq(agentWorkspaceTable.type, 'system'))
     expect(systemWorkspaceRows).toHaveLength(0)
+  })
+
+  it('probes workspace access before opening the write transaction', async () => {
+    const missing = await createWorkspace('probe-before-transaction')
+    const replacement = await createWorkspace('probe-replacement')
+    const session = await createSession('Probe outside transaction', missing.id)
+    await insertSessionMessage(session.id, 'probe-message')
+    const probe = workspaceAccess.isDirectoryAccessible
+    const transactions: boolean[] = []
+    const spy = vi.spyOn(workspaceAccess, 'isDirectoryAccessible').mockImplementation((directory) => {
+      transactions.push(dbh.sqlite.inTransaction)
+      return probe(directory)
+    })
+    try {
+      expect(agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: replacement.id })).toMatchObject(
+        {
+          workspaceId: replacement.id
+        }
+      )
+      expect(transactions).toEqual([false])
+    } finally {
+      spy.mockRestore()
+    }
   })
 
   it('rebinds a messaged session whose user workspace folder is missing', async () => {

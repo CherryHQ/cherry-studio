@@ -958,7 +958,16 @@ export class AgentSessionService {
    */
   setWorkspace(id: string, source: AgentSessionWorkspaceSource): AgentSessionEntity {
     withSqliteErrors(
-      () => application.get('DbService').withWriteTx((tx) => this.setWorkspaceTx(tx, id, source)),
+      () => {
+        const current = this.getJoinedSessionRowTx(application.get('DbService').getDb(), id)
+        const inaccessibleWorkspaceId =
+          source.type === AGENT_WORKSPACE_TYPE.USER &&
+          current.workspace.type === AGENT_WORKSPACE_TYPE.USER &&
+          !isDirectoryAccessible(current.workspace.path)
+            ? current.workspace.id
+            : undefined
+        application.get('DbService').withWriteTx((tx) => this.setWorkspaceTx(tx, id, source, inaccessibleWorkspaceId))
+      },
       defaultHandlersFor('Session', id)
     )
     notifyDataApiDataChange([
@@ -969,12 +978,17 @@ export class AgentSessionService {
     return this.getById(id)
   }
 
-  setWorkspaceTx(tx: DbOrTx, id: string, source: AgentSessionWorkspaceSource): void {
+  private setWorkspaceTx(
+    tx: DbOrTx,
+    id: string,
+    source: AgentSessionWorkspaceSource,
+    inaccessibleWorkspaceId?: string
+  ): void {
     const current = this.getJoinedSessionRowTx(tx, id)
     const recoveringMissingWorkspace =
       source.type === AGENT_WORKSPACE_TYPE.USER &&
       current.workspace.type === AGENT_WORKSPACE_TYPE.USER &&
-      !isDirectoryAccessible(current.workspace.path)
+      current.workspace.id === inaccessibleWorkspaceId
     // The workspace binding is locked once a session has messages, unless its folder is gone (migrated/renamed/unplugged).
     if (!recoveringMissingWorkspace) this.assertSessionHasNoMessagesTx(tx, id)
 
