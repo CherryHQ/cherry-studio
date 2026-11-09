@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-11-09-immediate-permission-mode-switch.md
+2026-11-09-immediate-permission-mode-switch.md: fe446333a12ecd7eb7cc7b307af96c0c69710713
+2026-11-09-immediate-permission-mode-switch.zh.md: 18f99e44fb3648af79bcae17d629ba0cef181eb4
