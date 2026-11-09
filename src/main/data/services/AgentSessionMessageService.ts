@@ -572,7 +572,7 @@ export class AgentSessionMessageService {
     tx.update(sessionTable).set({ activeNodeId: snapshot.user.parentId }).where(eq(sessionTable.id, sessionId)).run()
   }
 
-  hasRuntimeResumeToken(sessionId: string, resumeToken: string): boolean {
+  hasRuntimeResumeToken(sessionId: string, resumeToken: string, contextId?: string): boolean {
     if (
       application
         .get('DbService')
@@ -582,6 +582,7 @@ export class AgentSessionMessageService {
         .where(
           and(
             eq(agentSessionContextTable.sessionId, sessionId),
+            contextId ? eq(agentSessionContextTable.id, contextId) : undefined,
             eq(agentSessionContextTable.bindingState, 'bound'),
             eq(agentSessionContextTable.nativeThreadId, resumeToken)
           )
@@ -589,6 +590,7 @@ export class AgentSessionMessageService {
         .get()
     )
       return true
+    if (contextId) return false
     return Boolean(
       application
         .get('DbService')
