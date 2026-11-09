@@ -24,11 +24,10 @@ import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { t } from '@main/i18n'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
-import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import { AsyncEventQueue } from '@shared/utils/async'
 
 import { buildAgentUserContent } from '../agentUserContent'
-import { childTaskStatus } from '../pi/childTaskStatus'
+import { PiChildTasks } from '../pi/PiChildTasks'
 import { PiInvalidConnectionSnapshotError } from '../pi/piConnectionSignature'
 import { PiMessageMetadata } from '../pi/PiMessageMetadata'
 import { PiTurnUsage } from '../pi/PiTurnUsage'
@@ -85,7 +84,10 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     | { state: 'opening'; pending: Promise<DurableChildResource | undefined> }
     | { state: 'attached' | 'closing'; resource: DurableChildResource }
   >()
-  private readonly childStates = new Map<string, AgentTaskEventPartData>()
+  private readonly childTasks = new PiChildTasks(
+    (id) => this.childOrigin(id),
+    (event) => this.events.push(event)
+  )
   private readonly adapter = new PiMessageMetadata((name) => this.desktop?.mcp.metadata.get(name))
   private projection?: ThreadProjection
 
@@ -324,53 +326,13 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
 
   private onBehavior(event: BehaviorEvent) {
     if (event.type === 'subagents') {
-      for (const view of event.views)
-        this.publishChild(
-          view.sessionId,
-          view.status === 'finished' ? childTaskStatus(view.outcome) : 'in_progress',
-          true
-        )
-      if (!this.handle || event.thread === this.handle.thread.id) {
-        const running = event.views.filter((view) => view.status !== 'finished')
-        this.events.push({
-          type: 'background-tasks',
-          tasks: running.map((view) => ({
-            id: view.sessionId,
-            type: 'subagent',
-            description: view.description,
-            toolCallId: this.childOrigin(view.sessionId)?.toolCallId
-          }))
-        })
-      }
+      this.childTasks.showSubagents(event.views, !this.handle || event.thread === this.handle.thread.id)
     } else if (!this.handle || event.thread === this.handle.thread.id) {
       if (event.type === 'goal-round') this.nextOrigin = { kind: 'goal-round', round: event.round.round }
       if (event.type === 'goal-notice') {
         this.projection?.notice(event.notice.text)
       }
     }
-  }
-
-  private publishChild(id: string, status: AgentTaskEventPartData['status'], background: boolean) {
-    const origin = this.childOrigin(id)
-    const previous = this.childStates.get(id)
-    if (
-      previous &&
-      previous.status === status &&
-      previous.isBackgrounded === background &&
-      previous.toolUseId === origin?.toolCallId
-    )
-      return
-    const data: AgentTaskEventPartData = {
-      event: !previous ? 'started' : status === 'in_progress' ? 'updated' : 'notification',
-      taskId: id,
-      toolUseId: origin?.toolCallId,
-      taskType: 'subagent',
-      title: origin?.description ?? previous?.title,
-      status,
-      isBackgrounded: background
-    }
-    this.childStates.set(id, data)
-    this.events.push({ type: 'background-task-event', data })
   }
 
   private childKey(id: string): string {
@@ -450,7 +412,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
                   for (const child of event.subagents ?? []) if (child.child) void this.observeChild(child.child.id)
                   if (this.closing) return
                   const facts = await access.durable.facts()
-                  this.publishChild(
+                  this.childTasks.publish(
                     id,
                     facts.live.idle
                       ? facts.live.runEnd?.outcome === 'completed'
@@ -458,8 +420,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
                         : facts.live.runEnd?.outcome === 'aborted'
                           ? 'stopped'
                           : 'error'
-                      : 'in_progress',
-                    this.childStates.get(id)?.isBackgrounded ?? false
+                      : 'in_progress'
                   )
                 }
               })
@@ -475,8 +436,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
         resource = { relation, handle: access, projection }
         await projection.attach()
         this.children.set(key, { state: 'attached', resource })
-        const previous = this.childStates.get(id)
-        this.publishChild(id, previous?.status ?? 'in_progress', previous?.isBackgrounded ?? false)
+        this.childTasks.publish(id, this.childTasks.status(id) ?? 'in_progress')
         return resource
       })
       .catch(async (error) => {

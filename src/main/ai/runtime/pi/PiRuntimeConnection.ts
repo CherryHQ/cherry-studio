@@ -60,7 +60,6 @@ import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
-import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import { AsyncEventQueue } from '@shared/utils/async'
 
 import { resolveApiGatewayRuntime } from '../agentApiGateway'
@@ -79,6 +78,7 @@ import { createPiGatewayModelBinding } from './gatewayModelBinding'
 import { createPiIdentityExtension } from './identityExtension'
 import { legacyDisabledToolId, assertLegacyDisabledToolsResolved } from './legacyToolPolicy'
 import { createPiBehaviorHost } from './piBehaviorHost'
+import { PiChildTasks } from './PiChildTasks'
 import {
   capturePiConnectionSnapshot,
   type PiConnectionSnapshot,
@@ -120,7 +120,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private manualCompactInFlight = false
   private autonomous = false
   private nextOrigin: AutonomousTurnOrigin = { kind: 'background-work' }
-  private readonly childTaskStates = new Map<string, AgentTaskEventPartData>()
+  private readonly childTasks = new PiChildTasks(
+    (id) => this.childOrigin(id),
+    (event) => this.eventQueue.push(event)
+  )
   private readonly children = new Map<
     string,
     | { state: 'opening'; pending: Promise<PiChildResource | undefined> }
@@ -502,7 +505,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       }
       for (const child of batch.children)
         void this.observeChild(child.thread.id).then(() =>
-          this.publishChildTask(child.thread.id, childTaskStatus(child.outcome))
+          this.childTasks.publish(child.thread.id, childTaskStatus(child.outcome))
         )
       if (batch.settled && this.sending && !this.manualCompactInFlight) this.finishTurn()
     } catch (error) {
@@ -543,49 +546,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     if (event.type === 'goal-round') this.nextOrigin = { kind: 'goal-round', round: event.round.round }
     else if (event.type === 'goal-notice') {
       this.projection?.notice(event.notice.text)
-    } else if (event.type === 'subagents') {
-      for (const view of event.views) {
-        this.publishChildTask(
-          view.sessionId,
-          view.status === 'finished' ? childTaskStatus(view.outcome) : 'in_progress',
-          true
-        )
-      }
-      const running = event.views.filter((view) => view.status !== 'finished')
-      this.eventQueue.push({
-        type: 'background-tasks',
-        tasks: running.map((view) => ({
-          id: view.sessionId,
-          type: 'subagent',
-          description: view.description,
-          toolCallId: this.childOrigin(view.sessionId)?.toolCallId
-        }))
-      })
-    }
-  }
-
-  private publishChildTask(id: string, status: AgentTaskEventPartData['status'], background?: boolean): void {
-    const origin = this.childOrigin(id)
-    const previous = this.childTaskStates.get(id)
-    const isBackgrounded = background ?? previous?.isBackgrounded ?? false
-    if (
-      previous &&
-      previous.status === status &&
-      previous.isBackgrounded === isBackgrounded &&
-      previous.toolUseId === origin?.toolCallId
-    )
-      return
-    const data: AgentTaskEventPartData = {
-      event: !previous ? 'started' : status === 'in_progress' ? 'updated' : 'notification',
-      taskId: id,
-      toolUseId: origin?.toolCallId,
-      taskType: 'subagent',
-      title: origin?.description ?? previous?.title,
-      status,
-      isBackgrounded
-    }
-    this.childTaskStates.set(id, data)
-    this.eventQueue.push({ type: 'background-task-event', data })
+    } else if (event.type === 'subagents') this.childTasks.showSubagents(event.views, true)
   }
 
   private childKey(id: string): string {
@@ -663,7 +624,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         resource = { relation, handle: access, projection }
         await projection.attach()
         this.children.set(key, { state: 'attached', resource })
-        this.publishChildTask(id, this.childTaskStates.get(id)?.status ?? 'in_progress')
+        this.childTasks.publish(id, this.childTasks.status(id) ?? 'in_progress')
         return resource
       })
       .catch(async (error) => {
