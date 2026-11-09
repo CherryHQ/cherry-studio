@@ -74,7 +74,7 @@ const NotionSettings: FC = () => {
 
   const handleNotionTitleClick = () => {
     void openExternalWebsite(
-      `${i18n.language.startsWith('zh') ? 'https://cherryai.com.cn/docs' : 'https://cherryai.com/docs'}/advanced-basic/notion`
+      `${i18n.language.startsWith('zh') ? 'https://cherryai.com.cn/docs/zh-cn' : 'https://cherryai.com/docs/en'}/pre-basic/data-settings/notion/`
     )
   }
 

@@ -44,7 +44,9 @@ const SiyuanSettings: FC = () => {
 
   const handleSiyuanHelpClick = () => {
     void openExternalWebsite(
-      `${i18n.language.startsWith('zh') ? 'https://cherryai.com.cn/docs' : 'https://cherryai.com/docs'}/advanced-basic/siyuan`
+      i18n.language.startsWith('zh')
+        ? 'https://cherryai.com.cn/docs/zh-cn/pre-basic/data-settings/siyuan/'
+        : 'https://cherryai.com/docs/en/pre-basic/data-settings/'
     )
   }
 

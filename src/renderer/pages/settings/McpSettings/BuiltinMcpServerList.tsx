@@ -77,7 +77,11 @@ const BuiltinMcpServerList: FC = () => {
                   <span className="truncate text-[14px] leading-5">{server.name}</span>
                   {server?.shouldConfig && (
                     <a
-                      href={`${i18n.language.startsWith('zh') ? 'https://cherryai.com.cn/docs' : 'https://cherryai.com/docs'}/advanced-basic/extensions/mcp#nei-zhi-fu-wu-qi-yu-fu-wu-shi-chang`}
+                      href={
+                        i18n.language.startsWith('zh')
+                          ? 'https://cherryai.com.cn/docs/zh-cn/advanced-basic/extensions/mcp/#nei-zhi-fu-wu-qi-yu-fu-wu-shi-chang'
+                          : 'https://cherryai.com/docs/en/advanced-basic/extensions/mcp/#built-in-servers-and-marketplaces'
+                      }
                       target="_blank"
                       rel="noopener noreferrer">
                       <Badge

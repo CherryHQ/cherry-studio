@@ -563,7 +563,7 @@
       "metadata": {
         "website": {
           "apiKey": "https://ppio.com/settings/key-management",
-          "docs": "https://cherryai.com/docs/pre-basic/providers/ppio",
+          "docs": "https://cherryai.com/docs/en/pre-basic/providers/",
           "models": "https://ppio.com/model-api/product/llm-api",
           "official": "https://ppio.com/"
         }
@@ -2937,5 +2937,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "3367b57f0e8cdcd2"
+  "version": "7b17f7706c07b778"
 }

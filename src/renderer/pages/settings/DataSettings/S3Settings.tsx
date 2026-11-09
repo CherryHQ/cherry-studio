@@ -58,7 +58,7 @@ const S3Settings: FC = () => {
     openSmartMiniApp({
       appId: 's3-help',
       name: 'S3 Compatible Storage Help',
-      url: `${i18n.language.startsWith('zh') ? 'https://cherryai.com.cn/docs' : 'https://cherryai.com/docs'}/data-settings/s3-compatible`,
+      url: `${i18n.language.startsWith('zh') ? 'https://cherryai.com.cn/docs/zh-cn' : 'https://cherryai.com/docs/en'}/pre-basic/data-settings/s3-compatible/`,
       logo: AppLogo
     })
   }

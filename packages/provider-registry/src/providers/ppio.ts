@@ -13,7 +13,7 @@ export default openaiCompatible({
   baseUrl: 'https://api.ppinfra.com/v3/openai/',
   website: {
     apiKey: 'https://ppio.com/settings/key-management',
-    docs: 'https://cherryai.com/docs/pre-basic/providers/ppio',
+    docs: 'https://cherryai.com/docs/en/pre-basic/providers/',
     models: 'https://ppio.com/model-api/product/llm-api',
     official: 'https://ppio.com/'
   },

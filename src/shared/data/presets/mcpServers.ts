@@ -57,7 +57,7 @@ export const PRESET_MCP_SERVERS = freezePresets([
   },
   {
     name: BuiltinMcpServerNames.mcpAutoInstall,
-    reference: 'https://cherryai.com/docs/advanced-basic/extensions/mcp',
+    reference: 'https://cherryai.com/docs/en/advanced-basic/extensions/mcp/',
     type: 'stdio',
     command: 'npx',
     args: ['-y', '@mcpmarket/mcp-auto-install', 'connect', '--json'],
