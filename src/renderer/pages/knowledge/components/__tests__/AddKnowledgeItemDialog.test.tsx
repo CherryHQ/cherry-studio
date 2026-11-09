@@ -584,6 +584,33 @@ describe('AddKnowledgeItemDialog', () => {
   })
 
   describe('note source (panel)', () => {
+    it('updates selectable notes after mutations to an existing directory tree', () => {
+      setPendingAddSource('note')
+      const root = {}
+      const onOpenChange = vi.fn()
+      mockUseDirectoryTree.mockReturnValue({ root, version: 0, isLoading: false, error: null })
+      const { rerender } = render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+      expect(screen.getByText('未找到笔记')).toBeVisible()
+
+      mockProjectNotesTree.mockReturnValue([createNoteNode('New note', '/notes/New note.md')])
+      mockUseDirectoryTree.mockReturnValue({ root, version: 1, isLoading: false, error: null })
+      rerender(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+      expect(screen.getByRole('checkbox', { name: /New note/ })).toBeVisible()
+      expect(screen.queryByText('未找到笔记')).not.toBeInTheDocument()
+
+      mockProjectNotesTree.mockReturnValue([createNoteNode('Renamed note', '/notes/Renamed note.md')])
+      mockUseDirectoryTree.mockReturnValue({ root, version: 2, isLoading: false, error: null })
+      rerender(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+      expect(screen.getByRole('checkbox', { name: /Renamed note/ })).toBeVisible()
+      expect(screen.queryByRole('checkbox', { name: /New note/ })).not.toBeInTheDocument()
+
+      mockProjectNotesTree.mockReturnValue([])
+      mockUseDirectoryTree.mockReturnValue({ root, version: 3, isLoading: false, error: null })
+      rerender(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+      expect(screen.getByText('未找到笔记')).toBeVisible()
+      expect(screen.queryByRole('checkbox', { name: /Renamed note/ })).not.toBeInTheDocument()
+    })
+
     it('renders the note picker and reflects selection in the footer', () => {
       setPendingAddSource('note')
       mockProjectNotesTree.mockReturnValue([

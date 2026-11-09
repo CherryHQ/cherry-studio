@@ -1,10 +1,11 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, render, screen } from '@testing-library/react'
-import { type ReactNode, use, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { type ReactNode, use, useLayoutEffect, useRef, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   CommandFocusScopeContext,
+  type CommandFocusScopeState,
   useCommandContextKey,
   useCommandContextReader,
   useCommandHandler
@@ -127,33 +128,6 @@ describe('CommandFocusScope', () => {
     expect(screen.getByLabelText('root actions')).toHaveTextContent('0')
   })
 
-  it('settles a scope consumer that reports context to its parent and still publishes changed values', () => {
-    function ContextReporter({ onContext }: { onContext: (value: Readonly<Record<string, ContextValue>>) => void }) {
-      const scope = use(CommandFocusScopeContext)!
-      const version = useSyncExternalStore(scope.subscribe, scope.getVersion)
-      useLayoutEffect(() => onContext(scope.options.context()), [onContext, scope, version])
-      return null
-    }
-    function ContextOwner({ active }: { active: boolean }) {
-      const rootRef = useRef<HTMLDivElement>(null)
-      const [reported, setReported] = useState<Readonly<Record<string, ContextValue>>>({})
-      return (
-        <CommandFocusScope rootRef={rootRef} context={{ 'chat.active': active }}>
-          <div ref={rootRef}>
-            <ContextReporter onContext={setReported} />
-            <output aria-label="Reported context">{String(reported['chat.active'])}</output>
-          </div>
-        </CommandFocusScope>
-      )
-    }
-    const { rerender } = render(<ContextOwner active />)
-    expect(screen.getByLabelText('Reported context')).toHaveTextContent('true')
-    rerender(<ContextOwner active />)
-    expect(screen.getByLabelText('Reported context')).toHaveTextContent('true')
-    rerender(<ContextOwner active={false} />)
-    expect(screen.getByLabelText('Reported context')).toHaveTextContent('false')
-  })
-
   it('routes commands through the replacement root after its DOM element changes', () => {
     function ReplacedRoot({ revision }: { revision: number }) {
       const rootRef = useRef<HTMLDivElement>(null)
@@ -178,6 +152,48 @@ describe('CommandFocusScope', () => {
     expect(pressShortcut(screen.getByRole('button', { name: 'Focus replacement' }))).toBe(true)
     expect(screen.getByLabelText('replacement actions')).toHaveTextContent('1')
     expect(screen.getByLabelText('root actions')).toHaveTextContent('0')
+  })
+
+  it('keeps the external-store snapshot stable when inline scope options have not changed', () => {
+    let scope: CommandFocusScopeState | null = null
+    function ObserveScope() {
+      scope = use(CommandFocusScopeContext)
+      return <ContextIndicator name="observed" />
+    }
+    const tree = () => (
+      <Providers>
+        <Surface name="observed" context={{ 'chat.active': true }}>
+          <ObserveScope />
+        </Surface>
+      </Providers>
+    )
+    const { rerender } = render(tree())
+    const snapshot = scope!.getVersion()
+    rerender(tree())
+    // useSyncExternalStore must not see a new snapshot for unchanged scope state.
+    expect(scope!.getVersion()).toBe(snapshot)
+    expect(screen.getByLabelText('observed chat context')).toHaveTextContent('true')
+  })
+
+  it('refreshes inline scope context and restores inherited keys when an override is removed', () => {
+    const tree = (context: Partial<Record<RendererCommandContextKey, ContextValue>>) => (
+      <Providers>
+        <Surface name="parent" context={{ 'chat.active': false }}>
+          <Surface name="child" context={context}>
+            <ContextIndicator name="child" />
+          </Surface>
+        </Surface>
+      </Providers>
+    )
+    const { rerender } = render(tree({ 'chat.active': true }))
+    expect(screen.getByLabelText('child chat context')).toHaveTextContent('true')
+
+    rerender(tree({ 'chat.active': false }))
+    expect(screen.getByLabelText('child chat context')).toHaveTextContent('false')
+    rerender(tree({ 'chat.active': true }))
+    expect(screen.getByLabelText('child chat context')).toHaveTextContent('true')
+    rerender(tree({}))
+    expect(screen.getByLabelText('child chat context')).toHaveTextContent('false')
   })
 
   it.each([false, true])('routes sibling commands by keyboard target with reversed order %s', (reverse) => {

@@ -76,8 +76,8 @@ registered scope and combines its context with parent and root values. It
 matches the shortcut and handler together, then executes that same candidate.
 Changing focus does not require a React state update before the next keypress.
 
-The scope provider notifies subscribers when its root element, activation or
-context values change. Passing a new context object with the same values does
+The scope provider notifies subscribers when its activation or context values
+change. Passing a new context object with the same values does
 not publish another version. Handler and context-key registrations notify
 subscribers independently. Registry attachment remains stable across ordinary
 rerenders, follows root-element replacement, and is released on unmount or
