@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, realpathSync } from
 import { join } from 'node:path'
 
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
-import { createAssistantMessageEventStream, type AssistantMessage } from '@earendil-works/pi-ai'
+import { createAssistantMessageEventStream, type AssistantMessage, type Usage } from '@earendil-works/pi-ai'
 import { AgentDoc, configure, createSession, type ConversationId } from '@earendil-works/pi-durable'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
@@ -285,7 +285,7 @@ describe('desktop Pi Durable connection', () => {
     expect(messages.readEditSnapshotTx(dbh.db, input.sessionId, edited.id).user.data.nativeSessionId).toBeUndefined()
     expect(script.calls).toHaveLength(calls)
     expect(messages.listSessionMessages(input.sessionId).items.map((row) => row.id)).toEqual([edited.id])
-    expect(messages.getSessionMessage(input.sessionId, old.id).data.parts).toEqual(old.data.parts)
+    expect(() => messages.getSessionMessage(input.sessionId, old.id)).toThrow()
     input = { ...input, branchHead: edited.id }
     const fresh = await connect()
     expect(fresh.connection.contextId).toBe(target.id)
@@ -308,7 +308,7 @@ describe('desktop Pi Durable connection', () => {
   })
 
   // A second edit must use the first edit's remapped prefix without changing shared product rows.
-  it('edits a committed prefix repeatedly and retains independent old and new branches', async () => {
+  it('replaces a committed tail repeatedly and reopens only the edited context', async () => {
     sharedHosts()
     const parent = await connect()
     await parent.connection.send({ message: message('shared first input') })
@@ -318,7 +318,7 @@ describe('desktop Pi Durable connection', () => {
     parent.events.length = 0
     setScript([assistantReply('original later answer')])
     await parent.connection.send({ message: old })
-    const oldAnswer = await savedAnswer(parent)
+    await savedAnswer(parent)
     const before = messages.getSessionMessage(input.sessionId, shared.id)
     const edited = await editInput(old.id, 'edited later question')
     input = { ...input, branchHead: edited.id }
@@ -346,15 +346,16 @@ describe('desktop Pi Durable connection', () => {
     expect(messages.listSessionMessages(fork).items).toHaveLength(4)
     expect(script.calls).toHaveLength(calls)
     await second.connection.close()
-    messages.selectBranch(input.sessionId, old.id)
-    input = { ...input, branchHead: oldAnswer.id }
+    expect(() => messages.getSessionMessage(input.sessionId, old.id)).toThrow()
+    expect(() => messages.getSessionMessage(input.sessionId, edited.id)).toThrow()
+    input = { ...input, branchHead: final.id }
     const reopened = await connect()
-    expect(reopened.handle.thread.id).toBe(original.nativeThreadId)
-    setScript([assistantReply('original branch continued')])
-    await reopened.connection.send({ message: message('continue original') })
+    expect(reopened.handle.thread.id).toBe(second.handle.thread.id)
+    setScript([assistantReply('edited branch continued')])
+    await reopened.connection.send({ message: message('continue edited context') })
     await savedAnswer(reopened)
-    expect(JSON.stringify(script.calls[0].messages)).toContain('original later question')
-    expect(JSON.stringify(script.calls[0].messages)).not.toContain('second edited question')
+    expect(JSON.stringify(script.calls[0].messages)).not.toContain('original later question')
+    expect(JSON.stringify(script.calls[0].messages)).toContain('second edited question')
   })
 
   // Prepared native forks must stay inert when close, publication, or receipt delivery fails.
@@ -929,6 +930,58 @@ describe('desktop Pi Durable connection', () => {
     expect(toolApprovalRegistry.size()).toBe(0)
   })
 
+  // Catches a mid-turn mode switch that only reaches the next turn: the running turn's next tool call
+  // would still be approved (or skipped) under the mode the user just left.
+  it.each([
+    { from: 'bypassPermissions', to: 'default', asksForWrite: true },
+    { from: 'default', to: 'bypassPermissions', asksForWrite: false }
+  ] as const)('applies a $from → $to switch to the running turn', async ({ from, to, asksForWrite }) => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: from }
+    setScript([
+      assistantReply(
+        [
+          toolCallPart('ask', 'AskUserQuestion', {
+            questions: [
+              {
+                question: 'Continue?',
+                header: 'Continue',
+                options: [
+                  { label: 'Yes', description: 'Go on' },
+                  { label: 'No', description: 'Stop' }
+                ]
+              }
+            ]
+          })
+        ],
+        'toolUse'
+      ),
+      assistantReply([toolCallPart('write', 'write', { path: 'after-switch.txt', content: 'written' })], 'toolUse'),
+      assistantReply('finished')
+    ])
+    const { connection, events } = await connect()
+    await connection.send({ message: message('ask then write') })
+    const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
+    await expect.poll(() => approvals().length).toBe(1)
+
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: to }
+    expect(await connection.reconcile({ modelId: input.modelId })).toBe('patched')
+    toolApprovalRegistry.dispatch(approvals()[0].request.approvalId, {
+      approved: true,
+      updatedInput: { answers: { 'Continue?': 'Yes' } }
+    })
+
+    if (asksForWrite) {
+      await expect.poll(() => approvals().length).toBe(2)
+      expect(approvals()[1].request).toMatchObject({ toolCallId: 'write' })
+      expect(existsSync(join(directory, 'after-switch.txt'))).toBe(false)
+      toolApprovalRegistry.dispatch(approvals()[1].request.approvalId, { approved: true })
+    }
+    await done(events)
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+    expect(approvals()).toHaveLength(asksForWrite ? 2 : 1)
+    expect(readFileSync(join(directory, 'after-switch.txt'), 'utf8')).toBe('written')
+  })
+
   // Catches a parked approval card outliving owner shutdown while reopen must still ask again.
   it('reports a pending approval as aborted on close and asks again after reopen', async () => {
     snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'default' }
@@ -976,6 +1029,41 @@ describe('desktop Pi Durable connection', () => {
     expect(text(second.events)).toBe('second answer')
     expect(prepareDurableBranch(input.sessionId).nativeThreadId).toBe(context.nativeThreadId)
     expect(JSON.stringify(script.calls[0].messages)).toContain('first streaming answer')
+  })
+
+  // Catches Durable dropping provider-reported reasoning tokens from the root turn's usage metadata.
+  it('reports reasoning tokens in the root turn usage metadata', async () => {
+    const root: { providerSessionId?: string } = {}
+    const usage: Usage = {
+      input: 5,
+      output: 7,
+      cacheRead: 0,
+      cacheWrite: 0,
+      reasoning: 3,
+      totalTokens: 12,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
+    }
+    mocks.binding.mockImplementation(async (_input, _provider, _model, onUsage) =>
+      createTestBinding({
+        model: MODEL,
+        stream: (model, context, options) => {
+          onUsage(usage, root.providerSessionId)
+          return script.model(model, context, options)
+        }
+      })
+    )
+    const { connection, events, handle } = await connect()
+    root.providerSessionId = await handle.durable.providerSessionId()
+    await connection.send({ message: message('hello') })
+    await done(events)
+
+    const metadata = events.flatMap((event) =>
+      event.type === 'chunk' && event.chunk.type === 'message-metadata' ? [event.chunk.messageMetadata] : []
+    )
+    expect(metadata.at(-1)).toEqual({
+      totalTokens: 12,
+      stats: { inputTokens: 5, outputTokens: 7, totalTokens: 12, outputTokenDetails: { reasoningTokens: 3 } }
+    })
   })
 
   it('places a late steer as the next input before its model call and records both outcomes', async () => {
