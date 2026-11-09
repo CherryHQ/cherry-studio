@@ -321,9 +321,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       alwaysOnTop: { level: 'floating' },
       // Quick window is visible across all workspaces and over fullscreen apps.
       // `skipTransformProcessType: true` prevents TransformProcessType(UIElement)
-      // during window creation on macOS (app deactivation + Dock icon loss);
-      // MainWindowService's boot-time `app.dock?.show()` hack only masks that
-      // transform on the startup path, not on runtime re-creates.
+      // during window creation on macOS (app deactivation + Dock icon loss).
       visibleOnAllWorkspaces: { enabled: true, visibleOnFullScreen: true, skipTransformProcessType: true },
       // Quick window is a floating helper, not a primary surface — never touch the Dock.
       macShowInDock: false
@@ -508,6 +506,123 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     }
   },
 
+  // Agent window for agent selection actions — pooled like the action window, but a hidden
+  // instance is still in use (collapsed), so only close returns it to the pool.
+  // Managed by SelectionAgentWindowService, which sizes it per layout and shows it.
+  [WindowType.SelectionAgent]: {
+    type: WindowType.SelectionAgent,
+    lifecycle: 'pooled',
+    htmlPath: 'windows/selection/agent/index.html',
+    showMode: 'manual',
+    windowOptions: {
+      width: 560,
+      height: 160,
+      frame: false,
+      transparent: true,
+      autoHideMenuBar: true,
+      hasShadow: false,
+      thickFrame: false,
+      platformOverrides: {
+        mac: {
+          type: 'panel',
+          fullscreenable: false,
+          titleBarStyle: 'hidden',
+          trafficLightPosition: { x: 16, y: 16 }
+        }
+      },
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false,
+        // Matches Main: the conversation renders local files (user avatar, attachments) as file:// URLs.
+        webSecurity: false,
+        devTools: true
+      }
+    },
+    behavior: {
+      macShowInDock: false
+    },
+    quirks: {
+      macRestoreFocusOnHide: true
+    },
+    poolConfig: {
+      standbySize: 1,
+      recycleMaxSize: 3,
+      decayInterval: 60,
+      inactivityTimeout: 300,
+      warmup: 'eager'
+    }
+  },
+
+  // Capsule stack of collapsed agent windows — one per display that has capsules, closed when its stack empties.
+  // Managed by SelectionAgentWindowService, which sizes it to the stack it measures and anchors it bottom-right.
+  // Pooled so the next first capsule appears without waiting for a renderer to boot.
+  [WindowType.SelectionCapsule]: {
+    type: WindowType.SelectionCapsule,
+    lifecycle: 'pooled',
+    htmlPath: 'windows/selection/capsule/index.html',
+    showMode: 'manual',
+    windowOptions: {
+      width: 240,
+      height: 52,
+      frame: false,
+      transparent: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      autoHideMenuBar: true,
+      resizable: false,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false, // [macOS] must be false, as for the toolbar
+      movable: false,
+      hasShadow: false,
+      thickFrame: false,
+      // The capsules draw their own rounded surfaces, like the toolbar pill.
+      roundedCorners: false,
+      // Clicks reach the capsules without the window ever taking focus; macOS drops focus at show time instead.
+      platformOverrides: {
+        mac: {
+          type: 'panel',
+          hiddenInMissionControl: true,
+          acceptFirstMouse: true
+        },
+        win: {
+          type: 'toolbar',
+          focusable: false
+        },
+        linux: {
+          type: 'toolbar',
+          focusable: false
+        }
+      },
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false,
+        devTools: isDev,
+        // A recycled host shows only after measuring its next stack, and a throttled hidden page draws no frames to measure.
+        backgroundThrottling: false
+      }
+    },
+    behavior: {
+      alwaysOnTop: { level: 'screen-saver' },
+      // Same as the toolbar: visible over full-screen apps without transforming the process type.
+      visibleOnAllWorkspaces: { enabled: true, visibleOnFullScreen: true, skipTransformProcessType: true },
+      macShowInDock: false
+    },
+    quirks: {
+      reapplyAlwaysOnTop: true
+    },
+    poolConfig: {
+      // Like the screenshot overlays: one per display, warmed by first use instead of kept resident.
+      standbySize: 0,
+      recycleMaxSize: 4,
+      decayInterval: 0,
+      inactivityTimeout: 600,
+      warmup: 'lazy'
+    }
+  },
+
   // Full-display capture overlay — one instance per display, opened and dismissed together.
   // Pooled because a session creates N windows at once and users re-trigger it repeatedly.
   [WindowType.Screenshot]: {
@@ -564,8 +679,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
-        // Required by every window on the shared preload: that bundle is code-split, and a
-        // sandboxed preload cannot require its chunks — it dies with "module not found".
+        // Keep the trusted shared-preload environment consistent with the other application windows.
         sandbox: false,
         devTools: true,
         // Declared on WebPreferences, NOT at the constructor-options root. Off because a red
