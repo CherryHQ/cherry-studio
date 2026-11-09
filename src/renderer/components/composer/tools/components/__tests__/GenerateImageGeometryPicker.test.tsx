@@ -115,4 +115,67 @@ describe('image geometry picker', () => {
     mockUseQuery.mockReturnValue({ ...state, isRefreshing: false, refetch: vi.fn(), mutate: vi.fn() } as never)
     expect(open().find((item) => item.label === label)?.disabled).toBe(true)
   })
+
+  describe('OpenRouter Seedream 4.5 catalog ratios', () => {
+    const options = [
+      '1:1',
+      '1:2',
+      '2:1',
+      '2:3',
+      '3:2',
+      '3:4',
+      '4:3',
+      '4:5',
+      '5:4',
+      '9:16',
+      '16:9',
+      '9:19.5',
+      '19.5:9',
+      '9:20',
+      '20:9',
+      '9:21',
+      '21:9',
+      'auto'
+    ]
+
+    beforeEach(() => {
+      MockUsePreferenceUtils.setPreferenceValue('feature.paintings.default_model_id', 'openrouter::seedream-4-5')
+      const mode = { supports: { aspectRatio: { type: 'enum', options } } }
+      mockUseQuery.mockReturnValue({
+        data: { modes: { generate: mode, edit: mode } },
+        isLoading: false,
+        isRefreshing: false,
+        refetch: vi.fn(),
+        mutate: vi.fn()
+      } as never)
+    })
+
+    it('offers decimal presets and saves the original ratio', () => {
+      const list = open()
+      for (const label of ['9:19.5', '19.5:9']) {
+        const item = list.find((entry) => entry.label === label)
+        expect(item).toBeDefined()
+        expect(item!.disabled).not.toBe(true)
+        expect(item!.action).toBeTypeOf('function')
+      }
+      list.find((item) => item.label === '9:19.5')!.action!()
+      expect(mocks.update).toHaveBeenCalledWith({
+        settings: { imageGenerationGeometry: { aspectRatio: '9:19.5' } }
+      })
+      expect(list.some((item) => item.description === 'chat.input.generate_image_geometry.unavailable')).toBe(false)
+      const presets = list.filter(
+        (item) => item.action && item.disabled !== true && item.label !== 'chat.input.generate_image_geometry.automatic'
+      )
+      expect(presets).toHaveLength(options.length - 1)
+    })
+
+    it('keeps a saved decimal ratio selected and available', () => {
+      mocks.saved = { aspectRatio: '9:19.5' }
+      const item = open().find((entry) => entry.label === '9:19.5')
+      expect(item).toBeDefined()
+      expect(item!.isSelected).toBe(true)
+      expect(item!.disabled).not.toBe(true)
+      expect(item!.description).not.toBe('chat.input.generate_image_geometry.unavailable')
+    })
+  })
 })

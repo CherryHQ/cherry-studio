@@ -5,14 +5,19 @@
  * `SizeChipsField` component, which now references these downward too.
  */
 
+import { normalizeAspectRatio } from '@shared/utils/aspectRatio'
+
 export type Dim = { w: number; h: number }
 
 export function parseRatio(value: string): Dim | null {
   const dims = value.match(/^(\d+)[x×](\d+)$/)
   if (dims) return { w: Number(dims[1]), h: Number(dims[2]) }
 
-  const aspect = value.match(/^(?:ASPECT_)?(\d+)[_:](\d+)$/i)
-  if (aspect) return { w: Number(aspect[1]), h: Number(aspect[2]) }
+  const aspect = normalizeAspectRatio(value)
+  if (aspect) {
+    const [w, h] = aspect.split(':')
+    return { w: Number(w), h: Number(h) }
+  }
 
   return null
 }
@@ -47,9 +52,10 @@ function splitParens(label: string): { head: string; inner: string } {
  *    verbatim.
  */
 export function deriveChipLabel(label: string, value: string): string {
-  const aspectMatch = value.match(/^(?:ASPECT_)?(\d+)[_:](\d+)$/i)
-  if (aspectMatch) {
-    return `${Number(aspectMatch[1])}:${Number(aspectMatch[2])}`
+  const aspect = normalizeAspectRatio(value)
+  if (aspect) {
+    const [w, h] = aspect.split(':')
+    return `${Number(w)}:${Number(h)}`
   }
 
   const { head, inner } = splitParens(label)

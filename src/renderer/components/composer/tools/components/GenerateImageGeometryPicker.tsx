@@ -14,6 +14,7 @@ import { toast } from '@renderer/services/toast'
 import { deriveChipLabel } from '@renderer/utils/imageSize'
 import type { AssistantSettings } from '@shared/data/types/assistant'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { normalizeAspectRatio } from '@shared/utils/aspectRatio'
 
 type Geometry = NonNullable<AssistantSettings['imageGenerationGeometry']>
 const symbol = 'generate-image-geometry'
@@ -76,7 +77,7 @@ export function GenerateImageGeometryPicker({
         const spec = support?.modes[mode]?.supports[key]
         if (spec?.type !== 'enum') continue
         for (const value of spec.options) {
-          if (key === 'size' ? !/^\d+x\d+$/i.test(value) : !/^(?:ASPECT_)?\d+[_:]\d+$/i.test(value)) continue
+          if (key === 'size' ? !/^\d+x\d+$/i.test(value) : normalizeAspectRatio(value) === undefined) continue
           const id = `${key}:${value}`
           const entry = presets.get(id) ?? {
             value: key === 'size' ? { size: value } : { aspectRatio: value },
