@@ -460,7 +460,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
         data-testid={`${variant}-entity-rail`}
         presentation="left-panel">
         {permanentDelete ? (
-          <ResourceList.PermanentDelete
+          <ResourceList.PermanentDelete<T>
             isItemEligible={(railRow) => {
               const item = groupByTags ? ((railRow as EntityRailTagRow<T>).railSource ?? railRow) : railRow
               return permanentDelete.isItemEligible?.(item) ?? true
