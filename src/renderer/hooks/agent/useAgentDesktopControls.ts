@@ -11,10 +11,13 @@ export function useAgentDesktopControls() {
   const [pending, setPending] = useState<ReadonlySet<string>>(new Set())
   const generation = useRef(0)
   const mounted = useRef(false)
+  const resumePending = useRef(false)
 
   const publishPending = useCallback(() => setPending(new Set(pendingRef.current.keys())), [])
   const reconcilePending = useCallback(
-    (snapshot: ComputerUseControl[], resumed: boolean) => {
+    (snapshot: ComputerUseControl[]) => {
+      const resumed = resumePending.current
+      resumePending.current = false
       for (const [key, state] of pendingRef.current) {
         if (
           (resumed && state === 'settled') ||
@@ -37,17 +40,18 @@ export function useAgentDesktopControls() {
     setControls(snapshot)
     setLoading(false)
     setFailed(false)
-    reconcilePending(snapshot, false)
+    reconcilePending(snapshot)
   })
 
   useEffect(() => {
     mounted.current = true
+    resumePending.current = true
     let alive = true
     const start = generation.current
     void ipcApi.request('computer_use.get_controls').then(
       (snapshot) => {
         if (!alive || generation.current !== start) return
-        reconcilePending(snapshot, true)
+        reconcilePending(snapshot)
         setControls(snapshot)
         setLoading(false)
       },

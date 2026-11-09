@@ -179,3 +179,49 @@ it('retains an inflight stop for a still-opening row on Activity resume', async 
   await waitFor(() => expect(result.current.controls).toEqual([opening]))
   expect(result.current.pending.has(JSON.stringify([row.ownerId, row.appId]))).toBe(true)
 })
+
+it.each(['event-before-bootstrap', 'bootstrap-before-event'] as const)(
+  'reconciles a stop settled while hidden on Activity resume: %s',
+  async (order) => {
+    const stop = deferred<void>()
+    const bootstrap = deferred<ComputerUseControl[]>()
+    boundary.request
+      .mockResolvedValueOnce([row])
+      .mockReturnValueOnce(stop.promise)
+      .mockReturnValueOnce(bootstrap.promise)
+    const { result, setVisible } = renderActivityHook()
+    await waitFor(() => expect(result.current.controls).toEqual([row]))
+    let request: Promise<void> = Promise.resolve()
+    act(() => {
+      request = result.current.stopApp(row)
+    })
+    expect(result.current.pending.has(JSON.stringify([row.ownerId, row.appId]))).toBe(true)
+    setVisible(false)
+    expect(boundary.handler).toBeUndefined()
+    await act(async () => {
+      stop.resolve()
+      await request
+    })
+    setVisible(true)
+    expect(boundary.handler).toBeDefined()
+    if (order === 'event-before-bootstrap') {
+      act(() => boundary.handler?.([row]))
+      await act(async () => bootstrap.resolve([row]))
+    } else {
+      await act(async () => bootstrap.resolve([row]))
+      act(() => boundary.handler?.([row]))
+    }
+    expect(result.current.pending.size).toBe(0)
+    expect(result.current.controls).toEqual([row])
+  }
+)
+
+it('keeps a settled stop pending on a plain push without a resume', async () => {
+  boundary.request.mockResolvedValueOnce([row]).mockResolvedValueOnce(undefined)
+  const { result } = renderHook(useAgentDesktopControls)
+  await waitFor(() => expect(result.current.controls).toEqual([row]))
+  await act(async () => result.current.stopApp(row))
+  act(() => boundary.handler?.([row]))
+  expect(result.current.pending.has(JSON.stringify([row.ownerId, row.appId]))).toBe(true)
+  expect(result.current.controls).toEqual([row])
+})
