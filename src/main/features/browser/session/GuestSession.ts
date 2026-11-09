@@ -1,3 +1,4 @@
+import { closeSync, mkdirSync, openSync, statSync, unlinkSync } from 'node:fs'
 import path from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 
@@ -32,6 +33,39 @@ import { cdpAllowList, type CdpCommandArgs, type CdpEvent, cdpEventMethods, type
 import { WebMcpTools } from './WebMcpTools'
 
 const logger = loggerService.withContext('GuestSession')
+
+/**
+ * Reserve a destination in the MCP workspace that cannot replace an existing or
+ * concurrently downloading file. The empty placeholder is created exclusively
+ * (`wx`), so two downloads with the same suggested name get distinct paths.
+ */
+function reserveManagedDownload(suggested: string): { savePath: string; filename: string } {
+  let base = path.basename(suggested)
+  base = base && base !== '.' && base !== '..' ? base : 'download'
+  const { name, ext } = path.parse(base)
+  const workspace = application.getPath('feature.mcp.workspace')
+  mkdirSync(workspace, { recursive: true })
+  for (let attempt = 0; attempt < 1000; attempt++) {
+    const filename = attempt === 0 ? base : `${name} (${attempt})${ext}`
+    const savePath = application.getPath('feature.mcp.workspace', filename)
+    try {
+      closeSync(openSync(savePath, 'wx'))
+      return { savePath, filename }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+    }
+  }
+  throw new Error('No free managed download filename')
+}
+
+/** Remove the placeholder of a download that never produced a file. */
+function releaseManagedDownload(savePath: string) {
+  try {
+    if (statSync(savePath).size === 0) unlinkSync(savePath)
+  } catch {
+    // Nothing to release.
+  }
+}
 
 export class GuestSession implements Disposable {
   readonly ownership: SessionOwnership['ownership']
@@ -400,10 +434,18 @@ export class GuestSession implements Disposable {
   private readonly onDownload = (_event: Electron.Event, item: DownloadItem, guest: Electron.WebContents) => {
     if (guest !== this.guest) return
     let filename = item.getFilename()
+    let reserved: string | undefined
     if (this.ownership === 'managed') {
-      filename = path.basename(filename)
-      filename = filename && filename !== '.' && filename !== '..' ? filename : 'download'
-      item.setSavePath(application.getPath('feature.mcp.workspace', filename))
+      try {
+        const slot = reserveManagedDownload(filename)
+        filename = slot.filename
+        reserved = slot.savePath
+        item.setSavePath(slot.savePath)
+      } catch (error) {
+        logger.warn('Failed to reserve a managed download destination', { error })
+        item.cancel()
+        filename = path.basename(filename) || 'download'
+      }
     }
 
     const record = (state: string) => {
@@ -413,6 +455,7 @@ export class GuestSession implements Disposable {
     const updated = (_event: Electron.Event, state: string) => record(state)
     const done = (_event: Electron.Event, state: string) => {
       record(state)
+      if (reserved && state !== 'completed') releaseManagedDownload(reserved)
       cleanup()
       this.downloadItems.delete(item)
     }

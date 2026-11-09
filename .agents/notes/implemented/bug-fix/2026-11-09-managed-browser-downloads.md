@@ -10,7 +10,7 @@ Managed Browser MCP downloads followed Electron's OS-default save location. The 
 
 ## Decision
 
-Managed Browser MCP downloads are saved in `feature.mcp.workspace` using the suggested basename. Borrowed guest downloads retain Electron's normal save flow.
+Managed Browser MCP downloads are saved in `feature.mcp.workspace` using the suggested basename. An existing or concurrently downloading file is never replaced: the download gets the next free name (`report (1).txt`) and that name is reported in the tool result. Borrowed guest downloads retain Electron's normal save flow.
 
 ## Alternatives considered
 
@@ -24,4 +24,4 @@ Managed Browser MCP downloads are saved in `feature.mcp.workspace` using the sug
 
 ## Verification
 
-- Regression — `pnpm test:main src/main/features/browser/__tests__/downloads.test.ts`: managed downloads target the filesystem workspace, while borrowed downloads do not.
+- Regression — `pnpm test:main src/main/features/browser/__tests__/downloads.test.ts`: managed downloads target the filesystem workspace, an existing or in-flight file keeps its contents while the download takes a new name, and borrowed downloads are untouched.

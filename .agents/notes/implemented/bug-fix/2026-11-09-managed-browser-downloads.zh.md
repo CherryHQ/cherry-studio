@@ -10,7 +10,7 @@ Status: implemented
 
 ## Decision
 
-托管 Browser MCP 下载使用建议的文件名保存到 `feature.mcp.workspace`。借用的 guest 下载仍沿用 Electron 的常规保存流程。
+托管 Browser MCP 下载使用建议的文件名保存到 `feature.mcp.workspace`。已存在或正在下载的文件绝不会被替换：下载会使用下一个可用名称（如 `report (1).txt`），并在工具结果中报告该名称。借用的 guest 下载仍沿用 Electron 的常规保存流程。
 
 ## Alternatives considered
 
@@ -24,4 +24,4 @@ Status: implemented
 
 ## Verification
 
-- Regression — `pnpm test:main src/main/features/browser/__tests__/downloads.test.ts`：托管下载保存到文件系统工作区，借用下载则不会重定向。
+- Regression — `pnpm test:main src/main/features/browser/__tests__/downloads.test.ts`：托管下载保存到文件系统工作区；已存在或进行中的文件内容保持不变，下载改用新名称；借用下载则不会重定向。
