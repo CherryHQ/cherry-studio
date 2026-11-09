@@ -354,3 +354,8 @@ export const isSerializedAiSdkErrorUnion = (error: SerializedError): error is Se
     isSerializedAiSdkUnsupportedFunctionalityError(error)
   )
 }
+
+/** Where an error-detail report was raised; it prefills the diagnostic report. */
+export interface DiagnosticReportConfig {
+  location: string
+}

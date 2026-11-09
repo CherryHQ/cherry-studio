@@ -3,10 +3,14 @@ import { useEffect } from 'react'
 import { loggerService } from '@logger'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { degradedFaultHostService } from '@renderer/services/DegradedFaultHostService'
+import { registerErrorDetailPopup } from '@renderer/services/errorDetailPopup'
 
 const logger = loggerService.withContext('AppErrorRuntime')
+const BENIGN_ERROR_NAMES = new Set(['AbortError', 'NotAllowedError'])
 
-function isResizeObserverNoise(error: unknown): boolean {
+/** Late layout-observer delivery, aborts and denied browser APIs (a clipboard write after focus loss) are not app faults. */
+function isBenignFault(error: unknown): boolean {
+  if ((error instanceof Error || error instanceof DOMException) && BENIGN_ERROR_NAMES.has(error.name)) return true
   const message = error instanceof Error ? error.message : typeof error === 'string' ? error : ''
   return message.includes('ResizeObserver loop')
 }
@@ -17,10 +21,15 @@ function isResizeObserverNoise(error: unknown): boolean {
  * this listener does not pull schema or model code into window startup.
  */
 export function AppErrorRuntime({ mode }: { readonly mode: 'main' | 'local' | 'handoff' | 'degraded' }) {
+  // Detail service opens this window's popup through the seam; the module stays lazy.
+  useEffect(() => {
+    registerErrorDetailPopup(() => import('@renderer/components/ErrorDetailModal'))
+  }, [])
+
   useEffect(() => {
     const onError = (event: ErrorEvent) => {
       const error = event.error ?? event.message
-      if (error === undefined || error === '' || isResizeObserverNoise(error)) return
+      if (error === undefined || error === '' || isBenignFault(error)) return
       if (mode === 'degraded') {
         if (!degradedFaultHostService.presentDegradedFault(error)) logger.error('Degraded fault host is not registered')
         return
@@ -31,7 +40,7 @@ export function AppErrorRuntime({ mode }: { readonly mode: 'main' | 'local' | 'h
         .catch((loadError) => logger.error('Failed to present a window error', loadError as Error))
     }
     const onRejection = (event: PromiseRejectionEvent) => {
-      if (isResizeObserverNoise(event.reason)) return
+      if (isBenignFault(event.reason)) return
       if (mode === 'degraded') {
         if (!degradedFaultHostService.presentDegradedFault(event.reason))
           logger.error('Degraded fault host is not registered')
