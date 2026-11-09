@@ -96,12 +96,16 @@ const filesEntry = () => screen.queryByRole('button', { name: enUs['agent.right_
 
 async function expectMarkdownPreview() {
   const preview = await screen.findByTestId('artifact-file-preview-overlay')
-  expect(await within(preview).findByRole('heading', { level: 1, name: 'Brief' })).toBeVisible()
-  const doneListItems = within(preview)
-    .getAllByRole('listitem')
-    .filter((item) => item.textContent?.trim() === 'Done')
-  expect(doneListItems).toHaveLength(1)
-  expect(doneListItems[0]).toBeVisible()
+  await waitFor(() => {
+    expect(within(preview).getByRole('heading', { level: 1, name: 'Brief' })).toBeVisible()
+  })
+  await waitFor(() => {
+    const doneListItems = within(preview)
+      .getAllByRole('listitem')
+      .filter((item) => item.textContent?.trim() === 'Done')
+    expect(doneListItems).toHaveLength(1)
+    expect(doneListItems[0]).toBeVisible()
+  })
   expect(within(preview).queryByRole('textbox')).not.toBeInTheDocument()
   expect(preview.querySelector('[contenteditable="true"], textarea, input:not([readonly])')).toBeNull()
   return preview
