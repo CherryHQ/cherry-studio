@@ -54,6 +54,21 @@ Shared 类型包含持久 part／DataUIPart 契约及传输事实，不包含 Re
 
 API 继续返回组装的 `message.parts[]`。迁移后 part 表是唯一持久正文来源；移除旧持久数组，同批切换读写者，不永久双写，也不在两份正文权威之间运行时回退。按原顺序回填数组，一次分配 IDs，保留消息／分支关系、非 part 私有元数据、工具引用及 blob 信封，不还原工具全文。
 
+#### Part ID 载体
+
+Part ID 与 part 并列存放，不写入 part 内部。`CherryMessagePart` 保持未修改的 AI SDK `UIMessagePart` payload；不在 part 对象、`providerMetadata` 中加 ID，也不把 `message.parts[]` 包装为 `{ id, part }`。
+
+| 层 | 载体 |
+| --- | --- |
+| SQLite | `agent_session_message_part.id`；行 payload 为未修改的 part 对象 |
+| 数据／投影契约 | 与 `parts` 并列的 `partIds: readonly string[]`：长度与顺序一致，消息内唯一 |
+| Main 来源投影 | 有序 part IDs 加 `Map<partId, part>`；checkpoint 记录 part IDs |
+| 传输 patch | 按 `partId` 而非数组下标定位 part；顺序变化携带新的 `partIds` |
+| Renderer | `partId` 作为 part 订阅键及 React key |
+| 模型输入 | 只由 `parts` 构建；`partIds` 不进入服务商转换 |
+
+Main 在来源投影首次创建 part 时或迁移回填时一次分配 part ID（UUIDv7）。Renderer 不分配内容 part ID。`toolCallId` 仍是原生／工具输出关联，不作为 part 键。Patch 指向未知 `partId`，或 `partIds`／`parts` 长度不一致时，需要新基线。旧 offset／count checkpoint 在加载时通过有序列表解析为 part IDs。
+
 增量更新当前内存 part，并通知其订阅者。在该 part 自己语义上的 `onDone` 保存，不等整段助手回复的 `onDone`。回复完成等待必要保存，再更新容器状态／统计，不重写已保存 parts。Stop／错误先保存未完成 parts 的已收到内容及实际状态，再结算回复。用户输入接纳仍立即写入。不设置定时正文 checkpoint、逐 token 写入、历史 part 版本或通用 part 替换协议。Main 异常退出可能丢失当前未完成 part，已提交完成 parts 可恢复；Main 存活时 renderer 重载可重新 attach 到更新的内存内容。
 
 相关 part／结果／来源映射变化使用既有同步 SQLite 事务。异步 blob／原生 checkpoint 工作在事务前准备，成功提交后发布。复用既有会话／attempt guards 处理过期完成、删除和 fork，不引入独立批次调度器。Part 保存不触发回复自动命名／用量结算。搜索响应相关文本／完成，不响应工具／隐藏 part 更新；存储迁移一起调整旧 JSON／FTS triggers。按需维护文件引用，保留其他 parts 仍引用的文件。测量大型单 part 序列化及完成写入；独立记录不意味着零拷贝持久化。
@@ -190,7 +205,7 @@ T3 参考使用 `c6ca6056309904f89b90b6055d797973be0a0939`：[ID 分配](https:/
 - AC15 — 本地、queued、压缩中和外部输入使用既有统一活动／处置事实，不伪造等待消息或中断循环 (verification: 确定性矩阵及真实原生轨迹 — runtime／renderer 负责人)
 - AC16 — 订阅回调观察完整已安装来源／绑定快照，不出现行／正文中间态组合 (verification: 通知期间一致性及刷新竞争测试 — 投影负责人)
 - AC17 — 纯追加保留已完成 Markdown DOM 和稳定工具／part keys，交接不额外导航或丢失阅读锚点 (verification: 明确 DOM／挂载及 Electron 几何测试 — renderer／视口负责人)
-- AC18 — 稳定用户／part／工具／边界／接续身份贯穿 ack、queue 提升、后继绑定和重连，真正新内容使用新身份 (verification: schema／key／来源和 Electron 轨迹 — shared／Main／renderer 负责人)
+- AC18 — 稳定用户／part／工具／边界／接续身份贯穿 ack、queue 提升、后继绑定和重连，真正新内容使用新身份；part IDs 只存在于并列 `partIds`，不进入 part payload 或模型输入 (verification: schema／key／来源和 Electron 轨迹 — shared／Main／renderer 负责人)
 - AC19 — 迁移只留一份有序 part 正文存储，保留分支／工具／文件引用及 API 组装；单 part 写入不重写其他已完成 parts／结果 (verification: 已填充迁移／事务及消费者测试 — 数据／Main 负责人)
 - AC20 — 增量不写正文行，每个 part onDone 独立保存，回复完成更新终态／统计，Stop／错误保存未完成内容，不设置定时 checkpoint (verification: 明确完成／Stop／错误 SQLite 测试 — runtime／数据负责人)
 
