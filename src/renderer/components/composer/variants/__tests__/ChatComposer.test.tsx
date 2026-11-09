@@ -637,6 +637,15 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
 vi.mock('@shared/utils/model', () => ({
   isFunctionCallingModel: (currentModel?: Model) =>
     currentModel?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false,
+  isGenerateImageModel: (currentModel?: Model) =>
+    currentModel?.capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION) ?? false,
+  isImageGenerationOnlyModel: (currentModel?: Model) =>
+    (currentModel?.capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION) ?? false) &&
+    !(currentModel?.outputModalities as readonly string[] | undefined)?.includes('text'),
+  isChatSelectableModel: (currentModel?: Model) =>
+    ((currentModel?.capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION) ?? false) &&
+      !(currentModel?.outputModalities as readonly string[] | undefined)?.includes('text')) ||
+    !(currentModel?.capabilities.includes(MODEL_CAPABILITY.RERANK) ?? false),
   isNonChatModel: (currentModel?: Model) => currentModel?.capabilities.includes(MODEL_CAPABILITY.RERANK) ?? false,
   isReasoningModel: (currentModel?: Model) => currentModel?.capabilities.includes(MODEL_CAPABILITY.REASONING) ?? false,
   isWebSearchModel: () => false
@@ -1504,11 +1513,13 @@ describe('ChatComposer', () => {
     expect(mocks.setModel).toHaveBeenCalledWith(modelB, {})
   })
 
-  it('filters reranker models from the composer model selector', () => {
+  it('keeps image models in the composer selector while filtering non-chat models', () => {
+    const imageModel = { ...modelB, capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION] }
     const rerankerModel = { ...modelB, capabilities: [MODEL_CAPABILITY.RERANK] }
 
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
+    expect(mocks.modelSelectorProps.at(-1)?.filter?.(imageModel)).toBe(true)
     expect(mocks.modelSelectorProps.at(-1)?.filter?.(rerankerModel)).toBe(false)
   })
 

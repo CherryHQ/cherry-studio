@@ -56,7 +56,7 @@ import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId, type Model as SharedModel, type UniqueModelId } from '@shared/data/types/model'
 import type { DoctorSubjectRef } from '@shared/types/doctor'
-import { isNonChatModel } from '@shared/utils/model'
+import { isChatSelectableModel, isImageGenerationOnlyModel } from '@shared/utils/model'
 
 import {
   consumePendingTopicImageActions,
@@ -761,7 +761,10 @@ export function useHomeMessageListProviderValue({
         : undefined
 
       const mentionModelFilter: ModelSelectorFilter = (model) => {
-        if (isNonChatModel(model)) return false
+        if (!isChatSelectableModel(model)) return false
+        // A dedicated image API reads its reference image through the image turn,
+        // not the chat vision path.
+        if (isImageGenerationOnlyModel(model)) return true
         const needsVision = messageParts.some((part) => part.type === 'file' && part.mediaType?.startsWith('image/'))
         if (needsVision && !isVisionModel(model)) return false
         return true

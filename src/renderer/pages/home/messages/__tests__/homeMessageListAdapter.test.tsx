@@ -251,11 +251,19 @@ vi.mock('@renderer/utils/message/composerTokens', () => ({
 }))
 
 vi.mock('@shared/utils/model', () => ({
+  isImageGenerationOnlyModel: vi.fn(
+    (model: { capabilities?: readonly unknown[]; outputModalities?: readonly string[] }) =>
+      (model.capabilities?.includes('image-generation') ?? false) && !(model.outputModalities ?? []).includes('text')
+  ),
+  isChatSelectableModel: vi.fn((model: { capabilities?: readonly unknown[]; outputModalities?: readonly string[] }) => {
+    const capabilities = model.capabilities ?? []
+    const imageOnly = capabilities.includes('image-generation') && !(model.outputModalities ?? []).includes('text')
+    return imageOnly || !capabilities.some((capability) => capability === 'embedding' || capability === 'rerank')
+  }),
   isNonChatModel: vi.fn(
     (model: { capabilities?: readonly unknown[] }) =>
       model.capabilities?.some((capability) => capability === 'embedding' || capability === 'rerank') ?? false
-  ),
-  isVisionModel: vi.fn(() => false)
+  )
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -459,6 +467,27 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     const filter = modelSelectorMock.props.at(-1)?.filter
     expect(filter?.({ capabilities: [capability] })).toBe(false)
     expect(filter?.({ capabilities: [] })).toBe(true)
+  })
+
+  it('keeps dedicated image models in the regenerate picker even without vision', () => {
+    let value: MessageListProviderValue | undefined
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
+
+    render(
+      <>
+        {value?.actions.renderRegenerateModelPicker?.({
+          message: { id: 'message-a' } as any,
+          messageParts: [{ type: 'file', mediaType: 'image/png', url: 'file:///generated.png' }],
+          trigger: <button type="button">pick model</button>,
+          onOpenChange: vi.fn()
+        })}
+      </>
+    )
+
+    const filter = modelSelectorMock.props.at(-1)?.filter
+    // No image-recognition: only the image-only early return lets this through.
+    expect(filter?.({ capabilities: ['image-generation'] })).toBe(true)
+    expect(filter?.({ capabilities: [] })).toBe(false)
   })
 
   it('capture consumer consumes pending topic image requests without binding visible image events', async () => {
