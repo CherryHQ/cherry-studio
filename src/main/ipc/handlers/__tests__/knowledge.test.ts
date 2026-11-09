@@ -2,7 +2,11 @@ import { MockApplicationUtils } from '@test-mocks/main/application'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
-import { KnowledgeAddItemInputSchema, UrlItemDataSchema } from '@shared/data/types/knowledge'
+import {
+  KnowledgeAddItemInputSchema,
+  KnowledgeRestoreUrlItemInputSchema,
+  UrlItemDataSchema
+} from '@shared/data/types/knowledge'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { knowledgeErrorCodes } from '@shared/ipc/errors/knowledge'
 
@@ -52,7 +56,8 @@ describe('knowledgeHandlers', () => {
   it('keeps existing invalid URL records readable and eligible for internal restore', () => {
     const data = { source: 'not a valid URL', url: 'not a valid URL' }
     expect(UrlItemDataSchema.parse(data)).toEqual(data)
-    expect(KnowledgeAddItemInputSchema.parse({ type: 'url', data })).toEqual({ type: 'url', data })
+    expect(KnowledgeRestoreUrlItemInputSchema.parse({ type: 'url', data })).toEqual({ type: 'url', data })
+    expect(KnowledgeAddItemInputSchema.safeParse({ type: 'url', data }).success).toBe(false)
   })
 
   it('get_file_path maps data-layer failures to a stable domain error without leaking the item id', async () => {
