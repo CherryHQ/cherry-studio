@@ -520,8 +520,9 @@ PR B implementation notes:
   a replacement window; budget eviction closes the guest and the final host/tab-bar resources.
 - New tool schemas are generated from Zod. Snapshot/action envelopes carry bounded snapshot text,
   typed errors, dialog/download updates and popup `newTabId`; legacy open/execute/image outputs remain.
-- Download reporting preserves Electron's existing save flow. No automatic download directory or
-  upload capability is added. A stopped download navigation settles without claiming a new document.
+- Managed Browser MCP downloads are saved to the default filesystem MCP workspace; borrowed guest
+  downloads retain Electron's normal save flow. No upload capability is added. A stopped download
+  navigation settles without claiming a new document.
 - Annotation tests retain the real event emitter while substituting lifecycle/container ownership.
 
 PR B validation:

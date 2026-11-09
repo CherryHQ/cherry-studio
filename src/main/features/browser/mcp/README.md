@@ -93,9 +93,10 @@ matches require a fresh snapshot. Recovery never retries an action after it has 
 
 JavaScript dialogs interrupt outstanding commands immediately. Managed dialogs
 are dismissed after 60 seconds and the next result reports `dismissedDialog` once.
-Borrowed annotation guests are never auto-dismissed. Downloads keep their normal
-Electron save flow; the engine observes the originating guest's state changes
-without capturing other tabs' downloads.
+Borrowed annotation guests are never auto-dismissed. Managed Browser MCP downloads
+are saved to the default filesystem MCP workspace; borrowed guest downloads keep
+Electron's normal save flow. The engine observes only the originating guest's
+download state.
 
 ## Ownership and limits
 

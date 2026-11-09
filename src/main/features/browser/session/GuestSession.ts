@@ -1,9 +1,11 @@
+import path from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 
 import { Mutex } from 'async-mutex'
 import type { ProtocolMapping } from 'devtools-protocol/types/protocol-mapping'
 import type { DownloadItem } from 'electron'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { snapshotOptionsSchema } from '@main/ai/mcp/browserToolDefinitions'
 import { type Disposable, Emitter } from '@main/core/lifecycle'
@@ -397,8 +399,15 @@ export class GuestSession implements Disposable {
 
   private readonly onDownload = (_event: Electron.Event, item: DownloadItem, guest: Electron.WebContents) => {
     if (guest !== this.guest) return
+    let filename = item.getFilename()
+    if (this.ownership === 'managed') {
+      filename = path.basename(filename)
+      filename = filename && filename !== '.' && filename !== '..' ? filename : 'download'
+      item.setSavePath(application.getPath('feature.mcp.workspace', filename))
+    }
+
     const record = (state: string) => {
-      this.downloadUpdates.set(item, { filename: item.getFilename(), state })
+      this.downloadUpdates.set(item, { filename, state })
       if (this.downloadUpdates.size > 200) this.downloadUpdates.delete(this.downloadUpdates.keys().next().value!)
     }
     const updated = (_event: Electron.Event, state: string) => record(state)
