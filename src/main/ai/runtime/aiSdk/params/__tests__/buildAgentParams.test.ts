@@ -1471,6 +1471,48 @@ describe('buildAgentParams web-tool routing', () => {
     }
   )
 
+  it.each([true, false])('injects DashScope Responses client search only when ready: %s', async (ready) => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'openai', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const dashscopeProvider = makeProvider({
+      id: 'dashscope',
+      presetProviderId: 'dashscope',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' } },
+      serverTools: [{ id: SERVER_TOOL.WEB_SEARCH, modelScope: 'model-dependent' }]
+    })
+    const dashscopeModel = makeModel({
+      id: 'dashscope::qwen-plus',
+      providerId: 'dashscope',
+      apiModelId: 'qwen-plus',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+    })
+    const preferences = new Map<string, unknown>([
+      ['app.developer_mode.enabled', false],
+      ['chat.web_search.model_tools_preferred', true],
+      ['chat.web_search.default_search_keywords_provider', ready ? 'exa-mcp' : null],
+      ['chat.web_search.provider_overrides', {}],
+      ['chat.web_search.max_results', 5],
+      ['chat.web_search.exclude_domains', []]
+    ])
+    preferenceGetMock.mockImplementation((key: string) => preferences.get(key) ?? null)
+    registry.register(clientSearchEntry)
+
+    const result = await buildAgentParams({
+      request: { conversation: CONVERSATION },
+      signal: undefined,
+      provider: dashscopeProvider,
+      model: dashscopeModel,
+      assistant
+    })
+
+    expect(result.tools?.web_search).toBe(ready ? clientSearchEntry.tool : undefined)
+    expect(result.plugins.some((plugin) => plugin.name === 'webSearch')).toBe(false)
+  })
+
   it('keeps client search available through ExaMCP when the selected provider has no key', async () => {
     const preferences = new Map<string, unknown>([
       ['app.developer_mode.enabled', false],
