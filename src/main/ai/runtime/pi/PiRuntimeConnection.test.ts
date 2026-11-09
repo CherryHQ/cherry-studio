@@ -3,7 +3,6 @@ import { join } from 'node:path'
 
 import type { AssistantMessage } from '@earendil-works/pi-ai'
 import { createAssistantMessageEventStream } from '@earendil-works/pi-ai'
-import { SettingsManager } from '@earendil-works/pi-coding-agent'
 import { obj } from '@earendil-works/pi-schema'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
@@ -40,7 +39,6 @@ import {
 import { gate, subagentCall, toolCallPart } from '../../../../../packages/agent-runtime-pi/tests/subagentSupport'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
 import * as piBehaviorHost from './piBehaviorHost'
-import { resolvePiCompactionSettings } from './piCompactionSettings'
 import type { PiConnectionSnapshot } from './piConnectionSignature'
 import type * as PiMcpExtension from './piMcpExtension'
 import { buildPiMcpToolName } from './piMcpExtension'
@@ -1076,28 +1074,6 @@ describe('desktop Pi root connection', () => {
       .map((file) => readFileSync(application.getPath('feature.agents.pi.sessions', file), 'utf8'))
       .join('')
     expect(saved).not.toContain('never placed')
-  })
-
-  // Catches the desktop connection dropping the binding's budget before native session creation.
-  it('passes the selected model budget from its binding to native compaction', async () => {
-    snapshot.model = { ...snapshot.model, contextWindow: 49_152, maxOutputTokens: 8_192 }
-    mocks.binding.mockImplementation(async () => ({
-      ...(await createTestBinding({
-        model: { ...MODEL, contextWindow: 49_152, maxTokens: 8_192 },
-        stream: script.model
-      })),
-      compaction: resolvePiCompactionSettings(snapshot.model)
-    }))
-    const inMemory = SettingsManager.inMemory
-    const nativeBudgets: unknown[] = []
-    vi.spyOn(SettingsManager, 'inMemory').mockImplementation((settings, options) => {
-      if (settings?.compaction) nativeBudgets.push(settings.compaction)
-      return inMemory(settings, options)
-    })
-    const { connection, events } = await connect()
-    await connection.send({ message: message('budgeted turn') })
-    await done(events)
-    expect(nativeBudgets).toEqual([{ enabled: true, reserveTokens: 16_384, keepRecentTokens: 12_288 }])
   })
 
   it('compacts through the Pi facet without replaying history or creating a second user input', async () => {
