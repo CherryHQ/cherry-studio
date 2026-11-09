@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
+import { mockCacheService, MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseDataApiUtils, mockUseInfiniteQuery } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils, mockUsePreference } from '@test-mocks/renderer/usePreference'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -110,6 +111,7 @@ afterEach(async () => {
   cleanup()
 })
 beforeEach(() => {
+  MockCacheUtils.resetMocks()
   mockUsePreference.mockImplementation(defaultUsePreference)
   MockUsePreferenceUtils.resetMocks()
   MockUsePreferenceUtils.setPreferenceValue('app.browser.auto_open_panel', true)
@@ -354,8 +356,46 @@ describe('Browser settings workflows', () => {
     expect(screen.getByText('Import complete')).toBeVisible()
   })
 
+  it.each([['history'], ['site_data'], ['history', 'site_data'], ['cache']])(
+    'clears remembered pages only with successful history or website data clearing: %j',
+    async (...kinds) => {
+      const user = userEvent.setup()
+      const remembered = { first: 'https://private.test/?token=secret', second: 'https://other.test/#secret' }
+      MockCacheUtils.setInitialState({ persist: [['ui.browser.last_urls', remembered]] })
+      renderSettings()
+      await user.click(screen.getByRole('button', { name: 'Clear Clear browsing data' }))
+      await user.click(screen.getByRole('checkbox', { name: 'Cached files' }))
+      for (const kind of kinds) {
+        const label = kind === 'history' ? 'History' : kind === 'site_data' ? 'Website data' : 'Cached files'
+        await user.click(screen.getByRole('checkbox', { name: label }))
+      }
+      mockCacheService.setPersist.mockClear()
+      await user.click(screen.getByRole('button', { name: 'Clear' }))
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(mockCacheService.getPersist('ui.browser.last_urls')).toEqual(kinds.includes('cache') ? remembered : {})
+      expect(mockCacheService.setPersist.mock.calls.filter(([key]) => key === 'ui.browser.last_urls')).toHaveLength(
+        kinds.includes('cache') ? 0 : 1
+      )
+    }
+  )
+
+  it.each(['History', 'Website data'])('retains remembered pages when clearing %s fails', async (label) => {
+    const user = userEvent.setup()
+    const remembered = { first: 'https://private.test/?token=secret', second: 'https://other.test/#secret' }
+    MockCacheUtils.setInitialState({ persist: [['ui.browser.last_urls', remembered]] })
+    vi.mocked(ipcApi.request).mockRejectedValue(new Error('Clear failed'))
+    renderSettings()
+    await user.click(screen.getByRole('button', { name: 'Clear Clear browsing data' }))
+    await user.click(screen.getByRole('checkbox', { name: label }))
+    await user.click(screen.getByRole('button', { name: 'Clear' }))
+    await screen.findByRole('alert')
+    expect(mockCacheService.getPersist('ui.browser.last_urls')).toEqual(remembered)
+  })
+
   it('requires an explicit clear action and retries only categories that have not been cleared', async () => {
     const user = userEvent.setup()
+    const remembered = { first: 'https://private.test/?token=secret', second: 'https://other.test/#secret' }
+    MockCacheUtils.setInitialState({ persist: [['ui.browser.last_urls', remembered]] })
     const cleared: string[] = []
     let fail = true
     vi.mocked(ipcApi.request).mockImplementation(async (route, input) => {
@@ -370,6 +410,7 @@ describe('Browser settings workflows', () => {
     await user.click(screen.getByRole('button', { name: 'Clear Clear browsing data' }))
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(cleared).toEqual([])
+    expect(mockCacheService.getPersist('ui.browser.last_urls')).toEqual(remembered)
     await user.click(screen.getByRole('button', { name: 'Clear Clear browsing data' }))
     await user.click(screen.getByRole('checkbox', { name: 'History' }))
     await user.click(screen.getByRole('checkbox', { name: 'Website data' }))
@@ -378,6 +419,7 @@ describe('Browser settings workflows', () => {
     expect(screen.getByRole('checkbox', { name: 'History' })).not.toBeChecked()
     expect(screen.getByRole('checkbox', { name: 'Website data' })).toBeChecked()
     expect(cleared).toEqual(['history'])
+    expect(mockCacheService.getPersist('ui.browser.last_urls')).toEqual({})
     fail = false
     await user.click(screen.getByRole('button', { name: 'Clear' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
@@ -591,6 +633,69 @@ describe('Browser start page', () => {
     await user.click(screen.getByRole('option', { name: label }))
     await waitFor(() => expect(select).toBeEnabled())
   }
+
+  it.each(['Blank page', 'Custom URL'])('erases all remembered pages when leaving last for %s', async (label) => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('app.browser.start_page.mode', 'last')
+    MockCacheUtils.setInitialState({
+      persist: [
+        ['ui.browser.last_urls', { first: 'https://private.test/?token=secret', second: 'https://other.test/' }]
+      ]
+    })
+    renderSettings()
+    await chooseMode(user, label)
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.browser.start_page.mode')).toBe(
+      label === 'Blank page' ? 'blank' : 'custom'
+    )
+    expect(mockCacheService.getPersist('ui.browser.last_urls')).toEqual({})
+  })
+
+  it('retains remembered pages on entering last and erases them only after leaving succeeds', async () => {
+    const user = userEvent.setup()
+    const remembered = { first: 'https://saved.test/', second: 'https://other.test/' }
+    MockCacheUtils.setInitialState({ persist: [['ui.browser.last_urls', remembered]] })
+    let finishSave!: () => void
+    const pending = new Promise<void>((resolve) => {
+      finishSave = resolve
+    })
+    mockUsePreference.mockImplementation((key, options) => {
+      const [value, setValue] = defaultUsePreference(key, options)
+      return [
+        value,
+        async (next) => {
+          if (key === 'app.browser.start_page.mode' && next === 'blank') await pending
+          await setValue(next)
+        }
+      ]
+    })
+    renderSettings()
+    await chooseMode(user, 'Last opened page')
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.browser.start_page.mode')).toBe('last')
+    expect(mockCacheService.getPersist('ui.browser.last_urls')).toEqual(remembered)
+    const select = screen.getByRole('combobox', { name: 'Start page' })
+    select.focus()
+    await user.keyboard('{Enter}')
+    await user.click(screen.getByRole('option', { name: 'Blank page' }))
+    expect(select).toBeDisabled()
+    expect(mockCacheService.getPersist('ui.browser.last_urls')).toEqual(remembered)
+    finishSave()
+    await waitFor(() => expect(select).toBeEnabled())
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.browser.start_page.mode')).toBe('blank')
+    expect(mockCacheService.getPersist('ui.browser.last_urls')).toEqual({})
+  })
+
+  it('retains remembered pages when leaving last mode is rejected', async () => {
+    const user = userEvent.setup()
+    const remembered = { first: 'https://saved.test/', second: 'https://other.test/' }
+    MockCacheUtils.setInitialState({ persist: [['ui.browser.last_urls', remembered]] })
+    MockUsePreferenceUtils.setPreferenceValue('app.browser.start_page.mode', 'last')
+    MockUsePreferenceUtils.mockPreferenceError('app.browser.start_page.mode', new Error('Save failed'))
+    renderSettings()
+    await chooseMode(user, 'Blank page')
+    expect(await screen.findByRole('alert')).toHaveTextContent(en['settings.browser.error'])
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.browser.start_page.mode')).toBe('last')
+    expect(mockCacheService.getPersist('ui.browser.last_urls')).toEqual(remembered)
+  })
 
   it('persists a keyboard-selected mode independently of AI control and auto-opening', async () => {
     const user = userEvent.setup()

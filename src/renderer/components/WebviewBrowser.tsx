@@ -167,7 +167,8 @@ export function WebviewBrowser({
         } catch {
           // Blank and artifact destinations must leave remembered HTTP(S) history intact.
         }
-        if (url !== undefined) {
+        // Remembering powers last mode, so it must not run before the user opts in.
+        if (url !== undefined && preferenceService.getCachedValue('app.browser.start_page.mode') === 'last') {
           cacheService.setPersist('ui.browser.last_urls', (urls) => ({
             ...(urls && typeof urls === 'object' && !Array.isArray(urls) ? urls : {}),
             [startPageContext]: url

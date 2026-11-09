@@ -162,25 +162,45 @@ describe('WebviewBrowser', () => {
       }
     )
 
-    it.each(['blank', 'last', 'custom'])(
-      'remembers committed HTTP(S) in %s mode and preserves other contexts',
+    it('remembers commits only while the live mode is last and preserves other contexts', () => {
+      mockPreferenceState.set('app.browser.start_page.mode', 'last')
+      const view = open()
+      const guest = view.getByTestId('webview-browser-guest')
+      mockCacheService.setPersist('ui.browser.last_urls', { ...remembered, newer: 'https://newer.test/' })
+      emit(guest, 'did-navigate', { url: 'HTTPS://Committed.test:443/path?q=one#first' })
+      expect(mockCacheService.getPersist('ui.browser.last_urls')).toEqual({
+        ...remembered,
+        newer: 'https://newer.test/',
+        [context]: 'https://committed.test/path?q=one#first'
+      })
+      emit(guest, 'did-navigate-in-page', { url: 'http://committed.test/path?q=two#next', isMainFrame: true })
+      expect(mockCacheService.getPersist('ui.browser.last_urls')).toEqual({
+        ...remembered,
+        newer: 'https://newer.test/',
+        [context]: 'http://committed.test/path?q=two#next'
+      })
+      mockPreferenceState.set('app.browser.start_page.mode', 'blank')
+      emit(guest, 'did-navigate', { url: 'https://private.test/?token=secret#access_token=secret' })
+      emit(guest, 'did-navigate-in-page', { url: 'https://private.test/#secret', isMainFrame: true })
+      expect(mockCacheService.getPersist('ui.browser.last_urls')).toEqual({
+        ...remembered,
+        newer: 'https://newer.test/',
+        [context]: 'http://committed.test/path?q=two#next'
+      })
+    })
+
+    it.each(['blank', 'custom', 'unknown', undefined])(
+      'does not retain committed HTTP(S) destinations without opting into last mode: %s',
       (mode) => {
         mockPreferenceState.set('app.browser.start_page.mode', mode)
+        mockPreferenceState.set('app.browser.start_page.custom_url', 'https://custom.test/')
         const view = open()
         const guest = view.getByTestId('webview-browser-guest')
-        mockCacheService.setPersist('ui.browser.last_urls', { ...remembered, newer: 'https://newer.test/' })
-        emit(guest, 'did-navigate', { url: 'HTTPS://Committed.test:443/path?q=one#first' })
-        expect(mockCacheService.getPersist('ui.browser.last_urls')).toEqual({
-          ...remembered,
-          newer: 'https://newer.test/',
-          [context]: 'https://committed.test/path?q=one#first'
-        })
-        emit(guest, 'did-navigate-in-page', { url: 'http://committed.test/path?q=two#next', isMainFrame: true })
-        expect(mockCacheService.getPersist('ui.browser.last_urls')).toEqual({
-          ...remembered,
-          newer: 'https://newer.test/',
-          [context]: 'http://committed.test/path?q=two#next'
-        })
+        mockCacheService.setPersist.mockClear()
+        emit(guest, 'did-navigate', { url: 'https://private.test/?token=secret#access_token=secret' })
+        emit(guest, 'did-navigate-in-page', { url: 'https://private.test/#secret', isMainFrame: true })
+        expect(mockCacheService.getPersist('ui.browser.last_urls')).toEqual(remembered)
+        expect(mockCacheService.setPersist.mock.calls.filter(([key]) => key === 'ui.browser.last_urls')).toEqual([])
       }
     )
 
@@ -188,10 +208,10 @@ describe('WebviewBrowser', () => {
       ['did-navigate-in-page', { url: 'https://frame.test/', isMainFrame: false }],
       ['did-navigate', { url: 'about:blank' }],
       ['did-navigate', { url: 'file:///workspace/index.html' }],
-      ['did-navigate', { url: 'https://user:pass@credentials.test/' }],
       ['did-start-navigation', { url: 'https://provisional.test/', isMainFrame: true, isInPlace: false }],
       ['did-fail-load', { validatedURL: 'https://failed.test/', isMainFrame: true, errorCode: -102 }]
     ])('does not replace remembered history for %s %j', (event, fields) => {
+      mockPreferenceState.set('app.browser.start_page.mode', 'last')
       const forwarded: string[] = []
       const view = open({ onUrlChange: (url) => forwarded.push(url) })
       emit(view.getByTestId('webview-browser-guest'), event, fields)
@@ -202,6 +222,7 @@ describe('WebviewBrowser', () => {
     it.each(['agent-html-artifact', 'agent-dev-preview'] as const)(
       'does not remember HTTP commits emitted by %s',
       (securityProfile) => {
+        mockPreferenceState.set('app.browser.start_page.mode', 'last')
         const view = open({
           securityProfile,
           initialUrl:
@@ -241,6 +262,7 @@ describe('WebviewBrowser', () => {
     it.each([undefined, null, [], 'invalid'])(
       'starts a fresh map on an eligible commit when the container is %j',
       (value) => {
+        mockPreferenceState.set('app.browser.start_page.mode', 'last')
         MockCacheUtils.setInitialState({ persist: [['ui.browser.last_urls', value]] })
         const view = open()
         emit(view.getByTestId('webview-browser-guest'), 'did-navigate', { url: 'https://committed.test/' })

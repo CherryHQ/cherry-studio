@@ -24,6 +24,7 @@ import {
   SettingsContentColumn,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
+import { cacheService } from '@renderer/data/CacheService'
 import type { BrowserStartPageMode } from '@shared/data/preference/preferenceTypes'
 
 import { BrowserClearDialog } from './BrowserSettings/BrowserClearDialog'
@@ -176,6 +177,9 @@ export function BrowserSettings() {
               setError(false)
               try {
                 await setStartPageMode(value as BrowserStartPageMode)
+                if (startPageMode === 'last' && value !== 'last') {
+                  cacheService.setPersist('ui.browser.last_urls', {})
+                }
               } catch {
                 setError(true)
               } finally {
