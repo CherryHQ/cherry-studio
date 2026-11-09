@@ -3,6 +3,7 @@ import { EventSourceParserStream } from '@ai-sdk/provider-utils'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Conditional, DependsOn, Injectable, Phase, ServicePhase, when } from '@main/core/lifecycle'
+import { t } from '@main/i18n'
 import { getAppEdition } from '@main/utils/appEdition'
 import type { CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
 
@@ -80,6 +81,43 @@ function wait(ms: number, signal: AbortSignal): Promise<void> {
 
 const asksForRefresh = (notification: CloudNotification) => (notification.refresh?.length ?? 0) > 0
 
+// For a renewal reminder the protocol sets expires_at to the end of the current paid period.
+function localDate(value: string): string | null {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  const pad = (part: number) => String(part).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+/** Product copy that tells the user what to do next; types without one keep the server text. */
+function productCopy(notification: CloudNotification): string | null {
+  switch (notification.type) {
+    case 'subscription.activated':
+      return t('notification.subscription.activated_message')
+    case 'subscription.expired':
+      return t('notification.subscription.expired_message')
+    case 'subscription.renewed':
+      return t('notification.subscription.renewed_message')
+    case 'subscription.auto_renew_enabled':
+      return t('notification.subscription.auto_renew_enabled_message')
+    case 'subscription.entitlement_revoked':
+      return t('notification.subscription.entitlement_revoked_message')
+    case 'subscription.entitlement_restored':
+      return t('notification.subscription.entitlement_restored_message')
+  }
+  const periodEnd = notification.type === 'subscription.renewal_reminder' && notification.expires_at
+  const date = periodEnd ? localDate(periodEnd) : null
+  return date ? t('notification.subscription.renewal_reminder_message', { date }) : null
+}
+
+// The server can emit one event under several ids, so a record is keyed by what happened when it can be.
+function eventKeyOf(notification: CloudNotification): string {
+  const { type, subscription_id: subscriptionId, occurred_at: occurredAt } = notification
+  return type && subscriptionId && occurredAt
+    ? `cherry-cloud:${type}:${subscriptionId}:${occurredAt}`
+    : `cherry-cloud:${notification.id}`
+}
+
 async function errorCode(response: Response): Promise<string | null> {
   const header = response.headers.get('Cherry-Error-Code')
   if (header) return header
@@ -94,14 +132,16 @@ async function errorCode(response: Response): Promise<string | null> {
 /**
  * Keeps the China-edition subscription notification stream open for the signed-in account.
  * Entitlement changes refresh account facts and publish a typed receipt to renderer consumers.
+ * Notifications land in the notification center: live ones are announced, caught-up history is only recorded.
  */
 @Injectable('CherryCloudNotificationService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['CherryCloudService'])
+@DependsOn(['CherryCloudService', 'NotificationService'])
 @Conditional(when(() => getAppEdition() === 'cn', 'China edition'))
 export class CherryCloudNotificationService extends BaseService {
   private connection: { accountId: string; scopeId: string; controller: AbortController } | null = null
   private readonly seenIds = new Set<string>()
+  private active = false
 
   protected async onInit(): Promise<void> {
     const cloud = application.get('CherryCloudService')
@@ -121,9 +161,18 @@ export class CherryCloudNotificationService extends BaseService {
     void this.run(accountId, status.scopeId, controller.signal)
   }
 
+  /**
+   * Whether this account's stream has reached `ready`, so server notifications announce changes. A
+   * transient disconnect keeps it set, since the catch-up after it must stay silent.
+   */
+  public isActive(): boolean {
+    return this.active
+  }
+
   private disconnect(): void {
     this.connection?.controller.abort()
     this.connection = null
+    this.active = false
   }
 
   private async run(accountId: string, scopeId: string, signal: AbortSignal): Promise<void> {
@@ -138,6 +187,7 @@ export class CherryCloudNotificationService extends BaseService {
       } catch (error) {
         if (signal.aborted) return
         if (error instanceof NotificationsUnavailableError) {
+          this.active = false
           if (!reportedUnavailable) logger.info('Cherry Cloud notifications unavailable; checking again later')
           reportedUnavailable = true
           await wait(UNAVAILABLE_RETRY_MS, signal)
@@ -172,7 +222,7 @@ export class CherryCloudNotificationService extends BaseService {
       const unseen = page.items.filter((notification) => !this.seenIds.has(notification.id))
       if (unseen.some(asksForRefresh)) await this.refreshAccount(scopeId, signal)
       signal.throwIfAborted()
-      unseen.forEach((notification) => this.remember(notification.id))
+      unseen.forEach((notification) => this.settle(notification, false))
       after = page.next_cursor
       this.saveCursor(accountId, after)
       if (!page.has_more) return
@@ -235,6 +285,7 @@ export class CherryCloudNotificationService extends BaseService {
       .pipeThrough(new TextDecoderStream())
       .pipeThrough(heartbeat)
       .pipeThrough(new EventSourceParserStream())
+    let live = false
     for await (const event of events) {
       if (signal.aborted) return
       if (event.event === 'error') {
@@ -248,12 +299,14 @@ export class CherryCloudNotificationService extends BaseService {
         signal.throwIfAborted()
         this.saveCursor(accountId, ready.cursor)
         onReady()
+        live = true
+        this.active = true
       } else if (event.event === 'notification') {
         const notification = cloudNotificationSchema.parse(JSON.parse(event.data))
         if (!this.seenIds.has(notification.id)) {
           if (asksForRefresh(notification)) await this.refreshAccount(scopeId, signal)
           signal.throwIfAborted()
-          this.remember(notification.id)
+          this.settle(notification, live)
         }
         signal.throwIfAborted()
         this.saveCursor(accountId, notification.cursor)
@@ -262,9 +315,25 @@ export class CherryCloudNotificationService extends BaseService {
     throw new Error('Cherry Cloud notification stream ended')
   }
 
-  // Ids are remembered only after their refresh succeeded, so a failed one is retried on catch-up.
-  private remember(id: string): void {
-    this.seenIds.add(id)
+  // Settled only after its refresh succeeded, so a failed notification is retried on catch-up.
+  private settle(notification: CloudNotification, live: boolean): void {
+    const now = Date.now()
+    const occurredAt = notification.occurred_at ? Date.parse(notification.occurred_at) : Number.NaN
+    const record = {
+      eventKey: eventKeyOf(notification),
+      category: 'usage' as const,
+      kind: 'cherry-cloud-subscription',
+      createdAt: Number.isFinite(occurredAt) ? occurredAt : now,
+      title: notification.title || t('notification.subscription.updated_title'),
+      message: productCopy(notification) ?? (notification.body || t('notification.subscription.updated_message')),
+      target: { kind: 'settings' as const, tab: 'profile' as const }
+    }
+    const prominent = !notification.expires_at || !(Date.parse(notification.expires_at) <= now)
+    // History and notifications past their presentation deadline are kept, already read, without a pop-up.
+    const notifications = application.get('NotificationService')
+    if (live && prominent) void notifications.publish(record)
+    else void notifications.publish({ ...record, readAt: now }, { recordOnly: true })
+    this.seenIds.add(notification.id)
     if (this.seenIds.size <= SEEN_ID_LIMIT) return
     const [oldest] = this.seenIds
     this.seenIds.delete(oldest)
