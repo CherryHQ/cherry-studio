@@ -3267,6 +3267,7 @@
   "paintings.number_images_tip": "Số lượng hình ảnh cần tạo ({{min}}-{{max}})",
   "paintings.operation_failed": "Thao tác thất bại, vui lòng thử lại sau",
   "paintings.output_compression": "Nén đầu ra",
+  "paintings.output_format_delivery": "URL và base64 chọn cách trả kết quả, không phải mã hóa hình ảnh. Nhà cung cấp chọn mã hóa hình ảnh (thường là PNG); không có chuyển đổi cục bộ.",
   "paintings.output_format_fixed": "Định dạng đầu ra do nhà cung cấp quyết định (thường là PNG). Mô hình này không cho chọn định dạng và không chuyển đổi cục bộ; tệp giữ nguyên định dạng của nhà cung cấp.",
   "paintings.output_format_selectable": "Các định dạng đầu ra được hỗ trợ: {{formats}}. Định dạng do nhà cung cấp tạo ra, không chuyển đổi cục bộ; chất lượng, độ trong suốt và siêu dữ liệu theo đầu ra của nhà cung cấp.",
   "paintings.person_generation": "Tạo người",

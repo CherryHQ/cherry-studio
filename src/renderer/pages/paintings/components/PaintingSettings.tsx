@@ -76,7 +76,9 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({
         <p className="text-muted-foreground text-xs leading-relaxed" data-testid="painting-output-format-note">
           {outputFormats
             ? t('paintings.output_format_selectable', { formats: outputFormats })
-            : t('paintings.output_format_fixed')}
+            : outputFormatItem?.outputFormatKind === 'delivery'
+              ? t('paintings.output_format_delivery')
+              : t('paintings.output_format_fixed')}
         </p>
       )}
       {configItems

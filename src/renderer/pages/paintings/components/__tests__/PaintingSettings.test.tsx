@@ -133,7 +133,10 @@ it.each(['image-01', 'image-01-live'])(
       <PaintingSettings painting={{ ...painting, providerId: 'minimax', model: modelId }} onConfigChange={vi.fn()} />
     )
     const note = screen.getByTestId('painting-output-format-note')
-    expect(note).toHaveTextContent('Output format is chosen by the provider')
+    expect(note).toHaveTextContent('URL and base64 select response delivery, not image encoding')
+    expect(note).toHaveTextContent('no local conversion is applied')
+    expect(note).not.toHaveTextContent('no selectable format')
+    expect(screen.getAllByText('Output Format').length).toBeGreaterThan(0)
     expect(note).not.toHaveTextContent('Supported output formats:')
     expect(note).not.toHaveTextContent('BASE64')
   }

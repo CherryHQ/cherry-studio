@@ -3267,6 +3267,7 @@
   "paintings.number_images_tip": "Anzahl der zu generierenden Bilder ({{min}}–{{max}})",
   "paintings.operation_failed": "Vorgang fehlgeschlagen, bitte versuchen Sie es später erneut",
   "paintings.output_compression": "Ausgabekomprimierung",
+  "paintings.output_format_delivery": "URL und base64 wählen die Übermittlung der Antwort, nicht die Bildkodierung. Der Anbieter bestimmt die Bildkodierung (meist PNG); es erfolgt keine lokale Konvertierung.",
   "paintings.output_format_fixed": "Das Ausgabeformat wird vom Anbieter bestimmt (meist PNG). Dieses Modell bietet keine Formatauswahl und keine lokale Konvertierung; die Datei behält das Format des Anbieters.",
   "paintings.output_format_selectable": "Unterstützte Ausgabeformate: {{formats}}. Das Format wird vom Anbieter erzeugt, es erfolgt keine lokale Konvertierung; Qualität, Transparenz und Metadaten entsprechen der Ausgabe des Anbieters.",
   "paintings.person_generation": "Menschen generieren",
