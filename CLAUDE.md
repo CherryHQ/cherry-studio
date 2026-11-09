@@ -157,6 +157,8 @@ A directory's `index.ts` is a **barrel** — an enforced encapsulation boundary 
 - [Renderer Architecture](docs/dev/references/architecture/renderer.md) — `src/renderer/` two-axis (type × domain) layout and downward-only layering.
 - [Shared Layer Architecture](docs/dev/references/architecture/shared-layer.md) — what belongs in `@shared` (cross-process + no mutable runtime state) and its closed top-level set.
 
+侧聊模块：`src/renderer/components/chat/sideChat/` 为界面，`src/renderer/hooks/useSideChats.ts` 为窗口内存接入。底层命令见 `src/shared/ipc/schemas/sideChat.ts`。
+
 ### Data
 
 **MUST READ**: [docs/dev/references/data/README.md](docs/dev/references/data/README.md) for system selection, architecture, and patterns.

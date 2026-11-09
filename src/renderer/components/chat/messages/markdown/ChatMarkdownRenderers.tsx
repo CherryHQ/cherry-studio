@@ -3,6 +3,7 @@ import type { Components, ExtraProps } from 'streamdown'
 
 import { isKnownNavigationPath, NavigateToolInline } from '@renderer/components/chat/messages/tools/agent'
 import { ClickableFilePath } from '@renderer/components/chat/messages/tools/shared/ClickableFilePath'
+import { SideChatSourceText } from '@renderer/components/chat/sideChat/SideChatSourceText'
 import { useMarkdownCode } from '@renderer/components/markdown'
 import { isInlineFilePath, normalizeInlineFilePath } from '@renderer/utils/filePath'
 import { isWin } from '@renderer/utils/platform'
@@ -65,6 +66,13 @@ function ChatPreRenderer({ node, children, ...props }: MarkdownRendererProps<'pr
 }
 
 function ChatSpanRenderer({ node, children, ...props }: MarkdownRendererProps<'span'>) {
+  const source = node?.properties?.['data-side-chat-source']
+  if (typeof source === 'string')
+    return (
+      <span {...props}>
+        <SideChatSourceText text={source} />
+      </span>
+    )
   const path = node?.properties?.[BARE_FILE_PATH_PROPERTY]
   if (typeof path === 'string') {
     if (isKnownNavigationPath(path)) return <NavigateToolInline input={{ path }} />
