@@ -3,12 +3,13 @@ import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
-import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import type { JobContext, JobHandler } from '@main/core/job/types'
+import { t } from '@main/i18n'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { isCompletedVectorKnowledgeBase } from '@shared/data/types/knowledge'
+import { getKnowledgeItemDisplayTitle, isCompletedVectorKnowledgeBase } from '@shared/data/types/knowledge'
+import type { KeyedMutex } from '@shared/utils/async'
 
 import type { IndexableKnowledgeItem } from '../items'
 import { isIndexableKnowledgeItem, toMaterialRelativePath } from '../items'
@@ -123,9 +124,11 @@ export function createIndexDocumentsJobHandler(
 
         // The atomic material rebuild and final status flip must stay together under the base mutation lock.
         reportKnowledgeProgress(ctx, 80, { stage: 'writing', currentFile: 0, totalFiles: 1 })
-        await writeItemMaterial(ctx, base, rebuildInput, knowledgeLockManager)
+        const written = await writeItemMaterial(ctx, base, rebuildInput, knowledgeLockManager)
+        if (!written) return
 
         reportKnowledgeProgress(ctx, 100, { stage: 'done', currentFile: 1, totalFiles: 1 })
+        return { embedded: rebuildInput.usesEmbeddings }
       } finally {
         lingerEmbeddingProgress(ctx.input.itemId)
       }
@@ -133,6 +136,26 @@ export function createIndexDocumentsJobHandler(
 
     async onSettled(event) {
       await markKnowledgeItemFailedOnSettled(event, logger, 'Failed to flip knowledge item to failed in onSettled')
+      if (event.status !== 'completed' || !(event.output as { embedded?: boolean } | undefined)?.embedded) return
+      try {
+        const item = knowledgeItemService.getById(event.input.itemId)
+        if (item.status === 'deleting') return
+        const base = knowledgeBaseService.getById(event.input.baseId)
+        await application.get('NotificationService').publish(
+          {
+            eventKey: `knowledge:${event.jobId}`,
+            category: 'system',
+            kind: 'knowledge-complete',
+            title: t('notification.center.knowledge_complete'),
+            message: `${base.name} · ${getKnowledgeItemDisplayTitle(item)}`,
+            createdAt: Date.now(),
+            target: { kind: 'knowledge', baseId: base.id }
+          },
+          { source: 'knowledge' }
+        )
+      } catch (error) {
+        logger.warn('Failed to publish knowledge completion', { jobId: event.jobId, error })
+      }
     }
   }
 }
@@ -269,7 +292,10 @@ async function ensureSnapshot(
       // Another job captured the snapshot (or the item changed) while we produced.
       return isIndexableKnowledgeItem(latest) ? latest : item
     }
-    const reservedPaths = collectKnowledgeReservedRelativePaths(knowledgeItemService.getItemsByBaseId(ctx.input.baseId))
+    // A deleting row's pending cleanup still unlinks its paths, so the snapshot must not claim them.
+    const reservedPaths = collectKnowledgeReservedRelativePaths(
+      knowledgeItemService.getItemsByBaseId(ctx.input.baseId, { includeDeleting: true })
+    )
     const relativePath = await spec.capture(snapshot, reservedPaths)
     const updated = knowledgeItemService.updateSnapshotRelativePath(ctx.input.itemId, spec.type, relativePath)
     return isIndexableKnowledgeItem(updated) ? updated : item
@@ -368,21 +394,22 @@ async function writeItemMaterial(
   base: KnowledgeBase,
   input: RebuildMaterialInput,
   knowledgeLockManager: KeyedMutex
-): Promise<void> {
+): Promise<boolean> {
   const { baseId, itemId } = ctx.input
 
-  await knowledgeLockManager.runExclusive(baseId, async () => {
+  return knowledgeLockManager.runExclusive(baseId, async () => {
     ctx.signal.throwIfAborted()
     const result = resolveLiveKnowledgeItem(itemId)
     if ('skip' in result) {
       logger.info('Skipping material rebuild for deleting item', { baseId, itemId, jobId: ctx.jobId })
-      return
+      return false
     }
 
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
     const store = vectorStoreService.getIndexStore(base)
     store.rebuildMaterial(itemId, input)
     knowledgeItemService.updateStatus(itemId, 'completed')
+    return true
   })
 }
 

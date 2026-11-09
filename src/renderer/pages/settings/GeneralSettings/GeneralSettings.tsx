@@ -1,12 +1,19 @@
 import { ChevronDown } from 'lucide-react'
-import type { FC } from 'react'
-import { useCallback, useRef, useState } from 'react'
+import type { FC, FocusEvent } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Flex, InfoTooltip, Input, InputNumber, Switch } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
+import { CherryCloudModelSelector as ModelSelector } from '@renderer/components/cherryCloud/CherryCloudModelSelector'
+import { useCherryCloudModelSelectorData } from '@renderer/components/cherryCloud/useCherryCloudModelSelectorData'
 import CopyButton from '@renderer/components/CopyButton'
-import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
+import {
+  countStaleSelectedModelIds,
+  hasStaleSelectedModelIds,
+  type ModelSelectorFilter
+} from '@renderer/components/ModelSelector'
 import { AgentLanguageField } from '@renderer/components/resourceCatalog/dialogs/components/AgentLanguageField'
 import Selector from '@renderer/components/Selector'
 import {
@@ -20,13 +27,43 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { isValidProxyUrl } from '@renderer/utils/url'
+import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
+import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { OutputFor } from '@shared/ipc/types'
 import { isNonChatModel } from '@shared/utils/model'
 
 import { ContextManagementSettings } from './ContextManagementSettings'
+
+function getRetryFallbackModelsTriggerLabel(
+  rawFallbackModelIds: readonly UniqueModelId[],
+  resolvedFallbackModelIds: readonly UniqueModelId[],
+  t: (key: string, options?: Record<string, number>) => string
+) {
+  if (rawFallbackModelIds.length === 0) {
+    return t('settings.models.empty')
+  }
+
+  const staleCount = countStaleSelectedModelIds(rawFallbackModelIds, resolvedFallbackModelIds)
+  const validCount = resolvedFallbackModelIds.length
+
+  if (validCount === 0) {
+    return t('settings.models.retry.fallback_models_unavailable', { count: staleCount })
+  }
+
+  if (staleCount > 0) {
+    return t('settings.models.retry.fallback_models_count_with_invalid', {
+      valid: validCount,
+      invalid: staleCount
+    })
+  }
+
+  return t('settings.models.retry.fallback_models_count', { count: validCount })
+}
 
 const defaultByPassRules = 'localhost,127.0.0.1,::1'
 
@@ -67,12 +104,54 @@ const GeneralSettings: FC = () => {
   const [retryBackoffEnabled, setRetryBackoffEnabled] = usePreference('chat.retry.backoff_enabled')
   const [retryFallbackModelIds, setRetryFallbackModelIds] = usePreference('chat.retry.fallback_model_ids')
   const [agentLanguage, setAgentLanguage] = usePreference('agent.language')
-
   const [proxyUrl, setProxyUrl] = useState<string>(storeProxyUrl)
   const [proxyBypassRules, setProxyBypassRules] = useState<string>(storeProxyBypassRules)
   const [isSavingDeveloperSettings, setIsSavingDeveloperSettings] = useState(false)
   const developerSettingsSaving = useRef(false)
+  const [proxyTestLoading, setProxyTestLoading] = useState(false)
+  const [proxyTestResult, setProxyTestResult] = useState<OutputFor<'proxy.test_connection'> | null>(null)
+  const proxyTestGeneration = useRef(0)
+  const proxyTestInput = useRef({ mode: storeProxyMode, url: storeProxyUrl, bypassRules: storeProxyBypassRules })
+  const proxyTestButtonRef = useRef<HTMLButtonElement>(null)
+  const pendingProxyPreferenceSave = useRef<(() => void) | null>(null)
   const chatModelFilter = useCallback<ModelSelectorFilter>((model) => !isNonChatModel(model), [])
+  const configuredRetryFallbackModelIds = useMemo(() => retryFallbackModelIds ?? [], [retryFallbackModelIds])
+  const {
+    resolvedSelectedModelIds: resolvedRetryFallbackModelIds,
+    isLoading: isFallbackSelectorDataLoading,
+    modelsError: fallbackModelsCatalogError,
+    providersError: fallbackProvidersCatalogError,
+    cloudAvailabilityReady: fallbackCloudAvailabilityReady,
+    cloudAvailabilityError: fallbackCloudAvailabilityError
+  } = useCherryCloudModelSelectorData({
+    filter: chatModelFilter,
+    selectedModelIds: configuredRetryFallbackModelIds,
+    searchText: '',
+    showTagFilter: false,
+    showPinnedModels: false
+  })
+  // Catalog failures make all selections unknown. Cloud sync only affects managed
+  // Cloud IDs, so it must not hide known stale non-Cloud selections.
+  const canEvaluateFallbackStale =
+    !isFallbackSelectorDataLoading && fallbackModelsCatalogError == null && fallbackProvidersCatalogError == null
+  const isFallbackCloudAvailabilityKnown = fallbackCloudAvailabilityReady && fallbackCloudAvailabilityError == null
+  const classifiedRetryFallbackModelIds = useMemo(() => {
+    if (isFallbackCloudAvailabilityKnown) return resolvedRetryFallbackModelIds
+    const unknownCloudIds = configuredRetryFallbackModelIds.filter(
+      (id) => isUniqueModelId(id) && isManagedCherryCloudModel(parseUniqueModelId(id).providerId)
+    )
+    // Presentation-only: keep unknown Cloud selections neutral. Do not change
+    // selector resolution, persisted IDs, or runtime fallback behavior.
+    return [...new Set([...resolvedRetryFallbackModelIds, ...unknownCloudIds])]
+  }, [configuredRetryFallbackModelIds, isFallbackCloudAvailabilityKnown, resolvedRetryFallbackModelIds])
+  const hasInvalidRetryFallbackModels =
+    canEvaluateFallbackStale &&
+    hasStaleSelectedModelIds(configuredRetryFallbackModelIds, classifiedRetryFallbackModelIds)
+  const retryFallbackModelsTriggerLabel = canEvaluateFallbackStale
+    ? getRetryFallbackModelsTriggerLabel(configuredRetryFallbackModelIds, classifiedRetryFallbackModelIds, t)
+    : configuredRetryFallbackModelIds.length > 0
+      ? t('settings.models.retry.fallback_models_count', { count: configuredRetryFallbackModelIds.length })
+      : t('settings.models.empty')
 
   const proxyModeOptions: { value: 'system' | 'custom' | 'none'; label: string }[] = [
     { value: 'system', label: t('settings.proxy.mode.system') },
@@ -96,7 +175,10 @@ const GeneralSettings: FC = () => {
     void setTrayPreferences(isLaunchToTray && !tray ? { enabled: true, onLaunch: true } : { onLaunch: isLaunchToTray })
   }
 
-  const onSetProxyUrl = () => {
+  const isProxyTestAction = (event: FocusEvent<HTMLInputElement>) =>
+    event.relatedTarget instanceof Node && proxyTestButtonRef.current?.contains(event.relatedTarget)
+
+  const saveProxyUrl = () => {
     if (proxyUrl && !isValidProxyUrl(proxyUrl)) {
       toast.error(t('message.error.invalid.proxy.url'))
       return
@@ -105,8 +187,99 @@ const GeneralSettings: FC = () => {
     void _setProxyUrl(proxyUrl)
   }
 
-  const onSetProxyBypassRules = () => {
+  const onSetProxyUrl = (event: FocusEvent<HTMLInputElement>) => {
+    if (isProxyTestAction(event)) {
+      pendingProxyPreferenceSave.current = saveProxyUrl
+      return
+    }
+
+    saveProxyUrl()
+  }
+
+  const saveProxyBypassRules = () => {
     void _setProxyBypassRules(proxyBypassRules)
+  }
+
+  const onSetProxyBypassRules = (event: FocusEvent<HTMLInputElement>) => {
+    if (isProxyTestAction(event)) {
+      pendingProxyPreferenceSave.current = saveProxyBypassRules
+      return
+    }
+
+    saveProxyBypassRules()
+  }
+
+  const updateProxyTestInput = (nextInput: typeof proxyTestInput.current) => {
+    proxyTestInput.current = nextInput
+    proxyTestGeneration.current += 1
+    setProxyTestLoading(false)
+    setProxyTestResult(null)
+  }
+
+  const handleProxyTest = async () => {
+    pendingProxyPreferenceSave.current = null
+    const input = { ...proxyTestInput.current }
+    const generation = ++proxyTestGeneration.current
+    const isCurrent = () =>
+      generation === proxyTestGeneration.current &&
+      input.mode === proxyTestInput.current.mode &&
+      input.url === proxyTestInput.current.url &&
+      input.bypassRules === proxyTestInput.current.bypassRules
+
+    setProxyTestLoading(true)
+    setProxyTestResult(null)
+    try {
+      const result = await ipcApi.request('proxy.test_connection', input)
+      if (isCurrent()) setProxyTestResult(result)
+    } catch (error) {
+      if (isCurrent()) toast.error(formatErrorMessage(error))
+    } finally {
+      if (isCurrent()) setProxyTestLoading(false)
+    }
+  }
+
+  const getProxyTestRouteLabel = (route: OutputFor<'proxy.test_connection'>['route']) => {
+    switch (route) {
+      case 'proxy':
+        return t('settings.proxy.test.route.proxy')
+      case 'bypassed':
+        return t('settings.proxy.test.route.bypassed')
+      case 'direct':
+        return t('settings.proxy.test.route.direct')
+      case 'fallback':
+        return t('settings.proxy.test.route.fallback')
+    }
+  }
+
+  const getProxyTestErrorLabel = (error: NonNullable<OutputFor<'proxy.test_connection'>['error']>) => {
+    switch (error) {
+      case 'invalid_config':
+        return t('settings.proxy.test.error.invalid_config')
+      case 'authentication_required':
+        return t('settings.proxy.test.error.authentication_required')
+      case 'timeout':
+        return t('settings.proxy.test.error.timeout')
+      case 'unreachable':
+        return t('settings.proxy.test.error.unreachable')
+      case 'http_error':
+        return t('settings.proxy.test.error.http_error')
+      case 'connection_failed':
+        return t('settings.proxy.test.error.connection_failed')
+    }
+  }
+
+  const getProxyTestDescription = () => {
+    if (!proxyTestResult) {
+      return null
+    }
+
+    const values = {
+      target: proxyTestResult.target,
+      route: getProxyTestRouteLabel(proxyTestResult.route),
+      reason: proxyTestResult.error ? getProxyTestErrorLabel(proxyTestResult.error) : ''
+    }
+
+    return proxyTestResult.success ? t('settings.proxy.test.success', values) : t('settings.proxy.test.failure', values)
   }
 
   const handleHardwareAccelerationChange = async (checked: boolean) => {
@@ -131,7 +304,7 @@ const GeneralSettings: FC = () => {
     setTimeoutTimer(
       'handleHardwareAccelerationChange',
       () => {
-        void window.api.application.relaunch()
+        void ipcApi.request('app.relaunch')
       },
       500
     )
@@ -203,8 +376,36 @@ const GeneralSettings: FC = () => {
         <SettingDivider />
         <SettingRow id="setting-general-proxy-mode" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.proxy.mode.title')}</SettingRowTitle>
-          <Selector value={storeProxyMode} onChange={(mode) => void setProxyMode(mode)} options={proxyModeOptions} />
+          <div className="flex items-center gap-2">
+            <Button
+              ref={proxyTestButtonRef}
+              type="button"
+              variant="outline"
+              loading={proxyTestLoading}
+              aria-busy={proxyTestLoading}
+              onBlur={() => {
+                const savePreference = pendingProxyPreferenceSave.current
+                pendingProxyPreferenceSave.current = null
+                savePreference?.()
+              }}
+              onClick={() => void handleProxyTest()}>
+              {t('settings.proxy.test.action')}
+            </Button>
+            <Selector
+              value={storeProxyMode}
+              onChange={(mode) => {
+                updateProxyTestInput({ ...proxyTestInput.current, mode })
+                void setProxyMode(mode)
+              }}
+              options={proxyModeOptions}
+            />
+          </div>
         </SettingRow>
+        {proxyTestResult && (
+          <SettingDescription role="status" className="mt-1.5 leading-5">
+            {getProxyTestDescription()}
+          </SettingDescription>
+        )}
         {storeProxyMode === 'custom' && (
           <>
             <SettingDivider />
@@ -214,7 +415,10 @@ const GeneralSettings: FC = () => {
                 spellCheck={false}
                 placeholder="socks5://127.0.0.1:6153"
                 value={proxyUrl}
-                onChange={(e) => setProxyUrl(e.target.value)}
+                onChange={(e) => {
+                  setProxyUrl(e.target.value)
+                  updateProxyTestInput({ ...proxyTestInput.current, url: e.target.value })
+                }}
                 style={{ width: 220 }}
                 onBlur={onSetProxyUrl}
                 type="url"
@@ -234,7 +438,10 @@ const GeneralSettings: FC = () => {
                 spellCheck={false}
                 placeholder={defaultByPassRules}
                 value={proxyBypassRules}
-                onChange={(e) => setProxyBypassRules(e.target.value)}
+                onChange={(e) => {
+                  setProxyBypassRules(e.target.value)
+                  updateProxyTestInput({ ...proxyTestInput.current, bypassRules: e.target.value })
+                }}
                 style={{ width: 220 }}
                 onBlur={onSetProxyBypassRules}
               />
@@ -334,12 +541,13 @@ const GeneralSettings: FC = () => {
                     <Button
                       type="button"
                       variant="outline"
-                      className="h-7.5 min-w-0 flex-1 justify-between px-2.5 text-left font-normal">
-                      <span className="min-w-0 flex-1 truncate">
-                        {retryFallbackModelIds.length > 0
-                          ? t('settings.models.retry.fallback_models_count', { count: retryFallbackModelIds.length })
-                          : t('settings.models.empty')}
-                      </span>
+                      aria-invalid={hasInvalidRetryFallbackModels || undefined}
+                      className={cn(
+                        'h-7.5 min-w-0 flex-1 justify-between px-2.5 text-left font-normal',
+                        hasInvalidRetryFallbackModels &&
+                          'aria-expanded:border-error-border aria-expanded:ring-error/20 aria-invalid:border-error-border aria-invalid:ring-error/20 dark:aria-invalid:ring-error/40 dark:aria-expanded:ring-error/40'
+                      )}>
+                      <span className="min-w-0 flex-1 truncate">{retryFallbackModelsTriggerLabel}</span>
                       <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
                     </Button>
                   }

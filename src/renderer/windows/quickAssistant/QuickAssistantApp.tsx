@@ -1,4 +1,5 @@
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
+import { DictationShortcutHost } from '@renderer/components/DictationShortcutHost'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { PopupHost } from '@renderer/components/PopupHost'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
@@ -8,6 +9,7 @@ import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useAutoReadPreferenceSync } from '@renderer/hooks/useAutoReadPreferenceSync'
 import { useCustomCss } from '@renderer/hooks/useCustomCss'
 import { useLanguageSync } from '@renderer/hooks/useLanguageSync'
+import { useWebSearchFallbackNotice } from '@renderer/hooks/useWebSearchFallbackNotice'
 
 import HomeWindow from './home/HomeWindow'
 
@@ -19,6 +21,7 @@ import HomeWindow from './home/HomeWindow'
 // previously lacked (the toast black hole), so translate/copy toasts are visible.
 function QuickAssistantRuntime(): null {
   useLanguageSync()
+  useWebSearchFallbackNotice()
   useAutoReadPreferenceSync()
   useCustomCss()
 
@@ -53,6 +56,7 @@ function QuickAssistantApp(): React.ReactElement {
           </ErrorBoundary>
           <PopupHost />
           <ToastHost />
+          <DictationShortcutHost />
           <VoicePlaybackHost />
         </CodeStyleProvider>
       </ThemeProvider>

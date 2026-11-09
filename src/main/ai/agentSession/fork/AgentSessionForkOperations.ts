@@ -7,6 +7,7 @@ import { application } from '@application'
 import type { AgentSessionMessageRow } from '@data/db/schemas/agentSessionMessage'
 import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
+import { agentSessionContextService } from '@data/services/AgentSessionContextService'
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { AgentSessionForkSourceError, agentSessionForkService } from '@data/services/AgentSessionForkService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
@@ -14,27 +15,29 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { getRetiredAgentSessionMigration } from '@data/services/retiredAgentRuntimeMigration'
 import { loggerService } from '@logger'
-import { type RuntimeForkCheckpoint, RuntimeForkAnchorSchema } from '@main/ai/runtime/fork'
+import { type RuntimeForkCheckpoint, type RuntimeForkResult, RuntimeForkAnchorSchema } from '@main/ai/runtime/fork'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { t } from '@main/i18n'
+import { isOutsidePath } from '@main/utils/file'
 import type { AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
 import { Sequencer } from '@shared/utils/async'
 
 import { ensureRetiredSessionHistory } from '../../runtime/pi/retiredSessionHistory'
 import { runtimeDriverRegistry } from '../../runtime/registry'
 import { copyForkWorkspace, forkFileIdentity, publishForkArtifact } from './files'
+import { getEditFailure, resolveForkBoundary } from './historyActions'
 import { type AgentSessionForkResources, readForkResources, writeForkResources, removeForkResources } from './resources'
 import { workspaceHasReferences } from './workspaceCleanup'
 
 const logger = loggerService.withContext('AgentSessionForkOperations')
 
-function isInside(root: string, file: string): boolean {
-  const relative = path.relative(root, file)
-  return Boolean(relative) && !relative.startsWith('..') && !path.isAbsolute(relative)
-}
-
 function isMissing(error: unknown): boolean {
   return (error as NodeJS.ErrnoException)?.code === 'ENOENT'
+}
+
+function assertArtifactSource(directory: string, source: string): void {
+  const relative = path.relative(directory, source)
+  if (!relative || isOutsidePath(relative)) throw new Error('Unowned SDK fork artifact')
 }
 
 /** Owns native history publication for forks and in-place edits. */
@@ -101,26 +104,27 @@ export class AgentSessionForkOperations {
     )
     if (source.version !== target.version) throw new AgentSessionEditError('history_changed')
     const agent = source.session.agentId ? agentService.getAgent(source.session.agentId) : undefined
-    const driver = agent && runtimeDriverRegistry.getAgentSessionDriver(agent.type)
-    if (!agent || !driver?.fork) throw new AgentSessionForkError('unsupported_checkpoint')
+    const driver = agent ? runtimeDriverRegistry.getAgentSessionDriver(agent.type) : undefined
+    const facts = agentSessionForkService.readHistoryBoundaries(sessionId, [target.messageId])[0]
+    const editFailure = facts ? getEditFailure(driver, facts, facts.parent) : 'invalid_target'
+    if (editFailure) throw new AgentSessionEditError(editFailure)
     const prefix = structuredClone(source.prefix)
-    const nativeSessionId = randomUUID()
+    const bindings = database.withWriteTx((tx) =>
+      agentSessionForkService.readBindingsTx(tx, sessionId, target.messageId)
+    )
+    let nativeSessionId: string = randomUUID()
     let resources: AgentSessionForkResources | undefined
     try {
       if (prefix.length) {
-        const boundary = prefix.at(-1)!
-        const anchor = RuntimeForkAnchorSchema.safeParse(boundary.data.runtimeAnchor)
-        if (boundary.role !== 'assistant' || boundary.status !== 'success' || !anchor.success)
-          throw new AgentSessionForkError('legacy_history')
-        if (
-          anchor.data.checkpoint.runtime !== agent.type ||
-          anchor.data.excludedMessageIds?.some((id) => prefix.some((row) => row.id === id))
-        )
+        const row = prefix.at(-1)!
+        const boundary = resolveForkBoundary(driver, { ...row, anchor: row.data.runtimeAnchor })
+        if (boundary.reason) throw new AgentSessionEditError('checkpoint_unsupported')
+        const { anchor } = boundary
+        if (anchor.excludedMessageIds?.some((id) => prefix.some((row) => row.id === id)))
           throw new AgentSessionForkError('history_changed')
-        const checkpoints = prefix.flatMap((row) => {
-          const parsed = RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor)
-          return parsed.success ? [parsed.data.checkpoint] : []
-        })
+        const group = groupNativeHistory(prefix, bindings).find((group) => group.rows.at(-1)?.id === row.id)!
+        if (group.context.locator.kind !== driver?.type) throw new AgentSessionEditError('checkpoint_unsupported')
+        const checkpoints = group.rows.map((row) => RuntimeForkAnchorSchema.parse(row.data.runtimeAnchor).checkpoint)
         resources = {
           version: 1,
           operationId,
@@ -131,9 +135,9 @@ export class AgentSessionForkOperations {
           published: []
         }
         await this.prepareResources(resources)
-        const native = await driver.fork({
+        const native = await boundary.fork({
           sourceSessionId: sessionId,
-          checkpoint: anchor.data.checkpoint,
+          checkpoint: anchor.checkpoint,
           checkpoints,
           targetSessionId: nativeSessionId,
           targetCwd: source.workspace.path,
@@ -142,17 +146,35 @@ export class AgentSessionForkOperations {
         })
         if (!native.resumeToken.trim() || native.checkpoints.length !== checkpoints.length)
           throw new AgentSessionForkError('history_corrupt')
+        nativeSessionId = native.resumeToken
         resources.resumeToken = native.resumeToken
         await writeForkResources(resources)
-        remapNativeHistory(prefix, native.resumeToken, native.checkpoints)
+        remapNativeHistory(prefix, [{ group, result: native }])
         await this.publish(resources, native.publish, signal)
       }
       signal.throwIfAborted()
       await closeSource()
       signal.throwIfAborted()
       return database.withWriteTx((tx) => {
-        agentSessionMessageService.replaceEditTailTx(tx, sessionId, target, prefix)
-        return persist(tx, nativeSessionId)
+        if (
+          JSON.stringify(agentSessionForkService.readBindingsTx(tx, sessionId, target.messageId)) !==
+          JSON.stringify(bindings)
+        )
+          throw new AgentSessionEditError('history_changed')
+        agentSessionMessageService.selectEditParentTx(tx, sessionId, target)
+        const result = persist(tx, nativeSessionId)
+        if (resources) {
+          const checkpointMapping = Object.fromEntries(
+            prefix.flatMap((row) => {
+              const anchor = RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor)
+              return anchor.success && row.runtimeResumeToken === nativeSessionId
+                ? [[row.id, anchor.data.checkpoint]]
+                : []
+            })
+          )
+          agentSessionContextService.publishBranchTx(tx, sessionId, nativeSessionId, checkpointMapping)
+        }
+        return result
       })
     } catch (error) {
       if (resources && !this.hasPublishedResources(resources)) {
@@ -202,14 +224,15 @@ export class AgentSessionForkOperations {
     await ensureRetiredSessionHistory(sourceSessionId)
     const preliminary = agentSessionForkService.read(sourceSessionId, messageId)
     const selected = preliminary.messages.at(-1)!
-    const anchor = RuntimeForkAnchorSchema.safeParse(selected.data.runtimeAnchor)
-    if (selected.role !== 'assistant' || selected.status !== 'success')
-      throw new AgentSessionForkError('not_turn_boundary')
-    if (!anchor.success)
-      throw new AgentSessionForkError(selected.data.runtimeAnchor == null ? 'legacy_history' : 'unsupported_checkpoint')
+    const agent = agentService.getAgent(preliminary.agent.id)
+    if (!agent) throw new AgentSessionForkSourceError('source_missing')
+    const driver = runtimeDriverRegistry.getAgentSessionDriver(agent.type)
+    const boundary = resolveForkBoundary(driver, { ...selected, anchor: selected.data.runtimeAnchor })
+    if (boundary.reason) throw new AgentSessionForkError(boundary.reason)
+    const { anchor } = boundary
     const excludedIds = [
       ...new Set([
-        ...(anchor.data.excludedMessageIds ?? []),
+        ...(anchor.excludedMessageIds ?? []),
         ...preliminary.messages
           .filter(
             (row) =>
@@ -223,16 +246,7 @@ export class AgentSessionForkOperations {
       ])
     ]
     const source = agentSessionForkService.read(sourceSessionId, messageId, excludedIds)
-    const checkpoint = anchor.data.checkpoint
-    const agent = agentService.getAgent(source.agent.id)
-    if (!agent) throw new AgentSessionForkSourceError('source_missing')
-    const driver = runtimeDriverRegistry.getAgentSessionDriver(agent.type)
-    if (agent.type !== checkpoint.runtime || !driver?.fork) throw new AgentSessionForkError('unsupported_checkpoint')
-    const checkpoints: RuntimeForkCheckpoint[] = []
-    for (const row of source.messages) {
-      const parsed = RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor)
-      if (parsed.success) checkpoints.push(parsed.data.checkpoint)
-    }
+    const groups = groupNativeHistory(source.messages, source.contexts)
     const resources: AgentSessionForkResources = {
       version: 1,
       operationId,
@@ -259,20 +273,51 @@ export class AgentSessionForkOperations {
         })
       }
       signal.throwIfAborted()
-      const result = await driver.fork({
-        sourceSessionId,
-        checkpoint,
-        checkpoints,
-        targetSessionId: resources.targetSessionId,
-        targetCwd,
-        artifactDirectory: resources.artifactDirectory,
-        signal
-      })
-      if (!result.resumeToken.trim() || result.checkpoints.length !== checkpoints.length)
-        throw new AgentSessionForkError('history_corrupt')
+      const prepared: PreparedContext[] = []
+      for (const group of groups) {
+        signal.throwIfAborted()
+        if (group.context.locator.kind !== driver?.type) throw new AgentSessionForkError('unsupported_checkpoint')
+        const row = group.rows.at(-1)!
+        const selected = resolveForkBoundary(driver, { ...row, anchor: row.data.runtimeAnchor })
+        if (selected.reason) throw new AgentSessionForkError(selected.reason)
+        const artifactDirectory = path.join(resources.artifactDirectory, group.context.id)
+        await mkdir(artifactDirectory)
+        const checkpoints = group.rows.map((row) => RuntimeForkAnchorSchema.parse(row.data.runtimeAnchor).checkpoint)
+        const result = await selected.fork({
+          sourceSessionId,
+          checkpoint: selected.anchor.checkpoint,
+          checkpoints,
+          targetSessionId: randomUUID(),
+          targetCwd,
+          artifactDirectory,
+          signal
+        })
+        if (!result.resumeToken.trim() || result.checkpoints.length !== checkpoints.length)
+          throw new AgentSessionForkError('history_corrupt')
+        for (const artifact of result.publish) assertArtifactSource(artifactDirectory, artifact.source)
+        prepared.push({ group, result })
+      }
       signal.throwIfAborted()
-      const messages = cloneMessages(source.messages, resources.targetSessionId, result.resumeToken, result.checkpoints)
-      await this.publish(resources, result.publish, signal)
+      const messages = cloneMessages(source.messages, resources.targetSessionId, prepared)
+      const positions = new Map(source.messages.map((row, index) => [row.id, index]))
+      const contexts = prepared.map(({ group, result }, index) => {
+        const first = positions.get(group.rows[0].id)!
+        const start = source.contexts.reduce((latest, context) => {
+          const position = context.anchorMessageId ? positions.get(context.anchorMessageId) : undefined
+          return position !== undefined && position <= first && position > latest ? position : latest
+        }, -1)
+        if (index > 0 && start < 0) throw new AgentSessionForkError('history_changed')
+        return {
+          backendId: group.context.backendId,
+          nativeThreadId: result.resumeToken,
+          anchorMessageId: index === 0 ? null : messages[start].id
+        }
+      })
+      await this.publish(
+        resources,
+        prepared.flatMap(({ result }) => result.publish),
+        signal
+      )
       signal.throwIfAborted()
       application.get('DbService').withWriteTx((tx) => {
         agentSessionForkService.commitTx(tx, {
@@ -281,6 +326,7 @@ export class AgentSessionForkOperations {
           source,
           excludedIds,
           messages,
+          contexts,
           messageId
         })
       })
@@ -319,7 +365,7 @@ export class AgentSessionForkOperations {
     signal: AbortSignal
   ): Promise<void> {
     for (const artifact of artifacts) {
-      if (!isInside(resources.artifactDirectory, artifact.source)) throw new Error('Unowned SDK fork artifact')
+      assertArtifactSource(resources.artifactDirectory, artifact.source)
       await forkFileIdentity(artifact.source)
       await mkdir(path.dirname(artifact.target), { recursive: true })
       const owned = { ...artifact, identity: undefined as string | undefined }
@@ -337,7 +383,8 @@ export class AgentSessionForkOperations {
     if (path.resolve(resources.artifactDirectory) !== path.resolve(root, resources.operationId))
       throw new Error('Unowned fork directory')
     for (const artifact of resources.published) {
-      if (!isInside(resources.artifactDirectory, artifact.source)) throw new Error('Unowned fork file')
+      const relativeSource = path.relative(resources.artifactDirectory, artifact.source)
+      if (!relativeSource || isOutsidePath(relativeSource)) throw new Error('Unowned fork file')
       try {
         const targetIdentity = await forkFileIdentity(artifact.target)
         if (targetIdentity !== (artifact.identity ?? (await forkFileIdentity(artifact.source))))
@@ -401,39 +448,74 @@ export class AgentSessionForkOperations {
   }
 }
 
-function remapNativeHistory(
-  rows: AgentSessionMessageRow[],
-  resumeToken: string,
-  checkpoints: RuntimeForkCheckpoint[]
-): void {
-  let checkpointIndex = 0
+type ForkBinding = ReturnType<typeof agentSessionForkService.readBindingsTx>[number]
+interface NativeHistoryGroup {
+  context: ForkBinding
+  rows: AgentSessionMessageRow[]
+}
+interface PreparedContext {
+  group: NativeHistoryGroup
+  result: RuntimeForkResult
+}
+
+function groupNativeHistory(rows: AgentSessionMessageRow[], contexts: ForkBinding[]): NativeHistoryGroup[] {
+  const groups = new Map<string, NativeHistoryGroup>()
+  for (const row of rows) {
+    if (!RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor).success) continue
+    const matches = contexts.filter(
+      (context) => context.nativeThreadId && context.nativeThreadId === row.runtimeResumeToken
+    )
+    if (matches.length !== 1) throw new AgentSessionForkError('unsupported_checkpoint')
+    const context = matches[0]
+    let group = groups.get(context.id)
+    if (!group) {
+      group = { context, rows: [] }
+      groups.set(context.id, group)
+    }
+    group.rows.push(row)
+  }
+  return [...groups.values()]
+}
+
+function remapNativeHistory(rows: AgentSessionMessageRow[], prepared: PreparedContext[]): void {
+  const checkpoints = new Map<string, RuntimeForkCheckpoint>()
+  const tokens = new Map<string | null, string>()
+  for (const { group, result } of prepared) {
+    group.rows.forEach((row, index) => checkpoints.set(row.id, result.checkpoints[index]))
+    tokens.set(group.context.nativeThreadId, result.resumeToken)
+  }
   for (const row of rows) {
     const anchor = RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor)
-    delete row.data.runtimeAnchor
-    if (anchor.success) {
+    const checkpoint = checkpoints.get(row.id)
+    if (anchor.success && checkpoint) {
       row.data.runtimeAnchor = RuntimeForkAnchorSchema.parse({
         ...anchor.data,
-        checkpoint: checkpoints[checkpointIndex++]
+        checkpoint
       })
     }
-    row.runtimeResumeToken = row.role === 'assistant' ? resumeToken : null
+    if (row.runtimeResumeToken && tokens.has(row.runtimeResumeToken))
+      row.runtimeResumeToken = tokens.get(row.runtimeResumeToken)!
   }
 }
 
 function cloneMessages(
   rows: readonly AgentSessionMessageRow[],
   targetSessionId: string,
-  resumeToken: string,
-  checkpoints: RuntimeForkCheckpoint[]
+  prepared: PreparedContext[]
 ): AgentSessionMessageRow[] {
   // Preserve the existing (createdAt, id) order even when several source rows share a timestamp.
   const newIds = rows.map(() => randomUUID()).sort()
   const ids = new Map(rows.map((row, index) => [row.id, newIds[index]]))
   const messages = rows.map((row) => structuredClone(row))
-  remapNativeHistory(messages, resumeToken, checkpoints)
+  remapNativeHistory(messages, prepared)
+  const nativeIds = new Map(prepared.map(({ group, result }) => [group.context.nativeThreadId, result.resumeToken]))
+  const copiedIds = new Set(nativeIds.values())
   return messages.map((row, index) => {
     const data = row.data
-    delete data.nativeSessionId
+    const nativeId = data.nativeSessionId && nativeIds.get(data.nativeSessionId)
+    if (nativeId) data.nativeSessionId = nativeId
+    else delete data.nativeSessionId
+    if (row.runtimeResumeToken && !copiedIds.has(row.runtimeResumeToken)) row.runtimeResumeToken = null
     const anchor = RuntimeForkAnchorSchema.safeParse(data.runtimeAnchor)
     if (anchor.success) {
       data.runtimeAnchor = {

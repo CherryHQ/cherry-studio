@@ -11802,6 +11802,26 @@
       }
     },
     {
+      "capabilities": ["function-call", "reasoning", "image-recognition", "video-recognition"],
+      "contextWindow": 1048576,
+      "family": "longcat",
+      "id": "longcat-2-5",
+      "inputModalities": ["text", "image", "video"],
+      "maxOutputTokens": 262144,
+      "metadata": {},
+      "name": "LongCat-2.5",
+      "outputModalities": ["text"],
+      "ownedBy": "meituan",
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"]
+      }
+    },
+    {
       "capabilities": ["function-call", "structured-output"],
       "contextWindow": 131072,
       "family": "llama",
@@ -13095,6 +13115,22 @@
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "minimax",
+      "parameterSupport": {
+        "frequencyPenalty": true,
+        "maxTokens": true,
+        "presencePenalty": true,
+        "stopSequences": true,
+        "systemMessage": true,
+        "temperature": {
+          "supported": true
+        },
+        "topK": {
+          "supported": false
+        },
+        "topP": {
+          "supported": true
+        }
+      },
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -13121,12 +13157,45 @@
     {
       "capabilities": ["reasoning", "function-call", "image-recognition", "video-recognition"],
       "contextWindow": 1000000,
-      "id": "minimax-m3-1-flash-preview",
+      "family": "minimax",
+      "id": "minimax-m3-1-flash",
       "inputModalities": ["text", "image", "video"],
+      "maxOutputTokens": 524288,
       "metadata": {},
-      "name": "MiniMax-M3.1-Flash-Preview",
+      "name": "MiniMax-M3.1-Flash",
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "minimax",
+      "parameterSupport": {
+        "frequencyPenalty": true,
+        "maxTokens": true,
+        "presencePenalty": true,
+        "stopSequences": true,
+        "systemMessage": true,
+        "temperature": {
+          "supported": true
+        },
+        "topK": {
+          "supported": false
+        },
+        "topP": {
+          "supported": true
+        }
+      },
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.015
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.6
+        }
+      },
       "reasoning": {
         "controls": [
           {
@@ -14720,6 +14789,120 @@
           }
         ],
         "supportedEfforts": ["low", "high", "max", "none"]
+      }
+    },
+    {
+      "capabilities": ["reasoning", "function-call", "image-recognition", "video-recognition", "structured-output"],
+      "contextWindow": 1048576,
+      "family": "kimi-k3.1",
+      "id": "kimi-k3-1-pro",
+      "inputModalities": ["text", "image", "video"],
+      "maxOutputTokens": 1048576,
+      "metadata": {},
+      "name": "Kimi K3.1 Pro",
+      "outputModalities": ["text"],
+      "ownedBy": "moonshot",
+      "parameterSupport": {
+        "frequencyPenalty": false,
+        "maxTokens": true,
+        "presencePenalty": false,
+        "stopSequences": true,
+        "systemMessage": true,
+        "temperature": {
+          "supported": false
+        },
+        "topK": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "default": "max",
+            "kind": "effort",
+            "values": ["low", "high", "max"]
+          }
+        ],
+        "defaultEffort": "max",
+        "supportedEfforts": ["low", "high", "max"]
+      }
+    },
+    {
+      "capabilities": ["reasoning", "function-call", "image-recognition", "video-recognition", "structured-output"],
+      "contextWindow": 1048576,
+      "family": "kimi-k3.1",
+      "id": "kimi-k3-1-pro-highspeed",
+      "inputModalities": ["text", "image", "video"],
+      "maxOutputTokens": 1048576,
+      "metadata": {},
+      "name": "Kimi K3.1 Pro Highspeed",
+      "outputModalities": ["text"],
+      "ownedBy": "moonshot",
+      "parameterSupport": {
+        "frequencyPenalty": false,
+        "maxTokens": true,
+        "presencePenalty": false,
+        "stopSequences": true,
+        "systemMessage": true,
+        "temperature": {
+          "supported": false
+        },
+        "topK": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 4
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 4
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 20
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "default": "max",
+            "kind": "effort",
+            "values": ["low", "high", "max"]
+          }
+        ],
+        "defaultEffort": "max",
+        "supportedEfforts": ["low", "high", "max"]
       }
     },
     {
@@ -17533,6 +17716,86 @@
       "contextWindow": 1050000,
       "endpointTypes": ["openai-responses"],
       "family": "gpt",
+      "id": "gpt-6-1-terra",
+      "inputModalities": ["text", "image"],
+      "maxInputTokens": 922000,
+      "maxOutputTokens": 128000,
+      "metadata": {},
+      "name": "GPT-6.1 Terra",
+      "outputModalities": ["text"],
+      "ownedBy": "openai",
+      "parameterSupport": {
+        "frequencyPenalty": false,
+        "maxTokens": true,
+        "presencePenalty": false,
+        "stopSequences": false,
+        "systemMessage": true,
+        "temperature": {
+          "supported": false
+        },
+        "topK": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.05
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "inputTokenTiers": [
+          {
+            "cacheRead": {
+              "currency": "USD",
+              "perMillionTokens": 0.1
+            },
+            "cacheWrite": {
+              "currency": "USD",
+              "perMillionTokens": 2.5
+            },
+            "input": {
+              "currency": "USD",
+              "perMillionTokens": 2
+            },
+            "minInputTokens": 272001,
+            "output": {
+              "currency": "USD",
+              "perMillionTokens": 7.5
+            }
+          }
+        ],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "default": "medium",
+            "kind": "effort",
+            "values": ["none", "low", "medium", "high", "xhigh", "max"]
+          }
+        ],
+        "defaultEffort": "medium",
+        "supportedEfforts": ["none", "low", "medium", "high", "xhigh", "max"]
+      }
+    },
+    {
+      "capabilities": ["reasoning", "function-call", "image-recognition", "structured-output", "file-search"],
+      "contextWindow": 1050000,
+      "endpointTypes": ["openai-responses"],
+      "family": "gpt",
       "id": "gpt-6-astra",
       "inputModalities": ["text", "image"],
       "maxInputTokens": 922000,
@@ -18075,6 +18338,34 @@
       "capabilities": ["image-recognition", "image-generation"],
       "family": "gpt-image",
       "id": "gpt-image-2-5-flare",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": [
+                  "auto",
+                  "1024x1024",
+                  "1536x1024",
+                  "1024x1536",
+                  "1536x864",
+                  "864x1536",
+                  "1536x960",
+                  "3840x2160",
+                  "2160x3840"
+                ],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
       "inputModalities": ["text", "image"],
       "metadata": {},
       "name": "GPT Image 2.5 Flare",
@@ -18099,6 +18390,34 @@
       "capabilities": ["image-recognition", "image-generation"],
       "family": "gpt-image",
       "id": "gpt-image-2-5-sunburst",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": [
+                  "auto",
+                  "1024x1024",
+                  "1536x1024",
+                  "1024x1536",
+                  "1536x864",
+                  "864x1536",
+                  "1536x960",
+                  "3840x2160",
+                  "2160x3840"
+                ],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
       "inputModalities": ["text", "image"],
       "metadata": {},
       "name": "GPT Image 2.5 Sunburst",
@@ -18118,6 +18437,228 @@
           "perMillionTokens": 30
         }
       }
+    },
+    {
+      "capabilities": ["image-recognition", "image-generation"],
+      "endpointTypes": ["openai-image-generation", "openai-image-edit"],
+      "family": "gpt-image",
+      "id": "gpt-image-2-6-flare",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "background": {
+                "options": ["auto", "transparent", "opaque"],
+                "type": "enum"
+              },
+              "complexity": {
+                "options": ["low", "medium", "high"],
+                "type": "enum"
+              },
+              "frameCount": {
+                "default": 9,
+                "max": 16,
+                "min": 2,
+                "step": 1,
+                "type": "range"
+              },
+              "frameDurationMs": {
+                "default": 200,
+                "max": 655350,
+                "min": 20,
+                "step": 10,
+                "type": "range"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 10,
+                "min": 1,
+                "type": "range"
+              },
+              "outputFormat": {
+                "options": ["png", "jpeg", "webp", "gif"],
+                "type": "enum"
+              },
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "background": {
+                "options": ["auto", "transparent", "opaque"],
+                "type": "enum"
+              },
+              "complexity": {
+                "options": ["low", "medium", "high"],
+                "type": "enum"
+              },
+              "frameCount": {
+                "default": 9,
+                "max": 16,
+                "min": 2,
+                "step": 1,
+                "type": "range"
+              },
+              "frameDurationMs": {
+                "default": 200,
+                "max": 655350,
+                "min": 20,
+                "step": 10,
+                "type": "range"
+              },
+              "moderation": {
+                "options": ["auto", "low"],
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 10,
+                "min": 1,
+                "type": "range"
+              },
+              "outputFormat": {
+                "options": ["png", "jpeg", "webp", "gif"],
+                "type": "enum"
+              },
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "GPT Image 2.6 Flare",
+      "outputModalities": ["image"],
+      "ownedBy": "openai"
+    },
+    {
+      "capabilities": ["image-recognition", "image-generation"],
+      "endpointTypes": ["openai-image-generation", "openai-image-edit"],
+      "family": "gpt-image",
+      "id": "gpt-image-2-6-sunburst",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "background": {
+                "options": ["auto", "transparent", "opaque"],
+                "type": "enum"
+              },
+              "complexity": {
+                "options": ["low", "medium", "high"],
+                "type": "enum"
+              },
+              "frameCount": {
+                "default": 9,
+                "max": 16,
+                "min": 2,
+                "step": 1,
+                "type": "range"
+              },
+              "frameDurationMs": {
+                "default": 200,
+                "max": 655350,
+                "min": 20,
+                "step": 10,
+                "type": "range"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 10,
+                "min": 1,
+                "type": "range"
+              },
+              "outputFormat": {
+                "options": ["png", "jpeg", "webp", "gif"],
+                "type": "enum"
+              },
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "background": {
+                "options": ["auto", "transparent", "opaque"],
+                "type": "enum"
+              },
+              "complexity": {
+                "options": ["low", "medium", "high"],
+                "type": "enum"
+              },
+              "frameCount": {
+                "default": 9,
+                "max": 16,
+                "min": 2,
+                "step": 1,
+                "type": "range"
+              },
+              "frameDurationMs": {
+                "default": 200,
+                "max": 655350,
+                "min": 20,
+                "step": 10,
+                "type": "range"
+              },
+              "moderation": {
+                "options": ["auto", "low"],
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 10,
+                "min": 1,
+                "type": "range"
+              },
+              "outputFormat": {
+                "options": ["png", "jpeg", "webp", "gif"],
+                "type": "enum"
+              },
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "GPT Image 2.6 Sunburst",
+      "outputModalities": ["image"],
+      "ownedBy": "openai"
     },
     {
       "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
@@ -19788,6 +20329,17 @@
           "perMillionTokens": 0.6
         }
       }
+    },
+    {
+      "capabilities": ["reasoning", "function-call", "structured-output", "image-recognition"],
+      "contextWindow": 1048576,
+      "id": "hy4",
+      "inputModalities": ["text", "image"],
+      "maxInputTokens": 983010,
+      "maxOutputTokens": 65536,
+      "metadata": {},
+      "name": "Hunyuan 4",
+      "ownedBy": "tencent"
     },
     {
       "capabilities": ["reasoning", "function-call", "structured-output"],
@@ -21581,15 +22133,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0028
+          "perMillionTokens": 0.0025
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.14
+          "perMillionTokens": 0.119
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.28
+          "perMillionTokens": 0.238
         }
       },
       "reasoning": {
@@ -21602,29 +22154,29 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output", "file-input"],
+      "capabilities": ["function-call", "reasoning", "structured-output"],
       "contextWindow": 1050000,
       "family": "mimo",
       "id": "mimo-v2-5-pro",
       "inputModalities": ["text"],
       "maxOutputTokens": 131072,
       "metadata": {},
-      "name": "MiMo-V2.5-Pro",
+      "name": "MiMo V2.5 Pro",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "xiaomi",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0036
+          "perMillionTokens": 0.0028
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.435
+          "perMillionTokens": 0.3045
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.87
+          "perMillionTokens": 0.609
         }
       },
       "reasoning": {
@@ -21688,6 +22240,7 @@
       "maxOutputTokens": 131072,
       "metadata": {},
       "name": "MiMo-V2.6-Flash",
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "xiaomi",
       "pricing": {
@@ -21730,6 +22283,7 @@
       "maxOutputTokens": 131072,
       "metadata": {},
       "name": "MiMo-V2.6-Pro",
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "xiaomi",
       "pricing": {
@@ -21772,6 +22326,7 @@
       "maxOutputTokens": 131072,
       "metadata": {},
       "name": "MiMo-V2.6-Pro-UltraSpeed",
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "xiaomi",
       "pricing": {
@@ -22968,5 +23523,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "371e196f7e841bbc"
+  "version": "a0418e1cc8f8499c"
 }

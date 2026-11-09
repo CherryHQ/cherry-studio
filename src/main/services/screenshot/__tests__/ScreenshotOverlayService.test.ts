@@ -353,6 +353,8 @@ const singleDisplaySetup = () => {
 describe('ScreenshotOverlayService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    electron.dialog.showSaveDialog.mockReset()
+    writeFileSyncMock.mockReset()
     vi.useFakeTimers()
     container.reset()
     platform.isMac = true
@@ -798,6 +800,27 @@ describe('ScreenshotOverlayService', () => {
       expect(service.isSessionOverlay('overlay-0-0')).toBe(true)
       expect(service.isActiveOverlay('overlay-0-0')).toBe(false)
       expect(service.isActiveOverlay('overlay-1920-0')).toBe(true)
+    })
+
+    it('binds active result authorization to the current capture of a recycled window', async () => {
+      singleDisplaySetup()
+      await service.startCapture()
+      const windowId = 'overlay-0-0'
+      const oldMediaId = initDataOf(windowId).mediaId
+      expect(service.isActiveCapture(windowId, oldMediaId)).toBe(false)
+      service.markOverlayActive(windowId)
+      expect(service.isActiveCapture(windowId, oldMediaId)).toBe(true)
+      expect(service.isActiveCapture('another-overlay', oldMediaId)).toBe(false)
+      expect(service.isActiveCapture(windowId, 'another-capture')).toBe(false)
+
+      service.dismiss()
+      expect(service.isActiveCapture(windowId, oldMediaId)).toBe(false)
+      await service.startCapture()
+      service.markOverlayActive(windowId)
+      const newMediaId = initDataOf(windowId).mediaId
+      expect(newMediaId).not.toBe(oldMediaId)
+      expect(service.isActiveCapture(windowId, oldMediaId)).toBe(false)
+      expect(service.isActiveCapture(windowId, newMediaId)).toBe(true)
     })
 
     it('stops treating an overlay as active once the session is dismissed', async () => {
@@ -1266,6 +1289,19 @@ describe('ScreenshotOverlayService', () => {
   })
 
   describe('results', () => {
+    it('copies the result to the clipboard and keeps the session open', async () => {
+      singleDisplaySetup()
+      await service.startCapture()
+
+      await service.copy({ pngBytes: PNG_BYTES })
+
+      expect(electron.nativeImage.createFromBuffer).toHaveBeenCalledWith(Buffer.from(PNG_BYTES))
+      const [[items]] = electron.clipboard.write.mock.calls
+      expect(Object.keys(items[0].data)).toEqual(['image/png'])
+      expect(new Uint8Array(await items[0].data['image/png'].arrayBuffer())).toEqual(PNG_BYTES)
+      expect(service.isSessionOverlay('overlay-0-0')).toBe(true)
+    })
+
     it('copies the result to the clipboard and ends the session', async () => {
       singleDisplaySetup()
       await service.startCapture()
@@ -1391,6 +1427,139 @@ describe('ScreenshotOverlayService', () => {
         skipTransformProcessType: true
       })
       expect(service.isSessionOverlay('overlay-0-0')).toBe(true)
+    })
+
+    it.each(['cancel', 'throw'] as const)(
+      'keeps a newer save session hidden when the old dialog finishes with %s',
+      async (outcome) => {
+        singleDisplaySetup()
+        await service.startCapture()
+        const windowId = 'overlay-0-0'
+        const window = fakeWindow(windowId)
+        let visible = true
+        window.isVisible.mockImplementation(() => visible)
+        window.show.mockImplementation(() => {
+          visible = true
+        })
+        window.showInactive.mockImplementation(() => {
+          visible = true
+        })
+        window.hide.mockImplementation(() => {
+          visible = false
+        })
+        service.markOverlayActive(windowId)
+        service.markOverlayReady(windowId, initDataOf(windowId).mediaId)
+
+        let cancelOldDialog!: (result: Electron.SaveDialogReturnValue) => void
+        let rejectOldDialog!: (error: Error) => void
+        electron.dialog.showSaveDialog.mockReturnValueOnce(
+          new Promise<Electron.SaveDialogReturnValue>((resolve, reject) => {
+            cancelOldDialog = resolve
+            rejectOldDialog = reject
+          })
+        )
+        const oldSave = service.save({ pngBytes: PNG_BYTES })
+        expect(window.isVisible()).toBe(false)
+        service.dismiss()
+        await service.startCapture()
+        service.markOverlayActive(windowId)
+        service.markOverlayReady(windowId, initDataOf(windowId).mediaId)
+        expect(window.isVisible()).toBe(true)
+
+        let cancelNewDialog!: (result: Electron.SaveDialogReturnValue) => void
+        electron.dialog.showSaveDialog.mockReturnValueOnce(
+          new Promise<Electron.SaveDialogReturnValue>((resolve) => {
+            cancelNewDialog = resolve
+          })
+        )
+        let newSaveSettled = false
+        const newSave = service.save({ pngBytes: PNG_BYTES }).then(() => {
+          newSaveSettled = true
+        })
+        expect(window.isVisible()).toBe(false)
+
+        if (outcome === 'throw') {
+          const rejected = expect(oldSave).rejects.toThrow('old dialog failed')
+          rejectOldDialog(new Error('old dialog failed'))
+          await rejected
+        } else {
+          cancelOldDialog({ canceled: true, filePath: '' })
+          await oldSave
+        }
+        expect.soft(window.isVisible(), 'The newer save panel must remain above its hidden overlay').toBe(false)
+        expect(service.isSessionOverlay(windowId)).toBe(true)
+        expect(service.isActiveOverlay(windowId)).toBe(true)
+        expect(newSaveSettled).toBe(false)
+
+        cancelNewDialog({ canceled: true, filePath: '' })
+        await newSave
+        expect(window.isVisible()).toBe(true)
+        expect(service.isSessionOverlay(windowId)).toBe(true)
+        service.dismiss()
+      }
+    )
+
+    it('keeps one save panel pending and allows another save after cancellation', async () => {
+      singleDisplaySetup()
+      await service.startCapture()
+      const windowId = 'overlay-0-0'
+      service.markOverlayActive(windowId)
+      const window = fakeWindow(windowId)
+      let visible = true
+      window.isVisible.mockImplementation(() => visible)
+      window.hide.mockImplementation(() => {
+        visible = false
+      })
+      window.show.mockImplementation(() => {
+        visible = true
+      })
+      const dialogs: Array<(result: Electron.SaveDialogReturnValue) => void> = []
+      electron.dialog.showSaveDialog.mockImplementation(
+        () => new Promise<Electron.SaveDialogReturnValue>((resolve) => dialogs.push(resolve))
+      )
+      const files = new Map<string, Uint8Array>()
+      writeFileSyncMock.mockImplementation((path: string, bytes: Uint8Array) => files.set(path, bytes))
+
+      const first = service.save({ pngBytes: PNG_BYTES })
+      await service.save({ pngBytes: new Uint8Array([9]) })
+      expect(dialogs).toHaveLength(1)
+      expect(window.isVisible()).toBe(false)
+      expect(files.size).toBe(0)
+      dialogs[0]({ canceled: true, filePath: '' })
+      await first
+      expect(window.isVisible()).toBe(true)
+      expect(service.isSessionOverlay(windowId)).toBe(true)
+
+      const retry = service.save({ pngBytes: PNG_BYTES })
+      expect(dialogs).toHaveLength(2)
+      dialogs[1]({ canceled: false, filePath: '/tmp/retry.png' })
+      await retry
+      expect(files).toEqual(new Map([['/tmp/retry.png', PNG_BYTES]]))
+      expect(service.isSessionOverlay(windowId)).toBe(false)
+    })
+
+    it('does not release a newer save panel lock when an older session finishes', async () => {
+      singleDisplaySetup()
+      await service.startCapture()
+      const windowId = 'overlay-0-0'
+      service.markOverlayActive(windowId)
+      const dialogs: Array<(result: Electron.SaveDialogReturnValue) => void> = []
+      electron.dialog.showSaveDialog.mockImplementation(
+        () => new Promise<Electron.SaveDialogReturnValue>((resolve) => dialogs.push(resolve))
+      )
+      const oldSave = service.save({ pngBytes: PNG_BYTES })
+      service.dismiss()
+      await service.startCapture()
+      service.markOverlayActive(windowId)
+      const newSave = service.save({ pngBytes: PNG_BYTES })
+      dialogs[0]({ canceled: true, filePath: '' })
+      await oldSave
+      await service.save({ pngBytes: PNG_BYTES })
+      expect(dialogs).toHaveLength(2)
+      expect(service.isSessionOverlay(windowId)).toBe(true)
+      dialogs[1]({ canceled: true, filePath: '' })
+      await newSave
+      service.dismiss()
     })
 
     it('parents the save dialog to the active overlay off macOS', async () => {

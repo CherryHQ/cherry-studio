@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryUiModule from '@cherrystudio/ui'
 import zhCN from '@renderer/i18n/locales/zh-cn.json'
 import { ipcApi } from '@renderer/ipc'
 
@@ -15,7 +16,8 @@ const { isMacTransparentWindowMock, navigateMock } = vi.hoisted(() => ({
 
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn().mockResolvedValue(undefined) } }))
 
-vi.mock('@cherrystudio/ui', () => ({
+vi.mock('@cherrystudio/ui', async (importOriginal) => ({
+  ...(await importOriginal<typeof CherryUiModule>()),
   MenuDivider: () => <hr data-testid="menu-divider" />,
   MenuItem: ({ icon, label, onClick }: { icon?: ReactNode; label: string; onClick?: () => void }) => (
     <button type="button" data-testid="menu-item" onClick={onClick}>
@@ -44,10 +46,6 @@ vi.mock('@cherrystudio/ui', () => ({
       onKeyDown={props.onKeyDown}
     />
   )
-}))
-
-vi.mock('@renderer/components/Scrollbar', () => ({
-  default: ({ children }: { children: ReactNode }) => <div>{children}</div>
 }))
 
 vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
@@ -226,8 +224,9 @@ describe('SettingsPage', () => {
 
     expect(screen.getByText('效率')).toBeInTheDocument()
     expect(screen.queryByText('快捷入口')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '定时任务' })).not.toBeInTheDocument()
 
-    const efficiencyItems = ['频道', '设备互联', '定时任务', '快捷键', '快捷助手', '划词助手', '截图'].map((name) =>
+    const efficiencyItems = ['频道', '设备互联', '快捷键', '快捷助手', '划词助手', '截图'].map((name) =>
       screen.getByRole('button', { name })
     )
     const menuItems = screen.getAllByTestId('menu-item')

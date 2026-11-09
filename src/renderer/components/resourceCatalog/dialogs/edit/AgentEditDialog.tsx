@@ -52,6 +52,7 @@ import {
 } from '@shared/ai/agentHeartbeat'
 import { AGENT_RUNTIME_CAPABILITIES, type AgentRuntimeCapabilities } from '@shared/ai/agentRuntimeCapabilities'
 import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
+import { isSealedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import {
   CLAUDE_KNOWLEDGE_TOOL_NAMES,
   CLAUDE_TOOL_CATEGORIES,
@@ -86,6 +87,7 @@ import {
 import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
 import { PromptBindingTab } from '../components/PromptBindingTab'
 import { PromptPolishActions } from '../components/PromptPolishActions'
+import { AgentMemoryPanel, type AgentMemoryPanelHandle } from './AgentMemoryPanel'
 import { HeartbeatEditorDialog } from './HeartbeatEditorDialog'
 
 export type AgentEditDialogProps = EditDialogBaseProps & {
@@ -295,7 +297,9 @@ function AgentEditDialogContent({
 }: EditDialogBaseProps & { resource: AgentDetail; isModelDisabled?: ModelSelectorFilter }) {
   const { t } = useTranslation()
   const caps = AGENT_RUNTIME_CAPABILITIES[resource.type]
+  const sealedSkills = isSealedBuiltinAgentRole(resource.configuration?.builtin_role)
   const [activeTab, setActiveTab] = useState(initialTab ?? 'basic')
+  const memoryPanelRef = useRef<AgentMemoryPanelHandle>(null)
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAgent(resource))
@@ -352,6 +356,7 @@ function AgentEditDialogContent({
       { id: 'basic', label: t('library.config.dialogs.edit.basic_tab') },
       { id: 'prompt', label: t('library.config.dialogs.edit.prompt_tab') },
       { id: 'prompts', label: t('settings.prompts.binding.tabTitle') },
+      { id: 'memory', label: t('agent.memory.button') },
       {
         id: 'tools',
         label: t('library.config.dialogs.edit.tools_tab'),
@@ -361,14 +366,14 @@ function AgentEditDialogContent({
             ? [{ id: 'tools.knowledge' as const, label: t('library.config.dialogs.edit.knowledge_tab') }]
             : []),
           ...(caps.mcp ? [{ id: 'tools.mcp' as const, label: t('library.config.agent.section.tools.tab.mcp') }] : []),
-          ...(caps.skills
+          ...(caps.skills && !sealedSkills
             ? [{ id: 'tools.skills' as const, label: t('library.config.agent.section.tools.tab.skills') }]
             : [])
         ]
       },
       { id: 'advanced', label: t('library.config.dialogs.edit.advanced_tab') }
     ],
-    [caps.knowledgeBases, caps.mcp, caps.skills, t]
+    [caps.knowledgeBases, caps.mcp, caps.skills, sealedSkills, t]
   )
   const leafTabIds = useMemo(() => new Set(getLeafTabIds(tabs)), [tabs])
 
@@ -465,14 +470,17 @@ function AgentEditDialogContent({
   const rootError = form.formState.errors.root?.message
   const autoSaveChangeKey =
     saveIntent && values.name.trim().length > 0 ? serializeAgentSaveAttempt(values, saveIntent.payload) : null
-  const canPersist = autoSaveChangeKey !== null
   const saveFailedMessage = t('library.config.dialogs.edit.save_failed')
+
+  const getCurrentSaveIntent = () =>
+    diffAgentSaveIntent(buildAgentFormState(formBaselineRef.current, form.getValues()), formBaselineRef.current)
 
   const persist = async () => {
     // Recompute from refs at execution time: the serialized autosave queue may
     // start its follow-up pass before React has rendered the baseline state
     // advanced by the previous pass.
     const submittedValues = form.getValues()
+    if (!submittedValues.name.trim()) return
     const submittedFormState = buildAgentFormState(formBaselineRef.current, submittedValues)
     const pending = diffAgentSaveIntent(submittedFormState, formBaselineRef.current)
     if (!pending) return
@@ -505,39 +513,58 @@ function AgentEditDialogContent({
   // can queue a newly meaningful diff even when form values return to the
   // snapshot that save captured. Values remain in the key to distinguish DTO
   // clears represented by explicit `undefined`.
-  const flush = useDebouncedAutoSave({
+  const { flush, getPendingSave } = useDebouncedAutoSave({
     enabled: open,
     changeKey: autoSaveChangeKey,
     onSave: persist
   })
 
-  // On close with a pending edit, flush through the same serialized save queue and
-  // only close once it settles — so a failed final save stays visible instead of
-  // being silently dropped, and we never race a second concurrent save.
-  const handleOpenChange = (next: boolean) => {
-    if (next || !canPersist) {
+  // Keep failed saves visible and gate settings navigation on successful closure.
+  const handleOpenChange = async (next: boolean, allowDiscard = true): Promise<boolean> => {
+    if (next) {
       onOpenChange(next)
-      return
+      return true
     }
-    if (failedSaveKeyRef.current === autoSaveChangeKey) {
+    if (memoryPanelRef.current && !(await memoryPanelRef.current.confirmLeave())) return false
+    const valuesBeforeSave = JSON.stringify(form.getValues())
+    const pendingSave = getPendingSave()
+    if (pendingSave) await pendingSave
+    if (JSON.stringify(form.getValues()) !== valuesBeforeSave) return false
+
+    const currentValues = form.getValues()
+    const pending = getCurrentSaveIntent()
+    if (!pending || (!currentValues.name.trim() && allowDiscard)) {
+      onOpenChange(false)
+      return true
+    }
+    if (!currentValues.name.trim()) return false
+    if (failedSaveKeyRef.current === serializeAgentSaveAttempt(currentValues, pending.payload)) {
       toast.error(saveFailedMessage)
+      if (!allowDiscard || pendingSave) return false
       onOpenChange(false)
-      return
+      return true
     }
-    void (async () => {
-      await flush()
-      if (failedSaveKeyRef.current !== null) return
-      onOpenChange(false)
-    })()
+    await flush()
+    if (
+      failedSaveKeyRef.current !== null ||
+      JSON.stringify(form.getValues()) !== valuesBeforeSave ||
+      getCurrentSaveIntent()
+    )
+      return false
+    onOpenChange(false)
+    return true
   }
-  // Route the settings-navigate close through handleOpenChange so it flushes too.
-  const closeBeforeAction = useCloseBeforeAction(handleOpenChange)
+  const closeBeforeAction = useCloseBeforeAction((next) => handleOpenChange(next, false))
 
   return (
     <EditDialogShell
       activeTab={activeTab}
       form={form}
-      onActiveTabChange={setActiveTab}
+      onActiveTabChange={async (tab) => {
+        if (tab === activeTab) return
+        if (memoryPanelRef.current && !(await memoryPanelRef.current.confirmLeave())) return
+        setActiveTab(tab)
+      }}
       onOpenChange={handleOpenChange}
       open={open}
       rootError={rootError}
@@ -561,6 +588,7 @@ function AgentEditDialogContent({
             caps={caps}
             agentType={resource.type}
             agentId={resource.id}
+            permissionAuthorityKey={`${resource.id}:${resource.configuration?.permission_mode ?? 'default'}`}
             beforeHeartbeatOpen={async () => {
               await flush()
               return failedSaveKeyRef.current === null
@@ -578,6 +606,7 @@ function AgentEditDialogContent({
           <PromptBindingTab
             enabled={open && activeTab === 'prompts'}
             target={{ type: 'agent', id: resource.id }}
+            onManageGlobal={() => closeBeforeAction(() => openSettingsTab('/settings/prompts'))}
             portalContainer={dialogContentElement}
           />
         </TabsContent>
@@ -593,6 +622,11 @@ function AgentEditDialogContent({
               skillsReady={baselineSkillAgentId === resource.id}
               caps={caps}
             />
+          </TabsContent>
+        ) : null}
+        {open && activeTab === 'memory' ? (
+          <TabsContent value="memory" className="m-0">
+            <AgentMemoryPanel key={resource.id} ref={memoryPanelRef} agent={resource} />
           </TabsContent>
         ) : null}
         <TabsContent value="advanced" forceMount hidden={activeTab !== 'advanced'} className="m-0">
@@ -617,6 +651,7 @@ function AgentBasicFields({
   caps,
   agentType,
   agentId,
+  permissionAuthorityKey,
   beforeHeartbeatOpen
 }: {
   form: UseFormReturn<AgentEditFormValues>
@@ -632,6 +667,7 @@ function AgentBasicFields({
   caps: AgentRuntimeCapabilities
   agentType: AgentType
   agentId: string
+  permissionAuthorityKey: string
   beforeHeartbeatOpen: () => Promise<boolean>
 }) {
   const { t } = useTranslation()
@@ -718,7 +754,9 @@ function AgentBasicFields({
           />
         </>
       ) : null}
+      {/* Invalidate only the pending permission dialog when authoritative identity/mode changes. */}
       <PermissionModeField
+        key={permissionAuthorityKey}
         form={form}
         portalContainer={portalContainer}
         patchAgentForm={patchAgentForm}
@@ -839,6 +877,7 @@ function PermissionModeField({
 }) {
   const { t } = useTranslation()
   const permissionMode = useWatch({ control: form.control, name: 'permissionMode' }) || 'default'
+  const agentName = useWatch({ control: form.control, name: 'name' })
   const selectedPermissionModeCard = permissionModeCards.find((card) => card.mode === permissionMode)
 
   return (
@@ -856,6 +895,7 @@ function PermissionModeField({
             onValueChange={(value) => patchAgentForm({ permissionMode: value })}
             portalContainer={portalContainer}
             ariaLabel={t('library.config.agent.field.permission_mode.label')}
+            scopeName={agentName.trim() || undefined}
             t={t}
           />
           <FormMessage className="col-start-2" />
@@ -1017,6 +1057,7 @@ function AgentPromptField({
 }) {
   const { t } = useTranslation()
   const [resetPreviewKey, setResetPreviewKey] = useState(0)
+  const [polishing, setPolishing] = useState(false)
   const instructions = form.watch('instructions')
   const name = form.watch('name')
   const processedInstructions = usePromptProcessor({
@@ -1059,10 +1100,12 @@ function AgentPromptField({
               emptyValueSystemPrompt={AGENT_PROMPT}
               existingValueSystemPrompt={RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT}
               onChange={handlePromptActionChange}
+              onRunningChange={setPolishing}
             />
           }
           minHeight={EDIT_DIALOG_PROMPT_MIN_HEIGHT}
           maxHeight={EDIT_DIALOG_PROMPT_MAX_HEIGHT}
+          disabled={polishing}
         />
       )}
     />

@@ -205,6 +205,66 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     ).not.toContain('anthropic-cache')
   })
 
+  it('gateway-anthropic-cache activates only for the Vercel AI Gateway with caching enabled', () => {
+    const gatewayScope = (settings: Provider['settings'] = {}) =>
+      makeScope({
+        provider: { id: 'gateway', presetProviderId: 'gateway', settings },
+        model: { id: 'gateway::anthropic/claude-sonnet-4', providerId: 'gateway' },
+        endpointType: 'openai-chat-completions',
+        aiSdkProviderId: 'gateway'
+      })
+
+    const names = activeNames(gatewayScope())
+    expect(names).toContain('gateway-anthropic-cache')
+    // Markers placed for the Anthropic wire never reach the gateway, so they must not be emitted.
+    expect(names).not.toContain('anthropic-cache')
+
+    expect(activeNames(gatewayScope({ cacheControl: { enabled: false, tokenThreshold: 1024 } }))).not.toContain(
+      'gateway-anthropic-cache'
+    )
+    expect(
+      activeNames(
+        makeScope({
+          provider: { id: 'anthropic', settings: {} },
+          model: {},
+          endpointType: 'anthropic-messages',
+          aiSdkProviderId: 'anthropic'
+        })
+      )
+    ).not.toContain('gateway-anthropic-cache')
+  })
+
+  it('bedrock-anthropic-cache activates only for Claude on Bedrock with caching enabled, after anthropic-cache', () => {
+    const bedrockScope = (apiModelId: string, settings: Provider['settings'] = {}) =>
+      makeScope({
+        provider: { id: 'aws-bedrock', settings },
+        model: { id: `aws-bedrock::${apiModelId}`, apiModelId, providerId: 'aws-bedrock' },
+        endpointType: 'anthropic-messages',
+        aiSdkProviderId: 'bedrock'
+      })
+
+    const names = activeNames(bedrockScope('global.anthropic.claude-sonnet-4-6'))
+    expect(names).toContain('anthropic-cache')
+    expect(names.indexOf('bedrock-anthropic-cache')).toBe(names.indexOf('anthropic-cache') + 1)
+
+    expect(activeNames(bedrockScope('meta.llama3-3-70b-instruct-v1:0'))).not.toContain('bedrock-anthropic-cache')
+    expect(
+      activeNames(
+        bedrockScope('global.anthropic.claude-sonnet-4-6', { cacheControl: { enabled: false, tokenThreshold: 1024 } })
+      )
+    ).not.toContain('bedrock-anthropic-cache')
+    expect(
+      activeNames(
+        makeScope({
+          provider: { id: 'anthropic', settings: {} },
+          model: {},
+          endpointType: 'anthropic-messages',
+          aiSdkProviderId: 'anthropic'
+        })
+      )
+    ).not.toContain('bedrock-anthropic-cache')
+  })
+
   it('no-think activates only on OVMS with at least one MCP tool', () => {
     expect(activeNames(makeScope({ provider: { id: 'ovms' }, model: {}, mcpToolIds: ['mcp__a__b'] }))).toContain(
       'no-think'

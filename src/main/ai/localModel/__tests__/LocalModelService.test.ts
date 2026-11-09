@@ -85,7 +85,9 @@ describe('lifecycle', () => {
     await expect(localModelService._doInit()).resolves.toBeUndefined()
 
     const swept = sweepStaleDownloads.mock.calls.map((call) => call[0].id).sort()
-    expect(swept).toEqual([EMBEDDING, OCR, ASR, 'qwen3-tts-0.6b-customvoice-8bit', 'kokoro-multi-lang-v1.1'].sort())
+    expect(swept).toEqual(
+      [EMBEDDING, OCR, ASR, 'qwen3-asr-1.7b-8bit', 'qwen3-tts-0.6b-customvoice-8bit', 'kokoro-multi-lang-v1.1'].sort()
+    )
   })
 
   it('cancels an in-flight download on stop instead of leaving it to die with the process', async () => {
@@ -124,6 +126,21 @@ describe('status snapshots', () => {
     expect(localModelService.refreshStatus(EMBEDDING)).toEqual({ status: 'ready' })
     expect(MockMainCacheServiceUtils.getSharedCacheValue(LOCAL_MODEL_STATUS_CACHE_KEY)).toEqual({
       [EMBEDDING]: { status: 'ready', percent: 100 }
+    })
+  })
+
+  it('publishes the missing-runtime hint with the installed model files', () => {
+    onDisk({ [OCR]: INSTALLED })
+    isArtifactReady.mockReturnValue(false)
+
+    expect(localModelService.refreshStatus(OCR)).toEqual({
+      status: 'not_downloaded',
+      hintCode: 'missing_shared_runtime'
+    })
+    expect(MockMainCacheServiceUtils.getSharedCacheValue(LOCAL_MODEL_STATUS_CACHE_KEY)?.[OCR]).toEqual({
+      status: 'not_downloaded',
+      percent: 0,
+      hintCode: 'missing_shared_runtime'
     })
   })
 
@@ -168,6 +185,18 @@ describe('shared artifact cleanup', () => {
     await localModelService.remove(OCR)
 
     expect(removeArtifactIfUnused).not.toHaveBeenCalledWith('onnxruntime-node')
+  })
+
+  it('preserves MLX for installed TTS when Qwen3 ASR is removed', async () => {
+    onDisk({ 'qwen3-tts-0.6b-customvoice-8bit': INSTALLED })
+    removeArtifactIfUnused.mockImplementation(async (id) => {
+      if (id === 'mlx-node') throw new Error('Live TTS runtime would be deleted')
+      return true
+    })
+    await expect(localModelService.remove('qwen3-asr-1.7b-8bit')).resolves.toEqual({ removed: true })
+    expect(removeArtifactIfUnused.mock.calls.flat()).not.toContain('mlx-node')
+    expect(localModelService.isModelReady('qwen3-tts-0.6b-customvoice-8bit')).toBe(true)
+    expect(localModelService.isModelReady('qwen3-asr-1.7b-8bit')).toBe(false)
   })
 
   it('does not let a locked runtime turn cleanup into a failure', async () => {

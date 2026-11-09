@@ -108,3 +108,19 @@ describe('validateFileName', () => {
     expect(validateFileName('hello.txt')).toEqual({ valid: true })
   })
 })
+
+describe('filename edge cases', () => {
+  it('keeps surrogate pairs whole when truncating to 255 code units', () => {
+    const sanitized = sanitizeFilename('😀'.repeat(200))
+
+    expect(sanitized.length).toBeLessThanOrEqual(255)
+    expect([...sanitized].every((character) => character.length === 2)).toBe(true)
+  })
+
+  it('rejects ASCII control characters for win32 names', () => {
+    const result = validateFileName('report\u0001.pdf', 'win32')
+
+    expect(result.valid).toBe(false)
+    if (!result.valid) expect(result.error).toMatch(/control/i)
+  })
+})

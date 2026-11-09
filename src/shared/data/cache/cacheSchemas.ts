@@ -2,11 +2,15 @@ import type { AiUsageRecordListSortBy, AiUsageRecordSortOrder } from '@shared/da
 import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { LocalModelStatusSnapshots } from '@shared/data/presets/localModel'
 import type { ChannelStatus } from '@shared/data/types/channel'
+import type { FileProcessingTask } from '@shared/data/types/fileProcessing'
 import type { MiniAppRegion, TransientMiniApp } from '@shared/data/types/miniApp'
 import type { Currency } from '@shared/data/types/model'
+import type { CherryCloudPlanModel } from '@shared/ipc/schemas/cherryCloud'
 import type { AutoBackupEvent, AutoBackupType } from '@shared/types/backup'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import type { ManagedToolStatusState } from '@shared/types/managedTool'
+import type { SelectionAgentCapsule } from '@shared/types/selection'
+import type { MarketplaceSkillMember, SkillSubscriptionSnapshot } from '@shared/types/skillMarketplace'
 import type { StorageHealth } from '@shared/types/storageMonitor'
 
 import type { TopicStatusSnapshotEntry } from '../../ai/transport'
@@ -121,7 +125,7 @@ export type ProcessKey<K extends string> = IsTemplateKey<K> extends true ? Expan
 
 export type UseCacheSchema = {
   // App state
-  'app.dist.update_state': CacheValueTypes.CacheAppUpdateState
+  'app.dist.update_state': Pick<CacheValueTypes.CacheAppUpdateState, 'ignore' | 'manualCheck'>
 
   'app.path.resources': string
 
@@ -142,6 +146,14 @@ export type UseCacheSchema = {
   'ui.window.chat.right_pane_open_override': boolean | null
   'ui.window.agent.right_pane_open_override': boolean | null
 
+  // Detached Chat/Agent windows keep list-group expansion within their renderer process. These
+  // values are seeded from the matching persisted preference but never sync back to the main window.
+  'ui.window.chat.topic.expansion.time': string[]
+  'ui.window.chat.topic.expansion.assistant': string[] | null
+  'ui.window.agent.session.expansion.time': string[]
+  'ui.window.agent.session.expansion.agent': string[] | null
+  'ui.window.agent.session.expansion.workdir': string[] | null
+
   // Knowledge recall test query history (session-only)
   'knowledge.recall.search_queries': Record<string, string[]>
 
@@ -158,6 +170,7 @@ export type UseCacheSchema = {
 
   // Agent management
   'agent.session.waiting_id_map': Record<string, boolean>
+  'agent.session.details_hidden': string[]
   // Per-session composer draft. Renderer memory only; app restart discards it.
   'agent.composer_draft.${sessionId}': CacheValueTypes.CacheAgentComposerDraft
   // Unsubmitted AskUserQuestion answers. Renderer memory only; cleared on submit/dismiss.
@@ -198,6 +211,7 @@ export type UseCacheSchema = {
   'message.streaming.chat_session.${topicId}': any // { chat: Chat<CherryUIMessage> } (renderer memory-only)
   'message.ui.${messageId}': {
     foldSelected?: boolean
+    foldSelectedBranchId?: string | null
     multiModelMessageStyle?: string
     useful?: boolean
     disclosures?: Record<string, boolean>
@@ -207,12 +221,6 @@ export type UseCacheSchema = {
 export const DefaultUseCache: UseCacheSchema = {
   // App state
   'app.dist.update_state': {
-    info: null,
-    checking: false,
-    downloading: false,
-    downloaded: false,
-    downloadProgress: 0,
-    available: false,
     ignore: false,
     manualCheck: false
   },
@@ -235,6 +243,11 @@ export const DefaultUseCache: UseCacheSchema = {
   'ui.window.chat.resource_pane.width': 275,
   'ui.window.chat.right_pane_open_override': null,
   'ui.window.agent.right_pane_open_override': null,
+  'ui.window.chat.topic.expansion.time': [],
+  'ui.window.chat.topic.expansion.assistant': null,
+  'ui.window.agent.session.expansion.time': [],
+  'ui.window.agent.session.expansion.agent': null,
+  'ui.window.agent.session.expansion.workdir': null,
   'knowledge.recall.search_queries': {},
   'notes.active_file_path': undefined,
 
@@ -248,6 +261,7 @@ export const DefaultUseCache: UseCacheSchema = {
 
   // Agent management
   'agent.session.waiting_id_map': {},
+  'agent.session.details_hidden': [],
   'agent.composer_draft.${sessionId}': {
     text: '',
     tokens: [],
@@ -291,6 +305,7 @@ export const DefaultUseCache: UseCacheSchema = {
  * Use shared cache schema for renderer hook
  */
 export type SharedCacheSchema = {
+  'app.dist.update_status': Omit<CacheValueTypes.CacheAppUpdateState, 'ignore' | 'manualCheck'>
   'chat.web_search.active_searches': CacheValueTypes.CacheActiveSearches
   'mcp.tools.${serverId}': CacheValueTypes.CacheMcpTool[]
   'mcp.status.${serverId}': CacheValueTypes.McpRuntimeStatus
@@ -306,7 +321,6 @@ export type SharedCacheSchema = {
   'agent.session.slash_commands.${sessionId}': CacheValueTypes.CacheAgentSessionSlashCommands
   'agent.session.background_tasks.${sessionId}': CacheValueTypes.CacheAgentSessionBackgroundTasks
   'agent.session.task_events.${sessionId}': CacheValueTypes.CacheAgentSessionTaskEvents
-  'agent.session.flow_parts.${sessionId}.${messageId}': CacheValueTypes.CacheAgentSessionFlowParts
   'agent.session.turn_origin.${sessionId}.${messageId}': CacheValueTypes.CacheAgentSessionTurnOrigin
   'message.context.compacting.${messageId}': boolean
   'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
@@ -320,6 +334,8 @@ export type SharedCacheSchema = {
   'feature.api_gateway.lan_running': boolean
   // Main-owned, session-only local model status and download progress.
   'local_model.statuses': LocalModelStatusSnapshots
+  // Main-owned capsule stack of collapsed selection agent windows on one display, nearest the corner first.
+  'selection.agent_capsules.${displayId}': SelectionAgentCapsule[]
   'feature.binary.latest_versions': Record<string, string>
   // API key rotation state (cross-window, tracks last used key per provider)
   'web_search.provider.last_used_key.${providerId}': string
@@ -356,13 +372,25 @@ export type SharedCacheSchema = {
   // Directory copy progress for a knowledge item, main -> all windows. Like
   // embedding progress, the prepare job owns this runtime-only value.
   'knowledge.item.directory_copy_progress.${itemId}': number | null
-  // File-processing progress for a knowledge item, main -> all windows. The check job
-  // mirrors the linked file-processing job's progress here every poll round so the row can
-  // show a percentage during the 'processing' wait; absence means no progress was reported.
+  // File-processing progress for a knowledge item, main -> all windows. KnowledgeService
+  // mirrors the progress of the task the item waits on here when it changes, so the row can
+  // show a percentage during the 'processing' wait; absence means the conversion has not started.
   'knowledge.item.file_processing_progress.${itemId}': number | null
+  // A file-processing task's latest state, main -> all windows. FileProcessingService rewrites it on
+  // every change and lets only a terminal state expire; after that, ask `file_processing.get_task`.
+  'file_processing.task.${taskId}': FileProcessingTask | null
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {
+  'app.dist.update_status': {
+    lastErrorKey: null,
+    info: null,
+    checking: false,
+    downloading: false,
+    downloaded: false,
+    downloadProgress: 0,
+    available: false
+  },
   'chat.web_search.active_searches': {},
   'mcp.tools.${serverId}': [],
   'mcp.status.${serverId}': { state: 'disabled', lastCheckedAt: 0 },
@@ -377,7 +405,6 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'agent.session.slash_commands.${sessionId}': null,
   'agent.session.background_tasks.${sessionId}': [],
   'agent.session.task_events.${sessionId}': {},
-  'agent.session.flow_parts.${sessionId}.${messageId}': [],
   'agent.session.turn_origin.${sessionId}.${messageId}': null,
   'message.context.compacting.${messageId}': false,
   'topic.stream.statuses.${topicId}': null,
@@ -389,6 +416,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'feature.remote_access.discovery_status': 'inactive',
   'feature.api_gateway.lan_running': false,
   'local_model.statuses': {},
+  'selection.agent_capsules.${displayId}': [],
   'feature.binary.latest_versions': {},
   'web_search.provider.last_used_key.${providerId}': '',
   'ocr.provider.last_used_key.${providerId}': '',
@@ -403,7 +431,8 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'storage.health': { level: 'ok', freeBytes: 0, totalBytes: 0, checkedAt: 0 },
   'backup.auto_sync.state.${type}': null,
   'knowledge.item.directory_copy_progress.${itemId}': null,
-  'knowledge.item.file_processing_progress.${itemId}': null
+  'knowledge.item.file_processing_progress.${itemId}': null,
+  'file_processing.task.${taskId}': null
 }
 
 /**
@@ -448,8 +477,13 @@ export type RendererPersistCacheSchema = {
   'ui.agent.session.expansion.time': string[]
   'ui.agent.session.expansion.agent': string[] | null
   'ui.agent.session.expansion.workdir': string[] | null
+  // Workspace paths whose file tree is unpinned in a wide Agent file pane; absent means pinned.
+  'ui.agent.file_pane.unpinned_tree_workspaces': string[]
+  // File tree column width in a wide Agent file pane, in pixels.
+  'ui.agent.file_pane.tree_width': number
   'settings.provider.last_selected_provider_id': string | null
   'settings.provider.filter_mode': 'all' | 'agent' | 'enabled' | 'disabled'
+  'settings.skills.enabled_only': boolean
   'settings.device_connections.step': 'download' | 'connect' | 'complete'
   // Usage statistics view selections, persisted so leaving and re-entering the page restores
   // them. The heatmap drill-down date stays component-local: a stored past date would reopen
@@ -477,6 +511,11 @@ export type RendererPersistCacheSchema = {
   'ui.screenshot.annotation_color': string
   'ui.screenshot.annotation_stroke_width': number
   'ui.screenshot.annotation_font_size': number
+  // Set once any Subscribe touchpoint is used; hides the account-avatar subscription dot for good.
+  'ui.cherry_cloud.subscribe_prompt_seen': boolean
+  // Paid plan models last seen while signed in; the plans API needs a session, and the model picker
+  // keeps offering them as locked rows after sign-out.
+  'ui.cherry_cloud.plan_models': CherryCloudPlanModel[]
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
@@ -504,8 +543,11 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.agent.session.expansion.time': [],
   'ui.agent.session.expansion.agent': null,
   'ui.agent.session.expansion.workdir': null,
+  'ui.agent.file_pane.unpinned_tree_workspaces': [],
+  'ui.agent.file_pane.tree_width': 256,
   'settings.provider.last_selected_provider_id': null,
   'settings.provider.filter_mode': 'all',
+  'settings.skills.enabled_only': false,
   'settings.device_connections.step': 'download',
   'settings.usage.window': '30d',
   'settings.usage.group_by': 'provider',
@@ -525,7 +567,9 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   // or the overlay opens with no swatch, width or size marked as current.
   'ui.screenshot.annotation_color': '#F54A45',
   'ui.screenshot.annotation_stroke_width': 4,
-  'ui.screenshot.annotation_font_size': 20
+  'ui.screenshot.annotation_font_size': 20,
+  'ui.cherry_cloud.subscribe_prompt_seen': false,
+  'ui.cherry_cloud.plan_models': []
 }
 
 /**
@@ -536,10 +580,15 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
  * with, or readable by the renderer.
  */
 export type MainPersistCacheSchema = {
+  'skill.subscription.catalogs': Record<string, SkillSubscriptionSnapshot>
+  // ZIP-derived contents only; installed state still comes from the skill library.
+  'skill.marketplace.members': Record<string, MarketplaceSkillMember[]>
   'browser.favicons': Record<string, string>
   // Last completed automatic-backup attempt (or manual backup) per backend.
   // AutoBackupService owns this restart-safe scheduling baseline.
   'backup.auto_sync.last_attempt_times': Record<AutoBackupType, number | null>
+  // Last processed Cherry Cloud notification position per account id; losing one only rebuilds that baseline.
+  'cherry_cloud.notification_cursors': Record<string, string>
   // Persist-layer self-test key: exercises the typed persist API and round-trip
   // tests for the generic mechanism, independent of any real consumer.
   'internal.persist_probe': number
@@ -551,8 +600,11 @@ export type MainPersistCacheSchema = {
 }
 
 export const DefaultMainPersistCache: MainPersistCacheSchema = {
+  'skill.subscription.catalogs': {},
+  'skill.marketplace.members': {},
   'browser.favicons': {},
   'backup.auto_sync.last_attempt_times': { webdav: null, s3: null, local: null, nutstore: null },
+  'cherry_cloud.notification_cursors': {},
   'internal.persist_probe': 0,
   'window.bounds': {}
 }

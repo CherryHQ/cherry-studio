@@ -17,6 +17,7 @@ const logger = loggerService.withContext('LocalModelsSection')
 const CARD_NOTICE_KEYS = {
   downloadFailed: 'settings.dependencies.localModels.notice.downloadFailed',
   incompleteCache: 'settings.dependencies.localModels.notice.incompleteCache',
+  missingRuntime: 'settings.dependencies.localModels.notice.missingRuntime',
   removeFailed: 'settings.dependencies.localModels.notice.removeFailed',
   inUse: 'settings.dependencies.localModels.notice.inUse'
 } as const
@@ -25,6 +26,11 @@ type CardNotice = keyof typeof CARD_NOTICE_KEYS
 
 /** Display metadata belongs to the installed model, not its capability. */
 const MODEL_CARDS = {
+  'qwen3-asr-1.7b-8bit': {
+    icon: <Mic className="size-5" />,
+    nameKey: 'settings.voice.model.qwen3_asr',
+    sources: ['Qwen/Qwen3-ASR-1.7B-hf']
+  },
   'kokoro-multi-lang-v1.1': {
     icon: <Volume2 className="size-5" />,
     nameKey: 'settings.voice.model.kokoro_tts',
@@ -95,7 +101,9 @@ function useLocalModelCard(id: LocalModelBundleId) {
         ? localModel.errorCode === 'incomplete_cache'
           ? 'incompleteCache'
           : 'downloadFailed'
-        : null),
+        : localModel.hintCode === 'missing_shared_runtime'
+          ? 'missingRuntime'
+          : null),
     download,
     remove
   }

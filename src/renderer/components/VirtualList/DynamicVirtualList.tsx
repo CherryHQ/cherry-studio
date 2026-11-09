@@ -1,21 +1,9 @@
 import type { Range, ScrollToOptions, VirtualItem, VirtualizerOptions } from '@tanstack/react-virtual'
 import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
-import React, {
-  memo,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState
-} from 'react'
+import React, { memo, useCallback, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
+import { ScrollArea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-
-const SCROLLBAR_AUTO_HIDE_DELAY = 2000
-const STICKY_ITEM_Z_INDEX = 1
-const ACTIVE_STICKY_ITEM_Z_INDEX_BASE = 2
 
 type InheritedVirtualizerOptions = Partial<
   Omit<
@@ -108,6 +96,11 @@ export interface DynamicVirtualListProps<T> extends InheritedVirtualizerOptions 
    */
   scrollerStyle?: React.CSSProperties
 
+  /** Layout classes for the scroll area root. */
+  scrollAreaClassName?: string
+
+  scrollHideDelay?: number
+
   /**
    * Scroll container role
    */
@@ -167,6 +160,8 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
     rangeExtractor: customRangeExtractor,
     itemContainerStyle,
     scrollerStyle,
+    scrollAreaClassName,
+    scrollHideDelay = 2000,
     role = 'region',
     scrollElementRef,
     scrollerProps,
@@ -177,8 +172,6 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
     ...restOptions
   } = props
 
-  const [showScrollbar, setShowScrollbar] = useState(!autoHideScrollbar)
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   const internalScrollerRef = useRef<HTMLDivElement>(null)
   const setScrollerRef = useCallback(
     (node: HTMLDivElement | null) => {
@@ -196,15 +189,16 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
 
   useLayoutEffect(() => {
     const content = contentRef.current
-    if (!externalScrollElement || !content) return undefined
+    const scrollElement = usesExternalScroll ? externalScrollElement : internalScrollerRef.current
+    if (!usesExternalScroll || !scrollElement || !content) return undefined
 
     const measureScrollMargin = () => {
       const contentRect = content.getBoundingClientRect()
-      const scrollRect = externalScrollElement.getBoundingClientRect()
+      const scrollRect = scrollElement.getBoundingClientRect()
       setExternalScrollMargin(
         horizontal
-          ? contentRect.left - scrollRect.left + externalScrollElement.scrollLeft - externalScrollElement.clientLeft
-          : contentRect.top - scrollRect.top + externalScrollElement.scrollTop - externalScrollElement.clientTop
+          ? contentRect.left - scrollRect.left + scrollElement.scrollLeft - scrollElement.clientLeft
+          : contentRect.top - scrollRect.top + scrollElement.scrollTop - scrollElement.clientTop
       )
     }
     measureScrollMargin()
@@ -212,13 +206,13 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
     // Preceding siblings can move the list without resizing a min-height ancestor.
     for (let element: HTMLElement | null = content; element; element = element.parentElement) {
       observer.observe(element)
-      if (element === externalScrollElement) break
+      if (element === scrollElement) break
       for (let sibling = element.previousElementSibling; sibling; sibling = sibling.previousElementSibling) {
         observer.observe(sibling)
       }
     }
     return () => observer.disconnect()
-  }, [externalScrollElement, horizontal])
+  }, [externalScrollElement, usesExternalScroll, horizontal, isSticky, header])
 
   const activeStickyIndexesRef = useRef<number[]>([])
 
@@ -291,33 +285,13 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
   )
   const resolvedRangeExtractor = keepMountedIndexes.length > 0 ? rangeExtractorWithKeptIndexes : baseRangeExtractor
 
-  const handleScrollbarHide = useCallback(
-    (isScrolling: boolean) => {
-      if (!autoHideScrollbar) return
-
-      if (timeoutRef.current) clearTimeout(timeoutRef.current)
-      if (isScrolling) {
-        setShowScrollbar(true)
-      } else {
-        timeoutRef.current = setTimeout(() => {
-          setShowScrollbar(false)
-        }, SCROLLBAR_AUTO_HIDE_DELAY)
-      }
-    },
-    [autoHideScrollbar]
-  )
-
   const virtualizer = useVirtualizer({
     ...restOptions,
     count: list.length,
     getScrollElement: () => (usesExternalScroll ? externalScrollElement : internalScrollerRef.current),
     scrollMargin,
     estimateSize,
-    rangeExtractor: resolvedRangeExtractor,
-    onChange: (instance, sync) => {
-      restOptions.onChange?.(instance, sync)
-      handleScrollbarHide(instance.isScrolling)
-    }
+    rangeExtractor: resolvedRangeExtractor
   })
   const previousListLengthRef = useRef(list.length)
 
@@ -329,14 +303,6 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
       virtualizer.measure()
     }
   }, [list.length, virtualizer])
-
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current)
-      }
-    }
-  }, [autoHideScrollbar])
 
   useImperativeHandle(
     ref,
@@ -355,37 +321,30 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
 
   const virtualItems = virtualizer.getVirtualItems()
   const totalSize = virtualizer.getTotalSize()
+  const maxStickyDepth = stickyIndexes.reduce((max, index) => Math.max(max, getItemDepth?.(index) ?? 0), 0)
+  let previousStickyEnd = 0
   const hasFixedItemSize = horizontal
     ? itemContainerStyle?.width !== undefined
     : itemContainerStyle?.height !== undefined
   const measureItemElement = hasFixedItemSize ? undefined : virtualizer.measureElement
 
-  return (
-    <div
-      {...scrollerProps}
-      ref={setScrollerRef}
-      className={cn(
-        'dynamic-virtual-list [&::-webkit-scrollbar-thumb]:transition-[background] [&::-webkit-scrollbar-thumb]:duration-300 [&::-webkit-scrollbar-thumb]:ease-in-out [&::-webkit-scrollbar-thumb]:will-change-[background] [&::-webkit-scrollbar-thumb:hover]:bg-[var(--scrollbar-thumb-hover)]',
-        isSticky && 'isolate',
-        autoHideScrollbar && !showScrollbar
-          ? '[&::-webkit-scrollbar-thumb]:bg-transparent'
-          : '[&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)]',
-        className
-      )}
-      role={role}
-      onScroll={onScroll}
-      style={{
-        overflow: usesExternalScroll ? 'visible' : 'auto',
-        scrollbarColor:
-          autoHideScrollbar && !showScrollbar ? 'transparent transparent' : 'var(--scrollbar-thumb) transparent',
-        ...(usesExternalScroll ? {} : horizontal ? { width: size ?? '100%' } : { height: size ?? '100%' }),
-        ...scrollerStyle
-      }}>
+  const viewportProps = {
+    ...scrollerProps,
+    ref: setScrollerRef,
+    className: cn('dynamic-virtual-list', isSticky && 'isolate', className),
+    role,
+    onScroll,
+    style: scrollerStyle
+  }
+
+  const content = (
+    <>
       {header}
       <div
         ref={contentRef}
         style={{
           position: 'relative',
+          ...(isSticky && { display: 'flex', flexDirection: horizontal ? 'row' : 'column' }),
           width: horizontal ? `${totalSize}px` : '100%',
           height: !horizontal ? `${totalSize}px` : '100%'
         }}>
@@ -393,19 +352,24 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
           const isItemSticky = stickyIndexes.includes(virtualItem.index)
           const isItemActiveSticky = isItemSticky && activeStickyIndexesRef.current.includes(virtualItem.index)
 
-          // Calculate the sticky offset for multi-level sticky headers
-          const activeStickyIndex = isItemActiveSticky ? activeStickyIndexesRef.current.indexOf(virtualItem.index) : -1
-
-          // Calculate cumulative offset based on actual sizes of previous sticky items
+          const isItemClamped =
+            isItemSticky && (isItemActiveSticky || virtualItem.index >= (virtualizer.range?.startIndex ?? 0))
+          const depth = getItemDepth?.(virtualItem.index) ?? 0
+          let ancestorDepth = depth
           let stickyOffset = 0
-          if (activeStickyIndex >= 0) {
-            for (let i = 0; i < activeStickyIndex; i++) {
-              const prevStickyIndex = activeStickyIndexesRef.current[i]
-              stickyOffset += estimateSize(prevStickyIndex)
+          for (let i = stickyIndexes.length - 1; i >= 0 && ancestorDepth > 0; i--) {
+            const index = stickyIndexes[i]
+            if (index >= virtualItem.index) continue
+            const candidateDepth = getItemDepth?.(index) ?? 0
+            if (candidateDepth < ancestorDepth) {
+              stickyOffset += virtualItems.find((item) => item.index === index)?.size ?? estimateSize(index)
+              ancestorDepth = candidateDepth
             }
           }
-          const activeStickyZIndex =
-            ACTIVE_STICKY_ITEM_Z_INDEX_BASE + activeStickyIndexesRef.current.length - activeStickyIndex
+          const naturalOffset = virtualItem.start - scrollMargin
+          // In-flow gaps preserve virtual coordinates while native sticky follows compositor scrolling.
+          const flowGap = naturalOffset - previousStickyEnd
+          if (isItemClamped) previousStickyEnd = naturalOffset + virtualItem.size
 
           // Check if this item is visually covered by sticky items
           // If covered, disable pointer events to prevent hover/click bleeding through
@@ -426,23 +390,26 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
 
           const style: React.CSSProperties = {
             ...itemContainerStyle,
-            position: isItemActiveSticky ? 'sticky' : 'absolute',
-            top: isItemActiveSticky ? stickyOffset : 0,
-            left: 0,
-            zIndex: isItemActiveSticky ? activeStickyZIndex : isItemSticky ? STICKY_ITEM_Z_INDEX : 0,
+            position: isItemClamped ? 'sticky' : 'absolute',
+            top: horizontal || !isItemClamped ? 0 : stickyOffset,
+            left: horizontal && isItemClamped ? stickyOffset : 0,
+            ...(isItemClamped && { flexShrink: 0 }),
+            zIndex: isItemSticky ? 1 + maxStickyDepth - depth : 0,
             pointerEvents: isCoveredBySticky ? 'none' : 'auto',
-            ...(isItemActiveSticky && {
+            ...(isItemClamped && {
               // --card, not --background: the latter is translucent in dark mode, so rows
               // scrolling under a pinned header would show through it.
               backgroundColor: 'var(--card)'
             }),
             ...(horizontal
               ? {
-                  transform: isItemActiveSticky ? undefined : `translateX(${virtualItem.start - scrollMargin}px)`,
+                  ...(isItemClamped && { marginLeft: flowGap }),
+                  transform: isItemClamped ? undefined : `translateX(${naturalOffset}px)`,
                   height: '100%'
                 }
               : {
-                  transform: isItemActiveSticky ? undefined : `translateY(${virtualItem.start - scrollMargin}px)`,
+                  ...(isItemClamped && { marginTop: flowGap }),
+                  transform: isItemClamped ? undefined : `translateY(${naturalOffset}px)`,
                   width: '100%'
                 })
           }
@@ -454,7 +421,31 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
           )
         })}
       </div>
-    </div>
+    </>
+  )
+
+  if (usesExternalScroll) {
+    return (
+      <div {...viewportProps} style={{ ...scrollerStyle, overflow: 'visible' }}>
+        {content}
+      </div>
+    )
+  }
+
+  return (
+    <ScrollArea
+      className={scrollAreaClassName}
+      style={{
+        ...(horizontal ? { width: size ?? '100%' } : { height: size ?? '100%' }),
+        pointerEvents: scrollerStyle?.pointerEvents
+      }}
+      orientation={horizontal ? 'horizontal' : scrollerStyle?.overflowX === 'auto' ? 'both' : 'vertical'}
+      type={autoHideScrollbar ? 'scroll' : 'auto'}
+      scrollHideDelay={scrollHideDelay}
+      viewportProps={viewportProps}
+      contentProps={horizontal ? { className: 'h-full' } : undefined}>
+      {content}
+    </ScrollArea>
   )
 }
 

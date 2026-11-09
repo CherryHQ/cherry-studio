@@ -15,6 +15,7 @@ import type * as ImageTransportRegistryModule from '../provider/custom/imageTran
 import type * as ListModelsModule from '../provider/listModels'
 import type { AiStreamRequest } from '../types/requests'
 import type * as CustomFetchModule from '../utils/customFetch'
+import { makeModel } from './fixtures/model'
 import { makeProvider } from './fixtures/provider'
 
 type AiServicePrivate = {
@@ -70,7 +71,8 @@ const mockAddFileRefsTx = vi.fn()
 
 vi.mock('@application', () => ({
   application: {
-    get: mockApplicationGet,
+    get: (name: string) =>
+      name === 'RuntimeActivityService' ? defaultServiceInstances.RuntimeActivityService : mockApplicationGet(name),
     getPath: vi.fn((key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`))
   }
 }))
@@ -301,6 +303,114 @@ describe('AiService', () => {
     mockRecordRequest.mockResolvedValue(undefined)
   })
 
+  describe('sleep prevention', () => {
+    afterEach(() => vi.restoreAllMocks())
+
+    it.each(['text', 'image', 'embedding', 'rerank'] as const)(
+      'holds independently for concurrent %s requests and releases on success, error, and abort',
+      async (modality) => {
+        const holds = new Set<symbol>()
+        vi.spyOn(defaultServiceInstances.RuntimeActivityService, 'begin').mockImplementation(() => {
+          const token = Symbol()
+          holds.add(token)
+          return {
+            dispose: vi.fn(() => {
+              holds.delete(token)
+            })
+          }
+        })
+        const imageSave = Promise.withResolvers<unknown>()
+        let savingImage = false
+        mockApplicationGet.mockImplementation((name: string) =>
+          name === 'FileManager'
+            ? {
+                createInternalEntry: () => {
+                  savingImage = true
+                  return imageSave.promise
+                }
+              }
+            : defaultServiceInstances[name as keyof typeof defaultServiceInstances]
+        )
+        const service = createService()
+        const transport = {
+          sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+          credentialReceipt: { attribution: 'unknown' },
+          provider: mockProviderGetByProviderId(),
+          model: mockModelGetByKey(),
+          plugins: [],
+          options: {},
+          hookParts: [],
+          nativeFileSupport: { image: false, pdf: false, audio: false, video: false }
+        }
+        vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue(transport)
+        vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue(transport)
+        mockResolveImageTransport.mockReturnValue(undefined)
+        const pending: Array<ReturnType<typeof Promise.withResolvers<unknown>>> = []
+        const providerCall = (...args: unknown[]) => {
+          const call = Promise.withResolvers<unknown>()
+          const { abortSignal: signal } = (modality === 'text' ? args[0] : args[2]) as { abortSignal?: AbortSignal }
+          signal?.addEventListener('abort', () => call.reject(signal.reason), { once: true })
+          pending.push(call)
+          return call.promise
+        }
+        const sdkMock = {
+          text: mockAgentGenerate,
+          image: mockGenerateImage,
+          embedding: mockEmbedMany,
+          rerank: mockRerank
+        }[modality]
+        sdkMock.mockImplementation(providerCall)
+        const request = { uniqueModelId: 'test-provider::test-model' as const }
+        const run = (signal?: AbortSignal) => {
+          const input = { ...request, requestOptions: { signal, maxRetries: 0 } }
+          switch (modality) {
+            case 'text':
+              return service.generateText({ ...input, conversation: { id: 'power-test' }, prompt: 'hi' })
+            case 'image':
+              return service.generateImage({ ...input, prompt: 'a cherry', paramValues: {}, cleanupPolicy: 'manual' })
+            case 'embedding':
+              return service.embedMany({ ...input, values: ['hi'] })
+            case 'rerank':
+              return service.rerank({ ...input, query: 'hi', documents: ['hi'] })
+          }
+        }
+        const first = run()
+        const second = run()
+        await vi.waitFor(() => expect(pending).toHaveLength(2))
+        expect(holds.size).toBe(2)
+        pending[0].resolve({
+          text: 'ok',
+          usage: {},
+          steps: [],
+          images: [{ base64: 'YQ==' }],
+          embeddings: [[1]],
+          ranking: []
+        })
+        if (modality === 'image') {
+          await vi.waitFor(() => expect(savingImage).toBe(true))
+          expect(holds.size).toBe(2)
+          imageSave.resolve({ id: 'saved-image' })
+        }
+        await first
+        expect(holds.size).toBe(1)
+        const failure = new Error('provider failed')
+        const rejected = expect(second).rejects.toThrow('provider failed')
+        pending[1].reject(failure)
+        await rejected
+        expect(holds.size).toBe(0)
+
+        const controller = new AbortController()
+        const cancelled = run(controller.signal)
+        await vi.waitFor(() => expect(pending).toHaveLength(3))
+        expect(holds.size).toBe(1)
+        const aborted = expect(cancelled).rejects.toMatchObject({ name: 'AbortError' })
+        controller.abort()
+        await aborted
+        expect(holds.size).toBe(0)
+      }
+    )
+  })
+
   it.each(['embedding', 'rerank', 'image'] as const)(
     'preserves developer HTTP traces for direct %s requests without a conversation',
     async (modality) => {
@@ -474,27 +584,28 @@ describe('AiService', () => {
     }
   })
 
-  it('routes agent-session runtime requests directly to the runtime service', async () => {
+  it('forwards the runtime message source without converting it into chunks', async () => {
     const service = createService()
-    const stream = new ReadableStream()
-    const openTurnStream = vi.fn(() => stream)
-    mockApplicationGet.mockReturnValue({ openTurnStream })
-
-    await expect(
-      service.streamText({
-        conversation: { id: 'session-1', topicId: 'agent-session:session-1' },
-        trigger: 'submit-message',
-        runtime: { kind: 'agent-session', sessionId: 'session-1', turnId: 'turn-1' },
-        requestOptions: { signal: new AbortController().signal }
+    const source = {
+      kind: 'messages' as const,
+      stream: new ReadableStream({
+        start(controller) {
+          controller.enqueue({ type: 'message', parts: [{ type: 'text', text: 'Native answer' }] })
+          controller.close()
+        }
       })
-    ).resolves.toBe(stream)
-
-    expect(mockApplicationGet).toHaveBeenCalledWith('AgentSessionRuntimeService')
-    expect(openTurnStream).toHaveBeenCalledWith({
-      sessionId: 'session-1',
-      turnId: 'turn-1',
-      signal: expect.any(AbortSignal)
+    }
+    mockApplicationGet.mockReturnValue({ openTurnStream: () => source })
+    const result = await service.streamText({
+      conversation: { id: 'session-1', topicId: 'agent-session:session-1' },
+      trigger: 'submit-message',
+      runtime: { kind: 'agent-session', sessionId: 'session-1', turnId: 'turn-1' },
+      requestOptions: { signal: new AbortController().signal }
     })
+    expect(result.kind).toBe('messages')
+    const reader = result.stream.getReader()
+    expect((await reader.read()).value).toEqual({ type: 'message', parts: [{ type: 'text', text: 'Native answer' }] })
+    expect((await reader.read()).done).toBe(true)
   })
 
   it('rejects agent-session streams that do not carry a runtime request', async () => {
@@ -924,6 +1035,44 @@ describe('AiService', () => {
     })
   })
 
+  // Assistant-bound image models reach generateImage without an explicit
+  // uniqueModelId — the transport routing must survive that shape (a bare
+  // `request.uniqueModelId` gate dropped them onto the generic image path).
+  describe('generateImage — transport routing via assistant model', () => {
+    it('routes an assistantId-only request for a transport provider through the job path', async () => {
+      const service = createService()
+      mockAssistantGetById.mockReturnValue({ id: 'assistant-1', name: 'Image Assistant', modelId: 'ppio::qwen-image' })
+      mockProviderGetByProviderId.mockReturnValue({ id: 'ppio', name: 'PPIO', presetProviderId: undefined })
+      mockModelGetByKey.mockReturnValue({
+        id: 'ppio::qwen-image',
+        providerId: 'ppio',
+        apiModelId: 'qwen-image',
+        name: 'Qwen Image',
+        capabilities: []
+      })
+      const viaJob = vi
+        .spyOn(
+          service as unknown as {
+            generateImageViaJob: (request: { uniqueModelId?: string }) => Promise<{ images: string[] }>
+          },
+          'generateImageViaJob'
+        )
+        .mockResolvedValue({ images: [] })
+
+      await service.generateImage({
+        assistantId: 'assistant-1',
+        prompt: 'draw a cat',
+        cleanupPolicy: 'delete_when_unreferenced',
+        paramValues: {}
+      })
+
+      expect(viaJob).toHaveBeenCalledTimes(1)
+      // The job payload must carry the assistant-resolved model, not undefined.
+      expect(viaJob.mock.calls[0][0]).toMatchObject({ uniqueModelId: 'ppio::qwen-image' })
+      expect(mockGenerateImage).not.toHaveBeenCalled()
+    })
+  })
+
   // `embedMany`'s usage-record write had zero coverage before this: neither the payload
   // shape (modality/token count) nor the failure-must-not-disrupt-the-request
   // contract was tested.
@@ -1101,11 +1250,11 @@ describe('AiService tool approval', () => {
   })
 
   it('takes the Claude-Agent fast-path when the live registry dispatches the decision', async () => {
-    const respondToolApproval = vi.fn(() => true)
+    const respondToolApproval = vi.fn(() => ({ ok: true }))
     const dispatch = vi.fn()
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream: () => false }
       return undefined
     })
     const getById = vi.spyOn(messageService, 'getById')
@@ -1124,6 +1273,7 @@ describe('AiService tool approval', () => {
         reason: undefined,
         updatedInput: undefined
       },
+      undefined,
       undefined
     )
     // Fast-path short-circuits before any DB read or continue dispatch.
@@ -1131,8 +1281,22 @@ describe('AiService tool approval', () => {
     expect(dispatch).not.toHaveBeenCalled()
   })
 
+  it.each(['undelivered', 'rejected'] as const)('preserves the agent approval outcome: %s', async (reason) => {
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'AgentSessionRuntimeService' ? { respondToolApproval: () => ({ ok: false, reason }) } : undefined
+    )
+    expect(
+      await getApprovalHandler()(fakeEvent(), {
+        approvalId: 'approval-1',
+        approved: true,
+        topicId: 'agent-session:session-1',
+        anchorId: 'message-1'
+      })
+    ).toEqual({ ok: false, reason })
+  })
+
   it('returns { ok: false } when there is no live entry and no anchor context', async () => {
-    const respondToolApproval = vi.fn(() => false)
+    const respondToolApproval = vi.fn(() => ({ ok: false, reason: 'rejected' }))
     mockApplicationGet.mockImplementation((name: string) =>
       name === 'AgentSessionRuntimeService' ? { respondToolApproval } : undefined
     )
@@ -1145,16 +1309,16 @@ describe('AiService tool approval', () => {
       // no topicId / anchorId
     })
 
-    expect(result).toEqual({ ok: false })
+    expect(result).toEqual({ ok: false, reason: 'rejected' })
     expect(getById).not.toHaveBeenCalled()
   })
 
   it('applies the decision atomically and dispatches continue-conversation when nothing is left pending', async () => {
-    const respondToolApproval = vi.fn(() => false)
+    const respondToolApproval = vi.fn(() => ({ ok: false, reason: 'rejected' }))
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream: () => false }
       return undefined
     })
 
@@ -1185,7 +1349,6 @@ describe('AiService tool approval', () => {
     // Nothing left pending → resume via continue-conversation.
     expect(dispatch).toHaveBeenCalledTimes(1)
     expect(dispatch).toHaveBeenCalledWith(
-      expect.anything(),
       expect.objectContaining({
         trigger: 'continue-conversation',
         topicId: 'topic-1',
@@ -1196,11 +1359,11 @@ describe('AiService tool approval', () => {
   })
 
   it('skips the continuation (ok:false) when there is no caller window to stream it to', async () => {
-    const respondToolApproval = vi.fn(() => false)
+    const respondToolApproval = vi.fn(() => ({ ok: false, reason: 'rejected' }))
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream: () => false }
       return undefined
     })
     const committed = [{ ...pendingToolPart('mcp-approval-1'), state: 'approval-responded' }]
@@ -1217,7 +1380,7 @@ describe('AiService tool approval', () => {
       anchorId: 'anchor-1'
     })
 
-    expect(result).toEqual({ ok: false })
+    expect(result).toEqual({ ok: false, reason: 'rejected' })
     expect(dispatch).not.toHaveBeenCalled()
   })
 
@@ -1226,12 +1389,12 @@ describe('AiService tool approval', () => {
     // land while a sibling exec / another continuation is still live. Dispatching continue-conversation
     // then would hit send()'s inject path and silently swallow the approved turn. Gate it: refuse
     // before touching the row, so the card stays actionable and the renderer can retry post-settle.
-    const respondToolApproval = vi.fn(() => false)
+    const respondToolApproval = vi.fn(() => ({ ok: false, reason: 'rejected' }))
     const dispatch = vi.fn().mockResolvedValue(undefined)
     const hasLiveStream = vi.fn(() => true)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream }
       return undefined
     })
     const apply = vi.spyOn(messageService, 'applyToolApprovalDecisions')
@@ -1244,7 +1407,7 @@ describe('AiService tool approval', () => {
       anchorId: 'anchor-1'
     })
 
-    expect(result).toEqual({ ok: false })
+    expect(result).toEqual({ ok: false, reason: 'rejected' })
     expect(hasLiveStream).toHaveBeenCalledWith('topic-1')
     // Row is NOT mutated and no continuation is dispatched.
     expect(apply).not.toHaveBeenCalled()
@@ -1252,11 +1415,11 @@ describe('AiService tool approval', () => {
   })
 
   it('still dispatches when the committed parts report nothing pending (overlay-only decision)', async () => {
-    const respondToolApproval = vi.fn(() => false)
+    const respondToolApproval = vi.fn(() => ({ ok: false, reason: 'rejected' }))
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream: () => false }
       return undefined
     })
 
@@ -1278,7 +1441,6 @@ describe('AiService tool approval', () => {
     // The decision still rides the continue dispatch idempotently.
     expect(dispatch).toHaveBeenCalledTimes(1)
     expect(dispatch).toHaveBeenCalledWith(
-      expect.anything(),
       expect.objectContaining({
         trigger: 'continue-conversation',
         approvalDecisions: [{ approvalId: 'mcp-approval-missing', approved: false }]
@@ -1287,11 +1449,11 @@ describe('AiService tool approval', () => {
   })
 
   it('does not finalize while another approval on the turn is still pending', async () => {
-    const respondToolApproval = vi.fn(() => false)
+    const respondToolApproval = vi.fn(() => ({ ok: false, reason: 'rejected' }))
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream: () => false }
       return undefined
     })
 
@@ -1320,11 +1482,11 @@ describe('AiService tool approval', () => {
   })
 
   it('ignores duplicate already-settled approval responses without dispatching another continuation', async () => {
-    const respondToolApproval = vi.fn(() => false)
+    const respondToolApproval = vi.fn(() => ({ ok: false, reason: 'rejected' }))
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream: () => false }
       return undefined
     })
 
@@ -1352,11 +1514,11 @@ describe('AiService tool approval', () => {
   })
 
   it('returns { ok: false } when the anchor message is missing or deleted', async () => {
-    const respondToolApproval = vi.fn(() => false)
+    const respondToolApproval = vi.fn(() => ({ ok: false, reason: 'rejected' }))
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream: () => false }
       return undefined
     })
 
@@ -1372,7 +1534,7 @@ describe('AiService tool approval', () => {
     })
 
     // Resolves gracefully through the documented result shape instead of throwing.
-    expect(result).toEqual({ ok: false })
+    expect(result).toEqual({ ok: false, reason: 'rejected' })
     expect(apply).toHaveBeenCalledWith('deleted-anchor', [{ approvalId: 'mcp-approval-1', approved: true }])
     expect(dispatch).not.toHaveBeenCalled()
   })
@@ -2386,6 +2548,98 @@ describe('AiService tool approval', () => {
     })
 
     await expect(service.checkModel({ uniqueModelId: 'ollama::nope' })).rejects.toThrow('model "nope" not found')
+  })
+
+  describe('checkModel — OpenRouter rerank', () => {
+    let service: InstanceType<typeof AiService>
+    let fetchMock: ReturnType<typeof vi.mocked<typeof CustomFetchModule.customFetch>>
+    const uniqueModelId = 'openrouter::cohere/rerank-4-pro'
+    const apiKey = 'openrouter-health-check-key'
+
+    beforeEach(async () => {
+      // Keep the existing service/HTTP harness, but load AiService against real ai-core.
+      vi.doUnmock('@cherrystudio/ai-core')
+      vi.resetModules()
+      const { AiService: RealAiService } = await import('../AiService')
+      const { BaseService: RealBaseService } = await import('@main/core/lifecycle/BaseService')
+      RealBaseService.resetInstances()
+      service = new (RealAiService as any)()
+      const { customFetch } = await import('../utils/customFetch')
+      fetchMock = vi.mocked(customFetch)
+      fetchMock.mockReset()
+      fetchMock.mockResolvedValue(Response.json({ results: [{ index: 0, relevance_score: 0.91 }] }))
+      mockApplicationGet.mockImplementation(
+        (name: keyof typeof defaultServiceInstances) => defaultServiceInstances[name]
+      )
+      mockProviderGetByProviderId.mockReturnValue(
+        makeProvider({
+          id: 'openrouter',
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+              adapterFamily: 'openrouter',
+              baseUrl: 'https://openrouter.ai/api/v1/'
+            }
+          }
+        })
+      )
+      mockModelGetByKey.mockReturnValue(
+        makeModel({
+          id: uniqueModelId,
+          providerId: 'openrouter',
+          apiModelId: 'cohere/rerank-4-pro',
+          name: 'Cohere Rerank 4 Pro',
+          capabilities: [MODEL_CAPABILITY.RERANK]
+        })
+      )
+      mockProviderResolveApiKey.mockReturnValue({ value: apiKey, apiKeySelection: { attribution: 'unknown' } })
+    })
+
+    afterEach(() => fetchMock.mockReset())
+
+    it('reranks through the OpenRouter provider factory', async () => {
+      const result = await service.checkModel({ uniqueModelId })
+
+      expect(result.latency).toEqual(expect.any(Number))
+      expect(result.latency).toBeGreaterThanOrEqual(0)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      const [url, init] = fetchMock.mock.calls[0]
+      expect(String(url)).toBe('https://openrouter.ai/api/v1/rerank')
+      expect(init?.method).toBe('POST')
+      expect(JSON.parse(String(init?.body))).toEqual({
+        model: 'cohere/rerank-4-pro',
+        query: 'test',
+        documents: ['test'],
+        top_n: 1
+      })
+      expect(new Headers(init?.headers).get('Authorization') === `Bearer ${apiKey}`).toBe(true)
+    })
+
+    it('surfaces an empty ranking from the real path', async () => {
+      fetchMock.mockResolvedValue(Response.json({ results: [] }))
+
+      await expect(service.checkModel({ uniqueModelId })).rejects.toThrow('Rerank health check returned empty ranking')
+    })
+
+    it('normalizes a proxy base URL with a trailing slash', async () => {
+      mockProviderGetByProviderId.mockReturnValue(
+        makeProvider({
+          id: 'openrouter',
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+              adapterFamily: 'openrouter',
+              baseUrl: 'http://127.0.0.1:11435/openrouter/api/v1/'
+            }
+          }
+        })
+      )
+
+      await expect(service.checkModel({ uniqueModelId })).resolves.toEqual({ latency: expect.any(Number) })
+
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(String(fetchMock.mock.calls[0][0])).toBe('http://127.0.0.1:11435/openrouter/api/v1/rerank')
+    })
   })
 })
 

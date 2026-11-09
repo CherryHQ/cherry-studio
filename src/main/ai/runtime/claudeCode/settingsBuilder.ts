@@ -48,6 +48,7 @@ import { skillService } from '@main/ai/skills/SkillService'
 import {
   findBuiltinToolPolicy,
   listBuiltinToolPolicies,
+  resolveDelegationApproval,
   toCherryBuiltinRuntimeName,
   toMcpRuntimeName
 } from '@main/ai/toolApproval/builtinToolPolicy'
@@ -216,7 +217,6 @@ export async function buildClaudeCodeSessionSettings(
   // `dispose` drops any approval still pending for this session when the
   // stream exits abnormally.
   const approvalEmitter = sessionState().getToolApprovalEmitterHolder(session.id)
-  const steerHolder = sessionState().getSteerHolder(session.id)
   // The hooks resolve the approval emitter / steer holder by session id at fire-time, so they are
   // not passed in; the holders above are created here only to expose them on `settings`.
   const { canUseTool, hooks, disallowedTools, toolPolicySnapshot } = await buildToolPermissions(
@@ -351,7 +351,7 @@ export async function buildClaudeCodeSessionSettings(
     includePartialMessages: true,
     agentProgressSummaries: true,
     forwardSubagentText: true,
-    permissionMode: agentConfig?.permission_mode,
+    permissionMode: agentConfig?.permission_mode ?? 'default',
     allowedTools: finalAllowedTools,
     disallowedTools,
     plugins,
@@ -359,7 +359,6 @@ export async function buildClaudeCodeSessionSettings(
     canUseTool,
     hooks,
     approvalEmitter,
-    steerHolder,
     toolPolicySnapshot,
     warmQueryKey: session.id,
     ...(mcpToolMetadata ? { mcpToolMetadata } : {}),
@@ -532,9 +531,19 @@ async function buildToolPermissions(
     // `canUseTool` under bypassPermissions.
     const interactionState = application.get('AgentSessionRuntimeService').getInteractionState(session.id)
     const policy = findBuiltinToolPolicy(toolName, mountedServers)
+    const delegationApproval =
+      policy?.approval === 'delegation'
+        ? resolveDelegationApproval(snapshot.getPermissionMode(), interactionState)
+        : undefined
+    if (delegationApproval === 'deny') {
+      return { behavior: 'deny', message: HEADLESS_INTERACTIVE_TOOL_DENIAL }
+    }
+    // Ordinary delegation is approved by PreToolUse. Reaching this callback means the SDK still
+    // requires a user decision, even when matchedAskRule is absent.
     const approvalHoldsInThisMode =
-      policy?.approval === 'required' &&
-      !(snapshot.getPermissionMode() === 'bypassPermissions' && policy.bypassApproval === 'lift')
+      policy?.approval === 'delegation' ||
+      (policy?.approval === 'required' &&
+        !(snapshot.getPermissionMode() === 'bypassPermissions' && policy.bypassApproval === 'lift'))
     const requiresInteractiveResponder = claudeToolRequiresUserInteraction(toolName) || approvalHoldsInThisMode
     if (requiresInteractiveResponder && interactionState.userResponse === 'unavailable') {
       return { behavior: 'deny', message: HEADLESS_INTERACTIVE_TOOL_DENIAL }

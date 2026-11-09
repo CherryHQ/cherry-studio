@@ -1,9 +1,11 @@
 import { hostname, networkInterfaces } from 'node:os'
 
 import { Mutex } from 'async-mutex'
+import { retry } from 'es-toolkit'
 import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
+import { advertisedEndpointSchema } from '@cherrystudio/remote-protocol'
 import { loggerService } from '@logger'
 import type { InProcessUsageContext } from '@main/ai/types'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
@@ -13,12 +15,14 @@ import type { ApiGatewayConfig, ApiGatewayStopOutcome } from '@shared/types/apiG
 import { gatewayClientOrigin } from '@shared/utils/apiGateway'
 import { REDACTED } from '@shared/utils/redaction'
 
+import { isGatewayBindPermissionError, mapGatewayBindError } from './bindError'
 import { isValidToken } from './middleware/auth'
 import { getInterfaceMetadata, getRemoteAddressOptions } from './remoteAddresses'
 import type { ApiGateway } from './server'
 
 const logger = loggerService.withContext('ApiGatewayService')
 const AGENT_SESSION_ID_HEADER = 'x-cherry-agent-session-id'
+const AGENT_USAGE_CAPTURE_HEADER = 'x-cherry-agent-usage-capture'
 const INTERNAL_GATEWAY_HOST = '127.0.0.1'
 
 /** What a scoped internal credential may call: one generation path, one model address. */
@@ -45,6 +49,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
   private readonly internalApiKey = `cs-internal-${uuidv4()}`
   /** Live scoped credentials; each authorizes only its own scope until disposed. */
   private readonly scopedCredentials = new Map<string, InternalCredentialScope>()
+  private readonly usageCaptures = new Map<string, InProcessUsageContext>()
   /** Loopback listener for internal consumers, started on first use and independent of `enabled`. */
   private internalGateway: Promise<ApiGateway> | null = null
   private internalOrigin: string | undefined
@@ -113,8 +118,13 @@ export class ApiGatewayService extends BaseService implements Activatable {
       await this.ensureValidApiKey()
       const { ApiGateway } = await import('./server')
       const { port } = this.getCurrentConfig()
-      this.apiGateway = new ApiGateway({ host: this.listeningHost(), port })
-      await this.apiGateway.start()
+      const endpoint = { host: this.listeningHost(), port }
+      this.apiGateway = new ApiGateway(endpoint)
+      await this.apiGateway.start().catch((error: unknown) => {
+        const mapped = mapGatewayBindError(error, endpoint, 'public')
+        if (mapped !== error) logger.error('Public API gateway listen failed', error as Error)
+        throw mapped
+      })
       this.publishRunningState(true)
       logger.info('API Gateway activated')
     } catch (error) {
@@ -145,6 +155,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
     this.internalGateway = null
     this.internalOrigin = undefined
     await internalGateway?.then((gateway) => gateway.stop()).catch(() => undefined)
+    this.usageCaptures.clear()
   }
 
   /**
@@ -305,13 +316,14 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
   async createRemoteInvitation(): Promise<OutputFor<'api_gateway.remote.create_invitation'>> {
     const endpoint = await this.getRemoteEndpoint()
-    if (endpoint.addresses.length === 0) throw new Error('No connection address is available')
+    if (endpoint.endpoints.length === 0) throw new Error('No connection address is available')
     const invitation = await application.get('RemoteAccessService').createInvitation()
     return { ...endpoint, ...invitation }
   }
 
   async getRemoteEndpoint() {
     const metadata = await getInterfaceMetadata()
+    const configured = application.get('PreferenceService').get('feature.remote_access.advertised_endpoint')
     if (!this.isRunning()) throw new Error('API Gateway is not running')
     if (
       !this.getCurrentConfig().enabled ||
@@ -324,7 +336,20 @@ export class ApiGatewayService extends BaseService implements Activatable {
     const ipv6 = this.apiGateway.getHosts().includes('::')
     const addressOptions = getRemoteAddressOptions(networkInterfaces(), metadata, ipv6)
 
+    const advertisedEndpoint =
+      configured == null
+        ? null
+        : advertisedEndpointSchema.parse({
+            host: configured.host,
+            port: configured.port,
+            security: configured.security
+          })
+    const port = this.apiGateway.getPort()
     return {
+      advertisedEndpoint,
+      endpoints: advertisedEndpoint
+        ? [advertisedEndpoint]
+        : addressOptions.slice(0, 32).map(({ address: host }) => ({ host, port, security: 'ws' as const })),
       hostname: hostname(),
       port: this.apiGateway.getPort(),
       addresses: addressOptions.slice(0, 32).map(({ address }) => address),
@@ -366,8 +391,19 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
   private async startInternalGateway(): Promise<ApiGateway> {
     const { ApiGateway } = await import('./server')
-    const gateway = new ApiGateway({ host: INTERNAL_GATEWAY_HOST, port: 0 }, 'internal')
-    await gateway.start()
+    const endpoint = { host: INTERNAL_GATEWAY_HOST, port: 0 }
+    const gateway = await retry(
+      async () => {
+        const candidate = new ApiGateway(endpoint, 'internal')
+        await candidate.start()
+        return candidate
+      },
+      { retries: 2, shouldRetry: isGatewayBindPermissionError }
+    ).catch((error: unknown) => {
+      const mapped = mapGatewayBindError(error, endpoint, 'internal')
+      if (mapped !== error) logger.error('Internal API gateway listen failed', error as Error)
+      throw mapped
+    })
     this.internalOrigin = gatewayClientOrigin(INTERNAL_GATEWAY_HOST, gateway.getPort())
     logger.info('Internal API gateway started', { origin: this.internalOrigin })
     return gateway
@@ -412,6 +448,28 @@ export class ApiGatewayService extends BaseService implements Activatable {
     return { [AGENT_SESSION_ID_HEADER]: sessionId }
   }
 
+  captureAgentSessionUsage(
+    sessionId: string,
+    ownerSessionId = sessionId
+  ): { headers: Record<string, string>; release(): void } {
+    const current = application.get('AgentSessionRuntimeService').getActiveUsageContext(sessionId)
+    const usage =
+      current && ownerSessionId === sessionId
+        ? current
+        : { agentSessionId: ownerSessionId, source: current?.source ?? null }
+    const key = uuidv4()
+    this.usageCaptures.set(key, usage)
+    return {
+      headers: {
+        ...this.getAgentSessionUsageHeaders(ownerSessionId),
+        [AGENT_USAGE_CAPTURE_HEADER]: key
+      },
+      release: () => {
+        this.usageCaptures.delete(key)
+      }
+    }
+  }
+
   /** Agent session id of an unrestricted internal request; undefined for every other caller. */
   getAgentSessionId(headers: Headers): string | undefined {
     const token = presentedToken(headers)
@@ -420,9 +478,14 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   /** Capture the reserved continuation or active turn of the requesting Agent session. */
-  resolveAgentSessionUsage(headers: Headers): InProcessUsageContext | undefined {
+  resolveAgentSessionUsage(headers: Headers, responseId?: string): InProcessUsageContext | undefined {
     const sessionId = this.getAgentSessionId(headers)
     if (!sessionId) return undefined
-    return application.get('AgentSessionRuntimeService').getActiveUsageContext(sessionId)
+    const capture = headers.get(AGENT_USAGE_CAPTURE_HEADER)
+    if (capture) {
+      const usage = this.usageCaptures.get(capture)
+      return usage?.agentSessionId === sessionId ? usage : undefined
+    }
+    return application.get('AgentSessionRuntimeService').getActiveUsageContext(sessionId, responseId)
   }
 }
