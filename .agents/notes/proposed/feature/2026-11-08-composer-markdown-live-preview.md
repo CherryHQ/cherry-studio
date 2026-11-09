@@ -19,14 +19,16 @@ A throwaway prototype answered the riskiest questions in headless Chromium: care
 | Area | Included |
 | --- | --- |
 | Inline | Bold, italic, strikethrough, inline code, links |
-| Blocks | Headings, bullet and ordered lists, block quotes, fenced code |
+| Blocks | Headings, bullet and ordered lists, block quotes, fenced code, horizontal rules |
+| Editing | Bold and italic shortcuts and backtick inline code on a selection, bracket pairing inside fenced code |
 
 Out of scope:
 
 - Tables, images, and task checkboxes stay literal source.
 - LaTeX formulas, including `$...$` and `$$` blocks, get no rendering and stay literal source.
 - The newline shortcut inserts a plain line; lists do not continue automatically.
-- Code blocks get no language-aware indentation or bracket pairing.
+- Code blocks get no language-aware indentation, and the indent unit stays two spaces.
+- Selection formatting covers bold, italic, and inline code only.
 - Indented code (four leading spaces) is not a code block here. Those lines stay ordinary text.
 - The `renderInputMessageAsMarkdown` message-bubble setting is unchanged, and no preference for turning live preview off is added.
 
@@ -42,8 +44,9 @@ Each source line becomes its own paragraph, because ProseMirror wraps inline dec
 
 - **Parser.** `@lezer/markdown` with its GFM extension, held per editor and reparsed incrementally through `TreeFragment`. It exposes marker nodes directly (`EmphasisMark`, `CodeMark`, `ListMark`, `QuoteMark`) and already ships through CodeMirror, so it becomes a direct dependency. On one 40,000-character corpus in Node, a remark full parse took 48.85 ms, a Lezer full parse 2.66 ms, and a Lezer incremental edit 0.24 ms.
 - **Decorations.** Only changed lines and lines whose reveal state changes are rebuilt. The prototype rebuilt everything and spent 21 ms on one caret move at 40,000 characters.
-- **Reveal.** Inline markers appear while the selection touches their span, heading and quote markers while it touches their line, and code fences while it touches their block. List bullets stay visible.
+- **Reveal.** Inline markers appear while the selection touches their span, heading, quote, and horizontal-rule markers while it touches their line, and code fences while it touches their block. List bullets stay visible.
 - **Hidden markers** use `font-size: 0`. With `display: none`, Chromium normalizes the caret past the hidden run, and the left arrow jumped up to 14 positions in the prototype.
+- **Horizontal rules.** A thematic break draws a divider while its marker is hidden. `---` directly under a text line stays a Setext heading underline. Like `===`, the underline's line collapses unless the selection touches the heading text or the underline.
 - **Composition.** During IME composition decorations are only mapped; they recompute after `compositionend` settles.
 - **Pointer.** Reveal state freezes while the mouse button is held, because expanding markers under the pointer moved a jittered click onto the wrong character.
 
@@ -57,15 +60,24 @@ Keys inside a fenced block, including its fence lines:
 | --- | --- |
 | Any Enter combination | Inserts a newline. It never sends or steers, whatever the shortcut settings are |
 | Enter on a code line | Keeps the indentation and adds one level after `{`, `[`, or `(` |
+| Enter between an adjacent `{}`, `[]`, or `()` | Moves the closing bracket to a third line at the original indentation and puts the caret on the middle line, one level deeper |
 | Enter at the end of an unterminated opening fence at the document end | Adds the closing fence and puts the caret on the empty line between |
 | Enter on the closing fence | Opens a new line below and leaves the block |
 | Tab / Shift+Tab | Indents or outdents all selected lines by two spaces |
 
 Outside a fenced block, Enter and Tab keep the existing shortcut settings and routing.
 
+On code lines, typing `(`, `[`, `{`, `"`, or `'` adds its closer and leaves the caret between them when the caret is at the line end or before whitespace, `)`, `]`, `}`, `:`, `;`, or `,`. A quote directly after a word character is not paired. Typing an auto-inserted closer steps over it, Backspace inside an empty auto-inserted pair removes both, and typing one of these characters with a selection wraps the selection. An auto-inserted closer is forgotten once the caret leaves its line. Backticks are not paired, so a fence typed by hand stays exact.
+
 Code stays literal. Inside a fenced block QuickPanel does not trigger, pasted text inserts as plain text without prompt-variable, link, skill, or knowledge tokens, and typed `${name}` stays text. Document-level checks read the parsed code ranges. Text-level paths (a pasted fenced block, drop, file text, panel insertion, draft restore) all reach `createComposerTokenMarkerInlineContent`, which skips matches inside fenced code on live-preview surfaces. Inline code spans keep today's tokenization.
 
-### 5. Reusable core and adoption
+### 5. Selection formatting
+
+On a live-preview surface Cmd/Ctrl+B and Cmd/Ctrl+I toggle bold and italic by editing the source. The style is read from the run of asterisks around the text, so `**` and `*` combine independently. Each selected line is handled on its own, skipping blank lines, fenced code, block prefixes such as `# ` or `- `, and whitespace at the selection's edges. If every line already has the style the key removes it; otherwise lines without it gain it. The selection stays on the text. An empty selection, or one wholly inside fenced code, leaves the key to its existing meaning, so Cmd/Ctrl+I still focuses the Composer. When the Composer does act, it consumes the key before the app-wide shortcut handler.
+
+Typing a backtick with a selection outside fenced code toggles inline code under the same per-line rules, counting backticks instead of asterisks. With an empty selection, inside fenced code, or during composition the backtick is ordinary input.
+
+### 6. Reusable core and adoption
 
 `createComposerEditorPreset` gains a `markdownLivePreview` option and `ComposerSurface` passes it through.
 
@@ -81,19 +93,22 @@ src/renderer/components/composer/markdownLivePreview/
 ├── markdownSession.ts      incremental parse and source/document position map
 ├── livePreviewPlugin.ts    decorations, reveal, composition and pointer freeze
 ├── codeBlockPlugin.ts      code regions and worker highlighting
-└── codeBlockKeys.ts        Enter and Tab inside code blocks
+├── codeBlockKeys.ts        Enter and Tab inside code blocks
+├── codeBlockPairs.ts       bracket pairing inside code blocks
+└── selectionFormatKeys.ts  bold, italic, and inline code on a selection
 ```
 
 Styles join the `.composer-tiptap` rules in `richtext.css` and use design tokens. The prototype's debug panel and `.prototype` module are not carried over.
 
-### 6. Delivery
+### 7. Delivery
 
 | Layer | Content | Covers |
 | --- | --- | --- |
 | 1 | Paragraph-per-line model and placeholder | AC1, AC6, AC7, AC14 |
-| 2 | Parser, decorations, surface opt-in | AC2, AC3, AC4, AC5, AC15, AC16, AC17, AC18, AC19 |
-| 3 | Code regions, highlighting, code keys | AC8, AC9, AC10, AC11, AC20 |
+| 2 | Parser, decorations, surface opt-in | AC2, AC3, AC4, AC5, AC15, AC16, AC17, AC18, AC19, AC21 |
+| 3 | Code regions, highlighting, code keys, bracket pairing | AC8, AC9, AC10, AC11, AC20, AC22, AC23 |
 | 4 | Literal code across token and QuickPanel paths | AC12, AC13 |
+| 5 | Selection formatting | AC24, AC25 |
 
 ## Alternatives considered
 
@@ -128,6 +143,11 @@ Styles join the `.composer-tiptap` rules in `richtext.css` and use design tokens
 - AC18 — In a production build on the reference MacBook Pro M5 with a 40,000-character draft, live preview keeps the median keystroke and caret-move update within 16 ms. (verification: packaged artifact)
 - AC19 — Tables, images, and LaTeX formulas stay literal source with no dedicated rendering and are sent verbatim. (verification: renderer)
 - AC20 — Lines that are code only by four-space indentation render as ordinary text with no code region, Enter follows the configured shortcuts, and QuickPanel triggers and `${name}` tokenization work as on any other line. (verification: renderer)
+- AC21 — A thematic break (`---`, `***`, or `___`) draws a divider while the selection is off its line and shows its source while the selection is on it, `---` or `===` directly under a text line makes a heading whose underline line collapses while the selection is outside the heading and shows while the selection touches it, and the text is sent verbatim. (verification: renderer)
+- AC22 — On code lines, typing `(`, `[`, `{`, `"`, or `'` adds its closer under the follow-character and word rules, typing an auto-inserted closer steps over it, Backspace in an empty auto-inserted pair removes both, a selection is wrapped, backticks and fence lines are unaffected, and nothing pairs outside fenced code or during composition. (verification: renderer)
+- AC23 — Enter between an adjacent `{}`, `[]`, or `()` on a code line moves the closing bracket to a third line at the original indentation and leaves the caret on the middle line one level deeper. (verification: renderer)
+- AC24 — With a selection outside fenced code, Cmd/Ctrl+B and Cmd/Ctrl+I add and remove `**` and `*` on each selected line, bold and italic combine independently, block prefixes and edge whitespace stay outside the markers, the selection stays on the text, and an empty selection keeps the key's existing behavior. (verification: renderer)
+- AC25 — With a selection outside fenced code, typing a backtick adds and removes a pair of backticks on each selected line under the same prefix, whitespace, and selection rules as AC24, and an empty selection, a selection wholly inside fenced code, and composition insert the character normally. (verification: renderer)
 
 ## Risks
 
