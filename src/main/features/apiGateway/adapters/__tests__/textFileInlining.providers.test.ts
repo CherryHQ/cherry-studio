@@ -123,7 +123,6 @@ describe('pinned adapter controls for unnormalized text file parts', () => {
                 )
       const messages = await convertToModelMessages([
         {
-          id: 'raw-file',
           role: 'user',
           parts: [
             {
