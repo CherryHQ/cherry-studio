@@ -193,12 +193,12 @@ Escape, the close button, the backdrop, and selecting an internal destination di
 it. Explicitly selecting either PDF layout also keeps page-width zoom in sync with
 container resizing; manual zoom is preserved.
 
-DOCX `fit-width` includes the document wrapper and widest page, permits scales below
-50%, and never enlarges beyond 100%. It follows container resizing until the user
-zooms using the toolbar or a pinch; Reset resumes fitting. No orientation message is
-needed for DOCX. `normalizeSymbolBullets` is read when opening the document: it maps
-known single-character Symbol/Wingdings bullet markers to Unicode and removes their
-legacy font override. Other fonts, unknown symbols and numbered lists are preserved.
+DOCX `fit-width` fits the widest page to the pane, permits scales below 50%, and
+never enlarges beyond 200%. It follows container resizing until the user zooms using
+the toolbar or a pinch; Reset resumes fitting. No orientation message is needed for
+DOCX. `normalizeSymbolBullets` is read when opening the document: it maps known
+single-character Symbol/Wingdings bullet markers to Unicode and removes their legacy
+font override. Other fonts, unknown symbols and numbered lists are preserved.
 
 `bottomInset: 'content'` adds trailing space inside PDF, DOCX and PPTX document scroll
 containers, in unscaled host CSS pixels. Both PDF outline layouts receive trailing

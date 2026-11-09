@@ -1,17 +1,173 @@
 import { execFileSync } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { mkdtemp, rm, writeFile, mkdir, stat, utimes, readFile, readdir } from 'node:fs/promises'
 import { join, basename, dirname } from 'node:path'
 import { setTimeout } from 'node:timers/promises'
+import { pathToFileURL } from 'node:url'
+
+import { chromium, type BrowserContext } from '@playwright/test'
+import AdmZip from 'adm-zip'
 
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
+import { observeExternalResource, registerExternalResource } from '../../../../scripts/e2e/regression/externalResources'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
+import {
+  saveNativeFile,
+  readWindowsPrintDialog,
+  dismissNativeMessageBox,
+  controlMacPrintDialog
+} from '../../../../scripts/e2e/regression/systemAutomation'
 import { expect, test } from '../fixture'
 import { openLaunchpadApp, selectSidebarApp } from '../helpers/navigation'
 import { noteKnowledgeExport } from '../scenarios/noteKnowledgeExport'
+import { notesAndExport } from '../scenarios/notesAndExport'
 function appleScript(script: string, ...args: string[]): string {
   return execFileSync('osascript', ['-e', script, '--', ...args], { encoding: 'utf8', timeout: 20_000 }).trim()
 }
+
+test(...caseDefinition('MP-11'), async ({ app, mainWindow }, testInfo) => {
+  await notesAndExport(app, mainWindow, testInfo)
+})
+
+test(...caseDefinition('MP-74'), async ({ app, mainWindow: page }, testInfo) => {
+  testInfo.annotations.push({
+    type: 'uncovered',
+    description:
+      'Notes has no explicit saved-status indicator. Autosave is verified by the bytes on disk and the rendered content instead.'
+  })
+  // Catch lost autosaves, broken Markdown rendering, and silent overwrites of external edits.
+  const directory = await mkdtemp(join(app.paths.fixtures, 'mp74-'))
+  const name = 'MP-74 Markdown conflict'
+  const notePath = join(directory, `${name}.md`)
+  const original = '# Existing note\n\nExisting content.\n'
+  const markdown = [
+    '# MP-74 Markdown',
+    '',
+    '- First list item',
+    '- Second list item',
+    '',
+    '```javascript',
+    'const answer = 42;',
+    'console.log("MP74", answer);',
+    '```',
+    '',
+    '| Name | Value |',
+    '| --- | --- |',
+    '| Autosave | Verified |'
+  ].join('\n')
+  const preferences = await page.evaluate(async () => ({
+    path: await window.api.preference.get('feature.notes.path'),
+    view: await window.api.preference.get('feature.notes.default_view_mode'),
+    edit: await window.api.preference.get('feature.notes.default_edit_mode')
+  }))
+  const screenshot = async (label: string) => {
+    const path = testInfo.outputPath(`${label}.png`)
+    await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
+    await testInfo.attach(label, { path, contentType: 'image/png' })
+  }
+
+  try {
+    await writeFile(notePath, original)
+    await page.evaluate(
+      (path) =>
+        window.api.preference.setMultiple({
+          'feature.notes.path': path,
+          'feature.notes.default_view_mode': 'edit',
+          'feature.notes.default_edit_mode': 'source'
+        }),
+      directory
+    )
+    await page.reload()
+    await selectSidebarApp(page, 'Notes')
+    const notes = page.locator('[data-ui~="notes.view"]:visible')
+    const editor = notes.locator('[data-ui~="notes.editor"][data-file-edit]')
+    const source = editor.locator('[contenteditable="true"]')
+    await screenshot('MP-74 existing note precondition')
+    await notes.getByText(name, { exact: true }).click()
+    await expect(source).toContainText('Existing content.')
+    await source.press('ControlOrMeta+A')
+    await source.press('Backspace')
+    await source.fill(markdown)
+    await expect(notes.getByText(`Characters: ${markdown.length}`, { exact: true })).toBeVisible()
+    await expect.poll(() => readFile(notePath, 'utf8')).toBe(markdown)
+    await screenshot('MP-74 autosaved source and character count')
+
+    await notes.getByRole('combobox', { name: 'Source code mode', exact: true }).click()
+    await page.getByRole('option', { name: 'Reading mode', exact: true }).click()
+    await expect(editor.getByRole('heading', { name: 'MP-74 Markdown', exact: true })).toBeVisible()
+    await expect(editor.getByRole('listitem')).toHaveText(['First list item', 'Second list item'])
+    const table = editor.getByRole('table')
+    await expect(table.getByRole('columnheader')).toHaveText(['Name', 'Value'])
+    await expect(table.getByRole('cell')).toHaveText(['Autosave', 'Verified'])
+    const code = editor.locator('pre code')
+    await expect(code).toContainText('const answer = 42;')
+    await expect(code).toContainText('console.log("MP74", answer);')
+    // Distinct visible token colors prove syntax highlighting, rather than just a code container.
+    await expect
+      .poll(() =>
+        code
+          .locator('span')
+          .evaluateAll(
+            (tokens) =>
+              new Set(tokens.filter((token) => token.textContent?.trim()).map((token) => getComputedStyle(token).color))
+                .size
+          )
+      )
+      .toBeGreaterThan(1)
+    await screenshot('MP-74 rendered Markdown with highlighted code')
+
+    await notes.getByRole('combobox', { name: 'Reading mode', exact: true }).click()
+    await page.getByRole('option', { name: 'Source code mode', exact: true }).click()
+    await expect(source).toContainText('MP-74 Markdown')
+    const draft = `${markdown}\n\nUNSAVED_LOCAL_MP74`
+    const external = '# External version MP74\n\nWritten by an external editor.\n'
+    await source.fill(draft)
+    // A real independent filesystem write races the 800 ms autosave debounce; no watcher events are faked.
+    await writeFile(notePath, external)
+    const conflict = page.getByRole('dialog', { name: 'Note changed on disk', exact: true })
+    await expect(conflict).toBeVisible()
+    await expect(conflict).toContainText('your unsaved edits will be discarded')
+    await expect(conflict.getByRole('button', { name: 'Keep editing', exact: true })).toBeVisible()
+    await expect(conflict.getByRole('button', { name: 'Reload', exact: true })).toBeVisible()
+    await expect(source).toContainText('UNSAVED_LOCAL_MP74')
+    expect(await readFile(notePath, 'utf8')).toBe(external)
+    await screenshot('MP-74 external conflict and discard warning')
+    await conflict.getByRole('button', { name: 'Reload', exact: true }).click()
+    await expect(conflict).toBeHidden()
+    await expect(source).toContainText('Written by an external editor.')
+    await expect(source).not.toContainText('UNSAVED_LOCAL_MP74')
+    expect(await readFile(notePath, 'utf8')).toBe(external)
+
+    const keptDraft = `${external}\nKEEP_LOCAL_MP74`
+    const secondExternal = '# Second external version MP74\n\nExternal changes must survive.\n'
+    await source.fill(keptDraft)
+    await writeFile(notePath, secondExternal)
+    await expect(conflict).toBeVisible()
+    await conflict.getByRole('button', { name: 'Keep editing', exact: true }).click()
+    await expect(conflict).toBeHidden()
+    await expect(source).toContainText('KEEP_LOCAL_MP74')
+    await screenshot('MP-74 keep editing preserves local draft')
+    await expect.poll(() => readFile(notePath, 'utf8')).toBe(keptDraft)
+    await source.press('End')
+    await source.press('Enter')
+    await source.pressSequentially('Continued local edit')
+    await expect(source).toContainText('Continued local edit')
+    await expect.poll(() => readFile(notePath, 'utf8')).toContain('Continued local edit')
+  } finally {
+    await page.evaluate(
+      ({ path, view, edit }) =>
+        window.api.preference.setMultiple({
+          'feature.notes.path': path,
+          'feature.notes.default_view_mode': view,
+          'feature.notes.default_edit_mode': edit
+        }),
+      preferences
+    )
+    await page.reload()
+    await rm(directory, { recursive: true, force: true })
+  }
+})
 
 test(...caseDefinition('MP-75'), async ({ app, mainWindow: page }, testInfo) => {
   const attachScreenshot = async (name: string) => {
@@ -137,9 +293,9 @@ test(...caseDefinition('MP-75'), async ({ app, mainWindow: page }, testInfo) => 
   }
 })
 
-test(...caseDefinition('MP-76'), async ({ mainWindow: page }, testInfo) => {
+test(...caseDefinition('MP-76'), async ({ app, mainWindow: page }, testInfo) => {
   test.setTimeout(120_000)
-  const root = await mkdtemp(join(process.cwd(), 'tests/e2e/regression/mp76-notes-'))
+  const root = await mkdtemp(join(app.paths.fixtures, 'mp76-notes-'))
   const fixtures = [
     { name: 'Field journal', content: 'First line\nSecond line\nThe marker is canary-seven at line three.' },
     { name: 'canary title only', content: 'An ordinary title match with no bird in its body.' },
@@ -228,6 +384,173 @@ test(...caseDefinition('MP-76'), async ({ mainWindow: page }, testInfo) => {
     await selectSidebarApp(page, 'Chat')
     await page.evaluate((path) => window.api.preference.set('feature.notes.path', path), originalPath)
     await rm(root, { recursive: true, force: true })
+  }
+})
+
+test(...caseDefinition('MP-77'), async ({ app, mainWindow: page }, testInfo) => {
+  const attachScreenshot = async (name: string) => {
+    const path = testInfo.outputPath(`${name}.png`)
+    await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
+    await testInfo.attach(name, { path, contentType: 'image/png' })
+  }
+  const directory = join(app.paths.evidence, 'MP-77')
+  const notesDirectory = join(directory, 'notes')
+  await mkdir(notesDirectory, { recursive: true })
+  const title = 'MP-77 中文导出核对'
+  const code = 'const greeting = "你好，世界";'
+  const markdown = [
+    '# 中文标题',
+    '中文段落：笔记导出应保留清晰的文字与正确顺序。',
+    '```typescript\n' + code + '\nconsole.log(greeting);\n```',
+    '| 项目 | 数量 |\n| --- | --- |\n| 苹果 | 12 |\n| 香蕉 | 34 |',
+    ...Array.from({ length: 70 }, (_, index) => `分页段落 ${index + 1}：检查跨页后的中文内容与段落顺序。`),
+    'MP77_END'
+  ].join('\n\n')
+  await writeFile(join(notesDirectory, `${title}.md`), markdown)
+  await writeFile(join(notesDirectory, 'MP-77 空笔记.md'), '')
+  const original = await page.evaluate(async () => ({
+    path: await window.api.preference.get('feature.notes.path'),
+    view: await window.api.preference.get('feature.notes.default_view_mode')
+  }))
+  const menuAction = async (name: string) => {
+    await page.locator('[data-ui~="notes.view"]').getByRole('button', { name: 'More', exact: true }).click()
+    await page.getByText(name, { exact: true }).click()
+  }
+  try {
+    await page.evaluate(async (path) => {
+      await window.api.preference.setMultiple({ 'feature.notes.path': path, 'feature.notes.default_view_mode': 'read' })
+    }, notesDirectory)
+    await page.reload()
+    await openLaunchpadApp(page, 'Notes')
+    await page.getByText(title, { exact: true }).click()
+    const editor = page.locator('[data-ui~="notes.editor"][data-file-edit]')
+    await expect(editor).toContainText('中文标题')
+    await expect(editor.locator('table')).toContainText('苹果')
+    await expect(editor.locator('pre')).toContainText(code)
+    await attachScreenshot('MP-77 source note with Chinese code and table')
+
+    const pdfPath = join(directory, 'MP-77.pdf')
+    await rm(pdfPath, { force: true })
+    await menuAction('Export to PDF')
+    await saveNativeFile(app.record.platform, app.paths, pdfPath)
+    await expect.poll(async () => (await stat(pdfPath).catch(() => undefined))?.size ?? 0).toBeGreaterThan(0)
+    const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs')
+    const pdf = await getDocument({ data: new Uint8Array(await readFile(pdfPath)), useSystemFonts: true }).promise
+    expect(pdf.numPages).toBeGreaterThan(1)
+    const texts: string[] = []
+    const codeFonts: string[] = []
+    for (let index = 1; index <= pdf.numPages; index++) {
+      const pdfPage = await pdf.getPage(index)
+      const content = await pdfPage.getTextContent()
+      const items = content.items.filter((item) => 'str' in item)
+      const text = items.map((item) => item.str).join('')
+      texts.push(text)
+      expect(text.trim()).not.toBe('')
+      expect(text).not.toContain('\uFFFD')
+      for (const item of items) {
+        if (item.str.includes('const')) codeFonts.push(content.styles[item.fontName].fontFamily)
+      }
+    }
+    expect(codeFonts).not.toHaveLength(0)
+    for (const family of codeFonts) expect(family).toMatch(/monospace/i)
+    const pdfText = texts.join(' ')
+    for (const expected of ['中文标题', '苹果', '12', '香蕉', '34', code, 'MP77_END']) {
+      expect(pdfText).toContain(expected)
+    }
+    if (app.record.platform === 'macos') {
+      const pdfResource = registerExternalResource(app.paths, app.record.platform, {
+        kind: 'document',
+        application: 'Preview',
+        path: pdfPath
+      })
+      execFileSync('open', ['-a', 'Preview', pdfPath])
+      // Preview's own scripting interface stops answering on macOS 27, so the opened document is read
+      // from its window title through System Events, the interface this fixture already automates.
+      await expect
+        .poll(() => appleScript('tell application "System Events" to tell process "Preview" to get name of windows'))
+        .toContain('MP-77.pdf')
+      observeExternalResource(app.paths, pdfResource)
+    } else {
+      const resource = registerExternalResource(app.paths, 'windows', { kind: 'browser', title: basename(pdfPath) })
+      const profile = join(app.paths.private, 'mp77-pdf-viewer')
+      let browser: BrowserContext | undefined
+      try {
+        browser = await chromium.launchPersistentContext(profile, { channel: 'msedge', headless: false })
+        const viewer = await browser.newPage()
+        await viewer.goto(pathToFileURL(pdfPath).href)
+        await expect(viewer.locator('embed[type="application/pdf"]')).toBeVisible()
+        observeExternalResource(app.paths, resource)
+        const screenshot = testInfo.outputPath('MP-77 external PDF viewer.png')
+        await viewer.screenshot({ path: screenshot })
+        await testInfo.attach('MP-77 external PDF viewer', { path: screenshot, contentType: 'image/png' })
+      } finally {
+        try {
+          await browser?.close()
+        } finally {
+          await rm(profile, { recursive: true, force: true })
+        }
+      }
+    }
+    await testInfo.attach('Exported PDF', { path: pdfPath, contentType: 'application/pdf' })
+
+    const wordPath = join(directory, `MP-77-${randomUUID()}.docx`)
+    await rm(wordPath, { force: true })
+    await menuAction('Export to Word')
+    await saveNativeFile(app.record.platform, app.paths, wordPath)
+    await expect.poll(async () => (await stat(wordPath).catch(() => undefined))?.size ?? 0).toBeGreaterThan(0)
+    const xml = new AdmZip(await readFile(wordPath)).readAsText('word/document.xml')
+    expect(xml).toContain('<w:tbl>')
+    expect(xml).toContain('苹果')
+    expect(xml).toContain('中文标题')
+    await testInfo.attach('Exported editable Word', {
+      path: wordPath,
+      contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    })
+
+    try {
+      await menuAction('Print')
+      if (app.record.platform === 'windows') {
+        await expect.poll(() => readWindowsPrintDialog(app.paths).join(' ')).toMatch(/printer/i)
+        const labels = readWindowsPrintDialog(app.paths)
+        expect(labels).toContain('Cancel')
+        expect(labels.join(' ')).toMatch(/page/i)
+        await testInfo.attach('Native Windows print dialog', { body: labels.join('\n'), contentType: 'text/plain' })
+      } else {
+        const preview = () => controlMacPrintDialog(app.paths, 'inspect').join('\n')
+        await expect.poll(preview).toMatch(/page|页/i)
+        const previewText = preview()
+        await testInfo.attach('Native print preview accessibility', { body: previewText, contentType: 'text/plain' })
+        expect(previewText).toMatch(/Printer|打印机/i)
+        expect(previewText).toContain('PDF')
+      }
+    } finally {
+      if (app.record.platform === 'windows') {
+        if (readWindowsPrintDialog(app.paths).length)
+          await dismissNativeMessageBox(app.record.platform, app.paths, 'Print', 'Cancel')
+      } else {
+        controlMacPrintDialog(app.paths, 'cancel')
+        await expect.poll(() => controlMacPrintDialog(app.paths, 'inspect')).toEqual([])
+      }
+    }
+    await pdf.destroy()
+    await attachScreenshot('MP-77 note after exports and print preview')
+
+    await page.getByText('MP-77 空笔记', { exact: true }).click()
+    await expect(editor).not.toContainText('中文标题')
+    const before = (await readdir(directory)).sort()
+    for (const action of ['Export to PDF', 'Export to Word']) {
+      await menuAction(action)
+      await expect(page.getByText('No content to export', { exact: true }).last()).toBeVisible()
+      expect((await readdir(directory)).sort()).toEqual(before)
+    }
+    await attachScreenshot('MP-77 empty note refuses export')
+  } finally {
+    await page.evaluate(async (original) => {
+      await window.api.preference.setMultiple({
+        'feature.notes.path': original.path,
+        'feature.notes.default_view_mode': original.view
+      })
+    }, original)
   }
 })
 
@@ -367,6 +690,3 @@ test(...caseDefinition('MP-78'), async ({ app, mainWindow }, testInfo) => {
 test(...caseDefinition('MP-79'), async ({ app, mainWindow }, testInfo) => {
   await noteKnowledgeExport(app, mainWindow, testInfo)
 })
-
-// 这些 helper 只被尚未合并的用例使用（PR B 恢复用例时会再引用）。
-void appleScript

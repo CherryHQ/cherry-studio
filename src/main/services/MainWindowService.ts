@@ -673,22 +673,33 @@ export class MainWindowService extends BaseService {
 
       const oauthProviderUrls = [
         'https://account.siliconflow.cn/oauth',
-        'https://cloud.siliconflow.cn/bills',
-        'https://cloud.siliconflow.cn/expensebill',
         'https://console.inferera.com/token',
-        'https://console.inferera.com/topup',
-        'https://console.inferera.com/statistics',
         'https://dash.302.ai/sso/login',
-        'https://dash.302.ai/charge',
         'https://maas.aiionly.com/login'
       ]
+      const billingUrls = [
+        'https://cloud.siliconflow.cn/bills',
+        'https://cloud.siliconflow.cn/expensebill',
+        'https://console.inferera.com/topup',
+        'https://console.inferera.com/statistics',
+        'https://dash.302.ai/charge'
+      ]
+      const matchesEntry = (entry: string) =>
+        url === entry || ['/', '?', '#'].some((separator) => url.startsWith(entry + separator))
+      const isOAuthPopup = oauthProviderUrls.some(matchesEntry)
 
-      if (oauthProviderUrls.some((link) => url.startsWith(link))) {
+      if (isOAuthPopup || billingUrls.some(matchesEntry)) {
         return {
           action: 'allow',
           overrideBrowserWindowOptions: {
             webPreferences: {
-              partition: getWebviewPartition(WebviewSecurityProfile.MiniApp)
+              partition: getWebviewPartition(WebviewSecurityProfile.MiniApp),
+              // Electron 45 needs the opener's sandbox mode to preserve postMessage callbacks.
+              sandbox: !isOAuthPopup,
+              nodeIntegration: false,
+              contextIsolation: true,
+              preload: undefined,
+              webviewTag: false
             }
           }
         }
@@ -787,6 +798,7 @@ export class MainWindowService extends BaseService {
         mainWindow.restore()
         if (isWin) mainWindow.show()
         mainWindow.focus()
+        if (isMac) app.focus({ steal: true })
         this.pushMainWindowInitData(initData)
         return
       }
@@ -833,6 +845,7 @@ export class MainWindowService extends BaseService {
 
       mainWindow.show()
       mainWindow.focus()
+      if (isMac) app.focus({ steal: true })
       if (isWin) {
         mainWindow.setVisibleOnAllWorkspaces(false)
       }
