@@ -1,7 +1,7 @@
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 
-import { finalizeInterruptedParts } from '../streamManager'
+import { interruptedReplyParts } from '../streamManager'
 
 export function recoverSessionDeliveries(): Set<string> {
   const affectedSessionIds = new Set<string>()
@@ -16,9 +16,9 @@ export function recoverSessionDeliveries(): Set<string> {
       if (result) affectedSessionIds.add(result.sessionId)
       continue
     }
-    let assistant: ReturnType<typeof agentSessionMessageService.getSessionMessage> | null = null
+    let assistant: ReturnType<typeof agentSessionMessageService.readSessionMessageForRecovery> | null = null
     try {
-      assistant = agentSessionMessageService.getSessionMessage(message.sessionId, turnRef)
+      assistant = agentSessionMessageService.readSessionMessageForRecovery(message.sessionId, turnRef)
     } catch (error) {
       if (!(isDataApiError(error) && error.code === ErrorCode.NOT_FOUND)) throw error
     }
@@ -31,13 +31,14 @@ export function recoverSessionDeliveries(): Set<string> {
       continue
     }
     if (assistant.status === 'pending') {
+      const { streamCheckpoint, ...data } = assistant.data
       agentSessionMessageService.resolveCrashOrphanedMessages(
         [
           {
             id: assistant.id,
             data: {
-              ...assistant.data,
-              parts: finalizeInterruptedParts(assistant.data.parts ?? [], 'error')
+              ...data,
+              parts: interruptedReplyParts(streamCheckpoint ?? data.parts ?? [])
             }
           }
         ],

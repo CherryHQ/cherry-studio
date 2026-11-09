@@ -79,6 +79,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     finalizeSessionDelivery: mocks.finalize,
     findDeliveringSessionDeliveryByTurnRef: mocks.findByTurnRef,
     getSessionMessage: mocks.getMessage,
+    readSessionMessageForRecovery: mocks.getMessage,
     markAssistantMessageTerminalError: mocks.markTerminalError,
     publishDispatchChanges: mocks.publishDispatchChanges,
     listAcceptedSessionDeliveries: mocks.listAccepted,

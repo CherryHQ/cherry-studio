@@ -1074,6 +1074,15 @@ export class AgentSessionMessageService {
     return this.rowToEntity(row)
   }
 
+  /** Internal recovery read; public message projections deliberately omit stream checkpoints. */
+  readSessionMessageForRecovery(sessionId: string, messageId: string): SessionMessageRow {
+    const database = application.get('DbService').getDb()
+    this.assertActiveSession(database, sessionId)
+    const row = this.findExistingMessageRow(database, sessionId, messageId)
+    if (!row || row.role === 'root') throw DataApiErrorFactory.notFound('Message', messageId)
+    return row
+  }
+
   updateSessionMessage(
     sessionId: string,
     messageId: string,
