@@ -6206,8 +6206,6 @@
   "settings.usage.export.png": "Exportă ca PNG",
   "settings.usage.export.progress": "Se citesc înregistrările de utilizare ({{count}} din {{total}})…",
   "settings.usage.export.range": "{{from}} – {{to}} ({{timezone}})",
-  "settings.usage.export.sheets.metadata": "Metadate",
-  "settings.usage.export.sheets.usage": "Utilizare",
   "settings.usage.export.success": "Utilizarea a fost exportată",
   "settings.usage.export.title": "Exportă",
   "settings.usage.export.xlsx": "Exportă ca XLSX",
