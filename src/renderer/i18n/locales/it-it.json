@@ -6506,7 +6506,6 @@
   "update.later": "Più tardi",
   "update.message": "La nuova versione {{version}} è pronta. Vuoi installarla ora?",
   "update.noReleaseNotes": "Nessuna nota di rilascio",
-  "update.saveDataError": "Salvataggio dei dati non riuscito. Riprova.",
   "update.title": "Aggiornamento",
   "webview.annotation.cancel": "Annulla",
   "webview.annotation.clear": "Cancella annotazioni",

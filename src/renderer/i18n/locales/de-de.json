@@ -6506,7 +6506,6 @@
   "update.later": "Später",
   "update.message": "Neue Version {{version}} gefunden. Jetzt installieren?",
   "update.noReleaseNotes": "Kein Changelog verfügbar",
-  "update.saveDataError": "Speichern fehlgeschlagen, bitte erneut versuchen",
   "update.title": "Update-Hinweis",
   "webview.annotation.cancel": "Abbrechen",
   "webview.annotation.clear": "Anmerkungen löschen",

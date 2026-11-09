@@ -6506,7 +6506,6 @@
   "update.later": "Later",
   "update.message": "New version {{version}} is ready, do you want to install it now?",
   "update.noReleaseNotes": "No release notes",
-  "update.saveDataError": "Failed to save data, please try again.",
   "update.title": "Update",
   "webview.annotation.cancel": "Cancel",
   "webview.annotation.clear": "Clear annotations",

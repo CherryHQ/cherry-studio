@@ -6506,7 +6506,6 @@
   "update.later": "Daha sonra",
   "update.message": "Yeni {{version}} sürümü hazır. Şimdi yüklensin mi?",
   "update.noReleaseNotes": "Sürüm notu yok",
-  "update.saveDataError": "Veriler kaydedilemedi, lütfen tekrar deneyin.",
   "update.title": "Güncelleme",
   "webview.annotation.cancel": "İptal",
   "webview.annotation.clear": "Ek açıklamaları temizle",

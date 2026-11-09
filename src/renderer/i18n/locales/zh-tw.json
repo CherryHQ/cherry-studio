@@ -6506,7 +6506,6 @@
   "update.later": "稍後",
   "update.message": "新版本 {{version}} 已準備就緒，是否立即安裝？",
   "update.noReleaseNotes": "目前沒有更新日誌",
-  "update.saveDataError": "儲存資料失敗，請重試",
   "update.title": "更新提示",
   "webview.annotation.cancel": "取消",
   "webview.annotation.clear": "清除標註",

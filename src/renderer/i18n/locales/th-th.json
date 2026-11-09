@@ -6506,7 +6506,6 @@
   "update.later": "ภายหลัง",
   "update.message": "เวอร์ชันใหม่ {{version}} พร้อมแล้ว ต้องการติดตั้งตอนนี้หรือไม่?",
   "update.noReleaseNotes": "ไม่มีบันทึกประจำรุ่น",
-  "update.saveDataError": "บันทึกข้อมูลไม่สำเร็จ โปรดลองอีกครั้ง",
   "update.title": "อัปเดต",
   "webview.annotation.cancel": "ยกเลิก",
   "webview.annotation.clear": "ล้างคำอธิบายประกอบ",

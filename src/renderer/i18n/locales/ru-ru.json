@@ -6506,7 +6506,6 @@
   "update.later": "Позже",
   "update.message": "Новая версия {{version}} готова, установить сейчас?",
   "update.noReleaseNotes": "Нет заметок об обновлении",
-  "update.saveDataError": "Ошибка сохранения данных, повторите попытку",
   "update.title": "Обновление",
   "webview.annotation.cancel": "Отмена",
   "webview.annotation.clear": "Очистить аннотации",

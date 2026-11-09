@@ -6506,7 +6506,6 @@
   "update.later": "Sau đó",
   "update.message": "Phiên bản mới {{version}} đã sẵn sàng, bạn có muốn cài đặt ngay bây giờ không?",
   "update.noReleaseNotes": "Không có ghi chú phát hành",
-  "update.saveDataError": "Không lưu được dữ liệu, vui lòng thử lại.",
   "update.title": "Cập nhật",
   "webview.annotation.cancel": "Hủy",
   "webview.annotation.clear": "Xóa chú thích",

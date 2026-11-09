@@ -499,6 +499,8 @@ export class AppUpdaterService extends BaseService {
     if (autoUpdater.autoDownload) {
       this.updateCheckResult?.cancellationToken?.cancel()
     }
+    // Suppressed events include `update-cancelled`, and the write may come from a detached window.
+    application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.channel_retired', undefined)
   }
 
   private isPortable(): boolean {

@@ -49,6 +49,19 @@ export function useAppUpdateHandler() {
     })
   })
 
+  useIpcOn('app.updater.channel_retired', () => {
+    if (!appUpdateCheckService.noteChannelRetiredByMain()) return
+    updateAppUpdateState({
+      available: false,
+      info: null,
+      downloaded: false,
+      checking: false,
+      downloading: false,
+      downloadProgress: 0,
+      manualCheck: false
+    })
+  })
+
   useIpcOn('app.updater.not_available', (payload) => {
     if (!appUpdateCheckService.isActiveUpdateSession()) return
     const wasManual = manual()

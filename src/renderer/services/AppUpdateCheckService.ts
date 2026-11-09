@@ -114,6 +114,13 @@ class AppUpdateCheckService {
     return this.session
   }
 
+  /** Main retired the channel. A write from this window is already held and resumes on its own ack. */
+  noteChannelRetiredByMain(): boolean {
+    if (this.heldEpoch !== null) return false
+    this.resumeSharedUpdateSession(this.invalidateSharedUpdateCheck())
+    return true
+  }
+
   private settleChannelAck(result: ChannelAck): void {
     const waiters = this.channelAckWaiters
     this.channelAckWaiters = []
@@ -212,7 +219,6 @@ class AppUpdateCheckService {
         await ipcApi.request('app.updater.present_check')
       } catch {
         this.setUpdateNotice('settings.about.updateError')
-        await this.openOfficialReleases().catch(() => undefined)
       } finally {
         this.checkInFlight = false
       }
@@ -248,6 +254,7 @@ class AppUpdateCheckService {
       try {
         const info = await ipcApi.request('app.get_info')
         if (this.session !== epoch || !this.ownsCheck(owner)) return
+        // Portable builds cannot self-update, so this click's only update path is Releases.
         if (info.isPortable) {
           await this.openOfficialReleases().catch(() => this.setUpdateNotice('settings.about.updateError'))
           return
@@ -255,7 +262,6 @@ class AppUpdateCheckService {
       } catch {
         if (this.session !== epoch || !this.ownsCheck(owner)) return
         this.setUpdateNotice('settings.about.updateError')
-        await this.openOfficialReleases().catch(() => undefined)
         return
       }
 
@@ -275,7 +281,6 @@ class AppUpdateCheckService {
         this.endManualUpdateCheck()
         update({ checking: false, downloading: false, downloadProgress: 0, manualCheck: false })
         this.setUpdateNotice('settings.about.updateError')
-        await this.openOfficialReleases().catch(() => undefined)
       }
     } catch {
       if (this.session !== epoch || !this.ownsCheck(owner)) return

@@ -387,7 +387,7 @@ describe('AppUpdaterService', () => {
       vi.mocked(ipc.broadcastToType).mockClear()
       appUpdater.cancelDownload()
       emit('update-downloaded', release('1.2.4'))
-      expect(ipc.broadcastToType).not.toHaveBeenCalled()
+      expect(ipc.broadcastToType).toHaveBeenCalledExactlyOnceWith('main', 'app.updater.channel_retired', undefined)
 
       vi.mocked(autoUpdater.checkForUpdates).mockImplementationOnce(async () => {
         emit('update-downloaded', release('1.2.4'))
@@ -468,7 +468,7 @@ describe('AppUpdaterService', () => {
 
       emit('error', new Error('old channel'))
       emit('update-not-available')
-      expect(ipc.broadcastToType).not.toHaveBeenCalled()
+      expect(ipc.broadcastToType).toHaveBeenCalledExactlyOnceWith('main', 'app.updater.channel_retired', undefined)
 
       releaseFirst(checked('1.2.3-beta.1'))
       await expect(firstCheck).resolves.toMatchObject({ updateInfo: null })

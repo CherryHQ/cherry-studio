@@ -6506,7 +6506,6 @@
   "update.later": "Mai târziu",
   "update.message": "Noua versiune {{version}} este gata, vrei să o instalezi acum?",
   "update.noReleaseNotes": "Nicio notă de lansare",
-  "update.saveDataError": "Salvarea datelor a eșuat, te rugăm să încerci din nou.",
   "update.title": "Actualizare",
   "webview.annotation.cancel": "Anulați",
   "webview.annotation.clear": "Șterge adnotările",

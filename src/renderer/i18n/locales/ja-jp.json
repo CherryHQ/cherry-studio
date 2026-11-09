@@ -6506,7 +6506,6 @@
   "update.later": "後で",
   "update.message": "新バージョン {{version}} が利用可能です。今すぐインストールしますか？",
   "update.noReleaseNotes": "暫無更新日誌",
-  "update.saveDataError": "データの保存に失敗しました。もう一度お試しください。",
   "update.title": "更新",
   "webview.annotation.cancel": "キャンセル",
   "webview.annotation.clear": "注釈を消去",

@@ -1221,6 +1221,16 @@ describe('ErrorDetailContent diagnostics', () => {
     expect(screen.getByText(/Widget\.tsx:4/)).toBeInTheDocument()
   })
 
+  it('does not show an update notice left by a check made before this dialog opened', () => {
+    appUpdateCheckService.setUpdateNotice('settings.about.updateError')
+
+    renderErrorDetailContent({ error: providerError })
+
+    expect(screen.queryByText('Update error')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Releases' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Check Update' })).toBeEnabled()
+  })
+
   it('keeps check-again and opens the official releases page only when a failed manual check asks for it', async () => {
     const user = userEvent.setup()
     let meta = document.querySelector('meta[name="logger-window-source"]')

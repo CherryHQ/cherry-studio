@@ -6506,7 +6506,6 @@
   "update.later": "Μετά",
   "update.message": "Νέα έκδοση {{version}} είναι έτοιμη, θέλετε να την εγκαταστήσετε τώρα;",
   "update.noReleaseNotes": "Χωρίς σημειώσεις",
-  "update.saveDataError": "Η αποθήκευση των δεδομένων απέτυχε, δοκιμάστε ξανά",
   "update.title": "Ενημέρωση",
   "webview.annotation.cancel": "Ακύρωση",
   "webview.annotation.clear": "Εκκαθάριση σχολίων",
