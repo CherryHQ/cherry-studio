@@ -355,7 +355,9 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
             )}
             style={
               isFullscreen && !isMac
-                ? { paddingRight: 'calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 0.625rem)' }
+                ? {
+                    paddingRight: 'calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 0.625rem)'
+                  }
                 : undefined
             }
             onDoubleClick={() => setIsFullscreen(!isFullscreen)}>
