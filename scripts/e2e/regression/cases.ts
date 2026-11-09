@@ -30,6 +30,13 @@ export const REGRESSION_CASES = [
     capabilities: []
   },
   {
+    id: 'MARKET-01',
+    title: 'Browse marketplace resources and open MCP management',
+    tasks: ['marketplace', 'marketplace-smoke'],
+    phase: 'basicFeatures',
+    capabilities: []
+  },
+  {
     id: 'M-02',
     capabilities: [],
     phase: 'modelsAndAssistants',
@@ -299,7 +306,7 @@ export const REGRESSION_CASES = [
   {
     id: 'MP-58',
     title: 'Scheduled tasks (create, run now, pause, history)',
-    tasks: ['agents'],
+    tasks: ['scheduled-tasks'],
     phase: 'agentRuntimes',
     capabilities: []
   },

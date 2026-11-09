@@ -15,7 +15,7 @@ import { builtinAssistantAgent, startNewAgentTask } from '../helpers/agents'
 import { sendChatMarker } from '../helpers/chat'
 import { ensureCustomChatProvider, selectVisibleModel } from '../helpers/models'
 import { dismissOnboarding, selectSidebarApp } from '../helpers/navigation'
-import { closeSettings, openSettingsSection } from '../helpers/settings'
+import { closeSettings, openMcpServers, openSettingsSection } from '../helpers/settings'
 import { skillChatTrigger } from '../scenarios/skillChatTrigger'
 import { toolSettings } from '../scenarios/toolSettings'
 
@@ -39,7 +39,7 @@ async function openSkillsPanel(page: Parameters<typeof selectSidebarApp>[0]): Pr
 }
 
 test(...caseDefinition('MCP-01'), async ({ app, mainWindow: page }, testInfo) => {
-  await openSettingsSection(page, 'MCP')
+  await openMcpServers(page)
   const servers = await page.evaluate(() =>
     window.api.dataApi.request({
       id: 'regression-mcp-servers',
@@ -224,7 +224,7 @@ test(...caseDefinition('MCP-01'), async ({ app, mainWindow: page }, testInfo) =>
 
     page = await app.restart('authenticated')
     await dismissOnboarding(page)
-    await openSettingsSection(page, 'MCP')
+    await openMcpServers(page)
     await page.locator('[data-ui~="settings.content"]:visible').getByText('everything', { exact: true }).first().click()
     const restartedEnabled = page.getByRole('switch').first()
     if ((await restartedEnabled.getAttribute('aria-checked')) !== 'true') await restartedEnabled.click()

@@ -135,6 +135,8 @@ describe('regression execution plan', () => {
     ['notes-smoke', ['N-01']],
     ['knowledge-smoke', ['K-01']],
     ['mini-app-pinning', ['MP-103']],
+    ['marketplace-smoke', ['MARKET-01']],
+    ['scheduled-tasks', ['MP-58']],
     ['chat-error-recovery', ['MP-17']],
     ['native-recovery', ['MP-110', 'MP-116']],
     ['native-notifications', ['MP-110']]

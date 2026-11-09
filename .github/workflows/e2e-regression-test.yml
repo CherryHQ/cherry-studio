@@ -18,6 +18,7 @@ on:
           - startup-smoke
           - mini-app
           - notes
+          - marketplace
           - settings
           - assistants
           - error-recovery
@@ -29,6 +30,7 @@ on:
           - code-tools
           - paintings
           - agents
+          - scheduled-tasks
           - topics
           - files
           - data-backup
@@ -36,6 +38,7 @@ on:
           - mini-app-smoke
           - notes-smoke
           - mini-app-pinning
+          - marketplace-smoke
           - custom-provider-chat
           - provider-model-scroll
           - custom-assistant

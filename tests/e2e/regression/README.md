@@ -61,6 +61,12 @@ pnpm exec tsx scripts/e2e/regression/cli.ts run-phase \
 `native-notifications` selects MP-110 for notification settings, actual system delivery,
 native activation and disabled-category suppression. `native-settings` selects the same case.
 
+`marketplace-smoke` selects MARKET-01: open Marketplace from Launchpad, switch resource
+categories, search the built-in MCP catalog, and open server management. `scheduled-tasks`
+selects MP-58 through the standalone Scheduled Tasks app, including task creation,
+execution conversations, pause and resume. MCP server creation and persistence continue
+to run in `everything-mcp`, reached through Marketplace's Manage MCP action.
+
 The run's task selection controls which cases execute. Use `--task notes` for all
 implemented Notes cases, including those in other phases, or `--task notes-smoke` for
 the create-and-save flow. Do not narrow an all-task run manually and then treat it as
@@ -143,7 +149,7 @@ Use the [frontend testing guidelines](../../../docs/dev/references/testing/front
 
 ## Desktop platform coverage
 
-All 134 registered regression cases participate on both macOS and Windows. Platform-specific subflows use the actual desktop integration: TextEdit or Notepad, native file and print dialogs, native notification and tray menus, and Terminal or the Windows console. macOS permission prompts and transparent window controls are checked only where the product exposes them; shared settings, execution, persistence and cleanup assertions still run on Windows.
+All 112 registered regression cases retained in this layer participate on both macOS and Windows, including the marketplace navigation smoke case. The additional 23 cases in [draft #23868](https://github.com/CherryHQ/cherry-studio/pull/23868) are deferred and are not part of this layer's coverage. Platform-specific subflows use the actual desktop integration: TextEdit or Notepad, native file and print dialogs, native notification and tray menus, and Terminal or the Windows console. macOS permission prompts and transparent window controls are checked only where the product exposes them; shared settings, execution, persistence and cleanup assertions still run on Windows.
 
 Windows single-instance checks use Restart Manager's [resource-user query](https://learn.microsoft.com/en-us/windows/win32/api/_rstmgr/) to verify SQLite file owners. The probe never calls shutdown or restart APIs. Native console input is limited to the new Claude launch process under the isolated run directory, with PID and creation-time checks before each operation.
 

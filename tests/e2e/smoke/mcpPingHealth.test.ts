@@ -123,7 +123,6 @@ test('MCP server remains usable when legacy ping returns extra fields', async ({
     const settings = uiLocator(mainWindow, 'settings.view')
     await mainWindow.locator('[data-ui~="settings.navigation"]').getByRole('button', { name: /MCP$/ }).click()
     const content = uiLocator(settings, 'settings.content')
-    await content.locator('#setting-mcp-servers-tab-servers').click()
     await content.getByRole('button', { name: 'Add', exact: true }).click()
     await mainWindow.getByRole('button', { name: 'Quick Create', exact: true }).click()
     const create = mainWindow.getByRole('dialog').filter({ hasText: 'Quick Create' }).first()

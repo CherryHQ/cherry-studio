@@ -131,7 +131,6 @@ test('MCP detail save preserves literal hashes in persisted and outgoing headers
     const settings = uiLocator(mainWindow, 'settings.view')
     await mainWindow.locator('[data-ui~="settings.navigation"]').getByRole('button', { name: /MCP$/ }).click()
     const content = uiLocator(settings, 'settings.content')
-    await content.locator('#setting-mcp-servers-tab-servers').click()
     await content.getByRole('button', { name: 'Add', exact: true }).click()
     await mainWindow.getByRole('button', { name: 'Quick Create', exact: true }).click()
     const create = mainWindow.getByRole('dialog').filter({ hasText: 'Quick Create' }).first()
@@ -180,7 +179,7 @@ test('MCP detail save preserves literal hashes in persisted and outgoing headers
     const toolsPath = testInfo.outputPath('mcp-tools-connected.png')
     await mainWindow.screenshot({ path: toolsPath })
     await testInfo.attach('MCP tools connected', { path: toolsPath, contentType: 'image/png' })
-    await content.locator('#setting-mcp-servers-tab-servers').click()
+    await content.getByRole('button', { name: 'Back', exact: true }).click()
     await content
       .locator('[data-slot="mcp-server-row"]')
       .filter({ has: mainWindow.getByText(name, { exact: true }) })
