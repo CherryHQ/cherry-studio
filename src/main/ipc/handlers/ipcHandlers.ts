@@ -41,6 +41,7 @@ import { quickAssistantHandlers } from './quickAssistant'
 import { screenshotHandlers } from './screenshot'
 import { screenshotChatHandlers } from './screenshotChat'
 import { selectionHandlers } from './selection'
+import { sideChatHandlers } from './sideChat'
 import { skillHandlers } from './skill'
 import { systemHandlers } from './system'
 import { tabHandlers } from './tab'
@@ -62,6 +63,7 @@ import { windowHandlers } from './window'
  * exposure surface.
  */
 export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
+  ...sideChatHandlers,
   ...aiHandlers,
   ...agentHandlers,
   ...voiceHandlers,

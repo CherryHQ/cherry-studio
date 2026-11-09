@@ -2,6 +2,7 @@ import { APICallError, RetryError } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AgentSessionForkSourceError } from '@data/services/AgentSessionForkService'
+import { sideChatService } from '@data/services/SideChatService'
 import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
 import { AgentSessionForkError } from '@main/ai/runtime/fork/checkpoint'
 import { AiStreamAdmissionError } from '@main/ai/streamManager'
@@ -110,6 +111,7 @@ const fakeWebContents = { id: 1, once: vi.fn(), isDestroyed: () => false, send: 
 const windowManager = { getWindow: vi.fn() }
 
 beforeEach(() => {
+  vi.spyOn(sideChatService, 'find').mockReturnValue(undefined)
   vi.clearAllMocks()
   createAgent.mockImplementation(async (request: object) => ({ id: 'agent-1', ...request }))
   createBuiltinSkillSession.mockReturnValue({ id: 'skill-session', agentId: 'cherry-assistant' })
@@ -152,6 +154,14 @@ beforeEach(() => {
 const ctx = { senderId: 'w1' }
 
 describe('aiHandlers', () => {
+  it('does not expose a window-owned side stream through ordinary AI commands', async () => {
+    await expect(aiHandlers['ai.stream.abort']({ topicId: 'side-chat:private' }, ctx)).rejects.toThrow('side-chat')
+    await expect(
+      aiHandlers['ai.tool.get_result']({ topicId: 'side-chat:private', messageId: 'answer', toolCallId: 'tool' }, ctx)
+    ).rejects.toThrow('side-chat')
+    expect(aiStreamManager.abortAndDrain).not.toHaveBeenCalled()
+    expect(aiStreamManager.getDeferredToolOutput).not.toHaveBeenCalled()
+  })
   it('forwards a native fork request with only the source session and checkpoint message', async () => {
     agentSessionRuntimeService.forkSession.mockResolvedValue('child')
     await expect(
