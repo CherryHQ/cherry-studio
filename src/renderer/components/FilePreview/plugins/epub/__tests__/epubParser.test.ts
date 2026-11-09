@@ -38,6 +38,22 @@ describe('EPUB parser', () => {
     book.close()
     await expect(book.readChapter('0')).rejects.toThrow()
   })
+  it('keeps table cells and definition list items separated', async () => {
+    const book = await openEpub(
+      await fixture({
+        'OEBPS/a.xhtml':
+          '<html><body><table><tr><td>10</td><td>20</td></tr></table><dl><dt>Term</dt><dd>Definition</dd></dl><p>wo<em>rd</em></p></body></html>'
+      })
+    )
+    const id = book.chapters.find((c) => c.path.endsWith('a.xhtml'))!.id
+    const text = (await book.readChapter(id)).paragraphs.join('\n')
+    expect(text).toContain('10 20')
+    expect(text).not.toContain('1020')
+    expect(text).toContain('Term Definition')
+    expect(text).not.toContain('TermDefinition')
+    expect(text).toContain('word')
+    book.close()
+  })
   it('reads XHTML named entities once and recovers malformed chapters', async () => {
     const book = await openEpub(
       await fixture({

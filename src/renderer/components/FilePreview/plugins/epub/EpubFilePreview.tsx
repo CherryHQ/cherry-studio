@@ -62,6 +62,7 @@ export default function EpubFilePreview({
   const [titles, setTitles] = useState<Record<string, string>>({})
   const [chapter, setChapter] = useState<ChapterState>({ status: 'loading' })
   useEffect(() => {
+    const controller = new AbortController()
     let active = true
     let book: EpubBook | undefined
     setState({ status: 'loading' })
@@ -69,10 +70,11 @@ export default function EpubFilePreview({
     setTitles({})
     const load = async () => {
       const source = createElectronPreviewSource(filePath, fileName, metadataRequest ?? metadata)
-      const session = await source.open()
+      const session = await source.open(controller.signal)
       try {
         if (session.size > EPUB_SOURCE_MAX_BYTES) throw new EpubError('too_large')
-        const bytes = await session.readRange(0, session.size)
+        const bytes = await session.readRange(0, session.size, controller.signal)
+        controller.signal.throwIfAborted()
         book = await openEpub(bytes)
         if (active) setState({ status: 'ready', book })
         else book.close()
@@ -85,6 +87,7 @@ export default function EpubFilePreview({
       if (active) setState({ status: 'error', reason: reasonFor(error) })
     })
     return () => {
+      controller.abort()
       active = false
       book?.close()
     }

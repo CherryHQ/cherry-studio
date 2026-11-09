@@ -102,6 +102,7 @@ function chapterContent(text: string): EpubChapterContent {
     'article',
     'figcaption'
   ])
+  const cells = new Set(['td', 'th', 'dt', 'dd'])
   const walk = (node: Node): string => {
     if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? ''
     if (node.nodeType !== Node.ELEMENT_NODE) return ''
@@ -109,6 +110,7 @@ function chapterContent(text: string): EpubChapterContent {
     const tag = el.localName.toLowerCase()
     if (['script', 'style', 'head', 'noscript'].includes(tag)) return ''
     const content = Array.from(node.childNodes, walk).join('')
+    if (cells.has(tag)) return `${content} `
     return blocks.has(tag) ? `\n${content}\n` : content
   }
   const content = walk(body)

@@ -36,6 +36,7 @@ const props = (size: number, refreshKey = 0) => ({
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  vi.restoreAllMocks()
 })
 describe('EPUB preview', () => {
   it('shows and switches chapters', async () => {
@@ -58,6 +59,23 @@ describe('EPUB preview', () => {
     mocks.request.mockResolvedValue({ content: bytes, version: { size: 2, mtime: 1 } })
     render(<EpubFilePreview {...props(2)} />)
     expect(await screen.findByText('file_preview.epub.damaged.title')).toBeInTheDocument()
+  })
+  it('never starts parsing after unmounting during a pending read', async () => {
+    const bytes = await bookBytes()
+    const loadAsync = vi.spyOn(JSZip, 'loadAsync')
+    let resolve!: (value: unknown) => void
+    mocks.request.mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          resolve = done
+        })
+    )
+    const view = render(<EpubFilePreview {...props(bytes.length)} />)
+    await waitFor(() => expect(mocks.request).toHaveBeenCalled())
+    view.unmount()
+    resolve({ content: bytes, version: { size: bytes.length, mtime: 1 } })
+    await new Promise((done) => setTimeout(done, 0))
+    expect(loadAsync).not.toHaveBeenCalled()
   })
   it('does not restore an old result after refresh', async () => {
     const bytes = await bookBytes()
