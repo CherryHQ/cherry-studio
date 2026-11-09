@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { AgentSessionEntitySchema, type AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 const mocks = vi.hoisted(() => ({ agent: vi.fn(), workspace: vi.fn() }))
 vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent: mocks.agent } }))
 vi.mock('@data/services/AgentSessionContextService', () => ({ agentSessionContextService: {} }))
@@ -12,12 +12,30 @@ vi.mock('./durableFork', () => ({ forkDurable: vi.fn() }))
 vi.mock('./PiDurableRuntimeConnection', () => ({ PiDurableRuntimeConnection: vi.fn() }))
 import { PiDurableRuntimeDriver } from './PiDurableRuntimeDriver'
 describe('Pi Durable effective model preflight', () => {
-  const session = {
+  const session: AgentSessionEntity = {
     id: 'session-1',
     agentId: 'agent-1',
     model: 'anthropic::override',
-    workspace: { path: '/tmp' }
-  } as AgentSessionEntity
+    name: 'Session',
+    isNameManuallyEdited: false,
+    workspaceId: 'workspace-1',
+    workspace: {
+      id: 'workspace-1',
+      name: 'Workspace',
+      path: '/tmp',
+      type: 'user',
+      orderKey: 'a0',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    },
+    orderKey: 'a0',
+    lastActivityAt: '2026-01-01T00:00:00.000Z',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z'
+  }
+  it('uses a complete session entity fixture', () => {
+    expect(AgentSessionEntitySchema.parse(session)).toEqual(session)
+  })
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.agent.mockReturnValue({ model: null })
