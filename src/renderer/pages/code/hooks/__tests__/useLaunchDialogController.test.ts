@@ -144,8 +144,8 @@ describe('useLaunchDialogController', () => {
     )
   })
 
-  it('keeps the launch dialog open and the raw CLI error when launch fails', async () => {
-    mocks.requestMock.mockResolvedValue({ message: 'terminal missing', success: false })
+  it('keeps the launch dialog open and shows why the launch failed', async () => {
+    mocks.requestMock.mockResolvedValue({ message: 'Directory does not exist: /tmp/project', success: false })
     const { result } = renderHook(() =>
       useLaunchDialogController({
         currentProviderConfig: null,
@@ -177,12 +177,10 @@ describe('useLaunchDialogController', () => {
     expect(result.current.launchDialogProps.open).toBe(true)
     expect(toast.error).toHaveBeenCalledWith(
       expect.objectContaining({
-        cause: expect.objectContaining({ message: 'terminal missing' }),
-        data: expect.objectContaining({
-          errorContext: expect.objectContaining({ message: 'terminal missing', operation: 'code_cli.run' }),
-          localizedErrorMessage: 'code.launch.error'
-        }),
-        title: 'code.launch.error'
+        title: 'code.launch.error',
+        description: 'Directory does not exist: /tmp/project',
+        cause: expect.objectContaining({ message: 'Directory does not exist: /tmp/project' }),
+        data: { source: 'code.launch', operation: 'code_cli.run' }
       })
     )
   })

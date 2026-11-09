@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { loggerService } from '@logger'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { toastAppError } from '@renderer/services/AppErrorDetailService'
+import { toast } from '@renderer/services/toast'
 import { isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { MiniApp } from '@shared/data/types/miniApp'
 
@@ -24,6 +25,10 @@ function reportFailure(t: (key: string) => string, fallbackKey: string) {
       logger.error('mutation failed', { code: e.code, message: e.message })
     } else {
       logger.error('mutation failed', err as Error)
+    }
+    if (e.isClientError) {
+      toast.error({ title: t(fallbackKey), description: e.message, data: { suppressDetail: true } })
+      return
     }
     toastAppError(t(fallbackKey), e, { source: 'miniApp', operation: fallbackKey })
   }
