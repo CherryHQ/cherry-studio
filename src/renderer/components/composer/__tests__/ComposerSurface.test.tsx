@@ -52,7 +52,7 @@ const mocks = vi.hoisted(() => ({
   deleteSelection: vi.fn(),
   setMeta: vi.fn(),
   setContent: vi.fn(),
-  setHardBreak: vi.fn(),
+  splitComposerLine: vi.fn(),
   setNodeSelection: vi.fn(),
   setTextSelection: vi.fn(),
   chainRun: vi.fn(),
@@ -198,12 +198,16 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
         focus: mocks.focus,
         setContent: mocks.setContent,
         scrollIntoView: () => true,
-        setHardBreak: mocks.setHardBreak,
+        splitComposerLine: mocks.splitComposerLine,
         setNodeSelection: mocks.setNodeSelection
       },
       chain: () => {
         const chain: Record<string, (...args: unknown[]) => any> = {
           insertContent: (...args: unknown[]) => {
+            mocks.insertContent(...args)
+            return { run: mocks.chainRun }
+          },
+          insertComposerLines: (...args: unknown[]) => {
             mocks.insertContent(...args)
             return { run: mocks.chainRun }
           },
@@ -481,7 +485,7 @@ describe('ComposerSurface', () => {
     mocks.deleteSelection.mockReset()
     mocks.setMeta.mockReset()
     mocks.setContent.mockReset()
-    mocks.setHardBreak.mockReset()
+    mocks.splitComposerLine.mockReset()
     mocks.setNodeSelection.mockReset()
     mocks.setTextSelection.mockReset()
     mocks.chainRun.mockReset()
@@ -961,7 +965,7 @@ describe('ComposerSurface', () => {
     const editorElement = screen.getByTestId('composer-editor')
     await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
 
-    editorElement.innerHTML = '<p>hello<br><br class="ProseMirror-trailingBreak"></p>'
+    editorElement.innerHTML = '<p>hello</p><p><br class="ProseMirror-trailingBreak"></p>'
 
     await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular'))
   })
@@ -4403,7 +4407,7 @@ describe('ComposerSurface', () => {
         )
       })
       expect(editor.getText({ blockSeparator: '\n' })).toBe(plainText)
-      const link = editor.state.doc.firstChild?.lastChild
+      const link = editor.state.doc.lastChild?.lastChild
       expect(link?.type.name).toBe('composerToken')
       expect(link?.attrs).toMatchObject(token)
     } finally {
@@ -4981,7 +4985,7 @@ describe('ComposerSurface', () => {
       },
       chain: () => ({
         focus: () => ({
-          setMeta: () => ({ insertContent })
+          setMeta: () => ({ insertComposerLines: insertContent })
         })
       })
     }
@@ -5036,7 +5040,7 @@ describe('ComposerSurface', () => {
       },
       chain: () => ({
         focus: () => ({
-          setMeta: () => ({ insertContent })
+          setMeta: () => ({ insertComposerLines: insertContent })
         })
       })
     }
@@ -5459,7 +5463,7 @@ describe('ComposerSurface', () => {
     const event = new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, cancelable: true })
     expect(mocks.editorOptions.editorProps.handleKeyDown(null, event)).toBe(true)
     expect(mocks.quickPanelDispatchKeyDown).toHaveBeenCalledWith(event)
-    expect(mocks.setHardBreak).toHaveBeenCalledTimes(1)
+    expect(mocks.splitComposerLine).toHaveBeenCalledTimes(1)
     expect(onSendDraft).not.toHaveBeenCalled()
   })
 
@@ -5474,14 +5478,14 @@ describe('ComposerSurface', () => {
 
     const newline = new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, cancelable: true })
     expect(mocks.editorOptions.editorProps.handleKeyDown(null, newline)).toBe(true)
-    expect(mocks.setHardBreak).toHaveBeenCalledTimes(1)
+    expect(mocks.splitComposerLine).toHaveBeenCalledTimes(1)
     expect(onSendDraft).not.toHaveBeenCalled()
 
     // Shift+Enter is no longer the line break once the preference points elsewhere.
     const shiftEnter = new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, cancelable: true })
     expect(mocks.editorOptions.editorProps.handleKeyDown(null, shiftEnter)).toBe(true)
     expect(shiftEnter.defaultPrevented).toBe(true)
-    expect(mocks.setHardBreak).toHaveBeenCalledTimes(1)
+    expect(mocks.splitComposerLine).toHaveBeenCalledTimes(1)
   })
 
   it('falls back to Enter for line breaks when the send shortcut takes Shift+Enter', async () => {
@@ -5493,7 +5497,7 @@ describe('ComposerSurface', () => {
 
     const event = new KeyboardEvent('keydown', { key: 'Enter', cancelable: true })
     expect(mocks.editorOptions.editorProps.handleKeyDown(null, event)).toBe(true)
-    expect(mocks.setHardBreak).toHaveBeenCalledTimes(1)
+    expect(mocks.splitComposerLine).toHaveBeenCalledTimes(1)
   })
 
   it('uses Shift+Enter to send while editing when it is configured as the send shortcut', async () => {
@@ -5583,7 +5587,7 @@ describe('ComposerSurface', () => {
     // Swallowed rather than forwarded: the base keymap would otherwise split the single block.
     expect(mocks.editorOptions.editorProps.handleKeyDown(null, event)).toBe(true)
     expect(onSendDraft).not.toHaveBeenCalled()
-    expect(mocks.setHardBreak).not.toHaveBeenCalled()
+    expect(mocks.splitComposerLine).not.toHaveBeenCalled()
   })
 
   it('does not restore editor focus after an async send when focus moved elsewhere', async () => {

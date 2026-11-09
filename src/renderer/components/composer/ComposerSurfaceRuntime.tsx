@@ -437,7 +437,7 @@ function shouldDelegateLongTextPasteToFileHandler(
 }
 
 function insertComposerPastedContent(editor: Editor, content: JSONContent[]) {
-  editor.chain().focus().setMeta(COMPOSER_SUPPRESS_SUGGESTION_META, true).insertContent(content).run()
+  editor.chain().focus().setMeta(COMPOSER_SUPPRESS_SUGGESTION_META, true).insertComposerLines(content).run()
 }
 
 function readComposerPayloadObject(payload: unknown): Record<string, unknown> | null {
@@ -796,7 +796,7 @@ export default function ComposerSurfaceRuntime({
       editor
         .chain()
         .focus()
-        .insertContent(
+        .insertComposerLines(
           createPromptVariableInlineContent(droppedText, { startIndex: getNextPromptVariableIndex(editor) })
         )
         .run()
@@ -946,13 +946,13 @@ export default function ComposerSurfaceRuntime({
             .focus()
             .deleteRange({ from: position, to: position + nodeViewProps.node.nodeSize })
           if (content.length > 0) {
-            chain.insertContent(content)
+            chain.insertComposerLines(content)
           }
           chain.run()
         } else {
           removeComposerTokens(editor, (candidate) => candidate.id === token.id)
           if (content.length > 0) {
-            editor.chain().focus().insertContent(content).run()
+            editor.chain().focus().insertComposerLines(content).run()
           } else {
             editor.commands.focus()
           }
@@ -1654,7 +1654,7 @@ export default function ComposerSurfaceRuntime({
         }
 
         // Every Enter combination is resolved here, in priority order, and never falls through to
-        // the base keymap: the composer is a single block that must not be split.
+        // the base keymap: only the configured newline shortcut may end a line.
         if (isEnterPressed) {
           event.preventDefault()
 
@@ -1669,7 +1669,7 @@ export default function ComposerSurfaceRuntime({
           }
 
           if (isNewlinePressed) {
-            editorRef.current?.commands.setHardBreak()
+            editorRef.current?.commands.splitComposerLine()
           }
           return true
         }
