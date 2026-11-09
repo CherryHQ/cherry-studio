@@ -271,7 +271,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
       throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED, reason, { reason })
     }
   },
-  'ai.agent.workspace.is_accessible': ({ path }) => isDirectoryAccessible(path),
+  'ai.agent.workspace.is_accessible': async ({ path }) => isDirectoryAccessible(path),
   'ai.agent.workspace.register': async ({ path, name }) =>
     agentWorkspaceStorageService.registerWorkspace(path, { name }),
   'ai.agent.workspace.delete': ({ workspaceId }) =>
