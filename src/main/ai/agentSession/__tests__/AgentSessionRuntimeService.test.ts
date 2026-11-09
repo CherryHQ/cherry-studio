@@ -4624,7 +4624,6 @@ describe('AgentSessionRuntimeService', () => {
       const connect = vi.fn().mockRejectedValue(new Error('connect boom'))
       runtimeDriverRegistry.register({
         type: 'test-runtime',
-        capabilities: ['agent-session'],
         connect,
         validateSession: vi.fn(),
         listAvailableTools: vi.fn().mockResolvedValue([])
@@ -4647,7 +4646,6 @@ describe('AgentSessionRuntimeService', () => {
       const connect = vi.fn().mockRejectedValue(new Error('retry failed'))
       runtimeDriverRegistry.register({
         type: 'test-runtime',
-        capabilities: ['agent-session'],
         connect,
         validateSession: vi.fn(),
         listAvailableTools: vi.fn().mockResolvedValue([])
@@ -4669,7 +4667,6 @@ describe('AgentSessionRuntimeService', () => {
       const connect = vi.fn().mockReturnValue(pendingConnect.promise)
       runtimeDriverRegistry.register({
         type: 'test-runtime',
-        capabilities: ['agent-session'],
         connect,
         validateSession: vi.fn(),
         listAvailableTools: vi.fn().mockResolvedValue([])
@@ -4693,7 +4690,6 @@ describe('AgentSessionRuntimeService', () => {
     it('keeps a live turn when the priming connection resolves false', async () => {
       runtimeDriverRegistry.register({
         type: 'test-runtime',
-        capabilities: ['agent-session'],
         connect: vi.fn(() => new Promise<never>(() => {})),
         validateSession: vi.fn(),
         listAvailableTools: vi.fn().mockResolvedValue([])
