@@ -424,7 +424,8 @@ const AppearanceSettings: FC = () => {
                   onClick={() => handleZoomFactor(0, true)}
                   variant="ghost"
                   size="icon"
-                  aria-label={t('preview.reset')}>
+                  aria-label={t('preview.reset')}
+                  className="text-muted-foreground">
                   <ResetIcon size="14" />
                 </Button>
               </Tooltip>
@@ -434,7 +435,8 @@ const AppearanceSettings: FC = () => {
                 onClick={() => handleZoomFactor(-0.1)}
                 variant="ghost"
                 size="icon"
-                aria-label={t('preview.zoom_out')}>
+                aria-label={t('preview.zoom_out')}
+                className="text-muted-foreground">
                 <Minus size="14" />
               </Button>
             </Tooltip>
@@ -444,7 +446,8 @@ const AppearanceSettings: FC = () => {
                 onClick={() => handleZoomFactor(0.1)}
                 variant="ghost"
                 size="icon"
-                aria-label={t('preview.zoom_in')}>
+                aria-label={t('preview.zoom_in')}
+                className="text-muted-foreground">
                 <Plus size="14" />
               </Button>
             </Tooltip>
@@ -500,7 +503,11 @@ const AppearanceSettings: FC = () => {
           <SettingRowTitle>{t('settings.display.font.global')}</SettingRowTitle>
           <SelectorRow className="gap-2">
             {userTheme.userFontFamily && (
-              <Button onClick={() => handleUserFontChange('')} variant="ghost" size="icon">
+              <Button
+                onClick={() => handleUserFontChange('')}
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground">
                 <ResetIcon size="14" />
               </Button>
             )}
@@ -525,7 +532,11 @@ const AppearanceSettings: FC = () => {
           <SettingRowTitle>{t('settings.display.font.code')}</SettingRowTitle>
           <SelectorRow className="gap-2">
             {userTheme.userCodeFontFamily && (
-              <Button onClick={() => handleUserCodeFontChange('')} variant="ghost" size="icon">
+              <Button
+                onClick={() => handleUserCodeFontChange('')}
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground">
                 <ResetIcon size="14" />
               </Button>
             )}

@@ -55,6 +55,20 @@
       "description": "Automatically open the right-side browser panel when tools browse the web (default: true)."
     },
     {
+      "targetKey": "app.browser.start_page.mode",
+      "type": "PreferenceTypes.BrowserStartPageMode",
+      "defaultValue": "blank",
+      "status": "classified",
+      "description": "Start page for newly opened standalone browser tabs"
+    },
+    {
+      "targetKey": "app.browser.start_page.custom_url",
+      "type": "string",
+      "defaultValue": "",
+      "status": "classified",
+      "description": "Custom HTTP(S) start page for standalone browser tabs"
+    },
+    {
       "targetKey": "app.fetch.allow_private_network",
       "type": "boolean",
       "defaultValue": true,
@@ -327,6 +341,11 @@
           "type": "shortcut"
         },
         {
+          "id": "sidebar-shortcut:core.app:scheduled_tasks",
+          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "scheduled_tasks" } },
+          "type": "shortcut"
+        },
+        {
           "id": "sidebar-shortcut:core.app:translate",
           "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "translate" } },
           "type": "shortcut"
@@ -351,6 +370,13 @@
       "defaultValue": [],
       "status": "classified",
       "description": "Launchpad built-in app tile order, independent from the sidebar favorites order (new v2 preference, no v1 source). Empty defaults to the canonical app order; unknown/missing apps are normalized at read time"
+    },
+    {
+      "targetKey": "ui.marketplace.skill_sources",
+      "type": "PreferenceTypes.SkillSubscriptionSource[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "User-subscribed skill catalogs; fetched contents are cached separately"
     },
     {
       "targetKey": "ui.custom_css",
@@ -645,6 +671,123 @@
       "description": "Command shortcut: app.sidebar.toggle (unified command system)"
     },
     {
+      "targetKey": "shortcut.app.sidebar.open_1",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "1"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.sidebar.open_1 (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.app.sidebar.open_2",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "2"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.sidebar.open_2 (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.app.sidebar.open_3",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "3"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.sidebar.open_3 (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.app.sidebar.open_4",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "4"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.sidebar.open_4 (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.app.sidebar.open_5",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "5"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.sidebar.open_5 (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.app.sidebar.open_6",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "6"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.sidebar.open_6 (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.app.sidebar.open_7",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "7"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.sidebar.open_7 (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.app.sidebar.open_8",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "8"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.sidebar.open_8 (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.app.sidebar.open_9",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "9"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.sidebar.open_9 (unified command system)"
+    },
+    {
       "targetKey": "shortcut.app.settings.open",
       "type": "PreferenceTypes.PreferenceShortcutType",
       "defaultValue": {
@@ -825,6 +968,19 @@
       "description": "Command shortcut: quick_assistant.toggle (unified command system)"
     },
     {
+      "targetKey": "shortcut.resource.delete_permanently",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Backspace"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: resource.delete_permanently (unified command system)"
+    },
+    {
       "targetKey": "shortcut.selection.capture_text",
       "type": "PreferenceTypes.PreferenceShortcutType",
       "defaultValue": {
@@ -882,6 +1038,62 @@
       },
       "status": "classified",
       "description": "Command shortcut: topic.sidebar.toggle (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.assistant.next",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Alt",
+          "Right"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: assistant.next (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.assistant.prev",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Alt",
+          "Left"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: assistant.prev (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.topic.next",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Alt",
+          "Down"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: topic.next (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.topic.prev",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Alt",
+          "Up"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: topic.prev (unified command system)"
     },
     {
       "targetKey": "shortcut.tab.close",
@@ -1132,6 +1344,229 @@
       "defaultValue": 2,
       "status": "classified",
       "description": "Agent file pane: tab width in columns, one of 2, 4, or 8 (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "app.notification.center.system.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Save new system notifications in the notification center"
+    },
+    {
+      "targetKey": "app.notification.center.usage.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Save new usage alerts in the notification center"
+    },
+    {
+      "targetKey": "app.notification.center.official.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Save new release announcements in the notification center"
+    },
+    {
+      "targetKey": "app.notification.usage.os.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Show system notifications for usage alerts while the app is in the background"
+    },
+    {
+      "targetKey": "app.notification.completion_sound.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Play a sound when a task completes"
+    },
+    {
+      "targetKey": "app.notification.daily_budget.tokens",
+      "type": "number",
+      "defaultValue": 0,
+      "status": "classified",
+      "description": "Daily token budget as a nonnegative integer; zero disables the budget alert"
+    },
+    {
+      "targetKey": "app.notification.daily_budget.threshold",
+      "type": "number",
+      "defaultValue": 80,
+      "status": "classified",
+      "description": "Daily budget warning percentage as an integer from 1 to 100"
+    },
+    {
+      "targetKey": "shortcut.tab.open_1",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "Alt",
+          "1"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: tab.open_1 (numbered tab navigation)"
+    },
+    {
+      "targetKey": "shortcut.tab.open_2",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "Alt",
+          "2"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: tab.open_2 (numbered tab navigation)"
+    },
+    {
+      "targetKey": "shortcut.tab.open_3",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "Alt",
+          "3"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: tab.open_3 (numbered tab navigation)"
+    },
+    {
+      "targetKey": "shortcut.tab.open_4",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "Alt",
+          "4"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: tab.open_4 (numbered tab navigation)"
+    },
+    {
+      "targetKey": "shortcut.tab.open_5",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "Alt",
+          "5"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: tab.open_5 (numbered tab navigation)"
+    },
+    {
+      "targetKey": "shortcut.tab.open_6",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "Alt",
+          "6"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: tab.open_6 (numbered tab navigation)"
+    },
+    {
+      "targetKey": "shortcut.tab.open_7",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "Alt",
+          "7"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: tab.open_7 (numbered tab navigation)"
+    },
+    {
+      "targetKey": "shortcut.tab.open_8",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "Alt",
+          "8"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: tab.open_8 (numbered tab navigation)"
+    },
+    {
+      "targetKey": "shortcut.tab.open_9",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "Alt",
+          "9"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: tab.open_9 (numbered tab navigation)"
+    },
+    {
+      "targetKey": "shortcut.agent.workspace.open",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "O"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: agent.workspace.open (unified command system)"
+    },
+    {
+      "targetKey": "agent.details.sections",
+      "type": "PreferenceTypes.AgentDetailsSectionConfig[]",
+      "defaultValue": [
+        {
+          "id": "workspace",
+          "visible": true
+        },
+        {
+          "id": "desktop_control",
+          "visible": true
+        },
+        {
+          "id": "plan",
+          "visible": true
+        },
+        {
+          "id": "subagents",
+          "visible": true
+        },
+        {
+          "id": "workflows",
+          "visible": true
+        },
+        {
+          "id": "shells",
+          "visible": true
+        },
+        {
+          "id": "other",
+          "visible": true
+        },
+        {
+          "id": "artifacts",
+          "visible": true
+        },
+        {
+          "id": "context",
+          "visible": true
+        }
+      ],
+      "status": "classified",
+      "description": "Ordered session details sections and their visibility"
     }
   ]
 }
