@@ -1,6 +1,8 @@
 import { setupTestDatabase } from '@test-helpers/db'
+import { and, eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
+import { messageTable } from '@data/db/schemas/message'
 import { messageService } from '@data/services/MessageService'
 import { sideChatService } from '@data/services/SideChatService'
 import { topicService } from '@data/services/TopicService'
@@ -27,7 +29,31 @@ function source() {
 }
 
 describe('saved side-chat source and lifecycle', () => {
-  setupTestDatabase()
+  const dbh = setupTestDatabase()
+
+  it('keeps structural metadata outside history and preserves it when messages are cleared', () => {
+    const input = source()
+    const side = sideChatService.create(input, config)
+    const root = dbh.db
+      .select()
+      .from(messageTable)
+      .where(and(eq(messageTable.topicId, side.topicId), eq(messageTable.role, 'root')))
+      .get()!
+    expect(root.data).toEqual({ parts: [], sideChat: { ...side.metadata, sourceTopicId: input.topicId, version: 1 } })
+    expect(root.searchableText).toBe('')
+    expect(() => messageService.update(root.id, { data: { parts: [] } })).toThrow()
+    const question = messageService.create(side.topicId, {
+      role: 'user',
+      data: { parts: [{ type: 'text', text: 'Side question' }] },
+      status: 'success',
+      setAsActive: true
+    })
+    expect(messageService.getPathToNode(question.id).map((message) => message.id)).toEqual([question.id])
+    messageService.clearTopicMessages(side.topicId)
+    expect(sideChatService.get(side.topicId)).toEqual(side)
+    const copied = topicService.duplicate(input.topicId, { nodeId: input.messageId })
+    expect(sideChatService.find(copied.id)).toBeUndefined()
+  })
 
   it('counts submitted questions, including failures, independently of assistant replies', () => {
     const input = source()

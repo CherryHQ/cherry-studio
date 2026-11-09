@@ -1328,6 +1328,10 @@ export class MessageService {
 
       const existing = rowToMessage(existingRow)
 
+      if (existingRow.role === 'root' && dto.data !== undefined) {
+        throw DataApiErrorFactory.invalidOperation('update root data', 'Structural root data is main-owned')
+      }
+
       // Single-root guards (mirror createSibling/delete; the CHECK + unique index are the
       // structural backstop, these give clean errors):
       // - the virtual root cannot be reparented (it would lose its null parent → topic

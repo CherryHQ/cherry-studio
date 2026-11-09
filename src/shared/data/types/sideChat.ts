@@ -32,6 +32,12 @@ export type SideChatSnapshot = z.infer<typeof SideChatSnapshotSchema>
 export type SideChatConfig = z.infer<typeof SideChatConfigSchema>
 export type SideChatMetadata = z.infer<typeof SideChatMetadataSchema>
 
+/** Main-owned structural data on the side topic's existing virtual root, never model history. */
+export const SideChatRootDataSchema = z.strictObject({
+  parts: z.tuple([]),
+  sideChat: SideChatMetadataSchema.extend({ sourceTopicId: z.uuidv4(), version: z.literal(1) })
+})
+
 export interface SavedSideChat {
   topicId: string
   sourceTopicId: string

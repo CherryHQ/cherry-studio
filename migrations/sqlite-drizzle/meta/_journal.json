@@ -252,13 +252,6 @@
       "when": 1794176949635,
       "tag": "0035_agent_session_task_ownership",
       "breakpoints": true
-    },
-    {
-      "idx": 36,
-      "version": "6",
-      "when": 1794215554987,
-      "tag": "0036_sloppy_smasher",
-      "breakpoints": true
     }
   ],
   "version": "7"
