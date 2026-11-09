@@ -106,10 +106,11 @@ export async function startNewAgentTask(page: Page, name: string): Promise<void>
   await expect(page.locator('[data-ui~="chat.message"]:visible')).toHaveCount(0, { timeout: 30_000 })
 }
 
-export async function openAgentPane(page: Page, name: 'Files' | 'Status'): Promise<void> {
+export async function openAgentPane(page: Page, name: 'Files' | 'Session details'): Promise<void> {
   const toggle = page.locator('[data-ui~="agent.view"]:visible').getByRole('button', { name, exact: true })
-  if ((await toggle.getAttribute('aria-pressed')) !== 'true') await toggle.click()
-  await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+  const expandedAttribute = name === 'Files' ? 'aria-pressed' : 'aria-expanded'
+  if ((await toggle.getAttribute(expandedAttribute)) !== 'true') await toggle.click()
+  await expect(toggle).toHaveAttribute(expandedAttribute, 'true')
 }
 
 export async function createAgent(

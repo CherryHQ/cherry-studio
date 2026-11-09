@@ -363,6 +363,7 @@ test(...caseDefinition('MP-125'), async ({ mainWindow: page }, testInfo) => {
           path: `/app/browser?url=${encodeURIComponent('http://127.0.0.1:9/')}`
         })
       )
+      await expect(address).toHaveAttribute('title', 'http://127.0.0.1:9/')
       await expect(failure).toBeVisible()
       await expect(loading).toBeHidden()
       await expect(address).toBeEditable()
@@ -374,7 +375,9 @@ test(...caseDefinition('MP-125'), async ({ mainWindow: page }, testInfo) => {
     })
 
     await test.step('Stopping the loaded local service shows the local-server guidance on refresh', async () => {
+      await address.focus()
       await address.fill(url)
+      await expect(address).toHaveValue(url)
       await address.press('Enter')
       await expect.poll(readGuest).toEqual({ url, text: 'MP-125 service initial' })
       await expect(failure).toBeHidden()

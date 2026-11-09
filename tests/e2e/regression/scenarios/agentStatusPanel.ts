@@ -52,8 +52,10 @@ export async function agentStatusPanel(app: RegressionApp, page: Page, testInfo:
     if (await enableGateway.isVisible()) await enableGateway.click()
     await selectAgentWorkspace(app, page)
     const view = page.locator('[data-ui~="agent.view"]:visible').first()
-    const panel = page.locator('[data-right-pane]:visible').last()
-    await openAgentPane(page, 'Status')
+    const panel = page
+      .getByRole('complementary', { name: 'Session details', exact: true })
+      .or(page.getByRole('dialog', { name: 'Session details', exact: true }))
+    await openAgentPane(page, 'Session details')
     const context = panel.getByRole('region', { name: 'Context', exact: true })
     await expect(context.getByRole('button', { name: 'Context', exact: true })).toBeVisible()
 
@@ -118,6 +120,7 @@ export async function agentStatusPanel(app: RegressionApp, page: Page, testInfo:
     for (const file of files) {
       await expect.soft(messageCards.getByText(file.name, { exact: true }).first()).toBeVisible({ timeout: 10_000 })
     }
+    await openAgentPane(page, 'Session details')
     await context.getByRole('button', { name: 'Context', exact: true }).click()
     const usage = context.getByRole('meter', { name: 'Context', exact: true })
     await expect.soft(usage).toBeVisible({ timeout: 15_000 })
