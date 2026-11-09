@@ -1,10 +1,15 @@
-import { ChartColumn, ChartLine, ChartPie, type LucideIcon } from 'lucide-react'
-import { memo, useCallback, useMemo } from 'react'
+import './UsageSettings.css'
+import { ChartColumn, ChartLine, ChartPie, Download, type LucideIcon } from 'lucide-react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
   Button,
   ButtonGroup,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   EmptyState,
   SegmentedControl,
   Select,
@@ -15,7 +20,10 @@ import {
   Skeleton
 } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
+import { useDataChange } from '@renderer/data/hooks/useDataApi'
 import { useProviders } from '@renderer/hooks/useProvider'
+import { exportService } from '@renderer/services/ExportService'
+import { toast } from '@renderer/services/toast'
 import { formatCompactNumber } from '@renderer/utils/number'
 import { cn } from '@renderer/utils/style'
 import type {
@@ -23,7 +31,7 @@ import type {
   AiUsageRecordListSortBy,
   AiUsageRecordStatsBucket
 } from '@shared/data/api/schemas/aiUsageRecords'
-import type { Currency } from '@shared/data/types/model'
+import { CURRENCY, type Currency } from '@shared/data/types/model'
 
 import {
   type BoundedTimeRange,
@@ -52,6 +60,15 @@ import {
 import { formatCost, parseDateKey } from './usageDisplay'
 import { UsageDistributionChart } from './UsageDistributionChart'
 import { UsageEntriesTable } from './UsageEntriesTable'
+import {
+  buildUsageExportFileStem,
+  buildUsageWorkbookBytes,
+  fetchAllUsageEntries,
+  type UsageExportContext,
+  UsageExportError,
+  type UsageRecordExportResolvers,
+  type UsageWorkbookLabels
+} from './usageExport'
 import UsageHeatmap from './UsageHeatmap'
 import {
   InsightCell,
@@ -85,22 +102,29 @@ const UsageEntriesSection = memo(function UsageEntriesSection({
   currency,
   getProviderInfo,
   dateFormatter,
-  timeFormatter
+  timeFormatter,
+  onReadinessChange
 }: {
   range: BoundedTimeRange
   currency: Currency | undefined
   getProviderInfo: (id: string, snapshotName?: string | null) => { id: string; name: string }
   dateFormatter: Intl.DateTimeFormat
   timeFormatter: Intl.DateTimeFormat
+  onReadinessChange: (ready: boolean, error: boolean) => void
 }) {
   const [sortBy, setSortBy] = usePersistCache('settings.usage.entry_sort_by')
   const [sortOrder, setSortOrder] = usePersistCache('settings.usage.entry_sort_order')
-  const { entries, total, isLoading, isRefreshing, hasNext, loadNext } = useUsageEntriesData({
-    windowRange: range,
-    currency,
-    sortBy,
-    sortOrder
-  })
+  const { entries, total, isLoading, isRefreshing, hasNext, loadNext, entriesReady, entriesError } =
+    useUsageEntriesData({
+      windowRange: range,
+      currency,
+      sortBy,
+      sortOrder
+    })
+  useEffect(() => {
+    onReadinessChange(entriesReady, entriesError)
+    return () => onReadinessChange(false, false)
+  }, [entriesReady, entriesError, onReadinessChange])
   const handleSort = (nextSortBy: AiUsageRecordListSortBy) => {
     setSortOrder((currentOrder) => (sortBy === nextSortBy && currentOrder === 'desc' ? 'asc' : 'desc'))
     setSortBy(nextSortBy)
@@ -133,6 +157,25 @@ function UsageSettings() {
   const [rollup, setRollup] = usePersistCache('settings.usage.rollup')
   const [topCount, setTopCount] = usePersistCache('settings.usage.top_count')
   const [persistedCurrency, setSelectedCurrency] = usePersistCache('settings.usage.currency')
+  const [sortBy] = usePersistCache('settings.usage.entry_sort_by')
+  const [sortOrder] = usePersistCache('settings.usage.entry_sort_order')
+  const [heatmapMetric] = usePersistCache('settings.usage.heatmap_metric')
+  const captureRef = useRef<HTMLDivElement>(null)
+  const mountedRef = useRef(true)
+  const revisionRef = useRef(0)
+  const inFlightRef = useRef(false)
+  const entriesReadinessRef = useRef({ ready: false, error: false })
+  const [exporting, setExporting] = useState(false)
+  const [exportProgress, setExportProgress] = useState<string>()
+  const onEntriesReadinessChange = useCallback((ready: boolean, error: boolean) => {
+    entriesReadinessRef.current = { ready, error }
+  }, [])
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
   const selectedCurrency = persistedCurrency ?? undefined
   const chartType: UsageChartType =
     selectedChartType === 'pie' ? 'pie' : selectedChartType === 'line' && rollup !== 'total' ? 'line' : 'bar'
@@ -144,6 +187,8 @@ function UsageSettings() {
   const providerMap = useMemo(() => new Map(providers.map((provider) => [provider.id, provider])), [providers])
 
   const {
+    aggregateReady,
+    aggregateError,
     costTotals,
     costCurrency,
     timelineBuckets,
@@ -168,6 +213,29 @@ function UsageSettings() {
     topCount,
     selectedCurrency
   })
+
+  const aggregateReadinessRef = useRef({ ready: aggregateReady, error: aggregateError })
+  aggregateReadinessRef.current = { ready: aggregateReady, error: aggregateError }
+  useEffect(() => {
+    revisionRef.current += 1
+  }, [
+    windowKey,
+    sortBy,
+    sortOrder,
+    costCurrency,
+    groupBy,
+    chartMetric,
+    selectedChartType,
+    rollup,
+    topCount,
+    heatmapMetric
+  ])
+  useDataChange(
+    ['/ai-usage-records'],
+    useCallback(() => {
+      revisionRef.current += 1
+    }, [])
+  )
 
   const activeDateKeys = useMemo(
     () => timelineBuckets.filter((bucket) => bucket.requestCount > 0).map((bucket) => bucket.date),
@@ -383,9 +451,202 @@ function UsageSettings() {
   const formatChartValue = (value: number) =>
     chartMetric === 'cost' ? formatCost(value, exploreTotals.costCurrency) : formatCompactNumber(value)
 
+  const handleExport = async (format: 'png' | 'xlsx') => {
+    if (inFlightRef.current) return
+    inFlightRef.current = true
+    setExporting(true)
+    setExportProgress(undefined)
+    const startRevision = revisionRef.current
+    const assertValid = () => {
+      if (!mountedRef.current || revisionRef.current !== startRevision) throw new UsageExportError('ABORTED')
+    }
+    const pngReady = () =>
+      aggregateReadinessRef.current.ready &&
+      !aggregateReadinessRef.current.error &&
+      entriesReadinessRef.current.ready &&
+      !entriesReadinessRef.current.error
+    const context: UsageExportContext = {
+      windowKey,
+      query:
+        sortBy === 'cost'
+          ? { ...windowRange, sortBy: 'cost', sortOrder, costCurrency: costCurrency ?? CURRENCY.USD }
+          : { ...windowRange, sortBy, sortOrder },
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      locale: i18n.language,
+      exportedAt: new Date().toISOString(),
+      display: {
+        persistedCurrency,
+        costCurrency: costCurrency ?? null,
+        groupBy,
+        chartMetric,
+        chartType,
+        rollup,
+        topCount,
+        heatmapMetric
+      }
+    }
+    const messages = {
+      notReady: t('settings.usage.export.notReady'),
+      success: t('settings.usage.export.success'),
+      imageNotSaved: t('settings.usage.export.imageNotSaved'),
+      failed: t('settings.usage.export.failed'),
+      imageFailed: t('settings.usage.export.imageFailed'),
+      dataChanged: t('settings.usage.export.dataChanged'),
+      limitExceeded: t('settings.usage.export.limitExceeded', { count: 1_048_575 }),
+      progress: t('settings.usage.export.progress', { replace: { count: '__COUNT__', total: '__TOTAL__' } }),
+      excel: t('common.export.excel')
+    }
+    const modalityLabels = {
+      language: t('common.language'),
+      embedding: t('models.type.embedding'),
+      image: t('models.type.image'),
+      rerank: t('models.type.rerank')
+    }
+    const providerNames = new Map(providers.map(({ id, name }) => [id, name]))
+    const resolvers: UsageRecordExportResolvers = {
+      providerName: (id, snapshot) => (snapshot ?? providerNames.get(id) ?? id) || '-',
+      modelDisplay: (id) => displayModelId(id) || '-',
+      modalityLabel: (modality) => modalityLabels[modality],
+      sourceLabel: (entry) => (entry.sourceId ? entry.sourceName || entry.sourceId : modalityLabels[entry.modality])
+    }
+    const labels: UsageWorkbookLabels = {
+      usageSheetName: 'Usage',
+      metadataSheetName: 'Metadata',
+      columns: [
+        t('settings.usage.table.model'),
+        t('settings.usage.export.columns.provider'),
+        t('settings.usage.table.source'),
+        t('settings.usage.table.date'),
+        t('settings.usage.table.tokens'),
+        t('settings.usage.table.cost'),
+        t('settings.usage.currency'),
+        t('settings.usage.table.ttft'),
+        t('settings.usage.table.tps'),
+        t('settings.usage.export.columns.recordId'),
+        t('settings.usage.export.columns.recordKind'),
+        t('settings.usage.export.columns.requestCount'),
+        t('settings.usage.export.columns.providerId'),
+        t('settings.usage.export.columns.modelId'),
+        t('settings.usage.export.columns.sourceType'),
+        t('settings.usage.export.columns.sourceId'),
+        t('settings.usage.export.columns.modality'),
+        t('settings.usage.export.columns.inputTokens'),
+        t('settings.usage.export.columns.outputTokens'),
+        t('settings.usage.export.columns.reasoningTokens'),
+        t('settings.usage.export.columns.noCacheTokens'),
+        t('settings.usage.export.columns.cacheReadTokens'),
+        t('settings.usage.export.columns.cacheWriteTokens'),
+        t('settings.usage.export.columns.imageCount'),
+        t('settings.usage.export.columns.completionMs'),
+        t('settings.usage.export.columns.thinkingMs'),
+        t('settings.usage.export.columns.costSource'),
+        t('settings.usage.export.columns.apiKeyId'),
+        t('settings.usage.export.columns.apiKeyLabel'),
+        t('settings.usage.export.columns.apiKeyMasked'),
+        t('settings.usage.export.columns.apiKeyAttribution'),
+        t('settings.usage.export.columns.authMethod')
+      ],
+      metadata: [
+        {
+          label: t('settings.usage.export.metadata.window'),
+          value: `${windowKey} / ${t(WINDOW_LABEL_KEYS[windowKey])}`
+        },
+        {
+          label: t('settings.usage.export.metadata.from'),
+          value: `${windowRange.from} / ${new Date(windowRange.from).toISOString()}`
+        },
+        {
+          label: t('settings.usage.export.metadata.to'),
+          value: `${windowRange.to} / ${new Date(windowRange.to).toISOString()}`
+        },
+        { label: t('settings.usage.export.metadata.timezone'), value: context.timezone },
+        { label: t('settings.usage.export.metadata.exportedAt'), value: context.exportedAt },
+        { label: t('settings.usage.export.metadata.locale'), value: context.locale },
+        { label: t('settings.usage.export.metadata.viewSettings'), value: JSON.stringify(context.display) },
+        { label: t('selector.common.sort_label'), value: `${sortBy} / ${sortOrder}` },
+        { label: t('settings.usage.export.metadata.recordQuery'), value: JSON.stringify(context.query) },
+        { label: t('settings.usage.export.metadata.recordCount'), value: '' },
+        {
+          label: t('settings.usage.export.metadata.numberPolicy'),
+          value: t('settings.usage.export.metadata.numberPolicyValue')
+        }
+      ]
+    }
+    try {
+      const stem = buildUsageExportFileStem(context, windowRange, new Date(context.exportedAt))
+      if (format === 'png') {
+        if (!pngReady()) {
+          toast.warning(messages.notReady)
+          return
+        }
+        const deadline = performance.now() + 1500
+        while (captureRef.current?.querySelector('[data-usage-export-chart-pending]') && performance.now() < deadline) {
+          await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+          assertValid()
+        }
+        if (!pngReady() || captureRef.current?.querySelector('[data-usage-export-chart-pending]')) {
+          toast.warning(messages.notReady)
+          return
+        }
+        const dataUrl = await exportService.captureScrollableAsDataUrl(captureRef)
+        assertValid()
+        if (!pngReady()) {
+          toast.warning(messages.notReady)
+          return
+        }
+        if (!dataUrl) throw new Error(messages.imageFailed)
+        const saved = await window.api.file.saveImage(stem, dataUrl)
+        if (saved) toast.success(messages.success)
+        else toast.info(messages.imageNotSaved)
+      } else {
+        const { entries, total } = await fetchAllUsageEntries(context.query, assertValid, (count, total) => {
+          if (mountedRef.current)
+            setExportProgress(messages.progress.replace('__COUNT__', String(count)).replace('__TOTAL__', String(total)))
+        })
+        assertValid()
+        setExportProgress(undefined)
+        const workbookLabels = {
+          ...labels,
+          metadata: labels.metadata.map((row, index) =>
+            index === 9 ? { ...row, value: `${entries.length} / ${total}` } : row
+          )
+        }
+        const bytes = await buildUsageWorkbookBytes(entries, context, workbookLabels, resolvers)
+        assertValid()
+        const path = await window.api.file.save(`${stem}.xlsx`, bytes, {
+          filters: [{ name: messages.excel, extensions: ['xlsx'] }]
+        })
+        if (typeof path === 'string') toast.success(messages.success)
+      }
+    } catch (error) {
+      if (!mountedRef.current) return
+      if (format === 'png' && error instanceof UsageExportError && error.code === 'ABORTED') {
+        toast.warning(messages.notReady)
+      } else {
+        const description =
+          error instanceof UsageExportError
+            ? error.code === 'DATA_CHANGED'
+              ? messages.dataChanged
+              : error.code === 'LIMIT_EXCEEDED'
+                ? messages.limitExceeded
+                : messages.failed
+            : format === 'png'
+              ? messages.imageFailed
+              : messages.failed
+        toast.error({ title: messages.failed, description })
+      }
+    } finally {
+      inFlightRef.current = false
+      if (mountedRef.current) {
+        setExporting(false)
+        setExportProgress(undefined)
+      }
+    }
+  }
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <UsageResponsiveShell>
+      <UsageResponsiveShell captureRef={captureRef}>
         <div
           id="setting-usage-overview"
           className="flex min-w-0 @[640px]/usage:flex-row flex-col @[640px]/usage:items-start @[640px]/usage:justify-between gap-3">
@@ -398,6 +659,13 @@ function UsageSettings() {
                 requests: formatCompactNumber(totalRequests)
               })}
             </p>
+            <div data-usage-export-only className="text-muted-foreground text-xs">
+              {t('settings.usage.export.range', {
+                from: entryDateFormatter.format(windowRange.from),
+                to: entryDateFormatter.format(windowRange.to),
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+              })}
+            </div>
           </div>
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             {currencyOptions.length > 1 && (
@@ -410,6 +678,33 @@ function UsageSettings() {
               />
             )}
             <SegmentedControl options={windowOptions} value={windowKey} onValueChange={setWindowKey} size="sm" />
+            <div data-usage-export-action className="flex items-center gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild disabled={exporting}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={exporting}
+                    aria-label={t('settings.usage.export.title')}>
+                    <Download />
+                    {t(exporting ? 'settings.usage.export.inProgress' : 'settings.usage.export.title')}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={() => void handleExport('png')}>
+                    {t('settings.usage.export.png')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => void handleExport('xlsx')}>
+                    {t('settings.usage.export.xlsx')}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              {exportProgress && (
+                <span className="text-xs" aria-live="polite">
+                  {exportProgress}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -640,6 +935,7 @@ function UsageSettings() {
             </UsagePanel>
 
             <UsageEntriesSection
+              onReadinessChange={onEntriesReadinessChange}
               range={windowRange}
               currency={costCurrency}
               getProviderInfo={getProviderInfo}

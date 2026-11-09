@@ -111,6 +111,9 @@ export function UsageEntriesTable({
         <UsagePanelTitle>{t('settings.usage.explore.entries')}</UsagePanelTitle>
         <div className="text-xs text-foreground-tertiary">
           {t('settings.usage.explore.totalEntries', { count: entryTotal })}
+          <div data-usage-export-only>
+            {t('settings.usage.export.displayedEntries', { count: entries.length, total: entryTotal })}
+          </div>
         </div>
       </UsagePanelHeader>
       <div className="min-w-0 p-3" aria-busy={isLoading || isRefreshing}>
@@ -221,7 +224,7 @@ export function UsageEntriesTable({
               </TableBody>
             </Table>
             {hasNextPage && (
-              <div className="flex justify-center pt-3">
+              <div data-usage-export-action className="flex justify-center pt-3">
                 <Button variant="outline" size="sm" disabled={isRefreshing} onClick={onLoadNext}>
                   {isRefreshing ? t('settings.usage.explore.loading') : t('settings.usage.explore.loadMore')}
                 </Button>

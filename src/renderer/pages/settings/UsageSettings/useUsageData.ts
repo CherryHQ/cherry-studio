@@ -125,7 +125,18 @@ export function useUsageData({
     [costCurrency, timelineQueryResult.data?.dailyCosts, timelineRows]
   )
 
+  const aggregateResults = [
+    timelineQueryResult,
+    overviewStatsResult,
+    exploreStatsResult,
+    ...(rollup === 'total' ? [] : [exploreTimelineResult])
+  ]
+
   return {
+    aggregateReady: aggregateResults.every(
+      (result) => result.data !== undefined && !result.isLoading && !result.isRefreshing && !result.error
+    ),
+    aggregateError: aggregateResults.some((result) => Boolean(result.error)),
     costTotals,
     costCurrency,
     timelineBuckets,
@@ -162,11 +173,14 @@ export function useUsageEntriesData({ windowRange, currency, sortBy, sortOrder }
     }),
     [queryCurrency, sortBy, sortOrder, windowRange]
   )
-  const { pages, isLoading, isRefreshing, hasNext, loadNext, refresh, reset } = useInfiniteQuery('/ai-usage-records', {
-    query: entriesQuery,
-    limit: ENTRY_PAGE_SIZE,
-    swrOptions: { keepPreviousData: true }
-  })
+  const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh, reset } = useInfiniteQuery(
+    '/ai-usage-records',
+    {
+      query: entriesQuery,
+      limit: ENTRY_PAGE_SIZE,
+      swrOptions: { keepPreviousData: true }
+    }
+  )
   const entries = useInfiniteFlatItems(pages)
   const total = pages[0]?.total ?? 0
 
@@ -188,6 +202,8 @@ export function useUsageEntriesData({ windowRange, currency, sortBy, sortOrder }
   useEffect(() => () => refreshEntries.cancel(), [refreshEntries])
 
   return {
+    entriesReady: pages.length > 0 && !isLoading && !isRefreshing && !error,
+    entriesError: Boolean(error),
     entries,
     total,
     isLoading,

@@ -171,9 +171,9 @@ export function UsageDistributionChart({
 
   if (rollup === 'total') {
     return (
-      <div className="min-w-0 p-3">
+      <div data-usage-export-chart data-usage-export-chart-pending={isLoading || undefined} className="min-w-0 p-3">
         {isLoading ? (
-          <Skeleton className="h-80 rounded-md" />
+          <Skeleton data-usage-export-chart-pending className="h-80 rounded-md" />
         ) : (
           <>
             <div className="mb-3 text-center">
@@ -189,7 +189,7 @@ export function UsageDistributionChart({
                 {dateFormatter.format(range.from)} – {dateFormatter.format(range.to)}
               </p>
             </div>
-            <Suspense fallback={<Skeleton className="h-80 rounded-md" />}>
+            <Suspense fallback={<Skeleton data-usage-export-chart-pending className="h-80 rounded-md" />}>
               {isEmpty ? (
                 <EmptyState
                   compact
@@ -242,8 +242,8 @@ export function UsageDistributionChart({
     }
 
     return (
-      <div className="min-w-0 p-3">
-        <Suspense fallback={<Skeleton className="h-80 rounded-md" />}>
+      <div data-usage-export-chart data-usage-export-chart-pending={isLoading || undefined} className="min-w-0 p-3">
+        <Suspense fallback={<Skeleton data-usage-export-chart-pending className="h-80 rounded-md" />}>
           <Chart
             type="pie"
             ariaLabel={t(CHART_TYPE_LABEL_KEYS.pie)}
@@ -266,8 +266,8 @@ export function UsageDistributionChart({
   }))
 
   return (
-    <div className="min-w-0 p-3">
-      <Suspense fallback={<Skeleton className="h-80 rounded-md" />}>
+    <div data-usage-export-chart data-usage-export-chart-pending={isLoading || undefined} className="min-w-0 p-3">
+      <Suspense fallback={<Skeleton data-usage-export-chart-pending className="h-80 rounded-md" />}>
         <Chart
           type={chartType}
           ariaLabel={t(CHART_TYPE_LABEL_KEYS[chartType])}
