@@ -5,9 +5,13 @@ export function scopeModelRefresh<M extends { id: string }, O extends { modelId:
   modelIds: readonly string[]
 ): { models: M[]; overrides: O[] } {
   const selected = new Set(modelIds)
-  const generatedIds = new Set(generated.models.map((model) => model.id))
+  const generatedModels = new Set(generated.models.map((model) => model.id))
+  // Provider-standalone models (`standaloneModelIds`) have no canonical row, only overrides.
+  const generatedOverrides = new Set(generated.overrides.map((row) => row.modelId))
   for (const id of selected) {
-    if (!generatedIds.has(id)) throw new Error(`Cannot refresh unknown canonical model: ${id}`)
+    if (!generatedModels.has(id) && !generatedOverrides.has(id)) {
+      throw new Error(`Cannot refresh unknown canonical model: ${id}`)
+    }
   }
   return {
     models: [
