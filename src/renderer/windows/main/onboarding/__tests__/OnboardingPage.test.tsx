@@ -73,17 +73,38 @@ vi.mock('@renderer/utils/appEdition', () => ({
   getAppEdition: () => cloudMocks.appEdition
 }))
 
-vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: cloudMocks.ipcRequest },
-  useIpcOn: vi.fn(
-    (
-      event: string,
-      listener: (status: { phase: 'signed-out' | 'authorizing' | 'signed-in'; displayName: string | null }) => void
-    ) => {
-      if (event === 'cherry_cloud.status_changed') cloudMocks.statusListener = listener
+vi.mock('@renderer/ipc', () => {
+  let revision = 0
+  function receipt(status: {
+    phase: 'signed-out' | 'authorizing' | 'signed-in'
+    accountId: string | null
+    displayName: string | null
+  }) {
+    return {
+      status: { ...status, scopeId: status.accountId ?? status.phase, revision: ++revision },
+      reason: 'initial',
+      account: { freshness: 'unknown', error: null },
+      models: { freshness: 'unknown', error: null },
+      plans: { freshness: 'unknown', error: null }
     }
-  )
-}))
+  }
+  return {
+    ipcApi: {
+      request: async (route: string, ...args: unknown[]) => {
+        if (route === 'cherry_cloud.account.get') return receipt(await cloudMocks.ipcRequest('cherry_cloud.status.get'))
+        const result = await cloudMocks.ipcRequest(route, ...args)
+        if (route === 'cherry_cloud.login.start' && result?.phase === 'authorizing') {
+          cloudMocks.statusListener?.(result)
+          return new Promise(() => undefined)
+        }
+        return result
+      }
+    },
+    useIpcOn: vi.fn((event: string, listener: (value: unknown) => void) => {
+      if (event === 'cherry_cloud.account_changed') cloudMocks.statusListener = (status) => listener(receipt(status))
+    })
+  }
+})
 
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: () => ({

@@ -62,17 +62,17 @@ const PaintingPage: FC = () => {
     painting: currentPainting
   })
 
-  // Historical model-less rows and drafts without a valid configured default
-  // still need a usable view fallback. New drafts receive the configured model
-  // as stored in-memory state before reaching this path.
+  // Restored receipts need cached terminal states to stop the artboard waiting.
+  // Model-less receipts and drafts still use the first enabled catalog model.
   const composerPainting = useMemo<PaintingData>(() => {
-    if (currentPainting.model) return currentPainting
+    const painting = cachedGeneration ? { ...currentPainting, ...liveGenerationState } : currentPainting
+    if (painting.model) return painting
     const fallback = modelCatalog.currentModelOptions.find((option) => option.isEnabled !== false)?.value
-    return fallback ? { ...currentPainting, model: String(fallback) } : currentPainting
-  }, [currentPainting, modelCatalog.currentModelOptions])
+    return fallback ? { ...painting, model: String(fallback) } : painting
+  }, [cachedGeneration, currentPainting, liveGenerationState, modelCatalog.currentModelOptions])
 
   const {
-    generating: liveGenerating,
+    generating,
     submitting,
     preparing,
     submit,
@@ -83,11 +83,6 @@ const PaintingPage: FC = () => {
     ensureCurrentCatalog: modelCatalog.ensureCurrentCatalog
   })
 
-  // After a page switch the local `liveGenerating` boots false because
-  // `usePaintingGeneration` reads from `painting.generationStatus` — the
-  // painting record is a frozen receipt with no status. The cache fills the
-  // gap: if its `status === 'running'` for this painting, keep the spinner.
-  const generating = liveGenerating || liveGenerationState.generationStatus === 'running'
   const showTemplateShowcase =
     !currentPainting.persistedAt &&
     currentPainting.files.length === 0 &&

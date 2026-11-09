@@ -12,6 +12,8 @@ import {
 import type * as AgentSessionPartsModule from '@renderer/hooks/useAgentSessionParts'
 import { useConversationErrorToasts } from '@renderer/hooks/useConversationErrorToasts'
 import type * as TurnControllerModule from '@renderer/hooks/useConversationTurnController'
+import { takeAgentDraftHandoffs } from '@renderer/services/agentDraftHandoff'
+import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type * as ToastServiceModule from '@renderer/services/toast'
 import { AutoReadService } from '@renderer/services/voice/AutoReadService'
@@ -362,6 +364,96 @@ describe('useAgentChatRuntimeState', () => {
     expect(mocks.toastError).not.toHaveBeenCalledWith('agent_session_fork.unsupported_checkpoint')
   })
 
+  it.each([false, true])('waits for confirmation before replacing history (confirmed: %s)', async (confirmed) => {
+    const draft = { messageId: 'user-1', version: 'version-1', parts: [{ type: 'text' as const, text: 'Original' }] }
+    const history: CherryUIMessage[] = [{ id: draft.messageId, role: 'user', parts: draft.parts }]
+    mocks.useAgentSessionParts.mockReturnValue({ ...mocks.useAgentSessionParts(), messages: history })
+    mocks.editTarget.mockResolvedValue(draft)
+    mocks.editResend.mockResolvedValue({ mode: 'started', reservedMessages: [] })
+    mocks.sendTurn.mockImplementation(async (input) => {
+      const { openStream, buildStreamRequest, ensureConversation } = mocks.controllerOptions.mock.lastCall![0]
+      await openStream(buildStreamRequest(input, ensureConversation()), input)
+      return true
+    })
+    const decision = Promise.withResolvers<boolean>()
+    vi.mocked(popup.confirm).mockReturnValueOnce(decision.promise)
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+    )
+    await act(() => result.current.startEditing(draft.messageId))
+    let resend: Promise<boolean>
+    act(() => {
+      resend = result.current.resendEditedMessage({ text: 'Replacement' })
+    })
+    expect(mocks.editResend).not.toHaveBeenCalled()
+    expect(result.current.uiMessages).toEqual(history)
+    await act(async () => {
+      decision.resolve(confirmed)
+      expect(await resend).toBe(confirmed)
+    })
+    expect(mocks.editResend).toHaveBeenCalledTimes(confirmed ? 1 : 0)
+    if (confirmed) expect(result.current.editing).toBeUndefined()
+    else {
+      expect(result.current.editing).toMatchObject(draft)
+      expect(result.current.uiMessages).toEqual(history)
+    }
+  })
+
+  it('does not resend into a previous session when its confirmation resolves after navigation', async () => {
+    mocks.editTarget.mockResolvedValue({ messageId: 'user-1', version: 'v1', parts: [] })
+    const decision = Promise.withResolvers<boolean>()
+    vi.mocked(popup.confirm).mockReturnValueOnce(decision.promise)
+    const { result, rerender } = renderHook(
+      ({ sessionId }) => useAgentChatRuntimeState({ sessionId, sessionMessagesEnabled: true, reservedMessages: [] }),
+      { initialProps: { sessionId: 'session-1' } }
+    )
+    await act(() => result.current.startEditing('user-1'))
+    let resend: Promise<boolean>
+    act(() => {
+      resend = result.current.resendEditedMessage({ text: 'Replacement' })
+    })
+    rerender({ sessionId: 'session-2' })
+    await act(async () => {
+      decision.resolve(true)
+      expect(await resend).toBe(false)
+    })
+    expect(mocks.editResend).not.toHaveBeenCalled()
+    expect(mocks.sendTurn).not.toHaveBeenCalled()
+  })
+
+  it.each(['hidden', 'reactivated', 'closed'] as const)(
+    'invalidates confirmation when its originating tab is %s',
+    async (state) => {
+      mocks.editTarget.mockResolvedValue({ messageId: 'user-1', version: 'v1', parts: [] })
+      const decision = Promise.withResolvers<boolean>()
+      vi.mocked(popup.confirm).mockReturnValueOnce(decision.promise)
+      latestRuntime = null
+      const view = render(<ActivityHarness sessionId="session-1" mode="visible" />)
+      await act(() => currentRuntime().startEditing('user-1'))
+      let resend: Promise<boolean>
+      act(() => {
+        resend = currentRuntime().resendEditedMessage({ text: 'Replacement' })
+      })
+      if (state === 'closed') view.unmount()
+      else {
+        view.rerender(<ActivityHarness sessionId="session-1" mode="hidden" />)
+        if (state === 'reactivated') view.rerender(<ActivityHarness sessionId="session-1" mode="visible" />)
+      }
+      await act(async () => {
+        decision.resolve(true)
+        expect(await resend).toBe(false)
+      })
+      expect(mocks.sendTurn).not.toHaveBeenCalled()
+      expect(mocks.editResend).not.toHaveBeenCalled()
+      if (state === 'reactivated') {
+        await act(async () => {
+          expect(await currentRuntime().resendEditedMessage({ text: 'Fresh confirmation' })).toBe(true)
+        })
+        expect(mocks.sendTurn).toHaveBeenCalledTimes(1)
+      }
+    }
+  )
+
   it('retains the edited draft after a failed resend and clears it only on acceptance or cancel', async () => {
     const draft = {
       messageId: 'edited-user',
@@ -392,8 +484,9 @@ describe('useAgentChatRuntimeState', () => {
     const sending = Promise.withResolvers<unknown>()
     mocks.editResend.mockReturnValueOnce(sending.promise)
     let resend: Promise<boolean>
-    act(() => {
+    await act(async () => {
       resend = result.current.resendEditedMessage({ text: 'Replacement' })
+      await Promise.resolve()
     })
     expect(result.current.uiMessages.map((item) => item.id)).toEqual([
       'earlier-user',
@@ -420,6 +513,7 @@ describe('useAgentChatRuntimeState', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.spyOn(popup, 'confirm').mockResolvedValue(true)
     toast.closeAll()
     mocks.controllerOptions.mockReset()
     mocks.streamOpen.mockReset()
@@ -1225,6 +1319,89 @@ describe('useAgentChatRuntimeState', () => {
     })
 
     expect(result.current.optimisticAskUserQuestionInputsByToolCallId).toEqual({})
+  })
+
+  it('re-sends an answer the dead card cannot deliver as the session message', async () => {
+    mocks.respondToolApproval.mockResolvedValueOnce({ ok: false, reason: 'undelivered' })
+    const part = makeAskUserQuestionPart()
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    await act(async () => {
+      await result.current.respondToolApproval({
+        ...makeAskUserQuestionApproval(part),
+        updatedInput: {
+          ...askUserQuestionUpdatedInput,
+          annotations: { 'Choose logger': { notes: 'or a thin wrapper' } }
+        }
+      })
+    })
+
+    expect(mocks.sendTurn).toHaveBeenCalledWith(
+      expect.objectContaining({ text: 'Choose logger\nWinston\nor a thin wrapper' })
+    )
+    expect(result.current.optimisticAskUserQuestionInputsByToolCallId).toEqual({})
+  })
+
+  it('does not replay an approval already answered in another window', async () => {
+    mocks.respondToolApproval.mockResolvedValueOnce({ ok: false, reason: 'rejected' })
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+    )
+
+    await act(async () => {
+      await expect(
+        result.current.respondToolApproval(makeAskUserQuestionApproval(makeAskUserQuestionPart()))
+      ).rejects.toThrow('Tool approval response was not accepted')
+    })
+
+    expect(mocks.sendTurn).not.toHaveBeenCalled()
+  })
+
+  it.each(['blocked', 'error'])('keeps an undelivered answer as a composer draft after %s', async (failure) => {
+    takeAgentDraftHandoffs('session-1')
+    mocks.respondToolApproval.mockResolvedValueOnce({ ok: false, reason: 'undelivered' })
+    if (failure === 'blocked') mocks.sendTurn.mockResolvedValueOnce(false)
+    else mocks.sendTurn.mockRejectedValueOnce(new Error('stream unavailable'))
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+    )
+
+    await act(async () => {
+      await expect(
+        result.current.respondToolApproval(makeAskUserQuestionApproval(makeAskUserQuestionPart()))
+      ).rejects.toThrow()
+    })
+
+    expect(takeAgentDraftHandoffs('session-1')).toEqual([
+      { text: 'Choose logger\nWinston', tokens: [], files: [], knowledgeBaseIds: [] }
+    ])
+  })
+
+  it('sends nothing when a dead card was dismissed rather than answered', async () => {
+    mocks.respondToolApproval.mockResolvedValueOnce({ ok: false, reason: 'undelivered' })
+    const part = makeAskUserQuestionPart()
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    await act(async () => {
+      await result.current.respondToolApproval({
+        match: makeAskUserQuestionApproval(part).match,
+        approved: false
+      })
+    })
+
+    expect(mocks.sendTurn).not.toHaveBeenCalled()
   })
 
   it('preserves optimistic AskUserQuestion inputs across an <Activity> hide/show and clears them on session change', async () => {

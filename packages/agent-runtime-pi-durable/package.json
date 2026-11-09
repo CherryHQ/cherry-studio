@@ -19,18 +19,19 @@
   "dependencies": {
     "@cherrystudio/agent-behavior": "workspace:*",
     "@cherrystudio/agent-runtime": "workspace:*",
-    "@earendil-works/chord": "1.4.0"
+    "@earendil-works/chord": "1.5.0"
   },
   "devDependencies": {
-    "@earendil-works/pi-ai": "1.4.0",
-    "@earendil-works/pi-durable": "1.4.0",
+    "@earendil-works/pi-ai": "1.5.0",
+    "@earendil-works/pi-durable": "1.5.0",
+    "@earendil-works/pi-schema": "1.5.0",
     "@types/node": "^24.10.4",
     "tsdown": "^0.22.14",
     "typescript": "npm:@typescript/typescript6@6.0.2",
     "vitest": "^5.0.1"
   },
   "peerDependencies": {
-    "@earendil-works/pi-ai": "1.4.0",
-    "@earendil-works/pi-durable": "1.4.0"
+    "@earendil-works/pi-ai": "1.5.0",
+    "@earendil-works/pi-durable": "1.5.0"
   }
 }

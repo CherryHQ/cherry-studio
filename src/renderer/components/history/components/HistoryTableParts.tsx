@@ -1,7 +1,7 @@
 import dayjs from 'dayjs'
 import type { TFunction } from 'i18next'
 import { Archive, PinIcon } from 'lucide-react'
-import type { ReactElement, ReactNode } from 'react'
+import type { ReactElement, ReactNode, Ref } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { Button, Checkbox, RowFlex } from '@cherrystudio/ui'
@@ -447,6 +447,7 @@ interface HistoryRecordRowProps {
   onOpen?: () => void
   onSelectedChange: (checked: boolean, selectRange?: boolean) => void
   onTogglePin?: () => void | Promise<void>
+  rowRef?: Ref<HTMLDivElement>
 }
 
 /** One record row shared by both history modes. */
@@ -467,9 +468,11 @@ export const HistoryRecordRow = ({
   onAction,
   onOpen,
   onSelectedChange,
-  onTogglePin
+  onTogglePin,
+  rowRef
 }: HistoryRecordRowProps) => (
   <div
+    ref={rowRef}
     className={cn(historyTableGridClassName, historyBodyRowClassName)}
     style={{ minHeight }}
     data-state={isSelected ? 'selected' : undefined}
