@@ -81,6 +81,66 @@ async function getGatewayUsageNormalizeMiddleware(): Promise<LanguageModelMiddle
 describe('AiUsageRecordService', () => {
   const dbh = setupTestDatabase()
 
+  it('returns recent language invocations and arithmetic means without backfilling unavailable rates', () => {
+    expect(aiUsageRecordService.cacheRates({ limitPerGroup: 10, groupLimit: 8 })).toEqual({ groups: [] })
+    const insert = (
+      id: string,
+      createdAt: number,
+      inputTokens: number | null,
+      cacheReadTokens: number | null,
+      modelId = 'model',
+      extras: Partial<typeof aiUsageRecordTable.$inferInsert> = {}
+    ) => {
+      dbh.db
+        .insert(aiUsageRecordTable)
+        .values({
+          id,
+          requestId: id,
+          recordKind: 'invocation',
+          requestCount: 1,
+          providerId: 'provider',
+          modelId,
+          modality: 'language',
+          apiKeyAttribution: 'unknown',
+          createdAt,
+          inputTokens,
+          cacheReadTokens,
+          ...extras
+        })
+        .run()
+    }
+    insert('old', 1, 10, 10)
+    insert('one', 2, 10, 10)
+    insert('fraction', 3, 9, 1)
+    insert('zero', 4, 10, 0)
+    insert('invalid', 5, 10, 11)
+    insert('missing-a', 6, 10, null)
+    insert('missing-b', 6, 10, null)
+    insert('other', 7, 10, 10, 'other')
+    insert('third', 8, 10, 10, 'third')
+    insert('image', 9, 10, 10, 'image', { modality: 'embedding' })
+    insert('legacy', 10, 10, 10, 'legacy', { recordKind: 'legacy-aggregate', messageKind: 'chat', messageId })
+    const { groups } = aiUsageRecordService.cacheRates({ limitPerGroup: 6, groupLimit: 3 })
+    expect(groups.map((group) => group.modelId)).toEqual(['third', 'other', 'model'])
+    const group = groups[2]
+    expect(group.requests.map((request) => request.id)).toEqual([
+      'missing-b',
+      'missing-a',
+      'invalid',
+      'zero',
+      'fraction',
+      'one'
+    ])
+    expect(group.requests.find((request) => request.id === 'invalid')?.hitRate).toBeNull()
+    expect(group.availableRequestCount).toBe(3)
+    expect(group.zeroHitRequestCount).toBe(1)
+    expect(group.averageHitRate).toBeCloseTo((1 + 1 / 9) / 3)
+    expect(group.averageHitRateExcludingZeroHit).toBeCloseTo((1 + 1 / 9) / 2)
+    expect(
+      aiUsageRecordService.cacheRates({ limitPerGroup: 2, groupLimit: 2 }).groups.map((item) => item.modelId)
+    ).toEqual(['third', 'other'])
+  })
+
   it('replaces projection fields while preserving message-owned stats', () => {
     expect(
       mergeMessageUsageProjection(

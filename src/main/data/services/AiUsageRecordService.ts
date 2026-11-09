@@ -27,6 +27,8 @@ import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { Emitter } from '@main/core/lifecycle'
 import type {
+  AiUsageRecordCacheRatesQuery,
+  AiUsageRecordCacheRatesResponse,
   AiUsageRecordGroupBy,
   AiUsageRecordGroupIdentity,
   AiUsageRecordListQuery,
@@ -61,6 +63,7 @@ import type {
   MessageStats
 } from '@shared/data/types/message'
 import type { Currency } from '@shared/data/types/model'
+import { getPromptCacheUsage } from '@shared/utils/promptCacheUsage'
 import { computeLanguageCost } from '@shared/utils/usagePricing'
 
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
@@ -1109,7 +1112,8 @@ const logger = loggerService.withContext('DataApi:AiUsageRecordService')
 const AI_USAGE_RECORD_READ_MODEL_CHANGES = [
   { endpoint: '/ai-usage-records', kind: 'membership' },
   { endpoint: '/ai-usage-records/stats' },
-  { endpoint: '/ai-usage-records/timeline' }
+  { endpoint: '/ai-usage-records/timeline' },
+  { endpoint: '/ai-usage-records/cache-rates' }
 ] satisfies DataApiDataChangeEffect[]
 
 function optionalCount(value: number | undefined, field: string): number | null {
@@ -1443,6 +1447,76 @@ export class AiUsageRecordService {
 
   recordLegacyAggregatesTx(db: DbOrTx, inputs: readonly LegacyAggregateInput[]): number {
     return insertRowsTx(db, inputs.map(legacyToRow), false).inserted
+  }
+
+  cacheRates(query: AiUsageRecordCacheRatesQuery): AiUsageRecordCacheRatesResponse {
+    const db = application.get('DbService').getDb()
+    const rows = db.all<{
+      id: string
+      createdAt: number
+      providerId: string
+      providerName: string | null
+      modelId: string
+      modelName: string | null
+      inputTokens: number | null
+      noCacheTokens: number | null
+      cacheReadTokens: number | null
+      cacheWriteTokens: number | null
+    }>(sql`
+      WITH ranked AS (
+        SELECT id, created_at AS createdAt, provider_id AS providerId, provider_name AS providerName,
+          model_id AS modelId, model_name AS modelName, input_tokens AS inputTokens,
+          no_cache_tokens AS noCacheTokens, cache_read_tokens AS cacheReadTokens, cache_write_tokens AS cacheWriteTokens,
+          ROW_NUMBER() OVER (PARTITION BY provider_id, model_id ORDER BY created_at DESC, id DESC) AS rn
+        FROM ai_usage_record WHERE record_kind = 'invocation' AND modality = 'language'
+      ), heads AS (
+        SELECT providerId, modelId, createdAt, id FROM ranked WHERE rn = 1
+        ORDER BY createdAt DESC, id DESC LIMIT ${query.groupLimit}
+      )
+      SELECT ranked.* FROM ranked JOIN heads ON ranked.providerId = heads.providerId AND ranked.modelId = heads.modelId
+      WHERE ranked.rn <= ${query.limitPerGroup}
+      ORDER BY heads.createdAt DESC, heads.id DESC, ranked.createdAt DESC, ranked.id DESC
+    `)
+    const groups: AiUsageRecordCacheRatesResponse['groups'] = []
+    for (const row of rows) {
+      let group = groups.find((item) => item.providerId === row.providerId && item.modelId === row.modelId)
+      if (!group) {
+        group = {
+          providerId: row.providerId,
+          providerName: row.providerName,
+          modelId: row.modelId,
+          modelName: row.modelName,
+          requestCount: 0,
+          availableRequestCount: 0,
+          zeroHitRequestCount: 0,
+          averageHitRate: null,
+          averageHitRateExcludingZeroHit: null,
+          requests: []
+        }
+        groups.push(group)
+      }
+      group.requests.push({
+        id: row.id,
+        createdAt: timestampToISO(row.createdAt),
+        inputTokens: row.inputTokens,
+        noCacheTokens: row.noCacheTokens,
+        cacheReadTokens: row.cacheReadTokens,
+        cacheWriteTokens: row.cacheWriteTokens,
+        hitRate: getPromptCacheUsage(row)?.hitRate ?? null
+      })
+    }
+    for (const group of groups) {
+      const rates = group.requests.flatMap((request) => (request.hitRate === null ? [] : [request.hitRate]))
+      const nonzero = rates.filter((rate) => rate !== 0)
+      group.requestCount = group.requests.length
+      group.availableRequestCount = rates.length
+      group.zeroHitRequestCount = rates.length - nonzero.length
+      group.averageHitRate = rates.length ? rates.reduce((sum, rate) => sum + rate, 0) / rates.length : null
+      group.averageHitRateExcludingZeroHit = nonzero.length
+        ? nonzero.reduce((sum, rate) => sum + rate, 0) / nonzero.length
+        : null
+    }
+    return { groups }
   }
 
   list(query: AiUsageRecordListServiceQuery): AiUsageRecordListResponse {

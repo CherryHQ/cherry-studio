@@ -8,6 +8,7 @@ import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { createDurationFormatter } from '@renderer/utils/time'
 import type { AiUsageRecordEntry } from '@shared/data/types/aiUsageRecord'
+import { getPromptCacheUsage } from '@shared/utils/promptCacheUsage'
 
 import type { MessageListItem } from '../types'
 import { getMessageListItemModel } from '../utils/messageListItem'
@@ -191,6 +192,10 @@ const MessageTokenDetailsCard = ({
   const locale = i18n.resolvedLanguage
   const numberFormatter = useMemo(() => new Intl.NumberFormat(locale), [locale])
   const decimalFormatter = useMemo(() => new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }), [locale])
+  const percentFormatter = useMemo(
+    () => new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 1 }),
+    [locale]
+  )
   const durationFormatter = useMemo(() => createDurationFormatter(locale), [locale])
   const dateFormatter = useMemo(
     () =>
@@ -250,7 +255,13 @@ const MessageTokenDetailsCard = ({
       : t('chat.message.token_details.tokens_per_second_value', {
           value: decimalFormatter.format(performance.modelTokensPerSecond)
         })
+  const cacheUsage = getPromptCacheUsage({ inputTokens: stats.inputTokens, ...stats.inputTokenDetails })
   const detailMetrics = [
+    {
+      id: 'cache-hit-rate',
+      label: t('chat.message.token_details.cache_hit_rate'),
+      value: cacheUsage ? percentFormatter.format(cacheUsage.hitRate) : '—'
+    },
     reasoningTokens > 0
       ? {
           id: 'reasoning',

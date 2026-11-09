@@ -44,6 +44,9 @@ vi.mock('../useUsageData', () => {
 
   return {
     useUsageData: () => ({
+      cacheRateGroups: [],
+      cacheRatesLoading: false,
+      cacheRatesError: undefined,
       costTotals: [],
       costCurrency: undefined,
       timelineBuckets: [],
@@ -82,6 +85,53 @@ describe('UsageSettings', () => {
   beforeEach(() => {
     MockCacheUtils.resetMocks()
     usageDataOverride.current = {}
+  })
+
+  it('shows zero and unavailable recent rates with both averages, and hides the empty section', () => {
+    const empty = render(<UsageSettings />)
+    expect(screen.queryByText('近期缓存命中率')).not.toBeInTheDocument()
+    empty.unmount()
+    usageDataOverride.current = {
+      cacheRateGroups: [
+        {
+          providerId: 'provider',
+          providerName: 'Provider',
+          modelId: 'model',
+          modelName: 'Model',
+          requestCount: 2,
+          availableRequestCount: 1,
+          zeroHitRequestCount: 1,
+          averageHitRate: 0,
+          averageHitRateExcludingZeroHit: null,
+          requests: [
+            {
+              id: 'zero',
+              createdAt: '2026-01-01T00:00:00Z',
+              inputTokens: 10,
+              noCacheTokens: null,
+              cacheReadTokens: 0,
+              cacheWriteTokens: null,
+              hitRate: 0
+            },
+            {
+              id: 'missing',
+              createdAt: '2026-01-01T00:00:00Z',
+              inputTokens: 10,
+              noCacheTokens: null,
+              cacheReadTokens: null,
+              cacheWriteTokens: null,
+              hitRate: null
+            }
+          ]
+        }
+      ]
+    }
+    render(<UsageSettings />)
+    expect(screen.getByText('近期缓存命中率')).toBeInTheDocument()
+    expect(screen.getAllByText('0%').length).toBeGreaterThan(0)
+    expect(screen.getByText('—')).toBeInTheDocument()
+    expect(screen.getByText(/平均值: 0%/)).toBeInTheDocument()
+    expect(screen.getByText(/排除零命中的平均值: —/)).toBeInTheDocument()
   })
 
   it('starts on the documented defaults', () => {

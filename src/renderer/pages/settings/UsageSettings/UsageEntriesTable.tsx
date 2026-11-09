@@ -22,6 +22,7 @@ import {
   type AiUsageRecordModality,
   getAiUsageRecordTotalTokens
 } from '@shared/data/types/aiUsageRecord'
+import { getPromptCacheUsage } from '@shared/utils/promptCacheUsage'
 
 import { displayModelId, getGenerationTokensPerSecond } from './usageAnalytics'
 import { formatCost } from './usageDisplay'
@@ -74,6 +75,10 @@ export function UsageEntriesTable({
   const locale = i18n.resolvedLanguage
   const durationFormatter = useMemo(() => createDurationFormatter(locale), [locale])
   const integerFormatter = useMemo(() => new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }), [locale])
+  const percentFormatter = useMemo(
+    () => new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 1 }),
+    [locale]
+  )
   const isInitialLoading = isLoading && entries.length === 0
   const getAriaSort = (column: AiUsageRecordListSortBy) =>
     sortBy === column ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'
@@ -124,13 +129,14 @@ export function UsageEntriesTable({
           <>
             <Table className="min-w-[1040px] table-fixed">
               <colgroup>
-                <col className="w-[25%]" />
                 <col className="w-[22%]" />
-                <col className="w-[19%]" />
+                <col className="w-[18%]" />
+                <col className="w-[15%]" />
                 <col className="w-[9%]" />
                 <col className="w-[9%]" />
+                <col className="w-[13%]" />
                 <col className="w-[7%]" />
-                <col className="w-[9%]" />
+                <col className="w-[7%]" />
               </colgroup>
               <TableHeader>
                 <TableRow>
@@ -142,6 +148,7 @@ export function UsageEntriesTable({
                   <TableHead className="text-right" aria-sort={getAriaSort('totalTokens')}>
                     {renderSortHeader('totalTokens', t('settings.usage.table.tokens'), 'right')}
                   </TableHead>
+                  <TableHead className="text-right">{t('settings.usage.table.cacheRate')}</TableHead>
                   <TableHead className="text-right" aria-sort={getAriaSort('cost')}>
                     {renderSortHeader('cost', t('settings.usage.table.cost'), 'right')}
                   </TableHead>
@@ -155,6 +162,10 @@ export function UsageEntriesTable({
               </TableHeader>
               <TableBody>
                 {entries.map((entry) => {
+                  const cacheUsage =
+                    entry.recordKind === 'invocation' && entry.modality === 'language'
+                      ? getPromptCacheUsage(entry)
+                      : null
                   const tps = getGenerationTokensPerSecond(entry)
                   const totalTokens = getAiUsageRecordTotalTokens(entry)
                   const sourceName = entry.sourceId
@@ -205,6 +216,9 @@ export function UsageEntriesTable({
                       </TableCell>
                       <TableCell className="text-right font-medium whitespace-nowrap tabular-nums">
                         {totalTokens === null ? EMPTY_VALUE : formatCompactNumber(totalTokens)}
+                      </TableCell>
+                      <TableCell className="text-right whitespace-nowrap tabular-nums">
+                        {cacheUsage ? percentFormatter.format(cacheUsage.hitRate) : '—'}
                       </TableCell>
                       <TableCell className="text-right whitespace-nowrap tabular-nums">
                         {entry.cost !== null && entry.cost !== undefined

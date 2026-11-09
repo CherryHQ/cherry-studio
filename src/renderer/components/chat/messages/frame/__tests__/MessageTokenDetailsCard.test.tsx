@@ -14,6 +14,7 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 }))
 
 const translations: Record<string, string> = {
+  'chat.message.token_details.cache_hit_rate': 'Cache hit rate',
   'chat.message.token_details.cost': 'Cost',
   'chat.message.token_details.cost_billed': 'Billed by provider',
   'chat.message.token_details.cost_estimated': 'Estimated',
@@ -61,6 +62,15 @@ const cost = (
 ]
 
 describe('MessageTokenDetailsCard cost', () => {
+  it('shows the cache rate only when message statistics provide it', () => {
+    const view = render(
+      <MessageTokenDetailsCard message={createMessage({ ...usage, inputTokenDetails: { cacheReadTokens: 25 } })} />
+    )
+    expect(screen.getByText('Cache hit rate').nextElementSibling).toHaveTextContent('25%')
+    view.rerender(<MessageTokenDetailsCard message={createMessage(usage)} />)
+    expect(screen.getByText('Cache hit rate').nextElementSibling).toHaveTextContent('—')
+  })
+
   it('renders a provider-billed cost in USD', () => {
     render(<MessageTokenDetailsCard message={createMessage({ ...usage, costs: cost('USD', 0.0123, 'provider') })} />)
 

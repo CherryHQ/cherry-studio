@@ -117,6 +117,49 @@ export const AiUsageRecordTimelineQuerySchema = z
   .superRefine(validateAggregateQuery)
 export type AiUsageRecordTimelineQuery = z.infer<typeof AiUsageRecordTimelineQuerySchema>
 
+export const AI_USAGE_CACHE_RATES_DEFAULT_LIMIT_PER_GROUP = 10
+export const AI_USAGE_CACHE_RATES_MAX_LIMIT_PER_GROUP = 50
+export const AI_USAGE_CACHE_RATES_DEFAULT_GROUP_LIMIT = 8
+export const AI_USAGE_CACHE_RATES_MAX_GROUP_LIMIT = 20
+
+export const AiUsageRecordCacheRatesQuerySchema = z.strictObject({
+  limitPerGroup: z
+    .int()
+    .positive()
+    .max(AI_USAGE_CACHE_RATES_MAX_LIMIT_PER_GROUP)
+    .default(AI_USAGE_CACHE_RATES_DEFAULT_LIMIT_PER_GROUP),
+  groupLimit: z
+    .int()
+    .positive()
+    .max(AI_USAGE_CACHE_RATES_MAX_GROUP_LIMIT)
+    .default(AI_USAGE_CACHE_RATES_DEFAULT_GROUP_LIMIT)
+})
+export type AiUsageRecordCacheRatesQuery = z.infer<typeof AiUsageRecordCacheRatesQuerySchema>
+export interface AiUsageRecordCacheRateRequest {
+  id: string
+  createdAt: string
+  inputTokens: number | null
+  noCacheTokens: number | null
+  cacheReadTokens: number | null
+  cacheWriteTokens: number | null
+  hitRate: number | null
+}
+export interface AiUsageRecordCacheRateGroup {
+  providerId: string
+  providerName: string | null
+  modelId: string
+  modelName: string | null
+  requestCount: number
+  availableRequestCount: number
+  zeroHitRequestCount: number
+  averageHitRate: number | null
+  averageHitRateExcludingZeroHit: number | null
+  requests: AiUsageRecordCacheRateRequest[]
+}
+export interface AiUsageRecordCacheRatesResponse {
+  groups: AiUsageRecordCacheRateGroup[]
+}
+
 export interface AiUsageRecordListResponse extends CursorPaginationResponse<AiUsageRecordEntry> {
   total: number
 }
@@ -225,6 +268,12 @@ export interface AiUsageRecordTimelineResponse {
 }
 
 export type AiUsageRecordSchemas = {
+  '/ai-usage-records/cache-rates': {
+    GET: {
+      query?: z.input<typeof AiUsageRecordCacheRatesQuerySchema>
+      response: AiUsageRecordCacheRatesResponse
+    }
+  }
   '/ai-usage-records': {
     GET: {
       query?: AiUsageRecordListQueryParams
