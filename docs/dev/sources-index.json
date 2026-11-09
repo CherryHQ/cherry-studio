@@ -55,7 +55,7 @@
     },
     {
       "path": "docs/dev/references/ai/browser-use-implementation.md",
-      "sources": ["src/main/features/browser"]
+      "sources": ["src/main/features/browser","src/renderer/components/chat/shell/paneLayout.ts","src/renderer/pages/home/components/TopicRightPane.tsx","src/renderer/pages/home/messages"]
     },
     {
       "path": "docs/dev/references/ai/chat-attachments.md",

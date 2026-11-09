@@ -4032,6 +4032,8 @@
   "settings.browser.names.opera": "Opera",
   "settings.browser.names.vivaldi": "Vivaldi",
   "settings.browser.noResults": "Eşleşen sayfa yok. Başka bir arama deneyin.",
+  "settings.browser.openChatLinks": "Sohbet bağlantılarını sağ panelde aç",
+  "settings.browser.openChatLinksHelp": "Sohbet mesajlarındaki bağlantıları konunun tarayıcı panelinde açar. Normal bağlantı açma davranışına dönmek için kapatın.",
   "settings.browser.openLinks": "Web bağlantılarını yerleşik tarayıcıda aç",
   "settings.browser.openLinksHelp": "Bağlantıları web sitesi verilerinizi paylaşan tarayıcı sekmelerinde açar.",
   "settings.browser.profile": "Profil",

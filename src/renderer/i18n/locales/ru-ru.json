@@ -4032,6 +4032,8 @@
   "settings.browser.names.opera": "Opera",
   "settings.browser.names.vivaldi": "Vivaldi",
   "settings.browser.noResults": "Подходящих страниц нет. Попробуйте другой запрос.",
+  "settings.browser.openChatLinks": "Открывать ссылки чата в правой панели",
+  "settings.browser.openChatLinksHelp": "Открывает ссылки из сообщений чата в браузере темы. Выключите, чтобы восстановить обычное открытие ссылок.",
   "settings.browser.openLinks": "Открывать веб-ссылки во встроенном браузере",
   "settings.browser.openLinksHelp": "Открывать ссылки во вкладках браузера с общими данными сайтов.",
   "settings.browser.profile": "Профиль",

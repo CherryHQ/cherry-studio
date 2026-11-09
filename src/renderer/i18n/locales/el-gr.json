@@ -4032,6 +4032,8 @@
   "settings.browser.names.opera": "Opera",
   "settings.browser.names.vivaldi": "Vivaldi",
   "settings.browser.noResults": "Δεν βρέθηκαν αντίστοιχες σελίδες. Δοκιμάστε άλλη αναζήτηση.",
+  "settings.browser.openChatLinks": "Άνοιγμα συνδέσμων συνομιλίας στο δεξί πλαίσιο",
+  "settings.browser.openChatLinksHelp": "Ανοίγει συνδέσμους μηνυμάτων συνομιλίας στο πλαίσιο περιήγησης του θέματος. Απενεργοποιήστε το για κανονικό άνοιγμα συνδέσμων.",
   "settings.browser.openLinks": "Άνοιγμα συνδέσμων στον ενσωματωμένο περιηγητή",
   "settings.browser.openLinksHelp": "Ανοίγει συνδέσμους σε καρτέλες που μοιράζονται τα δεδομένα ιστοτόπων σας.",
   "settings.browser.profile": "Προφίλ",

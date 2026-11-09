@@ -32,6 +32,7 @@ import {
   runMessageImageAction
 } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { getMessageListItemModel, toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import { useOptionalRightPanelActions, useOptionalRightPanelState } from '@renderer/components/chat/panes/Shell'
 import { CherryCloudModelSelector as ModelSelector } from '@renderer/components/cherryCloud/CherryCloudModelSelector'
 import { type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
@@ -39,6 +40,7 @@ import { useCommandHandler } from '@renderer/hooks/command'
 import { SiblingsContext } from '@renderer/hooks/SiblingsContext'
 import { useLanguages } from '@renderer/hooks/translate'
 import { ipcApi } from '@renderer/ipc'
+import { topicBrowserRuntimeService } from '@renderer/services/AgentBrowserRuntimeService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { popup } from '@renderer/services/popup'
@@ -55,6 +57,7 @@ import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId, type Model as SharedModel, type UniqueModelId } from '@shared/data/types/model'
 import type { DoctorSubjectRef } from '@shared/types/doctor'
+import { resolveSafeExternalUrl } from '@shared/utils/externalUrlSafety'
 import { isNonChatModel } from '@shared/utils/model'
 
 import {
@@ -117,6 +120,9 @@ export function useHomeMessageListProviderValue({
     refresh: ['/topics']
   })
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
+  const [openChatLinksInRightPanel] = usePreference('app.browser.open_chat_links_in_right_panel')
+  const panelActions = useOptionalRightPanelActions()
+  const panelState = useOptionalRightPanelState()
   const { t } = useTranslation()
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
   const [translationLanguagesRequested, setTranslationLanguagesRequested] = useState(false)
@@ -859,6 +865,26 @@ export function useHomeMessageListProviderValue({
       ...exportActions,
       ...errorActions,
       ...pickMessageLeafActions(leafCapabilities),
+      openExternalUrl: (url, options) => {
+        const safeUrl = resolveSafeExternalUrl(url)
+        if (
+          openChatLinksInRightPanel &&
+          !options?.preserveDefaultRouting &&
+          normalInteractionsEnabled &&
+          topicId &&
+          panelState?.presentationEnabled &&
+          panelActions?.canOpen('browser') &&
+          (safeUrl?.protocol === 'http:' || safeUrl?.protocol === 'https:') &&
+          !/^http:\/\/file\//i.test(url)
+        ) {
+          topicBrowserRuntimeService.ensure(topicId, url)
+          if (topicBrowserRuntimeService.get(topicId) && panelActions.tryOpen('browser', { userInitiated: true })) {
+            if (panelState.maximized) panelActions.minimize()
+            if (topicBrowserRuntimeService.navigate(topicId, url)) return
+          }
+        }
+        return leafCapabilities.openExternalUrl?.(url)
+      },
       navigateToRoute,
       ...pickMessageHeaderActions(headerCapabilities),
       removeMessageErrorPart,
@@ -903,6 +929,10 @@ export function useHomeMessageListProviderValue({
       errorActions,
       headerCapabilities,
       leafCapabilities,
+      openChatLinksInRightPanel,
+      panelActions,
+      panelState,
+      topicId,
       navigateToRoute,
       loadOlder,
       locateMessage,

@@ -114,6 +114,12 @@ const AgentBrowserGuest = memo(function AgentBrowserGuest({
     (overlays: HTMLDivElement | null) => runtime.update(sessionId, { overlays }),
     [runtime, sessionId]
   )
+  useEffect(() => {
+    if (!resource?.guest || !resource.ready || !resource.pendingNavigation) return
+    const { guest, pendingNavigation } = resource
+    runtime.update(sessionId, { pendingNavigation: undefined })
+    void guest.loadURL(pendingNavigation.url).catch((error) => logger.debug('Browser navigation failed', { error }))
+  }, [resource, runtime, sessionId])
   if (!resource) return null
   const { sourceUrl, securityProfile, anchor } = resource
   const authorization = getGuestAuthorizationKey(securityProfile, sourceUrl)

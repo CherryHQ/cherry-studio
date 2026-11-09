@@ -116,9 +116,11 @@ vi.mock('../../../shell/RightPaneHost', () => ({
     maxWidth,
     minWidth,
     open,
-    onFullWidthPhaseChange
+    onFullWidthPhaseChange,
+    widthPreset
   }: PropsWithChildren<{
     cacheKey?: string
+    widthPreset?: string
     maximized?: boolean
     maxWidth?: number
     minWidth?: number
@@ -133,6 +135,7 @@ vi.mock('../../../shell/RightPaneHost', () => ({
       <div
         data-testid="right-pane-host"
         data-cache-key={cacheKey}
+        data-width-preset={widthPreset}
         data-maximized={String(Boolean(maximized))}
         data-max-width={maxWidth}
         data-min-width={minWidth}
@@ -627,11 +630,15 @@ describe('RightPanel', () => {
     )
 
     const host = screen.getByTestId('right-pane-host')
+    expect(host).toHaveAttribute('data-width-preset', 'inspector')
+    expect(host).toHaveAttribute('data-open', 'true')
     expect(host).toHaveAttribute('data-cache-key', INSPECTOR_POLICY.cacheKey)
     expect(host).not.toHaveAttribute('data-max-width')
 
     await user.click(screen.getByRole('button', { name: 'open second' }))
 
+    expect(host).toHaveAttribute('data-width-preset', 'navigation-list')
+    expect(host).toHaveAttribute('data-open', 'true')
     expect(host).toHaveAttribute('data-cache-key', LIST_POLICY.cacheKey)
     expect(host).toHaveAttribute('data-max-width', String(LIST_POLICY.maxWidth))
     expect(host).toHaveAttribute('data-min-width', String(LIST_POLICY.minWidth))
@@ -640,6 +647,25 @@ describe('RightPanel', () => {
 
     expect(host).toHaveAttribute('data-cache-key', INSPECTOR_POLICY.cacheKey)
     expect(host).not.toHaveAttribute('data-max-width')
+  })
+
+  it('forwards a changed browser preset without closing or remounting the pane', () => {
+    const browserCapabilities = [{ ...capabilities[0], widthPreset: 'browser' as const }, capabilities[1]]
+    const view = (browser: boolean) => (
+      <RightPanelProvider capabilities={browser ? browserCapabilities : capabilities} scope={readyScope} defaultOpen>
+        <RightPanelViewport>
+          <RightPanel />
+        </RightPanelViewport>
+      </RightPanelProvider>
+    )
+    const { rerender } = render(view(true))
+    const host = screen.getByTestId('right-pane-host')
+    expect(host).toHaveAttribute('data-width-preset', 'browser')
+    fireEvent.click(screen.getByRole('button', { name: 'first:0' }))
+    rerender(view(false))
+    expect(host).toHaveAttribute('data-width-preset', 'inspector')
+    expect(host).toHaveAttribute('data-open', 'true')
+    expect(screen.getByRole('button', { name: 'first:1' })).toBeInTheDocument()
   })
 
   it('rejects duplicate panel ids', () => {

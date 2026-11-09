@@ -26,8 +26,34 @@ const exportActionsMock = vi.hoisted(() => ({
 }))
 
 const leafCapabilitiesMock = vi.hoisted(() => ({
-  copyImage: vi.fn()
+  copyImage: vi.fn(),
+  openExternalUrl: vi.fn()
 }))
+
+const routeState = vi.hoisted(() => ({
+  enabled: false,
+  present: true,
+  canOpen: true,
+  accepted: true,
+  owner: true,
+  maximized: false
+}))
+const routeActions = vi.hoisted(() => ({
+  canOpen: vi.fn(() => routeState.canOpen),
+  tryOpen: vi.fn(() => routeState.accepted),
+  minimize: vi.fn()
+}))
+const runtimeMock = vi.hoisted(() => ({
+  ensure: vi.fn(),
+  get: vi.fn(() => (routeState.owner ? {} : undefined)),
+  navigate: vi.fn(() => true)
+}))
+vi.mock('@renderer/components/chat/panes/Shell', () => ({
+  useOptionalRightPanelActions: () => (routeState.present ? routeActions : undefined),
+  useOptionalRightPanelState: () =>
+    routeState.present ? { presentationEnabled: true, maximized: routeState.maximized } : undefined
+}))
+vi.mock('@renderer/services/AgentBrowserRuntimeService', () => ({ topicBrowserRuntimeService: runtimeMock }))
 
 const chatWriteMock = vi.hoisted(() => ({
   canStartNewContext: true,
@@ -92,6 +118,7 @@ vi.mock('@data/DataApiService', () => ({
 
 vi.mock('@data/hooks/usePreference', () => ({
   usePreference: (key: string) => {
+    if (key === 'app.browser.open_chat_links_in_right_panel') return [routeState.enabled, vi.fn()]
     if (key === 'chat.message.navigation_mode') return ['anchor', vi.fn()]
     if (key === 'chat.input.translate.target_language') return ['en-us', vi.fn()]
     if (key === 'chat.input.translate.show_confirm') return [false, vi.fn()]
@@ -355,6 +382,51 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
         }
       }
     })
+  })
+
+  it('routes eligible Chat links and delegates all declined activations once', () => {
+    Object.assign(routeState, {
+      enabled: true,
+      present: true,
+      canOpen: true,
+      accepted: true,
+      owner: true,
+      maximized: true
+    })
+    let value: MessageListProviderValue | undefined
+    const onValue = (next: MessageListProviderValue) => {
+      value = next
+    }
+    const view = render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={onValue} />)
+    const url = 'https://example.com/page'
+    act(() => {
+      void value?.actions.openExternalUrl?.(url)
+    })
+    expect(runtimeMock.ensure).toHaveBeenCalledWith('topic-a', url)
+    expect(runtimeMock.navigate).toHaveBeenCalledWith('topic-a', url)
+    expect(routeActions.tryOpen).toHaveBeenCalledWith('browser', { userInitiated: true })
+    expect(routeActions.minimize).toHaveBeenCalled()
+    expect(leafCapabilitiesMock.openExternalUrl).not.toHaveBeenCalled()
+    const fallback = (target: string, options?: { preserveDefaultRouting?: boolean }) => {
+      leafCapabilitiesMock.openExternalUrl.mockClear()
+      act(() => {
+        void value?.actions.openExternalUrl?.(target, options)
+      })
+      expect(leafCapabilitiesMock.openExternalUrl).toHaveBeenCalledExactlyOnceWith(target)
+    }
+    for (const target of ['mailto:a@example.com', '#anchor', '/app/chat', 'http://file/attachment']) fallback(target)
+    fallback(url, { preserveDefaultRouting: true })
+    for (const change of [{ enabled: false }, { present: false }, { owner: false }, { accepted: false }]) {
+      Object.assign(routeState, { enabled: true, present: true, owner: true, accepted: true }, change)
+      view.rerender(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={onValue} />)
+      fallback(url)
+    }
+    Object.assign(routeState, { enabled: true, present: true, owner: true, accepted: true })
+    view.rerender(
+      <MessageListAdapterHarness topic={createTopic('topic-a')} imageActionConsumer="capture" onValue={onValue} />
+    )
+    fallback(url)
+    routeState.enabled = false
   })
 
   it('exposes generated image reference actions only to normal message interactions', () => {

@@ -141,6 +141,7 @@ export type UseCacheSchema = {
   // Detached Chat/Agent windows keep pane state within their renderer process. These values are
   // seeded from the matching persisted preference but never sync back to the main window.
   'ui.window.chat.sidebar.width': number
+  'ui.window.chat.browser_pane.width': number | null
   'ui.window.chat.artifact_pane.width': number
   'ui.window.chat.resource_pane.width': number
   'ui.window.chat.right_pane_open_override': boolean | null
@@ -239,6 +240,7 @@ export const DefaultUseCache: UseCacheSchema = {
   },
   'chat.scroll_anchor.${topicId}': null,
   'ui.window.chat.sidebar.width': 275,
+  'ui.window.chat.browser_pane.width': null,
   'ui.window.chat.artifact_pane.width': 460,
   'ui.window.chat.resource_pane.width': 275,
   'ui.window.chat.right_pane_open_override': null,
@@ -451,6 +453,8 @@ export type RendererPersistCacheSchema = {
   'ui.sidebar.width': number
   'ui.chat.sidebar.width': number
   'ui.chat.artifact_pane.width': number
+  // A null browser width uses the current shell width until the user resizes the pane.
+  'ui.chat.browser_pane.width': number | null
   // Right-pane width for the topic/session list tab. Separate from the artifact pane's key so a
   // width dragged for an artifact never widens the list (and vice versa).
   'ui.chat.resource_pane.width': number
@@ -527,6 +531,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.sidebar.docked_tabs': [],
   'ui.sidebar.width': 50, // keep in sync with SIDEBAR_ICON_WIDTH (renderer Sidebar/constants.ts)
   'ui.chat.sidebar.width': 275,
+  'ui.chat.browser_pane.width': null,
   'ui.chat.artifact_pane.width': 280,
   'ui.chat.resource_pane.width': 275, // keep in sync with 'ui.chat.sidebar.width'
   'ui.composer.input_history': [],

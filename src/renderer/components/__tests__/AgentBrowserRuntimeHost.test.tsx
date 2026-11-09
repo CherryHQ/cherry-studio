@@ -118,6 +118,23 @@ describe('AgentBrowserRuntimeHost', () => {
     vi.unstubAllGlobals()
   })
 
+  it('delivers a pending repeated link once the existing guest becomes ready', async () => {
+    const loadURL = vi.fn().mockResolvedValue(undefined)
+    Object.assign(HTMLElement.prototype, { isLoading: () => true, loadURL })
+    const url = 'https://example.com/'
+    runtime.ensure('session-a', url)
+    expect(runtime.navigate('session-a', url)).toBe(true)
+    const view = render(<AgentBrowserRuntimeHost />)
+    const guest = await view.findByTestId('webview-browser-guest')
+    expect(loadURL).not.toHaveBeenCalled()
+    act(() => {
+      guest.dispatchEvent(new Event('dom-ready'))
+    })
+    await waitFor(() => expect(loadURL).toHaveBeenCalledExactlyOnceWith(url))
+    expect(runtime.get('session-a')?.pendingNavigation).toBeUndefined()
+    Reflect.deleteProperty(HTMLElement.prototype, 'loadURL')
+  })
+
   it.each([
     { type: 'route', url: '/app/chat' },
     { type: 'route', url: '/app/chat?topicId=topic-b' },

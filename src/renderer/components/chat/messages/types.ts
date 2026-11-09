@@ -404,7 +404,7 @@ export interface MessageListActions {
   isAgentToolFlowActive?: (toolCallId: string) => boolean
   openAgentToolFlow?: (input: OpenAgentToolFlowInput) => void
   openBrowserUrl?: (url: string) => void
-  openExternalUrl?: (url: string) => void | Promise<void>
+  openExternalUrl?: (url: string, options?: { preserveDefaultRouting?: boolean }) => void | Promise<void>
   navigateToRoute?: (target: { path: string; query?: Record<string, string> }) => void | Promise<void>
   openUserProfile?: () => void | Promise<void>
   copyText?: (text: string, options?: { successMessage?: string; emptyMessage?: string }) => void | Promise<void>

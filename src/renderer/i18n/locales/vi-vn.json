@@ -4032,6 +4032,8 @@
   "settings.browser.names.opera": "Opera",
   "settings.browser.names.vivaldi": "Vivaldi",
   "settings.browser.noResults": "Không có trang phù hợp. Hãy thử tìm kiếm khác.",
+  "settings.browser.openChatLinks": "Mở liên kết trò chuyện trong bảng bên phải",
+  "settings.browser.openChatLinksHelp": "Mở liên kết từ tin nhắn trò chuyện trong trình duyệt của chủ đề. Tắt tùy chọn này để khôi phục cách mở liên kết thông thường.",
   "settings.browser.openLinks": "Mở liên kết web bằng trình duyệt tích hợp",
   "settings.browser.openLinksHelp": "Mở liên kết trong các thẻ trình duyệt dùng chung dữ liệu trang web của bạn.",
   "settings.browser.profile": "Hồ sơ",

@@ -15,7 +15,7 @@ import {
 import { PersistentRightPaneHost, RightPaneHost } from '../RightPaneHost'
 
 const persistCacheMock = vi.hoisted(() => {
-  const state = { width: 280, byKey: {} as Record<string, number>, windowByKey: {} as Record<string, number> }
+  const state = { width: 280, byKey: {} as Record<string, number | null>, windowByKey: {} as Record<string, number> }
 
   return {
     state,
@@ -54,7 +54,7 @@ vi.mock('@data/hooks/useCache', () => ({
     (width: number) => persistCacheMock.setWindowByKey(key, width)
   ]),
   usePersistCache: vi.fn((key: string) => [
-    persistCacheMock.state.byKey[key] ?? persistCacheMock.state.width,
+    key in persistCacheMock.state.byKey ? persistCacheMock.state.byKey[key] : persistCacheMock.state.width,
     (width: number) => {
       persistCacheMock.setByKey(key, width)
       persistCacheMock.setWidth(width)
@@ -468,6 +468,43 @@ describe('RightPaneHost', () => {
     fireEvent.keyDown(handle, { key: 'End' })
 
     expect(persistCacheMock.setByKey).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [1200, 400],
+    [1500, 500]
+  ])('sizes an unresized browser from a %i px shell', (shellWidth, expected) => {
+    installTargetTrackingResizeObserver()
+    persistCacheMock.state.byKey['ui.chat.browser_pane.width'] = null
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      return new DOMRect(0, 0, this.hasAttribute('data-chat-app-shell-root') ? shellWidth : 0, 500)
+    })
+    const { container } = render(
+      <div data-chat-app-shell-root>
+        <PersistentRightPaneHost open resizable widthPreset="browser" cacheKey="ui.chat.browser_pane.width">
+          browser
+        </PersistentRightPaneHost>
+      </div>
+    )
+    expect(container.querySelector('[data-right-pane-resize-handle]')).toHaveAttribute(
+      'aria-valuenow',
+      String(expected)
+    )
+    expect(persistCacheMock.setByKey).not.toHaveBeenCalled()
+  })
+
+  it('uses a saved browser width instead of the shell ratio', () => {
+    installTargetTrackingResizeObserver()
+    persistCacheMock.state.byKey['ui.chat.browser_pane.width'] = 620
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 1200, 500))
+    const { container } = render(
+      <div data-chat-app-shell-root>
+        <PersistentRightPaneHost open resizable widthPreset="browser" cacheKey="ui.chat.browser_pane.width">
+          browser
+        </PersistentRightPaneHost>
+      </div>
+    )
+    expect(container.querySelector('[data-right-pane-resize-handle]')).toHaveAttribute('aria-valuenow', '620')
   })
 
   it('limits the splitter maximum and End key to the currently reachable width', () => {
