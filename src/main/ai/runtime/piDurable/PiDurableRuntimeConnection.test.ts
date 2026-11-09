@@ -1183,6 +1183,80 @@ describe('desktop Pi Durable connection', () => {
     }
   )
 
+  // Catches a continuation saved ahead of child output that the projection has received but not yet written.
+  it.each(['acknowledged', 'rejected'] as const)(
+    'keeps a %s continuation after child output that is still pending its archive write',
+    async (outcome) => {
+      const held = gate()
+      let root = ''
+      let childRuns = 0
+      script = respondingModel((call) => {
+        root ||= call.sessionId!
+        if (call.sessionId !== root) {
+          childRuns++
+          return childRuns === 1
+            ? held.wait(assistantReply('child first answer'))
+            : assistantReply('child continued answer')
+        }
+        if (!call.messages.some((entry) => entry.role === 'toolResult'))
+          return assistantReply(
+            [
+              toolCallPart('spawn', 'subagent', {
+                description: 'research',
+                prompt: 'child work',
+                background: true,
+                fork: false
+              })
+            ],
+            'toolUse'
+          )
+        return assistantReply('parent done')
+      })
+      const { connection, events } = await connect()
+      await connection.send({ message: message('delegate') })
+      await held.reached
+      await done(events)
+      const view = (await connection.childProjection('spawn'))!
+      const contextId = view.snapshot().contextId
+      const [child] = await connection['childResources']()
+      if (outcome === 'rejected')
+        vi.spyOn(child.handle.input, 'submit').mockImplementationOnce(async (draft) => ({
+          status: 'rejected',
+          inputId: draft.inputId,
+          error: { operation: 'submit', code: 'busy', message: 'child is busy' }
+        }))
+      const order = (messages: readonly { parts: readonly { type: string; text?: string }[] }[]) => {
+        const texts = messages.flatMap((entry) =>
+          entry.parts.flatMap((part) => (part.type === 'text' ? [part.text] : []))
+        )
+        return { answer: texts.indexOf('child first answer'), steer: texts.indexOf('steer now') }
+      }
+      const inverted: unknown[] = []
+      view.subscribe(() => {
+        const { answer, steer } = order(view.snapshot().messages)
+        if (steer >= 0 && steer < answer) inverted.push(view.snapshot().messages)
+      })
+      let steering: Promise<string> | undefined
+      await child.handle.observe(async (event) => {
+        if (!steering && event.type === 'snapshot' && JSON.stringify(event.messages).includes('child first answer'))
+          steering = connection.messageChild(contextId, 'steer now').then(
+            () => 'sent',
+            (error: Error) => error.message
+          )
+      })
+      held.open()
+      await expect.poll(() => steering !== undefined).toBe(true)
+      expect(await steering).toBe(outcome === 'rejected' ? 'child is busy' : 'sent')
+      if (outcome === 'acknowledged')
+        await expect.poll(() => JSON.stringify(view.snapshot().messages)).toContain('child continued answer')
+      await connection.drainChildWrites()
+      const saved = order(savedChildView(contexts.context(contextId)).messages)
+      expect(saved.answer).toBeGreaterThanOrEqual(0)
+      expect(saved.steer).toBeGreaterThan(saved.answer)
+      expect(inverted).toEqual([])
+    }
+  )
+
   // Catches releasing a reply between result delivery and the parent notification generation.
   it('keeps spawn and continuation results pending through native notification revisions', async () => {
     const childGates = [gate(), gate()]
