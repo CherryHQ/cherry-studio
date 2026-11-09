@@ -33,6 +33,9 @@ interface SessionItemProps {
   active?: boolean
   channelType?: string
   onDelete: (id: string) => void | Promise<void>
+  onDeletePermanently?: (id: string) => void | Promise<void>
+  permanentDeleteShortcut?: string
+  isDeleting?: boolean
   onOpenInNewTab?: (session: AgentSessionEntity) => void
   onOpenInNewWindow?: (session: AgentSessionEntity) => void
   onOpenRenameDialog: (session: AgentSessionEntity) => void
@@ -71,6 +74,9 @@ const SessionItem = ({
   active = false,
   channelType,
   onDelete,
+  onDeletePermanently,
+  permanentDeleteShortcut,
+  isDeleting = false,
   onOpenInNewTab,
   onOpenInNewWindow,
   onOpenRenameDialog,
@@ -146,12 +152,16 @@ const SessionItem = ({
         : !isActive && isStreamFulfilled
           ? 'done'
           : null
-  const hasStreamIndicator = conversationRowStatus !== null && conversationRowStatus !== 'approval'
+  const showStreamIndicator = !shortcutHint && conversationRowStatus !== null && conversationRowStatus !== 'approval'
   const showPinAction = !rowState.renaming && !!onTogglePin
   const showLeadingSlot = reserveLeadingIconSlot || !!channelIcon
   const startInlineEdit = useCallback(() => actions.startRename(session.id), [actions, session.id])
   const startMenuEdit = useCallback(() => onOpenRenameDialog(session), [onOpenRenameDialog, session])
   const handleDelete = useCallback(() => onDelete(session.id), [onDelete, session.id])
+  const handleDeletePermanently = useMemo(
+    () => (onDeletePermanently ? () => onDeletePermanently(session.id) : undefined),
+    [onDeletePermanently, session.id]
+  )
   const handleTogglePin = useCallback(() => {
     void onTogglePin?.(session.id)
   }, [onTogglePin, session.id])
@@ -175,6 +185,9 @@ const SessionItem = ({
       onCopyMarkdown: () => sessionMenuActions.onCopyMarkdown(session),
       onCopyPlainText: () => sessionMenuActions.onCopyPlainText(session),
       onDelete: handleDelete,
+      onDeletePermanently: handleDeletePermanently,
+      permanentDeleteShortcut,
+      isDeleting,
       isBusy: isStreamPending || showAwaitingApprovalBadge,
       onExportImage: () => sessionMenuActions.onExportImage(session),
       onExportJoplin: () => sessionMenuActions.onExportJoplin(session),
@@ -201,6 +214,9 @@ const SessionItem = ({
     }),
     [
       handleDelete,
+      handleDeletePermanently,
+      permanentDeleteShortcut,
+      isDeleting,
       isStreamPending,
       showAwaitingApprovalBadge,
       handleOpenInNewTab,
@@ -305,7 +321,7 @@ const SessionItem = ({
               // overlay fades out, the standing yield closes, and the in-flow action rail expands. The
               // awaiting-approval pill (mutually exclusive with the overlay) is an
               // in-flow sibling the title simply fades against — no standing margin.
-              hasStreamIndicator && CONVERSATION_ROW_STATUS_TITLE_CLASS
+              showStreamIndicator && CONVERSATION_ROW_STATUS_TITLE_CLASS
             )}
             onDoubleClick={(event) => {
               event.stopPropagation()
@@ -316,7 +332,7 @@ const SessionItem = ({
         </SessionHoverPreview>
       )}
 
-      {!rowState.renaming && (
+      {!rowState.renaming && (showStreamIndicator || showAwaitingApprovalBadge) && (
         <ConversationRowStatus
           status={conversationRowStatus}
           testId={
@@ -330,7 +346,7 @@ const SessionItem = ({
       {!rowState.renaming && shortcutHint && (
         <Kbd className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-muted-foreground">{shortcutHint}</Kbd>
       )}
-      <ResourceList.ItemActions pinned={pinned && showPinAction}>
+      <ResourceList.ItemActions>
         {showPinAction && (
           <Tooltip title={pinned ? t('agent.session.unpin.title') : t('agent.session.pin.title')} delay={500}>
             <ResourceList.ItemAction
@@ -342,19 +358,17 @@ const SessionItem = ({
             </ResourceList.ItemAction>
           </Tooltip>
         )}
-        {!pinned && (
-          <Tooltip title={t('common.archive')} delay={500}>
-            <ResourceList.ItemAction
-              aria-label={t('common.archive')}
-              disabled={!deleteAction?.availability.enabled}
-              onClick={(event) => {
-                event.stopPropagation()
-                if (deleteAction) void handleMenuAction(deleteAction)
-              }}>
-              <Archive size={14} className="size-3.5!" />
-            </ResourceList.ItemAction>
-          </Tooltip>
-        )}
+        <Tooltip title={t('common.archive')} delay={500}>
+          <ResourceList.ItemAction
+            aria-label={t('common.archive')}
+            disabled={!deleteAction?.availability.enabled}
+            onClick={(event) => {
+              event.stopPropagation()
+              if (deleteAction) void handleMenuAction(deleteAction)
+            }}>
+            <Archive size={14} className="size-3.5!" />
+          </ResourceList.ItemAction>
+        </Tooltip>
       </ResourceList.ItemActions>
     </ResourceList.Item>
   )

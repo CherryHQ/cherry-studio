@@ -130,8 +130,10 @@ describe('MessageHeader', () => {
     expect(getByText('Goal round 2')).toBeTruthy()
   })
 
-  it('renders no origin badge for a prompted assistant turn', () => {
-    const { queryByText } = render(<MessageHeader message={createMessage('assistant')} />)
+  it('renders no badge for a background continuation', () => {
+    const { queryByText } = render(
+      <MessageHeader message={createMessage('assistant', { turnOrigin: { kind: 'background-work' } })} />
+    )
     expect(queryByText(/Goal round/)).toBeNull()
     expect(queryByText('agent.session_turn_origin.background_work')).toBeNull()
   })

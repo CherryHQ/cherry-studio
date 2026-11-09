@@ -50,6 +50,10 @@ is unknown. A native compact threshold is never substituted for the full window.
 resources are estimates; partial coverage and missing reserve/free counts remain explicit.
 Root stream input usage is marked `last-request` and excludes output and cumulative billing.
 Child controls are unsupported because the SDK exposes no child-scoped context report.
+Stream deltas keep the active response model's identity; an unknown window stays unknown
+instead of inheriting the configured model's capacity. Successful and failed context reads
+publish their current result to existing observers and future snapshots. A read superseded
+by a newer read, model change, reset or shutdown cannot overwrite that newer state.
 
 ## Input and control
 
@@ -88,11 +92,15 @@ delivery of paired batches. Baseline and recovery are internal delivery modes; a
 retractions and live provenance are captured together. Batch state exposes captured `aborted`;
 `claude.state()` exposes current `active`. Background occupancy stays in private control state. Initial baseline includes current background
 occupancy and pending result origins without replaying historical completion or charges.
-`background-results` tracks child-agent runs by native run ID and current triggering tool-use ID;
+`background-results` tracks child-agent runs and received shell-completion notifications by native
+run ID and current triggering tool-use ID;
 a continuation does not reuse its creation call. Task notifications associate autonomous generation
 with those calls. Empty membership alone does not drain a result: its notification, parent answer
-and native idle barrier must finish. Resident commands retain occupancy without becoming pending
-child-agent results. Overflow recovery retains unseen control
+and native idle barrier must finish. Running shell commands retain occupancy without holding a
+product reply open; their completion notifications retain the root Bash call's identity. Nested
+shell calls and ambient notifications do not become root reply results. Main reuses an existing
+assistant message for background generation instead of creating a standalone continuation message.
+Overflow recovery retains unseen control
 and invocation facts after their matching body; an unrecoverable backlog reports a gap and closes.
 Slow or failing consumers cannot block native execution. After stopping production, hosts await
 `Observation.drain()` before final archive persistence, then detach and release. `runtime.settled()`
@@ -115,6 +123,12 @@ the adapter validates this field, omitted from the pinned SDK status declaration
 `ClaudeControlState` owns native lifecycle, task receipts, autonomous work and compaction semantics.
 Control payloads reuse SDK message types; only interpreted state, task/tool correlation and observation
 timestamps are adapter-owned fields. Main maps native payloads to product labels and display fields.
+The adapter exposes `isApiErrorMessage: true` on typed native evidence only when
+proved by a live SDK rejection or the matching archived assistant UUID's native
+boolean marker. The SDK's normalized history omits that marker, so recovery reads
+it from the already imported raw native records. Baseline and overflow recovery
+retain the fact. Main owns rejection wording; ordinary text quoting an API error
+is not rejection evidence.
 `ClaudeInvocations` aggregates SDK usage by native response identity before fanout, retaining SDK
 usage fields and types. A task notification finalizes only the completed response on its
 `tool_use_id` lane; a task update without that correlation cannot finalize an invocation.

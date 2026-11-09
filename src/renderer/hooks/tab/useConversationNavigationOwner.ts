@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 
 import { loggerService } from '@logger'
+import { cacheService } from '@renderer/data/CacheService'
 import { clearConversationLocate, requestConversationLocate } from '@renderer/hooks/useConversationLocateRequest'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { handOffAgentDraft } from '@renderer/services/agentDraftHandoff'
@@ -105,7 +106,10 @@ export function useConversationNavigationOwner({
   useEffect(() => {
     const tabIds = new Set(tabs.map((tab) => tab.id))
     for (const id of previousTabIdsRef.current) {
-      if (!tabIds.has(id)) clearConversationLocate(id)
+      if (!tabIds.has(id)) {
+        clearConversationLocate(id)
+        cacheService.deleteCasual(`scheduled-task.conversation.${id}`)
+      }
     }
     previousTabIdsRef.current = tabIds
   }, [tabs])
@@ -116,7 +120,10 @@ export function useConversationNavigationOwner({
         for (const requestId of pending.requestIds) reportOwnership(requestId, false)
       }
       pendingNavigationsRef.current.clear()
-      for (const id of previousTabIdsRef.current) clearConversationLocate(id)
+      for (const id of previousTabIdsRef.current) {
+        clearConversationLocate(id)
+        cacheService.deleteCasual(`scheduled-task.conversation.${id}`)
+      }
     },
     []
   )
